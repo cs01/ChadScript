@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Build outputs
+dist/
+*.o
+*.ll
+
+# Executables (compiled binaries from examples and tests)
+examples/add
+examples/multiply
+tests/fixtures/*
+!tests/fixtures/*.js
+
+# TypeScript
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+.crush

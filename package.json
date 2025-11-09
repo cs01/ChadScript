@@ -1,0 +1,30 @@
+{
+  "name": "chadscript",
+  "version": "0.1.0",
+  "description": "A JavaScript to native code compiler using LLVM",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "chadscript": "./dist/index.js"
+  },
+  "scripts": {
+    "compile": "tsx src/index.ts",
+    "build": "tsc",
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "test:verbose": "node --import tsx --test --test-reporter=spec tests/**/*.test.ts"
+  },
+  "keywords": [
+    "compiler",
+    "llvm",
+    "javascript",
+    "native"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.0.0"
+  }
+}
