@@ -9,6 +9,10 @@ export class ArrayGenerator extends BaseGenerator {
   // Generate delegate for expressions (set by LLVMGenerator)
   generateExpression!: (expr: Expression, params: string[]) => string;
 
+  constructor() {
+    super();
+  }
+
   generateArrayLiteral(expr: Expression, params: string[]): string {
     if (expr.type !== 'array') {
       throw new Error('Expected array literal');
@@ -16,42 +20,84 @@ export class ArrayGenerator extends BaseGenerator {
 
     const length = expr.elements.length;
 
-    // Allocate array struct on stack
-    const arrayPtr = this.nextTemp();
-    this.emit(`${arrayPtr} = alloca %Array`);
+    // Determine if this is a string array (all elements are strings)
+    const isStringArray = length > 0 && expr.elements.every(elem => elem.type === 'string');
 
-    // Allocate data array on heap (i32* with length elements)
-    const dataSize = this.nextTemp();
-    this.emit(`${dataSize} = mul i64 ${length}, 4`); // 4 bytes per i32
-    const dataMem = this.nextTemp();
-    this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSize})`);
-    const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i32*`);
+    if (isStringArray) {
+      // Generate string array
+      const arrayPtr = this.nextTemp();
+      this.emit(`${arrayPtr} = alloca %StringArray`);
 
-    // Store each element
-    for (let i = 0; i < expr.elements.length; i++) {
-      const elemValue = this.generateExpression(expr.elements[i], params);
-      const elemPtr = this.nextTemp();
-      this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${i}`);
-      this.emit(`store i32 ${elemValue}, i32* ${elemPtr}`);
+      // Allocate data array on heap (i8** with length elements)
+      const dataSize = this.nextTemp();
+      this.emit(`${dataSize} = mul i64 ${length}, 8`); // 8 bytes per i8*
+      const dataMem = this.nextTemp();
+      this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSize})`);
+      const dataPtr = this.nextTemp();
+      this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
+
+      // Store each string element
+      for (let i = 0; i < expr.elements.length; i++) {
+        const elemValue = this.generateExpression(expr.elements[i], params);
+        const elemPtr = this.nextTemp();
+        this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
+        this.emit(`store i8* ${elemValue}, i8** ${elemPtr}`);
+      }
+
+      // Store data pointer in array struct (field 0)
+      const dataPtrField = this.nextTemp();
+      this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+      this.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
+
+      // Store length in array struct (field 1)
+      const lenField = this.nextTemp();
+      this.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+      this.emit(`store i32 ${length}, i32* ${lenField}`);
+
+      // Store capacity in array struct (field 2)
+      const capField = this.nextTemp();
+      this.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+      this.emit(`store i32 ${length}, i32* ${capField}`);
+
+      return arrayPtr;
+    } else {
+      // Generate numeric array
+      const arrayPtr = this.nextTemp();
+      this.emit(`${arrayPtr} = alloca %Array`);
+
+      // Allocate data array on heap (i32* with length elements)
+      const dataSize = this.nextTemp();
+      this.emit(`${dataSize} = mul i64 ${length}, 4`); // 4 bytes per i32
+      const dataMem = this.nextTemp();
+      this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSize})`);
+      const dataPtr = this.nextTemp();
+      this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i32*`);
+
+      // Store each element
+      for (let i = 0; i < expr.elements.length; i++) {
+        const elemValue = this.generateExpression(expr.elements[i], params);
+        const elemPtr = this.nextTemp();
+        this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${i}`);
+        this.emit(`store i32 ${elemValue}, i32* ${elemPtr}`);
+      }
+
+      // Store data pointer in array struct (field 0)
+      const dataPtrField = this.nextTemp();
+      this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+      this.emit(`store i32* ${dataPtr}, i32** ${dataPtrField}`);
+
+      // Store length in array struct (field 1)
+      const lenField = this.nextTemp();
+      this.emit(`${lenField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+      this.emit(`store i32 ${length}, i32* ${lenField}`);
+
+      // Store capacity in array struct (field 2)
+      const capField = this.nextTemp();
+      this.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
+      this.emit(`store i32 ${length}, i32* ${capField}`);
+
+      return arrayPtr;
     }
-
-    // Store data pointer in array struct (field 0)
-    const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-    this.emit(`store i32* ${dataPtr}, i32** ${dataPtrField}`);
-
-    // Store length in array struct (field 1)
-    const lenField = this.nextTemp();
-    this.emit(`${lenField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
-    this.emit(`store i32 ${length}, i32* ${lenField}`);
-
-    // Store capacity in array struct (field 2)
-    const capField = this.nextTemp();
-    this.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
-    this.emit(`store i32 ${length}, i32* ${capField}`);
-
-    return arrayPtr;
   }
 
   generateArrayPush(expr: MethodCallNode, params: string[]): string {
@@ -157,10 +203,16 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Get the function name from the argument
     const predicateArg = expr.args[0];
-    if (predicateArg.type !== 'variable') {
-      throw new Error('find() argument must be a function name (variable reference)');
+    let predicateFn: string;
+
+    if (predicateArg.type === 'variable') {
+      predicateFn = predicateArg.name;
+    } else if ((predicateArg as any).type === 'arrow_function') {
+      // Inline function - generate it and get the name
+      predicateFn = this.generateExpression(predicateArg, params);
+    } else {
+      throw new Error('find() argument must be a function name or inline function');
     }
-    const predicateFn = predicateArg.name;
 
     const arrayPtr = this.generateExpression(expr.object, params);
 
@@ -247,10 +299,16 @@ export class ArrayGenerator extends BaseGenerator {
     }
 
     const predicateArg = expr.args[0];
-    if (predicateArg.type !== 'variable') {
-      throw new Error('some() argument must be a function name (variable reference)');
+    let predicateFn: string;
+
+    if (predicateArg.type === 'variable') {
+      predicateFn = predicateArg.name;
+    } else if ((predicateArg as any).type === 'arrow_function') {
+      // Inline function - generate it and get the name
+      predicateFn = this.generateExpression(predicateArg, params);
+    } else {
+      throw new Error('some() argument must be a function name or inline function');
     }
-    const predicateFn = predicateArg.name;
 
     const arrayPtr = this.generateExpression(expr.object, params);
 
@@ -337,10 +395,16 @@ export class ArrayGenerator extends BaseGenerator {
     }
 
     const predicateArg = expr.args[0];
-    if (predicateArg.type !== 'variable') {
-      throw new Error('filter() argument must be a function name (variable reference)');
+    let predicateFn: string;
+
+    if (predicateArg.type === 'variable') {
+      predicateFn = predicateArg.name;
+    } else if ((predicateArg as any).type === 'arrow_function') {
+      // Inline function - generate it and get the name
+      predicateFn = this.generateExpression(predicateArg, params);
+    } else {
+      throw new Error('filter() argument must be a function name or inline function');
     }
-    const predicateFn = predicateArg.name;
 
     const arrayPtr = this.generateExpression(expr.object, params);
 
@@ -458,10 +522,16 @@ export class ArrayGenerator extends BaseGenerator {
     }
 
     const callbackArg = expr.args[0];
-    if (callbackArg.type !== 'variable') {
-      throw new Error('forEach() argument must be a function name (variable reference)');
+    let callbackFn: string;
+
+    if (callbackArg.type === 'variable') {
+      callbackFn = callbackArg.name;
+    } else if ((callbackArg as any).type === 'arrow_function') {
+      // Inline function - generate it and get the name
+      callbackFn = this.generateExpression(callbackArg, params);
+    } else {
+      throw new Error('forEach() argument must be a function name or inline function');
     }
-    const callbackFn = callbackArg.name;
 
     const arrayPtr = this.generateExpression(expr.object, params);
 
@@ -523,9 +593,113 @@ export class ArrayGenerator extends BaseGenerator {
   }
 
   generateArrayMap(expr: MethodCallNode, params: string[]): string {
-    // For now, we'll implement a simple version that doesn't support callback functions
-    // This is a placeholder that will need proper function pointer support
-    throw new Error('map() method requires function pointer support (not yet implemented)');
+    // arr.map(callbackFn) - returns new array with transformed elements
+    if (expr.args.length !== 1) {
+      throw new Error('map() requires exactly 1 argument (callback function)');
+    }
+
+    const callbackArg = expr.args[0];
+    let callbackFn: string;
+
+    if (callbackArg.type === 'variable') {
+      callbackFn = callbackArg.name;
+    } else if ((callbackArg as any).type === 'arrow_function') {
+      // Inline function - generate it and get the name
+      callbackFn = this.generateExpression(callbackArg, params);
+    } else {
+      throw new Error('map() argument must be a function name or inline function');
+    }
+
+    const arrayPtr = this.generateExpression(expr.object, params);
+
+    // Load array length
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.nextTemp();
+    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+
+    // Load data pointer
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField}`);
+
+    // Create result array with same length
+    const resultArrayPtr = this.nextTemp();
+    this.emit(`${resultArrayPtr} = alloca %Array`);
+
+    // Allocate data for result array
+    const resultSize = this.nextTemp();
+    this.emit(`${resultSize} = mul i32 ${length}, 4`);
+    const resultSizeI64 = this.nextTemp();
+    this.emit(`${resultSizeI64} = zext i32 ${resultSize} to i64`);
+    const resultMem = this.nextTemp();
+    this.emit(`${resultMem} = call i8* @malloc(i64 ${resultSizeI64})`);
+    const resultDataPtr = this.nextTemp();
+    this.emit(`${resultDataPtr} = bitcast i8* ${resultMem} to i32*`);
+
+    // Store data pointer in result array struct
+    const resultDataPtrField = this.nextTemp();
+    this.emit(`${resultDataPtrField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 0`);
+    this.emit(`store i32* ${resultDataPtr}, i32** ${resultDataPtrField}`);
+
+    // Store length in result array struct
+    const resultLenField = this.nextTemp();
+    this.emit(`${resultLenField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 1`);
+    this.emit(`store i32 ${length}, i32* ${resultLenField}`);
+
+    // Store capacity in result array struct
+    const resultCapField = this.nextTemp();
+    this.emit(`${resultCapField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 2`);
+    this.emit(`store i32 ${length}, i32* ${resultCapField}`);
+
+    // Loop setup
+    const counterPtr = this.nextTemp();
+    this.emit(`${counterPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${counterPtr}`);
+
+    const loopLabel = this.nextLabel('map_loop');
+    const checkLabel = this.nextLabel('map_check');
+    const bodyLabel = this.nextLabel('map_body');
+    const endLabel = this.nextLabel('map_end');
+
+    this.emit(`br label %${checkLabel}`);
+
+    // Check condition
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    // Loop body
+    this.emit(`${bodyLabel}:`);
+
+    // Load element
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load i32, i32* ${elemPtr}`);
+
+    // Call callback function with element
+    const result = this.nextTemp();
+    this.emit(`${result} = call i32 @${callbackFn}(i32 ${elem})`);
+
+    // Store result in result array
+    const resultElemPtr = this.nextTemp();
+    this.emit(`${resultElemPtr} = getelementptr inbounds i32, i32* ${resultDataPtr}, i32 ${counter}`);
+    this.emit(`store i32 ${result}, i32* ${resultElemPtr}`);
+
+    // Continue loop
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
+    // End
+    this.emit(`${endLabel}:`);
+    return resultArrayPtr;
   }
 
   generateArrayJoin(expr: MethodCallNode, params: string[]): string {

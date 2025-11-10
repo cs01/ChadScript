@@ -16,6 +16,10 @@ export class MapGenerator extends BaseGenerator {
   // Generate delegate for expressions (set by LLVMGenerator)
   generateExpression!: (expr: Expression, params: string[]) => string;
 
+  constructor() {
+    super();
+  }
+
   generateMapLiteral(expr: Expression, params: string[]): string {
     const mapExpr = expr as any;
     if (mapExpr.type !== 'map') {
@@ -27,7 +31,7 @@ export class MapGenerator extends BaseGenerator {
     this.emit(`${mapPtr} = alloca %Map`);
 
     // Initialize with empty arrays
-    const initialCapacity = Math.max(4, mapExpr.entries.length);
+    const initialCapacity = mapExpr.entries.length > 4 ? mapExpr.entries.length : 4;
 
     // Allocate keys array
     const keysSize = this.nextTemp();
@@ -168,10 +172,10 @@ export class MapGenerator extends BaseGenerator {
     this.emit(`store i32 0, i32* ${resultReg}`); // Default to 0
 
     // Generate loop to search for key
-    const loopLabel = this.nextLabel();
-    const bodyLabel = this.nextLabel();
-    const foundLabel = this.nextLabel();
-    const endLabel = this.nextLabel();
+    const loopLabel = this.nextLabel('map_has_loop');
+    const bodyLabel = this.nextLabel('map_has_body');
+    const foundLabel = this.nextLabel('map_has_found');
+    const endLabel = this.nextLabel('map_has_end');
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -243,10 +247,10 @@ export class MapGenerator extends BaseGenerator {
     this.emit(`${resultReg} = alloca i32`);
     this.emit(`store i32 0, i32* ${resultReg}`);
 
-    const loopLabel = this.nextLabel();
-    const bodyLabel = this.nextLabel();
-    const foundLabel = this.nextLabel();
-    const endLabel = this.nextLabel();
+    const loopLabel = this.nextLabel('map_get_loop');
+    const bodyLabel = this.nextLabel('map_get_body');
+    const foundLabel = this.nextLabel('map_get_found');
+    const endLabel = this.nextLabel('map_get_end');
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);

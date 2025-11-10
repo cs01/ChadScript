@@ -15,6 +15,10 @@ export class SetGenerator extends BaseGenerator {
   // Generate delegate for expressions (set by LLVMGenerator)
   generateExpression!: (expr: Expression, params: string[]) => string;
 
+  constructor() {
+    super();
+  }
+
   generateSetLiteral(expr: Expression, params: string[]): string {
     const setExpr = expr as any;
     if (setExpr.type !== 'set') {
@@ -26,7 +30,7 @@ export class SetGenerator extends BaseGenerator {
     this.emit(`${setPtr} = alloca %Set`);
 
     // Initialize with empty array
-    const initialCapacity = Math.max(4, setExpr.values.length);
+    const initialCapacity = setExpr.values.length > 4 ? setExpr.values.length : 4;
 
     // Allocate values array
     const valuesSize = this.nextTemp();
@@ -150,10 +154,10 @@ export class SetGenerator extends BaseGenerator {
     this.emit(`${resultReg} = alloca i32`);
     this.emit(`store i32 0, i32* ${resultReg}`);
 
-    const loopLabel = this.nextLabel();
-    const bodyLabel = this.nextLabel();
-    const foundLabel = this.nextLabel();
-    const endLabel = this.nextLabel();
+    const loopLabel = this.nextLabel('set_has_loop');
+    const bodyLabel = this.nextLabel('set_has_body');
+    const foundLabel = this.nextLabel('set_has_found');
+    const endLabel = this.nextLabel('set_has_end');
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);

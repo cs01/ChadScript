@@ -12,6 +12,11 @@ export interface StringNode {
   value: string;
 }
 
+export interface BooleanNode {
+  type: 'boolean';
+  value: boolean;
+}
+
 export interface RegexNode {
   type: 'regex';
   pattern: string;
@@ -85,19 +90,41 @@ export interface ThisNode {
   type: 'this';
 }
 
+export interface SuperNode {
+  type: 'super';
+}
+
 export interface UnaryNode {
   type: 'unary';
   op: string;
   operand: Expression;
 }
 
-export type Expression = NumberNode | StringNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode;
+export interface TemplateLiteralNode {
+  type: 'template_literal';
+  parts: (string | Expression)[];
+}
+
+export interface ArrowFunctionNode {
+  type: 'arrow_function';
+  params: string[];
+  body: Expression | BlockStatement;
+}
+
+export interface ConditionalExpressionNode {
+  type: 'conditional';
+  condition: Expression;
+  consequent: Expression;
+  alternate: Expression;
+}
+
+export type Expression = NumberNode | StringNode | BooleanNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode;
 
 export interface VariableDeclaration {
   type: 'variable_declaration';
   kind: 'let' | 'const';
   name: string;
-  value: Expression;
+  value: Expression | null;
 }
 
 export interface AssignmentStatement {
@@ -137,7 +164,27 @@ export interface ForStatement {
   body: BlockStatement;
 }
 
-export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | Expression;
+export interface BreakStatement {
+  type: 'break';
+}
+
+export interface ContinueStatement {
+  type: 'continue';
+}
+
+export interface ThrowStatement {
+  type: 'throw';
+  argument: Expression;
+}
+
+export interface TryStatement {
+  type: 'try';
+  tryBlock: BlockStatement;
+  catchClause: { param: string; body: BlockStatement } | null;
+  finallyBlock: BlockStatement | null;
+}
+
+export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | Expression;
 
 export interface FunctionNode {
   name: string;
@@ -153,8 +200,15 @@ export interface ClassMethod {
   isConstructor: boolean;
 }
 
+export interface ClassField {
+  name: string;
+  fieldType: 'i32' | 'string';  // For now, just i32 and string (i8*)
+}
+
 export interface ClassNode {
   name: string;
+  extends?: string;
+  fields: ClassField[];  // Explicit field declarations
   methods: ClassMethod[];
 }
 
@@ -166,7 +220,7 @@ export interface ImportDeclaration {
 
 export interface ExportDeclaration {
   type: 'export';
-  declaration: FunctionNode;
+  declaration: FunctionNode | ClassNode;
 }
 
 export interface AST {
@@ -174,5 +228,6 @@ export interface AST {
   functions: FunctionNode[];
   classes: ClassNode[];
   exports: ExportDeclaration[];
+  topLevelStatements: VariableDeclaration[];  // Top-level const/let declarations
   entryPoint: CallNode | NewNode | MethodCallNode | null;
 }

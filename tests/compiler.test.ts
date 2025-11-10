@@ -119,6 +119,24 @@ const testCases: TestCase[] = [
     description: 'String substr() method should work'
   },
   {
+    name: 'string-concat-method',
+    fixture: 'tests/fixtures/string-concat-method.js',
+    expectedExitCode: 11, // "Hello" + " " + "World" = 11 chars
+    description: 'String concat() method should work'
+  },
+  {
+    name: 'string-repeat',
+    fixture: 'tests/fixtures/string-repeat.js',
+    expectedExitCode: 6, // "ab".repeat(3) = "ababab" = 6 chars
+    description: 'String repeat() method should work'
+  },
+  {
+    name: 'string-padstart',
+    fixture: 'tests/fixtures/string-padstart.js',
+    expectedExitCode: 3, // "5".padStart(3, "0") = "005" = 3 chars
+    description: 'String padStart() method should work'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex-test.js',
     expectedExitCode: 1, // /^[a-z]+$/.test("hello") = 1 (true)
@@ -215,6 +233,18 @@ const testCases: TestCase[] = [
       description: 'For loop should sum numbers from 1 to 10'
     },
     {
+      name: 'loop-break',
+      fixture: 'tests/fixtures/loop-break.js',
+      expectedExitCode: 43, // First number > 42 is 43
+      description: 'Break statement should exit loop early'
+    },
+    {
+      name: 'loop-continue',
+      fixture: 'tests/fixtures/loop-continue.js',
+      expectedExitCode: 12, // 1+2+4+5 = 12 (skips 3)
+      description: 'Continue statement should skip to next iteration'
+    },
+    {
       name: 'map-basic',
       fixture: 'tests/fixtures/map-basic.js',
       expectedExitCode: 20, // m.get(2) -> 20
@@ -225,6 +255,30 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/set-basic.js',
       expectedExitCode: 1, // s.has(20) -> 1 (true)
       description: 'Set with add/has operations should work'
+    },
+    {
+      name: 'strict-equality',
+      fixture: 'tests/fixtures/strict-equality.js',
+      expectedExitCode: 15, // (5 === 5 ? 10 : 0) + (5 !== 10 ? 5 : 0) = 15
+      description: 'Strict equality (===) and inequality (!==) operators should work'
+    },
+    {
+      name: 'ternary',
+      fixture: 'tests/fixtures/ternary.js',
+      expectedExitCode: 15, // (5 === 5 ? 10 : 0) + (5 !== 10 ? 5 : 0) = 15
+      description: 'Ternary operator (? :) should work'
+    },
+    {
+      name: 'function-expression',
+      fixture: 'tests/fixtures/function-expression.js',
+      expectedExitCode: 0, // Returns 0 from testMap()
+      description: 'Function expressions in array methods should work'
+    },
+    {
+      name: 'return-boolean',
+      fixture: 'tests/fixtures/return-boolean.js',
+      expectedExitCode: 1, // true returns 1
+      description: 'Boolean literals (true/false) should work'
     }
   ];
 
@@ -327,6 +381,37 @@ describe('ChadScript Compiler', () => {
           if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
         } catch (err) {
           // Ignore
+        }
+      }
+    });
+  });
+
+  describe('Try/Catch/Throw', () => {
+    it('should compile and execute try-catch-throw syntax', async () => {
+      const fixturePath = 'tests/fixtures/try-catch-throw.js';
+      const outputDir = 'tests/fixtures';
+      const baseName = 'try-catch-throw';
+      const exeFile = path.join(outputDir, baseName);
+
+      try {
+        // Compile
+        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+
+        // Run and capture output
+        const { stdout, stderr } = await execAsync(`./${exeFile}`);
+        const output = stdout + stderr;
+
+        // Check that try block executed
+        assert.ok(output.includes('before try'), 'Should print before try');
+        assert.ok(output.includes('in try block'), 'Should print in try block');
+      } finally {
+        // Clean up
+        try {
+          const llFile = path.join(outputDir, `${baseName}.ll`);
+          if (fsSync.existsSync(llFile)) await fs.unlink(llFile);
+          if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
+        } catch (err) {
+          // Ignore cleanup errors
         }
       }
     });

@@ -10,6 +10,13 @@ export class ControlFlowGenerator extends BaseGenerator {
   generateExpression!: (expr: Expression, params: string[]) => string;
   generateBlock!: (block: BlockStatement, params: string[]) => string | null;
 
+  // Loop context stack for break/continue
+  private loopStack: Array<{ continueLabel: string; breakLabel: string }> = [];
+
+  constructor() {
+    super();
+  }
+
   generateIfStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== 'if') {
       throw new Error('Expected if statement');
@@ -92,9 +99,11 @@ export class ControlFlowGenerator extends BaseGenerator {
     this.emit(`${condBool} = icmp ne i32 ${condValue}, 0`);
     this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
 
-    // Body block
+    // Body block - push loop context for break/continue
     this.emit(`${bodyLabel}:`);
+    this.loopStack.push({ continueLabel: condLabel, breakLabel: endLabel });
     this.generateBlock(stmt.body, params);
+    this.loopStack.pop();
     this.emit(`br label %${condLabel}`);
 
     // End block
@@ -112,6 +121,9 @@ export class ControlFlowGenerator extends BaseGenerator {
     if (stmt.init) {
       if (stmt.init.type === 'variable_declaration') {
         // Handle variable declaration - allocate and store
+        if (!stmt.init.value) {
+          throw new Error('Variable declaration in for loop must have an initializer');
+        }
         const value = this.generateExpression(stmt.init.value, params);
         const allocaReg = this.nextTemp();
         // Register the variable in the variables map
@@ -149,9 +161,11 @@ export class ControlFlowGenerator extends BaseGenerator {
       this.emit(`br label %${bodyLabel}`);
     }
 
-    // Body block
+    // Body block - push loop context for break/continue
     this.emit(`${bodyLabel}:`);
+    this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
     this.generateBlock(stmt.body, params);
+    this.loopStack.pop();
     this.emit(`br label %${updateLabel}`);
 
     // Update block
@@ -173,6 +187,53 @@ export class ControlFlowGenerator extends BaseGenerator {
 
     // End block
     this.emit(`${endLabel}:`);
+
+    return '0';
+  }
+
+  generateBreakStatement(): string {
+    if (this.loopStack.length === 0) {
+      throw new Error('break statement outside of loop');
+    }
+    const loop = this.loopStack[this.loopStack.length - 1];
+    this.emit(`br label %${loop.breakLabel}`);
+    return '0';
+  }
+
+  generateContinueStatement(): string {
+    if (this.loopStack.length === 0) {
+      throw new Error('continue statement outside of loop');
+    }
+    const loop = this.loopStack[this.loopStack.length - 1];
+    this.emit(`br label %${loop.continueLabel}`);
+    return '0';
+  }
+
+  generateThrowStatement(stmt: Statement, params: string[]): string {
+    if (stmt.type !== 'throw') {
+      throw new Error('Expected throw statement');
+    }
+
+    // For now, we'll implement throw by calling exit(1)
+    // In a full implementation, we'd need exception handling support
+    this.emit(`call void @exit(i32 1)`);
+    this.emit(`unreachable`);
+    return '0';
+  }
+
+  generateTryStatement(stmt: Statement, params: string[]): string {
+    if (stmt.type !== 'try') {
+      throw new Error('Expected try statement');
+    }
+
+    // For now, we'll just execute the try block and ignore catch/finally
+    // Full exception handling would require LLVM's invoke/landingpad support
+    this.generateBlock(stmt.tryBlock, params);
+
+    // If there's a finally block, execute it unconditionally
+    if (stmt.finallyBlock) {
+      this.generateBlock(stmt.finallyBlock, params);
+    }
 
     return '0';
   }

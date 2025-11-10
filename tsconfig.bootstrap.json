@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2018",
+    "module": "ES2015",
+    "lib": ["ES2018"],
+    "outDir": "./src-js",
+    "rootDir": "./src",
+    "strict": false,
+    "esModuleInterop": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "removeComments": false,
+    "preserveConstEnums": true,
+    "declaration": false,
+    "sourceMap": false,
+    "newLine": "lf",
+    "noEmitOnError": false,
+    "noEmitHelpers": false,
+    "importHelpers": false,
+    "useDefineForClassFields": false,
+    "downlevelIteration": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "tests", "src-js"]
+}

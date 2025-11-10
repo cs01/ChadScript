@@ -9,6 +9,10 @@ export class RegexGenerator extends BaseGenerator {
   // Generate delegate for expressions (set by LLVMGenerator)
   generateExpression!: (expr: Expression, params: string[]) => string;
 
+  constructor() {
+    super();
+  }
+
   // Compile a regex pattern and return a pointer to the compiled regex
   // Returns a pointer to regex_t struct (i8*)
   generateRegexCompile(pattern: string, flags: string): string {
@@ -42,7 +46,7 @@ export class RegexGenerator extends BaseGenerator {
     // REG_EXTENDED = 1, REG_ICASE = 2, REG_NOSUB = 4
     let cflags = 1; // REG_EXTENDED by default
     if (flags.includes('i')) {
-      cflags |= 2; // REG_ICASE
+      cflags = cflags | 2; // REG_ICASE
     }
 
     // Call regcomp(regex_t *preg, const char *pattern, int cflags)

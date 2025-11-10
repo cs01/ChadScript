@@ -6,6 +6,7 @@ package-lock.json
 dist/
 *.o
 *.ll
+src-js
 
 # Executables (compiled binaries from examples and tests)
 examples/add

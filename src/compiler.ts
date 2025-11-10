@@ -54,11 +54,12 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>): AST {
 
   // Avoid circular imports
   if (compiledFiles.has(absPath)) {
-    return { imports: [], functions: [], classes: [], exports: [], entryPoint: null };
+    return { imports: [], functions: [], classes: [], exports: [], topLevelStatements: [], entryPoint: null };
   }
   compiledFiles.add(absPath);
 
   // Read and parse this file
+  console.log(`  Parsing: ${absPath}`);
   const code = fs.readFileSync(absPath, 'utf8');
   const parser = new Parser(code);
   const ast = parser.parse();
@@ -66,20 +67,32 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>): AST {
   // Start with this file's AST
   let mergedAST: AST = {
     imports: [],
-    functions: [...ast.functions],
-    classes: [...ast.classes],
-    exports: [...ast.exports],
+    functions: ast.functions.slice(),
+    classes: ast.classes.slice(),
+    exports: ast.exports.slice(),
+    topLevelStatements: ast.topLevelStatements.slice(),
     entryPoint: ast.entryPoint
   };
 
   // Process imports - recursively compile imported files
-  for (const imp of ast.imports) {
+  let i = 0;
+  while (i < ast.imports.length) {
+    const imp = ast.imports[i];
+    // Skip built-in Node.js modules
+    const builtinModules = ['fs', 'path', 'child_process'];
+    if (builtinModules.includes(imp.source)) {
+      i = i + 1;
+      continue;
+    }
+
     const importPath = resolveImportPath(absPath, imp.source);
     const importedAST = compileMultiFile(importPath, compiledFiles);
 
-    // Merge functions and classes from imported file
-    mergedAST.functions.push(...importedAST.functions);
-    mergedAST.classes.push(...importedAST.classes);
+    // Merge functions, classes, and top-level statements from imported file
+    mergedAST.functions = mergedAST.functions.concat(importedAST.functions);
+    mergedAST.classes = mergedAST.classes.concat(importedAST.classes);
+    mergedAST.topLevelStatements = mergedAST.topLevelStatements.concat(importedAST.topLevelStatements);
+    i = i + 1;
   }
 
   return mergedAST;
@@ -87,5 +100,15 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>): AST {
 
 function resolveImportPath(fromFile: string, importSource: string): string {
   const dir = path.dirname(fromFile);
-  return path.resolve(dir, importSource);
+  const resolved = path.resolve(dir, importSource);
+  
+  // If the import has .js extension but file doesn't exist, try .ts
+  if (importSource.endsWith('.js') && !fs.existsSync(resolved)) {
+    const tsPath = resolved.replace(/\.js$/, '.ts');
+    if (fs.existsSync(tsPath)) {
+      return tsPath;
+    }
+  }
+  
+  return resolved;
 }

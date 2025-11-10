@@ -9,6 +9,10 @@ export class ObjectGenerator extends BaseGenerator {
   // Generate delegate for expressions (set by LLVMGenerator)
   generateExpression!: (expr: Expression, params: string[]) => string;
 
+  constructor() {
+    super();
+  }
+
   generateObjectLiteral(expr: Expression, params: string[]): string {
     const objExpr = expr as any;
     if (objExpr.type !== 'object') {
