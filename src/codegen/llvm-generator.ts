@@ -680,6 +680,26 @@ export class LLVMGenerator extends BaseGenerator {
   private generateMethodCall(expr: MethodCallNode, params: string[]): string {
     const method = expr.method;
 
+    // Handle string methods
+    if (method === 'substr') {
+      // Check if the object is a string
+      const isString = this.isStringExpression(expr.object);
+      if (isString) {
+        this.syncStateToGenerators();
+        const strPtr = this.generateExpression(expr.object, params);
+
+        // substr() takes 1 or 2 arguments: start and optional length
+        if (expr.args.length < 1 || expr.args.length > 2) {
+          throw new Error(`substr() expects 1 or 2 arguments, got ${expr.args.length}`);
+        }
+
+        const startIndex = this.generateExpression(expr.args[0], params);
+        const length = expr.args.length === 2 ? this.generateExpression(expr.args[1], params) : null;
+
+        return this.stringGen.generateSubstr(strPtr, startIndex, length);
+      }
+    }
+
     // Handle Map methods
     if (method === 'set' || method === 'get' || method === 'has') {
       // Check if the object is a Map

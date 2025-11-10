@@ -113,6 +113,12 @@ const testCases: TestCase[] = [
     description: 'String concatenation should work'
   },
   {
+    name: 'string-substr',
+    fixture: 'tests/fixtures/string-substr.js',
+    expectedExitCode: 3, // "Hello".substr(1, 3) = "ell" = 3 chars
+    description: 'String substr() method should work'
+  },
+  {
     name: 'array-literal',
     fixture: 'tests/fixtures/array-literal.js',
     expectedExitCode: 3, // [1, 2, 3].length = 3
