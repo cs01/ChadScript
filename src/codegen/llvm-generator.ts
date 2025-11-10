@@ -720,6 +720,18 @@ export class LLVMGenerator extends BaseGenerator {
     } else if (method === 'join') {
       this.syncStateToGenerators();
       return this.arrayGen.generateArrayJoin(expr, params);
+    } else if (method === 'find') {
+      this.syncStateToGenerators();
+      return this.arrayGen.generateArrayFind(expr, params);
+    } else if (method === 'some') {
+      this.syncStateToGenerators();
+      return this.arrayGen.generateArraySome(expr, params);
+    } else if (method === 'filter') {
+      this.syncStateToGenerators();
+      return this.arrayGen.generateArrayFilter(expr, params);
+    } else if (method === 'forEach') {
+      this.syncStateToGenerators();
+      return this.arrayGen.generateArrayForEach(expr, params);
     }
 
     // Handle class instance methods
@@ -805,6 +817,11 @@ export class LLVMGenerator extends BaseGenerator {
     }
     if (expr.type === 'variable') {
       return this.arrayVariables.has(expr.name);
+    }
+    // Check if it's a method call that returns an array (e.g., .filter())
+    if (expr.type === 'method_call') {
+      const method = (expr as any).method;
+      return method === 'filter'; // filter() returns a new array
     }
     return false;
   }

@@ -148,6 +148,380 @@ export class ArrayGenerator extends BaseGenerator {
     return newLen;
   }
 
+  generateArrayFind(expr: MethodCallNode, params: string[]): string {
+    // arr.find(predicateFn) - returns first element where predicate returns truthy, or 0 if not found
+    // Accepts a variable reference to a function that takes (element) and returns boolean-ish
+    if (expr.args.length !== 1) {
+      throw new Error('find() requires exactly 1 argument (predicate function)');
+    }
+
+    // Get the function name from the argument
+    const predicateArg = expr.args[0];
+    if (predicateArg.type !== 'variable') {
+      throw new Error('find() argument must be a function name (variable reference)');
+    }
+    const predicateFn = predicateArg.name;
+
+    const arrayPtr = this.generateExpression(expr.object, params);
+
+    // Load array length
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.nextTemp();
+    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+
+    // Load data pointer
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField}`);
+
+    // Loop setup
+    const loopLabel = this.nextLabel('find_loop');
+    const checkLabel = this.nextLabel('find_check');
+    const bodyLabel = this.nextLabel('find_body');
+    const foundLabel = this.nextLabel('find_found');
+    const endLabel = this.nextLabel('find_end');
+
+    // Initialize loop counter
+    const counterPtr = this.nextTemp();
+    this.emit(`${counterPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${counterPtr}`);
+
+    // Result variable (will hold found element or 0)
+    const resultPtr = this.nextTemp();
+    this.emit(`${resultPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${resultPtr}`);
+
+    this.emit(`br label %${checkLabel}`);
+
+    // Check condition
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    // Loop body
+    this.emit(`${bodyLabel}:`);
+
+    // Load current element
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load i32, i32* ${elemPtr}`);
+
+    // Call predicate function
+    const predicateResult = this.nextTemp();
+    this.emit(`${predicateResult} = call i32 @${predicateFn}(i32 ${elem})`);
+
+    // Check if predicate returned truthy
+    const isTruthy = this.nextTemp();
+    this.emit(`${isTruthy} = icmp ne i32 ${predicateResult}, 0`);
+    this.emit(`br i1 ${isTruthy}, label %${foundLabel}, label %${loopLabel}`);
+
+    // Found - store element and exit
+    this.emit(`${foundLabel}:`);
+    this.emit(`store i32 ${elem}, i32* ${resultPtr}`);
+    this.emit(`br label %${endLabel}`);
+
+    // Continue loop
+    this.emit(`${loopLabel}:`);
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
+    // End
+    this.emit(`${endLabel}:`);
+    const result = this.nextTemp();
+    this.emit(`${result} = load i32, i32* ${resultPtr}`);
+    return result;
+  }
+
+  generateArraySome(expr: MethodCallNode, params: string[]): string {
+    // arr.some(predicateFn) - returns 1 if any element satisfies predicate, 0 otherwise
+    if (expr.args.length !== 1) {
+      throw new Error('some() requires exactly 1 argument (predicate function)');
+    }
+
+    const predicateArg = expr.args[0];
+    if (predicateArg.type !== 'variable') {
+      throw new Error('some() argument must be a function name (variable reference)');
+    }
+    const predicateFn = predicateArg.name;
+
+    const arrayPtr = this.generateExpression(expr.object, params);
+
+    // Load array length
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.nextTemp();
+    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+
+    // Load data pointer
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField}`);
+
+    // Loop setup
+    const loopLabel = this.nextLabel('some_loop');
+    const checkLabel = this.nextLabel('some_check');
+    const bodyLabel = this.nextLabel('some_body');
+    const foundLabel = this.nextLabel('some_found');
+    const endLabel = this.nextLabel('some_end');
+
+    // Initialize loop counter
+    const counterPtr = this.nextTemp();
+    this.emit(`${counterPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${counterPtr}`);
+
+    // Result variable
+    const resultPtr = this.nextTemp();
+    this.emit(`${resultPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${resultPtr}`);
+
+    this.emit(`br label %${checkLabel}`);
+
+    // Check condition
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    // Loop body
+    this.emit(`${bodyLabel}:`);
+
+    // Load current element
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load i32, i32* ${elemPtr}`);
+
+    // Call predicate function
+    const predicateResult = this.nextTemp();
+    this.emit(`${predicateResult} = call i32 @${predicateFn}(i32 ${elem})`);
+
+    // Check if predicate returned truthy
+    const isTruthy = this.nextTemp();
+    this.emit(`${isTruthy} = icmp ne i32 ${predicateResult}, 0`);
+    this.emit(`br i1 ${isTruthy}, label %${foundLabel}, label %${loopLabel}`);
+
+    // Found - return 1
+    this.emit(`${foundLabel}:`);
+    this.emit(`store i32 1, i32* ${resultPtr}`);
+    this.emit(`br label %${endLabel}`);
+
+    // Continue loop
+    this.emit(`${loopLabel}:`);
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
+    // End
+    this.emit(`${endLabel}:`);
+    const result = this.nextTemp();
+    this.emit(`${result} = load i32, i32* ${resultPtr}`);
+    return result;
+  }
+
+  generateArrayFilter(expr: MethodCallNode, params: string[]): string {
+    // arr.filter(predicateFn) - returns new array with elements that satisfy predicate
+    if (expr.args.length !== 1) {
+      throw new Error('filter() requires exactly 1 argument (predicate function)');
+    }
+
+    const predicateArg = expr.args[0];
+    if (predicateArg.type !== 'variable') {
+      throw new Error('filter() argument must be a function name (variable reference)');
+    }
+    const predicateFn = predicateArg.name;
+
+    const arrayPtr = this.generateExpression(expr.object, params);
+
+    // Load array length
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.nextTemp();
+    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+
+    // Load data pointer
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField}`);
+
+    // Create new array for result (allocate with same capacity as input)
+    const resultArrayPtr = this.nextTemp();
+    this.emit(`${resultArrayPtr} = alloca %Array`);
+
+    // Allocate data array on heap
+    const dataSize = this.nextTemp();
+    this.emit(`${dataSize} = mul i32 ${length}, 4`); // 4 bytes per i32
+    const dataSizeI64 = this.nextTemp();
+    this.emit(`${dataSizeI64} = zext i32 ${dataSize} to i64`);
+    const dataMem = this.nextTemp();
+    this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSizeI64})`);
+    const resultDataPtr = this.nextTemp();
+    this.emit(`${resultDataPtr} = bitcast i8* ${dataMem} to i32*`);
+
+    // Store data pointer in result array struct
+    const resultDataPtrField = this.nextTemp();
+    this.emit(`${resultDataPtrField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 0`);
+    this.emit(`store i32* ${resultDataPtr}, i32** ${resultDataPtrField}`);
+
+    // Initialize length to 0
+    const resultLenField = this.nextTemp();
+    this.emit(`${resultLenField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 1`);
+    this.emit(`store i32 0, i32* ${resultLenField}`);
+
+    // Set capacity
+    const resultCapField = this.nextTemp();
+    this.emit(`${resultCapField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 2`);
+    this.emit(`store i32 ${length}, i32* ${resultCapField}`);
+
+    // Loop through original array
+    const loopLabel = this.nextLabel('filter_loop');
+    const checkLabel = this.nextLabel('filter_check');
+    const bodyLabel = this.nextLabel('filter_body');
+    const addLabel = this.nextLabel('filter_add');
+    const endLabel = this.nextLabel('filter_end');
+
+    // Initialize loop counter
+    const counterPtr = this.nextTemp();
+    this.emit(`${counterPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${counterPtr}`);
+
+    this.emit(`br label %${checkLabel}`);
+
+    // Check condition
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    // Loop body
+    this.emit(`${bodyLabel}:`);
+
+    // Load current element
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load i32, i32* ${elemPtr}`);
+
+    // Call predicate function
+    const predicateResult = this.nextTemp();
+    this.emit(`${predicateResult} = call i32 @${predicateFn}(i32 ${elem})`);
+
+    // Check if predicate returned truthy
+    const isTruthy = this.nextTemp();
+    this.emit(`${isTruthy} = icmp ne i32 ${predicateResult}, 0`);
+    this.emit(`br i1 ${isTruthy}, label %${addLabel}, label %${loopLabel}`);
+
+    // Add element to result array
+    this.emit(`${addLabel}:`);
+    const currentLen = this.nextTemp();
+    this.emit(`${currentLen} = load i32, i32* ${resultLenField}`);
+
+    const resultElemPtr = this.nextTemp();
+    this.emit(`${resultElemPtr} = getelementptr inbounds i32, i32* ${resultDataPtr}, i32 ${currentLen}`);
+    this.emit(`store i32 ${elem}, i32* ${resultElemPtr}`);
+
+    const newLen = this.nextTemp();
+    this.emit(`${newLen} = add i32 ${currentLen}, 1`);
+    this.emit(`store i32 ${newLen}, i32* ${resultLenField}`);
+    this.emit(`br label %${loopLabel}`);
+
+    // Continue loop
+    this.emit(`${loopLabel}:`);
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
+    // End
+    this.emit(`${endLabel}:`);
+    return resultArrayPtr;
+  }
+
+  generateArrayForEach(expr: MethodCallNode, params: string[]): string {
+    // arr.forEach(callbackFn) - calls function for each element, returns 0
+    if (expr.args.length !== 1) {
+      throw new Error('forEach() requires exactly 1 argument (callback function)');
+    }
+
+    const callbackArg = expr.args[0];
+    if (callbackArg.type !== 'variable') {
+      throw new Error('forEach() argument must be a function name (variable reference)');
+    }
+    const callbackFn = callbackArg.name;
+
+    const arrayPtr = this.generateExpression(expr.object, params);
+
+    // Load array length
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.nextTemp();
+    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+
+    // Load data pointer
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField}`);
+
+    // Loop setup
+    const loopLabel = this.nextLabel('foreach_loop');
+    const checkLabel = this.nextLabel('foreach_check');
+    const bodyLabel = this.nextLabel('foreach_body');
+    const endLabel = this.nextLabel('foreach_end');
+
+    // Initialize loop counter
+    const counterPtr = this.nextTemp();
+    this.emit(`${counterPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${counterPtr}`);
+
+    this.emit(`br label %${checkLabel}`);
+
+    // Check condition
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    // Loop body
+    this.emit(`${bodyLabel}:`);
+
+    // Load current element
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load i32, i32* ${elemPtr}`);
+
+    // Call callback function (discard return value)
+    const callResult = this.nextTemp();
+    this.emit(`${callResult} = call i32 @${callbackFn}(i32 ${elem})`);
+
+    // Continue loop
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
+    // End - forEach returns 0 (undefined-ish)
+    this.emit(`${endLabel}:`);
+    return '0';
+  }
+
   generateArrayMap(expr: MethodCallNode, params: string[]): string {
     // For now, we'll implement a simple version that doesn't support callback functions
     // This is a placeholder that will need proper function pointer support

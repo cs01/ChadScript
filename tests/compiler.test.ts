@@ -131,6 +131,30 @@ const testCases: TestCase[] = [
     description: 'Array .push() should add element and return new length'
   },
   {
+    name: 'array-find',
+    fixture: 'tests/fixtures/array-find.js',
+    expectedExitCode: 3, // [1, 2, 3, 4].find(isGreaterThan2) returns 3
+    description: 'Array .find() should return first matching element'
+  },
+  {
+    name: 'array-some',
+    fixture: 'tests/fixtures/array-some.js',
+    expectedExitCode: 1, // [1, 2, 3, 10].some(isGreaterThan5) returns 1 (true)
+    description: 'Array .some() should return 1 if any element matches'
+  },
+  {
+    name: 'array-filter',
+    fixture: 'tests/fixtures/array-filter.js',
+    expectedExitCode: 3, // [1, 2, 3, 4, 5].filter(isGreaterThan2) returns [3, 4, 5], length is 3
+    description: 'Array .filter() should return new array with matching elements'
+  },
+  {
+    name: 'array-foreach',
+    fixture: 'tests/fixtures/array-foreach.js',
+    expectedExitCode: 10, // [1, 2, 3, 4].forEach(addToSum) results in sum = 10
+    description: 'Array .forEach() should call function for each element'
+  },
+  {
     name: 'object-literal',
     fixture: 'tests/fixtures/object-literal.js',
     expectedExitCode: 30, // { x: 10, y: 20 } -> obj.x + obj.y = 30
@@ -193,7 +217,7 @@ const testCases: TestCase[] = [
   ];
 
 describe('ChadScript Compiler', () => {
-  describe('Compilation and Execution', { concurrency: true }, () => {
+  describe('Compilation and Execution', { concurrency: 8 }, () => {
     for (const testCase of testCases) {
       it(testCase.description, async () => {
         const fixturePath = path.resolve(testCase.fixture);
@@ -211,8 +235,7 @@ describe('ChadScript Compiler', () => {
         }
 
         try {
-          // Compile the fixture
-          console.log(`  Compiling ${testCase.fixture}...`);
+          // Compile the fixture (no console.log to avoid parallel output issues)
           await execAsync(`npx tsx src/index.ts ${fixturePath}`);
 
           // Verify LLVM IR was generated
@@ -228,7 +251,6 @@ describe('ChadScript Compiler', () => {
           );
 
           // Run the executable and check exit code
-          console.log(`  Running ${exeFile}...`);
           try {
             await execAsync(exeFile);
             // If we get here, exit code was 0
@@ -246,8 +268,6 @@ describe('ChadScript Compiler', () => {
               `Expected exit code ${testCase.expectedExitCode}, got ${actualExitCode}`
             );
           }
-
-          console.log(`  ✓ Exit code: ${testCase.expectedExitCode}`);
         } finally {
           // Clean up build artifacts after test
           try {
@@ -287,8 +307,6 @@ describe('ChadScript Compiler', () => {
         assert.ok(llContent.includes('define i32 @main'), 'Should define main function');
         assert.ok(llContent.includes('ret i32'), 'Should have return statements');
         assert.ok(llContent.includes('add i32'), 'Should have add instruction');
-
-        console.log('  ✓ LLVM IR structure is valid');
       } finally {
         // Clean up
         try {

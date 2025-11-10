@@ -42,7 +42,7 @@ npx tsx src/index.ts file.js && ./file
 **Critical Blockers** 🔴 (Required for self-hosting)
 - [x] **Map/Set** - COMPLETED ✅ (new Map(), set/get/has, new Set(), add/has)
 - [x] **for/while loops** - COMPLETED ✅
-- [ ] **Array methods** - .find(), .some(), .filter(), .forEach()
+- [x] **Array methods** - .find(), .some(), .filter(), .forEach()
 - [ ] **String methods** - .substr() (used in parser)
 - [ ] **Regex** - /pattern/.test() (used in parser)
 - [ ] **Class improvements** - Multiple fields, method parameters, this.method()
