@@ -3,6 +3,8 @@ import { BaseGenerator } from './generators/base-generator.js';
 import { ArrayGenerator } from './generators/array-generator.js';
 import { StringGenerator } from './generators/string-generator.js';
 import { ObjectGenerator } from './generators/object-generator.js';
+import { MapGenerator } from './generators/map-generator.js';
+import { SetGenerator } from './generators/set-generator.js';
 import { ControlFlowGenerator } from './generators/control-flow-generator.js';
 import { ClassGenerator } from './generators/class-generator.js';
 
@@ -18,6 +20,8 @@ export class LLVMGenerator extends BaseGenerator {
   private arrayGen: ArrayGenerator;
   private stringGen: StringGenerator;
   private objectGen: ObjectGenerator;
+  private mapGen: MapGenerator;
+  private setGen: SetGenerator;
   private controlFlowGen: ControlFlowGenerator;
   private classGen: ClassGenerator;
 
@@ -29,6 +33,8 @@ export class LLVMGenerator extends BaseGenerator {
     this.arrayGen = new ArrayGenerator();
     this.stringGen = new StringGenerator();
     this.objectGen = new ObjectGenerator();
+    this.mapGen = new MapGenerator();
+    this.setGen = new SetGenerator();
     this.controlFlowGen = new ControlFlowGenerator();
     this.classGen = new ClassGenerator();
 
@@ -36,13 +42,15 @@ export class LLVMGenerator extends BaseGenerator {
     this.arrayGen.generateExpression = this.generateExpression.bind(this);
     this.stringGen.generateExpression = this.generateExpression.bind(this);
     this.objectGen.generateExpression = this.generateExpression.bind(this);
+    this.mapGen.generateExpression = this.generateExpression.bind(this);
+    this.setGen.generateExpression = this.generateExpression.bind(this);
     this.controlFlowGen.generateExpression = this.generateExpression.bind(this);
     this.controlFlowGen.generateBlock = this.generateBlock.bind(this);
     this.classGen.generateExpression = this.generateExpression.bind(this);
     this.classGen.generateBlock = this.generateBlock.bind(this);
 
     // Override counter methods to use parent's counters
-    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.controlFlowGen, this.classGen]) {
+    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
       gen.nextTemp = this.nextTemp.bind(this);
       gen.nextLabel = this.nextLabel.bind(this);
       gen.nextString = this.nextString.bind(this);
@@ -62,7 +70,13 @@ export class LLVMGenerator extends BaseGenerator {
     let ir = '';
 
     // Define array struct type: { i32* data, i32 length, i32 capacity }
-    ir += '%Array = type { i32*, i32, i32 }\n\n';
+    ir += '%Array = type { i32*, i32, i32 }\n';
+
+    // Define Map struct type: { i32* keys, i32* values, i32 size, i32 capacity }
+    ir += '%Map = type { i32*, i32*, i32, i32 }\n';
+
+    // Define Set struct type: { i32* values, i32 size, i32 capacity }
+    ir += '%Set = type { i32*, i32, i32 }\n\n';
 
     // Declare external C functions for string operations
     ir += 'declare i8* @malloc(i64)\n';
@@ -152,10 +166,12 @@ export class LLVMGenerator extends BaseGenerator {
 
     for (const stmt of block.statements) {
       if (stmt.type === 'variable_declaration') {
-        // Determine if this is a string, array, object, class instance, or numeric value
+        // Determine if this is a string, array, object, map, set, class instance, or numeric value
         const isString = this.isStringExpression(stmt.value);
         const isArray = this.isArrayExpression(stmt.value);
         const isObject = this.isObjectExpression(stmt.value);
+        const isMap = this.isMapExpression(stmt.value);
+        const isSet = this.isSetExpression(stmt.value);
         const isClassInstance = this.isClassInstanceExpression(stmt.value);
 
         if (isClassInstance) {
@@ -178,6 +194,30 @@ export class LLVMGenerator extends BaseGenerator {
           // Now generate the expression
           const objExpr = this.generateExpression(stmt.value, params);
           this.emit(`store i32* ${objExpr}, i32** ${allocaReg}`);
+        } else if (isMap) {
+          // Allocate stack space for map struct (%Map*)
+          const allocaReg = this.nextTemp();
+          this.mapVariables.set(stmt.name, allocaReg);
+          this.emit(`${allocaReg} = alloca %Map`);
+
+          // Compute initial value and store it
+          const value = this.generateExpression(stmt.value, params);
+          // value is a %Map*, copy the struct
+          const loadedMap = this.nextTemp();
+          this.emit(`${loadedMap} = load %Map, %Map* ${value}`);
+          this.emit(`store %Map ${loadedMap}, %Map* ${allocaReg}`);
+        } else if (isSet) {
+          // Allocate stack space for set struct (%Set*)
+          const allocaReg = this.nextTemp();
+          this.setVariables.set(stmt.name, allocaReg);
+          this.emit(`${allocaReg} = alloca %Set`);
+
+          // Compute initial value and store it
+          const value = this.generateExpression(stmt.value, params);
+          // value is a %Set*, copy the struct
+          const loadedSet = this.nextTemp();
+          this.emit(`${loadedSet} = load %Set, %Set* ${value}`);
+          this.emit(`store %Set ${loadedSet}, %Set* ${allocaReg}`);
         } else if (isArray) {
           // Allocate stack space for array struct (%Array*)
           const allocaReg = this.nextTemp();
@@ -307,6 +347,16 @@ export class LLVMGenerator extends BaseGenerator {
       return this.objectGen.generateObjectLiteral(expr, params);
     }
 
+    if ((expr as any).type === 'map') {
+      this.syncStateToGenerators();
+      return this.mapGen.generateMapLiteral(expr, params);
+    }
+
+    if ((expr as any).type === 'set') {
+      this.syncStateToGenerators();
+      return this.setGen.generateSetLiteral(expr, params);
+    }
+
     if ((expr as any).type === 'new') {
       this.syncStateToGenerators();
       const newExpr = expr as any as NewNode;
@@ -330,6 +380,18 @@ export class LLVMGenerator extends BaseGenerator {
         const temp = this.nextTemp();
         this.emit(`${temp} = load i32*, i32** ${classInstanceMeta.ptr}`);
         return temp;
+      }
+
+      // Check if it's a map variable
+      const mapAllocaReg = this.mapVariables.get(expr.name);
+      if (mapAllocaReg) {
+        return mapAllocaReg;
+      }
+
+      // Check if it's a set variable
+      const setAllocaReg = this.setVariables.get(expr.name);
+      if (setAllocaReg) {
+        return setAllocaReg;
       }
 
       // Check if it's an array variable
@@ -473,6 +535,22 @@ export class LLVMGenerator extends BaseGenerator {
           return lenI32;
         }
       }
+
+      // Handle .size property (for Map and Set)
+      if (expr.property === 'size') {
+        // Check if it's a Map
+        if (expr.object.type === 'variable' && this.mapVariables.has(expr.object.name)) {
+          const mapPtr = this.generateExpression(expr.object, params);
+          this.syncStateToGenerators();
+          return this.mapGen.generateMapSize(mapPtr);
+        }
+        // Check if it's a Set
+        if (expr.object.type === 'variable' && this.setVariables.has(expr.object.name)) {
+          const setPtr = this.generateExpression(expr.object, params);
+          this.syncStateToGenerators();
+          return this.setGen.generateSetSize(setPtr);
+        }
+      }
       throw new Error(`Unknown property: ${expr.property}`);
     }
 
@@ -602,6 +680,36 @@ export class LLVMGenerator extends BaseGenerator {
   private generateMethodCall(expr: MethodCallNode, params: string[]): string {
     const method = expr.method;
 
+    // Handle Map methods
+    if (method === 'set' || method === 'get' || method === 'has') {
+      // Check if the object is a Map
+      if (expr.object.type === 'variable' && this.mapVariables.has(expr.object.name)) {
+        this.syncStateToGenerators();
+        if (method === 'set') {
+          return this.mapGen.generateMapSet(expr, params);
+        } else if (method === 'get') {
+          return this.mapGen.generateMapGet(expr, params);
+        } else {
+          return this.mapGen.generateMapHas(expr, params);
+        }
+      }
+    }
+
+    // Handle Set methods
+    if (method === 'add' || method === 'has' || method === 'delete') {
+      // Check if the object is a Set
+      if (expr.object.type === 'variable' && this.setVariables.has(expr.object.name)) {
+        this.syncStateToGenerators();
+        if (method === 'add') {
+          return this.setGen.generateSetAdd(expr, params);
+        } else if (method === 'has') {
+          return this.setGen.generateSetHas(expr, params);
+        } else {
+          return this.setGen.generateSetDelete(expr, params);
+        }
+      }
+    }
+
     // Handle array methods
     if (method === 'push') {
       this.syncStateToGenerators();
@@ -711,6 +819,26 @@ export class LLVMGenerator extends BaseGenerator {
     return false;
   }
 
+  private isMapExpression(expr: Expression): boolean {
+    if ((expr as any).type === 'map') {
+      return true;
+    }
+    if (expr.type === 'variable') {
+      return this.mapVariables.has(expr.name);
+    }
+    return false;
+  }
+
+  private isSetExpression(expr: Expression): boolean {
+    if ((expr as any).type === 'set') {
+      return true;
+    }
+    if (expr.type === 'variable') {
+      return this.setVariables.has(expr.name);
+    }
+    return false;
+  }
+
   private isStringExpression(expr: Expression): boolean {
     if (expr.type === 'string') {
       return true;
@@ -761,13 +889,15 @@ export class LLVMGenerator extends BaseGenerator {
   // Sync state to sub-generators - share Maps/arrays by reference
   // Note: Counters are already shared via bound methods (nextTemp, nextLabel, nextString)
   private syncStateToGenerators() {
-    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.controlFlowGen, this.classGen]) {
+    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
       gen.output = this.output;
       gen.globalStrings = this.globalStrings;
       gen.variables = this.variables;
       gen.stringVariables = this.stringVariables;
       gen.arrayVariables = this.arrayVariables;
       gen.objectVariables = this.objectVariables;
+      gen.mapVariables = this.mapVariables;
+      gen.setVariables = this.setVariables;
       gen.classInstanceVariables = this.classInstanceVariables;
       gen.thisPointer = this.thisPointer;
     }

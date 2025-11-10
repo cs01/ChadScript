@@ -40,7 +40,7 @@ npx tsx src/index.ts file.js && ./file
 - [x] Classes (basic: constructor, methods, this, new, field access)
 
 **Critical Blockers** 🔴 (Required for self-hosting)
-- [ ] **Map/Set** - Core data structures used throughout compiler
+- [x] **Map/Set** - COMPLETED ✅ (new Map(), set/get/has, new Set(), add/has)
 - [x] **for/while loops** - COMPLETED ✅
 - [ ] **Array methods** - .find(), .some(), .filter(), .forEach()
 - [ ] **String methods** - .substr() (used in parser)

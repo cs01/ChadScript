@@ -177,6 +177,18 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/for-loop.js',
       expectedExitCode: 55, // 1+2+3+...+10 = 55
       description: 'For loop should sum numbers from 1 to 10'
+    },
+    {
+      name: 'map-basic',
+      fixture: 'tests/fixtures/map-basic.js',
+      expectedExitCode: 20, // m.get(2) -> 20
+      description: 'Map with set/get operations should work'
+    },
+    {
+      name: 'set-basic',
+      fixture: 'tests/fixtures/set-basic.js',
+      expectedExitCode: 1, // s.has(20) -> 1 (true)
+      description: 'Set with add/has operations should work'
     }
   ];
 

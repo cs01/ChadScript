@@ -385,7 +385,14 @@ export class Parser {
   }
 
   private parseVariableDeclaration(): VariableDeclaration {
-    const kind = this.match('let') ? 'let' : 'const';
+    let kind: 'let' | 'const';
+    if (this.match('let')) {
+      kind = 'let';
+    } else if (this.match('const')) {
+      kind = 'const';
+    } else {
+      throw new Error('Expected let or const');
+    }
     const name = this.parseIdentifier();
     this.expect('=');
     const value = this.parseExpression();
@@ -520,20 +527,8 @@ export class Parser {
         this.expect('(');
         this.skipWhitespace();
 
-        // Check for optional iterable argument
-        if (this.code[this.pos] !== ')') {
-          // For now, parse and ignore the argument (we'll support it later)
-          // Skip to closing paren
-          let depth = 1;
-          this.pos++;
-          while (depth > 0 && this.pos < this.code.length) {
-            if (this.code[this.pos] === '(') depth++;
-            if (this.code[this.pos] === ')') depth--;
-            this.pos++;
-          }
-        } else {
-          this.expect(')');
-        }
+        // For now, just expect empty constructor
+        this.expect(')');
 
         if (className === 'Map') {
           const mapExpr: MapNode = { type: 'map', entries: [] };
