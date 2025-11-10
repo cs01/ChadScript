@@ -12,6 +12,12 @@ export interface StringNode {
   value: string;
 }
 
+export interface RegexNode {
+  type: 'regex';
+  pattern: string;
+  flags: string;
+}
+
 export interface VariableNode {
   type: 'variable';
   name: string;
@@ -85,7 +91,7 @@ export interface UnaryNode {
   operand: Expression;
 }
 
-export type Expression = NumberNode | StringNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode;
+export type Expression = NumberNode | StringNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode;
 
 export interface VariableDeclaration {
   type: 'variable_declaration';

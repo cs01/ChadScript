@@ -7,6 +7,7 @@ import { MapGenerator } from './generators/map-generator.js';
 import { SetGenerator } from './generators/set-generator.js';
 import { ControlFlowGenerator } from './generators/control-flow-generator.js';
 import { ClassGenerator } from './generators/class-generator.js';
+import { RegexGenerator } from './generators/regex-generator.js';
 
 // ============================================
 // LLVM IR CODE GENERATOR - Main Orchestrator
@@ -24,6 +25,7 @@ export class LLVMGenerator extends BaseGenerator {
   private setGen: SetGenerator;
   private controlFlowGen: ControlFlowGenerator;
   private classGen: ClassGenerator;
+  private regexGen: RegexGenerator;
 
   constructor(ast: AST) {
     super();
@@ -37,6 +39,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.setGen = new SetGenerator();
     this.controlFlowGen = new ControlFlowGenerator();
     this.classGen = new ClassGenerator();
+    this.regexGen = new RegexGenerator();
 
     // Wire up delegates so sub-generators can call back
     this.arrayGen.generateExpression = this.generateExpression.bind(this);
@@ -48,9 +51,10 @@ export class LLVMGenerator extends BaseGenerator {
     this.controlFlowGen.generateBlock = this.generateBlock.bind(this);
     this.classGen.generateExpression = this.generateExpression.bind(this);
     this.classGen.generateBlock = this.generateBlock.bind(this);
+    this.regexGen.generateExpression = this.generateExpression.bind(this);
 
     // Override counter methods to use parent's counters
-    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
+    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen, this.regexGen]) {
       gen.nextTemp = this.nextTemp.bind(this);
       gen.nextLabel = this.nextLabel.bind(this);
       gen.nextString = this.nextString.bind(this);
@@ -85,6 +89,12 @@ export class LLVMGenerator extends BaseGenerator {
     ir += 'declare i8* @strcat(i8*, i8*)\n';
     ir += 'declare i64 @strlen(i8*)\n';
     ir += 'declare void @llvm.memcpy.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n';
+    ir += '\n';
+
+    // Declare POSIX regex functions
+    ir += 'declare i32 @regcomp(i8*, i8*, i32)\n';
+    ir += 'declare i32 @regexec(i8*, i8*, i64, i8*, i32)\n';
+    ir += 'declare void @regfree(i8*)\n';
     ir += '\n';
 
     // Generate external function declarations for imports
@@ -166,12 +176,13 @@ export class LLVMGenerator extends BaseGenerator {
 
     for (const stmt of block.statements) {
       if (stmt.type === 'variable_declaration') {
-        // Determine if this is a string, array, object, map, set, class instance, or numeric value
+        // Determine if this is a string, array, object, map, set, regex, class instance, or numeric value
         const isString = this.isStringExpression(stmt.value);
         const isArray = this.isArrayExpression(stmt.value);
         const isObject = this.isObjectExpression(stmt.value);
         const isMap = this.isMapExpression(stmt.value);
         const isSet = this.isSetExpression(stmt.value);
+        const isRegex = this.isRegexExpression(stmt.value);
         const isClassInstance = this.isClassInstanceExpression(stmt.value);
 
         if (isClassInstance) {
@@ -230,6 +241,15 @@ export class LLVMGenerator extends BaseGenerator {
           const loadedArray = this.nextTemp();
           this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
           this.emit(`store %Array ${loadedArray}, %Array* ${allocaReg}`);
+        } else if (isRegex) {
+          // Allocate stack space for regex pointer (i8*)
+          const allocaReg = this.nextTemp();
+          this.regexVariables.set(stmt.name, allocaReg);
+          this.emit(`${allocaReg} = alloca i8*`);
+
+          // Compute initial value and store it
+          const value = this.generateExpression(stmt.value, params);
+          this.emit(`store i8* ${value}, i8** ${allocaReg}`);
         } else if (isString) {
           // Allocate stack space for string pointer (i8*)
           const allocaReg = this.nextTemp();
@@ -337,6 +357,12 @@ export class LLVMGenerator extends BaseGenerator {
       return this.stringGen.createStringConstant(expr.value);
     }
 
+    if ((expr as any).type === 'regex') {
+      this.syncStateToGenerators();
+      const regexExpr = expr as any;
+      return this.regexGen.generateRegexCompile(regexExpr.pattern, regexExpr.flags);
+    }
+
     if (expr.type === 'array') {
       this.syncStateToGenerators();
       return this.arrayGen.generateArrayLiteral(expr, params);
@@ -379,6 +405,14 @@ export class LLVMGenerator extends BaseGenerator {
       if (classInstanceMeta) {
         const temp = this.nextTemp();
         this.emit(`${temp} = load i32*, i32** ${classInstanceMeta.ptr}`);
+        return temp;
+      }
+
+      // Check if it's a regex variable
+      const regexAllocaReg = this.regexVariables.get(expr.name);
+      if (regexAllocaReg) {
+        const temp = this.nextTemp();
+        this.emit(`${temp} = load i8*, i8** ${regexAllocaReg}`);
         return temp;
       }
 
@@ -680,6 +714,23 @@ export class LLVMGenerator extends BaseGenerator {
   private generateMethodCall(expr: MethodCallNode, params: string[]): string {
     const method = expr.method;
 
+    // Handle regex methods
+    if (method === 'test') {
+      // Check if the object is a regex (literal or variable)
+      const isRegex = this.isRegexExpression(expr.object);
+      if (isRegex) {
+        this.syncStateToGenerators();
+        const regexPtr = this.generateExpression(expr.object, params);
+
+        if (expr.args.length !== 1) {
+          throw new Error(`test() expects 1 argument, got ${expr.args.length}`);
+        }
+
+        const testStr = this.generateExpression(expr.args[0], params);
+        return this.regexGen.generateRegexTest(regexPtr, testStr);
+      }
+    }
+
     // Handle string methods
     if (method === 'substr') {
       // Check if the object is a string
@@ -889,6 +940,16 @@ export class LLVMGenerator extends BaseGenerator {
     return false;
   }
 
+  private isRegexExpression(expr: Expression): boolean {
+    if ((expr as any).type === 'regex') {
+      return true;
+    }
+    if (expr.type === 'variable') {
+      return this.regexVariables.has(expr.name);
+    }
+    return false;
+  }
+
   private isClassInstanceExpression(expr: Expression): boolean {
     if ((expr as any).type === 'new') {
       return true;
@@ -926,7 +987,7 @@ export class LLVMGenerator extends BaseGenerator {
   // Sync state to sub-generators - share Maps/arrays by reference
   // Note: Counters are already shared via bound methods (nextTemp, nextLabel, nextString)
   private syncStateToGenerators() {
-    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
+    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen, this.regexGen]) {
       gen.output = this.output;
       gen.globalStrings = this.globalStrings;
       gen.variables = this.variables;
@@ -936,6 +997,7 @@ export class LLVMGenerator extends BaseGenerator {
       gen.mapVariables = this.mapVariables;
       gen.setVariables = this.setVariables;
       gen.classInstanceVariables = this.classInstanceVariables;
+      gen.regexVariables = this.regexVariables;
       gen.thisPointer = this.thisPointer;
     }
   }

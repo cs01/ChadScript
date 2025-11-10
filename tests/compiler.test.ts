@@ -119,6 +119,12 @@ const testCases: TestCase[] = [
     description: 'String substr() method should work'
   },
   {
+    name: 'regex-test',
+    fixture: 'tests/fixtures/regex-test.js',
+    expectedExitCode: 1, // /^[a-z]+$/.test("hello") = 1 (true)
+    description: 'Regex test() method should work'
+  },
+  {
     name: 'array-literal',
     fixture: 'tests/fixtures/array-literal.js',
     expectedExitCode: 3, // [1, 2, 3].length = 3

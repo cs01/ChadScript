@@ -43,8 +43,8 @@ npx tsx src/index.ts file.js && ./file
 - [x] **Map/Set** - COMPLETED ✅ (new Map(), set/get/has, new Set(), add/has)
 - [x] **for/while loops** - COMPLETED ✅
 - [x] **Array methods** - .find(), .some(), .filter(), .forEach()
-- [ ] **String methods** - .substr() (used in parser)
-- [ ] **Regex** - /pattern/.test() (used in parser)
+- [x] **String methods** - .substr() (used in parser)
+- [x] **Regex** - /pattern/.test() (used in parser)
 - [ ] **Class improvements** - Multiple fields, method parameters, this.method()
 
 **Important** 🟡 (Needed for realistic compilation)

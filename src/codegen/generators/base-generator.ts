@@ -19,6 +19,7 @@ export class BaseGenerator {
   public mapVariables: Map<string, string> = new Map(); // %Map variables
   public setVariables: Map<string, string> = new Map(); // %Set variables
   public classInstanceVariables: Map<string, { ptr: string; className: string }> = new Map(); // i32* class instances
+  public regexVariables: Map<string, string> = new Map(); // i8* regex pointers
   public thisPointer: string | null = null; // Current 'this' pointer (i32*)
 
   constructor() {}
@@ -35,6 +36,7 @@ export class BaseGenerator {
     this.mapVariables = new Map();
     this.setVariables = new Map();
     this.classInstanceVariables = new Map();
+    this.regexVariables = new Map();
     this.thisPointer = null;
   }
 

@@ -594,6 +594,23 @@ export class Parser {
       return { type: 'string', value: this.parseString() };
     }
 
+    // Check for regex literal
+    if (this.code[this.pos] === '/') {
+      // Look ahead to check if this is a regex (not division)
+      // This is a simplified check - in a full implementation we'd need more context
+      const savedPos = this.pos;
+      try {
+        const regex = this.parseRegex();
+        if (regex) {
+          // Handle postfix expressions (e.g., /pattern/.test())
+          return this.parsePostfixExpressions(regex);
+        }
+      } catch (e) {
+        // Not a regex, restore position
+        this.pos = savedPos;
+      }
+    }
+
     // Check for number
     if (/[0-9]/.test(this.code[this.pos])) {
       return { type: 'number', value: this.parseNumber() };
@@ -676,6 +693,56 @@ export class Parser {
     }
     this.pos++; // consume closing quote
     return str;
+  }
+
+  private parseRegex(): { type: 'regex'; pattern: string; flags: string } | null {
+    if (this.code[this.pos] !== '/') {
+      return null;
+    }
+    this.pos++; // consume opening /
+
+    let pattern = '';
+    let escaped = false;
+
+    while (this.pos < this.code.length) {
+      const ch = this.code[this.pos];
+
+      if (escaped) {
+        pattern += ch;
+        escaped = false;
+        this.pos++;
+        continue;
+      }
+
+      if (ch === '\\') {
+        pattern += ch;
+        escaped = true;
+        this.pos++;
+        continue;
+      }
+
+      if (ch === '/') {
+        // End of pattern
+        this.pos++; // consume closing /
+        break;
+      }
+
+      // Check for invalid newline in pattern
+      if (ch === '\n') {
+        throw new Error('Unterminated regex at position ' + this.pos);
+      }
+
+      pattern += ch;
+      this.pos++;
+    }
+
+    // Parse flags (optional)
+    let flags = '';
+    while (this.pos < this.code.length && /[gimsuvy]/.test(this.code[this.pos])) {
+      flags += this.code[this.pos++];
+    }
+
+    return { type: 'regex', pattern, flags };
   }
 
   private parseImport(): void {
