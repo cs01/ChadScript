@@ -154,13 +154,31 @@ const testCases: TestCase[] = [
     expectedExitCode: 10, // { x: 10, y: 20 }.x = 10
     description: 'Property access on object literal should work'
   },
-  {
-    name: 'object-method',
-    fixture: 'tests/fixtures/object-method.js',
-    expectedExitCode: 12, // obj.add(5, 7) = 12
-    description: 'Object method call should work'
-  }
-];
+    {
+      name: 'object-method',
+      fixture: 'tests/fixtures/object-method.js',
+      expectedExitCode: 12, // obj.add(5, 7) = 12
+      description: 'Object method call should work'
+    },
+    {
+      name: 'class-basic',
+      fixture: 'tests/fixtures/class-basic.js',
+      expectedExitCode: 10, // new Counter(10).getValue() -> 10
+      description: 'Class with constructor, methods, and this should work'
+    },
+    {
+      name: 'while-loop',
+      fixture: 'tests/fixtures/while-loop.js',
+      expectedExitCode: 15, // 5+4+3+2+1 = 15
+      description: 'While loop should sum numbers from 5 to 1'
+    },
+    {
+      name: 'for-loop',
+      fixture: 'tests/fixtures/for-loop.js',
+      expectedExitCode: 55, // 1+2+3+...+10 = 55
+      description: 'For loop should sum numbers from 1 to 10'
+    }
+  ];
 
 describe('ChadScript Compiler', () => {
   describe('Compilation and Execution', { concurrency: true }, () => {

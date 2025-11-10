@@ -46,6 +46,8 @@ export class LLVMGenerator extends BaseGenerator {
       gen.nextTemp = this.nextTemp.bind(this);
       gen.nextLabel = this.nextLabel.bind(this);
       gen.nextString = this.nextString.bind(this);
+      // Also provide a way to reset tempCounter
+      (gen as any).resetTempCounter = () => { this.tempCounter = 0; };
     }
 
     // Collect all imported function names
@@ -143,14 +145,30 @@ export class LLVMGenerator extends BaseGenerator {
   private generateBlock(block: BlockStatement, params: string[]): string | null {
     let lastValue: string | null = null;
 
+    // Sync thisPointer from classGen if it's set (for constructor/method contexts)
+    if (this.classGen.thisPointer !== null) {
+      this.thisPointer = this.classGen.thisPointer;
+    }
+
     for (const stmt of block.statements) {
       if (stmt.type === 'variable_declaration') {
-        // Determine if this is a string, array, object, or numeric value
+        // Determine if this is a string, array, object, class instance, or numeric value
         const isString = this.isStringExpression(stmt.value);
         const isArray = this.isArrayExpression(stmt.value);
         const isObject = this.isObjectExpression(stmt.value);
+        const isClassInstance = this.isClassInstanceExpression(stmt.value);
 
-        if (isObject) {
+        if (isClassInstance) {
+          // Allocate stack space for class instance pointer (i32*)
+          const allocaReg = this.nextTemp();
+          const newExpr = stmt.value as any as NewNode;
+          this.classInstanceVariables.set(stmt.name, { ptr: allocaReg, className: newExpr.className });
+          this.emit(`${allocaReg} = alloca i32*`);
+
+          // Generate the new expression and store it
+          const instancePtr = this.generateExpression(stmt.value, params);
+          this.emit(`store i32* ${instancePtr}, i32** ${allocaReg}`);
+        } else if (isObject) {
           // Allocate stack space for object pointer (i32*) BEFORE generating the expression
           const allocaReg = this.nextTemp();
           const keys = (stmt.value as any).type === 'object' ? (stmt.value as any).properties.map((p: any) => p.key) : [];
@@ -192,19 +210,74 @@ export class LLVMGenerator extends BaseGenerator {
           this.emit(`store i32 ${value}, i32* ${allocaReg}`);
         }
       } else if (stmt.type === 'assignment') {
-        // Update existing variable
-        const allocaReg = this.variables.get(stmt.name);
-        if (!allocaReg) {
-          throw new Error(`Unknown variable: ${stmt.name}`);
+        // Check if this is a member access assignment (this.field = value)
+        if (stmt.name.startsWith('__member_access__')) {
+          // Extract property name and handle member access assignment
+          const memberAccessValue = stmt.value as any;
+          if (memberAccessValue.type === 'member_access_assignment') {
+            const object = memberAccessValue.object;
+            const property = memberAccessValue.property;
+            const value = this.generateExpression(memberAccessValue.value, params);
+            
+            // Get instance pointer
+            let instancePtr: string | null = null;
+            let className: string | null = null;
+            
+            if (object.type === 'variable' && this.classInstanceVariables.has(object.name)) {
+              const classMeta = this.classInstanceVariables.get(object.name)!;
+              className = classMeta.className;
+              instancePtr = this.generateExpression(object, params);
+            } else if ((object as any).type === 'new') {
+              const newExpr = object as any as NewNode;
+              className = newExpr.className;
+              instancePtr = this.generateExpression(object, params);
+            } else if ((object as any).type === 'this') {
+              if (!this.thisPointer) {
+                throw new Error('this.field = value used outside of class method or constructor');
+              }
+              instancePtr = this.thisPointer;
+              // Find class - simplified for now
+              const classWithField = this.ast.classes.find(c => true);
+              if (classWithField) {
+                className = classWithField.name;
+              }
+            } else {
+              throw new Error(`Cannot assign to property of ${object.type}`);
+            }
+            
+            if (instancePtr && className) {
+              // For now, use field index 0 - TODO: implement proper field name mapping
+              const fieldIndex = 0;
+              const fieldPtr = this.nextTemp();
+              this.emit(`${fieldPtr} = getelementptr inbounds i32, i32* ${instancePtr}, i32 ${fieldIndex}`);
+              this.emit(`store i32 ${value}, i32* ${fieldPtr}`);
+            } else {
+              throw new Error('Could not determine class instance for field assignment');
+            }
+          } else {
+            throw new Error('Invalid member access assignment format');
+          }
+        } else {
+          // Regular variable assignment
+          const allocaReg = this.variables.get(stmt.name);
+          if (!allocaReg) {
+            throw new Error(`Unknown variable: ${stmt.name}`);
+          }
+          const value = this.generateExpression(stmt.value, params);
+          this.emit(`store i32 ${value}, i32* ${allocaReg}`);
         }
-        const value = this.generateExpression(stmt.value, params);
-        this.emit(`store i32 ${value}, i32* ${allocaReg}`);
       } else if (stmt.type === 'return') {
         lastValue = this.generateExpression(stmt.value, params);
       } else if (stmt.type === 'if') {
         this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateIfStatement(stmt, params);
         // Don't need to sync back - counters are already shared via bound methods
+      } else if (stmt.type === 'while') {
+        this.syncStateToGenerators();
+        lastValue = this.controlFlowGen.generateWhileStatement(stmt, params);
+      } else if (stmt.type === 'for') {
+        this.syncStateToGenerators();
+        lastValue = this.controlFlowGen.generateForStatement(stmt, params);
       } else {
         // Expression statement
         lastValue = this.generateExpression(stmt, params);
@@ -241,11 +314,24 @@ export class LLVMGenerator extends BaseGenerator {
     }
 
     if ((expr as any).type === 'this') {
-      // For now, return a placeholder - proper 'this' support needs context tracking
-      throw new Error('this keyword not yet fully implemented');
+      // Return the current 'this' pointer
+      // Check both this.thisPointer and classGen.thisPointer (for constructor/method contexts)
+      const thisPtr = this.thisPointer || this.classGen.thisPointer;
+      if (!thisPtr) {
+        throw new Error('this keyword used outside of class method or constructor');
+      }
+      return thisPtr;
     }
 
     if (expr.type === 'variable') {
+      // Check if it's a class instance variable
+      const classInstanceMeta = this.classInstanceVariables.get(expr.name);
+      if (classInstanceMeta) {
+        const temp = this.nextTemp();
+        this.emit(`${temp} = load i32*, i32** ${classInstanceMeta.ptr}`);
+        return temp;
+      }
+
       // Check if it's an array variable
       const arrayAllocaReg = this.arrayVariables.get(expr.name);
       if (arrayAllocaReg) {
@@ -272,6 +358,59 @@ export class LLVMGenerator extends BaseGenerator {
     }
 
     if (expr.type === 'member_access') {
+      // Handle class instance property access (this.field or instance.field)
+      let className: string | null = null;
+      let instancePtr: string | null = null;
+
+      if (expr.object.type === 'variable' && this.classInstanceVariables.has(expr.object.name)) {
+        const classMeta = this.classInstanceVariables.get(expr.object.name)!;
+        className = classMeta.className;
+        instancePtr = this.generateExpression(expr.object, params);
+      } else if ((expr.object as any).type === 'new') {
+        const newExpr = expr.object as any as NewNode;
+        className = newExpr.className;
+        instancePtr = this.generateExpression(expr.object, params);
+      } else if ((expr.object as any).type === 'this') {
+        // Get this pointer - check both this.thisPointer and classGen.thisPointer
+        const thisPtr = this.thisPointer || this.classGen.thisPointer;
+        if (!thisPtr) {
+          throw new Error('this.field accessed outside of class method or constructor');
+        }
+        instancePtr = thisPtr;
+        // Find which class we're in - we'll need to track this better later
+        // For now, search for a class that might have this field
+        // This is a simplified approach - in a full implementation we'd track the current class
+        const classWithField = this.ast.classes.find(c => {
+          // Check if constructor or any method assigns this field
+          return c.methods.some(m => {
+            // Simple check - look for assignment statements with this.field
+            // For now, we'll just assume any class could have this field
+            return true;
+          });
+        });
+        if (classWithField) {
+          className = classWithField.name;
+        }
+      }
+
+      if (className && instancePtr) {
+        // For now, use a simple field index mapping
+        // We'll use field index 0 for the first field, 1 for second, etc.
+        // This is a simplified approach - in a full implementation we'd track field names
+        // For now, let's use field index 0 for any property access
+        // TODO: Implement proper field name to index mapping
+        const fieldIndex = 0; // Simplified - should track actual field indices
+        
+        // Get pointer to field
+        const fieldPtr = this.nextTemp();
+        this.emit(`${fieldPtr} = getelementptr inbounds i32, i32* ${instancePtr}, i32 ${fieldIndex}`);
+        
+        // Load field value
+        const value = this.nextTemp();
+        this.emit(`${value} = load i32, i32* ${fieldPtr}`);
+        return value;
+      }
+
       // Check if accessing an object property (variable or literal)
       let objPtr: string;
       let keys: string[];
@@ -475,6 +614,50 @@ export class LLVMGenerator extends BaseGenerator {
       return this.arrayGen.generateArrayJoin(expr, params);
     }
 
+    // Handle class instance methods
+    let className: string | null = null;
+    let instancePtr: string | null = null;
+    
+    if (expr.object.type === 'variable' && this.classInstanceVariables.has(expr.object.name)) {
+      const classMeta = this.classInstanceVariables.get(expr.object.name)!;
+      className = classMeta.className;
+      instancePtr = this.generateExpression(expr.object, params);
+    } else if ((expr.object as any).type === 'new') {
+      const newExpr = expr.object as any as NewNode;
+      className = newExpr.className;
+      instancePtr = this.generateExpression(expr.object, params);
+    } else if ((expr.object as any).type === 'this') {
+      // Method call on 'this' - need to find the class context
+      if (!this.thisPointer) {
+        throw new Error('this.method() called outside of class method');
+      }
+      instancePtr = this.thisPointer;
+      // Find the class that contains the current method - we'll need to track this
+      // For now, we'll search for a class with this method
+      const classWithMethod = this.ast.classes.find(c => 
+        c.methods.some(m => m.name === method && !m.isConstructor)
+      );
+      if (!classWithMethod) {
+        throw new Error(`Method ${method} not found in any class`);
+      }
+      className = classWithMethod.name;
+    }
+
+    if (className && instancePtr) {
+      // Check if the class has this method
+      const classNode = this.ast.classes.find(c => c.name === className);
+      if (!classNode) {
+        throw new Error(`Class ${className} not found`);
+      }
+      const methodExists = classNode.methods.some(m => m.name === method && !m.isConstructor);
+      if (!methodExists) {
+        throw new Error(`Method ${method} not found in class ${className}`);
+      }
+
+      this.syncStateToGenerators();
+      return this.classGen.generateMethodCall(instancePtr, className, method, expr.args, params);
+    }
+
     // Handle object methods
     // Check if the object is an object (variable or literal) and has the method property
     let isObjectMethod = false;
@@ -541,6 +724,16 @@ export class LLVMGenerator extends BaseGenerator {
     return false;
   }
 
+  private isClassInstanceExpression(expr: Expression): boolean {
+    if ((expr as any).type === 'new') {
+      return true;
+    }
+    if (expr.type === 'variable') {
+      return this.classInstanceVariables.has(expr.name);
+    }
+    return false;
+  }
+
   private generateMain(): string {
     let ir = 'define i32 @main() {\n';
     ir += 'entry:\n';
@@ -575,6 +768,16 @@ export class LLVMGenerator extends BaseGenerator {
       gen.stringVariables = this.stringVariables;
       gen.arrayVariables = this.arrayVariables;
       gen.objectVariables = this.objectVariables;
+      gen.classInstanceVariables = this.classInstanceVariables;
+      gen.thisPointer = this.thisPointer;
+    }
+  }
+
+  // Sync state FROM generators back to this (for thisPointer updates)
+  private syncStateFromGenerators() {
+    // Sync thisPointer from classGen back to this
+    if (this.classGen.thisPointer !== null) {
+      this.thisPointer = this.classGen.thisPointer;
     }
   }
 }

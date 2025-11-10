@@ -16,6 +16,8 @@ export class BaseGenerator {
   public stringVariables: Map<string, string> = new Map(); // i8* variables
   public arrayVariables: Map<string, string> = new Map(); // %Array variables
   public objectVariables: Map<string, { ptr: string; keys: string[] }> = new Map();
+  public classInstanceVariables: Map<string, { ptr: string; className: string }> = new Map(); // i32* class instances
+  public thisPointer: string | null = null; // Current 'this' pointer (i32*)
 
   constructor() {}
 
@@ -28,6 +30,8 @@ export class BaseGenerator {
     this.stringVariables = new Map();
     this.arrayVariables = new Map();
     this.objectVariables = new Map();
+    this.classInstanceVariables = new Map();
+    this.thisPointer = null;
   }
 
   // Helper to get next temp register (can be overridden)

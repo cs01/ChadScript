@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, ReturnStatement, IfStatement, ImportDeclaration, ExportDeclaration, ObjectNode, ArrayNode, ClassNode, ClassMethod, NewNode, ThisNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, IfStatement, WhileStatement, ForStatement, ImportDeclaration, ExportDeclaration, ObjectNode, ArrayNode, MapNode, SetNode, ClassNode, ClassMethod, NewNode, ThisNode } from '../ast/types.js';
 
 // ============================================
 // PARSER
@@ -30,40 +30,37 @@ export class Parser {
         this.parseClass();
       } else if (this.match('function')) {
         this.parseFunction();
+      } else if (this.match('let') || this.match('const')) {
+        // Parse variable declaration at top level
+        const savedPos = this.pos - (this.code[this.pos - 3] === 'l' ? 3 : 5);
+        this.pos = savedPos;
+        const varDecl = this.parseVariableDeclaration();
+        // Top-level variables are parsed but not stored in AST
+        // They're available for later expressions in the same parse context
+        // Skip the semicolon if present
+        this.skipWhitespace();
+        if (this.code[this.pos] === ';') {
+          this.pos++;
+        }
       } else if (this.match('//')) {
         this.skipComment();
       } else {
-        // Try to parse as function call or new expression (entry point)
+        // Try to parse as function call, new expression, or method call (entry point)
         const savedPos = this.pos;
-        if (this.match('new')) {
-          // Parse new expression
-          const className = this.parseIdentifier();
-          this.expect('(');
-          const args: Expression[] = [];
-          this.skipWhitespace();
-          if (this.code[this.pos] !== ')') {
-            args.push(this.parseExpression());
-            while (this.match(',')) {
-              args.push(this.parseExpression());
-            }
-          }
-          this.expect(')');
-          this.entryPoint = { type: 'new', className, args };
+        // Try to parse as an expression (could be new, call, method call, etc.)
+        try {
+          const expr = this.parseExpression();
           this.skipWhitespace();
           if (this.code[this.pos] === ';') {
             this.pos++; // consume semicolon
           }
-        } else {
-          // Try function call
-          this.pos = savedPos;
-          const call = this.parseFunctionCall();
-          if (call) {
-            this.entryPoint = call;
-            this.skipWhitespace();
-            if (this.code[this.pos] === ';') {
-              this.pos++; // consume semicolon
-            }
+          // Set as entry point if it's a call, new, or method call
+          if (expr.type === 'call' || expr.type === 'new' || expr.type === 'method_call') {
+            this.entryPoint = expr as any;
           }
+        } catch (e) {
+          // If parsing fails, it's not a valid entry point
+          // Just continue to next iteration
         }
       }
     }
@@ -244,24 +241,51 @@ export class Parser {
       return this.parseIfStatement();
     }
 
-    // Try to parse assignment or expression statement
-    // We need to look ahead to see if it's an assignment (identifier = expr)
-    const savedPos = this.pos;
-    const identifier = this.parseIdentifier();
-    this.skipWhitespace();
+    // While loop
+    if (this.match('while')) {
+      return this.parseWhileStatement();
+    }
 
-    if (identifier && this.code[this.pos] === '=') {
+    // For loop
+    if (this.match('for')) {
+      return this.parseForStatement();
+    }
+
+    // Try to parse assignment or expression statement
+    // We need to look ahead to see if it's an assignment
+    // This could be: identifier = expr OR this.field = expr OR instance.field = expr
+    const savedPos = this.pos;
+    
+    // Try to parse an expression (could be identifier, this.field, etc.)
+    const leftExpr = this.parseExpression();
+    this.skipWhitespace();
+    
+    if (this.code[this.pos] === '=') {
       // It's an assignment
       this.pos++; // consume '='
       const value = this.parseExpression();
       this.expect(';');
-      return { type: 'assignment', name: identifier, value };
+      
+      // Check if leftExpr is a simple variable
+      if (leftExpr.type === 'variable') {
+        return { type: 'assignment', name: leftExpr.name, value };
+      } else if (leftExpr.type === 'member_access') {
+        // Handle member access assignment (this.field = value or instance.field = value)
+        // Store as assignment with special name format to indicate member access
+        // We'll use a special format: "member_access:<property>" and store the object in a custom way
+        // For now, we'll use a hack: store as assignment with empty name and check in codegen
+        return { 
+          type: 'assignment', 
+          name: `__member_access__${(leftExpr as any).property}__`, // Special marker
+          value: { type: 'member_access_assignment', object: (leftExpr as any).object, property: (leftExpr as any).property, value } as any
+        } as any;
+      } else {
+        throw new Error(`Cannot assign to ${leftExpr.type}`);
+      }
     } else {
-      // It's an expression statement, backtrack
-      this.pos = savedPos;
-      const expr = this.parseExpression();
+      // It's an expression statement
       this.expect(';');
-      return expr;
+      return leftExpr;
     }
   }
 
@@ -283,8 +307,85 @@ export class Parser {
     return { type: 'if', condition, thenBlock, elseBlock };
   }
 
+  private parseWhileStatement(): WhileStatement {
+    this.expect('(');
+    const condition = this.parseExpression();
+    this.expect(')');
+    this.expect('{');
+    const body = this.parseBlock();
+    this.expect('}');
+
+    return { type: 'while', condition, body };
+  }
+
+  private parseForStatement(): ForStatement {
+    this.expect('(');
+
+    // Parse init (can be let/const declaration, assignment, or empty)
+    let init: VariableDeclaration | AssignmentStatement | null = null;
+    this.skipWhitespace();
+    if (this.code[this.pos] !== ';') {
+      if (this.match('let') || this.match('const')) {
+        const savedPos = this.pos - (this.code[this.pos - 3] === 'l' ? 3 : 5);
+        this.pos = savedPos;
+        init = this.parseVariableDeclaration();
+        // Variable declaration includes ';', so don't expect another one
+      } else {
+        // Try to parse as assignment or expression
+        const leftExpr = this.parseExpression();
+        this.skipWhitespace();
+        if (this.code[this.pos] === '=') {
+          this.pos++; // consume '='
+          const value = this.parseExpression();
+          if (leftExpr.type === 'variable') {
+            init = { type: 'assignment', name: leftExpr.name, value };
+          } else {
+            throw new Error(`Cannot assign to ${leftExpr.type} in for loop init`);
+          }
+        }
+        this.expect(';');
+      }
+    } else {
+      this.expect(';');
+    }
+
+    // Parse condition (can be empty)
+    let condition: Expression | null = null;
+    this.skipWhitespace();
+    if (this.code[this.pos] !== ';') {
+      condition = this.parseExpression();
+    }
+    this.expect(';');
+
+    // Parse update (can be assignment or expression or empty)
+    let update: AssignmentStatement | Expression | null = null;
+    this.skipWhitespace();
+    if (this.code[this.pos] !== ')') {
+      const leftExpr = this.parseExpression();
+      this.skipWhitespace();
+      if (this.code[this.pos] === '=') {
+        this.pos++; // consume '='
+        const value = this.parseExpression();
+        if (leftExpr.type === 'variable') {
+          update = { type: 'assignment', name: leftExpr.name, value };
+        } else {
+          throw new Error(`Cannot assign to ${leftExpr.type} in for loop update`);
+        }
+      } else {
+        update = leftExpr;
+      }
+    }
+    this.expect(')');
+
+    this.expect('{');
+    const body = this.parseBlock();
+    this.expect('}');
+
+    return { type: 'for', init, condition, update, body };
+  }
+
   private parseVariableDeclaration(): VariableDeclaration {
-    const kind = this.match('let') ? 'let' : (this.match('const'), 'const');
+    const kind = this.match('let') ? 'let' : 'const';
     const name = this.parseIdentifier();
     this.expect('=');
     const value = this.parseExpression();
@@ -413,6 +514,36 @@ export class Parser {
     // Check for 'new' keyword
     if (this.match('new')) {
       const className = this.parseIdentifier();
+
+      // Special handling for Map and Set constructors
+      if (className === 'Map' || className === 'Set') {
+        this.expect('(');
+        this.skipWhitespace();
+
+        // Check for optional iterable argument
+        if (this.code[this.pos] !== ')') {
+          // For now, parse and ignore the argument (we'll support it later)
+          // Skip to closing paren
+          let depth = 1;
+          this.pos++;
+          while (depth > 0 && this.pos < this.code.length) {
+            if (this.code[this.pos] === '(') depth++;
+            if (this.code[this.pos] === ')') depth--;
+            this.pos++;
+          }
+        } else {
+          this.expect(')');
+        }
+
+        if (className === 'Map') {
+          const mapExpr: MapNode = { type: 'map', entries: [] };
+          return this.parsePostfixExpressions(mapExpr);
+        } else {
+          const setExpr: SetNode = { type: 'set', values: [] };
+          return this.parsePostfixExpressions(setExpr);
+        }
+      }
+
       this.expect('(');
       const args: Expression[] = [];
       this.skipWhitespace();

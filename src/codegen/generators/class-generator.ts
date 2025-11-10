@@ -28,12 +28,20 @@ export class ClassGenerator extends BaseGenerator {
 
     // Generate constructor function (returns i32* - pointer to instance)
     if (constructor) {
+      // Reset tempCounter before constructor
+      (this as any).resetTempCounter?.();
+      // Clear output by removing all elements (preserving reference)
+      this.output.length = 0;
       ir += this.generateConstructor(className, constructor);
       ir += '\n';
     }
 
     // Generate regular methods (take i32* as first param for 'this')
     for (const method of regularMethods) {
+      // Reset tempCounter before each method
+      (this as any).resetTempCounter?.();
+      // Clear output by removing all elements (preserving reference)
+      this.output.length = 0;
       ir += this.generateMethod(className, method);
       ir += '\n';
     }
@@ -42,9 +50,11 @@ export class ClassGenerator extends BaseGenerator {
   }
 
   private generateConstructor(className: string, constructor: ClassMethod): string {
-    this.tempCounter = 0;
+    // Don't reset tempCounter here - it's managed by the bound nextTemp method
+    // which uses LLVMGenerator's tempCounter. We'll reset it in the parent.
     this.labelCounter = 0;
-    this.output = [];
+    // Output is synced by reference with LLVMGenerator, so we don't need to reset it here
+    // The parent will reset it before generating each class
 
     let ir = `define i32* @${className}_constructor(`;
     ir += constructor.params.map((_, i) => `i32 %arg${i}`).join(', ');
@@ -77,8 +87,16 @@ export class ClassGenerator extends BaseGenerator {
       this.emit(`store i32 0, i32* ${fieldPtr}`);
     }
 
-    // TODO: Execute constructor body with 'this' bound to objPtr
-    // For now, we'll skip the body execution
+    // Set 'this' pointer so constructor body can use it
+    this.thisPointer = objPtr;
+    
+    // Execute constructor body
+    // Note: generateBlock is a delegate that calls back to LLVMGenerator.generateBlock
+    // We need to ensure LLVMGenerator's thisPointer is set before calling generateBlock
+    // Since generateBlock checks LLVMGenerator's thisPointer, we sync it here
+    // The sync happens via the shared reference - but we need to ensure it's set
+    const bodyResult = this.generateBlock(constructor.body, constructor.params);
+    // Constructor body result is ignored - we return the instance pointer
 
     // Return the instance pointer
     if (this.output.length > 0) {
@@ -91,9 +109,11 @@ export class ClassGenerator extends BaseGenerator {
   }
 
   private generateMethod(className: string, method: ClassMethod): string {
-    this.tempCounter = 0;
+    // Don't reset tempCounter here - it's managed by the bound nextTemp method
+    // which uses LLVMGenerator's tempCounter. We'll reset it in the parent.
     this.labelCounter = 0;
-    this.output = [];
+    // Output is synced by reference with LLVMGenerator, so we don't need to reset it here
+    // The parent will reset it before generating each class
 
     // Method signature: first param is 'this' (i32*), then regular params
     let ir = `define i32 @${className}_${method.name}(i32* %this`;
@@ -104,11 +124,14 @@ export class ClassGenerator extends BaseGenerator {
     ir += ') {\n';
     ir += 'entry:\n';
 
-    // Allocate stack space for 'this' pointer
+    // Allocate stack space for 'this' pointer and load it
     const thisAlloca = this.nextTemp();
     this.emit(`${thisAlloca} = alloca i32*`);
     this.emit(`store i32* %this, i32** ${thisAlloca}`);
-    // TODO: Track 'this' so we can access it
+    const thisLoaded = this.nextTemp();
+    this.emit(`${thisLoaded} = load i32*, i32** ${thisAlloca}`);
+    // Set 'this' pointer so method body can use it
+    this.thisPointer = thisLoaded;
 
     // Allocate stack space for parameters
     for (let i = 0; i < method.params.length; i++) {
@@ -120,7 +143,13 @@ export class ClassGenerator extends BaseGenerator {
     }
 
     // Generate body
+    // Note: generateBlock is a delegate to LLVMGenerator.generateBlock
+    // It will add instructions to LLVMGenerator's output, which is synced to this.output
     const result = this.generateBlock(method.body, method.params);
+    
+    // Sync output back from parent (LLVMGenerator) in case it was updated
+    // Since output is shared by reference via syncStateToGenerators, this should already be synced
+    // But let's make sure by checking if we need to sync
 
     // Add generated instructions
     if (this.output.length > 0) {

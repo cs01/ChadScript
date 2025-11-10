@@ -72,6 +72,111 @@ export class ControlFlowGenerator extends BaseGenerator {
     return '0';
   }
 
+  generateWhileStatement(stmt: Statement, params: string[]): string {
+    if (stmt.type !== 'while') {
+      throw new Error('Expected while statement');
+    }
+
+    // Generate unique labels
+    const condLabel = this.nextLabel('while_cond');
+    const bodyLabel = this.nextLabel('while_body');
+    const endLabel = this.nextLabel('while_end');
+
+    // Jump to condition check
+    this.emit(`br label %${condLabel}`);
+
+    // Condition block
+    this.emit(`${condLabel}:`);
+    const condValue = this.generateExpression(stmt.condition, params);
+    const condBool = this.nextTemp();
+    this.emit(`${condBool} = icmp ne i32 ${condValue}, 0`);
+    this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+
+    // Body block
+    this.emit(`${bodyLabel}:`);
+    this.generateBlock(stmt.body, params);
+    this.emit(`br label %${condLabel}`);
+
+    // End block
+    this.emit(`${endLabel}:`);
+
+    return '0';
+  }
+
+  generateForStatement(stmt: Statement, params: string[]): string {
+    if (stmt.type !== 'for') {
+      throw new Error('Expected for statement');
+    }
+
+    // Generate init if present
+    if (stmt.init) {
+      if (stmt.init.type === 'variable_declaration') {
+        // Handle variable declaration - allocate and store
+        const value = this.generateExpression(stmt.init.value, params);
+        const allocaReg = this.nextTemp();
+        // Register the variable in the variables map
+        this.variables.set(stmt.init.name, allocaReg);
+        this.emit(`${allocaReg} = alloca i32`);
+        this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+      } else if (stmt.init.type === 'assignment') {
+        const value = this.generateExpression(stmt.init.value, params);
+        const allocaReg = this.variables.get(stmt.init.name);
+        if (!allocaReg) {
+          throw new Error(`Variable ${stmt.init.name} not found`);
+        }
+        this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+      }
+    }
+
+    // Generate unique labels
+    const condLabel = this.nextLabel('for_cond');
+    const bodyLabel = this.nextLabel('for_body');
+    const updateLabel = this.nextLabel('for_update');
+    const endLabel = this.nextLabel('for_end');
+
+    // Jump to condition check
+    this.emit(`br label %${condLabel}`);
+
+    // Condition block
+    this.emit(`${condLabel}:`);
+    if (stmt.condition) {
+      const condValue = this.generateExpression(stmt.condition, params);
+      const condBool = this.nextTemp();
+      this.emit(`${condBool} = icmp ne i32 ${condValue}, 0`);
+      this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+    } else {
+      // No condition means infinite loop
+      this.emit(`br label %${bodyLabel}`);
+    }
+
+    // Body block
+    this.emit(`${bodyLabel}:`);
+    this.generateBlock(stmt.body, params);
+    this.emit(`br label %${updateLabel}`);
+
+    // Update block
+    this.emit(`${updateLabel}:`);
+    if (stmt.update) {
+      if (stmt.update.type === 'assignment') {
+        const value = this.generateExpression(stmt.update.value, params);
+        const allocaReg = this.variables.get(stmt.update.name);
+        if (!allocaReg) {
+          throw new Error(`Variable ${stmt.update.name} not found in update`);
+        }
+        this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+      } else {
+        // It's an expression (like i++)
+        this.generateExpression(stmt.update, params);
+      }
+    }
+    this.emit(`br label %${condLabel}`);
+
+    // End block
+    this.emit(`${endLabel}:`);
+
+    return '0';
+  }
+
   generateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string {
     // For && and ||, we need short-circuit evaluation
     // We'll use a simpler non-short-circuit version for now (like C's & and |)

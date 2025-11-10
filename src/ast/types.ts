@@ -39,6 +39,16 @@ export interface ObjectNode {
   properties: { key: string; value: Expression }[];
 }
 
+export interface MapNode {
+  type: 'map';
+  entries: { key: Expression; value: Expression }[];
+}
+
+export interface SetNode {
+  type: 'set';
+  values: Expression[];
+}
+
 export interface BinaryNode {
   type: 'binary';
   op: string;
@@ -75,7 +85,7 @@ export interface UnaryNode {
   operand: Expression;
 }
 
-export type Expression = NumberNode | StringNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | NewNode | ThisNode;
+export type Expression = NumberNode | StringNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode;
 
 export interface VariableDeclaration {
   type: 'variable_declaration';
@@ -107,7 +117,21 @@ export interface IfStatement {
   elseBlock: BlockStatement | null;
 }
 
-export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | Expression;
+export interface WhileStatement {
+  type: 'while';
+  condition: Expression;
+  body: BlockStatement;
+}
+
+export interface ForStatement {
+  type: 'for';
+  init: VariableDeclaration | AssignmentStatement | null;
+  condition: Expression | null;
+  update: AssignmentStatement | Expression | null;
+  body: BlockStatement;
+}
+
+export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | Expression;
 
 export interface FunctionNode {
   name: string;
@@ -144,5 +168,5 @@ export interface AST {
   functions: FunctionNode[];
   classes: ClassNode[];
   exports: ExportDeclaration[];
-  entryPoint: CallNode | NewNode | null;
+  entryPoint: CallNode | NewNode | MethodCallNode | null;
 }

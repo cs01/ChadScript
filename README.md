@@ -10,8 +10,8 @@ npx tsx src/index.ts file.js && ./file
 ## Features
 
 **Phase 1** ✅ Arithmetic, functions, calls
-**Phase 2** ✅ Variables, if/while/for, comparisons, logical ops, imports/exports
-**Phase 3** 🔄 Strings (literals, .length, indexing, concatenation), Arrays (literals, .length, indexing) | Next: array methods, objects, classes → self-host
+**Phase 2** ✅ Variables, if/else, comparisons, logical ops, imports/exports
+**Phase 3** 🔄 Strings, arrays, objects, classes (basic) | **Next**: Map/Set, loops, array/string methods → self-host
 
 ## Roadmap
 
@@ -25,8 +25,6 @@ npx tsx src/index.ts file.js && ./file
 - [x] Comparison operators (<, >, <=, >=, ==, !=)
 - [x] Logical operators (&&, ||, !)
 - [x] If/else statements
-- [x] While loops
-- [x] For loops
 - [x] Import/Export system (ES6 modules)
 - [x] Multi-file compilation
 - [x] String literals (for import paths)
@@ -35,14 +33,28 @@ npx tsx src/index.ts file.js && ./file
 ### Phase 3: Bootstrap Path (IN PROGRESS)
 **Goal**: Compile ChadScript compiler with itself!
 
-**Strategy**: Incremental feature ladder
-1. [x] String literals (basic - for import paths) ✅
-2. [x] Import/Export system ✅
-3. [x] Strings (full support: literals, .length, indexing) ✅
-4. [x] String concatenation (+ operator) ✅
-5. [x] Arrays (literals, indexing, .length) ✅
-6. [x] Array methods (.push() ✅, .map() 🚧, .join() 🚧)
-7. [x] Objects (literals, property access, methods)
-8. [ ] Classes (class, constructor, this, new)
-9. [ ] **Simplified self-hosting compiler** (uses above features)
-10. [ ] **Full self-hosting**: Compile multi-file TypeScript compiler with itself
+**Completed** ✅
+- [x] String literals, .length, indexing, concatenation
+- [x] Arrays (literals, indexing, .length, .push())
+- [x] Objects (literals, property access, methods)
+- [x] Classes (basic: constructor, methods, this, new, field access)
+
+**Critical Blockers** 🔴 (Required for self-hosting)
+- [ ] **Map/Set** - Core data structures used throughout compiler
+- [x] **for/while loops** - COMPLETED ✅
+- [ ] **Array methods** - .find(), .some(), .filter(), .forEach()
+- [ ] **String methods** - .substr() (used in parser)
+- [ ] **Regex** - /pattern/.test() (used in parser)
+- [ ] **Class improvements** - Multiple fields, method parameters, this.method()
+
+**Important** 🟡 (Needed for realistic compilation)
+- [ ] parseInt() function
+- [ ] try/catch/throw error handling
+- [ ] Arrow functions for callbacks
+- [ ] Spread operator (...array)
+
+**Nice-to-Have** 🟢 (Post-bootstrap)
+- [ ] Template literals
+- [ ] break/continue in loops
+- [ ] Ternary operator (? :)
+- [ ] External APIs (fs, process, path - need special runtime support)
