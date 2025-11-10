@@ -115,6 +115,19 @@ export interface FunctionNode {
   body: BlockStatement;
 }
 
+export interface ClassMethod {
+  type: 'method';
+  name: string;
+  params: string[];
+  body: BlockStatement;
+  isConstructor: boolean;
+}
+
+export interface ClassNode {
+  name: string;
+  methods: ClassMethod[];
+}
+
 export interface ImportDeclaration {
   type: 'import';
   specifiers: string[];  // ['Parser', 'compile']
@@ -129,6 +142,7 @@ export interface ExportDeclaration {
 export interface AST {
   imports: ImportDeclaration[];
   functions: FunctionNode[];
+  classes: ClassNode[];
   exports: ExportDeclaration[];
-  entryPoint: CallNode | null;
+  entryPoint: CallNode | NewNode | null;
 }

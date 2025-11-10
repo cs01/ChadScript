@@ -1,9 +1,10 @@
-import { AST, Expression, FunctionNode, BlockStatement, MethodCallNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, MethodCallNode, NewNode, ThisNode } from '../ast/types.js';
 import { BaseGenerator } from './generators/base-generator.js';
 import { ArrayGenerator } from './generators/array-generator.js';
 import { StringGenerator } from './generators/string-generator.js';
 import { ObjectGenerator } from './generators/object-generator.js';
 import { ControlFlowGenerator } from './generators/control-flow-generator.js';
+import { ClassGenerator } from './generators/class-generator.js';
 
 // ============================================
 // LLVM IR CODE GENERATOR - Main Orchestrator
@@ -18,6 +19,7 @@ export class LLVMGenerator extends BaseGenerator {
   private stringGen: StringGenerator;
   private objectGen: ObjectGenerator;
   private controlFlowGen: ControlFlowGenerator;
+  private classGen: ClassGenerator;
 
   constructor(ast: AST) {
     super();
@@ -28,6 +30,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.stringGen = new StringGenerator();
     this.objectGen = new ObjectGenerator();
     this.controlFlowGen = new ControlFlowGenerator();
+    this.classGen = new ClassGenerator();
 
     // Wire up delegates so sub-generators can call back
     this.arrayGen.generateExpression = this.generateExpression.bind(this);
@@ -35,9 +38,11 @@ export class LLVMGenerator extends BaseGenerator {
     this.objectGen.generateExpression = this.generateExpression.bind(this);
     this.controlFlowGen.generateExpression = this.generateExpression.bind(this);
     this.controlFlowGen.generateBlock = this.generateBlock.bind(this);
+    this.classGen.generateExpression = this.generateExpression.bind(this);
+    this.classGen.generateBlock = this.generateBlock.bind(this);
 
     // Override counter methods to use parent's counters
-    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.controlFlowGen]) {
+    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.controlFlowGen, this.classGen]) {
       gen.nextTemp = this.nextTemp.bind(this);
       gen.nextLabel = this.nextLabel.bind(this);
       gen.nextString = this.nextString.bind(this);
@@ -71,6 +76,13 @@ export class LLVMGenerator extends BaseGenerator {
       ir += `declare i32 @${funcName}(...)\n`;
     }
     if (this.externalFunctions.size > 0) {
+      ir += '\n';
+    }
+
+    // Generate class definitions
+    for (const classNode of this.ast.classes) {
+      this.syncStateToGenerators();
+      ir += this.classGen.generateClass(classNode);
       ir += '\n';
     }
 
@@ -222,6 +234,17 @@ export class LLVMGenerator extends BaseGenerator {
       return this.objectGen.generateObjectLiteral(expr, params);
     }
 
+    if ((expr as any).type === 'new') {
+      this.syncStateToGenerators();
+      const newExpr = expr as any as NewNode;
+      return this.classGen.generateNewExpression(newExpr.className, newExpr.args, params);
+    }
+
+    if ((expr as any).type === 'this') {
+      // For now, return a placeholder - proper 'this' support needs context tracking
+      throw new Error('this keyword not yet fully implemented');
+    }
+
     if (expr.type === 'variable') {
       // Check if it's an array variable
       const arrayAllocaReg = this.arrayVariables.get(expr.name);
@@ -249,18 +272,37 @@ export class LLVMGenerator extends BaseGenerator {
     }
 
     if (expr.type === 'member_access') {
-      // Check if accessing an object property
-      if (expr.object.type === 'variable' && this.objectVariables.has(expr.object.name)) {
-        const objMeta = this.objectVariables.get(expr.object.name)!;
-        const propIndex = objMeta.keys.indexOf(expr.property);
-        if (propIndex === -1) {
-          throw new Error(`Unknown property: ${expr.property} on object ${expr.object.name}`);
-        }
+      // Check if accessing an object property (variable or literal)
+      let objPtr: string;
+      let keys: string[];
 
+      if (expr.object.type === 'variable' && this.objectVariables.has(expr.object.name)) {
+        // Object stored in variable
+        const objMeta = this.objectVariables.get(expr.object.name)!;
+        keys = objMeta.keys;
+        
         // Load object pointer
         const objPtrPtr = objMeta.ptr;
-        const objPtr = this.nextTemp();
+        objPtr = this.nextTemp();
         this.emit(`${objPtr} = load i32*, i32** ${objPtrPtr}`);
+      } else if ((expr.object as any).type === 'object') {
+        // Object literal - generate it and extract keys
+        const objExpr = expr.object as any;
+        keys = objExpr.properties.map((p: any) => p.key);
+        objPtr = this.generateExpression(expr.object, params);
+      } else {
+        // Not an object, fall through to .length handling
+        keys = [];
+        objPtr = '';
+      }
+
+      // If we have an object, access its property
+      if (keys.length > 0 && objPtr) {
+        const propIndex = keys.indexOf(expr.property);
+        if (propIndex === -1) {
+          const objDesc = expr.object.type === 'variable' ? expr.object.name : 'literal';
+          throw new Error(`Unknown property: ${expr.property} on object ${objDesc}`);
+        }
 
         // Get pointer to property field
         const fieldPtr = this.nextTemp();
@@ -433,6 +475,36 @@ export class LLVMGenerator extends BaseGenerator {
       return this.arrayGen.generateArrayJoin(expr, params);
     }
 
+    // Handle object methods
+    // Check if the object is an object (variable or literal) and has the method property
+    let isObjectMethod = false;
+    if (expr.object.type === 'variable' && this.objectVariables.has(expr.object.name)) {
+      const objMeta = this.objectVariables.get(expr.object.name)!;
+      isObjectMethod = objMeta.keys.includes(method);
+    } else if ((expr.object as any).type === 'object') {
+      const objExpr = expr.object as any;
+      isObjectMethod = objExpr.properties.some((p: any) => p.key === method);
+    }
+
+    if (isObjectMethod) {
+      // For object methods, we call the function with the same name as the method
+      // This is a simplified implementation - in a full implementation, we'd store function references
+      const funcExists = this.ast.functions.some(f => f.name === method);
+      if (!funcExists) {
+        throw new Error(`Function ${method} not found for object method call`);
+      }
+
+      // Generate arguments
+      const args = expr.args.map(arg => {
+        const result = this.generateExpression(arg, params);
+        return `i32 ${result}`;
+      }).join(', ');
+
+      const temp = this.nextTemp();
+      this.emit(`${temp} = call i32 @${method}(${args})`);
+      return temp;
+    }
+
     throw new Error(`Unknown method: ${method}`);
   }
 
@@ -496,7 +568,7 @@ export class LLVMGenerator extends BaseGenerator {
   // Sync state to sub-generators - share Maps/arrays by reference
   // Note: Counters are already shared via bound methods (nextTemp, nextLabel, nextString)
   private syncStateToGenerators() {
-    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.controlFlowGen]) {
+    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.controlFlowGen, this.classGen]) {
       gen.output = this.output;
       gen.globalStrings = this.globalStrings;
       gen.variables = this.variables;

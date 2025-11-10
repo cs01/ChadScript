@@ -42,9 +42,7 @@ npx tsx src/index.ts file.js && ./file
 4. [x] String concatenation (+ operator) ✅
 5. [x] Arrays (literals, indexing, .length) ✅
 6. [x] Array methods (.push() ✅, .map() 🚧, .join() 🚧)
-7. [ ] Objects (literals, property access, methods)
+7. [x] Objects (literals, property access, methods)
 8. [ ] Classes (class, constructor, this, new)
 9. [ ] **Simplified self-hosting compiler** (uses above features)
 10. [ ] **Full self-hosting**: Compile multi-file TypeScript compiler with itself
-
-**Progress**: Strings & basic arrays complete! String concat with + works. Arrays support literals, indexing, .length. Next: array methods (.push, .map, .join) then objects.

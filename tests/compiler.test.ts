@@ -147,6 +147,18 @@ const testCases: TestCase[] = [
     fixture: 'tests/fixtures/object-return.js',
     expectedExitCode: 42, // data.value = 42
     description: 'Returning object property should work'
+  },
+  {
+    name: 'object-literal-access',
+    fixture: 'tests/fixtures/object-literal-access.js',
+    expectedExitCode: 10, // { x: 10, y: 20 }.x = 10
+    description: 'Property access on object literal should work'
+  },
+  {
+    name: 'object-method',
+    fixture: 'tests/fixtures/object-method.js',
+    expectedExitCode: 12, // obj.add(5, 7) = 12
+    description: 'Object method call should work'
   }
 ];
 

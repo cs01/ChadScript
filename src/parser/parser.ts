@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, ReturnStatement, IfStatement, ImportDeclaration, ExportDeclaration, ObjectNode, ArrayNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, ReturnStatement, IfStatement, ImportDeclaration, ExportDeclaration, ObjectNode, ArrayNode, ClassNode, ClassMethod, NewNode, ThisNode } from '../ast/types.js';
 
 // ============================================
 // PARSER
@@ -9,8 +9,9 @@ export class Parser {
   private pos: number = 0;
   private imports: ImportDeclaration[] = [];
   private functions: FunctionNode[] = [];
+  private classes: ClassNode[] = [];
   private exports: ExportDeclaration[] = [];
-  private entryPoint: CallNode | null = null;
+  private entryPoint: CallNode | NewNode | null = null;
 
   constructor(code: string) {
     this.code = code;
@@ -25,18 +26,43 @@ export class Parser {
         this.parseImport();
       } else if (this.match('export')) {
         this.parseExport();
+      } else if (this.match('class')) {
+        this.parseClass();
       } else if (this.match('function')) {
         this.parseFunction();
       } else if (this.match('//')) {
         this.skipComment();
       } else {
-        // Try to parse as function call (entry point)
-        const call = this.parseFunctionCall();
-        if (call) {
-          this.entryPoint = call;
+        // Try to parse as function call or new expression (entry point)
+        const savedPos = this.pos;
+        if (this.match('new')) {
+          // Parse new expression
+          const className = this.parseIdentifier();
+          this.expect('(');
+          const args: Expression[] = [];
+          this.skipWhitespace();
+          if (this.code[this.pos] !== ')') {
+            args.push(this.parseExpression());
+            while (this.match(',')) {
+              args.push(this.parseExpression());
+            }
+          }
+          this.expect(')');
+          this.entryPoint = { type: 'new', className, args };
           this.skipWhitespace();
           if (this.code[this.pos] === ';') {
             this.pos++; // consume semicolon
+          }
+        } else {
+          // Try function call
+          this.pos = savedPos;
+          const call = this.parseFunctionCall();
+          if (call) {
+            this.entryPoint = call;
+            this.skipWhitespace();
+            if (this.code[this.pos] === ';') {
+              this.pos++; // consume semicolon
+            }
           }
         }
       }
@@ -45,6 +71,7 @@ export class Parser {
     return {
       imports: this.imports,
       functions: this.functions,
+      classes: this.classes,
       exports: this.exports,
       entryPoint: this.entryPoint
     };
@@ -124,6 +151,59 @@ export class Parser {
     this.expect('}');
 
     this.functions.push({ name, params, body });
+  }
+
+  private parseClass(): void {
+    const className = this.parseIdentifier();
+    this.expect('{');
+
+    const methods: ClassMethod[] = [];
+
+    while (true) {
+      this.skipWhitespace();
+      if (this.code[this.pos] === '}') {
+        break;
+      }
+
+      // Parse method or constructor
+      const isConstructor = this.match('constructor');
+      let methodName: string;
+
+      if (isConstructor) {
+        methodName = 'constructor';
+      } else {
+        methodName = this.parseIdentifier();
+      }
+
+      this.expect('(');
+
+      // Parse parameters
+      const params: string[] = [];
+      this.skipWhitespace();
+      if (this.code[this.pos] !== ')') {
+        params.push(this.parseIdentifier());
+        while (this.match(',')) {
+          params.push(this.parseIdentifier());
+        }
+      }
+      this.expect(')');
+      this.expect('{');
+
+      // Parse body
+      const body = this.parseBlock();
+      this.expect('}');
+
+      methods.push({
+        type: 'method',
+        name: methodName,
+        params,
+        body,
+        isConstructor
+      });
+    }
+
+    this.expect('}');
+    this.classes.push({ name: className, methods });
   }
 
   private parseBlock(): BlockStatement {
@@ -329,6 +409,30 @@ export class Parser {
 
   private parsePrimary(): Expression {
     this.skipWhitespace();
+
+    // Check for 'new' keyword
+    if (this.match('new')) {
+      const className = this.parseIdentifier();
+      this.expect('(');
+      const args: Expression[] = [];
+      this.skipWhitespace();
+      if (this.code[this.pos] !== ')') {
+        args.push(this.parseExpression());
+        while (this.match(',')) {
+          args.push(this.parseExpression());
+        }
+      }
+      this.expect(')');
+      const newExpr: NewNode = { type: 'new', className, args };
+      // Handle member access on new expression
+      return this.parsePostfixExpressions(newExpr);
+    }
+
+    // Check for 'this' keyword
+    if (this.match('this')) {
+      const thisExpr: ThisNode = { type: 'this' };
+      return this.parsePostfixExpressions(thisExpr);
+    }
 
     // Check for unary ! operator
     if (this.code[this.pos] === '!') {

@@ -54,7 +54,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>): AST {
 
   // Avoid circular imports
   if (compiledFiles.has(absPath)) {
-    return { imports: [], functions: [], exports: [], entryPoint: null };
+    return { imports: [], functions: [], classes: [], exports: [], entryPoint: null };
   }
   compiledFiles.add(absPath);
 
@@ -67,6 +67,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>): AST {
   let mergedAST: AST = {
     imports: [],
     functions: [...ast.functions],
+    classes: [...ast.classes],
     exports: [...ast.exports],
     entryPoint: ast.entryPoint
   };
@@ -76,8 +77,9 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>): AST {
     const importPath = resolveImportPath(absPath, imp.source);
     const importedAST = compileMultiFile(importPath, compiledFiles);
 
-    // Merge functions from imported file
+    // Merge functions and classes from imported file
     mergedAST.functions.push(...importedAST.functions);
+    mergedAST.classes.push(...importedAST.classes);
   }
 
   return mergedAST;
