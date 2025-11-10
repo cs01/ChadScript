@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, ReturnStatement, IfStatement, ImportDeclaration, ExportDeclaration } from '../ast/types.js';
+import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, ReturnStatement, IfStatement, ImportDeclaration, ExportDeclaration, ObjectNode, ArrayNode } from '../ast/types.js';
 
 // ============================================
 // PARSER
@@ -347,7 +347,16 @@ export class Parser {
 
     // Check for array literal
     if (this.code[this.pos] === '[') {
-      return this.parseArrayLiteral();
+      let expr: Expression = this.parseArrayLiteral();
+      // Handle member/index/method access on arrays
+      return this.parsePostfixExpressions(expr);
+    }
+
+    // Check for object literal
+    if (this.code[this.pos] === '{') {
+      let expr: Expression = this.parseObjectLiteral();
+      // Handle member/index/method access on objects
+      return this.parsePostfixExpressions(expr);
     }
 
     // Check for string literal
@@ -370,34 +379,7 @@ export class Parser {
     } else {
       // Variable reference - check for member access or index access
       let expr: Expression = { type: 'variable', name };
-
-      // Handle chained member/index/method access
-      while (true) {
-        this.skipWhitespace();
-        if (this.code[this.pos] === '.') {
-          // Member access or method call
-          this.pos++; // consume '.'
-          const property = this.parseIdentifier();
-          this.skipWhitespace();
-          if (this.code[this.pos] === '(') {
-            // Method call
-            expr = this.parseMethodCall(expr, property);
-          } else {
-            // Property access
-            expr = { type: 'member_access', object: expr, property };
-          }
-        } else if (this.code[this.pos] === '[') {
-          // Index access
-          this.pos++; // consume '['
-          const index = this.parseExpression();
-          this.expect(']');
-          expr = { type: 'index_access', object: expr, index };
-        } else {
-          break;
-        }
-      }
-
-      return expr;
+      return this.parsePostfixExpressions(expr);
     }
   }
 
@@ -550,5 +532,59 @@ export class Parser {
     }
     this.expect(')');
     return { type: 'method_call', object, method: methodName, args };
+  }
+
+  private parseObjectLiteral(): ObjectNode {
+    this.expect('{');
+    const properties: { key: string; value: Expression }[] = [];
+    this.skipWhitespace();
+    if (this.code[this.pos] !== '}') {
+      // Parse first property
+      const key = this.parseIdentifier();
+      this.expect(':');
+      const value = this.parseExpression();
+      properties.push({ key, value });
+
+      while (this.match(',')) {
+        this.skipWhitespace();
+        // Allow trailing comma
+        if (this.code[this.pos] === '}') break;
+        const key = this.parseIdentifier();
+        this.expect(':');
+        const value = this.parseExpression();
+        properties.push({ key, value });
+      }
+    }
+    this.expect('}');
+    return { type: 'object', properties };
+  }
+
+  private parsePostfixExpressions(expr: Expression): Expression {
+    // Handle chained member/index/method access
+    while (true) {
+      this.skipWhitespace();
+      if (this.code[this.pos] === '.') {
+        // Member access or method call
+        this.pos++; // consume '.'
+        const property = this.parseIdentifier();
+        this.skipWhitespace();
+        if (this.code[this.pos] === '(') {
+          // Method call
+          expr = this.parseMethodCall(expr, property);
+        } else {
+          // Property access
+          expr = { type: 'member_access', object: expr, property };
+        }
+      } else if (this.code[this.pos] === '[') {
+        // Index access
+        this.pos++; // consume '['
+        const index = this.parseExpression();
+        this.expect(']');
+        expr = { type: 'index_access', object: expr, index };
+      } else {
+        break;
+      }
+    }
+    return expr;
   }
 }

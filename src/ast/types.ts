@@ -34,6 +34,11 @@ export interface ArrayNode {
   elements: Expression[];
 }
 
+export interface ObjectNode {
+  type: 'object';
+  properties: { key: string; value: Expression }[];
+}
+
 export interface BinaryNode {
   type: 'binary';
   op: string;
@@ -54,13 +59,23 @@ export interface MethodCallNode {
   args: Expression[];
 }
 
+export interface NewNode {
+  type: 'new';
+  className: string;
+  args: Expression[];
+}
+
+export interface ThisNode {
+  type: 'this';
+}
+
 export interface UnaryNode {
   type: 'unary';
   op: string;
   operand: Expression;
 }
 
-export type Expression = NumberNode | StringNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode;
+export type Expression = NumberNode | StringNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | NewNode | ThisNode;
 
 export interface VariableDeclaration {
   type: 'variable_declaration';

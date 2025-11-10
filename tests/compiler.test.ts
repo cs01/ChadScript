@@ -129,6 +129,24 @@ const testCases: TestCase[] = [
     fixture: 'tests/fixtures/array-push.js',
     expectedExitCode: 4, // [10, 20, 30].push(40) returns 4 (new length)
     description: 'Array .push() should add element and return new length'
+  },
+  {
+    name: 'object-literal',
+    fixture: 'tests/fixtures/object-literal.js',
+    expectedExitCode: 30, // { x: 10, y: 20 } -> obj.x + obj.y = 30
+    description: 'Object literal and property access should work'
+  },
+  {
+    name: 'object-nested',
+    fixture: 'tests/fixtures/object-nested.js',
+    expectedExitCode: 12, // point.x (20) - point.y (8) = 12
+    description: 'Object with complex property expressions should work'
+  },
+  {
+    name: 'object-return',
+    fixture: 'tests/fixtures/object-return.js',
+    expectedExitCode: 42, // data.value = 42
+    description: 'Returning object property should work'
   }
 ];
 
