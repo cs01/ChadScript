@@ -3,7 +3,7 @@
 Compiles JavaScript subset → native executables (no runtime). **Goal: Self-hosting compiler**
 
 ```bash
-npm install && npm test  # 17 tests, ~5s
+npm install && npm test  # 20 tests, ~6s
 npx tsx src/index.ts file.js && ./file
 ```
 
@@ -11,7 +11,7 @@ npx tsx src/index.ts file.js && ./file
 
 **Phase 1** ✅ Arithmetic, functions, calls
 **Phase 2** ✅ Variables, if/while/for, comparisons, logical ops, imports/exports
-**Phase 3** 🔄 Strings (.length, indexing) | Next: concatenation, arrays, objects, classes → self-host
+**Phase 3** 🔄 Strings (literals, .length, indexing, concatenation), Arrays (literals, .length, indexing) | Next: array methods, objects, classes → self-host
 
 ## Roadmap
 
@@ -39,11 +39,12 @@ npx tsx src/index.ts file.js && ./file
 1. [x] String literals (basic - for import paths) ✅
 2. [x] Import/Export system ✅
 3. [x] Strings (full support: literals, .length, indexing) ✅
-4. [ ] String concatenation (+ operator)
-5. [ ] Arrays (literals, indexing, .length, .push(), .map(), .join())
-6. [ ] Objects (literals, property access, methods)
-7. [ ] Classes (class, constructor, this, new)
-8. [ ] **Simplified self-hosting compiler** (uses above features)
-9. [ ] **Full self-hosting**: Compile multi-file TypeScript compiler with itself
+4. [x] String concatenation (+ operator) ✅
+5. [x] Arrays (literals, indexing, .length) ✅
+6. [x] Array methods (.push() ✅, .map() 🚧, .join() 🚧)
+7. [ ] Objects (literals, property access, methods)
+8. [ ] Classes (class, constructor, this, new)
+9. [ ] **Simplified self-hosting compiler** (uses above features)
+10. [ ] **Full self-hosting**: Compile multi-file TypeScript compiler with itself
 
-**Progress**: String support complete! Can create string literals, check .length, and index into strings. Multi-file compilation works. Next: string concatenation and arrays. Update this readme as you go. Keep it low token
+**Progress**: Strings & basic arrays complete! String concat with + works. Arrays support literals, indexing, .length. Next: array methods (.push, .map, .join) then objects.

@@ -47,13 +47,20 @@ export interface CallNode {
   args: Expression[];
 }
 
+export interface MethodCallNode {
+  type: 'method_call';
+  object: Expression;
+  method: string;
+  args: Expression[];
+}
+
 export interface UnaryNode {
   type: 'unary';
   op: string;
   operand: Expression;
 }
 
-export type Expression = NumberNode | StringNode | VariableNode | BinaryNode | CallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode;
+export type Expression = NumberNode | StringNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode;
 
 export interface VariableDeclaration {
   type: 'variable_declaration';

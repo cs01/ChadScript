@@ -105,6 +105,30 @@ const testCases: TestCase[] = [
     fixture: 'tests/fixtures/string-literal.js',
     expectedExitCode: 4, // "test".length = 4
     description: 'String literal in variable should work'
+  },
+  {
+    name: 'string-concat',
+    fixture: 'tests/fixtures/string-concat.js',
+    expectedExitCode: 10, // "Hello" + "World" = 10 chars
+    description: 'String concatenation should work'
+  },
+  {
+    name: 'array-literal',
+    fixture: 'tests/fixtures/array-literal.js',
+    expectedExitCode: 3, // [1, 2, 3].length = 3
+    description: 'Array literal and .length should work'
+  },
+  {
+    name: 'array-index',
+    fixture: 'tests/fixtures/array-index.js',
+    expectedExitCode: 20, // [10, 20, 30][1] = 20
+    description: 'Array indexing should work'
+  },
+  {
+    name: 'array-push',
+    fixture: 'tests/fixtures/array-push.js',
+    expectedExitCode: 4, // [10, 20, 30].push(40) returns 4 (new length)
+    description: 'Array .push() should add element and return new length'
   }
 ];
 

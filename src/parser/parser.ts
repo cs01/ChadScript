@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, CallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, ReturnStatement, IfStatement, ImportDeclaration, ExportDeclaration } from '../ast/types.js';
+import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, ReturnStatement, IfStatement, ImportDeclaration, ExportDeclaration } from '../ast/types.js';
 
 // ============================================
 // PARSER
@@ -538,9 +538,9 @@ export class Parser {
     return { type: 'array', elements };
   }
 
-  private parseMethodCall(object: Expression, methodName: string): CallNode {
+  private parseMethodCall(object: Expression, methodName: string): MethodCallNode {
     this.expect('(');
-    const args: Expression[] = [object]; // 'this' becomes first argument
+    const args: Expression[] = [];
     this.skipWhitespace();
     if (this.code[this.pos] !== ')') {
       args.push(this.parseExpression());
@@ -549,8 +549,6 @@ export class Parser {
       }
     }
     this.expect(')');
-    // Transform method calls into special function calls
-    // e.g., arr.push(5) becomes __array_push(arr, 5)
-    return { type: 'call', name: `__${methodName}`, args };
+    return { type: 'method_call', object, method: methodName, args };
   }
 }
