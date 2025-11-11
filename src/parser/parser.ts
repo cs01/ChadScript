@@ -20,27 +20,60 @@ export class Parser {
     this.filename = filename;
   }
 
-  private formatError(message: string, position?: number): string {
+  private formatError(message: string, position?: number, options?: {
+    help?: string;
+    note?: string;
+    suggestion?: string;
+    contextLines?: number;
+  }): string {
     const pos = position !== undefined ? position : this.pos;
     const lines = this.code.substring(0, pos).split('\n');
     const lineNum = lines.length;
     const col = lines[lines.length - 1].length;
 
-    // Get the line content
+    // Get all lines for multi-line context
     const allLines = this.code.split('\n');
-    const lineContent = allLines[lineNum - 1] || '';
 
-    // Build the error message Rust-style (ANSI codes inlined for bootstrap compatibility)
-    // Include filename:line:col for easy cmd+click
+    // Build the error message (ANSI codes inlined for bootstrap compatibility)
+    // Format like clang: filename:line:col: error: message
     const lineNumStr = String(lineNum);
     const lineNumWidth = lineNumStr.length > 2 ? lineNumStr.length : 2;
-    const line1 = `\x1b[31m\x1b[1merror:\x1b[0m ${message}\n`;
-    const line2 = `\x1b[36m\x1b[1m --> \x1b[0m${this.filename}:${lineNum}:${col + 1}\n`;
-    const line3 = `\x1b[36m\x1b[1m${' '.repeat(lineNumWidth)} |\x1b[0m\n`;
-    const line4 = `\x1b[36m\x1b[1m${lineNumStr.padStart(lineNumWidth)} |\x1b[0m ${lineContent}\n`;
-    const line5 = `\x1b[36m\x1b[1m${' '.repeat(lineNumWidth)} |\x1b[0m ${' '.repeat(col)}\x1b[31m\x1b[1m^\x1b[0m \x1b[31mhere\x1b[0m\n`;
 
-    return line1.concat(line2, line3, line4, line5);
+    // Use the original terse message on the first line (like clang)
+    const line1 = `${this.filename}:${lineNum}:${col + 1}: \x1b[31m\x1b[1merror:\x1b[0m ${message}\n`;
+    const line2 = `\x1b[36m\x1b[1m${' '.repeat(lineNumWidth)} |\x1b[0m\n`;
+
+    // Multi-line context (#4)
+    let contextOutput = '';
+    const numContextLines = options?.contextLines || 1;
+    const startLine = Math.max(1, lineNum - numContextLines);
+    const endLine = Math.min(allLines.length, lineNum + numContextLines);
+
+    for (let i = startLine; i <= endLine; i++) {
+      const currentLineContent = allLines[i - 1] || '';
+      const currentLineNumStr = String(i);
+      contextOutput += `\x1b[36m\x1b[1m${currentLineNumStr.padStart(lineNumWidth)} |\x1b[0m ${currentLineContent}\n`;
+
+      // Add the caret on the error line
+      if (i === lineNum) {
+        contextOutput += `\x1b[36m\x1b[1m${' '.repeat(lineNumWidth)} |\x1b[0m ${' '.repeat(col)}\x1b[31m\x1b[1m^\x1b[0m \x1b[31mhere\x1b[0m\n`;
+      }
+    }
+
+    let result = line1.concat(line2, contextOutput);
+
+    // Add suggestion (#5 - "Did you mean?")
+    if (options?.suggestion) {
+      result += `\x1b[36m\x1b[1m${' '.repeat(lineNumWidth)} |\x1b[0m\n`;
+      result += `\x1b[36mFix:\x1b[0m ${options.suggestion}\n`;
+    }
+
+    // Add note
+    if (options?.note) {
+      result += `\x1b[36mNote:\x1b[0m ${options.note}\n`;
+    }
+
+    return result;
   }
 
   parse(): AST {
@@ -189,7 +222,33 @@ export class Parser {
 
   private expect(str: string): void {
     if (!this.match(str)) {
-      throw new Error(this.formatError(`Expected '${str}'`));
+      // Add helpful suggestions for common cases
+      let options: { help?: string; note?: string; suggestion?: string; contextLines?: number } = { contextLines: 1 };
+
+      if (str === ';') {
+        // Check what we found instead
+        this.skipWhitespace();
+        const nextChar = this.code[this.pos];
+
+        if (nextChar && /[a-zA-Z]/.test(nextChar)) {
+          options.help = "Statement must end with a semicolon";
+          options.suggestion = `Add ';' at the end of the previous line`;
+        } else {
+          options.help = "Semicolon required after statement";
+        }
+      } else if (str === '{') {
+        options.help = "Opening brace '{' required here";
+        options.note = "ChadScript requires braces for function bodies and blocks";
+      } else if (str === '}') {
+        options.help = "Closing brace '}' required to end block";
+      } else if (str === '(') {
+        options.help = "Opening parenthesis '(' required here";
+      } else if (str === ')') {
+        options.help = "Closing parenthesis ')' required here";
+        options.note = "Check that all parentheses are balanced";
+      }
+
+      throw new Error(this.formatError(`Expected '${str}'`, undefined, options));
     }
   }
 
@@ -209,6 +268,42 @@ export class Parser {
       num += this.code[this.pos++];
     }
     return parseInt(num);
+  }
+
+  private parseTypeAnnotation(): 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null {
+    // Parse TypeScript type annotation and return the type
+    // Returns null for unsupported/unknown types
+    this.skipWhitespace();
+
+    // Check for simple types
+    if (this.match('string')) {
+      this.skipWhitespace();
+      if (this.code[this.pos] === '[' && this.code[this.pos + 1] === ']') {
+        this.pos += 2;  // consume '[]'
+        return 'string[]';
+      }
+      return 'string';
+    } else if (this.match('number')) {
+      this.skipWhitespace();
+      if (this.code[this.pos] === '[' && this.code[this.pos + 1] === ']') {
+        this.pos += 2;  // consume '[]'
+        return 'number[]';
+      }
+      return 'number';
+    } else if (this.match('boolean')) {
+      this.skipWhitespace();
+      if (this.code[this.pos] === '[' && this.code[this.pos + 1] === ']') {
+        this.pos += 2;  // consume '[]'
+        return 'boolean[]';
+      }
+      return 'boolean';
+    } else if (this.match('void')) {
+      return 'void';
+    }
+
+    // For any other type, skip it and return null
+    this.skipTypeAnnotation();
+    return null;
   }
 
   private skipTypeAnnotation(): void {
@@ -388,14 +483,44 @@ export class Parser {
 
       // Parse parameters
       const params: string[] = [];
+      const paramTypes: ('string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void')[] = [];
       this.skipWhitespace();
       if (this.code[this.pos] !== ')') {
-        params.push(this.parseIdentifier());
+        const paramName = this.parseIdentifier();
+        // Parse TypeScript type annotation if present (e.g., ": string")
+        let paramType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
+        this.skipWhitespace();
+        if (this.code[this.pos] === ':') {
+          this.pos++; // consume ':'
+          this.skipWhitespace();
+          paramType = this.parseTypeAnnotation();
+        }
+        params.push(paramName);
+        if (paramType) paramTypes.push(paramType);
+
         while (this.match(',')) {
-          params.push(this.parseIdentifier());
+          this.skipWhitespace();
+          const nextParamName = this.parseIdentifier();
+          // Parse type annotation
+          let nextParamType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
+          this.skipWhitespace();
+          if (this.code[this.pos] === ':') {
+            this.pos++; // consume ':'
+            this.skipWhitespace();
+            nextParamType = this.parseTypeAnnotation();
+          }
+          params.push(nextParamName);
+          if (nextParamType) paramTypes.push(nextParamType);
         }
       }
       this.expect(')');
+      // Skip return type annotation if present (e.g., ": void")
+      this.skipWhitespace();
+      if (this.code[this.pos] === ':') {
+        this.pos++; // consume ':'
+        this.skipWhitespace();
+        this.skipTypeAnnotation();
+      }
       this.expect('{');
 
       // Parse body
@@ -406,6 +531,7 @@ export class Parser {
         type: 'method',
         name: methodName,
         params,
+        paramTypes: paramTypes.length > 0 ? paramTypes : undefined,
         body,
         isConstructor
       });
@@ -766,6 +892,19 @@ export class Parser {
     const name = this.parseIdentifier();
     this.skipWhitespace();
 
+    // Capture TypeScript type annotation if present (e.g., ": string[]")
+    let declaredType: string | undefined;
+    if (this.code[this.pos] === ':') {
+      this.pos++; // consume ':'
+      this.skipWhitespace();
+      const typeStart = this.pos;
+      this.skipTypeAnnotation();
+      const typeEnd = this.pos;
+      // Extract the type string (e.g., "string[]", "number", "boolean")
+      declaredType = this.code.substring(typeStart, typeEnd).trim();
+      this.skipWhitespace();
+    }
+
     // Check if there's an initializer
     let value: Expression | null = null;
     if (this.code[this.pos] === '=') {
@@ -792,7 +931,7 @@ export class Parser {
 
     this.expect(';');
 
-    return { type: 'variable_declaration', kind, name, value };
+    return { type: 'variable_declaration', kind, name, value, declaredType };
   }
 
   private parseExpression(): Expression {
@@ -1618,7 +1757,7 @@ export class Parser {
 
       this.expect('{');
 
-      const fields: { name: string; fieldType: 'i32' | 'string' }[] = [];
+      const fields: { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] = [];
       const methods: ClassMethod[] = [];
       this.skipWhitespace();
       while (this.code[this.pos] !== '}') {
@@ -1633,13 +1772,36 @@ export class Parser {
           this.skipWhitespace();
 
           // Parse type
-          let fieldType: 'i32' | 'string' = 'i32';
+          let fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' = 'i32';
           if (this.match('string')) {
-            fieldType = 'string';
+            // Check if it's an array type (string[])
+            this.skipWhitespace();
+            if (this.code[this.pos] === '[' && this.code[this.pos + 1] === ']') {
+              this.pos += 2; // consume '[]'
+              fieldType = 'string[]';
+            } else {
+              fieldType = 'string';
+            }
           } else if (this.match('number')) {
-            fieldType = 'i32';
+            // Check if it's an array type (number[])
+            this.skipWhitespace();
+            if (this.code[this.pos] === '[' && this.code[this.pos + 1] === ']') {
+              this.pos += 2; // consume '[]'
+              fieldType = 'number[]';
+            } else {
+              fieldType = 'i32';
+            }
+          } else if (this.match('boolean')) {
+            // Check if it's an array type (boolean[])
+            this.skipWhitespace();
+            if (this.code[this.pos] === '[' && this.code[this.pos + 1] === ']') {
+              this.pos += 2; // consume '[]'
+              fieldType = 'boolean[]';
+            } else {
+              throw new Error(this.formatError(`boolean fields are not supported yet. Only string, number, and their array types are supported.`));
+            }
           } else {
-            throw new Error(this.formatError(`Unsupported field type. Only 'string' and 'number' are supported.`));
+            throw new Error(this.formatError(`Unsupported field type. Supported types: string, number, string[], number[], boolean[]`));
           }
 
           this.skipWhitespace();
@@ -1658,20 +1820,50 @@ export class Parser {
         this.expect('(');
 
         const params: string[] = [];
+        const paramTypes: ('string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void')[] = [];
         this.skipWhitespace();
         if (this.code[this.pos] !== ')') {
-          params.push(this.parseIdentifier());
+          const paramName = this.parseIdentifier();
+          // Parse TypeScript type annotation if present (e.g., ": string")
+          let paramType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
+          this.skipWhitespace();
+          if (this.code[this.pos] === ':') {
+            this.pos++; // consume ':'
+            this.skipWhitespace();
+            paramType = this.parseTypeAnnotation();
+          }
+          params.push(paramName);
+          if (paramType) paramTypes.push(paramType);
+
           while (this.match(',')) {
-            params.push(this.parseIdentifier());
+            this.skipWhitespace();
+            const nextParamName = this.parseIdentifier();
+            // Parse type annotation
+            let nextParamType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
+            this.skipWhitespace();
+            if (this.code[this.pos] === ':') {
+              this.pos++; // consume ':'
+              this.skipWhitespace();
+              nextParamType = this.parseTypeAnnotation();
+            }
+            params.push(nextParamName);
+            if (nextParamType) paramTypes.push(nextParamType);
           }
         }
         this.expect(')');
+        // Skip return type annotation if present (e.g., ": void")
+        this.skipWhitespace();
+        if (this.code[this.pos] === ':') {
+          this.pos++; // consume ':'
+          this.skipWhitespace();
+          this.skipTypeAnnotation();
+        }
         this.expect('{');
 
         const body = this.parseBlock();
         this.expect('}');
 
-        methods.push({ type: 'method', name: methodName, params, body, isConstructor });
+        methods.push({ type: 'method', name: methodName, params, paramTypes: paramTypes.length > 0 ? paramTypes : undefined, body, isConstructor });
         this.skipWhitespace();
       }
       this.expect('}');

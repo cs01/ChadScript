@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import { Parser } from './parser/parser.js';
 import { LLVMGenerator } from './codegen/llvm-generator.js';
 import { TypeChecker } from './typescript/type-checker.js';
+import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
 
 // ============================================
@@ -58,7 +59,7 @@ export function compile(inputFile: string, outputFile: string, verbose: boolean 
 
   // Parse all files (starting from entry point, following imports)
   const compiledFiles = new Set<string>();
-  const mergedAST = compileMultiFile(inputFile, compiledFiles, verbose);
+  const mergedAST = compileMultiFile(inputFile, compiledFiles, verbose, inputFile);
 
   // Create TypeScript type checker if compiling a .ts file
   let typeChecker: TypeChecker | null = null;
@@ -108,7 +109,7 @@ export function compile(inputFile: string, outputFile: string, verbose: boolean 
   // Silent on success (like clang)
 }
 
-function compileMultiFile(entryFile: string, compiledFiles: Set<string>, verbose: boolean = false): AST {
+function compileMultiFile(entryFile: string, compiledFiles: Set<string>, verbose: boolean = false, displayPath?: string): AST {
   const absPath = path.resolve(entryFile);
 
   // Avoid circular imports
@@ -127,7 +128,9 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, verbose
   // to see the type annotations for class field declarations (e.g., argNames: string[])
   // The parser has built-in support to skip/handle TypeScript type annotations
 
-  const parser = new Parser(code, absPath);
+  // Use displayPath for entry file (preserves relative/absolute as passed), absPath for imported files
+  const pathForErrors = displayPath || absPath;
+  const parser = new Parser(code, pathForErrors);
   const ast = parser.parse();
 
   // Start with this file's AST

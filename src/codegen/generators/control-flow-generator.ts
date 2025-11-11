@@ -43,11 +43,14 @@ export class ControlFlowGenerator extends BaseGenerator {
 
     // Generate then block
     this.emit(`${thenLabel}:`);
-    const savedOutputLen = this.output.length;
+    this.currentLabel = thenLabel;
     const thenValue = this.generateBlock(stmt.thenBlock, params);
-    const thenHasTerminator = this.output.slice(savedOutputLen).some(line =>
-      line.trim().startsWith('ret ') || line.trim().startsWith('br ')
-    );
+    // Check if the LAST instruction is a terminator
+    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const thenHasTerminator = lastInstruction.startsWith('ret ') ||
+                              lastInstruction.startsWith('br ') ||
+                              lastInstruction.startsWith('unreachable') ||
+                              lastInstruction.startsWith('switch ');
     if (!thenHasTerminator) {
       this.emit(`br label %${mergeLabel}`);
     }
@@ -56,11 +59,14 @@ export class ControlFlowGenerator extends BaseGenerator {
     let elseValue: string | null = null;
     if (stmt.elseBlock) {
       this.emit(`${elseLabel}:`);
-      const savedOutputLen2 = this.output.length;
+      this.currentLabel = elseLabel;
       elseValue = this.generateBlock(stmt.elseBlock, params);
-      const elseHasTerminator = this.output.slice(savedOutputLen2).some(line =>
-        line.trim().startsWith('ret ') || line.trim().startsWith('br ')
-      );
+      // Check if the LAST instruction is a terminator
+      const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+      const elseHasTerminator = lastInstruction.startsWith('ret ') ||
+                                lastInstruction.startsWith('br ') ||
+                                lastInstruction.startsWith('unreachable') ||
+                                lastInstruction.startsWith('switch ');
       if (!elseHasTerminator) {
         this.emit(`br label %${mergeLabel}`);
       }
@@ -101,10 +107,19 @@ export class ControlFlowGenerator extends BaseGenerator {
 
     // Body block - push loop context for break/continue
     this.emit(`${bodyLabel}:`);
+    this.currentLabel = bodyLabel;
     this.loopStack.push({ continueLabel: condLabel, breakLabel: endLabel });
     this.generateBlock(stmt.body, params);
     this.loopStack.pop();
-    this.emit(`br label %${condLabel}`);
+    // Check if the LAST instruction is a terminator
+    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
+                              lastInstruction.startsWith('br ') ||
+                              lastInstruction.startsWith('unreachable') ||
+                              lastInstruction.startsWith('switch ');
+    if (!bodyHasTerminator) {
+      this.emit(`br label %${condLabel}`);
+    }
 
     // End block
     this.emit(`${endLabel}:`);
@@ -163,10 +178,19 @@ export class ControlFlowGenerator extends BaseGenerator {
 
     // Body block - push loop context for break/continue
     this.emit(`${bodyLabel}:`);
+    this.currentLabel = bodyLabel;
     this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
     this.generateBlock(stmt.body, params);
     this.loopStack.pop();
-    this.emit(`br label %${updateLabel}`);
+    // Check if the LAST instruction is a terminator
+    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
+                              lastInstruction.startsWith('br ') ||
+                              lastInstruction.startsWith('unreachable') ||
+                              lastInstruction.startsWith('switch ');
+    if (!bodyHasTerminator) {
+      this.emit(`br label %${updateLabel}`);
+    }
 
     // Update block
     this.emit(`${updateLabel}:`);

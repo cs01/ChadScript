@@ -407,11 +407,24 @@ export class LLVMGenerator extends BaseGenerator {
           continue;
         }
 
+        // Set expected array element type from TypeScript type annotation if available
+        // This helps properly type empty arrays like: const x: string[] = []
+        if (stmt.declaredType) {
+          if (stmt.declaredType === 'string[]') {
+            this.expectedArrayElementType = 'string';
+          } else if (stmt.declaredType === 'number[]' || stmt.declaredType === 'boolean[]') {
+            this.expectedArrayElementType = 'number';
+          }
+        }
+
         // Determine if this is a string, array, string array, object, map, set, regex, class instance, JSON object, or numeric value
         // NOTE: Check isStringArray BEFORE isArray since string arrays are also arrays
         const isString = this.isStringExpression(stmt.value);
         const isStringArray = this.isStringArrayExpression(stmt.value);
         const isArray = !isStringArray && this.isArrayExpression(stmt.value);
+
+        // Reset expected type after detection
+        this.expectedArrayElementType = null;
         const isJSONObject = this.isJSONParseExpression(stmt.value);
         const isObject = !isJSONObject && this.isObjectExpression(stmt.value);
         const isMap = this.isMapExpression(stmt.value);
@@ -480,6 +493,8 @@ export class LLVMGenerator extends BaseGenerator {
           // Allocate stack space for string array struct (%StringArray*)
           // NOTE: This must come BEFORE isArray check since string arrays are also arrays
           const allocaReg = this.nextTemp();
+          this.variables.set(stmt.name, allocaReg);
+          this.variableTypes.set(stmt.name, '%StringArray*');  // Track string array type!
           this.stringArrayVariables.set(stmt.name, allocaReg);
           this.emit(`${allocaReg} = alloca %StringArray`);
 
@@ -492,6 +507,8 @@ export class LLVMGenerator extends BaseGenerator {
         } else if (isArray) {
           // Allocate stack space for array struct (%Array*)
           const allocaReg = this.nextTemp();
+          this.variables.set(stmt.name, allocaReg);
+          this.variableTypes.set(stmt.name, '%Array*');  // Track array type!
           this.arrayVariables.set(stmt.name, allocaReg);
           this.emit(`${allocaReg} = alloca %Array`);
 
@@ -504,6 +521,8 @@ export class LLVMGenerator extends BaseGenerator {
         } else if (isRegex) {
           // Allocate stack space for regex pointer (i8*)
           const allocaReg = this.nextTemp();
+          this.variables.set(stmt.name, allocaReg);
+          this.variableTypes.set(stmt.name, 'i8*');  // Track regex type!
           this.regexVariables.set(stmt.name, allocaReg);
           this.emit(`${allocaReg} = alloca i8*`);
 
@@ -513,6 +532,8 @@ export class LLVMGenerator extends BaseGenerator {
         } else if (isString) {
           // Allocate stack space for string pointer (i8*)
           const allocaReg = this.nextTemp();
+          this.variables.set(stmt.name, allocaReg);
+          this.variableTypes.set(stmt.name, 'i8*');  // Track string type!
           this.stringVariables.set(stmt.name, allocaReg);
           this.emit(`${allocaReg} = alloca i8*`);
 
@@ -523,6 +544,7 @@ export class LLVMGenerator extends BaseGenerator {
           // Allocate stack space for i32
           const allocaReg = this.nextTemp();
           this.variables.set(stmt.name, allocaReg);
+          this.variableTypes.set(stmt.name, 'i32');  // Track numeric type!
           this.emit(`${allocaReg} = alloca i32`);
 
           // Compute initial value and store it
@@ -537,37 +559,58 @@ export class LLVMGenerator extends BaseGenerator {
           if (memberAccessValue.type === 'member_access_assignment') {
             const object = memberAccessValue.object;
             const property = memberAccessValue.property;
-            const value = this.generateExpression(memberAccessValue.value, params);
 
-            // Get instance pointer
+            // Get instance pointer and className first
             let instancePtr: string | null = null;
             let className: string | null = null;
 
             if (object.type === 'variable' && this.classInstanceVariables.has(object.name)) {
               const classMeta = this.classInstanceVariables.get(object.name)!;
               className = classMeta.className;
-              instancePtr = this.generateExpression(object, params);
             } else if ((object as any).type === 'new') {
               const newExpr = object as any as NewNode;
               className = newExpr.className;
-              instancePtr = this.generateExpression(object, params);
             } else if ((object as any).type === 'this') {
               if (!this.thisPointer) {
                 throw new Error('this.field = value used outside of class method or constructor');
               }
-              instancePtr = this.thisPointer;
               // Find class - simplified for now
               const classWithField = this.ast.classes.find(c => true);
               if (classWithField) {
                 className = classWithField.name;
               }
+            }
+
+            // Get field info to determine expected type
+            let fieldInfo = null;
+            if (className) {
+              fieldInfo = this.classGen.getFieldInfo(className, property);
+              // Set expected array element type for array field assignments
+              if (fieldInfo && fieldInfo.type === 'string[]') {
+                this.expectedArrayElementType = 'string';
+              } else if (fieldInfo && fieldInfo.type === 'number[]') {
+                this.expectedArrayElementType = 'number';
+              } else if (fieldInfo && fieldInfo.type === 'boolean[]') {
+                this.expectedArrayElementType = 'boolean';
+              }
+            }
+
+            // Now generate the value with context
+            const value = this.generateExpression(memberAccessValue.value, params);
+            this.expectedArrayElementType = null; // Reset context
+
+            // Generate instance pointer
+            if (object.type === 'variable' && this.classInstanceVariables.has(object.name)) {
+              instancePtr = this.generateExpression(object, params);
+            } else if ((object as any).type === 'new') {
+              instancePtr = this.generateExpression(object, params);
+            } else if ((object as any).type === 'this') {
+              instancePtr = this.thisPointer;
             } else {
               throw new Error(`Cannot assign to property of ${object.type}`);
             }
 
             if (instancePtr && className) {
-              // Get field info from class generator
-              const fieldInfo = this.classGen.getFieldInfo(className, property);
               const fields = this.classGen.getClassFields(className);
 
               if (fieldInfo) {
@@ -578,12 +621,33 @@ export class LLVMGenerator extends BaseGenerator {
 
                   if (fieldInfo.type === 'string') {
                     // Store string pointer (i8*)
-                    // Need to convert i32 to i8* if value came from constructor parameter
-                    const strPtr = this.nextTemp();
-                    this.emit(`${strPtr} = inttoptr i32 ${value} to i8*`);
-                    this.emit(`store i8* ${strPtr}, i8** ${fieldPtr}`);
+                    // Check if value is already i8* (from properly typed variable)
+                    let isAlreadyPointer = false;
+                    if (memberAccessValue.value.type === 'variable') {
+                      const varType = this.variableTypes.get(memberAccessValue.value.name);
+                      if (varType === 'i8*' || varType?.includes('*')) {
+                        isAlreadyPointer = true;
+                      }
+                    } else if (memberAccessValue.value.type === 'string') {
+                      // String constants are already i8*
+                      isAlreadyPointer = true;
+                    }
+
+                    if (isAlreadyPointer) {
+                      // Value is already i8*, store directly
+                      this.emit(`store i8* ${value}, i8** ${fieldPtr}`);
+                    } else {
+                      // Value is i32, need to convert to i8*
+                      const strPtr = this.nextTemp();
+                      this.emit(`${strPtr} = inttoptr i32 ${value} to i8*`);
+                      this.emit(`store i8* ${strPtr}, i8** ${fieldPtr}`);
+                    }
+                  } else if (fieldInfo.type === 'string[]') {
+                    // Store string array pointer (%StringArray*)
+                    // Value is already a %StringArray* from array generation
+                    this.emit(`store %StringArray* ${value}, %StringArray** ${fieldPtr}`);
                   } else if (fieldInfo.type.endsWith('[]')) {
-                    // Store array pointer (%Array*)
+                    // Store number/boolean array pointer (%Array*)
                     // Value is already an %Array* from array generation
                     this.emit(`store %Array* ${value}, %Array** ${fieldPtr}`);
                   } else {
@@ -741,6 +805,8 @@ export class LLVMGenerator extends BaseGenerator {
 
         const temp = this.nextTemp();
         this.emit(`${temp} = load ${ptrType}, ${ptrType}* ${classInstanceMeta.ptr}`);
+        // Track the loaded value's type
+        this.variableTypes.set(temp, ptrType);
         return temp;
       }
 
@@ -749,6 +815,8 @@ export class LLVMGenerator extends BaseGenerator {
       if (regexAllocaReg) {
         const temp = this.nextTemp();
         this.emit(`${temp} = load i8*, i8** ${regexAllocaReg}`);
+        // Track the loaded value's type
+        this.variableTypes.set(temp, 'i8*');
         return temp;
       }
 
@@ -781,6 +849,8 @@ export class LLVMGenerator extends BaseGenerator {
       if (stringAllocaReg) {
         const temp = this.nextTemp();
         this.emit(`${temp} = load i8*, i8** ${stringAllocaReg}`);
+        // Track the loaded value's type
+        this.variableTypes.set(temp, 'i8*');
         return temp;
       }
 
@@ -796,14 +866,15 @@ export class LLVMGenerator extends BaseGenerator {
         return asInt;
       }
 
-      // Check if it's a numeric variable
+      // Load variable with proper type from variableTypes map
       if (!expr.name) {
         throw new Error(`Variable expression has no name property. Expression: ${JSON.stringify(expr, null, 2)}`);
       }
       const allocaReg = this.variables.get(expr.name);
       if (allocaReg) {
         const temp = this.nextTemp();
-        this.emit(`${temp} = load i32, i32* ${allocaReg}`);
+        const varType = this.variableTypes.get(expr.name) || 'i32';
+        this.emit(`${temp} = load ${varType}, ${varType}* ${allocaReg}`);
         return temp;
       }
 
@@ -872,6 +943,20 @@ export class LLVMGenerator extends BaseGenerator {
               // Load string pointer (i8*)
               const value = this.nextTemp();
               this.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+              return value;
+            } else if (fieldInfo.type === 'string[]') {
+              // Load string array pointer (%StringArray*)
+              const value = this.nextTemp();
+              this.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
+              // Track this as a string array variable for subsequent operations
+              this.stringArrayVariables.set(value, value);
+              return value;
+            } else if (fieldInfo.type.endsWith('[]')) {
+              // Load number/boolean array pointer (%Array*)
+              const value = this.nextTemp();
+              this.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
+              // Track this as an array variable for subsequent operations
+              this.arrayVariables.set(value, value);
               return value;
             } else {
               // Load i32
@@ -1321,8 +1406,12 @@ export class LLVMGenerator extends BaseGenerator {
         }
       }
 
-      // Check if it's a string array first
-      if (expr.object.type === 'variable' && this.stringArrayVariables.has(expr.object.name)) {
+      // Determine if we're indexing into a string array or numeric array
+      // We use isStringArrayExpression/isArrayExpression which check types comprehensively
+      const isStringArray = this.isStringArrayExpression(expr.object);
+      const isNumericArray = !isStringArray && this.isArrayExpression(expr.object);
+
+      if (isStringArray) {
         const stringArrayPtr = this.generateExpression(expr.object, params);
         const index = this.generateExpression(expr.index, params);
 
@@ -1337,10 +1426,12 @@ export class LLVMGenerator extends BaseGenerator {
 
         const elem = this.nextTemp();
         this.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+        // Track that this loaded value is a string
+        this.variableTypes.set(elem, 'i8*');
         return elem;
       }
       // Check if it's a numeric array
-      else if (expr.object.type === 'variable' && this.arrayVariables.has(expr.object.name)) {
+      else if (isNumericArray) {
         const arrayPtr = this.generateExpression(expr.object, params);
         const index = this.generateExpression(expr.index, params);
 
@@ -1435,8 +1526,18 @@ export class LLVMGenerator extends BaseGenerator {
         '!==': 'ne'   // Strict inequality (same as != for i32)
       };
 
+      // Check if we're comparing strings
+      const leftIsString = this.isStringExpression(expr.left);
+      const rightIsString = this.isStringExpression(expr.right);
+
       const left = this.generateExpression(expr.left, params);
       const right = this.generateExpression(expr.right, params);
+
+      // Also check if generated values are tracked as strings
+      const leftType = this.variableTypes.get(left) || 'i32';
+      const rightType = this.variableTypes.get(right) || 'i32';
+      const leftIsStringType = leftType === 'i8*' || left.startsWith('@.str');
+      const rightIsStringType = rightType === 'i8*' || right.startsWith('@.str');
 
       if (arithMap[expr.op]) {
         const temp = this.nextTemp();
@@ -1444,6 +1545,24 @@ export class LLVMGenerator extends BaseGenerator {
         this.emit(`${temp} = ${op} i32 ${left}, ${right}`);
         return temp;
       } else if (cmpMap[expr.op]) {
+        // String comparison uses strcmp (check both static and runtime types)
+        if ((leftIsString || leftIsStringType) && (rightIsString || rightIsStringType) &&
+            (expr.op === '==' || expr.op === '===' || expr.op === '!=' || expr.op === '!==')) {
+          this.syncStateToGenerators();
+          const strcmpResult = this.nextTemp();
+          this.emit(`${strcmpResult} = call i32 @strcmp(i8* ${left}, i8* ${right})`);
+          const cmpResult = this.nextTemp();
+          if (expr.op === '==' || expr.op === '===') {
+            this.emit(`${cmpResult} = icmp eq i32 ${strcmpResult}, 0`);
+          } else { // '!=' or '!=='
+            this.emit(`${cmpResult} = icmp ne i32 ${strcmpResult}, 0`);
+          }
+          const extResult = this.nextTemp();
+          this.emit(`${extResult} = zext i1 ${cmpResult} to i32`);
+          return extResult;
+        }
+
+        // Numeric comparison uses icmp
         const cond = cmpMap[expr.op];
         const cmpResult = this.nextTemp();
         this.emit(`${cmpResult} = icmp ${cond} i32 ${left}, ${right}`);
@@ -2418,12 +2537,42 @@ export class LLVMGenerator extends BaseGenerator {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.arrayVariables.has(expr.name);
+      // Check both arrayVariables (legacy) and variableTypes (new system)
+      if (this.arrayVariables.has(expr.name)) {
+        return true;
+      }
+      const varType = this.variableTypes.get(expr.name);
+      if (varType === '%Array*') {
+        return true;
+      }
+      return false;
     }
     // Check if it's a method call that returns an array (e.g., .filter(), .map())
     if (expr.type === 'method_call') {
       const method = (expr as any).method;
       return method === 'filter' || method === 'map'; // filter() and map() return new arrays
+    }
+    // Check if it's a member access to a numeric/boolean array field
+    if (expr.type === 'member_access') {
+      const memberExpr = expr as any;
+      if (memberExpr.object.type === 'variable' && this.classInstanceVariables.has(memberExpr.object.name)) {
+        const classMeta = this.classInstanceVariables.get(memberExpr.object.name)!;
+        const fieldInfo = this.classGen.getFieldInfo(classMeta.className, memberExpr.property);
+        if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
+          return true;
+        }
+      }
+      // Check for this.field access
+      if ((memberExpr.object as any).type === 'this') {
+        // Find current class
+        const classNode = this.ast.classes.find(c => true); // Simplified
+        if (classNode) {
+          const fieldInfo = this.classGen.getFieldInfo(classNode.name, memberExpr.property);
+          if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
+            return true;
+          }
+        }
+      }
     }
     return false;
   }
@@ -2470,7 +2619,15 @@ export class LLVMGenerator extends BaseGenerator {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.stringVariables.has(expr.name);
+      // Check both stringVariables (legacy) and variableTypes (new system)
+      if (this.stringVariables.has(expr.name)) {
+        return true;
+      }
+      const varType = this.variableTypes.get(expr.name);
+      if (varType === 'i8*') {
+        return true;
+      }
+      return false;
     }
     if (expr.type === 'binary' && expr.op === '+') {
       return this.isStringExpression(expr.left) || this.isStringExpression(expr.right);
@@ -2519,9 +2676,29 @@ export class LLVMGenerator extends BaseGenerator {
         }
       }
       // Check for stringArray[i]
-      if (indexExpr.object.type === 'variable' &&
-          this.stringArrayVariables.has(indexExpr.object.name)) {
-        return true;
+      if (indexExpr.object.type === 'variable') {
+        const varName = indexExpr.object.name;
+        // Check both stringArrayVariables (legacy) and variableTypes (new system)
+        if (this.stringArrayVariables.has(varName)) {
+          return true;
+        }
+        const varType = this.variableTypes.get(varName);
+        if (varType === '%StringArray*') {
+          return true;
+        }
+      }
+      // Check for this.field[i] where field is a string array
+      if (indexExpr.object.type === 'member_access') {
+        const memberAccess = indexExpr.object;
+        if (memberAccess.object.type === 'variable' && memberAccess.object.name === 'this') {
+          // Check if this field is a string array in the current class
+          if (this.currentClassName) {
+            const fieldInfo = this.classGen.getFieldInfo(this.currentClassName, memberAccess.property);
+            if (fieldInfo && fieldInfo.type === 'string[]') {
+              return true;
+            }
+          }
+        }
       }
     }
     // Check if it's a function call that returns a string
@@ -2556,7 +2733,7 @@ export class LLVMGenerator extends BaseGenerator {
       // String methods that return strings
       if (methodExpr.method === 'substr' || methodExpr.method === 'substring' ||
           methodExpr.method === 'concat' || methodExpr.method === 'repeat' ||
-          methodExpr.method === 'padStart') {
+          methodExpr.method === 'padStart' || methodExpr.method === 'charAt') {
         return true;
       }
     }
@@ -2599,7 +2776,15 @@ export class LLVMGenerator extends BaseGenerator {
 
   private isStringArrayExpression(expr: Expression): boolean {
     if (expr.type === 'variable') {
-      return this.stringArrayVariables.has(expr.name);
+      // Check both stringArrayVariables (legacy) and variableTypes (new system)
+      if (this.stringArrayVariables.has(expr.name)) {
+        return true;
+      }
+      const varType = this.variableTypes.get(expr.name);
+      if (varType === '%StringArray*') {
+        return true;
+      }
+      return false;
     }
     // Check if it's an array literal with all string elements
     if (expr.type === 'array') {
@@ -2610,6 +2795,28 @@ export class LLVMGenerator extends BaseGenerator {
     if (expr.type === 'method_call') {
       const method = (expr as any).method;
       return method === 'split';
+    }
+    // Check if it's a member access to a string array field
+    if (expr.type === 'member_access') {
+      const memberExpr = expr as any;
+      if (memberExpr.object.type === 'variable' && this.classInstanceVariables.has(memberExpr.object.name)) {
+        const classMeta = this.classInstanceVariables.get(memberExpr.object.name)!;
+        const fieldInfo = this.classGen.getFieldInfo(classMeta.className, memberExpr.property);
+        if (fieldInfo && fieldInfo.type === 'string[]') {
+          return true;
+        }
+      }
+      // Check for this.field access
+      if ((memberExpr.object as any).type === 'this') {
+        // Find current class
+        const classNode = this.ast.classes.find(c => true); // Simplified
+        if (classNode) {
+          const fieldInfo = this.classGen.getFieldInfo(classNode.name, memberExpr.property);
+          if (fieldInfo && fieldInfo.type === 'string[]') {
+            return true;
+          }
+        }
+      }
     }
     return false;
   }
@@ -3098,8 +3305,10 @@ export class LLVMGenerator extends BaseGenerator {
       gen.output = this.output;
       gen.globalStrings = this.globalStrings;
       gen.variables = this.variables;
+      gen.variableTypes = this.variableTypes;  // CRITICAL: Share type tracking!
       gen.stringVariables = this.stringVariables;
       gen.arrayVariables = this.arrayVariables;
+      gen.stringArrayVariables = this.stringArrayVariables;
       gen.objectVariables = this.objectVariables;
       gen.mapVariables = this.mapVariables;
       gen.setVariables = this.setVariables;
@@ -3107,6 +3316,7 @@ export class LLVMGenerator extends BaseGenerator {
       gen.regexVariables = this.regexVariables;
       gen.jsonObjectVariables = this.jsonObjectVariables;
       gen.thisPointer = this.thisPointer;
+      gen.expectedArrayElementType = this.expectedArrayElementType;
     }
   }
 
@@ -3115,6 +3325,10 @@ export class LLVMGenerator extends BaseGenerator {
     // Sync thisPointer from classGen back to this
     if (this.classGen.thisPointer !== null) {
       this.thisPointer = this.classGen.thisPointer;
+    }
+    // Sync variableTypes from classGen back to this (for types tracked during class method generation)
+    for (const [key, value] of this.classGen.variableTypes.entries()) {
+      this.variableTypes.set(key, value);
     }
   }
 }

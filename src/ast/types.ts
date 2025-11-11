@@ -125,6 +125,7 @@ export interface VariableDeclaration {
   kind: 'let' | 'const';
   name: string;
   value: Expression | null;
+  declaredType?: string;  // Optional TypeScript type annotation (e.g., "string[]", "number")
 }
 
 export interface AssignmentStatement {
@@ -196,6 +197,7 @@ export interface ClassMethod {
   type: 'method';
   name: string;
   params: string[];
+  paramTypes?: ('string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void')[];  // Optional TypeScript parameter types
   body: BlockStatement;
   isConstructor: boolean;
 }

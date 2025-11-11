@@ -20,8 +20,13 @@ export class ArrayGenerator extends BaseGenerator {
 
     const length = expr.elements.length;
 
-    // Determine if this is a string array (all elements are strings)
-    const isStringArray = length > 0 && expr.elements.every(elem => elem.type === 'string');
+    // Determine if this is a string array:
+    // 1. All elements are strings, OR
+    // 2. Empty array with expectedArrayElementType='string' from context
+    let isStringArray = length > 0 && expr.elements.every(elem => elem.type === 'string');
+    if (length === 0 && this.expectedArrayElementType === 'string') {
+      isStringArray = true;
+    }
 
     if (isStringArray) {
       // Generate string array
@@ -109,6 +114,26 @@ export class ArrayGenerator extends BaseGenerator {
     const arrayPtr = this.generateExpression(expr.object, params);
     const value = this.generateExpression(expr.args[0], params);
 
+    // Determine if this is a string array or number array
+    let isStringArray = false;
+    if (expr.object.type === 'variable') {
+      const varName = (expr.object as any).name;
+      isStringArray = this.stringArrayVariables.has(varName);
+    } else {
+      // Check if the arrayPtr itself is tracked as a string array (e.g., from field access)
+      isStringArray = this.stringArrayVariables.has(arrayPtr);
+    }
+
+    if (isStringArray) {
+      return this.generateStringArrayPush(arrayPtr, value);
+    } else {
+      return this.generateIntArrayPush(arrayPtr, value);
+    }
+  }
+
+  private generateIntArrayPush(arrayPtr: string, value: string): string {
+    // Push to %Array (int/boolean array)
+
     // Load current length
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
@@ -184,6 +209,94 @@ export class ArrayGenerator extends BaseGenerator {
     const elemPtr = this.nextTemp();
     this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${currentLen}`);
     this.emit(`store i32 ${value}, i32* ${elemPtr}`);
+
+    // Increment length
+    const newLen = this.nextTemp();
+    this.emit(`${newLen} = add i32 ${currentLen}, 1`);
+    this.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
+
+    // Return new length
+    return newLen;
+  }
+
+  private generateStringArrayPush(arrayPtr: string, value: string): string {
+    // Push to %StringArray (string array)
+
+    // Load current length
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    const currentLen = this.nextTemp();
+    this.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
+
+    // Load current capacity
+    const capPtr = this.nextTemp();
+    this.emit(`${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+    const currentCap = this.nextTemp();
+    this.emit(`${currentCap} = load i32, i32* ${capPtr}`);
+
+    // Check if we need to resize (length == capacity)
+    const needResize = this.nextTemp();
+    this.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
+
+    // Create labels for resize and continue paths
+    const resizeLabel = this.nextLabel('resize');
+    const continueLabel = this.nextLabel('continue');
+
+    this.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
+
+    // Resize block
+    this.emit(`${resizeLabel}:`);
+    const newCap = this.nextTemp();
+    this.emit(`${newCap} = mul i32 ${currentCap}, 2`);
+
+    // Allocate new data array (i8** - array of string pointers)
+    const newSize = this.nextTemp();
+    this.emit(`${newSize} = mul i32 ${newCap}, 8`); // 8 bytes per i8* pointer
+    const newSizeI64 = this.nextTemp();
+    this.emit(`${newSizeI64} = zext i32 ${newSize} to i64`);
+    const newMem = this.nextTemp();
+    this.emit(`${newMem} = call i8* @malloc(i64 ${newSizeI64})`);
+    const newDataPtr = this.nextTemp();
+    this.emit(`${newDataPtr} = bitcast i8* ${newMem} to i8**`);
+
+    // Copy old data to new array
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    const oldDataPtr = this.nextTemp();
+    this.emit(`${oldDataPtr} = load i8**, i8*** ${dataPtrField}`);
+
+    const oldDataI8 = this.nextTemp();
+    this.emit(`${oldDataI8} = bitcast i8** ${oldDataPtr} to i8*`);
+    const newDataI8 = this.nextTemp();
+    this.emit(`${newDataI8} = bitcast i8** ${newDataPtr} to i8*`);
+    const copySize = this.nextTemp();
+    this.emit(`${copySize} = mul i32 ${currentLen}, 8`); // 8 bytes per pointer
+    const copySizeI64 = this.nextTemp();
+    this.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
+
+    // Free old data and update pointer
+    this.emit(`call void @free(i8* ${oldDataI8})`);
+    this.emit(`store i8** ${newDataPtr}, i8*** ${dataPtrField}`);
+
+    // Update capacity
+    this.emit(`store i32 ${newCap}, i32* ${capPtr}`);
+
+    this.emit(`br label %${continueLabel}`);
+
+    // Continue block
+    this.emit(`${continueLabel}:`);
+
+    // Get current data pointer (may have been updated)
+    const dataPtrField2 = this.nextTemp();
+    this.emit(`${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField2}`);
+
+    // Store value at current length index
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
+    this.emit(`store i8* ${value}, i8** ${elemPtr}`);
 
     // Increment length
     const newLen = this.nextTemp();

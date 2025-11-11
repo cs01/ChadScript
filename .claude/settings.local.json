@@ -35,7 +35,8 @@
       "Bash(./examples/hello:*)",
       "Bash(npm run build:binary:linux:*)",
       "Bash(chmod:*)",
-      "Bash(dist/index.js --help)"
+      "Bash(dist/index.js --help)",
+      "Bash(node dist/index.js:*)"
     ],
     "deny": [],
     "ask": []

@@ -13,10 +13,11 @@ export class BaseGenerator {
   public currentLabel: string = 'entry'; // Track current basic block label
 
   // Variable tracking
-  public variables: Map<string, string> = new Map(); // i32 variables
-  public stringVariables: Map<string, string> = new Map(); // i8* variables
-  public arrayVariables: Map<string, string> = new Map(); // %Array variables
-  public stringArrayVariables: Map<string, string> = new Map(); // %StringArray variables
+  public variables: Map<string, string> = new Map(); // Variable name -> alloca register
+  public variableTypes: Map<string, string> = new Map(); // Variable name -> LLVM type (e.g., 'i32', 'i8*', '%Array*')
+  public stringVariables: Map<string, string> = new Map(); // i8* variables (deprecated - use variableTypes)
+  public arrayVariables: Map<string, string> = new Map(); // %Array variables (deprecated - use variableTypes)
+  public stringArrayVariables: Map<string, string> = new Map(); // %StringArray variables (deprecated - use variableTypes)
   public objectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }> = new Map();
   public mapVariables: Map<string, string> = new Map(); // %Map variables
   public setVariables: Map<string, string> = new Map(); // %Set variables
@@ -26,6 +27,7 @@ export class BaseGenerator {
   public processArgvVariables: Set<string> = new Set(); // i8** process.argv pointers
   public thisPointer: string | null = null; // Current 'this' pointer (i32*)
   public currentClassName: string | null = null; // Current class name (for super resolution)
+  public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null; // Expected array element type for context-aware generation
 
   constructor() {}
 
@@ -36,6 +38,7 @@ export class BaseGenerator {
     this.currentLabel = 'entry';
     this.output = [];
     this.variables = new Map();
+    this.variableTypes = new Map();  // CRITICAL: Clear type tracking!
     this.stringVariables = new Map();
     this.arrayVariables = new Map();
     this.stringArrayVariables = new Map();

@@ -43,11 +43,12 @@ export class ClassGenerator extends BaseGenerator {
     this.classFields.set(className, classNode.fields);
 
     // Define LLVM struct type for this class
-    // Example: %Parser_struct = type { i8*, i32, %Array* } for fields [code: string, pos: number, items: string[]]
+    // Example: %Parser_struct = type { i8*, i32, %StringArray*, %Array* } for fields [code: string, pos: number, items: string[], nums: number[]]
     if (classNode.fields.length > 0) {
       const fieldTypes = classNode.fields.map(f => {
         if (f.fieldType === 'string') return 'i8*';
-        if (f.fieldType.endsWith('[]')) return '%Array*';  // Arrays are pointers to Array struct
+        if (f.fieldType === 'string[]') return '%StringArray*';  // String arrays
+        if (f.fieldType.endsWith('[]')) return '%Array*';  // Number/boolean arrays
         return 'i32';
       });
       ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
@@ -89,17 +90,46 @@ export class ClassGenerator extends BaseGenerator {
     // Constructor returns struct pointer (either %ClassName_struct* or i32* for backward compat)
     const structType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
     let ir = `define ${structType} @${className}_constructor(`;
-    ir += constructor.params.map((_, i) => `i32 %arg${i}`).join(', ');
+
+    // Generate parameter list with proper types
+    const paramLLVMTypes: string[] = [];
+    if (constructor.paramTypes && constructor.paramTypes.length > 0) {
+      for (const pType of constructor.paramTypes) {
+        if (pType === 'string') {
+          paramLLVMTypes.push('i8*');
+        } else if (pType === 'string[]') {
+          paramLLVMTypes.push('%StringArray*');
+        } else if (pType === 'number[]' || pType === 'boolean[]') {
+          paramLLVMTypes.push('%Array*');
+        } else {
+          paramLLVMTypes.push('i32'); // number, boolean
+        }
+      }
+    } else {
+      // Fallback: all i32 (backward compat)
+      for (let i = 0; i < constructor.params.length; i++) {
+        paramLLVMTypes.push('i32');
+      }
+    }
+
+    ir += paramLLVMTypes.map((t, i) => `${t} %arg${i}`).join(', ');
     ir += ') {\n';
     ir += 'entry:\n';
 
-    // Allocate stack space for parameters
+    // Allocate stack space for parameters with proper types
     for (let i = 0; i < constructor.params.length; i++) {
       const paramName = constructor.params[i];
       const allocaReg = this.nextTemp();
+      const llvmType = paramLLVMTypes[i];
       this.variables.set(paramName, allocaReg);
-      this.emit(`${allocaReg} = alloca i32`);
-      this.emit(`store i32 %arg${i}, i32* ${allocaReg}`);
+      this.variableTypes.set(paramName, llvmType);  // Track the type!
+      this.emit(`${allocaReg} = alloca ${llvmType}`);
+      this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
+
+      // Track string parameters (backward compat)
+      if (llvmType === 'i8*') {
+        this.stringVariables.set(allocaReg, allocaReg);
+      }
     }
 
     let objPtr: string;
@@ -125,8 +155,11 @@ export class ClassGenerator extends BaseGenerator {
 
         if (fieldType === 'string') {
           this.emit(`store i8* null, i8** ${fieldPtr}`);
+        } else if (fieldType === 'string[]') {
+          // String array fields - initialize to null
+          this.emit(`store %StringArray* null, %StringArray** ${fieldPtr}`);
         } else if (fieldType.endsWith('[]')) {
-          // Array fields - initialize to null
+          // Number/boolean array fields - initialize to null
           this.emit(`store %Array* null, %Array** ${fieldPtr}`);
         } else {
           // i32 fields
@@ -174,9 +207,31 @@ export class ClassGenerator extends BaseGenerator {
     // Method signature: first param is 'this' (struct pointer or i32* for compat)
     const thisType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
     let ir = `define i32 @${className}_${method.name}(${thisType} %this`;
+
+    // Generate parameter list with proper types
+    const paramLLVMTypes: string[] = [];
+    if (method.paramTypes && method.paramTypes.length > 0) {
+      for (const pType of method.paramTypes) {
+        if (pType === 'string') {
+          paramLLVMTypes.push('i8*');
+        } else if (pType === 'string[]') {
+          paramLLVMTypes.push('%StringArray*');
+        } else if (pType === 'number[]' || pType === 'boolean[]') {
+          paramLLVMTypes.push('%Array*');
+        } else {
+          paramLLVMTypes.push('i32'); // number, boolean
+        }
+      }
+    } else {
+      // Fallback: all i32 (backward compat)
+      for (let i = 0; i < method.params.length; i++) {
+        paramLLVMTypes.push('i32');
+      }
+    }
+
     if (method.params.length > 0) {
       ir += ', ';
-      ir += method.params.map((_, i) => `i32 %arg${i}`).join(', ');
+      ir += paramLLVMTypes.map((t, i) => `${t} %arg${i}`).join(', ');
     }
     ir += ') {\n';
     ir += 'entry:\n';
@@ -192,13 +247,20 @@ export class ClassGenerator extends BaseGenerator {
     // Set current class name for super resolution
     this.currentClassName = className;
 
-    // Allocate stack space for parameters
+    // Allocate stack space for parameters with proper types
     for (let i = 0; i < method.params.length; i++) {
       const paramName = method.params[i];
       const allocaReg = this.nextTemp();
+      const llvmType = paramLLVMTypes[i];
       this.variables.set(paramName, allocaReg);
-      this.emit(`${allocaReg} = alloca i32`);
-      this.emit(`store i32 %arg${i}, i32* ${allocaReg}`);
+      this.variableTypes.set(paramName, llvmType);  // Track the type!
+      this.emit(`${allocaReg} = alloca ${llvmType}`);
+      this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
+
+      // Track string parameters (backward compat)
+      if (llvmType === 'i8*') {
+        this.stringVariables.set(allocaReg, allocaReg);
+      }
     }
 
     // Generate body
@@ -245,10 +307,30 @@ export class ClassGenerator extends BaseGenerator {
   }
 
   generateMethodCall(instancePtr: string, className: string, methodName: string, args: Expression[], params: string[]): string {
-    // Generate arguments
+    // Generate arguments with proper types
     const argValues = args.map(arg => {
       const val = this.generateExpression(arg, params);
-      return `i32 ${val}`;
+
+      // Determine the type of this argument
+      let argType = 'i32'; // default
+
+      // Check if this is a tracked variable/temp
+      if (this.variableTypes.has(val)) {
+        argType = this.variableTypes.get(val)!;
+      }
+      // Check if it's a string literal (starts with @.str)
+      else if (val.startsWith('@.str')) {
+        argType = 'i8*';
+      }
+      // Check if the argument expression itself is a variable
+      else if (arg.type === 'variable') {
+        const varName = (arg as any).name;
+        if (this.variableTypes.has(`%${varName}`)) {
+          argType = this.variableTypes.get(`%${varName}`)!;
+        }
+      }
+
+      return `${argType} ${val}`;
     }).join(', ');
 
     const fields = this.classFields.get(className) || [];
