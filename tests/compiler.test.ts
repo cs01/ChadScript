@@ -279,6 +279,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/return-boolean.js',
       expectedExitCode: 1, // true returns 1
       description: 'Boolean literals (true/false) should work'
+    },
+    {
+      name: 'typescript-struct',
+      fixture: 'tests/fixtures/typescript-struct.ts',
+      expectedExitCode: 7, // Point { x: 3, y: 4 } -> distance = 3 + 4 = 7
+      description: 'TypeScript interface with struct property access should work'
     }
   ];
 
@@ -288,7 +294,8 @@ describe('ChadScript Compiler', () => {
       it(testCase.description, async () => {
         const fixturePath = path.resolve(testCase.fixture);
         const outputDir = path.dirname(fixturePath);
-        const baseName = path.basename(fixturePath, '.js');
+        const extension = path.extname(fixturePath);
+        const baseName = path.basename(fixturePath, extension);
         const llFile = path.join(outputDir, `${baseName}.ll`);
         const exeFile = path.join(outputDir, baseName);
 

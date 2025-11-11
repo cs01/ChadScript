@@ -11,7 +11,7 @@ export class ClassGenerator extends BaseGenerator {
   generateBlock!: (block: BlockStatement, params: string[]) => string | null;
 
   // Track class structures: className -> field info
-  private classFields: Map<string, { name: string; fieldType: 'i32' | 'string' }[]> = new Map();
+  private classFields: Map<string, { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]> = new Map();
   // Track instance variables: varName -> className
   private instanceVariables: Map<string, string> = new Map();
 
@@ -20,7 +20,7 @@ export class ClassGenerator extends BaseGenerator {
   }
 
   // Helper to get field info
-  getFieldInfo(className: string, fieldName: string): { index: number; type: 'i32' | 'string' } | null {
+  getFieldInfo(className: string, fieldName: string): { index: number; type: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' } | null {
     const fields = this.classFields.get(className);
     if (!fields) return null;
 
@@ -31,7 +31,7 @@ export class ClassGenerator extends BaseGenerator {
   }
 
   // Helper to get class fields
-  getClassFields(className: string): { name: string; fieldType: 'i32' | 'string' }[] {
+  getClassFields(className: string): { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] {
     return this.classFields.get(className) || [];
   }
 
@@ -43,9 +43,13 @@ export class ClassGenerator extends BaseGenerator {
     this.classFields.set(className, classNode.fields);
 
     // Define LLVM struct type for this class
-    // Example: %Parser_struct = type { i8*, i32 } for fields [code: string, pos: number]
+    // Example: %Parser_struct = type { i8*, i32, %Array* } for fields [code: string, pos: number, items: string[]]
     if (classNode.fields.length > 0) {
-      const fieldTypes = classNode.fields.map(f => f.fieldType === 'string' ? 'i8*' : 'i32');
+      const fieldTypes = classNode.fields.map(f => {
+        if (f.fieldType === 'string') return 'i8*';
+        if (f.fieldType.endsWith('[]')) return '%Array*';  // Arrays are pointers to Array struct
+        return 'i32';
+      });
       ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
     }
 
@@ -79,7 +83,7 @@ export class ClassGenerator extends BaseGenerator {
     return ir;
   }
 
-  private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'i32' | 'string' }[]): string {
+  private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
     this.labelCounter = 0;
 
     // Constructor returns struct pointer (either %ClassName_struct* or i32* for backward compat)
@@ -116,12 +120,16 @@ export class ClassGenerator extends BaseGenerator {
       // Initialize all fields to 0/null
       for (let i = 0; i < fields.length; i++) {
         const fieldPtr = this.nextTemp();
-        const llvmType = fields[i].fieldType === 'string' ? 'i8*' : 'i32';
+        const fieldType = fields[i].fieldType;
         this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${objPtr}, i32 0, i32 ${i}`);
 
-        if (fields[i].fieldType === 'string') {
+        if (fieldType === 'string') {
           this.emit(`store i8* null, i8** ${fieldPtr}`);
+        } else if (fieldType.endsWith('[]')) {
+          // Array fields - initialize to null
+          this.emit(`store %Array* null, %Array** ${fieldPtr}`);
         } else {
+          // i32 fields
           this.emit(`store i32 0, i32* ${fieldPtr}`);
         }
       }
@@ -160,7 +168,7 @@ export class ClassGenerator extends BaseGenerator {
     return ir;
   }
 
-  private generateMethod(className: string, method: ClassMethod, fields: { name: string; fieldType: 'i32' | 'string' }[]): string {
+  private generateMethod(className: string, method: ClassMethod, fields: { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
     this.labelCounter = 0;
 
     // Method signature: first param is 'this' (struct pointer or i32* for compat)

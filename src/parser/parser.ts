@@ -6,16 +6,18 @@ import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement
 
 export class Parser {
   private code: string;
-  private pos: number = 0;
-  private imports: ImportDeclaration[] = [];
+  private filename: string;
+  private pos = 0;
   private functions: FunctionNode[] = [];
   private classes: ClassNode[] = [];
+  private imports: ImportDeclaration[] = [];
   private exports: ExportDeclaration[] = [];
   private topLevelStatements: VariableDeclaration[] = [];
-  private entryPoint: CallNode | NewNode | null = null;
+  private topLevelExpressions: (CallNode | NewNode | MethodCallNode)[] = [];
 
-  constructor(code: string) {
+  constructor(code: string, filename: string = '<input>') {
     this.code = code;
+    this.filename = filename;
   }
 
   private formatError(message: string, position?: number): string {
@@ -29,10 +31,11 @@ export class Parser {
     const lineContent = allLines[lineNum - 1] || '';
 
     // Build the error message Rust-style (ANSI codes inlined for bootstrap compatibility)
+    // Include filename:line:col for easy cmd+click
     const lineNumStr = String(lineNum);
     const lineNumWidth = lineNumStr.length > 2 ? lineNumStr.length : 2;
     const line1 = `\x1b[31m\x1b[1merror:\x1b[0m ${message}\n`;
-    const line2 = `\x1b[36m\x1b[1m --> \x1b[0mline ${lineNum}, column ${col + 1}\n`;
+    const line2 = `\x1b[36m\x1b[1m --> \x1b[0m${this.filename}:${lineNum}:${col + 1}\n`;
     const line3 = `\x1b[36m\x1b[1m${' '.repeat(lineNumWidth)} |\x1b[0m\n`;
     const line4 = `\x1b[36m\x1b[1m${lineNumStr.padStart(lineNumWidth)} |\x1b[0m ${lineContent}\n`;
     const line5 = `\x1b[36m\x1b[1m${' '.repeat(lineNumWidth)} |\x1b[0m ${' '.repeat(col)}\x1b[31m\x1b[1m^\x1b[0m \x1b[31mhere\x1b[0m\n`;
@@ -62,7 +65,8 @@ export class Parser {
       if (this.pos === lastPos) {
         samePositionCount++;
         if (samePositionCount > 2) {
-          const preview = this.code.substring(this.pos, Math.min(this.pos + 50, this.code.length));
+          const endPos = this.pos + 50 < this.code.length ? this.pos + 50 : this.code.length;
+          const preview = this.code.substring(this.pos, endPos);
           const lines = this.code.substring(0, this.pos).split('\n');
           const line = lines.length;
           const col = lines[lines.length - 1].length + 1;
@@ -118,9 +122,9 @@ export class Parser {
           if (this.code[this.pos] === ';') {
             this.pos++; // consume semicolon
           }
-          // Set as entry point if it's a call, new, or method call
+          // Add to top-level expressions if it's a call, new, or method call
           if (expr.type === 'call' || expr.type === 'new' || expr.type === 'method_call') {
-            this.entryPoint = expr as any;
+            this.topLevelExpressions.push(expr as any);
           }
         } catch (e) {
           // If parsing fails and position hasn't advanced, show error to avoid infinite loop
@@ -140,7 +144,7 @@ export class Parser {
       classes: this.classes,
       exports: this.exports,
       topLevelStatements: this.topLevelStatements,
-      entryPoint: this.entryPoint
+      topLevelExpressions: this.topLevelExpressions
     };
   }
 
@@ -211,7 +215,7 @@ export class Parser {
     // Skip TypeScript type annotations
     // Handles: identifier, union (|), intersection (&), arrays ([]), generics (<...>)
     this.skipWhitespace();
-    
+
     // Skip identifier or qualified name
     if (/[a-zA-Z_]/.test(this.code[this.pos])) {
       this.parseIdentifier();
@@ -241,7 +245,7 @@ export class Parser {
         }
       }
     }
-    
+
     // Skip union/intersection types
     this.skipWhitespace();
     while (this.code[this.pos] === '|' || this.code[this.pos] === '&') {
@@ -307,7 +311,7 @@ export class Parser {
 
     this.expect('{');
 
-    const fields: { name: string; fieldType: 'i32' | 'string' }[] = [];
+    const fields: { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] = [];
     const methods: ClassMethod[] = [];
 
     while (true) {
@@ -327,15 +331,37 @@ export class Parser {
         this.skipWhitespace();
 
         // Parse type
-        const typeStart = this.pos;
-        let fieldType: 'i32' | 'string' = 'i32';
+        let fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' = 'i32';
 
         if (this.match('string')) {
-          fieldType = 'string';
+          // Check if it's an array type (string[])
+          this.skipWhitespace();
+          if (this.code[this.pos] === '[' && this.code[this.pos + 1] === ']') {
+            this.pos += 2; // consume '[]'
+            fieldType = 'string[]';
+          } else {
+            fieldType = 'string';
+          }
         } else if (this.match('number')) {
-          fieldType = 'i32';
+          // Check if it's an array type (number[])
+          this.skipWhitespace();
+          if (this.code[this.pos] === '[' && this.code[this.pos + 1] === ']') {
+            this.pos += 2; // consume '[]'
+            fieldType = 'number[]';
+          } else {
+            fieldType = 'i32';
+          }
+        } else if (this.match('boolean')) {
+          // Check if it's an array type (boolean[])
+          this.skipWhitespace();
+          if (this.code[this.pos] === '[' && this.code[this.pos + 1] === ']') {
+            this.pos += 2; // consume '[]'
+            fieldType = 'boolean[]';
+          } else {
+            throw new Error(this.formatError(`boolean fields are not supported yet. Only string, number, and their array types are supported.`));
+          }
         } else {
-          throw new Error(this.formatError(`Unsupported field type. Only 'string' and 'number' are supported.`));
+          throw new Error(this.formatError(`Unsupported field type. Supported types: string, number, string[], number[], boolean[]`));
         }
 
         this.skipWhitespace();
@@ -397,7 +423,7 @@ export class Parser {
       if (this.code[this.pos] === '}') {
         break;
       }
-      
+
       // Skip comments
       if (this.match('//')) {
         this.skipComment();
@@ -595,7 +621,7 @@ export class Parser {
     this.expect('{');
     const tryBlock = this.parseBlock();
     this.expect('}');
-    
+
     if (this.match('catch')) {
       this.expect('(');
       // Skip error parameter (may have type annotation like "error as Error")
@@ -639,7 +665,7 @@ export class Parser {
       this.skipWhitespace();
       const varName = this.parseIdentifier();
       this.skipWhitespace();
-      
+
       // Check if next token is 'of' (for...of) or '=' (regular variable declaration)
       if (this.code[this.pos] === '=' && this.code[this.pos + 1] !== '=') {
         // Regular variable declaration with initializer - not for...of
@@ -967,11 +993,9 @@ export class Parser {
         this.expect(')');
 
         if (className === 'Map') {
-          const mapExpr: MapNode = { type: 'map', entries: [] };
-          return this.parsePostfixExpressions(mapExpr);
+          return this.parsePostfixExpressions({ type: 'map', entries: [] } as MapNode);
         } else {
-          const setExpr: SetNode = { type: 'set', values: [] };
-          return this.parsePostfixExpressions(setExpr);
+          return this.parsePostfixExpressions({ type: 'set', values: [] } as SetNode);
         }
       }
 
@@ -985,22 +1009,19 @@ export class Parser {
         }
       }
       this.expect(')');
-      const newExpr: NewNode = { type: 'new', className, args };
       // Handle member access on new expression
-      return this.parsePostfixExpressions(newExpr);
+      return this.parsePostfixExpressions({ type: 'new', className, args } as NewNode);
     }
 
     // Check for 'this' keyword
     if (this.match('this')) {
-      const thisExpr: ThisNode = { type: 'this' };
-      return this.parsePostfixExpressions(thisExpr);
+      return this.parsePostfixExpressions({ type: 'this' } as ThisNode);
     }
 
     // Check for 'super' keyword
     if (this.match('super')) {
-      const superExpr: SuperNode = { type: 'super' };
       // Allow super() constructor calls or super.method() calls
-      return this.parsePostfixExpressions(superExpr);
+      return this.parsePostfixExpressions({ type: 'super' } as SuperNode);
     }
 
     // Check for 'void' operator (used by TSC for undefined)
@@ -1024,6 +1045,14 @@ export class Parser {
       this.pos++;
       const operand = this.parsePrimary();
       return { type: 'unary', op: '!', operand };
+    }
+
+    // Check for unary + and - operators
+    if (this.code[this.pos] === '+' || this.code[this.pos] === '-') {
+      const op = this.code[this.pos];
+      this.pos++;
+      const operand = this.parsePrimary();
+      return { type: 'unary', op, operand };
     }
 
     // Check for parentheses - could be arrow function or grouped expression
@@ -1156,9 +1185,8 @@ export class Parser {
 
     // Check for string literal
     if (this.code[this.pos] === '"' || this.code[this.pos] === "'") {
-      const stringNode: StringNode = { type: 'string', value: this.parseString() };
       // Check for postfix expressions like .concat(), .repeat(), etc.
-      return this.parsePostfixExpressions(stringNode);
+      return this.parsePostfixExpressions({ type: 'string', value: this.parseString() } as StringNode);
     }
 
     // Check for regex literal
@@ -1239,7 +1267,7 @@ export class Parser {
       const savedPos = this.pos;
       this.pos++; // consume '('
       this.skipWhitespace();
-      
+
       // Check if it's an arrow function: (param) => or (param1, param2) =>
       const params: string[] = [];
       if (this.code[this.pos] !== ')') {
@@ -1249,7 +1277,7 @@ export class Parser {
         }
       }
       this.skipWhitespace();
-      
+
       if (this.code[this.pos] === ')' && this.code[this.pos + 1] === '=' && this.code[this.pos + 2] === '>') {
         // Arrow function with parentheses
         this.pos += 3; // consume ') =>'
@@ -1512,7 +1540,7 @@ export class Parser {
     // import { name1, name2 } from 'module'
     // import * as name from 'module'
     this.skipWhitespace();
-    
+
     if (this.code[this.pos] === '*') {
       // Namespace import: import * as name from 'module'
       this.pos++; // consume '*'
@@ -1575,10 +1603,9 @@ export class Parser {
       const body = this.parseBlock();
       this.expect('}');
 
-      const func: FunctionNode = { name, params, body };
-      this.exports.push({ type: 'export', declaration: func });
       // Also add to functions list for codegen
-      this.functions.push(func);
+      this.exports.push({ type: 'export', declaration: { name, params, body } });
+      this.functions.push({ name, params, body });
     } else if (this.match('class')) {
       const name = this.parseIdentifier();
 
@@ -1649,10 +1676,9 @@ export class Parser {
       }
       this.expect('}');
 
-      const classNode: ClassNode = { name, extends: extendsClass, fields, methods };
-      this.exports.push({ type: 'export', declaration: classNode });
+      this.exports.push({ type: 'export', declaration: { name, extends: extendsClass, fields, methods } });
       // Also add to classes list for codegen
-      this.classes.push(classNode);
+      this.classes.push({ name, extends: extendsClass, fields, methods });
     } else {
       throw new Error(`Expected 'function' or 'class' after 'export' at position ${this.pos}`);
     }

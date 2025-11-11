@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx tsx:*)",
+      "Bash(./examples/typescript-interface.ts)",
+      "Bash(gcc:*)",
+      "Bash(./tests/fixtures/typescript-struct)",
+      "Bash(echo:*)",
+      "Bash(/tmp/typescript-struct)",
+      "Bash(./typescript-struct)",
+      "Bash(/data/users/cssmith/git/ChadScript/tests/fixtures/typescript-struct.ts)",
+      "Bash(tests/fixtures/typescript-struct.ts)",
+      "Bash(./typescript-struct.ts)",
+      "Bash(npm install:*)",
+      "Bash(node -e:*)",
+      "Bash(find:*)",
+      "Bash(tests/fixtures/typescript-struct-output)",
+      "Bash(./examples/simple-router)",
+      "Bash(./tests/tcp-echo-test:*)",
+      "Bash(./tests/fixtures/http-simple-test)",
+      "Bash(/tmp/http-test)",
+      "Bash(./http-simple-test)",
+      "Bash(xargs:*)",
+      "Bash(./examples/simple-http-server)",
+      "Bash(./examples/github-stars:*)",
+      "Bash(https_proxy=http://fwdproxy:8080 ./examples/github-stars:*)",
+      "Bash(npm run build:*)",
+      "Bash(node lib/index.js:*)",
+      "Bash(clang:*)",
+      "Bash(/tmp/test-exit.ts)",
+      "Bash(/tmp/test-exit:*)",
+      "Bash(cat:*)",
+      "Bash(./examples/hello:*)",
+      "Bash(npm run build:binary:linux:*)",
+      "Bash(chmod:*)",
+      "Bash(dist/index.js --help)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -17,11 +17,12 @@ export class BaseGenerator {
   public stringVariables: Map<string, string> = new Map(); // i8* variables
   public arrayVariables: Map<string, string> = new Map(); // %Array variables
   public stringArrayVariables: Map<string, string> = new Map(); // %StringArray variables
-  public objectVariables: Map<string, { ptr: string; keys: string[] }> = new Map();
+  public objectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }> = new Map();
   public mapVariables: Map<string, string> = new Map(); // %Map variables
   public setVariables: Map<string, string> = new Map(); // %Set variables
   public classInstanceVariables: Map<string, { ptr: string; className: string }> = new Map(); // i32* class instances
   public regexVariables: Map<string, string> = new Map(); // i8* regex pointers
+  public jsonObjectVariables: Map<string, string> = new Map(); // i8* cJSON object pointers
   public processArgvVariables: Set<string> = new Set(); // i8** process.argv pointers
   public thisPointer: string | null = null; // Current 'this' pointer (i32*)
   public currentClassName: string | null = null; // Current class name (for super resolution)
@@ -43,6 +44,7 @@ export class BaseGenerator {
     this.setVariables = new Map();
     this.classInstanceVariables = new Map();
     this.regexVariables = new Map();
+    this.jsonObjectVariables = new Map();
     this.processArgvVariables = new Set();
     this.thisPointer = null;
     this.currentClassName = null;

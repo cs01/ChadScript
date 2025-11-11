@@ -22,26 +22,77 @@ export class ObjectGenerator extends BaseGenerator {
     const keys = objExpr.properties.map((p: any) => p.key);
     const numFields = keys.length;
 
-    // For simplicity, we'll represent objects as an array of i32 values
-    // In a real implementation, we'd want typed structs or a more sophisticated representation
-    // For now: { x: 5, y: 10 } becomes [5, 10] with keys tracked separately
-
-    // Allocate array on heap
-    const objSize = this.nextTemp();
-    this.emit(`${objSize} = mul i64 ${numFields}, 4`); // 4 bytes per i32
-    const objMem = this.nextTemp();
-    this.emit(`${objMem} = call i8* @malloc(i64 ${objSize})`);
-    const objPtr = this.nextTemp();
-    this.emit(`${objPtr} = bitcast i8* ${objMem} to i32*`);
-
-    // Store each property value
-    for (let i = 0; i < objExpr.properties.length; i++) {
-      const propValue = this.generateExpression(objExpr.properties[i].value, params);
-      const fieldPtr = this.nextTemp();
-      this.emit(`${fieldPtr} = getelementptr inbounds i32, i32* ${objPtr}, i32 ${i}`);
-      this.emit(`store i32 ${propValue}, i32* ${fieldPtr}`);
+    if (numFields === 0) {
+      // Empty object - just return null pointer
+      return '0';
     }
 
-    return objPtr;
+    // NEW: Analyze property types to determine struct layout
+    const fieldTypes: { key: string; llvmType: string; value: string }[] = [];
+
+    for (let i = 0; i < objExpr.properties.length; i++) {
+      const prop = objExpr.properties[i];
+      const key = prop.key;
+
+      // Generate the value expression
+      const valueReg = this.generateExpression(prop.value, params);
+
+      // Determine LLVM type based on expression type
+      let llvmType: string;
+      const valueExpr = prop.value;
+
+      if (valueExpr.type === 'string' || this.isStringExpression(valueExpr)) {
+        llvmType = 'i8*';  // String pointer
+      } else if (valueExpr.type === 'array') {
+        llvmType = '%Array*';  // Array struct pointer
+      } else if ((valueExpr as any).type === 'map') {
+        llvmType = '%Map*';
+      } else if ((valueExpr as any).type === 'set') {
+        llvmType = '%Set*';
+      } else {
+        llvmType = 'i32';  // Default to i32 (numbers, booleans)
+      }
+
+      fieldTypes.push({ key, llvmType, value: valueReg });
+    }
+
+    // Generate struct type signature (using inline struct, no need for name)
+    const structFields = fieldTypes.map(f => f.llvmType).join(', ');
+
+    // Calculate struct size (rough estimate - actual size computed by LLVM)
+    const structSizeBytes = fieldTypes.length * 8;  // Conservative: 8 bytes per field
+
+    // Allocate struct on heap
+    const objMem = this.nextTemp();
+    this.emit(`${objMem} = call i8* @malloc(i64 ${structSizeBytes})`);
+
+    // Cast to struct pointer (we'll use inline struct type)
+    const structType = `{ ${structFields} }`;
+    const objPtr = this.nextTemp();
+    this.emit(`${objPtr} = bitcast i8* ${objMem} to ${structType}*`);
+
+    // Store each field value
+    for (let i = 0; i < fieldTypes.length; i++) {
+      const field = fieldTypes[i];
+      const fieldPtr = this.nextTemp();
+      this.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${i}`);
+      this.emit(`store ${field.llvmType} ${field.value}, ${field.llvmType}* ${fieldPtr}`);
+    }
+
+    // Return as i8* generic pointer (we'll track the actual type separately)
+    const genericPtr = this.nextTemp();
+    this.emit(`${genericPtr} = bitcast ${structType}* ${objPtr} to i8*`);
+
+    return genericPtr;
+  }
+
+  // Helper to check if expression is a string
+  private isStringExpression(expr: any): boolean {
+    if (expr.type === 'string') return true;
+    if (expr.type === 'variable' && this.stringVariables.has(expr.name)) return true;
+    if (expr.type === 'binary' && expr.op === '+') {
+      return this.isStringExpression(expr.left) || this.isStringExpression(expr.right);
+    }
+    return false;
   }
 }

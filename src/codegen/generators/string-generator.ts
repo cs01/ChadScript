@@ -631,4 +631,34 @@ export class StringGenerator extends BaseGenerator {
 
     return resultI32;
   }
+
+  generateCharAt(strPtr: string, index: string): string {
+    // Get the character at the given index and return it as a single-character string
+
+    // Convert index to i64 for getelementptr
+    const indexI64 = this.nextTemp();
+    this.emit(`${indexI64} = sext i32 ${index} to i64`);
+
+    // Get pointer to the character at index
+    const charPtr = this.nextTemp();
+    this.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
+
+    // Load the character
+    const charI8 = this.nextTemp();
+    this.emit(`${charI8} = load i8, i8* ${charPtr}`);
+
+    // Allocate a 2-byte buffer for single-char string (char + null terminator)
+    const resultPtr = this.nextTemp();
+    this.emit(`${resultPtr} = call i8* @malloc(i64 2)`);
+
+    // Store the character in the buffer
+    this.emit(`store i8 ${charI8}, i8* ${resultPtr}`);
+
+    // Store null terminator
+    const nullPtr = this.nextTemp();
+    this.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 1`);
+    this.emit(`store i8 0, i8* ${nullPtr}`);
+
+    return resultPtr;
+  }
 }

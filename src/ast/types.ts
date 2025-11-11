@@ -202,7 +202,7 @@ export interface ClassMethod {
 
 export interface ClassField {
   name: string;
-  fieldType: 'i32' | 'string';  // For now, just i32 and string (i8*)
+  fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]';  // Primitive types and arrays
 }
 
 export interface ClassNode {
@@ -229,5 +229,5 @@ export interface AST {
   classes: ClassNode[];
   exports: ExportDeclaration[];
   topLevelStatements: VariableDeclaration[];  // Top-level const/let declarations
-  entryPoint: CallNode | NewNode | MethodCallNode | null;
+  topLevelExpressions: (CallNode | NewNode | MethodCallNode)[];  // Top-level expressions (console.log, etc.)
 }
