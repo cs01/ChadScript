@@ -4,24 +4,25 @@ import { execSync } from 'child_process';
 import { Parser } from './parser/parser.js';
 import { LLVMGenerator } from './codegen/llvm-generator.js';
 import { TypeChecker } from './typescript/type-checker.js';
-import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
+import { LogLevel, logger } from './utils/logger.js';
 
 // ============================================
 // MAIN COMPILER DRIVER
 // ============================================
 
-export function compile(inputFile: string, outputFile: string, verbose: boolean = false): void {
+export function compile(inputFile: string, outputFile: string, logLevel: LogLevel = LogLevel.Normal): void {
+  // Set the global logger level
+  logger.setLevel(logLevel);
+
   // Get version from package.json
   const packageJsonPath = path.join(process.cwd(), 'package.json');
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   const version = packageJson.version;
 
-  if (verbose) {
-    console.log(`ChadScript compiler version ${version}`);
-    console.log(`Target: ${process.arch}-${process.platform}`);
-    console.log(`InstalledDir: ${process.cwd()}`);
-  }
+  logger.info(`ChadScript compiler version ${version}`);
+  logger.info(`Target: ${process.arch}-${process.platform}`);
+  logger.info(`InstalledDir: ${process.cwd()}`);
 
   // Check for required build tools
   let llcPath: string;
@@ -59,7 +60,7 @@ export function compile(inputFile: string, outputFile: string, verbose: boolean 
 
   // Parse all files (starting from entry point, following imports)
   const compiledFiles = new Set<string>();
-  const mergedAST = compileMultiFile(inputFile, compiledFiles, verbose, inputFile);
+  const mergedAST = compileMultiFile(inputFile, compiledFiles, inputFile);
 
   // Create TypeScript type checker if compiling a .ts file
   let typeChecker: TypeChecker | null = null;
@@ -68,9 +69,7 @@ export function compile(inputFile: string, outputFile: string, verbose: boolean 
       const code = fs.readFileSync(inputFile, 'utf8');
       typeChecker = new TypeChecker(inputFile, code);
     } catch (error) {
-      if (verbose) {
-        console.warn('Warning: Could not load TypeScript types:', error);
-      }
+      logger.warn('Warning: Could not load TypeScript types: ' + error);
     }
   }
 
@@ -85,18 +84,14 @@ export function compile(inputFile: string, outputFile: string, verbose: boolean 
   // Compile IR to object file
   const objFile = outputFile + '.o';
   const llcCmd = `llc -filetype=obj ${irFile} -o ${objFile}`;
-  if (verbose) {
-    console.log(` "${llcPath}" -filetype=obj ${irFile} -o ${objFile}`);
-  }
-  const llcStdio = verbose ? 'inherit' : 'pipe';
+  logger.info(` "${llcPath}" -filetype=obj ${irFile} -o ${objFile}`);
+  const llcStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(llcCmd, { stdio: llcStdio });
 
   // Link to executable
   const linkCmd = `${useClang ? 'clang' : 'gcc'} ${objFile} -o ${outputFile} -no-pie -lcurl -lcjson`;
-  if (verbose) {
-    console.log(` "${linkerPath}" ${objFile} -o ${outputFile} -no-pie -lcurl -lcjson`);
-  }
-  const linkStdio = verbose ? 'inherit' : 'pipe';
+  logger.info(` "${linkerPath}" ${objFile} -o ${outputFile} -no-pie -lcurl -lcjson`);
+  const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });
 
   // Clean up intermediate files
@@ -109,7 +104,7 @@ export function compile(inputFile: string, outputFile: string, verbose: boolean 
   // Silent on success (like clang)
 }
 
-function compileMultiFile(entryFile: string, compiledFiles: Set<string>, verbose: boolean = false, displayPath?: string): AST {
+function compileMultiFile(entryFile: string, compiledFiles: Set<string>, displayPath?: string): AST {
   const absPath = path.resolve(entryFile);
 
   // Avoid circular imports
@@ -119,9 +114,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, verbose
   compiledFiles.add(absPath);
 
   // Read and parse this file
-  if (verbose) {
-    console.log(`  Parsing: ${absPath}`);
-  }
+  logger.info(`  Parsing: ${absPath}`);
   const code = fs.readFileSync(absPath, 'utf8');
 
   // Note: We do NOT transpile TypeScript files anymore because our parser needs
@@ -171,7 +164,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, verbose
     }
 
     const importPath = resolveImportPath(absPath, imp.source);
-    const importedAST = compileMultiFile(importPath, compiledFiles, verbose);
+    const importedAST = compileMultiFile(importPath, compiledFiles);
 
     // Merge functions, classes, and top-level statements from imported file
     mergedAST.functions = mergedAST.functions.concat(importedAST.functions);

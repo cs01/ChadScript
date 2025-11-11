@@ -9,6 +9,7 @@ import { ControlFlowGenerator } from './generators/control-flow-generator.js';
 import { ClassGenerator } from './generators/class-generator.js';
 import { RegexGenerator } from './generators/regex-generator.js';
 import { TypeChecker } from '../typescript/type-checker.js';
+import { logger } from '../utils/logger.js';
 
 // ============================================
 // LLVM IR CODE GENERATOR - Main Orchestrator
@@ -422,9 +423,6 @@ export class LLVMGenerator extends BaseGenerator {
         const isString = this.isStringExpression(stmt.value);
         const isStringArray = this.isStringArrayExpression(stmt.value);
         const isArray = !isStringArray && this.isArrayExpression(stmt.value);
-
-        // Reset expected type after detection
-        this.expectedArrayElementType = null;
         const isJSONObject = this.isJSONParseExpression(stmt.value);
         const isObject = !isJSONObject && this.isObjectExpression(stmt.value);
         const isMap = this.isMapExpression(stmt.value);
@@ -551,6 +549,9 @@ export class LLVMGenerator extends BaseGenerator {
           const value = this.generateExpression(stmt.value, params);
           this.emit(`store i32 ${value}, i32* ${allocaReg}`);
         }
+
+        // Reset expected array element type after variable declaration is complete
+        this.expectedArrayElementType = null;
       } else if (stmt.type === 'assignment') {
         // Check if this is a member access assignment (this.field = value)
         if (stmt.name.startsWith('__member_access__')) {
@@ -865,7 +866,6 @@ export class LLVMGenerator extends BaseGenerator {
         this.emit(`${asInt} = ptrtoint i8* ${temp} to i32`);
         return asInt;
       }
-
       // Load variable with proper type from variableTypes map
       if (!expr.name) {
         throw new Error(`Variable expression has no name property. Expression: ${JSON.stringify(expr, null, 2)}`);
@@ -874,6 +874,7 @@ export class LLVMGenerator extends BaseGenerator {
       if (allocaReg) {
         const temp = this.nextTemp();
         const varType = this.variableTypes.get(expr.name) || 'i32';
+        logger.debug(`Loading variable "${expr.name}", type: "${varType}", alloca: "${allocaReg}"`);
         this.emit(`${temp} = load ${varType}, ${varType}* ${allocaReg}`);
         return temp;
       }
@@ -2789,6 +2790,12 @@ export class LLVMGenerator extends BaseGenerator {
     // Check if it's an array literal with all string elements
     if (expr.type === 'array') {
       const elements = (expr as any).elements || [];
+
+      // For empty arrays, use expectedArrayElementType (set from declaredType)
+      if (elements.length === 0 && this.expectedArrayElementType === 'string') {
+        return true;
+      }
+
       return elements.length > 0 && elements.every((elem: Expression) => elem.type === 'string');
     }
     // Check if it's a method call that returns a StringArray (e.g., .split())
