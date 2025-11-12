@@ -187,7 +187,7 @@ export class ControlFlowGenerator extends BaseGenerator {
         // Convert double to i32 if needed
         const valueType = this.variableTypes.get(value);
         let storeValue = value;
-        if (valueType === 'double' || value.startsWith('%')) {
+        if (valueType === 'double') {
           // Value is a double register, convert to i32
           const i32Value = this.nextTemp();
           this.emit(`${i32Value} = fptosi double ${value} to i32`);
@@ -258,7 +258,15 @@ export class ControlFlowGenerator extends BaseGenerator {
         if (varType === 'double') {
           this.emit(`store double ${value}, double* ${allocaReg}`);
         } else {
-          this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+          // Variable is i32, check if value is double and convert if needed
+          const valueType = this.variableTypes.get(value);
+          let storeValue = value;
+          if (valueType === 'double') {
+            const i32Value = this.nextTemp();
+            this.emit(`${i32Value} = fptosi double ${value} to i32`);
+            storeValue = i32Value;
+          }
+          this.emit(`store i32 ${storeValue}, i32* ${allocaReg}`);
         }
       } else {
         // It's an expression (like i++)

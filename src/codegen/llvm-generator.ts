@@ -791,7 +791,8 @@ export class LLVMGenerator extends BaseGenerator {
             // Variable is i32, check if value is double and convert if needed
             const valueType = this.variableTypes.get(value);
             let storeValue = value;
-            if (valueType === 'double' || value.startsWith('%')) {
+            if (valueType === 'double') {
+              // Value is explicitly tracked as double, convert to i32
               const i32Value = this.nextTemp();
               this.emit(`${i32Value} = fptosi double ${value} to i32`);
               storeValue = i32Value;
@@ -1641,7 +1642,7 @@ export class LLVMGenerator extends BaseGenerator {
         // Convert double index to i32 for getelementptr
         const indexType = this.variableTypes.get(indexDouble);
         let index = indexDouble;
-        if (indexType === 'double' || indexDouble.startsWith('%')) {
+        if (indexType === 'double') {
           index = this.nextTemp();
           this.emit(`${index} = fptosi double ${indexDouble} to i32`);
         }
@@ -1669,7 +1670,7 @@ export class LLVMGenerator extends BaseGenerator {
         // Convert double index to i32 for getelementptr
         const indexType = this.variableTypes.get(indexDouble);
         let index = indexDouble;
-        if (indexType === 'double' || indexDouble.startsWith('%')) {
+        if (indexType === 'double') {
           index = this.nextTemp();
           this.emit(`${index} = fptosi double ${indexDouble} to i32`);
         }
@@ -1696,7 +1697,7 @@ export class LLVMGenerator extends BaseGenerator {
         // Convert double index to i32
         const indexType = this.variableTypes.get(indexDouble);
         let index = indexDouble;
-        if (indexType === 'double' || indexDouble.startsWith('%')) {
+        if (indexType === 'double') {
           index = this.nextTemp();
           this.emit(`${index} = fptosi double ${indexDouble} to i32`);
         }
