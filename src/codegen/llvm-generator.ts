@@ -788,7 +788,15 @@ export class LLVMGenerator extends BaseGenerator {
           if (varType === 'double') {
             this.emit(`store double ${value}, double* ${allocaReg}`);
           } else {
-            this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+            // Variable is i32, check if value is double and convert if needed
+            const valueType = this.variableTypes.get(value);
+            let storeValue = value;
+            if (valueType === 'double' || value.startsWith('%')) {
+              const i32Value = this.nextTemp();
+              this.emit(`${i32Value} = fptosi double ${value} to i32`);
+              storeValue = i32Value;
+            }
+            this.emit(`store i32 ${storeValue}, i32* ${allocaReg}`);
           }
         }
       } else if (stmt.type === 'return') {
@@ -992,6 +1000,15 @@ export class LLVMGenerator extends BaseGenerator {
         const varType = this.variableTypes.get(expr.name) || 'double';
         logger.debug(`Loading variable "${expr.name}", type: "${varType}", alloca: "${allocaReg}"`);
         this.emit(`${temp} = load ${varType}, ${varType}* ${allocaReg}`);
+
+        // If variable is i32 (like loop counter), convert to double for arithmetic compatibility
+        if (varType === 'i32') {
+          const doubleTemp = this.nextTemp();
+          this.emit(`${doubleTemp} = sitofp i32 ${temp} to double`);
+          this.variableTypes.set(doubleTemp, 'double');
+          return doubleTemp;
+        }
+
         // Track the loaded value's type
         this.variableTypes.set(temp, varType);
         return temp;
@@ -1378,6 +1395,17 @@ export class LLVMGenerator extends BaseGenerator {
         // Load property value with correct type
         const value = this.nextTemp();
         this.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
+
+        // If property is i32 (number), convert to double for compatibility with numeric system
+        if (propType === 'i32') {
+          const doubleValue = this.nextTemp();
+          this.emit(`${doubleValue} = sitofp i32 ${value} to double`);
+          this.variableTypes.set(doubleValue, 'double');
+          return doubleValue;
+        }
+
+        // Track the type
+        this.variableTypes.set(value, propType);
         return value;
       }
 
@@ -1650,16 +1678,18 @@ export class LLVMGenerator extends BaseGenerator {
         this.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
 
         const data = this.nextTemp();
-        this.emit(`${data} = load i32*, i32** ${dataPtr}`);
+        this.emit(`${data} = load double*, double** ${dataPtr}`);
 
         const elemPtr = this.nextTemp();
-        this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${data}, i32 ${index}`);
+        this.emit(`${elemPtr} = getelementptr inbounds double, double* ${data}, i32 ${index}`);
 
+        // Load double element
         const elem = this.nextTemp();
-        this.emit(`${elem} = load i32, i32* ${elemPtr}`);
+        this.emit(`${elem} = load double, double* ${elemPtr}`);
+        this.variableTypes.set(elem, 'double');
         return elem;
       } else {
-        // Handle string[index] - returns character code as i32
+        // Handle string[index] - returns character code as i32, then convert to double
         const objPtr = this.generateExpression(expr.object, params);
         const indexDouble = this.generateExpression(expr.index, params);
 
@@ -1683,7 +1713,12 @@ export class LLVMGenerator extends BaseGenerator {
         const charI32 = this.nextTemp();
         this.emit(`${charI32} = zext i8 ${charI8} to i32`);
 
-        return charI32;
+        // Convert char code to double for compatibility with numeric system
+        const charDouble = this.nextTemp();
+        this.emit(`${charDouble} = sitofp i32 ${charI32} to double`);
+        this.variableTypes.set(charDouble, 'double');
+
+        return charDouble;
       }
     }
 
