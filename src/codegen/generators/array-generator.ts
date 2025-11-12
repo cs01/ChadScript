@@ -41,15 +41,10 @@ export class ArrayGenerator extends BaseGenerator {
       this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
 
       // Allocate data array on heap (i8** with length elements)
-      // Ensure we allocate at least 1 byte to avoid malloc(0) issues
-      const dataSize = this.nextTemp();
-      if (length === 0) {
-        this.emit(`${dataSize} = add i64 0, 1`); // Allocate 1 byte minimum
-      } else {
-        this.emit(`${dataSize} = mul i64 ${length}, 8`); // 8 bytes per i8*
-      }
+      // Use calloc for zero-initialized memory to prevent garbage pointers
+      const dataCount = length === 0 ? 1 : length; // Allocate at least 1 element
       const dataMem = this.nextTemp();
-      this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSize})`);
+      this.emit(`${dataMem} = call i8* @calloc(i64 ${dataCount}, i64 8)`); // calloc(count, 8 bytes per i8*)
       const dataPtr = this.nextTemp();
       this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
 
@@ -90,15 +85,10 @@ export class ArrayGenerator extends BaseGenerator {
       this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %Array*`);
 
       // Allocate data array on heap (i32* with length elements)
-      // Ensure we allocate at least 1 byte to avoid malloc(0) issues
-      const dataSize = this.nextTemp();
-      if (length === 0) {
-        this.emit(`${dataSize} = add i64 0, 1`); // Allocate 1 byte minimum
-      } else {
-        this.emit(`${dataSize} = mul i64 ${length}, 4`); // 4 bytes per i32
-      }
+      // Use calloc for zero-initialized memory to prevent garbage data
+      const dataCount = length === 0 ? 1 : length; // Allocate at least 1 element
       const dataMem = this.nextTemp();
-      this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSize})`);
+      this.emit(`${dataMem} = call i8* @calloc(i64 ${dataCount}, i64 4)`); // calloc(count, 4 bytes per i32)
       const dataPtr = this.nextTemp();
       this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i32*`);
 
@@ -190,13 +180,11 @@ export class ArrayGenerator extends BaseGenerator {
     const newCap = this.nextTemp();
     this.emit(`${newCap} = select i1 ${isZero}, i32 2, i32 ${doubled}`);
 
-    // Allocate new data array
-    const newSize = this.nextTemp();
-    this.emit(`${newSize} = mul i32 ${newCap}, 4`);
-    const newSizeI64 = this.nextTemp();
-    this.emit(`${newSizeI64} = zext i32 ${newSize} to i64`);
+    // Allocate new data array with calloc for zero-initialized memory
+    const newCapI64 = this.nextTemp();
+    this.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
     const newMem = this.nextTemp();
-    this.emit(`${newMem} = call i8* @malloc(i64 ${newSizeI64})`);
+    this.emit(`${newMem} = call i8* @calloc(i64 ${newCapI64}, i64 4)`); // calloc(count, 4 bytes per i32)
     const newDataPtr = this.nextTemp();
     this.emit(`${newDataPtr} = bitcast i8* ${newMem} to i32*`);
 
@@ -283,13 +271,11 @@ export class ArrayGenerator extends BaseGenerator {
     const newCap = this.nextTemp();
     this.emit(`${newCap} = select i1 ${isZero}, i32 2, i32 ${doubled}`);
 
-    // Allocate new data array (i8** - array of string pointers)
-    const newSize = this.nextTemp();
-    this.emit(`${newSize} = mul i32 ${newCap}, 8`); // 8 bytes per i8* pointer
-    const newSizeI64 = this.nextTemp();
-    this.emit(`${newSizeI64} = zext i32 ${newSize} to i64`);
+    // Allocate new data array (i8** - array of string pointers) with calloc for zero-initialized memory
+    const newCapI64 = this.nextTemp();
+    this.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
     const newMem = this.nextTemp();
-    this.emit(`${newMem} = call i8* @malloc(i64 ${newSizeI64})`);
+    this.emit(`${newMem} = call i8* @calloc(i64 ${newCapI64}, i64 8)`); // calloc(count, 8 bytes per i8*)
     const newDataPtr = this.nextTemp();
     this.emit(`${newDataPtr} = bitcast i8* ${newMem} to i8**`);
 

@@ -22,4 +22,4 @@ function test(a, b, c) {
   return result;  // Should return 15 (10 + 5)
 }
 
-test(5, 5, 10);
+process.exit(test(5, 5, 10));

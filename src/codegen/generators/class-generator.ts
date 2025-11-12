@@ -11,6 +11,9 @@ export class ClassGenerator extends BaseGenerator {
   generateExpression!: (expr: Expression, params: string[]) => string;
   generateBlock!: (block: BlockStatement, params: string[]) => string | null;
 
+  // AST reference (set by LLVMGenerator for method lookups)
+  ast: any;
+
   // Track class structures: className -> field info
   private classFields: Map<string, { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]> = new Map();
   // Track instance variables: varName -> className

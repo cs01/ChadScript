@@ -285,6 +285,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/typescript-struct.ts',
       expectedExitCode: 7, // Point { x: 3, y: 4 } -> distance = 3 + 4 = 7
       description: 'TypeScript interface with struct property access should work'
+    },
+    {
+      name: 'array-init-safe',
+      fixture: 'tests/fixtures/array-init-safe.ts',
+      expectedExitCode: 10, // found(1) * 10 + notFound(0) = 10
+      description: 'Array initialization should be zero-initialized to prevent crashes on iteration'
     }
   ];
 

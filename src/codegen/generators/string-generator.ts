@@ -8,6 +8,8 @@ import { BaseGenerator } from './base-generator.js';
 export class StringGenerator extends BaseGenerator {
   // Generate delegate for expressions (set by LLVMGenerator)
   generateExpression!: (expr: Expression, params: string[]) => string;
+  // Type check delegate (set by LLVMGenerator)
+  isStringExpression!: (expr: Expression) => boolean;
 
   constructor() {
     super();
@@ -38,10 +40,51 @@ export class StringGenerator extends BaseGenerator {
     return ptrReg;
   }
 
+  // Convert an i32 number to a string
+  convertNumberToString(numValue: string): string {
+    // Allocate buffer for the string (max 12 chars for 32-bit int + null terminator)
+    const bufferSize = this.nextTemp();
+    this.emit(`${bufferSize} = alloca [12 x i8], align 1`);
+
+    // Cast to i8* for snprintf
+    const bufferPtr = this.nextTemp();
+    this.emit(`${bufferPtr} = getelementptr inbounds [12 x i8], [12 x i8]* ${bufferSize}, i64 0, i64 0`);
+
+    // Format string for %d
+    const formatStr = this.createStringConstant('%d');
+
+    // Call snprintf to convert number to string
+    const snprintfResult = this.nextTemp();
+    this.emit(`${snprintfResult} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufferPtr}, i64 12, i8* ${formatStr}, i32 ${numValue})`);
+
+    // Duplicate the string on the heap so it persists
+    const strLen = this.nextTemp();
+    this.emit(`${strLen} = call i64 @strlen(i8* ${bufferPtr})`);
+
+    const heapSize = this.nextTemp();
+    this.emit(`${heapSize} = add i64 ${strLen}, 1`);
+
+    const heapPtr = this.nextTemp();
+    this.emit(`${heapPtr} = call i8* @malloc(i64 ${heapSize})`);
+
+    const copyResult = this.nextTemp();
+    this.emit(`${copyResult} = call i8* @strcpy(i8* ${heapPtr}, i8* ${bufferPtr})`);
+
+    return heapPtr;
+  }
+
   generateStringConcat(left: Expression, right: Expression, params: string[]): string {
-    // Generate both operands as strings
-    const leftStr = this.generateExpression(left, params);
-    const rightStr = this.generateExpression(right, params);
+    // Generate both operands
+    const leftValue = this.generateExpression(left, params);
+    const rightValue = this.generateExpression(right, params);
+
+    // Check if either operand needs to be converted from number to string
+    const leftIsString = this.isStringExpression(left) || this.variableTypes.get(leftValue) === 'i8*';
+    const rightIsString = this.isStringExpression(right) || this.variableTypes.get(rightValue) === 'i8*';
+
+    // Convert numbers to strings if needed
+    const leftStr = leftIsString ? leftValue : this.convertNumberToString(leftValue);
+    const rightStr = rightIsString ? rightValue : this.convertNumberToString(rightValue);
 
     return this.generateStringConcatDirect(leftStr, rightStr);
   }

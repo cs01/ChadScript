@@ -100,6 +100,7 @@ export class LLVMGenerator extends BaseGenerator {
     // Wire up delegates so sub-generators can call back
     this.arrayGen.generateExpression = this.generateExpression.bind(this);
     this.stringGen.generateExpression = this.generateExpression.bind(this);
+    this.stringGen.isStringExpression = this.isStringExpression.bind(this);
     this.objectGen.generateExpression = this.generateExpression.bind(this);
     this.mapGen.generateExpression = this.generateExpression.bind(this);
     this.setGen.generateExpression = this.generateExpression.bind(this);
@@ -155,12 +156,14 @@ export class LLVMGenerator extends BaseGenerator {
 
     // Declare external C functions for string operations
     ir += 'declare i8* @malloc(i64)\n';
+    ir += 'declare i8* @calloc(i64, i64)\n';
     ir += 'declare void @free(i8*)\n';
     ir += 'declare i8* @strcpy(i8*, i8*)\n';
     ir += 'declare i8* @strcat(i8*, i8*)\n';
     ir += 'declare i64 @strlen(i8*)\n';
     ir += 'declare i32 @strcmp(i8*, i8*)\n';
     ir += 'declare i32 @strncmp(i8*, i8*, i64)\n';
+    ir += 'declare i32 @snprintf(i8*, i64, i8*, ...)\n';
     ir += 'declare void @llvm.memcpy.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n';
     ir += '\n';
 
@@ -240,6 +243,25 @@ export class LLVMGenerator extends BaseGenerator {
 
     // JSON parsing runtime
     ir += this.generateJSONRuntime();
+    ir += '\n';
+
+    // Helper function to safely get string or return empty string if NULL
+    ir += '; Return empty string if pointer is NULL, otherwise return the pointer\n';
+    ir += 'define i8* @__safe_string(i8* %str) {\n';
+    ir += 'entry:\n';
+    ir += '  %is_null = icmp eq i8* %str, null\n';
+    ir += '  br i1 %is_null, label %return_empty, label %return_str\n';
+    ir += '\n';
+    ir += 'return_empty:\n';
+    ir += '  ret i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.empty_str, i64 0, i64 0)\n';
+    ir += '\n';
+    ir += 'return_str:\n';
+    ir += '  ret i8* %str\n';
+    ir += '}\n';
+    ir += '\n';
+
+    // Empty string constant for NULL handling
+    ir += '@.empty_str = private unnamed_addr constant [1 x i8] c"\\00", align 1\n';
     ir += '\n';
 
     // Global variables for process.argv
@@ -931,7 +953,7 @@ export class LLVMGenerator extends BaseGenerator {
         this.emit(`store i32 ${argc}, i32* ${capField}`);
 
         // Mark as string array variable
-        this.stringArrayVariables.add(argvStruct);
+        this.stringArrayVariables.set('process.argv', argvStruct);
         return argvStruct;
       }
 
@@ -1458,8 +1480,14 @@ export class LLVMGenerator extends BaseGenerator {
             memberAccess.object.name === 'process' &&
             memberAccess.property === 'argv') {
           // Index into argv: process.argv[i]
-          const argvPtr = this.generateExpression(expr.object, params);
+          const argvStruct = this.generateExpression(expr.object, params);
           const index = this.generateExpression(expr.index, params);
+
+          // Extract data pointer from StringArray struct (field 0)
+          const dataField = this.nextTemp();
+          this.emit(`${dataField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 0`);
+          const argvPtr = this.nextTemp();
+          this.emit(`${argvPtr} = load i8**, i8*** ${dataField}`);
 
           // Get pointer to i-th argument
           const indexI64 = this.nextTemp();
@@ -1468,8 +1496,12 @@ export class LLVMGenerator extends BaseGenerator {
           const argPtr = this.nextTemp();
           this.emit(`${argPtr} = getelementptr inbounds i8*, i8** ${argvPtr}, i64 ${indexI64}`);
 
+          const argRaw = this.nextTemp();
+          this.emit(`${argRaw} = load i8*, i8** ${argPtr}`);
+
+          // Safely handle NULL pointers (out of bounds argv access)
           const arg = this.nextTemp();
-          this.emit(`${arg} = load i8*, i8** ${argPtr}`);
+          this.emit(`${arg} = call i8* @__safe_string(i8* ${argRaw})`);
 
           // Mark this as a string variable
           this.stringVariables.set(arg, arg);
