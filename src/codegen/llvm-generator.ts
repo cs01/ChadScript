@@ -871,8 +871,12 @@ export class LLVMGenerator extends BaseGenerator {
     }
 
     if (expr.type === 'boolean') {
-      // In LLVM, i1 0 = false, i1 1 = true
-      return expr.value ? '1' : '0';
+      // Convert boolean to double for compatibility with numeric system
+      const boolValue = expr.value ? 1 : 0;
+      const temp = this.nextTemp();
+      this.emit(`${temp} = sitofp i32 ${boolValue} to double`);
+      this.variableTypes.set(temp, 'double');
+      return temp;
     }
 
     if (expr.type === 'string') {
@@ -2029,7 +2033,30 @@ export class LLVMGenerator extends BaseGenerator {
       // Merge point with phi node
       this.emit(`${mergeLabel}:`);
       const result = this.nextTemp();
-      this.emit(`${result} = phi i32 [ ${trueValue}, %${trueLabelEnd} ], [ ${falseValue}, %${falseLabelEnd} ]`);
+
+      // Determine the result type - use double if either value is double
+      const trueType = this.variableTypes.get(trueValue);
+      const falseType = this.variableTypes.get(falseValue);
+      const resultType = (trueType === 'double' || falseType === 'double') ? 'double' : 'i32';
+
+      // Convert values to match result type if needed
+      let trueVal = trueValue;
+      let falseVal = falseValue;
+
+      if (resultType === 'double') {
+        // Convert i32 values to double
+        if (trueType === 'i32') {
+          trueVal = this.nextTemp();
+          this.emit(`${trueVal} = sitofp i32 ${trueValue} to double`);
+        }
+        if (falseType === 'i32') {
+          falseVal = this.nextTemp();
+          this.emit(`${falseVal} = sitofp i32 ${falseValue} to double`);
+        }
+      }
+
+      this.emit(`${result} = phi ${resultType} [ ${trueVal}, %${trueLabelEnd} ], [ ${falseVal}, %${falseLabelEnd} ]`);
+      this.variableTypes.set(result, resultType);
 
       return result;
     }
