@@ -89,8 +89,8 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   execSync(llcCmd, { stdio: llcStdio });
 
   // Link to executable
-  const linkCmd = `${useClang ? 'clang' : 'gcc'} ${objFile} -o ${outputFile} -no-pie -lcurl -lcjson`;
-  logger.info(` "${linkerPath}" ${objFile} -o ${outputFile} -no-pie -lcurl -lcjson`);
+  const linkCmd = `${useClang ? 'clang' : 'gcc'} ${objFile} -o ${outputFile} -no-pie -lcurl -lcjson -lm`;
+  logger.info(` "${linkerPath}" ${objFile} -o ${outputFile} -no-pie -lcurl -lcjson -lm`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });
 

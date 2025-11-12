@@ -139,7 +139,7 @@ export class TypeChecker {
 
     // Check for number type
     if (type.flags & ts.TypeFlags.Number || type.flags & ts.TypeFlags.NumberLiteral) {
-      return 'i32';
+      return 'double';
     }
 
     // Check for boolean type
@@ -160,8 +160,8 @@ export class TypeChecker {
       return 'i8*';
     }
 
-    // Default to i32
-    return 'i32';
+    // Default to double
+    return 'double';
   }
 
   /**

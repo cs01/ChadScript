@@ -10,12 +10,13 @@ export class ClassGenerator extends BaseGenerator {
   // Generate delegates (set by LLVMGenerator)
   generateExpression!: (expr: Expression, params: string[]) => string;
   generateBlock!: (block: BlockStatement, params: string[]) => string | null;
+  setReturnType!: (type: string) => void;
 
   // AST reference (set by LLVMGenerator for method lookups)
   ast: any;
 
   // Track class structures: className -> field info
-  private classFields: Map<string, { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]> = new Map();
+  private classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]> = new Map();
   // Track instance variables: varName -> className
   private instanceVariables: Map<string, string> = new Map();
 
@@ -24,7 +25,7 @@ export class ClassGenerator extends BaseGenerator {
   }
 
   // Helper to get field info
-  getFieldInfo(className: string, fieldName: string): { index: number; type: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' } | null {
+  getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' } | null {
     const fields = this.classFields.get(className);
     if (!fields) return null;
 
@@ -35,7 +36,7 @@ export class ClassGenerator extends BaseGenerator {
   }
 
   // Helper to get class fields
-  getClassFields(className: string): { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] {
+  getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] {
     return this.classFields.get(className) || [];
   }
 
@@ -53,7 +54,7 @@ export class ClassGenerator extends BaseGenerator {
         if (f.fieldType === 'string') return 'i8*';
         if (f.fieldType === 'string[]') return '%StringArray*';  // String arrays
         if (f.fieldType.endsWith('[]')) return '%Array*';  // Number/boolean arrays
-        return 'i32';
+        return 'double';
       });
       ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
     }
@@ -88,7 +89,7 @@ export class ClassGenerator extends BaseGenerator {
     return ir;
   }
 
-  private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
+  private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
     this.labelCounter = 0;
 
     // Constructor returns struct pointer (either %ClassName_struct* or i32* for backward compat)
@@ -191,8 +192,8 @@ export class ClassGenerator extends BaseGenerator {
     this.thisPointer = objPtr;
     // Set current class name for super resolution
     this.currentClassName = className;
-    // Set return type for return statements in constructor body
-    this.currentFunctionReturnType = structType;
+    // Set return type for return statements in constructor body (update main generator)
+    this.setReturnType(structType);
 
     // Execute constructor body
     const bodyResult = this.generateBlock(constructor.body, constructor.params);
@@ -207,7 +208,7 @@ export class ClassGenerator extends BaseGenerator {
     return ir;
   }
 
-  private generateMethod(className: string, method: ClassMethod, fields: { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
+  private generateMethod(className: string, method: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
     this.labelCounter = 0;
 
     // Determine return type from method's returnType annotation
@@ -267,8 +268,8 @@ export class ClassGenerator extends BaseGenerator {
     this.thisPointer = thisLoaded;
     // Set current class name for super resolution
     this.currentClassName = className;
-    // Set return type for return statements in method body
-    this.currentFunctionReturnType = returnLLVMType;
+    // Set return type for return statements in method body (update main generator)
+    this.setReturnType(returnLLVMType);
 
     // Allocate stack space for parameters with proper types
     for (let i = 0; i < method.params.length; i++) {
@@ -355,7 +356,7 @@ export class ClassGenerator extends BaseGenerator {
       if (pType === 'string') return 'i8*';
       if (pType === 'string[]') return '%StringArray*';
       if (pType === 'number[]' || pType === 'boolean[]') return '%Array*';
-      return 'i32'; // number, boolean
+      return 'double'; // number, boolean
     });
 
     // Generate arguments with correct types based on paramTypes

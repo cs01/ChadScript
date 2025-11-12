@@ -108,6 +108,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.controlFlowGen.generateBlock = this.generateBlock.bind(this);
     this.classGen.generateExpression = this.generateExpression.bind(this);
     this.classGen.generateBlock = this.generateBlock.bind(this);
+    this.classGen.setReturnType = (type: string) => { this.currentFunctionReturnType = type; };
     this.regexGen.generateExpression = this.generateExpression.bind(this);
     // Pass AST to classGen for method lookups
     (this.classGen as any).ast = ast;
@@ -142,17 +143,17 @@ export class LLVMGenerator extends BaseGenerator {
   generate(): string {
     let ir = '';
 
-    // Define array struct type: { i32* data, i32 length, i32 capacity }
-    ir += '%Array = type { i32*, i32, i32 }\n';
+    // Define array struct type: { double* data, i32 length, i32 capacity }
+    ir += '%Array = type { double*, i32, i32 }\n';
 
     // Define string array struct type: { i8** data, i32 length, i32 capacity }
     ir += '%StringArray = type { i8**, i32, i32 }\n';
 
-    // Define Map struct type: { i32* keys, i32* values, i32 size, i32 capacity }
-    ir += '%Map = type { i32*, i32*, i32, i32 }\n';
+    // Define Map struct type: { double* keys, double* values, i32 size, i32 capacity }
+    ir += '%Map = type { double*, double*, i32, i32 }\n';
 
-    // Define Set struct type: { i32* values, i32 size, i32 capacity }
-    ir += '%Set = type { i32*, i32, i32 }\n\n';
+    // Define Set struct type: { double* values, i32 size, i32 capacity }
+    ir += '%Set = type { double*, i32, i32 }\n\n';
 
     // Declare external C functions for string operations
     ir += 'declare i8* @malloc(i64)\n';
@@ -165,6 +166,15 @@ export class LLVMGenerator extends BaseGenerator {
     ir += 'declare i32 @strncmp(i8*, i8*, i64)\n';
     ir += 'declare i32 @snprintf(i8*, i64, i8*, ...)\n';
     ir += 'declare void @llvm.memcpy.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n';
+    ir += '\n';
+
+    // Declare LLVM math intrinsics
+    ir += 'declare double @llvm.sqrt.f64(double)\n';
+    ir += 'declare double @llvm.pow.f64(double, double)\n';
+    ir += 'declare double @llvm.floor.f64(double)\n';
+    ir += 'declare double @llvm.ceil.f64(double)\n';
+    ir += 'declare double @llvm.round.f64(double)\n';
+    ir += 'declare double @llvm.fabs.f64(double)\n';
     ir += '\n';
 
     // Declare POSIX regex functions
@@ -323,9 +333,9 @@ export class LLVMGenerator extends BaseGenerator {
     // Determine parameter and return types using TypeChecker
     const paramTypes: string[] = [];
     const paramLLVMTypes: string[] = [];
-    let returnType = 'i32';
+    let returnType = 'double';
     let returnTypeIsString = false;
-    this.currentFunctionReturnType = 'i32'; // Default to i32
+    this.currentFunctionReturnType = 'double'; // Default to double
 
     if (this.typeChecker) {
       try {
@@ -346,7 +356,7 @@ export class LLVMGenerator extends BaseGenerator {
             if (paramType === 'string') {
               paramLLVMTypes.push('i8*');
             } else {
-              paramLLVMTypes.push('i32');
+              paramLLVMTypes.push('double');
             }
           }
         }
@@ -355,10 +365,10 @@ export class LLVMGenerator extends BaseGenerator {
       }
     }
 
-    // Fill in missing parameter types with i32
+    // Fill in missing parameter types with double
     while (paramLLVMTypes.length < func.params.length) {
       paramTypes.push('number');
-      paramLLVMTypes.push('i32');
+      paramLLVMTypes.push('double');
     }
 
     // Generate function signature
@@ -381,8 +391,8 @@ export class LLVMGenerator extends BaseGenerator {
       } else {
         // Numeric parameter
         this.variables.set(paramName, allocaReg);
-        this.emit(`${allocaReg} = alloca i32`);
-        this.emit(`store i32 %arg${i}, i32* ${allocaReg}`);
+        this.emit(`${allocaReg} = alloca double`);
+        this.emit(`store double %arg${i}, double* ${allocaReg}`);
       }
     }
 
@@ -439,11 +449,12 @@ export class LLVMGenerator extends BaseGenerator {
       if (stmt.type === 'variable_declaration') {
         // Handle uninitialized variables (e.g., let x;)
         if (stmt.value === null) {
-          // For uninitialized variables, just allocate space and initialize to 0
+          // For uninitialized variables, allocate as double and initialize to 0.0
           const allocaReg = this.nextTemp();
           this.variables.set(stmt.name, allocaReg);
-          this.emit(`${allocaReg} = alloca i32`);
-          this.emit(`store i32 0, i32* ${allocaReg}`);
+          this.variableTypes.set(stmt.name, 'double');
+          this.emit(`${allocaReg} = alloca double`);
+          this.emit(`store double 0.0, double* ${allocaReg}`);
           continue;
         }
 
@@ -578,15 +589,33 @@ export class LLVMGenerator extends BaseGenerator {
           const value = this.generateExpression(stmt.value, params);
           this.emit(`store i8* ${value}, i8** ${allocaReg}`);
         } else {
-          // Allocate stack space for i32
-          const allocaReg = this.nextTemp();
-          this.variables.set(stmt.name, allocaReg);
-          this.variableTypes.set(stmt.name, 'i32');  // Track numeric type!
-          this.emit(`${allocaReg} = alloca i32`);
+          // Check if this is a boolean expression
+          const isBoolean = stmt.value.type === 'boolean' ||
+                           (stmt.value.type === 'binary' && ['<', '>', '<=', '>=', '==', '!=', '===', '!=='].includes((stmt.value as any).op)) ||
+                           (stmt.value.type === 'unary' && (stmt.value as any).op === '!') ||
+                           (stmt.value.type === 'binary' && ['&&', '||'].includes((stmt.value as any).op));
 
-          // Compute initial value and store it
-          const value = this.generateExpression(stmt.value, params);
-          this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+          if (isBoolean) {
+            // Allocate stack space for boolean (i32: 0 or 1)
+            const allocaReg = this.nextTemp();
+            this.variables.set(stmt.name, allocaReg);
+            this.variableTypes.set(stmt.name, 'i32');
+            this.emit(`${allocaReg} = alloca i32`);
+
+            // Compute initial value and store it
+            const value = this.generateExpression(stmt.value, params);
+            this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+          } else {
+            // Allocate stack space for double (numeric values)
+            const allocaReg = this.nextTemp();
+            this.variables.set(stmt.name, allocaReg);
+            this.variableTypes.set(stmt.name, 'double');
+            this.emit(`${allocaReg} = alloca double`);
+
+            // Compute initial value and store it
+            const value = this.generateExpression(stmt.value, params);
+            this.emit(`store double ${value}, double* ${allocaReg}`);
+          }
         }
 
         // Reset expected array element type after variable declaration is complete
@@ -745,6 +774,18 @@ export class LLVMGenerator extends BaseGenerator {
         }
       } else if (stmt.type === 'return') {
         lastValue = this.generateExpression(stmt.value, params);
+
+        // Handle type conversion if needed (e.g., i32 to double)
+        // Check if we're returning a .length property (which is i32) from a double function
+        if (this.currentFunctionReturnType === 'double' &&
+            stmt.value.type === 'member_access' &&
+            (stmt.value as any).property === 'length') {
+          // Convert i32 to double
+          const converted = this.nextTemp();
+          this.emit(`${converted} = sitofp i32 ${lastValue} to double`);
+          lastValue = converted;
+        }
+
         this.emit(`ret ${this.currentFunctionReturnType} ${lastValue}`);
         hasTerminator = true;  // return generates 'ret', which is a terminator
       } else if (stmt.type === 'if') {
@@ -783,7 +824,9 @@ export class LLVMGenerator extends BaseGenerator {
 
   private generateExpression(expr: Expression, params: string[]): string {
     if (expr.type === 'number') {
-      return String(expr.value);
+      // Format as floating point literal (add .0 if integer)
+      const value = expr.value;
+      return String(value).includes('.') ? String(value) : String(value) + '.0';
     }
 
     if (expr.type === 'boolean') {
@@ -914,7 +957,7 @@ export class LLVMGenerator extends BaseGenerator {
       const allocaReg = this.variables.get(expr.name);
       if (allocaReg) {
         const temp = this.nextTemp();
-        const varType = this.variableTypes.get(expr.name) || 'i32';
+        const varType = this.variableTypes.get(expr.name) || 'double';
         logger.debug(`Loading variable "${expr.name}", type: "${varType}", alloca: "${allocaReg}"`);
         this.emit(`${temp} = load ${varType}, ${varType}* ${allocaReg}`);
         return temp;
@@ -1485,7 +1528,11 @@ export class LLVMGenerator extends BaseGenerator {
             memberAccess.property === 'argv') {
           // Index into argv: process.argv[i]
           const argvStruct = this.generateExpression(expr.object, params);
-          const index = this.generateExpression(expr.index, params);
+          const indexDouble = this.generateExpression(expr.index, params);
+
+          // Convert double index to i32
+          const index = this.nextTemp();
+          this.emit(`${index} = fptosi double ${indexDouble} to i32`);
 
           // Extract data pointer from StringArray struct (field 0)
           const dataField = this.nextTemp();
@@ -1581,7 +1628,7 @@ export class LLVMGenerator extends BaseGenerator {
 
       if (expr.op === '!') {
         const cmpResult = this.nextTemp();
-        this.emit(`${cmpResult} = icmp eq i32 ${operand}, 0`);
+        this.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);
         const result = this.nextTemp();
         this.emit(`${result} = zext i1 ${cmpResult} to i32`);
         return result;
@@ -1589,7 +1636,7 @@ export class LLVMGenerator extends BaseGenerator {
 
       if (expr.op === '-') {
         const result = this.nextTemp();
-        this.emit(`${result} = sub i32 0, ${operand}`);
+        this.emit(`${result} = fneg double ${operand}`);
         return result;
       }
 
@@ -1614,25 +1661,34 @@ export class LLVMGenerator extends BaseGenerator {
         return this.stringGen.generateStringConcat(expr.left, expr.right, params);
       }
 
-      // Arithmetic operators
+      // Arithmetic operators (floating-point)
       const arithMap: { [key: string]: string } = {
-        '+': 'add',
-        '-': 'sub',
-        '*': 'mul',
-        '/': 'sdiv',
-        '%': 'srem'
+        '+': 'fadd',
+        '-': 'fsub',
+        '*': 'fmul',
+        '/': 'fdiv',
+        '%': 'frem'
       };
 
-      // Comparison operators (icmp returns i1, need to extend to i32)
+      // Bitwise operators (need to convert double -> i64 -> operate -> double)
+      const bitwiseMap: { [key: string]: string } = {
+        '&': 'and',
+        '|': 'or',
+        '^': 'xor',
+        '<<': 'shl',
+        '>>': 'ashr'  // arithmetic shift right (preserves sign)
+      };
+
+      // Comparison operators (fcmp returns i1, need to extend to i32)
       const cmpMap: { [key: string]: string } = {
-        '<': 'slt',
-        '>': 'sgt',
-        '<=': 'sle',
-        '>=': 'sge',
-        '==': 'eq',
-        '!=': 'ne',
-        '===': 'eq',  // Strict equality (same as == for i32)
-        '!==': 'ne'   // Strict inequality (same as != for i32)
+        '<': 'olt',   // ordered less than
+        '>': 'ogt',   // ordered greater than
+        '<=': 'ole',  // ordered less or equal
+        '>=': 'oge',  // ordered greater or equal
+        '==': 'oeq',  // ordered equal
+        '!=': 'one',  // ordered not equal
+        '===': 'oeq', // Strict equality (same as == for double)
+        '!==': 'one'  // Strict inequality (same as != for double)
       };
 
       // Check if we're comparing strings
@@ -1651,8 +1707,22 @@ export class LLVMGenerator extends BaseGenerator {
       if (arithMap[expr.op]) {
         const temp = this.nextTemp();
         const op = arithMap[expr.op];
-        this.emit(`${temp} = ${op} i32 ${left}, ${right}`);
+        this.emit(`${temp} = ${op} double ${left}, ${right}`);
         return temp;
+      } else if (bitwiseMap[expr.op]) {
+        // Bitwise operators: convert double -> i64 -> operate -> double
+        const leftInt = this.nextTemp();
+        const rightInt = this.nextTemp();
+        this.emit(`${leftInt} = fptosi double ${left} to i64`);
+        this.emit(`${rightInt} = fptosi double ${right} to i64`);
+
+        const resultInt = this.nextTemp();
+        const op = bitwiseMap[expr.op];
+        this.emit(`${resultInt} = ${op} i64 ${leftInt}, ${rightInt}`);
+
+        const resultDouble = this.nextTemp();
+        this.emit(`${resultDouble} = sitofp i64 ${resultInt} to double`);
+        return resultDouble;
       } else if (cmpMap[expr.op]) {
         // String comparison uses strcmp (check both static and runtime types)
         if ((leftIsString || leftIsStringType) && (rightIsString || rightIsStringType) &&
@@ -1671,10 +1741,10 @@ export class LLVMGenerator extends BaseGenerator {
           return extResult;
         }
 
-        // Numeric comparison uses icmp
+        // Numeric comparison uses fcmp
         const cond = cmpMap[expr.op];
         const cmpResult = this.nextTemp();
-        this.emit(`${cmpResult} = icmp ${cond} i32 ${left}, ${right}`);
+        this.emit(`${cmpResult} = fcmp ${cond} double ${left}, ${right}`);
         const extResult = this.nextTemp();
         this.emit(`${extResult} = zext i1 ${cmpResult} to i32`);
         return extResult;
@@ -1700,13 +1770,30 @@ export class LLVMGenerator extends BaseGenerator {
         return temp;
       }
 
-      const args = expr.args.map(arg => {
+      // Get function type from type checker for correct parameter/return types
+      let returnType = 'double';
+      let paramTypes: string[] = [];
+
+      if (this.typeChecker) {
+        try {
+          const funcType = this.typeChecker.getFunctionType(expr.name);
+          if (funcType) {
+            returnType = funcType.returnType === 'string' ? 'i8*' : 'double';
+            paramTypes = funcType.parameters.map(p => p.type === 'string' ? 'i8*' : 'double');
+          }
+        } catch (e) {
+          // Fall back to double
+        }
+      }
+
+      const args = expr.args.map((arg, i) => {
         const result = this.generateExpression(arg, params);
-        return `i32 ${result}`;
+        const paramType = paramTypes[i] || 'double';
+        return `${paramType} ${result}`;
       }).join(', ');
 
       const temp = this.nextTemp();
-      this.emit(`${temp} = call i32 @${expr.name}(${args})`);
+      this.emit(`${temp} = call ${returnType} @${expr.name}(${args})`);
 
       return temp;
     }
@@ -1749,9 +1836,9 @@ export class LLVMGenerator extends BaseGenerator {
       // Evaluate condition
       const condValue = this.generateExpression(conditionalExpr.condition, params);
 
-      // Convert i32 to i1 for branch (non-zero is true)
+      // Convert double to i1 for branch (non-zero is true)
       const condBool = this.nextTemp();
-      this.emit(`${condBool} = icmp ne i32 ${condValue}, 0`);
+      this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
 
       // Branch based on condition
       this.emit(`br i1 ${condBool}, label %${trueLabel}, label %${falseLabel}`);
@@ -1836,7 +1923,14 @@ export class LLVMGenerator extends BaseGenerator {
 
     // Handle process.exit()
     if (method === 'exit' && expr.object.type === 'variable' && (expr.object as any).name === 'process') {
-      const exitCode = expr.args.length > 0 ? this.generateExpression(expr.args[0], params) : '0';
+      const exitCodeDouble = expr.args.length > 0 ? this.generateExpression(expr.args[0], params) : '0.0';
+      // Convert double to i32 for exit code (truncates decimal)
+      const exitCode = this.nextTemp();
+      if (exitCodeDouble === '0.0') {
+        this.emit(`${exitCode} = add i32 0, 0`); // Just use 0
+      } else {
+        this.emit(`${exitCode} = fptosi double ${exitCodeDouble} to i32`);
+      }
       // Flush stdout before exiting to ensure all output is printed
       const stdoutPtr = this.nextTemp();
       this.emit(`${stdoutPtr} = load i8*, i8** @stdout`);
@@ -2196,6 +2290,73 @@ export class LLVMGenerator extends BaseGenerator {
       return result;
     }
 
+    // Handle Math.sqrt()
+    if (method === 'sqrt' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
+      if (expr.args.length !== 1) {
+        throw new Error('Math.sqrt() requires 1 argument');
+      }
+      const arg = this.generateExpression(expr.args[0], params);
+      const result = this.nextTemp();
+      this.emit(`${result} = call double @llvm.sqrt.f64(double ${arg})`);
+      return result;
+    }
+
+    // Handle Math.pow()
+    if (method === 'pow' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
+      if (expr.args.length !== 2) {
+        throw new Error('Math.pow() requires 2 arguments');
+      }
+      const base = this.generateExpression(expr.args[0], params);
+      const exp = this.generateExpression(expr.args[1], params);
+      const result = this.nextTemp();
+      this.emit(`${result} = call double @llvm.pow.f64(double ${base}, double ${exp})`);
+      return result;
+    }
+
+    // Handle Math.floor()
+    if (method === 'floor' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
+      if (expr.args.length !== 1) {
+        throw new Error('Math.floor() requires 1 argument');
+      }
+      const arg = this.generateExpression(expr.args[0], params);
+      const result = this.nextTemp();
+      this.emit(`${result} = call double @llvm.floor.f64(double ${arg})`);
+      return result;
+    }
+
+    // Handle Math.ceil()
+    if (method === 'ceil' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
+      if (expr.args.length !== 1) {
+        throw new Error('Math.ceil() requires 1 argument');
+      }
+      const arg = this.generateExpression(expr.args[0], params);
+      const result = this.nextTemp();
+      this.emit(`${result} = call double @llvm.ceil.f64(double ${arg})`);
+      return result;
+    }
+
+    // Handle Math.round()
+    if (method === 'round' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
+      if (expr.args.length !== 1) {
+        throw new Error('Math.round() requires 1 argument');
+      }
+      const arg = this.generateExpression(expr.args[0], params);
+      const result = this.nextTemp();
+      this.emit(`${result} = call double @llvm.round.f64(double ${arg})`);
+      return result;
+    }
+
+    // Handle Math.abs()
+    if (method === 'abs' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
+      if (expr.args.length !== 1) {
+        throw new Error('Math.abs() requires 1 argument');
+      }
+      const arg = this.generateExpression(expr.args[0], params);
+      const result = this.nextTemp();
+      this.emit(`${result} = call double @llvm.fabs.f64(double ${arg})`);
+      return result;
+    }
+
     // Handle JSON.stringify()
     if (method === 'stringify' && expr.object.type === 'variable' && (expr.object as any).name === 'JSON') {
       if (expr.args.length < 1) {
@@ -2229,14 +2390,14 @@ export class LLVMGenerator extends BaseGenerator {
         // For numbers, convert to string
         const numValue = this.generateExpression(arg, params);
 
-        // Allocate buffer for number string (20 chars should be enough for i32)
+        // Allocate buffer for number string (30 chars should be enough for double)
         const buffer = this.nextTemp();
-        this.emit(`${buffer} = call i8* @malloc(i64 20)`);
+        this.emit(`${buffer} = call i8* @malloc(i64 30)`);
 
-        // Create format string: "%d"
-        const formatStr = this.stringGen.createStringConstant('%d');
+        // Create format string: "%f"
+        const formatStr = this.stringGen.createStringConstant('%f');
         const sprintfResult = this.nextTemp();
-        this.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, i32 ${numValue})`);
+        this.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${numValue})`);
 
         return buffer;
       }
@@ -2625,17 +2786,17 @@ export class LLVMGenerator extends BaseGenerator {
         return temp;
       }
     } else {
-      // Format string for integer: "%d\n"
-      const formatStr = this.stringGen.createStringConstant('%d\n');
+      // Format string for number: "%f\n"
+      const formatStr = this.stringGen.createStringConstant('%f\n');
       const temp = this.nextTemp();
 
       if (method === 'error') {
         this.emit(`${temp} = load i8*, i8** @stderr`);
         const temp2 = this.nextTemp();
-        this.emit(`${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, i32 ${argValue})`);
+        this.emit(`${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, double ${argValue})`);
         return temp2;
       } else {
-        this.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, i32 ${argValue})`);
+        this.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, double ${argValue})`);
         return temp;
       }
     }

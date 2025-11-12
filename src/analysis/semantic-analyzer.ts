@@ -74,7 +74,7 @@ export class SemanticAnalyzer {
       this.symbols.set(stmt.name, {
         name: stmt.name,
         type: 'number',
-        llvmType: 'i32',
+        llvmType: 'double',
       });
       return;
     }
@@ -93,7 +93,7 @@ export class SemanticAnalyzer {
       this.symbols.set(param, {
         name: param,
         type: 'number',
-        llvmType: 'i32',
+        llvmType: 'double',
       });
     }
 
@@ -221,7 +221,7 @@ export class SemanticAnalyzer {
       return {
         name: '',
         type: 'number',
-        llvmType: 'i32',
+        llvmType: 'double',
       };
     }
 
@@ -230,7 +230,7 @@ export class SemanticAnalyzer {
       return {
         name: '',
         type: 'boolean',
-        llvmType: 'i32',
+        llvmType: 'double',
       };
     }
 
@@ -280,7 +280,7 @@ export class SemanticAnalyzer {
           return {
             name: '',
             type: 'unknown',
-            llvmType: 'i32',
+            llvmType: 'double',
           };
         }
       }
@@ -330,7 +330,7 @@ export class SemanticAnalyzer {
         return {
           name: expr.name,
           type: 'unknown',
-          llvmType: 'i32',
+          llvmType: 'double',
         };
       }
       return symbol;
@@ -388,7 +388,7 @@ export class SemanticAnalyzer {
         return {
           name: '',
           type: 'boolean',
-          llvmType: 'i32',
+          llvmType: 'double',
         };
       }
 
@@ -396,7 +396,7 @@ export class SemanticAnalyzer {
       return {
         name: '',
         type: 'number',
-        llvmType: 'i32',
+        llvmType: 'double',
       };
     }
 
@@ -404,7 +404,7 @@ export class SemanticAnalyzer {
     return {
       name: '',
       type: 'unknown',
-      llvmType: 'i32',
+      llvmType: 'double',
     };
   }
 

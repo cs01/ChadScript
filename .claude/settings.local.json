@@ -68,7 +68,14 @@
       "Bash(./tests/fixtures/debug-strlen)",
       "Bash(./tests/fixtures/test-if-function)",
       "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"simple-modulo\" tests/compiler.test.ts)",
-      "Bash(node --import tsx --test --test-reporter=spec tests/compiler.test.ts)"
+      "Bash(node --import tsx --test --test-reporter=spec tests/compiler.test.ts)",
+      "Bash(./tests/fixtures/simple-add)",
+      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"modulo\" tests/compiler.test.ts)",
+      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"xor|XOR|shift\" tests/compiler.test.ts)",
+      "Bash(/tmp/test-float4)",
+      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"Bitwise Operators\" tests/compiler.test.ts)",
+      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"Math Functions\" tests/compiler.test.ts)",
+      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"Bitwise|Math Functions\" tests/compiler.test.ts)"
     ],
     "deny": [],
     "ask": []

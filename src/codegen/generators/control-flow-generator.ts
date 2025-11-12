@@ -32,7 +32,7 @@ export class ControlFlowGenerator extends BaseGenerator {
 
     // Convert i32 to i1 for branch (non-zero is true)
     const condBool = this.nextTemp();
-    this.emit(`${condBool} = icmp ne i32 ${condValue}, 0`);
+    this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
 
     // Branch based on condition
     if (stmt.elseBlock) {
@@ -122,7 +122,7 @@ export class ControlFlowGenerator extends BaseGenerator {
     this.emit(`${condLabel}:`);
     const condValue = this.generateExpression(stmt.condition, params);
     const condBool = this.nextTemp();
-    this.emit(`${condBool} = icmp ne i32 ${condValue}, 0`);
+    this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
     this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
 
     // Body block - push loop context for break/continue
@@ -189,7 +189,7 @@ export class ControlFlowGenerator extends BaseGenerator {
     if (stmt.condition) {
       const condValue = this.generateExpression(stmt.condition, params);
       const condBool = this.nextTemp();
-      this.emit(`${condBool} = icmp ne i32 ${condValue}, 0`);
+      this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
       this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
     } else {
       // No condition means infinite loop
@@ -290,26 +290,26 @@ export class ControlFlowGenerator extends BaseGenerator {
 
     // Convert both to booleans (0 or 1)
     const leftBool = this.nextTemp();
-    this.emit(`${leftBool} = icmp ne i32 ${leftValue}, 0`);
+    this.emit(`${leftBool} = fcmp one double ${leftValue}, 0.0`);
     const leftInt = this.nextTemp();
     this.emit(`${leftInt} = zext i1 ${leftBool} to i32`);
 
     const rightBool = this.nextTemp();
-    this.emit(`${rightBool} = icmp ne i32 ${rightValue}, 0`);
+    this.emit(`${rightBool} = fcmp one double ${rightValue}, 0.0`);
     const rightInt = this.nextTemp();
     this.emit(`${rightInt} = zext i1 ${rightBool} to i32`);
 
     if (op === '&&') {
       // Both must be non-zero
       const result = this.nextTemp();
-      this.emit(`${result} = mul i32 ${leftInt}, ${rightInt}`);
+      this.emit(`${result} = fmul double ${leftInt}, ${rightInt}`);
       return result;
     } else {
       // At least one must be non-zero (add and clamp to 1)
       const sum = this.nextTemp();
-      this.emit(`${sum} = add i32 ${leftInt}, ${rightInt}`);
+      this.emit(`${sum} = fadd double ${leftInt}, ${rightInt}`);
       const cmp = this.nextTemp();
-      this.emit(`${cmp} = icmp ne i32 ${sum}, 0`);
+      this.emit(`${cmp} = fcmp one double ${sum}, 0.0`);
       const result = this.nextTemp();
       this.emit(`${result} = zext i1 ${cmp} to i32`);
       return result;

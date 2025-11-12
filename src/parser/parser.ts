@@ -267,10 +267,11 @@ export class Parser {
   private parseNumber(): number {
     this.skipWhitespace();
     let num = '';
-    while (this.pos < this.code.length && /[0-9]/.test(this.code[this.pos])) {
+    // Support integers and decimals
+    while (this.pos < this.code.length && /[0-9.]/.test(this.code[this.pos])) {
       num += this.code[this.pos++];
     }
-    return parseInt(num);
+    return parseFloat(num);
   }
 
   private parseTypeAnnotation(): 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null {
@@ -449,7 +450,7 @@ export class Parser {
 
     this.expect('{');
 
-    const fields: { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] = [];
+    const fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] = [];
     const methods: ClassMethod[] = [];
 
     while (true) {
@@ -469,7 +470,7 @@ export class Parser {
         this.skipWhitespace();
 
         // Parse type
-        let fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' = 'i32';
+        let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' = 'double';
 
         if (this.match('string')) {
           // Check if it's an array type (string[])
@@ -487,7 +488,7 @@ export class Parser {
             this.pos += 2; // consume '[]'
             fieldType = 'number[]';
           } else {
-            fieldType = 'i32';
+            fieldType = 'double';
           }
         } else if (this.match('boolean')) {
           // Check if it's an array type (boolean[])
@@ -1043,7 +1044,7 @@ export class Parser {
   }
 
   private parseBitwiseOr(): Expression {
-    let left = this.parseBitwiseAnd();
+    let left = this.parseBitwiseXor();
 
     while (true) {
       this.skipWhitespace();
@@ -1053,8 +1054,28 @@ export class Parser {
       // Check for single | (not ||)
       if (ch === '|' && ch2 !== '|') {
         this.pos++;
-        const right = this.parseBitwiseAnd();
+        const right = this.parseBitwiseXor();
         left = { type: 'binary', op: '|', left, right };
+      } else {
+        break;
+      }
+    }
+
+    return left;
+  }
+
+  private parseBitwiseXor(): Expression {
+    let left = this.parseBitwiseAnd();
+
+    while (true) {
+      this.skipWhitespace();
+      const ch = this.code[this.pos];
+
+      // Check for ^ (XOR)
+      if (ch === '^') {
+        this.pos++;
+        const right = this.parseBitwiseAnd();
+        left = { type: 'binary', op: '^', left, right };
       } else {
         break;
       }
@@ -1085,7 +1106,7 @@ export class Parser {
   }
 
   private parseComparison(): Expression {
-    let left = this.parseAdditive();
+    let left = this.parseShift();
 
     while (true) {
       this.skipWhitespace();
@@ -1101,18 +1122,42 @@ export class Parser {
         op = ch + ch2 + ch3;
         this.pos += 3;
       }
-      // Two-character operators
+      // Two-character operators (<=, >=, ==, !=)
       else if ((ch === '<' || ch === '>' || ch === '=' || ch === '!') && ch2 === '=') {
         op = ch + ch2;
         this.pos += 2;
       }
-      // Single-character operators
-      else if (ch === '<' || ch === '>') {
+      // Single-character operators (but not if it's the start of << or >>)
+      else if ((ch === '<' || ch === '>') && ch2 !== ch) {
         op = ch;
         this.pos++;
       }
 
       if (op) {
+        const right = this.parseShift();
+        left = { type: 'binary', op, left, right };
+      } else {
+        break;
+      }
+    }
+
+    return left;
+  }
+
+  private parseShift(): Expression {
+    let left = this.parseAdditive();
+
+    while (true) {
+      this.skipWhitespace();
+      const ch = this.code[this.pos];
+      const ch2 = this.code[this.pos + 1];
+
+      let op = '';
+
+      // Check for << or >>
+      if ((ch === '<' && ch2 === '<') || (ch === '>' && ch2 === '>')) {
+        op = ch + ch2;
+        this.pos += 2;
         const right = this.parseAdditive();
         left = { type: 'binary', op, left, right };
       } else {
@@ -1802,7 +1847,7 @@ export class Parser {
 
       this.expect('{');
 
-      const fields: { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] = [];
+      const fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] = [];
       const methods: ClassMethod[] = [];
       this.skipWhitespace();
       while (this.code[this.pos] !== '}') {
@@ -1817,7 +1862,7 @@ export class Parser {
           this.skipWhitespace();
 
           // Parse type
-          let fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' = 'i32';
+          let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' = 'double';
           if (this.match('string')) {
             // Check if it's an array type (string[])
             this.skipWhitespace();
@@ -1834,7 +1879,7 @@ export class Parser {
               this.pos += 2; // consume '[]'
               fieldType = 'number[]';
             } else {
-              fieldType = 'i32';
+              fieldType = 'double';
             }
           } else if (this.match('boolean')) {
             // Check if it's an array type (boolean[])

@@ -84,26 +84,26 @@ export class ArrayGenerator extends BaseGenerator {
       const arrayPtr = this.nextTemp();
       this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %Array*`);
 
-      // Allocate data array on heap (i32* with length elements)
+      // Allocate data array on heap (double* with length elements)
       // Use calloc for zero-initialized memory to prevent garbage data
       const dataCount = length === 0 ? 1 : length; // Allocate at least 1 element
       const dataMem = this.nextTemp();
-      this.emit(`${dataMem} = call i8* @calloc(i64 ${dataCount}, i64 4)`); // calloc(count, 4 bytes per i32)
+      this.emit(`${dataMem} = call i8* @calloc(i64 ${dataCount}, i64 8)`); // calloc(count, 8 bytes per double)
       const dataPtr = this.nextTemp();
-      this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i32*`);
+      this.emit(`${dataPtr} = bitcast i8* ${dataMem} to double*`);
 
       // Store each element
       for (let i = 0; i < expr.elements.length; i++) {
         const elemValue = this.generateExpression(expr.elements[i], params);
         const elemPtr = this.nextTemp();
-        this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${i}`);
-        this.emit(`store i32 ${elemValue}, i32* ${elemPtr}`);
+        this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
+        this.emit(`store double ${elemValue}, double* ${elemPtr}`);
       }
 
       // Store data pointer in array struct (field 0)
       const dataPtrField = this.nextTemp();
       this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-      this.emit(`store i32* ${dataPtr}, i32** ${dataPtrField}`);
+      this.emit(`store double* ${dataPtr}, double** ${dataPtrField}`);
 
       // Store length in array struct (field 1)
       const lenField = this.nextTemp();
@@ -184,20 +184,20 @@ export class ArrayGenerator extends BaseGenerator {
     const newCapI64 = this.nextTemp();
     this.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
     const newMem = this.nextTemp();
-    this.emit(`${newMem} = call i8* @calloc(i64 ${newCapI64}, i64 4)`); // calloc(count, 4 bytes per i32)
+    this.emit(`${newMem} = call i8* @calloc(i64 ${newCapI64}, i64 8)`); // calloc(count, 8 bytes per double)
     const newDataPtr = this.nextTemp();
-    this.emit(`${newDataPtr} = bitcast i8* ${newMem} to i32*`);
+    this.emit(`${newDataPtr} = bitcast i8* ${newMem} to double*`);
 
     // Copy old data to new array
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const oldDataPtr = this.nextTemp();
-    this.emit(`${oldDataPtr} = load i32*, i32** ${dataPtrField}`);
+    this.emit(`${oldDataPtr} = load double*, double** ${dataPtrField}`);
 
     const oldDataI8 = this.nextTemp();
-    this.emit(`${oldDataI8} = bitcast i32* ${oldDataPtr} to i8*`);
+    this.emit(`${oldDataI8} = bitcast double* ${oldDataPtr} to i8*`);
     const newDataI8 = this.nextTemp();
-    this.emit(`${newDataI8} = bitcast i32* ${newDataPtr} to i8*`);
+    this.emit(`${newDataI8} = bitcast double* ${newDataPtr} to i8*`);
     const copySize = this.nextTemp();
     this.emit(`${copySize} = mul i32 ${currentLen}, 4`);
     const copySizeI64 = this.nextTemp();
@@ -206,7 +206,7 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Free old data and update pointer
     this.emit(`call void @free(i8* ${oldDataI8})`);
-    this.emit(`store i32* ${newDataPtr}, i32** ${dataPtrField}`);
+    this.emit(`store double* ${newDataPtr}, double** ${dataPtrField}`);
 
     // Update capacity
     this.emit(`store i32 ${newCap}, i32* ${capPtr}`);
@@ -220,12 +220,12 @@ export class ArrayGenerator extends BaseGenerator {
     const dataPtrField2 = this.nextTemp();
     this.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField2}`);
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField2}`);
 
     // Store value at current length index
     const elemPtr = this.nextTemp();
-    this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${currentLen}`);
-    this.emit(`store i32 ${value}, i32* ${elemPtr}`);
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentLen}`);
+    this.emit(`store double ${value}, double* ${elemPtr}`);
 
     // Increment length
     const newLen = this.nextTemp();
@@ -359,7 +359,7 @@ export class ArrayGenerator extends BaseGenerator {
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField}`);
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
     // Loop setup
     const loopLabel = this.nextLabel('find_loop');
@@ -373,10 +373,10 @@ export class ArrayGenerator extends BaseGenerator {
     this.emit(`${counterPtr} = alloca i32`);
     this.emit(`store i32 0, i32* ${counterPtr}`);
 
-    // Result variable (will hold found element or 0)
+    // Result variable (will hold found element or 0.0)
     const resultPtr = this.nextTemp();
-    this.emit(`${resultPtr} = alloca i32`);
-    this.emit(`store i32 0, i32* ${resultPtr}`);
+    this.emit(`${resultPtr} = alloca double`);
+    this.emit(`store double 0.0, double* ${resultPtr}`);
 
     this.emit(`br label %${checkLabel}`);
 
@@ -393,9 +393,9 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Load current element
     const elemPtr = this.nextTemp();
-    this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${counter}`);
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
     const elem = this.nextTemp();
-    this.emit(`${elem} = load i32, i32* ${elemPtr}`);
+    this.emit(`${elem} = load double, double* ${elemPtr}`);
 
     // Call predicate function
     const predicateResult = this.nextTemp();
@@ -408,7 +408,7 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Found - store element and exit
     this.emit(`${foundLabel}:`);
-    this.emit(`store i32 ${elem}, i32* ${resultPtr}`);
+    this.emit(`store double ${elem}, double* ${resultPtr}`);
     this.emit(`br label %${endLabel}`);
 
     // Continue loop
@@ -421,7 +421,7 @@ export class ArrayGenerator extends BaseGenerator {
     // End
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
-    this.emit(`${result} = load i32, i32* ${resultPtr}`);
+    this.emit(`${result} = load double, double* ${resultPtr}`);
     return result;
   }
 
@@ -455,7 +455,7 @@ export class ArrayGenerator extends BaseGenerator {
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField}`);
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
     // Loop setup
     const loopLabel = this.nextLabel('some_loop');
@@ -489,9 +489,9 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Load current element
     const elemPtr = this.nextTemp();
-    this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${counter}`);
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
     const elem = this.nextTemp();
-    this.emit(`${elem} = load i32, i32* ${elemPtr}`);
+    this.emit(`${elem} = load double, double* ${elemPtr}`);
 
     // Call predicate function
     const predicateResult = this.nextTemp();
@@ -517,7 +517,7 @@ export class ArrayGenerator extends BaseGenerator {
     // End
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
-    this.emit(`${result} = load i32, i32* ${resultPtr}`);
+    this.emit(`${result} = load double, double* ${resultPtr}`);
     return result;
   }
 
@@ -551,7 +551,7 @@ export class ArrayGenerator extends BaseGenerator {
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField}`);
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
     // Create new array for result (allocate with same capacity as input)
     const resultArrayPtr = this.nextTemp();
@@ -565,12 +565,12 @@ export class ArrayGenerator extends BaseGenerator {
     const dataMem = this.nextTemp();
     this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSizeI64})`);
     const resultDataPtr = this.nextTemp();
-    this.emit(`${resultDataPtr} = bitcast i8* ${dataMem} to i32*`);
+    this.emit(`${resultDataPtr} = bitcast i8* ${dataMem} to double*`);
 
     // Store data pointer in result array struct
     const resultDataPtrField = this.nextTemp();
     this.emit(`${resultDataPtrField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 0`);
-    this.emit(`store i32* ${resultDataPtr}, i32** ${resultDataPtrField}`);
+    this.emit(`store double* ${resultDataPtr}, double** ${resultDataPtrField}`);
 
     // Initialize length to 0
     const resultLenField = this.nextTemp();
@@ -609,9 +609,9 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Load current element
     const elemPtr = this.nextTemp();
-    this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${counter}`);
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
     const elem = this.nextTemp();
-    this.emit(`${elem} = load i32, i32* ${elemPtr}`);
+    this.emit(`${elem} = load double, double* ${elemPtr}`);
 
     // Call predicate function
     const predicateResult = this.nextTemp();
@@ -628,8 +628,8 @@ export class ArrayGenerator extends BaseGenerator {
     this.emit(`${currentLen} = load i32, i32* ${resultLenField}`);
 
     const resultElemPtr = this.nextTemp();
-    this.emit(`${resultElemPtr} = getelementptr inbounds i32, i32* ${resultDataPtr}, i32 ${currentLen}`);
-    this.emit(`store i32 ${elem}, i32* ${resultElemPtr}`);
+    this.emit(`${resultElemPtr} = getelementptr inbounds double, double* ${resultDataPtr}, i32 ${currentLen}`);
+    this.emit(`store double ${elem}, double* ${resultElemPtr}`);
 
     const newLen = this.nextTemp();
     this.emit(`${newLen} = add i32 ${currentLen}, 1`);
@@ -678,7 +678,7 @@ export class ArrayGenerator extends BaseGenerator {
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField}`);
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
     // Loop setup
     const loopLabel = this.nextLabel('foreach_loop');
@@ -706,9 +706,9 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Load current element
     const elemPtr = this.nextTemp();
-    this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${counter}`);
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
     const elem = this.nextTemp();
-    this.emit(`${elem} = load i32, i32* ${elemPtr}`);
+    this.emit(`${elem} = load double, double* ${elemPtr}`);
 
     // Call callback function (discard return value)
     const callResult = this.nextTemp();
@@ -755,7 +755,7 @@ export class ArrayGenerator extends BaseGenerator {
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField}`);
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
     // Create result array with same length
     const resultArrayPtr = this.nextTemp();
@@ -769,12 +769,12 @@ export class ArrayGenerator extends BaseGenerator {
     const resultMem = this.nextTemp();
     this.emit(`${resultMem} = call i8* @malloc(i64 ${resultSizeI64})`);
     const resultDataPtr = this.nextTemp();
-    this.emit(`${resultDataPtr} = bitcast i8* ${resultMem} to i32*`);
+    this.emit(`${resultDataPtr} = bitcast i8* ${resultMem} to double*`);
 
     // Store data pointer in result array struct
     const resultDataPtrField = this.nextTemp();
     this.emit(`${resultDataPtrField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 0`);
-    this.emit(`store i32* ${resultDataPtr}, i32** ${resultDataPtrField}`);
+    this.emit(`store double* ${resultDataPtr}, double** ${resultDataPtrField}`);
 
     // Store length in result array struct
     const resultLenField = this.nextTemp();
@@ -811,9 +811,9 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Load element
     const elemPtr = this.nextTemp();
-    this.emit(`${elemPtr} = getelementptr inbounds i32, i32* ${dataPtr}, i32 ${counter}`);
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
     const elem = this.nextTemp();
-    this.emit(`${elem} = load i32, i32* ${elemPtr}`);
+    this.emit(`${elem} = load double, double* ${elemPtr}`);
 
     // Call callback function with element
     const result = this.nextTemp();
@@ -821,8 +821,8 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Store result in result array
     const resultElemPtr = this.nextTemp();
-    this.emit(`${resultElemPtr} = getelementptr inbounds i32, i32* ${resultDataPtr}, i32 ${counter}`);
-    this.emit(`store i32 ${result}, i32* ${resultElemPtr}`);
+    this.emit(`${resultElemPtr} = getelementptr inbounds double, double* ${resultDataPtr}, i32 ${counter}`);
+    this.emit(`store double ${result}, double* ${resultElemPtr}`);
 
     // Continue loop
     const nextCounter = this.nextTemp();
@@ -855,7 +855,7 @@ export class ArrayGenerator extends BaseGenerator {
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load i32*, i32** ${dataPtrField}`);
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
     // For simplicity, we'll allocate a fixed-size buffer for the result
     // In a real implementation, we'd calculate the exact size needed

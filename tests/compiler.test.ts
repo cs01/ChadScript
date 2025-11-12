@@ -411,6 +411,74 @@ describe('ChadScript Compiler', () => {
     });
   });
 
+  describe('Bitwise Operators', () => {
+    it('should compile and execute bitwise operators (XOR, shifts, AND, OR)', async () => {
+      const fixturePath = 'tests/fixtures/bitwise-operators.js';
+      const outputDir = 'tests/fixtures';
+      const baseName = 'bitwise-operators';
+      const exeFile = path.join(outputDir, baseName);
+
+      try {
+        // Compile
+        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+
+        // Run and capture output
+        const { stdout } = await execAsync(`./${exeFile}`);
+
+        // Check expected outputs
+        assert.ok(stdout.includes('XOR(5,3)=6'), 'XOR should return 6');
+        assert.ok(stdout.includes('LeftShift(5,2)=20'), 'Left shift should return 20');
+        assert.ok(stdout.includes('RightShift(20,2)=5'), 'Right shift should return 5');
+        assert.ok(stdout.includes('AND(12,10)=8'), 'AND should return 8');
+        assert.ok(stdout.includes('OR(12,10)=14'), 'OR should return 14');
+      } finally {
+        // Clean up
+        try {
+          const llFile = path.join(outputDir, `${baseName}.ll`);
+          if (fsSync.existsSync(llFile)) await fs.unlink(llFile);
+          if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    });
+  });
+
+  describe('Math Functions', () => {
+    it('should compile and execute Math functions (sqrt, pow, floor, ceil, round, abs)', async () => {
+      const fixturePath = 'tests/fixtures/math-functions.js';
+      const outputDir = 'tests/fixtures';
+      const baseName = 'math-functions';
+      const exeFile = path.join(outputDir, baseName);
+
+      try {
+        // Compile
+        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+
+        // Run and capture output
+        const { stdout } = await execAsync(`./${exeFile}`);
+
+        // Check expected outputs
+        assert.ok(stdout.includes('sqrt(16)=4'), 'sqrt(16) should return 4');
+        assert.ok(stdout.includes('pow(2,8)=256'), 'pow(2,8) should return 256');
+        assert.ok(stdout.includes('floor(3.7)=3'), 'floor(3.7) should return 3');
+        assert.ok(stdout.includes('ceil(3.2)=4'), 'ceil(3.2) should return 4');
+        assert.ok(stdout.includes('round(3.5)=4'), 'round(3.5) should return 4');
+        assert.ok(stdout.includes('round(3.4)=3'), 'round(3.4) should return 3');
+        assert.ok(stdout.includes('abs(-42)=42'), 'abs(-42) should return 42');
+      } finally {
+        // Clean up
+        try {
+          const llFile = path.join(outputDir, `${baseName}.ll`);
+          if (fsSync.existsSync(llFile)) await fs.unlink(llFile);
+          if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    });
+  });
+
   describe('Try/Catch/Throw', () => {
     it('should compile and execute try-catch-throw syntax', async () => {
       const fixturePath = 'tests/fixtures/try-catch-throw.js';

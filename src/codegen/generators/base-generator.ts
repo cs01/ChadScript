@@ -28,7 +28,7 @@ export class BaseGenerator {
   public thisPointer: string | null = null; // Current 'this' pointer (i32*)
   public currentClassName: string | null = null; // Current class name (for super resolution)
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null; // Expected array element type for context-aware generation
-  public currentFunctionReturnType: string = 'i32'; // Current function/method return type for return statements
+  public currentFunctionReturnType: string = 'double'; // Current function/method return type for return statements
 
   constructor() {}
 
@@ -52,7 +52,7 @@ export class BaseGenerator {
     this.processArgvVariables = new Set();
     this.thisPointer = null;
     this.currentClassName = null;
-    this.currentFunctionReturnType = 'i32';
+    this.currentFunctionReturnType = 'double';
   }
 
   // Helper to get next temp register (can be overridden)

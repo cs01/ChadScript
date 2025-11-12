@@ -40,8 +40,12 @@ export class StringGenerator extends BaseGenerator {
     return ptrReg;
   }
 
-  // Convert an i32 number to a string
+  // Convert a double number to a string
   convertNumberToString(numValue: string): string {
+    // Convert double to i32 for printing (truncates decimal part)
+    const intValue = this.nextTemp();
+    this.emit(`${intValue} = fptosi double ${numValue} to i32`);
+
     // Allocate buffer for the string (max 12 chars for 32-bit int + null terminator)
     const bufferSize = this.nextTemp();
     this.emit(`${bufferSize} = alloca [12 x i8], align 1`);
@@ -55,7 +59,7 @@ export class StringGenerator extends BaseGenerator {
 
     // Call snprintf to convert number to string
     const snprintfResult = this.nextTemp();
-    this.emit(`${snprintfResult} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufferPtr}, i64 12, i8* ${formatStr}, i32 ${numValue})`);
+    this.emit(`${snprintfResult} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufferPtr}, i64 12, i8* ${formatStr}, i32 ${intValue})`);
 
     // Duplicate the string on the heap so it persists
     const strLen = this.nextTemp();

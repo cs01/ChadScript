@@ -50,7 +50,7 @@ export class ObjectGenerator extends BaseGenerator {
       } else if ((valueExpr as any).type === 'set') {
         llvmType = '%Set*';
       } else {
-        llvmType = 'i32';  // Default to i32 (numbers, booleans)
+        llvmType = 'double';  // Default to double (numbers, booleans)
       }
 
       fieldTypes.push({ key, llvmType, value: valueReg });

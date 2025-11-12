@@ -83,12 +83,20 @@ export class ArgumentParser {
     // Initialize defaults
     let i = 0;
     while (i < this.argNames.length) {
-      if (this.argIsFlag[i]) {
-        this.parsedFlagNames.push(this.argNames[i]);
-        this.parsedFlagValues.push(false);
-      } else if (!this.argIsPositional[i]) {
-        this.parsedOptionNames.push(this.argNames[i]);
-        this.parsedOptionValues.push(this.argDefaultValue[i]);
+      // Only process if argNames[i] is not empty/NULL
+      if (this.argNames[i].length > 0) {
+        if (this.argIsFlag[i]) {
+          this.parsedFlagNames.push(this.argNames[i]);
+          this.parsedFlagValues.push(false);
+        } else if (!this.argIsPositional[i]) {
+          this.parsedOptionNames.push(this.argNames[i]);
+          // Only push default value if it's not empty
+          if (this.argDefaultValue[i].length > 0) {
+            this.parsedOptionValues.push(this.argDefaultValue[i]);
+          } else {
+            this.parsedOptionValues.push("");
+          }
+        }
       }
       i = i + 1;
     }
@@ -96,20 +104,18 @@ export class ArgumentParser {
     // Parse argv (skip first element which is program name)
     let argIdx = 1;
     while (argIdx < argv.length) {
-      const current = argv[argIdx];
-
       // Check for help
-      if (current === "-h" || current === "--help") {
+      if (argv[argIdx].length > 0 && (argv[argIdx] === "-h" || argv[argIdx] === "--help")) {
         this.printHelp();
         process.exit(0);
       }
 
       // Check if it starts with dash (flag or option)
-      if (current.charAt(0) === "-") {
-        const argIndex = this.findArgument(current);
+      if (argv[argIdx].length > 0 && argv[argIdx].charAt(0) === "-") {
+        const argIndex = this.findArgument(argv[argIdx]);
 
         if (argIndex === -1) {
-          console.log("Unknown option: " + current);
+          console.log("Unknown option: " + argv[argIdx]);
           console.log("Try '" + this.programName + " --help' for more information");
           process.exit(1);
         }
@@ -119,7 +125,9 @@ export class ArgumentParser {
           const newFlagValues: boolean[] = [];
           let flagIdx = 0;
           while (flagIdx < this.parsedFlagNames.length) {
-            if (this.parsedFlagNames[flagIdx] === this.argNames[argIndex]) {
+            // Check length to avoid strcmp on NULL/empty strings
+            if (this.parsedFlagNames[flagIdx].length > 0 && this.argNames[argIndex].length > 0 &&
+                this.parsedFlagNames[flagIdx] === this.argNames[argIndex]) {
               newFlagValues.push(true);
             } else {
               newFlagValues.push(this.parsedFlagValues[flagIdx]);
@@ -132,14 +140,16 @@ export class ArgumentParser {
           // Get value
           argIdx = argIdx + 1;
           if (argIdx >= argv.length) {
-            console.log("Option " + current + " requires a value");
+            console.log("Option requires a value");
             process.exit(1);
           }
           // Set option value by rebuilding array
           const newOptionValues: string[] = [];
           let optIdx = 0;
           while (optIdx < this.parsedOptionNames.length) {
-            if (this.parsedOptionNames[optIdx] === this.argNames[argIndex]) {
+            // Check length to avoid strcmp on NULL/empty strings
+            if (this.parsedOptionNames[optIdx].length > 0 && this.argNames[argIndex].length > 0 &&
+                this.parsedOptionNames[optIdx] === this.argNames[argIndex]) {
               newOptionValues.push(argv[argIdx]);
             } else {
               newOptionValues.push(this.parsedOptionValues[optIdx]);
@@ -151,7 +161,9 @@ export class ArgumentParser {
         }
       } else {
         // Positional argument
-        this.parsedPositionals.push(current);
+        if (argv[argIdx].length > 0) {
+          this.parsedPositionals.push(argv[argIdx]);
+        }
         argIdx = argIdx + 1;
       }
     }
@@ -172,7 +184,9 @@ export class ArgumentParser {
 
     let i = 0;
     while (i < this.argNames.length) {
-      if (this.argShortFlags[i] === cleanFlag || this.argLongFlags[i] === cleanFlag) {
+      // Check length > 0 to avoid strcmp on NULL/empty strings
+      if ((this.argShortFlags[i].length > 0 && this.argShortFlags[i] === cleanFlag) ||
+          (this.argLongFlags[i].length > 0 && this.argLongFlags[i] === cleanFlag)) {
         return i;
       }
       i = i + 1;
@@ -273,7 +287,8 @@ export class ArgumentParser {
   getFlag(name: string): boolean {
     let i = 0;
     while (i < this.parsedFlagNames.length) {
-      if (this.parsedFlagNames[i] === name) {
+      // Check length > 0 to avoid strcmp on NULL/empty strings
+      if (this.parsedFlagNames[i].length > 0 && this.parsedFlagNames[i] === name) {
         return this.parsedFlagValues[i];
       }
       i = i + 1;
@@ -284,7 +299,12 @@ export class ArgumentParser {
   getOption(name: string): string {
     let i = 0;
     while (i < this.parsedOptionNames.length) {
-      if (this.parsedOptionNames[i] === name) {
+      // Check length > 0 to avoid strcmp on NULL/empty strings and only compare if valid
+      if (this.parsedOptionNames[i].length > 0 && this.parsedOptionNames[i] === name) {
+        // Return the value, checking if it's empty first
+        if (this.parsedOptionValues[i].length === 0) {
+          return "";
+        }
         return this.parsedOptionValues[i];
       }
       i = i + 1;
@@ -294,6 +314,10 @@ export class ArgumentParser {
 
   getPositional(index: number): string {
     if (index < this.parsedPositionals.length) {
+      // Return empty string if value is NULL/empty to avoid crashes
+      if (this.parsedPositionals[index].length === 0) {
+        return "";
+      }
       return this.parsedPositionals[index];
     }
     return "";
