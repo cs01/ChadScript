@@ -165,6 +165,8 @@ export class LLVMGenerator extends BaseGenerator {
     ir += 'declare i32 @strcmp(i8*, i8*)\n';
     ir += 'declare i32 @strncmp(i8*, i8*, i64)\n';
     ir += 'declare i32 @snprintf(i8*, i64, i8*, ...)\n';
+    ir += 'declare i64 @strtol(i8*, i8**, i32)\n';  // For parseInt
+    ir += 'declare i8* @strstr(i8*, i8*)\n';  // For indexOf
     ir += 'declare void @llvm.memcpy.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n';
     ir += '\n';
 
@@ -1770,6 +1772,44 @@ export class LLVMGenerator extends BaseGenerator {
         return temp;
       }
 
+      // Handle parseInt(str, radix?) global function
+      if (expr.name === 'parseInt') {
+        if (expr.args.length < 1 || expr.args.length > 2) {
+          throw new Error('parseInt() requires 1 or 2 arguments (string, radix?)');
+        }
+
+        this.syncStateToGenerators();
+
+        // Get the string argument
+        const strValue = this.generateExpression(expr.args[0], params);
+
+        // Get the radix argument (default to 10 if not provided)
+        let radixValue: string;
+        if (expr.args.length === 2) {
+          const radixDouble = this.generateExpression(expr.args[1], params);
+          // Convert double to i32
+          radixValue = this.nextTemp();
+          this.emit(`${radixValue} = fptosi double ${radixDouble} to i32`);
+        } else {
+          // Default radix is 10
+          radixValue = '10';
+        }
+
+        // Call strtol(str, null, radix)
+        // strtol returns i64, we'll truncate to i32 and then convert to double
+        const nullPtr = this.nextTemp();
+        this.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
+
+        const resultI64 = this.nextTemp();
+        this.emit(`${resultI64} = call i64 @strtol(i8* ${strValue}, i8** ${nullPtr}, i32 ${radixValue})`);
+
+        // Convert i64 to double for compatibility with ChadScript's numeric type
+        const resultDouble = this.nextTemp();
+        this.emit(`${resultDouble} = sitofp i64 ${resultI64} to double`);
+
+        return resultDouble;
+      }
+
       // Get function type from type checker for correct parameter/return types
       let returnType = 'double';
       let paramTypes: string[] = [];
@@ -2541,6 +2581,64 @@ export class LLVMGenerator extends BaseGenerator {
       return this.stringGen.generateStartsWith(strPtr, prefix);
     }
 
+    if (method === 'trim') {
+      this.syncStateToGenerators();
+      const strPtr = this.generateExpression(expr.object, params);
+
+      if (expr.args.length !== 0) {
+        throw new Error(`trim() expects 0 arguments, got ${expr.args.length}`);
+      }
+
+      return this.stringGen.generateTrim(strPtr);
+    }
+
+    if (method === 'indexOf') {
+      this.syncStateToGenerators();
+      const strPtr = this.generateExpression(expr.object, params);
+
+      if (expr.args.length !== 1) {
+        throw new Error(`indexOf() expects 1 argument, got ${expr.args.length}`);
+      }
+
+      const substring = this.generateExpression(expr.args[0], params);
+      return this.stringGen.generateIndexOf(strPtr, substring);
+    }
+
+    if (method === 'includes' && !this.isArrayExpression(expr.object) && !this.isStringArrayExpression(expr.object)) {
+      // string.includes() - only if not an array
+      this.syncStateToGenerators();
+      const strPtr = this.generateExpression(expr.object, params);
+
+      if (expr.args.length !== 1) {
+        throw new Error(`includes() expects 1 argument, got ${expr.args.length}`);
+      }
+
+      const substring = this.generateExpression(expr.args[0], params);
+      return this.stringGen.generateIncludes(strPtr, substring);
+    }
+
+    if (method === 'slice') {
+      this.syncStateToGenerators();
+      const strPtr = this.generateExpression(expr.object, params);
+
+      if (expr.args.length < 1 || expr.args.length > 2) {
+        throw new Error(`slice() expects 1 or 2 arguments, got ${expr.args.length}`);
+      }
+
+      const startDouble = this.generateExpression(expr.args[0], params);
+      const startI32 = this.nextTemp();
+      this.emit(`${startI32} = fptosi double ${startDouble} to i32`);
+
+      let endI32: string | null = null;
+      if (expr.args.length === 2) {
+        const endDouble = this.generateExpression(expr.args[1], params);
+        endI32 = this.nextTemp();
+        this.emit(`${endI32} = fptosi double ${endDouble} to i32`);
+      }
+
+      return this.stringGen.generateSlice(strPtr, startI32, endI32);
+    }
+
     if (method === 'charAt') {
       // Assume any .charAt() call is on a string
       this.syncStateToGenerators();
@@ -2589,6 +2687,13 @@ export class LLVMGenerator extends BaseGenerator {
     if (method === 'push') {
       this.syncStateToGenerators();
       return this.arrayGen.generateArrayPush(expr, params);
+    } else if (method === 'pop') {
+      this.syncStateToGenerators();
+      return this.arrayGen.generateArrayPop(expr, params);
+    } else if (method === 'includes' && this.isArrayExpression(expr.object)) {
+      // array.includes() - check for array first to avoid conflict with string.includes()
+      this.syncStateToGenerators();
+      return this.arrayGen.generateArrayIncludes(expr, params);
     } else if (method === 'map') {
       this.syncStateToGenerators();
       return this.arrayGen.generateArrayMap(expr, params);
@@ -3015,7 +3120,8 @@ export class LLVMGenerator extends BaseGenerator {
       // String methods that return strings
       if (methodExpr.method === 'substr' || methodExpr.method === 'substring' ||
           methodExpr.method === 'concat' || methodExpr.method === 'repeat' ||
-          methodExpr.method === 'padStart' || methodExpr.method === 'charAt') {
+          methodExpr.method === 'padStart' || methodExpr.method === 'charAt' ||
+          methodExpr.method === 'trim' || methodExpr.method === 'slice') {
         return true;
       }
       // Check class instance method return types

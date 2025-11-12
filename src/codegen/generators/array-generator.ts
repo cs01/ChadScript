@@ -145,6 +145,143 @@ export class ArrayGenerator extends BaseGenerator {
     }
   }
 
+  generateArrayPop(expr: MethodCallNode, params: string[]): string {
+    // arr.pop() - removes and returns last element
+    if (expr.args.length !== 0) {
+      throw new Error('pop() requires 0 arguments');
+    }
+
+    const arrayPtr = this.generateExpression(expr.object, params);
+
+    // Determine if this is a string array or number array
+    let isStringArray = false;
+    if (expr.object.type === 'variable') {
+      const varName = (expr.object as any).name;
+      isStringArray = this.stringArrayVariables.has(varName);
+    } else {
+      isStringArray = this.stringArrayVariables.has(arrayPtr);
+    }
+
+    if (isStringArray) {
+      return this.generateStringArrayPop(arrayPtr);
+    } else {
+      return this.generateIntArrayPop(arrayPtr);
+    }
+  }
+
+  private generateIntArrayPop(arrayPtr: string): string {
+    // Pop from %Array (int/boolean array)
+
+    // Load current length
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    const currentLen = this.nextTemp();
+    this.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
+
+    // Check if array is empty
+    const isEmpty = this.nextTemp();
+    this.emit(`${isEmpty} = icmp eq i32 ${currentLen}, 0`);
+
+    const emptyLabel = this.nextLabel('pop_empty');
+    const notEmptyLabel = this.nextLabel('pop_notempty');
+    const endLabel = this.nextLabel('pop_end');
+
+    this.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
+
+    // Empty case - return 0.0
+    this.emit(`${emptyLabel}:`);
+    this.emit(`br label %${endLabel}`);
+
+    // Not empty - pop element
+    this.emit(`${notEmptyLabel}:`);
+
+    // Calculate index of last element (length - 1)
+    const lastIndex = this.nextTemp();
+    this.emit(`${lastIndex} = sub i32 ${currentLen}, 1`);
+
+    // Get data pointer
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
+
+    // Load last element
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${lastIndex}`);
+    const lastElem = this.nextTemp();
+    this.emit(`${lastElem} = load double, double* ${elemPtr}`);
+
+    // Decrement length
+    this.emit(`store i32 ${lastIndex}, i32* ${lenPtr}`);
+
+    this.emit(`br label %${endLabel}`);
+
+    // End - phi node to select result
+    this.emit(`${endLabel}:`);
+    const result = this.nextTemp();
+    this.emit(`${result} = phi double [ 0.0, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`);
+
+    return result;
+  }
+
+  private generateStringArrayPop(arrayPtr: string): string {
+    // Pop from %StringArray (string array)
+
+    // Load current length
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    const currentLen = this.nextTemp();
+    this.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
+
+    // Check if array is empty
+    const isEmpty = this.nextTemp();
+    this.emit(`${isEmpty} = icmp eq i32 ${currentLen}, 0`);
+
+    const emptyLabel = this.nextLabel('pop_empty');
+    const notEmptyLabel = this.nextLabel('pop_notempty');
+    const endLabel = this.nextLabel('pop_end');
+
+    this.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
+
+    // Empty case - return empty string
+    this.emit(`${emptyLabel}:`);
+    const emptyStr = this.nextTemp();
+    this.emit(`${emptyStr} = call i8* @malloc(i64 1)`);
+    this.emit(`store i8 0, i8* ${emptyStr}`);
+    this.emit(`br label %${endLabel}`);
+
+    // Not empty - pop element
+    this.emit(`${notEmptyLabel}:`);
+
+    // Calculate index of last element (length - 1)
+    const lastIndex = this.nextTemp();
+    this.emit(`${lastIndex} = sub i32 ${currentLen}, 1`);
+
+    // Get data pointer
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+
+    // Load last element
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${lastIndex}`);
+    const lastElem = this.nextTemp();
+    this.emit(`${lastElem} = load i8*, i8** ${elemPtr}`);
+
+    // Decrement length
+    this.emit(`store i32 ${lastIndex}, i32* ${lenPtr}`);
+
+    this.emit(`br label %${endLabel}`);
+
+    // End - phi node to select result
+    this.emit(`${endLabel}:`);
+    const result = this.nextTemp();
+    this.emit(`${result} = phi i8* [ ${emptyStr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`);
+
+    return result;
+  }
+
   private generateIntArrayPush(arrayPtr: string, value: string): string {
     // Push to %Array (int/boolean array)
 
@@ -833,6 +970,181 @@ export class ArrayGenerator extends BaseGenerator {
     // End
     this.emit(`${endLabel}:`);
     return resultArrayPtr;
+  }
+
+  generateArrayIncludes(expr: MethodCallNode, params: string[]): string {
+    // arr.includes(value) - returns 1 if array contains value, 0 otherwise
+    if (expr.args.length !== 1) {
+      throw new Error('includes() requires exactly 1 argument');
+    }
+
+    const arrayPtr = this.generateExpression(expr.object, params);
+    const searchValue = this.generateExpression(expr.args[0], params);
+
+    // Determine if this is a string array or number array
+    let isStringArray = false;
+    if (expr.object.type === 'variable') {
+      const varName = (expr.object as any).name;
+      isStringArray = this.stringArrayVariables.has(varName);
+    } else {
+      isStringArray = this.stringArrayVariables.has(arrayPtr);
+    }
+
+    if (isStringArray) {
+      return this.generateStringArrayIncludes(arrayPtr, searchValue);
+    } else {
+      return this.generateIntArrayIncludes(arrayPtr, searchValue);
+    }
+  }
+
+  private generateIntArrayIncludes(arrayPtr: string, searchValue: string): string {
+    // Search in %Array (int/boolean array)
+
+    // Load array length
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.nextTemp();
+    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+
+    // Load data pointer
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
+
+    // Loop setup
+    const loopLabel = this.nextLabel('includes_loop');
+    const checkLabel = this.nextLabel('includes_check');
+    const bodyLabel = this.nextLabel('includes_body');
+    const foundLabel = this.nextLabel('includes_found');
+    const endLabel = this.nextLabel('includes_end');
+
+    // Initialize loop counter
+    const counterPtr = this.nextTemp();
+    this.emit(`${counterPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${counterPtr}`);
+
+    this.emit(`br label %${checkLabel}`);
+
+    // Check condition
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    // Loop body
+    this.emit(`${bodyLabel}:`);
+
+    // Load current element
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load double, double* ${elemPtr}`);
+
+    // Compare with search value
+    const isEqual = this.nextTemp();
+    this.emit(`${isEqual} = fcmp oeq double ${elem}, ${searchValue}`);
+    this.emit(`br i1 ${isEqual}, label %${foundLabel}, label %${loopLabel}`);
+
+    // Found - return 1
+    this.emit(`${foundLabel}:`);
+    this.emit(`br label %${endLabel}`);
+
+    // Continue loop
+    this.emit(`${loopLabel}:`);
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
+    // End - phi node to select result (0 if not found, 1 if found)
+    this.emit(`${endLabel}:`);
+    const resultI32 = this.nextTemp();
+    this.emit(`${resultI32} = phi i32 [ 0, %${checkLabel} ], [ 1, %${foundLabel} ]`);
+
+    // Convert to double for compatibility
+    const result = this.nextTemp();
+    this.emit(`${result} = sitofp i32 ${resultI32} to double`);
+
+    return result;
+  }
+
+  private generateStringArrayIncludes(arrayPtr: string, searchValue: string): string {
+    // Search in %StringArray (string array)
+
+    // Load array length
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.nextTemp();
+    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+
+    // Load data pointer
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+
+    // Loop setup
+    const loopLabel = this.nextLabel('includes_loop');
+    const checkLabel = this.nextLabel('includes_check');
+    const bodyLabel = this.nextLabel('includes_body');
+    const foundLabel = this.nextLabel('includes_found');
+    const endLabel = this.nextLabel('includes_end');
+
+    // Initialize loop counter
+    const counterPtr = this.nextTemp();
+    this.emit(`${counterPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${counterPtr}`);
+
+    this.emit(`br label %${checkLabel}`);
+
+    // Check condition
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    // Loop body
+    this.emit(`${bodyLabel}:`);
+
+    // Load current element
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+
+    // Compare strings using strcmp
+    const cmpResult = this.nextTemp();
+    this.emit(`${cmpResult} = call i32 @strcmp(i8* ${elem}, i8* ${searchValue})`);
+    const isEqual = this.nextTemp();
+    this.emit(`${isEqual} = icmp eq i32 ${cmpResult}, 0`);
+    this.emit(`br i1 ${isEqual}, label %${foundLabel}, label %${loopLabel}`);
+
+    // Found - return 1
+    this.emit(`${foundLabel}:`);
+    this.emit(`br label %${endLabel}`);
+
+    // Continue loop
+    this.emit(`${loopLabel}:`);
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
+    // End - phi node to select result (0 if not found, 1 if found)
+    this.emit(`${endLabel}:`);
+    const resultI32 = this.nextTemp();
+    this.emit(`${resultI32} = phi i32 [ 0, %${checkLabel} ], [ 1, %${foundLabel} ]`);
+
+    // Convert to double for compatibility
+    const result = this.nextTemp();
+    this.emit(`${result} = sitofp i32 ${resultI32} to double`);
+
+    return result;
   }
 
   generateArrayJoin(expr: MethodCallNode, params: string[]): string {

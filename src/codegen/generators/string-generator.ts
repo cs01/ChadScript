@@ -708,4 +708,312 @@ export class StringGenerator extends BaseGenerator {
 
     return resultPtr;
   }
+
+  generateIndexOf(strPtr: string, substring: string): string {
+    // Use strstr to find the substring
+    const foundPtr = this.nextTemp();
+    this.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${substring})`);
+
+    // Check if substring was found (strstr returns NULL if not found)
+    const isNull = this.nextTemp();
+    this.emit(`${isNull} = icmp eq i8* ${foundPtr}, null`);
+
+    const notFoundLabel = this.nextLabel('indexof_notfound');
+    const foundLabel = this.nextLabel('indexof_found');
+    const endLabel = this.nextLabel('indexof_end');
+
+    this.emit(`br i1 ${isNull}, label %${notFoundLabel}, label %${foundLabel}`);
+
+    // Not found - return -1
+    this.emit(`${notFoundLabel}:`);
+    this.emit(`br label %${endLabel}`);
+
+    // Found - calculate index by subtracting pointers
+    this.emit(`${foundLabel}:`);
+    const strPtrInt = this.nextTemp();
+    this.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
+    const foundPtrInt = this.nextTemp();
+    this.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
+    const indexI64 = this.nextTemp();
+    this.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
+    const indexI32 = this.nextTemp();
+    this.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+    this.emit(`br label %${endLabel}`);
+
+    // End - phi node to select result (-1 or index)
+    this.emit(`${endLabel}:`);
+    const resultI32 = this.nextTemp();
+    this.emit(`${resultI32} = phi i32 [ -1, %${notFoundLabel} ], [ ${indexI32}, %${foundLabel} ]`);
+
+    // Convert to double for compatibility with ChadScript's numeric type
+    const result = this.nextTemp();
+    this.emit(`${result} = sitofp i32 ${resultI32} to double`);
+
+    return result;
+  }
+
+  generateIncludes(strPtr: string, substring: string): string {
+    // Use strstr to find the substring
+    const foundPtr = this.nextTemp();
+    this.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${substring})`);
+
+    // Check if substring was found (strstr returns NULL if not found)
+    // Return 1 if found (not null), 0 if not found (null)
+    const isNull = this.nextTemp();
+    this.emit(`${isNull} = icmp ne i8* ${foundPtr}, null`);
+
+    // Convert i1 to i32, then to double for compatibility
+    const resultI32 = this.nextTemp();
+    this.emit(`${resultI32} = zext i1 ${isNull} to i32`);
+
+    const result = this.nextTemp();
+    this.emit(`${result} = sitofp i32 ${resultI32} to double`);
+
+    return result;
+  }
+
+  generateSlice(strPtr: string, startIndex: string, endIndex: string | null): string {
+    // Get string length
+    const strLen = this.nextTemp();
+    this.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+    const strLenI32 = this.nextTemp();
+    this.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+
+    // Handle negative start index: if start < 0, start = max(0, len + start)
+    const startIsNegative = this.nextTemp();
+    this.emit(`${startIsNegative} = icmp slt i32 ${startIndex}, 0`);
+
+    const adjustedStart1 = this.nextTemp();
+    this.emit(`${adjustedStart1} = add i32 ${strLenI32}, ${startIndex}`);  // len + start (when start is negative)
+
+    const adjustedStart2 = this.nextTemp();
+    this.emit(`${adjustedStart2} = select i1 ${startIsNegative}, i32 ${adjustedStart1}, i32 ${startIndex}`);
+
+    // Clamp start to [0, len]
+    const startTooSmall = this.nextTemp();
+    this.emit(`${startTooSmall} = icmp slt i32 ${adjustedStart2}, 0`);
+    const clampedStart1 = this.nextTemp();
+    this.emit(`${clampedStart1} = select i1 ${startTooSmall}, i32 0, i32 ${adjustedStart2}`);
+
+    const startTooBig = this.nextTemp();
+    this.emit(`${startTooBig} = icmp sgt i32 ${clampedStart1}, ${strLenI32}`);
+    const finalStart = this.nextTemp();
+    this.emit(`${finalStart} = select i1 ${startTooBig}, i32 ${strLenI32}, i32 ${clampedStart1}`);
+
+    // Handle end index
+    let finalEnd: string;
+    if (endIndex === null) {
+      // No end specified - use string length
+      finalEnd = strLenI32;
+    } else {
+      // Handle negative end index: if end < 0, end = max(0, len + end)
+      const endIsNegative = this.nextTemp();
+      this.emit(`${endIsNegative} = icmp slt i32 ${endIndex}, 0`);
+
+      const adjustedEnd1 = this.nextTemp();
+      this.emit(`${adjustedEnd1} = add i32 ${strLenI32}, ${endIndex}`);  // len + end (when end is negative)
+
+      const adjustedEnd2 = this.nextTemp();
+      this.emit(`${adjustedEnd2} = select i1 ${endIsNegative}, i32 ${adjustedEnd1}, i32 ${endIndex}`);
+
+      // Clamp end to [0, len]
+      const endTooSmall = this.nextTemp();
+      this.emit(`${endTooSmall} = icmp slt i32 ${adjustedEnd2}, 0`);
+      const clampedEnd1 = this.nextTemp();
+      this.emit(`${clampedEnd1} = select i1 ${endTooSmall}, i32 0, i32 ${adjustedEnd2}`);
+
+      const endTooBig = this.nextTemp();
+      this.emit(`${endTooBig} = icmp sgt i32 ${clampedEnd1}, ${strLenI32}`);
+      finalEnd = this.nextTemp();
+      this.emit(`${finalEnd} = select i1 ${endTooBig}, i32 ${strLenI32}, i32 ${clampedEnd1}`);
+    }
+
+    // Calculate length: end - start (must be >= 0)
+    const sliceLen = this.nextTemp();
+    this.emit(`${sliceLen} = sub i32 ${finalEnd}, ${finalStart}`);
+
+    const lenIsNegative = this.nextTemp();
+    this.emit(`${lenIsNegative} = icmp slt i32 ${sliceLen}, 0`);
+    const finalLen = this.nextTemp();
+    this.emit(`${finalLen} = select i1 ${lenIsNegative}, i32 0, i32 ${sliceLen}`);
+
+    // Use existing substr to extract the slice
+    return this.generateSubstr(strPtr, finalStart, finalLen);
+  }
+
+  generateTrim(strPtr: string): string {
+    // Get string length
+    const strLen = this.nextTemp();
+    this.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+    const strLenI32 = this.nextTemp();
+    this.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+
+    // Check if string is empty
+    const isEmpty = this.nextTemp();
+    this.emit(`${isEmpty} = icmp eq i32 ${strLenI32}, 0`);
+
+    const emptyLabel = this.nextLabel('trim_empty');
+    const notEmptyLabel = this.nextLabel('trim_notempty');
+    const endLabel = this.nextLabel('trim_end');
+
+    this.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
+
+    // Empty string case - return empty string
+    this.emit(`${emptyLabel}:`);
+    const emptyResult = this.nextTemp();
+    this.emit(`${emptyResult} = call i8* @malloc(i64 1)`);
+    this.emit(`store i8 0, i8* ${emptyResult}`);
+    this.emit(`br label %${endLabel}`);
+
+    // Not empty - find first and last non-whitespace
+    this.emit(`${notEmptyLabel}:`);
+
+    // Find first non-whitespace character
+    const startPtr = this.nextTemp();
+    this.emit(`${startPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${startPtr}`);
+
+    const findStartLabel = this.nextLabel('trim_find_start');
+    const findStartBodyLabel = this.nextLabel('trim_find_start_body');
+    const findStartCheckLabel = this.nextLabel('trim_find_start_check');
+    const findStartEndLabel = this.nextLabel('trim_find_start_end');
+
+    this.emit(`br label %${findStartLabel}`);
+
+    this.emit(`${findStartLabel}:`);
+    const start = this.nextTemp();
+    this.emit(`${start} = load i32, i32* ${startPtr}`);
+    const startCond = this.nextTemp();
+    this.emit(`${startCond} = icmp slt i32 ${start}, ${strLenI32}`);
+    this.emit(`br i1 ${startCond}, label %${findStartBodyLabel}, label %${findStartEndLabel}`);
+
+    this.emit(`${findStartBodyLabel}:`);
+    const startI64 = this.nextTemp();
+    this.emit(`${startI64} = sext i32 ${start} to i64`);
+    const charPtr1 = this.nextTemp();
+    this.emit(`${charPtr1} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${startI64}`);
+    const char1 = this.nextTemp();
+    this.emit(`${char1} = load i8, i8* ${charPtr1}`);
+
+    // Check if whitespace: space(32), tab(9), newline(10), carriage return(13)
+    const isSpace = this.nextTemp();
+    this.emit(`${isSpace} = icmp eq i8 ${char1}, 32`);
+    const isTab = this.nextTemp();
+    this.emit(`${isTab} = icmp eq i8 ${char1}, 9`);
+    const isNewline = this.nextTemp();
+    this.emit(`${isNewline} = icmp eq i8 ${char1}, 10`);
+    const isCR = this.nextTemp();
+    this.emit(`${isCR} = icmp eq i8 ${char1}, 13`);
+
+    const isWS1 = this.nextTemp();
+    this.emit(`${isWS1} = or i1 ${isSpace}, ${isTab}`);
+    const isWS2 = this.nextTemp();
+    this.emit(`${isWS2} = or i1 ${isWS1}, ${isNewline}`);
+    const isWhitespace = this.nextTemp();
+    this.emit(`${isWhitespace} = or i1 ${isWS2}, ${isCR}`);
+
+    this.emit(`br i1 ${isWhitespace}, label %${findStartCheckLabel}, label %${findStartEndLabel}`);
+
+    this.emit(`${findStartCheckLabel}:`);
+    const nextStart = this.nextTemp();
+    this.emit(`${nextStart} = add i32 ${start}, 1`);
+    this.emit(`store i32 ${nextStart}, i32* ${startPtr}`);
+    this.emit(`br label %${findStartLabel}`);
+
+    this.emit(`${findStartEndLabel}:`);
+    const finalStart = this.nextTemp();
+    this.emit(`${finalStart} = load i32, i32* ${startPtr}`);
+
+    // Check if entire string was whitespace
+    const allWhitespace = this.nextTemp();
+    this.emit(`${allWhitespace} = icmp eq i32 ${finalStart}, ${strLenI32}`);
+
+    const allWSLabel = this.nextLabel('trim_all_ws');
+    const findEndLabel = this.nextLabel('trim_find_end');
+
+    this.emit(`br i1 ${allWhitespace}, label %${allWSLabel}, label %${findEndLabel}`);
+
+    // All whitespace - return empty string
+    this.emit(`${allWSLabel}:`);
+    const allWSResult = this.nextTemp();
+    this.emit(`${allWSResult} = call i8* @malloc(i64 1)`);
+    this.emit(`store i8 0, i8* ${allWSResult}`);
+    this.emit(`br label %${endLabel}`);
+
+    // Find last non-whitespace character
+    this.emit(`${findEndLabel}:`);
+    const endPtr = this.nextTemp();
+    this.emit(`${endPtr} = alloca i32`);
+    const initEnd = this.nextTemp();
+    this.emit(`${initEnd} = sub i32 ${strLenI32}, 1`);
+    this.emit(`store i32 ${initEnd}, i32* ${endPtr}`);
+
+    const findEndLoopLabel = this.nextLabel('trim_find_end_loop');
+    const findEndBodyLabel = this.nextLabel('trim_find_end_body');
+    const findEndCheckLabel = this.nextLabel('trim_find_end_check');
+    const findEndEndLabel = this.nextLabel('trim_find_end_end');
+
+    this.emit(`br label %${findEndLoopLabel}`);
+
+    this.emit(`${findEndLoopLabel}:`);
+    const end = this.nextTemp();
+    this.emit(`${end} = load i32, i32* ${endPtr}`);
+    const endCond = this.nextTemp();
+    this.emit(`${endCond} = icmp sge i32 ${end}, ${finalStart}`);
+    this.emit(`br i1 ${endCond}, label %${findEndBodyLabel}, label %${findEndEndLabel}`);
+
+    this.emit(`${findEndBodyLabel}:`);
+    const endI64 = this.nextTemp();
+    this.emit(`${endI64} = sext i32 ${end} to i64`);
+    const charPtr2 = this.nextTemp();
+    this.emit(`${charPtr2} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${endI64}`);
+    const char2 = this.nextTemp();
+    this.emit(`${char2} = load i8, i8* ${charPtr2}`);
+
+    // Check if whitespace
+    const isSpace2 = this.nextTemp();
+    this.emit(`${isSpace2} = icmp eq i8 ${char2}, 32`);
+    const isTab2 = this.nextTemp();
+    this.emit(`${isTab2} = icmp eq i8 ${char2}, 9`);
+    const isNewline2 = this.nextTemp();
+    this.emit(`${isNewline2} = icmp eq i8 ${char2}, 10`);
+    const isCR2 = this.nextTemp();
+    this.emit(`${isCR2} = icmp eq i8 ${char2}, 13`);
+
+    const isWS3 = this.nextTemp();
+    this.emit(`${isWS3} = or i1 ${isSpace2}, ${isTab2}`);
+    const isWS4 = this.nextTemp();
+    this.emit(`${isWS4} = or i1 ${isWS3}, ${isNewline2}`);
+    const isWhitespace2 = this.nextTemp();
+    this.emit(`${isWhitespace2} = or i1 ${isWS4}, ${isCR2}`);
+
+    this.emit(`br i1 ${isWhitespace2}, label %${findEndCheckLabel}, label %${findEndEndLabel}`);
+
+    this.emit(`${findEndCheckLabel}:`);
+    const nextEnd = this.nextTemp();
+    this.emit(`${nextEnd} = sub i32 ${end}, 1`);
+    this.emit(`store i32 ${nextEnd}, i32* ${endPtr}`);
+    this.emit(`br label %${findEndLoopLabel}`);
+
+    this.emit(`${findEndEndLabel}:`);
+    const finalEnd = this.nextTemp();
+    this.emit(`${finalEnd} = load i32, i32* ${endPtr}`);
+
+    // Calculate trimmed length: finalEnd - finalStart + 1
+    const trimmedLen = this.nextTemp();
+    this.emit(`${trimmedLen} = sub i32 ${finalEnd}, ${finalStart}`);
+    const trimmedLenPlus1 = this.nextTemp();
+    this.emit(`${trimmedLenPlus1} = add i32 ${trimmedLen}, 1`);
+
+    // Extract substring using existing substr logic
+    const trimmedResult = this.generateSubstr(strPtr, finalStart, trimmedLenPlus1);
+    this.emit(`br label %${endLabel}`);
+
+    // End - phi node to select result
+    this.emit(`${endLabel}:`);
+    const result = this.nextTemp();
+    this.emit(`${result} = phi i8* [ ${emptyResult}, %${emptyLabel} ], [ ${allWSResult}, %${allWSLabel} ], [ ${trimmedResult}, %${findEndEndLabel} ]`);
+
+    return result;
+  }
 }

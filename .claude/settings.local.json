@@ -75,7 +75,19 @@
       "Bash(/tmp/test-float4)",
       "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"Bitwise Operators\" tests/compiler.test.ts)",
       "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"Math Functions\" tests/compiler.test.ts)",
-      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"Bitwise|Math Functions\" tests/compiler.test.ts)"
+      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"Bitwise|Math Functions\" tests/compiler.test.ts)",
+      "Bash(/tmp/test-new-builtins)",
+      "Bash(./parseint)",
+      "Bash(tests/fixtures/parseint)",
+      "Bash(tests/fixtures/string-methods)",
+      "Bash(tests/fixtures/string-trim)",
+      "Bash(tests/fixtures/string-trim-simple)",
+      "Bash(tests/fixtures/debug-indexof)",
+      "Bash(tests/fixtures/debug-indexof2)",
+      "Bash(tests/fixtures/debug-indexof3)",
+      "Bash(tests/fixtures/array-methods)",
+      "Bash(tests/fixtures/array-pop-test)",
+      "Bash(tests/fixtures/array-includes-test)"
     ],
     "deny": [],
     "ask": []
