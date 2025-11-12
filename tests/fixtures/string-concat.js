@@ -1,8 +1,8 @@
 function concat() {
-  let str1 = "Hello";
-  let str2 = "World";
-  let result = str1 + str2;
-  return result.length;
+  const hello = "Hello";
+  const world = "World";
+  const combined = hello + world;
+  return combined.length; // Should return 10
 }
 
-concat();
+process.exit(concat());

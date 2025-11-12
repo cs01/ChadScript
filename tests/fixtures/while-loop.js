@@ -8,4 +8,4 @@ function countDown(n) {
   return sum;
 }
 
-countDown(5);
+process.exit(countDown(5));

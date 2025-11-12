@@ -159,6 +159,7 @@ export class LLVMGenerator extends BaseGenerator {
     ir += 'declare i8* @strcpy(i8*, i8*)\n';
     ir += 'declare i8* @strcat(i8*, i8*)\n';
     ir += 'declare i64 @strlen(i8*)\n';
+    ir += 'declare i32 @strcmp(i8*, i8*)\n';
     ir += 'declare i32 @strncmp(i8*, i8*, i64)\n';
     ir += 'declare void @llvm.memcpy.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n';
     ir += '\n';
@@ -2750,6 +2751,17 @@ export class LLVMGenerator extends BaseGenerator {
           methodExpr.method === 'concat' || methodExpr.method === 'repeat' ||
           methodExpr.method === 'padStart' || methodExpr.method === 'charAt') {
         return true;
+      }
+      // Check class instance method return types
+      if (methodExpr.object.type === 'variable' && this.classInstanceVariables.has(methodExpr.object.name)) {
+        const classMeta = this.classInstanceVariables.get(methodExpr.object.name)!;
+        const classNode = this.ast.classes.find(c => c.name === classMeta.className);
+        if (classNode) {
+          const method = classNode.methods.find(m => m.name === methodExpr.method && !m.isConstructor);
+          if (method && method.returnType === 'string') {
+            return true;
+          }
+        }
       }
     }
     return false;

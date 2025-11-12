@@ -6,4 +6,4 @@ function test2() {
   return false;
 }
 
-test();
+process.exit(test());

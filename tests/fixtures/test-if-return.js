@@ -2,11 +2,14 @@ function test(x) {
   if (x == 2) {
     return 1;
   }
+function run() {
+  let x = 10;
+  
+  if (x > 5) {
+    return 42;
+  }
+  
   return 0;
 }
 
-function run() {
-  return test(2);
-}
-
-run();
+process.exit(run());

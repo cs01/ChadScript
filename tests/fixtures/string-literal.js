@@ -1,6 +1,6 @@
 function getStringLength() {
-  let str = "test";
-  return str.length;
+  const message = "test";
+  return message.length; // Should return 4
 }
 
-getStringLength();
+process.exit(getStringLength());

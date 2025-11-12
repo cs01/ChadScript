@@ -10,11 +10,12 @@ function test() {
   console.log(b); // "Hello"
 
   // Test with split (in separate steps to avoid chaining issues)
-  const temp = "one,two,three".substring(0, 7);
-  const c = temp.split(',');
-  console.log(c.length); // 2
-
-  return 0;
+function test() {
+  const str = "Hello";
+  // substring(start, end) - extracts from index 1 to (but not including) index 4
+  // "Hello".substring(1, 4) = "ell" (length 3)
+  const result = str.substring(1, 4);
+  return result.length;
 }
 
-test();
+process.exit(test());

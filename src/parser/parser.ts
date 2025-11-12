@@ -120,6 +120,8 @@ export class Parser {
         this.parseImport();
       } else if (this.match('export')) {
         this.parseExport();
+      } else if (this.match('interface')) {
+        this.parseInterface();
       } else if (this.match('class')) {
         this.parseClass();
       } else if (this.match('function')) {
@@ -354,6 +356,37 @@ export class Parser {
     }
   }
 
+  private parseInterface(): void {
+    // Skip interface declarations (they're TypeScript-only and generate no runtime code)
+    // interface Point { x: number; y: number; }
+    const name = this.parseIdentifier();
+    this.expect('{');
+
+    // Skip everything inside the interface until the closing brace
+    let braceDepth = 1;
+    while (this.pos < this.code.length && braceDepth > 0) {
+      this.skipWhitespace();
+      if (this.code[this.pos] === '{') {
+        braceDepth++;
+        this.pos++;
+      } else if (this.code[this.pos] === '}') {
+        braceDepth--;
+        this.pos++;
+      } else if (this.code[this.pos] === ';') {
+        // Skip property declarations with semicolons
+        this.pos++;
+      } else if (this.code[this.pos] === ':') {
+        // Skip type annotations
+        this.pos++;
+        this.skipWhitespace();
+        this.skipTypeAnnotation();
+      } else {
+        // Skip any other character (identifiers, keywords, etc.)
+        this.pos++;
+      }
+    }
+  }
+
   private parseFunction(): void {
     const name = this.parseIdentifier();
     this.expect('(');
@@ -386,6 +419,15 @@ export class Parser {
       }
     }
     this.expect(')');
+
+    // Skip return type annotation if present (e.g., ": number")
+    this.skipWhitespace();
+    if (this.code[this.pos] === ':') {
+      this.pos++; // consume ':'
+      this.skipWhitespace();
+      this.skipTypeAnnotation();
+    }
+
     this.expect('{');
 
     // Parse body as block statement

@@ -51,12 +51,22 @@ export class ControlFlowGenerator extends BaseGenerator {
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
                               lastInstruction.startsWith('switch ');
+    // Find the actual last label by scanning backwards in the output
+    let thenEndLabel = thenLabel;
+    for (let i = this.output.length - 1; i >= 0; i--) {
+      const line = this.output[i].trim();
+      if (line.match(/^[a-z_]+[0-9]+:$/)) {
+        thenEndLabel = line.slice(0, -1); // Remove the trailing ':'
+        break;
+      }
+    }
     if (!thenHasTerminator) {
       this.emit(`br label %${mergeLabel}`);
     }
 
     // Generate else block if it exists
     let elseValue: string | null = null;
+    let elseEndLabel = elseLabel;
     if (stmt.elseBlock) {
       this.emit(`${elseLabel}:`);
       this.currentLabel = elseLabel;
@@ -67,6 +77,14 @@ export class ControlFlowGenerator extends BaseGenerator {
                                 lastInstruction.startsWith('br ') ||
                                 lastInstruction.startsWith('unreachable') ||
                                 lastInstruction.startsWith('switch ');
+      // Find the actual last label by scanning backwards in the output
+      for (let i = this.output.length - 1; i >= 0; i--) {
+        const line = this.output[i].trim();
+        if (line.match(/^[a-z_]+[0-9]+:$/)) {
+          elseEndLabel = line.slice(0, -1); // Remove the trailing ':'
+          break;
+        }
+      }
       if (!elseHasTerminator) {
         this.emit(`br label %${mergeLabel}`);
       }
@@ -74,11 +92,13 @@ export class ControlFlowGenerator extends BaseGenerator {
 
     // Merge point
     this.emit(`${mergeLabel}:`);
+    this.currentLabel = mergeLabel;
 
     // If both branches produce values, we need a phi node
     if (thenValue && elseValue) {
       const result = this.nextTemp();
-      this.emit(`${result} = phi i32 [ ${thenValue}, %${thenLabel} ], [ ${elseValue}, %${elseLabel} ]`);
+      // Use the actual end labels of each block, not the initial labels
+      this.emit(`${result} = phi i32 [ ${thenValue}, %${thenEndLabel} ], [ ${elseValue}, %${elseEndLabel} ]`);
       return result;
     }
 

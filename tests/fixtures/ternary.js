@@ -8,4 +8,4 @@ function test(a, b, c) {
   return result;
 }
 
-test(5, 5, 10);
+process.exit(test(5, 5, 10));

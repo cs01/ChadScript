@@ -8,5 +8,4 @@ function testMethod() {
   return obj.add(5, 7);
 }
 
-testMethod();
-
+process.exit(testMethod());

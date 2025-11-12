@@ -1,6 +1,6 @@
 function getChar() {
-  let str = "ABC";
-  return str[1];
+  const str = "ABC";
+  return str[1]; // Should return 66 (ASCII code for 'B')
 }
 
-getChar();
+process.exit(getChar());

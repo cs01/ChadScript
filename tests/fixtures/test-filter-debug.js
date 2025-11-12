@@ -4,14 +4,15 @@ function isEven(x) {
   }
   if (x == 4) {
     return 1;
-  }
-  return 0;
+function isGreaterThan2(x) {
+  return x > 2;
 }
 
 function testFilter() {
   const arr = [1, 2, 3, 4, 5];
-  const result = isEven(2);
-  return result;
+  const result = arr.filter(isGreaterThan2);
+  // Should filter to [3, 4, 5], length = 3
+  return result.length;
 }
 
-testFilter();
+process.exit(testFilter());
