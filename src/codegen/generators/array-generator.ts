@@ -369,8 +369,11 @@ export class ArrayGenerator extends BaseGenerator {
     this.emit(`${newLen} = add i32 ${currentLen}, 1`);
     this.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
 
-    // Return new length
-    return newLen;
+    // Return new length as double (JavaScript semantics)
+    const newLenDouble = this.nextTemp();
+    this.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
+    this.variableTypes.set(newLenDouble, 'double');
+    return newLenDouble;
   }
 
   private generateStringArrayPush(arrayPtr: string, value: string): string {
@@ -460,8 +463,11 @@ export class ArrayGenerator extends BaseGenerator {
     this.emit(`${newLen} = add i32 ${currentLen}, 1`);
     this.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
 
-    // Return new length
-    return newLen;
+    // Return new length as double (JavaScript semantics)
+    const newLenDouble = this.nextTemp();
+    this.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
+    this.variableTypes.set(newLenDouble, 'double');
+    return newLenDouble;
   }
 
   generateArrayFind(expr: MethodCallNode, params: string[]): string {
@@ -536,11 +542,11 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Call predicate function
     const predicateResult = this.nextTemp();
-    this.emit(`${predicateResult} = call i32 @${predicateFn}(i32 ${elem})`);
+    this.emit(`${predicateResult} = call double @${predicateFn}(double ${elem})`);
 
-    // Check if predicate returned truthy
+    // Check if predicate returned truthy (non-zero)
     const isTruthy = this.nextTemp();
-    this.emit(`${isTruthy} = icmp ne i32 ${predicateResult}, 0`);
+    this.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
     this.emit(`br i1 ${isTruthy}, label %${foundLabel}, label %${loopLabel}`);
 
     // Found - store element and exit
@@ -632,11 +638,11 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Call predicate function
     const predicateResult = this.nextTemp();
-    this.emit(`${predicateResult} = call i32 @${predicateFn}(i32 ${elem})`);
+    this.emit(`${predicateResult} = call double @${predicateFn}(double ${elem})`);
 
-    // Check if predicate returned truthy
+    // Check if predicate returned truthy (non-zero)
     const isTruthy = this.nextTemp();
-    this.emit(`${isTruthy} = icmp ne i32 ${predicateResult}, 0`);
+    this.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
     this.emit(`br i1 ${isTruthy}, label %${foundLabel}, label %${loopLabel}`);
 
     // Found - return 1
@@ -752,11 +758,11 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Call predicate function
     const predicateResult = this.nextTemp();
-    this.emit(`${predicateResult} = call i32 @${predicateFn}(i32 ${elem})`);
+    this.emit(`${predicateResult} = call double @${predicateFn}(double ${elem})`);
 
     // Check if predicate returned truthy
     const isTruthy = this.nextTemp();
-    this.emit(`${isTruthy} = icmp ne i32 ${predicateResult}, 0`);
+    this.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
     this.emit(`br i1 ${isTruthy}, label %${addLabel}, label %${loopLabel}`);
 
     // Add element to result array
@@ -849,7 +855,7 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Call callback function (discard return value)
     const callResult = this.nextTemp();
-    this.emit(`${callResult} = call i32 @${callbackFn}(i32 ${elem})`);
+    this.emit(`${callResult} = call double @${callbackFn}(double ${elem})`);
 
     // Continue loop
     const nextCounter = this.nextTemp();
@@ -954,7 +960,7 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Call callback function with element
     const result = this.nextTemp();
-    this.emit(`${result} = call i32 @${callbackFn}(i32 ${elem})`);
+    this.emit(`${result} = call double @${callbackFn}(double ${elem})`);
 
     // Store result in result array
     const resultElemPtr = this.nextTemp();

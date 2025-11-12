@@ -62,7 +62,7 @@ export class RegexGenerator extends BaseGenerator {
   }
 
   // Test if a string matches a regex pattern
-  // Returns i32: 1 if match, 0 if no match
+  // Returns double: 1.0 if match, 0.0 if no match (JavaScript semantics)
   generateRegexTest(regexPtr: string, testStr: string): string {
     // Call regexec(regex_t *preg, const char *string, size_t nmatch, regmatch_t pmatch[], int eflags)
     // We pass NULL for pmatch and 0 for nmatch since we don't need match positions
@@ -76,8 +76,13 @@ export class RegexGenerator extends BaseGenerator {
     const isMatch = this.nextTemp();
     this.emit(`${isMatch} = icmp eq i32 ${execResult}, 0`);
 
+    const i32Result = this.nextTemp();
+    this.emit(`${i32Result} = zext i1 ${isMatch} to i32`);
+
+    // Convert to double for JavaScript semantics
     const result = this.nextTemp();
-    this.emit(`${result} = zext i1 ${isMatch} to i32`);
+    this.emit(`${result} = sitofp i32 ${i32Result} to double`);
+    this.variableTypes.set(result, 'double');
 
     return result;
   }
