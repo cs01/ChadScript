@@ -90,7 +90,8 @@
       "Bash(tests/fixtures/array-includes-test)",
       "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"String .length property\" tests/compiler.test.ts)",
       "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"simple-add\" tests/compiler.test.ts)",
-      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"Array\" tests/compiler.test.ts)"
+      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"Array\" tests/compiler.test.ts)",
+      "Bash(tee:*)"
     ],
     "deny": [],
     "ask": []

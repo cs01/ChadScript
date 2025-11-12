@@ -181,8 +181,19 @@ export class ControlFlowGenerator extends BaseGenerator {
         const allocaReg = this.nextTemp();
         // Register the variable in the variables map
         this.variables.set(stmt.init.name, allocaReg);
+        this.variableTypes.set(stmt.init.name, 'i32');
         this.emit(`${allocaReg} = alloca i32`);
-        this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+
+        // Convert double to i32 if needed
+        const valueType = this.variableTypes.get(value);
+        let storeValue = value;
+        if (valueType === 'double' || value.startsWith('%')) {
+          // Value is a double register, convert to i32
+          const i32Value = this.nextTemp();
+          this.emit(`${i32Value} = fptosi double ${value} to i32`);
+          storeValue = i32Value;
+        }
+        this.emit(`store i32 ${storeValue}, i32* ${allocaReg}`);
       } else if (stmt.init.type === 'assignment') {
         const value = this.generateExpression(stmt.init.value, params);
         const allocaReg = this.variables.get(stmt.init.name);

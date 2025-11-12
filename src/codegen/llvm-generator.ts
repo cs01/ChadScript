@@ -48,6 +48,17 @@ export class LLVMGenerator extends BaseGenerator {
     return error;
   }
 
+  // Helper: Convert a value to i32 if it's a double register
+  private convertToI32(value: string): string {
+    const valueType = this.variableTypes.get(value);
+    if (valueType === 'double' || value.startsWith('%')) {
+      const i32Value = this.nextTemp();
+      this.emit(`${i32Value} = fptosi double ${value} to i32`);
+      return i32Value;
+    }
+    return value;
+  }
+
   // Helper: Extract object literal metadata (keys and types)
   private getObjectMetadata(objExpr: any): { keys: string[]; types: string[] } {
     if (objExpr.type !== 'object') {
@@ -833,9 +844,21 @@ export class LLVMGenerator extends BaseGenerator {
 
   private generateExpression(expr: Expression, params: string[]): string {
     if (expr.type === 'number') {
-      // Format as floating point literal (add .0 if integer)
       const value = expr.value;
-      return String(value).includes('.') ? String(value) : String(value) + '.0';
+      const isInteger = Number.isInteger(value);
+
+      if (isInteger) {
+        // Generate integer literals as registers that can be converted to i32 or double as needed
+        // This allows: fptosi double %X to i32 (when i32 needed) or use directly as double
+        const temp = this.nextTemp();
+        const intValue = Math.floor(value);
+        this.emit(`${temp} = sitofp i32 ${intValue} to double`);
+        this.variableTypes.set(temp, 'double');
+        return temp;
+      } else {
+        // Floating-point literals stay as constants
+        return String(value);
+      }
     }
 
     if (expr.type === 'boolean') {
@@ -1585,7 +1608,15 @@ export class LLVMGenerator extends BaseGenerator {
 
       if (isStringArray) {
         const stringArrayPtr = this.generateExpression(expr.object, params);
-        const index = this.generateExpression(expr.index, params);
+        const indexDouble = this.generateExpression(expr.index, params);
+
+        // Convert double index to i32 for getelementptr
+        const indexType = this.variableTypes.get(indexDouble);
+        let index = indexDouble;
+        if (indexType === 'double' || indexDouble.startsWith('%')) {
+          index = this.nextTemp();
+          this.emit(`${index} = fptosi double ${indexDouble} to i32`);
+        }
 
         const dataPtr = this.nextTemp();
         this.emit(`${dataPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 0`);
@@ -1605,7 +1636,15 @@ export class LLVMGenerator extends BaseGenerator {
       // Check if it's a numeric array
       else if (isNumericArray) {
         const arrayPtr = this.generateExpression(expr.object, params);
-        const index = this.generateExpression(expr.index, params);
+        const indexDouble = this.generateExpression(expr.index, params);
+
+        // Convert double index to i32 for getelementptr
+        const indexType = this.variableTypes.get(indexDouble);
+        let index = indexDouble;
+        if (indexType === 'double' || indexDouble.startsWith('%')) {
+          index = this.nextTemp();
+          this.emit(`${index} = fptosi double ${indexDouble} to i32`);
+        }
 
         const dataPtr = this.nextTemp();
         this.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
@@ -1622,7 +1661,15 @@ export class LLVMGenerator extends BaseGenerator {
       } else {
         // Handle string[index] - returns character code as i32
         const objPtr = this.generateExpression(expr.object, params);
-        const index = this.generateExpression(expr.index, params);
+        const indexDouble = this.generateExpression(expr.index, params);
+
+        // Convert double index to i32
+        const indexType = this.variableTypes.get(indexDouble);
+        let index = indexDouble;
+        if (indexType === 'double' || indexDouble.startsWith('%')) {
+          index = this.nextTemp();
+          this.emit(`${index} = fptosi double ${indexDouble} to i32`);
+        }
 
         const indexI64 = this.nextTemp();
         this.emit(`${indexI64} = sext i32 ${index} to i64`);
@@ -2517,8 +2564,9 @@ export class LLVMGenerator extends BaseGenerator {
         throw new Error(`substr() expects 1 or 2 arguments, got ${expr.args.length}`);
       }
 
-      const startIndex = this.generateExpression(expr.args[0], params);
-      const length = expr.args.length === 2 ? this.generateExpression(expr.args[1], params) : null;
+      const startIndexDouble = this.generateExpression(expr.args[0], params);
+      const startIndex = this.convertToI32(startIndexDouble);
+      const length = expr.args.length === 2 ? this.convertToI32(this.generateExpression(expr.args[1], params)) : null;
 
       return this.stringGen.generateSubstr(strPtr, startIndex, length);
     }
@@ -2533,13 +2581,15 @@ export class LLVMGenerator extends BaseGenerator {
         throw new Error(`substring() expects 1 or 2 arguments, got ${expr.args.length}`);
       }
 
-      const startIndex = this.generateExpression(expr.args[0], params);
+      const startIndexDouble = this.generateExpression(expr.args[0], params);
+      const startIndex = this.convertToI32(startIndexDouble);
 
       // If end is provided, calculate length = end - start
       // Otherwise, length is null (to end of string)
       let length: string | null = null;
       if (expr.args.length === 2) {
-        const endIndex = this.generateExpression(expr.args[1], params);
+        const endIndexDouble = this.generateExpression(expr.args[1], params);
+        const endIndex = this.convertToI32(endIndexDouble);
         length = this.nextTemp();
         this.emit(`${length} = sub i32 ${endIndex}, ${startIndex}`);
       }
@@ -2579,7 +2629,8 @@ export class LLVMGenerator extends BaseGenerator {
         throw new Error(`repeat() expects 1 argument, got ${expr.args.length}`);
       }
 
-      const count = this.generateExpression(expr.args[0], params);
+      const countDouble = this.generateExpression(expr.args[0], params);
+      const count = this.convertToI32(countDouble);
       return this.stringGen.generateRepeat(strPtr, count);
     }
 
@@ -2593,7 +2644,8 @@ export class LLVMGenerator extends BaseGenerator {
         throw new Error(`padStart() expects 1 or 2 arguments, got ${expr.args.length}`);
       }
 
-      const targetLength = this.generateExpression(expr.args[0], params);
+      const targetLengthDouble = this.generateExpression(expr.args[0], params);
+      const targetLength = this.convertToI32(targetLengthDouble);
       const padString = expr.args.length === 2
         ? this.generateExpression(expr.args[1], params)
         : this.stringGen.createStringConstant(' '); // Default to space
