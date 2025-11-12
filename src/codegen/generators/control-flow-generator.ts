@@ -181,31 +181,17 @@ export class ControlFlowGenerator extends BaseGenerator {
         const allocaReg = this.nextTemp();
         // Register the variable in the variables map
         this.variables.set(stmt.init.name, allocaReg);
-        this.variableTypes.set(stmt.init.name, 'i32');
-        this.emit(`${allocaReg} = alloca i32`);
-
-        // Convert double to i32 if needed
-        const valueType = this.variableTypes.get(value);
-        let storeValue = value;
-        if (valueType === 'double') {
-          // Value is a double register, convert to i32
-          const i32Value = this.nextTemp();
-          this.emit(`${i32Value} = fptosi double ${value} to i32`);
-          storeValue = i32Value;
-        }
-        this.emit(`store i32 ${storeValue}, i32* ${allocaReg}`);
+        this.variableTypes.set(stmt.init.name, 'double');
+        this.emit(`${allocaReg} = alloca double`);
+        this.emit(`store double ${value}, double* ${allocaReg}`);
       } else if (stmt.init.type === 'assignment') {
         const value = this.generateExpression(stmt.init.value, params);
         const allocaReg = this.variables.get(stmt.init.name);
         if (!allocaReg) {
           throw new Error(`Variable ${stmt.init.name} not found`);
         }
-        const varType = this.variableTypes.get(stmt.init.name) || 'i32';
-        if (varType === 'double') {
-          this.emit(`store double ${value}, double* ${allocaReg}`);
-        } else {
-          this.emit(`store i32 ${value}, i32* ${allocaReg}`);
-        }
+        const varType = this.variableTypes.get(stmt.init.name) || 'double';
+        this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
       }
     }
 
@@ -254,20 +240,8 @@ export class ControlFlowGenerator extends BaseGenerator {
         if (!allocaReg) {
           throw new Error(`Variable ${stmt.update.name} not found in update`);
         }
-        const varType = this.variableTypes.get(stmt.update.name) || 'i32';
-        if (varType === 'double') {
-          this.emit(`store double ${value}, double* ${allocaReg}`);
-        } else {
-          // Variable is i32, check if value is double and convert if needed
-          const valueType = this.variableTypes.get(value);
-          let storeValue = value;
-          if (valueType === 'double') {
-            const i32Value = this.nextTemp();
-            this.emit(`${i32Value} = fptosi double ${value} to i32`);
-            storeValue = i32Value;
-          }
-          this.emit(`store i32 ${storeValue}, i32* ${allocaReg}`);
-        }
+        const varType = this.variableTypes.get(stmt.update.name) || 'double';
+        this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
       } else {
         // It's an expression (like i++)
         this.generateExpression(stmt.update, params);
@@ -345,9 +319,12 @@ export class ControlFlowGenerator extends BaseGenerator {
 
     if (op === '&&') {
       // Both must be non-zero (use integer multiply)
+      const i32Result = this.nextTemp();
+      this.emit(`${i32Result} = mul i32 ${leftInt}, ${rightInt}`);
+      // Convert to double for JavaScript semantics
       const result = this.nextTemp();
-      this.emit(`${result} = mul i32 ${leftInt}, ${rightInt}`);
-      this.variableTypes.set(result, 'i32');
+      this.emit(`${result} = sitofp i32 ${i32Result} to double`);
+      this.variableTypes.set(result, 'double');
       return result;
     } else {
       // At least one must be non-zero (add and clamp to 1)
@@ -355,9 +332,12 @@ export class ControlFlowGenerator extends BaseGenerator {
       this.emit(`${sum} = add i32 ${leftInt}, ${rightInt}`);
       const cmp = this.nextTemp();
       this.emit(`${cmp} = icmp ne i32 ${sum}, 0`);
+      const i32Result = this.nextTemp();
+      this.emit(`${i32Result} = zext i1 ${cmp} to i32`);
+      // Convert to double for JavaScript semantics
       const result = this.nextTemp();
-      this.emit(`${result} = zext i1 ${cmp} to i32`);
-      this.variableTypes.set(result, 'i32');
+      this.emit(`${result} = sitofp i32 ${i32Result} to double`);
+      this.variableTypes.set(result, 'double');
       return result;
     }
   }

@@ -84,7 +84,8 @@ export class LLVMGenerator extends BaseGenerator {
       } else if ((valueExpr as any).type === 'set') {
         llvmType = '%Set*';
       } else {
-        llvmType = 'i32';
+        // All numeric values (including booleans) are double
+        llvmType = 'double';
       }
 
       types.push(llvmType);
@@ -602,33 +603,15 @@ export class LLVMGenerator extends BaseGenerator {
           const value = this.generateExpression(stmt.value, params);
           this.emit(`store i8* ${value}, i8** ${allocaReg}`);
         } else {
-          // Check if this is a boolean expression
-          const isBoolean = stmt.value.type === 'boolean' ||
-                           (stmt.value.type === 'binary' && ['<', '>', '<=', '>=', '==', '!=', '===', '!=='].includes((stmt.value as any).op)) ||
-                           (stmt.value.type === 'unary' && (stmt.value as any).op === '!') ||
-                           (stmt.value.type === 'binary' && ['&&', '||'].includes((stmt.value as any).op));
+          // Allocate stack space for double (all numeric values, including booleans)
+          const allocaReg = this.nextTemp();
+          this.variables.set(stmt.name, allocaReg);
+          this.variableTypes.set(stmt.name, 'double');
+          this.emit(`${allocaReg} = alloca double`);
 
-          if (isBoolean) {
-            // Allocate stack space for boolean (i32: 0 or 1)
-            const allocaReg = this.nextTemp();
-            this.variables.set(stmt.name, allocaReg);
-            this.variableTypes.set(stmt.name, 'i32');
-            this.emit(`${allocaReg} = alloca i32`);
-
-            // Compute initial value and store it
-            const value = this.generateExpression(stmt.value, params);
-            this.emit(`store i32 ${value}, i32* ${allocaReg}`);
-          } else {
-            // Allocate stack space for double (numeric values)
-            const allocaReg = this.nextTemp();
-            this.variables.set(stmt.name, allocaReg);
-            this.variableTypes.set(stmt.name, 'double');
-            this.emit(`${allocaReg} = alloca double`);
-
-            // Compute initial value and store it
-            const value = this.generateExpression(stmt.value, params);
-            this.emit(`store double ${value}, double* ${allocaReg}`);
-          }
+          // Compute initial value and store it
+          const value = this.generateExpression(stmt.value, params);
+          this.emit(`store double ${value}, double* ${allocaReg}`);
         }
 
         // Reset expected array element type after variable declaration is complete
@@ -783,22 +766,9 @@ export class LLVMGenerator extends BaseGenerator {
           if (!allocaReg) {
             throw new Error(`Unknown variable: ${stmt.name}`);
           }
-          // Check variable type and use appropriate store instruction
-          const varType = this.variableTypes.get(stmt.name) || 'i32';
-          if (varType === 'double') {
-            this.emit(`store double ${value}, double* ${allocaReg}`);
-          } else {
-            // Variable is i32, check if value is double and convert if needed
-            const valueType = this.variableTypes.get(value);
-            let storeValue = value;
-            if (valueType === 'double') {
-              // Value is explicitly tracked as double, convert to i32
-              const i32Value = this.nextTemp();
-              this.emit(`${i32Value} = fptosi double ${value} to i32`);
-              storeValue = i32Value;
-            }
-            this.emit(`store i32 ${storeValue}, i32* ${allocaReg}`);
-          }
+          // All numeric variables are double now
+          const varType = this.variableTypes.get(stmt.name) || 'double';
+          this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
         }
       } else if (stmt.type === 'return') {
         lastValue = this.generateExpression(stmt.value, params);
@@ -1005,15 +975,6 @@ export class LLVMGenerator extends BaseGenerator {
         const varType = this.variableTypes.get(expr.name) || 'double';
         logger.debug(`Loading variable "${expr.name}", type: "${varType}", alloca: "${allocaReg}"`);
         this.emit(`${temp} = load ${varType}, ${varType}* ${allocaReg}`);
-
-        // If variable is i32 (like loop counter), convert to double for arithmetic compatibility
-        if (varType === 'i32') {
-          const doubleTemp = this.nextTemp();
-          this.emit(`${doubleTemp} = sitofp i32 ${temp} to double`);
-          this.variableTypes.set(doubleTemp, 'double');
-          return doubleTemp;
-        }
-
         // Track the loaded value's type
         this.variableTypes.set(temp, varType);
         return temp;
@@ -1400,15 +1361,6 @@ export class LLVMGenerator extends BaseGenerator {
         // Load property value with correct type
         const value = this.nextTemp();
         this.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
-
-        // If property is i32 (number), convert to double for compatibility with numeric system
-        if (propType === 'i32') {
-          const doubleValue = this.nextTemp();
-          this.emit(`${doubleValue} = sitofp i32 ${value} to double`);
-          this.variableTypes.set(doubleValue, 'double');
-          return doubleValue;
-        }
-
         // Track the type
         this.variableTypes.set(value, propType);
         return value;
@@ -1747,9 +1699,12 @@ export class LLVMGenerator extends BaseGenerator {
           this.emit(`${cmpResult} = fcmp oeq double ${operandDouble}, 0.0`);
         }
 
+        // Convert boolean result to double
+        const i32Result = this.nextTemp();
+        this.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
         const result = this.nextTemp();
-        this.emit(`${result} = zext i1 ${cmpResult} to i32`);
-        this.variableTypes.set(result, 'i32');
+        this.emit(`${result} = sitofp i32 ${i32Result} to double`);
+        this.variableTypes.set(result, 'double');
         return result;
       }
 
@@ -1857,9 +1812,12 @@ export class LLVMGenerator extends BaseGenerator {
           } else { // '!=' or '!=='
             this.emit(`${cmpResult} = icmp ne i32 ${strcmpResult}, 0`);
           }
+          // Convert boolean result to double
+          const i32Result = this.nextTemp();
+          this.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
           const extResult = this.nextTemp();
-          this.emit(`${extResult} = zext i1 ${cmpResult} to i32`);
-          this.variableTypes.set(extResult, 'i32');
+          this.emit(`${extResult} = sitofp i32 ${i32Result} to double`);
+          this.variableTypes.set(extResult, 'double');
           return extResult;
         }
 
@@ -1867,10 +1825,13 @@ export class LLVMGenerator extends BaseGenerator {
         const cond = cmpMap[expr.op];
         const cmpResult = this.nextTemp();
         this.emit(`${cmpResult} = fcmp ${cond} double ${left}, ${right}`);
-        const extResult = this.nextTemp();
-        this.emit(`${extResult} = zext i1 ${cmpResult} to i32`);
-        this.variableTypes.set(extResult, 'i32');
-        return extResult;
+        // Convert boolean result to double (JavaScript semantics: comparisons return numbers)
+        const i32Result = this.nextTemp();
+        this.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
+        const doubleResult = this.nextTemp();
+        this.emit(`${doubleResult} = sitofp i32 ${i32Result} to double`);
+        this.variableTypes.set(doubleResult, 'double');
+        return doubleResult;
       } else {
         throw new Error(`Unknown operator: ${expr.op}`);
       }
