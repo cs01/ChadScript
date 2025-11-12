@@ -191,6 +191,8 @@ export class ClassGenerator extends BaseGenerator {
     this.thisPointer = objPtr;
     // Set current class name for super resolution
     this.currentClassName = className;
+    // Set return type for return statements in constructor body
+    this.currentFunctionReturnType = structType;
 
     // Execute constructor body
     const bodyResult = this.generateBlock(constructor.body, constructor.params);
@@ -265,6 +267,8 @@ export class ClassGenerator extends BaseGenerator {
     this.thisPointer = thisLoaded;
     // Set current class name for super resolution
     this.currentClassName = className;
+    // Set return type for return statements in method body
+    this.currentFunctionReturnType = returnLLVMType;
 
     // Allocate stack space for parameters with proper types
     for (let i = 0; i < method.params.length; i++) {

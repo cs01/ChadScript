@@ -1149,7 +1149,7 @@ export class Parser {
       this.skipWhitespace();
       const op = this.code[this.pos];
 
-      if (op === '*' || op === '/') {
+      if (op === '*' || op === '/' || op === '%') {
         this.pos++;
         const right = this.parsePrimary();
         left = { type: 'binary', op, left, right };

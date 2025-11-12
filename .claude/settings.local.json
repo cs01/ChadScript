@@ -63,7 +63,12 @@
       "Bash(./tests/fixtures/if-else)",
       "Bash(./tests/fixtures/equal-test)",
       "Bash(./tests/fixtures/argv-debug)",
-      "Bash(./tests/fixtures/argv-simple)"
+      "Bash(./tests/fixtures/argv-simple)",
+      "Bash(./tests/fixtures/direct-empty-string)",
+      "Bash(./tests/fixtures/debug-strlen)",
+      "Bash(./tests/fixtures/test-if-function)",
+      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"simple-modulo\" tests/compiler.test.ts)",
+      "Bash(node --import tsx --test --test-reporter=spec tests/compiler.test.ts)"
     ],
     "deny": [],
     "ask": []

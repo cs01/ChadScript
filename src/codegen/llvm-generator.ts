@@ -325,6 +325,7 @@ export class LLVMGenerator extends BaseGenerator {
     const paramLLVMTypes: string[] = [];
     let returnType = 'i32';
     let returnTypeIsString = false;
+    this.currentFunctionReturnType = 'i32'; // Default to i32
 
     if (this.typeChecker) {
       try {
@@ -335,6 +336,7 @@ export class LLVMGenerator extends BaseGenerator {
           if (funcType.returnType === 'string') {
             returnType = 'i8*';
             returnTypeIsString = true;
+            this.currentFunctionReturnType = 'i8*';
           }
 
           // Check parameter types
@@ -743,6 +745,8 @@ export class LLVMGenerator extends BaseGenerator {
         }
       } else if (stmt.type === 'return') {
         lastValue = this.generateExpression(stmt.value, params);
+        this.emit(`ret ${this.currentFunctionReturnType} ${lastValue}`);
+        hasTerminator = true;  // return generates 'ret', which is a terminator
       } else if (stmt.type === 'if') {
         this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateIfStatement(stmt, params);
@@ -1615,7 +1619,8 @@ export class LLVMGenerator extends BaseGenerator {
         '+': 'add',
         '-': 'sub',
         '*': 'mul',
-        '/': 'sdiv'
+        '/': 'sdiv',
+        '%': 'srem'
       };
 
       // Comparison operators (icmp returns i1, need to extend to i32)
@@ -3450,6 +3455,7 @@ export class LLVMGenerator extends BaseGenerator {
       gen.jsonObjectVariables = this.jsonObjectVariables;
       gen.thisPointer = this.thisPointer;
       gen.expectedArrayElementType = this.expectedArrayElementType;
+      gen.currentFunctionReturnType = this.currentFunctionReturnType;
     }
   }
 

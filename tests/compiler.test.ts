@@ -41,6 +41,12 @@ const testCases: TestCase[] = [
     description: 'Simple division: divide(20, 4) should return 5'
   },
   {
+    name: 'simple-modulo',
+    fixture: 'tests/fixtures/simple-modulo.js',
+    expectedExitCode: 2, // 17 % 5
+    description: 'Simple modulo: modulo(17, 5) should return 2'
+  },
+  {
     name: 'nested-calls',
     fixture: 'tests/fixtures/nested-calls.js',
     expectedExitCode: 17, // 4 * 5 - 3
