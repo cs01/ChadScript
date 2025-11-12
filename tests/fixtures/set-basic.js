@@ -7,4 +7,4 @@ function testSet() {
   return s.has(20);
 }
 
-testSet();
+process.exit(testSet());

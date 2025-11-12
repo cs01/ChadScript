@@ -192,6 +192,18 @@ export class LLVMGenerator extends BaseGenerator {
     ir += 'declare i32 @unlink(i8*)\n';
     ir += '\n';
 
+    // Declare network/socket functions (POSIX)
+    ir += 'declare i32 @socket(i32, i32, i32)\n';      // socket(domain, type, protocol)
+    ir += 'declare i32 @close(i32)\n';                 // close(fd)
+    ir += 'declare i32 @bind(i32, i8*, i32)\n';        // bind(sockfd, addr, addrlen)
+    ir += 'declare i32 @listen(i32, i32)\n';           // listen(sockfd, backlog)
+    ir += 'declare i32 @accept(i32, i8*, i32*)\n';     // accept(sockfd, addr, addrlen)
+    ir += 'declare i32 @connect(i32, i8*, i32)\n';     // connect(sockfd, addr, addrlen)
+    ir += 'declare i64 @read(i32, i8*, i64)\n';        // read(fd, buf, count)
+    ir += 'declare i64 @write(i32, i8*, i64)\n';       // write(fd, buf, count)
+    ir += 'declare i16 @htons(i16)\n';                 // htons(hostshort) - network byte order
+    ir += '\n';
+
     // Declare path functions for path module
     ir += 'declare i8* @realpath(i8*, i8*)\n';
     ir += 'declare i8* @dirname(i8*)\n';
@@ -888,13 +900,39 @@ export class LLVMGenerator extends BaseGenerator {
     if (expr.type === 'member_access') {
       // Handle process.argv - special case
       if (expr.object.type === 'variable' && (expr.object as any).name === 'process' && expr.property === 'argv') {
-        // Return the argv pointer - it will be treated as a pseudo-array
-        // We need to mark this as a process.argv array for later indexing
-        const temp = this.nextTemp();
-        this.emit(`${temp} = load i8**, i8*** @__argv`);
-        // Store this as a special variable so indexing works
-        this.processArgvVariables.add(temp);
-        return temp;
+        // Convert argv (i8**) to a proper %StringArray structure
+        // Compute sizeof(%StringArray) dynamically
+        const sizePtr = this.nextTemp();
+        this.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
+        const structSize = this.nextTemp();
+        this.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+        const arrayMem = this.nextTemp();
+        this.emit(`${arrayMem} = call i8* @malloc(i64 ${structSize})`);
+        const argvStruct = this.nextTemp();
+        this.emit(`${argvStruct} = bitcast i8* ${arrayMem} to %StringArray*`);
+
+        // Store argv pointer in data field
+        const dataField = this.nextTemp();
+        this.emit(`${dataField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 0`);
+        const argvPtr = this.nextTemp();
+        this.emit(`${argvPtr} = load i8**, i8*** @__argv`);
+        this.emit(`store i8** ${argvPtr}, i8*** ${dataField}`);
+
+        // Store argc in length field
+        const lenField = this.nextTemp();
+        this.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 1`);
+        const argc = this.nextTemp();
+        this.emit(`${argc} = load i32, i32* @__argc`);
+        this.emit(`store i32 ${argc}, i32* ${lenField}`);
+
+        // Store argc in capacity field too
+        const capField = this.nextTemp();
+        this.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 2`);
+        this.emit(`store i32 ${argc}, i32* ${capField}`);
+
+        // Mark as string array variable
+        this.stringArrayVariables.add(argvStruct);
+        return argvStruct;
       }
 
       // Handle class instance property access (this.field or instance.field)
@@ -1258,6 +1296,36 @@ export class LLVMGenerator extends BaseGenerator {
           const len = this.nextTemp();
           this.emit(`${len} = load i32, i32* ${lenPtr}`);
           return len;
+        } else if (expr.object.type === 'member_access' && expr.object.object.type === 'this') {
+          // Check if it's accessing a class field that's a string array
+          const className = this.currentClassName || (this.classGen as any).currentClassName;
+          if (className) {
+            const fieldInfo = this.classGen.getFieldInfo(className, expr.object.property);
+            if (fieldInfo && fieldInfo.type === 'string[]') {
+              // It's a string array field - access its length properly
+              const stringArrayPtr = this.generateExpression(expr.object, params);
+              const lenPtr = this.nextTemp();
+              this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 1`);
+              const len = this.nextTemp();
+              this.emit(`${len} = load i32, i32* ${lenPtr}`);
+              return len;
+            } else if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
+              // It's a numeric/boolean array field
+              const arrayPtr = this.generateExpression(expr.object, params);
+              const lenPtr = this.nextTemp();
+              this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+              const len = this.nextTemp();
+              this.emit(`${len} = load i32, i32* ${lenPtr}`);
+              return len;
+            }
+          }
+          // Fall through to string length if not an array type
+          const objPtr = this.generateExpression(expr.object, params);
+          const lenI64 = this.nextTemp();
+          this.emit(`${lenI64} = call i64 @strlen(i8* ${objPtr})`);
+          const lenI32 = this.nextTemp();
+          this.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
+          return lenI32;
         } else {
           // String length
           const objPtr = this.generateExpression(expr.object, params);

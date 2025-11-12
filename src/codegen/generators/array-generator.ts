@@ -29,13 +29,25 @@ export class ArrayGenerator extends BaseGenerator {
     }
 
     if (isStringArray) {
-      // Generate string array
+      // Generate string array - allocate on HEAP, not stack
+      // Compute sizeof(%StringArray) dynamically for portability
+      const sizePtr = this.nextTemp();
+      this.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
+      const structSize = this.nextTemp();
+      this.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+      const arrayMem = this.nextTemp();
+      this.emit(`${arrayMem} = call i8* @malloc(i64 ${structSize})`);
       const arrayPtr = this.nextTemp();
-      this.emit(`${arrayPtr} = alloca %StringArray`);
+      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
 
       // Allocate data array on heap (i8** with length elements)
+      // Ensure we allocate at least 1 byte to avoid malloc(0) issues
       const dataSize = this.nextTemp();
-      this.emit(`${dataSize} = mul i64 ${length}, 8`); // 8 bytes per i8*
+      if (length === 0) {
+        this.emit(`${dataSize} = add i64 0, 1`); // Allocate 1 byte minimum
+      } else {
+        this.emit(`${dataSize} = mul i64 ${length}, 8`); // 8 bytes per i8*
+      }
       const dataMem = this.nextTemp();
       this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSize})`);
       const dataPtr = this.nextTemp();
@@ -66,13 +78,25 @@ export class ArrayGenerator extends BaseGenerator {
 
       return arrayPtr;
     } else {
-      // Generate numeric array
+      // Generate numeric array - allocate on HEAP, not stack
+      // Compute sizeof(%Array) dynamically for portability
+      const sizePtr = this.nextTemp();
+      this.emit(`${sizePtr} = getelementptr %Array, %Array* null, i32 1`);
+      const structSize = this.nextTemp();
+      this.emit(`${structSize} = ptrtoint %Array* ${sizePtr} to i64`);
+      const arrayMem = this.nextTemp();
+      this.emit(`${arrayMem} = call i8* @malloc(i64 ${structSize})`);
       const arrayPtr = this.nextTemp();
-      this.emit(`${arrayPtr} = alloca %Array`);
+      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %Array*`);
 
       // Allocate data array on heap (i32* with length elements)
+      // Ensure we allocate at least 1 byte to avoid malloc(0) issues
       const dataSize = this.nextTemp();
-      this.emit(`${dataSize} = mul i64 ${length}, 4`); // 4 bytes per i32
+      if (length === 0) {
+        this.emit(`${dataSize} = add i64 0, 1`); // Allocate 1 byte minimum
+      } else {
+        this.emit(`${dataSize} = mul i64 ${length}, 4`); // 4 bytes per i32
+      }
       const dataMem = this.nextTemp();
       this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSize})`);
       const dataPtr = this.nextTemp();
@@ -158,8 +182,13 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Resize block
     this.emit(`${resizeLabel}:`);
+    // Handle case where currentCap is 0 - set to 2, otherwise double it
+    const isZero = this.nextTemp();
+    this.emit(`${isZero} = icmp eq i32 ${currentCap}, 0`);
+    const doubled = this.nextTemp();
+    this.emit(`${doubled} = mul i32 ${currentCap}, 2`);
     const newCap = this.nextTemp();
-    this.emit(`${newCap} = mul i32 ${currentCap}, 2`);
+    this.emit(`${newCap} = select i1 ${isZero}, i32 2, i32 ${doubled}`);
 
     // Allocate new data array
     const newSize = this.nextTemp();
@@ -246,8 +275,13 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Resize block
     this.emit(`${resizeLabel}:`);
+    // Handle case where currentCap is 0 - set to 2, otherwise double it
+    const isZero = this.nextTemp();
+    this.emit(`${isZero} = icmp eq i32 ${currentCap}, 0`);
+    const doubled = this.nextTemp();
+    this.emit(`${doubled} = mul i32 ${currentCap}, 2`);
     const newCap = this.nextTemp();
-    this.emit(`${newCap} = mul i32 ${currentCap}, 2`);
+    this.emit(`${newCap} = select i1 ${isZero}, i32 2, i32 ${doubled}`);
 
     // Allocate new data array (i8** - array of string pointers)
     const newSize = this.nextTemp();

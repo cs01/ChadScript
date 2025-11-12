@@ -38,7 +38,11 @@
       "Bash(dist/index.js --help)",
       "Bash(node dist/index.js:*)",
       "Bash(llc:*)",
-      "Bash(./examples/argparse-cli:*)"
+      "Bash(./examples/argparse-cli:*)",
+      "Bash(objdump:*)",
+      "Bash(lldb:*)",
+      "Bash(printf:*)",
+      "Bash(gdb:*)"
     ],
     "deny": [],
     "ask": []

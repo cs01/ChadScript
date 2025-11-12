@@ -1,9 +1,3 @@
-function isEven(x) {
-  if (x == 2) {
-    return 1;
-  }
-  if (x == 4) {
-    return 1;
 function isGreaterThan2(x) {
   return x > 2;
 }
