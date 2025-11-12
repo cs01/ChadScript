@@ -324,23 +324,29 @@ describe('ChadScript Compiler', () => {
           );
 
           // Run the executable and check exit code
+          let actualExitCode = 0;
           try {
-            await execAsync(exeFile);
+            const result = await execAsync(exeFile);
             // If we get here, exit code was 0
-            assert.strictEqual(
-              0,
-              testCase.expectedExitCode,
-              `Expected exit code ${testCase.expectedExitCode}, got 0`
-            );
+            actualExitCode = 0;
           } catch (err: any) {
             // execAsync throws for non-zero exit codes
-            const actualExitCode = err.code || 0;
-            assert.strictEqual(
-              actualExitCode,
-              testCase.expectedExitCode,
-              `Expected exit code ${testCase.expectedExitCode}, got ${actualExitCode}`
-            );
+            // The actual exit code is in err.code when it's a number, not when it's ERR_*
+            if (typeof err.code === 'number') {
+              actualExitCode = err.code;
+            } else if (err.killed && err.signal) {
+              throw new Error(`Process was killed with signal ${err.signal}`);
+            } else {
+              // Fallback: parse from stderr or use default
+              actualExitCode = err.status || err.code || 1;
+            }
           }
+            
+          assert.strictEqual(
+            actualExitCode,
+            testCase.expectedExitCode,
+            `Expected exit code ${testCase.expectedExitCode}, got ${actualExitCode}`
+          );
         } finally {
           // Clean up build artifacts after test
           try {

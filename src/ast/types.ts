@@ -198,6 +198,7 @@ export interface ClassMethod {
   name: string;
   params: string[];
   paramTypes?: ('string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void')[];  // Optional TypeScript parameter types
+  returnType?: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void';  // Optional TypeScript return type
   body: BlockStatement;
   isConstructor: boolean;
 }

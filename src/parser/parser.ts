@@ -1,4 +1,5 @@
 import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, IfStatement, WhileStatement, ForStatement, ImportDeclaration, ExportDeclaration, ObjectNode, ArrayNode, MapNode, SetNode, ClassNode, ClassMethod, NewNode, ThisNode, SuperNode, TemplateLiteralNode, ArrowFunctionNode, StringNode } from '../ast/types.js';
+import { logger } from '../utils/logger.js';
 
 // ============================================
 // PARSER
@@ -514,12 +515,13 @@ export class Parser {
         }
       }
       this.expect(')');
-      // Skip return type annotation if present (e.g., ": void")
+      // Parse return type annotation if present (e.g., ": string")
+      let returnType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
       this.skipWhitespace();
       if (this.code[this.pos] === ':') {
         this.pos++; // consume ':'
         this.skipWhitespace();
-        this.skipTypeAnnotation();
+        returnType = this.parseTypeAnnotation();
       }
       this.expect('{');
 
@@ -532,6 +534,7 @@ export class Parser {
         name: methodName,
         params,
         paramTypes: paramTypes.length > 0 ? paramTypes : undefined,
+        returnType: returnType || undefined,
         body,
         isConstructor
       });
@@ -1851,19 +1854,20 @@ export class Parser {
           }
         }
         this.expect(')');
-        // Skip return type annotation if present (e.g., ": void")
+        // Parse return type annotation if present (e.g., ": string")
+        let returnType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
         this.skipWhitespace();
         if (this.code[this.pos] === ':') {
           this.pos++; // consume ':'
           this.skipWhitespace();
-          this.skipTypeAnnotation();
+          returnType = this.parseTypeAnnotation();
         }
         this.expect('{');
 
         const body = this.parseBlock();
         this.expect('}');
 
-        methods.push({ type: 'method', name: methodName, params, paramTypes: paramTypes.length > 0 ? paramTypes : undefined, body, isConstructor });
+        methods.push({ type: 'method', name: methodName, params, paramTypes: paramTypes.length > 0 ? paramTypes : undefined, returnType: returnType || undefined, body, isConstructor });
         this.skipWhitespace();
       }
       this.expect('}');

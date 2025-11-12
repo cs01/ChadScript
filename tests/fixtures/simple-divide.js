@@ -3,4 +3,4 @@ function divide(a, b) {
   return a / b;
 }
 
-divide(20, 4);
+process.exit(divide(20, 4));

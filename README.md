@@ -287,13 +287,18 @@ chadscript [options] <input.ts|.js> [output]
 
 Options:
   -v, --verbose    Show compilation steps
+  --debug          Show internal debugging information
+  --trace          Show everything (AST, IR, variable tracking)
   -h, --help       Show help
 
 Examples:
-  chadscript hello.ts           # Compile (silent)
-  chadscript -v hello.ts        # Verbose output
+  chadscript hello.ts           # Compile (silent on success)
+  chadscript -v hello.ts        # Verbose output (compilation stages)
+  chadscript --debug hello.ts   # Debug output (for compiler development)
   chadscript hello.ts my-cli    # Custom output name
 ```
+
+**For AI agents/developers:** Use `--debug` or `--trace` when you need detailed compiler output for debugging or understanding compilation issues.
 
 ## Architecture
 

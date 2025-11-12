@@ -3,4 +3,4 @@ function multiply(a, b) {
   return a * b;
 }
 
-multiply(6, 7);
+process.exit(multiply(6, 7));

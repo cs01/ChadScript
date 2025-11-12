@@ -3,4 +3,4 @@ function subtract(a, b) {
   return a - b;
 }
 
-subtract(10, 3);
+process.exit(subtract(10, 3));

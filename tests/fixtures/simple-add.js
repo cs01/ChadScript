@@ -3,4 +3,4 @@ function add(a, b) {
   return a + b;
 }
 
-add(5, 7);
+process.exit(add(5, 7));

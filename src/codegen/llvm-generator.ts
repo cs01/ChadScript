@@ -2663,6 +2663,17 @@ export class LLVMGenerator extends BaseGenerator {
           }
         }
       }
+      // Check for this.field access to string fields
+      if (memberExpr.object.type === 'this') {
+        // Check both this instance's currentClassName and the classGen's
+        const className = this.currentClassName || (this.classGen as any).currentClassName;
+        if (className) {
+          const fieldInfo = this.classGen.getFieldInfo(className, memberExpr.property);
+          if (fieldInfo && fieldInfo.type === 'string') {
+            return true;
+          }
+        }
+      }
     }
     // Check if it's process.argv[i] or stringArray[i]
     if (expr.type === 'index_access') {
@@ -2693,8 +2704,9 @@ export class LLVMGenerator extends BaseGenerator {
         const memberAccess = indexExpr.object;
         if (memberAccess.object.type === 'variable' && memberAccess.object.name === 'this') {
           // Check if this field is a string array in the current class
-          if (this.currentClassName) {
-            const fieldInfo = this.classGen.getFieldInfo(this.currentClassName, memberAccess.property);
+          const className = this.currentClassName || (this.classGen as any).currentClassName;
+          if (className) {
+            const fieldInfo = this.classGen.getFieldInfo(className, memberAccess.property);
             if (fieldInfo && fieldInfo.type === 'string[]') {
               return true;
             }

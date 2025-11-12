@@ -49,14 +49,14 @@ export class Logger {
   // Show at Debug level and above (internal debugging)
   debug(message: string): void {
     if (this.level >= LogLevel.Debug) {
-      console.log(`[debug] ${message}`);
+      console.log(`dbg: ${message}`);
     }
   }
 
   // Show at Trace level only (everything)
   trace(message: string): void {
     if (this.level >= LogLevel.Trace) {
-      console.log(`[trace] ${message}`);
+      console.log(`trc: ${message}`);
     }
   }
 }

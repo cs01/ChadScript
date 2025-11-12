@@ -1,5 +1,6 @@
 import { Expression, ClassNode, ClassMethod, BlockStatement } from '../../ast/types.js';
 import { BaseGenerator } from './base-generator.js';
+import { logger } from '../../utils/logger.js';
 
 // ============================================
 // CLASS GENERATOR - Class and instance operations
@@ -204,9 +205,24 @@ export class ClassGenerator extends BaseGenerator {
   private generateMethod(className: string, method: ClassMethod, fields: { name: string; fieldType: 'i32' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
     this.labelCounter = 0;
 
+    // Determine return type from method's returnType annotation
+    let returnLLVMType = 'i32'; // default
+    if (method.returnType) {
+      if (method.returnType === 'string') {
+        returnLLVMType = 'i8*';
+      } else if (method.returnType === 'string[]') {
+        returnLLVMType = '%StringArray*';
+      } else if (method.returnType === 'number[]' || method.returnType === 'boolean[]') {
+        returnLLVMType = '%Array*';
+      } else if (method.returnType === 'void') {
+        returnLLVMType = 'void';
+      }
+      // else: number, boolean -> i32
+    }
+
     // Method signature: first param is 'this' (struct pointer or i32* for compat)
     const thisType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
-    let ir = `define i32 @${className}_${method.name}(${thisType} %this`;
+    let ir = `define ${returnLLVMType} @${className}_${method.name}(${thisType} %this`;
 
     // Generate parameter list with proper types
     const paramLLVMTypes: string[] = [];
@@ -271,11 +287,20 @@ export class ClassGenerator extends BaseGenerator {
       ir += this.output.map(line => '  ' + line).join('\n') + '\n';
     }
 
-    // Return value
-    if (result !== null) {
-      ir += `  ret i32 ${result}\n`;
+    // Return value based on declared return type
+    if (returnLLVMType === 'void') {
+      ir += '  ret void\n';
+    } else if (result !== null) {
+      ir += `  ret ${returnLLVMType} ${result}\n`;
     } else {
-      ir += '  ret i32 0\n';
+      // Default return value for non-void functions with no explicit return
+      if (returnLLVMType === 'i8*') {
+        ir += '  ret i8* null\n';
+      } else if (returnLLVMType === '%StringArray*' || returnLLVMType === '%Array*') {
+        ir += `  ret ${returnLLVMType} null\n`;
+      } else {
+        ir += '  ret i32 0\n';
+      }
     }
     ir += '}\n';
 
