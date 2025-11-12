@@ -4,6 +4,7 @@ import { execSync } from 'child_process';
 import { Parser } from './parser/parser.js';
 import { LLVMGenerator } from './codegen/llvm-generator.js';
 import { TypeChecker } from './typescript/type-checker.js';
+import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
 import { LogLevel, logger } from './utils/logger.js';
 
@@ -61,6 +62,19 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   // Parse all files (starting from entry point, following imports)
   const compiledFiles = new Set<string>();
   const mergedAST = compileMultiFile(inputFile, compiledFiles, inputFile);
+
+  // Run semantic analysis to catch type errors early
+  logger.info('Running semantic analysis...');
+  const analyzer = new SemanticAnalyzer(mergedAST);
+  const analysisSuccess = analyzer.analyze();
+
+  if (!analysisSuccess) {
+    const errorOutput = analyzer.formatErrors();
+    console.error(errorOutput);
+    throw new Error('Semantic analysis failed. Fix the errors above and try again.');
+  }
+
+  logger.info('✓ Semantic analysis passed');
 
   // Create TypeScript type checker if compiling a .ts file
   let typeChecker: TypeChecker | null = null;

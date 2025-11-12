@@ -772,20 +772,27 @@ export class LLVMGenerator extends BaseGenerator {
           if (!allocaReg) {
             throw new Error(`Unknown variable: ${stmt.name}`);
           }
-          this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+          // Check variable type and use appropriate store instruction
+          const varType = this.variableTypes.get(stmt.name) || 'i32';
+          if (varType === 'double') {
+            this.emit(`store double ${value}, double* ${allocaReg}`);
+          } else {
+            this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+          }
         }
       } else if (stmt.type === 'return') {
         lastValue = this.generateExpression(stmt.value, params);
 
         // Handle type conversion if needed (e.g., i32 to double)
-        // Check if we're returning a .length property (which is i32) from a double function
-        if (this.currentFunctionReturnType === 'double' &&
-            stmt.value.type === 'member_access' &&
-            (stmt.value as any).property === 'length') {
-          // Convert i32 to double
-          const converted = this.nextTemp();
-          this.emit(`${converted} = sitofp i32 ${lastValue} to double`);
-          lastValue = converted;
+        // Check if we're returning i32 from a double function
+        if (this.currentFunctionReturnType === 'double') {
+          const valueType = this.variableTypes.get(lastValue);
+          // Only convert if we explicitly know it's i32
+          if (valueType === 'i32') {
+            const converted = this.nextTemp();
+            this.emit(`${converted} = sitofp i32 ${lastValue} to double`);
+            lastValue = converted;
+          }
         }
 
         this.emit(`ret ${this.currentFunctionReturnType} ${lastValue}`);
@@ -962,6 +969,8 @@ export class LLVMGenerator extends BaseGenerator {
         const varType = this.variableTypes.get(expr.name) || 'double';
         logger.debug(`Loading variable "${expr.name}", type: "${varType}", alloca: "${allocaReg}"`);
         this.emit(`${temp} = load ${varType}, ${varType}* ${allocaReg}`);
+        // Track the loaded value's type
+        this.variableTypes.set(temp, varType);
         return temp;
       }
 
@@ -1358,6 +1367,7 @@ export class LLVMGenerator extends BaseGenerator {
           this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
           const len = this.nextTemp();
           this.emit(`${len} = load i32, i32* ${lenPtr}`);
+          this.variableTypes.set(len, 'i32');
           return len;
         } else if (expr.object.type === 'variable' && this.stringArrayVariables.has(expr.object.name)) {
           // Check if it's a string array
@@ -1366,6 +1376,7 @@ export class LLVMGenerator extends BaseGenerator {
           this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 1`);
           const len = this.nextTemp();
           this.emit(`${len} = load i32, i32* ${lenPtr}`);
+          this.variableTypes.set(len, 'i32');
           return len;
         } else if (expr.object.type === 'member_access' && expr.object.object.type === 'this') {
           // Check if it's accessing a class field that's a string array
@@ -1379,6 +1390,7 @@ export class LLVMGenerator extends BaseGenerator {
               this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 1`);
               const len = this.nextTemp();
               this.emit(`${len} = load i32, i32* ${lenPtr}`);
+              this.variableTypes.set(len, 'i32');
               return len;
             } else if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
               // It's a numeric/boolean array field
@@ -1387,6 +1399,7 @@ export class LLVMGenerator extends BaseGenerator {
               this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
               const len = this.nextTemp();
               this.emit(`${len} = load i32, i32* ${lenPtr}`);
+              this.variableTypes.set(len, 'i32');
               return len;
             }
           }
@@ -1396,6 +1409,7 @@ export class LLVMGenerator extends BaseGenerator {
           this.emit(`${lenI64} = call i64 @strlen(i8* ${objPtr})`);
           const lenI32 = this.nextTemp();
           this.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
+          this.variableTypes.set(lenI32, 'i32');
           return lenI32;
         } else {
           // String length
@@ -1404,6 +1418,7 @@ export class LLVMGenerator extends BaseGenerator {
           this.emit(`${lenI64} = call i64 @strlen(i8* ${objPtr})`);
           const lenI32 = this.nextTemp();
           this.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
+          this.variableTypes.set(lenI32, 'i32');
           return lenI32;
         }
       }
@@ -1629,10 +1644,25 @@ export class LLVMGenerator extends BaseGenerator {
       const operand = this.generateExpression(expr.operand, params);
 
       if (expr.op === '!') {
-        const cmpResult = this.nextTemp();
-        this.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);
+        // Check if operand is double or i32
+        const operandType = this.variableTypes.get(operand);
+        let cmpResult: string;
+
+        if (operandType === 'double' || (operand.includes('.') && !operand.startsWith('%'))) {
+          // Operand is double, use fcmp directly
+          cmpResult = this.nextTemp();
+          this.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);
+        } else {
+          // Operand is i32, convert to double first
+          const operandDouble = this.nextTemp();
+          this.emit(`${operandDouble} = sitofp i32 ${operand} to double`);
+          cmpResult = this.nextTemp();
+          this.emit(`${cmpResult} = fcmp oeq double ${operandDouble}, 0.0`);
+        }
+
         const result = this.nextTemp();
         this.emit(`${result} = zext i1 ${cmpResult} to i32`);
+        this.variableTypes.set(result, 'i32');
         return result;
       }
 
@@ -1710,6 +1740,7 @@ export class LLVMGenerator extends BaseGenerator {
         const temp = this.nextTemp();
         const op = arithMap[expr.op];
         this.emit(`${temp} = ${op} double ${left}, ${right}`);
+        this.variableTypes.set(temp, 'double');
         return temp;
       } else if (bitwiseMap[expr.op]) {
         // Bitwise operators: convert double -> i64 -> operate -> double
@@ -1724,6 +1755,7 @@ export class LLVMGenerator extends BaseGenerator {
 
         const resultDouble = this.nextTemp();
         this.emit(`${resultDouble} = sitofp i64 ${resultInt} to double`);
+        this.variableTypes.set(resultDouble, 'double');
         return resultDouble;
       } else if (cmpMap[expr.op]) {
         // String comparison uses strcmp (check both static and runtime types)
@@ -1740,6 +1772,7 @@ export class LLVMGenerator extends BaseGenerator {
           }
           const extResult = this.nextTemp();
           this.emit(`${extResult} = zext i1 ${cmpResult} to i32`);
+          this.variableTypes.set(extResult, 'i32');
           return extResult;
         }
 
@@ -1749,6 +1782,7 @@ export class LLVMGenerator extends BaseGenerator {
         this.emit(`${cmpResult} = fcmp ${cond} double ${left}, ${right}`);
         const extResult = this.nextTemp();
         this.emit(`${extResult} = zext i1 ${cmpResult} to i32`);
+        this.variableTypes.set(extResult, 'i32');
         return extResult;
       } else {
         throw new Error(`Unknown operator: ${expr.op}`);
@@ -1876,9 +1910,21 @@ export class LLVMGenerator extends BaseGenerator {
       // Evaluate condition
       const condValue = this.generateExpression(conditionalExpr.condition, params);
 
-      // Convert double to i1 for branch (non-zero is true)
-      const condBool = this.nextTemp();
-      this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
+      // Convert to boolean for branching
+      const condValueType = this.variableTypes.get(condValue);
+      let condBool: string;
+
+      if (condValueType === 'double' || (condValue.includes('.') && !condValue.startsWith('%'))) {
+        // Value is double, use fcmp directly
+        condBool = this.nextTemp();
+        this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
+      } else {
+        // Value is i32, convert to double first
+        const condDouble = this.nextTemp();
+        this.emit(`${condDouble} = sitofp i32 ${condValue} to double`);
+        condBool = this.nextTemp();
+        this.emit(`${condBool} = fcmp one double ${condDouble}, 0.0`);
+      }
 
       // Branch based on condition
       this.emit(`br i1 ${condBool}, label %${trueLabel}, label %${falseLabel}`);

@@ -87,7 +87,10 @@
       "Bash(tests/fixtures/debug-indexof3)",
       "Bash(tests/fixtures/array-methods)",
       "Bash(tests/fixtures/array-pop-test)",
-      "Bash(tests/fixtures/array-includes-test)"
+      "Bash(tests/fixtures/array-includes-test)",
+      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"String .length property\" tests/compiler.test.ts)",
+      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"simple-add\" tests/compiler.test.ts)",
+      "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"Array\" tests/compiler.test.ts)"
     ],
     "deny": [],
     "ask": []

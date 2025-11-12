@@ -17,6 +17,26 @@ export class ControlFlowGenerator extends BaseGenerator {
     super();
   }
 
+  // Helper to convert a value to boolean (i1) for branching
+  private convertToBool(value: string): string {
+    // Check if value is a double or i32 based on variable types
+    const valueType = this.variableTypes.get(value);
+
+    if (valueType === 'double' || (value.includes('.') && !value.startsWith('%'))) {
+      // Value is a double, use fcmp
+      const condBool = this.nextTemp();
+      this.emit(`${condBool} = fcmp one double ${value}, 0.0`);
+      return condBool;
+    } else {
+      // Value is i32 or unknown (assume i32), convert to double then use fcmp
+      const condDouble = this.nextTemp();
+      this.emit(`${condDouble} = sitofp i32 ${value} to double`);
+      const condBool = this.nextTemp();
+      this.emit(`${condBool} = fcmp one double ${condDouble}, 0.0`);
+      return condBool;
+    }
+  }
+
   generateIfStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== 'if') {
       throw new Error('Expected if statement');
@@ -30,9 +50,8 @@ export class ControlFlowGenerator extends BaseGenerator {
     // Evaluate condition
     const condValue = this.generateExpression(stmt.condition, params);
 
-    // Convert i32 to i1 for branch (non-zero is true)
-    const condBool = this.nextTemp();
-    this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
+    // Convert to boolean for branching
+    const condBool = this.convertToBool(condValue);
 
     // Branch based on condition
     if (stmt.elseBlock) {
@@ -121,8 +140,7 @@ export class ControlFlowGenerator extends BaseGenerator {
     // Condition block
     this.emit(`${condLabel}:`);
     const condValue = this.generateExpression(stmt.condition, params);
-    const condBool = this.nextTemp();
-    this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
+    const condBool = this.convertToBool(condValue);
     this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
 
     // Body block - push loop context for break/continue
@@ -171,7 +189,12 @@ export class ControlFlowGenerator extends BaseGenerator {
         if (!allocaReg) {
           throw new Error(`Variable ${stmt.init.name} not found`);
         }
-        this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+        const varType = this.variableTypes.get(stmt.init.name) || 'i32';
+        if (varType === 'double') {
+          this.emit(`store double ${value}, double* ${allocaReg}`);
+        } else {
+          this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+        }
       }
     }
 
@@ -188,8 +211,7 @@ export class ControlFlowGenerator extends BaseGenerator {
     this.emit(`${condLabel}:`);
     if (stmt.condition) {
       const condValue = this.generateExpression(stmt.condition, params);
-      const condBool = this.nextTemp();
-      this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
+      const condBool = this.convertToBool(condValue);
       this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
     } else {
       // No condition means infinite loop
@@ -221,7 +243,12 @@ export class ControlFlowGenerator extends BaseGenerator {
         if (!allocaReg) {
           throw new Error(`Variable ${stmt.update.name} not found in update`);
         }
-        this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+        const varType = this.variableTypes.get(stmt.update.name) || 'i32';
+        if (varType === 'double') {
+          this.emit(`store double ${value}, double* ${allocaReg}`);
+        } else {
+          this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+        }
       } else {
         // It's an expression (like i++)
         this.generateExpression(stmt.update, params);
@@ -289,29 +316,29 @@ export class ControlFlowGenerator extends BaseGenerator {
     const rightValue = this.generateExpression(right, params);
 
     // Convert both to booleans (0 or 1)
-    const leftBool = this.nextTemp();
-    this.emit(`${leftBool} = fcmp one double ${leftValue}, 0.0`);
+    const leftBool = this.convertToBool(leftValue);
     const leftInt = this.nextTemp();
     this.emit(`${leftInt} = zext i1 ${leftBool} to i32`);
 
-    const rightBool = this.nextTemp();
-    this.emit(`${rightBool} = fcmp one double ${rightValue}, 0.0`);
+    const rightBool = this.convertToBool(rightValue);
     const rightInt = this.nextTemp();
     this.emit(`${rightInt} = zext i1 ${rightBool} to i32`);
 
     if (op === '&&') {
-      // Both must be non-zero
+      // Both must be non-zero (use integer multiply)
       const result = this.nextTemp();
-      this.emit(`${result} = fmul double ${leftInt}, ${rightInt}`);
+      this.emit(`${result} = mul i32 ${leftInt}, ${rightInt}`);
+      this.variableTypes.set(result, 'i32');
       return result;
     } else {
       // At least one must be non-zero (add and clamp to 1)
       const sum = this.nextTemp();
-      this.emit(`${sum} = fadd double ${leftInt}, ${rightInt}`);
+      this.emit(`${sum} = add i32 ${leftInt}, ${rightInt}`);
       const cmp = this.nextTemp();
-      this.emit(`${cmp} = fcmp one double ${sum}, 0.0`);
+      this.emit(`${cmp} = icmp ne i32 ${sum}, 0`);
       const result = this.nextTemp();
       this.emit(`${result} = zext i1 ${cmp} to i32`);
+      this.variableTypes.set(result, 'i32');
       return result;
     }
   }
