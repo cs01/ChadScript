@@ -4,4 +4,4 @@ function calculate(x, y) {
   return a + b;
 }
 
-calculate(10, 20);
+process.exit(calculate(10, 20));

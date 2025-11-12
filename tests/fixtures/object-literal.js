@@ -4,4 +4,4 @@ function testObject() {
   return obj.x + obj.y;
 }
 
-testObject();
+process.exit(testObject());

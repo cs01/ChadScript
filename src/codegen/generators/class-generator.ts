@@ -332,40 +332,79 @@ export class ClassGenerator extends BaseGenerator {
   }
 
   generateMethodCall(instancePtr: string, className: string, methodName: string, args: Expression[], params: string[]): string {
-    // Generate arguments with proper types
-    const argValues = args.map(arg => {
+    // Look up the method to get its parameter and return types
+    const classNode = (this.ast as any).classes.find((c: any) => c.name === className);
+    if (!classNode) {
+      throw new Error(`Class ${className} not found`);
+    }
+    const method = classNode.methods.find((m: any) => m.name === methodName && !m.isConstructor);
+    if (!method) {
+      throw new Error(`Method ${methodName} not found in class ${className}`);
+    }
+
+    // Determine parameter types
+    const paramTypes = method.paramTypes || [];
+    const paramLLVMTypes: string[] = paramTypes.map((pType: string) => {
+      if (pType === 'string') return 'i8*';
+      if (pType === 'string[]') return '%StringArray*';
+      if (pType === 'number[]' || pType === 'boolean[]') return '%Array*';
+      return 'i32'; // number, boolean
+    });
+
+    // Generate arguments with correct types based on paramTypes
+    const argValues = args.map((arg, i) => {
       const val = this.generateExpression(arg, params);
 
-      // Determine the type of this argument
+      // Use the declared paramType if available, otherwise infer
       let argType = 'i32'; // default
-
-      // Check if this is a tracked variable/temp
-      if (this.variableTypes.has(val)) {
-        argType = this.variableTypes.get(val)!;
-      }
-      // Check if it's a string literal (starts with @.str)
-      else if (val.startsWith('@.str')) {
-        argType = 'i8*';
-      }
-      // Check if the argument expression itself is a variable
-      else if (arg.type === 'variable') {
-        const varName = (arg as any).name;
-        if (this.variableTypes.has(`%${varName}`)) {
-          argType = this.variableTypes.get(`%${varName}`)!;
+      if (i < paramLLVMTypes.length) {
+        argType = paramLLVMTypes[i];
+      } else {
+        // Fallback inference for variadic or untyped params
+        if (this.variableTypes.has(val)) {
+          argType = this.variableTypes.get(val)!;
+        } else if (val.startsWith('@.str')) {
+          argType = 'i8*';
+        } else if (arg.type === 'variable') {
+          const varName = (arg as any).name;
+          if (this.variableTypes.has(`%${varName}`)) {
+            argType = this.variableTypes.get(`%${varName}`)!;
+          }
         }
       }
 
       return `${argType} ${val}`;
     }).join(', ');
 
+    // Determine return type
+    let returnLLVMType = 'i32'; // default
+    if (method.returnType) {
+      if (method.returnType === 'string') {
+        returnLLVMType = 'i8*';
+      } else if (method.returnType === 'string[]') {
+        returnLLVMType = '%StringArray*';
+      } else if (method.returnType === 'number[]' || method.returnType === 'boolean[]') {
+        returnLLVMType = '%Array*';
+      } else if (method.returnType === 'void') {
+        returnLLVMType = 'void';
+      }
+      // else: number, boolean -> i32
+    }
+
     const fields = this.classFields.get(className) || [];
     const thisType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
 
     // Call the method with instance as first argument
-    const result = this.nextTemp();
     const argList = argValues ? `, ${argValues}` : '';
-    this.emit(`${result} = call i32 @${className}_${methodName}(${thisType} ${instancePtr}${argList})`);
 
-    return result;
+    if (returnLLVMType === 'void') {
+      // Void methods don't return a value
+      this.emit(`call void @${className}_${methodName}(${thisType} ${instancePtr}${argList})`);
+      return '0'; // Return dummy value for void calls
+    } else {
+      const result = this.nextTemp();
+      this.emit(`${result} = call ${returnLLVMType} @${className}_${methodName}(${thisType} ${instancePtr}${argList})`);
+      return result;
+    }
   }
 }

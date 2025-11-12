@@ -14,4 +14,4 @@ function compute() {
   return y;
 }
 
-compute();
+process.exit(compute());

@@ -9,4 +9,4 @@ function findFirst(threshold) {
   return result;
 }
 
-findFirst(42);
+process.exit(findFirst(42));

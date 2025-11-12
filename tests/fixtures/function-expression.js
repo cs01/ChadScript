@@ -16,4 +16,4 @@ function testMap() {
   return 0;
 }
 
-testMap();
+process.exit(testMap());

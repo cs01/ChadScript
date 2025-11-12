@@ -5,4 +5,4 @@ function test() {
   return 0;
 }
 
-test();
+process.exit(test());

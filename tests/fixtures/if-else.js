@@ -8,4 +8,4 @@ function max(a, b) {
   return result;
 }
 
-max(15, 10);
+process.exit(max(15, 10));

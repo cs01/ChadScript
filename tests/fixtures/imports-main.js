@@ -8,4 +8,4 @@ function compute(x, y) {
   return add(sum, product);
 }
 
-compute(3, 4);
+process.exit(compute(3, 4));

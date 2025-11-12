@@ -11,4 +11,4 @@ function testFind() {
   return arr.find(isGreaterThan2);
 }
 
-testFind();
+process.exit(testFind());

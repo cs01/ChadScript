@@ -12,4 +12,4 @@ function testFilter() {
   return filtered.length;
 }
 
-testFilter();
+process.exit(testFilter());

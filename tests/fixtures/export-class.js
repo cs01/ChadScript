@@ -9,4 +9,4 @@ export class Greeter {
 }
 
 const g = new Greeter("World");
-g.greet();
+process.exit(g.greet());

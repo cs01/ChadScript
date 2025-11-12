@@ -4,4 +4,4 @@ function getProperty() {
   return data.value;
 }
 
-getProperty();
+process.exit(getProperty());

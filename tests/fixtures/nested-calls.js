@@ -7,4 +7,4 @@ function calculate(x, y) {
   return multiply(x, y) - 3;
 }
 
-calculate(4, 5);
+process.exit(calculate(4, 5));

@@ -3,5 +3,5 @@ function testLiteralAccess() {
   return { x: 10, y: 20 }.x;
 }
 
-testLiteralAccess();
+process.exit(testLiteralAccess());
 

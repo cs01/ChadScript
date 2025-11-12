@@ -4,4 +4,4 @@ function testRegex() {
   return pattern.test(str);
 }
 
-testRegex();
+process.exit(testRegex());

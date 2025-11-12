@@ -3,4 +3,4 @@ function testSubstr() {
   return str.substr(1, 3).length;
 }
 
-testSubstr();
+process.exit(testSubstr());

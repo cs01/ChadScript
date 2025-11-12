@@ -3,4 +3,4 @@ function test() {
   return arr.length;
 }
 
-test();
+process.exit(test());

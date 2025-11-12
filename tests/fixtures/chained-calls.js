@@ -11,4 +11,4 @@ function combined(x, y, z) {
   return add(x, y) + multiply(y, z);
 }
 
-combined(2, 3, 4);
+process.exit(combined(2, 3, 4));

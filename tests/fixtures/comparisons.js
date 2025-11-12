@@ -5,4 +5,4 @@ function test(a, b) {
   return isLess + isGreater + isEqual;
 }
 
-test(5, 10);
+process.exit(test(5, 10));

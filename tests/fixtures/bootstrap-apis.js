@@ -46,4 +46,4 @@ function testBootstrapAPIs() {
   return 0;
 }
 
-testBootstrapAPIs();
+process.exit(testBootstrapAPIs());

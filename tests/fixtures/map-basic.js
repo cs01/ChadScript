@@ -7,4 +7,4 @@ function testMap() {
   return m.get(2);
 }
 
-testMap();
+process.exit(testMap());

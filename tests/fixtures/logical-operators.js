@@ -10,4 +10,4 @@ function testNot(a) {
   return !a;
 }
 
-testOr(0, 5);
+process.exit(testOr(0, 5));

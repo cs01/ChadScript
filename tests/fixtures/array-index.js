@@ -3,4 +3,4 @@ function test() {
   return arr[1];
 }
 
-test();
+process.exit(test());

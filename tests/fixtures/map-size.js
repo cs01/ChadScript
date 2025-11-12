@@ -7,4 +7,4 @@ function testMapSize() {
   return m.size;
 }
 
-testMapSize();
+process.exit(testMapSize());

@@ -108,6 +108,8 @@ export class LLVMGenerator extends BaseGenerator {
     this.classGen.generateExpression = this.generateExpression.bind(this);
     this.classGen.generateBlock = this.generateBlock.bind(this);
     this.regexGen.generateExpression = this.generateExpression.bind(this);
+    // Pass AST to classGen for method lookups
+    (this.classGen as any).ast = ast;
 
     // Override counter methods to use parent's counters
     for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen, this.regexGen]) {

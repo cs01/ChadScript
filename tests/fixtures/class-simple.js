@@ -8,4 +8,4 @@ class Point {
   }
 }
 
-new Point(10, 20);
+process.exit(new Point(10, 20));

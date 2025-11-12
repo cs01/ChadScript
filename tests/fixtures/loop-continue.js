@@ -9,4 +9,4 @@ function sumSkipThree(n) {
   return sum;
 }
 
-sumSkipThree(5);
+process.exit(sumSkipThree(5));

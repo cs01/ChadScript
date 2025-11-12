@@ -6,4 +6,4 @@ function abs(x) {
   return result;
 }
 
-abs(0 - 42);
+process.exit(abs(0 - 42));

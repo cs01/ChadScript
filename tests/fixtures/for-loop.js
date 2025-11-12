@@ -6,4 +6,4 @@ function sumRange(n) {
   return sum;
 }
 
-sumRange(10);
+process.exit(sumRange(10));

@@ -18,4 +18,4 @@ function main() {
   return result;
 }
 
-main();
+process.exit(main());

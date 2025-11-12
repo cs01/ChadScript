@@ -8,5 +8,5 @@ class Counter {
   }
 }
 
-new Counter(10).getValue();
+process.exit(new Counter(10).getValue());
 

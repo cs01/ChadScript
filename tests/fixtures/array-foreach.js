@@ -8,4 +8,4 @@ function testForEach() {
   return 10;
 }
 
-testForEach();
+process.exit(testForEach());

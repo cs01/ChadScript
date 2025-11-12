@@ -7,4 +7,4 @@ function test() {
   return result.length;
 }
 
-test();
+process.exit(test());

@@ -4,4 +4,4 @@ function calculate(a, b) {
   return point.x - point.y;
 }
 
-calculate(10, 3);
+process.exit(calculate(10, 3));

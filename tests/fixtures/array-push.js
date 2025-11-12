@@ -4,4 +4,4 @@ function testPush() {
   return newLen;
 }
 
-testPush();
+process.exit(testPush());

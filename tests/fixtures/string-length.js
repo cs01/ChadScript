@@ -3,4 +3,4 @@ function getLength() {
   return str.length;
 }
 
-getLength();
+process.exit(getLength());

@@ -3,4 +3,4 @@ function complex(a, b, c, d) {
   return a * b + c - d;
 }
 
-complex(5, 6, 10, 8);
+process.exit(complex(5, 6, 10, 8));

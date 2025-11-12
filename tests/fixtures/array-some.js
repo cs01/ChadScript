@@ -7,4 +7,4 @@ function testSome() {
   return arr.some(isGreaterThan5);
 }
 
-testSome();
+process.exit(testSome());
