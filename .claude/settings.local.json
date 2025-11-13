@@ -92,7 +92,9 @@
       "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"simple-add\" tests/compiler.test.ts)",
       "Bash(node --import tsx --test --test-reporter=spec --test-name-pattern=\"Array\" tests/compiler.test.ts)",
       "Bash(tee:*)",
-      "Bash(./tests/fixtures/array-some)"
+      "Bash(./tests/fixtures/array-some)",
+      "Bash(../../dist/index.js array-some.js)",
+      "Bash(./tests/fixtures/function-expression)"
     ],
     "deny": [],
     "ask": []

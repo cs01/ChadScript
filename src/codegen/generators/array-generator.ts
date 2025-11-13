@@ -659,8 +659,10 @@ export class ArrayGenerator extends BaseGenerator {
 
     // End
     this.emit(`${endLabel}:`);
+    const resultI32 = this.nextTemp();
+    this.emit(`${resultI32} = load i32, i32* ${resultPtr}`);
     const result = this.nextTemp();
-    this.emit(`${result} = load double, double* ${resultPtr}`);
+    this.emit(`${result} = sitofp i32 ${resultI32} to double`);
     return result;
   }
 
@@ -702,7 +704,7 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Allocate data array on heap
     const dataSize = this.nextTemp();
-    this.emit(`${dataSize} = mul i32 ${length}, 4`); // 4 bytes per i32
+    this.emit(`${dataSize} = mul i32 ${length}, 8`); // 8 bytes per double
     const dataSizeI64 = this.nextTemp();
     this.emit(`${dataSizeI64} = zext i32 ${dataSize} to i64`);
     const dataMem = this.nextTemp();
@@ -906,7 +908,7 @@ export class ArrayGenerator extends BaseGenerator {
 
     // Allocate data for result array
     const resultSize = this.nextTemp();
-    this.emit(`${resultSize} = mul i32 ${length}, 4`);
+    this.emit(`${resultSize} = mul i32 ${length}, 8`); // 8 bytes per double
     const resultSizeI64 = this.nextTemp();
     this.emit(`${resultSizeI64} = zext i32 ${resultSize} to i64`);
     const resultMem = this.nextTemp();
