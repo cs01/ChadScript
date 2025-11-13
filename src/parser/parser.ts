@@ -77,6 +77,36 @@ export class Parser {
     return result;
   }
 
+  /**
+   * Main entry point for parsing. Converts source code to Abstract Syntax Tree.
+   * Uses recursive descent parsing with operator precedence climbing.
+   *
+   * @example
+   * Input: "function add(a, b) { return a + b; }"
+   *
+   * Output:
+   * {
+   *   imports: [],
+   *   exports: [],
+   *   functions: [{
+   *     type: 'function',
+   *     name: 'add',
+   *     params: ['a', 'b'],
+   *     body: {
+   *       statements: [{
+   *         type: 'return',
+   *         value: { type: 'binary', op: '+', left: {...}, right: {...} }
+   *       }]
+   *     }
+   *   }],
+   *   classes: [],
+   *   topLevelStatements: [],
+   *   topLevelExpressions: []
+   * }
+   *
+   * @returns Complete AST for the entire source file
+   * @throws Error with formatted error message if syntax is invalid
+   */
   parse(): AST {
     // Skip shebang if present at start of file
     if (this.pos === 0 && this.code.startsWith('#!')) {
@@ -388,6 +418,29 @@ export class Parser {
     }
   }
 
+  /**
+   * Parses a function declaration.
+   * Handles parameter lists with optional TypeScript type annotations and return types.
+   *
+   * @example
+   * Input: "function add(a, b) { return a + b; }"
+   * Output: Adds to this.functions:
+   * {
+   *   name: 'add',
+   *   params: ['a', 'b'],
+   *   body: {
+   *     type: 'block',
+   *     statements: [{
+   *       type: 'return',
+   *       value: { type: 'binary', op: '+', left: {...}, right: {...} }
+   *     }]
+   *   }
+   * }
+   *
+   * @example
+   * Input: "function greet(name: string): string { return name; }"
+   * Output: Same structure, TypeScript annotations are skipped during parsing
+   */
   private parseFunction(): void {
     const name = this.parseIdentifier();
     this.expect('(');
@@ -438,6 +491,35 @@ export class Parser {
     this.functions.push({ name, params, body });
   }
 
+  /**
+   * Parses a class declaration with fields, methods, and optional inheritance.
+   * Supports TypeScript-style field declarations with type annotations.
+   *
+   * @example
+   * Input:
+   * class Counter {
+   *   value: number;
+   *   constructor(initial: number) { this.value = initial; }
+   *   increment() { this.value = this.value + 1; }
+   *   getValue(): number { return this.value; }
+   * }
+   *
+   * Output: Adds to this.classes:
+   * {
+   *   name: 'Counter',
+   *   extends: undefined,
+   *   fields: [{ name: 'value', fieldType: 'double' }],
+   *   methods: [
+   *     { type: 'method', name: 'constructor', params: ['initial'], body: {...}, isConstructor: true },
+   *     { type: 'method', name: 'increment', params: [], body: {...}, isConstructor: false },
+   *     { type: 'method', name: 'getValue', params: [], body: {...}, isConstructor: false }
+   *   ]
+   * }
+   *
+   * @example
+   * Input: "class Dog extends Animal { name: string; }"
+   * Output: Same structure with extends: 'Animal'
+   */
   private parseClass(): void {
     const className = this.parseIdentifier();
 
@@ -609,6 +691,28 @@ export class Parser {
     return { type: 'block', statements };
   }
 
+  /**
+   * Parses a single statement (variable declaration, control flow, expression, etc.).
+   * Dispatches to specific parsing functions based on keyword or structure.
+   *
+   * @example
+   * // Variable declaration
+   * Input: "let x = 5;"
+   * Output: { type: 'variable_declaration', kind: 'let', name: 'x',
+   *           value: { type: 'number', value: 5 }}
+   *
+   * @example
+   * // Return statement
+   * Input: "return x + 1;"
+   * Output: { type: 'return', value: { type: 'binary', op: '+', ... }}
+   *
+   * @example
+   * // If statement
+   * Input: "if (x > 0) { return 1; }"
+   * Output: { type: 'if', condition: ..., thenBranch: ..., elseBranch: null }
+   *
+   * @returns Statement AST node
+   */
   private parseStatement(): Statement {
     this.skipWhitespace();
 
@@ -980,6 +1084,31 @@ export class Parser {
     return { type: 'variable_declaration', kind, name, value, declaredType };
   }
 
+  /**
+   * Parses any expression using operator precedence climbing.
+   * Entry point for expression parsing hierarchy.
+   *
+   * Precedence (low to high):
+   * 1. Conditional (ternary) - a ? b : c
+   * 2. Logical OR - a || b
+   * 3. Logical AND - a && b
+   * 4. Bitwise OR - a | b
+   * 5. Bitwise XOR - a ^ b
+   * 6. Bitwise AND - a & b
+   * 7. Comparison - a < b, a === b
+   * 8. Shift - a << b, a >> b
+   * 9. Additive - a + b, a - b
+   * 10. Multiplicative - a * b, a / b, a % b
+   * 11. Primary - literals, identifiers, calls
+   *
+   * @example
+   * Input: "5 + 3 * 2"
+   * Output: { type: 'binary', op: '+', left: { type: 'number', value: 5 },
+   *           right: { type: 'binary', op: '*', left: { type: 'number', value: 3 },
+   *                    right: { type: 'number', value: 2 }}}
+   *
+   * @returns Expression AST node
+   */
   private parseExpression(): Expression {
     return this.parseConditional();
   }
@@ -1206,6 +1335,41 @@ export class Parser {
     return left;
   }
 
+  /**
+   * Parses primary expressions (literals, identifiers, operators, constructors).
+   * This is the base level of the expression hierarchy, handling all terminal
+   * and prefix expressions before postfix operations like member/index access.
+   *
+   * Handles:
+   * - Literals: numbers, strings, booleans, null, undefined, arrays, objects
+   * - Keywords: new, this, super, void, typeof
+   * - Operators: unary (!, +, -), grouping (parentheses)
+   * - Functions: arrow functions, function expressions
+   * - Template literals with interpolation
+   * - Regular expressions
+   *
+   * @example
+   * Input: "42"
+   * Output: { type: 'number', value: 42 }
+   *
+   * @example
+   * Input: "new Counter(10)"
+   * Output: { type: 'new', className: 'Counter', args: [{ type: 'number', value: 10 }] }
+   *
+   * @example
+   * Input: "[1, 2, 3]"
+   * Output: { type: 'array', elements: [
+   *   { type: 'number', value: 1 },
+   *   { type: 'number', value: 2 },
+   *   { type: 'number', value: 3 }
+   * ]}
+   *
+   * @example
+   * Input: "x => x + 1"
+   * Output: { type: 'arrow_function', params: ['x'], body: { type: 'binary', op: '+', ... }}
+   *
+   * @returns Expression AST node
+   */
   private parsePrimary(): Expression {
     this.skipWhitespace();
 
