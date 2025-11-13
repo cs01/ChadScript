@@ -1,5 +1,6 @@
 import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, IfStatement, WhileStatement, ForStatement, ImportDeclaration, ExportDeclaration, ObjectNode, ArrayNode, MapNode, SetNode, ClassNode, ClassMethod, NewNode, ThisNode, SuperNode, TemplateLiteralNode, ArrowFunctionNode, StringNode } from '../ast/types.js';
 import { logger } from '../utils/logger.js';
+import { formatUnsupportedFeatureError, isUnsupportedKeyword } from './unsupported-features.js';
 
 // ============================================
 // PARSER
@@ -154,6 +155,9 @@ export class Parser {
         this.parseInterface();
       } else if (this.match('class')) {
         this.parseClass();
+      } else if (this.match('async')) {
+        // Check for async function/arrow - NOT SUPPORTED!
+        throw new Error(formatUnsupportedFeatureError('async'));
       } else if (this.match('function')) {
         this.parseFunction();
       } else if (this.match('let') || this.match('const') || this.match('var')) {
@@ -193,6 +197,11 @@ export class Parser {
             this.topLevelExpressions.push(expr as any);
           }
         } catch (e) {
+          // Re-throw intentional errors for unsupported features
+          const errorMsg = (e as Error).message;
+          if (errorMsg && errorMsg.includes('is not supported in ChadScript')) {
+            throw e;
+          }
           // If parsing fails and position hasn't advanced, show error to avoid infinite loop
           if (this.pos === savedPos) {
             const msg = this.formatError('Unexpected token') +
@@ -1425,12 +1434,19 @@ export class Parser {
       return { type: 'number', value: 0 };
     }
 
-    // Check for 'typeof' operator - for now, just parse and ignore the operand, return "object"
+    // Check for 'await' keyword - NOT SUPPORTED in AOT compilation!
+    if (this.match('await')) {
+      throw new Error(formatUnsupportedFeatureError('await'));
+    }
+
+    // Check for 'typeof' operator - NOT SUPPORTED in AOT compilation!
     if (this.match('typeof')) {
-      // Parse the operand
-      this.parsePrimary();
-      // For bootstrap purposes, always return "string" type (most common)
-      return { type: 'string', value: 'string' };
+      throw new Error(formatUnsupportedFeatureError('typeof'));
+    }
+
+    // Check for 'instanceof' operator - NOT SUPPORTED in AOT compilation!
+    if (this.match('instanceof')) {
+      throw new Error(formatUnsupportedFeatureError('instanceof'));
     }
 
     // Check for unary ! operator
@@ -1703,12 +1719,24 @@ export class Parser {
       if (!name) return null;
       return this.parseFunctionCallWithName(name);
     } catch (e) {
+      // Re-throw intentional errors for unsupported features
+      // These contain our formatted error messages and should not be caught
+      const errorMsg = (e as Error).message;
+      if (errorMsg && errorMsg.includes('is not supported in ChadScript')) {
+        throw e;
+      }
+      // For parse errors, backtrack and return null
       this.pos = savedPos;
       return null;
     }
   }
 
   private parseFunctionCallWithName(name: string): CallNode {
+    // Check for unsupported eval() - dynamic code execution not supported in AOT!
+    if (name === 'eval') {
+      throw new Error(formatUnsupportedFeatureError('eval'));
+    }
+
     this.expect('(');
 
     const args: Expression[] = [];
@@ -2149,6 +2177,19 @@ export class Parser {
   }
 
   private parseMethodCall(object: Expression, methodName: string): MethodCallNode {
+    // Check for unsupported Object.* methods
+    if (object.type === 'variable' && (object as any).name === 'Object') {
+      if (methodName === 'keys') {
+        throw new Error(formatUnsupportedFeatureError('Object.keys'));
+      }
+      if (methodName === 'values') {
+        throw new Error(formatUnsupportedFeatureError('Object.values'));
+      }
+      if (methodName === 'entries') {
+        throw new Error(formatUnsupportedFeatureError('Object.entries'));
+      }
+    }
+
     this.expect('(');
     const args: Expression[] = [];
     this.skipWhitespace();
