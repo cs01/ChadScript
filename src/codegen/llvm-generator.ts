@@ -16,7 +16,7 @@ import { logger } from '../utils/logger.js';
 // ============================================
 
 export class LLVMGenerator extends BaseGenerator {
-  private ast: AST;
+  public ast: AST; // Public for IGeneratorContext
   private typeChecker: TypeChecker | null;
   private externalFunctions: Set<string> = new Set();
   private liftedFunctions: FunctionNode[] = []; // Anonymous functions lifted to top level
@@ -99,7 +99,11 @@ export class LLVMGenerator extends BaseGenerator {
     this.ast = ast;
     this.typeChecker = typeChecker;
 
-    // Initialize specialized generators
+    // Initialize specialized generators with context (NEW pattern for RegexGenerator)
+    // RegexGenerator now uses explicit context instead of callback binding
+    this.regexGen = new RegexGenerator(this); // 'this' implements IGeneratorContext
+
+    // Legacy generators still use old pattern (will migrate gradually)
     this.arrayGen = new ArrayGenerator();
     this.stringGen = new StringGenerator();
     this.objectGen = new ObjectGenerator();
@@ -107,9 +111,8 @@ export class LLVMGenerator extends BaseGenerator {
     this.setGen = new SetGenerator();
     this.controlFlowGen = new ControlFlowGenerator();
     this.classGen = new ClassGenerator();
-    this.regexGen = new RegexGenerator();
 
-    // Wire up delegates so sub-generators can call back
+    // Wire up delegates for legacy generators
     this.arrayGen.generateExpression = this.generateExpression.bind(this);
     this.stringGen.generateExpression = this.generateExpression.bind(this);
     this.stringGen.isStringExpression = this.isStringExpression.bind(this);
@@ -121,12 +124,11 @@ export class LLVMGenerator extends BaseGenerator {
     this.classGen.generateExpression = this.generateExpression.bind(this);
     this.classGen.generateBlock = this.generateBlock.bind(this);
     this.classGen.setReturnType = (type: string) => { this.currentFunctionReturnType = type; };
-    this.regexGen.generateExpression = this.generateExpression.bind(this);
     // Pass AST to classGen for method lookups
     (this.classGen as any).ast = ast;
 
-    // Override counter methods to use parent's counters
-    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen, this.regexGen]) {
+    // Override counter methods for legacy generators
+    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
       gen.nextTemp = this.nextTemp.bind(this);
       gen.nextLabel = this.nextLabel.bind(this);
       gen.nextString = this.nextString.bind(this);
@@ -500,7 +502,7 @@ export class LLVMGenerator extends BaseGenerator {
     return ir;
   }
 
-  private generateBlock(block: BlockStatement, params: string[]): string | null {
+  public generateBlock(block: BlockStatement, params: string[]): string | null {
     let lastValue: string | null = null;
     let hasTerminator = false;
 
@@ -899,7 +901,7 @@ export class LLVMGenerator extends BaseGenerator {
    * @param params - Function parameter names (for resolving variable references)
    * @returns LLVM register name containing the expression result (e.g., '%3')
    */
-  private generateExpression(expr: Expression, params: string[]): string {
+  public generateExpression(expr: Expression, params: string[]): string {
     if (expr.type === 'number') {
       const value = expr.value;
       const isInteger = Number.isInteger(value);
@@ -3240,7 +3242,7 @@ export class LLVMGenerator extends BaseGenerator {
     }
   }
 
-  private isArrayExpression(expr: Expression): boolean {
+  public isArrayExpression(expr: Expression): boolean {
     if (expr.type === 'array') {
       return true;
     }
@@ -3285,7 +3287,7 @@ export class LLVMGenerator extends BaseGenerator {
     return false;
   }
 
-  private isObjectExpression(expr: Expression): boolean {
+  public isObjectExpression(expr: Expression): boolean {
     if ((expr as any).type === 'object') {
       return true;
     }
@@ -3315,7 +3317,7 @@ export class LLVMGenerator extends BaseGenerator {
     return false;
   }
 
-  private isStringExpression(expr: Expression): boolean {
+  public isStringExpression(expr: Expression): boolean {
     if (expr.type === 'string') {
       return true;
     }
@@ -3506,7 +3508,7 @@ export class LLVMGenerator extends BaseGenerator {
     return false;
   }
 
-  private isStringArrayExpression(expr: Expression): boolean {
+  public isStringArrayExpression(expr: Expression): boolean {
     if (expr.type === 'variable') {
       // Check both stringArrayVariables (legacy) and variableTypes (new system)
       if (this.stringArrayVariables.has(expr.name)) {
@@ -4038,8 +4040,9 @@ export class LLVMGenerator extends BaseGenerator {
 
   // Sync state to sub-generators - share Maps/arrays by reference
   // Note: Counters are already shared via bound methods (nextTemp, nextLabel, nextString)
+  // Note: regexGen excluded - uses context pattern instead of state sharing
   private syncStateToGenerators() {
-    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen, this.regexGen]) {
+    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
       gen.output = this.output;
       gen.globalStrings = this.globalStrings;
       gen.variables = this.variables;

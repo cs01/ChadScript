@@ -1,17 +1,23 @@
 import { Expression } from '../../ast/types.js';
-import { BaseGenerator } from './base-generator.js';
+import { IGeneratorContext } from '../generator-context.js';
 
 // ============================================
 // REGEX GENERATOR - Regex operations
 // ============================================
 
-export class RegexGenerator extends BaseGenerator {
-  // Generate delegate for expressions (set by LLVMGenerator)
-  generateExpression!: (expr: Expression, params: string[]) => string;
+/**
+ * Regex generator with explicit context dependency.
+ * No longer uses callback binding - receives context via constructor.
+ */
+export class RegexGenerator {
+  constructor(private ctx: IGeneratorContext) {}
 
-  constructor() {
-    super();
-  }
+  // Helper methods delegate to context
+  private nextTemp() { return this.ctx.nextTemp(); }
+  private nextString() { return this.ctx.nextString(); }
+  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private get globalStrings() { return this.ctx.globalStrings; }
+  private get variableTypes() { return (this.ctx as any).variableTypes; } // Legacy map
 
   // Compile a regex pattern and return a pointer to the compiled regex
   // Returns a pointer to regex_t struct (i8*)
