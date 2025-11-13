@@ -1919,6 +1919,77 @@ export class LLVMGenerator extends BaseGenerator {
         return resultDouble;
       }
 
+      // Handle C built-in functions with proper signatures
+      if (expr.name === 'malloc') {
+        // malloc(size: number) -> i8*
+        const sizeDouble = this.generateExpression(expr.args[0], params);
+        const sizeI64 = this.nextTemp();
+        this.emit(`${sizeI64} = fptosi double ${sizeDouble} to i64`);
+        const result = this.nextTemp();
+        this.emit(`${result} = call i8* @malloc(i64 ${sizeI64})`);
+        // Store pointer as i32 for compatibility
+        const resultI32 = this.nextTemp();
+        this.emit(`${resultI32} = ptrtoint i8* ${result} to i32`);
+        const resultDouble = this.nextTemp();
+        this.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
+        return resultDouble;
+      }
+
+      if (expr.name === 'free') {
+        // free(ptr: number) -> void
+        const ptrDouble = this.generateExpression(expr.args[0], params);
+        const ptrI32 = this.nextTemp();
+        this.emit(`${ptrI32} = fptosi double ${ptrDouble} to i32`);
+        const ptr = this.nextTemp();
+        this.emit(`${ptr} = inttoptr i32 ${ptrI32} to i8*`);
+        this.emit(`call void @free(i8* ${ptr})`);
+        return '0.0'; // Return dummy value
+      }
+
+      if (expr.name === 'socket') {
+        // socket(domain: number, type: number, protocol: number) -> i32
+        const domainDouble = this.generateExpression(expr.args[0], params);
+        const typeDouble = this.generateExpression(expr.args[1], params);
+        const protocolDouble = this.generateExpression(expr.args[2], params);
+        const domain = this.nextTemp();
+        this.emit(`${domain} = fptosi double ${domainDouble} to i32`);
+        const type = this.nextTemp();
+        this.emit(`${type} = fptosi double ${typeDouble} to i32`);
+        const protocol = this.nextTemp();
+        this.emit(`${protocol} = fptosi double ${protocolDouble} to i32`);
+        const resultI32 = this.nextTemp();
+        this.emit(`${resultI32} = call i32 @socket(i32 ${domain}, i32 ${type}, i32 ${protocol})`);
+        const resultDouble = this.nextTemp();
+        this.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
+        return resultDouble;
+      }
+
+      if (expr.name === 'close') {
+        // close(fd: number) -> i32
+        const fdDouble = this.generateExpression(expr.args[0], params);
+        const fd = this.nextTemp();
+        this.emit(`${fd} = fptosi double ${fdDouble} to i32`);
+        const resultI32 = this.nextTemp();
+        this.emit(`${resultI32} = call i32 @close(i32 ${fd})`);
+        const resultDouble = this.nextTemp();
+        this.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
+        return resultDouble;
+      }
+
+      if (expr.name === 'htons') {
+        // htons(hostshort: number) -> i16
+        const hostshortDouble = this.generateExpression(expr.args[0], params);
+        const hostshort = this.nextTemp();
+        this.emit(`${hostshort} = fptosi double ${hostshortDouble} to i16`);
+        const resultI16 = this.nextTemp();
+        this.emit(`${resultI16} = call i16 @htons(i16 ${hostshort})`);
+        const resultI32 = this.nextTemp();
+        this.emit(`${resultI32} = zext i16 ${resultI16} to i32`);
+        const resultDouble = this.nextTemp();
+        this.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
+        return resultDouble;
+      }
+
       // Get function type from type checker for correct parameter/return types
       let returnType = 'double';
       let paramTypes: string[] = [];

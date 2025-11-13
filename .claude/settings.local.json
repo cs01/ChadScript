@@ -95,7 +95,8 @@
       "Bash(./tests/fixtures/array-some)",
       "Bash(../../dist/index.js array-some.js)",
       "Bash(./tests/fixtures/function-expression)",
-      "Bash(./tests/fixtures/class-basic)"
+      "Bash(./tests/fixtures/class-basic)",
+      "Bash(/tmp/tcp-test)"
     ],
     "deny": [],
     "ask": []
