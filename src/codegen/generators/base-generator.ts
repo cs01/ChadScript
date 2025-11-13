@@ -1,4 +1,8 @@
 import { Expression } from '../../ast/types.js';
+import { SymbolTable, SymbolKind } from '../symbol-table.js';
+
+// Re-export for convenience
+export { SymbolTable, SymbolKind };
 
 // ============================================
 // BASE GENERATOR - Shared state and utilities
@@ -12,12 +16,15 @@ export class BaseGenerator {
   public globalStrings: string[] = [];
   public currentLabel: string = 'entry'; // Track current basic block label
 
-  // Variable tracking
+  // Unified symbol table (NEW - replaces all 12 maps below)
+  public symbolTable: SymbolTable = new SymbolTable();
+
+  // Variable tracking (LEGACY - kept for backward compatibility during migration)
   public variables: Map<string, string> = new Map(); // Variable name -> alloca register
   public variableTypes: Map<string, string> = new Map(); // Variable name -> LLVM type (e.g., 'i32', 'i8*', '%Array*')
-  public stringVariables: Map<string, string> = new Map(); // i8* variables (deprecated - use variableTypes)
-  public arrayVariables: Map<string, string> = new Map(); // %Array variables (deprecated - use variableTypes)
-  public stringArrayVariables: Map<string, string> = new Map(); // %StringArray variables (deprecated - use variableTypes)
+  public stringVariables: Map<string, string> = new Map(); // i8* variables (deprecated - use symbolTable)
+  public arrayVariables: Map<string, string> = new Map(); // %Array variables (deprecated - use symbolTable)
+  public stringArrayVariables: Map<string, string> = new Map(); // %StringArray variables (deprecated - use symbolTable)
   public objectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }> = new Map();
   public mapVariables: Map<string, string> = new Map(); // %Map variables
   public setVariables: Map<string, string> = new Map(); // %Set variables
@@ -38,6 +45,11 @@ export class BaseGenerator {
     this.labelCounter = 0;
     this.currentLabel = 'entry';
     this.output = [];
+
+    // Clear unified symbol table
+    this.symbolTable.clear();
+
+    // Clear legacy maps (for backward compatibility during migration)
     this.variables = new Map();
     this.variableTypes = new Map();  // CRITICAL: Clear type tracking!
     this.stringVariables = new Map();
@@ -108,5 +120,80 @@ export class BaseGenerator {
   // Get global strings
   getGlobalStrings(): string[] {
     return this.globalStrings;
+  }
+
+  // ============================================
+  // Adapter methods for gradual SymbolTable migration
+  // These methods update BOTH old maps and new SymbolTable
+  // ============================================
+
+  /**
+   * Define a variable in both legacy maps and new SymbolTable
+   */
+  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global' = 'local', metadata?: any) {
+    // Update legacy maps
+    this.variables.set(name, allocaReg);
+    this.variableTypes.set(name, llvmType);
+
+    // Update specific legacy maps based on kind
+    if (kind === SymbolKind.String) {
+      this.stringVariables.set(name, allocaReg);
+    } else if (kind === SymbolKind.Array) {
+      this.arrayVariables.set(name, allocaReg);
+    } else if (kind === SymbolKind.StringArray) {
+      this.stringArrayVariables.set(name, allocaReg);
+    } else if (kind === SymbolKind.Object && metadata?.objectMetadata) {
+      this.objectVariables.set(name, {
+        ptr: allocaReg,
+        keys: metadata.objectMetadata.keys,
+        types: metadata.objectMetadata.types
+      });
+    } else if (kind === SymbolKind.Map) {
+      this.mapVariables.set(name, allocaReg);
+    } else if (kind === SymbolKind.Set) {
+      this.setVariables.set(name, allocaReg);
+    } else if (kind === SymbolKind.Class && metadata?.classMetadata) {
+      this.classInstanceVariables.set(name, {
+        ptr: allocaReg,
+        className: metadata.classMetadata.className
+      });
+    } else if (kind === SymbolKind.Regex) {
+      this.regexVariables.set(name, allocaReg);
+    } else if (kind === SymbolKind.JSON) {
+      this.jsonObjectVariables.set(name, allocaReg);
+    } else if (kind === SymbolKind.ProcessArgv) {
+      this.processArgvVariables.add(name);
+    }
+
+    // Update new SymbolTable
+    this.symbolTable.define(name, kind, llvmType, allocaReg, scope, metadata);
+  }
+
+  /**
+   * Lookup variable type (checks SymbolTable first, falls back to legacy)
+   */
+  getVariableType(name: string): string | undefined {
+    return this.symbolTable.getType(name) || this.variableTypes.get(name);
+  }
+
+  /**
+   * Lookup variable alloca (checks SymbolTable first, falls back to legacy)
+   */
+  getVariableAlloca(name: string): string | undefined {
+    return this.symbolTable.getAlloca(name) || this.variables.get(name);
+  }
+
+  /**
+   * Check if variable is a string (checks SymbolTable first)
+   */
+  isStringVariable(name: string): boolean {
+    return this.symbolTable.isString(name) || this.stringVariables.has(name);
+  }
+
+  /**
+   * Check if variable is an array (checks SymbolTable first)
+   */
+  isArrayVariable(name: string): boolean {
+    return this.symbolTable.isArray(name) || this.arrayVariables.has(name) || this.stringArrayVariables.has(name);
   }
 }
