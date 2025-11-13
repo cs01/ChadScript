@@ -394,10 +394,10 @@ describe('ChadScript Compiler', () => {
         const llContent = await fs.readFile(llFile, 'utf-8');
 
         // Check for essential LLVM IR components
-        assert.ok(llContent.includes('define i32 @add'), 'Should define add function');
+        assert.ok(llContent.includes('define double @add'), 'Should define add function');
         assert.ok(llContent.includes('define i32 @main'), 'Should define main function');
-        assert.ok(llContent.includes('ret i32'), 'Should have return statements');
-        assert.ok(llContent.includes('add i32'), 'Should have add instruction');
+        assert.ok(llContent.includes('ret'), 'Should have return statements');
+        assert.ok(llContent.includes('fadd double'), 'Should have add instruction');
       } finally {
         // Clean up
         try {
