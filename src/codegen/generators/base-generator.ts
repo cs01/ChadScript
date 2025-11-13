@@ -81,6 +81,15 @@ export class BaseGenerator {
     return `@.str.${this.stringCounter++}`;
   }
 
+  // Helper to get size of double in i64 (platform-independent)
+  getDoubleSize(): string {
+    const sizePtr = this.nextTemp();
+    this.emit(`${sizePtr} = getelementptr double, double* null, i32 1`);
+    const size = this.nextTemp();
+    this.emit(`${size} = ptrtoint double* ${sizePtr} to i64`);
+    return size;
+  }
+
   // Add instruction to output
   emit(instruction: string) {
     this.output.push(instruction);

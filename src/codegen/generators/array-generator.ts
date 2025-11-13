@@ -336,10 +336,7 @@ export class ArrayGenerator extends BaseGenerator {
     const newDataI8 = this.nextTemp();
     this.emit(`${newDataI8} = bitcast double* ${newDataPtr} to i8*`);
     // Compute copy size dynamically based on double size
-    const doubleSizePtr = this.nextTemp();
-    this.emit(`${doubleSizePtr} = getelementptr double, double* null, i32 1`);
-    const doubleSize = this.nextTemp();
-    this.emit(`${doubleSize} = ptrtoint double* ${doubleSizePtr} to i64`);
+    const doubleSize = this.getDoubleSize();
     const currentLenI64 = this.nextTemp();
     this.emit(`${currentLenI64} = zext i32 ${currentLen} to i64`);
     const copySizeI64 = this.nextTemp();
@@ -708,10 +705,7 @@ export class ArrayGenerator extends BaseGenerator {
     this.emit(`${resultArrayPtr} = alloca %Array`);
 
     // Allocate data array on heap - compute size of double dynamically
-    const doubleSizePtr = this.nextTemp();
-    this.emit(`${doubleSizePtr} = getelementptr double, double* null, i32 1`);
-    const doubleSize = this.nextTemp();
-    this.emit(`${doubleSize} = ptrtoint double* ${doubleSizePtr} to i64`);
+    const doubleSize = this.getDoubleSize();
     const lengthI64 = this.nextTemp();
     this.emit(`${lengthI64} = zext i32 ${length} to i64`);
     const dataSizeI64 = this.nextTemp();
@@ -916,10 +910,7 @@ export class ArrayGenerator extends BaseGenerator {
     this.emit(`${resultArrayPtr} = alloca %Array`);
 
     // Allocate data for result array - compute size of double dynamically
-    const doubleSizePtr = this.nextTemp();
-    this.emit(`${doubleSizePtr} = getelementptr double, double* null, i32 1`);
-    const doubleSize = this.nextTemp();
-    this.emit(`${doubleSize} = ptrtoint double* ${doubleSizePtr} to i64`);
+    const doubleSize = this.getDoubleSize();
     const lengthI64 = this.nextTemp();
     this.emit(`${lengthI64} = zext i32 ${length} to i64`);
     const resultSizeI64 = this.nextTemp();

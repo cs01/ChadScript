@@ -2938,14 +2938,31 @@ export class LLVMGenerator extends BaseGenerator {
         throw new Error(`Function ${method} not found for object method call`);
       }
 
+      // Get function type from type checker for correct parameter/return types
+      let returnType = 'double';
+      let paramTypes: string[] = [];
+
+      if (this.typeChecker) {
+        try {
+          const funcType = this.typeChecker.getFunctionType(method);
+          if (funcType) {
+            returnType = funcType.returnType === 'string' ? 'i8*' : 'double';
+            paramTypes = funcType.parameters.map(p => p.type === 'string' ? 'i8*' : 'double');
+          }
+        } catch (e) {
+          // Fall back to double
+        }
+      }
+
       // Generate arguments
-      const args = expr.args.map(arg => {
+      const args = expr.args.map((arg, i) => {
         const result = this.generateExpression(arg, params);
-        return `i32 ${result}`;
+        const paramType = paramTypes[i] || 'double';
+        return `${paramType} ${result}`;
       }).join(', ');
 
       const temp = this.nextTemp();
-      this.emit(`${temp} = call i32 @${method}(${args})`);
+      this.emit(`${temp} = call ${returnType} @${method}(${args})`);
       return temp;
     }
 
