@@ -13,6 +13,9 @@ examples/add
 examples/multiply
 tests/fixtures/*
 !tests/fixtures/*.js
+!tests/fixtures/*.ts
+!tests/fixtures/README.md
+!tests/fixtures/*/
 
 # TypeScript
 *.tsbuildinfo
