@@ -33,7 +33,7 @@ npx tsx src/index.ts myfile.ts        # Compiles to ./myfile
 
 | TypeScript Type | LLVM Type | Native Size | Notes |
 |----------------|-----------|-------------|-------|
-| `number` | `i32` | 4 bytes | 32-bit signed integer |
+| `number` | `double` | 8 bytes | 64-bit floating point |
 | `string` | `i8*` | 8 bytes (ptr) | C-style null-terminated string |
 | `boolean` | `i32` | 4 bytes | 0 = false, 1 = true |
 | `Array<T>` | `%Array*` | 8 bytes (ptr) | Dynamic array struct |
@@ -50,14 +50,14 @@ Interfaces define struct layouts at compile-time:
 ```typescript
 interface User {
   name: string;    // offset 0: i8*
-  age: number;     // offset 8: i32
-  active: boolean; // offset 12: i32
+  age: number;     // offset 8: double
+  active: boolean; // offset 16: double
 }
 ```
 
 Compiles to LLVM struct:
 ```llvm
-%User = type { i8*, i32, i32 }  ; 16 bytes + padding
+%User = type { i8*, double, double }  ; 24 bytes
 ```
 
 **Important:** Property order matters! Fields are laid out in declaration order.
@@ -146,8 +146,7 @@ These features require runtime capabilities that don't exist in AOT-compiled nat
 - **Default parameters:** `function f(x = 10)` - specify all args
 - **Object methods:** `{ add(x) { } }` - use regular functions
 - **Computed property names:** `{ [key]: value }`
-- **BigInt:** `123n` - use regular numbers (32-bit limit)
-- **Float:** All numbers are integers (no `3.14`)
+- **BigInt:** `123n` - use regular numbers instead
 
 ### 🔧 Workarounds
 
@@ -308,18 +307,18 @@ console.log(x);
 Structs are packed in memory. Smaller types first reduces padding:
 
 ```typescript
-// ⚠️ Suboptimal: 24 bytes (padding between bool and string)
+// ⚠️ Suboptimal: 32 bytes (poor packing)
 interface BadLayout {
-  flag: boolean;    // 4 bytes (i32)
+  flag: boolean;    // 8 bytes (double)
   name: string;     // 8 bytes (i8*)
-  count: number;    // 4 bytes (i32)
+  count: number;    // 8 bytes (double)
 }
 
-// ✅ Better: 16 bytes (pointers first)
+// ✅ Better: 24 bytes (pointers first, numbers together)
 interface GoodLayout {
   name: string;     // 8 bytes (i8*)
-  count: number;    // 4 bytes (i32)
-  flag: boolean;    // 4 bytes (i32)
+  count: number;    // 8 bytes (double)
+  flag: boolean;    // 8 bytes (double)
 }
 ```
 
@@ -354,13 +353,13 @@ See `tests/fixtures/` for 70+ working examples:
 ## FAQ
 
 **Q: Why does my .ts file fail to compile?**
-A: ChadScript transpiles TypeScript to JavaScript first (removing types), then compiles. If you see "Unexpected token", you're using unsupported syntax like destructuring or optional chaining.
+A: If you see "Unexpected token", you're using unsupported syntax like destructuring or optional chaining. ChadScript uses TypeScript types to generate efficient native code, but doesn't support all TypeScript syntax.
 
 **Q: Can I use existing TypeScript libraries?**
 A: No. ChadScript compiles to native code without a JavaScript runtime. Only built-in functions (console, fs, etc.) are supported.
 
-**Q: Why no floating point?**
-A: ChadScript uses `i32` (32-bit integers) for simplicity. Floats may be added later as `f32`/`f64`.
+**Q: Does ChadScript support floating point?**
+A: Yes. The `number` type maps to `double` (64-bit float) in LLVM, supporting decimal values like `3.14`. All numeric operations use floating point arithmetic.
 
 **Q: How do I debug?**
 A: Use `console.log()` statements. The compiler generates LLVM IR (`.ll` files) you can inspect.

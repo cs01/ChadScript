@@ -270,8 +270,6 @@ npx tsx src/index.ts examples/word-count.ts
 
 ## Limitations
 
-**Integer-only:** No floats yet. `150 / 100 = 1` (truncates). Use fixed-point math for decimals.
-
 **No npm packages:** Can't use Node modules - they depend on V8 runtime. Built-in APIs only.
 
 **No dynamic features:** No `eval`, `typeof`, `Object.keys()`, destructuring, spread, optional chaining.
@@ -314,9 +312,9 @@ TypeScript → JS (strip types) → AST (parser) → LLVM IR (codegen) → nativ
 
 | TypeScript | LLVM | Size |
 |-----------|------|------|
-| `number` | `i32` | 4B |
+| `number` | `double` | 8B |
 | `string` | `i8*` | 8B |
-| `boolean` | `i32` | 4B |
+| `boolean` | `double` | 8B |
 | `Array<T>`, `Map<K,V>`, `Set<T>` | pointer | 8B |
 | Interface | `struct*` | packed |
 
@@ -332,7 +330,7 @@ TypeScript → JS (strip types) → AST (parser) → LLVM IR (codegen) → nativ
 
 **Phase 2 Complete ✅:** Interfaces, networking, classes, try/catch, 53/53 tests passing
 
-**Phase 3 (Next):** Floats (`f32`/`f64`), memory write ops, HTTP parser, FFI, SIMD, optimizations, self-hosting
+**Phase 3 (Next):** Memory write ops, HTTP parser, FFI, SIMD, optimizations, self-hosting
 
 ## Performance Comparison
 
