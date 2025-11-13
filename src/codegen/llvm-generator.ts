@@ -369,6 +369,9 @@ export class LLVMGenerator extends BaseGenerator {
             paramTypes.push(paramType);
             if (paramType === 'string') {
               paramLLVMTypes.push('i8*');
+            } else if (paramType !== 'number' && paramType !== 'boolean') {
+              // Object/interface type - use i32 for object pointer
+              paramLLVMTypes.push('i32');
             } else {
               paramLLVMTypes.push('double');
             }
@@ -402,8 +405,14 @@ export class LLVMGenerator extends BaseGenerator {
         this.stringVariables.set(paramName, allocaReg);
         this.emit(`${allocaReg} = alloca i8*`);
         this.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
+      } else if (llvmType === 'i32') {
+        // Object/interface parameter (pointer stored as i32)
+        this.variables.set(paramName, allocaReg);
+        this.variableTypes.set(paramName, 'i32');
+        this.emit(`${allocaReg} = alloca i32`);
+        this.emit(`store i32 %arg${i}, i32* ${allocaReg}`);
       } else {
-        // Numeric parameter
+        // Numeric parameter (double)
         this.variables.set(paramName, allocaReg);
         this.emit(`${allocaReg} = alloca double`);
         this.emit(`store double %arg${i}, double* ${allocaReg}`);
@@ -716,19 +725,19 @@ export class LLVMGenerator extends BaseGenerator {
                     // Value is already an %Array* from array generation
                     this.emit(`store %Array* ${value}, %Array** ${fieldPtr}`);
                   } else {
-                    // Store i32
-                    this.emit(`store i32 ${value}, i32* ${fieldPtr}`);
+                    // Store double (JavaScript semantics)
+                    this.emit(`store double ${value}, double* ${fieldPtr}`);
                   }
                 } else {
-                  // Backward compat: no declared fields
-                  this.emit(`${fieldPtr} = getelementptr inbounds i32, i32* ${instancePtr}, i32 ${fieldInfo.index}`);
-                  this.emit(`store i32 ${value}, i32* ${fieldPtr}`);
+                  // Backward compat: no declared fields, use double*
+                  this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 ${fieldInfo.index}`);
+                  this.emit(`store double ${value}, double* ${fieldPtr}`);
                 }
               } else if (fields.length === 0) {
-                // Backward compat: no declared fields, use index 0
+                // Backward compat: no declared fields, use index 0 with double*
                 const fieldPtr = this.nextTemp();
-                this.emit(`${fieldPtr} = getelementptr inbounds i32, i32* ${instancePtr}, i32 0`);
-                this.emit(`store i32 ${value}, i32* ${fieldPtr}`);
+                this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 0`);
+                this.emit(`store double ${value}, double* ${fieldPtr}`);
               } else {
                 throw new Error(`Field '${property}' not found in class ${className}. Did you forget to declare it with a type annotation?`);
               }
@@ -901,7 +910,7 @@ export class LLVMGenerator extends BaseGenerator {
       const classInstanceMeta = this.classInstanceVariables.get(expr.name);
       if (classInstanceMeta) {
         const fields = this.classGen.getClassFields(classInstanceMeta.className);
-        const ptrType = fields.length > 0 ? `%${classInstanceMeta.className}_struct*` : 'i32*';
+        const ptrType = fields.length > 0 ? `%${classInstanceMeta.className}_struct*` : 'double*';
 
         const temp = this.nextTemp();
         this.emit(`${temp} = load ${ptrType}, ${ptrType}* ${classInstanceMeta.ptr}`);
@@ -1087,24 +1096,24 @@ export class LLVMGenerator extends BaseGenerator {
               this.arrayVariables.set(value, value);
               return value;
             } else {
-              // Load i32
+              // Load double (JavaScript semantics)
               const value = this.nextTemp();
-              this.emit(`${value} = load i32, i32* ${fieldPtr}`);
+              this.emit(`${value} = load double, double* ${fieldPtr}`);
               return value;
             }
           } else {
-            // Backward compat: no declared fields
-            this.emit(`${fieldPtr} = getelementptr inbounds i32, i32* ${instancePtr}, i32 ${fieldInfo.index}`);
+            // Backward compat: no declared fields, use double*
+            this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 ${fieldInfo.index}`);
             const value = this.nextTemp();
-            this.emit(`${value} = load i32, i32* ${fieldPtr}`);
+            this.emit(`${value} = load double, double* ${fieldPtr}`);
             return value;
           }
         } else if (fields.length === 0) {
-          // Backward compat: no declared fields, use index 0
+          // Backward compat: no declared fields, use index 0 with double*
           const fieldPtr = this.nextTemp();
-          this.emit(`${fieldPtr} = getelementptr inbounds i32, i32* ${instancePtr}, i32 0`);
+          this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 0`);
           const value = this.nextTemp();
-          this.emit(`${value} = load i32, i32* ${fieldPtr}`);
+          this.emit(`${value} = load double, double* ${fieldPtr}`);
           return value;
         } else {
           throw new Error(`Field '${expr.property}' not found in class ${className}. Did you forget to declare it with a type annotation?`);
@@ -1919,7 +1928,11 @@ export class LLVMGenerator extends BaseGenerator {
           const funcType = this.typeChecker.getFunctionType(expr.name);
           if (funcType) {
             returnType = funcType.returnType === 'string' ? 'i8*' : 'double';
-            paramTypes = funcType.parameters.map(p => p.type === 'string' ? 'i8*' : 'double');
+            paramTypes = funcType.parameters.map(p => {
+              if (p.type === 'string') return 'i8*';
+              if (p.type !== 'number' && p.type !== 'boolean') return 'i32'; // Object/interface
+              return 'double'; // number/boolean
+            });
           }
         } catch (e) {
           // Fall back to double

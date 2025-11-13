@@ -234,6 +234,9 @@ export class TypeChecker {
             paramType = 'number';
           } else if (type.flags & ts.TypeFlags.Boolean || type.flags & ts.TypeFlags.BooleanLiteral) {
             paramType = 'boolean';
+          } else if (type.flags & ts.TypeFlags.Object) {
+            // Object/interface type - return the type name (e.g., "Point")
+            paramType = this.checker.typeToString(type);
           }
         }
 

@@ -6,9 +6,9 @@ import { BaseGenerator } from './base-generator.js';
 // ============================================
 
 // Map structure in LLVM:
-// %Map = type { i32*, i32*, i32, i32 }
-// - i32* keys   - pointer to key array
-// - i32* values - pointer to value array
+// %Map = type { double*, double*, i32, i32 }
+// - double* keys   - pointer to key array (JavaScript semantics)
+// - double* values - pointer to value array (JavaScript semantics)
 // - i32 size    - number of entries
 // - i32 capacity - allocated capacity
 
@@ -33,31 +33,36 @@ export class MapGenerator extends BaseGenerator {
     // Initialize with empty arrays
     const initialCapacity = mapExpr.entries.length > 4 ? mapExpr.entries.length : 4;
 
-    // Allocate keys array
+    // Allocate keys array - use double* for JavaScript semantics
+    const doubleSize = this.getDoubleSize();
+    const keysCapI64 = this.nextTemp();
+    this.emit(`${keysCapI64} = zext i32 ${initialCapacity} to i64`);
     const keysSize = this.nextTemp();
-    this.emit(`${keysSize} = mul i64 ${initialCapacity}, 4`);
+    this.emit(`${keysSize} = mul i64 ${keysCapI64}, ${doubleSize}`);
     const keysMem = this.nextTemp();
     this.emit(`${keysMem} = call i8* @malloc(i64 ${keysSize})`);
     const keysPtr = this.nextTemp();
-    this.emit(`${keysPtr} = bitcast i8* ${keysMem} to i32*`);
+    this.emit(`${keysPtr} = bitcast i8* ${keysMem} to double*`);
 
-    // Allocate values array
+    // Allocate values array - use double* for JavaScript semantics
+    const valuesCapI64 = this.nextTemp();
+    this.emit(`${valuesCapI64} = zext i32 ${initialCapacity} to i64`);
     const valuesSize = this.nextTemp();
-    this.emit(`${valuesSize} = mul i64 ${initialCapacity}, 4`);
+    this.emit(`${valuesSize} = mul i64 ${valuesCapI64}, ${doubleSize}`);
     const valuesMem = this.nextTemp();
     this.emit(`${valuesMem} = call i8* @malloc(i64 ${valuesSize})`);
     const valuesPtr = this.nextTemp();
-    this.emit(`${valuesPtr} = bitcast i8* ${valuesMem} to i32*`);
+    this.emit(`${valuesPtr} = bitcast i8* ${valuesMem} to double*`);
 
     // Store keys pointer in Map struct
     const keysFieldPtr = this.nextTemp();
     this.emit(`${keysFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 0`);
-    this.emit(`store i32* ${keysPtr}, i32** ${keysFieldPtr}`);
+    this.emit(`store double* ${keysPtr}, double** ${keysFieldPtr}`);
 
     // Store values pointer in Map struct
     const valuesFieldPtr = this.nextTemp();
     this.emit(`${valuesFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 1`);
-    this.emit(`store i32* ${valuesPtr}, i32** ${valuesFieldPtr}`);
+    this.emit(`store double* ${valuesPtr}, double** ${valuesFieldPtr}`);
 
     // Store size
     const sizeFieldPtr = this.nextTemp();
@@ -76,13 +81,13 @@ export class MapGenerator extends BaseGenerator {
 
       // Store key
       const keyElemPtr = this.nextTemp();
-      this.emit(`${keyElemPtr} = getelementptr inbounds i32, i32* ${keysPtr}, i32 ${i}`);
-      this.emit(`store i32 ${keyValue}, i32* ${keyElemPtr}`);
+      this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${i}`);
+      this.emit(`store double ${keyValue}, double* ${keyElemPtr}`);
 
       // Store value
       const valueElemPtr = this.nextTemp();
-      this.emit(`${valueElemPtr} = getelementptr inbounds i32, i32* ${valuesPtr}, i32 ${i}`);
-      this.emit(`store i32 ${valueValue}, i32* ${valueElemPtr}`);
+      this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${i}`);
+      this.emit(`store double ${valueValue}, double* ${valueElemPtr}`);
     }
 
     return mapPtr;
@@ -105,12 +110,12 @@ export class MapGenerator extends BaseGenerator {
     const keysFieldPtr = this.nextTemp();
     this.emit(`${keysFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 0`);
     const keysPtr = this.nextTemp();
-    this.emit(`${keysPtr} = load i32*, i32** ${keysFieldPtr}`);
+    this.emit(`${keysPtr} = load double*, double** ${keysFieldPtr}`);
 
     const valuesFieldPtr = this.nextTemp();
     this.emit(`${valuesFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 1`);
     const valuesPtr = this.nextTemp();
-    this.emit(`${valuesPtr} = load i32*, i32** ${valuesFieldPtr}`);
+    this.emit(`${valuesPtr} = load double*, double** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 2`);
@@ -120,13 +125,13 @@ export class MapGenerator extends BaseGenerator {
     // For simplicity, assume we're adding a new entry (not updating)
     // Store key at index = currentSize
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds i32, i32* ${keysPtr}, i32 ${currentSize}`);
-    this.emit(`store i32 ${keyValue}, i32* ${keyElemPtr}`);
+    this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentSize}`);
+    this.emit(`store double ${keyValue}, double* ${keyElemPtr}`);
 
     // Store value at index = currentSize
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i32, i32* ${valuesPtr}, i32 ${currentSize}`);
-    this.emit(`store i32 ${valueValue}, i32* ${valueElemPtr}`);
+    this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentSize}`);
+    this.emit(`store double ${valueValue}, double* ${valueElemPtr}`);
 
     // Increment size
     const newSize = this.nextTemp();
@@ -153,12 +158,12 @@ export class MapGenerator extends BaseGenerator {
     const keysFieldPtr = this.nextTemp();
     this.emit(`${keysFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 0`);
     const keysPtr = this.nextTemp();
-    this.emit(`${keysPtr} = load i32*, i32** ${keysFieldPtr}`);
+    this.emit(`${keysPtr} = load double*, double** ${keysFieldPtr}`);
 
     const valuesFieldPtr = this.nextTemp();
     this.emit(`${valuesFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 1`);
     const valuesPtr = this.nextTemp();
-    this.emit(`${valuesPtr} = load i32*, i32** ${valuesFieldPtr}`);
+    this.emit(`${valuesPtr} = load double*, double** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 2`);
@@ -168,8 +173,8 @@ export class MapGenerator extends BaseGenerator {
     // For simplicity, linear search (in production, use hash table)
     // We'll just return the first matching key's value, or 0 if not found
     const resultReg = this.nextTemp();
-    this.emit(`${resultReg} = alloca i32`);
-    this.emit(`store i32 0, i32* ${resultReg}`); // Default to 0
+    this.emit(`${resultReg} = alloca double`);
+    this.emit(`store double 0.0, double* ${resultReg}`); // Default to 0
 
     // Generate loop to search for key
     const loopLabel = this.nextLabel('map_has_loop');
@@ -191,19 +196,19 @@ export class MapGenerator extends BaseGenerator {
 
     this.emit(`${bodyLabel}:`);
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds i32, i32* ${keysPtr}, i32 ${currentIndex}`);
+    this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
     const keyValue = this.nextTemp();
-    this.emit(`${keyValue} = load i32, i32* ${keyElemPtr}`);
+    this.emit(`${keyValue} = load double, double* ${keyElemPtr}`);
     const keyMatch = this.nextTemp();
-    this.emit(`${keyMatch} = icmp eq i32 ${keyValue}, ${keyToFind}`);
+    this.emit(`${keyMatch} = fcmp oeq double ${keyValue}, ${keyToFind}`);
     this.emit(`br i1 ${keyMatch}, label %${foundLabel}, label %${loopLabel}_next`);
 
     this.emit(`${foundLabel}:`);
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i32, i32* ${valuesPtr}, i32 ${currentIndex}`);
+    this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentIndex}`);
     const foundValue = this.nextTemp();
-    this.emit(`${foundValue} = load i32, i32* ${valueElemPtr}`);
-    this.emit(`store i32 ${foundValue}, i32* ${resultReg}`);
+    this.emit(`${foundValue} = load double, double* ${valueElemPtr}`);
+    this.emit(`store double ${foundValue}, double* ${resultReg}`);
     this.emit(`br label %${endLabel}`);
 
     this.emit(`${loopLabel}_next:`);
@@ -214,7 +219,7 @@ export class MapGenerator extends BaseGenerator {
 
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
-    this.emit(`${result} = load i32, i32* ${resultReg}`);
+    this.emit(`${result} = load double, double* ${resultReg}`);
 
     return result;
   }
@@ -235,7 +240,7 @@ export class MapGenerator extends BaseGenerator {
     const keysFieldPtr = this.nextTemp();
     this.emit(`${keysFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 0`);
     const keysPtr = this.nextTemp();
-    this.emit(`${keysPtr} = load i32*, i32** ${keysFieldPtr}`);
+    this.emit(`${keysPtr} = load double*, double** ${keysFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 2`);
@@ -244,8 +249,8 @@ export class MapGenerator extends BaseGenerator {
 
     // Linear search for key
     const resultReg = this.nextTemp();
-    this.emit(`${resultReg} = alloca i32`);
-    this.emit(`store i32 0, i32* ${resultReg}`);
+    this.emit(`${resultReg} = alloca double`);
+    this.emit(`store double 0.0, double* ${resultReg}`);
 
     const loopLabel = this.nextLabel('map_get_loop');
     const bodyLabel = this.nextLabel('map_get_body');
@@ -266,15 +271,15 @@ export class MapGenerator extends BaseGenerator {
 
     this.emit(`${bodyLabel}:`);
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds i32, i32* ${keysPtr}, i32 ${currentIndex}`);
+    this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
     const keyValue = this.nextTemp();
-    this.emit(`${keyValue} = load i32, i32* ${keyElemPtr}`);
+    this.emit(`${keyValue} = load double, double* ${keyElemPtr}`);
     const keyMatch = this.nextTemp();
-    this.emit(`${keyMatch} = icmp eq i32 ${keyValue}, ${keyToFind}`);
+    this.emit(`${keyMatch} = fcmp oeq double ${keyValue}, ${keyToFind}`);
     this.emit(`br i1 ${keyMatch}, label %${foundLabel}, label %${loopLabel}_next`);
 
     this.emit(`${foundLabel}:`);
-    this.emit(`store i32 1, i32* ${resultReg}`);
+    this.emit(`store double 1.0, double* ${resultReg}`);
     this.emit(`br label %${endLabel}`);
 
     this.emit(`${loopLabel}_next:`);
@@ -285,7 +290,7 @@ export class MapGenerator extends BaseGenerator {
 
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
-    this.emit(`${result} = load i32, i32* ${resultReg}`);
+    this.emit(`${result} = load double, double* ${resultReg}`);
 
     return result;
   }

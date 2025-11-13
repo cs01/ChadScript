@@ -6,8 +6,8 @@ import { BaseGenerator } from './base-generator.js';
 // ============================================
 
 // Set structure in LLVM:
-// %Set = type { i32*, i32, i32 }
-// - i32* values  - pointer to value array
+// %Set = type { double*, i32, i32 }
+// - double* values  - pointer to value array (JavaScript semantics)
 // - i32 size     - number of elements
 // - i32 capacity - allocated capacity
 
@@ -32,18 +32,21 @@ export class SetGenerator extends BaseGenerator {
     // Initialize with empty array
     const initialCapacity = setExpr.values.length > 4 ? setExpr.values.length : 4;
 
-    // Allocate values array
+    // Allocate values array - use double* for JavaScript semantics
+    const doubleSize = this.getDoubleSize();
+    const valuesCapI64 = this.nextTemp();
+    this.emit(`${valuesCapI64} = zext i32 ${initialCapacity} to i64`);
     const valuesSize = this.nextTemp();
-    this.emit(`${valuesSize} = mul i64 ${initialCapacity}, 4`);
+    this.emit(`${valuesSize} = mul i64 ${valuesCapI64}, ${doubleSize}`);
     const valuesMem = this.nextTemp();
     this.emit(`${valuesMem} = call i8* @malloc(i64 ${valuesSize})`);
     const valuesPtr = this.nextTemp();
-    this.emit(`${valuesPtr} = bitcast i8* ${valuesMem} to i32*`);
+    this.emit(`${valuesPtr} = bitcast i8* ${valuesMem} to double*`);
 
     // Store values pointer in Set struct
     const valuesFieldPtr = this.nextTemp();
     this.emit(`${valuesFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 0`);
-    this.emit(`store i32* ${valuesPtr}, i32** ${valuesFieldPtr}`);
+    this.emit(`store double* ${valuesPtr}, double** ${valuesFieldPtr}`);
 
     // Store size
     const sizeFieldPtr = this.nextTemp();
@@ -72,8 +75,8 @@ export class SetGenerator extends BaseGenerator {
 
       // Store value
       const valueElemPtr = this.nextTemp();
-      this.emit(`${valueElemPtr} = getelementptr inbounds i32, i32* ${valuesPtr}, i32 ${actualIndex}`);
-      this.emit(`store i32 ${valueValue}, i32* ${valueElemPtr}`);
+      this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${actualIndex}`);
+      this.emit(`store double ${valueValue}, double* ${valueElemPtr}`);
       actualIndex++;
     }
 
@@ -102,7 +105,7 @@ export class SetGenerator extends BaseGenerator {
     const valuesFieldPtr = this.nextTemp();
     this.emit(`${valuesFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 0`);
     const valuesPtr = this.nextTemp();
-    this.emit(`${valuesPtr} = load i32*, i32** ${valuesFieldPtr}`);
+    this.emit(`${valuesPtr} = load double*, double** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 1`);
@@ -114,8 +117,8 @@ export class SetGenerator extends BaseGenerator {
 
     // Store value at index = currentSize
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i32, i32* ${valuesPtr}, i32 ${currentSize}`);
-    this.emit(`store i32 ${valueToAdd}, i32* ${valueElemPtr}`);
+    this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentSize}`);
+    this.emit(`store double ${valueToAdd}, double* ${valueElemPtr}`);
 
     // Increment size
     const newSize = this.nextTemp();
@@ -142,7 +145,7 @@ export class SetGenerator extends BaseGenerator {
     const valuesFieldPtr = this.nextTemp();
     this.emit(`${valuesFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 0`);
     const valuesPtr = this.nextTemp();
-    this.emit(`${valuesPtr} = load i32*, i32** ${valuesFieldPtr}`);
+    this.emit(`${valuesPtr} = load double*, double** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 1`);
@@ -151,8 +154,8 @@ export class SetGenerator extends BaseGenerator {
 
     // Linear search for value
     const resultReg = this.nextTemp();
-    this.emit(`${resultReg} = alloca i32`);
-    this.emit(`store i32 0, i32* ${resultReg}`);
+    this.emit(`${resultReg} = alloca double`);
+    this.emit(`store double 0.0, double* ${resultReg}`);
 
     const loopLabel = this.nextLabel('set_has_loop');
     const bodyLabel = this.nextLabel('set_has_body');
@@ -173,15 +176,15 @@ export class SetGenerator extends BaseGenerator {
 
     this.emit(`${bodyLabel}:`);
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i32, i32* ${valuesPtr}, i32 ${currentIndex}`);
+    this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentIndex}`);
     const currentValue = this.nextTemp();
-    this.emit(`${currentValue} = load i32, i32* ${valueElemPtr}`);
+    this.emit(`${currentValue} = load double, double* ${valueElemPtr}`);
     const valueMatch = this.nextTemp();
-    this.emit(`${valueMatch} = icmp eq i32 ${currentValue}, ${valueToFind}`);
+    this.emit(`${valueMatch} = fcmp oeq double ${currentValue}, ${valueToFind}`);
     this.emit(`br i1 ${valueMatch}, label %${foundLabel}, label %${loopLabel}_next`);
 
     this.emit(`${foundLabel}:`);
-    this.emit(`store i32 1, i32* ${resultReg}`);
+    this.emit(`store double 1.0, double* ${resultReg}`);
     this.emit(`br label %${endLabel}`);
 
     this.emit(`${loopLabel}_next:`);
@@ -192,7 +195,7 @@ export class SetGenerator extends BaseGenerator {
 
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
-    this.emit(`${result} = load i32, i32* ${resultReg}`);
+    this.emit(`${result} = load double, double* ${resultReg}`);
 
     return result;
   }
@@ -222,7 +225,7 @@ export class SetGenerator extends BaseGenerator {
     const valuesFieldPtr = this.nextTemp();
     this.emit(`${valuesFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 0`);
     const valuesPtr = this.nextTemp();
-    this.emit(`${valuesPtr} = load i32*, i32** ${valuesFieldPtr}`);
+    this.emit(`${valuesPtr} = load double*, double** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 1`);
@@ -231,15 +234,15 @@ export class SetGenerator extends BaseGenerator {
 
     // Linear search and delete (shift elements)
     const resultReg = this.nextTemp();
-    this.emit(`${resultReg} = alloca i32`);
-    this.emit(`store i32 0, i32* ${resultReg}`);
+    this.emit(`${resultReg} = alloca double`);
+    this.emit(`store double 0.0, double* ${resultReg}`);
 
     // For simplicity, we'll just mark as deleted by returning 0 (not found)
     // A full implementation would shift elements and update size
     // TODO: Implement actual deletion with element shifting
 
     const result = this.nextTemp();
-    this.emit(`${result} = load i32, i32* ${resultReg}`);
+    this.emit(`${result} = load double, double* ${resultReg}`);
     return result;
   }
 }

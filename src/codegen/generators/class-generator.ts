@@ -92,8 +92,8 @@ export class ClassGenerator extends BaseGenerator {
   private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
     this.labelCounter = 0;
 
-    // Constructor returns struct pointer (either %ClassName_struct* or i32* for backward compat)
-    const structType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
+    // Constructor returns struct pointer (either %ClassName_struct* or double* for backward compat)
+    const structType = fields.length > 0 ? `%${className}_struct*` : 'double*';
     let ir = `define ${structType} @${className}_constructor(`;
 
     // Generate parameter list with proper types
@@ -107,13 +107,13 @@ export class ClassGenerator extends BaseGenerator {
         } else if (pType === 'number[]' || pType === 'boolean[]') {
           paramLLVMTypes.push('%Array*');
         } else {
-          paramLLVMTypes.push('i32'); // number, boolean
+          paramLLVMTypes.push('double'); // number, boolean - use double for JavaScript semantics
         }
       }
     } else {
-      // Fallback: all i32 (backward compat)
+      // Fallback: all double for numeric types (JavaScript semantics)
       for (let i = 0; i < constructor.params.length; i++) {
-        paramLLVMTypes.push('i32');
+        paramLLVMTypes.push('double');
       }
     }
 
@@ -172,19 +172,24 @@ export class ClassGenerator extends BaseGenerator {
         }
       }
     } else {
-      // Backward compatibility: no fields, use old array-of-i32 approach
+      // Backward compatibility: no fields, use old array approach with double*
       const numFields = 10;
+      // Compute size of double dynamically
+      const doubleSizePtr = this.nextTemp();
+      this.emit(`${doubleSizePtr} = getelementptr double, double* null, i32 1`);
+      const doubleSize = this.nextTemp();
+      this.emit(`${doubleSize} = ptrtoint double* ${doubleSizePtr} to i64`);
       const objSize = this.nextTemp();
-      this.emit(`${objSize} = mul i64 ${numFields}, 4`);
+      this.emit(`${objSize} = mul i64 ${numFields}, ${doubleSize}`);
       const objMem = this.nextTemp();
       this.emit(`${objMem} = call i8* @malloc(i64 ${objSize})`);
       objPtr = this.nextTemp();
-      this.emit(`${objPtr} = bitcast i8* ${objMem} to i32*`);
+      this.emit(`${objPtr} = bitcast i8* ${objMem} to double*`);
 
       for (let i = 0; i < numFields; i++) {
         const fieldPtr = this.nextTemp();
-        this.emit(`${fieldPtr} = getelementptr inbounds i32, i32* ${objPtr}, i32 ${i}`);
-        this.emit(`store i32 0, i32* ${fieldPtr}`);
+        this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${objPtr}, i32 ${i}`);
+        this.emit(`store double 0.0, double* ${fieldPtr}`);
       }
     }
 
@@ -212,7 +217,7 @@ export class ClassGenerator extends BaseGenerator {
     this.labelCounter = 0;
 
     // Determine return type from method's returnType annotation
-    let returnLLVMType = 'i32'; // default
+    let returnLLVMType = 'double'; // default for JavaScript semantics
     if (method.returnType) {
       if (method.returnType === 'string') {
         returnLLVMType = 'i8*';
@@ -223,11 +228,11 @@ export class ClassGenerator extends BaseGenerator {
       } else if (method.returnType === 'void') {
         returnLLVMType = 'void';
       }
-      // else: number, boolean -> i32
+      // else: number, boolean -> double
     }
 
-    // Method signature: first param is 'this' (struct pointer or i32* for compat)
-    const thisType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
+    // Method signature: first param is 'this' (struct pointer or double* for compat)
+    const thisType = fields.length > 0 ? `%${className}_struct*` : 'double*';
     let ir = `define ${returnLLVMType} @${className}_${method.name}(${thisType} %this`;
 
     // Generate parameter list with proper types
@@ -241,13 +246,13 @@ export class ClassGenerator extends BaseGenerator {
         } else if (pType === 'number[]' || pType === 'boolean[]') {
           paramLLVMTypes.push('%Array*');
         } else {
-          paramLLVMTypes.push('i32'); // number, boolean
+          paramLLVMTypes.push('double'); // number, boolean - use double for JavaScript semantics
         }
       }
     } else {
-      // Fallback: all i32 (backward compat)
+      // Fallback: all double for numeric types (JavaScript semantics)
       for (let i = 0; i < method.params.length; i++) {
-        paramLLVMTypes.push('i32');
+        paramLLVMTypes.push('double');
       }
     }
 
@@ -316,22 +321,29 @@ export class ClassGenerator extends BaseGenerator {
   }
 
   generateNewExpression(className: string, args: Expression[], params: string[]): string {
-    // Call the constructor
-    const argValues = args.map(arg => {
+    // Get constructor parameter types
+    const classNode = (this.ast as any).classes.find((c: any) => c.name === className);
+    if (!classNode) {
+      throw new Error(`Class ${className} not found`);
+    }
+    const constructor = classNode.methods.find((m: any) => m.isConstructor);
+    const paramTypes = constructor?.paramTypes || [];
+    const paramLLVMTypes: string[] = paramTypes.map((pType: string) => {
+      if (pType === 'string') return 'i8*';
+      if (pType === 'string[]') return '%StringArray*';
+      if (pType === 'number[]' || pType === 'boolean[]') return '%Array*';
+      return 'double'; // number, boolean
+    });
+
+    // Call the constructor with correct parameter types
+    const argValues = args.map((arg, i) => {
       const val = this.generateExpression(arg, params);
-
-      // If the argument is a string literal, we need to convert i8* to i32
-      if (arg.type === 'string') {
-        const asInt = this.nextTemp();
-        this.emit(`${asInt} = ptrtoint i8* ${val} to i32`);
-        return `i32 ${asInt}`;
-      }
-
-      return `i32 ${val}`;
+      const argType = i < paramLLVMTypes.length ? paramLLVMTypes[i] : 'double';
+      return `${argType} ${val}`;
     }).join(', ');
 
     const fields = this.classFields.get(className) || [];
-    const returnType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
+    const returnType = fields.length > 0 ? `%${className}_struct*` : 'double*';
 
     const instance = this.nextTemp();
     this.emit(`${instance} = call ${returnType} @${className}_constructor(${argValues})`);
@@ -364,7 +376,7 @@ export class ClassGenerator extends BaseGenerator {
       const val = this.generateExpression(arg, params);
 
       // Use the declared paramType if available, otherwise infer
-      let argType = 'i32'; // default
+      let argType = 'double'; // default for JavaScript semantics
       if (i < paramLLVMTypes.length) {
         argType = paramLLVMTypes[i];
       } else {
@@ -385,7 +397,7 @@ export class ClassGenerator extends BaseGenerator {
     }).join(', ');
 
     // Determine return type
-    let returnLLVMType = 'i32'; // default
+    let returnLLVMType = 'double'; // default for JavaScript semantics
     if (method.returnType) {
       if (method.returnType === 'string') {
         returnLLVMType = 'i8*';
@@ -396,11 +408,11 @@ export class ClassGenerator extends BaseGenerator {
       } else if (method.returnType === 'void') {
         returnLLVMType = 'void';
       }
-      // else: number, boolean -> i32
+      // else: number, boolean -> double
     }
 
     const fields = this.classFields.get(className) || [];
-    const thisType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
+    const thisType = fields.length > 0 ? `%${className}_struct*` : 'double*';
 
     // Call the method with instance as first argument
     const argList = argValues ? `, ${argValues}` : '';
