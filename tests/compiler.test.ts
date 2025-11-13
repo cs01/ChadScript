@@ -297,6 +297,37 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/arrays/array-init-safe.ts',
       expectedExitCode: 10, // found(1) * 10 + notFound(0) = 10
       description: 'Array initialization should be zero-initialized to prevent crashes on iteration'
+    },
+    // Regression tests for float/double conversion edge cases
+    {
+      name: 'array-index-float-conversion',
+      fixture: 'tests/fixtures/edge-cases/array-index-float-conversion.js',
+      expectedExitCode: 30,
+      description: 'Array indexing with float values should convert to int (regression test)'
+    },
+    {
+      name: 'string-length-arithmetic',
+      fixture: 'tests/fixtures/edge-cases/string-length-arithmetic.js',
+      expectedExitCode: 10,
+      description: 'String.length in arithmetic should convert i32 to double (regression test)'
+    },
+    {
+      name: 'array-length-comparison',
+      fixture: 'tests/fixtures/edge-cases/array-length-comparison.js',
+      expectedExitCode: 42,
+      description: 'Array.length in comparisons should convert properly (regression test)'
+    },
+    {
+      name: 'array-length-multiplication',
+      fixture: 'tests/fixtures/edge-cases/array-indexof-arithmetic.js',
+      expectedExitCode: 20,
+      description: 'Array.length in multiplication should convert i32 to double (regression test)'
+    },
+    {
+      name: 'bitwise-float-conversion',
+      fixture: 'tests/fixtures/edge-cases/bitwise-float-conversion.js',
+      expectedExitCode: 8,
+      description: 'Bitwise operations with floats should convert to integers (regression test)'
     }
   ];
 
