@@ -152,6 +152,29 @@ export class LLVMGenerator extends BaseGenerator {
     });
   }
 
+  /**
+   * Main entry point for LLVM IR generation.
+   * Converts the entire AST to LLVM IR text representation.
+   *
+   * @example
+   * Input AST (for: function add(a, b) { return a + b; }):
+   * {
+   *   functions: [{
+   *     type: 'function',
+   *     name: 'add',
+   *     params: ['a', 'b'],
+   *     body: { statements: [{ type: 'return', value: { type: 'binary', op: '+', ... }}]}
+   *   }]
+   * }
+   *
+   * Output LLVM IR:
+   * define double @add(double %0, double %1) {
+   *   %2 = fadd double %0, %1
+   *   ret double %2
+   * }
+   *
+   * @returns Complete LLVM IR module as string (struct types + extern declarations + functions + main)
+   */
   generate(): string {
     let ir = '';
 
@@ -339,6 +362,29 @@ export class LLVMGenerator extends BaseGenerator {
     return ir;
   }
 
+  /**
+   * Generates LLVM IR for a function declaration and implementation.
+   * Handles parameter types, allocas, body code generation, and return.
+   *
+   * @example
+   * Input: { type: 'function', name: 'multiply', params: ['x', 'y'],
+   *          body: { statements: [{ type: 'return', value: { type: 'binary', op: '*', ... }}]}}
+   *
+   * Output:
+   * define double @multiply(double %0, double %1) {
+   *   %x = alloca double
+   *   store double %0, double* %x
+   *   %y = alloca double
+   *   store double %1, double* %y
+   *   %2 = load double, double* %x
+   *   %3 = load double, double* %y
+   *   %4 = fmul double %2, %3
+   *   ret double %4
+   * }
+   *
+   * @param func - Function AST node
+   * @returns LLVM IR function definition as string
+   */
   private generateFunction(func: FunctionNode): string {
     this.reset();
     this.syncStateToGenerators();
@@ -830,6 +876,29 @@ export class LLVMGenerator extends BaseGenerator {
     return lastValue;
   }
 
+  /**
+   * Generates LLVM IR for any expression node.
+   * This is the core dispatcher that handles all expression types via visitor pattern.
+   *
+   * @example
+   * // Binary expression: 5 + 3
+   * Input: { type: 'binary', op: '+', left: { type: 'number', value: 5 }, right: { type: 'number', value: 3 }}
+   * Output: '%1 = fadd double 5.0, 3.0'
+   *
+   * @example
+   * // Variable reference: x
+   * Input: { type: 'variable', name: 'x' }
+   * Output: '%2 = load double, double* %x'
+   *
+   * @example
+   * // Array literal: [1, 2, 3]
+   * Input: { type: 'array', elements: [{ type: 'number', value: 1 }, ...] }
+   * Output: (calls to malloc, stores for each element, returns %Array* pointer)
+   *
+   * @param expr - AST expression node to generate code for
+   * @param params - Function parameter names (for resolving variable references)
+   * @returns LLVM register name containing the expression result (e.g., '%3')
+   */
   private generateExpression(expr: Expression, params: string[]): string {
     if (expr.type === 'number') {
       const value = expr.value;
@@ -2172,6 +2241,29 @@ export class LLVMGenerator extends BaseGenerator {
     throw new Error(`Unknown expression type: ${(expr as any).type}`);
   }
 
+  /**
+   * Generates LLVM IR for method calls (array/string/object methods).
+   * Dispatches to specialized generators based on method name.
+   *
+   * @example
+   * // Array method: arr.map(x => x * 2)
+   * Input: { type: 'method_call', method: 'map', object: { type: 'variable', name: 'arr' }, args: [...] }
+   * Output: (delegated to ArrayGenerator, returns new %Array* pointer)
+   *
+   * @example
+   * // String method: str.substring(0, 5)
+   * Input: { type: 'method_call', method: 'substring', object: { type: 'variable', name: 'str' }, args: [...] }
+   * Output: (delegated to StringGenerator, returns i8* pointer to new string)
+   *
+   * @example
+   * // Console method: console.log("hello")
+   * Input: { type: 'method_call', method: 'log', object: { type: 'variable', name: 'console' }, args: [...] }
+   * Output: (calls to printf, returns 0.0)
+   *
+   * @param expr - Method call AST node
+   * @param params - Function parameters for variable resolution
+   * @returns LLVM register containing method return value
+   */
   private generateMethodCall(expr: MethodCallNode, params: string[]): string {
     const method = expr.method;
 
