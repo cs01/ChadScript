@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(for file in tests/fixtures/array-* tests/fixtures/empty-array-access.* tests/fixtures/string-array-* tests/fixtures/parallel-arrays-test.*)"
+      "Bash(for file in tests/fixtures/array-* tests/fixtures/empty-array-access.* tests/fixtures/string-array-* tests/fixtures/parallel-arrays-test.*)",
+      "Bash(npm run build:*)",
+      "Bash(npm test:*)",
+      "Bash(npx tsx:*)",
+      "Bash(echo:*)",
+      "Bash(/dev/null)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []
