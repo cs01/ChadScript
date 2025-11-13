@@ -335,10 +335,15 @@ export class ArrayGenerator extends BaseGenerator {
     this.emit(`${oldDataI8} = bitcast double* ${oldDataPtr} to i8*`);
     const newDataI8 = this.nextTemp();
     this.emit(`${newDataI8} = bitcast double* ${newDataPtr} to i8*`);
-    const copySize = this.nextTemp();
-    this.emit(`${copySize} = mul i32 ${currentLen}, 4`);
+    // Compute copy size dynamically based on double size
+    const doubleSizePtr = this.nextTemp();
+    this.emit(`${doubleSizePtr} = getelementptr double, double* null, i32 1`);
+    const doubleSize = this.nextTemp();
+    this.emit(`${doubleSize} = ptrtoint double* ${doubleSizePtr} to i64`);
+    const currentLenI64 = this.nextTemp();
+    this.emit(`${currentLenI64} = zext i32 ${currentLen} to i64`);
     const copySizeI64 = this.nextTemp();
-    this.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
+    this.emit(`${copySizeI64} = mul i64 ${currentLenI64}, ${doubleSize}`);
     this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
 
     // Free old data and update pointer
@@ -702,11 +707,15 @@ export class ArrayGenerator extends BaseGenerator {
     const resultArrayPtr = this.nextTemp();
     this.emit(`${resultArrayPtr} = alloca %Array`);
 
-    // Allocate data array on heap
-    const dataSize = this.nextTemp();
-    this.emit(`${dataSize} = mul i32 ${length}, 8`); // 8 bytes per double
+    // Allocate data array on heap - compute size of double dynamically
+    const doubleSizePtr = this.nextTemp();
+    this.emit(`${doubleSizePtr} = getelementptr double, double* null, i32 1`);
+    const doubleSize = this.nextTemp();
+    this.emit(`${doubleSize} = ptrtoint double* ${doubleSizePtr} to i64`);
+    const lengthI64 = this.nextTemp();
+    this.emit(`${lengthI64} = zext i32 ${length} to i64`);
     const dataSizeI64 = this.nextTemp();
-    this.emit(`${dataSizeI64} = zext i32 ${dataSize} to i64`);
+    this.emit(`${dataSizeI64} = mul i64 ${lengthI64}, ${doubleSize}`);
     const dataMem = this.nextTemp();
     this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSizeI64})`);
     const resultDataPtr = this.nextTemp();
@@ -906,11 +915,15 @@ export class ArrayGenerator extends BaseGenerator {
     const resultArrayPtr = this.nextTemp();
     this.emit(`${resultArrayPtr} = alloca %Array`);
 
-    // Allocate data for result array
-    const resultSize = this.nextTemp();
-    this.emit(`${resultSize} = mul i32 ${length}, 8`); // 8 bytes per double
+    // Allocate data for result array - compute size of double dynamically
+    const doubleSizePtr = this.nextTemp();
+    this.emit(`${doubleSizePtr} = getelementptr double, double* null, i32 1`);
+    const doubleSize = this.nextTemp();
+    this.emit(`${doubleSize} = ptrtoint double* ${doubleSizePtr} to i64`);
+    const lengthI64 = this.nextTemp();
+    this.emit(`${lengthI64} = zext i32 ${length} to i64`);
     const resultSizeI64 = this.nextTemp();
-    this.emit(`${resultSizeI64} = zext i32 ${resultSize} to i64`);
+    this.emit(`${resultSizeI64} = mul i64 ${lengthI64}, ${doubleSize}`);
     const resultMem = this.nextTemp();
     this.emit(`${resultMem} = call i8* @malloc(i64 ${resultSizeI64})`);
     const resultDataPtr = this.nextTemp();

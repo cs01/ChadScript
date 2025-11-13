@@ -1373,18 +1373,24 @@ export class LLVMGenerator extends BaseGenerator {
           const arrayPtr = this.generateExpression(expr.object, params);
           const lenPtr = this.nextTemp();
           this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+          const lenI32 = this.nextTemp();
+          this.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
+          // Convert to double for JavaScript semantics
           const len = this.nextTemp();
-          this.emit(`${len} = load i32, i32* ${lenPtr}`);
-          this.variableTypes.set(len, 'i32');
+          this.emit(`${len} = sitofp i32 ${lenI32} to double`);
+          this.variableTypes.set(len, 'double');
           return len;
         } else if (expr.object.type === 'variable' && this.stringArrayVariables.has(expr.object.name)) {
           // Check if it's a string array
           const stringArrayPtr = this.generateExpression(expr.object, params);
           const lenPtr = this.nextTemp();
           this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 1`);
+          const lenI32 = this.nextTemp();
+          this.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
+          // Convert to double for JavaScript semantics
           const len = this.nextTemp();
-          this.emit(`${len} = load i32, i32* ${lenPtr}`);
-          this.variableTypes.set(len, 'i32');
+          this.emit(`${len} = sitofp i32 ${lenI32} to double`);
+          this.variableTypes.set(len, 'double');
           return len;
         } else if (expr.object.type === 'member_access' && expr.object.object.type === 'this') {
           // Check if it's accessing a class field that's a string array
@@ -1396,18 +1402,24 @@ export class LLVMGenerator extends BaseGenerator {
               const stringArrayPtr = this.generateExpression(expr.object, params);
               const lenPtr = this.nextTemp();
               this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 1`);
+              const lenI32 = this.nextTemp();
+              this.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
+              // Convert to double for JavaScript semantics
               const len = this.nextTemp();
-              this.emit(`${len} = load i32, i32* ${lenPtr}`);
-              this.variableTypes.set(len, 'i32');
+              this.emit(`${len} = sitofp i32 ${lenI32} to double`);
+              this.variableTypes.set(len, 'double');
               return len;
             } else if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
               // It's a numeric/boolean array field
               const arrayPtr = this.generateExpression(expr.object, params);
               const lenPtr = this.nextTemp();
               this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+              const lenI32 = this.nextTemp();
+              this.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
+              // Convert to double for JavaScript semantics
               const len = this.nextTemp();
-              this.emit(`${len} = load i32, i32* ${lenPtr}`);
-              this.variableTypes.set(len, 'i32');
+              this.emit(`${len} = sitofp i32 ${lenI32} to double`);
+              this.variableTypes.set(len, 'double');
               return len;
             }
           }
@@ -1417,8 +1429,11 @@ export class LLVMGenerator extends BaseGenerator {
           this.emit(`${lenI64} = call i64 @strlen(i8* ${objPtr})`);
           const lenI32 = this.nextTemp();
           this.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
-          this.variableTypes.set(lenI32, 'i32');
-          return lenI32;
+          // Convert to double for JavaScript semantics
+          const len = this.nextTemp();
+          this.emit(`${len} = sitofp i32 ${lenI32} to double`);
+          this.variableTypes.set(len, 'double');
+          return len;
         } else {
           // String length
           const objPtr = this.generateExpression(expr.object, params);
@@ -1426,8 +1441,11 @@ export class LLVMGenerator extends BaseGenerator {
           this.emit(`${lenI64} = call i64 @strlen(i8* ${objPtr})`);
           const lenI32 = this.nextTemp();
           this.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
-          this.variableTypes.set(lenI32, 'i32');
-          return lenI32;
+          // Convert to double for JavaScript semantics
+          const len = this.nextTemp();
+          this.emit(`${len} = sitofp i32 ${lenI32} to double`);
+          this.variableTypes.set(len, 'double');
+          return len;
         }
       }
 
