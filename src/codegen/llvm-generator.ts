@@ -99,14 +99,14 @@ export class LLVMGenerator extends BaseGenerator {
     this.ast = ast;
     this.typeChecker = typeChecker;
 
-    // Initialize specialized generators with context (NEW pattern for RegexGenerator)
-    // RegexGenerator now uses explicit context instead of callback binding
+    // Initialize specialized generators with context (NEW pattern for RegexGenerator + ObjectGenerator)
+    // These generators use explicit context instead of callback binding
     this.regexGen = new RegexGenerator(this); // 'this' implements IGeneratorContext
+    this.objectGen = new ObjectGenerator(this); // Clean context pattern! 🎯
 
     // Legacy generators still use old pattern (will migrate gradually)
     this.arrayGen = new ArrayGenerator();
     this.stringGen = new StringGenerator();
-    this.objectGen = new ObjectGenerator();
     this.mapGen = new MapGenerator();
     this.setGen = new SetGenerator();
     this.controlFlowGen = new ControlFlowGenerator();
@@ -116,7 +116,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.arrayGen.generateExpression = this.generateExpression.bind(this);
     this.stringGen.generateExpression = this.generateExpression.bind(this);
     this.stringGen.isStringExpression = this.isStringExpression.bind(this);
-    this.objectGen.generateExpression = this.generateExpression.bind(this);
+    // objectGen uses context pattern - no binding needed! 🎯
     this.mapGen.generateExpression = this.generateExpression.bind(this);
     this.setGen.generateExpression = this.generateExpression.bind(this);
     this.controlFlowGen.generateExpression = this.generateExpression.bind(this);
@@ -127,8 +127,8 @@ export class LLVMGenerator extends BaseGenerator {
     // Pass AST to classGen for method lookups
     (this.classGen as any).ast = ast;
 
-    // Override counter methods for legacy generators
-    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
+    // Override counter methods for legacy generators (objectGen excluded - uses context! 🎯)
+    for (const gen of [this.arrayGen, this.stringGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
       gen.nextTemp = this.nextTemp.bind(this);
       gen.nextLabel = this.nextLabel.bind(this);
       gen.nextString = this.nextString.bind(this);
@@ -4040,9 +4040,9 @@ export class LLVMGenerator extends BaseGenerator {
 
   // Sync state to sub-generators - share Maps/arrays by reference
   // Note: Counters are already shared via bound methods (nextTemp, nextLabel, nextString)
-  // Note: regexGen excluded - uses context pattern instead of state sharing
+  // Note: regexGen + objectGen excluded - use context pattern instead of state sharing! 🎯
   private syncStateToGenerators() {
-    for (const gen of [this.arrayGen, this.stringGen, this.objectGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
+    for (const gen of [this.arrayGen, this.stringGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
       gen.output = this.output;
       gen.globalStrings = this.globalStrings;
       gen.variables = this.variables;

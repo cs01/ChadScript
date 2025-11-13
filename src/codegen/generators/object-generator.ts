@@ -1,17 +1,21 @@
 import { Expression } from '../../ast/types.js';
-import { BaseGenerator } from './base-generator.js';
+import { IGeneratorContext } from '../generator-context.js';
 
 // ============================================
 // OBJECT GENERATOR - Object operations
 // ============================================
 
-export class ObjectGenerator extends BaseGenerator {
-  // Generate delegate for expressions (set by LLVMGenerator)
-  generateExpression!: (expr: Expression, params: string[]) => string;
+/**
+ * 🎯 Object generator using clean context pattern!
+ * No more callback binding - just pure dependency injection!
+ */
+export class ObjectGenerator {
+  constructor(private ctx: IGeneratorContext) {}
 
-  constructor() {
-    super();
-  }
+  // Helper methods that delegate to context - beautiful and explicit!
+  private nextTemp() { return this.ctx.nextTemp(); }
+  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private get stringVariables() { return (this.ctx as any).stringVariables; } // Legacy map
 
   generateObjectLiteral(expr: Expression, params: string[]): string {
     const objExpr = expr as any;
@@ -34,14 +38,14 @@ export class ObjectGenerator extends BaseGenerator {
       const prop = objExpr.properties[i];
       const key = prop.key;
 
-      // Generate the value expression
-      const valueReg = this.generateExpression(prop.value, params);
+      // Generate the value expression using context
+      const valueReg = this.ctx.generateExpression(prop.value, params);
 
       // Determine LLVM type based on expression type
       let llvmType: string;
       const valueExpr = prop.value;
 
-      if (valueExpr.type === 'string' || this.isStringExpression(valueExpr)) {
+      if (valueExpr.type === 'string' || this.ctx.isStringExpression(valueExpr)) {
         llvmType = 'i8*';  // String pointer
       } else if (valueExpr.type === 'array') {
         llvmType = '%Array*';  // Array struct pointer
@@ -86,13 +90,4 @@ export class ObjectGenerator extends BaseGenerator {
     return genericPtr;
   }
 
-  // Helper to check if expression is a string
-  private isStringExpression(expr: any): boolean {
-    if (expr.type === 'string') return true;
-    if (expr.type === 'variable' && this.stringVariables.has(expr.name)) return true;
-    if (expr.type === 'binary' && expr.op === '+') {
-      return this.isStringExpression(expr.left) || this.isStringExpression(expr.right);
-    }
-    return false;
-  }
 }
