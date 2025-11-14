@@ -39,7 +39,7 @@ export class ExpressionGenerator {
     this.callGen = new CallExpressionGenerator(ctx);
     this.indexAccessGen = new IndexAccessGenerator(ctx);
     this.memberAccessGen = new MemberAccessGenerator(ctx);
-    this.arrowFunctionGen = new ArrowFunctionExpressionGenerator(ctx);
+    this.arrowFunctionGen = new ArrowFunctionExpressionGenerator();
   }
 
   /**
