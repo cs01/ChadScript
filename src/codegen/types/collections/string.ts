@@ -1,5 +1,5 @@
 import { Expression } from '../../../ast/types.js';
-import { BaseGenerator } from '../../infrastructure/base-generator.js';
+import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import {
   createStringConstant as createStringConstantImpl,
   convertNumberToString as convertNumberToStringImpl,
@@ -27,14 +27,25 @@ import { generateSplit as generateSplitImpl } from './string/split.js';
 // STRING GENERATOR - String operations
 // ============================================
 
-export class StringGenerator extends BaseGenerator {
-  // Generate delegate for expressions (set by LLVMGenerator)
-  generateExpression!: (expr: Expression, params: string[]) => string;
-  // Type check delegate (set by LLVMGenerator)
-  isStringExpression!: (expr: Expression) => boolean;
+export class StringGenerator {
+  constructor(private ctx: IGeneratorContext) {}
 
-  constructor() {
-    super();
+  // Helper methods delegate to context
+  private nextTemp() { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextString() { return this.ctx.nextString(); }
+
+  // Create a shim object that looks like BaseGenerator for extracted functions
+  private createGeneratorShim(): any {
+    return {
+      nextTemp: () => this.nextTemp(),
+      nextLabel: (prefix: string) => this.nextLabel(prefix),
+      emit: (instruction: string) => this.emit(instruction),
+      nextString: () => this.nextString(),
+      globalStrings: this.ctx.globalStrings,
+      variableTypes: this.ctx.variableTypes,
+    };
   }
 
   // ============================================
@@ -42,11 +53,13 @@ export class StringGenerator extends BaseGenerator {
   // ============================================
 
   createStringConstant(value: string): string {
-    return createStringConstantImpl.call(this, value);
+    const genShim = this.createGeneratorShim();
+    return createStringConstantImpl.call(genShim, value);
   }
 
   convertNumberToString(numValue: string): string {
-    return convertNumberToStringImpl.call(this, numValue);
+    const genShim = this.createGeneratorShim();
+    return convertNumberToStringImpl.call(genShim, numValue);
   }
 
   // ============================================
@@ -54,18 +67,20 @@ export class StringGenerator extends BaseGenerator {
   // ============================================
 
   generateStringConcat(left: Expression, right: Expression, params: string[]): string {
+    const genShim = this.createGeneratorShim();
     return generateStringConcatImpl.call(
-      this,
+      genShim,
       left,
       right,
       params,
-      this.generateExpression,
-      this.isStringExpression
+      this.ctx.generateExpression.bind(this.ctx),
+      this.ctx.isStringExpression.bind(this.ctx)
     );
   }
 
   generateStringConcatDirect(leftStr: string, rightStr: string): string {
-    return generateStringConcatDirectImpl.call(this, leftStr, rightStr);
+    const genShim = this.createGeneratorShim();
+    return generateStringConcatDirectImpl.call(genShim, leftStr, rightStr);
   }
 
   // ============================================
@@ -73,23 +88,28 @@ export class StringGenerator extends BaseGenerator {
   // ============================================
 
   generateSubstr(strPtr: string, startIndex: string, length: string | null): string {
-    return generateSubstrImpl.call(this, strPtr, startIndex, length);
+    const genShim = this.createGeneratorShim();
+    return generateSubstrImpl.call(genShim, strPtr, startIndex, length);
   }
 
   generateSlice(strPtr: string, startIndex: string, endIndex: string | null): string {
-    return generateSliceImpl.call(this, strPtr, startIndex, endIndex);
+    const genShim = this.createGeneratorShim();
+    return generateSliceImpl.call(genShim, strPtr, startIndex, endIndex);
   }
 
   generateRepeat(strPtr: string, count: string): string {
-    return generateRepeatImpl.call(this, strPtr, count);
+    const genShim = this.createGeneratorShim();
+    return generateRepeatImpl.call(genShim, strPtr, count);
   }
 
   generatePadStart(strPtr: string, targetLength: string, padString: string): string {
-    return generatePadStartImpl.call(this, strPtr, targetLength, padString);
+    const genShim = this.createGeneratorShim();
+    return generatePadStartImpl.call(genShim, strPtr, targetLength, padString);
   }
 
   generateTrim(strPtr: string): string {
-    return generateTrimImpl.call(this, strPtr);
+    const genShim = this.createGeneratorShim();
+    return generateTrimImpl.call(genShim, strPtr);
   }
 
   // ============================================
@@ -97,19 +117,23 @@ export class StringGenerator extends BaseGenerator {
   // ============================================
 
   generateStartsWith(strPtr: string, prefix: string): string {
-    return generateStartsWithImpl.call(this, strPtr, prefix);
+    const genShim = this.createGeneratorShim();
+    return generateStartsWithImpl.call(genShim, strPtr, prefix);
   }
 
   generateCharAt(strPtr: string, index: string): string {
-    return generateCharAtImpl.call(this, strPtr, index);
+    const genShim = this.createGeneratorShim();
+    return generateCharAtImpl.call(genShim, strPtr, index);
   }
 
   generateIndexOf(strPtr: string, substring: string): string {
-    return generateIndexOfImpl.call(this, strPtr, substring);
+    const genShim = this.createGeneratorShim();
+    return generateIndexOfImpl.call(genShim, strPtr, substring);
   }
 
   generateIncludes(strPtr: string, substring: string): string {
-    return generateIncludesImpl.call(this, strPtr, substring);
+    const genShim = this.createGeneratorShim();
+    return generateIncludesImpl.call(genShim, strPtr, substring);
   }
 
   // ============================================
@@ -117,6 +141,7 @@ export class StringGenerator extends BaseGenerator {
   // ============================================
 
   generateSplit(strPtr: string, delimiter: string): string {
-    return generateSplitImpl.call(this, strPtr, delimiter);
+    const genShim = this.createGeneratorShim();
+    return generateSplitImpl.call(genShim, strPtr, delimiter);
   }
 }
