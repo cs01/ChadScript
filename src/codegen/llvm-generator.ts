@@ -138,7 +138,7 @@ export class LLVMGenerator extends BaseGenerator {
 
     // Legacy generators still use old pattern (will migrate gradually)
     this.arrayGen = new ArrayGenerator(this); // Context pattern
-    this.stringGen = new StringGenerator();
+    this.stringGen = new StringGenerator(this); // Context pattern
     this.mapGen = new MapGenerator(this);
     this.setGen = new SetGenerator(this);
     this.controlFlowGen = new ControlFlowGenerator();
@@ -146,8 +146,7 @@ export class LLVMGenerator extends BaseGenerator {
 
     // Wire up delegates for legacy generators
     // arrayGen uses context pattern - no binding needed! 🎯
-    this.stringGen.generateExpression = this.generateExpression.bind(this);
-    this.stringGen.isStringExpression = this.isStringExpression.bind(this);
+    // stringGen uses context pattern - no binding needed! 🎯
     // objectGen uses context pattern - no binding needed! 🎯
     // mapGen uses context pattern - no binding needed! 🎯
     // setGen uses context pattern - no binding needed! 🎯
@@ -159,8 +158,8 @@ export class LLVMGenerator extends BaseGenerator {
     // Pass AST to classGen for method lookups
     (this.classGen as any).ast = ast;
 
-    // Override counter methods for legacy generators (arrayGen + objectGen + mapGen + setGen excluded - use context! 🎯)
-    for (const gen of [this.stringGen, this.controlFlowGen, this.classGen]) {
+    // Override counter methods for legacy generators (arrayGen + objectGen + mapGen + setGen + stringGen excluded - use context! 🎯)
+    for (const gen of [this.controlFlowGen, this.classGen]) {
       gen.nextTemp = this.nextTemp.bind(this);
       gen.nextLabel = this.nextLabel.bind(this);
       gen.nextString = this.nextString.bind(this);
@@ -2149,9 +2148,9 @@ export class LLVMGenerator extends BaseGenerator {
 
   // Sync state to sub-generators - share Maps/arrays by reference
   // Note: Counters are already shared via bound methods (nextTemp, nextLabel, nextString)
-  // Note: arrayGen + regexGen + objectGen + mapGen + setGen excluded - use context pattern instead of state sharing! 🎯
+  // Note: arrayGen + regexGen + objectGen + mapGen + setGen + stringGen excluded - use context pattern instead of state sharing! 🎯
   private syncStateToGenerators() {
-    for (const gen of [this.stringGen, this.controlFlowGen, this.classGen]) {
+    for (const gen of [this.controlFlowGen, this.classGen]) {
       gen.output = this.output;
       gen.globalStrings = this.globalStrings;
       gen.variables = this.variables;
