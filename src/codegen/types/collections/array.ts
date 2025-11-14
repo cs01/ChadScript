@@ -1,5 +1,5 @@
 import { Expression, MethodCallNode } from '../../../ast/types.js';
-import { BaseGenerator } from '../../infrastructure/base-generator.js';
+import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { generateArrayLiteral } from './array/literal.js';
 import { generateArrayPush, generateArrayPop } from './array/mutators.js';
 
@@ -7,26 +7,45 @@ import { generateArrayPush, generateArrayPop } from './array/mutators.js';
 // ARRAY GENERATOR - Array operations
 // ============================================
 
-export class ArrayGenerator extends BaseGenerator {
-  // Generate delegate for expressions (set by LLVMGenerator)
-  generateExpression!: (expr: Expression, params: string[]) => string;
+export class ArrayGenerator {
+  constructor(private ctx: IGeneratorContext) {}
 
-  constructor() {
-    super();
+  // Helper methods delegate to context
+  private nextTemp() { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
+
+  generateArrayLiteral(expr: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    // For the extracted function, we still pass it a BaseGenerator-compatible object
+    // Create a shim that exposes BaseGenerator interface methods
+    const genShim = this.createGeneratorShim();
+    return generateArrayLiteral(genShim, expr, params, generateExpressionFn);
   }
 
-  generateArrayLiteral(expr: Expression, params: string[]): string {
-    return generateArrayLiteral(this, expr, params, this.generateExpression);
+  generateArrayPush(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    const genShim = this.createGeneratorShim();
+    return generateArrayPush(genShim, expr, params, generateExpressionFn);
   }
 
-  generateArrayPush(expr: MethodCallNode, params: string[]): string {
-    return generateArrayPush(this, expr, params, this.generateExpression);
+  generateArrayPop(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    const genShim = this.createGeneratorShim();
+    return generateArrayPop(genShim, expr, params, generateExpressionFn);
   }
 
-  generateArrayPop(expr: MethodCallNode, params: string[]): string {
-    return generateArrayPop(this, expr, params, this.generateExpression);
+  // Create a shim object that looks like BaseGenerator for extracted functions
+  private createGeneratorShim(): any {
+    return {
+      nextTemp: () => this.nextTemp(),
+      nextLabel: (prefix: string) => this.nextLabel(prefix),
+      emit: (instruction: string) => this.emit(instruction),
+      getDoubleSize: () => this.getDoubleSize(),
+      stringArrayVariables: this.ctx.stringArrayVariables,
+      variableTypes: this.ctx.variableTypes,
+      expectedArrayElementType: this.ctx.expectedArrayElementType,
+    };
   }
-  generateArrayFind(expr: MethodCallNode, params: string[]): string {
+  generateArrayFind(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // arr.find(predicateFn) - returns first element where predicate returns truthy, or 0 if not found
     // Accepts a variable reference to a function that takes (element) and returns boolean-ish
     if (expr.args.length !== 1) {
@@ -41,12 +60,12 @@ export class ArrayGenerator extends BaseGenerator {
       predicateFn = predicateArg.name;
     } else if ((predicateArg as any).type === 'arrow_function') {
       // Inline function - generate it and get the name
-      predicateFn = this.generateExpression(predicateArg, params);
+      predicateFn = generateExpressionFn(predicateArg, params);
     } else {
       throw new Error('find() argument must be a function name or inline function');
     }
 
-    const arrayPtr = this.generateExpression(expr.object, params);
+    const arrayPtr = generateExpressionFn(expr.object, params);
 
     // Load array length
     const lenPtr = this.nextTemp();
@@ -124,7 +143,7 @@ export class ArrayGenerator extends BaseGenerator {
     return result;
   }
 
-  generateArraySome(expr: MethodCallNode, params: string[]): string {
+  generateArraySome(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // arr.some(predicateFn) - returns 1 if any element satisfies predicate, 0 otherwise
     if (expr.args.length !== 1) {
       throw new Error('some() requires exactly 1 argument (predicate function)');
@@ -137,12 +156,12 @@ export class ArrayGenerator extends BaseGenerator {
       predicateFn = predicateArg.name;
     } else if ((predicateArg as any).type === 'arrow_function') {
       // Inline function - generate it and get the name
-      predicateFn = this.generateExpression(predicateArg, params);
+      predicateFn = generateExpressionFn(predicateArg, params);
     } else {
       throw new Error('some() argument must be a function name or inline function');
     }
 
-    const arrayPtr = this.generateExpression(expr.object, params);
+    const arrayPtr = generateExpressionFn(expr.object, params);
 
     // Load array length
     const lenPtr = this.nextTemp();
@@ -222,7 +241,7 @@ export class ArrayGenerator extends BaseGenerator {
     return result;
   }
 
-  generateArrayFilter(expr: MethodCallNode, params: string[]): string {
+  generateArrayFilter(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // arr.filter(predicateFn) - returns new array with elements that satisfy predicate
     if (expr.args.length !== 1) {
       throw new Error('filter() requires exactly 1 argument (predicate function)');
@@ -235,12 +254,12 @@ export class ArrayGenerator extends BaseGenerator {
       predicateFn = predicateArg.name;
     } else if ((predicateArg as any).type === 'arrow_function') {
       // Inline function - generate it and get the name
-      predicateFn = this.generateExpression(predicateArg, params);
+      predicateFn = generateExpressionFn(predicateArg, params);
     } else {
       throw new Error('filter() argument must be a function name or inline function');
     }
 
-    const arrayPtr = this.generateExpression(expr.object, params);
+    const arrayPtr = generateExpressionFn(expr.object, params);
 
     // Load array length
     const lenPtr = this.nextTemp();
@@ -350,7 +369,7 @@ export class ArrayGenerator extends BaseGenerator {
     return resultArrayPtr;
   }
 
-  generateArrayForEach(expr: MethodCallNode, params: string[]): string {
+  generateArrayForEach(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // arr.forEach(callbackFn) - calls function for each element, returns 0
     if (expr.args.length !== 1) {
       throw new Error('forEach() requires exactly 1 argument (callback function)');
@@ -363,12 +382,12 @@ export class ArrayGenerator extends BaseGenerator {
       callbackFn = callbackArg.name;
     } else if ((callbackArg as any).type === 'arrow_function') {
       // Inline function - generate it and get the name
-      callbackFn = this.generateExpression(callbackArg, params);
+      callbackFn = generateExpressionFn(callbackArg, params);
     } else {
       throw new Error('forEach() argument must be a function name or inline function');
     }
 
-    const arrayPtr = this.generateExpression(expr.object, params);
+    const arrayPtr = generateExpressionFn(expr.object, params);
 
     // Load array length
     const lenPtr = this.nextTemp();
@@ -427,7 +446,7 @@ export class ArrayGenerator extends BaseGenerator {
     return '0';
   }
 
-  generateArrayMap(expr: MethodCallNode, params: string[]): string {
+  generateArrayMap(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // arr.map(callbackFn) - returns new array with transformed elements
     if (expr.args.length !== 1) {
       throw new Error('map() requires exactly 1 argument (callback function)');
@@ -440,12 +459,12 @@ export class ArrayGenerator extends BaseGenerator {
       callbackFn = callbackArg.name;
     } else if ((callbackArg as any).type === 'arrow_function') {
       // Inline function - generate it and get the name
-      callbackFn = this.generateExpression(callbackArg, params);
+      callbackFn = generateExpressionFn(callbackArg, params);
     } else {
       throw new Error('map() argument must be a function name or inline function');
     }
 
-    const arrayPtr = this.generateExpression(expr.object, params);
+    const arrayPtr = generateExpressionFn(expr.object, params);
 
     // Load array length
     const lenPtr = this.nextTemp();
@@ -538,22 +557,22 @@ export class ArrayGenerator extends BaseGenerator {
     return resultArrayPtr;
   }
 
-  generateArrayIncludes(expr: MethodCallNode, params: string[]): string {
+  generateArrayIncludes(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // arr.includes(value) - returns 1 if array contains value, 0 otherwise
     if (expr.args.length !== 1) {
       throw new Error('includes() requires exactly 1 argument');
     }
 
-    const arrayPtr = this.generateExpression(expr.object, params);
-    const searchValue = this.generateExpression(expr.args[0], params);
+    const arrayPtr = generateExpressionFn(expr.object, params);
+    const searchValue = generateExpressionFn(expr.args[0], params);
 
     // Determine if this is a string array or number array
     let isStringArray = false;
     if (expr.object.type === 'variable') {
       const varName = (expr.object as any).name;
-      isStringArray = this.stringArrayVariables.has(varName);
+      isStringArray = this.ctx.stringArrayVariables.has(varName);
     } else {
-      isStringArray = this.stringArrayVariables.has(arrayPtr);
+      isStringArray = this.ctx.stringArrayVariables.has(arrayPtr);
     }
 
     if (isStringArray) {
@@ -713,15 +732,15 @@ export class ArrayGenerator extends BaseGenerator {
     return result;
   }
 
-  generateArrayJoin(expr: MethodCallNode, params: string[]): string {
+  generateArrayJoin(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // arr.join(separator) - returns a string (i8*)
     // For simplicity, we'll implement join with a string separator
     if (expr.args.length !== 1) {
       throw new Error('join() requires exactly 1 argument (separator)');
     }
 
-    const arrayPtr = this.generateExpression(expr.object, params);
-    const separator = this.generateExpression(expr.args[0], params);
+    const arrayPtr = generateExpressionFn(expr.object, params);
+    const separator = generateExpressionFn(expr.args[0], params);
 
     // Get array length
     const lenPtr = this.nextTemp();

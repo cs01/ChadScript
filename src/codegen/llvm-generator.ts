@@ -137,7 +137,7 @@ export class LLVMGenerator extends BaseGenerator {
     (this as any).generateExpressionFallback = this.generateExpression.bind(this);
 
     // Legacy generators still use old pattern (will migrate gradually)
-    this.arrayGen = new ArrayGenerator();
+    this.arrayGen = new ArrayGenerator(this); // Context pattern
     this.stringGen = new StringGenerator();
     this.mapGen = new MapGenerator(this);
     this.setGen = new SetGenerator(this);
@@ -145,10 +145,11 @@ export class LLVMGenerator extends BaseGenerator {
     this.classGen = new ClassGenerator();
 
     // Wire up delegates for legacy generators
-    this.arrayGen.generateExpression = this.generateExpression.bind(this);
+    // arrayGen uses context pattern - no binding needed! 🎯
     this.stringGen.generateExpression = this.generateExpression.bind(this);
     this.stringGen.isStringExpression = this.isStringExpression.bind(this);
     // objectGen uses context pattern - no binding needed! 🎯
+    // mapGen uses context pattern - no binding needed! 🎯
     // setGen uses context pattern - no binding needed! 🎯
     this.controlFlowGen.generateExpression = this.generateExpression.bind(this);
     this.controlFlowGen.generateBlock = this.generateBlock.bind(this);
@@ -158,8 +159,8 @@ export class LLVMGenerator extends BaseGenerator {
     // Pass AST to classGen for method lookups
     (this.classGen as any).ast = ast;
 
-    // Override counter methods for legacy generators (objectGen + mapGen + setGen excluded - use context! 🎯)
-    for (const gen of [this.arrayGen, this.stringGen, this.controlFlowGen, this.classGen]) {
+    // Override counter methods for legacy generators (arrayGen + objectGen + mapGen + setGen excluded - use context! 🎯)
+    for (const gen of [this.stringGen, this.controlFlowGen, this.classGen]) {
       gen.nextTemp = this.nextTemp.bind(this);
       gen.nextLabel = this.nextLabel.bind(this);
       gen.nextString = this.nextString.bind(this);
@@ -1460,35 +1461,26 @@ export class LLVMGenerator extends BaseGenerator {
       }
     }
 
-    // Handle array methods
+    // Handle array methods (arrayGen uses context pattern - no sync needed! 🎯)
     if (method === 'push') {
-      this.syncStateToGenerators();
-      return this.arrayGen.generateArrayPush(expr, params);
+      return this.arrayGen.generateArrayPush(expr, params, this.generateExpression.bind(this));
     } else if (method === 'pop') {
-      this.syncStateToGenerators();
-      return this.arrayGen.generateArrayPop(expr, params);
+      return this.arrayGen.generateArrayPop(expr, params, this.generateExpression.bind(this));
     } else if (method === 'includes' && this.isArrayExpression(expr.object)) {
       // array.includes() - check for array first to avoid conflict with string.includes()
-      this.syncStateToGenerators();
-      return this.arrayGen.generateArrayIncludes(expr, params);
+      return this.arrayGen.generateArrayIncludes(expr, params, this.generateExpression.bind(this));
     } else if (method === 'map') {
-      this.syncStateToGenerators();
-      return this.arrayGen.generateArrayMap(expr, params);
+      return this.arrayGen.generateArrayMap(expr, params, this.generateExpression.bind(this));
     } else if (method === 'join') {
-      this.syncStateToGenerators();
-      return this.arrayGen.generateArrayJoin(expr, params);
+      return this.arrayGen.generateArrayJoin(expr, params, this.generateExpression.bind(this));
     } else if (method === 'find') {
-      this.syncStateToGenerators();
-      return this.arrayGen.generateArrayFind(expr, params);
+      return this.arrayGen.generateArrayFind(expr, params, this.generateExpression.bind(this));
     } else if (method === 'some') {
-      this.syncStateToGenerators();
-      return this.arrayGen.generateArraySome(expr, params);
+      return this.arrayGen.generateArraySome(expr, params, this.generateExpression.bind(this));
     } else if (method === 'filter') {
-      this.syncStateToGenerators();
-      return this.arrayGen.generateArrayFilter(expr, params);
+      return this.arrayGen.generateArrayFilter(expr, params, this.generateExpression.bind(this));
     } else if (method === 'forEach') {
-      this.syncStateToGenerators();
-      return this.arrayGen.generateArrayForEach(expr, params);
+      return this.arrayGen.generateArrayForEach(expr, params, this.generateExpression.bind(this));
     }
 
     // Handle class instance methods
@@ -2157,9 +2149,9 @@ export class LLVMGenerator extends BaseGenerator {
 
   // Sync state to sub-generators - share Maps/arrays by reference
   // Note: Counters are already shared via bound methods (nextTemp, nextLabel, nextString)
-  // Note: regexGen + objectGen + mapGen + setGen excluded - use context pattern instead of state sharing! 🎯
+  // Note: arrayGen + regexGen + objectGen + mapGen + setGen excluded - use context pattern instead of state sharing! 🎯
   private syncStateToGenerators() {
-    for (const gen of [this.arrayGen, this.stringGen, this.controlFlowGen, this.classGen]) {
+    for (const gen of [this.stringGen, this.controlFlowGen, this.classGen]) {
       gen.output = this.output;
       gen.globalStrings = this.globalStrings;
       gen.variables = this.variables;
