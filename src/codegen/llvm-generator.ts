@@ -937,12 +937,13 @@ export class LLVMGenerator extends BaseGenerator {
    */
   public generateExpression(expr: Expression, params: string[]): string {
     // Delegate to ExpressionGenerator for extracted types
-    // (literals, variables, binary, unary, call operators)
+    // (literals, variables, binary, unary, call, index_access)
     if (expr.type === 'number' || expr.type === 'boolean' || expr.type === 'string' ||
         (expr as any).type === 'regex' || expr.type === 'array' || (expr as any).type === 'object' ||
         (expr as any).type === 'map' || (expr as any).type === 'set' || (expr as any).type === 'new' ||
         (expr as any).type === 'this' || expr.type === 'variable' ||
-        expr.type === 'binary' || expr.type === 'unary' || expr.type === 'call') {
+        expr.type === 'binary' || expr.type === 'unary' || expr.type === 'call' ||
+        expr.type === 'index_access') {
       return this.exprGen.generate(expr, params);
     }
 
@@ -1523,141 +1524,6 @@ export class LLVMGenerator extends BaseGenerator {
       }
 
       throw new Error(this.formatCodegenError(`Unknown property: ${expr.property}`));
-    }
-
-    if (expr.type === 'index_access') {
-      // Check if it's process.argv
-      if (expr.object.type === 'member_access') {
-        const memberAccess = expr.object as any;
-        if (memberAccess.object.type === 'variable' &&
-            memberAccess.object.name === 'process' &&
-            memberAccess.property === 'argv') {
-          // Index into argv: process.argv[i]
-          const argvStruct = this.generateExpression(expr.object, params);
-          const indexDouble = this.generateExpression(expr.index, params);
-
-          // Convert double index to i32
-          const index = this.nextTemp();
-          this.emit(`${index} = fptosi double ${indexDouble} to i32`);
-
-          // Extract data pointer from StringArray struct (field 0)
-          const dataField = this.nextTemp();
-          this.emit(`${dataField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 0`);
-          const argvPtr = this.nextTemp();
-          this.emit(`${argvPtr} = load i8**, i8*** ${dataField}`);
-
-          // Get pointer to i-th argument
-          const indexI64 = this.nextTemp();
-          this.emit(`${indexI64} = sext i32 ${index} to i64`);
-
-          const argPtr = this.nextTemp();
-          this.emit(`${argPtr} = getelementptr inbounds i8*, i8** ${argvPtr}, i64 ${indexI64}`);
-
-          const argRaw = this.nextTemp();
-          this.emit(`${argRaw} = load i8*, i8** ${argPtr}`);
-
-          // Safely handle NULL pointers (out of bounds argv access)
-          const arg = this.nextTemp();
-          this.emit(`${arg} = call i8* @__safe_string(i8* ${argRaw})`);
-
-          // Mark this as a string variable
-          this.stringVariables.set(arg, arg);
-
-          return arg;
-        }
-      }
-
-      // Determine if we're indexing into a string array or numeric array
-      // We use isStringArrayExpression/isArrayExpression which check types comprehensively
-      const isStringArray = this.isStringArrayExpression(expr.object);
-      const isNumericArray = !isStringArray && this.isArrayExpression(expr.object);
-
-      if (isStringArray) {
-        const stringArrayPtr = this.generateExpression(expr.object, params);
-        const indexDouble = this.generateExpression(expr.index, params);
-
-        // Convert double index to i32 for getelementptr
-        const indexType = this.variableTypes.get(indexDouble);
-        let index = indexDouble;
-        if (indexType === 'double') {
-          index = this.nextTemp();
-          this.emit(`${index} = fptosi double ${indexDouble} to i32`);
-        }
-
-        const dataPtr = this.nextTemp();
-        this.emit(`${dataPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 0`);
-
-        const data = this.nextTemp();
-        this.emit(`${data} = load i8**, i8*** ${dataPtr}`);
-
-        const elemPtr = this.nextTemp();
-        this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${data}, i32 ${index}`);
-
-        const elem = this.nextTemp();
-        this.emit(`${elem} = load i8*, i8** ${elemPtr}`);
-        // Track that this loaded value is a string
-        this.variableTypes.set(elem, 'i8*');
-        return elem;
-      }
-      // Check if it's a numeric array
-      else if (isNumericArray) {
-        const arrayPtr = this.generateExpression(expr.object, params);
-        const indexDouble = this.generateExpression(expr.index, params);
-
-        // Convert double index to i32 for getelementptr
-        const indexType = this.variableTypes.get(indexDouble);
-        let index = indexDouble;
-        if (indexType === 'double') {
-          index = this.nextTemp();
-          this.emit(`${index} = fptosi double ${indexDouble} to i32`);
-        }
-
-        const dataPtr = this.nextTemp();
-        this.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-
-        const data = this.nextTemp();
-        this.emit(`${data} = load double*, double** ${dataPtr}`);
-
-        const elemPtr = this.nextTemp();
-        this.emit(`${elemPtr} = getelementptr inbounds double, double* ${data}, i32 ${index}`);
-
-        // Load double element
-        const elem = this.nextTemp();
-        this.emit(`${elem} = load double, double* ${elemPtr}`);
-        this.variableTypes.set(elem, 'double');
-        return elem;
-      } else {
-        // Handle string[index] - returns character code as i32, then convert to double
-        const objPtr = this.generateExpression(expr.object, params);
-        const indexDouble = this.generateExpression(expr.index, params);
-
-        // Convert double index to i32
-        const indexType = this.variableTypes.get(indexDouble);
-        let index = indexDouble;
-        if (indexType === 'double') {
-          index = this.nextTemp();
-          this.emit(`${index} = fptosi double ${indexDouble} to i32`);
-        }
-
-        const indexI64 = this.nextTemp();
-        this.emit(`${indexI64} = sext i32 ${index} to i64`);
-
-        const charPtr = this.nextTemp();
-        this.emit(`${charPtr} = getelementptr inbounds i8, i8* ${objPtr}, i64 ${indexI64}`);
-
-        const charI8 = this.nextTemp();
-        this.emit(`${charI8} = load i8, i8* ${charPtr}`);
-
-        const charI32 = this.nextTemp();
-        this.emit(`${charI32} = zext i8 ${charI8} to i32`);
-
-        // Convert char code to double for compatibility with numeric system
-        const charDouble = this.nextTemp();
-        this.emit(`${charDouble} = sitofp i32 ${charI32} to double`);
-        this.variableTypes.set(charDouble, 'double');
-
-        return charDouble;
-      }
     }
 
     if (expr.type === 'method_call') {
