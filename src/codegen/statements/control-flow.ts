@@ -1,21 +1,25 @@
 import { Expression, Statement, BlockStatement } from '../../ast/types.js';
-import { BaseGenerator } from '../infrastructure/base-generator.js';
+import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
 // ============================================
 // CONTROL FLOW GENERATOR - If/while/loops
 // ============================================
 
-export class ControlFlowGenerator extends BaseGenerator {
-  // Generate delegates (set by LLVMGenerator)
-  generateExpression!: (expr: Expression, params: string[]) => string;
-  generateBlock!: (block: BlockStatement, params: string[]) => string | null;
-
+export class ControlFlowGenerator {
   // Loop context stack for break/continue
   private loopStack: Array<{ continueLabel: string; breakLabel: string }> = [];
 
-  constructor() {
-    super();
-  }
+  constructor(private ctx: IGeneratorContext) {}
+
+  // Helper methods delegate to context
+  private nextTemp() { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private get output() { return this.ctx.output; }
+  private get variableTypes() { return this.ctx.variableTypes; }
+  private get variables() { return this.ctx.variables; }
+  private get currentLabel() { return this.ctx.currentLabel; }
+  private set currentLabel(label: string) { this.ctx.currentLabel = label; }
 
   // Helper to convert a value to boolean (i1) for branching
   private convertToBool(value: string): string {
@@ -48,7 +52,7 @@ export class ControlFlowGenerator extends BaseGenerator {
     const mergeLabel = this.nextLabel('merge');
 
     // Evaluate condition
-    const condValue = this.generateExpression(stmt.condition, params);
+    const condValue = this.ctx.generateExpression(stmt.condition, params);
 
     // Convert to boolean for branching
     const condBool = this.convertToBool(condValue);
@@ -63,7 +67,7 @@ export class ControlFlowGenerator extends BaseGenerator {
     // Generate then block
     this.emit(`${thenLabel}:`);
     this.currentLabel = thenLabel;
-    const thenValue = this.generateBlock(stmt.thenBlock, params);
+    const thenValue = this.ctx.generateBlock(stmt.thenBlock, params);
     // Check if the LAST instruction is a terminator
     const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
     const thenHasTerminator = lastInstruction.startsWith('ret ') ||
@@ -89,7 +93,7 @@ export class ControlFlowGenerator extends BaseGenerator {
     if (stmt.elseBlock) {
       this.emit(`${elseLabel}:`);
       this.currentLabel = elseLabel;
-      elseValue = this.generateBlock(stmt.elseBlock, params);
+      elseValue = this.ctx.generateBlock(stmt.elseBlock, params);
       // Check if the LAST instruction is a terminator
       const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
       const elseHasTerminator = lastInstruction.startsWith('ret ') ||
@@ -139,7 +143,7 @@ export class ControlFlowGenerator extends BaseGenerator {
 
     // Condition block
     this.emit(`${condLabel}:`);
-    const condValue = this.generateExpression(stmt.condition, params);
+    const condValue = this.ctx.generateExpression(stmt.condition, params);
     const condBool = this.convertToBool(condValue);
     this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
 
@@ -147,7 +151,7 @@ export class ControlFlowGenerator extends BaseGenerator {
     this.emit(`${bodyLabel}:`);
     this.currentLabel = bodyLabel;
     this.loopStack.push({ continueLabel: condLabel, breakLabel: endLabel });
-    this.generateBlock(stmt.body, params);
+    this.ctx.generateBlock(stmt.body, params);
     this.loopStack.pop();
     // Check if the LAST instruction is a terminator
     const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
@@ -177,7 +181,7 @@ export class ControlFlowGenerator extends BaseGenerator {
         if (!stmt.init.value) {
           throw new Error('Variable declaration in for loop must have an initializer');
         }
-        const value = this.generateExpression(stmt.init.value, params);
+        const value = this.ctx.generateExpression(stmt.init.value, params);
         const allocaReg = this.nextTemp();
         // Register the variable in the variables map
         this.variables.set(stmt.init.name, allocaReg);
@@ -185,7 +189,7 @@ export class ControlFlowGenerator extends BaseGenerator {
         this.emit(`${allocaReg} = alloca double`);
         this.emit(`store double ${value}, double* ${allocaReg}`);
       } else if (stmt.init.type === 'assignment') {
-        const value = this.generateExpression(stmt.init.value, params);
+        const value = this.ctx.generateExpression(stmt.init.value, params);
         const allocaReg = this.variables.get(stmt.init.name);
         if (!allocaReg) {
           throw new Error(`Variable ${stmt.init.name} not found`);
@@ -207,7 +211,7 @@ export class ControlFlowGenerator extends BaseGenerator {
     // Condition block
     this.emit(`${condLabel}:`);
     if (stmt.condition) {
-      const condValue = this.generateExpression(stmt.condition, params);
+      const condValue = this.ctx.generateExpression(stmt.condition, params);
       const condBool = this.convertToBool(condValue);
       this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
     } else {
@@ -219,7 +223,7 @@ export class ControlFlowGenerator extends BaseGenerator {
     this.emit(`${bodyLabel}:`);
     this.currentLabel = bodyLabel;
     this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
-    this.generateBlock(stmt.body, params);
+    this.ctx.generateBlock(stmt.body, params);
     this.loopStack.pop();
     // Check if the LAST instruction is a terminator
     const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
@@ -235,7 +239,7 @@ export class ControlFlowGenerator extends BaseGenerator {
     this.emit(`${updateLabel}:`);
     if (stmt.update) {
       if (stmt.update.type === 'assignment') {
-        const value = this.generateExpression(stmt.update.value, params);
+        const value = this.ctx.generateExpression(stmt.update.value, params);
         const allocaReg = this.variables.get(stmt.update.name);
         if (!allocaReg) {
           throw new Error(`Variable ${stmt.update.name} not found in update`);
@@ -244,7 +248,7 @@ export class ControlFlowGenerator extends BaseGenerator {
         this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
       } else {
         // It's an expression (like i++)
-        this.generateExpression(stmt.update, params);
+        this.ctx.generateExpression(stmt.update, params);
       }
     }
     this.emit(`br label %${condLabel}`);
@@ -292,11 +296,11 @@ export class ControlFlowGenerator extends BaseGenerator {
 
     // For now, we'll just execute the try block and ignore catch/finally
     // Full exception handling would require LLVM's invoke/landingpad support
-    this.generateBlock(stmt.tryBlock, params);
+    this.ctx.generateBlock(stmt.tryBlock, params);
 
     // If there's a finally block, execute it unconditionally
     if (stmt.finallyBlock) {
-      this.generateBlock(stmt.finallyBlock, params);
+      this.ctx.generateBlock(stmt.finallyBlock, params);
     }
 
     return '0';
@@ -305,8 +309,8 @@ export class ControlFlowGenerator extends BaseGenerator {
   generateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string {
     // For && and ||, we need short-circuit evaluation
     // We'll use a simpler non-short-circuit version for now (like C's & and |)
-    const leftValue = this.generateExpression(left, params);
-    const rightValue = this.generateExpression(right, params);
+    const leftValue = this.ctx.generateExpression(left, params);
+    const rightValue = this.ctx.generateExpression(right, params);
 
     // Convert both to booleans (0 or 1)
     const leftBool = this.convertToBool(leftValue);
