@@ -8,6 +8,13 @@ import { SetGenerator } from './generators/set-generator.js';
 import { ControlFlowGenerator } from './generators/control-flow-generator.js';
 import { ClassGenerator } from './generators/class-generator.js';
 import { RegexGenerator } from './generators/regex-generator.js';
+import { MathGenerator } from './method-generators/math-generator.js';
+import { ConsoleGenerator } from './method-generators/console-generator.js';
+import { ProcessGenerator } from './method-generators/process-generator.js';
+import { PathGenerator } from './method-generators/path-generator.js';
+import { JsonGenerator } from './method-generators/json-generator.js';
+import { FilesystemGenerator } from './method-generators/filesystem-generator.js';
+import { RuntimeGenerator } from './runtime-generator.js';
 import { TypeChecker } from '../typescript/type-checker.js';
 import { logger } from '../utils/logger.js';
 
@@ -35,6 +42,15 @@ export class LLVMGenerator extends BaseGenerator {
   private controlFlowGen: ControlFlowGenerator;
   private classGen: ClassGenerator;
   private regexGen: RegexGenerator;
+
+  // Method generators (context pattern)
+  private mathGen: MathGenerator;
+  private consoleGen: ConsoleGenerator;
+  private processGen: ProcessGenerator;
+  private pathGen: PathGenerator;
+  private jsonGen: JsonGenerator;
+  private fsGen: FilesystemGenerator;
+  private runtimeGen: RuntimeGenerator;
 
   // Helper: Format nice compiler errors
   private formatCodegenError(message: string, suggestion?: string): string {
@@ -103,6 +119,15 @@ export class LLVMGenerator extends BaseGenerator {
     // These generators use explicit context instead of callback binding
     this.regexGen = new RegexGenerator(this); // 'this' implements IGeneratorContext
     this.objectGen = new ObjectGenerator(this); // Clean context pattern! 🎯
+
+    // Initialize method generators with context pattern
+    this.mathGen = new MathGenerator(this);
+    this.consoleGen = new ConsoleGenerator(this);
+    this.processGen = new ProcessGenerator(this);
+    this.pathGen = new PathGenerator(this);
+    this.jsonGen = new JsonGenerator(this);
+    this.fsGen = new FilesystemGenerator(this);
+    this.runtimeGen = new RuntimeGenerator();
 
     // Legacy generators still use old pattern (will migrate gradually)
     this.arrayGen = new ArrayGenerator();
@@ -287,11 +312,11 @@ export class LLVMGenerator extends BaseGenerator {
     ir += '\n';
 
     // fetch() runtime implementation
-    ir += this.generateFetchRuntime();
+    ir += this.runtimeGen.generateFetchRuntime();
     ir += '\n';
 
     // JSON parsing runtime
-    ir += this.generateJSONRuntime();
+    ir += this.runtimeGen.generateJSONRuntime();
     ir += '\n';
 
     // Helper function to safely get string or return empty string if NULL
@@ -2269,305 +2294,41 @@ export class LLVMGenerator extends BaseGenerator {
   private generateMethodCall(expr: MethodCallNode, params: string[]): string {
     const method = expr.method;
 
-    // Handle console.log and console.error
-    if ((method === 'log' || method === 'error') && expr.object.type === 'variable' && (expr.object as any).name === 'console') {
-      return this.generateConsoleCall(method, expr.args, params);
+    // Handle console.log and console.error (delegated to ConsoleGenerator)
+    if (this.consoleGen.canHandle(expr)) {
+      return this.consoleGen.generateConsoleCall(expr.method, expr.args, params);
     }
 
-    // Handle process.exit()
-    if (method === 'exit' && expr.object.type === 'variable' && (expr.object as any).name === 'process') {
-      const exitCodeDouble = expr.args.length > 0 ? this.generateExpression(expr.args[0], params) : '0.0';
-      // Convert double to i32 for exit code (truncates decimal)
-      const exitCode = this.nextTemp();
-      if (exitCodeDouble === '0.0') {
-        this.emit(`${exitCode} = add i32 0, 0`); // Just use 0
-      } else {
-        this.emit(`${exitCode} = fptosi double ${exitCodeDouble} to i32`);
+    // Handle process.exit() (delegated to ProcessGenerator)
+    if (this.processGen.canHandle(expr)) {
+      return this.processGen.generateProcessExit(expr, params);
+    }
+
+    // Handle fs.* methods (delegated to FilesystemGenerator)
+    if (this.fsGen.canHandle(expr)) {
+      switch (expr.method) {
+        case 'readFileSync':
+          return this.fsGen.generateReadFileSync(expr, params);
+        case 'writeFileSync':
+          return this.fsGen.generateWriteFileSync(expr, params);
+        case 'existsSync':
+          return this.fsGen.generateExistsSync(expr, params);
+        case 'unlinkSync':
+          return this.fsGen.generateUnlinkSync(expr, params);
+        default:
+          throw new Error(`Unsupported fs method: ${expr.method}`);
       }
-      // Flush stdout before exiting to ensure all output is printed
-      const stdoutPtr = this.nextTemp();
-      this.emit(`${stdoutPtr} = load i8*, i8** @stdout`);
-      const flushResult = this.nextTemp();
-      this.emit(`${flushResult} = call i32 @fflush(i8* ${stdoutPtr})`);
-      this.emit(`call void @exit(i32 ${exitCode})`);
-      // Return a dummy value since exit doesn't return
-      return '0';
     }
 
-    // Handle fs.readFileSync()
-    if (method === 'readFileSync' && expr.object.type === 'variable' && (expr.object as any).name === 'fs') {
-      if (expr.args.length < 1) {
-        throw new Error('fs.readFileSync() requires at least 1 argument (filename)');
-      }
 
-      this.syncStateToGenerators();
-
-      // Get filename argument
-      const filenamePtr = this.generateExpression(expr.args[0], params);
-
-      // Create "r" mode string for fopen
-      const modeStr = this.stringGen.createStringConstant('r');
-
-      // Open file: FILE* fp = fopen(filename, "r")
-      const filePtr = this.nextTemp();
-      this.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
-
-      // Check if file opened successfully (if NULL, return empty string for now)
-      const isNull = this.nextTemp();
-      this.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
-
-      const failLabel = this.nextLabel('read_fail');
-      const successLabel = this.nextLabel('read_success');
-      const endLabel = this.nextLabel('read_end');
-
-      this.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
-
-      // Failure case: return empty string
-      this.emit(`${failLabel}:`);
-      const emptyStr = this.stringGen.createStringConstant('');
-      this.emit(`br label %${endLabel}`);
-
-      // Success case: read file
-      this.emit(`${successLabel}:`);
-
-      // Seek to end to get file size: fseek(fp, 0, SEEK_END)
-      const seekEnd = this.nextTemp();
-      this.emit(`${seekEnd} = call i32 @fseek(i8* ${filePtr}, i64 0, i32 2)`);
-
-      // Get file size: size = ftell(fp)
-      const fileSize = this.nextTemp();
-      this.emit(`${fileSize} = call i64 @ftell(i8* ${filePtr})`);
-
-      // Seek back to beginning: fseek(fp, 0, SEEK_SET)
-      const seekStart = this.nextTemp();
-      this.emit(`${seekStart} = call i32 @fseek(i8* ${filePtr}, i64 0, i32 0)`);
-
-      // Allocate buffer: malloc(size + 1) for null terminator
-      const bufferSize = this.nextTemp();
-      this.emit(`${bufferSize} = add i64 ${fileSize}, 1`);
-      const buffer = this.nextTemp();
-      this.emit(`${buffer} = call i8* @malloc(i64 ${bufferSize})`);
-
-      // Read file: fread(buffer, 1, size, fp)
-      const bytesRead = this.nextTemp();
-      this.emit(`${bytesRead} = call i64 @fread(i8* ${buffer}, i64 1, i64 ${fileSize}, i8* ${filePtr})`);
-
-      // Null-terminate the string
-      const nullPos = this.nextTemp();
-      this.emit(`${nullPos} = getelementptr inbounds i8, i8* ${buffer}, i64 ${fileSize}`);
-      this.emit(`store i8 0, i8* ${nullPos}`);
-
-      // Close file: fclose(fp)
-      const closeResult = this.nextTemp();
-      this.emit(`${closeResult} = call i32 @fclose(i8* ${filePtr})`);
-
-      this.emit(`br label %${endLabel}`);
-
-      // End: phi node to select result
-      this.emit(`${endLabel}:`);
-      const result = this.nextTemp();
-      this.emit(`${result} = phi i8* [ ${emptyStr}, %${failLabel} ], [ ${buffer}, %${successLabel} ]`);
-
-      return result;
-    }
-
-    // Handle fs.writeFileSync()
-    if (method === 'writeFileSync' && expr.object.type === 'variable' && (expr.object as any).name === 'fs') {
-      if (expr.args.length < 2) {
-        throw new Error('fs.writeFileSync() requires at least 2 arguments (filename, data)');
-      }
-
-      this.syncStateToGenerators();
-
-      // Get filename and data arguments
-      const filenamePtr = this.generateExpression(expr.args[0], params);
-      const dataPtr = this.generateExpression(expr.args[1], params);
-
-      // Create "w" mode string for fopen
-      const modeStr = this.stringGen.createStringConstant('w');
-
-      // Open file: FILE* fp = fopen(filename, "w")
-      const filePtr = this.nextTemp();
-      this.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
-
-      // Check if file opened successfully
-      const isNull = this.nextTemp();
-      this.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
-
-      const failLabel = this.nextLabel('write_fail');
-      const successLabel = this.nextLabel('write_success');
-      const endLabel = this.nextLabel('write_end');
-
-      this.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
-
-      // Failure case: return -1
-      this.emit(`${failLabel}:`);
-      this.emit(`br label %${endLabel}`);
-
-      // Success case: write file
-      this.emit(`${successLabel}:`);
-
-      // Get data length: strlen(data)
-      const dataLen = this.nextTemp();
-      this.emit(`${dataLen} = call i64 @strlen(i8* ${dataPtr})`);
-
-      // Write data: fwrite(data, 1, len, fp)
-      const fwriteDecl = 'declare i64 @fwrite(i8*, i64, i64, i8*)';
-      // Note: fwrite declaration should be added to the top, but for now we'll declare it inline if needed
-      const bytesWritten = this.nextTemp();
-      this.emit(`${bytesWritten} = call i64 @fwrite(i8* ${dataPtr}, i64 1, i64 ${dataLen}, i8* ${filePtr})`);
-
-      // Close file: fclose(fp)
-      const closeResult = this.nextTemp();
-      this.emit(`${closeResult} = call i32 @fclose(i8* ${filePtr})`);
-
-      this.emit(`br label %${endLabel}`);
-
-      // End: phi node to return success/failure
-      this.emit(`${endLabel}:`);
-      const result = this.nextTemp();
-      this.emit(`${result} = phi i32 [ -1, %${failLabel} ], [ 0, %${successLabel} ]`);
-
-      return result;
-    }
-
-    // Handle fs.existsSync()
-    if (method === 'existsSync' && expr.object.type === 'variable' && (expr.object as any).name === 'fs') {
-      if (expr.args.length < 1) {
-        throw new Error('fs.existsSync() requires 1 argument (filename)');
-      }
-
-      this.syncStateToGenerators();
-
-      // Get filename argument
-      const filenamePtr = this.generateExpression(expr.args[0], params);
-
-      // Try to open file in read mode
-      const modeStr = this.stringGen.createStringConstant('r');
-      const filePtr = this.nextTemp();
-      this.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
-
-      // Check if file opened successfully (NULL means doesn't exist)
-      const isNull = this.nextTemp();
-      this.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
-
-      const existsLabel = this.nextLabel('exists');
-      const notExistsLabel = this.nextLabel('not_exists');
-      const endLabel = this.nextLabel('exists_end');
-
-      this.emit(`br i1 ${isNull}, label %${notExistsLabel}, label %${existsLabel}`);
-
-      // File exists: close it and return 1
-      this.emit(`${existsLabel}:`);
-      const closeResult = this.nextTemp();
-      this.emit(`${closeResult} = call i32 @fclose(i8* ${filePtr})`);
-      this.emit(`br label %${endLabel}`);
-
-      // File doesn't exist: return 0
-      this.emit(`${notExistsLabel}:`);
-      this.emit(`br label %${endLabel}`);
-
-      // End: phi node to return 1 (exists) or 0 (doesn't exist)
-      this.emit(`${endLabel}:`);
-      const result = this.nextTemp();
-      this.emit(`${result} = phi i32 [ 1, %${existsLabel} ], [ 0, %${notExistsLabel} ]`);
-
-      return result;
-    }
-
-    // Handle fs.unlinkSync()
-    if (method === 'unlinkSync' && expr.object.type === 'variable' && (expr.object as any).name === 'fs') {
-      if (expr.args.length < 1) {
-        throw new Error('fs.unlinkSync() requires 1 argument (filename)');
-      }
-
-      this.syncStateToGenerators();
-
-      // Get filename argument
-      const filenamePtr = this.generateExpression(expr.args[0], params);
-
-      // Call unlink: unlink(filename) returns 0 on success, -1 on error
-      const result = this.nextTemp();
-      this.emit(`${result} = call i32 @unlink(i8* ${filenamePtr})`);
-
-      return result;
-    }
-
-    // Handle path.resolve()
+    // Handle path.resolve() and path.dirname() (delegated to PathGenerator)
     if (method === 'resolve' && expr.object.type === 'variable' && (expr.object as any).name === 'path') {
-      if (expr.args.length < 1) {
-        throw new Error('path.resolve() requires at least 1 argument');
-      }
-
-      this.syncStateToGenerators();
-
-      // Get path argument (for now, only support single argument)
-      const pathPtr = this.generateExpression(expr.args[0], params);
-
-      // Allocate buffer for resolved path (PATH_MAX = 4096)
-      const bufferSize = this.nextTemp();
-      this.emit(`${bufferSize} = add i64 0, 4096`);
-      const buffer = this.nextTemp();
-      this.emit(`${buffer} = call i8* @malloc(i64 ${bufferSize})`);
-
-      // Call realpath: realpath(path, buffer)
-      const resolvedPtr = this.nextTemp();
-      this.emit(`${resolvedPtr} = call i8* @realpath(i8* ${pathPtr}, i8* ${buffer})`);
-
-      // If realpath returns NULL, return the original path
-      const isNull = this.nextTemp();
-      this.emit(`${isNull} = icmp eq i8* ${resolvedPtr}, null`);
-
-      const successLabel = this.nextLabel('resolve_success');
-      const failLabel = this.nextLabel('resolve_fail');
-      const endLabel = this.nextLabel('resolve_end');
-
-      this.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
-
-      // Success: return resolved path
-      this.emit(`${successLabel}:`);
-      this.emit(`br label %${endLabel}`);
-
-      // Failure: free buffer and return original path
-      this.emit(`${failLabel}:`);
-      this.emit(`call void @free(i8* ${buffer})`);
-      this.emit(`br label %${endLabel}`);
-
-      // End: phi node
-      this.emit(`${endLabel}:`);
-      const result = this.nextTemp();
-      this.emit(`${result} = phi i8* [ ${resolvedPtr}, %${successLabel} ], [ ${pathPtr}, %${failLabel} ]`);
-
-      return result;
+      return this.pathGen.generateResolve(expr, params);
     }
-
-    // Handle path.dirname()
     if (method === 'dirname' && expr.object.type === 'variable' && (expr.object as any).name === 'path') {
-      if (expr.args.length < 1) {
-        throw new Error('path.dirname() requires 1 argument');
-      }
-
-      this.syncStateToGenerators();
-
-      // Get path argument
-      const pathPtr = this.generateExpression(expr.args[0], params);
-
-      // dirname() modifies its argument, so we need to make a copy
-      const pathLen = this.nextTemp();
-      this.emit(`${pathLen} = call i64 @strlen(i8* ${pathPtr})`);
-      const copySize = this.nextTemp();
-      this.emit(`${copySize} = add i64 ${pathLen}, 1`);
-      const pathCopy = this.nextTemp();
-      this.emit(`${pathCopy} = call i8* @malloc(i64 ${copySize})`);
-      const copyResult = this.nextTemp();
-      this.emit(`${copyResult} = call i8* @strcpy(i8* ${pathCopy}, i8* ${pathPtr})`);
-
-      // Call dirname: dirname(pathCopy)
-      const result = this.nextTemp();
-      this.emit(`${result} = call i8* @dirname(i8* ${pathCopy})`);
-
-      return result;
+      return this.pathGen.generateDirname(expr, params);
     }
+
 
     // Handle execSync() from child_process
     if (method === 'execSync' && expr.object.type === 'variable' &&
@@ -2588,126 +2349,18 @@ export class LLVMGenerator extends BaseGenerator {
       return result;
     }
 
-    // Handle JSON.parse<T>()
-    if (method === 'parse' && expr.object.type === 'variable' && (expr.object as any).name === 'JSON') {
-      if (expr.args.length < 1) {
-        throw new Error('JSON.parse() requires 1 argument (JSON string)');
+    // Handle JSON.parse() and JSON.stringify() (delegated to JsonGenerator)
+    if (this.jsonGen.canHandle(expr)) {
+      if (method === 'parse') {
+        return this.jsonGen.generateParse(expr, params);
+      } else if (method === 'stringify') {
+        return this.jsonGen.generateStringify(expr, params);
       }
-
-      this.syncStateToGenerators();
-
-      const jsonStr = this.generateExpression(expr.args[0], params);
-
-      // Parse JSON using cJSON
-      const jsonRoot = this.nextTemp();
-      this.emit(`${jsonRoot} = call i8* @cJSON_Parse(i8* ${jsonStr})`);
-
-      // Check if parse succeeded
-      const isNull = this.nextTemp();
-      this.emit(`${isNull} = icmp eq i8* ${jsonRoot}, null`);
-
-      const successLabel = this.nextLabel('json_success');
-      const errorLabel = this.nextLabel('json_error');
-      const endLabel = this.nextLabel('json_end');
-
-      this.emit(`br i1 ${isNull}, label %${errorLabel}, label %${successLabel}`);
-
-      // Error case: return null (0) as i8* or error object
-      this.emit(`${errorLabel}:`);
-      const errorPtr = this.nextTemp();
-      this.emit(`${errorPtr} = inttoptr i32 0 to i8*`);
-      this.emit(`br label %${endLabel}`);
-
-      // Success case: extract fields based on TypeScript type information
-      this.emit(`${successLabel}:`);
-
-      // Check if we have TypeScript type information for the result
-      // For now, we'll return the raw cJSON object pointer
-      // The TypeScript type checker will provide struct layout information
-      // that we can use to extract specific fields
-
-      // If there's TypeScript generic type parameter (JSON.parse<T>),
-      // we should extract fields according to interface T
-      // For now, return as opaque pointer that can be accessed via member access
-      const resultPtr = this.nextTemp();
-      this.emit(`${resultPtr} = bitcast i8* ${jsonRoot} to i8*`);
-      this.emit(`br label %${endLabel}`);
-
-      // Merge: return result or error
-      this.emit(`${endLabel}:`);
-      const result = this.nextTemp();
-      this.emit(`${result} = phi i8* [ ${errorPtr}, %${errorLabel} ], [ ${resultPtr}, %${successLabel} ]`);
-
-      // Store as object variable for later property access
-      // The caller should assign this to a variable with TypeScript type annotation
-      return result;
     }
 
-    // Handle Math.sqrt()
-    if (method === 'sqrt' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
-      if (expr.args.length !== 1) {
-        throw new Error('Math.sqrt() requires 1 argument');
-      }
-      const arg = this.generateExpression(expr.args[0], params);
-      const result = this.nextTemp();
-      this.emit(`${result} = call double @llvm.sqrt.f64(double ${arg})`);
-      return result;
-    }
-
-    // Handle Math.pow()
-    if (method === 'pow' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
-      if (expr.args.length !== 2) {
-        throw new Error('Math.pow() requires 2 arguments');
-      }
-      const base = this.generateExpression(expr.args[0], params);
-      const exp = this.generateExpression(expr.args[1], params);
-      const result = this.nextTemp();
-      this.emit(`${result} = call double @llvm.pow.f64(double ${base}, double ${exp})`);
-      return result;
-    }
-
-    // Handle Math.floor()
-    if (method === 'floor' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
-      if (expr.args.length !== 1) {
-        throw new Error('Math.floor() requires 1 argument');
-      }
-      const arg = this.generateExpression(expr.args[0], params);
-      const result = this.nextTemp();
-      this.emit(`${result} = call double @llvm.floor.f64(double ${arg})`);
-      return result;
-    }
-
-    // Handle Math.ceil()
-    if (method === 'ceil' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
-      if (expr.args.length !== 1) {
-        throw new Error('Math.ceil() requires 1 argument');
-      }
-      const arg = this.generateExpression(expr.args[0], params);
-      const result = this.nextTemp();
-      this.emit(`${result} = call double @llvm.ceil.f64(double ${arg})`);
-      return result;
-    }
-
-    // Handle Math.round()
-    if (method === 'round' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
-      if (expr.args.length !== 1) {
-        throw new Error('Math.round() requires 1 argument');
-      }
-      const arg = this.generateExpression(expr.args[0], params);
-      const result = this.nextTemp();
-      this.emit(`${result} = call double @llvm.round.f64(double ${arg})`);
-      return result;
-    }
-
-    // Handle Math.abs()
-    if (method === 'abs' && expr.object.type === 'variable' && (expr.object as any).name === 'Math') {
-      if (expr.args.length !== 1) {
-        throw new Error('Math.abs() requires 1 argument');
-      }
-      const arg = this.generateExpression(expr.args[0], params);
-      const result = this.nextTemp();
-      this.emit(`${result} = call double @llvm.fabs.f64(double ${arg})`);
-      return result;
+    // Handle Math.* methods (delegated to MathGenerator)
+    if (this.mathGen.canHandle(expr)) {
+      return this.mathGen.generateMathMethod(expr, params);
     }
 
     // Handle JSON.stringify()
@@ -3185,62 +2838,6 @@ export class LLVMGenerator extends BaseGenerator {
     ));
   }
 
-  private generateConsoleCall(method: string, args: Expression[], params: string[]): string {
-    // Generate format string and arguments for printf/fprintf
-    this.syncStateToGenerators();
-
-    if (args.length === 0) {
-      // console.log() with no args - just print newline
-      const formatStr = this.stringGen.createStringConstant('\n');
-      const temp = this.nextTemp();
-      if (method === 'error') {
-        this.emit(`${temp} = load i8*, i8** @stderr`);
-        const temp2 = this.nextTemp();
-        this.emit(`${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr})`);
-        return temp2;
-      } else {
-        this.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr})`);
-        return temp;
-      }
-    }
-
-    // For simplicity, we'll handle one argument at a time
-    const arg = args[0];
-    const argValue = this.generateExpression(arg, params);
-
-    // Determine if it's a string or integer
-    const isString = this.isStringExpression(arg);
-
-    if (isString) {
-      // Format string for string: "%s\n"
-      const formatStr = this.stringGen.createStringConstant('%s\n');
-      const temp = this.nextTemp();
-
-      if (method === 'error') {
-        this.emit(`${temp} = load i8*, i8** @stderr`);
-        const temp2 = this.nextTemp();
-        this.emit(`${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, i8* ${argValue})`);
-        return temp2;
-      } else {
-        this.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, i8* ${argValue})`);
-        return temp;
-      }
-    } else {
-      // Format string for number: "%f\n"
-      const formatStr = this.stringGen.createStringConstant('%f\n');
-      const temp = this.nextTemp();
-
-      if (method === 'error') {
-        this.emit(`${temp} = load i8*, i8** @stderr`);
-        const temp2 = this.nextTemp();
-        this.emit(`${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, double ${argValue})`);
-        return temp2;
-      } else {
-        this.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, double ${argValue})`);
-        return temp;
-      }
-    }
-  }
 
   public isArrayExpression(expr: Expression): boolean {
     if (expr.type === 'array') {
@@ -3728,292 +3325,6 @@ export class LLVMGenerator extends BaseGenerator {
     ir += '  ret i32 0\n';
 
     ir += '}\n';
-
-    return ir;
-  }
-
-  // Generate fetch() runtime using libcurl
-  private generateFetchRuntime(): string {
-    let ir = '; fetch() API implementation using libcurl\n';
-
-    // Response buffer structure: { data: i8*, size: i64, capacity: i64 }
-    ir += '%FetchBuffer = type { i8*, i64, i64 }\n\n';
-
-    // Write callback for libcurl (collects response data)
-    ir += 'define i64 @fetch_write_callback(i8* %data, i64 %size, i64 %nmemb, i8* %userdata) {\n';
-    ir += 'entry:\n';
-    ir += '  ; Calculate total size\n';
-    ir += '  %total_size = mul i64 %size, %nmemb\n';
-    ir += '  \n';
-    ir += '  ; Cast userdata to buffer pointer\n';
-    ir += '  %buffer = bitcast i8* %userdata to %FetchBuffer*\n';
-    ir += '  \n';
-    ir += '  ; Get current size\n';
-    ir += '  %size_ptr = getelementptr %FetchBuffer, %FetchBuffer* %buffer, i32 0, i32 1\n';
-    ir += '  %current_size = load i64, i64* %size_ptr\n';
-    ir += '  \n';
-    ir += '  ; Calculate new size\n';
-    ir += '  %new_size = add i64 %current_size, %total_size\n';
-    ir += '  \n';
-    ir += '  ; Reallocate if needed (simple: just allocate enough space)\n';
-    ir += '  %data_ptr_ptr = getelementptr %FetchBuffer, %FetchBuffer* %buffer, i32 0, i32 0\n';
-    ir += '  %old_data = load i8*, i8** %data_ptr_ptr\n';
-    ir += '  %alloc_size = add i64 %new_size, 1\n'; // +1 for null terminator
-    ir += '  %new_data = call i8* @realloc(i8* %old_data, i64 %alloc_size)\n';
-    ir += '  store i8* %new_data, i8** %data_ptr_ptr\n';
-    ir += '  \n';
-    ir += '  ; Copy new data\n';
-    ir += '  %dest = getelementptr i8, i8* %new_data, i64 %current_size\n';
-    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %dest, i8* %data, i64 %total_size, i1 false)\n';
-    ir += '  \n';
-    ir += '  ; Update size\n';
-    ir += '  store i64 %new_size, i64* %size_ptr\n';
-    ir += '  \n';
-    ir += '  ; Null terminate\n';
-    ir += '  %null_pos = getelementptr i8, i8* %new_data, i64 %new_size\n';
-    ir += '  store i8 0, i8* %null_pos\n';
-    ir += '  \n';
-    ir += '  ret i64 %total_size\n';
-    ir += '}\n\n';
-
-    // Main fetch() function
-    ir += '; fetch(url: string) -> string (response body)\n';
-    ir += 'define i8* @fetch(i8* %url) {\n';
-    ir += 'entry:\n';
-    ir += '  ; Initialize curl\n';
-    ir += '  %curl = call i8* @curl_easy_init()\n';
-    ir += '  %curl_null = icmp eq i8* %curl, null\n';
-    ir += '  br i1 %curl_null, label %error, label %curl_ok\n\n';
-
-    ir += 'curl_ok:\n';
-    ir += '  ; Create response buffer\n';
-    ir += '  %buffer = alloca %FetchBuffer\n';
-    ir += '  %data_ptr = getelementptr %FetchBuffer, %FetchBuffer* %buffer, i32 0, i32 0\n';
-    ir += '  store i8* null, i8** %data_ptr\n';
-    ir += '  %size_ptr = getelementptr %FetchBuffer, %FetchBuffer* %buffer, i32 0, i32 1\n';
-    ir += '  store i64 0, i64* %size_ptr\n';
-    ir += '  %cap_ptr = getelementptr %FetchBuffer, %FetchBuffer* %buffer, i32 0, i32 2\n';
-    ir += '  store i64 0, i64* %cap_ptr\n';
-    ir += '  \n';
-    ir += '  ; Set URL\n';
-    ir += '  %url_opt = load i32, i32* @CURLOPT_URL\n';
-    ir += '  %url_result = call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %url_opt, i8* %url)\n';
-    ir += '  \n';
-    ir += '  ; Set User-Agent header\n';
-    ir += '  %user_agent = getelementptr [17 x i8], [17 x i8]* @.str.user_agent, i32 0, i32 0\n';
-    ir += '  %ua_opt = load i32, i32* @CURLOPT_USERAGENT\n';
-    ir += '  %ua_result = call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %ua_opt, i8* %user_agent)\n';
-    ir += '  \n';
-    ir += '  ; Set write callback\n';
-    ir += '  %write_fn_opt = load i32, i32* @CURLOPT_WRITEFUNCTION\n';
-    ir += '  %write_fn = bitcast i64 (i8*, i64, i64, i8*)* @fetch_write_callback to i8*\n';
-    ir += '  %write_fn_result = call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %write_fn_opt, i8* %write_fn)\n';
-    ir += '  \n';
-    ir += '  ; Set write data (our buffer)\n';
-    ir += '  %write_data_opt = load i32, i32* @CURLOPT_WRITEDATA\n';
-    ir += '  %buffer_ptr = bitcast %FetchBuffer* %buffer to i8*\n';
-    ir += '  %write_data_result = call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %write_data_opt, i8* %buffer_ptr)\n';
-    ir += '  \n';
-    ir += '  ; Follow redirects\n';
-    ir += '  %follow_opt = load i32, i32* @CURLOPT_FOLLOWLOCATION\n';
-    ir += '  %follow_result = call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %follow_opt, i64 1)\n';
-    ir += '  \n';
-    ir += '  ; Perform request\n';
-    ir += '  %perform_result = call i32 @curl_easy_perform(i8* %curl)\n';
-    ir += '  %perform_ok = icmp eq i32 %perform_result, 0\n';
-    ir += '  \n';
-    ir += '  ; Cleanup curl\n';
-    ir += '  call void @curl_easy_cleanup(i8* %curl)\n';
-    ir += '  \n';
-    ir += '  ; Return response or error\n';
-    ir += '  br i1 %perform_ok, label %success, label %fetch_error\n\n';
-
-    ir += 'success:\n';
-    ir += '  %response_data = load i8*, i8** %data_ptr\n';
-    ir += '  %has_data = icmp ne i8* %response_data, null\n';
-    ir += '  br i1 %has_data, label %return_data, label %error\n\n';
-
-    ir += 'return_data:\n';
-    ir += '  ret i8* %response_data\n\n';
-
-    ir += 'fetch_error:\n';
-    ir += '  ; Print error and return empty string\n';
-    ir += '  %err_str = call i8* @curl_easy_strerror(i32 %perform_result)\n';
-    ir += '  %err_fmt = getelementptr [17 x i8], [17 x i8]* @.str.fetch_error, i32 0, i32 0\n';
-    ir += '  call i32 (i8*, ...) @printf(i8* %err_fmt, i8* %err_str)\n';
-    ir += '  br label %error\n\n';
-
-    ir += 'error:\n';
-    ir += '  %empty = getelementptr [1 x i8], [1 x i8]* @.str.empty, i32 0, i32 0\n';
-    ir += '  ret i8* %empty\n';
-    ir += '}\n\n';
-
-    // Add required string constants
-    ir += '@.str.fetch_error = private constant [17 x i8] c"fetch error: %s\\0A\\00"\n';
-    ir += '@.str.empty = private constant [1 x i8] c"\\00"\n';
-    ir += '@.str.user_agent = private constant [17 x i8] c"ChadScript/1.0.0\\00"\n';
-
-    // Declare realloc (memcpy already declared elsewhere)
-    // Note: libcurl will automatically use http_proxy/https_proxy env vars
-    ir += 'declare i8* @realloc(i8*, i64)\n';
-
-    return ir;
-  }
-
-  // Generate JSON parsing runtime using cJSON
-  private generateJSONRuntime(): string {
-    let ir = '; JSON parsing using cJSON library\n';
-
-    // cJSON library declarations
-    ir += 'declare i8* @cJSON_Parse(i8*)\n';
-    ir += 'declare i8* @cJSON_GetObjectItem(i8*, i8*)\n';
-    ir += 'declare void @cJSON_Delete(i8*)\n';
-    ir += 'declare i32 @cJSON_IsNumber(i8*)\n';
-    ir += 'declare i32 @cJSON_IsString(i8*)\n';
-    ir += '\n';
-
-    // Use cJSON's official API functions (portable across all platforms)
-    // cJSON_GetNumberValue returns double, cJSON_GetStringValue returns char*
-    ir += 'declare double @cJSON_GetNumberValue(i8*)\n';
-    ir += 'declare i8* @cJSON_GetStringValue(i8*)\n\n';
-
-    // Helper to convert double to i32 for integer JSON values
-    ir += 'define i32 @cJSON_GetNumberValueAsInt(i8* %item) {\n';
-    ir += 'entry:\n';
-    ir += '  %double_val = call double @cJSON_GetNumberValue(i8* %item)\n';
-    ir += '  %int_val = fptosi double %double_val to i32\n';
-    ir += '  ret i32 %int_val\n';
-    ir += '}\n\n';
-
-    return ir;
-  }
-
-  // Generate HTTP server runtime - the actual implementation
-  private generateHttpServerRuntime(): string {
-    let ir = '; HTTP Server Runtime\n';
-    ir += '; Struct for sockaddr_in (16 bytes)\n';
-    ir += '%struct.sockaddr_in = type { i16, i16, i32, [8 x i8] }\n';
-    ir += '\n';
-
-    // Helper function to parse HTTP method from request
-    ir += 'define i8* @parse_http_method(i8* %buffer) {\n';
-    ir += 'entry:\n';
-    ir += '  ; Extract method from "METHOD /path HTTP/1.1"\n';
-    ir += '  ; For now, just return a pointer to the start\n';
-    ir += '  ret i8* %buffer\n';
-    ir += '}\n\n';
-
-    // Helper function to parse HTTP path
-    ir += 'define i8* @parse_http_path(i8* %buffer) {\n';
-    ir += 'entry:\n';
-    ir += '  ; Find first space (after method)\n';
-    ir += '  %ptr = alloca i8*\n';
-    ir += '  store i8* %buffer, i8** %ptr\n';
-    ir += '  br label %loop\n\n';
-    ir += 'loop:\n';
-    ir += '  %curr_ptr = load i8*, i8** %ptr\n';
-    ir += '  %char = load i8, i8* %curr_ptr\n';
-    ir += '  %is_space = icmp eq i8 %char, 32\n'; // ASCII space
-    ir += '  br i1 %is_space, label %found_space, label %continue\n\n';
-    ir += 'continue:\n';
-    ir += '  %next_ptr = getelementptr i8, i8* %curr_ptr, i32 1\n';
-    ir += '  store i8* %next_ptr, i8** %ptr\n';
-    ir += '  br label %loop\n\n';
-    ir += 'found_space:\n';
-    ir += '  ; Move past the space to get path start\n';
-    ir += '  %path_start = getelementptr i8, i8* %curr_ptr, i32 1\n';
-    ir += '  ret i8* %path_start\n';
-    ir += '}\n\n';
-
-    // Main HTTP server function
-    ir += '; Main HTTP server function\n';
-    ir += '; Takes port number and handler function pointer\n';
-    ir += '; Handler signature: i32 handler(i8* method, i8* path)\n';
-    ir += 'define i32 @http_serve(i32 %port, i32 (i8*, i8*)* %handler) {\n';
-    ir += 'entry:\n';
-    ir += '  ; Constants\n';
-    ir += '  %AF_INET = alloca i32\n';
-    ir += '  store i32 2, i32* %AF_INET\n';
-    ir += '  %SOCK_STREAM = alloca i32\n';
-    ir += '  store i32 1, i32* %SOCK_STREAM\n';
-    ir += '  %af_inet = load i32, i32* %AF_INET\n';
-    ir += '  %sock_stream = load i32, i32* %SOCK_STREAM\n';
-    ir += '\n';
-    ir += '  ; Create socket\n';
-    ir += '  %sock = call i32 @socket(i32 %af_inet, i32 %sock_stream, i32 0)\n';
-    ir += '  %sock_valid = icmp sge i32 %sock, 0\n';
-    ir += '  br i1 %sock_valid, label %socket_ok, label %error\n\n';
-    ir += 'socket_ok:\n';
-    ir += '  ; Setup sockaddr_in\n';
-    ir += '  %addr = alloca %struct.sockaddr_in\n';
-    ir += '  %addr_family_ptr = getelementptr %struct.sockaddr_in, %struct.sockaddr_in* %addr, i32 0, i32 0\n';
-    ir += '  store i16 2, i16* %addr_family_ptr\n'; // AF_INET
-    ir += '  ; Convert port to network byte order\n';
-    ir += '  %port_i16 = trunc i32 %port to i16\n';
-    ir += '  %port_net = call i16 @htons(i16 %port_i16)\n';
-    ir += '  %addr_port_ptr = getelementptr %struct.sockaddr_in, %struct.sockaddr_in* %addr, i32 0, i32 1\n';
-    ir += '  store i16 %port_net, i16* %addr_port_ptr\n';
-    ir += '  ; Set address to INADDR_ANY (0.0.0.0)\n';
-    ir += '  %addr_addr_ptr = getelementptr %struct.sockaddr_in, %struct.sockaddr_in* %addr, i32 0, i32 2\n';
-    ir += '  store i32 0, i32* %addr_addr_ptr\n';
-    ir += '\n';
-    ir += '  ; Bind socket\n';
-    ir += '  %addr_cast = bitcast %struct.sockaddr_in* %addr to i8*\n';
-    ir += '  %bind_result = call i32 @bind(i32 %sock, i8* %addr_cast, i32 16)\n';
-    ir += '  %bind_ok = icmp sge i32 %bind_result, 0\n';
-    ir += '  br i1 %bind_ok, label %bind_success, label %error\n\n';
-    ir += 'bind_success:\n';
-    ir += '  ; Listen for connections\n';
-    ir += '  %listen_result = call i32 @listen(i32 %sock, i32 10)\n';
-    ir += '  %listen_ok = icmp sge i32 %listen_result, 0\n';
-    ir += '  br i1 %listen_ok, label %listen_success, label %error\n\n';
-    ir += 'listen_success:\n';
-    ir += '  ; Print server started message\n';
-    ir += '  %fmt = getelementptr [29 x i8], [29 x i8]* @.str.http_started, i32 0, i32 0\n';
-    ir += '  call i32 (i8*, ...) @printf(i8* %fmt, i32 %port)\n';
-    ir += '  br label %accept_loop\n\n';
-    ir += 'accept_loop:\n';
-    ir += '  ; Accept incoming connection\n';
-    ir += '  %client_sock = call i32 @accept(i32 %sock, i8* null, i8* null)\n';
-    ir += '  %client_valid = icmp sge i32 %client_sock, 0\n';
-    ir += '  br i1 %client_valid, label %handle_request, label %accept_loop\n\n';
-    ir += 'handle_request:\n';
-    ir += '  ; Read HTTP request (up to 4096 bytes)\n';
-    ir += '  %buffer = alloca [4096 x i8]\n';
-    ir += '  %buffer_ptr = getelementptr [4096 x i8], [4096 x i8]* %buffer, i32 0, i32 0\n';
-    ir += '  %bytes_read = call i64 @read(i32 %client_sock, i8* %buffer_ptr, i64 4096)\n';
-    ir += '\n';
-    ir += '  ; Parse HTTP method and path\n';
-    ir += '  %method = call i8* @parse_http_method(i8* %buffer_ptr)\n';
-    ir += '  %path = call i8* @parse_http_path(i8* %buffer_ptr)\n';
-    ir += '\n';
-    ir += '  ; Call user handler\n';
-    ir += '  %response_str = call i8* %handler(i8* %method, i8* %path)\n';
-    ir += '\n';
-    ir += '  ; Build HTTP response\n';
-    ir += '  %response_buffer = alloca [8192 x i8]\n';
-    ir += '  %response_ptr = getelementptr [8192 x i8], [8192 x i8]* %response_buffer, i32 0, i32 0\n';
-    ir += '  %http_header = getelementptr [65 x i8], [65 x i8]* @.str.http_header, i32 0, i32 0\n';
-    ir += '  %header_len = call i64 @strlen(i8* %http_header)\n';
-    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %response_ptr, i8* %http_header, i64 %header_len, i1 false)\n';
-    ir += '  %body_start = getelementptr i8, i8* %response_ptr, i64 %header_len\n';
-    ir += '  %body_len = call i64 @strlen(i8* %response_str)\n';
-    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %body_start, i8* %response_str, i64 %body_len, i1 false)\n';
-    ir += '  %total_len = add i64 %header_len, %body_len\n';
-    ir += '\n';
-    ir += '  ; Send response\n';
-    ir += '  %bytes_written = call i64 @write(i32 %client_sock, i8* %response_ptr, i64 %total_len)\n';
-    ir += '\n';
-    ir += '  ; Close client socket\n';
-    ir += '  call i32 @close(i32 %client_sock)\n';
-    ir += '  br label %accept_loop\n\n';
-    ir += 'error:\n';
-    ir += '  ret i32 1\n';
-    ir += '}\n\n';
-
-    // Add required string constants
-    ir += '@.str.http_started = private constant [29 x i8] c"HTTP server listening on %d\\0A\\00"\n';
-    ir += '@.str.http_header = private constant [65 x i8] c"HTTP/1.1 200 OK\\0D\\0AContent-Type: text/plain\\0D\\0AConnection: close\\0D\\0A\\0D\\0A\\00"\n';
 
     return ir;
   }
