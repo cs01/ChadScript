@@ -1,5 +1,5 @@
 import { Expression, MethodCallNode } from '../../../ast/types.js';
-import { BaseGenerator } from '../../infrastructure/base-generator.js';
+import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 
 // ============================================
 // MAP GENERATOR - Map operations
@@ -12,15 +12,16 @@ import { BaseGenerator } from '../../infrastructure/base-generator.js';
 // - i32 size    - number of entries
 // - i32 capacity - allocated capacity
 
-export class MapGenerator extends BaseGenerator {
-  // Generate delegate for expressions (set by LLVMGenerator)
-  generateExpression!: (expr: Expression, params: string[]) => string;
+export class MapGenerator {
+  constructor(private ctx: IGeneratorContext) {}
 
-  constructor() {
-    super();
-  }
+  // Helper methods delegate to context
+  private nextTemp() { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
 
-  generateMapLiteral(expr: Expression, params: string[]): string {
+  generateMapLiteral(expr: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     const mapExpr = expr as any;
     if (mapExpr.type !== 'map') {
       throw new Error('Expected map literal');
@@ -76,8 +77,8 @@ export class MapGenerator extends BaseGenerator {
 
     // Populate initial entries
     for (let i = 0; i < mapExpr.entries.length; i++) {
-      const keyValue = this.generateExpression(mapExpr.entries[i].key, params);
-      const valueValue = this.generateExpression(mapExpr.entries[i].value, params);
+      const keyValue = generateExpressionFn(mapExpr.entries[i].key, params);
+      const valueValue = generateExpressionFn(mapExpr.entries[i].value, params);
 
       // Store key
       const keyElemPtr = this.nextTemp();
@@ -93,18 +94,18 @@ export class MapGenerator extends BaseGenerator {
     return mapPtr;
   }
 
-  generateMapSet(expr: MethodCallNode, params: string[]): string {
+  generateMapSet(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // map.set(key, value)
     if (expr.args.length !== 2) {
       throw new Error('Map.set() requires exactly 2 arguments');
     }
 
     // Get map pointer
-    const mapPtr = this.generateExpression(expr.object, params);
+    const mapPtr = generateExpressionFn(expr.object, params);
 
     // Generate key and value
-    const keyValue = this.generateExpression(expr.args[0], params);
-    const valueValue = this.generateExpression(expr.args[1], params);
+    const keyValue = generateExpressionFn(expr.args[0], params);
+    const valueValue = generateExpressionFn(expr.args[1], params);
 
     // Load current arrays and size
     const keysFieldPtr = this.nextTemp();
@@ -142,17 +143,17 @@ export class MapGenerator extends BaseGenerator {
     return mapPtr;
   }
 
-  generateMapGet(expr: MethodCallNode, params: string[]): string {
+  generateMapGet(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // map.get(key)
     if (expr.args.length !== 1) {
       throw new Error('Map.get() requires exactly 1 argument');
     }
 
     // Get map pointer
-    const mapPtr = this.generateExpression(expr.object, params);
+    const mapPtr = generateExpressionFn(expr.object, params);
 
     // Generate key
-    const keyToFind = this.generateExpression(expr.args[0], params);
+    const keyToFind = generateExpressionFn(expr.args[0], params);
 
     // Load arrays and size
     const keysFieldPtr = this.nextTemp();
@@ -224,17 +225,17 @@ export class MapGenerator extends BaseGenerator {
     return result;
   }
 
-  generateMapHas(expr: MethodCallNode, params: string[]): string {
+  generateMapHas(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // map.has(key) - returns 1 if key exists, 0 otherwise
     if (expr.args.length !== 1) {
       throw new Error('Map.has() requires exactly 1 argument');
     }
 
     // Get map pointer
-    const mapPtr = this.generateExpression(expr.object, params);
+    const mapPtr = generateExpressionFn(expr.object, params);
 
     // Generate key
-    const keyToFind = this.generateExpression(expr.args[0], params);
+    const keyToFind = generateExpressionFn(expr.args[0], params);
 
     // Load arrays and size
     const keysFieldPtr = this.nextTemp();

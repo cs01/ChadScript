@@ -1,5 +1,5 @@
 import { Expression, MethodCallNode } from '../../../ast/types.js';
-import { BaseGenerator } from '../../infrastructure/base-generator.js';
+import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 
 // ============================================
 // SET GENERATOR - Set operations
@@ -11,15 +11,16 @@ import { BaseGenerator } from '../../infrastructure/base-generator.js';
 // - i32 size     - number of elements
 // - i32 capacity - allocated capacity
 
-export class SetGenerator extends BaseGenerator {
-  // Generate delegate for expressions (set by LLVMGenerator)
-  generateExpression!: (expr: Expression, params: string[]) => string;
+export class SetGenerator {
+  constructor(private ctx: IGeneratorContext) {}
 
-  constructor() {
-    super();
-  }
+  // Helper methods delegate to context
+  private nextTemp() { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
 
-  generateSetLiteral(expr: Expression, params: string[]): string {
+  generateSetLiteral(expr: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     const setExpr = expr as any;
     if (setExpr.type !== 'set') {
       throw new Error('Expected set literal');
@@ -71,7 +72,7 @@ export class SetGenerator extends BaseGenerator {
         seen.add(numVal);
       }
 
-      const valueValue = this.generateExpression(valueExpr, params);
+      const valueValue = generateExpressionFn(valueExpr, params);
 
       // Store value
       const valueElemPtr = this.nextTemp();
@@ -88,17 +89,17 @@ export class SetGenerator extends BaseGenerator {
     return setPtr;
   }
 
-  generateSetAdd(expr: MethodCallNode, params: string[]): string {
+  generateSetAdd(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // set.add(value)
     if (expr.args.length !== 1) {
       throw new Error('Set.add() requires exactly 1 argument');
     }
 
     // Get set pointer
-    const setPtr = this.generateExpression(expr.object, params);
+    const setPtr = generateExpressionFn(expr.object, params);
 
     // Generate value
-    const valueToAdd = this.generateExpression(expr.args[0], params);
+    const valueToAdd = generateExpressionFn(expr.args[0], params);
 
     // Check if value already exists (simple linear search)
     // Load current array and size
@@ -129,17 +130,17 @@ export class SetGenerator extends BaseGenerator {
     return setPtr;
   }
 
-  generateSetHas(expr: MethodCallNode, params: string[]): string {
+  generateSetHas(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // set.has(value) - returns 1 if value exists, 0 otherwise
     if (expr.args.length !== 1) {
       throw new Error('Set.has() requires exactly 1 argument');
     }
 
     // Get set pointer
-    const setPtr = this.generateExpression(expr.object, params);
+    const setPtr = generateExpressionFn(expr.object, params);
 
     // Generate value
-    const valueToFind = this.generateExpression(expr.args[0], params);
+    const valueToFind = generateExpressionFn(expr.args[0], params);
 
     // Load array and size
     const valuesFieldPtr = this.nextTemp();
@@ -209,17 +210,17 @@ export class SetGenerator extends BaseGenerator {
     return size;
   }
 
-  generateSetDelete(expr: MethodCallNode, params: string[]): string {
+  generateSetDelete(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // set.delete(value) - returns 1 if deleted, 0 if not found
     if (expr.args.length !== 1) {
       throw new Error('Set.delete() requires exactly 1 argument');
     }
 
     // Get set pointer
-    const setPtr = this.generateExpression(expr.object, params);
+    const setPtr = generateExpressionFn(expr.object, params);
 
     // Generate value
-    const valueToDelete = this.generateExpression(expr.args[0], params);
+    const valueToDelete = generateExpressionFn(expr.args[0], params);
 
     // Load array and size
     const valuesFieldPtr = this.nextTemp();

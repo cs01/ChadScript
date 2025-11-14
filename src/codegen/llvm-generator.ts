@@ -139,8 +139,8 @@ export class LLVMGenerator extends BaseGenerator {
     // Legacy generators still use old pattern (will migrate gradually)
     this.arrayGen = new ArrayGenerator();
     this.stringGen = new StringGenerator();
-    this.mapGen = new MapGenerator();
-    this.setGen = new SetGenerator();
+    this.mapGen = new MapGenerator(this);
+    this.setGen = new SetGenerator(this);
     this.controlFlowGen = new ControlFlowGenerator();
     this.classGen = new ClassGenerator();
 
@@ -149,8 +149,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.stringGen.generateExpression = this.generateExpression.bind(this);
     this.stringGen.isStringExpression = this.isStringExpression.bind(this);
     // objectGen uses context pattern - no binding needed! 🎯
-    this.mapGen.generateExpression = this.generateExpression.bind(this);
-    this.setGen.generateExpression = this.generateExpression.bind(this);
+    // setGen uses context pattern - no binding needed! 🎯
     this.controlFlowGen.generateExpression = this.generateExpression.bind(this);
     this.controlFlowGen.generateBlock = this.generateBlock.bind(this);
     this.classGen.generateExpression = this.generateExpression.bind(this);
@@ -159,8 +158,8 @@ export class LLVMGenerator extends BaseGenerator {
     // Pass AST to classGen for method lookups
     (this.classGen as any).ast = ast;
 
-    // Override counter methods for legacy generators (objectGen excluded - uses context! 🎯)
-    for (const gen of [this.arrayGen, this.stringGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
+    // Override counter methods for legacy generators (objectGen + mapGen + setGen excluded - use context! 🎯)
+    for (const gen of [this.arrayGen, this.stringGen, this.controlFlowGen, this.classGen]) {
       gen.nextTemp = this.nextTemp.bind(this);
       gen.nextLabel = this.nextLabel.bind(this);
       gen.nextString = this.nextString.bind(this);
@@ -1437,11 +1436,11 @@ export class LLVMGenerator extends BaseGenerator {
       if (expr.object.type === 'variable' && this.mapVariables.has(expr.object.name)) {
         this.syncStateToGenerators();
         if (method === 'set') {
-          return this.mapGen.generateMapSet(expr, params);
+          return this.mapGen.generateMapSet(expr, params, this.generateExpression.bind(this));
         } else if (method === 'get') {
-          return this.mapGen.generateMapGet(expr, params);
+          return this.mapGen.generateMapGet(expr, params, this.generateExpression.bind(this));
         } else {
-          return this.mapGen.generateMapHas(expr, params);
+          return this.mapGen.generateMapHas(expr, params, this.generateExpression.bind(this));
         }
       }
     }
@@ -1452,11 +1451,11 @@ export class LLVMGenerator extends BaseGenerator {
       if (expr.object.type === 'variable' && this.setVariables.has(expr.object.name)) {
         this.syncStateToGenerators();
         if (method === 'add') {
-          return this.setGen.generateSetAdd(expr, params);
+          return this.setGen.generateSetAdd(expr, params, this.generateExpression.bind(this));
         } else if (method === 'has') {
-          return this.setGen.generateSetHas(expr, params);
+          return this.setGen.generateSetHas(expr, params, this.generateExpression.bind(this));
         } else {
-          return this.setGen.generateSetDelete(expr, params);
+          return this.setGen.generateSetDelete(expr, params, this.generateExpression.bind(this));
         }
       }
     }
@@ -2158,9 +2157,9 @@ export class LLVMGenerator extends BaseGenerator {
 
   // Sync state to sub-generators - share Maps/arrays by reference
   // Note: Counters are already shared via bound methods (nextTemp, nextLabel, nextString)
-  // Note: regexGen + objectGen excluded - use context pattern instead of state sharing! 🎯
+  // Note: regexGen + objectGen + mapGen + setGen excluded - use context pattern instead of state sharing! 🎯
   private syncStateToGenerators() {
-    for (const gen of [this.arrayGen, this.stringGen, this.mapGen, this.setGen, this.controlFlowGen, this.classGen]) {
+    for (const gen of [this.arrayGen, this.stringGen, this.controlFlowGen, this.classGen]) {
       gen.output = this.output;
       gen.globalStrings = this.globalStrings;
       gen.variables = this.variables;
