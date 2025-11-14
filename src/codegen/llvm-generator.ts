@@ -27,8 +27,6 @@ export class LLVMGenerator extends BaseGenerator {
   public ast: AST; // Public for IGeneratorContext
   private typeChecker: TypeChecker | null;
   private externalFunctions: Set<string> = new Set();
-  private liftedFunctions: FunctionNode[] = []; // Anonymous functions lifted to top level
-  private anonFuncCounter: number = 0;
   private currentFunction: string = ''; // Track current function for type checking
 
   // Top-level variables (accessible from all functions)
@@ -379,7 +377,8 @@ export class LLVMGenerator extends BaseGenerator {
 
     // Generate lifted functions (discovered during user function and main generation)
     // These need to be placed BEFORE user functions so they can be called
-    for (const func of this.liftedFunctions) {
+    const liftedFunctions = this.exprGen.getArrowFunctionGenerator().getLiftedFunctions();
+    for (const func of liftedFunctions) {
       ir += this.generateFunction(func);
       ir += '\n';
     }
@@ -937,42 +936,20 @@ export class LLVMGenerator extends BaseGenerator {
    */
   public generateExpression(expr: Expression, params: string[]): string {
     // Delegate to ExpressionGenerator for extracted types
-    // (literals, variables, binary, unary, call, index_access, member_access)
+    // (literals, variables, binary, unary, call, index_access, member_access, arrow_function)
     if (expr.type === 'number' || expr.type === 'boolean' || expr.type === 'string' ||
         (expr as any).type === 'regex' || expr.type === 'array' || (expr as any).type === 'object' ||
         (expr as any).type === 'map' || (expr as any).type === 'set' || (expr as any).type === 'new' ||
         (expr as any).type === 'this' || expr.type === 'variable' ||
         expr.type === 'binary' || expr.type === 'unary' || expr.type === 'call' ||
-        expr.type === 'index_access' || expr.type === 'member_access') {
+        expr.type === 'index_access' || expr.type === 'member_access' ||
+        (expr as any).type === 'arrow_function') {
       return this.exprGen.generate(expr, params);
     }
 
 
     if (expr.type === 'method_call') {
       return this.generateMethodCall(expr, params);
-    }
-
-    if ((expr as any).type === 'arrow_function') {
-      // Lambda lifting: convert inline function to top-level function
-      const arrowFunc = expr as any;
-      const funcName = `__lambda_${this.anonFuncCounter++}`;
-
-      // Create a FunctionNode
-      const liftedFunc: FunctionNode = {
-        name: funcName,
-        params: arrowFunc.params,
-        body: arrowFunc.body.type === 'block' ? arrowFunc.body : {
-          type: 'block',
-          statements: [{ type: 'return', value: arrowFunc.body }]
-        }
-      };
-
-      // Add to lifted functions list
-      this.liftedFunctions.push(liftedFunc);
-
-      // Return the function name as a variable reference
-      // This allows it to be used with array methods
-      return funcName;
     }
 
     if ((expr as any).type === 'conditional') {

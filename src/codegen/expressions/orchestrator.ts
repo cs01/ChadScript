@@ -6,6 +6,7 @@ import { UnaryExpressionGenerator } from './operators/unary.js';
 import { CallExpressionGenerator } from './calls.js';
 import { IndexAccessGenerator } from './access/index.js';
 import { MemberAccessGenerator } from './access/member.js';
+import { ArrowFunctionExpressionGenerator } from './arrow-functions.js';
 
 /**
  * ExpressionGenerator
@@ -28,6 +29,7 @@ export class ExpressionGenerator {
   private callGen: CallExpressionGenerator;
   private indexAccessGen: IndexAccessGenerator;
   private memberAccessGen: MemberAccessGenerator;
+  private arrowFunctionGen: ArrowFunctionExpressionGenerator;
 
   constructor(private ctx: any) {
     this.literalGen = new LiteralExpressionGenerator(ctx);
@@ -37,6 +39,7 @@ export class ExpressionGenerator {
     this.callGen = new CallExpressionGenerator(ctx);
     this.indexAccessGen = new IndexAccessGenerator(ctx);
     this.memberAccessGen = new MemberAccessGenerator(ctx);
+    this.arrowFunctionGen = new ArrowFunctionExpressionGenerator(ctx);
   }
 
   /**
@@ -117,12 +120,16 @@ export class ExpressionGenerator {
       return this.memberAccessGen.generate(expr, params, this.generate.bind(this));
     }
 
+    // Arrow functions
+    if ((expr as any).type === 'arrow_function') {
+      return this.arrowFunctionGen.generateArrowFunction(expr, params);
+    }
+
     // TODO: Extract these into sub-generators in future commits
     // For now, delegate back to llvm-generator's original implementation
     // This allows us to wire up the new pattern without breaking anything
 
     if (expr.type === 'method_call' ||
-        (expr as any).type === 'arrow_function' ||
         (expr as any).type === 'conditional' ||
         (expr as any).type === 'template_literal') {
       // Delegate to original implementation via callback
@@ -134,5 +141,12 @@ export class ExpressionGenerator {
     }
 
     throw new Error(`Unknown expression type: ${(expr as any).type}`);
+  }
+
+  /**
+   * Get the arrow function generator (for accessing lifted functions)
+   */
+  getArrowFunctionGenerator(): ArrowFunctionExpressionGenerator {
+    return this.arrowFunctionGen;
   }
 }
