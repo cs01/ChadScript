@@ -1,5 +1,5 @@
-import { Expression } from '../../ast/types.js';
-import { BaseGenerator } from './base-generator.js';
+import { Expression } from '../../../ast/types.js';
+import { BaseGenerator } from '../../infrastructure/base-generator.js';
 
 // ============================================
 // STRING GENERATOR - String operations

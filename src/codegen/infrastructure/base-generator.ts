@@ -1,5 +1,5 @@
 import { Expression } from '../../ast/types.js';
-import { SymbolTable, SymbolKind } from '../symbol-table.js';
+import { SymbolTable, SymbolKind } from './symbol-table.js';
 
 // Re-export for convenience
 export { SymbolTable, SymbolKind };

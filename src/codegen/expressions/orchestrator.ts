@@ -1,10 +1,11 @@
 import { Expression } from '../../ast/types.js';
-import { LiteralExpressionGenerator } from './literal-expression-generator.js';
-import { VariableExpressionGenerator } from './variable-expression-generator.js';
-import { BinaryExpressionGenerator } from './binary-expression-generator.js';
-import { UnaryExpressionGenerator } from './unary-expression-generator.js';
-import { CallExpressionGenerator } from './call-expression-generator.js';
-import { IndexAccessGenerator } from './index-access-generator.js';
+import { LiteralExpressionGenerator } from './literals.js';
+import { VariableExpressionGenerator } from './variables.js';
+import { BinaryExpressionGenerator } from './operators/binary.js';
+import { UnaryExpressionGenerator } from './operators/unary.js';
+import { CallExpressionGenerator } from './calls.js';
+import { IndexAccessGenerator } from './access/index.js';
+import { MemberAccessGenerator } from './access/member.js';
 
 /**
  * ExpressionGenerator
@@ -26,6 +27,7 @@ export class ExpressionGenerator {
   private unaryGen: UnaryExpressionGenerator;
   private callGen: CallExpressionGenerator;
   private indexAccessGen: IndexAccessGenerator;
+  private memberAccessGen: MemberAccessGenerator;
 
   constructor(private ctx: any) {
     this.literalGen = new LiteralExpressionGenerator(ctx);
@@ -34,6 +36,7 @@ export class ExpressionGenerator {
     this.unaryGen = new UnaryExpressionGenerator(ctx);
     this.callGen = new CallExpressionGenerator(ctx);
     this.indexAccessGen = new IndexAccessGenerator(ctx);
+    this.memberAccessGen = new MemberAccessGenerator(ctx);
   }
 
   /**
@@ -109,12 +112,16 @@ export class ExpressionGenerator {
       return this.indexAccessGen.generate(expr, params, this.generate.bind(this));
     }
 
+    // Member access
+    if (expr.type === 'member_access') {
+      return this.memberAccessGen.generate(expr, params, this.generate.bind(this));
+    }
+
     // TODO: Extract these into sub-generators in future commits
     // For now, delegate back to llvm-generator's original implementation
     // This allows us to wire up the new pattern without breaking anything
 
-    if (expr.type === 'member_access' ||
-        expr.type === 'method_call' ||
+    if (expr.type === 'method_call' ||
         (expr as any).type === 'arrow_function' ||
         (expr as any).type === 'conditional' ||
         (expr as any).type === 'template_literal') {

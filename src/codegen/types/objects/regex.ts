@@ -1,5 +1,5 @@
-import { Expression } from '../../ast/types.js';
-import { IGeneratorContext } from '../generator-context.js';
+import { Expression } from '../../../ast/types.js';
+import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 
 // ============================================
 // REGEX GENERATOR - Regex operations

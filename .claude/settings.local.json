@@ -11,7 +11,9 @@
       "Bash(tree:*)",
       "Bash(test:*)",
       "Bash(.build/tests/fixtures/arithmetic/simple-add)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(npm run build:dev:*)",
+      "Bash(git mv:*)"
     ],
     "deny": [],
     "ask": []

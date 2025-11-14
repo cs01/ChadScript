@@ -1,6 +1,6 @@
-import { Expression, ClassNode, ClassMethod, BlockStatement } from '../../ast/types.js';
-import { BaseGenerator } from './base-generator.js';
-import { logger } from '../../utils/logger.js';
+import { Expression, ClassNode, ClassMethod, BlockStatement } from '../../../ast/types.js';
+import { BaseGenerator } from '../../infrastructure/base-generator.js';
+import { logger } from '../../../utils/logger.js';
 
 // ============================================
 // CLASS GENERATOR - Class and instance operations
