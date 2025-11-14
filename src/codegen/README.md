@@ -63,6 +63,47 @@ This directory contains the LLVM IR code generation system for ChadScript. The a
 
 ## File Structure
 
+### Directory Layout
+
+```
+src/codegen/
+├── infrastructure/          # Core infrastructure & shared utilities
+│   ├── base-generator.ts   # Shared state & utilities for all generators
+│   ├── generator-context.ts # Context passing for generator callbacks
+│   └── symbol-table.ts     # Unified variable tracking
+├── expressions/            # Expression code generation
+│   ├── access/            # Property & index access expressions
+│   ├── operators/         # Binary & unary operators
+│   │   ├── binary.ts
+│   │   └── unary.ts
+│   ├── calls.ts           # Function & method call expressions
+│   ├── literals.ts        # Literal value expressions
+│   ├── orchestrator.ts    # Expression generation coordinator
+│   └── variables.ts       # Variable expressions
+├── statements/            # Statement code generation
+│   └── control-flow.ts    # If/while/for/break/continue
+├── types/                 # Type-specific code generation
+│   ├── collections/       # Collection types
+│   │   ├── array.ts      # Array methods & operations
+│   │   ├── string.ts     # String methods & operations
+│   │   ├── map.ts        # Map data structure
+│   │   └── set.ts        # Set data structure
+│   └── objects/          # Object types
+│       ├── object.ts     # Object literals & property access
+│       ├── class.ts      # Classes, inheritance, OOP
+│       └── regex.ts      # Regular expressions
+├── stdlib/               # Standard library bindings
+│   ├── console.ts       # console.log, console.error
+│   ├── fs.ts            # File system operations
+│   ├── json.ts          # JSON.parse, JSON.stringify
+│   ├── math.ts          # Math.* methods
+│   ├── path.ts          # Path operations
+│   └── process.ts       # process.exit, process.argv
+├── runtime/             # Runtime code generation
+│   └── runtime.ts       # Runtime function generation
+└── llvm-generator.ts    # Main orchestrator
+```
+
 ### Core Files
 
 #### `llvm-generator.ts` (4,073 lines)
@@ -84,115 +125,25 @@ Main orchestrator that coordinates code generation.
 - `generateExpression()`: Routes expression to appropriate generator
 - `generateMethodCall()`: Huge method handling all built-in methods
 
-#### `generators/base-generator.ts` (7KB)
+#### `infrastructure/base-generator.ts` (7KB)
 Shared state and utilities inherited by all generators.
 
 **Provides:**
-- `symbolTable`: Unified variable tracking (NEW)
+- `symbolTable`: Unified variable tracking
 - `tempCounter`, `labelCounter`: Register/label allocation
 - `output`: Instruction buffer
 - `globalStrings`: String constant pool
 - `emit()`: Add instruction to output
 - `nextTemp()`: Allocate new temporary register
 - `nextLabel()`: Allocate new label
-- `defineVariable()`: Add variable to symbol table (NEW)
+- `defineVariable()`: Add variable to symbol table
 
 **Legacy State (for backward compatibility):**
 - `variables`, `variableTypes`: Old variable tracking
 - `stringVariables`, `arrayVariables`: Deprecated - use symbolTable
 - Other specialized maps
 
-### Specialized Generators
-
-#### `generators/array-generator.ts` (48KB)
-Handles all array operations and methods.
-
-**Methods:**
-- `generateArrayLiteral()`: Create array from elements
-- `generateArrayPush()`: Append element
-- `generateArrayPop()`: Remove last element
-- `generateArrayFind()`: Find first matching element
-- `generateArrayFilter()`: Filter elements by predicate
-- `generateArrayForEach()`: Iterate over elements
-- `generateArrayMap()`: Transform each element
-- `generateArraySome()`: Check if any element matches
-- `generateArrayIndexOf()`: Find element index
-- `generateArrayIncludes()`: Check if element exists
-
-#### `generators/string-generator.ts` (42KB)
-Handles all string operations and methods.
-
-**Methods:**
-- `generateStringConcat()`: Concatenate strings
-- `generateStringSubstr()`: Extract substring
-- `generateStringRepeat()`: Repeat string N times
-- `generateStringPadStart()`: Pad string to length
-- `generateStringTrim()`: Remove whitespace
-- `generateStringIndexOf()`: Find substring index
-- `generateStringSplit()`: Split string into array
-- `generateStringCharAt()`: Get character at index
-- `generateStringToUpperCase()`: Convert to uppercase
-- `generateStringToLowerCase()`: Convert to lowercase
-
-#### `generators/class-generator.ts` (17KB)
-Handles classes, inheritance, and OOP features.
-
-**Methods:**
-- `generateClass()`: Define class struct type
-- `generateConstructor()`: Generate constructor function
-- `generateMethod()`: Generate instance method
-- `generateFieldAccess()`: Access instance field
-- `generateThisAccess()`: Handle `this` keyword
-- `generateSuperCall()`: Handle `super` calls
-- `getClassFields()`: Get field layout for class
-
-#### `generators/map-generator.ts` (12KB)
-Handles Map data structure operations.
-
-**Methods:**
-- `generateMapNew()`: Create new Map
-- `generateMapSet()`: Set key-value pair
-- `generateMapGet()`: Get value by key
-- `generateMapHas()`: Check if key exists
-- `generateMapDelete()`: Remove key-value pair
-
-#### `generators/set-generator.ts` (9KB)
-Handles Set data structure operations.
-
-**Methods:**
-- `generateSetNew()`: Create new Set
-- `generateSetAdd()`: Add element
-- `generateSetHas()`: Check if element exists
-- `generateSetDelete()`: Remove element
-
-#### `generators/control-flow-generator.ts` (13KB)
-Handles control flow statements.
-
-**Methods:**
-- `generateIfStatement()`: If/else conditionals
-- `generateWhileStatement()`: While loops
-- `generateForStatement()`: For loops (including for...of)
-- `generateBreak()`: Break from loop
-- `generateContinue()`: Continue to next iteration
-- `generateTernary()`: Ternary operator (? :)
-
-#### `generators/object-generator.ts` (3KB)
-Handles object literals and property access.
-
-**Methods:**
-- `generateObjectLiteral()`: Create object from properties
-- `generatePropertyAccess()`: Access object property
-- `generatePropertyAssignment()`: Assign to object property
-
-#### `generators/regex-generator.ts` (3KB)
-Handles regular expression operations.
-
-**Methods:**
-- `generateRegexTest()`: Test if string matches pattern
-- `generateRegexMatch()`: Find matches in string
-- `generateRegexExec()`: Execute regex and get results
-
-#### `symbol-table.ts` (421 lines - NEW!)
+#### `infrastructure/symbol-table.ts` (421 lines)
 Unified variable tracking system.
 
 **Classes:**
@@ -212,6 +163,96 @@ Unified variable tracking system.
 - Type-safe symbol kinds
 - Rich metadata (object keys, class info, etc.)
 - Scope tracking (local vs global)
+
+### Type Generators
+
+#### `types/collections/array.ts` (48KB)
+Handles all array operations and methods.
+
+**Methods:**
+- `generateArrayLiteral()`: Create array from elements
+- `generateArrayPush()`: Append element
+- `generateArrayPop()`: Remove last element
+- `generateArrayFind()`: Find first matching element
+- `generateArrayFilter()`: Filter elements by predicate
+- `generateArrayForEach()`: Iterate over elements
+- `generateArrayMap()`: Transform each element
+- `generateArraySome()`: Check if any element matches
+- `generateArrayIndexOf()`: Find element index
+- `generateArrayIncludes()`: Check if element exists
+
+#### `types/collections/string.ts` (42KB)
+Handles all string operations and methods.
+
+**Methods:**
+- `generateStringConcat()`: Concatenate strings
+- `generateStringSubstr()`: Extract substring
+- `generateStringRepeat()`: Repeat string N times
+- `generateStringPadStart()`: Pad string to length
+- `generateStringTrim()`: Remove whitespace
+- `generateStringIndexOf()`: Find substring index
+- `generateStringSplit()`: Split string into array
+- `generateStringCharAt()`: Get character at index
+- `generateStringToUpperCase()`: Convert to uppercase
+- `generateStringToLowerCase()`: Convert to lowercase
+
+#### `types/objects/class.ts` (17KB)
+Handles classes, inheritance, and OOP features.
+
+**Methods:**
+- `generateClass()`: Define class struct type
+- `generateConstructor()`: Generate constructor function
+- `generateMethod()`: Generate instance method
+- `generateFieldAccess()`: Access instance field
+- `generateThisAccess()`: Handle `this` keyword
+- `generateSuperCall()`: Handle `super` calls
+- `getClassFields()`: Get field layout for class
+
+#### `types/collections/map.ts` (12KB)
+Handles Map data structure operations.
+
+**Methods:**
+- `generateMapNew()`: Create new Map
+- `generateMapSet()`: Set key-value pair
+- `generateMapGet()`: Get value by key
+- `generateMapHas()`: Check if key exists
+- `generateMapDelete()`: Remove key-value pair
+
+#### `types/collections/set.ts` (9KB)
+Handles Set data structure operations.
+
+**Methods:**
+- `generateSetNew()`: Create new Set
+- `generateSetAdd()`: Add element
+- `generateSetHas()`: Check if element exists
+- `generateSetDelete()`: Remove element
+
+#### `statements/control-flow.ts` (13KB)
+Handles control flow statements.
+
+**Methods:**
+- `generateIfStatement()`: If/else conditionals
+- `generateWhileStatement()`: While loops
+- `generateForStatement()`: For loops (including for...of)
+- `generateBreak()`: Break from loop
+- `generateContinue()`: Continue to next iteration
+- `generateTernary()`: Ternary operator (? :)
+
+#### `types/objects/object.ts` (3KB)
+Handles object literals and property access.
+
+**Methods:**
+- `generateObjectLiteral()`: Create object from properties
+- `generatePropertyAccess()`: Access object property
+- `generatePropertyAssignment()`: Assign to object property
+
+#### `types/objects/regex.ts` (3KB)
+Handles regular expression operations.
+
+**Methods:**
+- `generateRegexTest()`: Test if string matches pattern
+- `generateRegexMatch()`: Find matches in string
+- `generateRegexExec()`: Execute regex and get results
 
 ## Code Generation Flow
 
@@ -438,7 +479,7 @@ Example: Adding `String.prototype.replaceAll()`
 
 **Step 1: Add to StringGenerator**
 ```typescript
-// In src/codegen/generators/string-generator.ts
+// In src/codegen/types/collections/string.ts
 generateStringReplaceAll(expr: MethodCallNode, params: string[]): string {
   const object = expr.object;
   const searchArg = expr.args[0];
@@ -482,7 +523,7 @@ Example: Adding `BigInt` support
 
 **Step 1: Update SymbolTable**
 ```typescript
-// In src/codegen/symbol-table.ts
+// In src/codegen/infrastructure/symbol-table.ts
 export enum SymbolKind {
   // ...
   BigInt = 'bigint'
@@ -491,7 +532,7 @@ export enum SymbolKind {
 
 **Step 2: Create Generator**
 ```typescript
-// Create src/codegen/generators/bigint-generator.ts
+// Create src/codegen/types/collections/bigint.ts
 export class BigIntGenerator extends BaseGenerator {
   generateBigIntAdd(left, right) {
     // Generate LLVM IR for BigInt addition
@@ -516,22 +557,25 @@ if (expr.type === 'bigint') {
 ### Short Term
 1. ✅ Unified SymbolTable (DONE)
 2. ✅ CompilerError system (DONE)
-3. Migrate all variable definitions to use `defineVariable()`
-4. Remove deprecated variable tracking maps
-5. Add JSDoc to remaining large methods
+3. ✅ Directory reorganization - expressions/, statements/, types/, stdlib/ (DONE)
+4. Migrate all variable definitions to use `defineVariable()`
+5. Remove deprecated variable tracking maps
+6. Add JSDoc to remaining large methods
 
 ### Medium Term
-1. Extract runtime generation to `runtime-generator.ts`
-2. Extract type predicates to `type-predicates.ts`
-3. Replace callback binding with explicit interfaces
-4. Add error recovery to parser
+1. Extract remaining expressions (arrow functions, conditionals, templates)
+2. Migrate legacy generators to context pattern (Array, String, Map, Set, ControlFlow, Class)
+3. Split large files (array.ts 1200 lines, string.ts 1019 lines)
+4. Replace callback binding with explicit interfaces
+5. Add error recovery to parser
 
 ### Long Term
-1. Performance benchmarks
-2. Optimization passes
-3. Debug info generation
-4. Source maps
-5. Better error messages with suggestions
+1. Async/await support with libuv integration
+2. Performance benchmarks
+3. Optimization passes
+4. Debug info generation
+5. Source maps
+6. Better error messages with suggestions
 
 ## Performance Considerations
 

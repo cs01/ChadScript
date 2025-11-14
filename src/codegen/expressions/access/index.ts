@@ -1,4 +1,4 @@
-import { Expression } from '../../ast/types.js';
+import { Expression } from '../../../ast/types.js';
 
 /**
  * IndexAccessGenerator

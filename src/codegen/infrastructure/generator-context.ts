@@ -18,7 +18,7 @@
  * ```
  */
 
-import { Expression, BlockStatement, AST } from '../ast/types.js';
+import { Expression, BlockStatement, AST } from '../../ast/types.js';
 import { SymbolTable } from './symbol-table.js';
 
 /**

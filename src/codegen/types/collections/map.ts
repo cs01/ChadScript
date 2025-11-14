@@ -1,5 +1,5 @@
-import { Expression, MethodCallNode } from '../../ast/types.js';
-import { BaseGenerator } from './base-generator.js';
+import { Expression, MethodCallNode } from '../../../ast/types.js';
+import { BaseGenerator } from '../../infrastructure/base-generator.js';
 
 // ============================================
 // MAP GENERATOR - Map operations

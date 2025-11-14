@@ -1,5 +1,5 @@
 import { Expression, MethodCallNode } from '../../ast/types.js';
-import { IGeneratorContext } from '../generator-context.js';
+import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
 /**
  * Filesystem Method Generator

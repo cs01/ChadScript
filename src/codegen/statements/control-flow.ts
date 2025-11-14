@@ -1,5 +1,5 @@
 import { Expression, Statement, BlockStatement } from '../../ast/types.js';
-import { BaseGenerator } from './base-generator.js';
+import { BaseGenerator } from '../infrastructure/base-generator.js';
 
 // ============================================
 // CONTROL FLOW GENERATOR - If/while/loops
