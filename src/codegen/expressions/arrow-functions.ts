@@ -5,8 +5,8 @@
  * Converts inline arrow functions to top-level functions.
  */
 
-import { BaseGenerator } from '../infrastructure/base-generator';
-import type { Expression, FunctionNode } from '../../types/ast';
+import { BaseGenerator } from '../infrastructure/base-generator.js';
+import type { Expression, FunctionNode } from '../../ast/types.js';
 
 export class ArrowFunctionExpressionGenerator extends BaseGenerator {
   // Counter for anonymous function names
