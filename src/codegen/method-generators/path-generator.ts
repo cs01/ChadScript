@@ -1,0 +1,100 @@
+import { Expression, MethodCallNode } from '../../ast/types.js';
+import { IGeneratorContext } from '../generator-context.js';
+
+/**
+ * Path Method Generator
+ *
+ * Generates LLVM IR for path.* methods using POSIX path functions.
+ *
+ * Supported methods:
+ * - path.resolve(path) → realpath() syscall
+ * - path.dirname(path) → dirname() function
+ */
+export class PathGenerator {
+  constructor(private ctx: IGeneratorContext) {}
+
+  /**
+   * Check if this method call is a path.* method
+   */
+  canHandle(expr: MethodCallNode): boolean {
+    return expr.object.type === 'variable' &&
+           (expr.object as any).name === 'path' &&
+           (expr.method === 'resolve' || expr.method === 'dirname');
+  }
+
+  /**
+   * Generate LLVM IR for path.resolve(path)
+   * Uses realpath() POSIX function to resolve path
+   */
+  generateResolve(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      throw new Error('path.resolve() requires at least 1 argument');
+    }
+
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    // Allocate buffer for resolved path (PATH_MAX = 4096)
+    const bufferSize = this.ctx.nextTemp();
+    this.ctx.emit(`${bufferSize} = add i64 0, 4096`);
+    const buffer = this.ctx.nextTemp();
+    this.ctx.emit(`${buffer} = call i8* @malloc(i64 ${bufferSize})`);
+
+    // Call realpath: realpath(path, buffer)
+    const resolvedPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${resolvedPtr} = call i8* @realpath(i8* ${pathPtr}, i8* ${buffer})`);
+
+    // If realpath returns NULL, return the original path
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq i8* ${resolvedPtr}, null`);
+
+    const successLabel = this.ctx.nextLabel('resolve_success');
+    const failLabel = this.ctx.nextLabel('resolve_fail');
+    const endLabel = this.ctx.nextLabel('resolve_end');
+
+    this.ctx.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
+
+    // Success: return resolved path
+    this.ctx.emit(`${successLabel}:`);
+    this.ctx.emit(`br label %${endLabel}`);
+
+    // Failure: free buffer and return original path
+    this.ctx.emit(`${failLabel}:`);
+    this.ctx.emit(`call void @free(i8* ${buffer})`);
+    this.ctx.emit(`br label %${endLabel}`);
+
+    // End: phi node
+    this.ctx.emit(`${endLabel}:`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = phi i8* [ ${resolvedPtr}, %${successLabel} ], [ ${pathPtr}, %${failLabel} ]`);
+
+    return result;
+  }
+
+  /**
+   * Generate LLVM IR for path.dirname(path)
+   * Uses dirname() POSIX function
+   */
+  generateDirname(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      throw new Error('path.dirname() requires 1 argument');
+    }
+
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    // dirname() modifies its argument, so we need to make a copy
+    const pathLen = this.ctx.nextTemp();
+    this.ctx.emit(`${pathLen} = call i64 @strlen(i8* ${pathPtr})`);
+    const copySize = this.ctx.nextTemp();
+    this.ctx.emit(`${copySize} = add i64 ${pathLen}, 1`);
+    const pathCopy = this.ctx.nextTemp();
+    this.ctx.emit(`${pathCopy} = call i8* @malloc(i64 ${copySize})`);
+    const copyResult = this.ctx.nextTemp();
+    this.ctx.emit(`${copyResult} = call i8* @strcpy(i8* ${pathCopy}, i8* ${pathPtr})`);
+
+    // Call dirname: dirname(pathCopy)
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @dirname(i8* ${pathCopy})`);
+
+    return result;
+  }
+}

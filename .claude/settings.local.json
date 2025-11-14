@@ -7,7 +7,9 @@
       "Bash(npx tsx:*)",
       "Bash(echo:*)",
       "Bash(/dev/null)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(tree:*)",
+      "Bash(test:*)"
     ],
     "deny": [],
     "ask": []

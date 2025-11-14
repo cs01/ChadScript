@@ -88,6 +88,18 @@ export interface IGeneratorContext {
    */
   nextString(): string;
 
+  /**
+   * Create a string constant and add it to global strings
+   * Returns: @.str.N (the string ID)
+   *
+   * @example
+   * ```typescript
+   * const formatStr = ctx.createStringConstant('%s\n');
+   * ctx.emit(`call i32 @printf(i8* ${formatStr}, i8* %arg)`);
+   * ```
+   */
+  createStringConstant(value: string): string;
+
   // ============================================
   // Output Buffer
   // ============================================
@@ -213,6 +225,20 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   nextString(): string {
     return `@.str.${this.stringCount++}`;
+  }
+
+  createStringConstant(value: string): string {
+    const strId = this.nextString();
+    // Escape special characters for LLVM string constants
+    const escaped = value
+      .replace(/\\/g, '\\\\')
+      .replace(/\n/g, '\\0A')
+      .replace(/"/g, '\\"')
+      .replace(/\r/g, '\\0D')
+      .replace(/\t/g, '\\09');
+    const len = value.length + 1; // +1 for null terminator
+    this.globalStrings.push(`${strId} = private unnamed_addr constant [${len} x i8] c"${escaped}\\00", align 1`);
+    return strId;
   }
 
   emit(instruction: string): void {
