@@ -3,6 +3,7 @@ import { LiteralExpressionGenerator } from './literal-expression-generator.js';
 import { VariableExpressionGenerator } from './variable-expression-generator.js';
 import { BinaryExpressionGenerator } from './binary-expression-generator.js';
 import { UnaryExpressionGenerator } from './unary-expression-generator.js';
+import { CallExpressionGenerator } from './call-expression-generator.js';
 
 /**
  * ExpressionGenerator
@@ -22,12 +23,14 @@ export class ExpressionGenerator {
   private variableGen: VariableExpressionGenerator;
   private binaryGen: BinaryExpressionGenerator;
   private unaryGen: UnaryExpressionGenerator;
+  private callGen: CallExpressionGenerator;
 
   constructor(private ctx: any) {
     this.literalGen = new LiteralExpressionGenerator(ctx);
     this.variableGen = new VariableExpressionGenerator(ctx);
     this.binaryGen = new BinaryExpressionGenerator(ctx);
     this.unaryGen = new UnaryExpressionGenerator(ctx);
+    this.callGen = new CallExpressionGenerator(ctx);
   }
 
   /**
@@ -93,13 +96,17 @@ export class ExpressionGenerator {
       return this.binaryGen.generate(expr.op, expr.left, expr.right, params, this.generate.bind(this));
     }
 
+    // Call expressions
+    if (expr.type === 'call') {
+      return this.callGen.generate(expr, params, this.generate.bind(this));
+    }
+
     // TODO: Extract these into sub-generators in future commits
     // For now, delegate back to llvm-generator's original implementation
     // This allows us to wire up the new pattern without breaking anything
 
     if (expr.type === 'member_access' ||
         expr.type === 'index_access' ||
-        expr.type === 'call' ||
         expr.type === 'method_call' ||
         (expr as any).type === 'arrow_function' ||
         (expr as any).type === 'conditional' ||
