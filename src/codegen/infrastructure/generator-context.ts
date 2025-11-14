@@ -154,6 +154,22 @@ export interface IGeneratorContext {
   currentClassName: string | null;
 
   // ============================================
+  // Variable Type Tracking
+  // ============================================
+
+  /**
+   * Track string array variables (e.g., %StringArray pointers)
+   * Needed to determine array element types for operations
+   */
+  readonly stringArrayVariables: Map<string, string>;
+
+  /**
+   * Track variable types (double, i8*, etc.)
+   * Used for type-aware code generation
+   */
+  readonly variableTypes: Map<string, string>;
+
+  // ============================================
   // AST Access
   // ============================================
 
@@ -188,6 +204,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   public currentClassName: string | null = null;
   public ast?: AST;
   private currentLabel = 'entry';
+  public stringArrayVariables: Map<string, string> = new Map();
+  public variableTypes: Map<string, string> = new Map();
 
   generateExpression(expr: Expression, params: string[]): string {
     // Mock implementation - returns a dummy register

@@ -68,10 +68,10 @@ export class LiteralExpressionGenerator {
 
   /**
    * Generate array literal (delegates to ArrayGenerator)
+   * ArrayGenerator uses context pattern - no sync needed! 🎯
    */
   generateArray(expr: any, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    return this.ctx.arrayGen.generateArrayLiteral(expr, params);
+    return this.ctx.arrayGen.generateArrayLiteral(expr, params, this.ctx.generateExpression.bind(this.ctx));
   }
 
   /**
