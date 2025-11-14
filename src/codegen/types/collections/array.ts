@@ -1,5 +1,6 @@
 import { Expression, MethodCallNode } from '../../../ast/types.js';
 import { BaseGenerator } from '../../infrastructure/base-generator.js';
+import { generateArrayLiteral } from './array/literal.js';
 
 // ============================================
 // ARRAY GENERATOR - Array operations
@@ -14,109 +15,7 @@ export class ArrayGenerator extends BaseGenerator {
   }
 
   generateArrayLiteral(expr: Expression, params: string[]): string {
-    if (expr.type !== 'array') {
-      throw new Error('Expected array literal');
-    }
-
-    const length = expr.elements.length;
-
-    // Determine if this is a string array:
-    // 1. All elements are strings, OR
-    // 2. Empty array with expectedArrayElementType='string' from context
-    let isStringArray = length > 0 && expr.elements.every(elem => elem.type === 'string');
-    if (length === 0 && this.expectedArrayElementType === 'string') {
-      isStringArray = true;
-    }
-
-    if (isStringArray) {
-      // Generate string array - allocate on HEAP, not stack
-      // Compute sizeof(%StringArray) dynamically for portability
-      const sizePtr = this.nextTemp();
-      this.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
-      const structSize = this.nextTemp();
-      this.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
-      const arrayMem = this.nextTemp();
-      this.emit(`${arrayMem} = call i8* @malloc(i64 ${structSize})`);
-      const arrayPtr = this.nextTemp();
-      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
-
-      // Allocate data array on heap (i8** with length elements)
-      // Use calloc for zero-initialized memory to prevent garbage pointers
-      const dataCount = length === 0 ? 1 : length; // Allocate at least 1 element
-      const dataMem = this.nextTemp();
-      this.emit(`${dataMem} = call i8* @calloc(i64 ${dataCount}, i64 8)`); // calloc(count, 8 bytes per i8*)
-      const dataPtr = this.nextTemp();
-      this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
-
-      // Store each string element
-      for (let i = 0; i < expr.elements.length; i++) {
-        const elemValue = this.generateExpression(expr.elements[i], params);
-        const elemPtr = this.nextTemp();
-        this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
-        this.emit(`store i8* ${elemValue}, i8** ${elemPtr}`);
-      }
-
-      // Store data pointer in array struct (field 0)
-      const dataPtrField = this.nextTemp();
-      this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
-      this.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
-
-      // Store length in array struct (field 1)
-      const lenField = this.nextTemp();
-      this.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
-      this.emit(`store i32 ${length}, i32* ${lenField}`);
-
-      // Store capacity in array struct (field 2)
-      const capField = this.nextTemp();
-      this.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
-      this.emit(`store i32 ${length}, i32* ${capField}`);
-
-      return arrayPtr;
-    } else {
-      // Generate numeric array - allocate on HEAP, not stack
-      // Compute sizeof(%Array) dynamically for portability
-      const sizePtr = this.nextTemp();
-      this.emit(`${sizePtr} = getelementptr %Array, %Array* null, i32 1`);
-      const structSize = this.nextTemp();
-      this.emit(`${structSize} = ptrtoint %Array* ${sizePtr} to i64`);
-      const arrayMem = this.nextTemp();
-      this.emit(`${arrayMem} = call i8* @malloc(i64 ${structSize})`);
-      const arrayPtr = this.nextTemp();
-      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %Array*`);
-
-      // Allocate data array on heap (double* with length elements)
-      // Use calloc for zero-initialized memory to prevent garbage data
-      const dataCount = length === 0 ? 1 : length; // Allocate at least 1 element
-      const dataMem = this.nextTemp();
-      this.emit(`${dataMem} = call i8* @calloc(i64 ${dataCount}, i64 8)`); // calloc(count, 8 bytes per double)
-      const dataPtr = this.nextTemp();
-      this.emit(`${dataPtr} = bitcast i8* ${dataMem} to double*`);
-
-      // Store each element
-      for (let i = 0; i < expr.elements.length; i++) {
-        const elemValue = this.generateExpression(expr.elements[i], params);
-        const elemPtr = this.nextTemp();
-        this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
-        this.emit(`store double ${elemValue}, double* ${elemPtr}`);
-      }
-
-      // Store data pointer in array struct (field 0)
-      const dataPtrField = this.nextTemp();
-      this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-      this.emit(`store double* ${dataPtr}, double** ${dataPtrField}`);
-
-      // Store length in array struct (field 1)
-      const lenField = this.nextTemp();
-      this.emit(`${lenField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
-      this.emit(`store i32 ${length}, i32* ${lenField}`);
-
-      // Store capacity in array struct (field 2)
-      const capField = this.nextTemp();
-      this.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
-      this.emit(`store i32 ${length}, i32* ${capField}`);
-
-      return arrayPtr;
-    }
+    return generateArrayLiteral(this, expr, params, this.generateExpression);
   }
 
   generateArrayPush(expr: MethodCallNode, params: string[]): string {
