@@ -87,7 +87,7 @@ export class LiteralExpressionGenerator {
    */
   generateMap(expr: any, params: string[]): string {
     this.ctx.syncStateToGenerators();
-    return this.ctx.mapGen.generateMapLiteral(expr, params);
+    return this.ctx.mapGen.generateMapLiteral(expr, params, this.ctx.generateExpression.bind(this.ctx));
   }
 
   /**
@@ -95,7 +95,7 @@ export class LiteralExpressionGenerator {
    */
   generateSet(expr: any, params: string[]): string {
     this.ctx.syncStateToGenerators();
-    return this.ctx.setGen.generateSetLiteral(expr, params);
+    return this.ctx.setGen.generateSetLiteral(expr, params, this.ctx.generateExpression.bind(this.ctx));
   }
 
   /**
