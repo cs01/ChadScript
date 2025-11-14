@@ -169,6 +169,24 @@ export interface IGeneratorContext {
    */
   readonly variableTypes: Map<string, string>;
 
+  /**
+   * Track variable allocations (variable name -> alloca register)
+   * Used for storing and loading variable values
+   */
+  readonly variables: Map<string, string>;
+
+  /**
+   * LLVM IR output buffer
+   * Used to check for terminators and other instruction analysis
+   */
+  readonly output: string[];
+
+  /**
+   * Current label for tracking control flow position
+   * Accessed via getCurrentLabel/setCurrentLabel methods
+   */
+  currentLabel: string;
+
   // ============================================
   // AST Access
   // ============================================
@@ -203,9 +221,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   public thisPointer: string | null = null;
   public currentClassName: string | null = null;
   public ast?: AST;
-  private currentLabel = 'entry';
+  public currentLabel = 'entry';
   public stringArrayVariables: Map<string, string> = new Map();
   public variableTypes: Map<string, string> = new Map();
+  public variables: Map<string, string> = new Map();
 
   generateExpression(expr: Expression, params: string[]): string {
     // Mock implementation - returns a dummy register
