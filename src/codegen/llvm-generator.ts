@@ -15,6 +15,7 @@ import { PathGenerator } from './method-generators/path-generator.js';
 import { JsonGenerator } from './method-generators/json-generator.js';
 import { FilesystemGenerator } from './method-generators/filesystem-generator.js';
 import { RuntimeGenerator } from './runtime-generator.js';
+import { ExpressionGenerator } from './expression-generators/expression-generator.js';
 import { TypeChecker } from '../typescript/type-checker.js';
 import { logger } from '../utils/logger.js';
 
@@ -51,6 +52,9 @@ export class LLVMGenerator extends BaseGenerator {
   private jsonGen: JsonGenerator;
   private fsGen: FilesystemGenerator;
   private runtimeGen: RuntimeGenerator;
+
+  // Expression generator (context pattern)
+  private exprGen: ExpressionGenerator;
 
   // Helper: Format nice compiler errors
   private formatCodegenError(message: string, suggestion?: string): string {
@@ -128,6 +132,11 @@ export class LLVMGenerator extends BaseGenerator {
     this.jsonGen = new JsonGenerator(this);
     this.fsGen = new FilesystemGenerator(this);
     this.runtimeGen = new RuntimeGenerator();
+
+    // Initialize expression generator with context pattern
+    this.exprGen = new ExpressionGenerator(this);
+    // Set up fallback for unextracted expression types
+    (this as any).generateExpressionFallback = this.generateExpression.bind(this);
 
     // Legacy generators still use old pattern (will migrate gradually)
     this.arrayGen = new ArrayGenerator();
@@ -927,165 +936,14 @@ export class LLVMGenerator extends BaseGenerator {
    * @returns LLVM register name containing the expression result (e.g., '%3')
    */
   public generateExpression(expr: Expression, params: string[]): string {
-    if (expr.type === 'number') {
-      const value = expr.value;
-      const isInteger = Number.isInteger(value);
-
-      if (isInteger) {
-        // Generate integer literals as registers that can be converted to i32 or double as needed
-        // This allows: fptosi double %X to i32 (when i32 needed) or use directly as double
-        const temp = this.nextTemp();
-        const intValue = Math.floor(value);
-        this.emit(`${temp} = sitofp i32 ${intValue} to double`);
-        this.variableTypes.set(temp, 'double');
-        return temp;
-      } else {
-        // Floating-point literals stay as constants
-        return String(value);
-      }
-    }
-
-    if (expr.type === 'boolean') {
-      // Convert boolean to double for compatibility with numeric system
-      const boolValue = expr.value ? 1 : 0;
-      const temp = this.nextTemp();
-      this.emit(`${temp} = sitofp i32 ${boolValue} to double`);
-      this.variableTypes.set(temp, 'double');
-      return temp;
-    }
-
-    if (expr.type === 'string') {
-      this.syncStateToGenerators();
-      return this.stringGen.createStringConstant(expr.value);
-    }
-
-    if ((expr as any).type === 'regex') {
-      this.syncStateToGenerators();
-      const regexExpr = expr as any;
-      return this.regexGen.generateRegexCompile(regexExpr.pattern, regexExpr.flags);
-    }
-
-    if (expr.type === 'array') {
-      this.syncStateToGenerators();
-      return this.arrayGen.generateArrayLiteral(expr, params);
-    }
-
-    if ((expr as any).type === 'object') {
-      this.syncStateToGenerators();
-      return this.objectGen.generateObjectLiteral(expr, params);
-    }
-
-    if ((expr as any).type === 'map') {
-      this.syncStateToGenerators();
-      return this.mapGen.generateMapLiteral(expr, params);
-    }
-
-    if ((expr as any).type === 'set') {
-      this.syncStateToGenerators();
-      return this.setGen.generateSetLiteral(expr, params);
-    }
-
-    if ((expr as any).type === 'new') {
-      this.syncStateToGenerators();
-      const newExpr = expr as any as NewNode;
-      return this.classGen.generateNewExpression(newExpr.className, newExpr.args, params);
-    }
-
-    if ((expr as any).type === 'this') {
-      // Return the current 'this' pointer
-      // Check both this.thisPointer and classGen.thisPointer (for constructor/method contexts)
-      const thisPtr = this.thisPointer || this.classGen.thisPointer;
-      if (!thisPtr) {
-        throw new Error('this keyword used outside of class method or constructor');
-      }
-      return thisPtr;
-    }
-
-    if (expr.type === 'variable') {
-      // Check if it's a class instance variable
-      const classInstanceMeta = this.classInstanceVariables.get(expr.name);
-      if (classInstanceMeta) {
-        const fields = this.classGen.getClassFields(classInstanceMeta.className);
-        const ptrType = fields.length > 0 ? `%${classInstanceMeta.className}_struct*` : 'double*';
-
-        const temp = this.nextTemp();
-        this.emit(`${temp} = load ${ptrType}, ${ptrType}* ${classInstanceMeta.ptr}`);
-        // Track the loaded value's type
-        this.variableTypes.set(temp, ptrType);
-        return temp;
-      }
-
-      // Check if it's a regex variable
-      const regexAllocaReg = this.regexVariables.get(expr.name);
-      if (regexAllocaReg) {
-        const temp = this.nextTemp();
-        this.emit(`${temp} = load i8*, i8** ${regexAllocaReg}`);
-        // Track the loaded value's type
-        this.variableTypes.set(temp, 'i8*');
-        return temp;
-      }
-
-      // Check if it's a map variable
-      const mapAllocaReg = this.mapVariables.get(expr.name);
-      if (mapAllocaReg) {
-        return mapAllocaReg;
-      }
-
-      // Check if it's a set variable
-      const setAllocaReg = this.setVariables.get(expr.name);
-      if (setAllocaReg) {
-        return setAllocaReg;
-      }
-
-      // Check if it's an array variable
-      const arrayAllocaReg = this.arrayVariables.get(expr.name);
-      if (arrayAllocaReg) {
-        return arrayAllocaReg;
-      }
-
-      // Check if it's a string array variable
-      const stringArrayAllocaReg = this.stringArrayVariables.get(expr.name);
-      if (stringArrayAllocaReg) {
-        return stringArrayAllocaReg;
-      }
-
-      // Check if it's a string variable
-      const stringAllocaReg = this.stringVariables.get(expr.name);
-      if (stringAllocaReg) {
-        const temp = this.nextTemp();
-        this.emit(`${temp} = load i8*, i8** ${stringAllocaReg}`);
-        // Track the loaded value's type
-        this.variableTypes.set(temp, 'i8*');
-        return temp;
-      }
-
-      // Check if it's an object variable
-      const objectMeta = this.objectVariables.get(expr.name);
-      if (objectMeta) {
-        // Load object pointer
-        const temp = this.nextTemp();
-        this.emit(`${temp} = load i8*, i8** ${objectMeta.ptr}`);
-        // Convert pointer to i32 for passing as argument
-        const asInt = this.nextTemp();
-        this.emit(`${asInt} = ptrtoint i8* ${temp} to i32`);
-        return asInt;
-      }
-      // Load variable with proper type from variableTypes map
-      if (!expr.name) {
-        throw new Error(`Variable expression has no name property. Expression: ${JSON.stringify(expr, null, 2)}`);
-      }
-      const allocaReg = this.variables.get(expr.name);
-      if (allocaReg) {
-        const temp = this.nextTemp();
-        const varType = this.variableTypes.get(expr.name) || 'double';
-        logger.debug(`Loading variable "${expr.name}", type: "${varType}", alloca: "${allocaReg}"`);
-        this.emit(`${temp} = load ${varType}, ${varType}* ${allocaReg}`);
-        // Track the loaded value's type
-        this.variableTypes.set(temp, varType);
-        return temp;
-      }
-
-      throw new Error(`Unknown variable: ${expr.name}`);
+    // Delegate to ExpressionGenerator for extracted types
+    // (literals, variables, binary, unary operators)
+    if (expr.type === 'number' || expr.type === 'boolean' || expr.type === 'string' ||
+        (expr as any).type === 'regex' || expr.type === 'array' || (expr as any).type === 'object' ||
+        (expr as any).type === 'map' || (expr as any).type === 'set' || (expr as any).type === 'new' ||
+        (expr as any).type === 'this' || expr.type === 'variable' ||
+        expr.type === 'binary' || expr.type === 'unary') {
+      return this.exprGen.generate(expr, params);
     }
 
     if (expr.type === 'member_access') {
@@ -1799,164 +1657,6 @@ export class LLVMGenerator extends BaseGenerator {
         this.variableTypes.set(charDouble, 'double');
 
         return charDouble;
-      }
-    }
-
-    if (expr.type === 'unary') {
-      const operand = this.generateExpression(expr.operand, params);
-
-      if (expr.op === '!') {
-        // Check if operand is double or i32
-        const operandType = this.variableTypes.get(operand);
-        let cmpResult: string;
-
-        if (operandType === 'double' || (operand.includes('.') && !operand.startsWith('%'))) {
-          // Operand is double, use fcmp directly
-          cmpResult = this.nextTemp();
-          this.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);
-        } else {
-          // Operand is i32, convert to double first
-          const operandDouble = this.nextTemp();
-          this.emit(`${operandDouble} = sitofp i32 ${operand} to double`);
-          cmpResult = this.nextTemp();
-          this.emit(`${cmpResult} = fcmp oeq double ${operandDouble}, 0.0`);
-        }
-
-        // Convert boolean result to double
-        const i32Result = this.nextTemp();
-        this.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
-        const result = this.nextTemp();
-        this.emit(`${result} = sitofp i32 ${i32Result} to double`);
-        this.variableTypes.set(result, 'double');
-        return result;
-      }
-
-      if (expr.op === '-') {
-        const result = this.nextTemp();
-        this.emit(`${result} = fneg double ${operand}`);
-        return result;
-      }
-
-      if (expr.op === '+') {
-        // Unary + is a no-op for numbers, just return the operand
-        return operand;
-      }
-
-      throw new Error(`Unknown unary operator: ${expr.op}`);
-    }
-
-    if (expr.type === 'binary') {
-      // Logical operators need short-circuit evaluation
-      if (expr.op === '&&' || expr.op === '||') {
-        this.syncStateToGenerators();
-        return this.controlFlowGen.generateLogicalOp(expr.op, expr.left, expr.right, params);
-      }
-
-      // Check for string concatenation (+ with at least one string operand)
-      if (expr.op === '+' && (this.isStringExpression(expr.left) || this.isStringExpression(expr.right))) {
-        this.syncStateToGenerators();
-        return this.stringGen.generateStringConcat(expr.left, expr.right, params);
-      }
-
-      // Arithmetic operators (floating-point)
-      const arithMap: { [key: string]: string } = {
-        '+': 'fadd',
-        '-': 'fsub',
-        '*': 'fmul',
-        '/': 'fdiv',
-        '%': 'frem'
-      };
-
-      // Bitwise operators (need to convert double -> i64 -> operate -> double)
-      const bitwiseMap: { [key: string]: string } = {
-        '&': 'and',
-        '|': 'or',
-        '^': 'xor',
-        '<<': 'shl',
-        '>>': 'ashr'  // arithmetic shift right (preserves sign)
-      };
-
-      // Comparison operators (fcmp returns i1, need to extend to i32)
-      const cmpMap: { [key: string]: string } = {
-        '<': 'olt',   // ordered less than
-        '>': 'ogt',   // ordered greater than
-        '<=': 'ole',  // ordered less or equal
-        '>=': 'oge',  // ordered greater or equal
-        '==': 'oeq',  // ordered equal
-        '!=': 'one',  // ordered not equal
-        '===': 'oeq', // Strict equality (same as == for double)
-        '!==': 'one'  // Strict inequality (same as != for double)
-      };
-
-      // Check if we're comparing strings
-      const leftIsString = this.isStringExpression(expr.left);
-      const rightIsString = this.isStringExpression(expr.right);
-
-      const left = this.generateExpression(expr.left, params);
-      const right = this.generateExpression(expr.right, params);
-
-      // Also check if generated values are tracked as strings
-      const leftType = this.variableTypes.get(left) || 'i32';
-      const rightType = this.variableTypes.get(right) || 'i32';
-      const leftIsStringType = leftType === 'i8*' || left.startsWith('@.str');
-      const rightIsStringType = rightType === 'i8*' || right.startsWith('@.str');
-
-      if (arithMap[expr.op]) {
-        const temp = this.nextTemp();
-        const op = arithMap[expr.op];
-        this.emit(`${temp} = ${op} double ${left}, ${right}`);
-        this.variableTypes.set(temp, 'double');
-        return temp;
-      } else if (bitwiseMap[expr.op]) {
-        // Bitwise operators: convert double -> i64 -> operate -> double
-        const leftInt = this.nextTemp();
-        const rightInt = this.nextTemp();
-        this.emit(`${leftInt} = fptosi double ${left} to i64`);
-        this.emit(`${rightInt} = fptosi double ${right} to i64`);
-
-        const resultInt = this.nextTemp();
-        const op = bitwiseMap[expr.op];
-        this.emit(`${resultInt} = ${op} i64 ${leftInt}, ${rightInt}`);
-
-        const resultDouble = this.nextTemp();
-        this.emit(`${resultDouble} = sitofp i64 ${resultInt} to double`);
-        this.variableTypes.set(resultDouble, 'double');
-        return resultDouble;
-      } else if (cmpMap[expr.op]) {
-        // String comparison uses strcmp (check both static and runtime types)
-        if ((leftIsString || leftIsStringType) && (rightIsString || rightIsStringType) &&
-            (expr.op === '==' || expr.op === '===' || expr.op === '!=' || expr.op === '!==')) {
-          this.syncStateToGenerators();
-          const strcmpResult = this.nextTemp();
-          this.emit(`${strcmpResult} = call i32 @strcmp(i8* ${left}, i8* ${right})`);
-          const cmpResult = this.nextTemp();
-          if (expr.op === '==' || expr.op === '===') {
-            this.emit(`${cmpResult} = icmp eq i32 ${strcmpResult}, 0`);
-          } else { // '!=' or '!=='
-            this.emit(`${cmpResult} = icmp ne i32 ${strcmpResult}, 0`);
-          }
-          // Convert boolean result to double
-          const i32Result = this.nextTemp();
-          this.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
-          const extResult = this.nextTemp();
-          this.emit(`${extResult} = sitofp i32 ${i32Result} to double`);
-          this.variableTypes.set(extResult, 'double');
-          return extResult;
-        }
-
-        // Numeric comparison uses fcmp
-        const cond = cmpMap[expr.op];
-        const cmpResult = this.nextTemp();
-        this.emit(`${cmpResult} = fcmp ${cond} double ${left}, ${right}`);
-        // Convert boolean result to double (JavaScript semantics: comparisons return numbers)
-        const i32Result = this.nextTemp();
-        this.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
-        const doubleResult = this.nextTemp();
-        this.emit(`${doubleResult} = sitofp i32 ${i32Result} to double`);
-        this.variableTypes.set(doubleResult, 'double');
-        return doubleResult;
-      } else {
-        throw new Error(`Unknown operator: ${expr.op}`);
       }
     }
 
