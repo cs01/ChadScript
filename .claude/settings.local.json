@@ -9,7 +9,9 @@
       "Bash(/dev/null)",
       "Bash(find:*)",
       "Bash(tree:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(.build/tests/fixtures/arithmetic/simple-add)",
+      "Bash(node -e:*)"
     ],
     "deny": [],
     "ask": []

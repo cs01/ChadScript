@@ -4,31 +4,12 @@ package-lock.json
 
 # Build outputs
 dist/
+.build/
 *.o
-*.ll
 src-js
 
 # Test artifacts at root
 test-*
-
-# Executables (compiled binaries from examples and tests)
-# Ignore all extensionless files (binaries) in examples/
-examples/*
-!examples/*.*
-!examples/*/
-
-# Ignore all binaries in tests/
-tests/*
-!tests/*.ts
-!tests/*.js
-!tests/*/
-
-# Ignore all binaries in test fixtures
-tests/fixtures/*
-!tests/fixtures/*.js
-!tests/fixtures/*.ts
-!tests/fixtures/README.md
-!tests/fixtures/*/
 
 # TypeScript
 *.tsbuildinfo
