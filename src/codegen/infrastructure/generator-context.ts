@@ -158,6 +158,12 @@ export interface IGeneratorContext {
   // ============================================
 
   /**
+   * Track string variables (legacy - prefer variableTypes)
+   * Maps variable name -> alloca register for i8* strings
+   */
+  readonly stringVariables: Map<string, string>;
+
+  /**
    * Track string array variables (e.g., %StringArray pointers)
    * Needed to determine array element types for operations
    */
@@ -222,6 +228,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public currentClassName: string | null = null;
   public ast?: AST;
   public currentLabel = 'entry';
+  public stringVariables: Map<string, string> = new Map();
   public stringArrayVariables: Map<string, string> = new Map();
   public variableTypes: Map<string, string> = new Map();
   public variables: Map<string, string> = new Map();

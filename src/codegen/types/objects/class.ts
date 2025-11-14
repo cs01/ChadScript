@@ -1,28 +1,32 @@
 import { Expression, ClassNode, ClassMethod, BlockStatement } from '../../../ast/types.js';
-import { BaseGenerator } from '../../infrastructure/base-generator.js';
+import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { logger } from '../../../utils/logger.js';
 
 // ============================================
 // CLASS GENERATOR - Class and instance operations
 // ============================================
 
-export class ClassGenerator extends BaseGenerator {
-  // Generate delegates (set by LLVMGenerator)
-  generateExpression!: (expr: Expression, params: string[]) => string;
-  generateBlock!: (block: BlockStatement, params: string[]) => string | null;
-  setReturnType!: (type: string) => void;
-
-  // AST reference (set by LLVMGenerator for method lookups)
-  ast: any;
-
+export class ClassGenerator {
   // Track class structures: className -> field info
   private classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]> = new Map();
   // Track instance variables: varName -> className
   private instanceVariables: Map<string, string> = new Map();
 
-  constructor() {
-    super();
-  }
+  constructor(private ctx: IGeneratorContext) {}
+
+  // Helper methods delegate to context
+  private nextTemp() { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private get output() { return this.ctx.output; }
+  private get variables() { return this.ctx.variables; }
+  private get variableTypes() { return this.ctx.variableTypes; }
+  private get stringVariables() { return this.ctx.stringVariables; }
+  private get thisPointer() { return this.ctx.thisPointer; }
+  private set thisPointer(ptr: string | null) { this.ctx.thisPointer = ptr; }
+  private get currentClassName() { return this.ctx.currentClassName; }
+  private set currentClassName(name: string | null) { this.ctx.currentClassName = name; }
+  private get ast() { return this.ctx.ast; }
 
   // Helper to get field info
   getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' } | null {
@@ -64,10 +68,6 @@ export class ClassGenerator extends BaseGenerator {
 
     // Generate constructor function (returns pointer to struct)
     if (constructor) {
-      // Reset tempCounter before constructor
-      if ((this as any).resetTempCounter) {
-        (this as any).resetTempCounter();
-      }
       // Clear output by removing all elements (preserving reference)
       this.output.length = 0;
       ir += this.generateConstructor(className, constructor, classNode.fields);
@@ -76,10 +76,6 @@ export class ClassGenerator extends BaseGenerator {
 
     // Generate regular methods
     for (const method of regularMethods) {
-      // Reset tempCounter before each method
-      if ((this as any).resetTempCounter) {
-        (this as any).resetTempCounter();
-      }
       // Clear output by removing all elements (preserving reference)
       this.output.length = 0;
       ir += this.generateMethod(className, method, classNode.fields);
@@ -90,8 +86,6 @@ export class ClassGenerator extends BaseGenerator {
   }
 
   private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
-    this.labelCounter = 0;
-
     // Constructor returns struct pointer (either %ClassName_struct* or double* for backward compat)
     const structType = fields.length > 0 ? `%${className}_struct*` : 'double*';
     let ir = `define ${structType} @${className}_constructor(`;
@@ -198,10 +192,10 @@ export class ClassGenerator extends BaseGenerator {
     // Set current class name for super resolution
     this.currentClassName = className;
     // Set return type for return statements in constructor body (update main generator)
-    this.setReturnType(structType);
+    this.ctx.currentFunctionReturnType = structType;
 
     // Execute constructor body
-    const bodyResult = this.generateBlock(constructor.body, constructor.params);
+    const bodyResult = this.ctx.generateBlock(constructor.body, constructor.params);
 
     // Return the instance pointer
     if (this.output.length > 0) {
@@ -214,8 +208,6 @@ export class ClassGenerator extends BaseGenerator {
   }
 
   private generateMethod(className: string, method: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
-    this.labelCounter = 0;
-
     // Determine return type from method's returnType annotation
     let returnLLVMType = 'double'; // default for JavaScript semantics
     if (method.returnType) {
@@ -274,7 +266,7 @@ export class ClassGenerator extends BaseGenerator {
     // Set current class name for super resolution
     this.currentClassName = className;
     // Set return type for return statements in method body (update main generator)
-    this.setReturnType(returnLLVMType);
+    this.ctx.currentFunctionReturnType = returnLLVMType;
 
     // Allocate stack space for parameters with proper types
     for (let i = 0; i < method.params.length; i++) {
@@ -293,7 +285,7 @@ export class ClassGenerator extends BaseGenerator {
     }
 
     // Generate body
-    const result = this.generateBlock(method.body, method.params);
+    const result = this.ctx.generateBlock(method.body, method.params);
 
     // Add generated instructions
     if (this.output.length > 0) {
@@ -337,7 +329,7 @@ export class ClassGenerator extends BaseGenerator {
 
     // Call the constructor with correct parameter types
     const argValues = args.map((arg, i) => {
-      const val = this.generateExpression(arg, params);
+      const val = this.ctx.generateExpression(arg, params);
       const argType = i < paramLLVMTypes.length ? paramLLVMTypes[i] : 'double';
       return `${argType} ${val}`;
     }).join(', ');
@@ -373,7 +365,7 @@ export class ClassGenerator extends BaseGenerator {
 
     // Generate arguments with correct types based on paramTypes
     const argValues = args.map((arg, i) => {
-      const val = this.generateExpression(arg, params);
+      const val = this.ctx.generateExpression(arg, params);
 
       // Use the declared paramType if available, otherwise infer
       let argType = 'double'; // default for JavaScript semantics

@@ -136,36 +136,15 @@ export class LLVMGenerator extends BaseGenerator {
     // Set up fallback for unextracted expression types
     (this as any).generateExpressionFallback = this.generateExpression.bind(this);
 
-    // Legacy generators still use old pattern (will migrate gradually)
-    this.arrayGen = new ArrayGenerator(this); // Context pattern
-    this.stringGen = new StringGenerator(this); // Context pattern
+    // All generators now use context pattern! 🎉
+    this.arrayGen = new ArrayGenerator(this);
+    this.stringGen = new StringGenerator(this);
     this.mapGen = new MapGenerator(this);
     this.setGen = new SetGenerator(this);
-    this.controlFlowGen = new ControlFlowGenerator(this); // Context pattern
-    this.classGen = new ClassGenerator();
+    this.controlFlowGen = new ControlFlowGenerator(this);
+    this.classGen = new ClassGenerator(this);
 
-    // Wire up delegates for legacy generators
-    // arrayGen uses context pattern - no binding needed! 🎯
-    // stringGen uses context pattern - no binding needed! 🎯
-    // objectGen uses context pattern - no binding needed! 🎯
-    // mapGen uses context pattern - no binding needed! 🎯
-    // setGen uses context pattern - no binding needed! 🎯
-    // controlFlowGen uses context pattern - no binding needed! 🎯
-    this.classGen.generateExpression = this.generateExpression.bind(this);
-    this.classGen.generateBlock = this.generateBlock.bind(this);
-    this.classGen.setReturnType = (type: string) => { this.currentFunctionReturnType = type; };
-    // Pass AST to classGen for method lookups
-    (this.classGen as any).ast = ast;
-
-    // Override counter methods for legacy generators (arrayGen + objectGen + mapGen + setGen + stringGen + controlFlowGen excluded - use context! 🎯)
-    for (const gen of [this.classGen]) {
-      gen.nextTemp = this.nextTemp.bind(this);
-      gen.nextLabel = this.nextLabel.bind(this);
-      gen.nextString = this.nextString.bind(this);
-      // Also provide a way to reset tempCounter
-      const self = this;
-      (gen as any).resetTempCounter = function() { self.tempCounter = 0; };
-    }
+    // No more delegate binding needed - all generators use context pattern! 🎯
 
     // Collect all imported function names
     for (const imp of ast.imports) {
@@ -537,10 +516,7 @@ export class LLVMGenerator extends BaseGenerator {
     let lastValue: string | null = null;
     let hasTerminator = false;
 
-    // Sync thisPointer from classGen if it's set (for constructor/method contexts)
-    if (this.classGen.thisPointer !== null) {
-      this.thisPointer = this.classGen.thisPointer;
-    }
+    // thisPointer is now shared via context - no sync needed!
 
     for (const stmt of block.statements) {
       // Stop processing if we've already generated a terminator
@@ -2147,37 +2123,9 @@ export class LLVMGenerator extends BaseGenerator {
 
   // Sync state to sub-generators - share Maps/arrays by reference
   // Note: Counters are already shared via bound methods (nextTemp, nextLabel, nextString)
-  // Note: arrayGen + regexGen + objectGen + mapGen + setGen + stringGen + controlFlowGen excluded - use context pattern instead of state sharing! 🎯
+  // Note: ALL generators now use context pattern - no state syncing needed! 🎉
   private syncStateToGenerators() {
-    for (const gen of [this.classGen]) {
-      gen.output = this.output;
-      gen.globalStrings = this.globalStrings;
-      gen.variables = this.variables;
-      gen.variableTypes = this.variableTypes;  // CRITICAL: Share type tracking!
-      gen.stringVariables = this.stringVariables;
-      gen.arrayVariables = this.arrayVariables;
-      gen.stringArrayVariables = this.stringArrayVariables;
-      gen.objectVariables = this.objectVariables;
-      gen.mapVariables = this.mapVariables;
-      gen.setVariables = this.setVariables;
-      gen.classInstanceVariables = this.classInstanceVariables;
-      gen.regexVariables = this.regexVariables;
-      gen.jsonObjectVariables = this.jsonObjectVariables;
-      gen.thisPointer = this.thisPointer;
-      gen.expectedArrayElementType = this.expectedArrayElementType;
-      gen.currentFunctionReturnType = this.currentFunctionReturnType;
-    }
-  }
-
-  // Sync state FROM generators back to this (for thisPointer updates)
-  private syncStateFromGenerators() {
-    // Sync thisPointer from classGen back to this
-    if (this.classGen.thisPointer !== null) {
-      this.thisPointer = this.classGen.thisPointer;
-    }
-    // Sync variableTypes from classGen back to this (for types tracked during class method generation)
-    for (const [key, value] of this.classGen.variableTypes.entries()) {
-      this.variableTypes.set(key, value);
-    }
+    // No generators left to sync - all use context pattern!
+    // This method kept for backward compatibility but is now a no-op
   }
 }
