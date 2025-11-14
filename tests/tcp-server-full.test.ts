@@ -49,7 +49,7 @@ testBind();
       await execAsync(`npx tsx src/index.ts ${testFile}`);
 
       // Run
-      const { stdout } = await execAsync('./tests/fixtures/tcp-bind-test');
+      const { stdout } = await execAsync('.build/tests/fixtures/tcp-bind-test');
 
       assert.ok(stdout.includes('Socket created successfully'), 'Socket should be created');
       assert.ok(stdout.includes('Socket closed successfully'), 'Socket should be closed');
@@ -57,8 +57,8 @@ testBind();
       // Cleanup
       try {
         await fs.unlink(testFile);
-        await fs.unlink('tests/fixtures/tcp-bind-test');
-        await fs.unlink('tests/fixtures/tcp-bind-test.ll');
+        await fs.unlink('.build/tests/fixtures/tcp-bind-test');
+        await fs.unlink('.build/tests/fixtures/tcp-bind-test.ll');
       } catch (e) {
         // Ignore cleanup errors
       }
@@ -132,7 +132,7 @@ testAllSyscalls();
       await execAsync(`npx tsx src/index.ts ${testFile}`);
 
       // Run
-      const { stdout } = await execAsync('./tests/fixtures/tcp-syscalls-test');
+      const { stdout } = await execAsync('.build/tests/fixtures/tcp-syscalls-test');
 
       assert.ok(stdout.includes('PASS: socket()'), 'socket() should work');
       assert.ok(stdout.includes('PASS: htons()'), 'htons() should work');
@@ -142,8 +142,8 @@ testAllSyscalls();
       // Cleanup
       try {
         await fs.unlink(testFile);
-        await fs.unlink('tests/fixtures/tcp-syscalls-test');
-        await fs.unlink('tests/fixtures/tcp-syscalls-test.ll');
+        await fs.unlink('.build/tests/fixtures/tcp-syscalls-test');
+        await fs.unlink('.build/tests/fixtures/tcp-syscalls-test.ll');
       } catch (e) {
         // Ignore
       }
@@ -232,7 +232,7 @@ testHttpHandler();
       await execAsync(`npx tsx src/index.ts ${testFile}`);
 
       // Run
-      const { stdout } = await execAsync('./tests/fixtures/http-handler-test');
+      const { stdout } = await execAsync('.build/tests/fixtures/http-handler-test');
 
       assert.ok(stdout.includes('PASS: GET / handler executed'), 'GET / should work');
       assert.ok(stdout.includes('PASS: GET /health handler executed'), 'Health check should work');
@@ -244,8 +244,8 @@ testHttpHandler();
       // Cleanup
       try {
         await fs.unlink(testFile);
-        await fs.unlink('tests/fixtures/http-handler-test');
-        await fs.unlink('tests/fixtures/http-handler-test.ll');
+        await fs.unlink('.build/tests/fixtures/http-handler-test');
+        await fs.unlink('.build/tests/fixtures/http-handler-test.ll');
       } catch (e) {
         // Ignore
       }

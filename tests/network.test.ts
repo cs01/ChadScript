@@ -35,7 +35,7 @@ testSocket();
       await execAsync(`npx tsx src/index.ts ${testFile}`);
 
       // Run
-      const { stdout, stderr } = await execAsync('./tests/fixtures/tcp-test-socket');
+      const { stdout, stderr } = await execAsync('.build/tests/fixtures/tcp-test-socket');
       const exitCode = 0; // If we get here, it succeeded
 
       assert.strictEqual(exitCode, 0, 'Socket creation should succeed');
@@ -43,8 +43,8 @@ testSocket();
       // Cleanup
       try {
         await fs.unlink(testFile);
-        await fs.unlink('tests/fixtures/tcp-test-socket');
-        await fs.unlink('tests/fixtures/tcp-test-socket.ll');
+        await fs.unlink('.build/tests/fixtures/tcp-test-socket');
+        await fs.unlink('.build/tests/fixtures/tcp-test-socket.ll');
       } catch (e) {
         // Ignore cleanup errors
       }
@@ -93,14 +93,14 @@ testTcpClient();
 
       // Compile and run
       await execAsync(`npx tsx src/index.ts ${clientFile}`);
-      const { stdout } = await execAsync('./tests/fixtures/tcp-client');
+      const { stdout } = await execAsync('.build/tests/fixtures/tcp-client');
 
       assert.ok(!stdout.includes('Socket failed'), 'Socket creation should work');
 
       // Cleanup
       await fs.unlink(clientFile);
-      await fs.unlink('tests/fixtures/tcp-client');
-      await fs.unlink('tests/fixtures/tcp-client.ll');
+      await fs.unlink('.build/tests/fixtures/tcp-client');
+      await fs.unlink('.build/tests/fixtures/tcp-client.ll');
     } finally {
       server.close();
     }

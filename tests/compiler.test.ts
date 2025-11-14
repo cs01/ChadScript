@@ -335,8 +335,10 @@ describe('ChadScript Compiler', () => {
   describe('Compilation and Execution', { concurrency: 8 }, () => {
     for (const testCase of testCases) {
       it(testCase.description, async () => {
-        const fixturePath = path.resolve(testCase.fixture);
-        const outputDir = path.dirname(fixturePath);
+        const fixturePath = testCase.fixture; // Use relative path, not resolved
+        // Binaries now go in .build/ directory
+        const fixtureDir = path.dirname(testCase.fixture);
+        const outputDir = path.join('.build', fixtureDir);
         const extension = path.extname(fixturePath);
         const baseName = path.basename(fixturePath, extension);
         const llFile = path.join(outputDir, `${baseName}.ll`);
@@ -405,8 +407,8 @@ describe('ChadScript Compiler', () => {
 
   describe('LLVM IR Generation', () => {
     it('should generate valid LLVM IR structure', async () => {
-      const fixturePath = path.resolve('tests/fixtures/arithmetic/simple-add.js');
-      const outputDir = path.dirname(fixturePath);
+      const fixturePath = 'tests/fixtures/arithmetic/simple-add.js'; // Use relative path
+      const outputDir = path.join('.build', path.dirname(fixturePath));
       const baseName = path.basename(fixturePath, '.js');
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
@@ -445,7 +447,7 @@ describe('ChadScript Compiler', () => {
   describe('Bitwise Operators', () => {
     it('should compile and execute bitwise operators (XOR, shifts, AND, OR)', async () => {
       const fixturePath = 'tests/fixtures/bitwise/bitwise-operators.js';
-      const outputDir = path.dirname(fixturePath);
+      const outputDir = path.join('.build', path.dirname(fixturePath));
       const baseName = path.basename(fixturePath, '.js');
       const exeFile = path.join(outputDir, baseName);
 
@@ -478,7 +480,7 @@ describe('ChadScript Compiler', () => {
   describe('Math Functions', () => {
     it('should compile and execute Math functions (sqrt, pow, floor, ceil, round, abs)', async () => {
       const fixturePath = 'tests/fixtures/arithmetic/math-functions.js';
-      const outputDir = path.dirname(fixturePath);
+      const outputDir = path.join('.build', path.dirname(fixturePath));
       const baseName = path.basename(fixturePath, '.js');
       const exeFile = path.join(outputDir, baseName);
 
@@ -513,7 +515,7 @@ describe('ChadScript Compiler', () => {
   describe('Try/Catch/Throw', () => {
     it('should compile and execute try-catch-throw syntax', async () => {
       const fixturePath = 'tests/fixtures/error-handling/try-catch-throw.js';
-      const outputDir = path.dirname(fixturePath);
+      const outputDir = path.join('.build', path.dirname(fixturePath));
       const baseName = path.basename(fixturePath, '.js');
       const exeFile = path.join(outputDir, baseName);
 
