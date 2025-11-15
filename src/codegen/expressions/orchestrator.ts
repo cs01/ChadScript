@@ -7,6 +7,9 @@ import { CallExpressionGenerator } from './calls.js';
 import { IndexAccessGenerator } from './access/index.js';
 import { MemberAccessGenerator } from './access/member.js';
 import { ArrowFunctionExpressionGenerator } from './arrow-functions.js';
+import { ConditionalExpressionGenerator } from './conditionals.js';
+import { TemplateLiteralGenerator } from './templates.js';
+import { MethodCallGenerator } from './method-calls.js';
 
 /**
  * ExpressionGenerator
@@ -19,7 +22,9 @@ import { ArrowFunctionExpressionGenerator } from './arrow-functions.js';
  * - VariableExpressionGenerator: all variable types
  * - BinaryExpressionGenerator: arithmetic, bitwise, comparison operators
  * - UnaryExpressionGenerator: !, -, + operators
- * - (More sub-generators to be extracted in future commits)
+ * - ConditionalExpressionGenerator: ternary conditional expressions
+ * - TemplateLiteralGenerator: template literal strings with interpolation
+ * - MethodCallGenerator: method calls on objects, strings, arrays, etc.
  */
 export class ExpressionGenerator {
   private literalGen: LiteralExpressionGenerator;
@@ -30,6 +35,9 @@ export class ExpressionGenerator {
   private indexAccessGen: IndexAccessGenerator;
   private memberAccessGen: MemberAccessGenerator;
   private arrowFunctionGen: ArrowFunctionExpressionGenerator;
+  private conditionalGen: ConditionalExpressionGenerator;
+  private templateLiteralGen: TemplateLiteralGenerator;
+  private methodCallGen: MethodCallGenerator;
 
   constructor(private ctx: any) {
     this.literalGen = new LiteralExpressionGenerator(ctx);
@@ -40,6 +48,9 @@ export class ExpressionGenerator {
     this.indexAccessGen = new IndexAccessGenerator(ctx);
     this.memberAccessGen = new MemberAccessGenerator(ctx);
     this.arrowFunctionGen = new ArrowFunctionExpressionGenerator();
+    this.conditionalGen = new ConditionalExpressionGenerator(ctx);
+    this.templateLiteralGen = new TemplateLiteralGenerator(ctx);
+    this.methodCallGen = new MethodCallGenerator(ctx);
   }
 
   /**
@@ -125,19 +136,19 @@ export class ExpressionGenerator {
       return this.arrowFunctionGen.generateArrowFunction(expr, params);
     }
 
-    // TODO: Extract these into sub-generators in future commits
-    // For now, delegate back to llvm-generator's original implementation
-    // This allows us to wire up the new pattern without breaking anything
+    // Conditional (ternary) expressions
+    if ((expr as any).type === 'conditional') {
+      return this.conditionalGen.generate(expr, params);
+    }
 
-    if (expr.type === 'method_call' ||
-        (expr as any).type === 'conditional' ||
-        (expr as any).type === 'template_literal') {
-      // Delegate to original implementation via callback
-      // The parent llvm-generator will set this callback
-      if (!this.ctx.generateExpressionFallback) {
-        throw new Error('generateExpressionFallback not set - cannot handle complex expression types');
-      }
-      return this.ctx.generateExpressionFallback(expr, params);
+    // Template literals
+    if ((expr as any).type === 'template_literal') {
+      return this.templateLiteralGen.generate(expr, params);
+    }
+
+    // Method calls
+    if (expr.type === 'method_call') {
+      return this.methodCallGen.generate(expr as any, params);
     }
 
     throw new Error(`Unknown expression type: ${(expr as any).type}`);
