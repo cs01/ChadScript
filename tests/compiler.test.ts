@@ -176,6 +176,12 @@ const testCases: TestCase[] = [
     description: 'parseInt should parse numbers with different radixes'
   },
   {
+    name: 'array-includes',
+    fixture: 'tests/fixtures/arrays/array-includes-test.js',
+    expectTestPassed: true,
+    description: 'Array .includes() should find elements correctly'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex/regex-test.js',
     expectedExitCode: 1,
