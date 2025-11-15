@@ -124,6 +124,24 @@ export class MethodCallGenerator {
       }
     }
 
+    // Handle Response methods (from fetch())
+    if (method === 'text' || method === 'json') {
+      try {
+        this.ctx.syncStateToGenerators();
+        const responsePtr = this.ctx.generateExpression(expr.object, params);
+
+        if (method === 'text') {
+          return this.ctx.responseGen.generateText(responsePtr);
+        } else if (method === 'json') {
+          return this.ctx.responseGen.generateJson(responsePtr);
+        }
+      } catch (e) {
+        // Log error and rethrow so we can see what's happening
+        console.error('[Response method error]:', e);
+        throw e;
+      }
+    }
+
     // Handle string methods
     if (method === 'substr') {
       return this.handleSubstr(expr, params);

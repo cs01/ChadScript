@@ -14,6 +14,7 @@ import { ProcessGenerator } from './stdlib/process.js';
 import { PathGenerator } from './stdlib/path.js';
 import { JsonGenerator } from './stdlib/json.js';
 import { FilesystemGenerator } from './stdlib/fs.js';
+import { ResponseGenerator } from './stdlib/response.js';
 import { RuntimeGenerator } from './runtime/runtime.js';
 import { ExpressionGenerator } from './expressions/orchestrator.js';
 import { TypeChecker } from '../typescript/type-checker.js';
@@ -49,6 +50,7 @@ export class LLVMGenerator extends BaseGenerator {
   private pathGen: PathGenerator;
   private jsonGen: JsonGenerator;
   private fsGen: FilesystemGenerator;
+  private responseGen: ResponseGenerator;
   private runtimeGen: RuntimeGenerator;
 
   // Expression generator (context pattern)
@@ -129,6 +131,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.pathGen = new PathGenerator(this);
     this.jsonGen = new JsonGenerator(this);
     this.fsGen = new FilesystemGenerator(this);
+    this.responseGen = new ResponseGenerator(this);
     this.runtimeGen = new RuntimeGenerator();
 
     // Initialize expression generator with context pattern
@@ -538,9 +541,9 @@ export class LLVMGenerator extends BaseGenerator {
         return true;
       }
       // Check nested blocks
-      if (stmt.type === 'if' && stmt.consequent) {
-        if (this.hasReturnStatement(stmt.consequent)) return true;
-        if (stmt.alternate && this.hasReturnStatement(stmt.alternate)) return true;
+      if (stmt.type === 'if' && (stmt as any).thenBlock) {
+        if (this.hasReturnStatement((stmt as any).thenBlock)) return true;
+        if ((stmt as any).elseBlock && this.hasReturnStatement((stmt as any).elseBlock)) return true;
       }
       if (stmt.type === 'while' && stmt.body) {
         if (this.hasReturnStatement(stmt.body)) return true;
@@ -586,7 +589,7 @@ export class LLVMGenerator extends BaseGenerator {
           }
         }
 
-        // Determine if this is a string, array, string array, object, map, set, regex, class instance, JSON object, or numeric value
+        // Determine if this is a string, array, string array, object, map, set, regex, class instance, JSON object, Response, or numeric value
         // NOTE: Check isStringArray BEFORE isArray since string arrays are also arrays
         const isString = this.isStringExpression(stmt.value);
         const isStringArray = this.isStringArrayExpression(stmt.value);
@@ -597,6 +600,7 @@ export class LLVMGenerator extends BaseGenerator {
         const isSet = this.isSetExpression(stmt.value);
         const isRegex = this.isRegexExpression(stmt.value);
         const isClassInstance = this.isClassInstanceExpression(stmt.value);
+        const isResponse = this.isResponseExpression(stmt.value);  // 🎓 Check for Response*
 
         if (isClassInstance) {
           // Allocate stack space for class instance pointer
@@ -612,6 +616,16 @@ export class LLVMGenerator extends BaseGenerator {
           // Generate the new expression and store it
           const instancePtr = this.generateExpression(stmt.value, params);
           this.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
+        } else if (isResponse) {
+          // Allocate stack space for Response pointer
+          const allocaReg = this.nextTemp();
+          this.variables.set(stmt.name, allocaReg);
+          this.variableTypes.set(stmt.name, '%Response*');
+          this.emit(`${allocaReg} = alloca %Response*`);
+
+          // Generate fetch() call and store the Response*
+          const responsePtr = this.generateExpression(stmt.value, params);
+          this.emit(`store %Response* ${responsePtr}, %Response** ${allocaReg}`);
         } else if (isJSONObject) {
           // JSON.parse() result - store as special JSON object variable
           const allocaReg = this.nextTemp();
@@ -1609,6 +1623,18 @@ export class LLVMGenerator extends BaseGenerator {
       return temp;
     }
 
+    // Handle Response methods (from fetch())
+    if (method === 'text' || method === 'json') {
+      this.syncStateToGenerators();
+      const responsePtr = this.generateExpression(expr.object, params);
+
+      if (method === 'text') {
+        return this.responseGen.generateText(responsePtr);
+      } else { // json
+        return this.responseGen.generateJson(responsePtr);
+      }
+    }
+
     // Build a helpful error message with supported methods
     const stringMethods = [
       'charAt', 'concat', 'padStart', 'repeat', 'split', 'startsWith', 'substring', 'substr'
@@ -1731,10 +1757,6 @@ export class LLVMGenerator extends BaseGenerator {
       return true;
     }
     if ((expr as any).type === 'template_literal') {
-      return true;
-    }
-    // Check for fetch() call - returns string
-    if (expr.type === 'call' && expr.name === 'fetch') {
       return true;
     }
     if (expr.type === 'variable') {
@@ -1865,7 +1887,8 @@ export class LLVMGenerator extends BaseGenerator {
       if (methodExpr.method === 'substr' || methodExpr.method === 'substring' ||
           methodExpr.method === 'concat' || methodExpr.method === 'repeat' ||
           methodExpr.method === 'padStart' || methodExpr.method === 'charAt' ||
-          methodExpr.method === 'trim' || methodExpr.method === 'slice') {
+          methodExpr.method === 'trim' || methodExpr.method === 'slice' ||
+          methodExpr.method === 'text') {  // 🎓 Response.text() returns string
         return true;
       }
       // Check class instance method return types
@@ -1899,6 +1922,24 @@ export class LLVMGenerator extends BaseGenerator {
     }
     if (expr.type === 'variable') {
       return this.classInstanceVariables.has(expr.name);
+    }
+    return false;
+  }
+
+  /**
+   * Check if an expression returns a Response object (from fetch())
+   */
+  private isResponseExpression(expr: Expression): boolean {
+    // fetch() returns Response*
+    if (expr.type === 'call' && expr.name === 'fetch') {
+      return true;
+    }
+    // Variables that hold Response objects
+    if (expr.type === 'variable') {
+      const varType = this.variableTypes.get(expr.name);
+      if (varType === '%Response*') {
+        return true;
+      }
     }
     return false;
   }
@@ -1994,7 +2035,7 @@ export class LLVMGenerator extends BaseGenerator {
         continue;
       }
 
-      // Determine if this is a string, array, string array, object, map, set, regex, class instance, JSON object, or numeric value
+      // Determine if this is a string, array, string array, object, map, set, regex, class instance, JSON object, Response, or numeric value
       // NOTE: Check isStringArray BEFORE isArray since string arrays are also arrays
       const isString = this.isStringExpression(stmt.value);
       const isStringArray = this.isStringArrayExpression(stmt.value);
@@ -2005,6 +2046,7 @@ export class LLVMGenerator extends BaseGenerator {
       const isSet = this.isSetExpression(stmt.value);
       const isRegex = this.isRegexExpression(stmt.value);
       const isClassInstance = this.isClassInstanceExpression(stmt.value);
+      const isResponse = this.isResponseExpression(stmt.value);  // 🎓 Check for Response*
 
       if (isClassInstance) {
         // Allocate stack space for class instance pointer
@@ -2020,6 +2062,16 @@ export class LLVMGenerator extends BaseGenerator {
         // Generate the new expression and store it
         const instancePtr = this.generateExpression(stmt.value, []);
         this.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
+      } else if (isResponse) {
+        // Allocate stack space for Response pointer
+        const allocaReg = this.nextTemp();
+        this.variables.set(stmt.name, allocaReg);
+        this.variableTypes.set(stmt.name, '%Response*');
+        this.emit(`${allocaReg} = alloca %Response*`);
+
+        // Generate fetch() call and store the Response*
+        const responsePtr = this.generateExpression(stmt.value, []);
+        this.emit(`store %Response* ${responsePtr}, %Response** ${allocaReg}`);
       } else if (isJSONObject) {
         // JSON.parse() result - store as special JSON object variable
         const allocaReg = this.nextTemp();
