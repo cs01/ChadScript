@@ -10,37 +10,45 @@ function testReadFile(): number {
 
   // Verify content matches
   if (content !== expected) {
-    return 1; // Error: content doesn't match
+    console.log("Error: content doesn't match");
+    process.exit(1);
   }
 
   // Verify length is correct (50 characters including newlines)
   if (content.length !== 50) {
-    return 2; // Error: content length wrong
+    console.log("Error: content length wrong");
+    process.exit(2);
   }
 
   // Split by lines and verify we have 3 lines
   const lines = content.split("\n");
   if (lines.length !== 3) {
-    return 3; // Error: should have 3 lines
+    console.log("Error: should have 3 lines");
+    process.exit(3);
   }
 
   // Verify first line
   if (lines[0] !== "Hello from test file!") {
-    return 4; // Error: first line wrong
+    console.log("Error: first line wrong");
+    process.exit(4);
   }
 
   // Verify second line
   if (lines[1] !== "This is line 2.") {
-    return 5; // Error: second line wrong
+    console.log("Error: second line wrong");
+    process.exit(5);
   }
 
   // Verify third line
   if (lines[2] !== "Line 3 here.") {
-    return 6; // Error: third line wrong
+    console.log("Error: third line wrong");
+    process.exit(6);
   }
 
   // All checks passed!
-  return 0;
+  console.log("TEST_PASSED");
+  process.exit(0);
+  return 0; // Never reached but satisfies compiler
 }
 
-process.exit(testReadFile());
+testReadFile();

@@ -89,7 +89,7 @@ export function add(a: number, b: number): number {
 }
 
 // main.ts
-import { add } from './math.js';  // .js extension required
+import { add } from './math.js';
 console.log(add(5, 7));
 ```
 

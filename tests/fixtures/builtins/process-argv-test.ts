@@ -4,7 +4,8 @@
 function testArgv(): number {
   // Check that we have at least 2 arguments (program name + 1 arg)
   if (process.argv.length < 2) {
-    return 1; // Error: not enough arguments
+    console.log("Error: not enough arguments");
+    process.exit(1);
   }
 
   // Get the first actual argument (argv[1])
@@ -12,16 +13,20 @@ function testArgv(): number {
 
   // Verify it's the expected test value "testarg"
   if (arg !== "testarg") {
-    return 2; // Error: argument value wrong
+    console.log("Error: argument value wrong");
+    process.exit(2);
   }
 
   // Verify the length is correct
   if (arg.length !== 7) {
-    return 3; // Error: "testarg".length should be 7
+    console.log("Error: testarg.length should be 7");
+    process.exit(3);
   }
 
   // All checks passed!
-  return 0;
+  console.log("TEST_PASSED");
+  process.exit(0);
+  return 0; // Never reached but satisfies compiler
 }
 
-process.exit(testArgv());
+testArgv();

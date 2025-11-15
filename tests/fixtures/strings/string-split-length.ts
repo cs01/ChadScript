@@ -7,53 +7,66 @@ function testSplit(): number {
 
   // Verify we got 5 parts
   if (parts.length !== 5) {
-    return 1; // Error: wrong length
+    console.log("Error: wrong length");
+    process.exit(1);
   }
 
   // Verify each part is correct
   if (parts[0] !== "apple") {
-    return 2; // Error: first element wrong
+    console.log("Error: first element wrong");
+    process.exit(2);
   }
 
   if (parts[1] !== "banana") {
-    return 3; // Error: second element wrong
+    console.log("Error: second element wrong");
+    process.exit(3);
   }
 
   if (parts[2] !== "cherry") {
-    return 4; // Error: third element wrong
+    console.log("Error: third element wrong");
+    process.exit(4);
   }
 
   if (parts[3] !== "date") {
-    return 5; // Error: fourth element wrong
+    console.log("Error: fourth element wrong");
+    process.exit(5);
   }
 
   if (parts[4] !== "elderberry") {
-    return 6; // Error: fifth element wrong
+    console.log("Error: fifth element wrong");
+    process.exit(6);
   }
 
   // Verify the length of each part
   if (parts[0].length !== 5) {
-    return 7; // Error: "apple".length should be 5
+    console.log("Error: apple.length should be 5");
+    process.exit(7);
   }
 
   if (parts[1].length !== 6) {
-    return 8; // Error: "banana".length should be 6
+    console.log("Error: banana.length should be 6");
+    process.exit(8);
   }
 
   if (parts[2].length !== 6) {
-    return 9; // Error: "cherry".length should be 6
+    console.log("Error: cherry.length should be 6");
+    process.exit(9);
   }
 
   if (parts[3].length !== 4) {
-    return 10; // Error: "date".length should be 4
+    console.log("Error: date.length should be 4");
+    process.exit(10);
   }
 
   if (parts[4].length !== 10) {
-    return 11; // Error: "elderberry".length should be 10
+    console.log("Error: elderberry.length should be 10");
+    process.exit(11);
   }
 
   // All checks passed!
-  return 0;
+  console.log("TEST_PASSED");
+  process.exit(0);
+  return 0; // Never reached but satisfies compiler
 }
 
-process.exit(testSplit());
+testSplit();
