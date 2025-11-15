@@ -2,8 +2,7 @@
 // This test expects an HTTP server running on localhost:9998
 // that responds with specific test data
 
-// 🎓 TEACHING: New Response API
-// fetch() now returns a Response object with:
+// fetch() returns a Response object with:
 // - .text() method to get body
 // - .json() method to parse JSON
 // - .status property for HTTP status code
