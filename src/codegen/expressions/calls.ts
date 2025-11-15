@@ -24,13 +24,14 @@ export class CallExpressionGenerator {
     }
 
     // Handle fetch() special built-in function
+    // Returns a Response object (pointer to Response struct)
     if (expr.name === 'fetch') {
       if (expr.args.length < 1) {
         throw new Error('fetch() requires at least 1 argument (URL)');
       }
       const urlValue = generateExpressionFn(expr.args[0], params);
       const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = call i8* @fetch(i8* ${urlValue})`);
+      this.ctx.emit(`${temp} = call %Response* @fetch(i8* ${urlValue})`);
       return temp;
     }
 

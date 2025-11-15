@@ -162,12 +162,39 @@ declare namespace path {
 // ============================================================================
 
 /**
- * Performs an HTTP GET request using libcurl.
- * Returns the complete HTTP response including headers and body.
- * @param url The URL to fetch (must include protocol, e.g., "http://example.com")
- * @returns The complete HTTP response as a string, including headers and body
+ * Response object returned by fetch()
+ * Contains parsed HTTP response data
  */
-declare function fetch(url: string): string;
+interface Response {
+  /**
+   * Get the response body as a string
+   * @returns The HTTP response body
+   */
+  text(): string;
+
+  /**
+   * Parse the response body as JSON
+   * @returns Parsed JSON value (currently only supports numbers)
+   */
+  json(): any;
+
+  /**
+   * HTTP status code (200, 404, 500, etc.)
+   */
+  status: number;
+
+  /**
+   * True if status code indicates success (200-299)
+   */
+  ok: boolean;
+}
+
+/**
+ * Performs an HTTP GET request using libcurl.
+ * @param url The URL to fetch (must include protocol, e.g., "http://example.com")
+ * @returns A Response object containing status, headers, and body
+ */
+declare function fetch(url: string): Response;
 
 // ============================================================================
 // Low-Level System Calls
