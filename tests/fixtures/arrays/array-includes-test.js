@@ -15,8 +15,6 @@ function testArrayIncludes(): number {
   }
 
   console.log("TEST_PASSED");
-  process.exit(0);
-  return 0;
 }
 
 testArrayIncludes();

@@ -1,7 +1,7 @@
 // Test process.argv - verifies command line argument access works
 // This should receive one argument and verify it
 
-function testArgv(): number {
+function testArgv(): void {
   // Check that we have at least 2 arguments (program name + 1 arg)
   if (process.argv.length < 2) {
     console.log("Error: not enough arguments");
@@ -25,8 +25,6 @@ function testArgv(): number {
 
   // All checks passed!
   console.log("TEST_PASSED");
-  process.exit(0);
-  return 0; // Never reached but satisfies compiler
 }
 
 testArgv();

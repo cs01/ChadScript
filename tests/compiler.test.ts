@@ -189,7 +189,7 @@ const testCases: TestCase[] = [
   },
   {
     name: 'string-trim',
-    fixture: 'tests/fixtures/strings/string-trim-simple.js',
+    fixture: 'tests/fixtures/strings/string-trim-simple.ts',
     expectTestPassed: true,
     description: 'String .trim() should remove leading and trailing whitespace'
   },
@@ -479,6 +479,7 @@ describe('ChadScript Compiler', () => {
               if (!stdout.includes('TEST_PASSED')) {
                 throw new Error(`Test did not print TEST_PASSED. stdout: ${stdout}. stderr: ${result.stderr || ''}`);
               }
+              assert.strictEqual(actualExitCode, 0);
             } else if (testCase.expectedExitCode !== undefined) {
               // Legacy convention: check exit code
               assert.strictEqual(

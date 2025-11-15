@@ -1,5 +1,5 @@
 // Test complex ternary expressions - verifies nested ternary works
-function testTernaryComplex(): number {
+function testTernaryComplex(): void {
   const a = 10;
   const b = 20;
   const c = 30;
@@ -14,8 +14,6 @@ function testTernaryComplex(): number {
   }
 
   console.log("TEST_PASSED");
-  process.exit(0);
-  return 0;
 }
 
 testTernaryComplex();

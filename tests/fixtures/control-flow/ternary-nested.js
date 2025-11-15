@@ -1,5 +1,5 @@
 // Test nested ternary - verifies nested grade calculation works
-function testTernaryNested(): number {
+function testTernaryNested(): void {
   const score = 85;
 
   // Nested ternary:
@@ -13,8 +13,6 @@ function testTernaryNested(): number {
   }
 
   console.log("TEST_PASSED");
-  process.exit(0);
-  return 0;
 }
 
 testTernaryNested();
