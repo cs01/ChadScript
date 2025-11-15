@@ -555,6 +555,154 @@ export class LLVMGenerator extends BaseGenerator {
     return false;
   }
 
+  /**
+   * Allocate stack space for a variable declaration.
+   * Handles all variable types: strings, arrays, objects, maps, sets, regex, classes, Response, etc.
+   * This eliminates duplicate code between generateBlock() and generateMain().
+   *
+   * @param stmt - Variable declaration statement
+   * @param params - Function parameters for expression generation
+   */
+  private allocateVariable(stmt: any, params: string[]): void {
+    // Handle uninitialized variables (e.g., let x;)
+    if (stmt.value === null) {
+      const allocaReg = this.nextTemp();
+      this.variables.set(stmt.name, allocaReg);
+      this.variableTypes.set(stmt.name, 'double');
+      this.emit(`${allocaReg} = alloca double`);
+      this.emit(`store double 0.0, double* ${allocaReg}`);
+      return;
+    }
+
+    // Set expected array element type from TypeScript type annotation if available
+    if (stmt.declaredType) {
+      if (stmt.declaredType === 'string[]') {
+        this.expectedArrayElementType = 'string';
+      } else if (stmt.declaredType === 'number[]' || stmt.declaredType === 'boolean[]') {
+        this.expectedArrayElementType = 'number';
+      }
+    }
+
+    // Determine variable type (check isStringArray BEFORE isArray since string arrays are also arrays)
+    const isString = this.isStringExpression(stmt.value);
+    const isStringArray = this.isStringArrayExpression(stmt.value);
+    const isArray = !isStringArray && this.isArrayExpression(stmt.value);
+    const isJSONObject = this.isJSONParseExpression(stmt.value);
+    const isObject = !isJSONObject && this.isObjectExpression(stmt.value);
+    const isMap = this.isMapExpression(stmt.value);
+    const isSet = this.isSetExpression(stmt.value);
+    const isRegex = this.isRegexExpression(stmt.value);
+    const isClassInstance = this.isClassInstanceExpression(stmt.value);
+    const isResponse = this.isResponseExpression(stmt.value);
+
+    if (isClassInstance) {
+      const allocaReg = this.nextTemp();
+      const newExpr = stmt.value as any as NewNode;
+      const className = newExpr.className;
+      const fields = this.classGen.getClassFields(className);
+      const ptrType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
+
+      this.classInstanceVariables.set(stmt.name, { ptr: allocaReg, className });
+      this.emit(`${allocaReg} = alloca ${ptrType}`);
+
+      const instancePtr = this.generateExpression(stmt.value, params);
+      this.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
+    } else if (isResponse) {
+      const allocaReg = this.nextTemp();
+      this.variables.set(stmt.name, allocaReg);
+      this.variableTypes.set(stmt.name, '%Response*');
+      this.emit(`${allocaReg} = alloca %Response*`);
+
+      const responsePtr = this.generateExpression(stmt.value, params);
+      this.emit(`store %Response* ${responsePtr}, %Response** ${allocaReg}`);
+    } else if (isJSONObject) {
+      const allocaReg = this.nextTemp();
+      this.jsonObjectVariables.set(stmt.name, allocaReg);
+      this.emit(`${allocaReg} = alloca i8*`);
+
+      const jsonPtr = this.generateExpression(stmt.value, params);
+      this.emit(`store i8* ${jsonPtr}, i8** ${allocaReg}`);
+    } else if (isObject) {
+      const allocaReg = this.nextTemp();
+      const metadata = this.getObjectMetadata(stmt.value as any);
+      this.objectVariables.set(stmt.name, { ptr: allocaReg, keys: metadata.keys, types: metadata.types });
+      this.emit(`${allocaReg} = alloca i8*`);
+
+      const objExpr = this.generateExpression(stmt.value, params);
+      this.emit(`store i8* ${objExpr}, i8** ${allocaReg}`);
+    } else if (isMap) {
+      const allocaReg = this.nextTemp();
+      this.mapVariables.set(stmt.name, allocaReg);
+      this.emit(`${allocaReg} = alloca %Map`);
+
+      const value = this.generateExpression(stmt.value, params);
+      const loadedMap = this.nextTemp();
+      this.emit(`${loadedMap} = load %Map, %Map* ${value}`);
+      this.emit(`store %Map ${loadedMap}, %Map* ${allocaReg}`);
+    } else if (isSet) {
+      const allocaReg = this.nextTemp();
+      this.setVariables.set(stmt.name, allocaReg);
+      this.emit(`${allocaReg} = alloca %Set`);
+
+      const value = this.generateExpression(stmt.value, params);
+      const loadedSet = this.nextTemp();
+      this.emit(`${loadedSet} = load %Set, %Set* ${value}`);
+      this.emit(`store %Set ${loadedSet}, %Set* ${allocaReg}`);
+    } else if (isStringArray) {
+      const allocaReg = this.nextTemp();
+      this.variables.set(stmt.name, allocaReg);
+      this.variableTypes.set(stmt.name, '%StringArray*');
+      this.stringArrayVariables.set(stmt.name, allocaReg);
+      this.emit(`${allocaReg} = alloca %StringArray`);
+
+      const value = this.generateExpression(stmt.value, params);
+      const loadedStringArray = this.nextTemp();
+      this.emit(`${loadedStringArray} = load %StringArray, %StringArray* ${value}`);
+      this.emit(`store %StringArray ${loadedStringArray}, %StringArray* ${allocaReg}`);
+    } else if (isArray) {
+      const allocaReg = this.nextTemp();
+      this.variables.set(stmt.name, allocaReg);
+      this.variableTypes.set(stmt.name, '%Array*');
+      this.arrayVariables.set(stmt.name, allocaReg);
+      this.emit(`${allocaReg} = alloca %Array`);
+
+      const value = this.generateExpression(stmt.value, params);
+      const loadedArray = this.nextTemp();
+      this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
+      this.emit(`store %Array ${loadedArray}, %Array* ${allocaReg}`);
+    } else if (isRegex) {
+      const allocaReg = this.nextTemp();
+      this.variables.set(stmt.name, allocaReg);
+      this.variableTypes.set(stmt.name, 'i8*');
+      this.regexVariables.set(stmt.name, allocaReg);
+      this.emit(`${allocaReg} = alloca i8*`);
+
+      const value = this.generateExpression(stmt.value, params);
+      this.emit(`store i8* ${value}, i8** ${allocaReg}`);
+    } else if (isString) {
+      const allocaReg = this.nextTemp();
+      this.variables.set(stmt.name, allocaReg);
+      this.variableTypes.set(stmt.name, 'i8*');
+      this.stringVariables.set(stmt.name, allocaReg);
+      this.emit(`${allocaReg} = alloca i8*`);
+
+      const value = this.generateExpression(stmt.value, params);
+      this.emit(`store i8* ${value}, i8** ${allocaReg}`);
+    } else {
+      // Numeric value (all numeric values, including booleans)
+      const allocaReg = this.nextTemp();
+      this.variables.set(stmt.name, allocaReg);
+      this.variableTypes.set(stmt.name, 'double');
+      this.emit(`${allocaReg} = alloca double`);
+
+      const value = this.generateExpression(stmt.value, params);
+      this.emit(`store double ${value}, double* ${allocaReg}`);
+    }
+
+    // Reset expected array element type after variable declaration is complete
+    this.expectedArrayElementType = null;
+  }
+
   public generateBlock(block: BlockStatement, params: string[]): string | null {
     let lastValue: string | null = null;
     let hasTerminator = false;
@@ -568,172 +716,7 @@ export class LLVMGenerator extends BaseGenerator {
       }
 
       if (stmt.type === 'variable_declaration') {
-        // Handle uninitialized variables (e.g., let x;)
-        if (stmt.value === null) {
-          // For uninitialized variables, allocate as double and initialize to 0.0
-          const allocaReg = this.nextTemp();
-          this.variables.set(stmt.name, allocaReg);
-          this.variableTypes.set(stmt.name, 'double');
-          this.emit(`${allocaReg} = alloca double`);
-          this.emit(`store double 0.0, double* ${allocaReg}`);
-          continue;
-        }
-
-        // Set expected array element type from TypeScript type annotation if available
-        // This helps properly type empty arrays like: const x: string[] = []
-        if (stmt.declaredType) {
-          if (stmt.declaredType === 'string[]') {
-            this.expectedArrayElementType = 'string';
-          } else if (stmt.declaredType === 'number[]' || stmt.declaredType === 'boolean[]') {
-            this.expectedArrayElementType = 'number';
-          }
-        }
-
-        // Determine if this is a string, array, string array, object, map, set, regex, class instance, JSON object, Response, or numeric value
-        // NOTE: Check isStringArray BEFORE isArray since string arrays are also arrays
-        const isString = this.isStringExpression(stmt.value);
-        const isStringArray = this.isStringArrayExpression(stmt.value);
-        const isArray = !isStringArray && this.isArrayExpression(stmt.value);
-        const isJSONObject = this.isJSONParseExpression(stmt.value);
-        const isObject = !isJSONObject && this.isObjectExpression(stmt.value);
-        const isMap = this.isMapExpression(stmt.value);
-        const isSet = this.isSetExpression(stmt.value);
-        const isRegex = this.isRegexExpression(stmt.value);
-        const isClassInstance = this.isClassInstanceExpression(stmt.value);
-        const isResponse = this.isResponseExpression(stmt.value);  // 🎓 Check for Response*
-
-        if (isClassInstance) {
-          // Allocate stack space for class instance pointer
-          const allocaReg = this.nextTemp();
-          const newExpr = stmt.value as any as NewNode;
-          const className = newExpr.className;
-          const fields = this.classGen.getClassFields(className);
-          const ptrType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
-
-          this.classInstanceVariables.set(stmt.name, { ptr: allocaReg, className });
-          this.emit(`${allocaReg} = alloca ${ptrType}`);
-
-          // Generate the new expression and store it
-          const instancePtr = this.generateExpression(stmt.value, params);
-          this.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
-        } else if (isResponse) {
-          // Allocate stack space for Response pointer
-          const allocaReg = this.nextTemp();
-          this.variables.set(stmt.name, allocaReg);
-          this.variableTypes.set(stmt.name, '%Response*');
-          this.emit(`${allocaReg} = alloca %Response*`);
-
-          // Generate fetch() call and store the Response*
-          const responsePtr = this.generateExpression(stmt.value, params);
-          this.emit(`store %Response* ${responsePtr}, %Response** ${allocaReg}`);
-        } else if (isJSONObject) {
-          // JSON.parse() result - store as special JSON object variable
-          const allocaReg = this.nextTemp();
-          this.jsonObjectVariables.set(stmt.name, allocaReg);
-          this.emit(`${allocaReg} = alloca i8*`);
-
-          // Generate JSON.parse() call
-          const jsonPtr = this.generateExpression(stmt.value, params);
-          this.emit(`store i8* ${jsonPtr}, i8** ${allocaReg}`);
-        } else if (isObject) {
-          // Allocate stack space for object pointer (i8*) BEFORE generating the expression
-          const allocaReg = this.nextTemp();
-          const metadata = this.getObjectMetadata(stmt.value as any);
-          this.objectVariables.set(stmt.name, { ptr: allocaReg, keys: metadata.keys, types: metadata.types });
-          this.emit(`${allocaReg} = alloca i8*`);
-
-          // Now generate the expression
-          const objExpr = this.generateExpression(stmt.value, params);
-          this.emit(`store i8* ${objExpr}, i8** ${allocaReg}`);
-        } else if (isMap) {
-          // Allocate stack space for map struct (%Map*)
-          const allocaReg = this.nextTemp();
-          this.mapVariables.set(stmt.name, allocaReg);
-          this.emit(`${allocaReg} = alloca %Map`);
-
-          // Compute initial value and store it
-          const value = this.generateExpression(stmt.value, params);
-          // value is a %Map*, copy the struct
-          const loadedMap = this.nextTemp();
-          this.emit(`${loadedMap} = load %Map, %Map* ${value}`);
-          this.emit(`store %Map ${loadedMap}, %Map* ${allocaReg}`);
-        } else if (isSet) {
-          // Allocate stack space for set struct (%Set*)
-          const allocaReg = this.nextTemp();
-          this.setVariables.set(stmt.name, allocaReg);
-          this.emit(`${allocaReg} = alloca %Set`);
-
-          // Compute initial value and store it
-          const value = this.generateExpression(stmt.value, params);
-          // value is a %Set*, copy the struct
-          const loadedSet = this.nextTemp();
-          this.emit(`${loadedSet} = load %Set, %Set* ${value}`);
-          this.emit(`store %Set ${loadedSet}, %Set* ${allocaReg}`);
-        } else if (isStringArray) {
-          // Allocate stack space for string array struct (%StringArray*)
-          // NOTE: This must come BEFORE isArray check since string arrays are also arrays
-          const allocaReg = this.nextTemp();
-          this.variables.set(stmt.name, allocaReg);
-          this.variableTypes.set(stmt.name, '%StringArray*');  // Track string array type!
-          this.stringArrayVariables.set(stmt.name, allocaReg);
-          this.emit(`${allocaReg} = alloca %StringArray`);
-
-          // Compute initial value and store it
-          const value = this.generateExpression(stmt.value, params);
-          // value is a %StringArray*, copy the struct
-          const loadedStringArray = this.nextTemp();
-          this.emit(`${loadedStringArray} = load %StringArray, %StringArray* ${value}`);
-          this.emit(`store %StringArray ${loadedStringArray}, %StringArray* ${allocaReg}`);
-        } else if (isArray) {
-          // Allocate stack space for array struct (%Array*)
-          const allocaReg = this.nextTemp();
-          this.variables.set(stmt.name, allocaReg);
-          this.variableTypes.set(stmt.name, '%Array*');  // Track array type!
-          this.arrayVariables.set(stmt.name, allocaReg);
-          this.emit(`${allocaReg} = alloca %Array`);
-
-          // Compute initial value and store it
-          const value = this.generateExpression(stmt.value, params);
-          // value is a %Array*, copy the struct
-          const loadedArray = this.nextTemp();
-          this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
-          this.emit(`store %Array ${loadedArray}, %Array* ${allocaReg}`);
-        } else if (isRegex) {
-          // Allocate stack space for regex pointer (i8*)
-          const allocaReg = this.nextTemp();
-          this.variables.set(stmt.name, allocaReg);
-          this.variableTypes.set(stmt.name, 'i8*');  // Track regex type!
-          this.regexVariables.set(stmt.name, allocaReg);
-          this.emit(`${allocaReg} = alloca i8*`);
-
-          // Compute initial value and store it
-          const value = this.generateExpression(stmt.value, params);
-          this.emit(`store i8* ${value}, i8** ${allocaReg}`);
-        } else if (isString) {
-          // Allocate stack space for string pointer (i8*)
-          const allocaReg = this.nextTemp();
-          this.variables.set(stmt.name, allocaReg);
-          this.variableTypes.set(stmt.name, 'i8*');  // Track string type!
-          this.stringVariables.set(stmt.name, allocaReg);
-          this.emit(`${allocaReg} = alloca i8*`);
-
-          // Compute initial value and store it
-          const value = this.generateExpression(stmt.value, params);
-          this.emit(`store i8* ${value}, i8** ${allocaReg}`);
-        } else {
-          // Allocate stack space for double (all numeric values, including booleans)
-          const allocaReg = this.nextTemp();
-          this.variables.set(stmt.name, allocaReg);
-          this.variableTypes.set(stmt.name, 'double');
-          this.emit(`${allocaReg} = alloca double`);
-
-          // Compute initial value and store it
-          const value = this.generateExpression(stmt.value, params);
-          this.emit(`store double ${value}, double* ${allocaReg}`);
-        }
-
-        // Reset expected array element type after variable declaration is complete
-        this.expectedArrayElementType = null;
+        this.allocateVariable(stmt, params);
       } else if (stmt.type === 'assignment') {
         // Check if this is a member access assignment (this.field = value)
         if (stmt.name.startsWith('__member_access__')) {
@@ -2022,156 +2005,9 @@ export class LLVMGenerator extends BaseGenerator {
     this.tempCounter = 0;
     this.output = [];
 
-    // Process top-level variable declarations first
-    // (inline the variable declaration logic from generateBlock)
+    // Process top-level variable declarations using the shared allocateVariable method
     for (const stmt of this.ast.topLevelStatements) {
-      // Handle uninitialized variables (e.g., let x;)
-      if (stmt.value === null) {
-        // For uninitialized variables, allocate as double (ChadScript number type)
-        const allocaReg = this.nextTemp();
-        this.variables.set(stmt.name, allocaReg);
-        this.emit(`${allocaReg} = alloca double`);
-        this.emit(`store double 0.0, double* ${allocaReg}`);
-        continue;
-      }
-
-      // Determine if this is a string, array, string array, object, map, set, regex, class instance, JSON object, Response, or numeric value
-      // NOTE: Check isStringArray BEFORE isArray since string arrays are also arrays
-      const isString = this.isStringExpression(stmt.value);
-      const isStringArray = this.isStringArrayExpression(stmt.value);
-      const isArray = !isStringArray && this.isArrayExpression(stmt.value);
-      const isJSONObject = this.isJSONParseExpression(stmt.value);
-      const isObject = !isJSONObject && this.isObjectExpression(stmt.value);
-      const isMap = this.isMapExpression(stmt.value);
-      const isSet = this.isSetExpression(stmt.value);
-      const isRegex = this.isRegexExpression(stmt.value);
-      const isClassInstance = this.isClassInstanceExpression(stmt.value);
-      const isResponse = this.isResponseExpression(stmt.value);  // 🎓 Check for Response*
-
-      if (isClassInstance) {
-        // Allocate stack space for class instance pointer
-        const allocaReg = this.nextTemp();
-        const newExpr = stmt.value as any as NewNode;
-        const className = newExpr.className;
-        const fields = this.classGen.getClassFields(className);
-        const ptrType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
-
-        this.classInstanceVariables.set(stmt.name, { ptr: allocaReg, className });
-        this.emit(`${allocaReg} = alloca ${ptrType}`);
-
-        // Generate the new expression and store it
-        const instancePtr = this.generateExpression(stmt.value, []);
-        this.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
-      } else if (isResponse) {
-        // Allocate stack space for Response pointer
-        const allocaReg = this.nextTemp();
-        this.variables.set(stmt.name, allocaReg);
-        this.variableTypes.set(stmt.name, '%Response*');
-        this.emit(`${allocaReg} = alloca %Response*`);
-
-        // Generate fetch() call and store the Response*
-        const responsePtr = this.generateExpression(stmt.value, []);
-        this.emit(`store %Response* ${responsePtr}, %Response** ${allocaReg}`);
-      } else if (isJSONObject) {
-        // JSON.parse() result - store as special JSON object variable
-        const allocaReg = this.nextTemp();
-        this.jsonObjectVariables.set(stmt.name, allocaReg);
-        this.emit(`${allocaReg} = alloca i8*`);
-
-        // Generate JSON.parse() call
-        const jsonPtr = this.generateExpression(stmt.value, []);
-        this.emit(`store i8* ${jsonPtr}, i8** ${allocaReg}`);
-      } else if (isObject) {
-        // Allocate stack space for object pointer (i8*) BEFORE generating the expression
-        const allocaReg = this.nextTemp();
-        const metadata = this.getObjectMetadata(stmt.value as any);
-        this.objectVariables.set(stmt.name, { ptr: allocaReg, keys: metadata.keys, types: metadata.types });
-        this.emit(`${allocaReg} = alloca i8*`);
-
-        // Now generate the expression
-        const objExpr = this.generateExpression(stmt.value, []);
-        this.emit(`store i8* ${objExpr}, i8** ${allocaReg}`);
-      } else if (isMap) {
-        // Allocate stack space for map struct (%Map*)
-        const allocaReg = this.nextTemp();
-        this.mapVariables.set(stmt.name, allocaReg);
-        this.emit(`${allocaReg} = alloca %Map`);
-
-        // Compute initial value and store it
-        const value = this.generateExpression(stmt.value, []);
-        // value is a %Map*, copy the struct
-        const loadedMap = this.nextTemp();
-        this.emit(`${loadedMap} = load %Map, %Map* ${value}`);
-        this.emit(`store %Map ${loadedMap}, %Map* ${allocaReg}`);
-      } else if (isSet) {
-        // Allocate stack space for set struct (%Set*)
-        const allocaReg = this.nextTemp();
-        this.setVariables.set(stmt.name, allocaReg);
-        this.emit(`${allocaReg} = alloca %Set`);
-
-        // Compute initial value and store it
-        const value = this.generateExpression(stmt.value, []);
-        // value is a %Set*, copy the struct
-        const loadedSet = this.nextTemp();
-        this.emit(`${loadedSet} = load %Set, %Set* ${value}`);
-        this.emit(`store %Set ${loadedSet}, %Set* ${allocaReg}`);
-      } else if (isStringArray) {
-        // Allocate stack space for string array struct (%StringArray*)
-        // NOTE: This must come BEFORE isArray check since string arrays are also arrays
-        const allocaReg = this.nextTemp();
-        this.stringArrayVariables.set(stmt.name, allocaReg);
-        this.emit(`${allocaReg} = alloca %StringArray`);
-
-        // Compute initial value and store it
-        const value = this.generateExpression(stmt.value, []);
-        // value is a %StringArray*, copy the struct
-        const loadedStringArray = this.nextTemp();
-        this.emit(`${loadedStringArray} = load %StringArray, %StringArray* ${value}`);
-        this.emit(`store %StringArray ${loadedStringArray}, %StringArray* ${allocaReg}`);
-      } else if (isArray) {
-        // Allocate stack space for array struct (%Array*)
-        const allocaReg = this.nextTemp();
-        this.arrayVariables.set(stmt.name, allocaReg);
-        this.emit(`${allocaReg} = alloca %Array`);
-
-        // Compute initial value and store it
-        const value = this.generateExpression(stmt.value, []);
-        // value is a %Array*, copy the struct
-        const loadedArray = this.nextTemp();
-        this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
-        this.emit(`store %Array ${loadedArray}, %Array* ${allocaReg}`);
-      } else if (isRegex) {
-        // Allocate stack space for regex pointer (i8*)
-        const allocaReg = this.nextTemp();
-        this.regexVariables.set(stmt.name, allocaReg);
-        this.emit(`${allocaReg} = alloca i8*`);
-
-        // Compute initial value and store it
-        const value = this.generateExpression(stmt.value, []);
-        this.emit(`store i8* ${value}, i8** ${allocaReg}`);
-      } else if (isString) {
-        // Allocate stack space for string (i8*)
-        const allocaReg = this.nextTemp();
-        this.stringVariables.set(stmt.name, allocaReg);
-        this.emit(`${allocaReg} = alloca i8*`);
-
-        // Compute initial value and store it
-        const value = this.generateExpression(stmt.value, []);
-        this.emit(`store i8* ${value}, i8** ${allocaReg}`);
-      } else {
-        // Numeric value - determine actual type after generating the expression
-        // Compute initial value first to determine its type
-        const value = this.generateExpression(stmt.value, []);
-
-        // Now allocate storage with the correct type
-        const allocaReg = this.nextTemp();
-        this.variables.set(stmt.name, allocaReg);
-
-        // Check the type of the generated value (ChadScript number -> double)
-        const varType = this.variableTypes.get(value) || 'double';
-        this.emit(`${allocaReg} = alloca ${varType}`);
-        this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
-      }
+      this.allocateVariable(stmt, []);
     }
 
     // Save top-level object variables so they can be accessed from functions
