@@ -10,7 +10,7 @@
   "scripts": {
     "compile": "tsx src/index.ts",
     "build": "tsc",
-    "test": "node --import tsx --test tests/**/*.test.ts",
+    "test": "node --import tsx --test 'tests/**/*.test.ts'",
     "test:verbose": "node --import tsx --test --test-reporter=spec tests/**/*.test.ts"
   },
   "keywords": [
