@@ -1,5 +1,5 @@
 // Test parseInt with different radixes - verifies number parsing works
-function testParseInt(): number {
+function testParseInt() {
   // Test base 10
   const base10 = parseInt("42");
   if (base10 !== 42) {
@@ -23,8 +23,6 @@ function testParseInt(): number {
 
   // All tests passed
   console.log("TEST_PASSED");
-  process.exit(0);
-  return 0;
 }
 
 testParseInt();
