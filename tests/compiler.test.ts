@@ -170,6 +170,12 @@ const testCases: TestCase[] = [
     description: 'console.log and console.error should output correctly'
   },
   {
+    name: 'parseint',
+    fixture: 'tests/fixtures/builtins/parseint.js',
+    expectTestPassed: true,
+    description: 'parseInt should parse numbers with different radixes'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex/regex-test.js',
     expectedExitCode: 1,
