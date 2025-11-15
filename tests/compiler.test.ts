@@ -164,6 +164,12 @@ const testCases: TestCase[] = [
     description: 'fs.readFileSync should read file contents correctly'
   },
   {
+    name: 'word-count',
+    fixture: 'tests/fixtures/builtins/word-count-test.ts',
+    expectTestPassed: true,
+    description: 'Word counting with for loops, split, and file reading'
+  },
+  {
     name: 'console-log',
     fixture: 'tests/fixtures/builtins/console-log.js',
     expectTestPassed: true,
@@ -186,6 +192,24 @@ const testCases: TestCase[] = [
     fixture: 'tests/fixtures/arrays/array-pop-test.js',
     expectTestPassed: true,
     description: 'Array .pop() should remove and return last element'
+  },
+  {
+    name: 'array-methods',
+    fixture: 'tests/fixtures/arrays/array-methods.js',
+    expectedExitCode: 0,
+    description: 'Array methods (pop, includes) should work'
+  },
+  {
+    name: 'string-array-concat',
+    fixture: 'tests/fixtures/arrays/string-array-concat.js',
+    expectedExitCode: 0,
+    description: 'String array concatenation should work'
+  },
+  {
+    name: 'string-array-index',
+    fixture: 'tests/fixtures/arrays/string-array-index.js',
+    expectedExitCode: 0,
+    description: 'String array indexing should work'
   },
   {
     name: 'string-trim',
@@ -340,7 +364,7 @@ const testCases: TestCase[] = [
     {
       name: 'map-basic',
       fixture: 'tests/fixtures/data-structures/map-basic.js',
-    expectedExitCode: 20,
+      expectTestPassed: true,
       description: 'Map with set/get operations should work'
     },
     {
