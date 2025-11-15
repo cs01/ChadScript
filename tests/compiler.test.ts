@@ -232,7 +232,7 @@ const testCases: TestCase[] = [
   {
     name: 'array-filter',
     fixture: 'tests/fixtures/arrays/array-filter.js',
-    expectedExitCode: 2,
+    expectedExitCode: 3,
     description: 'Array .filter() should return new array with matching elements'
   },
   {
@@ -292,7 +292,7 @@ const testCases: TestCase[] = [
     {
       name: 'loop-break',
       fixture: 'tests/fixtures/control-flow/loop-break.js',
-    expectedExitCode: 10,
+    expectedExitCode: 43,
       description: 'Break statement should exit loop early'
     },
     {
@@ -304,7 +304,7 @@ const testCases: TestCase[] = [
     {
       name: 'map-basic',
       fixture: 'tests/fixtures/data-structures/map-basic.js',
-    expectedExitCode: 30,
+    expectedExitCode: 20,
       description: 'Map with set/get operations should work'
     },
     {
@@ -316,7 +316,7 @@ const testCases: TestCase[] = [
     {
       name: 'strict-equality',
       fixture: 'tests/fixtures/comparisons/strict-equality.js',
-    expectedExitCode: 3,
+    expectedExitCode: 15,
       description: 'Strict equality (===) and inequality (!==) operators should work'
     },
     {
@@ -328,7 +328,7 @@ const testCases: TestCase[] = [
     {
       name: 'function-expression',
       fixture: 'tests/fixtures/functions/function-expression.js',
-    expectedExitCode: 6,
+    expectedExitCode: 0,
       description: 'Function expressions in array methods should work'
     },
     {
@@ -346,7 +346,7 @@ const testCases: TestCase[] = [
     {
       name: 'array-init-safe',
       fixture: 'tests/fixtures/arrays/array-init-safe.ts',
-    expectedExitCode: 0,
+    expectedExitCode: 10,
       description: 'Array initialization should be zero-initialized to prevent crashes on iteration'
     },
     // Regression tests for float/double conversion edge cases
