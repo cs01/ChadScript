@@ -188,6 +188,12 @@ const testCases: TestCase[] = [
     description: 'Array .pop() should remove and return last element'
   },
   {
+    name: 'string-trim',
+    fixture: 'tests/fixtures/strings/string-trim-simple.js',
+    expectTestPassed: true,
+    description: 'String .trim() should remove leading and trailing whitespace'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex/regex-test.js',
     expectedExitCode: 1,
