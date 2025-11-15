@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import { exec, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as net from 'node:net';
+import * as http from 'node:http';
 import * as fs from 'node:fs/promises';
 
 const execAsync = promisify(exec);
@@ -101,6 +102,44 @@ testTcpClient();
       await fs.unlink(clientFile);
       await fs.unlink('.build/tests/fixtures/tcp-client');
       await fs.unlink('.build/tests/fixtures/tcp-client.ll');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('should perform HTTP requests using fetch() builtin', async () => {
+    // Start a Node.js HTTP server for testing
+    const server = http.createServer((req, res) => {
+      if (req.url === '/test') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Test response from server\nLine 2\nLine 3');
+      } else if (req.url === '/json') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end('{"status": "ok", "message": "JSON response"}');
+      } else if (req.url === '/plain') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Hello from ChadScript test server');
+      } else {
+        res.writeHead(404);
+        res.end('Not found');
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(9998, '127.0.0.1', resolve);
+    });
+
+    try {
+      // Compile the fetch test fixture
+      const testFile = 'tests/fixtures/network/fetch-integration-test.ts';
+      await execAsync(`npx tsx src/index.ts ${testFile}`);
+
+      // Run the compiled program
+      const { stdout, stderr } = await execAsync('.build/tests/fixtures/network/fetch-integration-test');
+
+      // Verify the test passed
+      assert.ok(stdout.includes('TEST_PASSED'), 'fetch() integration test should pass');
+      assert.ok(!stdout.includes('TEST_FAILED'), 'fetch() test should not fail');
     } finally {
       server.close();
     }

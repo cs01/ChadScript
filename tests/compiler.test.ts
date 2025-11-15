@@ -49,6 +49,18 @@ const testCases: TestCase[] = [
     description: 'Simple modulo: modulo(17, 5) should return 2'
   },
   {
+    name: 'math-functions',
+    fixture: 'tests/fixtures/arithmetic/math-functions.js',
+    expectedExitCode: 0,
+    description: 'Test all Math functions'
+  },
+  {
+    name: 'math-lib',
+    fixture: 'tests/fixtures/arithmetic/math-lib.js',
+    expectedExitCode: 0,
+    description: 'Math library - exported functions'
+  },
+  {
     name: 'nested-calls',
     fixture: 'tests/fixtures/arithmetic/nested-calls.js',
     expectedExitCode: 17,
@@ -182,6 +194,30 @@ const testCases: TestCase[] = [
     description: 'parseInt should parse numbers with different radixes'
   },
   {
+    name: 'argv-debug',
+    fixture: 'tests/fixtures/builtins/argv-debug.ts',
+    expectedExitCode: 0,
+    description: 'Debug process.argv'
+  },
+  {
+    name: 'argv-simple',
+    fixture: 'tests/fixtures/builtins/argv-simple.ts',
+    expectedExitCode: 0,
+    description: 'Test argv[1] access'
+  },
+  {
+    name: 'fs-readFileSync-simple',
+    fixture: 'tests/fixtures/builtins/fs-readFileSync.js',
+    expectedExitCode: 0,
+    description: 'fs.readFileSync basic test'
+  },
+  {
+    name: 'process-argv-simple',
+    fixture: 'tests/fixtures/builtins/process-argv.js',
+    expectedExitCode: 0,
+    description: 'process.argv basic test'
+  },
+  {
     name: 'array-includes',
     fixture: 'tests/fixtures/arrays/array-includes-test.js',
     expectTestPassed: true,
@@ -216,6 +252,12 @@ const testCases: TestCase[] = [
     fixture: 'tests/fixtures/strings/string-trim-simple.ts',
     expectTestPassed: true,
     description: 'String .trim() should remove leading and trailing whitespace'
+  },
+  {
+    name: 'string-methods',
+    fixture: 'tests/fixtures/strings/string-methods.js',
+    expectedExitCode: 0,
+    description: 'Test new string methods: trim, indexOf, includes, slice'
   },
   {
     name: 'simple-if',
@@ -396,6 +438,42 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/edge-cases/return-boolean.js',
     expectedExitCode: 1,
       description: 'Boolean literals (true/false) should work'
+    },
+    {
+      name: 'shebang',
+      fixture: 'tests/fixtures/edge-cases/shebang.js',
+      expectedExitCode: 0,
+      description: 'Shebang line should be handled correctly'
+    },
+    {
+      name: 'bitwise-operators',
+      fixture: 'tests/fixtures/bitwise/bitwise-operators.js',
+      expectedExitCode: 0,
+      description: 'Test all bitwise operators'
+    },
+    {
+      name: 'throw-simple',
+      fixture: 'tests/fixtures/error-handling/throw-simple.js',
+      expectedExitCode: 0,
+      description: 'Simple throw statement'
+    },
+    {
+      name: 'try-catch-throw',
+      fixture: 'tests/fixtures/error-handling/try-catch-throw.js',
+      expectedExitCode: 0,
+      description: 'Try-catch-throw flow'
+    },
+    {
+      name: 'http-simple-test',
+      fixture: 'tests/fixtures/network/http-simple-test.ts',
+      expectedExitCode: 0,
+      description: 'Simplified HTTP handler test'
+    },
+    {
+      name: 'tcp-echo-server',
+      fixture: 'tests/fixtures/network/tcp-echo-server.ts',
+      expectedExitCode: 0,
+      description: 'TCP Echo Server - Functional style without interface returns'
     },
     {
       name: 'typescript-struct',

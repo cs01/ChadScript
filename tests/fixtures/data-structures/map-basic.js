@@ -4,7 +4,10 @@ function testMap() {
   m.set(1, 10);
   m.set(2, 20);
   m.set(3, 30);
-  return m.get(2);
+  const second = m.get(2);
+  if (second === 20){
+    console.log("TEST_PASSED");
+  }
 }
 
-process.exit(testMap());
+testMap();

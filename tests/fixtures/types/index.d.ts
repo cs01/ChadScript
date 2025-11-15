@@ -158,6 +158,18 @@ declare namespace path {
 }
 
 // ============================================================================
+// HTTP & Network Utilities
+// ============================================================================
+
+/**
+ * Performs an HTTP GET request using libcurl.
+ * Returns the complete HTTP response including headers and body.
+ * @param url The URL to fetch (must include protocol, e.g., "http://example.com")
+ * @returns The complete HTTP response as a string, including headers and body
+ */
+declare function fetch(url: string): string;
+
+// ============================================================================
 // Low-Level System Calls
 // ============================================================================
 // These functions provide direct access to POSIX system calls for advanced
