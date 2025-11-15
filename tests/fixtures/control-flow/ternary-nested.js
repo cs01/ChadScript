@@ -8,8 +8,7 @@ function testTernaryNested(): void {
   const grade = score >= 90 ? 10 : (score >= 80 ? 20 : 30);
 
   if (grade !== 20) {
-    console.log("Error: grade should be 20");
-    process.exit(1);
+    throw new Error("grade should be 20");
   }
 
   console.log("TEST_PASSED");

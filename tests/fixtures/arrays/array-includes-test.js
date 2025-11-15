@@ -4,14 +4,12 @@ function testArrayIncludes(): number {
 
   // Test that includes returns 1 for existing element
   if (arr.includes(30) !== 1) {
-    console.log("Error: includes(30) should return 1");
-    process.exit(1);
+    throw new Error("includes(30) should return 1");
   }
 
   // Test that includes returns 0 for non-existent element
   if (arr.includes(99) !== 0) {
-    console.log("Error: includes(99) should return 0");
-    process.exit(2);
+    throw new Error("includes(99) should return 0");
   }
 
   console.log("TEST_PASSED");

@@ -9,8 +9,7 @@ function testTernaryComplex(): void {
   // (10 < 20 ? 30 : 10) + (20 > 10 ? 10 : 5) = 30 + 10 = 40
 
   if (result !== 40) {
-    console.log("Error: result should be 40");
-    process.exit(1);
+    throw new Error("result should be 40");
   }
 
   console.log("TEST_PASSED");

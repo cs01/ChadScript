@@ -10,8 +10,7 @@ function abs(x: number): void {
 function testIfOnly(): void {
   const result = abs(0 - 42);
   if (result !== 42) {
-    console.log("Error: abs(-42) should be 42");
-    process.exit(1);
+    throw new Error("abs(-42) should be 42");
   }
 
   console.log("TEST_PASSED");
