@@ -224,6 +224,12 @@ const testCases: TestCase[] = [
     description: 'String length comparisons should work'
   },
   {
+    name: 'string-array-basic',
+    fixture: 'tests/fixtures/arrays/string-array-basic.js',
+    expectTestPassed: true,
+    description: 'String array creation and access should work'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex/regex-test.js',
     expectedExitCode: 1,
