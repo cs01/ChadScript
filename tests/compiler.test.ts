@@ -200,6 +200,12 @@ const testCases: TestCase[] = [
     description: 'Simple if statement should work'
   },
   {
+    name: 'ternary-complex',
+    fixture: 'tests/fixtures/control-flow/ternary-complex.js',
+    expectTestPassed: true,
+    description: 'Nested ternary expressions should work'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex/regex-test.js',
     expectedExitCode: 1,
