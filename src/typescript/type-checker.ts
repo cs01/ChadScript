@@ -247,7 +247,7 @@ export class TypeChecker {
       }
 
       // Get return type
-      let returnType = 'number';
+      let returnType = 'void'; // Default to void if no type annotation
       if (targetFunction.type) {
         const type = this.checker.getTypeFromTypeNode(targetFunction.type);
         if (type.flags & ts.TypeFlags.String || type.flags & ts.TypeFlags.StringLiteral) {
