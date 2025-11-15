@@ -1,5 +1,5 @@
 // Test string.trim() - verifies trim removes leading and trailing whitespace
-function testStringTrim(): number {
+function testStringTrim(): void {
   const s = "  hello  ";
   const trimmed = s.trim();
 
@@ -16,8 +16,6 @@ function testStringTrim(): number {
   }
 
   console.log("TEST_PASSED");
-  process.exit(0);
-  return 0;
 }
 
 testStringTrim();

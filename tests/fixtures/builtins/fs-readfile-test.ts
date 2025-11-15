@@ -1,7 +1,7 @@
 // Test fs.readFileSync - verifies file reading works correctly
 // Reads a known test file and verifies its content
 
-function testReadFile(): number {
+function testReadFile(): void {
   // Read the test file
   const content = fs.readFileSync("tests/fixtures/builtins/test-file.txt");
 
@@ -47,8 +47,6 @@ function testReadFile(): number {
 
   // All checks passed!
   console.log("TEST_PASSED");
-  process.exit(0);
-  return 0; // Never reached but satisfies compiler
 }
 
 testReadFile();

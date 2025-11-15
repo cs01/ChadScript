@@ -1,5 +1,5 @@
 // Test if without else - verifies absolute value function works
-function abs(x: number): number {
+function abs(x: number): void {
   let result = x;
   if (x < 0) {
     result = 0 - x;
@@ -7,7 +7,7 @@ function abs(x: number): number {
   return result;
 }
 
-function testIfOnly(): number {
+function testIfOnly(): void {
   const result = abs(0 - 42);
   if (result !== 42) {
     console.log("Error: abs(-42) should be 42");
@@ -15,8 +15,6 @@ function testIfOnly(): number {
   }
 
   console.log("TEST_PASSED");
-  process.exit(0);
-  return 0;
 }
 
 testIfOnly();

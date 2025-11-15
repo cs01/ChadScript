@@ -1,7 +1,7 @@
 // String split test - verifies split produces correct array elements
 // This is a critical example from the README that must always work
 
-function testSplit(): number {
+function testSplit(): void {
   const str = "apple,banana,cherry,date,elderberry";
   const parts = str.split(",");
 
@@ -65,8 +65,6 @@ function testSplit(): number {
 
   // All checks passed!
   console.log("TEST_PASSED");
-  process.exit(0);
-  return 0; // Never reached but satisfies compiler
 }
 
 testSplit();

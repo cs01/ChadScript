@@ -1,5 +1,5 @@
 // Test string length comparison - verifies empty string length is 0
-function testStringLength(): number {
+function testStringLength(): void {
   const emptyStr = "";
 
   if (emptyStr.length !== 0) {
@@ -8,8 +8,6 @@ function testStringLength(): number {
   }
 
   console.log("TEST_PASSED");
-  process.exit(0);
-  return 0;
 }
 
 testStringLength();
