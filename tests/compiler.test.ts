@@ -218,6 +218,12 @@ const testCases: TestCase[] = [
     description: 'If statement without else should work'
   },
   {
+    name: 'string-length-check',
+    fixture: 'tests/fixtures/strings/string-length-check.ts',
+    expectTestPassed: true,
+    description: 'String length comparisons should work'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex/regex-test.js',
     expectedExitCode: 1,

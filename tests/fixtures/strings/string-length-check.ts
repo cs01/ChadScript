@@ -1,11 +1,15 @@
-// Test string length comparison
-const emptyStr = "";
-console.log("Empty string length: " + emptyStr.length);
+// Test string length comparison - verifies empty string length is 0
+function testStringLength(): number {
+  const emptyStr = "";
 
-if (emptyStr.length === 0) {
-  console.log("Empty string is empty");
-  process.exit(10);
+  if (emptyStr.length !== 0) {
+    console.log("Error: empty string length should be 0");
+    process.exit(1);
+  }
+
+  console.log("TEST_PASSED");
+  process.exit(0);
+  return 0;
 }
 
-console.log("This should not print");
-process.exit(1);
+testStringLength();
