@@ -206,6 +206,12 @@ const testCases: TestCase[] = [
     description: 'Nested ternary expressions should work'
   },
   {
+    name: 'ternary-nested',
+    fixture: 'tests/fixtures/control-flow/ternary-nested.js',
+    expectTestPassed: true,
+    description: 'Deeply nested ternary expressions should work'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex/regex-test.js',
     expectedExitCode: 1,
