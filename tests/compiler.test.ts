@@ -212,6 +212,12 @@ const testCases: TestCase[] = [
     description: 'Deeply nested ternary expressions should work'
   },
   {
+    name: 'if-only',
+    fixture: 'tests/fixtures/control-flow/if-only.js',
+    expectTestPassed: true,
+    description: 'If statement without else should work'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex/regex-test.js',
     expectedExitCode: 1,
