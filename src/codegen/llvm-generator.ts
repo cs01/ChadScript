@@ -407,6 +407,7 @@ export class LLVMGenerator extends BaseGenerator {
     const paramLLVMTypes: string[] = [];
     let returnType = 'double';
     let returnTypeIsString = false;
+    let returnTypeIsVoid = false;
     this.currentFunctionReturnType = 'double'; // Default to double
 
     if (this.typeChecker) {
@@ -419,6 +420,10 @@ export class LLVMGenerator extends BaseGenerator {
             returnType = 'i8*';
             returnTypeIsString = true;
             this.currentFunctionReturnType = 'i8*';
+          } else if (funcType.returnType === 'void') {
+            returnType = 'void';
+            returnTypeIsVoid = true;
+            this.currentFunctionReturnType = 'void';
           }
 
           // Check parameter types
@@ -493,17 +498,21 @@ export class LLVMGenerator extends BaseGenerator {
 
     // Only add ret if we don't already have a terminator
     if (!hasTerminator) {
-      // If block returned a value, use it; otherwise return default
-      if (result !== null) {
+      if (returnTypeIsVoid) {
+        // Void function - no return value
+        ir += '  ret void\n';
+      } else if (result !== null) {
+        // Return the result value
         ir += `  ret ${returnType} ${result}\n`;
       } else {
+        // No explicit return - return default value
         if (returnTypeIsString) {
           // Return empty string
           this.syncStateToGenerators();
           const emptyStr = this.stringGen.createStringConstant('');
           ir += `  ret i8* ${emptyStr}\n`;
         } else {
-          ir += '  ret i32 0\n';
+          ir += `  ret ${returnType} 0.0\n`;
         }
       }
     }
