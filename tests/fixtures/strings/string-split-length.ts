@@ -7,60 +7,49 @@ function testSplit(): void {
 
   // Verify we got 5 parts
   if (parts.length !== 5) {
-    console.log("Error: wrong length");
-    process.exit(1);
+    throw new Error("wrong length");
   }
 
   // Verify each part is correct
   if (parts[0] !== "apple") {
-    console.log("Error: first element wrong");
-    process.exit(2);
+    throw new Error("first element wrong");
   }
 
   if (parts[1] !== "banana") {
-    console.log("Error: second element wrong");
-    process.exit(3);
+    throw new Error("second element wrong");
   }
 
   if (parts[2] !== "cherry") {
-    console.log("Error: third element wrong");
-    process.exit(4);
+    throw new Error("third element wrong");
   }
 
   if (parts[3] !== "date") {
-    console.log("Error: fourth element wrong");
-    process.exit(5);
+    throw new Error("fourth element wrong");
   }
 
   if (parts[4] !== "elderberry") {
-    console.log("Error: fifth element wrong");
-    process.exit(6);
+    throw new Error("fifth element wrong");
   }
 
   // Verify the length of each part
   if (parts[0].length !== 5) {
-    console.log("Error: apple.length should be 5");
-    process.exit(7);
+    throw new Error("apple.length should be 5");
   }
 
   if (parts[1].length !== 6) {
-    console.log("Error: banana.length should be 6");
-    process.exit(8);
+    throw new Error("banana.length should be 6");
   }
 
   if (parts[2].length !== 6) {
-    console.log("Error: cherry.length should be 6");
-    process.exit(9);
+    throw new Error("cherry.length should be 6");
   }
 
   if (parts[3].length !== 4) {
-    console.log("Error: date.length should be 4");
-    process.exit(10);
+    throw new Error("date.length should be 4");
   }
 
   if (parts[4].length !== 10) {
-    console.log("Error: elderberry.length should be 10");
-    process.exit(11);
+    throw new Error("elderberry.length should be 10");
   }
 
   // All checks passed!

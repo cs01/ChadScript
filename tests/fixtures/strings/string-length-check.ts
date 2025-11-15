@@ -3,8 +3,7 @@ function testStringLength(): void {
   const emptyStr = "";
 
   if (emptyStr.length !== 0) {
-    console.log("Error: empty string length should be 0");
-    process.exit(1);
+    throw new Error("empty string length should be 0");
   }
 
   console.log("TEST_PASSED");

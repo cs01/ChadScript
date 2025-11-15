@@ -11,8 +11,7 @@ function testStringTrim(): void {
 
   // Verify length is correct (5 characters)
   if (trimmed.length !== 5) {
-    console.log("Error: trimmed length should be 5");
-    process.exit(2);
+    throw new Error("trimmed length should be 5");
   }
 
   console.log("TEST_PASSED");

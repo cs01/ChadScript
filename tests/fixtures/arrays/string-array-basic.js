@@ -3,8 +3,7 @@ function testStringArray(): number {
   const arr = ["hello", "world", "test"];
 
   if (arr.length !== 3) {
-    console.log("Error: array length should be 3");
-    process.exit(1);
+    throw new Error("array length should be 3");
   }
 
   if (arr[0] !== "hello") {

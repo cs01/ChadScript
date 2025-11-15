@@ -16,33 +16,28 @@ function testReadFile(): void {
 
   // Verify length is correct (50 characters including newlines)
   if (content.length !== 50) {
-    console.log("Error: content length wrong");
-    process.exit(2);
+    throw new Error("content length wrong");
   }
 
   // Split by lines and verify we have 3 lines
   const lines = content.split("\n");
   if (lines.length !== 3) {
-    console.log("Error: should have 3 lines");
-    process.exit(3);
+    throw new Error("should have 3 lines");
   }
 
   // Verify first line
   if (lines[0] !== "Hello from test file!") {
-    console.log("Error: first line wrong");
-    process.exit(4);
+    throw new Error("first line wrong");
   }
 
   // Verify second line
   if (lines[1] !== "This is line 2.") {
-    console.log("Error: second line wrong");
-    process.exit(5);
+    throw new Error("second line wrong");
   }
 
   // Verify third line
   if (lines[2] !== "Line 3 here.") {
-    console.log("Error: third line wrong");
-    process.exit(6);
+    throw new Error("third line wrong");
   }
 
   // All checks passed!

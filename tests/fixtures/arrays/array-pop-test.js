@@ -5,14 +5,12 @@ function testArrayPop(): number {
   // Pop should return the last element (50)
   const popped = arr.pop();
   if (popped !== 50) {
-    console.log("Error: pop() should return 50");
-    process.exit(1);
+    throw new Error("pop() should return 50");
   }
 
   // Array length should now be 4
   if (arr.length !== 4) {
-    console.log("Error: array length should be 4 after pop");
-    process.exit(2);
+    throw new Error("array length should be 4 after pop");
   }
 
   console.log("TEST_PASSED");

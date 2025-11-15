@@ -8,8 +8,7 @@ function testSimpleIf(): number {
     return 0;
   }
 
-  console.log("Error: if statement failed");
-  process.exit(1);
+  throw new Error("if statement failed");
   return 1;
 }
 
