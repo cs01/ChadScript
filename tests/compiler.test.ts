@@ -164,6 +164,12 @@ const testCases: TestCase[] = [
     description: 'fs.readFileSync should read file contents correctly'
   },
   {
+    name: 'console-log',
+    fixture: 'tests/fixtures/builtins/console-log.js',
+    expectTestPassed: true,
+    description: 'console.log and console.error should output correctly'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex/regex-test.js',
     expectedExitCode: 1,
