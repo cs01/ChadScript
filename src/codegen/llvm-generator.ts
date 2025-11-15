@@ -441,8 +441,16 @@ export class LLVMGenerator extends BaseGenerator {
           }
         }
       } catch (e) {
-        // Type checker failed, fall back to i32
+        // Type checker failed, fall back to defaults
       }
+    }
+
+    // For .js files or when TypeChecker isn't available, check if function has return statements
+    // If no return statements, assume void
+    if (!returnTypeIsString && !returnTypeIsVoid && !this.hasReturnStatement(func.body)) {
+      returnType = 'void';
+      returnTypeIsVoid = true;
+      this.currentFunctionReturnType = 'void';
     }
 
     // Fill in missing parameter types with double
@@ -519,6 +527,29 @@ export class LLVMGenerator extends BaseGenerator {
     ir += '}\n';
 
     return ir;
+  }
+
+  /**
+   * Check if a block contains any return statements (recursively)
+   */
+  private hasReturnStatement(block: BlockStatement): boolean {
+    for (const stmt of block.statements) {
+      if (stmt.type === 'return') {
+        return true;
+      }
+      // Check nested blocks
+      if (stmt.type === 'if' && stmt.consequent) {
+        if (this.hasReturnStatement(stmt.consequent)) return true;
+        if (stmt.alternate && this.hasReturnStatement(stmt.alternate)) return true;
+      }
+      if (stmt.type === 'while' && stmt.body) {
+        if (this.hasReturnStatement(stmt.body)) return true;
+      }
+      if (stmt.type === 'for' && stmt.body) {
+        if (this.hasReturnStatement(stmt.body)) return true;
+      }
+    }
+    return false;
   }
 
   public generateBlock(block: BlockStatement, params: string[]): string | null {
