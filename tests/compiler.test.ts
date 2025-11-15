@@ -182,6 +182,12 @@ const testCases: TestCase[] = [
     description: 'Array .includes() should find elements correctly'
   },
   {
+    name: 'array-pop',
+    fixture: 'tests/fixtures/arrays/array-pop-test.js',
+    expectTestPassed: true,
+    description: 'Array .pop() should remove and return last element'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex/regex-test.js',
     expectedExitCode: 1,
