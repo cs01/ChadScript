@@ -13,6 +13,7 @@ interface TestCase {
   fixture: string;
   expectedExitCode: number;
   description: string;
+  args?: string[]; // Optional command line arguments for the test
 }
 
 const testCases: TestCase[] = [
@@ -101,6 +102,12 @@ const testCases: TestCase[] = [
     description: 'String .length property should return correct length'
   },
   {
+    name: 'string-split-length',
+    fixture: 'tests/fixtures/strings/string-split-length.ts',
+    expectedExitCode: 0, // 0 = all assertions passed
+    description: 'README example: string.split() should work correctly and element.length should return proper lengths'
+  },
+  {
     name: 'string-index',
     fixture: 'tests/fixtures/strings/string-index.js',
     expectedExitCode: 66, // "ABC"[1] = 'B' = ASCII 66
@@ -141,6 +148,19 @@ const testCases: TestCase[] = [
     fixture: 'tests/fixtures/strings/string-padstart.js',
     expectedExitCode: 3, // "5".padStart(3, "0") = "005" = 3 chars
     description: 'String padStart() method should work'
+  },
+  {
+    name: 'process-argv',
+    fixture: 'tests/fixtures/builtins/process-argv-test.ts',
+    expectedExitCode: 0, // 0 = all assertions passed
+    description: 'process.argv should provide command line arguments',
+    args: ['testarg'] // Pass "testarg" as first argument
+  },
+  {
+    name: 'fs-readFileSync',
+    fixture: 'tests/fixtures/builtins/fs-readfile-test.ts',
+    expectedExitCode: 0, // 0 = all assertions passed
+    description: 'fs.readFileSync should read file contents correctly'
   },
   {
     name: 'regex-test',
@@ -371,7 +391,10 @@ describe('ChadScript Compiler', () => {
           // Run the executable and check exit code
           let actualExitCode = 0;
           try {
-            const result = await execAsync(exeFile);
+            // Build command with optional arguments
+            const args = testCase.args ? testCase.args.join(' ') : '';
+            const command = args ? `${exeFile} ${args}` : exeFile;
+            const result = await execAsync(command);
             // If we get here, exit code was 0
             actualExitCode = 0;
           } catch (err: any) {

@@ -1946,11 +1946,11 @@ export class LLVMGenerator extends BaseGenerator {
     for (const stmt of this.ast.topLevelStatements) {
       // Handle uninitialized variables (e.g., let x;)
       if (stmt.value === null) {
-        // For uninitialized variables, just allocate space and initialize to 0
+        // For uninitialized variables, allocate as double (ChadScript number type)
         const allocaReg = this.nextTemp();
         this.variables.set(stmt.name, allocaReg);
-        this.emit(`${allocaReg} = alloca i32`);
-        this.emit(`store i32 0, i32* ${allocaReg}`);
+        this.emit(`${allocaReg} = alloca double`);
+        this.emit(`store double 0.0, double* ${allocaReg}`);
         continue;
       }
 
@@ -2067,14 +2067,18 @@ export class LLVMGenerator extends BaseGenerator {
         const value = this.generateExpression(stmt.value, []);
         this.emit(`store i8* ${value}, i8** ${allocaReg}`);
       } else {
-        // Numeric value (i32)
+        // Numeric value - determine actual type after generating the expression
+        // Compute initial value first to determine its type
+        const value = this.generateExpression(stmt.value, []);
+
+        // Now allocate storage with the correct type
         const allocaReg = this.nextTemp();
         this.variables.set(stmt.name, allocaReg);
-        this.emit(`${allocaReg} = alloca i32`);
 
-        // Compute initial value and store it
-        const value = this.generateExpression(stmt.value, []);
-        this.emit(`store i32 ${value}, i32* ${allocaReg}`);
+        // Check the type of the generated value (ChadScript number -> double)
+        const varType = this.variableTypes.get(value) || 'double';
+        this.emit(`${allocaReg} = alloca ${varType}`);
+        this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
       }
     }
 
