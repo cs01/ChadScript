@@ -194,6 +194,12 @@ const testCases: TestCase[] = [
     description: 'String .trim() should remove leading and trailing whitespace'
   },
   {
+    name: 'simple-if',
+    fixture: 'tests/fixtures/control-flow/simple-if.ts',
+    expectTestPassed: true,
+    description: 'Simple if statement should work'
+  },
+  {
     name: 'regex-test',
     fixture: 'tests/fixtures/regex/regex-test.js',
     expectedExitCode: 1,
