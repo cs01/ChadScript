@@ -594,6 +594,7 @@ export class LLVMGenerator extends BaseGenerator {
     const isRegex = this.isRegexExpression(stmt.value);
     const isClassInstance = this.isClassInstanceExpression(stmt.value);
     const isResponse = this.isResponseExpression(stmt.value);
+    const typedJsonInterface = this.getTypedJsonInterface(stmt.value);
 
     if (isClassInstance) {
       const allocaReg = this.nextTemp();
@@ -607,6 +608,16 @@ export class LLVMGenerator extends BaseGenerator {
 
       const instancePtr = this.generateExpression(stmt.value, params);
       this.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
+    } else if (typedJsonInterface) {
+      // Typed JSON struct from .json<T>()
+      const allocaReg = this.nextTemp();
+      const structType = `%${typedJsonInterface}*`;
+      this.variables.set(stmt.name, allocaReg);
+      this.variableTypes.set(stmt.name, structType);
+      this.emit(`${allocaReg} = alloca ${structType}`);
+
+      const structPtr = this.generateExpression(stmt.value, params);
+      this.emit(`store ${structType} ${structPtr}, ${structType}* ${allocaReg}`);
     } else if (isResponse) {
       const allocaReg = this.nextTemp();
       this.variables.set(stmt.name, allocaReg);
@@ -1614,6 +1625,15 @@ export class LLVMGenerator extends BaseGenerator {
       if (method === 'text') {
         return this.responseGen.generateText(responsePtr);
       } else { // json
+        // Check for typed JSON parsing with generics: .json<TypeName>()
+        if ((expr as any).typeParameter && this.typeChecker) {
+          const typeName = (expr as any).typeParameter;
+          const interfaceDef = this.typeChecker.getInterfaceDefinition(typeName);
+          if (interfaceDef) {
+            return this.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef);
+          }
+        }
+        // Fall back to untyped JSON parsing
         return this.responseGen.generateJson(responsePtr);
       }
     }
@@ -1925,6 +1945,18 @@ export class LLVMGenerator extends BaseGenerator {
       }
     }
     return false;
+  }
+
+  /**
+   * Check if an expression returns a typed JSON struct (from .json<T>())
+   * Returns the interface name if it's a typed JSON call, null otherwise
+   */
+  private getTypedJsonInterface(expr: any): string | null {
+    // Check for .json<T>() method call
+    if (expr.type === 'method_call' && expr.method === 'json' && expr.typeParameter) {
+      return expr.typeParameter;
+    }
+    return null;
   }
 
   private isJSONParseExpression(expr: Expression): boolean {
