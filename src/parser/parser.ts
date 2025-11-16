@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, IfStatement, WhileStatement, ForStatement, ImportDeclaration, ExportDeclaration, ObjectNode, ArrayNode, MapNode, SetNode, ClassNode, ClassMethod, NewNode, ThisNode, SuperNode, TemplateLiteralNode, ArrowFunctionNode, StringNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, IfStatement, WhileStatement, ForStatement, ForOfStatement, ImportDeclaration, ExportDeclaration, ObjectNode, ArrayNode, MapNode, SetNode, ClassNode, ClassMethod, NewNode, ThisNode, SuperNode, TemplateLiteralNode, ArrowFunctionNode, StringNode } from '../ast/types.js';
 import { logger } from '../utils/logger.js';
 import { formatUnsupportedFeatureError, isUnsupportedKeyword } from './unsupported-features.js';
 
@@ -939,14 +939,24 @@ export class Parser {
     return { type: 'while', condition, body };
   }
 
-  private parseForStatement(): ForStatement {
+  private parseForStatement(): ForStatement | ForOfStatement {
     this.expect('(');
 
     // Check for for...of loop: for (const item of array)
     this.skipWhitespace();
     const savedPos = this.pos;
-    if (this.match('let') || this.match('const') || this.match('var')) {
-      const kind = this.code[savedPos] === 'l' ? 'let' : (this.code[savedPos] === 'v' ? 'let' : 'const');
+
+    // Try to match variable declaration keyword
+    let kind: 'let' | 'const' | 'var' | null = null;
+    if (this.match('const')) {
+      kind = 'const';
+    } else if (this.match('let')) {
+      kind = 'let';
+    } else if (this.match('var')) {
+      kind = 'var';
+    }
+
+    if (kind) {
       this.skipWhitespace();
       const varName = this.parseIdentifier();
       this.skipWhitespace();
@@ -963,11 +973,14 @@ export class Parser {
         this.expect('{');
         const body = this.parseBlock();
         this.expect('}');
-        // Create variable declaration without semicolon
-        const varDecl: VariableDeclaration = { type: 'variable_declaration', kind, name: varName, value: { type: 'number', value: 0 } };
-        // For now, treat for...of as a regular for loop with the iterable as condition
-        // (We'll need to add proper for...of support in AST and codegen later)
-        return { type: 'for', init: varDecl, condition: iterable, update: null, body };
+        // Return proper ForOfStatement
+        return {
+          type: 'for_of',
+          variableKind: kind,
+          variableName: varName,
+          iterable,
+          body
+        };
       } else {
         // Regular for loop - restore position and parse normally
         this.pos = savedPos;

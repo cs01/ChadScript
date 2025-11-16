@@ -166,6 +166,14 @@ export interface ForStatement {
   body: BlockStatement;
 }
 
+export interface ForOfStatement {
+  type: 'for_of';
+  variableKind: 'let' | 'const' | 'var';
+  variableName: string;
+  iterable: Expression;
+  body: BlockStatement;
+}
+
 export interface BreakStatement {
   type: 'break';
 }
@@ -186,7 +194,7 @@ export interface TryStatement {
   finallyBlock: BlockStatement | null;
 }
 
-export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | Expression;
+export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | ForOfStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | Expression;
 
 export interface FunctionNode {
   name: string;

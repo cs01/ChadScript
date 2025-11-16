@@ -19,7 +19,7 @@
  */
 
 import { Expression, BlockStatement, AST } from '../../ast/types.js';
-import { SymbolTable } from './symbol-table.js';
+import { SymbolTable, SymbolKind } from './symbol-table.js';
 
 /**
  * Interface defining what sub-generators need from parent generator.
@@ -99,6 +99,23 @@ export interface IGeneratorContext {
    * ```
    */
   createStringConstant(value: string): string;
+
+  // ============================================
+  // Variable Definition
+  // ============================================
+
+  /**
+   * Define a variable in both legacy maps and new SymbolTable
+   * This method updates all tracking structures for a variable
+   */
+  defineVariable(
+    name: string,
+    allocaReg: string,
+    llvmType: string,
+    kind: import('./symbol-table.js').SymbolKind,
+    scope?: 'local' | 'global',
+    metadata?: any
+  ): void;
 
   // ============================================
   // Output Buffer
@@ -283,6 +300,19 @@ export class MockGeneratorContext implements IGeneratorContext {
     const len = value.length + 1; // +1 for null terminator
     this.globalStrings.push(`${strId} = private unnamed_addr constant [${len} x i8] c"${escaped}\\00", align 1`);
     return strId;
+  }
+
+  defineVariable(
+    name: string,
+    allocaReg: string,
+    llvmType: string,
+    kind: SymbolKind,
+    scope: 'local' | 'global' = 'local',
+    metadata?: any
+  ): void {
+    this.variables.set(name, allocaReg);
+    this.variableTypes.set(name, llvmType);
+    this.symbolTable.define(name, kind, llvmType, allocaReg, scope, metadata);
   }
 
   emit(instruction: string): void {
