@@ -554,7 +554,27 @@ export class MemberAccessGenerator {
               return this.ctx.setGen.generateSetSize(setPtr);
             }
           }
-    
+
+          // Handle Response properties (.status and .ok)
+          if (expr.property === 'status' || expr.property === 'ok') {
+            if (expr.object.type === 'variable') {
+              const varType = this.ctx.variableTypes.get((expr.object as any).name);
+              if (varType === '%Response*') {
+                // Load the Response pointer
+                const varPtr = this.ctx.variables.get((expr.object as any).name);
+                const responsePtr = this.ctx.nextTemp();
+                this.ctx.emit(`${responsePtr} = load %Response*, %Response** ${varPtr}`);
+
+                this.ctx.syncStateToGenerators();
+                if (expr.property === 'status') {
+                  return this.ctx.responseGen.generateStatus(responsePtr);
+                } else { // ok
+                  return this.ctx.responseGen.generateOk(responsePtr);
+                }
+              }
+            }
+          }
+
           // If we reach here, it's an unsupported property access pattern
           if (expr.object.type === 'variable') {
             const varName = (expr.object as any).name;
