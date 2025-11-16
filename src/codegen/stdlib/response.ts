@@ -158,7 +158,10 @@ export class ResponseGenerator {
       parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${prop.name.length + 1} x i8], [${prop.name.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
 
       if (prop.type === 'string') {
-        parserIR += `  %value_${fieldIndex} = call i8* @cJSON_GetStringValue(i8* %item_${fieldIndex})\n`;
+        // Get string value from cJSON (this returns a pointer into the cJSON object)
+        parserIR += `  %temp_str_${fieldIndex} = call i8* @cJSON_GetStringValue(i8* %item_${fieldIndex})\n`;
+        // Duplicate the string so it survives after cJSON_Delete
+        parserIR += `  %value_${fieldIndex} = call i8* @strdup(i8* %temp_str_${fieldIndex})\n`;
       } else if (prop.type === 'number') {
         parserIR += `  %value_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})\n`;
       } else if (prop.type === 'boolean') {
