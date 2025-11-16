@@ -73,8 +73,8 @@ export class IndexAccessGenerator {
     const arg = this.ctx.nextTemp();
     this.ctx.emit(`${arg} = call i8* @__safe_string(i8* ${argRaw})`);
 
-    // Mark this as a string variable
-    this.ctx.stringVariables.set(arg, arg);
+    // Track this temporary register as string type
+    this.ctx.variableTypes.set(arg, 'i8*');
 
     return arg;
   }

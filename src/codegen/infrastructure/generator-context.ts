@@ -185,28 +185,10 @@ export interface IGeneratorContext {
   // ============================================
 
   /**
-   * Track string variables (legacy - prefer variableTypes)
-   * Maps variable name -> alloca register for i8* strings
-   */
-  readonly stringVariables: Map<string, string>;
-
-  /**
-   * Track string array variables (e.g., %StringArray pointers)
-   * Needed to determine array element types for operations
-   */
-  readonly stringArrayVariables: Map<string, string>;
-
-  /**
-   * Track variable types (double, i8*, etc.)
-   * Used for type-aware code generation
+   * Temporary register type tracking (for LLVM registers like %0, %1, etc)
+   * Named variables use SymbolTable instead
    */
   readonly variableTypes: Map<string, string>;
-
-  /**
-   * Track variable allocations (variable name -> alloca register)
-   * Used for storing and loading variable values
-   */
-  readonly variables: Map<string, string>;
 
   /**
    * LLVM IR output buffer
@@ -248,6 +230,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   private stringCount = 0;
   public output: string[] = [];
   public symbolTable = new SymbolTable();
+  public variableTypes: Map<string, string> = new Map(); // For temporary register types
   public globalStrings: string[] = [];
   public currentFunctionReturnType = 'double';
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null;
@@ -255,10 +238,6 @@ export class MockGeneratorContext implements IGeneratorContext {
   public currentClassName: string | null = null;
   public ast?: AST;
   public currentLabel = 'entry';
-  public stringVariables: Map<string, string> = new Map();
-  public stringArrayVariables: Map<string, string> = new Map();
-  public variableTypes: Map<string, string> = new Map();
-  public variables: Map<string, string> = new Map();
 
   generateExpression(expr: Expression, params: string[]): string {
     // Mock implementation - returns a dummy register
@@ -320,9 +299,20 @@ export class MockGeneratorContext implements IGeneratorContext {
     scope: 'local' | 'global' = 'local',
     metadata?: any
   ): void {
-    this.variables.set(name, allocaReg);
-    this.variableTypes.set(name, llvmType);
     this.symbolTable.define(name, kind, llvmType, allocaReg, scope, metadata);
+  }
+
+  getVariableType(name: string): string | undefined {
+    // Check named variables in SymbolTable first
+    const symbolType = this.symbolTable.getType(name);
+    if (symbolType) return symbolType;
+
+    // Fall back to temporary register types
+    return this.variableTypes.get(name);
+  }
+
+  getVariableAlloca(name: string): string | undefined {
+    return this.symbolTable.getAlloca(name);
   }
 
   emit(instruction: string): void {
@@ -342,6 +332,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.labelCount = 0;
     this.stringCount = 0;
     this.output = [];
+    this.variableTypes.clear();
     this.currentLabel = 'entry';
   }
 }

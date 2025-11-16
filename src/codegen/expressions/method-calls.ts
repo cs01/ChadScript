@@ -182,7 +182,7 @@ export class MethodCallGenerator {
 
     // Handle Map methods
     if (method === 'set' || method === 'get' || method === 'has') {
-      if (expr.object.type === 'variable' && this.ctx.mapVariables.has(expr.object.name)) {
+      if (expr.object.type === 'variable' && this.ctx.symbolTable.isMap(expr.object.name)) {
         this.ctx.syncStateToGenerators();
         if (method === 'set') {
           return this.ctx.mapGen.generateMapSet(expr, params, this.ctx.generateExpression.bind(this.ctx));
@@ -196,7 +196,7 @@ export class MethodCallGenerator {
 
     // Handle Set methods
     if (method === 'add' || method === 'has' || method === 'delete') {
-      if (expr.object.type === 'variable' && this.ctx.setVariables.has(expr.object.name)) {
+      if (expr.object.type === 'variable' && this.ctx.symbolTable.isSet(expr.object.name)) {
         this.ctx.syncStateToGenerators();
         if (method === 'add') {
           return this.ctx.setGen.generateSetAdd(expr, params, this.ctx.generateExpression.bind(this.ctx));
@@ -501,8 +501,8 @@ export class MethodCallGenerator {
     let className: string | null = null;
     let instancePtr: string | null = null;
 
-    if (expr.object.type === 'variable' && this.ctx.classInstanceVariables.has(expr.object.name)) {
-      const classMeta = this.ctx.classInstanceVariables.get(expr.object.name)!;
+    if (expr.object.type === 'variable' && this.ctx.symbolTable.isClass(expr.object.name)) {
+      const classMeta = this.ctx.symbolTable.getClassInfo(expr.object.name)!;
       className = classMeta.className;
       instancePtr = this.ctx.generateExpression(expr.object, params);
     } else if ((expr.object as any).type === 'new') {
@@ -561,8 +561,8 @@ export class MethodCallGenerator {
     const method = expr.method;
     let isObjectMethod = false;
 
-    if (expr.object.type === 'variable' && this.ctx.objectVariables.has(expr.object.name)) {
-      const objMeta = this.ctx.objectVariables.get(expr.object.name)!;
+    if (expr.object.type === 'variable' && this.ctx.symbolTable.isObject(expr.object.name)) {
+      const objMeta = this.ctx.symbolTable.getObjectInfo(expr.object.name)!;
       isObjectMethod = objMeta.keys.includes(method);
     } else if ((expr.object as any).type === 'object') {
       const objExpr = expr.object as any;

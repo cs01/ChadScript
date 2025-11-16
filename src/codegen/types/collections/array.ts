@@ -40,7 +40,7 @@ export class ArrayGenerator {
       nextLabel: (prefix: string) => this.nextLabel(prefix),
       emit: (instruction: string) => this.emit(instruction),
       getDoubleSize: () => this.getDoubleSize(),
-      stringArrayVariables: this.ctx.stringArrayVariables,
+      getVariableType: (name: string) => this.ctx.getVariableType(name),
       variableTypes: this.ctx.variableTypes,
       expectedArrayElementType: this.ctx.expectedArrayElementType,
     };
@@ -570,9 +570,11 @@ export class ArrayGenerator {
     let isStringArray = false;
     if (expr.object.type === 'variable') {
       const varName = (expr.object as any).name;
-      isStringArray = this.ctx.stringArrayVariables.has(varName);
+      const varType = this.ctx.getVariableType(varName);
+      isStringArray = varType === '%StringArray*';
     } else {
-      isStringArray = this.ctx.stringArrayVariables.has(arrayPtr);
+      const ptrType = this.ctx.getVariableType(arrayPtr);
+      isStringArray = ptrType === '%StringArray*';
     }
 
     if (isStringArray) {

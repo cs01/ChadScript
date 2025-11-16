@@ -19,55 +19,54 @@ export class VariableExpressionGenerator {
 
   /**
    * Generate variable load
-   * Checks all variable type maps and loads with correct LLVM type
+   * Checks SymbolTable and loads with correct LLVM type
    */
   generate(name: string): string {
     // Check if it's a class instance variable
-    const classInstanceMeta = this.ctx.classInstanceVariables.get(name);
-    if (classInstanceMeta) {
-      return this.loadClassInstance(name, classInstanceMeta);
+    if (this.ctx.symbolTable.isClass(name)) {
+      const classMeta = this.ctx.symbolTable.getClassInfo(name)!;
+      return this.loadClassInstance(name, classMeta);
     }
 
     // Check if it's a regex variable
-    const regexAllocaReg = this.ctx.regexVariables.get(name);
-    if (regexAllocaReg) {
-      return this.loadRegex(regexAllocaReg);
+    if (this.ctx.symbolTable.isRegex(name)) {
+      const allocaReg = this.ctx.getVariableAlloca(name)!;
+      return this.loadRegex(allocaReg);
     }
 
     // Check if it's a map variable
-    const mapAllocaReg = this.ctx.mapVariables.get(name);
-    if (mapAllocaReg) {
-      return mapAllocaReg;
+    if (this.ctx.symbolTable.isMap(name)) {
+      return this.ctx.getVariableAlloca(name)!;
     }
 
     // Check if it's a set variable
-    const setAllocaReg = this.ctx.setVariables.get(name);
-    if (setAllocaReg) {
-      return setAllocaReg;
+    if (this.ctx.symbolTable.isSet(name)) {
+      return this.ctx.getVariableAlloca(name)!;
     }
 
-    // Check if it's an array variable
-    const arrayAllocaReg = this.ctx.arrayVariables.get(name);
-    if (arrayAllocaReg) {
-      return arrayAllocaReg;
+    // Check if it's an array variable (number or boolean array)
+    if (this.ctx.symbolTable.isNumberArray(name)) {
+      return this.ctx.symbolTable.getAlloca(name)!;
     }
 
     // Check if it's a string array variable
-    const stringArrayAllocaReg = this.ctx.stringArrayVariables.get(name);
-    if (stringArrayAllocaReg) {
-      return stringArrayAllocaReg;
+    if (this.ctx.symbolTable.isStringArray(name)) {
+      return this.ctx.symbolTable.getAlloca(name)!;
     }
 
     // Check if it's a string variable
-    const stringAllocaReg = this.ctx.stringVariables.get(name);
-    if (stringAllocaReg) {
-      return this.loadString(stringAllocaReg);
+    if (this.ctx.symbolTable.isString(name)) {
+      const allocaReg = this.ctx.symbolTable.getAlloca(name)!;;
+      return this.loadString(allocaReg);
     }
 
     // Check if it's an object variable
-    const objectMeta = this.ctx.objectVariables.get(name);
-    if (objectMeta) {
-      return this.loadObject(objectMeta);
+    if (this.ctx.symbolTable.isObject(name)) {
+      const objectMeta = this.ctx.symbolTable.getObjectInfo(name);
+      if (objectMeta) {
+        return this.loadObject(objectMeta);
+      }
+      // Fall through to regular variable handling if no metadata
     }
 
     // Load regular variable with proper type from variableTypes map
@@ -83,7 +82,7 @@ export class VariableExpressionGenerator {
       return temp;
     }
 
-    const allocaReg = this.ctx.variables.get(name);
+    const allocaReg = this.ctx.getVariableAlloca(name);
     if (allocaReg) {
       return this.loadRegularVariable(name, allocaReg);
     }

@@ -23,10 +23,12 @@ export function generateArrayPush(
   let isStringArray = false;
   if (expr.object.type === 'variable') {
     const varName = (expr.object as any).name;
-    isStringArray = gen.stringArrayVariables.has(varName);
+    const varType = gen.getVariableType(varName);
+    isStringArray = varType === '%StringArray*';
   } else {
     // Check if the arrayPtr itself is tracked as a string array (e.g., from field access)
-    isStringArray = gen.stringArrayVariables.has(arrayPtr);
+    const ptrType = gen.getVariableType(arrayPtr);
+    isStringArray = ptrType === '%StringArray*';
   }
 
   if (isStringArray) {
@@ -53,9 +55,11 @@ export function generateArrayPop(
   let isStringArray = false;
   if (expr.object.type === 'variable') {
     const varName = (expr.object as any).name;
-    isStringArray = gen.stringArrayVariables.has(varName);
+    const varType = gen.getVariableType(varName);
+    isStringArray = varType === '%StringArray*';
   } else {
-    isStringArray = gen.stringArrayVariables.has(arrayPtr);
+    const ptrType = gen.getVariableType(arrayPtr);
+    isStringArray = ptrType === '%StringArray*';
   }
 
   if (isStringArray) {

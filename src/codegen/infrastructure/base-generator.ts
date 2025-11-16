@@ -16,22 +16,13 @@ export class BaseGenerator {
   public globalStrings: string[] = [];
   public currentLabel: string = 'entry'; // Track current basic block label
 
-  // Unified symbol table (NEW - replaces all 12 maps below)
+  // Unified symbol table for named variables
   public symbolTable: SymbolTable = new SymbolTable();
 
-  // Variable tracking (LEGACY - kept for backward compatibility during migration)
-  public variables: Map<string, string> = new Map(); // Variable name -> alloca register
-  public variableTypes: Map<string, string> = new Map(); // Variable name -> LLVM type (e.g., 'i32', 'i8*', '%Array*')
-  public stringVariables: Map<string, string> = new Map(); // i8* variables (deprecated - use symbolTable)
-  public arrayVariables: Map<string, string> = new Map(); // %Array variables (deprecated - use symbolTable)
-  public stringArrayVariables: Map<string, string> = new Map(); // %StringArray variables (deprecated - use symbolTable)
-  public objectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }> = new Map();
-  public mapVariables: Map<string, string> = new Map(); // %Map variables
-  public setVariables: Map<string, string> = new Map(); // %Set variables
-  public classInstanceVariables: Map<string, { ptr: string; className: string }> = new Map(); // i32* class instances
-  public regexVariables: Map<string, string> = new Map(); // i8* regex pointers
-  public jsonObjectVariables: Map<string, string> = new Map(); // i8* cJSON object pointers
-  public processArgvVariables: Set<string> = new Set(); // i8** process.argv pointers
+  // Temporary register type tracking (for LLVM registers like %0, %1, etc)
+  // Named variables use SymbolTable instead
+  public variableTypes: Map<string, string> = new Map();
+
   public thisPointer: string | null = null; // Current 'this' pointer (i32*)
   public currentClassName: string | null = null; // Current class name (for super resolution)
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null; // Expected array element type for context-aware generation
@@ -49,19 +40,9 @@ export class BaseGenerator {
     // Clear unified symbol table
     this.symbolTable.clear();
 
-    // Clear legacy maps (for backward compatibility during migration)
-    this.variables = new Map();
-    this.variableTypes = new Map();  // CRITICAL: Clear type tracking!
-    this.stringVariables = new Map();
-    this.arrayVariables = new Map();
-    this.stringArrayVariables = new Map();
-    this.objectVariables = new Map();
-    this.mapVariables = new Map();
-    this.setVariables = new Map();
-    this.classInstanceVariables = new Map();
-    this.regexVariables = new Map();
-    this.jsonObjectVariables = new Map();
-    this.processArgvVariables = new Set();
+    // Clear temporary register types
+    this.variableTypes.clear();
+
     this.thisPointer = null;
     this.currentClassName = null;
     this.currentFunctionReturnType = 'double';
@@ -138,77 +119,47 @@ export class BaseGenerator {
   }
 
   // ============================================
-  // Adapter methods for gradual SymbolTable migration
-  // These methods update BOTH old maps and new SymbolTable
+  // Symbol table convenience methods
   // ============================================
 
   /**
-   * Define a variable in both legacy maps and new SymbolTable
+   * Define a variable in the symbol table
    */
   defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global' = 'local', metadata?: any) {
-    // Update legacy maps
-    this.variables.set(name, allocaReg);
-    this.variableTypes.set(name, llvmType);
-
-    // Update specific legacy maps based on kind
-    if (kind === SymbolKind.String) {
-      this.stringVariables.set(name, allocaReg);
-    } else if (kind === SymbolKind.Array) {
-      this.arrayVariables.set(name, allocaReg);
-    } else if (kind === SymbolKind.StringArray) {
-      this.stringArrayVariables.set(name, allocaReg);
-    } else if (kind === SymbolKind.Object && metadata?.objectMetadata) {
-      this.objectVariables.set(name, {
-        ptr: allocaReg,
-        keys: metadata.objectMetadata.keys,
-        types: metadata.objectMetadata.types
-      });
-    } else if (kind === SymbolKind.Map) {
-      this.mapVariables.set(name, allocaReg);
-    } else if (kind === SymbolKind.Set) {
-      this.setVariables.set(name, allocaReg);
-    } else if (kind === SymbolKind.Class && metadata?.classMetadata) {
-      this.classInstanceVariables.set(name, {
-        ptr: allocaReg,
-        className: metadata.classMetadata.className
-      });
-    } else if (kind === SymbolKind.Regex) {
-      this.regexVariables.set(name, allocaReg);
-    } else if (kind === SymbolKind.JSON) {
-      this.jsonObjectVariables.set(name, allocaReg);
-    } else if (kind === SymbolKind.ProcessArgv) {
-      this.processArgvVariables.add(name);
-    }
-
-    // Update new SymbolTable
     this.symbolTable.define(name, kind, llvmType, allocaReg, scope, metadata);
   }
 
   /**
-   * Lookup variable type (checks SymbolTable first, falls back to legacy)
+   * Lookup variable type
+   * Checks SymbolTable for named variables, then variableTypes for temporary registers
    */
   getVariableType(name: string): string | undefined {
-    return this.symbolTable.getType(name) || this.variableTypes.get(name);
+    // Check named variables in SymbolTable first
+    const symbolType = this.symbolTable.getType(name);
+    if (symbolType) return symbolType;
+
+    // Fall back to temporary register types
+    return this.variableTypes.get(name);
   }
 
   /**
-   * Lookup variable alloca (checks SymbolTable first, falls back to legacy)
+   * Lookup variable alloca
    */
   getVariableAlloca(name: string): string | undefined {
-    return this.symbolTable.getAlloca(name) || this.variables.get(name);
+    return this.symbolTable.getAlloca(name);
   }
 
   /**
-   * Check if variable is a string (checks SymbolTable first)
+   * Check if variable is a string
    */
   isStringVariable(name: string): boolean {
-    return this.symbolTable.isString(name) || this.stringVariables.has(name);
+    return this.symbolTable.isString(name);
   }
 
   /**
-   * Check if variable is an array (checks SymbolTable first)
+   * Check if variable is an array
    */
   isArrayVariable(name: string): boolean {
-    return this.symbolTable.isArray(name) || this.arrayVariables.has(name) || this.stringArrayVariables.has(name);
+    return this.symbolTable.isArray(name);
   }
 }

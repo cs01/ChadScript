@@ -18,7 +18,6 @@ export class ControlFlowGenerator {
   private emit(instruction: string) { this.ctx.emit(instruction); }
   private get output() { return this.ctx.output; }
   private get variableTypes() { return this.ctx.variableTypes; }
-  private get variables() { return this.ctx.variables; }
   private get currentLabel() { return this.ctx.currentLabel; }
   private set currentLabel(label: string) { this.ctx.currentLabel = label; }
 

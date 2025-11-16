@@ -45,6 +45,7 @@ export class StringGenerator {
       nextString: () => this.nextString(),
       globalStrings: this.ctx.globalStrings,
       variableTypes: this.ctx.variableTypes,
+      getVariableType: (name: string) => this.ctx.getVariableType(name),
     };
   }
 
