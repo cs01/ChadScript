@@ -1,5 +1,6 @@
 import { Expression, Statement, BlockStatement } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
+import { SymbolKind } from '../infrastructure/symbol-table.js';
 
 // ============================================
 // CONTROL FLOW GENERATOR - If/while/loops
@@ -184,8 +185,7 @@ export class ControlFlowGenerator {
         const value = this.ctx.generateExpression(stmt.init.value, params);
         const allocaReg = this.nextTemp();
         // Register the variable in the variables map
-        this.variables.set(stmt.init.name, allocaReg);
-        this.variableTypes.set(stmt.init.name, 'double');
+        this.ctx.defineVariable(stmt.init.name, allocaReg, 'double', SymbolKind.Number, 'local');
         this.emit(`${allocaReg} = alloca double`);
         this.emit(`store double ${value}, double* ${allocaReg}`);
       } else if (stmt.init.type === 'assignment') {
@@ -251,6 +251,115 @@ export class ControlFlowGenerator {
         this.ctx.generateExpression(stmt.update, params);
       }
     }
+    this.emit(`br label %${condLabel}`);
+
+    // End block
+    this.emit(`${endLabel}:`);
+
+    return '0';
+  }
+
+  generateForOfStatement(stmt: Statement, params: string[]): string {
+    if (stmt.type !== 'for_of') {
+      throw new Error('Expected for...of statement');
+    }
+
+    // Evaluate the iterable expression
+    const iterableValue = this.ctx.generateExpression(stmt.iterable, params);
+
+    // Determine if it's a string array or numeric array
+    const isStringArray = this.ctx.isStringArrayExpression(stmt.iterable);
+    const arrayType = isStringArray ? '%StringArray' : '%Array';
+    const elementType = isStringArray ? 'i8*' : 'double';
+    const elementKind = isStringArray ? SymbolKind.String : SymbolKind.Number;
+
+    // Get the array length
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 1`);
+    const lengthI32 = this.nextTemp();
+    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
+
+    // Create index variable (i32)
+    const indexAlloca = this.nextTemp();
+    this.emit(`${indexAlloca} = alloca i32`);
+    this.emit(`store i32 0, i32* ${indexAlloca}`);
+
+    // Create loop variable for the current element
+    const elemAlloca = this.nextTemp();
+    this.emit(`${elemAlloca} = alloca ${elementType}`);
+
+    // Register the loop variable
+    this.ctx.defineVariable(stmt.variableName, elemAlloca, elementType, elementKind, 'local');
+
+    // Generate unique labels
+    const condLabel = this.nextLabel('forof_cond');
+    const bodyLabel = this.nextLabel('forof_body');
+    const updateLabel = this.nextLabel('forof_update');
+    const endLabel = this.nextLabel('forof_end');
+
+    // Jump to condition check
+    this.emit(`br label %${condLabel}`);
+
+    // Condition block: check if index < length
+    this.emit(`${condLabel}:`);
+    const currentIndex = this.nextTemp();
+    this.emit(`${currentIndex} = load i32, i32* ${indexAlloca}`);
+    const condBool = this.nextTemp();
+    this.emit(`${condBool} = icmp slt i32 ${currentIndex}, ${lengthI32}`);
+    this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+
+    // Body block
+    this.emit(`${bodyLabel}:`);
+    this.currentLabel = bodyLabel;
+
+    // Load current element from array
+    // Get pointer to the data array
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 0`);
+    const dataArray = this.nextTemp();
+    if (isStringArray) {
+      this.emit(`${dataArray} = load i8**, i8*** ${dataPtr}`);
+    } else {
+      this.emit(`${dataArray} = load double*, double** ${dataPtr}`);
+    }
+
+    // Load the element at current index
+    const indexI64 = this.nextTemp();
+    this.emit(`${indexI64} = sext i32 ${currentIndex} to i64`);
+    const elemPtr = this.nextTemp();
+    if (isStringArray) {
+      this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataArray}, i64 ${indexI64}`);
+    } else {
+      this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataArray}, i64 ${indexI64}`);
+    }
+    const elemValue = this.nextTemp();
+    this.emit(`${elemValue} = load ${elementType}, ${elementType}* ${elemPtr}`);
+
+    // Store in loop variable
+    this.emit(`store ${elementType} ${elemValue}, ${elementType}* ${elemAlloca}`);
+
+    // Execute the loop body
+    this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
+    this.ctx.generateBlock(stmt.body, params);
+    this.loopStack.pop();
+
+    // Check if body has terminator
+    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
+                              lastInstruction.startsWith('br ') ||
+                              lastInstruction.startsWith('unreachable') ||
+                              lastInstruction.startsWith('switch ');
+    if (!bodyHasTerminator) {
+      this.emit(`br label %${updateLabel}`);
+    }
+
+    // Update block: increment index
+    this.emit(`${updateLabel}:`);
+    const loadedIndex = this.nextTemp();
+    this.emit(`${loadedIndex} = load i32, i32* ${indexAlloca}`);
+    const nextIndex = this.nextTemp();
+    this.emit(`${nextIndex} = add i32 ${loadedIndex}, 1`);
+    this.emit(`store i32 ${nextIndex}, i32* ${indexAlloca}`);
     this.emit(`br label %${condLabel}`);
 
     // End block

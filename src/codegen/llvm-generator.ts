@@ -1,5 +1,5 @@
 import { AST, Expression, FunctionNode, BlockStatement, MethodCallNode, NewNode, ThisNode } from '../ast/types.js';
-import { BaseGenerator } from './infrastructure/base-generator.js';
+import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
 import { ObjectGenerator } from './types/objects/object.js';
@@ -162,7 +162,9 @@ export class LLVMGenerator extends BaseGenerator {
     super.reset();
     // Restore top-level object variables after reset
     this.topLevelObjectVariables.forEach((meta, name) => {
-      this.objectVariables.set(name, meta);
+      this.defineVariable(name, meta.ptr, 'i8*', SymbolKind.Object, 'global', {
+        objectMetadata: { keys: meta.keys, types: meta.types }
+      });
     });
   }
 
@@ -477,18 +479,17 @@ export class LLVMGenerator extends BaseGenerator {
 
       if (llvmType === 'i8*') {
         // String parameter
-        this.stringVariables.set(paramName, allocaReg);
+        this.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
         this.emit(`${allocaReg} = alloca i8*`);
         this.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
       } else if (llvmType === 'i32') {
         // Object/interface parameter (pointer stored as i32)
-        this.variables.set(paramName, allocaReg);
-        this.variableTypes.set(paramName, 'i32');
+        this.defineVariable(paramName, allocaReg, 'i32', SymbolKind.Object, 'local');
         this.emit(`${allocaReg} = alloca i32`);
         this.emit(`store i32 %arg${i}, i32* ${allocaReg}`);
       } else {
         // Numeric parameter (double)
-        this.variables.set(paramName, allocaReg);
+        this.defineVariable(paramName, allocaReg, 'double', SymbolKind.Number, 'local');
         this.emit(`${allocaReg} = alloca double`);
         this.emit(`store double %arg${i}, double* ${allocaReg}`);
       }
@@ -568,8 +569,7 @@ export class LLVMGenerator extends BaseGenerator {
     // Handle uninitialized variables (e.g., let x;)
     if (stmt.value === null) {
       const allocaReg = this.nextTemp();
-      this.variables.set(stmt.name, allocaReg);
-      this.variableTypes.set(stmt.name, 'double');
+      this.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
       this.emit(`${allocaReg} = alloca double`);
       this.emit(`store double 0.0, double* ${allocaReg}`);
       return;
@@ -613,23 +613,21 @@ export class LLVMGenerator extends BaseGenerator {
       // Typed JSON struct from .json<T>()
       const allocaReg = this.nextTemp();
       const structType = `%${typedJsonInterface}*`;
-      this.variables.set(stmt.name, allocaReg);
-      this.variableTypes.set(stmt.name, structType);
+      this.defineVariable(stmt.name, allocaReg, structType, SymbolKind.Object, 'local');
       this.emit(`${allocaReg} = alloca ${structType}`);
 
       const structPtr = this.generateExpression(stmt.value, params);
       this.emit(`store ${structType} ${structPtr}, ${structType}* ${allocaReg}`);
     } else if (isResponse) {
       const allocaReg = this.nextTemp();
-      this.variables.set(stmt.name, allocaReg);
-      this.variableTypes.set(stmt.name, '%Response*');
+      this.defineVariable(stmt.name, allocaReg, '%Response*', SymbolKind.Object, 'local');
       this.emit(`${allocaReg} = alloca %Response*`);
 
       const responsePtr = this.generateExpression(stmt.value, params);
       this.emit(`store %Response* ${responsePtr}, %Response** ${allocaReg}`);
     } else if (isJSONObject) {
       const allocaReg = this.nextTemp();
-      this.jsonObjectVariables.set(stmt.name, allocaReg);
+      this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local');
       this.emit(`${allocaReg} = alloca i8*`);
 
       const jsonPtr = this.generateExpression(stmt.value, params);
@@ -637,7 +635,9 @@ export class LLVMGenerator extends BaseGenerator {
     } else if (isObject) {
       const allocaReg = this.nextTemp();
       const metadata = this.getObjectMetadata(stmt.value as any);
-      this.objectVariables.set(stmt.name, { ptr: allocaReg, keys: metadata.keys, types: metadata.types });
+      this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+        objectMetadata: { keys: metadata.keys, types: metadata.types }
+      });
       this.emit(`${allocaReg} = alloca i8*`);
 
       const objExpr = this.generateExpression(stmt.value, params);
@@ -662,9 +662,7 @@ export class LLVMGenerator extends BaseGenerator {
       this.emit(`store %Set ${loadedSet}, %Set* ${allocaReg}`);
     } else if (isStringArray) {
       const allocaReg = this.nextTemp();
-      this.variables.set(stmt.name, allocaReg);
-      this.variableTypes.set(stmt.name, '%StringArray*');
-      this.stringArrayVariables.set(stmt.name, allocaReg);
+      this.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
       this.emit(`${allocaReg} = alloca %StringArray`);
 
       const value = this.generateExpression(stmt.value, params);
@@ -673,9 +671,7 @@ export class LLVMGenerator extends BaseGenerator {
       this.emit(`store %StringArray ${loadedStringArray}, %StringArray* ${allocaReg}`);
     } else if (isArray) {
       const allocaReg = this.nextTemp();
-      this.variables.set(stmt.name, allocaReg);
-      this.variableTypes.set(stmt.name, '%Array*');
-      this.arrayVariables.set(stmt.name, allocaReg);
+      this.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local');
       this.emit(`${allocaReg} = alloca %Array`);
 
       const value = this.generateExpression(stmt.value, params);
@@ -684,18 +680,14 @@ export class LLVMGenerator extends BaseGenerator {
       this.emit(`store %Array ${loadedArray}, %Array* ${allocaReg}`);
     } else if (isRegex) {
       const allocaReg = this.nextTemp();
-      this.variables.set(stmt.name, allocaReg);
-      this.variableTypes.set(stmt.name, 'i8*');
-      this.regexVariables.set(stmt.name, allocaReg);
+      this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Regex, 'local');
       this.emit(`${allocaReg} = alloca i8*`);
 
       const value = this.generateExpression(stmt.value, params);
       this.emit(`store i8* ${value}, i8** ${allocaReg}`);
     } else if (isString) {
       const allocaReg = this.nextTemp();
-      this.variables.set(stmt.name, allocaReg);
-      this.variableTypes.set(stmt.name, 'i8*');
-      this.stringVariables.set(stmt.name, allocaReg);
+      this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
       this.emit(`${allocaReg} = alloca i8*`);
 
       const value = this.generateExpression(stmt.value, params);
@@ -703,8 +695,7 @@ export class LLVMGenerator extends BaseGenerator {
     } else {
       // Numeric value (all numeric values, including booleans)
       const allocaReg = this.nextTemp();
-      this.variables.set(stmt.name, allocaReg);
-      this.variableTypes.set(stmt.name, 'double');
+      this.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
       this.emit(`${allocaReg} = alloca double`);
 
       const value = this.generateExpression(stmt.value, params);
@@ -910,6 +901,9 @@ export class LLVMGenerator extends BaseGenerator {
       } else if (stmt.type === 'for') {
         this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateForStatement(stmt, params);
+      } else if (stmt.type === 'for_of') {
+        this.syncStateToGenerators();
+        lastValue = this.controlFlowGen.generateForOfStatement(stmt, params);
       } else if (stmt.type === 'break') {
         this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateBreakStatement();
