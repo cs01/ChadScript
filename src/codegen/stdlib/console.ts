@@ -13,7 +13,7 @@ import { IGeneratorContext } from '../infrastructure/generator-context.js';
  *
  * Supported value types:
  * - Strings: Uses "%s\n" format
- * - Numbers: Uses "%f\n" format
+ * - Numbers: Uses "%g\n" format (auto-formats integers/floats)
  * - No arguments: Prints just "\n"
  */
 export class ConsoleGenerator {
@@ -99,17 +99,17 @@ export class ConsoleGenerator {
    * Generate code to print a number value
    */
   private generateNumberPrint(method: string, argValue: string): string {
-    const formatStr = this.ctx.createStringConstant('%f\n');
+    const formatStr = this.ctx.createStringConstant('%g\n');
     const temp = this.ctx.nextTemp();
 
     if (method === 'error') {
-      // fprintf(stderr, "%f\n", value)
+      // fprintf(stderr, "%g\n", value)
       this.ctx.emit(`${temp} = load i8*, i8** @stderr`);
       const temp2 = this.ctx.nextTemp();
       this.ctx.emit(`${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, double ${argValue})`);
       return temp2;
     } else {
-      // printf("%f\n", value)
+      // printf("%g\n", value)
       this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, double ${argValue})`);
       return temp;
     }
