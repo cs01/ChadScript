@@ -38,7 +38,7 @@ export class ConditionalExpressionGenerator {
     const condValue = this.ctx.generateExpression(expr.condition, params);
 
     // Convert to boolean for branching
-    const condValueType = this.variableTypes.get(condValue);
+    const condValueType = this.ctx.getVariableType(condValue);
     let condBool: string;
 
     if (condValueType === 'double' || (condValue.includes('.') && !condValue.startsWith('%'))) {
@@ -75,8 +75,8 @@ export class ConditionalExpressionGenerator {
     const result = this.nextTemp();
 
     // Determine the result type - use double if either value is double
-    const trueType = this.variableTypes.get(trueValue);
-    const falseType = this.variableTypes.get(falseValue);
+    const trueType = this.ctx.getVariableType(trueValue);
+    const falseType = this.ctx.getVariableType(falseValue);
     const resultType = (trueType === 'double' || falseType === 'double') ? 'double' : 'i32';
 
     // Convert values to match result type if needed

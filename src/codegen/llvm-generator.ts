@@ -70,7 +70,7 @@ export class LLVMGenerator extends BaseGenerator {
 
   // Helper: Convert a value to i32 if it's a double register
   private convertToI32(value: string): string {
-    const valueType = this.variableTypes.get(value);
+    const valueType = this.getVariableType(value);
     if (valueType === 'double' || value.startsWith('%')) {
       const i32Value = this.nextTemp();
       this.emit(`${i32Value} = fptosi double ${value} to i32`);
@@ -331,6 +331,10 @@ export class LLVMGenerator extends BaseGenerator {
     // Global variables for process.argv
     ir += '@__argc = global i32 0\n';
     ir += '@__argv = global i8** null\n';
+    ir += '\n';
+
+    // Global flag to detect ChadScript environment
+    ir += '@__chadscript = global double 1.0\n';
     ir += '\n';
 
     // Generate external function declarations for imports
@@ -793,7 +797,7 @@ export class LLVMGenerator extends BaseGenerator {
                     // Check if value is already i8* (from properly typed variable)
                     let isAlreadyPointer = false;
                     if (memberAccessValue.value.type === 'variable') {
-                      const varType = this.variableTypes.get(memberAccessValue.value.name);
+                      const varType = this.getVariableType(memberAccessValue.value.name);
                       if (varType === 'i8*' || varType?.includes('*')) {
                         isAlreadyPointer = true;
                       }
@@ -866,12 +870,12 @@ export class LLVMGenerator extends BaseGenerator {
           if (!stmt.name) {
             throw new Error(`Assignment statement has no name property. Statement: ${JSON.stringify(stmt, null, 2)}`);
           }
-          const allocaReg = this.variables.get(stmt.name);
+          const allocaReg = this.getVariableAlloca(stmt.name);
           if (!allocaReg) {
             throw new Error(`Unknown variable: ${stmt.name}`);
           }
           // All numeric variables are double now
-          const varType = this.variableTypes.get(stmt.name) || 'double';
+          const varType = this.getVariableType(stmt.name) || 'double';
           this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
         }
       } else if (stmt.type === 'return') {
@@ -880,7 +884,7 @@ export class LLVMGenerator extends BaseGenerator {
         // Handle type conversion if needed (e.g., i32 to double)
         // Check if we're returning i32 from a double function
         if (this.currentFunctionReturnType === 'double') {
-          const valueType = this.variableTypes.get(lastValue);
+          const valueType = this.getVariableType(lastValue);
           // Only convert if we explicitly know it's i32
           if (valueType === 'i32') {
             const converted = this.nextTemp();
@@ -981,7 +985,7 @@ export class LLVMGenerator extends BaseGenerator {
       const condValue = this.generateExpression(conditionalExpr.condition, params);
 
       // Convert to boolean for branching
-      const condValueType = this.variableTypes.get(condValue);
+      const condValueType = this.getVariableType(condValue);
       let condBool: string;
 
       if (condValueType === 'double' || (condValue.includes('.') && !condValue.startsWith('%'))) {
@@ -1018,8 +1022,8 @@ export class LLVMGenerator extends BaseGenerator {
       const result = this.nextTemp();
 
       // Determine the result type - use double if either value is double
-      const trueType = this.variableTypes.get(trueValue);
-      const falseType = this.variableTypes.get(falseValue);
+      const trueType = this.getVariableType(trueValue);
+      const falseType = this.getVariableType(falseValue);
       const resultType = (trueType === 'double' || falseType === 'double') ? 'double' : 'i32';
 
       // Convert values to match result type if needed
@@ -1684,7 +1688,7 @@ export class LLVMGenerator extends BaseGenerator {
       if (this.arrayVariables.has(expr.name)) {
         return true;
       }
-      const varType = this.variableTypes.get(expr.name);
+      const varType = this.getVariableType(expr.name);
       if (varType === '%Array*') {
         return true;
       }
@@ -1762,7 +1766,7 @@ export class LLVMGenerator extends BaseGenerator {
       if (this.stringVariables.has(expr.name)) {
         return true;
       }
-      const varType = this.variableTypes.get(expr.name);
+      const varType = this.getVariableType(expr.name);
       if (varType === 'i8*') {
         return true;
       }
@@ -1786,7 +1790,7 @@ export class LLVMGenerator extends BaseGenerator {
           }
         }
         // Check typed JSON struct properties (from .json<T>())
-        const varType = this.variableTypes.get(varName);
+        const varType = this.getVariableType(varName);
         if (varType && varType.startsWith('%') && varType.endsWith('*') &&
             !varType.includes('Array') && !varType.includes('Response') &&
             !varType.includes('Map') && !varType.includes('Set')) {
@@ -1848,7 +1852,7 @@ export class LLVMGenerator extends BaseGenerator {
         if (this.stringArrayVariables.has(varName)) {
           return true;
         }
-        const varType = this.variableTypes.get(varName);
+        const varType = this.getVariableType(varName);
         if (varType === '%StringArray*') {
           return true;
         }
@@ -1950,7 +1954,7 @@ export class LLVMGenerator extends BaseGenerator {
     }
     // Variables that hold Response objects
     if (expr.type === 'variable') {
-      const varType = this.variableTypes.get(expr.name);
+      const varType = this.getVariableType(expr.name);
       if (varType === '%Response*') {
         return true;
       }
@@ -1990,7 +1994,7 @@ export class LLVMGenerator extends BaseGenerator {
       if (this.stringArrayVariables.has(expr.name)) {
         return true;
       }
-      const varType = this.variableTypes.get(expr.name);
+      const varType = this.getVariableType(expr.name);
       if (varType === '%StringArray*') {
         return true;
       }

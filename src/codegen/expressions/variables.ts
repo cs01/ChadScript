@@ -75,6 +75,14 @@ export class VariableExpressionGenerator {
       throw new Error(`Variable expression has no name property`);
     }
 
+    // Handle __chadscript global
+    if (name === '__chadscript') {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = load double, double* @__chadscript`);
+      this.ctx.variableTypes.set(temp, 'double');
+      return temp;
+    }
+
     const allocaReg = this.ctx.variables.get(name);
     if (allocaReg) {
       return this.loadRegularVariable(name, allocaReg);

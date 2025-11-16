@@ -19,8 +19,8 @@ export function generateStringConcat(
   const rightValue = generateExpression(right, params);
 
   // Check if either operand needs to be converted from number to string
-  const leftIsString = isStringExpression(left) || this.variableTypes.get(leftValue) === 'i8*';
-  const rightIsString = isStringExpression(right) || this.variableTypes.get(rightValue) === 'i8*';
+  const leftIsString = isStringExpression(left) || this.getVariableType(leftValue) === 'i8*';
+  const rightIsString = isStringExpression(right) || this.getVariableType(rightValue) === 'i8*';
 
   // Convert numbers to strings if needed
   const leftStr = leftIsString ? leftValue : convertNumberToString.call(this, leftValue);
