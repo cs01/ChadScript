@@ -383,13 +383,13 @@ export class ClassGenerator {
       } else {
         // Fallback inference for variadic or untyped params
         if (this.variableTypes.has(val)) {
-          argType = this.variableTypes.get(val)!;
+          argType = this.getVariableType(val)!;
         } else if (val.startsWith('@.str')) {
           argType = 'i8*';
         } else if (arg.type === 'variable') {
           const varName = (arg as any).name;
           if (this.variableTypes.has(`%${varName}`)) {
-            argType = this.variableTypes.get(`%${varName}`)!;
+            argType = this.getVariableType(`%${varName}`)!;
           }
         }
       }

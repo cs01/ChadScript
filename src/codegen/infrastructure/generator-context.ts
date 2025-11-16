@@ -117,6 +117,16 @@ export interface IGeneratorContext {
     metadata?: any
   ): void;
 
+  /**
+   * Lookup variable type (checks SymbolTable first, falls back to legacy)
+   */
+  getVariableType(name: string): string | undefined;
+
+  /**
+   * Lookup variable alloca (checks SymbolTable first, falls back to legacy)
+   */
+  getVariableAlloca(name: string): string | undefined;
+
   // ============================================
   // Output Buffer
   // ============================================

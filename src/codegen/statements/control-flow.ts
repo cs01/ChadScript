@@ -25,7 +25,7 @@ export class ControlFlowGenerator {
   // Helper to convert a value to boolean (i1) for branching
   private convertToBool(value: string): string {
     // Check if value is a double or i32 based on variable types
-    const valueType = this.variableTypes.get(value);
+    const valueType = this.ctx.getVariableType(value);
 
     if (valueType === 'double' || (value.includes('.') && !value.startsWith('%'))) {
       // Value is a double, use fcmp
@@ -190,11 +190,11 @@ export class ControlFlowGenerator {
         this.emit(`store double ${value}, double* ${allocaReg}`);
       } else if (stmt.init.type === 'assignment') {
         const value = this.ctx.generateExpression(stmt.init.value, params);
-        const allocaReg = this.variables.get(stmt.init.name);
+        const allocaReg = this.ctx.getVariableAlloca(stmt.init.name);
         if (!allocaReg) {
           throw new Error(`Variable ${stmt.init.name} not found`);
         }
-        const varType = this.variableTypes.get(stmt.init.name) || 'double';
+        const varType = this.ctx.getVariableType(stmt.init.name) || 'double';
         this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
       }
     }
@@ -240,11 +240,11 @@ export class ControlFlowGenerator {
     if (stmt.update) {
       if (stmt.update.type === 'assignment') {
         const value = this.ctx.generateExpression(stmt.update.value, params);
-        const allocaReg = this.variables.get(stmt.update.name);
+        const allocaReg = this.ctx.getVariableAlloca(stmt.update.name);
         if (!allocaReg) {
           throw new Error(`Variable ${stmt.update.name} not found in update`);
         }
-        const varType = this.variableTypes.get(stmt.update.name) || 'double';
+        const varType = this.ctx.getVariableType(stmt.update.name) || 'double';
         this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
       } else {
         // It's an expression (like i++)
