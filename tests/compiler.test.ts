@@ -746,6 +746,120 @@ describe('ChadScript Compiler', () => {
     });
   });
 
+  describe('JSON Operations', () => {
+    it('should parse JSON with JSON.parse()', async () => {
+      const fixturePath = 'tests/fixtures/builtins/json-parse-test.ts';
+      const outputDir = path.join('.build', path.dirname(fixturePath));
+      const baseName = path.basename(fixturePath, '.ts');
+      const exeFile = path.join(outputDir, baseName);
+
+      try {
+        // Compile
+        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+
+        // Run and capture output
+        const { stdout } = await execAsync(`./${exeFile}`);
+
+        // Check for test passed
+        assert.ok(stdout.includes('TEST_PASSED'), 'JSON.parse() test should pass');
+      } finally {
+        // Clean up
+        try {
+          const llFile = path.join(outputDir, `${baseName}.ll`);
+          if (fsSync.existsSync(llFile)) await fs.unlink(llFile);
+          if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    });
+
+    it('should stringify values with JSON.stringify()', async () => {
+      const fixturePath = 'tests/fixtures/builtins/json-stringify-test.ts';
+      const outputDir = path.join('.build', path.dirname(fixturePath));
+      const baseName = path.basename(fixturePath, '.ts');
+      const exeFile = path.join(outputDir, baseName);
+
+      try {
+        // Compile
+        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+
+        // Run and capture output
+        const { stdout } = await execAsync(`./${exeFile}`);
+
+        // Check for test passed
+        assert.ok(stdout.includes('TEST_PASSED'), 'JSON.stringify() test should pass');
+      } finally {
+        // Clean up
+        try {
+          const llFile = path.join(outputDir, `${baseName}.ll`);
+          if (fsSync.existsSync(llFile)) await fs.unlink(llFile);
+          if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    });
+
+    it('should pretty print JSON data', async () => {
+      const fixturePath = 'tests/fixtures/builtins/json-pretty-print-test.ts';
+      const outputDir = path.join('.build', path.dirname(fixturePath));
+      const baseName = path.basename(fixturePath, '.ts');
+      const exeFile = path.join(outputDir, baseName);
+
+      try {
+        // Compile
+        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+
+        // Run and capture output
+        const { stdout } = await execAsync(`./${exeFile}`);
+
+        // Check that pretty printing worked
+        assert.ok(stdout.includes('Repository Information:'), 'Should include header');
+        assert.ok(stdout.includes('TypeScript'), 'Should include language name');
+        assert.ok(stdout.includes('TEST_PASSED'), 'Pretty print test should pass');
+      } finally {
+        // Clean up
+        try {
+          const llFile = path.join(outputDir, `${baseName}.ll`);
+          if (fsSync.existsSync(llFile)) await fs.unlink(llFile);
+          if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    });
+
+    it('should format console output correctly', async () => {
+      const fixturePath = 'tests/fixtures/builtins/json-typed-test.ts';
+      const outputDir = path.join('.build', path.dirname(fixturePath));
+      const baseName = path.basename(fixturePath, '.ts');
+      const exeFile = path.join(outputDir, baseName);
+
+      try {
+        // Compile
+        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+
+        // Run and capture output
+        const { stdout } = await execAsync(`./${exeFile}`);
+
+        // Check output formatting
+        assert.ok(stdout.includes('Laptop'), 'Product name should be present');
+        assert.ok(stdout.includes('Electronics'), 'Category should be present');
+        assert.ok(stdout.includes('TEST_PASSED'), 'Test should pass');
+      } finally {
+        // Clean up
+        try {
+          const llFile = path.join(outputDir, `${baseName}.ll`);
+          if (fsSync.existsSync(llFile)) await fs.unlink(llFile);
+          if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    });
+  });
+
   describe('Error Handling', () => {
     it('should handle missing input file', async () => {
       await assert.rejects(async () => {
