@@ -1,5 +1,6 @@
 import { Expression, ClassNode, ClassMethod, BlockStatement } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
+import { SymbolKind } from '../../infrastructure/symbol-table.js';
 import { logger } from '../../../utils/logger.js';
 
 // ============================================
@@ -120,8 +121,12 @@ export class ClassGenerator {
       const paramName = constructor.params[i];
       const allocaReg = this.nextTemp();
       const llvmType = paramLLVMTypes[i];
-      this.variables.set(paramName, allocaReg);
-      this.variableTypes.set(paramName, llvmType);  // Track the type!
+
+      // Determine symbol kind from LLVM type
+      const kind = llvmType === 'i8*' ? SymbolKind.String :
+                   llvmType === 'double' ? SymbolKind.Number : SymbolKind.Object;
+
+      this.ctx.defineVariable(paramName, allocaReg, llvmType, kind, 'local');
       this.emit(`${allocaReg} = alloca ${llvmType}`);
       this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
 
@@ -273,8 +278,12 @@ export class ClassGenerator {
       const paramName = method.params[i];
       const allocaReg = this.nextTemp();
       const llvmType = paramLLVMTypes[i];
-      this.variables.set(paramName, allocaReg);
-      this.variableTypes.set(paramName, llvmType);  // Track the type!
+
+      // Determine symbol kind from LLVM type
+      const kind = llvmType === 'i8*' ? SymbolKind.String :
+                   llvmType === 'double' ? SymbolKind.Number : SymbolKind.Object;
+
+      this.ctx.defineVariable(paramName, allocaReg, llvmType, kind, 'local');
       this.emit(`${allocaReg} = alloca ${llvmType}`);
       this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
 
