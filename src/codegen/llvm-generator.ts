@@ -210,6 +210,7 @@ export class LLVMGenerator extends BaseGenerator {
     ir += 'declare void @free(i8*)\n';
     ir += 'declare i8* @strcpy(i8*, i8*)\n';
     ir += 'declare i8* @strcat(i8*, i8*)\n';
+    ir += 'declare i8* @strdup(i8*)\n';
     ir += 'declare i64 @strlen(i8*)\n';
     ir += 'declare i32 @strcmp(i8*, i8*)\n';
     ir += 'declare i32 @strncmp(i8*, i8*, i64)\n';
