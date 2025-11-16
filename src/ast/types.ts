@@ -78,6 +78,7 @@ export interface MethodCallNode {
   object: Expression;
   method: string;
   args: Expression[];
+  typeParameter?: string; // Generic type parameter like <JsonTestResponse>
 }
 
 export interface NewNode {

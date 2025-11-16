@@ -266,4 +266,51 @@ export class TypeChecker {
       return null;
     }
   }
+
+  /**
+   * Get interface definition by name
+   * Returns property names and their types for code generation
+   */
+  getInterfaceDefinition(interfaceName: string): { properties: { name: string; type: string }[] } | null {
+    try {
+      let targetInterface: ts.InterfaceDeclaration | undefined;
+
+      // Search for interface declaration
+      ts.forEachChild(this.sourceFile, (node) => {
+        if (ts.isInterfaceDeclaration(node) && node.name.text === interfaceName) {
+          targetInterface = node;
+        }
+      });
+
+      if (!targetInterface) {
+        return null;
+      }
+
+      // Extract properties
+      const properties: { name: string; type: string }[] = [];
+      for (const member of targetInterface.members) {
+        if (ts.isPropertySignature(member) && ts.isIdentifier(member.name)) {
+          const propName = member.name.text;
+          let propType = 'any';
+
+          if (member.type) {
+            const type = this.checker.getTypeFromTypeNode(member.type);
+            if (type.flags & ts.TypeFlags.String || type.flags & ts.TypeFlags.StringLiteral) {
+              propType = 'string';
+            } else if (type.flags & ts.TypeFlags.Number || type.flags & ts.TypeFlags.NumberLiteral) {
+              propType = 'number';
+            } else if (type.flags & ts.TypeFlags.Boolean || type.flags & ts.TypeFlags.BooleanLiteral) {
+              propType = 'boolean';
+            }
+          }
+
+          properties.push({ name: propName, type: propType });
+        }
+      }
+
+      return { properties };
+    } catch (error) {
+      return null;
+    }
+  }
 }

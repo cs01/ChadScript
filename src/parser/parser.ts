@@ -2264,9 +2264,48 @@ export class Parser {
         this.pos++; // consume '.'
         const property = this.parseIdentifier();
         this.skipWhitespace();
+
+        // Check for generic type parameter (e.g., method<Type>())
+        // Only parse as generic if followed by `(` (method call syntax)
+        let typeParameter: string | undefined;
+        if (this.code[this.pos] === '<') {
+          // Lookahead to check if this is actually a generic (not a comparison operator)
+          const savedPos = this.pos;
+          this.pos++; // consume '<'
+          this.skipWhitespace();
+
+          // Try to parse as identifier
+          const startPos = this.pos;
+          while (this.pos < this.code.length && /[a-zA-Z0-9_]/.test(this.code[this.pos])) {
+            this.pos++;
+          }
+          const potentialType = this.code.substring(startPos, this.pos);
+          this.skipWhitespace();
+
+          // Check if followed by '>' and then '('
+          if (this.code[this.pos] === '>' && potentialType.length > 0) {
+            this.pos++; // consume '>'
+            this.skipWhitespace();
+            if (this.code[this.pos] === '(') {
+              // It's a generic! Use the parsed type
+              typeParameter = potentialType;
+            } else {
+              // Not a generic - restore position
+              this.pos = savedPos;
+            }
+          } else {
+            // Not a valid generic syntax - restore position
+            this.pos = savedPos;
+          }
+        }
+
         if (this.code[this.pos] === '(') {
           // Method call
           expr = this.parseMethodCall(expr, property);
+          // Add type parameter if present
+          if (typeParameter) {
+            (expr as any).typeParameter = typeParameter;
+          }
         } else {
           // Property access
           expr = { type: 'member_access', object: expr, property };

@@ -174,9 +174,9 @@ interface Response {
 
   /**
    * Parse the response body as JSON
-   * @returns Parsed JSON value (currently only supports numbers)
+   * @returns Parsed JSON value typed according to the generic parameter
    */
-  json(): any;
+  json<T>(): T;
 
   /**
    * HTTP status code (200, 404, 500, etc.)

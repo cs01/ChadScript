@@ -8,30 +8,46 @@
 // - .status property for HTTP status code
 // - .ok property for success check (200-299)
 
+interface JsonTestResponse {
+  status: string;
+  message: string;
+}
+
+// Test 1: Basic endpoint with .ok and .status checks
 const response1 = fetch("http://localhost:9998/test");
+if (!response1.ok) {
+  throw new Error("Expected response1.ok to be true");
+}
+if (response1.status !== 200) {
+  throw new Error("Expected status 200");
+}
 const body1 = response1.text();
 const lines1 = body1.split("\n");
-
-// Validate we got response body
-if (lines1.length < 1) {
-  console.log("TEST_FAILED: Expected body content in response");
-  process.exit(1);
+if (lines1.length < 3) {
+  throw new Error("Expected at least 3 lines in response");
 }
 
-// Test JSON endpoint - just verify we got JSON-like content
+// Test 2: JSON endpoint with .json<T>() method
 const response2 = fetch("http://localhost:9998/json");
-const body2 = response2.text();
-if (!body2.includes("status")) {
-  console.log("TEST_FAILED: JSON endpoint did not return expected data");
-  process.exit(1);
+if (!response2.ok) {
+  throw new Error("Expected response2.ok to be true");
+}
+const json2 = response2.json<JsonTestResponse>();
+if (json2.status !== "ok") {
+  throw new Error("Expected json2.status to equal 'ok'");
+}
+if (json2.message !== "JSON response") {
+  throw new Error("Expected json2.message to equal 'JSON response'");
 }
 
-// Test plain text endpoint
+// Test 3: Plain text endpoint
 const response3 = fetch("http://localhost:9998/plain");
+if (!response3.ok) {
+  throw new Error("Expected response3.ok to be true");
+}
 const body3 = response3.text();
-if (!body3.includes("Hello from ChadScript test server")) {
-  console.log("TEST_FAILED: Plain text endpoint did not return expected content");
-  process.exit(1);
+if (body3 !== "Hello from ChadScript test server") {
+  throw new Error("Expected exact plain text match");
 }
 
 console.log("TEST_PASSED");
