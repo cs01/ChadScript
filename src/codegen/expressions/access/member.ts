@@ -105,18 +105,18 @@ export class MemberAccessGenerator {
             const capField = this.ctx.nextTemp();
             this.ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 2`);
             this.ctx.emit(`store i32 ${argc}, i32* ${capField}`);
-    
-            // Mark as string array variable
-            this.ctx.stringArrayVariables.set('process.argv', argvStruct);
+
+            // Track temporary register type
+            this.ctx.variableTypes.set(argvStruct, '%StringArray*');
             return argvStruct;
           }
     
           // Handle class instance property access (this.ctx.field or instance.field)
           let className: string | null = null;
           let instancePtr: string | null = null;
-    
-          if (expr.object.type === 'variable' && this.ctx.classInstanceVariables.has(expr.object.name)) {
-            const classMeta = this.ctx.classInstanceVariables.get(expr.object.name)!;
+
+          if (expr.object.type === 'variable' && this.ctx.symbolTable.isClass(expr.object.name)) {
+            const classMeta = this.ctx.symbolTable.getClassInfo(expr.object.name)!;
             className = classMeta.className;
             instancePtr = generateExpressionFn(expr.object, params);
           } else if ((expr.object as any).type === 'new') {
@@ -166,15 +166,15 @@ export class MemberAccessGenerator {
                   // Load string array pointer (%StringArray*)
                   const value = this.ctx.nextTemp();
                   this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
-                  // Track this as a string array variable for subsequent operations
-                  this.ctx.stringArrayVariables.set(value, value);
+                  // Track this temporary register type
+                  this.ctx.variableTypes.set(value, '%StringArray*');
                   return value;
                 } else if (fieldInfo.type.endsWith('[]')) {
                   // Load number/boolean array pointer (%Array*)
                   const value = this.ctx.nextTemp();
                   this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
-                  // Track this as an array variable for subsequent operations
-                  this.ctx.arrayVariables.set(value, value);
+                  // Track this temporary register type
+                  this.ctx.variableTypes.set(value, '%Array*');
                   return value;
                 } else {
                   // Load double (JavaScript semantics)
@@ -200,11 +200,11 @@ export class MemberAccessGenerator {
               throw new Error(`Field '${expr.property}' not found in class ${className}. Did you forget to declare it with a type annotation?`);
             }
           }
-    
+
           // Check if accessing a JSON object property
-          if (expr.object.type === 'variable' && this.ctx.jsonObjectVariables.has(expr.object.name)) {
+          if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON(expr.object.name)) {
             // Load JSON object pointer
-            const jsonObjPtrPtr = this.ctx.jsonObjectVariables.get(expr.object.name)!;
+            const jsonObjPtrPtr = this.ctx.getVariableAlloca(expr.object.name)!;
             const jsonObjPtr = this.ctx.nextTemp();
             this.ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
     
@@ -270,12 +270,12 @@ export class MemberAccessGenerator {
           let objPtr: string;
           let keys: string[];
           let types: string[];
-    
-          if (expr.object.type === 'variable' && this.ctx.jsonObjectVariables.has(expr.object.name)) {
+
+          if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON(expr.object.name)) {
             // JSON object variable - use cJSON API to access fields
             this.ctx.syncStateToGenerators();
-    
-            const jsonPtrPtr = this.ctx.jsonObjectVariables.get(expr.object.name)!;
+
+            const jsonPtrPtr = this.ctx.getVariableAlloca(expr.object.name)!;
             const jsonPtr = this.ctx.nextTemp();
             this.ctx.emit(`${jsonPtr} = load i8*, i8** ${jsonPtrPtr}`);
     
@@ -332,18 +332,25 @@ export class MemberAccessGenerator {
             this.ctx.emit(`${fieldEndLabel}:`);
             const result = this.ctx.nextTemp();
             this.ctx.emit(`${result} = phi i32 [ ${numValue}, %${numberLabel} ], [ ${strAsInt}, %${stringLabel} ], [ 0, %${noFieldLabel} ]`);
-    
+
             return result;
-          } else if (expr.object.type === 'variable' && this.ctx.objectVariables.has(expr.object.name)) {
+          } else if (expr.object.type === 'variable' && this.ctx.symbolTable.isObject(expr.object.name)) {
             // Object stored in variable
-            const objMeta = this.ctx.objectVariables.get(expr.object.name)!;
-            keys = objMeta.keys;
-            types = objMeta.types;
-    
-            // Load object pointer
-            const objPtrPtr = objMeta.ptr;
-            objPtr = this.ctx.nextTemp();
-            this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
+            const objMeta = this.ctx.symbolTable.getObjectInfo(expr.object.name);
+            if (!objMeta) {
+              // Object registered without metadata - skip to other handlers
+              keys = [];
+              types = [];
+              objPtr = '';
+            } else {
+              keys = objMeta.keys;
+              types = objMeta.types;
+
+              // Load object pointer
+              const objPtrPtr = this.ctx.getVariableAlloca(expr.object.name)!;
+              objPtr = this.ctx.nextTemp();
+              this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
+            }
           } else if ((expr.object as any).type === 'object') {
             // Object literal - generate it and extract metadata
             const metadata = this.ctx.getObjectMetadata(expr.object as any);
@@ -455,11 +462,11 @@ export class MemberAccessGenerator {
             this.ctx.variableTypes.set(value, propType);
             return value;
           }
-    
+
           // Handle .length property
           if (expr.property === 'length') {
             // Check if it's an array
-            if (expr.object.type === 'variable' && this.ctx.arrayVariables.has(expr.object.name)) {
+            if (expr.object.type === 'variable' && this.ctx.symbolTable.isNumberArray(expr.object.name)) {
               const arrayPtr = generateExpressionFn(expr.object, params);
               const lenPtr = this.ctx.nextTemp();
               this.ctx.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
@@ -470,7 +477,7 @@ export class MemberAccessGenerator {
               this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
               this.ctx.variableTypes.set(len, 'double');
               return len;
-            } else if (expr.object.type === 'variable' && this.ctx.stringArrayVariables.has(expr.object.name)) {
+            } else if (expr.object.type === 'variable' && this.ctx.symbolTable.isStringArray(expr.object.name)) {
               // Check if it's a string array
               const stringArrayPtr = generateExpressionFn(expr.object, params);
               const lenPtr = this.ctx.nextTemp();
@@ -542,13 +549,13 @@ export class MemberAccessGenerator {
           // Handle .size property (for Map and Set)
           if (expr.property === 'size') {
             // Check if it's a Map
-            if (expr.object.type === 'variable' && this.ctx.mapVariables.has(expr.object.name)) {
+            if (expr.object.type === 'variable' && this.ctx.symbolTable.isMap(expr.object.name)) {
               const mapPtr = generateExpressionFn(expr.object, params);
               this.ctx.syncStateToGenerators();
               return this.ctx.mapGen.generateMapSize(mapPtr);
             }
             // Check if it's a Set
-            if (expr.object.type === 'variable' && this.ctx.setVariables.has(expr.object.name)) {
+            if (expr.object.type === 'variable' && this.ctx.symbolTable.isSet(expr.object.name)) {
               const setPtr = generateExpressionFn(expr.object, params);
               this.ctx.syncStateToGenerators();
               return this.ctx.setGen.generateSetSize(setPtr);
@@ -597,7 +604,7 @@ export class MemberAccessGenerator {
                     const propIndex = properties.findIndex(([name, _]) => name === expr.property);
     
                     // Load parameter (it's an i8* pointer to the object)
-                    const paramPtr = this.ctx.variables.get(varName);
+                    const paramPtr = this.ctx.getVariableAlloca(varName);
                     if (!paramPtr) {
                       throw new Error(`Parameter ${varName} not found in variables`);
                     }

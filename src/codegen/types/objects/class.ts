@@ -20,9 +20,7 @@ export class ClassGenerator {
   private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
   private get output() { return this.ctx.output; }
-  private get variables() { return this.ctx.variables; }
   private get variableTypes() { return this.ctx.variableTypes; }
-  private get stringVariables() { return this.ctx.stringVariables; }
   private get thisPointer() { return this.ctx.thisPointer; }
   private set thisPointer(ptr: string | null) { this.ctx.thisPointer = ptr; }
   private get currentClassName() { return this.ctx.currentClassName; }
@@ -129,11 +127,6 @@ export class ClassGenerator {
       this.ctx.defineVariable(paramName, allocaReg, llvmType, kind, 'local');
       this.emit(`${allocaReg} = alloca ${llvmType}`);
       this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
-
-      // Track string parameters (backward compat)
-      if (llvmType === 'i8*') {
-        this.stringVariables.set(allocaReg, allocaReg);
-      }
     }
 
     let objPtr: string;
@@ -286,11 +279,6 @@ export class ClassGenerator {
       this.ctx.defineVariable(paramName, allocaReg, llvmType, kind, 'local');
       this.emit(`${allocaReg} = alloca ${llvmType}`);
       this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
-
-      // Track string parameters (backward compat)
-      if (llvmType === 'i8*') {
-        this.stringVariables.set(allocaReg, allocaReg);
-      }
     }
 
     // Generate body
@@ -383,13 +371,13 @@ export class ClassGenerator {
       } else {
         // Fallback inference for variadic or untyped params
         if (this.variableTypes.has(val)) {
-          argType = this.getVariableType(val)!;
+          argType = this.ctx.getVariableType(val)!;
         } else if (val.startsWith('@.str')) {
           argType = 'i8*';
         } else if (arg.type === 'variable') {
           const varName = (arg as any).name;
           if (this.variableTypes.has(`%${varName}`)) {
-            argType = this.getVariableType(`%${varName}`)!;
+            argType = this.ctx.getVariableType(`%${varName}`)!;
           }
         }
       }

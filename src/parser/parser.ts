@@ -174,14 +174,22 @@ export class Parser {
         }
       } else if (this.match('//')) {
         this.skipComment();
+      } else if (this.match('for')) {
+        // Parse top-level for loop and store it
+        const forStmt = this.parseForStatement();
+        this.topLevelExpressions.push(forStmt as any);
+      } else if (this.match('while')) {
+        // Parse top-level while loop and store it
+        const whileStmt = this.parseWhileStatement();
+        this.topLevelExpressions.push(whileStmt as any);
       } else if (this.match('if')) {
-        // Parse top-level if statement (but don't store it - just skip it)
-        // match('if') already consumed 'if', so we're positioned at the '('
-        this.parseIfStatement();
+        // Parse top-level if statement and store it
+        const ifStmt = this.parseIfStatement();
+        this.topLevelExpressions.push(ifStmt as any);
       } else if (this.match('try')) {
-        // Parse top-level try-catch (but don't store it - just skip it)
-        // match('try') already consumed 'try', so we're positioned at the '{'
-        this.parseTryStatement();
+        // Parse top-level try-catch and store it
+        const tryStmt = this.parseTryStatement();
+        this.topLevelExpressions.push(tryStmt as any);
       } else {
         // Try to parse as function call, new expression, or method call (entry point)
         const savedPos = this.pos;
@@ -548,6 +556,11 @@ export class Parser {
       this.skipWhitespace();
       if (this.code[this.pos] === '}') {
         break;
+      }
+
+      // Skip access modifiers (private/public/protected) - they're TypeScript only
+      if (this.match('private') || this.match('public') || this.match('protected')) {
+        this.skipWhitespace();
       }
 
       // Try to parse field declaration first (e.g., "name: string;")
@@ -2016,7 +2029,27 @@ export class Parser {
   }
 
   private parseExport(): void {
-    // export function name() { ... } or export class Name { ... }
+    // export interface - skip it (TypeScript type-only, no runtime code)
+    if (this.match('interface')) {
+      this.parseInterface();
+      return;
+    }
+
+    // export const/let/var - parse variable declaration
+    if (this.match('const') || this.match('let') || this.match('var')) {
+      const savedPos = this.pos - (this.code[this.pos - 3] === 'l' ? 3 : (this.code[this.pos - 3] === 'v' ? 3 : 5));
+      this.pos = savedPos;
+      const varDecl = this.parseVariableDeclaration();
+      this.topLevelStatements.push(varDecl);
+      // Skip semicolon if present
+      this.skipWhitespace();
+      if (this.code[this.pos] === ';') {
+        this.pos++;
+      }
+      return;
+    }
+
+    // export function name() { ... }
     if (this.match('function')) {
       const name = this.parseIdentifier();
       this.expect('(');
@@ -2056,6 +2089,11 @@ export class Parser {
       const methods: ClassMethod[] = [];
       this.skipWhitespace();
       while (this.code[this.pos] !== '}') {
+        // Skip access modifiers (private/public/protected) - they're TypeScript only
+        if (this.match('private') || this.match('public') || this.match('protected')) {
+          this.skipWhitespace();
+        }
+
         // Try to parse field declaration first
         const savedPos = this.pos;
         const identifier = this.parseIdentifier();

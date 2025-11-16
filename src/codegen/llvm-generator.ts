@@ -608,7 +608,9 @@ export class LLVMGenerator extends BaseGenerator {
       const fields = this.classGen.getClassFields(className);
       const ptrType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
 
-      this.classInstanceVariables.set(stmt.name, { ptr: allocaReg, className });
+      this.defineVariable(stmt.name, allocaReg, ptrType, SymbolKind.Class, 'local', {
+        classMetadata: { className }
+      });
       this.emit(`${allocaReg} = alloca ${ptrType}`);
 
       const instancePtr = this.generateExpression(stmt.value, params);
@@ -648,7 +650,7 @@ export class LLVMGenerator extends BaseGenerator {
       this.emit(`store i8* ${objExpr}, i8** ${allocaReg}`);
     } else if (isMap) {
       const allocaReg = this.nextTemp();
-      this.mapVariables.set(stmt.name, allocaReg);
+      this.defineVariable(stmt.name, allocaReg, '%Map*', SymbolKind.Map, 'local');
       this.emit(`${allocaReg} = alloca %Map`);
 
       const value = this.generateExpression(stmt.value, params);
@@ -657,7 +659,7 @@ export class LLVMGenerator extends BaseGenerator {
       this.emit(`store %Map ${loadedMap}, %Map* ${allocaReg}`);
     } else if (isSet) {
       const allocaReg = this.nextTemp();
-      this.setVariables.set(stmt.name, allocaReg);
+      this.defineVariable(stmt.name, allocaReg, '%Set*', SymbolKind.Set, 'local');
       this.emit(`${allocaReg} = alloca %Set`);
 
       const value = this.generateExpression(stmt.value, params);
@@ -737,8 +739,8 @@ export class LLVMGenerator extends BaseGenerator {
             let instancePtr: string | null = null;
             let className: string | null = null;
 
-            if (object.type === 'variable' && this.classInstanceVariables.has(object.name)) {
-              const classMeta = this.classInstanceVariables.get(object.name)!;
+            if (object.type === 'variable' && this.symbolTable.isClass(object.name)) {
+              const classMeta = this.symbolTable.getClassInfo(object.name)!;
               className = classMeta.className;
             } else if ((object as any).type === 'new') {
               const newExpr = object as any as NewNode;
@@ -773,7 +775,7 @@ export class LLVMGenerator extends BaseGenerator {
             this.expectedArrayElementType = null; // Reset context
 
             // Generate instance pointer
-            if (object.type === 'variable' && this.classInstanceVariables.has(object.name)) {
+            if (object.type === 'variable' && this.symbolTable.isClass(object.name)) {
               instancePtr = this.generateExpression(object, params);
             } else if ((object as any).type === 'new') {
               instancePtr = this.generateExpression(object, params);
@@ -851,14 +853,14 @@ export class LLVMGenerator extends BaseGenerator {
           const value = this.generateExpression(stmt.value, params);
 
           // Check for string variable
-          const stringAllocaReg = this.stringVariables.get(stmt.name);
+          const stringAllocaReg = this.symbolTable.getStringAlloca(stmt.name);
           if (stringAllocaReg) {
             this.emit(`store i8* ${value}, i8** ${stringAllocaReg}`);
             return '';
           }
 
           // Check for array variable
-          const arrayAllocaReg = this.arrayVariables.get(stmt.name);
+          const arrayAllocaReg = this.symbolTable.getArrayAlloca(stmt.name);
           if (arrayAllocaReg) {
             const loadedArray = this.nextTemp();
             this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
@@ -1455,7 +1457,7 @@ export class LLVMGenerator extends BaseGenerator {
     // Handle Map methods
     if (method === 'set' || method === 'get' || method === 'has') {
       // Check if the object is a Map
-      if (expr.object.type === 'variable' && this.mapVariables.has(expr.object.name)) {
+      if (expr.object.type === 'variable' && this.symbolTable.isMap(expr.object.name)) {
         this.syncStateToGenerators();
         if (method === 'set') {
           return this.mapGen.generateMapSet(expr, params, this.generateExpression.bind(this));
@@ -1470,7 +1472,7 @@ export class LLVMGenerator extends BaseGenerator {
     // Handle Set methods
     if (method === 'add' || method === 'has' || method === 'delete') {
       // Check if the object is a Set
-      if (expr.object.type === 'variable' && this.setVariables.has(expr.object.name)) {
+      if (expr.object.type === 'variable' && this.symbolTable.isSet(expr.object.name)) {
         this.syncStateToGenerators();
         if (method === 'add') {
           return this.setGen.generateSetAdd(expr, params, this.generateExpression.bind(this));
@@ -1508,8 +1510,8 @@ export class LLVMGenerator extends BaseGenerator {
     let className: string | null = null;
     let instancePtr: string | null = null;
 
-    if (expr.object.type === 'variable' && this.classInstanceVariables.has(expr.object.name)) {
-      const classMeta = this.classInstanceVariables.get(expr.object.name)!;
+    if (expr.object.type === 'variable' && this.symbolTable.isClass(expr.object.name)) {
+      const classMeta = this.symbolTable.getClassInfo(expr.object.name)!;
       className = classMeta.className;
       instancePtr = this.generateExpression(expr.object, params);
     } else if ((expr.object as any).type === 'new') {
@@ -1572,9 +1574,9 @@ export class LLVMGenerator extends BaseGenerator {
     // Handle object methods
     // Check if the object is an object (variable or literal) and has the method property
     let isObjectMethod = false;
-    if (expr.object.type === 'variable' && this.objectVariables.has(expr.object.name)) {
-      const objMeta = this.objectVariables.get(expr.object.name)!;
-      isObjectMethod = objMeta.keys.includes(method);
+    if (expr.object.type === 'variable' && this.symbolTable.isObject(expr.object.name)) {
+      const objMeta = this.symbolTable.getObjectInfo(expr.object.name);
+      isObjectMethod = objMeta !== undefined && objMeta.keys.includes(method);
     } else if ((expr.object as any).type === 'object') {
       const objExpr = expr.object as any;
       isObjectMethod = objExpr.properties.some((p: any) => p.key === method);
@@ -1685,7 +1687,7 @@ export class LLVMGenerator extends BaseGenerator {
     }
     if (expr.type === 'variable') {
       // Check both arrayVariables (legacy) and variableTypes (new system)
-      if (this.arrayVariables.has(expr.name)) {
+      if (this.symbolTable.isNumberArray(expr.name)) {
         return true;
       }
       const varType = this.getVariableType(expr.name);
@@ -1702,8 +1704,8 @@ export class LLVMGenerator extends BaseGenerator {
     // Check if it's a member access to a numeric/boolean array field
     if (expr.type === 'member_access') {
       const memberExpr = expr as any;
-      if (memberExpr.object.type === 'variable' && this.classInstanceVariables.has(memberExpr.object.name)) {
-        const classMeta = this.classInstanceVariables.get(memberExpr.object.name)!;
+      if (memberExpr.object.type === 'variable' && this.symbolTable.isClass(memberExpr.object.name)) {
+        const classMeta = this.symbolTable.getClassInfo(memberExpr.object.name)!;
         const fieldInfo = this.classGen.getFieldInfo(classMeta.className, memberExpr.property);
         if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
           return true;
@@ -1729,7 +1731,7 @@ export class LLVMGenerator extends BaseGenerator {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.objectVariables.has(expr.name);
+      return this.symbolTable.isObject(expr.name);
     }
     return false;
   }
@@ -1739,7 +1741,7 @@ export class LLVMGenerator extends BaseGenerator {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.mapVariables.has(expr.name);
+      return this.symbolTable.isMap(expr.name);
     }
     return false;
   }
@@ -1749,7 +1751,7 @@ export class LLVMGenerator extends BaseGenerator {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.setVariables.has(expr.name);
+      return this.symbolTable.isSet(expr.name);
     }
     return false;
   }
@@ -1762,10 +1764,7 @@ export class LLVMGenerator extends BaseGenerator {
       return true;
     }
     if (expr.type === 'variable') {
-      // Check both stringVariables (legacy) and variableTypes (new system)
-      if (this.stringVariables.has(expr.name)) {
-        return true;
-      }
+      // Check variable type in SymbolTable
       const varType = this.getVariableType(expr.name);
       if (varType === 'i8*') {
         return true;
@@ -1782,7 +1781,7 @@ export class LLVMGenerator extends BaseGenerator {
       if (memberExpr.object.type === 'variable') {
         const varName = memberExpr.object.name;
         // Check object variables with tracked types
-        const objMeta = this.objectVariables.get(varName);
+        const objMeta = this.symbolTable.getObjectInfo(varName);
         if (objMeta) {
           const propIndex = objMeta.keys.indexOf(memberExpr.property);
           if (propIndex >= 0 && objMeta.types[propIndex] === 'i8*') {
@@ -1806,15 +1805,15 @@ export class LLVMGenerator extends BaseGenerator {
           }
         }
         // Check class instances
-        if (this.classInstanceVariables.has(varName)) {
-          const classMeta = this.classInstanceVariables.get(varName)!;
+        if (this.symbolTable.isClass(varName)) {
+          const classMeta = this.symbolTable.getClassInfo(varName)!;
           const fieldInfo = this.classGen.getFieldInfo(classMeta.className, memberExpr.property);
           if (fieldInfo && fieldInfo.type === 'string') {
             return true;
           }
         }
         // Check TypeScript types for function parameters
-        if (this.typeChecker && this.currentFunction && this.variables.has(varName)) {
+        if (this.typeChecker && this.currentFunction && this.getVariableAlloca(varName) !== undefined) {
           const typeInfo = this.typeChecker.getPropertyType(varName, memberExpr.property, this.currentFunction);
           if (typeInfo && typeInfo.llvmType === 'i8*') {
             return true;
@@ -1848,10 +1847,7 @@ export class LLVMGenerator extends BaseGenerator {
       // Check for stringArray[i]
       if (indexExpr.object.type === 'variable') {
         const varName = indexExpr.object.name;
-        // Check both stringArrayVariables (legacy) and variableTypes (new system)
-        if (this.stringArrayVariables.has(varName)) {
-          return true;
-        }
+        // Check variable type in SymbolTable
         const varType = this.getVariableType(varName);
         if (varType === '%StringArray*') {
           return true;
@@ -1910,8 +1906,8 @@ export class LLVMGenerator extends BaseGenerator {
         return true;
       }
       // Check class instance method return types
-      if (methodExpr.object.type === 'variable' && this.classInstanceVariables.has(methodExpr.object.name)) {
-        const classMeta = this.classInstanceVariables.get(methodExpr.object.name)!;
+      if (methodExpr.object.type === 'variable' && this.symbolTable.isClass(methodExpr.object.name)) {
+        const classMeta = this.symbolTable.getClassInfo(methodExpr.object.name)!;
         const classNode = this.ast.classes.find(c => c.name === classMeta.className);
         if (classNode) {
           const method = classNode.methods.find(m => m.name === methodExpr.method && !m.isConstructor);
@@ -1929,7 +1925,7 @@ export class LLVMGenerator extends BaseGenerator {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.regexVariables.has(expr.name);
+      return this.symbolTable.isRegex(expr.name);
     }
     return false;
   }
@@ -1939,7 +1935,7 @@ export class LLVMGenerator extends BaseGenerator {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.classInstanceVariables.has(expr.name);
+      return this.symbolTable.isClass(expr.name);
     }
     return false;
   }
@@ -1983,17 +1979,14 @@ export class LLVMGenerator extends BaseGenerator {
              methodCall.object.name === 'JSON';
     }
     if (expr.type === 'variable') {
-      return this.jsonObjectVariables.has(expr.name);
+      return this.symbolTable.isJSON(expr.name);
     }
     return false;
   }
 
   public isStringArrayExpression(expr: Expression): boolean {
     if (expr.type === 'variable') {
-      // Check both stringArrayVariables (legacy) and variableTypes (new system)
-      if (this.stringArrayVariables.has(expr.name)) {
-        return true;
-      }
+      // Check variable type in SymbolTable
       const varType = this.getVariableType(expr.name);
       if (varType === '%StringArray*') {
         return true;
@@ -2019,8 +2012,8 @@ export class LLVMGenerator extends BaseGenerator {
     // Check if it's a member access to a string array field
     if (expr.type === 'member_access') {
       const memberExpr = expr as any;
-      if (memberExpr.object.type === 'variable' && this.classInstanceVariables.has(memberExpr.object.name)) {
-        const classMeta = this.classInstanceVariables.get(memberExpr.object.name)!;
+      if (memberExpr.object.type === 'variable' && this.symbolTable.isClass(memberExpr.object.name)) {
+        const classMeta = this.symbolTable.getClassInfo(memberExpr.object.name)!;
         const fieldInfo = this.classGen.getFieldInfo(classMeta.className, memberExpr.property);
         if (fieldInfo && fieldInfo.type === 'string[]') {
           return true;
@@ -2059,13 +2052,35 @@ export class LLVMGenerator extends BaseGenerator {
 
     // Save top-level object variables so they can be accessed from functions
     this.topLevelObjectVariables = new Map();
-    this.objectVariables.forEach((value, key) => {
-      this.topLevelObjectVariables.set(key, value);
-    });
+    for (const symbol of this.symbolTable.getAll()) {
+      if (symbol.kind === SymbolKind.Object && symbol.scope === 'global' && symbol.objectMetadata) {
+        this.topLevelObjectVariables.set(symbol.name, {
+          ptr: symbol.allocaRegister,
+          keys: symbol.objectMetadata.keys,
+          types: symbol.objectMetadata.types
+        });
+      }
+    }
 
     // Execute all top-level expressions in order
     for (const expr of this.ast.topLevelExpressions) {
-      this.generateExpression(expr, []);
+      // Handle statement types (if, while, for, etc.)
+      if ((expr as any).type === 'if') {
+        this.syncStateToGenerators();
+        this.controlFlowGen.generateIfStatement(expr as any, []);
+      } else if ((expr as any).type === 'while') {
+        this.syncStateToGenerators();
+        this.controlFlowGen.generateWhileStatement(expr as any, []);
+      } else if ((expr as any).type === 'for') {
+        this.syncStateToGenerators();
+        this.controlFlowGen.generateForStatement(expr as any, []);
+      } else if ((expr as any).type === 'for_of') {
+        this.syncStateToGenerators();
+        this.controlFlowGen.generateForOfStatement(expr as any, []);
+      } else {
+        // Expression statement
+        this.generateExpression(expr, []);
+      }
     }
 
     if (this.output.length > 0) {
