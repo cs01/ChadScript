@@ -53,10 +53,12 @@ export class MemberAccessGenerator {
                   if (propType === 'string') {
                     const value = this.ctx.nextTemp();
                     this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+                    this.ctx.variableTypes.set(value, 'i8*');  // Mark as string
                     return value;
                   } else if (propType === 'number') {
                     const value = this.ctx.nextTemp();
                     this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
+                    this.ctx.variableTypes.set(value, 'double');  // Mark as double
                     return value;
                   } else if (propType === 'boolean') {
                     const value = this.ctx.nextTemp();
@@ -64,6 +66,7 @@ export class MemberAccessGenerator {
                     // Convert i1 to double for JavaScript semantics
                     const doubleValue = this.ctx.nextTemp();
                     this.ctx.emit(`${doubleValue} = uitofp i1 ${value} to double`);
+                    this.ctx.variableTypes.set(doubleValue, 'double');  // Mark as double
                     return doubleValue;
                   }
                 }

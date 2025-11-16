@@ -1,4 +1,4 @@
-// GitHub Stars CLI - Fetch repository star count using JSON.parse()
+// GitHub Stars CLI - Fetch repository star count using typed JSON
 // Usage: ./github-stars owner/repo
 //
 // Example: ./github-stars facebook/react
@@ -21,7 +21,9 @@ const repo = process.argv[1];
 const url = "https://api.github.com/repos/" + repo;
 const response = fetch(url);
 
-// Parse JSON response and print star count
-const json = JSON.parse<RepoInfo>(response);
-console.log("stars:")
+// Parse JSON response with type safety
+const json = response.json<RepoInfo>();
+console.log("Repository:");
+console.log(json.name);
+console.log("Stars:");
 console.log(json.stargazers_count);
