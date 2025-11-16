@@ -1790,6 +1790,22 @@ export class LLVMGenerator extends BaseGenerator {
             return true;
           }
         }
+        // Check typed JSON struct properties (from .json<T>())
+        const varType = this.variableTypes.get(varName);
+        if (varType && varType.startsWith('%') && varType.endsWith('*') &&
+            !varType.includes('Array') && !varType.includes('Response') &&
+            !varType.includes('Map') && !varType.includes('Set')) {
+          const structTypeName = varType.substring(1, varType.length - 1);
+          if (this.typeChecker) {
+            const interfaceDef = this.typeChecker.getInterfaceDefinition(structTypeName);
+            if (interfaceDef) {
+              const prop = interfaceDef.properties.find((p: any) => p.name === memberExpr.property);
+              if (prop && prop.type === 'string') {
+                return true;
+              }
+            }
+          }
+        }
         // Check class instances
         if (this.classInstanceVariables.has(varName)) {
           const classMeta = this.classInstanceVariables.get(varName)!;
