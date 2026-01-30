@@ -68,6 +68,7 @@ export function generateArrayLiteral(
     gen.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
     gen.emit(`store i32 ${length}, i32* ${capField}`);
 
+    gen.variableTypes.set(arrayPtr, '%StringArray*');
     return arrayPtr;
   } else {
     // Generate numeric array - allocate on HEAP, not stack
@@ -112,6 +113,7 @@ export function generateArrayLiteral(
     gen.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
     gen.emit(`store i32 ${length}, i32* ${capField}`);
 
+    gen.variableTypes.set(arrayPtr, '%Array*');
     return arrayPtr;
   }
 }
