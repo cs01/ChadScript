@@ -122,6 +122,8 @@ export class ClassGenerator {
 
       // Determine symbol kind from LLVM type
       const kind = llvmType === 'i8*' ? SymbolKind.String :
+                   llvmType === '%StringArray*' ? SymbolKind.StringArray :
+                   llvmType === '%Array*' ? SymbolKind.Array :
                    llvmType === 'double' ? SymbolKind.Number : SymbolKind.Object;
 
       this.ctx.defineVariable(paramName, allocaReg, llvmType, kind, 'local');
@@ -274,6 +276,8 @@ export class ClassGenerator {
 
       // Determine symbol kind from LLVM type
       const kind = llvmType === 'i8*' ? SymbolKind.String :
+                   llvmType === '%StringArray*' ? SymbolKind.StringArray :
+                   llvmType === '%Array*' ? SymbolKind.Array :
                    llvmType === 'double' ? SymbolKind.Number : SymbolKind.Object;
 
       this.ctx.defineVariable(paramName, allocaReg, llvmType, kind, 'local');

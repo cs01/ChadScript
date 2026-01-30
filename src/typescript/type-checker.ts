@@ -227,16 +227,28 @@ export class TypeChecker {
 
         let paramType = 'number';
         if (param.type) {
-          const type = this.checker.getTypeFromTypeNode(param.type);
-          if (type.flags & ts.TypeFlags.String || type.flags & ts.TypeFlags.StringLiteral) {
-            paramType = 'string';
-          } else if (type.flags & ts.TypeFlags.Number || type.flags & ts.TypeFlags.NumberLiteral) {
-            paramType = 'number';
-          } else if (type.flags & ts.TypeFlags.Boolean || type.flags & ts.TypeFlags.BooleanLiteral) {
-            paramType = 'boolean';
-          } else if (type.flags & ts.TypeFlags.Object) {
-            // Object/interface type - return the type name (e.g., "Point")
-            paramType = this.checker.typeToString(type);
+          if (ts.isArrayTypeNode(param.type)) {
+            const elementTypeNode = param.type.elementType;
+            if (elementTypeNode.kind === ts.SyntaxKind.StringKeyword) {
+              paramType = 'string[]';
+            } else if (elementTypeNode.kind === ts.SyntaxKind.NumberKeyword) {
+              paramType = 'number[]';
+            } else if (elementTypeNode.kind === ts.SyntaxKind.BooleanKeyword) {
+              paramType = 'boolean[]';
+            } else {
+              paramType = 'object[]';
+            }
+          } else {
+            const type = this.checker.getTypeFromTypeNode(param.type);
+            if (type.flags & ts.TypeFlags.String || type.flags & ts.TypeFlags.StringLiteral) {
+              paramType = 'string';
+            } else if (type.flags & ts.TypeFlags.Number || type.flags & ts.TypeFlags.NumberLiteral) {
+              paramType = 'number';
+            } else if (type.flags & ts.TypeFlags.Boolean || type.flags & ts.TypeFlags.BooleanLiteral) {
+              paramType = 'boolean';
+            } else if (type.flags & ts.TypeFlags.Object) {
+              paramType = this.checker.typeToString(type);
+            }
           }
         }
 

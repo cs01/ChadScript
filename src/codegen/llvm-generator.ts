@@ -1930,6 +1930,14 @@ export class LLVMGenerator extends BaseGenerator {
             }
           }
         }
+        // Check for classInstance.field[i] where field is a string array
+        if (memberAccess.object.type === 'variable' && this.symbolTable.isClass(memberAccess.object.name)) {
+          const classMeta = this.symbolTable.getClassInfo(memberAccess.object.name)!;
+          const fieldInfo = this.classGen.getFieldInfo(classMeta.className, memberAccess.property);
+          if (fieldInfo && fieldInfo.type === 'string[]') {
+            return true;
+          }
+        }
       }
     }
     // Check if it's a function call that returns a string
@@ -2088,6 +2096,12 @@ export class LLVMGenerator extends BaseGenerator {
     // Check if it's a member access to a string array field
     if (expr.type === 'member_access') {
       const memberExpr = expr as any;
+      // Check for process.argv
+      if (memberExpr.object.type === 'variable' &&
+          memberExpr.object.name === 'process' &&
+          memberExpr.property === 'argv') {
+        return true;
+      }
       if (memberExpr.object.type === 'variable' && this.symbolTable.isClass(memberExpr.object.name)) {
         const classMeta = this.symbolTable.getClassInfo(memberExpr.object.name)!;
         const fieldInfo = this.classGen.getFieldInfo(classMeta.className, memberExpr.property);
@@ -2126,9 +2140,49 @@ export class LLVMGenerator extends BaseGenerator {
     this.tempCounter = 0;
     this.output = [];
 
-    // Process top-level variable declarations using the shared allocateVariable method
-    for (const stmt of this.ast.topLevelStatements) {
-      this.allocateVariable(stmt, []);
+    // Process all top-level items in source order
+    for (const item of this.ast.topLevelItems || []) {
+      if (item.type === 'variable_declaration') {
+        this.allocateVariable(item, []);
+      } else if (item.type === 'if') {
+        this.syncStateToGenerators();
+        this.controlFlowGen.generateIfStatement(item as any, []);
+      } else if (item.type === 'while') {
+        this.syncStateToGenerators();
+        this.controlFlowGen.generateWhileStatement(item as any, []);
+      } else if (item.type === 'for') {
+        this.syncStateToGenerators();
+        this.controlFlowGen.generateForStatement(item as any, []);
+      } else if (item.type === 'for_of') {
+        this.syncStateToGenerators();
+        this.controlFlowGen.generateForOfStatement(item as any, []);
+      } else {
+        this.generateExpression(item, []);
+      }
+    }
+
+    // Fallback for older AST format without topLevelItems
+    if (!this.ast.topLevelItems || this.ast.topLevelItems.length === 0) {
+      for (const stmt of this.ast.topLevelStatements) {
+        this.allocateVariable(stmt, []);
+      }
+      for (const expr of this.ast.topLevelExpressions) {
+        if ((expr as any).type === 'if') {
+          this.syncStateToGenerators();
+          this.controlFlowGen.generateIfStatement(expr as any, []);
+        } else if ((expr as any).type === 'while') {
+          this.syncStateToGenerators();
+          this.controlFlowGen.generateWhileStatement(expr as any, []);
+        } else if ((expr as any).type === 'for') {
+          this.syncStateToGenerators();
+          this.controlFlowGen.generateForStatement(expr as any, []);
+        } else if ((expr as any).type === 'for_of') {
+          this.syncStateToGenerators();
+          this.controlFlowGen.generateForOfStatement(expr as any, []);
+        } else {
+          this.generateExpression(expr, []);
+        }
+      }
     }
 
     // Save top-level object variables so they can be accessed from functions
@@ -2140,27 +2194,6 @@ export class LLVMGenerator extends BaseGenerator {
           keys: symbol.objectMetadata.keys,
           types: symbol.objectMetadata.types
         });
-      }
-    }
-
-    // Execute all top-level expressions in order
-    for (const expr of this.ast.topLevelExpressions) {
-      // Handle statement types (if, while, for, etc.)
-      if ((expr as any).type === 'if') {
-        this.syncStateToGenerators();
-        this.controlFlowGen.generateIfStatement(expr as any, []);
-      } else if ((expr as any).type === 'while') {
-        this.syncStateToGenerators();
-        this.controlFlowGen.generateWhileStatement(expr as any, []);
-      } else if ((expr as any).type === 'for') {
-        this.syncStateToGenerators();
-        this.controlFlowGen.generateForStatement(expr as any, []);
-      } else if ((expr as any).type === 'for_of') {
-        this.syncStateToGenerators();
-        this.controlFlowGen.generateForOfStatement(expr as any, []);
-      } else {
-        // Expression statement
-        this.generateExpression(expr, []);
       }
     }
 

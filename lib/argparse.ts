@@ -115,8 +115,8 @@ export class ArgumentParser {
         const argIndex = this.findArgument(argv[argIdx]);
 
         if (argIndex === -1) {
-          console.log("Unknown option: " + argv[argIdx]);
-          console.log("Try '" + this.programName + " --help' for more information");
+          console.error("Unknown option: " + argv[argIdx]);
+          console.error("Try '" + this.programName + " --help' for more information");
           process.exit(1);
         }
 
@@ -140,7 +140,7 @@ export class ArgumentParser {
           // Get value
           argIdx = argIdx + 1;
           if (argIdx >= argv.length) {
-            console.log("Option requires a value");
+            console.error("Error: Option requires a value");
             process.exit(1);
           }
           // Set option value by rebuilding array

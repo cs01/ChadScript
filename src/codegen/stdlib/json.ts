@@ -31,6 +31,19 @@ export class JsonGenerator {
       throw new Error('JSON.parse() requires 1 argument (JSON string)');
     }
 
+    // Check if type parameter was provided (JSON.parse<T>)
+    const typeParam = (expr as any).typeParameter;
+    if (!typeParam) {
+      throw new Error(
+        'JSON.parse() requires a type parameter. Use JSON.parse<InterfaceName>(jsonString).\n' +
+        'ChadScript needs static types for JSON to generate efficient native code.\n\n' +
+        'Example:\n' +
+        '  interface User { name: string; age: number; }\n' +
+        '  const user = JSON.parse<User>(\'{"name":"Alice","age":30}\');\n\n' +
+        'Without type information, property access cannot be compiled.'
+      );
+    }
+
     const jsonStr = this.ctx.generateExpression(expr.args[0], params);
 
     // Parse JSON using cJSON

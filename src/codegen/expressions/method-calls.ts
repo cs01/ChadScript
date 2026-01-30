@@ -489,11 +489,13 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length !== 1) {
-      throw new Error(`charAt() expects 1 argument, got \${expr.args.length}`);
+      throw new Error('charAt() expects 1 argument, got ' + expr.args.length);
     }
 
-    const index = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGen.generateCharAt(strPtr, index);
+    const indexDouble = this.ctx.generateExpression(expr.args[0], params);
+    const indexI32 = this.ctx.nextTemp();
+    this.ctx.emit(indexI32 + ' = fptosi double ' + indexDouble + ' to i32');
+    return this.ctx.stringGen.generateCharAt(strPtr, indexI32);
   }
 
   private handleClassMethods(expr: MethodCallNode, params: string[]): string | null {

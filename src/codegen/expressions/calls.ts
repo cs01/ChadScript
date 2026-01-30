@@ -184,6 +184,8 @@ export class CallExpressionGenerator {
           returnType = funcType.returnType === 'string' ? 'i8*' : 'double';
           paramTypes = funcType.parameters.map((p: any) => {
             if (p.type === 'string') return 'i8*';
+            if (p.type === 'string[]') return '%StringArray*';
+            if (p.type === 'number[]' || p.type === 'boolean[]') return '%Array*';
             if (p.type !== 'number' && p.type !== 'boolean') return 'i32'; // Object/interface
             return 'double'; // number/boolean
           });

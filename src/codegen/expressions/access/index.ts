@@ -139,10 +139,10 @@ export class IndexAccessGenerator {
     const objPtr = generateExpressionFn(expr.object, params);
     const indexDouble = generateExpressionFn(expr.index, params);
 
-    // Convert double index to i32
+    // Convert double index to i32 (assume double if not explicitly i32)
     const indexType = this.ctx.variableTypes.get(indexDouble);
     let index = indexDouble;
-    if (indexType === 'double') {
+    if (indexType !== 'i32') {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
     }

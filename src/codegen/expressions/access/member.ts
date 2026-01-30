@@ -20,6 +20,7 @@ export class MemberAccessGenerator {
    * This handles many different member access patterns
    */
   generate(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    console.error('DEBUG MEMBER.generate(): expr.property=', expr.property, 'expr.object.type=', expr.object?.type, 'expr.object.name=', (expr.object as any)?.name);
           // Handle typed JSON struct property access (from .json<T>())
           if (expr.object.type === 'variable') {
             const varType = this.ctx.variableTypes.get(expr.object.name);
@@ -272,68 +273,29 @@ export class MemberAccessGenerator {
           let types: string[];
 
           if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON(expr.object.name)) {
-            // JSON object variable - use cJSON API to access fields
-            this.ctx.syncStateToGenerators();
-
-            const jsonPtrPtr = this.ctx.getVariableAlloca(expr.object.name)!;
-            const jsonPtr = this.ctx.nextTemp();
-            this.ctx.emit(`${jsonPtr} = load i8*, i8** ${jsonPtrPtr}`);
-    
-            const fieldNameStr = this.ctx.stringGen.createStringConstant(expr.property);
-    
-            // Get the field from JSON object
-            const fieldItem = this.ctx.nextTemp();
-            this.ctx.emit(`${fieldItem} = call i8* @cJSON_GetObjectItem(i8* ${jsonPtr}, i8* ${fieldNameStr})`);
-    
-            // Check if field exists
-            const fieldExists = this.ctx.nextTemp();
-            this.ctx.emit(`${fieldExists} = icmp ne i8* ${fieldItem}, null`);
-    
-            const hasFieldLabel = this.ctx.nextLabel('json_has_field');
-            const noFieldLabel = this.ctx.nextLabel('json_no_field');
-            const fieldEndLabel = this.ctx.nextLabel('json_field_end');
-    
-            this.ctx.emit(`br i1 ${fieldExists}, label %${hasFieldLabel}, label %${noFieldLabel}`);
-    
-            // Field exists: check type and extract value
-            this.ctx.emit(`${hasFieldLabel}:`);
-    
-            // Check if it's a number
-            const isNumber = this.ctx.nextTemp();
-            this.ctx.emit(`${isNumber} = call i32 @cJSON_IsNumber(i8* ${fieldItem})`);
-            const isNumBool = this.ctx.nextTemp();
-            this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
-    
-            const numberLabel = this.ctx.nextLabel('json_number');
-            const stringLabel = this.ctx.nextLabel('json_string');
-    
-            this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
-    
-            // Number field
-            this.ctx.emit(`${numberLabel}:`);
-            const numValue = this.ctx.nextTemp();
-            this.ctx.emit(`${numValue} = call i32 @cJSON_GetNumberValueAsInt(i8* ${fieldItem})`);
-            this.ctx.emit(`br label %${fieldEndLabel}`);
-    
-            // String field
-            this.ctx.emit(`${stringLabel}:`);
-            const strValue = this.ctx.nextTemp();
-            this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${fieldItem})`);
-            // Convert i8* to i32 for now (will be cast back when used)
-            const strAsInt = this.ctx.nextTemp();
-            this.ctx.emit(`${strAsInt} = ptrtoint i8* ${strValue} to i32`);
-            this.ctx.emit(`br label %${fieldEndLabel}`);
-    
-            // Field doesn't exist: return 0
-            this.ctx.emit(`${noFieldLabel}:`);
-            this.ctx.emit(`br label %${fieldEndLabel}`);
-    
-            // Merge
-            this.ctx.emit(`${fieldEndLabel}:`);
-            const result = this.ctx.nextTemp();
-            this.ctx.emit(`${result} = phi i32 [ ${numValue}, %${numberLabel} ], [ ${strAsInt}, %${stringLabel} ], [ 0, %${noFieldLabel} ]`);
-
-            return result;
+            // JSON variable - check if it has interface metadata for static access
+            const jsonMeta = this.ctx.symbolTable.getObjectInfo(expr.object.name);
+            console.error('DEBUG: JSON variable', expr.object.name, 'has metadata?', !!jsonMeta);
+            if (jsonMeta) {
+              // Has metadata - use static struct access
+              keys = jsonMeta.keys;
+              types = jsonMeta.types;
+              console.error('DEBUG: Set keys=', keys, 'types=', types);
+              // Load JSON pointer
+              const jsonPtrPtr = this.ctx.getVariableAlloca(expr.object.name)!;
+              objPtr = this.ctx.nextTemp();
+              this.ctx.emit(`${objPtr} = load i8*, i8** ${jsonPtrPtr}`);
+            } else {
+              // No metadata - this means it's a primitive or array type literal (number, string, number[], etc.)
+              // These don't support property access (except .length for arrays, which is handled elsewhere)
+              throw new Error(
+                this.ctx.formatCodegenError(
+                  `Cannot access property '${expr.property}' on JSON.parse() result without interface metadata.\n` +
+                  `If you're parsing an object, define an interface and use JSON.parse<InterfaceName>().\n` +
+                  `If you're parsing an array, use bracket notation for element access: arr[0]`
+                )
+              );
+            }
           } else if (expr.object.type === 'variable' && this.ctx.symbolTable.isObject(expr.object.name)) {
             // Object stored in variable
             const objMeta = this.ctx.symbolTable.getObjectInfo(expr.object.name);
@@ -477,6 +439,20 @@ export class MemberAccessGenerator {
               this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
               this.ctx.variableTypes.set(len, 'double');
               return len;
+            } else if (expr.object.type === 'member_access' &&
+                       expr.object.object.type === 'variable' &&
+                       (expr.object.object as any).name === 'process' &&
+                       expr.object.property === 'argv') {
+              // Handle process.argv.length - it's a StringArray
+              const stringArrayPtr = generateExpressionFn(expr.object, params);
+              const lenPtr = this.ctx.nextTemp();
+              this.ctx.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 1`);
+              const lenI32 = this.ctx.nextTemp();
+              this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
+              const len = this.ctx.nextTemp();
+              this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
+              this.ctx.variableTypes.set(len, 'double');
+              return len;
             } else if (expr.object.type === 'variable' && this.ctx.symbolTable.isStringArray(expr.object.name)) {
               // Check if it's a string array
               const stringArrayPtr = generateExpressionFn(expr.object, params);
@@ -485,6 +461,42 @@ export class MemberAccessGenerator {
               const lenI32 = this.ctx.nextTemp();
               this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
               // Convert to double for JavaScript semantics
+              const len = this.ctx.nextTemp();
+              this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
+              this.ctx.variableTypes.set(len, 'double');
+              return len;
+            } else if (expr.object.type === 'member_access' &&
+                       expr.object.object.type === 'variable' &&
+                       this.ctx.symbolTable.isClass(expr.object.object.name)) {
+              // Check if it's accessing a class instance field that's an array (parser.field.length)
+              const classMeta = this.ctx.symbolTable.getClassInfo(expr.object.object.name)!;
+              const fieldInfo = this.ctx.classGen.getFieldInfo(classMeta.className, expr.object.property);
+              if (fieldInfo && fieldInfo.type === 'string[]') {
+                const stringArrayPtr = generateExpressionFn(expr.object, params);
+                const lenPtr = this.ctx.nextTemp();
+                this.ctx.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 1`);
+                const lenI32 = this.ctx.nextTemp();
+                this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
+                const len = this.ctx.nextTemp();
+                this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
+                this.ctx.variableTypes.set(len, 'double');
+                return len;
+              } else if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
+                const arrayPtr = generateExpressionFn(expr.object, params);
+                const lenPtr = this.ctx.nextTemp();
+                this.ctx.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+                const lenI32 = this.ctx.nextTemp();
+                this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
+                const len = this.ctx.nextTemp();
+                this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
+                this.ctx.variableTypes.set(len, 'double');
+                return len;
+              }
+              const objPtr = generateExpressionFn(expr.object, params);
+              const lenI64 = this.ctx.nextTemp();
+              this.ctx.emit(`${lenI64} = call i64 @strlen(i8* ${objPtr})`);
+              const lenI32 = this.ctx.nextTemp();
+              this.ctx.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
               const len = this.ctx.nextTemp();
               this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
               this.ctx.variableTypes.set(len, 'double');

@@ -14,8 +14,10 @@ export class Parser {
   private classes: ClassNode[] = [];
   private imports: ImportDeclaration[] = [];
   private exports: ExportDeclaration[] = [];
+  private interfaces: any[] = [];  // Interface definitions
   private topLevelStatements: VariableDeclaration[] = [];
   private topLevelExpressions: (CallNode | NewNode | MethodCallNode)[] = [];
+  private topLevelItems: any[] = [];  // Combined ordered list of all top-level statements and expressions
 
   constructor(code: string, filename: string = '<input>') {
     this.code = code;
@@ -167,6 +169,7 @@ export class Parser {
         const varDecl = this.parseVariableDeclaration();
         // Store top-level variable declarations in AST
         this.topLevelStatements.push(varDecl);
+        this.topLevelItems.push(varDecl);
         // Skip the semicolon if present
         this.skipWhitespace();
         if (this.code[this.pos] === ';') {
@@ -178,18 +181,22 @@ export class Parser {
         // Parse top-level for loop and store it
         const forStmt = this.parseForStatement();
         this.topLevelExpressions.push(forStmt as any);
+        this.topLevelItems.push(forStmt);
       } else if (this.match('while')) {
         // Parse top-level while loop and store it
         const whileStmt = this.parseWhileStatement();
         this.topLevelExpressions.push(whileStmt as any);
+        this.topLevelItems.push(whileStmt);
       } else if (this.match('if')) {
         // Parse top-level if statement and store it
         const ifStmt = this.parseIfStatement();
         this.topLevelExpressions.push(ifStmt as any);
+        this.topLevelItems.push(ifStmt);
       } else if (this.match('try')) {
         // Parse top-level try-catch and store it
         const tryStmt = this.parseTryStatement();
         this.topLevelExpressions.push(tryStmt as any);
+        this.topLevelItems.push(tryStmt);
       } else {
         // Try to parse as function call, new expression, or method call (entry point)
         const savedPos = this.pos;
@@ -203,6 +210,7 @@ export class Parser {
           // Add to top-level expressions if it's a call, new, or method call
           if (expr.type === 'call' || expr.type === 'new' || expr.type === 'method_call') {
             this.topLevelExpressions.push(expr as any);
+            this.topLevelItems.push(expr);
           }
         } catch (e) {
           // Re-throw intentional errors for unsupported features
@@ -226,8 +234,10 @@ export class Parser {
       functions: this.functions,
       classes: this.classes,
       exports: this.exports,
+      interfaces: this.interfaces,
       topLevelStatements: this.topLevelStatements,
-      topLevelExpressions: this.topLevelExpressions
+      topLevelExpressions: this.topLevelExpressions,
+      topLevelItems: this.topLevelItems
     };
   }
 
@@ -405,34 +415,54 @@ export class Parser {
   }
 
   private parseInterface(): void {
-    // Skip interface declarations (they're TypeScript-only and generate no runtime code)
+    // Parse interface declarations and store field metadata for JSON typing
     // interface Point { x: number; y: number; }
     const name = this.parseIdentifier();
     this.expect('{');
 
-    // Skip everything inside the interface until the closing brace
-    let braceDepth = 1;
-    while (this.pos < this.code.length && braceDepth > 0) {
+    const fields: { name: string; type: string }[] = [];
+
+    // Parse fields inside the interface
+    while (this.pos < this.code.length) {
       this.skipWhitespace();
-      if (this.code[this.pos] === '{') {
-        braceDepth++;
-        this.pos++;
-      } else if (this.code[this.pos] === '}') {
-        braceDepth--;
-        this.pos++;
-      } else if (this.code[this.pos] === ';') {
-        // Skip property declarations with semicolons
-        this.pos++;
-      } else if (this.code[this.pos] === ':') {
-        // Skip type annotations
-        this.pos++;
+      if (this.code[this.pos] === '}') {
+        break;
+      }
+
+      // Parse field name
+      const fieldName = this.parseIdentifier();
+      this.skipWhitespace();
+
+      if (this.code[this.pos] === ':') {
+        this.pos++; // consume ':'
         this.skipWhitespace();
+
+        // Parse field type
+        const typeStart = this.pos;
         this.skipTypeAnnotation();
+        const typeEnd = this.pos;
+        const fieldType = this.code.substring(typeStart, typeEnd).trim();
+
+        fields.push({ name: fieldName, type: fieldType });
+        this.skipWhitespace();
+
+        // Skip semicolon if present
+        if (this.code[this.pos] === ';') {
+          this.pos++;
+        }
+      } else if (this.code[this.pos] === ';') {
+        // Field without type annotation - skip
+        this.pos++;
       } else {
-        // Skip any other character (identifiers, keywords, etc.)
+        // Unknown syntax - skip
         this.pos++;
       }
     }
+
+    this.expect('}');
+
+    // Store the interface definition
+    this.interfaces.push({ name, fields });
   }
 
   /**
@@ -2041,6 +2071,7 @@ export class Parser {
       this.pos = savedPos;
       const varDecl = this.parseVariableDeclaration();
       this.topLevelStatements.push(varDecl);
+      this.topLevelItems.push(varDecl);
       // Skip semicolon if present
       this.skipWhitespace();
       if (this.code[this.pos] === ';') {
@@ -2325,13 +2356,20 @@ export class Parser {
           this.pos++; // consume '<'
           this.skipWhitespace();
 
-          // Try to parse as identifier
+          // Try to parse as identifier (base type)
           const startPos = this.pos;
           while (this.pos < this.code.length && /[a-zA-Z0-9_]/.test(this.code[this.pos])) {
             this.pos++;
           }
-          const potentialType = this.code.substring(startPos, this.pos);
+          let potentialType = this.code.substring(startPos, this.pos);
           this.skipWhitespace();
+
+          // Check for array syntax: Type[]
+          if (this.code[this.pos] === '[' && this.code[this.pos + 1] === ']') {
+            this.pos += 2; // consume '[]'
+            potentialType += '[]';
+            this.skipWhitespace();
+          }
 
           // Check if followed by '>' and then '('
           if (this.code[this.pos] === '>' && potentialType.length > 0) {
