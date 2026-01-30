@@ -46,12 +46,22 @@ export class VariableExpressionGenerator {
 
     // Check if it's an array variable (number or boolean array)
     if (this.ctx.symbolTable.isNumberArray(name)) {
-      return this.ctx.symbolTable.getAlloca(name)!;
+      const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
+      const llvmType = this.ctx.symbolTable.getType(name);
+      if (llvmType === '%Array*') {
+        return this.loadArray(allocaReg, '%Array*');
+      }
+      return allocaReg;
     }
 
     // Check if it's a string array variable
     if (this.ctx.symbolTable.isStringArray(name)) {
-      return this.ctx.symbolTable.getAlloca(name)!;
+      const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
+      const llvmType = this.ctx.symbolTable.getType(name);
+      if (llvmType === '%StringArray*') {
+        return this.loadArray(allocaReg, '%StringArray*');
+      }
+      return allocaReg;
     }
 
     // Check if it's a string variable
@@ -111,6 +121,13 @@ export class VariableExpressionGenerator {
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}`);
     this.ctx.variableTypes.set(temp, 'i8*');
+    return temp;
+  }
+
+  private loadArray(allocaReg: string, arrayType: string): string {
+    const temp = this.ctx.nextTemp();
+    this.ctx.emit(`${temp} = load ${arrayType}, ${arrayType}* ${allocaReg}`);
+    this.ctx.variableTypes.set(temp, arrayType);
     return temp;
   }
 

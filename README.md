@@ -298,6 +298,94 @@ Examples:
 
 **For AI agents/developers:** Use `--debug` or `--trace` when you need detailed compiler output for debugging or understanding compilation issues.
 
+## Autonomous Agent Development
+
+ChadScript includes an **autonomous debugging loop** that uses Claude AI to iteratively fix compiler bugs. Perfect for overnight development sessions where the agent continuously compiles, tests, diagnoses failures, and applies fixes.
+
+### Running the Agent Loop
+
+```bash
+# Terminal 1: Start the autonomous agent
+npm run agent-loop
+
+# Terminal 2: Monitor progress in real-time
+./scripts/monitor.sh
+```
+
+### Monitor Dashboard
+
+The monitor script shows a beautiful, non-flashing dashboard:
+
+```
+═══════════════════════════════════════════════════════════════
+           ChadScript Autonomous Agent Monitor
+═══════════════════════════════════════════════════════════════
+
+📊 DASHBOARD
+────────────────────────────────────────
+  Status:      running  |  Iteration: 5
+  Elapsed:     12 minutes
+  CLI Tests:   7/10
+  HTTP Tests:  0/5
+  Fixes:       3/5 successful
+  Updated:     2026-01-30T19:45:00.000Z
+
+🤖 CLAUDE STATUS
+────────────────────────────────────────
+  State:   fixing
+  Task:    Applying fix...
+  File:    src/codegen/expressions/index-access.ts
+
+🔧 CURRENT ERROR
+────────────────────────────────────────
+  Fix this ChadScript compiler error:
+  Category: llvm-ir
+  Error: type mismatch in phi node...
+
+📜 RECENT LOGS
+────────────────────────────────────────
+  [timestamp] CLI compilation succeeded!
+  [timestamp] Running test 7/10...
+```
+
+### Agent Loop Options
+
+```bash
+# Run with custom settings
+npm run agent-loop -- --max-iterations 50 --timeout 14400
+
+# Dry run (no actual fixes, just diagnosis)
+npm run agent-loop -- --dry-run
+
+# Options:
+#   --max-iterations N   Stop after N iterations (default: 100)
+#   --timeout N          Stop after N seconds (default: 28800 = 8 hours)
+#   --dry-run            Diagnose but don't call Claude to fix
+```
+
+### State Files
+
+The agent loop maintains state in `agent-state/`:
+
+| File | Description |
+|------|-------------|
+| `dashboard.json` | Current status (iteration, test counts, etc.) |
+| `claude-status.json` | What Claude is currently doing |
+| `current-error.txt` | The error being fixed |
+| `last-claude-command.txt` | Exact command sent to Claude |
+| `fix-history.json` | All attempted fixes and outcomes |
+| `checkpoint-N.json` | Periodic snapshots for recovery |
+
+### How It Works
+
+1. **Compile** test programs (`cli-program.ts`, `http-program.ts`)
+2. **Diagnose** failures (LLVM IR errors, segfaults, wrong output)
+3. **Call Claude** with detailed error context
+4. **Claude fixes** the compiler source code
+5. **Re-test** and repeat until all tests pass
+
+The agent automatically handles crash recovery and checkpointing.
+
 ## Architecture
 
 ```

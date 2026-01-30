@@ -357,7 +357,8 @@ export class SymbolTable {
    */
   getObjectInfo(name: string): { ptr: string; keys: string[]; types: string[] } | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol?.kind === SymbolKind.Object && symbol.objectMetadata) {
+    // Support both Object and JSON kinds (JSON.parse results store metadata like objects)
+    if ((symbol?.kind === SymbolKind.Object || symbol?.kind === SymbolKind.JSON) && symbol.objectMetadata) {
       return {
         ptr: symbol.allocaRegister,
         keys: symbol.objectMetadata.keys,

@@ -240,6 +240,13 @@ export interface AST {
   functions: FunctionNode[];
   classes: ClassNode[];
   exports: ExportDeclaration[];
+  interfaces: InterfaceDeclaration[];  // Interface definitions for JSON typing
   topLevelStatements: VariableDeclaration[];  // Top-level const/let declarations
   topLevelExpressions: (CallNode | NewNode | MethodCallNode)[];  // Top-level expressions (console.log, etc.)
+  topLevelItems?: any[];  // Combined ordered list of all top-level statements and expressions
+}
+
+export interface InterfaceDeclaration {
+  name: string;
+  fields: { name: string; type: string }[];  // e.g., [{ name: 'age', type: 'number' }, { name: 'name', type: 'string' }]
 }

@@ -11,7 +11,11 @@
     "compile": "tsx src/index.ts",
     "build": "tsc",
     "test": "node scripts/test.js",
-    "test:verbose": "node --import tsx --test --test-reporter=spec tests/**/*.test.ts"
+    "test:verbose": "node --import tsx --test --test-reporter=spec tests/**/*.test.ts",
+    "agent-loop": "node --import tsx scripts/agent-loop.ts",
+    "cli-tests": "node --import tsx tools/run-cli-tests.ts",
+    "http-tests": "node --import tsx tools/run-http-tests.ts",
+    "check-progress": "node --import tsx scripts/check-progress.ts"
   },
   "keywords": [
     "compiler",
@@ -26,5 +30,8 @@
     "ts-node": "^10.9.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
   }
 }

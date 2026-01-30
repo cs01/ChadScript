@@ -8,6 +8,10 @@ import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
 import { LogLevel, logger } from './utils/logger.js';
 
+// External library paths
+const BDWGC_PATH = '/data/users/cssmith/git/bdwgc';
+const MONGOOSE_PATH = '/data/users/cssmith/git/mongoose';
+
 // ============================================
 // MAIN COMPILER DRIVER
 // ============================================
@@ -102,9 +106,19 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const llcStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(llcCmd, { stdio: llcStdio });
 
-  // Link to executable
-  const linkCmd = `${useClang ? 'clang' : 'gcc'} ${objFile} -o ${outputFile} -no-pie -lcurl -lcjson -lm`;
-  logger.info(` "${linkerPath}" ${objFile} -o ${outputFile} -no-pie -lcurl -lcjson -lm`);
+  // Link to executable with all required libraries
+  // - libgc: Boehm garbage collector (replaces malloc)
+  // - mongoose: HTTP server (compiled object file)
+  // - libcurl: HTTP client (fetch API)
+  // - libcjson: JSON parsing
+  // - libm: Math functions
+  const mongooseObj = `${MONGOOSE_PATH}/mongoose.o`;
+  const gcLib = `${BDWGC_PATH}/libgc.a`;
+
+  // Build link command with all libraries
+  const linkLibs = `-L${BDWGC_PATH} -lgc -lcurl -lcjson -lm -lpthread`;
+  const linkCmd = `${useClang ? 'clang' : 'gcc'} ${objFile} ${mongooseObj} -o ${outputFile} -no-pie ${linkLibs}`;
+  logger.info(` "${linkerPath}" ${objFile} ${mongooseObj} -o ${outputFile} -no-pie ${linkLibs}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });
 
@@ -146,8 +160,10 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, display
     functions: ast.functions.slice(),
     classes: ast.classes.slice(),
     exports: ast.exports.slice(),
+    interfaces: ast.interfaces.slice(),
     topLevelStatements: ast.topLevelStatements.slice(),
-    topLevelExpressions: ast.topLevelExpressions.slice()
+    topLevelExpressions: ast.topLevelExpressions.slice(),
+    topLevelItems: ast.topLevelItems?.slice() || []
   };
 
   // Process imports - recursively compile imported files
@@ -183,6 +199,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, display
     // Merge functions, classes, and top-level statements from imported file
     mergedAST.functions = mergedAST.functions.concat(importedAST.functions);
     mergedAST.classes = mergedAST.classes.concat(importedAST.classes);
+    mergedAST.interfaces = mergedAST.interfaces.concat(importedAST.interfaces);
     mergedAST.topLevelStatements = mergedAST.topLevelStatements.concat(importedAST.topLevelStatements);
     i = i + 1;
   }
