@@ -210,6 +210,13 @@ export class LLVMGenerator extends BaseGenerator {
     ir += 'declare i8* @malloc(i64)\n';
     ir += 'declare i8* @calloc(i64, i64)\n';
     ir += 'declare void @free(i8*)\n';
+
+    // Boehm GC (libgc) declarations for automatic memory management
+    ir += '; Boehm GC - automatic garbage collection\n';
+    ir += 'declare void @GC_init()\n';
+    ir += 'declare i8* @GC_malloc(i64)\n';
+    ir += 'declare i8* @GC_malloc_atomic(i64)\n';
+    ir += 'declare i8* @GC_realloc(i8*, i64)\n';
     ir += 'declare i8* @strcpy(i8*, i8*)\n';
     ir += 'declare i8* @strcat(i8*, i8*)\n';
     ir += 'declare i8* @strdup(i8*)\n';
@@ -442,6 +449,10 @@ export class LLVMGenerator extends BaseGenerator {
             paramTypes.push(paramType);
             if (paramType === 'string') {
               paramLLVMTypes.push('i8*');
+            } else if (paramType === 'string[]') {
+              paramLLVMTypes.push('%StringArray*');
+            } else if (paramType === 'number[]' || paramType === 'boolean[]') {
+              paramLLVMTypes.push('%Array*');
             } else if (paramType !== 'number' && paramType !== 'boolean') {
               // Object/interface type - use i32 for object pointer
               paramLLVMTypes.push('i32');
@@ -486,6 +497,16 @@ export class LLVMGenerator extends BaseGenerator {
         this.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
         this.emit(`${allocaReg} = alloca i8*`);
         this.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
+      } else if (llvmType === '%StringArray*') {
+        // String array parameter
+        this.defineVariable(paramName, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
+        this.emit(`${allocaReg} = alloca %StringArray*`);
+        this.emit(`store %StringArray* %arg${i}, %StringArray** ${allocaReg}`);
+      } else if (llvmType === '%Array*') {
+        // Number/boolean array parameter
+        this.defineVariable(paramName, allocaReg, '%Array*', SymbolKind.Array, 'local');
+        this.emit(`${allocaReg} = alloca %Array*`);
+        this.emit(`store %Array* %arg${i}, %Array** ${allocaReg}`);
       } else if (llvmType === 'i32') {
         // Object/interface parameter (pointer stored as i32)
         this.defineVariable(paramName, allocaReg, 'i32', SymbolKind.Object, 'local');
@@ -633,11 +654,51 @@ export class LLVMGenerator extends BaseGenerator {
       this.emit(`store %Response* ${responsePtr}, %Response** ${allocaReg}`);
     } else if (isJSONObject) {
       const allocaReg = this.nextTemp();
-      this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local');
-      this.emit(`${allocaReg} = alloca i8*`);
 
-      const jsonPtr = this.generateExpression(stmt.value, params);
-      this.emit(`store i8* ${jsonPtr}, i8** ${allocaReg}`);
+      // Check if this is a typed JSON.parse<T>() call
+      const interfaceName = this.getJSONParseInterface(stmt.value);
+      if (!interfaceName) {
+        throw new Error(
+          this.formatCodegenError(
+            'JSON.parse() requires a type parameter. This should have been caught by the parser.\n' +
+            'Use: JSON.parse<InterfaceName>(jsonString)'
+          )
+        );
+      }
+
+      // Check if type parameter matches an interface definition
+      const interfaceDef = this.ast.interfaces?.find(iface => iface.name === interfaceName);
+
+      if (!interfaceDef) {
+        // Not an interface - treat as primitive/array type literal (number, string, boolean, number[], etc.)
+        // These don't have object metadata, just parse as raw JSON
+        this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local');
+        this.emit(`${allocaReg} = alloca i8*`);
+        const jsonPtr = this.generateExpression(stmt.value, params);
+        this.emit(`store i8* ${jsonPtr}, i8** ${allocaReg}`);
+      } else {
+        // Interface type - use field metadata for property access
+        // Convert TypeScript types to LLVM types for metadata
+        const keys = interfaceDef.fields.map((f: any) => f.name);
+        const types = interfaceDef.fields.map((f: any) => {
+          const tsType = f.type;
+          if (tsType === 'string') return 'i8*';
+          if (tsType === 'number') return 'double';
+          if (tsType === 'boolean') return 'double';
+          if (tsType === 'string[]') return '%StringArray*';
+          if (tsType === 'number[]') return '%Array*';
+          // For nested objects, return i8* (JSON pointer)
+          return 'i8*';
+        });
+
+        this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local', {
+          objectMetadata: { keys, types }
+        });
+
+        this.emit(`${allocaReg} = alloca i8*`);
+        const jsonPtr = this.generateExpression(stmt.value, params);
+        this.emit(`store i8* ${jsonPtr}, i8** ${allocaReg}`);
+      }
     } else if (isObject) {
       const allocaReg = this.nextTemp();
       const metadata = this.getObjectMetadata(stmt.value as any);
@@ -1005,45 +1066,46 @@ export class LLVMGenerator extends BaseGenerator {
       // Branch based on condition
       this.emit(`br i1 ${condBool}, label %${trueLabel}, label %${falseLabel}`);
 
-      // True branch
+      // True branch - generate expression but don't emit branch yet
       this.emit(`${trueLabel}:`);
-      const trueValue = this.generateExpression(conditionalExpr.consequent, params);
-      // Track where we are after generating consequent (might have jumped to other blocks)
+      let trueValue = this.generateExpression(conditionalExpr.consequent, params);
+      const trueType = this.getVariableType(trueValue);
       const trueLabelEnd = this.getCurrentLabel();
+      const trueBranchPos = this.output.length;
       this.emit(`br label %${mergeLabel}`);
 
-      // False branch
+      // False branch - generate expression but don't emit branch yet
       this.emit(`${falseLabel}:`);
-      const falseValue = this.generateExpression(conditionalExpr.alternate, params);
-      // Track where we are after generating alternate (might have jumped to other blocks)
+      let falseValue = this.generateExpression(conditionalExpr.alternate, params);
+      const falseType = this.getVariableType(falseValue);
       const falseLabelEnd = this.getCurrentLabel();
+      const falseBranchPos = this.output.length;
       this.emit(`br label %${mergeLabel}`);
-
-      // Merge point with phi node
-      this.emit(`${mergeLabel}:`);
-      const result = this.nextTemp();
 
       // Determine the result type - use double if either value is double
-      const trueType = this.getVariableType(trueValue);
-      const falseType = this.getVariableType(falseValue);
       const resultType = (trueType === 'double' || falseType === 'double') ? 'double' : 'i32';
 
-      // Convert values to match result type if needed
+      // If we need type conversions, insert them before the branch instructions
       let trueVal = trueValue;
       let falseVal = falseValue;
 
       if (resultType === 'double') {
-        // Convert i32 values to double
         if (trueType === 'i32') {
           trueVal = this.nextTemp();
-          this.emit(`${trueVal} = sitofp i32 ${trueValue} to double`);
+          const convInstr = `  ${trueVal} = sitofp i32 ${trueValue} to double`;
+          this.output.splice(trueBranchPos, 0, convInstr);
         }
         if (falseType === 'i32') {
+          const insertPos = trueType === 'i32' ? falseBranchPos + 1 : falseBranchPos;
           falseVal = this.nextTemp();
-          this.emit(`${falseVal} = sitofp i32 ${falseValue} to double`);
+          const convInstr = `  ${falseVal} = sitofp i32 ${falseValue} to double`;
+          this.output.splice(insertPos, 0, convInstr);
         }
       }
 
+      // Merge point with phi node
+      this.emit(`${mergeLabel}:`);
+      const result = this.nextTemp();
       this.emit(`${result} = phi ${resultType} [ ${trueVal}, %${trueLabelEnd} ], [ ${falseVal}, %${falseLabelEnd} ]`);
       this.variableTypes.set(result, resultType);
 
@@ -1450,8 +1512,10 @@ export class LLVMGenerator extends BaseGenerator {
         throw new Error(`charAt() expects 1 argument, got ${expr.args.length}`);
       }
 
-      const index = this.generateExpression(expr.args[0], params);
-      return this.stringGen.generateCharAt(strPtr, index);
+      const indexDouble = this.generateExpression(expr.args[0], params);
+      const indexI32 = this.nextTemp();
+      this.emit(`${indexI32} = fptosi double ${indexDouble} to i32`);
+      return this.stringGen.generateCharAt(strPtr, indexI32);
     }
 
     // Handle Map methods
@@ -1970,6 +2034,18 @@ export class LLVMGenerator extends BaseGenerator {
     return null;
   }
 
+  private getJSONParseInterface(expr: any): string | null {
+    // Check for JSON.parse<T>() method call
+    if (expr.type === 'method_call' &&
+        expr.method === 'parse' &&
+        expr.object?.type === 'variable' &&
+        expr.object?.name === 'JSON' &&
+        expr.typeParameter) {
+      return expr.typeParameter;
+    }
+    return null;
+  }
+
   private isJSONParseExpression(expr: Expression): boolean {
     // Check if this is a JSON.parse() call
     if (expr.type === 'method_call') {
@@ -2037,6 +2113,11 @@ export class LLVMGenerator extends BaseGenerator {
   private generateMain(): string {
     let ir = 'define i32 @main(i32 %argc, i8** %argv) {\n';
     ir += 'entry:\n';
+
+    // Initialize Boehm GC - must be first thing in main
+    ir += '  ; Initialize garbage collector\n';
+    ir += '  call void @GC_init()\n';
+    ir += '\n';
 
     // Store argc and argv in global variables for process.argv
     ir += '  store i32 %argc, i32* @__argc\n';
