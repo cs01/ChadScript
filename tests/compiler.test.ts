@@ -543,7 +543,7 @@ describe('ChadScript Compiler', () => {
 
         try {
           // Compile the fixture (no console.log to avoid parallel output issues)
-          await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+          await execAsync(`node dist/index.js ${fixturePath}`);
 
           // Verify LLVM IR was generated
           assert.ok(
@@ -624,7 +624,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+        await execAsync(`node dist/index.js ${fixturePath}`);
 
         // Read and verify LLVM IR
         const llContent = await fs.readFile(llFile, 'utf-8');
@@ -656,7 +656,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+        await execAsync(`node dist/index.js ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -689,7 +689,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+        await execAsync(`node dist/index.js ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -724,7 +724,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+        await execAsync(`node dist/index.js ${fixturePath}`);
 
         // Run and capture output
         const { stdout, stderr } = await execAsync(`./${exeFile}`);
@@ -755,7 +755,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+        await execAsync(`node dist/index.js ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -782,7 +782,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+        await execAsync(`node dist/index.js ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -809,7 +809,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+        await execAsync(`node dist/index.js ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -838,7 +838,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`npx tsx src/index.ts ${fixturePath}`);
+        await execAsync(`node dist/index.js ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -863,7 +863,7 @@ describe('ChadScript Compiler', () => {
   describe('Error Handling', () => {
     it('should handle missing input file', async () => {
       await assert.rejects(async () => {
-        await execAsync('npx tsx src/index.ts nonexistent.js');
+        await execAsync('node dist/index.js nonexistent.js');
       }, 'Should throw error for missing file');
     });
   });

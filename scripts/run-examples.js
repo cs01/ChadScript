@@ -59,7 +59,7 @@ async function runCommand(cmd, args, options = {}) {
 
 async function compileExample(file) {
   const sourcePath = join(EXAMPLES_DIR, file);
-  const result = await runCommand('npx', ['tsx', 'src/index.ts', sourcePath], {
+  const result = await runCommand('node', ['dist/index.js', sourcePath], {
     timeout: 60000,
   });
   return result;

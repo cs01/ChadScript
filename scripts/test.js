@@ -1,11 +1,21 @@
 #!/usr/bin/env node
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 
-// Get arguments passed after 'npm test --'
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.resolve(__dirname, '..');
+
+console.log('Building compiler...');
+try {
+  execSync('npm run build', { cwd: projectRoot, stdio: 'inherit' });
+} catch (error) {
+  console.error('Build failed');
+  process.exit(1);
+}
+
 const args = process.argv.slice(2);
 
-// If no arguments provided, run all tests with glob pattern
-// Otherwise, run specific test files
 const testPattern = args.length === 0 ? ['tests/**/*.test.ts'] : args;
 
 const nodeArgs = ['--import', 'tsx', '--test', ...testPattern];

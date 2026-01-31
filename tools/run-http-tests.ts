@@ -44,7 +44,7 @@ function compileHttpProgram(): { success: boolean; binaryPath: string; error?: s
   console.log('Compiling HTTP program...');
 
   try {
-    execSync(`npx tsx src/index.ts ${sourceFile}`, {
+    execSync(`node dist/index.js ${sourceFile}`, {
       cwd: PROJECT_ROOT,
       stdio: 'pipe',
       encoding: 'utf8',

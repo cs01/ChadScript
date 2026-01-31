@@ -631,7 +631,7 @@ export class Parser {
 
     this.expect('{');
 
-    const fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] = [];
+    const fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[] = [];
     const methods: ClassMethod[] = [];
 
     while (true) {
@@ -656,7 +656,7 @@ export class Parser {
         this.skipWhitespace();
 
         // Parse type
-        let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' = 'double';
+        let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' = 'double';
 
         if (this.match('string')) {
           // Check if it's an array type (string[])
@@ -2168,7 +2168,7 @@ export class Parser {
 
       this.expect('{');
 
-      const fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] = [];
+      const fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[] = [];
       const methods: ClassMethod[] = [];
       this.skipWhitespace();
       while (this.code[this.pos] !== '}') {
@@ -2188,7 +2188,7 @@ export class Parser {
           this.skipWhitespace();
 
           // Parse type
-          let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' = 'double';
+          let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' = 'double';
           if (this.match('string')) {
             // Check if it's an array type (string[])
             this.skipWhitespace();

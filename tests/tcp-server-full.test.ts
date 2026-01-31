@@ -46,7 +46,7 @@ testBind();
 
     try {
       // Compile
-      await execAsync(`npx tsx src/index.ts ${testFile}`);
+      await execAsync(`node dist/index.js ${testFile}`);
 
       // Run
       const { stdout } = await execAsync('.build/tests/fixtures/tcp-bind-test');
@@ -129,7 +129,7 @@ testAllSyscalls();
 
     try {
       // Compile
-      await execAsync(`npx tsx src/index.ts ${testFile}`);
+      await execAsync(`node dist/index.js ${testFile}`);
 
       // Run
       const { stdout } = await execAsync('.build/tests/fixtures/tcp-syscalls-test');
@@ -229,7 +229,7 @@ testHttpHandler();
 
     try {
       // Compile
-      await execAsync(`npx tsx src/index.ts ${testFile}`);
+      await execAsync(`node dist/index.js ${testFile}`);
 
       // Run
       const { stdout } = await execAsync('.build/tests/fixtures/http-handler-test');
