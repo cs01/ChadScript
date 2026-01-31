@@ -26,6 +26,7 @@ export function createStringConstant(this: BaseGenerator, value: string): string
   this.emit(
     `${ptrReg} = getelementptr inbounds [${length} x i8], [${length} x i8]* ${globalName}, i64 0, i64 0`
   );
+  this.variableTypes.set(ptrReg, 'i8*');
   return ptrReg;
 }
 
