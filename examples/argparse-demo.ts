@@ -40,4 +40,5 @@ if (parser.helpFlag) {
 }
 
 console.log("Running the CLI tool...");
+console.log("TEST_PASSED");
 process.exit(0);

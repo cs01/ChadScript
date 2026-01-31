@@ -29,3 +29,10 @@ console.log("After enable:");
 console.log(flags.isEnabled());
 console.log("Count:");
 console.log(flags.count);
+
+if (flags.isEnabled() === 1) {
+  console.log("TEST_PASSED");
+} else {
+  console.log("TEST_FAILED");
+  process.exit(1);
+}
