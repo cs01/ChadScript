@@ -133,6 +133,15 @@ export class MethodCallGenerator {
         if (method === 'text') {
           return this.ctx.responseGen.generateText(responsePtr);
         } else if (method === 'json') {
+          // Check for typed JSON parsing with generics: .json<TypeName>()
+          if ((expr as any).typeParameter && this.ctx.typeChecker) {
+            const typeName = (expr as any).typeParameter;
+            const interfaceDef = this.ctx.typeChecker.getInterfaceDefinition(typeName);
+            if (interfaceDef) {
+              return this.ctx.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef);
+            }
+          }
+          // Fall back to untyped JSON parsing
           return this.ctx.responseGen.generateJson(responsePtr);
         }
       } catch (e) {
@@ -257,7 +266,7 @@ export class MethodCallGenerator {
 
     // Call system: system(command) returns exit code
     const result = this.nextTemp();
-    this.emit(`\${result} = call i32 @system(i8* \${commandPtr})`);
+    this.emit(`${result} = call i32 @system(i8* ${commandPtr})`);
 
     return result;
   }
@@ -278,16 +287,16 @@ export class MethodCallGenerator {
       // For strings, we need to add quotes: "value"
       // Calculate: 2 (quotes) + strlen + 1 (null) = strlen + 3
       const strLen = this.nextTemp();
-      this.emit(`\${strLen} = call i64 @strlen(i8* \${strPtr})`);
+      this.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
       const bufferSize = this.nextTemp();
-      this.emit(`\${bufferSize} = add i64 \${strLen}, 3`);
+      this.emit(`${bufferSize} = add i64 ${strLen}, 3`);
       const buffer = this.nextTemp();
-      this.emit(`\${buffer} = call i8* @GC_malloc_atomic(i64 \${bufferSize})`);
+      this.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
 
       // Create format string: "\"%s\""
       const formatStr = this.ctx.stringGen.createStringConstant('"%s"');
       const sprintfResult = this.nextTemp();
-      this.emit(`\${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* \${buffer}, i8* \${formatStr}, i8* \${strPtr})`);
+      this.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, i8* ${strPtr})`);
 
       return buffer;
     } else {
@@ -296,12 +305,12 @@ export class MethodCallGenerator {
 
       // Allocate buffer for number string (30 chars should be enough for double)
       const buffer = this.nextTemp();
-      this.emit(`\${buffer} = call i8* @GC_malloc_atomic(i64 30)`);
+      this.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 30)`);
 
       // Create format string: "%f"
       const formatStr = this.ctx.stringGen.createStringConstant('%f');
       const sprintfResult = this.nextTemp();
-      this.emit(`\${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* \${buffer}, i8* \${formatStr}, double \${numValue})`);
+      this.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${numValue})`);
 
       return buffer;
     }
@@ -312,7 +321,7 @@ export class MethodCallGenerator {
     const regexPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length !== 1) {
-      throw new Error(`test() expects 1 argument, got \${expr.args.length}`);
+      throw new Error(`test() expects 1 argument, got ${expr.args.length}`);
     }
 
     const testStr = this.ctx.generateExpression(expr.args[0], params);
@@ -324,7 +333,7 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length < 1 || expr.args.length > 2) {
-      throw new Error(`substr() expects 1 or 2 arguments, got \${expr.args.length}`);
+      throw new Error(`substr() expects 1 or 2 arguments, got ${expr.args.length}`);
     }
 
     const startIndexDouble = this.ctx.generateExpression(expr.args[0], params);
@@ -339,7 +348,7 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length < 1 || expr.args.length > 2) {
-      throw new Error(`substring() expects 1 or 2 arguments, got \${expr.args.length}`);
+      throw new Error(`substring() expects 1 or 2 arguments, got ${expr.args.length}`);
     }
 
     const startIndexDouble = this.ctx.generateExpression(expr.args[0], params);
@@ -350,7 +359,7 @@ export class MethodCallGenerator {
       const endIndexDouble = this.ctx.generateExpression(expr.args[1], params);
       const endIndex = this.convertToI32(endIndexDouble);
       length = this.nextTemp();
-      this.emit(`\${length} = sub i32 \${endIndex}, \${startIndex}`);
+      this.emit(`${length} = sub i32 ${endIndex}, ${startIndex}`);
     }
 
     return this.ctx.stringGen.generateSubstr(strPtr, startIndex, length);
@@ -361,7 +370,7 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length < 1) {
-      throw new Error(`concat() expects at least 1 argument, got \${expr.args.length}`);
+      throw new Error(`concat() expects at least 1 argument, got ${expr.args.length}`);
     }
 
     let result = strPtr;
@@ -378,7 +387,7 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length !== 1) {
-      throw new Error(`repeat() expects 1 argument, got \${expr.args.length}`);
+      throw new Error(`repeat() expects 1 argument, got ${expr.args.length}`);
     }
 
     const countDouble = this.ctx.generateExpression(expr.args[0], params);
@@ -391,7 +400,7 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length < 1 || expr.args.length > 2) {
-      throw new Error(`padStart() expects 1 or 2 arguments, got \${expr.args.length}`);
+      throw new Error(`padStart() expects 1 or 2 arguments, got ${expr.args.length}`);
     }
 
     const targetLengthDouble = this.ctx.generateExpression(expr.args[0], params);
@@ -408,7 +417,7 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length !== 1) {
-      throw new Error(`split() expects 1 argument, got \${expr.args.length}`);
+      throw new Error(`split() expects 1 argument, got ${expr.args.length}`);
     }
 
     const delimiter = this.ctx.generateExpression(expr.args[0], params);
@@ -420,7 +429,7 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length !== 1) {
-      throw new Error(`startsWith() expects 1 argument, got \${expr.args.length}`);
+      throw new Error(`startsWith() expects 1 argument, got ${expr.args.length}`);
     }
 
     const prefix = this.ctx.generateExpression(expr.args[0], params);
@@ -432,7 +441,7 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length !== 0) {
-      throw new Error(`trim() expects 0 arguments, got \${expr.args.length}`);
+      throw new Error(`trim() expects 0 arguments, got ${expr.args.length}`);
     }
 
     return this.ctx.stringGen.generateTrim(strPtr);
@@ -443,7 +452,7 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length !== 1) {
-      throw new Error(`indexOf() expects 1 argument, got \${expr.args.length}`);
+      throw new Error(`indexOf() expects 1 argument, got ${expr.args.length}`);
     }
 
     const substring = this.ctx.generateExpression(expr.args[0], params);
@@ -455,7 +464,7 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length !== 1) {
-      throw new Error(`includes() expects 1 argument, got \${expr.args.length}`);
+      throw new Error(`includes() expects 1 argument, got ${expr.args.length}`);
     }
 
     const substring = this.ctx.generateExpression(expr.args[0], params);
@@ -467,18 +476,18 @@ export class MethodCallGenerator {
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length < 1 || expr.args.length > 2) {
-      throw new Error(`slice() expects 1 or 2 arguments, got \${expr.args.length}`);
+      throw new Error(`slice() expects 1 or 2 arguments, got ${expr.args.length}`);
     }
 
     const startDouble = this.ctx.generateExpression(expr.args[0], params);
     const startI32 = this.nextTemp();
-    this.emit(`\${startI32} = fptosi double \${startDouble} to i32`);
+    this.emit(`${startI32} = fptosi double ${startDouble} to i32`);
 
     let endI32: string | null = null;
     if (expr.args.length === 2) {
       const endDouble = this.ctx.generateExpression(expr.args[1], params);
       endI32 = this.nextTemp();
-      this.emit(`\${endI32} = fptosi double \${endDouble} to i32`);
+      this.emit(`${endI32} = fptosi double ${endDouble} to i32`);
     }
 
     return this.ctx.stringGen.generateSlice(strPtr, startI32, endI32);
@@ -520,7 +529,7 @@ export class MethodCallGenerator {
         c.methods.some((m: any) => m.name === method && !m.isConstructor)
       );
       if (!classWithMethod) {
-        throw new Error(`Method \${method} not found in any class`);
+        throw new Error(`Method ${method} not found in any class`);
       }
       className = classWithMethod.name;
     } else if ((expr.object as any).type === 'super') {
@@ -532,7 +541,7 @@ export class MethodCallGenerator {
       }
       const currentClass = this.ctx.ast.classes.find((c: any) => c.name === this.ctx.currentClassName);
       if (!currentClass || !currentClass.extends) {
-        throw new Error(`super.method() called but current class \${this.ctx.currentClassName} has no parent class`);
+        throw new Error(`super.method() called but current class ${this.ctx.currentClassName} has no parent class`);
       }
       instancePtr = this.ctx.thisPointer;
       className = currentClass.extends;
@@ -545,11 +554,11 @@ export class MethodCallGenerator {
     if (className && instancePtr) {
       const classNode = this.ctx.ast.classes.find((c: any) => c.name === className);
       if (!classNode) {
-        throw new Error(`Class \${className} not found`);
+        throw new Error(`Class ${className} not found`);
       }
       const methodExists = classNode.methods.some((m: any) => m.name === method && !m.isConstructor);
       if (!methodExists) {
-        throw new Error(`Method \${method} not found in class \${className}`);
+        throw new Error(`Method ${method} not found in class ${className}`);
       }
 
       this.ctx.syncStateToGenerators();
@@ -577,7 +586,7 @@ export class MethodCallGenerator {
 
     const funcExists = this.ctx.ast.functions.some((f: any) => f.name === method);
     if (!funcExists) {
-      throw new Error(`Function \${method} not found for object method call`);
+      throw new Error(`Function ${method} not found for object method call`);
     }
 
     // Get function type from type checker for correct parameter/return types
@@ -600,11 +609,11 @@ export class MethodCallGenerator {
     const args = expr.args.map((arg, i) => {
       const result = this.ctx.generateExpression(arg, params);
       const paramType = paramTypes[i] || 'double';
-      return `\${paramType} \${result}`;
+      return `${paramType} ${result}`;
     }).join(', ');
 
     const temp = this.nextTemp();
-    this.emit(`\${temp} = call \${returnType} @\${method}(\${args})`);
+    this.emit(`${temp} = call ${returnType} @${method}(${args})`);
     return temp;
   }
 
@@ -632,19 +641,19 @@ export class MethodCallGenerator {
     ];
 
     const suggestion =
-      `\\x1b[33mSupported methods:\\x1b[0m\\n\\n` +
-      `\\x1b[36mString methods:\\x1b[0m\\n  \${stringMethods.join(', ')}\\n\\n` +
-      `\\x1b[36mArray methods:\\x1b[0m\\n  \${arrayMethods.join(', ')}\\n\\n` +
-      `\\x1b[36mMap methods:\\x1b[0m\\n  \${mapMethods.join(', ')}\\n\\n` +
-      `\\x1b[36mSet methods:\\x1b[0m\\n  \${setMethods.join(', ')}\\n\\n` +
-      `\\x1b[36mOther built-in methods:\\x1b[0m\\n  \${otherMethods.join(', ')}\\n\\n` +
-      `\\x1b[33mIf you need '\${method}', consider:\\x1b[0m\\n` +
-      `  • Using a similar method from the list above\\n` +
-      `  • Implementing it using supported operations\\n` +
+      `\x1b[33mSupported methods:\x1b[0m\n\n` +
+      `\x1b[36mString methods:\x1b[0m\n  ${stringMethods.join(', ')}\n\n` +
+      `\x1b[36mArray methods:\x1b[0m\n  ${arrayMethods.join(', ')}\n\n` +
+      `\x1b[36mMap methods:\x1b[0m\n  ${mapMethods.join(', ')}\n\n` +
+      `\x1b[36mSet methods:\x1b[0m\n  ${setMethods.join(', ')}\n\n` +
+      `\x1b[36mOther built-in methods:\x1b[0m\n  ${otherMethods.join(', ')}\n\n` +
+      `\x1b[33mIf you need '${method}', consider:\x1b[0m\n` +
+      `  • Using a similar method from the list above\n` +
+      `  • Implementing it using supported operations\n` +
       `  • Opening an issue: https://github.com/your-repo/issues`;
 
     throw new Error(this.ctx.formatCodegenError(
-      `Method '\${method}' is not supported yet.`,
+      `Method '${method}' is not supported yet.`,
       suggestion
     ));
   }
