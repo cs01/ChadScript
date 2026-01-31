@@ -130,13 +130,10 @@ export class VariableExpressionGenerator {
   }
 
   private loadObject(objectMeta: any): string {
-    // Load object pointer
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = load i8*, i8** ${objectMeta.ptr}`);
-    // Convert pointer to i32 for passing as argument
-    const asInt = this.ctx.nextTemp();
-    this.ctx.emit(`${asInt} = ptrtoint i8* ${temp} to i32`);
-    return asInt;
+    this.ctx.variableTypes.set(temp, 'i8*');
+    return temp;
   }
 
   private loadRegularVariable(name: string, allocaReg: string): string {

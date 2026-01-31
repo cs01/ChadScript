@@ -26,7 +26,10 @@ export class ControlFlowGenerator {
     // Check if value is a double or i32 based on variable types
     const valueType = this.ctx.getVariableType(value);
 
-    if (valueType === 'double' || (value.includes('.') && !value.startsWith('%'))) {
+    if (valueType === 'i1') {
+      // Value is already a boolean (i1), use it directly
+      return value;
+    } else if (valueType === 'double' || (value.includes('.') && !value.startsWith('%'))) {
       // Value is a double, use fcmp
       const condBool = this.nextTemp();
       this.emit(`${condBool} = fcmp one double ${value}, 0.0`);
