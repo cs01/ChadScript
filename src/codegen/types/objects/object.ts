@@ -68,7 +68,7 @@ export class ObjectGenerator {
 
     // Allocate struct on heap
     const objMem = this.nextTemp();
-    this.emit(`${objMem} = call i8* @malloc(i64 ${structSizeBytes})`);
+    this.emit(`${objMem} = call i8* @GC_malloc(i64 ${structSizeBytes})`);
 
     // Cast to struct pointer (we'll use inline struct type)
     const structType = `{ ${structFields} }`;

@@ -1394,7 +1394,7 @@ export class LLVMGenerator extends BaseGenerator {
         const bufferSize = this.nextTemp();
         this.emit(`${bufferSize} = add i64 ${strLen}, 3`);
         const buffer = this.nextTemp();
-        this.emit(`${buffer} = call i8* @malloc(i64 ${bufferSize})`);
+        this.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
 
         // Create format string: "\"%s\""
         const formatStr = this.stringGen.createStringConstant('"%s"');
@@ -1408,7 +1408,7 @@ export class LLVMGenerator extends BaseGenerator {
 
         // Allocate buffer for number string (30 chars should be enough for double)
         const buffer = this.nextTemp();
-        this.emit(`${buffer} = call i8* @malloc(i64 30)`);
+        this.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 30)`);
 
         // Create format string: "%f"
         const formatStr = this.stringGen.createStringConstant('%f');

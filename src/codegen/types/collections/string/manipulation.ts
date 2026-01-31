@@ -49,7 +49,7 @@ export function generateSubstr(this: BaseGenerator, strPtr: string, startIndex: 
   this.emit(`${allocLen} = add i64 ${finalLenI64}, 1`);
 
   const resultPtr = this.nextTemp();
-  this.emit(`${resultPtr} = call i8* @malloc(i64 ${allocLen})`);
+  this.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 ${allocLen})`);
 
   // Calculate source pointer (strPtr + start)
   const startI64 = this.nextTemp();
@@ -87,7 +87,7 @@ export function generateRepeat(this: BaseGenerator, strPtr: string, count: strin
   this.emit(`${allocLen} = add i64 ${totalLen}, 1`);
 
   const resultPtr = this.nextTemp();
-  this.emit(`${resultPtr} = call i8* @malloc(i64 ${allocLen})`);
+  this.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 ${allocLen})`);
 
   // Initialize result to empty string
   this.emit(`store i8 0, i8* ${resultPtr}`);
@@ -163,7 +163,7 @@ export function generatePadStart(this: BaseGenerator, strPtr: string, targetLeng
   const allocLen1 = this.nextTemp();
   this.emit(`${allocLen1} = add i64 ${targetLenI64NoPad}, 1`);
   const noPadResult = this.nextTemp();
-  this.emit(`${noPadResult} = call i8* @malloc(i64 ${allocLen1})`);
+  this.emit(`${noPadResult} = call i8* @GC_malloc_atomic(i64 ${allocLen1})`);
   const strcpyResult1 = this.nextTemp();
   this.emit(`${strcpyResult1} = call i8* @strcpy(i8* ${noPadResult}, i8* ${strPtr})`);
   this.emit(`br label %${endLabel}`);
@@ -175,7 +175,7 @@ export function generatePadStart(this: BaseGenerator, strPtr: string, targetLeng
   const allocLen2 = this.nextTemp();
   this.emit(`${allocLen2} = add i64 ${targetLenI64Pad}, 1`);
   const padResult = this.nextTemp();
-  this.emit(`${padResult} = call i8* @malloc(i64 ${allocLen2})`);
+  this.emit(`${padResult} = call i8* @GC_malloc_atomic(i64 ${allocLen2})`);
 
   // Initialize to empty
   this.emit(`store i8 0, i8* ${padResult}`);
@@ -335,7 +335,7 @@ export function generateTrim(this: BaseGenerator, strPtr: string): string {
   // Empty string case - return empty string
   this.emit(`${emptyLabel}:`);
   const emptyResult = this.nextTemp();
-  this.emit(`${emptyResult} = call i8* @malloc(i64 1)`);
+  this.emit(`${emptyResult} = call i8* @GC_malloc_atomic(i64 1)`);
   this.emit(`store i8 0, i8* ${emptyResult}`);
   this.emit(`br label %${endLabel}`);
 
@@ -410,7 +410,7 @@ export function generateTrim(this: BaseGenerator, strPtr: string): string {
   // All whitespace - return empty string
   this.emit(`${allWSLabel}:`);
   const allWSResult = this.nextTemp();
-  this.emit(`${allWSResult} = call i8* @malloc(i64 1)`);
+  this.emit(`${allWSResult} = call i8* @GC_malloc_atomic(i64 1)`);
   this.emit(`store i8 0, i8* ${allWSResult}`);
   this.emit(`br label %${endLabel}`);
 

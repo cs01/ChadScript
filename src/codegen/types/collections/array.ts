@@ -284,7 +284,7 @@ export class ArrayGenerator {
     const dataSizeI64 = this.nextTemp();
     this.emit(`${dataSizeI64} = mul i64 ${lengthI64}, ${doubleSize}`);
     const dataMem = this.nextTemp();
-    this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSizeI64})`);
+    this.emit(`${dataMem} = call i8* @GC_malloc_atomic(i64 ${dataSizeI64})`);
     const resultDataPtr = this.nextTemp();
     this.emit(`${resultDataPtr} = bitcast i8* ${dataMem} to double*`);
 
@@ -489,7 +489,7 @@ export class ArrayGenerator {
     const resultSizeI64 = this.nextTemp();
     this.emit(`${resultSizeI64} = mul i64 ${lengthI64}, ${doubleSize}`);
     const resultMem = this.nextTemp();
-    this.emit(`${resultMem} = call i8* @malloc(i64 ${resultSizeI64})`);
+    this.emit(`${resultMem} = call i8* @GC_malloc_atomic(i64 ${resultSizeI64})`);
     const resultDataPtr = this.nextTemp();
     this.emit(`${resultDataPtr} = bitcast i8* ${resultMem} to double*`);
 
@@ -760,7 +760,7 @@ export class ArrayGenerator {
     // In a real implementation, we'd calculate the exact size needed
     const bufferSize = 1024; // Fixed size for demo
     const resultBuffer = this.nextTemp();
-    this.emit(`${resultBuffer} = call i8* @malloc(i64 ${bufferSize})`);
+    this.emit(`${resultBuffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
 
     // Initialize buffer with empty string
     const nullByte = this.nextTemp();

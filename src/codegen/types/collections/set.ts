@@ -40,7 +40,7 @@ export class SetGenerator {
     const valuesSize = this.nextTemp();
     this.emit(`${valuesSize} = mul i64 ${valuesCapI64}, ${doubleSize}`);
     const valuesMem = this.nextTemp();
-    this.emit(`${valuesMem} = call i8* @malloc(i64 ${valuesSize})`);
+    this.emit(`${valuesMem} = call i8* @GC_malloc_atomic(i64 ${valuesSize})`);
     const valuesPtr = this.nextTemp();
     this.emit(`${valuesPtr} = bitcast i8* ${valuesMem} to double*`);
 

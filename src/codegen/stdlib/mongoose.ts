@@ -110,7 +110,7 @@ export class MongooseGenerator {
 
     ir += '  ; Allocate and copy method with null terminator\n';
     ir += '  %method_alloc_size = add i64 %method_len, 1\n';
-    ir += '  %method = call i8* @malloc(i64 %method_alloc_size)\n';
+    ir += '  %method = call i8* @GC_malloc_atomic(i64 %method_alloc_size)\n';
     ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %method, i8* %method_buf, i64 %method_len, i1 false)\n';
     ir += '  %method_null_pos = getelementptr i8, i8* %method, i64 %method_len\n';
     ir += '  store i8 0, i8* %method_null_pos\n';
@@ -124,7 +124,7 @@ export class MongooseGenerator {
     ir += '  ; Build path = uri + "?" + query\n';
     ir += '  %path_total_len = add i64 %uri_len, %query_len\n';
     ir += '  %path_total_len2 = add i64 %path_total_len, 2\n'; // +1 for '?' +1 for null
-    ir += '  %path_full = call i8* @malloc(i64 %path_total_len2)\n';
+    ir += '  %path_full = call i8* @GC_malloc_atomic(i64 %path_total_len2)\n';
     ir += '  ; Copy uri\n';
     ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %path_full, i8* %uri_buf, i64 %uri_len, i1 false)\n';
     ir += '  ; Add "?"\n';
@@ -143,7 +143,7 @@ export class MongooseGenerator {
     ir += 'use_uri_only:\n';
     ir += '  ; Just copy uri without query\n';
     ir += '  %uri_alloc_size = add i64 %uri_len, 1\n';
-    ir += '  %path_only = call i8* @malloc(i64 %uri_alloc_size)\n';
+    ir += '  %path_only = call i8* @GC_malloc_atomic(i64 %uri_alloc_size)\n';
     ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %path_only, i8* %uri_buf, i64 %uri_len, i1 false)\n';
     ir += '  %path_only_null = getelementptr i8, i8* %path_only, i64 %uri_len\n';
     ir += '  store i8 0, i8* %path_only_null\n';
@@ -163,9 +163,7 @@ export class MongooseGenerator {
     ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 200, i8* %content_type, i8* %body_fmt, i8* %response)\n';
     ir += '\n';
 
-    ir += '  ; Free allocated strings\n';
-    ir += '  call void @free(i8* %method)\n';
-    ir += '  call void @free(i8* %path)\n';
+    ir += '  ; GC will handle cleanup of allocated strings\n';
     ir += '  br label %done\n\n';
 
     ir += 'done:\n';

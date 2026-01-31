@@ -112,7 +112,7 @@ export class JsonGenerator {
     const bufferSize = this.ctx.nextTemp();
     this.ctx.emit(`${bufferSize} = add i64 ${strLen}, 3`);
     const buffer = this.ctx.nextTemp();
-    this.ctx.emit(`${buffer} = call i8* @malloc(i64 ${bufferSize})`);
+    this.ctx.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
 
     // Create format string: "\"%s\""
     const formatStr = this.ctx.createStringConstant('"%s"');
@@ -130,7 +130,7 @@ export class JsonGenerator {
 
     // Allocate buffer for number string (30 chars should be enough for double)
     const buffer = this.ctx.nextTemp();
-    this.ctx.emit(`${buffer} = call i8* @malloc(i64 30)`);
+    this.ctx.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 30)`);
 
     // Create format string: "%f"
     const formatStr = this.ctx.createStringConstant('%f');

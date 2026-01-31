@@ -142,7 +142,7 @@ export class ClassGenerator {
 
       // Allocate memory
       const objMem = this.nextTemp();
-      this.emit(`${objMem} = call i8* @malloc(i64 ${sizeReg})`);
+      this.emit(`${objMem} = call i8* @GC_malloc(i64 ${sizeReg})`);
       objPtr = this.nextTemp();
       this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
 
@@ -176,7 +176,7 @@ export class ClassGenerator {
       const objSize = this.nextTemp();
       this.emit(`${objSize} = mul i64 ${numFields}, ${doubleSize}`);
       const objMem = this.nextTemp();
-      this.emit(`${objMem} = call i8* @malloc(i64 ${objSize})`);
+      this.emit(`${objMem} = call i8* @GC_malloc_atomic(i64 ${objSize})`);
       objPtr = this.nextTemp();
       this.emit(`${objPtr} = bitcast i8* ${objMem} to double*`);
 

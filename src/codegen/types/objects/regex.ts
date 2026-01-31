@@ -46,7 +46,7 @@ export class RegexGenerator {
     const regexSize = this.nextTemp();
     this.emit(`${regexSize} = add i64 0, 32`);
     const regexPtr = this.nextTemp();
-    this.emit(`${regexPtr} = call i8* @malloc(i64 ${regexSize})`);
+    this.emit(`${regexPtr} = call i8* @GC_malloc(i64 ${regexSize})`);
 
     // Determine regex flags (for now, we'll use REG_EXTENDED = 1)
     // REG_EXTENDED = 1, REG_ICASE = 2, REG_NOSUB = 4
@@ -95,10 +95,7 @@ export class RegexGenerator {
 
   // Clean up regex resources
   generateRegexFree(regexPtr: string): void {
-    // Call regfree(regex_t *preg)
+    // Call regfree(regex_t *preg) - GC will handle the memory
     this.emit(`call void @regfree(i8* ${regexPtr})`);
-
-    // Free the allocated memory
-    this.emit(`call void @free(i8* ${regexPtr})`);
   }
 }
