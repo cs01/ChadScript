@@ -16,6 +16,7 @@ import { JsonGenerator } from './stdlib/json.js';
 import { FilesystemGenerator } from './stdlib/fs.js';
 import { ResponseGenerator } from './stdlib/response.js';
 import { RuntimeGenerator } from './runtime/runtime.js';
+import { MongooseGenerator } from './stdlib/mongoose.js';
 import { ExpressionGenerator } from './expressions/orchestrator.js';
 import { TypeChecker } from '../typescript/type-checker.js';
 import { logger } from '../utils/logger.js';
@@ -52,6 +53,8 @@ export class LLVMGenerator extends BaseGenerator {
   private fsGen: FilesystemGenerator;
   private responseGen: ResponseGenerator;
   private runtimeGen: RuntimeGenerator;
+  private mongooseGen: MongooseGenerator;
+  private httpHandlers: string[] = [];  // Track HTTP handlers for mongoose event handler generation
 
   // Expression generator (context pattern)
   private exprGen: ExpressionGenerator;
@@ -133,6 +136,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.fsGen = new FilesystemGenerator(this);
     this.responseGen = new ResponseGenerator(this);
     this.runtimeGen = new RuntimeGenerator();
+    this.mongooseGen = new MongooseGenerator();
 
     // Initialize expression generator with context pattern
     this.exprGen = new ExpressionGenerator(this);
@@ -316,8 +320,9 @@ export class LLVMGenerator extends BaseGenerator {
     ir += this.runtimeGen.generateJSONRuntime();
     ir += '\n';
 
-    // HTTP server runtime
-    ir += this.runtimeGen.generateHttpServerRuntime();
+    // HTTP server runtime using mongoose - only declarations for now
+    // The full http_serve function will be emitted later if httpServe() is used
+    ir += this.mongooseGen.generateDeclarations();
     ir += '\n';
 
     // Helper function to safely get string or return empty string if NULL
@@ -386,6 +391,14 @@ export class LLVMGenerator extends BaseGenerator {
 
     // Append main function after all other functions
     ir += mainIr;
+
+    // Generate mongoose HTTP server runtime if httpServe was used
+    if (this.httpHandlers.length > 0) {
+      ir += '\n';
+      ir += this.mongooseGen.generateHttpServeFunction();
+      ir += '\n';
+      ir += this.mongooseGen.generateEventHandler(this.httpHandlers[0]);
+    }
 
     // Add global string constants at the beginning
     if (this.globalStrings.length > 0) {
@@ -2226,6 +2239,9 @@ export class LLVMGenerator extends BaseGenerator {
     if (!handlerName) {
       throw new Error('httpServe() handler must be a function reference');
     }
+
+    // Track handler for mongoose event handler generation
+    this.httpHandlers.push(handlerName);
 
     // Convert port from double to i32
     const portI32 = this.nextTemp();

@@ -62,8 +62,8 @@ export class MongooseGenerator {
     ir += 'declare i8* @mg_mprintf(i8*, ...)\n';
     ir += '\n';
 
-    ir += '; Mongoose event constants\n';
-    ir += '@MG_EV_HTTP_MSG = private constant i32 8\n';
+    ir += '; Mongoose event constants (from enum in mongoose.h)\n';
+    ir += '@MG_EV_HTTP_MSG = private constant i32 11\n';
     ir += '\n';
 
     return ir;
@@ -77,7 +77,7 @@ export class MongooseGenerator {
     let ir = '; HTTP event handler wrapper for mongoose\n';
     ir += `define void @__mg_http_handler(%struct.mg_connection* %conn, i32 %ev, i8* %ev_data, i8* %fn_data) {\n`;
     ir += 'entry:\n';
-    ir += '  ; Check if this is an HTTP message event\n';
+    ir += '  ; Check if this is an HTTP message event (MG_EV_HTTP_MSG = 11)\n';
     ir += '  %ev_http = load i32, i32* @MG_EV_HTTP_MSG\n';
     ir += '  %is_http = icmp eq i32 %ev, %ev_http\n';
     ir += '  br i1 %is_http, label %handle_http, label %done\n\n';
@@ -87,31 +87,92 @@ export class MongooseGenerator {
     ir += '  %hm = bitcast i8* %ev_data to %struct.mg_http_message*\n';
     ir += '\n';
 
-    ir += '  ; Get method string\n';
-    ir += '  %method_ptr = getelementptr %struct.mg_http_message, %struct.mg_http_message* %hm, i32 0, i32 0, i32 0\n';
-    ir += '  %method = load i8*, i8** %method_ptr\n';
+    ir += '  ; Get method mg_str (first field: offset 0)\n';
+    ir += '  %method_buf_ptr = getelementptr %struct.mg_http_message, %struct.mg_http_message* %hm, i32 0, i32 0, i32 0\n';
+    ir += '  %method_buf = load i8*, i8** %method_buf_ptr\n';
+    ir += '  %method_len_ptr = getelementptr %struct.mg_http_message, %struct.mg_http_message* %hm, i32 0, i32 0, i32 1\n';
+    ir += '  %method_len = load i64, i64* %method_len_ptr\n';
     ir += '\n';
 
-    ir += '  ; Get URI string\n';
-    ir += '  %uri_ptr = getelementptr %struct.mg_http_message, %struct.mg_http_message* %hm, i32 0, i32 1, i32 0\n';
-    ir += '  %uri = load i8*, i8** %uri_ptr\n';
+    ir += '  ; Get uri mg_str (second field: offset 1)\n';
+    ir += '  %uri_buf_ptr = getelementptr %struct.mg_http_message, %struct.mg_http_message* %hm, i32 0, i32 1, i32 0\n';
+    ir += '  %uri_buf = load i8*, i8** %uri_buf_ptr\n';
+    ir += '  %uri_len_ptr = getelementptr %struct.mg_http_message, %struct.mg_http_message* %hm, i32 0, i32 1, i32 1\n';
+    ir += '  %uri_len = load i64, i64* %uri_len_ptr\n';
     ir += '\n';
 
-    ir += `  ; Call user handler: ${handlerName}(method, uri) -> response string\n`;
-    ir += `  %response = call i8* @${handlerName}(i8* %method, i8* %uri)\n`;
+    ir += '  ; Get query mg_str (third field: offset 2)\n';
+    ir += '  %query_buf_ptr = getelementptr %struct.mg_http_message, %struct.mg_http_message* %hm, i32 0, i32 2, i32 0\n';
+    ir += '  %query_buf = load i8*, i8** %query_buf_ptr\n';
+    ir += '  %query_len_ptr = getelementptr %struct.mg_http_message, %struct.mg_http_message* %hm, i32 0, i32 2, i32 1\n';
+    ir += '  %query_len = load i64, i64* %query_len_ptr\n';
     ir += '\n';
 
-    ir += '  ; Send HTTP response\n';
-    ir += '  %content_type = getelementptr [25 x i8], [25 x i8]* @.str.content_type_text, i32 0, i32 0\n';
+    ir += '  ; Allocate and copy method with null terminator\n';
+    ir += '  %method_alloc_size = add i64 %method_len, 1\n';
+    ir += '  %method = call i8* @malloc(i64 %method_alloc_size)\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %method, i8* %method_buf, i64 %method_len, i1 false)\n';
+    ir += '  %method_null_pos = getelementptr i8, i8* %method, i64 %method_len\n';
+    ir += '  store i8 0, i8* %method_null_pos\n';
+    ir += '\n';
+
+    ir += '  ; Check if there is a query string\n';
+    ir += '  %has_query = icmp sgt i64 %query_len, 0\n';
+    ir += '  br i1 %has_query, label %build_full_path, label %use_uri_only\n\n';
+
+    ir += 'build_full_path:\n';
+    ir += '  ; Build path = uri + "?" + query\n';
+    ir += '  %path_total_len = add i64 %uri_len, %query_len\n';
+    ir += '  %path_total_len2 = add i64 %path_total_len, 2\n'; // +1 for '?' +1 for null
+    ir += '  %path_full = call i8* @malloc(i64 %path_total_len2)\n';
+    ir += '  ; Copy uri\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %path_full, i8* %uri_buf, i64 %uri_len, i1 false)\n';
+    ir += '  ; Add "?"\n';
+    ir += '  %qmark_pos = getelementptr i8, i8* %path_full, i64 %uri_len\n';
+    ir += '  store i8 63, i8* %qmark_pos\n'; // 63 = '?'
+    ir += '  ; Copy query\n';
+    ir += '  %query_start = add i64 %uri_len, 1\n';
+    ir += '  %query_dest = getelementptr i8, i8* %path_full, i64 %query_start\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %query_dest, i8* %query_buf, i64 %query_len, i1 false)\n';
+    ir += '  ; Null terminate\n';
+    ir += '  %full_path_end = add i64 %path_total_len, 1\n';
+    ir += '  %path_null_pos = getelementptr i8, i8* %path_full, i64 %full_path_end\n';
+    ir += '  store i8 0, i8* %path_null_pos\n';
+    ir += '  br label %call_handler\n\n';
+
+    ir += 'use_uri_only:\n';
+    ir += '  ; Just copy uri without query\n';
+    ir += '  %uri_alloc_size = add i64 %uri_len, 1\n';
+    ir += '  %path_only = call i8* @malloc(i64 %uri_alloc_size)\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %path_only, i8* %uri_buf, i64 %uri_len, i1 false)\n';
+    ir += '  %path_only_null = getelementptr i8, i8* %path_only, i64 %uri_len\n';
+    ir += '  store i8 0, i8* %path_only_null\n';
+    ir += '  br label %call_handler\n\n';
+
+    ir += 'call_handler:\n';
+    ir += '  %path = phi i8* [ %path_full, %build_full_path ], [ %path_only, %use_uri_only ]\n';
+    ir += '\n';
+
+    ir += `  ; Call user handler: ${handlerName}(method, path) -> response string\n`;
+    ir += `  %response = call i8* @${handlerName}(i8* %method, i8* %path)\n`;
+    ir += '\n';
+
+    ir += '  ; Send HTTP 200 response with text/plain content type\n';
+    ir += '  %content_type = getelementptr [27 x i8], [27 x i8]* @.str.content_type_text, i32 0, i32 0\n';
     ir += '  %body_fmt = getelementptr [3 x i8], [3 x i8]* @.str.body_fmt, i32 0, i32 0\n';
     ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 200, i8* %content_type, i8* %body_fmt, i8* %response)\n';
+    ir += '\n';
+
+    ir += '  ; Free allocated strings\n';
+    ir += '  call void @free(i8* %method)\n';
+    ir += '  call void @free(i8* %path)\n';
     ir += '  br label %done\n\n';
 
     ir += 'done:\n';
     ir += '  ret void\n';
     ir += '}\n\n';
 
-    ir += '@.str.content_type_text = private constant [25 x i8] c"Content-Type: text/plain\\00"\n';
+    ir += '@.str.content_type_text = private constant [27 x i8] c"Content-Type: text/plain\\0D\\0A\\00"\n';
     ir += '@.str.body_fmt = private constant [3 x i8] c"%s\\00"\n';
 
     return ir;
@@ -134,12 +195,12 @@ export class MongooseGenerator {
     ir += '\n';
 
     ir += '  ; Build listen URL: "http://0.0.0.0:PORT"\n';
-    ir += '  %url_fmt = getelementptr [20 x i8], [20 x i8]* @.str.http_url_fmt, i32 0, i32 0\n';
+    ir += '  %url_fmt = getelementptr [18 x i8], [18 x i8]* @.str.http_url_fmt, i32 0, i32 0\n';
     ir += '  %url = call i8* (i8*, ...) @mg_mprintf(i8* %url_fmt, i32 %port)\n';
     ir += '\n';
 
     ir += '  ; Print startup message\n';
-    ir += '  %msg_fmt = getelementptr [35 x i8], [35 x i8]* @.str.http_listening, i32 0, i32 0\n';
+    ir += '  %msg_fmt = getelementptr [34 x i8], [34 x i8]* @.str.http_listening, i32 0, i32 0\n';
     ir += '  call i32 (i8*, ...) @printf(i8* %msg_fmt, i32 %port)\n';
     ir += '\n';
 
@@ -164,8 +225,8 @@ export class MongooseGenerator {
     ir += '  ret i32 1\n';
     ir += '}\n\n';
 
-    ir += '@.str.http_url_fmt = private constant [20 x i8] c"http://0.0.0.0:%d\\00"\n';
-    ir += '@.str.http_listening = private constant [35 x i8] c"HTTP server listening on port %d\\0A\\00"\n';
+    ir += '@.str.http_url_fmt = private constant [18 x i8] c"http://0.0.0.0:%d\\00"\n';
+    ir += '@.str.http_listening = private constant [34 x i8] c"HTTP server listening on port %d\\0A\\00"\n';
     ir += '@.str.http_error = private constant [30 x i8] c"Failed to start server on %d\\0A\\00"\n';
 
     return ir;
