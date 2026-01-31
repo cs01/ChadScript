@@ -270,6 +270,8 @@ export class TypeChecker {
           returnType = 'boolean';
         } else if (type.flags & ts.TypeFlags.Void) {
           returnType = 'void';
+        } else if (type.flags & ts.TypeFlags.Object) {
+          returnType = this.checker.typeToString(type);
         }
       }
 

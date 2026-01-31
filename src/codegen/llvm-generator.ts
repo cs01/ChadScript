@@ -548,6 +548,9 @@ export class LLVMGenerator extends BaseGenerator {
             returnType = 'void';
             returnTypeIsVoid = true;
             this.currentFunctionReturnType = 'void';
+          } else if (funcType.returnType !== 'number' && funcType.returnType !== 'boolean') {
+            returnType = 'i8*';
+            this.currentFunctionReturnType = 'i8*';
           }
 
           // Check parameter types
