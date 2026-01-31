@@ -74,10 +74,17 @@ export class ConditionalExpressionGenerator {
     this.emit(`${mergeLabel}:`);
     const result = this.nextTemp();
 
-    // Determine the result type - use double if either value is double
+    // Determine the result type - use double if either value is double, i8* for strings
     const trueType = this.ctx.getVariableType(trueValue);
     const falseType = this.ctx.getVariableType(falseValue);
-    const resultType = (trueType === 'double' || falseType === 'double') ? 'double' : 'i32';
+    let resultType: string;
+    if (trueType === 'i8*' || falseType === 'i8*') {
+      resultType = 'i8*';
+    } else if (trueType === 'double' || falseType === 'double') {
+      resultType = 'double';
+    } else {
+      resultType = 'i32';
+    }
 
     // Convert values to match result type if needed
     let trueVal = trueValue;
