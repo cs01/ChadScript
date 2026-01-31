@@ -75,8 +75,8 @@ export class ConditionalExpressionGenerator {
     const result = this.nextTemp();
 
     // Determine the result type - use double if either value is double, i8* for strings
-    const trueType = this.ctx.getVariableType(trueValue);
-    const falseType = this.ctx.getVariableType(falseValue);
+    const trueType = this.ctx.getVariableType(trueValue) || this.variableTypes.get(trueValue);
+    const falseType = this.ctx.getVariableType(falseValue) || this.variableTypes.get(falseValue);
     let resultType: string;
     if (trueType === 'i8*' || falseType === 'i8*') {
       resultType = 'i8*';

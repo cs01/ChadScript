@@ -1193,8 +1193,15 @@ export class LLVMGenerator extends BaseGenerator {
       const falseBranchPos = this.output.length;
       this.emit(`br label %${mergeLabel}`);
 
-      // Determine the result type - use double if either value is double
-      const resultType = (trueType === 'double' || falseType === 'double') ? 'double' : 'i32';
+      // Determine the result type - use i8* for strings, double if either value is double
+      let resultType: string;
+      if (trueType === 'i8*' || falseType === 'i8*') {
+        resultType = 'i8*';
+      } else if (trueType === 'double' || falseType === 'double') {
+        resultType = 'double';
+      } else {
+        resultType = 'i32';
+      }
 
       // If we need type conversions, insert them before the branch instructions
       let trueVal = trueValue;
@@ -2099,6 +2106,11 @@ export class LLVMGenerator extends BaseGenerator {
           }
         }
       }
+    }
+    // Check if it's a conditional expression where at least one branch is a string
+    if ((expr as any).type === 'conditional') {
+      const condExpr = expr as any;
+      return this.isStringExpression(condExpr.consequent) || this.isStringExpression(condExpr.alternate);
     }
     return false;
   }
