@@ -631,7 +631,7 @@ export class Parser {
             this.pos += 2; // consume '[]'
             fieldType = 'boolean[]';
           } else {
-            throw new Error(this.formatError(`boolean fields are not supported yet. Only string, number, and their array types are supported.`));
+            fieldType = 'boolean';
           }
         } else {
           throw new Error(this.formatError(`Unsupported field type. Supported types: string, number, string[], number[], boolean[]`));

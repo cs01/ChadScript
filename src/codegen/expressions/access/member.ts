@@ -177,10 +177,20 @@ export class MemberAccessGenerator {
                   // Track this temporary register type
                   this.ctx.variableTypes.set(value, '%Array*');
                   return value;
+                } else if (fieldInfo.type === 'boolean') {
+                  // Load boolean field (i1) and convert to double for JavaScript semantics
+                  const boolValue = this.ctx.nextTemp();
+                  this.ctx.emit(`${boolValue} = load i1, i1* ${fieldPtr}`);
+                  const value = this.ctx.nextTemp();
+                  this.ctx.emit(`${value} = uitofp i1 ${boolValue} to double`);
+                  // Track the result as double so if-conditions handle it correctly
+                  this.ctx.variableTypes.set(value, 'double');
+                  return value;
                 } else {
                   // Load double (JavaScript semantics)
                   const value = this.ctx.nextTemp();
                   this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
+                  this.ctx.variableTypes.set(value, 'double');
                   return value;
                 }
               } else {
