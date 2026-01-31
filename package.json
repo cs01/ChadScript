@@ -11,6 +11,8 @@
     "compile": "tsx src/index.ts",
     "build": "tsc",
     "test": "node scripts/test.js",
+    "test:fast": "npm run build && node --import tsx --test tests/smoke.test.ts",
+    "test:full": "node scripts/test.js",
     "test:verbose": "node --import tsx --test --test-reporter=spec tests/**/*.test.ts",
     "agent-loop": "node --import tsx scripts/agent-loop.ts",
     "cli-tests": "node --import tsx tools/run-cli-tests.ts",

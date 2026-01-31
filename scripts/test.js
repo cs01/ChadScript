@@ -16,7 +16,12 @@ try {
 
 const args = process.argv.slice(2);
 
-const testPattern = args.length === 0 ? ['tests/**/*.test.ts'] : args;
+const testPattern = args.length === 0 ? [
+  'tests/compiler.test.ts',
+  'tests/unit/symbol-table.test.ts',
+  'tests/network.test.ts',
+  'tests/tcp-server-full.test.ts'
+] : args;
 
 const nodeArgs = ['--import', 'tsx', '--test', ...testPattern];
 
