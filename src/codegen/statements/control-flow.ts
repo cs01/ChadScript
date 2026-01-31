@@ -128,45 +128,6 @@ export class ControlFlowGenerator {
     this.emit(`${mergeLabel}:`);
     this.currentLabel = mergeLabel;
 
-    // If both branches produce values, we need a phi node
-    if (thenValue && elseValue) {
-      const result = this.nextTemp();
-      const thenType = this.ctx.getVariableType(thenValue);
-      const elseType = this.ctx.getVariableType(elseValue);
-      const phiType = (thenType === 'double' || elseType === 'double') ? 'double' : 'i32';
-
-      let finalThenValue = thenValue;
-      let finalElseValue = elseValue;
-
-      if (phiType === 'double') {
-        if (thenType === 'i32') {
-          const thenPos = this.findBranchPosition(thenEndLabel);
-          if (thenPos >= 0) {
-            finalThenValue = this.nextTemp();
-            this.output.splice(thenPos, 0, `  ${finalThenValue} = sitofp i32 ${thenValue} to double`);
-            this.variableTypes.set(finalThenValue, 'double');
-          }
-        } else if (!thenType && /^-?\d+$/.test(thenValue)) {
-          finalThenValue = thenValue + '.0';
-        }
-        if (elseType === 'i32') {
-          const elsePos = this.findBranchPosition(elseEndLabel);
-          if (elsePos >= 0) {
-            const insertPos = (thenType === 'i32') ? elsePos + 1 : elsePos;
-            finalElseValue = this.nextTemp();
-            this.output.splice(insertPos, 0, `  ${finalElseValue} = sitofp i32 ${elseValue} to double`);
-            this.variableTypes.set(finalElseValue, 'double');
-          }
-        } else if (!elseType && /^-?\d+$/.test(elseValue)) {
-          finalElseValue = elseValue + '.0';
-        }
-      }
-
-      this.emit(`${result} = phi ${phiType} [ ${finalThenValue}, %${thenEndLabel} ], [ ${finalElseValue}, %${elseEndLabel} ]`);
-      this.variableTypes.set(result, phiType);
-      return result;
-    }
-
     return '0';
   }
 
