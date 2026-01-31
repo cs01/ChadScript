@@ -90,13 +90,14 @@ export class ControlFlowGenerator {
     // Generate else block if it exists
     let elseValue: string | null = null;
     let elseEndLabel = elseLabel;
+    let elseHasTerminator = false;
     if (stmt.elseBlock) {
       this.emit(`${elseLabel}:`);
       this.currentLabel = elseLabel;
       elseValue = this.ctx.generateBlock(stmt.elseBlock, params);
       // Check if the LAST instruction is a terminator
       const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
-      const elseHasTerminator = lastInstruction.startsWith('ret ') ||
+      elseHasTerminator = lastInstruction.startsWith('ret ') ||
                                 lastInstruction.startsWith('br ') ||
                                 lastInstruction.startsWith('unreachable') ||
                                 lastInstruction.startsWith('switch ');
@@ -111,6 +112,13 @@ export class ControlFlowGenerator {
       if (!elseHasTerminator) {
         this.emit(`br label %${mergeLabel}`);
       }
+    }
+
+    // Skip merge point if both branches have terminators (unreachable code)
+    if (stmt.elseBlock && thenHasTerminator && elseHasTerminator) {
+      // Both branches return/terminate, no merge point needed
+      // Return a default value (we won't use it anyway)
+      return '0';
     }
 
     // Merge point
