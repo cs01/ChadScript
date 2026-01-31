@@ -20,7 +20,6 @@ export class MemberAccessGenerator {
    * This handles many different member access patterns
    */
   generate(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    console.error('DEBUG MEMBER.generate(): expr.property=', expr.property, 'expr.object.type=', expr.object?.type, 'expr.object.name=', (expr.object as any)?.name);
           // Handle typed JSON struct property access (from .json<T>())
           if (expr.object.type === 'variable') {
             const varType = this.ctx.variableTypes.get(expr.object.name);
