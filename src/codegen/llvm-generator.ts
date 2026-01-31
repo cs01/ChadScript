@@ -926,11 +926,39 @@ export class LLVMGenerator extends BaseGenerator {
               if (classWithField) {
                 className = classWithField.name;
               }
+            } else if (object.type === 'variable' && this.symbolTable.isObject(object.name)) {
+              const objMeta = this.symbolTable.getObjectInfo(object.name);
+              if (objMeta) {
+                const value = this.generateExpression(memberAccessValue.value, params);
+                const propIndex = objMeta.keys.indexOf(property);
+                if (propIndex === -1) {
+                  throw new Error(`Unknown property: ${property} on object ${object.name}. Available properties: ${objMeta.keys.join(', ')}`);
+                }
+                const propType = objMeta.types[propIndex];
+                const structType = `{ ${objMeta.types.join(', ')} }`;
+
+                const objPtrPtr = this.getVariableAlloca(object.name)!;
+                const objPtr = this.nextTemp();
+                this.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
+
+                const typedPtr = this.nextTemp();
+                this.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
+
+                const fieldPtr = this.nextTemp();
+                this.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${propIndex}`);
+
+                if (propType === 'i1') {
+                  const boolVal = this.nextTemp();
+                  this.emit(`${boolVal} = fcmp one double ${value}, 0.0`);
+                  this.emit(`store i1 ${boolVal}, i1* ${fieldPtr}`);
+                } else {
+                  this.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}`);
+                }
+              }
             }
 
-            // Get field info to determine expected type
-            let fieldInfo = null;
             if (className) {
+              let fieldInfo = null;
               fieldInfo = this.classGen.getFieldInfo(className, property);
               // Set expected array element type for array field assignments
               if (fieldInfo && fieldInfo.type === 'string[]') {
@@ -940,31 +968,30 @@ export class LLVMGenerator extends BaseGenerator {
               } else if (fieldInfo && fieldInfo.type === 'boolean[]') {
                 this.expectedArrayElementType = 'boolean';
               }
-            }
 
-            // Now generate the value with context
-            const value = this.generateExpression(memberAccessValue.value, params);
-            this.expectedArrayElementType = null; // Reset context
+              // Now generate the value with context
+              const value = this.generateExpression(memberAccessValue.value, params);
+              this.expectedArrayElementType = null; // Reset context
 
-            // Generate instance pointer
-            if (object.type === 'variable' && this.symbolTable.isClass(object.name)) {
-              instancePtr = this.generateExpression(object, params);
-            } else if ((object as any).type === 'new') {
-              instancePtr = this.generateExpression(object, params);
-            } else if ((object as any).type === 'this') {
-              instancePtr = this.thisPointer;
-            } else {
-              throw new Error(`Cannot assign to property of ${object.type}`);
-            }
+              // Generate instance pointer
+              if (object.type === 'variable' && this.symbolTable.isClass(object.name)) {
+                instancePtr = this.generateExpression(object, params);
+              } else if ((object as any).type === 'new') {
+                instancePtr = this.generateExpression(object, params);
+              } else if ((object as any).type === 'this') {
+                instancePtr = this.thisPointer;
+              } else {
+                throw new Error(`Cannot assign to property of ${object.type}`);
+              }
 
-            if (instancePtr && className) {
-              const fields = this.classGen.getClassFields(className);
+              if (instancePtr) {
+                const fields = this.classGen.getClassFields(className);
 
-              if (fieldInfo) {
-                // Typed field - use struct getelementptr
-                const fieldPtr = this.nextTemp();
-                if (fields.length > 0) {
-                  this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${instancePtr}, i32 0, i32 ${fieldInfo.index}`);
+                if (fieldInfo) {
+                  // Typed field - use struct getelementptr
+                  const fieldPtr = this.nextTemp();
+                  if (fields.length > 0) {
+                    this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${instancePtr}, i32 0, i32 ${fieldInfo.index}`);
 
                   if (fieldInfo.type === 'string') {
                     // Store string pointer (i8*)
@@ -1021,6 +1048,7 @@ export class LLVMGenerator extends BaseGenerator {
               }
             } else {
               throw new Error('Could not determine class instance for field assignment');
+            }
             }
           } else {
             throw new Error('Invalid member access assignment format');
