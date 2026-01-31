@@ -31,6 +31,26 @@ export class ObjectGenerator {
       return '0';
     }
 
+    // Check if we have an interface type for this object
+    let interfaceTypes: Map<string, string> | undefined;
+    const declaredInterfaceType = (this.ctx as any).currentDeclaredInterfaceType;
+    if (declaredInterfaceType) {
+      const iface = (this.ctx as any).ast?.interfaces?.find((i: any) => i.name === declaredInterfaceType);
+      if (iface) {
+        interfaceTypes = new Map();
+        for (const field of iface.fields) {
+          let llvmType: string;
+          if (field.type === 'string') llvmType = 'i8*';
+          else if (field.type === 'number') llvmType = 'double';
+          else if (field.type === 'boolean') llvmType = 'i1';
+          else if (field.type === 'string[]') llvmType = '%StringArray*';
+          else if (field.type === 'number[]' || field.type === 'boolean[]') llvmType = '%Array*';
+          else llvmType = 'i8*';
+          interfaceTypes.set(field.name, llvmType);
+        }
+      }
+    }
+
     // NEW: Analyze property types to determine struct layout
     const fieldTypes: { key: string; llvmType: string; value: string }[] = [];
 
@@ -38,26 +58,38 @@ export class ObjectGenerator {
       const prop = objExpr.properties[i];
       const key = prop.key;
 
+      // Determine LLVM type - from interface if available, otherwise infer
+      let llvmType: string;
+      if (interfaceTypes?.has(key)) {
+        llvmType = interfaceTypes.get(key)!;
+      } else {
+        const valueExpr = prop.value;
+        if (valueExpr.type === 'string' || this.ctx.isStringExpression(valueExpr)) {
+          llvmType = 'i8*';  // String pointer
+        } else if (valueExpr.type === 'array') {
+          llvmType = '%Array*';  // Array struct pointer
+        } else if ((valueExpr as any).type === 'map') {
+          llvmType = '%Map*';
+        } else if ((valueExpr as any).type === 'set') {
+          llvmType = '%Set*';
+        } else {
+          llvmType = 'double';  // Default to double (numbers, booleans)
+        }
+      }
+
       // Generate the value expression using context
       const valueReg = this.ctx.generateExpression(prop.value, params);
 
-      // Determine LLVM type based on expression type
-      let llvmType: string;
-      const valueExpr = prop.value;
-
-      if (valueExpr.type === 'string' || this.ctx.isStringExpression(valueExpr)) {
-        llvmType = 'i8*';  // String pointer
-      } else if (valueExpr.type === 'array') {
-        llvmType = '%Array*';  // Array struct pointer
-      } else if ((valueExpr as any).type === 'map') {
-        llvmType = '%Map*';
-      } else if ((valueExpr as any).type === 'set') {
-        llvmType = '%Set*';
-      } else {
-        llvmType = 'double';  // Default to double (numbers, booleans)
+      // Convert value if needed (e.g., double to i1 for booleans)
+      let finalValue = valueReg;
+      if (llvmType === 'i1') {
+        // Convert double (boolean represented as 0.0/1.0) to i1
+        const i1Value = this.nextTemp();
+        this.emit(`${i1Value} = fcmp one double ${valueReg}, 0.0`);
+        finalValue = i1Value;
       }
 
-      fieldTypes.push({ key, llvmType, value: valueReg });
+      fieldTypes.push({ key, llvmType, value: finalValue });
     }
 
     // Generate struct type signature (using inline struct, no need for name)

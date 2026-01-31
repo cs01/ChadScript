@@ -173,7 +173,6 @@ export class CallExpressionGenerator {
   }
 
   private generateGenericCall(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    // Get function type from type checker for correct parameter/return types
     let returnType = 'double';
     let paramTypes: string[] = [];
 
@@ -181,17 +180,20 @@ export class CallExpressionGenerator {
       try {
         const funcType = this.ctx.typeChecker.getFunctionType(expr.name);
         if (funcType) {
-          returnType = funcType.returnType === 'string' ? 'i8*' : 'double';
+          if (funcType.returnType === 'string') {
+            returnType = 'i8*';
+          } else if (funcType.returnType !== 'number' && funcType.returnType !== 'boolean' && funcType.returnType !== 'void') {
+            returnType = 'i8*';
+          }
           paramTypes = funcType.parameters.map((p: any) => {
             if (p.type === 'string') return 'i8*';
             if (p.type === 'string[]') return '%StringArray*';
             if (p.type === 'number[]' || p.type === 'boolean[]') return '%Array*';
-            if (p.type !== 'number' && p.type !== 'boolean') return 'i32'; // Object/interface
-            return 'double'; // number/boolean
+            if (p.type !== 'number' && p.type !== 'boolean') return 'i8*';
+            return 'double';
           });
         }
       } catch (e) {
-        // Fall back to double
       }
     }
 
@@ -203,6 +205,7 @@ export class CallExpressionGenerator {
 
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = call ${returnType} @${expr.name}(${args})`);
+    this.ctx.variableTypes.set(temp, returnType);
 
     return temp;
   }

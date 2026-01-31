@@ -200,6 +200,7 @@ export interface FunctionNode {
   name: string;
   params: string[];
   body: BlockStatement;
+  returnType?: string;
 }
 
 export interface ClassMethod {

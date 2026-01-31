@@ -30,6 +30,7 @@ export class LLVMGenerator extends BaseGenerator {
   private typeChecker: TypeChecker | null;
   private externalFunctions: Set<string> = new Set();
   private currentFunction: string = ''; // Track current function for type checking
+  public currentDeclaredInterfaceType: string | undefined; // Track interface type for object literal generation
 
   // Top-level variables (accessible from all functions)
   private topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }> = new Map();
@@ -564,8 +565,8 @@ export class LLVMGenerator extends BaseGenerator {
             } else if (paramType === 'number[]' || paramType === 'boolean[]') {
               paramLLVMTypes.push('%Array*');
             } else if (paramType !== 'number' && paramType !== 'boolean') {
-              // Object/interface type - use i32 for object pointer
-              paramLLVMTypes.push('i32');
+              // Object/interface type - use i8* for object pointer
+              paramLLVMTypes.push('i8*');
             } else {
               paramLLVMTypes.push('double');
             }
@@ -603,8 +604,31 @@ export class LLVMGenerator extends BaseGenerator {
       const llvmType = paramLLVMTypes[i];
 
       if (llvmType === 'i8*') {
-        // String parameter
-        this.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
+        // Check if it's a string or an object type
+        if (paramTypes[i] === 'string') {
+          // String parameter
+          this.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
+        } else {
+          // Object/interface parameter - look up interface definition
+          const interfaceDef = this.ast.interfaces?.find(iface => iface.name === paramTypes[i]);
+          if (interfaceDef) {
+            const keys = interfaceDef.fields.map((f: any) => f.name);
+            const types = interfaceDef.fields.map((f: any) => {
+              const tsType = f.type;
+              if (tsType === 'string') return 'i8*';
+              if (tsType === 'number') return 'double';
+              if (tsType === 'boolean') return 'i1';
+              if (tsType === 'string[]') return '%StringArray*';
+              if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
+              return 'i8*';
+            });
+            this.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+              objectMetadata: { keys, types }
+            });
+          } else {
+            this.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local');
+          }
+        }
         this.emit(`${allocaReg} = alloca i8*`);
         this.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
       } else if (llvmType === '%StringArray*') {
@@ -617,11 +641,6 @@ export class LLVMGenerator extends BaseGenerator {
         this.defineVariable(paramName, allocaReg, '%Array*', SymbolKind.Array, 'local');
         this.emit(`${allocaReg} = alloca %Array*`);
         this.emit(`store %Array* %arg${i}, %Array** ${allocaReg}`);
-      } else if (llvmType === 'i32') {
-        // Object/interface parameter (pointer stored as i32)
-        this.defineVariable(paramName, allocaReg, 'i32', SymbolKind.Object, 'local');
-        this.emit(`${allocaReg} = alloca i32`);
-        this.emit(`store i32 %arg${i}, i32* ${allocaReg}`);
       } else {
         // Numeric parameter (double)
         this.defineVariable(paramName, allocaReg, 'double', SymbolKind.Number, 'local');
@@ -731,8 +750,28 @@ export class LLVMGenerator extends BaseGenerator {
     const isClassInstance = this.isClassInstanceExpression(stmt.value);
     const isResponse = this.isResponseExpression(stmt.value);
     const typedJsonInterface = this.getTypedJsonInterface(stmt.value);
+    const functionInterfaceReturn = this.getFunctionCallInterfaceReturn(stmt.value);
 
-    if (isClassInstance) {
+    if (functionInterfaceReturn) {
+      const interfaceDef = this.ast.interfaces!.find(i => i.name === functionInterfaceReturn)!;
+      const allocaReg = this.nextTemp();
+      const keys = interfaceDef.fields.map((f: any) => f.name);
+      const types = interfaceDef.fields.map((f: any) => {
+        const tsType = f.type;
+        if (tsType === 'string') return 'i8*';
+        if (tsType === 'number') return 'double';
+        if (tsType === 'boolean') return 'i1';
+        if (tsType === 'string[]') return '%StringArray*';
+        if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
+        return 'i8*';
+      });
+      this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+        objectMetadata: { keys, types }
+      });
+      this.emit(`${allocaReg} = alloca i8*`);
+      const objPtr = this.generateExpression(stmt.value, params);
+      this.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
+    } else if (isClassInstance) {
       const allocaReg = this.nextTemp();
       const newExpr = stmt.value as any as NewNode;
       const className = newExpr.className;
@@ -812,13 +851,43 @@ export class LLVMGenerator extends BaseGenerator {
       }
     } else if (isObject) {
       const allocaReg = this.nextTemp();
-      const metadata = this.getObjectMetadata(stmt.value as any);
+
+      // Check if declared type is an interface - use interface types instead of inferring
+      const interfaceDef = stmt.declaredType
+        ? this.ast.interfaces?.find(iface => iface.name === stmt.declaredType)
+        : undefined;
+
+      let keys: string[];
+      let types: string[];
+
+      if (interfaceDef) {
+        keys = interfaceDef.fields.map((f: any) => f.name);
+        types = interfaceDef.fields.map((f: any) => {
+          const tsType = f.type;
+          if (tsType === 'string') return 'i8*';
+          if (tsType === 'number') return 'double';
+          if (tsType === 'boolean') return 'i1';
+          if (tsType === 'string[]') return '%StringArray*';
+          if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
+          return 'i8*';
+        });
+      } else {
+        const metadata = this.getObjectMetadata(stmt.value as any);
+        keys = metadata.keys;
+        types = metadata.types;
+      }
+
       this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
-        objectMetadata: { keys: metadata.keys, types: metadata.types }
+        objectMetadata: { keys, types }
       });
       this.emit(`${allocaReg} = alloca i8*`);
 
+      // Pass interface type info to expression generator
+      if (interfaceDef) {
+        this.currentDeclaredInterfaceType = stmt.declaredType;
+      }
       const objExpr = this.generateExpression(stmt.value, params);
+      this.currentDeclaredInterfaceType = undefined;
       this.emit(`store i8* ${objExpr}, i8** ${allocaReg}`);
     } else if (isMap) {
       const allocaReg = this.nextTemp();
@@ -2195,6 +2264,15 @@ export class LLVMGenerator extends BaseGenerator {
     if (expr.type === 'method_call' && expr.method === 'json' && expr.typeParameter) {
       return expr.typeParameter;
     }
+    return null;
+  }
+
+  private getFunctionCallInterfaceReturn(expr: any): string | null {
+    if (expr.type !== 'call') return null;
+    const func = this.ast.functions.find(f => f.name === expr.name);
+    if (!func || !func.returnType) return null;
+    const iface = this.ast.interfaces?.find(i => i.name === func.returnType);
+    if (iface) return func.returnType;
     return null;
   }
 

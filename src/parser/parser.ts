@@ -570,12 +570,15 @@ export class Parser {
     }
     this.expect(')');
 
-    // Skip return type annotation if present (e.g., ": number")
+    // Capture return type annotation if present (e.g., ": number" or ": Flags")
+    let returnType: string | undefined;
     this.skipWhitespace();
     if (this.code[this.pos] === ':') {
       this.pos++; // consume ':'
       this.skipWhitespace();
+      const typeStart = this.pos;
       this.skipTypeAnnotation();
+      returnType = this.code.substring(typeStart, this.pos).trim();
     }
 
     this.expect('{');
@@ -584,7 +587,7 @@ export class Parser {
     const body = this.parseBlock();
     this.expect('}');
 
-    this.functions.push({ name, params, body });
+    this.functions.push({ name, params, body, returnType });
   }
 
   /**
