@@ -52,6 +52,7 @@ if (result === 0) {
   console.log("Processing...");
   console.log("Writing to " + outputFile);
   console.log("Done!");
+  console.log("TEST_PASSED");
 }
 
 process.exit(result);

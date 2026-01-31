@@ -25,11 +25,16 @@ function test(): number {
   console.log(flags.count);
   console.log(flags.name);
 
-  if (flags.verbose) {
-    return 1;
+  if (flags.verbose && flags.count === 42 && flags.name === "updated") {
+    return 0;
   }
-  return 0;
+  return 1;
 }
 
 const result = test();
+if (result === 0) {
+  console.log("TEST_PASSED");
+} else {
+  console.log("TEST_FAILED");
+}
 process.exit(result);
