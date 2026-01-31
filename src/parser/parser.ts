@@ -198,27 +198,76 @@ export class Parser {
         this.topLevelExpressions.push(tryStmt as any);
         this.topLevelItems.push(tryStmt);
       } else {
-        // Try to parse as function call, new expression, or method call (entry point)
         const savedPos = this.pos;
-        // Try to parse as an expression (could be new, call, method call, etc.)
         try {
-          const expr = this.parseExpression();
+          const leftExpr = this.parsePrimary();
+          this.skipWhitespace();
+
+          const ch = this.code[this.pos];
+          const ch2 = this.code[this.pos + 1];
+
+          let compoundOp: string | null = null;
+          if ((ch === '+' || ch === '-' || ch === '*' || ch === '/' || ch === '|' || ch === '&') && ch2 === '=') {
+            compoundOp = ch;
+            this.pos += 2;
+          } else if (ch === '=' && ch2 !== '=') {
+            this.pos++;
+          } else {
+            this.pos = savedPos;
+            const expr = this.parseExpression();
+            this.skipWhitespace();
+            if (this.code[this.pos] === ';') {
+              this.pos++;
+            }
+            if (expr.type === 'call' || expr.type === 'new' || expr.type === 'method_call') {
+              this.topLevelExpressions.push(expr as any);
+              this.topLevelItems.push(expr);
+            }
+            continue;
+          }
+
+          const value = this.parseExpression();
           this.skipWhitespace();
           if (this.code[this.pos] === ';') {
-            this.pos++; // consume semicolon
+            this.pos++;
           }
-          // Add to top-level expressions if it's a call, new, or method call
-          if (expr.type === 'call' || expr.type === 'new' || expr.type === 'method_call') {
-            this.topLevelExpressions.push(expr as any);
-            this.topLevelItems.push(expr);
+
+          let finalValue = value;
+          if (compoundOp) {
+            finalValue = {
+              type: 'binary',
+              op: compoundOp,
+              left: leftExpr,
+              right: value
+            } as any;
           }
+
+          let assignment: any;
+          if (leftExpr.type === 'variable') {
+            assignment = { type: 'assignment', name: (leftExpr as any).name, value: finalValue };
+          } else if (leftExpr.type === 'member_access') {
+            assignment = {
+              type: 'assignment',
+              name: `__member_access__${(leftExpr as any).property}__`,
+              value: { type: 'member_access_assignment', object: (leftExpr as any).object, property: (leftExpr as any).property, value: finalValue }
+            };
+          } else if (leftExpr.type === 'index_access') {
+            assignment = {
+              type: 'assignment',
+              name: '__index_access__',
+              value: { type: 'index_access_assignment', object: (leftExpr as any).object, index: (leftExpr as any).index, value: finalValue }
+            };
+          } else {
+            throw new Error(`Cannot assign to ${leftExpr.type}`);
+          }
+
+          this.topLevelStatements.push(assignment);
+          this.topLevelItems.push(assignment);
         } catch (e) {
-          // Re-throw intentional errors for unsupported features
           const errorMsg = (e as Error).message;
           if (errorMsg && errorMsg.includes('is not supported in ChadScript')) {
             throw e;
           }
-          // If parsing fails and position hasn't advanced, show error to avoid infinite loop
           if (this.pos === savedPos) {
             const msg = this.formatError('Unexpected token') +
               `\n\x1b[2mChadScript only supports a subset of JavaScript.\x1b[0m\n` +
