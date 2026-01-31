@@ -48,6 +48,14 @@ export class ConsoleGenerator {
     const argValue = this.ctx.generateExpression(arg, params);
     const isString = this.ctx.isStringExpression(arg);
 
+    // Check if it's a Response object (from fetch())
+    if (arg.type === 'variable') {
+      const varType = this.ctx.getVariableType((arg as any).name);
+      if (varType === '%Response*') {
+        return this.generateResponsePrint(method, argValue);
+      }
+    }
+
     if (isString) {
       return this.generateStringPrint(method, argValue);
     } else {
@@ -113,5 +121,15 @@ export class ConsoleGenerator {
       this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, double ${argValue})`);
       return temp;
     }
+  }
+
+  private generateResponsePrint(method: string, argValue: string): string {
+    // Extract the body field from Response* and print it as a string
+    // Response = { i8* raw, i32 status, i8* body }
+    const bodyPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${bodyPtr} = getelementptr %Response, %Response* ${argValue}, i32 0, i32 2`);
+    const body = this.ctx.nextTemp();
+    this.ctx.emit(`${body} = load i8*, i8** ${bodyPtr}`);
+    return this.generateStringPrint(method, body);
   }
 }
