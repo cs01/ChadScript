@@ -3,5 +3,10 @@ function add(a, b) {
   return a + b;
 }
 
-// Entry point - will return 12
-add(5, 7);
+// Verify result and report
+const result = add(5, 7);
+if (result === 12) {
+  console.log("TEST_PASSED");
+} else {
+  console.log("TEST_FAILED");
+}
