@@ -997,6 +997,11 @@ export class LLVMGenerator extends BaseGenerator {
                     // Store number/boolean array pointer (%Array*)
                     // Value is already an %Array* from array generation
                     this.emit(`store %Array* ${value}, %Array** ${fieldPtr}`);
+                  } else if (fieldInfo.type === 'boolean') {
+                    // Convert double to i1 for boolean fields
+                    const boolValue = this.nextTemp();
+                    this.emit(`${boolValue} = fcmp one double ${value}, 0.0`);
+                    this.emit(`store i1 ${boolValue}, i1* ${fieldPtr}`);
                   } else {
                     // Store double (JavaScript semantics)
                     this.emit(`store double ${value}, double* ${fieldPtr}`);

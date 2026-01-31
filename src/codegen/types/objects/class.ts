@@ -9,7 +9,7 @@ import { logger } from '../../../utils/logger.js';
 
 export class ClassGenerator {
   // Track class structures: className -> field info
-  private classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]> = new Map();
+  private classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[]> = new Map();
   // Track instance variables: varName -> className
   private instanceVariables: Map<string, string> = new Map();
 
@@ -28,7 +28,7 @@ export class ClassGenerator {
   private get ast() { return this.ctx.ast; }
 
   // Helper to get field info
-  getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' } | null {
+  getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' } | null {
     const fields = this.classFields.get(className);
     if (!fields) return null;
 
@@ -39,7 +39,7 @@ export class ClassGenerator {
   }
 
   // Helper to get class fields
-  getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[] {
+  getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[] {
     return this.classFields.get(className) || [];
   }
 
@@ -57,6 +57,7 @@ export class ClassGenerator {
         if (f.fieldType === 'string') return 'i8*';
         if (f.fieldType === 'string[]') return '%StringArray*';  // String arrays
         if (f.fieldType.endsWith('[]')) return '%Array*';  // Number/boolean arrays
+        if (f.fieldType === 'boolean') return 'i1';  // Boolean fields
         return 'double';
       });
       ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
@@ -84,7 +85,7 @@ export class ClassGenerator {
     return ir;
   }
 
-  private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
+  private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[]): string {
     // Constructor returns struct pointer (either %ClassName_struct* or double* for backward compat)
     const structType = fields.length > 0 ? `%${className}_struct*` : 'double*';
     let ir = `define ${structType} @${className}_constructor(`;
@@ -160,9 +161,12 @@ export class ClassGenerator {
         } else if (fieldType.endsWith('[]')) {
           // Number/boolean array fields - initialize to null
           this.emit(`store %Array* null, %Array** ${fieldPtr}`);
+        } else if (fieldType === 'boolean') {
+          // Boolean fields - initialize to false (i1)
+          this.emit(`store i1 false, i1* ${fieldPtr}`);
         } else {
-          // i32 fields
-          this.emit(`store i32 0, i32* ${fieldPtr}`);
+          // double fields
+          this.emit(`store double 0.0, double* ${fieldPtr}`);
         }
       }
     } else {
@@ -207,7 +211,7 @@ export class ClassGenerator {
     return ir;
   }
 
-  private generateMethod(className: string, method: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' }[]): string {
+  private generateMethod(className: string, method: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[]): string {
     // Determine return type from method's returnType annotation
     let returnLLVMType = 'double'; // default for JavaScript semantics
     if (method.returnType) {

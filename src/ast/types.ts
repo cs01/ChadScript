@@ -214,7 +214,7 @@ export interface ClassMethod {
 
 export interface ClassField {
   name: string;
-  fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]';  // Primitive types and arrays
+  fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean';  // Primitive types and arrays
 }
 
 export interface ClassNode {
