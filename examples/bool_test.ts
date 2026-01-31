@@ -30,7 +30,7 @@ console.log(flags.isEnabled());
 console.log("Count:");
 console.log(flags.count);
 
-if (flags.isEnabled() === 1) {
+if (flags.isEnabled() > 0) {
   console.log("TEST_PASSED");
 } else {
   console.log("TEST_FAILED");

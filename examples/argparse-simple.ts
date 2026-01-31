@@ -43,7 +43,7 @@ function parseArgs(argv: string[]): number {
 // Main
 const result = parseArgs(process.argv);
 
-if (result === 0) {
+if (result < 1) {
   if (verboseEnabled) {
     console.log("Verbose mode enabled");
     console.log("Output file: " + outputFile);
