@@ -213,6 +213,7 @@ export class ResponseGenerator {
     // Convert to double (ChadScript's number type)
     const statusDouble = this.ctx.nextTemp();
     this.ctx.emit(`${statusDouble} = sitofp i32 ${statusI32} to double`);
+    this.ctx.variableTypes.set(statusDouble, 'double');
 
     return statusDouble;
   }
@@ -247,6 +248,7 @@ export class ResponseGenerator {
     // Convert i1 (boolean) to double (0.0 or 1.0)
     const okDouble = this.ctx.nextTemp();
     this.ctx.emit(`${okDouble} = uitofp i1 ${isOk} to double`);
+    this.ctx.variableTypes.set(okDouble, 'double');
 
     return okDouble;
   }

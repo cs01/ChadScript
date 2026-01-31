@@ -22,9 +22,10 @@ export class MemberAccessGenerator {
   generate(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
           // Handle typed JSON struct property access (from .json<T>())
           if (expr.object.type === 'variable') {
-            const varType = this.ctx.variableTypes.get(expr.object.name);
+            const varType = this.ctx.getVariableType(expr.object.name);
             // Check if it's a typed JSON struct pointer (e.g., %JsonTestResponse*)
-            if (varType && varType.startsWith('%') && varType.endsWith('*') && !varType.includes('Array') && !varType.includes('Response') && !varType.includes('Map') && !varType.includes('Set')) {
+            // Exclude built-in types: %Response* (fetch), %Array*, %StringArray*, %Map*, %Set*
+            if (varType && varType.startsWith('%') && varType.endsWith('*') && varType !== '%Response*' && !varType.includes('Array') && !varType.includes('Map') && !varType.includes('Set')) {
               // Extract the struct type name (e.g., "JsonTestResponse" from "%JsonTestResponse*")
               const structTypeName = varType.substring(1, varType.length - 1);  // Remove % and *
 
@@ -41,7 +42,7 @@ export class MemberAccessGenerator {
                   const propType = interfaceDef.properties[propIndex].type;
 
                   // Load the struct pointer
-                  const varPtr = this.ctx.variables.get(expr.object.name);
+                  const varPtr = this.ctx.getVariableAlloca(expr.object.name);
                   const structPtr = this.ctx.nextTemp();
                   this.ctx.emit(`${structPtr} = load %${structTypeName}*, %${structTypeName}** ${varPtr}`);
 
@@ -687,10 +688,10 @@ export class MemberAccessGenerator {
           // Handle Response properties (.status and .ok)
           if (expr.property === 'status' || expr.property === 'ok') {
             if (expr.object.type === 'variable') {
-              const varType = this.ctx.variableTypes.get((expr.object as any).name);
+              const varType = this.ctx.getVariableType((expr.object as any).name);
               if (varType === '%Response*') {
                 // Load the Response pointer
-                const varPtr = this.ctx.variables.get((expr.object as any).name);
+                const varPtr = this.ctx.getVariableAlloca((expr.object as any).name);
                 const responsePtr = this.ctx.nextTemp();
                 this.ctx.emit(`${responsePtr} = load %Response*, %Response** ${varPtr}`);
 
