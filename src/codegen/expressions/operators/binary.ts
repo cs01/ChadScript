@@ -101,14 +101,22 @@ export class BinaryExpressionGenerator {
     const rightIsString = this.ctx.isStringExpression(rightExpr);
 
     // Also check if generated values are tracked as strings
-    const leftType = this.ctx.variableTypes.get(leftValue) || 'i32';
-    const rightType = this.ctx.variableTypes.get(rightValue) || 'i32';
+    const leftType = this.ctx.variableTypes.get(leftValue) || 'double';
+    const rightType = this.ctx.variableTypes.get(rightValue) || 'double';
     const leftIsStringType = leftType === 'i8*' || leftValue.startsWith('@.str');
     const rightIsStringType = rightType === 'i8*' || rightValue.startsWith('@.str');
 
+    // If one side is i32 (from JSON) and the other is a string, treat as string comparison
+    const leftIsJSONi32 = leftType === 'i32';
+    const rightIsJSONi32 = rightType === 'i32';
+
     // String comparison uses strcmp (check both static and runtime types)
-    if ((leftIsString || leftIsStringType) && (rightIsString || rightIsStringType) &&
-        (op === '==' || op === '===' || op === '!=' || op === '!==')) {
+    // Also treat as string comparison if one side is i32 (JSON) and the other is a string literal
+    if ((op === '==' || op === '===' || op === '!=' || op === '!==') &&
+        ((leftIsString || leftIsStringType) && (rightIsString || rightIsStringType) ||
+         (leftIsJSONi32 && (rightIsString || rightIsStringType)) ||
+         ((leftIsString || leftIsStringType) && rightIsJSONi32) ||
+         (leftIsJSONi32 && rightIsJSONi32))) {
       return this.generateStringComparison(op, leftValue, rightValue);
     }
 
@@ -118,8 +126,29 @@ export class BinaryExpressionGenerator {
 
   private generateStringComparison(op: string, left: string, right: string): string {
     this.ctx.syncStateToGenerators();
+
+    // Handle i32 values from JSON property access - convert to i8*
+    const leftType = this.ctx.variableTypes.get(left);
+    const rightType = this.ctx.variableTypes.get(right);
+
+    let leftPtr = left;
+    let rightPtr = right;
+
+    // If the type is i32 (from JSON phi), convert to i8*
+    if (leftType === 'i32') {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = inttoptr i32 ${left} to i8*`);
+      leftPtr = temp;
+    }
+
+    if (rightType === 'i32') {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = inttoptr i32 ${right} to i8*`);
+      rightPtr = temp;
+    }
+
     const strcmpResult = this.ctx.nextTemp();
-    this.ctx.emit(`${strcmpResult} = call i32 @strcmp(i8* ${left}, i8* ${right})`);
+    this.ctx.emit(`${strcmpResult} = call i32 @strcmp(i8* ${leftPtr}, i8* ${rightPtr})`);
 
     const cmpResult = this.ctx.nextTemp();
     if (op === '==' || op === '===') {
@@ -138,8 +167,27 @@ export class BinaryExpressionGenerator {
   }
 
   private generateNumericComparison(cond: string, left: string, right: string): string {
+    // Handle i32 values from JSON property access - convert to double
+    const leftType = this.ctx.variableTypes.get(left);
+    const rightType = this.ctx.variableTypes.get(right);
+
+    let leftDouble = left;
+    let rightDouble = right;
+
+    if (leftType === 'i32') {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = sitofp i32 ${left} to double`);
+      leftDouble = temp;
+    }
+
+    if (rightType === 'i32') {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = sitofp i32 ${right} to double`);
+      rightDouble = temp;
+    }
+
     const cmpResult = this.ctx.nextTemp();
-    this.ctx.emit(`${cmpResult} = fcmp ${cond} double ${left}, ${right}`);
+    this.ctx.emit(`${cmpResult} = fcmp ${cond} double ${leftDouble}, ${rightDouble}`);
 
     // Convert boolean result to double (JavaScript semantics: comparisons return numbers)
     const i32Result = this.ctx.nextTemp();

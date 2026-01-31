@@ -125,10 +125,8 @@ export class VariableExpressionGenerator {
   }
 
   private loadArray(allocaReg: string, arrayType: string): string {
-    const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = load ${arrayType}, ${arrayType}* ${allocaReg}`);
-    this.ctx.variableTypes.set(temp, arrayType);
-    return temp;
+    this.ctx.variableTypes.set(allocaReg, arrayType);
+    return allocaReg;
   }
 
   private loadObject(objectMeta: any): string {

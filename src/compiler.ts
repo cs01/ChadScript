@@ -137,7 +137,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, display
 
   // Avoid circular imports
   if (compiledFiles.has(absPath)) {
-    return { imports: [], functions: [], classes: [], exports: [], topLevelStatements: [], topLevelExpressions: [] };
+    return { imports: [], functions: [], classes: [], exports: [], interfaces: [], topLevelStatements: [], topLevelExpressions: [], topLevelItems: [] };
   }
   compiledFiles.add(absPath);
 

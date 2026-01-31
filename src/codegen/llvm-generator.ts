@@ -680,6 +680,7 @@ export class LLVMGenerator extends BaseGenerator {
         // Interface type - use field metadata for property access
         // Convert TypeScript types to LLVM types for metadata
         const keys = interfaceDef.fields.map((f: any) => f.name);
+        const tsTypes = interfaceDef.fields.map((f: any) => f.type);
         const types = interfaceDef.fields.map((f: any) => {
           const tsType = f.type;
           if (tsType === 'string') return 'i8*';
@@ -692,7 +693,7 @@ export class LLVMGenerator extends BaseGenerator {
         });
 
         this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local', {
-          objectMetadata: { keys, types }
+          objectMetadata: { keys, types, tsTypes }
         });
 
         this.emit(`${allocaReg} = alloca i8*`);
