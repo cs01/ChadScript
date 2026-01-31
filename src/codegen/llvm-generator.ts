@@ -34,6 +34,9 @@ export class LLVMGenerator extends BaseGenerator {
   // Top-level variables (accessible from all functions)
   private topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }> = new Map();
 
+  // Global variables declared with LLVM @ prefix (accessible from any function)
+  private globalVariables: Map<string, { llvmType: string; kind: SymbolKind; initialized: boolean }> = new Map();
+
   // Specialized generators
   private arrayGen: ArrayGenerator;
   private stringGen: StringGenerator;
@@ -170,6 +173,90 @@ export class LLVMGenerator extends BaseGenerator {
         objectMetadata: { keys: meta.keys, types: meta.types }
       });
     });
+    // Restore global variables after reset so functions can access them
+    this.globalVariables.forEach((info, name) => {
+      this.defineVariable(name, `@${name}`, info.llvmType, info.kind, 'global');
+    });
+  }
+
+  private generateGlobalVariableDeclarations(): string {
+    let ir = '';
+    for (const stmt of this.ast.topLevelStatements || []) {
+      if (stmt.type === 'variable_declaration' && stmt.value !== null) {
+        const name = stmt.name;
+        const isString = this.isStringExpression(stmt.value);
+        const isStringArray = this.isStringArrayExpression(stmt.value);
+        const isArray = !isStringArray && this.isArrayExpression(stmt.value);
+        const isObject = this.isObjectExpression(stmt.value);
+        const isMap = this.isMapExpression(stmt.value);
+        const isSet = this.isSetExpression(stmt.value);
+        const isRegex = this.isRegexExpression(stmt.value);
+        const isClassInstance = this.isClassInstanceExpression(stmt.value);
+        const isBoolean = this.isBooleanExpression(stmt.value);
+
+        let llvmType: string;
+        let kind: SymbolKind;
+        let defaultValue: string;
+
+        if (isString) {
+          llvmType = 'i8*';
+          kind = SymbolKind.String;
+          defaultValue = 'null';
+        } else if (isStringArray) {
+          llvmType = '%StringArray';
+          kind = SymbolKind.StringArray;
+          defaultValue = 'zeroinitializer';
+        } else if (isArray) {
+          llvmType = '%Array';
+          kind = SymbolKind.Array;
+          defaultValue = 'zeroinitializer';
+        } else if (isObject) {
+          llvmType = 'i8*';
+          kind = SymbolKind.Object;
+          defaultValue = 'null';
+        } else if (isMap) {
+          llvmType = '%Map';
+          kind = SymbolKind.Map;
+          defaultValue = 'zeroinitializer';
+        } else if (isSet) {
+          llvmType = '%Set';
+          kind = SymbolKind.Set;
+          defaultValue = 'zeroinitializer';
+        } else if (isRegex) {
+          llvmType = 'i8*';
+          kind = SymbolKind.Regex;
+          defaultValue = 'null';
+        } else if (isClassInstance) {
+          const className = (stmt.value as any).className;
+          const fields = this.classGen?.getClassFields(className) || [];
+          llvmType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
+          kind = SymbolKind.Class;
+          defaultValue = 'null';
+        } else if (isBoolean) {
+          llvmType = 'double';
+          kind = SymbolKind.Boolean;
+          defaultValue = '0.0';
+        } else {
+          llvmType = 'double';
+          kind = SymbolKind.Number;
+          defaultValue = '0.0';
+        }
+
+        ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
+        this.globalVariables.set(name, { llvmType, kind, initialized: false });
+      }
+    }
+    if (ir.length > 0) {
+      ir += '\n';
+    }
+    return ir;
+  }
+
+  private isBooleanExpression(expr: any): boolean {
+    if (expr === null || expr === undefined) return false;
+    if (expr.type === 'boolean') return true;
+    if (expr.type === 'identifier' && (expr.name === 'true' || expr.name === 'false')) return true;
+    return false;
   }
 
   /**
@@ -352,6 +439,9 @@ export class LLVMGenerator extends BaseGenerator {
     // Global flag to detect ChadScript environment
     ir += '@__chadscript = global double 1.0\n';
     ir += '\n';
+
+    // Generate global variable declarations for top-level let/const
+    ir += this.generateGlobalVariableDeclarations();
 
     // Generate external function declarations for imports
     for (const funcName of this.externalFunctions) {
