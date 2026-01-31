@@ -33,7 +33,7 @@ testSocket();
 
     try {
       // Compile
-      await execAsync(`npx tsx src/index.ts ${testFile}`);
+      await execAsync(`node dist/index.js ${testFile}`);
 
       // Run
       const { stdout, stderr } = await execAsync('.build/tests/fixtures/tcp-test-socket');
@@ -93,7 +93,7 @@ testTcpClient();
       await fs.writeFile(clientFile, clientCode);
 
       // Compile and run
-      await execAsync(`npx tsx src/index.ts ${clientFile}`);
+      await execAsync(`node dist/index.js ${clientFile}`);
       const { stdout } = await execAsync('.build/tests/fixtures/tcp-client');
 
       assert.ok(!stdout.includes('Socket failed'), 'Socket creation should work');
@@ -132,7 +132,7 @@ testTcpClient();
     try {
       // Compile the fetch test fixture
       const testFile = 'tests/fixtures/network/fetch-integration-test.ts';
-      await execAsync(`npx tsx src/index.ts ${testFile}`);
+      await execAsync(`node dist/index.js ${testFile}`);
 
       // Run the compiled program
       const { stdout, stderr } = await execAsync('.build/tests/fixtures/network/fetch-integration-test');

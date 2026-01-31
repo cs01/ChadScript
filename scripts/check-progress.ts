@@ -49,7 +49,7 @@ function compileCliProgram(): { success: boolean; error?: string } {
   }
 
   try {
-    execSync(`npx tsx src/index.ts ${sourceFile}`, {
+    execSync(`node dist/index.js ${sourceFile}`, {
       cwd: PROJECT_ROOT,
       stdio: 'pipe',
       encoding: 'utf8',

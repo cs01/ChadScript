@@ -34,7 +34,7 @@ function compileCliProgram(): { success: boolean; binaryPath: string; error?: st
   console.log(`Output: ${binaryPath}`);
 
   try {
-    execSync(`npx tsx src/index.ts ${sourceFile}`, {
+    execSync(`node dist/index.js ${sourceFile}`, {
       cwd: PROJECT_ROOT,
       stdio: 'pipe',
       encoding: 'utf8',
