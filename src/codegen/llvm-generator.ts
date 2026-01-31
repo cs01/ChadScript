@@ -316,6 +316,10 @@ export class LLVMGenerator extends BaseGenerator {
     ir += this.runtimeGen.generateJSONRuntime();
     ir += '\n';
 
+    // HTTP server runtime
+    ir += this.runtimeGen.generateHttpServerRuntime();
+    ir += '\n';
+
     // Helper function to safely get string or return empty string if NULL
     ir += '; Return empty string if pointer is NULL, otherwise return the pointer\n';
     ir += 'define i8* @__safe_string(i8* %str) {\n';
@@ -2223,9 +2227,13 @@ export class LLVMGenerator extends BaseGenerator {
       throw new Error('httpServe() handler must be a function reference');
     }
 
+    // Convert port from double to i32
+    const portI32 = this.nextTemp();
+    this.emit(`${portI32} = fptosi double ${portValue} to i32`);
+
     // Call the runtime http_serve function
     const temp = this.nextTemp();
-    this.emit(`${temp} = call i32 @http_serve(i32 ${portValue}, i32 (i8*, i8*)* @${handlerName})`);
+    this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*, i8*)* @${handlerName})`);
 
     return temp;
   }

@@ -309,33 +309,47 @@ export class RuntimeGenerator {
     ir += '  ret i8* %buffer\n';
     ir += '}\n\n';
 
-    // Helper function to parse HTTP path
+    // Helper function to parse HTTP path and null-terminate it
     ir += 'define i8* @parse_http_path(i8* %buffer) {\n';
     ir += 'entry:\n';
     ir += '  ; Find first space (after method)\n';
     ir += '  %ptr = alloca i8*\n';
     ir += '  store i8* %buffer, i8** %ptr\n';
-    ir += '  br label %loop\n\n';
-    ir += 'loop:\n';
-    ir += '  %curr_ptr = load i8*, i8** %ptr\n';
-    ir += '  %char = load i8, i8* %curr_ptr\n';
-    ir += '  %is_space = icmp eq i8 %char, 32\n'; // ASCII space
-    ir += '  br i1 %is_space, label %found_space, label %continue\n\n';
-    ir += 'continue:\n';
-    ir += '  %next_ptr = getelementptr i8, i8* %curr_ptr, i32 1\n';
-    ir += '  store i8* %next_ptr, i8** %ptr\n';
-    ir += '  br label %loop\n\n';
-    ir += 'found_space:\n';
+    ir += '  br label %find_first_space\n\n';
+    ir += 'find_first_space:\n';
+    ir += '  %curr_ptr1 = load i8*, i8** %ptr\n';
+    ir += '  %char1 = load i8, i8* %curr_ptr1\n';
+    ir += '  %is_space1 = icmp eq i8 %char1, 32\n';
+    ir += '  br i1 %is_space1, label %found_first_space, label %next1\n\n';
+    ir += 'next1:\n';
+    ir += '  %next_ptr1 = getelementptr i8, i8* %curr_ptr1, i32 1\n';
+    ir += '  store i8* %next_ptr1, i8** %ptr\n';
+    ir += '  br label %find_first_space\n\n';
+    ir += 'found_first_space:\n';
     ir += '  ; Move past the space to get path start\n';
-    ir += '  %path_start = getelementptr i8, i8* %curr_ptr, i32 1\n';
+    ir += '  %path_start = getelementptr i8, i8* %curr_ptr1, i32 1\n';
+    ir += '  store i8* %path_start, i8** %ptr\n';
+    ir += '  br label %find_second_space\n\n';
+    ir += 'find_second_space:\n';
+    ir += '  %curr_ptr2 = load i8*, i8** %ptr\n';
+    ir += '  %char2 = load i8, i8* %curr_ptr2\n';
+    ir += '  %is_space2 = icmp eq i8 %char2, 32\n';
+    ir += '  br i1 %is_space2, label %found_second_space, label %next2\n\n';
+    ir += 'next2:\n';
+    ir += '  %next_ptr2 = getelementptr i8, i8* %curr_ptr2, i32 1\n';
+    ir += '  store i8* %next_ptr2, i8** %ptr\n';
+    ir += '  br label %find_second_space\n\n';
+    ir += 'found_second_space:\n';
+    ir += '  ; Null-terminate the path\n';
+    ir += '  store i8 0, i8* %curr_ptr2\n';
     ir += '  ret i8* %path_start\n';
     ir += '}\n\n';
 
     // Main HTTP server function
     ir += '; Main HTTP server function\n';
     ir += '; Takes port number and handler function pointer\n';
-    ir += '; Handler signature: i32 handler(i8* method, i8* path)\n';
-    ir += 'define i32 @http_serve(i32 %port, i32 (i8*, i8*)* %handler) {\n';
+    ir += '; Handler signature: i8* handler(i8* method, i8* path)\n';
+    ir += 'define i32 @http_serve(i32 %port, i8* (i8*, i8*)* %handler) {\n';
     ir += 'entry:\n';
     ir += '  ; Constants\n';
     ir += '  %AF_INET = alloca i32\n';
