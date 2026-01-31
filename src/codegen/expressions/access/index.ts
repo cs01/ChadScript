@@ -29,6 +29,11 @@ export class IndexAccessGenerator {
       }
     }
 
+    // Check if it's a JSON array (from JSON.parse<number[]> or similar)
+    if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON(expr.object.name)) {
+      return this.generateJSONArrayIndex(expr, params, generateExpressionFn);
+    }
+
     // Determine if we're indexing into a string array or numeric array
     // We use isStringArrayExpression/isArrayExpression which check types comprehensively
     const isStringArray = this.ctx.isStringArrayExpression(expr.object);
@@ -165,5 +170,61 @@ export class IndexAccessGenerator {
     this.ctx.variableTypes.set(charDouble, 'double');
 
     return charDouble;
+  }
+
+  private generateJSONArrayIndex(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    // Load JSON array pointer
+    const jsonPtrPtr = this.ctx.getVariableAlloca(expr.object.name)!;
+    const jsonPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${jsonPtr} = load i8*, i8** ${jsonPtrPtr}`);
+
+    // Generate index and convert to i32
+    const indexDouble = generateExpressionFn(expr.index, params);
+    const indexType = this.ctx.variableTypes.get(indexDouble);
+    let index = indexDouble;
+    if (indexType === 'double' || indexType === undefined) {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    }
+
+    // Get array item using cJSON_GetArrayItem
+    const itemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${itemPtr} = call i8* @cJSON_GetArrayItem(i8* ${jsonPtr}, i32 ${index})`);
+
+    // Check if item is a number or string and extract value
+    const isNumber = this.ctx.nextTemp();
+    this.ctx.emit(`${isNumber} = call i32 @cJSON_IsNumber(i8* ${itemPtr})`);
+    const isNumBool = this.ctx.nextTemp();
+    this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
+
+    const numberLabel = this.ctx.nextLabel('json_arr_number');
+    const stringLabel = this.ctx.nextLabel('json_arr_string');
+    const endLabel = this.ctx.nextLabel('json_arr_end');
+
+    this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
+
+    // Number case
+    this.ctx.emit(`${numberLabel}:`);
+    const numValue = this.ctx.nextTemp();
+    this.ctx.emit(`${numValue} = call double @cJSON_GetNumberValue(i8* ${itemPtr})`);
+    this.ctx.emit(`br label %${endLabel}`);
+
+    // String case
+    this.ctx.emit(`${stringLabel}:`);
+    const strValue = this.ctx.nextTemp();
+    this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${itemPtr})`);
+    const strAsDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${strAsDouble} = ptrtoint i8* ${strValue} to i64`);
+    const strDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${strDouble} = sitofp i64 ${strAsDouble} to double`);
+    this.ctx.emit(`br label %${endLabel}`);
+
+    // Merge
+    this.ctx.emit(`${endLabel}:`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = phi double [ ${numValue}, %${numberLabel} ], [ ${strDouble}, %${stringLabel} ]`);
+    this.ctx.variableTypes.set(result, 'double');
+
+    return result;
   }
 }

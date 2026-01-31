@@ -36,6 +36,7 @@ export enum SymbolKind {
 export interface ObjectMetadata {
   keys: string[];
   types: string[];  // LLVM types for each field
+  tsTypes?: string[];  // TypeScript types for nested interface resolution
 }
 
 /**
@@ -355,14 +356,15 @@ export class SymbolTable {
   /**
    * Get object variable info (legacy objectVariables.get())
    */
-  getObjectInfo(name: string): { ptr: string; keys: string[]; types: string[] } | undefined {
+  getObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined {
     const symbol = this.symbols.get(name);
     // Support both Object and JSON kinds (JSON.parse results store metadata like objects)
     if ((symbol?.kind === SymbolKind.Object || symbol?.kind === SymbolKind.JSON) && symbol.objectMetadata) {
       return {
         ptr: symbol.allocaRegister,
         keys: symbol.objectMetadata.keys,
-        types: symbol.objectMetadata.types
+        types: symbol.objectMetadata.types,
+        tsTypes: symbol.objectMetadata.tsTypes
       };
     }
     return undefined;

@@ -204,48 +204,83 @@ export class MemberAccessGenerator {
 
           // Check if accessing a JSON object property
           if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON(expr.object.name)) {
+            // Get metadata to check if this property is a nested interface
+            const jsonMeta = this.ctx.symbolTable.getObjectInfo(expr.object.name);
+            let tsType: string | undefined;
+            if (jsonMeta?.tsTypes) {
+              const propIdx = jsonMeta.keys.indexOf(expr.property);
+              if (propIdx !== -1) {
+                tsType = jsonMeta.tsTypes[propIdx];
+              }
+            }
+
             // Load JSON object pointer
             const jsonObjPtrPtr = this.ctx.getVariableAlloca(expr.object.name)!;
             const jsonObjPtr = this.ctx.nextTemp();
             this.ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
-    
+
             this.ctx.syncStateToGenerators();
             const fieldNameStr = this.ctx.stringGen.createStringConstant(expr.property);
-    
+
             // Get the field from JSON object
             const fieldItem = this.ctx.nextTemp();
             this.ctx.emit(`${fieldItem} = call i8* @cJSON_GetObjectItem(i8* ${jsonObjPtr}, i8* ${fieldNameStr})`);
-    
+
+            // If this property is a nested interface, return the cJSON object pointer
+            if (tsType && !['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'].includes(tsType)) {
+              // This is a nested interface - look up its definition
+              const nestedInterfaceDef = this.ctx.ast?.interfaces?.find((iface: any) => iface.name === tsType);
+              if (nestedInterfaceDef) {
+                // Track this as a JSON object with its own metadata
+                const keys = nestedInterfaceDef.fields.map((f: any) => f.name);
+                const tsTypes = nestedInterfaceDef.fields.map((f: any) => f.type);
+                const types = nestedInterfaceDef.fields.map((f: any) => {
+                  const t = f.type;
+                  if (t === 'string') return 'i8*';
+                  if (t === 'number') return 'double';
+                  if (t === 'boolean') return 'double';
+                  if (t === 'string[]') return '%StringArray*';
+                  if (t === 'number[]') return '%Array*';
+                  return 'i8*';
+                });
+                // Store metadata for this result so nested access works
+                this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
+                this.ctx.jsonObjectMetadata.set(fieldItem, { keys, types, tsTypes });
+              }
+              this.ctx.variableTypes.set(fieldItem, 'i8*');
+              return fieldItem;
+            }
+
             // Check if field exists
             const fieldExists = this.ctx.nextTemp();
             this.ctx.emit(`${fieldExists} = icmp ne i8* ${fieldItem}, null`);
-    
+
             const hasFieldLabel = this.ctx.nextLabel('json_has_field');
             const noFieldLabel = this.ctx.nextLabel('json_no_field');
             const fieldEndLabel = this.ctx.nextLabel('json_field_end');
-    
+
             this.ctx.emit(`br i1 ${fieldExists}, label %${hasFieldLabel}, label %${noFieldLabel}`);
-    
+
             // Field exists: check type and extract value
             this.ctx.emit(`${hasFieldLabel}:`);
-    
+
             // Check if it's a number
             const isNumber = this.ctx.nextTemp();
             this.ctx.emit(`${isNumber} = call i32 @cJSON_IsNumber(i8* ${fieldItem})`);
             const isNumBool = this.ctx.nextTemp();
             this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
-    
+
             const numberLabel = this.ctx.nextLabel('json_number');
             const stringLabel = this.ctx.nextLabel('json_string');
-    
+
             this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
-    
+
             // Number field
             this.ctx.emit(`${numberLabel}:`);
             const numValue = this.ctx.nextTemp();
             this.ctx.emit(`${numValue} = call i32 @cJSON_GetNumberValueAsInt(i8* ${fieldItem})`);
             this.ctx.emit(`br label %${fieldEndLabel}`);
-    
+
             // String field
             this.ctx.emit(`${stringLabel}:`);
             const strValue = this.ctx.nextTemp();
@@ -254,19 +289,95 @@ export class MemberAccessGenerator {
             const strAsInt = this.ctx.nextTemp();
             this.ctx.emit(`${strAsInt} = ptrtoint i8* ${strValue} to i32`);
             this.ctx.emit(`br label %${fieldEndLabel}`);
-    
+
             // Field doesn't exist: return 0
             this.ctx.emit(`${noFieldLabel}:`);
             this.ctx.emit(`br label %${fieldEndLabel}`);
-    
+
             // Merge
             this.ctx.emit(`${fieldEndLabel}:`);
             const result = this.ctx.nextTemp();
             this.ctx.emit(`${result} = phi i32 [ ${numValue}, %${numberLabel} ], [ ${strAsInt}, %${stringLabel} ], [ 0, %${noFieldLabel} ]`);
-    
+
+            // Track type so comparison code can convert if needed
+            this.ctx.variableTypes.set(result, 'i32');
+
             return result;
           }
-    
+
+          // Check if accessing a property on a nested JSON object (from member_access)
+          if (expr.object.type === 'member_access') {
+            // Generate the inner member access first
+            const innerResult = generateExpressionFn(expr.object, params);
+            // Check if the inner result has JSON metadata
+            const nestedMeta = this.ctx.jsonObjectMetadata?.get(innerResult);
+            if (nestedMeta) {
+              // This is a nested JSON object - access its property
+              this.ctx.syncStateToGenerators();
+              const fieldNameStr = this.ctx.stringGen.createStringConstant(expr.property);
+              const fieldItem = this.ctx.nextTemp();
+              this.ctx.emit(`${fieldItem} = call i8* @cJSON_GetObjectItem(i8* ${innerResult}, i8* ${fieldNameStr})`);
+
+              // Check if this property is itself a nested interface
+              const propIdx = nestedMeta.keys.indexOf(expr.property);
+              const tsType = propIdx !== -1 ? nestedMeta.tsTypes?.[propIdx] : undefined;
+
+              if (tsType && !['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'].includes(tsType)) {
+                // Another nested interface
+                const nestedInterfaceDef = this.ctx.ast?.interfaces?.find((iface: any) => iface.name === tsType);
+                if (nestedInterfaceDef) {
+                  const keys = nestedInterfaceDef.fields.map((f: any) => f.name);
+                  const tsTypes = nestedInterfaceDef.fields.map((f: any) => f.type);
+                  const types = nestedInterfaceDef.fields.map((f: any) => {
+                    const t = f.type;
+                    if (t === 'string') return 'i8*';
+                    if (t === 'number') return 'double';
+                    if (t === 'boolean') return 'double';
+                    if (t === 'string[]') return '%StringArray*';
+                    if (t === 'number[]') return '%Array*';
+                    return 'i8*';
+                  });
+                  this.ctx.jsonObjectMetadata.set(fieldItem, { keys, types, tsTypes });
+                }
+                this.ctx.variableTypes.set(fieldItem, 'i8*');
+                return fieldItem;
+              }
+
+              // Extract string or number value
+              const isNumber = this.ctx.nextTemp();
+              this.ctx.emit(`${isNumber} = call i32 @cJSON_IsNumber(i8* ${fieldItem})`);
+              const isNumBool = this.ctx.nextTemp();
+              this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
+
+              const numberLabel = this.ctx.nextLabel('json_number');
+              const stringLabel = this.ctx.nextLabel('json_string');
+              const fieldEndLabel = this.ctx.nextLabel('json_field_end');
+
+              this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
+
+              this.ctx.emit(`${numberLabel}:`);
+              const numValue = this.ctx.nextTemp();
+              this.ctx.emit(`${numValue} = call i32 @cJSON_GetNumberValueAsInt(i8* ${fieldItem})`);
+              this.ctx.emit(`br label %${fieldEndLabel}`);
+
+              this.ctx.emit(`${stringLabel}:`);
+              const strValue = this.ctx.nextTemp();
+              this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${fieldItem})`);
+              const strAsInt = this.ctx.nextTemp();
+              this.ctx.emit(`${strAsInt} = ptrtoint i8* ${strValue} to i32`);
+              this.ctx.emit(`br label %${fieldEndLabel}`);
+
+              this.ctx.emit(`${fieldEndLabel}:`);
+              const result = this.ctx.nextTemp();
+              this.ctx.emit(`${result} = phi i32 [ ${numValue}, %${numberLabel} ], [ ${strAsInt}, %${stringLabel} ]`);
+
+              // Track type so comparison code can convert if needed
+              this.ctx.variableTypes.set(result, 'i32');
+
+              return result;
+            }
+          }
+
           // Check if accessing an object property (variable or literal)
           let objPtr: string;
           let keys: string[];
