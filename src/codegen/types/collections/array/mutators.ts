@@ -146,7 +146,7 @@ function generateStringArrayPop(gen: BaseGenerator, arrayPtr: string): string {
   // Empty case - return empty string
   gen.emit(`${emptyLabel}:`);
   const emptyStr = gen.nextTemp();
-  gen.emit(`${emptyStr} = call i8* @malloc(i64 1)`);
+  gen.emit(`${emptyStr} = call i8* @GC_malloc_atomic(i64 1)`);
   gen.emit(`store i8 0, i8* ${emptyStr}`);
   gen.emit(`br label %${endLabel}`);
 
@@ -217,11 +217,13 @@ function generateIntArrayPush(gen: BaseGenerator, arrayPtr: string, value: strin
   const newCap = gen.nextTemp();
   gen.emit(`${newCap} = select i1 ${isZero}, i32 2, i32 ${doubled}`);
 
-  // Allocate new data array with calloc for zero-initialized memory
+  // Allocate new data array with GC_malloc_atomic for zero-initialized numeric memory
   const newCapI64 = gen.nextTemp();
   gen.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
+  const newMemSize = gen.nextTemp();
+  gen.emit(`${newMemSize} = mul i64 ${newCapI64}, 8`);
   const newMem = gen.nextTemp();
-  gen.emit(`${newMem} = call i8* @calloc(i64 ${newCapI64}, i64 8)`); // calloc(count, 8 bytes per double)
+  gen.emit(`${newMem} = call i8* @GC_malloc_atomic(i64 ${newMemSize})`); // GC_malloc_atomic for numeric data
   const newDataPtr = gen.nextTemp();
   gen.emit(`${newDataPtr} = bitcast i8* ${newMem} to double*`);
 
@@ -243,8 +245,7 @@ function generateIntArrayPush(gen: BaseGenerator, arrayPtr: string, value: strin
   gen.emit(`${copySizeI64} = mul i64 ${currentLenI64}, ${doubleSize}`);
   gen.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
 
-  // Free old data and update pointer
-  gen.emit(`call void @free(i8* ${oldDataI8})`);
+  // Update pointer (GC will free old data)
   gen.emit(`store double* ${newDataPtr}, double** ${dataPtrField}`);
 
   // Update capacity
@@ -313,11 +314,13 @@ function generateStringArrayPush(gen: BaseGenerator, arrayPtr: string, value: st
   const newCap = gen.nextTemp();
   gen.emit(`${newCap} = select i1 ${isZero}, i32 2, i32 ${doubled}`);
 
-  // Allocate new data array (i8** - array of string pointers) with calloc for zero-initialized memory
+  // Allocate new data array (i8** - array of string pointers) with GC_malloc (contains pointers)
   const newCapI64 = gen.nextTemp();
   gen.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
+  const newMemSize = gen.nextTemp();
+  gen.emit(`${newMemSize} = mul i64 ${newCapI64}, 8`);
   const newMem = gen.nextTemp();
-  gen.emit(`${newMem} = call i8* @calloc(i64 ${newCapI64}, i64 8)`); // calloc(count, 8 bytes per i8*)
+  gen.emit(`${newMem} = call i8* @GC_malloc(i64 ${newMemSize})`); // GC_malloc for pointer array
   const newDataPtr = gen.nextTemp();
   gen.emit(`${newDataPtr} = bitcast i8* ${newMem} to i8**`);
 
@@ -337,8 +340,7 @@ function generateStringArrayPush(gen: BaseGenerator, arrayPtr: string, value: st
   gen.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
   gen.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
 
-  // Free old data and update pointer
-  gen.emit(`call void @free(i8* ${oldDataI8})`);
+  // Update pointer (GC will free old data)
   gen.emit(`store i8** ${newDataPtr}, i8*** ${dataPtrField}`);
 
   // Update capacity

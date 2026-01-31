@@ -145,7 +145,7 @@ export class ResponseGenerator {
 
     // Allocate struct (size = number of fields * 8 bytes per field)
     const structSize = interfaceDef.properties.length * 8;
-    parserIR += `  %struct_bytes = call i8* @malloc(i64 ${structSize})\n`;
+    parserIR += `  %struct_bytes = call i8* @GC_malloc(i64 ${structSize})\n`;
     parserIR += `  %struct_ptr = bitcast i8* %struct_bytes to %${typeName}*\n\n`;
 
     // Extract each field

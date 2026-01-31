@@ -37,7 +37,7 @@ export class PathGenerator {
     const bufferSize = this.ctx.nextTemp();
     this.ctx.emit(`${bufferSize} = add i64 0, 4096`);
     const buffer = this.ctx.nextTemp();
-    this.ctx.emit(`${buffer} = call i8* @malloc(i64 ${bufferSize})`);
+    this.ctx.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
 
     // Call realpath: realpath(path, buffer)
     const resolvedPtr = this.ctx.nextTemp();
@@ -57,9 +57,8 @@ export class PathGenerator {
     this.ctx.emit(`${successLabel}:`);
     this.ctx.emit(`br label %${endLabel}`);
 
-    // Failure: free buffer and return original path
+    // Failure: GC will handle cleanup, return original path
     this.ctx.emit(`${failLabel}:`);
-    this.ctx.emit(`call void @free(i8* ${buffer})`);
     this.ctx.emit(`br label %${endLabel}`);
 
     // End: phi node
@@ -87,7 +86,7 @@ export class PathGenerator {
     const copySize = this.ctx.nextTemp();
     this.ctx.emit(`${copySize} = add i64 ${pathLen}, 1`);
     const pathCopy = this.ctx.nextTemp();
-    this.ctx.emit(`${pathCopy} = call i8* @malloc(i64 ${copySize})`);
+    this.ctx.emit(`${pathCopy} = call i8* @GC_malloc_atomic(i64 ${copySize})`);
     const copyResult = this.ctx.nextTemp();
     this.ctx.emit(`${copyResult} = call i8* @strcpy(i8* ${pathCopy}, i8* ${pathPtr})`);
 

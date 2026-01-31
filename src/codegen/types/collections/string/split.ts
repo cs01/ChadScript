@@ -41,7 +41,7 @@ export function generateSplit(this: BaseGenerator, strPtr: string, delimiter: st
   const emptyDataSizeI64 = this.nextTemp();
   this.emit(`${emptyDataSizeI64} = zext i32 ${emptyDataSize} to i64`);
   const emptyDataMem = this.nextTemp();
-  this.emit(`${emptyDataMem} = call i8* @malloc(i64 ${emptyDataSizeI64})`);
+  this.emit(`${emptyDataMem} = call i8* @GC_malloc(i64 ${emptyDataSizeI64})`);
   const emptyDataPtr = this.nextTemp();
   this.emit(`${emptyDataPtr} = bitcast i8* ${emptyDataMem} to i8**`);
 
@@ -65,7 +65,7 @@ export function generateSplit(this: BaseGenerator, strPtr: string, delimiter: st
   this.emit(`${emptyLoopBodyLabel}:`);
   // Allocate 2-byte string (char + null terminator)
   const charStr = this.nextTemp();
-  this.emit(`${charStr} = call i8* @malloc(i64 2)`);
+  this.emit(`${charStr} = call i8* @GC_malloc_atomic(i64 2)`);
 
   // Get character at index
   const charIdx = this.nextTemp();
@@ -189,7 +189,7 @@ export function generateSplit(this: BaseGenerator, strPtr: string, delimiter: st
   const dataSizeI64 = this.nextTemp();
   this.emit(`${dataSizeI64} = zext i32 ${dataSize} to i64`);
   const dataMem = this.nextTemp();
-  this.emit(`${dataMem} = call i8* @malloc(i64 ${dataSizeI64})`);
+  this.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSizeI64})`);
   const dataPtr = this.nextTemp();
   this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
 

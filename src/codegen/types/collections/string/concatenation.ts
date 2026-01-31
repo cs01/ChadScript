@@ -44,7 +44,7 @@ export function generateStringConcatDirect(this: BaseGenerator, leftStr: string,
 
   // Allocate memory for result
   const resultPtr = this.nextTemp();
-  this.emit(`${resultPtr} = call i8* @malloc(i64 ${totalLenPlus1})`);
+  this.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 ${totalLenPlus1})`);
 
   // Copy left string to result
   const copyResult1 = this.nextTemp();

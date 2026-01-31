@@ -84,7 +84,7 @@ export class MemberAccessGenerator {
             const structSize = this.ctx.nextTemp();
             this.ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
             const arrayMem = this.ctx.nextTemp();
-            this.ctx.emit(`${arrayMem} = call i8* @malloc(i64 ${structSize})`);
+            this.ctx.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
             const argvStruct = this.ctx.nextTemp();
             this.ctx.emit(`${argvStruct} = bitcast i8* ${arrayMem} to %StringArray*`);
     

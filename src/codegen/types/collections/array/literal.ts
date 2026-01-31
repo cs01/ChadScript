@@ -33,15 +33,17 @@ export function generateArrayLiteral(
     const structSize = gen.nextTemp();
     gen.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
     const arrayMem = gen.nextTemp();
-    gen.emit(`${arrayMem} = call i8* @malloc(i64 ${structSize})`);
+    gen.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
     const arrayPtr = gen.nextTemp();
     gen.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
 
     // Allocate data array on heap (i8** with length elements)
-    // Use calloc for zero-initialized memory to prevent garbage pointers
+    // GC_malloc for pointer array (GC needs to scan for string pointers)
     const dataCount = length === 0 ? 1 : length; // Allocate at least 1 element
+    const dataSize = gen.nextTemp();
+    gen.emit(`${dataSize} = mul i64 ${dataCount}, 8`);
     const dataMem = gen.nextTemp();
-    gen.emit(`${dataMem} = call i8* @calloc(i64 ${dataCount}, i64 8)`); // calloc(count, 8 bytes per i8*)
+    gen.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSize})`); // GC_malloc for pointer array
     const dataPtr = gen.nextTemp();
     gen.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
 
@@ -78,15 +80,17 @@ export function generateArrayLiteral(
     const structSize = gen.nextTemp();
     gen.emit(`${structSize} = ptrtoint %Array* ${sizePtr} to i64`);
     const arrayMem = gen.nextTemp();
-    gen.emit(`${arrayMem} = call i8* @malloc(i64 ${structSize})`);
+    gen.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
     const arrayPtr = gen.nextTemp();
     gen.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %Array*`);
 
     // Allocate data array on heap (double* with length elements)
-    // Use calloc for zero-initialized memory to prevent garbage data
+    // GC_malloc_atomic for numeric array (no pointers inside)
     const dataCount = length === 0 ? 1 : length; // Allocate at least 1 element
+    const dataSize = gen.nextTemp();
+    gen.emit(`${dataSize} = mul i64 ${dataCount}, 8`);
     const dataMem = gen.nextTemp();
-    gen.emit(`${dataMem} = call i8* @calloc(i64 ${dataCount}, i64 8)`); // calloc(count, 8 bytes per double)
+    gen.emit(`${dataMem} = call i8* @GC_malloc_atomic(i64 ${dataSize})`); // GC_malloc_atomic for numeric data
     const dataPtr = gen.nextTemp();
     gen.emit(`${dataPtr} = bitcast i8* ${dataMem} to double*`);
 

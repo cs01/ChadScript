@@ -37,7 +37,7 @@ export function generateCharAt(this: BaseGenerator, strPtr: string, index: strin
 
   // Allocate a 2-byte buffer for single-char string (char + null terminator)
   const resultPtr = this.nextTemp();
-  this.emit(`${resultPtr} = call i8* @malloc(i64 2)`);
+  this.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 2)`);
 
   // Store the character in the buffer
   this.emit(`store i8 ${charI8}, i8* ${resultPtr}`);

@@ -95,7 +95,7 @@ export class RuntimeGenerator {
     ir += '  br i1 %has_data, label %create_response, label %error\n\n';
 
     ir += 'create_response:\n';
-    ir += '  %resp_mem = call i8* @malloc(i64 24)\n';
+    ir += '  %resp_mem = call i8* @GC_malloc(i64 24)\n';
     ir += '  %resp = bitcast i8* %resp_mem to %Response*\n';
     ir += '  %raw_field = getelementptr %Response, %Response* %resp, i32 0, i32 0\n';
     ir += '  store i8* %response_data, i8** %raw_field\n';
@@ -113,7 +113,7 @@ export class RuntimeGenerator {
     ir += '  br label %error\n\n';
 
     ir += 'error:\n';
-    ir += '  %err_resp_mem = call i8* @malloc(i64 24)\n';
+    ir += '  %err_resp_mem = call i8* @GC_malloc(i64 24)\n';
     ir += '  %err_resp = bitcast i8* %err_resp_mem to %Response*\n';
     ir += '  %empty = getelementptr [1 x i8], [1 x i8]* @.str.empty, i32 0, i32 0\n';
     ir += '  %err_raw_field = getelementptr %Response, %Response* %err_resp, i32 0, i32 0\n';

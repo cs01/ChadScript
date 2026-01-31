@@ -59,7 +59,7 @@ export function convertNumberToString(this: BaseGenerator, numValue: string): st
   this.emit(`${heapSize} = add i64 ${strLen}, 1`);
 
   const heapPtr = this.nextTemp();
-  this.emit(`${heapPtr} = call i8* @malloc(i64 ${heapSize})`);
+  this.emit(`${heapPtr} = call i8* @GC_malloc_atomic(i64 ${heapSize})`);
 
   const copyResult = this.nextTemp();
   this.emit(`${copyResult} = call i8* @strcpy(i8* ${heapPtr}, i8* ${bufferPtr})`);

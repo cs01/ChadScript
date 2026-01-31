@@ -72,11 +72,11 @@ export class FilesystemGenerator {
     const seekStart = this.ctx.nextTemp();
     this.ctx.emit(`${seekStart} = call i32 @fseek(i8* ${filePtr}, i64 0, i32 0)`);
 
-    // Allocate buffer: malloc(size + 1) for null terminator
+    // Allocate buffer: GC_malloc_atomic(size + 1) for null terminator
     const bufferSize = this.ctx.nextTemp();
     this.ctx.emit(`${bufferSize} = add i64 ${fileSize}, 1`);
     const buffer = this.ctx.nextTemp();
-    this.ctx.emit(`${buffer} = call i8* @malloc(i64 ${bufferSize})`);
+    this.ctx.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
 
     // Read file: fread(buffer, 1, size, fp)
     const bytesRead = this.ctx.nextTemp();

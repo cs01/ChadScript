@@ -41,7 +41,7 @@ export class MapGenerator {
     const keysSize = this.nextTemp();
     this.emit(`${keysSize} = mul i64 ${keysCapI64}, ${doubleSize}`);
     const keysMem = this.nextTemp();
-    this.emit(`${keysMem} = call i8* @malloc(i64 ${keysSize})`);
+    this.emit(`${keysMem} = call i8* @GC_malloc_atomic(i64 ${keysSize})`);
     const keysPtr = this.nextTemp();
     this.emit(`${keysPtr} = bitcast i8* ${keysMem} to double*`);
 
@@ -51,7 +51,7 @@ export class MapGenerator {
     const valuesSize = this.nextTemp();
     this.emit(`${valuesSize} = mul i64 ${valuesCapI64}, ${doubleSize}`);
     const valuesMem = this.nextTemp();
-    this.emit(`${valuesMem} = call i8* @malloc(i64 ${valuesSize})`);
+    this.emit(`${valuesMem} = call i8* @GC_malloc_atomic(i64 ${valuesSize})`);
     const valuesPtr = this.nextTemp();
     this.emit(`${valuesPtr} = bitcast i8* ${valuesMem} to double*`);
 
