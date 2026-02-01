@@ -49,7 +49,8 @@ export class VariableExpressionGenerator {
       const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
       const llvmType = this.ctx.symbolTable.getType(name);
       if (llvmType === '%Array*') {
-        return this.loadArray(allocaReg, '%Array*');
+        const isPointerAlloca = this.ctx.symbolTable.isPointerAlloca(name);
+        return this.loadArray(allocaReg, '%Array*', isPointerAlloca);
       }
       return allocaReg;
     }
@@ -59,7 +60,8 @@ export class VariableExpressionGenerator {
       const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
       const llvmType = this.ctx.symbolTable.getType(name);
       if (llvmType === '%StringArray*') {
-        return this.loadArray(allocaReg, '%StringArray*');
+        const isPointerAlloca = this.ctx.symbolTable.isPointerAlloca(name);
+        return this.loadArray(allocaReg, '%StringArray*', isPointerAlloca);
       }
       return allocaReg;
     }
@@ -124,9 +126,18 @@ export class VariableExpressionGenerator {
     return temp;
   }
 
-  private loadArray(allocaReg: string, arrayType: string): string {
-    this.ctx.variableTypes.set(allocaReg, arrayType);
-    return allocaReg;
+  private loadArray(allocaReg: string, arrayType: string, isPointerAlloca: boolean): string {
+    if (isPointerAlloca) {
+      // Function parameter: alloca contains a pointer, need to load it
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = load ${arrayType}, ${arrayType}* ${allocaReg}`);
+      this.ctx.variableTypes.set(temp, arrayType);
+      return temp;
+    } else {
+      // Local variable: alloca IS the pointer to the array struct
+      this.ctx.variableTypes.set(allocaReg, arrayType);
+      return allocaReg;
+    }
   }
 
   private loadObject(objectMeta: any): string {

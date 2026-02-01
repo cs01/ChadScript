@@ -64,6 +64,10 @@ export interface Symbol {
   allocaRegister: string;     // e.g., '%1', '%foo'
   scope: 'local' | 'global';  // Function-local or top-level
 
+  // True if alloca contains a pointer (e.g., function parameter %Array** holding %Array*)
+  // False if alloca contains the value directly (e.g., local %Array* pointing to %Array struct)
+  isPointerAlloca?: boolean;
+
   // Optional metadata for complex types
   objectMetadata?: ObjectMetadata;
   classMetadata?: ClassMetadata;
@@ -116,6 +120,7 @@ export class SymbolTable {
       objectMetadata?: ObjectMetadata;
       classMetadata?: ClassMetadata;
       arrayMetadata?: ArrayMetadata;
+      isPointerAlloca?: boolean;
     }
   ): void {
     const symbol: Symbol = {
@@ -162,6 +167,13 @@ export class SymbolTable {
    */
   getKind(name: string): SymbolKind | undefined {
     return this.symbols.get(name)?.kind;
+  }
+
+  /**
+   * Check if alloca contains a pointer (requires load) vs value directly
+   */
+  isPointerAlloca(name: string): boolean {
+    return this.symbols.get(name)?.isPointerAlloca === true;
   }
 
   /**
