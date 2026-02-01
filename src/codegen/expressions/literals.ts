@@ -1,4 +1,62 @@
-import { Expression } from '../../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MapNode, SetNode } from '../../ast/types.js';
+
+interface StringGeneratorLike {
+  createStringConstant(value: string): string;
+}
+
+interface RegexGeneratorLike {
+  generateRegexCompile(pattern: string, flags: string): string;
+}
+
+interface ArrayGeneratorLike {
+  generateArrayLiteral(expr: ArrayNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+}
+
+interface ObjectGeneratorLike {
+  generateObjectLiteral(expr: ObjectNode, params: string[]): string;
+}
+
+interface MapGeneratorLike {
+  generateMapLiteral(expr: MapNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+}
+
+interface SetGeneratorLike {
+  generateSetLiteral(expr: SetNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+}
+
+interface StringMapGeneratorLike {
+  generateEmptyStringMap(): string;
+}
+
+interface StringSetGeneratorLike {
+  generateEmptyStringSet(): string;
+}
+
+interface ClassGeneratorLike {
+  generateNewExpression(className: string, args: Expression[], params: string[]): string;
+  thisPointer?: string | null;
+}
+
+export interface LiteralGeneratorContext {
+  nextTemp(): string;
+  emit(instruction: string): void;
+  syncStateToGenerators(): void;
+  generateExpression(expr: Expression, params: string[]): string;
+  variableTypes: Map<string, string>;
+  usesPromises: boolean;
+  thisPointer: string | null;
+  currentDeclaredMapType?: string;
+  currentDeclaredSetType?: string;
+  stringGen: StringGeneratorLike;
+  regexGen: RegexGeneratorLike;
+  arrayGen: ArrayGeneratorLike;
+  objectGen: ObjectGeneratorLike;
+  mapGen: MapGeneratorLike;
+  setGen: SetGeneratorLike;
+  stringMapGen: StringMapGeneratorLike;
+  stringSetGen: StringSetGeneratorLike;
+  classGen: ClassGeneratorLike;
+}
 
 /**
  * LiteralExpressionGenerator
@@ -16,7 +74,7 @@ import { Expression } from '../../ast/types.js';
  * - This keyword
  */
 export class LiteralExpressionGenerator {
-  constructor(private ctx: any) {}
+  constructor(private ctx: LiteralGeneratorContext) {}
 
   /**
    * Generate number literal
@@ -70,14 +128,14 @@ export class LiteralExpressionGenerator {
    * Generate array literal (delegates to ArrayGenerator)
    * ArrayGenerator uses context pattern - no sync needed! 🎯
    */
-  generateArray(expr: any, params: string[]): string {
+  generateArray(expr: ArrayNode, params: string[]): string {
     return this.ctx.arrayGen.generateArrayLiteral(expr, params, this.ctx.generateExpression.bind(this.ctx));
   }
 
   /**
    * Generate object literal (delegates to ObjectGenerator)
    */
-  generateObject(expr: any, params: string[]): string {
+  generateObject(expr: ObjectNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
     return this.ctx.objectGen.generateObjectLiteral(expr, params);
   }
@@ -85,7 +143,7 @@ export class LiteralExpressionGenerator {
   /**
    * Generate Map literal (delegates to MapGenerator or StringMapGenerator)
    */
-  generateMap(expr: any, params: string[]): string {
+  generateMap(expr: MapNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
 
     const declaredType = this.ctx.currentDeclaredMapType;
@@ -102,7 +160,7 @@ export class LiteralExpressionGenerator {
   /**
    * Generate Set literal (delegates to SetGenerator or StringSetGenerator)
    */
-  generateSet(expr: any, params: string[]): string {
+  generateSet(expr: SetNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
 
     const declaredType = this.ctx.currentDeclaredSetType;
@@ -119,7 +177,7 @@ export class LiteralExpressionGenerator {
   /**
    * Generate new expression (delegates to ClassGenerator or built-in types)
    */
-  generateNew(className: string, args: any[], params: string[]): string {
+  generateNew(className: string, args: Expression[], params: string[]): string {
     if (className === 'Promise') {
       return this.generateNewPromise(args, params);
     }
@@ -131,7 +189,7 @@ export class LiteralExpressionGenerator {
    * Generate new Promise(executor) expression
    * The executor is a function (resolve, reject) => { ... }
    */
-  generateNewPromise(args: any[], params: string[]): string {
+  generateNewPromise(args: Expression[], params: string[]): string {
     this.ctx.usesPromises = true;
     const promiseResult = this.ctx.nextTemp();
     this.ctx.emit(`${promiseResult} = call %Promise* @__Promise_new()`);
