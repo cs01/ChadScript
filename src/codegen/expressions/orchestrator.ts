@@ -1,4 +1,4 @@
-import { Expression } from '../../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, NewNode } from '../../ast/types.js';
 import { LiteralExpressionGenerator } from './literals.js';
 import { VariableExpressionGenerator } from './variables.js';
 import { BinaryExpressionGenerator } from './operators/binary.js';
@@ -77,23 +77,23 @@ export class ExpressionGenerator {
     }
 
     if (expr.type === 'array') {
-      return this.literalGen.generateArray(expr, params);
+      return this.literalGen.generateArray(expr as ArrayNode, params);
     }
 
-    if ((expr as any).type === 'object') {
-      return this.literalGen.generateObject(expr, params);
+    if ((expr as ObjectNode).type === 'object') {
+      return this.literalGen.generateObject(expr as ObjectNode, params);
     }
 
-    if ((expr as any).type === 'map') {
-      return this.literalGen.generateMap(expr, params);
+    if ((expr as MapNode).type === 'map') {
+      return this.literalGen.generateMap(expr as MapNode, params);
     }
 
-    if ((expr as any).type === 'set') {
-      return this.literalGen.generateSet(expr, params);
+    if ((expr as SetNode).type === 'set') {
+      return this.literalGen.generateSet(expr as SetNode, params);
     }
 
-    if ((expr as any).type === 'new') {
-      const newExpr = expr as any;
+    if ((expr as NewNode).type === 'new') {
+      const newExpr = expr as NewNode;
       return this.literalGen.generateNew(newExpr.className, newExpr.args, params);
     }
 
