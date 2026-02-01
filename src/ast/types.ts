@@ -111,6 +111,7 @@ export interface ArrowFunctionNode {
   params: string[];
   body: Expression | BlockStatement;
   async?: boolean;
+  captures?: { name: string; llvmType: string }[];
 }
 
 export interface AwaitExpressionNode {

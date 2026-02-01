@@ -133,7 +133,8 @@ export class ExpressionGenerator {
 
     // Arrow functions
     if ((expr as any).type === 'arrow_function') {
-      return this.arrowFunctionGen.generateArrowFunction(expr, params);
+      const scopeVars = this.ctx.symbolTable.getScopeVarsForClosure();
+      return this.arrowFunctionGen.generateArrowFunction(expr, params, undefined, scopeVars);
     }
 
     // Conditional (ternary) expressions

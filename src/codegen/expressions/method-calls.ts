@@ -718,12 +718,13 @@ export class MethodCallGenerator {
 
     const promiseCallbackTypes = { paramTypes: ['string', 'any'], returnType: 'void' };
     const arrowFuncGen = this.ctx.exprGen.getArrowFunctionGenerator();
+    const scopeVars = this.ctx.symbolTable.getScopeVarsForClosure();
 
     if (isCatch) {
       if (expr.args.length > 0) {
         const callback = expr.args[0];
         if ((callback as any).type === 'arrow_function') {
-          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes);
+          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes, scopeVars);
           onRejected = `@${callbackName}`;
         } else if ((callback as any).type === 'variable') {
           onRejected = `@${(callback as any).name}`;
@@ -733,7 +734,7 @@ export class MethodCallGenerator {
       if (expr.args.length > 0) {
         const callback = expr.args[0];
         if ((callback as any).type === 'arrow_function') {
-          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes);
+          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes, scopeVars);
           onFulfilled = `@${callbackName}`;
         } else if ((callback as any).type === 'variable') {
           onFulfilled = `@${(callback as any).name}`;
@@ -742,7 +743,7 @@ export class MethodCallGenerator {
       if (expr.args.length > 1) {
         const callback = expr.args[1];
         if ((callback as any).type === 'arrow_function') {
-          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes);
+          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes, scopeVars);
           onRejected = `@${callbackName}`;
         } else if ((callback as any).type === 'variable') {
           onRejected = `@${(callback as any).name}`;
