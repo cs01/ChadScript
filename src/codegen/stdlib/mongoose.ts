@@ -67,6 +67,10 @@ export class MongooseGenerator {
     ir += 'declare i8* @mg_mprintf(i8*, ...)\n';
     ir += '\n';
 
+    ir += '; Logging control\n';
+    ir += '@mg_log_level = external global i32\n';
+    ir += '\n';
+
     ir += '; Mongoose event constants (from enum in mongoose.h)\n';
     ir += '@MG_EV_HTTP_MSG = private constant i32 11\n';
     ir += '\n';
@@ -283,6 +287,10 @@ export class MongooseGenerator {
     ir += '; Handler takes Request object (i8*) and returns Response object (i8*)\n';
     ir += 'define i32 @http_serve(i32 %port, i8* (i8*)* %handler) {\n';
     ir += 'entry:\n';
+    ir += '  ; Set log level to errors only (1 = MG_LL_ERROR)\n';
+    ir += '  ; 0 = none, 1 = error, 2 = info, 3 = debug\n';
+    ir += '  store i32 1, i32* @mg_log_level\n';
+    ir += '\n';
     ir += '  ; Allocate mongoose manager on stack\n';
     ir += '  %mgr = alloca %struct.mg_mgr\n';
     ir += '\n';
