@@ -141,7 +141,14 @@ export class MethodCallGenerator {
     if (method === 'text' || method === 'json') {
       try {
         this.ctx.syncStateToGenerators();
-        const responsePtr = this.ctx.generateExpression(expr.object, params);
+        let responsePtr = this.ctx.generateExpression(expr.object, params);
+
+        const objType = this.ctx.variableTypes.get(responsePtr);
+        if (objType === 'i8*') {
+          const castPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${castPtr} = bitcast i8* ${responsePtr} to %Response*`);
+          responsePtr = castPtr;
+        }
 
         if (method === 'text') {
           return this.ctx.responseGen.generateText(responsePtr);

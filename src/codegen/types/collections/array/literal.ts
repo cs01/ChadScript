@@ -37,6 +37,12 @@ export function generateArrayLiteral(
         return true;
       }
     }
+    if (elem.type === 'call') {
+      const callName = (elem as any).name;
+      if (callName === 'fetch') {
+        return true;
+      }
+    }
     return false;
   });
 

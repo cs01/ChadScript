@@ -565,11 +565,20 @@ export class MemberAccessGenerator {
     if (expr.object.type !== 'variable') return null;
 
     const varType = this.ctx.getVariableType((expr.object as any).name);
-    if (varType !== '%Response*') return null;
+    if (varType !== '%Response*' && varType !== 'i8*') return null;
 
     const varPtr = this.ctx.getVariableAlloca((expr.object as any).name);
-    const responsePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${responsePtr} = load %Response*, %Response** ${varPtr}`);
+    let responsePtr: string;
+
+    if (varType === 'i8*') {
+      const i8Ptr = this.ctx.nextTemp();
+      this.ctx.emit(`${i8Ptr} = load i8*, i8** ${varPtr}`);
+      responsePtr = this.ctx.nextTemp();
+      this.ctx.emit(`${responsePtr} = bitcast i8* ${i8Ptr} to %Response*`);
+    } else {
+      responsePtr = this.ctx.nextTemp();
+      this.ctx.emit(`${responsePtr} = load %Response*, %Response** ${varPtr}`);
+    }
 
     this.ctx.syncStateToGenerators();
     if (expr.property === 'status') {
