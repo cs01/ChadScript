@@ -216,6 +216,43 @@ npx tsx src/index.ts examples/github-stars.ts examples/github-stars
 # Output: 240511
 ```
 
+### HTTP Server (Express-like API)
+
+**Build native HTTP servers with a familiar routing pattern:**
+
+```typescript
+interface Request {
+  method: string;
+  path: string;
+  body: string;
+  contentType: string;
+}
+
+interface Response {
+  status: number;
+  body: string;
+}
+
+function handleRequest(req: Request): Response {
+  if (req.path == "/") {
+    return { status: 200, body: "Hello from ChadScript!" };
+  }
+  if (req.path == "/json") {
+    return { status: 200, body: '{"message":"hello","count":42}' };
+  }
+  if (req.method == "POST" && req.path == "/echo") {
+    return { status: 200, body: req.body };
+  }
+  return { status: 404, body: "Not Found" };
+}
+
+httpServe(3000, handleRequest);
+```
+
+Compiles to a native binary. Uses mongoose embedded server under the hood.
+
+See `examples/http-handler.ts` for a complete example.
+
 ### Classes
 
 ```typescript
@@ -264,8 +301,10 @@ npx tsx src/index.ts examples/word-count.ts
 - **File System:** `fs.readFileSync()`, `fs.writeFileSync()`, `fs.unlinkSync()`
 - **Path:** `path.resolve()`, `path.dirname()`
 - **Network (POSIX):** `socket()`, `bind()`, `listen()`, `accept()`, `connect()`, `read()`, `write()`, `close()`
-- **HTTP:** `fetch()` for simple GET requests
+- **HTTP Client:** `fetch()` for GET/POST requests (returns Promise)
+- **HTTP Server:** `httpServe(port, handler)` with Request/Response objects
 - **JSON:** `JSON.parse<T>()` with TypeScript interface type checking
+- **Async:** `async/await`, `Promise.all()`, `setTimeout`, `setInterval`
 - **Memory:** `malloc()`, `free()`
 
 ## Limitations
@@ -274,7 +313,7 @@ npx tsx src/index.ts examples/word-count.ts
 
 **No dynamic features:** No `eval`, `typeof`, `Object.keys()`, destructuring, spread, optional chaining.
 
-**No async/await:** Synchronous only. No event loop, no Promises.
+**Async support:** `async/await`, Promises, and `Promise.all()` for parallel operations. Event loop via libuv for `setTimeout`/`setInterval`.
 
 **No reflection:** No `instanceof`, `for..in`, runtime type inspection.
 
@@ -416,9 +455,9 @@ TypeScript → JS (strip types) → AST (parser) → LLVM IR (codegen) → nativ
 
 ## Roadmap
 
-**Phase 2 Complete ✅:** Interfaces, networking, classes, try/catch, 53/53 tests passing
+**Phase 2 Complete ✅:** Interfaces, networking, classes, try/catch, async/await, HTTP server
 
-**Phase 3 (Next):** Memory write ops, HTTP parser, FFI, SIMD, optimizations, self-hosting
+**Phase 3 (Current):** Self-hosting (compile ChadScript with ChadScript)
 
 ## Performance Comparison
 
