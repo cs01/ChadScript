@@ -1,4 +1,5 @@
-import { Expression } from '../../ast/types.js';
+import { Expression, CallNode, FunctionNode, VariableNode } from '../../ast/types.js';
+import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
 /**
  * CallExpressionGenerator
@@ -9,7 +10,7 @@ import { Expression } from '../../ast/types.js';
  * - User-defined functions with type checking
  */
 export class CallExpressionGenerator {
-  constructor(private ctx: any) {}
+  constructor(private ctx: IGeneratorContext) {}
 
   /**
    * Generate function call expression
@@ -17,7 +18,7 @@ export class CallExpressionGenerator {
    * @param params - Function parameter names
    * @param generateExpressionFn - Callback to generate sub-expressions
    */
-  generate(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generate(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // Handle httpServe() special built-in function
     if (expr.name === 'httpServe') {
       return this.ctx.generateHttpServe(expr, params);
@@ -87,7 +88,7 @@ export class CallExpressionGenerator {
     return this.generateGenericCall(expr, params, generateExpressionFn);
   }
 
-  private generateParseInt(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateParseInt(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     if (expr.args.length < 1 || expr.args.length > 2) {
       throw new Error('parseInt() requires 1 or 2 arguments (string, radix?)');
     }
@@ -124,7 +125,7 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateMalloc(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateMalloc(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // malloc(size: number) -> i8*
     const sizeDouble = generateExpressionFn(expr.args[0], params);
     const sizeI64 = this.ctx.nextTemp();
@@ -139,7 +140,7 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateFree(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateFree(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // free(ptr: number) -> void
     const ptrDouble = generateExpressionFn(expr.args[0], params);
     const ptrI32 = this.ctx.nextTemp();
@@ -150,7 +151,7 @@ export class CallExpressionGenerator {
     return '0.0'; // Return dummy value
   }
 
-  private generateSocket(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateSocket(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // socket(domain: number, type: number, protocol: number) -> i32
     const domainDouble = generateExpressionFn(expr.args[0], params);
     const typeDouble = generateExpressionFn(expr.args[1], params);
@@ -168,7 +169,7 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateClose(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateClose(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // close(fd: number) -> i32
     const fdDouble = generateExpressionFn(expr.args[0], params);
     const fd = this.ctx.nextTemp();
@@ -180,7 +181,7 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateHtons(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateHtons(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // htons(hostshort: number) -> i16
     const hostshortDouble = generateExpressionFn(expr.args[0], params);
     const hostshort = this.ctx.nextTemp();
@@ -194,7 +195,7 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateGenericCall(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateGenericCall(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     if (this.ctx.symbolTable.isClosure(expr.name)) {
       return this.generateClosureCall(expr, params, generateExpressionFn);
     }
@@ -202,8 +203,8 @@ export class CallExpressionGenerator {
     let returnType = 'double';
     let paramTypes: string[] = [];
 
-    const func = this.ctx.ast.functions?.find((f: any) => f.name === expr.name);
-    const hasOptionalParams = func?.parameters?.some((p: any) => p.optional || p.defaultValue);
+    const func = this.ctx.ast?.functions?.find((f: FunctionNode) => f.name === expr.name);
+    const hasOptionalParams = func?.parameters?.some((p) => p.optional || p.defaultValue);
 
     if (func && func.async) {
       returnType = '%Promise*';
@@ -230,7 +231,7 @@ export class CallExpressionGenerator {
           } else if (funcType.returnType !== 'number' && funcType.returnType !== 'boolean' && funcType.returnType !== 'void') {
             returnType = 'i8*';
           }
-          paramTypes = funcType.parameters.map((p: any) => {
+          paramTypes = funcType.parameters.map((p) => {
             if (p.type === 'string') return 'i8*';
             if (p.type === 'string[]') return '%StringArray*';
             if (p.type === 'number[]' || p.type === 'boolean[]') return '%Array*';
@@ -267,7 +268,7 @@ export class CallExpressionGenerator {
     return temp;
   }
 
-  private generateClosureCall(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateClosureCall(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     const closureMetadata = this.ctx.symbolTable.getClosureMetadata(expr.name);
     if (!closureMetadata) {
       throw new Error(`Closure metadata not found for: ${expr.name}`);
@@ -296,7 +297,7 @@ export class CallExpressionGenerator {
     return temp;
   }
 
-  private generateSetTimeout(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateSetTimeout(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     if (expr.args.length < 2) {
       throw new Error('setTimeout() requires 2 arguments (callback, delay_ms)');
     }
@@ -304,10 +305,10 @@ export class CallExpressionGenerator {
     this.ctx.usesTimers = true;
 
     const callbackArg = expr.args[0];
-    if (!callbackArg.name) {
+    if (callbackArg.type !== 'variable') {
       throw new Error('setTimeout() callback must be a function reference');
     }
-    const callbackName = callbackArg.name;
+    const callbackName = (callbackArg as VariableNode).name;
 
     const delayValue = generateExpressionFn(expr.args[1], params);
 
@@ -321,7 +322,7 @@ export class CallExpressionGenerator {
     return result;
   }
 
-  private generateSetInterval(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateSetInterval(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     if (expr.args.length < 2) {
       throw new Error('setInterval() requires 2 arguments (callback, interval_ms)');
     }
@@ -329,10 +330,10 @@ export class CallExpressionGenerator {
     this.ctx.usesTimers = true;
 
     const callbackArg = expr.args[0];
-    if (!callbackArg.name) {
+    if (callbackArg.type !== 'variable') {
       throw new Error('setInterval() callback must be a function reference');
     }
-    const callbackName = callbackArg.name;
+    const callbackName = (callbackArg as VariableNode).name;
 
     const intervalValue = generateExpressionFn(expr.args[1], params);
 
@@ -346,7 +347,7 @@ export class CallExpressionGenerator {
     return result;
   }
 
-  private generateClearTimer(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateClearTimer(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     if (expr.args.length < 1) {
       throw new Error('clearTimeout/clearInterval requires 1 argument (timer_id)');
     }

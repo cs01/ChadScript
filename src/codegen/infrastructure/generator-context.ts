@@ -18,8 +18,9 @@
  * ```
  */
 
-import { Expression, BlockStatement, AST } from '../../ast/types.js';
+import { Expression, BlockStatement, AST, CallNode } from '../../ast/types.js';
 import { SymbolTable, SymbolKind } from './symbol-table.js';
+import type { TypeChecker } from '../../typescript/type-checker.js';
 
 /**
  * Interface defining what sub-generators need from parent generator.
@@ -210,6 +211,41 @@ export interface IGeneratorContext {
    * Access to full AST (needed for class/function lookups)
    */
   readonly ast?: AST;
+
+  // ============================================
+  // Extended Context (for sub-generators)
+  // ============================================
+
+  /**
+   * TypeScript type checker for compile-time type analysis
+   */
+  readonly typeChecker?: TypeChecker | null;
+
+  /**
+   * Whether the current compilation uses Promises
+   */
+  usesPromises: boolean;
+
+  /**
+   * Whether the current compilation uses timers (setTimeout/setInterval)
+   */
+  usesTimers: boolean;
+
+  /**
+   * Current function name for type resolution
+   */
+  currentFunction: string | null;
+
+  /**
+   * Sync state from parent generator to all sub-generators.
+   * Called before operations that need current variable tracking state.
+   */
+  syncStateToGenerators(): void;
+
+  /**
+   * Generate HTTP server setup code
+   */
+  generateHttpServe(expr: CallNode, params: string[]): string;
 }
 
 /**
@@ -230,7 +266,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   private stringCount = 0;
   public output: string[] = [];
   public symbolTable = new SymbolTable();
-  public variableTypes: Map<string, string> = new Map(); // For temporary register types
+  public variableTypes: Map<string, string> = new Map();
   public globalStrings: string[] = [];
   public currentFunctionReturnType = 'double';
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null;
@@ -238,6 +274,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   public currentClassName: string | null = null;
   public ast?: AST;
   public currentLabel = 'entry';
+  public typeChecker: TypeChecker | null = null;
+  public usesPromises = false;
+  public usesTimers = false;
+  public currentFunction: string | null = null;
 
   generateExpression(expr: Expression, params: string[]): string {
     // Mock implementation - returns a dummy register
@@ -325,6 +365,13 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   setCurrentLabel(label: string): void {
     this.currentLabel = label;
+  }
+
+  syncStateToGenerators(): void {
+  }
+
+  generateHttpServe(_expr: CallNode, _params: string[]): string {
+    return this.nextTemp();
   }
 
   reset(): void {

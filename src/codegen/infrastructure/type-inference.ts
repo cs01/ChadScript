@@ -1,5 +1,7 @@
-import { Expression, MethodCallNode, AST } from '../../ast/types.js';
+import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration } from '../../ast/types.js';
 import { SymbolTable } from './symbol-table.js';
+import type { TypeChecker } from '../../typescript/type-checker.js';
+import type { ClassGenerator } from '../types/objects/class.js';
 
 export interface TypeInferenceContext {
   symbolTable: SymbolTable;
@@ -9,17 +11,16 @@ export interface TypeInferenceContext {
   currentClassName: string | null;
   currentFunction: string;
   ast: AST;
-  typeChecker: any;
-  classGen: any;
+  typeChecker: TypeChecker | null;
+  classGen: ClassGenerator | null;
 }
 
 export class TypeInference {
   constructor(private ctx: TypeInferenceContext) {}
 
-  isBooleanExpression(expr: any): boolean {
+  isBooleanExpression(expr: Expression | null | undefined): boolean {
     if (expr === null || expr === undefined) return false;
     if (expr.type === 'boolean') return true;
-    if (expr.type === 'identifier' && (expr.name === 'true' || expr.name === 'false')) return true;
     return false;
   }
 
@@ -38,11 +39,11 @@ export class TypeInference {
       return false;
     }
     if (expr.type === 'method_call') {
-      const method = (expr as any).method;
-      return method === 'filter' || method === 'map';
+      const methodExpr = expr as MethodCallNode;
+      return methodExpr.method === 'filter' || methodExpr.method === 'map';
     }
     if (expr.type === 'member_access') {
-      const memberExpr = expr as any;
+      const memberExpr = expr as MemberAccessNode;
       if (memberExpr.object.type === 'variable' && this.ctx.symbolTable.isClass(memberExpr.object.name)) {
         const classMeta = this.ctx.symbolTable.getClassInfo(memberExpr.object.name)!;
         const fieldInfo = this.ctx.classGen?.getFieldInfo(classMeta.className, memberExpr.property);
@@ -50,8 +51,8 @@ export class TypeInference {
           return true;
         }
       }
-      if ((memberExpr.object as any).type === 'this') {
-        const classNode = this.ctx.ast.classes.find((c: any) => true);
+      if (memberExpr.object.type === 'this') {
+        const classNode = this.ctx.ast.classes[0];
         if (classNode) {
           const fieldInfo = this.ctx.classGen?.getFieldInfo(classNode.name, memberExpr.property);
           if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
@@ -64,7 +65,7 @@ export class TypeInference {
   }
 
   isObjectExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'object') {
+    if (expr.type === 'object') {
       return true;
     }
     if (expr.type === 'variable') {
@@ -74,7 +75,7 @@ export class TypeInference {
   }
 
   isMapExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'map') {
+    if (expr.type === 'map') {
       return true;
     }
     if (expr.type === 'variable') {
@@ -84,7 +85,7 @@ export class TypeInference {
   }
 
   isSetExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'set') {
+    if (expr.type === 'set') {
       return true;
     }
     if (expr.type === 'variable') {
@@ -97,7 +98,7 @@ export class TypeInference {
     if (expr.type === 'string') {
       return true;
     }
-    if ((expr as any).type === 'template_literal') {
+    if (expr.type === 'template_literal') {
       return true;
     }
     if (expr.type === 'variable') {
@@ -111,7 +112,7 @@ export class TypeInference {
       return this.isStringExpression(expr.left) || this.isStringExpression(expr.right);
     }
     if (expr.type === 'member_access') {
-      const memberExpr = expr as any;
+      const memberExpr = expr as MemberAccessNode;
       if (memberExpr.object.type === 'variable') {
         const varName = memberExpr.object.name;
         const objMeta = this.ctx.symbolTable.getObjectInfo(varName);
@@ -129,7 +130,7 @@ export class TypeInference {
           if (this.ctx.typeChecker) {
             const interfaceDef = this.ctx.typeChecker.getInterfaceDefinition(structTypeName);
             if (interfaceDef) {
-              const prop = interfaceDef.properties.find((p: any) => p.name === memberExpr.property);
+              const prop = interfaceDef.properties.find((p) => p.name === memberExpr.property);
               if (prop && prop.type === 'string') {
                 return true;
               }
@@ -151,7 +152,7 @@ export class TypeInference {
         }
       }
       if (memberExpr.object.type === 'this') {
-        const className = this.ctx.currentClassName || (this.ctx.classGen as any)?.currentClassName;
+        const className = this.ctx.currentClassName;
         if (className) {
           const fieldInfo = this.ctx.classGen?.getFieldInfo(className, memberExpr.property);
           if (fieldInfo && fieldInfo.type === 'string') {
@@ -161,9 +162,9 @@ export class TypeInference {
       }
     }
     if (expr.type === 'index_access') {
-      const indexExpr = expr as any;
+      const indexExpr = expr as IndexAccessNode;
       if (indexExpr.object.type === 'member_access') {
-        const memberAccess = indexExpr.object;
+        const memberAccess = indexExpr.object as MemberAccessNode;
         if (memberAccess.object.type === 'variable' &&
             memberAccess.object.name === 'process' &&
             memberAccess.property === 'argv') {
@@ -178,9 +179,9 @@ export class TypeInference {
         }
       }
       if (indexExpr.object.type === 'member_access') {
-        const memberAccess = indexExpr.object;
+        const memberAccess = indexExpr.object as MemberAccessNode;
         if (memberAccess.object.type === 'variable' && memberAccess.object.name === 'this') {
-          const className = this.ctx.currentClassName || (this.ctx.classGen as any)?.currentClassName;
+          const className = this.ctx.currentClassName;
           if (className) {
             const fieldInfo = this.ctx.classGen?.getFieldInfo(className, memberAccess.property);
             if (fieldInfo && fieldInfo.type === 'string[]') {
@@ -198,29 +199,29 @@ export class TypeInference {
       }
     }
     if (expr.type === 'call') {
-      const funcExpr = expr as any;
+      const funcExpr = expr as CallNode;
       if (funcExpr.name === 'String') {
         return true;
       }
-      const func = this.ctx.ast.functions?.find((f: any) => f.name === funcExpr.name);
+      const func = this.ctx.ast.functions?.find((f: FunctionNode) => f.name === funcExpr.name);
       if (func && func.returnType === 'string') {
         return true;
       }
     }
     if (expr.type === 'method_call') {
-      const methodExpr = expr as any as MethodCallNode;
+      const methodExpr = expr as MethodCallNode;
       if (methodExpr.object.type === 'variable' &&
-          (methodExpr.object as any).name === 'fs' &&
+          (methodExpr.object as VariableNode).name === 'fs' &&
           methodExpr.method === 'readFileSync') {
         return true;
       }
       if (methodExpr.object.type === 'variable' &&
-          (methodExpr.object as any).name === 'path' &&
+          (methodExpr.object as VariableNode).name === 'path' &&
           (methodExpr.method === 'resolve' || methodExpr.method === 'dirname')) {
         return true;
       }
       if (methodExpr.object.type === 'variable' &&
-          (methodExpr.object as any).name === 'JSON' &&
+          (methodExpr.object as VariableNode).name === 'JSON' &&
           methodExpr.method === 'stringify') {
         return true;
       }
@@ -231,33 +232,33 @@ export class TypeInference {
           methodExpr.method === 'text') {
         return true;
       }
-      if (methodExpr.object.type === 'variable' && this.ctx.symbolTable.isClass(methodExpr.object.name)) {
-        const classMeta = this.ctx.symbolTable.getClassInfo(methodExpr.object.name)!;
-        const classNode = this.ctx.ast.classes.find((c: any) => c.name === classMeta.className);
+      if (methodExpr.object.type === 'variable' && this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)) {
+        const classMeta = this.ctx.symbolTable.getClassInfo((methodExpr.object as VariableNode).name)!;
+        const classNode = this.ctx.ast.classes.find((c: ClassNode) => c.name === classMeta.className);
         if (classNode) {
-          const method = classNode.methods.find((m: any) => m.name === methodExpr.method && !m.isConstructor);
+          const method = classNode.methods.find((m: ClassMethod) => m.name === methodExpr.method && !m.isConstructor);
           if (method && method.returnType === 'string') {
             return true;
           }
         }
       }
       if (methodExpr.method === 'get' && methodExpr.object.type === 'variable' &&
-          this.ctx.symbolTable.isMap(methodExpr.object.name)) {
-        const mapMeta = this.ctx.symbolTable.getMapMetadata(methodExpr.object.name);
+          this.ctx.symbolTable.isMap((methodExpr.object as VariableNode).name)) {
+        const mapMeta = this.ctx.symbolTable.getMapMetadata((methodExpr.object as VariableNode).name);
         if (mapMeta && mapMeta.valueType === 'string') {
           return true;
         }
       }
     }
-    if ((expr as any).type === 'conditional') {
-      const condExpr = expr as any;
+    if (expr.type === 'conditional') {
+      const condExpr = expr as ConditionalExpressionNode;
       return this.isStringExpression(condExpr.consequent) || this.isStringExpression(condExpr.alternate);
     }
     return false;
   }
 
   isRegexExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'regex') {
+    if (expr.type === 'regex') {
       return true;
     }
     if (expr.type === 'variable') {
@@ -267,9 +268,9 @@ export class TypeInference {
   }
 
   isClassInstanceExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'new') {
-      const className = (expr as any).className;
-      if (className === 'Promise') {
+    if (expr.type === 'new') {
+      const newExpr = expr as NewNode;
+      if (newExpr.className === 'Promise') {
         return false;
       }
       return true;
@@ -281,15 +282,15 @@ export class TypeInference {
   }
 
   isPromiseExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'new' && (expr as any).className === 'Promise') {
+    if (expr.type === 'new' && (expr as NewNode).className === 'Promise') {
       return true;
     }
     if (expr.type === 'call' && expr.name === 'fetch') {
       return true;
     }
     if (expr.type === 'method_call') {
-      const methodExpr = expr as any;
-      if (methodExpr.object.type === 'variable' && methodExpr.object.name === 'Promise') {
+      const methodExpr = expr as MethodCallNode;
+      if (methodExpr.object.type === 'variable' && (methodExpr.object as VariableNode).name === 'Promise') {
         return true;
       }
       if (methodExpr.method === 'then' || methodExpr.method === 'catch') {
@@ -301,7 +302,7 @@ export class TypeInference {
       return varType === '%Promise*';
     }
     if (expr.type === 'call') {
-      const func = this.ctx.ast.functions?.find((f: any) => f.name === expr.name);
+      const func = this.ctx.ast.functions?.find((f: FunctionNode) => f.name === expr.name);
       if (func && func.async) {
         return true;
       }
@@ -319,27 +320,28 @@ export class TypeInference {
     return false;
   }
 
-  getTypedJsonInterface(expr: any): string | null {
+  getTypedJsonInterface(expr: MethodCallNode): string | null {
     if (expr.type === 'method_call' && expr.method === 'json' && expr.typeParameter) {
       return expr.typeParameter;
     }
     return null;
   }
 
-  getFunctionCallInterfaceReturn(expr: any): string | null {
+  getFunctionCallInterfaceReturn(expr: Expression): string | null {
     if (expr.type !== 'call') return null;
-    const func = this.ctx.ast.functions.find((f: any) => f.name === expr.name);
+    const callExpr = expr as CallNode;
+    const func = this.ctx.ast.functions.find((f: FunctionNode) => f.name === callExpr.name);
     if (!func || !func.returnType) return null;
-    const iface = this.ctx.ast.interfaces?.find((i: any) => i.name === func.returnType);
+    const iface = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === func.returnType);
     if (iface) return func.returnType;
     return null;
   }
 
-  getJSONParseInterface(expr: any): string | null {
+  getJSONParseInterface(expr: MethodCallNode): string | null {
     if (expr.type === 'method_call' &&
         expr.method === 'parse' &&
         expr.object?.type === 'variable' &&
-        expr.object?.name === 'JSON' &&
+        (expr.object as VariableNode)?.name === 'JSON' &&
         expr.typeParameter) {
       return expr.typeParameter;
     }
@@ -348,10 +350,10 @@ export class TypeInference {
 
   isJSONParseExpression(expr: Expression): boolean {
     if (expr.type === 'method_call') {
-      const methodCall = expr as any;
+      const methodCall = expr as MethodCallNode;
       return methodCall.method === 'parse' &&
              methodCall.object.type === 'variable' &&
-             methodCall.object.name === 'JSON';
+             (methodCall.object as VariableNode).name === 'JSON';
     }
     if (expr.type === 'variable') {
       return this.ctx.symbolTable.isJSON(expr.name);
@@ -368,18 +370,19 @@ export class TypeInference {
       return false;
     }
     if (expr.type === 'array') {
-      const elements = (expr as any).elements || [];
+      const arrayExpr = expr as ArrayNode;
+      const elements = arrayExpr.elements || [];
       if (elements.length === 0 && this.ctx.expectedArrayElementType === 'string') {
         return true;
       }
       return elements.length > 0 && elements.every((elem: Expression) => elem.type === 'string');
     }
     if (expr.type === 'method_call') {
-      const method = (expr as any).method;
-      return method === 'split';
+      const methodExpr = expr as MethodCallNode;
+      return methodExpr.method === 'split';
     }
     if (expr.type === 'member_access') {
-      const memberExpr = expr as any;
+      const memberExpr = expr as MemberAccessNode;
       if (memberExpr.object.type === 'variable' &&
           memberExpr.object.name === 'process' &&
           memberExpr.property === 'argv') {
@@ -392,8 +395,8 @@ export class TypeInference {
           return true;
         }
       }
-      if ((memberExpr.object as any).type === 'this') {
-        const classNode = this.ctx.ast.classes.find((c: any) => true);
+      if (memberExpr.object.type === 'this') {
+        const classNode = this.ctx.ast.classes[0];
         if (classNode) {
           const fieldInfo = this.ctx.classGen?.getFieldInfo(classNode.name, memberExpr.property);
           if (fieldInfo && fieldInfo.type === 'string[]') {
