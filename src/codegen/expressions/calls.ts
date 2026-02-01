@@ -23,6 +23,26 @@ export class CallExpressionGenerator {
       return this.ctx.generateHttpServe(expr, params);
     }
 
+    // Handle setTimeout() - libuv timer (one-shot)
+    if (expr.name === 'setTimeout') {
+      return this.generateSetTimeout(expr, params, generateExpressionFn);
+    }
+
+    // Handle setInterval() - libuv timer (repeating)
+    if (expr.name === 'setInterval') {
+      return this.generateSetInterval(expr, params, generateExpressionFn);
+    }
+
+    // Handle clearTimeout() / clearInterval() - stop timer
+    if (expr.name === 'clearTimeout' || expr.name === 'clearInterval') {
+      return this.generateClearTimer(expr, params, generateExpressionFn);
+    }
+
+    // Handle runEventLoop() - run libuv event loop
+    if (expr.name === 'runEventLoop') {
+      return this.generateRunEventLoop();
+    }
+
     // Handle fetch() special built-in function
     // Returns a Response object (pointer to Response struct)
     if (expr.name === 'fetch') {
@@ -208,5 +228,73 @@ export class CallExpressionGenerator {
     this.ctx.variableTypes.set(temp, returnType);
 
     return temp;
+  }
+
+  private generateSetTimeout(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    if (expr.args.length < 2) {
+      throw new Error('setTimeout() requires 2 arguments (callback, delay_ms)');
+    }
+
+    this.ctx.usesTimers = true;
+
+    const callbackArg = expr.args[0];
+    if (!callbackArg.name) {
+      throw new Error('setTimeout() callback must be a function reference');
+    }
+    const callbackName = callbackArg.name;
+
+    const delayValue = generateExpressionFn(expr.args[1], params);
+
+    const callbackPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${callbackPtr} = bitcast void ()* @${callbackName} to void ()*`);
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @__setTimeout(void ()* ${callbackPtr}, double ${delayValue})`);
+    this.ctx.variableTypes.set(result, 'i8*');
+
+    return result;
+  }
+
+  private generateSetInterval(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    if (expr.args.length < 2) {
+      throw new Error('setInterval() requires 2 arguments (callback, interval_ms)');
+    }
+
+    this.ctx.usesTimers = true;
+
+    const callbackArg = expr.args[0];
+    if (!callbackArg.name) {
+      throw new Error('setInterval() callback must be a function reference');
+    }
+    const callbackName = callbackArg.name;
+
+    const intervalValue = generateExpressionFn(expr.args[1], params);
+
+    const callbackPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${callbackPtr} = bitcast void ()* @${callbackName} to void ()*`);
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @__setInterval(void ()* ${callbackPtr}, double ${intervalValue})`);
+    this.ctx.variableTypes.set(result, 'i8*');
+
+    return result;
+  }
+
+  private generateClearTimer(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    if (expr.args.length < 1) {
+      throw new Error('clearTimeout/clearInterval requires 1 argument (timer_id)');
+    }
+
+    const timerIdValue = generateExpressionFn(expr.args[0], params);
+
+    this.ctx.emit(`call void @__clearTimer(i8* ${timerIdValue})`);
+
+    return '0.0';
+  }
+
+  private generateRunEventLoop(): string {
+    this.ctx.usesTimers = true;
+    this.ctx.emit('call void @__runEventLoop()');
+    return '0.0';
   }
 }
