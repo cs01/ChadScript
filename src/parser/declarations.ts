@@ -1,4 +1,4 @@
-import { FunctionNode, ClassNode, ClassMethod, ImportDeclaration, ExportDeclaration, BlockStatement, TypeAliasDeclaration } from '../ast/types.js';
+import { FunctionNode, ClassNode, ClassMethod, ImportDeclaration, ExportDeclaration, BlockStatement, TypeAliasDeclaration, EnumDeclaration } from '../ast/types.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
 
 export interface ParserContext {
@@ -11,6 +11,7 @@ export interface ParserContext {
   exports: ExportDeclaration[];
   interfaces: any[];
   typeAliases: TypeAliasDeclaration[];
+  enums: EnumDeclaration[];
   topLevelStatements: any[];
   topLevelItems: any[];
   skipWhitespace(): void;
@@ -91,6 +92,54 @@ export function parseTypeAlias(ctx: ParserContext): void {
   }
 
   ctx.typeAliases.push({ name, unionMembers });
+}
+
+export function parseEnum(ctx: ParserContext): void {
+  const name = ctx.parseIdentifier();
+  ctx.skipWhitespace();
+  ctx.expect('{');
+
+  const members: { name: string; value: number }[] = [];
+  let autoValue = 0;
+
+  while (ctx.pos < ctx.code.length) {
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === '}') {
+      break;
+    }
+
+    const memberName = ctx.parseIdentifier();
+    ctx.skipWhitespace();
+
+    let memberValue: number;
+    if (ctx.code[ctx.pos] === '=') {
+      ctx.pos++;
+      ctx.skipWhitespace();
+      let numStr = '';
+      const isNegative = ctx.code[ctx.pos] === '-';
+      if (isNegative) {
+        numStr += '-';
+        ctx.pos++;
+      }
+      while (ctx.pos < ctx.code.length && /[0-9]/.test(ctx.code[ctx.pos])) {
+        numStr += ctx.code[ctx.pos++];
+      }
+      memberValue = parseInt(numStr, 10);
+      autoValue = memberValue + 1;
+    } else {
+      memberValue = autoValue++;
+    }
+
+    members.push({ name: memberName, value: memberValue });
+    ctx.skipWhitespace();
+
+    if (ctx.code[ctx.pos] === ',') {
+      ctx.pos++;
+    }
+  }
+
+  ctx.expect('}');
+  ctx.enums.push({ name, members });
 }
 
 export function parseFunction(ctx: ParserContext, isAsync: boolean = false): void {

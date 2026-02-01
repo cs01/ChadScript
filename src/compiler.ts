@@ -139,7 +139,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, display
 
   // Avoid circular imports
   if (compiledFiles.has(absPath)) {
-    return { imports: [], functions: [], classes: [], exports: [], interfaces: [], typeAliases: [], topLevelStatements: [], topLevelExpressions: [], topLevelItems: [] };
+    return { imports: [], functions: [], classes: [], exports: [], interfaces: [], typeAliases: [], enums: [], topLevelStatements: [], topLevelExpressions: [], topLevelItems: [] };
   }
   compiledFiles.add(absPath);
 
@@ -164,6 +164,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, display
     exports: ast.exports.slice(),
     interfaces: ast.interfaces.slice(),
     typeAliases: ast.typeAliases?.slice() || [],
+    enums: ast.enums?.slice() || [],
     topLevelStatements: ast.topLevelStatements.slice(),
     topLevelExpressions: ast.topLevelExpressions.slice(),
     topLevelItems: ast.topLevelItems?.slice() || []
@@ -204,6 +205,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, display
     mergedAST.classes = mergedAST.classes.concat(importedAST.classes);
     mergedAST.interfaces = mergedAST.interfaces.concat(importedAST.interfaces);
     mergedAST.typeAliases = mergedAST.typeAliases.concat(importedAST.typeAliases || []);
+    mergedAST.enums = mergedAST.enums.concat(importedAST.enums || []);
     mergedAST.topLevelStatements = mergedAST.topLevelStatements.concat(importedAST.topLevelStatements);
     i = i + 1;
   }

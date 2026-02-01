@@ -16,6 +16,9 @@ export class MemberAccessGenerator {
   constructor(private ctx: any) {}
 
   generate(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    const enumResult = this.handleEnumMemberAccess(expr);
+    if (enumResult !== null) return enumResult;
+
     // Try typed JSON struct access first
     const typedJsonResult = this.handleTypedJsonStructAccess(expr);
     if (typedJsonResult !== null) return typedJsonResult;
@@ -67,6 +70,29 @@ export class MemberAccessGenerator {
     return expr.object.type === 'variable' &&
            (expr.object as any).name === 'process' &&
            expr.property === 'argv';
+  }
+
+  private handleEnumMemberAccess(expr: any): string | null {
+    if (expr.object.type !== 'variable') return null;
+
+    const enumName = (expr.object as any).name;
+    const memberName = expr.property;
+    const enums = this.ctx.ast?.enums;
+    if (!enums) return null;
+
+    const enumDecl = enums.find((e: any) => e.name === enumName);
+    if (!enumDecl) return null;
+
+    const member = enumDecl.members.find((m: any) => m.name === memberName);
+    if (!member) {
+      throw new Error(`Enum member '${memberName}' not found in enum '${enumName}'`);
+    }
+
+    const value = member.value;
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = fadd double ${value.toFixed(1)}, 0.0`);
+    this.ctx.variableTypes.set(result, 'double');
+    return result;
   }
 
   private handleTypedJsonStructAccess(expr: any): string | null {

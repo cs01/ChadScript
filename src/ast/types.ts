@@ -253,6 +253,7 @@ export interface AST {
   exports: ExportDeclaration[];
   interfaces: InterfaceDeclaration[];  // Interface definitions for JSON typing
   typeAliases: TypeAliasDeclaration[];  // Type alias declarations (union types)
+  enums: EnumDeclaration[];  // Enum declarations (compile to integer constants)
   topLevelStatements: VariableDeclaration[];  // Top-level const/let declarations
   topLevelExpressions: (CallNode | NewNode | MethodCallNode)[];  // Top-level expressions (console.log, etc.)
   topLevelItems?: any[];  // Combined ordered list of all top-level statements and expressions
@@ -266,4 +267,14 @@ export interface InterfaceDeclaration {
 export interface TypeAliasDeclaration {
   name: string;
   unionMembers: string[];  // e.g., ['NumberNode', 'StringNode', 'BinaryNode']
+}
+
+export interface EnumMember {
+  name: string;
+  value: number;
+}
+
+export interface EnumDeclaration {
+  name: string;
+  members: EnumMember[];  // e.g., [{ name: 'Silent', value: 0 }, { name: 'Normal', value: 1 }]
 }
