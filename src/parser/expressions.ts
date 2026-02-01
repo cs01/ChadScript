@@ -307,6 +307,12 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
     const className = ctx.parseIdentifier();
 
     if (className === 'Map' || className === 'Set') {
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === '<') {
+        ctx.pos++;
+        ctx.skipTypeAnnotation();
+        ctx.expect('>');
+      }
       ctx.expect('(');
       ctx.skipWhitespace();
       ctx.expect(')');
@@ -318,6 +324,12 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
       }
     }
 
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === '<') {
+      ctx.pos++;
+      ctx.skipTypeAnnotation();
+      ctx.expect('>');
+    }
     ctx.expect('(');
     const args: Expression[] = [];
     ctx.skipWhitespace();
@@ -561,7 +573,7 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
       if (ctx.code[ctx.pos] === '(') {
         const call = parseFunctionCallWithName(ctx, name);
         (call as any).typeParameter = typeParam;
-        return call;
+        return parsePostfixExpressions(ctx, call, parseExpression);
       }
     }
     ctx.pos = savedPos;
@@ -595,7 +607,8 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
       return { type: 'arrow_function', params, body };
     } else {
       ctx.pos = savedPos;
-      return parseFunctionCallWithName(ctx, name);
+      const callExpr = parseFunctionCallWithName(ctx, name);
+      return parsePostfixExpressions(ctx, callExpr, parseExpression);
     }
   } else {
     let expr: Expression = { type: 'variable', name };
