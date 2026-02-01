@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, ClassNode, NewNode, TypeAliasDeclaration, EnumDeclaration } from '../ast/types.js';
+import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, ClassNode, NewNode, TypeAliasDeclaration, EnumDeclaration, ImportDeclaration, ExportDeclaration, InterfaceDeclaration, TopLevelItem, AssignmentStatement, TryStatement } from '../ast/types.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
 import { parseFunction, parseClass, parseInterface, parseImport, parseExport, ParserContext, parseTypeAlias, parseEnum } from './declarations.js';
 import { parseBlock, parseStatement, parseIfStatement, parseWhileStatement, parseForStatement, parseVariableDeclaration, parseTryStatementTopLevel } from './statements.js';
@@ -10,14 +10,14 @@ export class Parser implements ExpressionParserContext {
   pos = 0;
   functions: FunctionNode[] = [];
   classes: ClassNode[] = [];
-  imports: any[] = [];
-  exports: any[] = [];
-  interfaces: any[] = [];
+  imports: ImportDeclaration[] = [];
+  exports: ExportDeclaration[] = [];
+  interfaces: InterfaceDeclaration[] = [];
   typeAliases: TypeAliasDeclaration[] = [];
   enums: EnumDeclaration[] = [];
-  topLevelStatements: VariableDeclaration[] = [];
+  topLevelStatements: (VariableDeclaration | AssignmentStatement)[] = [];
   topLevelExpressions: (CallNode | NewNode | MethodCallNode)[] = [];
-  topLevelItems: any[] = [];
+  topLevelItems: TopLevelItem[] = [];
 
   constructor(code: string, filename: string = '<input>') {
     this.code = code;
@@ -202,7 +202,7 @@ export class Parser implements ExpressionParserContext {
             } as any;
           }
 
-          let assignment: any;
+          let assignment: AssignmentStatement;
           if (leftExpr.type === 'variable') {
             assignment = { type: 'assignment', name: (leftExpr as any).name, value: finalValue };
           } else if (leftExpr.type === 'member_access') {
@@ -460,7 +460,7 @@ export class Parser implements ExpressionParserContext {
     return str;
   }
 
-  private parseTryStatement(): Statement {
+  private parseTryStatement(): TryStatement {
     this.expect('{');
     const tryBlock = this.parseBlock();
     this.expect('}');

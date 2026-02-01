@@ -1,4 +1,4 @@
-import { FunctionNode, ClassNode, ClassMethod, ImportDeclaration, ExportDeclaration, BlockStatement, TypeAliasDeclaration, EnumDeclaration, FunctionParameter, Expression } from '../ast/types.js';
+import { FunctionNode, ClassNode, ClassMethod, ImportDeclaration, ExportDeclaration, BlockStatement, TypeAliasDeclaration, EnumDeclaration, FunctionParameter, Expression, InterfaceDeclaration, VariableDeclaration, TopLevelItem, AssignmentStatement } from '../ast/types.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
 
 export interface ParserContext {
@@ -9,22 +9,22 @@ export interface ParserContext {
   classes: ClassNode[];
   imports: ImportDeclaration[];
   exports: ExportDeclaration[];
-  interfaces: any[];
+  interfaces: InterfaceDeclaration[];
   typeAliases: TypeAliasDeclaration[];
   enums: EnumDeclaration[];
-  topLevelStatements: any[];
-  topLevelItems: any[];
+  topLevelStatements: (VariableDeclaration | AssignmentStatement)[];
+  topLevelItems: TopLevelItem[];
   skipWhitespace(): void;
   match(str: string): boolean;
   expect(str: string): void;
   parseIdentifier(): string;
   parseBlock(): BlockStatement;
-  parseExpression(): any;
-  parseVariableDeclaration(): any;
+  parseExpression(): Expression;
+  parseVariableDeclaration(): VariableDeclaration;
   parseString(): string;
   skipTypeAnnotation(): void;
   parseTypeAnnotation(): 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null;
-  formatError(message: string, position?: number, options?: any): string;
+  formatError(message: string, position?: number, options?: { help?: string; note?: string; suggestion?: string; contextLines?: number }): string;
 }
 
 export function parseInterface(ctx: ParserContext): void {
