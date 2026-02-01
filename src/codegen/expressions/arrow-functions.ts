@@ -28,9 +28,17 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     const arrowFunc = expr;
     const funcName = `__lambda_${this.anonFuncCounter++}`;
 
+    let funcParams = arrowFunc.params;
+    if (typeHints?.paramTypes && typeHints.paramTypes.length > funcParams.length) {
+      funcParams = [...funcParams];
+      for (let i = funcParams.length; i < typeHints.paramTypes.length; i++) {
+        funcParams.push(`__unused_${i}`);
+      }
+    }
+
     const liftedFunc: FunctionNode = {
       name: funcName,
-      params: arrowFunc.params,
+      params: funcParams,
       body: arrowFunc.body.type === 'block' ? arrowFunc.body : {
         type: 'block',
         statements: [{ type: 'return', value: arrowFunc.body }]

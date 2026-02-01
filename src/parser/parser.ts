@@ -116,7 +116,11 @@ export class Parser implements ExpressionParserContext {
       } else if (this.match('class')) {
         parseClass(this);
       } else if (this.match('async')) {
-        throw new Error(formatUnsupportedFeatureError('async'));
+        if (this.match('function')) {
+          parseFunction(this, true);
+        } else {
+          throw new Error(this.formatError('Expected "function" after "async"'));
+        }
       } else if (this.match('function')) {
         parseFunction(this);
       } else if (this.match('let') || this.match('const') || this.match('var')) {

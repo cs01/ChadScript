@@ -110,6 +110,12 @@ export interface ArrowFunctionNode {
   type: 'arrow_function';
   params: string[];
   body: Expression | BlockStatement;
+  async?: boolean;
+}
+
+export interface AwaitExpressionNode {
+  type: 'await';
+  argument: Expression;
 }
 
 export interface ConditionalExpressionNode {
@@ -119,7 +125,7 @@ export interface ConditionalExpressionNode {
   alternate: Expression;
 }
 
-export type Expression = NumberNode | StringNode | BooleanNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode;
+export type Expression = NumberNode | StringNode | BooleanNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode | AwaitExpressionNode;
 
 export interface VariableDeclaration {
   type: 'variable_declaration';
@@ -202,6 +208,7 @@ export interface FunctionNode {
   body: BlockStatement;
   returnType?: string;
   paramTypes?: string[];
+  async?: boolean;
 }
 
 export interface ClassMethod {

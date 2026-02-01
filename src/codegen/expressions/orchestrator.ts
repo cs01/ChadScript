@@ -151,6 +151,17 @@ export class ExpressionGenerator {
       return this.methodCallGen.generate(expr as any, params);
     }
 
+    // Await expressions
+    if ((expr as any).type === 'await') {
+      const awaitExpr = expr as any;
+      const promiseReg = this.generate(awaitExpr.argument, params);
+      const valueReg = this.ctx.nextTemp();
+      this.ctx.emit(`${valueReg} = call i8* @__Promise_get_value(%Promise* ${promiseReg})`);
+      this.ctx.variableTypes.set(valueReg, 'i8*');
+      this.ctx.usesPromises = true;
+      return valueReg;
+    }
+
     throw new Error(`Unknown expression type: ${(expr as any).type}`);
   }
 

@@ -527,6 +527,18 @@ export class PromiseGenerator {
     return ir;
   }
 
+  generatePromiseGetValue(): string {
+    let ir = '; __Promise_get_value(%Promise* promise) -> i8*\n';
+    ir += '; Returns the resolved value of a promise (assumes it is settled)\n';
+    ir += 'define i8* @__Promise_get_value(%Promise* %promise) {\n';
+    ir += 'entry:\n';
+    ir += '  %value_ptr = getelementptr inbounds %Promise, %Promise* %promise, i32 0, i32 1\n';
+    ir += '  %value = load i8*, i8** %value_ptr\n';
+    ir += '  ret i8* %value\n';
+    ir += '}\n\n';
+    return ir;
+  }
+
   generateAll(): string {
     let ir = '';
     ir += this.generatePromiseNew();
@@ -539,6 +551,7 @@ export class PromiseGenerator {
     ir += this.generatePromiseRejectStatic();
     ir += this.generatePromiseAllCallbacks();
     ir += this.generatePromiseAll();
+    ir += this.generatePromiseGetValue();
     return ir;
   }
 }

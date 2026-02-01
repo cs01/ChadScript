@@ -66,7 +66,7 @@ export function parseInterface(ctx: ParserContext): void {
   ctx.interfaces.push({ name, fields });
 }
 
-export function parseFunction(ctx: ParserContext): void {
+export function parseFunction(ctx: ParserContext, isAsync: boolean = false): void {
   const name = ctx.parseIdentifier();
   ctx.expect('(');
 
@@ -110,7 +110,7 @@ export function parseFunction(ctx: ParserContext): void {
   const body = ctx.parseBlock();
   ctx.expect('}');
 
-  ctx.functions.push({ name, params, body, returnType });
+  ctx.functions.push({ name, params, body, returnType, async: isAsync || undefined });
 }
 
 export function parseClass(ctx: ParserContext): void {

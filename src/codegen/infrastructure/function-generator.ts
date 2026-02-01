@@ -12,6 +12,8 @@ export interface FunctionGeneratorContext {
   allocateVariable(stmt: any, params: string[]): void;
   currentFunction: string;
   currentFunctionReturnType: string;
+  isAsyncFunction: boolean;
+  asyncResultPromise: string;
   ast: any;
   typeChecker: any;
   output: string[];
@@ -28,6 +30,8 @@ export class FunctionGenerator {
     this.ctx.reset();
     this.ctx.syncStateToGenerators();
     this.ctx.currentFunction = func.name;
+    this.ctx.isAsyncFunction = func.async || false;
+    this.ctx.asyncResultPromise = '';
 
     const paramTypes: string[] = [];
     const paramLLVMTypes: string[] = [];
@@ -36,7 +40,10 @@ export class FunctionGenerator {
     let returnTypeIsVoid = false;
     this.ctx.currentFunctionReturnType = 'double';
 
-    if (func.paramTypes && func.paramTypes.length > 0) {
+    if (func.async) {
+      returnType = '%Promise*';
+      this.ctx.currentFunctionReturnType = '%Promise*';
+    } else if (func.paramTypes && func.paramTypes.length > 0) {
       for (let i = 0; i < func.params.length; i++) {
         const paramType = func.paramTypes[i] || 'number';
         paramTypes.push(paramType);
@@ -151,6 +158,12 @@ export class FunctionGenerator {
       }
     }
 
+    if (func.async) {
+      const resultPromise = this.ctx.nextTemp();
+      this.ctx.asyncResultPromise = resultPromise;
+      this.ctx.emit(`${resultPromise} = call %Promise* @__Promise_new()`);
+    }
+
     const result = this.ctx.generateBlock(func.body, func.params);
 
     if (this.ctx.output.length > 0) {
@@ -163,7 +176,11 @@ export class FunctionGenerator {
                           lastInstruction === 'unreachable';
 
     if (!hasTerminator) {
-      if (returnTypeIsVoid) {
+      if (func.async) {
+        this.ctx.emit(`call void @__Promise_resolve(%Promise* ${this.ctx.asyncResultPromise}, i8* null)`);
+        ir += this.ctx.output.slice(-1).map(line => '  ' + line).join('\n') + '\n';
+        ir += `  ret %Promise* ${this.ctx.asyncResultPromise}\n`;
+      } else if (returnTypeIsVoid) {
         ir += '  ret void\n';
       } else if (result !== null) {
         ir += `  ret ${returnType} ${result}\n`;

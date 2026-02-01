@@ -196,7 +196,11 @@ export class CallExpressionGenerator {
     let returnType = 'double';
     let paramTypes: string[] = [];
 
-    if (this.ctx.typeChecker) {
+    const func = this.ctx.ast.functions?.find((f: any) => f.name === expr.name);
+    if (func && func.async) {
+      returnType = '%Promise*';
+      this.ctx.usesPromises = true;
+    } else if (this.ctx.typeChecker) {
       try {
         const funcType = this.ctx.typeChecker.getFunctionType(expr.name);
         if (funcType) {
