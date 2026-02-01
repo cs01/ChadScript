@@ -143,10 +143,13 @@ export class LLVMGenerator extends BaseGenerator {
     return { keys, types };
   }
 
-  constructor(ast: AST, typeChecker: TypeChecker | null = null) {
+  private linkTreeSitter: boolean = false;
+
+  constructor(ast: AST, typeChecker: TypeChecker | null = null, options?: { linkTreeSitter?: boolean }) {
     super();
     this.ast = ast;
     this.typeChecker = typeChecker;
+    this.linkTreeSitter = options?.linkTreeSitter ?? false;
 
     this.interfaceStructGen = new InterfaceStructGenerator(ast.interfaces || []);
 
@@ -336,8 +339,25 @@ export class LLVMGenerator extends BaseGenerator {
     ir += this.promiseGen.generateDeclarations();
     ir += '\n';
 
-    ir += this.treesitterGen.generateDeclarations();
-    ir += '\n';
+    if (this.linkTreeSitter) {
+      ir += this.treesitterGen.generateDeclarations();
+      ir += '\n';
+
+      ir += this.treesitterGen.generateParseSourceHelper();
+      ir += this.treesitterGen.generateGetRootNodeHelper();
+      ir += this.treesitterGen.generateNodeTypeHelper();
+      ir += this.treesitterGen.generateNodeChildCountHelper();
+      ir += this.treesitterGen.generateNodeChildHelper();
+      ir += this.treesitterGen.generateNodeStartByteHelper();
+      ir += this.treesitterGen.generateNodeEndByteHelper();
+      ir += this.treesitterGen.generateNodeTextHelper();
+      ir += this.treesitterGen.generateNodeIsNullHelper();
+      ir += this.treesitterGen.generateNodeIsNamedHelper();
+      ir += this.treesitterGen.generateNamedChildHelper();
+      ir += this.treesitterGen.generateNamedChildCountHelper();
+      ir += this.treesitterGen.generateChildByFieldNameHelper();
+      ir += '\n';
+    }
 
     ir += getSafeStringHelper();
 
