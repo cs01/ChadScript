@@ -20,6 +20,7 @@ export interface ParserContext {
   parseIdentifier(): string;
   parseBlock(): BlockStatement;
   parseExpression(): Expression;
+  parsePrimary(): Expression;
   parseVariableDeclaration(): VariableDeclaration;
   parseString(): string;
   skipTypeAnnotation(): void;
