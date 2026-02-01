@@ -1,7 +1,9 @@
-import { AST, Expression, FunctionNode, BlockStatement, MethodCallNode, NewNode, ThisNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { TypeInference } from './infrastructure/type-inference.js';
 import { VariableAllocator } from './infrastructure/variable-allocator.js';
+import { FunctionGenerator } from './infrastructure/function-generator.js';
+import { AssignmentGenerator } from './infrastructure/assignment-generator.js';
 import { getLLVMDeclarations, getSafeStringHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
@@ -22,7 +24,6 @@ import { RuntimeGenerator } from './runtime/runtime.js';
 import { MongooseGenerator } from './stdlib/mongoose.js';
 import { ExpressionGenerator } from './expressions/orchestrator.js';
 import { TypeChecker } from '../typescript/type-checker.js';
-import { logger } from '../utils/logger.js';
 
 // ============================================
 // LLVM IR CODE GENERATOR - Main Orchestrator
@@ -72,6 +73,12 @@ export class LLVMGenerator extends BaseGenerator {
   // Variable allocator
   private varAllocator: VariableAllocator;
 
+  // Function generator
+  private funcGen: FunctionGenerator;
+
+  // Assignment generator
+  private assignmentGen: AssignmentGenerator;
+
   // Helper: Format nice compiler errors
   private formatCodegenError(message: string, suggestion?: string): string {
     let error = `\x1b[31m\x1b[1merror:\x1b[0m ${message}\n`;
@@ -82,17 +89,6 @@ export class LLVMGenerator extends BaseGenerator {
     }
 
     return error;
-  }
-
-  // Helper: Convert a value to i32 if it's a double register
-  private convertToI32(value: string): string {
-    const valueType = this.getVariableType(value);
-    if (valueType === 'double' || value.startsWith('%')) {
-      const i32Value = this.nextTemp();
-      this.emit(`${i32Value} = fptosi double ${value} to i32`);
-      return i32Value;
-    }
-    return value;
   }
 
   // Helper: Extract object literal metadata (keys and types)
@@ -171,6 +167,12 @@ export class LLVMGenerator extends BaseGenerator {
     // Initialize variable allocator
     this.varAllocator = new VariableAllocator(this as any);
 
+    // Initialize function generator
+    this.funcGen = new FunctionGenerator(this as any);
+
+    // Initialize assignment generator
+    this.assignmentGen = new AssignmentGenerator(this as any);
+
     // No more delegate binding needed - all generators use context pattern! 🎯
 
     // Collect all imported function names
@@ -205,11 +207,11 @@ export class LLVMGenerator extends BaseGenerator {
         const isStringArray = this.isStringArrayExpression(stmt.value);
         const isArray = !isStringArray && this.isArrayExpression(stmt.value);
         const isObject = this.isObjectExpression(stmt.value);
-        const isMap = this.isMapExpression(stmt.value);
-        const isSet = this.isSetExpression(stmt.value);
-        const isRegex = this.isRegexExpression(stmt.value);
-        const isClassInstance = this.isClassInstanceExpression(stmt.value);
-        const isBoolean = this.isBooleanExpression(stmt.value);
+        const isMap = this.typeInference.isMapExpression(stmt.value);
+        const isSet = this.typeInference.isSetExpression(stmt.value);
+        const isRegex = this.typeInference.isRegexExpression(stmt.value);
+        const isClassInstance = this.typeInference.isClassInstanceExpression(stmt.value);
+        const isBoolean = this.typeInference.isBooleanExpression(stmt.value);
 
         let llvmType: string;
         let kind: SymbolKind;
@@ -392,192 +394,7 @@ export class LLVMGenerator extends BaseGenerator {
    * @returns LLVM IR function definition as string
    */
   private generateFunction(func: FunctionNode): string {
-    this.reset();
-    this.syncStateToGenerators();
-    this.currentFunction = func.name; // Track current function for type checking
-
-    // Determine parameter and return types using TypeChecker
-    const paramTypes: string[] = [];
-    const paramLLVMTypes: string[] = [];
-    let returnType = 'double';
-    let returnTypeIsString = false;
-    let returnTypeIsVoid = false;
-    this.currentFunctionReturnType = 'double'; // Default to double
-
-    if (this.typeChecker) {
-      try {
-        // Get function signature from TypeChecker
-        const funcType = this.typeChecker.getFunctionType(func.name);
-        if (funcType) {
-          // Check return type
-          if (funcType.returnType === 'string') {
-            returnType = 'i8*';
-            returnTypeIsString = true;
-            this.currentFunctionReturnType = 'i8*';
-          } else if (funcType.returnType === 'void') {
-            returnType = 'void';
-            returnTypeIsVoid = true;
-            this.currentFunctionReturnType = 'void';
-          } else if (funcType.returnType !== 'number' && funcType.returnType !== 'boolean') {
-            returnType = 'i8*';
-            this.currentFunctionReturnType = 'i8*';
-          }
-
-          // Check parameter types
-          for (let i = 0; i < func.params.length; i++) {
-            const paramType = funcType.parameters[i]?.type || 'number';
-            paramTypes.push(paramType);
-            if (paramType === 'string') {
-              paramLLVMTypes.push('i8*');
-            } else if (paramType === 'string[]') {
-              paramLLVMTypes.push('%StringArray*');
-            } else if (paramType === 'number[]' || paramType === 'boolean[]') {
-              paramLLVMTypes.push('%Array*');
-            } else if (paramType !== 'number' && paramType !== 'boolean') {
-              // Object/interface type - use i8* for object pointer
-              paramLLVMTypes.push('i8*');
-            } else {
-              paramLLVMTypes.push('double');
-            }
-          }
-        }
-      } catch (e) {
-        // Type checker failed, fall back to defaults
-      }
-    }
-
-    // For .js files or when TypeChecker isn't available, check if function has return statements
-    // If no return statements, assume void
-    if (!returnTypeIsString && !returnTypeIsVoid && !this.hasReturnStatement(func.body)) {
-      returnType = 'void';
-      returnTypeIsVoid = true;
-      this.currentFunctionReturnType = 'void';
-    }
-
-    // Fill in missing parameter types with double
-    while (paramLLVMTypes.length < func.params.length) {
-      paramTypes.push('number');
-      paramLLVMTypes.push('double');
-    }
-
-    // Generate function signature
-    let ir = `define ${returnType} @${func.name}(`;
-    ir += func.params.map((_, i) => `${paramLLVMTypes[i]} %arg${i}`).join(', ');
-    ir += ') {\n';
-    ir += 'entry:\n';
-
-    // Allocate stack space for parameters so they can be treated like variables
-    for (let i = 0; i < func.params.length; i++) {
-      const paramName = func.params[i];
-      const allocaReg = this.nextTemp();
-      const llvmType = paramLLVMTypes[i];
-
-      if (llvmType === 'i8*') {
-        // Check if it's a string or an object type
-        if (paramTypes[i] === 'string') {
-          // String parameter
-          this.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
-        } else {
-          // Object/interface parameter - look up interface definition
-          const interfaceDef = this.ast.interfaces?.find(iface => iface.name === paramTypes[i]);
-          if (interfaceDef) {
-            const keys = interfaceDef.fields.map((f: any) => f.name);
-            const types = interfaceDef.fields.map((f: any) => {
-              const tsType = f.type;
-              if (tsType === 'string') return 'i8*';
-              if (tsType === 'number') return 'double';
-              if (tsType === 'boolean') return 'i1';
-              if (tsType === 'string[]') return '%StringArray*';
-              if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
-              return 'i8*';
-            });
-            this.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
-              objectMetadata: { keys, types }
-            });
-          } else {
-            this.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local');
-          }
-        }
-        this.emit(`${allocaReg} = alloca i8*`);
-        this.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
-      } else if (llvmType === '%StringArray*') {
-        // String array parameter
-        this.defineVariable(paramName, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
-        this.emit(`${allocaReg} = alloca %StringArray*`);
-        this.emit(`store %StringArray* %arg${i}, %StringArray** ${allocaReg}`);
-      } else if (llvmType === '%Array*') {
-        // Number/boolean array parameter
-        this.defineVariable(paramName, allocaReg, '%Array*', SymbolKind.Array, 'local');
-        this.emit(`${allocaReg} = alloca %Array*`);
-        this.emit(`store %Array* %arg${i}, %Array** ${allocaReg}`);
-      } else {
-        // Numeric parameter (double)
-        this.defineVariable(paramName, allocaReg, 'double', SymbolKind.Number, 'local');
-        this.emit(`${allocaReg} = alloca double`);
-        this.emit(`store double %arg${i}, double* ${allocaReg}`);
-      }
-    }
-
-    // Generate body
-    const result = this.generateBlock(func.body, func.params);
-
-    // Add any instructions that were generated
-    if (this.output.length > 0) {
-      ir += this.output.map(line => '  ' + line).join('\n') + '\n';
-    }
-
-    // Check if the last instruction is a terminator
-    const lastInstruction = this.output.length > 0 ? this.output[this.output.length - 1].trim() : '';
-    const hasTerminator = lastInstruction.startsWith('ret ') ||
-                          lastInstruction.startsWith('br ') ||
-                          lastInstruction === 'unreachable';
-
-    // Only add ret if we don't already have a terminator
-    if (!hasTerminator) {
-      if (returnTypeIsVoid) {
-        // Void function - no return value
-        ir += '  ret void\n';
-      } else if (result !== null) {
-        // Return the result value
-        ir += `  ret ${returnType} ${result}\n`;
-      } else {
-        // No explicit return - return default value
-        if (returnTypeIsString) {
-          // Return empty string
-          this.syncStateToGenerators();
-          const emptyStr = this.stringGen.createStringConstant('');
-          ir += `  ret i8* ${emptyStr}\n`;
-        } else {
-          ir += `  ret ${returnType} 0.0\n`;
-        }
-      }
-    }
-    ir += '}\n';
-
-    return ir;
-  }
-
-  /**
-   * Check if a block contains any return statements (recursively)
-   */
-  private hasReturnStatement(block: BlockStatement): boolean {
-    for (const stmt of block.statements) {
-      if (stmt.type === 'return') {
-        return true;
-      }
-      // Check nested blocks
-      if (stmt.type === 'if' && (stmt as any).thenBlock) {
-        if (this.hasReturnStatement((stmt as any).thenBlock)) return true;
-        if ((stmt as any).elseBlock && this.hasReturnStatement((stmt as any).elseBlock)) return true;
-      }
-      if (stmt.type === 'while' && stmt.body) {
-        if (this.hasReturnStatement(stmt.body)) return true;
-      }
-      if (stmt.type === 'for' && stmt.body) {
-        if (this.hasReturnStatement(stmt.body)) return true;
-      }
-    }
-    return false;
+    return this.funcGen.generate(func);
   }
 
   /**
@@ -609,158 +426,7 @@ export class LLVMGenerator extends BaseGenerator {
       } else if (stmt.type === 'assignment') {
         // Check if this is a member access assignment (this.field = value)
         if (stmt.name.startsWith('__member_access__')) {
-          // Extract property name and handle member access assignment
-          const memberAccessValue = stmt.value as any;
-          if (memberAccessValue.type === 'member_access_assignment') {
-            const object = memberAccessValue.object;
-            const property = memberAccessValue.property;
-
-            // Get instance pointer and className first
-            let instancePtr: string | null = null;
-            let className: string | null = null;
-
-            if (object.type === 'variable' && this.symbolTable.isClass(object.name)) {
-              const classMeta = this.symbolTable.getClassInfo(object.name)!;
-              className = classMeta.className;
-            } else if ((object as any).type === 'new') {
-              const newExpr = object as any as NewNode;
-              className = newExpr.className;
-            } else if ((object as any).type === 'this') {
-              if (!this.thisPointer) {
-                throw new Error('this.field = value used outside of class method or constructor');
-              }
-              // Find class - simplified for now
-              const classWithField = this.ast.classes.find(c => true);
-              if (classWithField) {
-                className = classWithField.name;
-              }
-            } else if (object.type === 'variable' && this.symbolTable.isObject(object.name)) {
-              const objMeta = this.symbolTable.getObjectInfo(object.name);
-              if (objMeta) {
-                const value = this.generateExpression(memberAccessValue.value, params);
-                const propIndex = objMeta.keys.indexOf(property);
-                if (propIndex === -1) {
-                  throw new Error(`Unknown property: ${property} on object ${object.name}. Available properties: ${objMeta.keys.join(', ')}`);
-                }
-                const propType = objMeta.types[propIndex];
-                const structType = `{ ${objMeta.types.join(', ')} }`;
-
-                const objPtrPtr = this.getVariableAlloca(object.name)!;
-                const objPtr = this.nextTemp();
-                this.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
-
-                const typedPtr = this.nextTemp();
-                this.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
-
-                const fieldPtr = this.nextTemp();
-                this.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${propIndex}`);
-
-                if (propType === 'i1') {
-                  const boolVal = this.nextTemp();
-                  this.emit(`${boolVal} = fcmp one double ${value}, 0.0`);
-                  this.emit(`store i1 ${boolVal}, i1* ${fieldPtr}`);
-                } else {
-                  this.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}`);
-                }
-              }
-            }
-
-            if (className) {
-              let fieldInfo = null;
-              fieldInfo = this.classGen.getFieldInfo(className, property);
-              // Set expected array element type for array field assignments
-              if (fieldInfo && fieldInfo.type === 'string[]') {
-                this.expectedArrayElementType = 'string';
-              } else if (fieldInfo && fieldInfo.type === 'number[]') {
-                this.expectedArrayElementType = 'number';
-              } else if (fieldInfo && fieldInfo.type === 'boolean[]') {
-                this.expectedArrayElementType = 'boolean';
-              }
-
-              // Now generate the value with context
-              const value = this.generateExpression(memberAccessValue.value, params);
-              this.expectedArrayElementType = null; // Reset context
-
-              // Generate instance pointer
-              if (object.type === 'variable' && this.symbolTable.isClass(object.name)) {
-                instancePtr = this.generateExpression(object, params);
-              } else if ((object as any).type === 'new') {
-                instancePtr = this.generateExpression(object, params);
-              } else if ((object as any).type === 'this') {
-                instancePtr = this.thisPointer;
-              } else {
-                throw new Error(`Cannot assign to property of ${object.type}`);
-              }
-
-              if (instancePtr) {
-                const fields = this.classGen.getClassFields(className);
-
-                if (fieldInfo) {
-                  // Typed field - use struct getelementptr
-                  const fieldPtr = this.nextTemp();
-                  if (fields.length > 0) {
-                    this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${instancePtr}, i32 0, i32 ${fieldInfo.index}`);
-
-                  if (fieldInfo.type === 'string') {
-                    // Store string pointer (i8*)
-                    // Check if value is already i8* (from properly typed variable)
-                    let isAlreadyPointer = false;
-                    if (memberAccessValue.value.type === 'variable') {
-                      const varType = this.getVariableType(memberAccessValue.value.name);
-                      if (varType === 'i8*' || varType?.includes('*')) {
-                        isAlreadyPointer = true;
-                      }
-                    } else if (memberAccessValue.value.type === 'string') {
-                      // String constants are already i8*
-                      isAlreadyPointer = true;
-                    }
-
-                    if (isAlreadyPointer) {
-                      // Value is already i8*, store directly
-                      this.emit(`store i8* ${value}, i8** ${fieldPtr}`);
-                    } else {
-                      // Value is i32, need to convert to i8*
-                      const strPtr = this.nextTemp();
-                      this.emit(`${strPtr} = inttoptr i32 ${value} to i8*`);
-                      this.emit(`store i8* ${strPtr}, i8** ${fieldPtr}`);
-                    }
-                  } else if (fieldInfo.type === 'string[]') {
-                    // Store string array pointer (%StringArray*)
-                    // Value is already a %StringArray* from array generation
-                    this.emit(`store %StringArray* ${value}, %StringArray** ${fieldPtr}`);
-                  } else if (fieldInfo.type.endsWith('[]')) {
-                    // Store number/boolean array pointer (%Array*)
-                    // Value is already an %Array* from array generation
-                    this.emit(`store %Array* ${value}, %Array** ${fieldPtr}`);
-                  } else if (fieldInfo.type === 'boolean') {
-                    // Convert double to i1 for boolean fields
-                    const boolValue = this.nextTemp();
-                    this.emit(`${boolValue} = fcmp one double ${value}, 0.0`);
-                    this.emit(`store i1 ${boolValue}, i1* ${fieldPtr}`);
-                  } else {
-                    // Store double (JavaScript semantics)
-                    this.emit(`store double ${value}, double* ${fieldPtr}`);
-                  }
-                } else {
-                  // Backward compat: no declared fields, use double*
-                  this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 ${fieldInfo.index}`);
-                  this.emit(`store double ${value}, double* ${fieldPtr}`);
-                }
-              } else if (fields.length === 0) {
-                // Backward compat: no declared fields, use index 0 with double*
-                const fieldPtr = this.nextTemp();
-                this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 0`);
-                this.emit(`store double ${value}, double* ${fieldPtr}`);
-              } else {
-                throw new Error(`Field '${property}' not found in class ${className}. Did you forget to declare it with a type annotation?`);
-              }
-            } else {
-              throw new Error('Could not determine class instance for field assignment');
-            }
-            }
-          } else {
-            throw new Error('Invalid member access assignment format');
-          }
+          this.assignmentGen.generateMemberAccessAssignment(stmt, params);
         } else {
           // Regular variable assignment
           const value = this.generateExpression(stmt.value, params);
@@ -932,90 +598,7 @@ export class LLVMGenerator extends BaseGenerator {
   }
 
   private generateMain(): string {
-    let ir = 'define i32 @main(i32 %argc, i8** %argv) {\n';
-    ir += 'entry:\n';
-
-    // Initialize Boehm GC - must be first thing in main
-    ir += '  ; Initialize garbage collector\n';
-    ir += '  call void @GC_init()\n';
-    ir += '\n';
-
-    // Store argc and argv in global variables for process.argv
-    ir += '  store i32 %argc, i32* @__argc\n';
-    ir += '  store i8** %argv, i8*** @__argv\n';
-
-    this.tempCounter = 0;
-    this.output = [];
-
-    // Process all top-level items in source order
-    for (const item of this.ast.topLevelItems || []) {
-      if (item.type === 'variable_declaration') {
-        this.allocateVariable(item, []);
-      } else if (item.type === 'if') {
-        this.syncStateToGenerators();
-        this.controlFlowGen.generateIfStatement(item as any, []);
-      } else if (item.type === 'while') {
-        this.syncStateToGenerators();
-        this.controlFlowGen.generateWhileStatement(item as any, []);
-      } else if (item.type === 'for') {
-        this.syncStateToGenerators();
-        this.controlFlowGen.generateForStatement(item as any, []);
-      } else if (item.type === 'for_of') {
-        this.syncStateToGenerators();
-        this.controlFlowGen.generateForOfStatement(item as any, []);
-      } else if (item.type === 'assignment') {
-        this.generateBlock({ type: 'block', statements: [item as any] }, []);
-      } else {
-        this.generateExpression(item, []);
-      }
-    }
-
-    // Fallback for older AST format without topLevelItems
-    if (!this.ast.topLevelItems || this.ast.topLevelItems.length === 0) {
-      for (const stmt of this.ast.topLevelStatements) {
-        this.allocateVariable(stmt, []);
-      }
-      for (const expr of this.ast.topLevelExpressions) {
-        if ((expr as any).type === 'if') {
-          this.syncStateToGenerators();
-          this.controlFlowGen.generateIfStatement(expr as any, []);
-        } else if ((expr as any).type === 'while') {
-          this.syncStateToGenerators();
-          this.controlFlowGen.generateWhileStatement(expr as any, []);
-        } else if ((expr as any).type === 'for') {
-          this.syncStateToGenerators();
-          this.controlFlowGen.generateForStatement(expr as any, []);
-        } else if ((expr as any).type === 'for_of') {
-          this.syncStateToGenerators();
-          this.controlFlowGen.generateForOfStatement(expr as any, []);
-        } else {
-          this.generateExpression(expr, []);
-        }
-      }
-    }
-
-    // Save top-level object variables so they can be accessed from functions
-    this.topLevelObjectVariables = new Map();
-    for (const symbol of this.symbolTable.getAll()) {
-      if (symbol.kind === SymbolKind.Object && symbol.scope === 'global' && symbol.objectMetadata) {
-        this.topLevelObjectVariables.set(symbol.name, {
-          ptr: symbol.allocaRegister,
-          keys: symbol.objectMetadata.keys,
-          types: symbol.objectMetadata.types
-        });
-      }
-    }
-
-    if (this.output.length > 0) {
-      ir += this.output.map(line => '  ' + line).join('\n') + '\n';
-    }
-
-    // Always return 0 for success (process.exit() will override this if called)
-    ir += '  ret i32 0\n';
-
-    ir += '}\n';
-
-    return ir;
+    return this.funcGen.generateMain(this.topLevelObjectVariables);
   }
 
   // Generate HTTP server - creates a TCP server that parses HTTP and calls handler
