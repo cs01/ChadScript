@@ -8,31 +8,14 @@ const BUILD_DIR = '.build/examples';
 
 const SELF_CONTAINED = [
   'hello.ts',
-  'add.js',
-  'multiply.js',
-  'test-simple.ts',
-  'cli-parser-demo.ts',
-  'argparse-demo.ts',
-  'argparse-simple.ts',
-  'bool_test.ts',
-  'class_assign_test.ts',
-  'obj_assign_test.ts',
-  'gc_test.ts',
   'timers.ts',
+  'cli-parser-demo.ts',
 ];
 
 const SKIP_FILES = [
   'README.md',
-  'argparse-cli.ts',
-  'argparse-cli-fixed.ts',
-  'word-count.ts',
-  'tcp-server.ts',
-  'simple-http-server.ts',
-  'simple-router.ts',
-  'request-handler.ts',
   'http-handler.ts',
-  'test-fetch.ts',
-  'github-stars.ts',
+  'word-count.ts',
 ];
 
 async function runCommand(cmd, args, options = {}) {
