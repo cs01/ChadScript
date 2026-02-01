@@ -537,6 +537,36 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
     return { type: 'arrow_function', params: [name], body };
   }
 
+  if (ctx.code[ctx.pos] === '<') {
+    const savedPos = ctx.pos;
+    ctx.pos++;
+    ctx.skipWhitespace();
+
+    const startTypePos = ctx.pos;
+    while (ctx.pos < ctx.code.length && /[a-zA-Z0-9_]/.test(ctx.code[ctx.pos])) {
+      ctx.pos++;
+    }
+    let typeParam = ctx.code.substring(startTypePos, ctx.pos);
+    ctx.skipWhitespace();
+
+    if (ctx.code[ctx.pos] === '[' && ctx.code[ctx.pos + 1] === ']') {
+      ctx.pos += 2;
+      typeParam += '[]';
+      ctx.skipWhitespace();
+    }
+
+    if (ctx.code[ctx.pos] === '>' && typeParam.length > 0) {
+      ctx.pos++;
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === '(') {
+        const call = parseFunctionCallWithName(ctx, name);
+        (call as any).typeParameter = typeParam;
+        return call;
+      }
+    }
+    ctx.pos = savedPos;
+  }
+
   if (ctx.code[ctx.pos] === '(') {
     const savedPos = ctx.pos;
     ctx.pos++;
