@@ -51,17 +51,26 @@ export class ObjectGenerator {
 
     for (const field of ifaceInfo.fields) {
       const valueExpr = propMap.get(field.name);
+      let finalValue: string;
+
       if (!valueExpr) {
-        throw new Error(`Missing field '${field.name}' for interface '${interfaceName}'`);
-      }
-
-      const valueReg = this.ctx.generateExpression(valueExpr, params);
-
-      let finalValue = valueReg;
-      if (field.llvmType === 'i1') {
-        const i1Value = this.nextTemp();
-        this.emit(`${i1Value} = fcmp one double ${valueReg}, 0.0`);
-        finalValue = i1Value;
+        if (field.llvmType === 'double') {
+          finalValue = '0.0';
+        } else if (field.llvmType === 'i8*') {
+          finalValue = 'null';
+        } else if (field.llvmType === 'i1') {
+          finalValue = 'false';
+        } else {
+          finalValue = 'null';
+        }
+      } else {
+        const valueReg = this.ctx.generateExpression(valueExpr, params);
+        finalValue = valueReg;
+        if (field.llvmType === 'i1') {
+          const i1Value = this.nextTemp();
+          this.emit(`${i1Value} = fcmp one double ${valueReg}, 0.0`);
+          finalValue = i1Value;
+        }
       }
 
       orderedFields.push({ key: field.name, llvmType: field.llvmType, value: finalValue });

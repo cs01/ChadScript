@@ -31,6 +31,7 @@ import {
   ClassNode,
   ClassMethod,
   FunctionNode,
+  MemberAccessNode,
 } from '../../ast/types.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
@@ -76,11 +77,15 @@ interface StringGeneratorLike {
   generatePadStart(strPtr: string, targetLength: string, padString: string): string;
   generateSplit(strPtr: string, delimiter: string): string;
   generateStartsWith(strPtr: string, prefix: string): string;
+  generateEndsWith(strPtr: string, suffix: string): string;
   generateTrim(strPtr: string): string;
   generateIndexOf(strPtr: string, substring: string): string;
   generateIncludes(strPtr: string, substring: string): string;
   generateSlice(strPtr: string, start: string, end: string | null): string;
   generateCharAt(strPtr: string, index: string): string;
+  generateReplace(strPtr: string, search: string, replace: string): string;
+  generateReplaceAll(strPtr: string, search: string, replace: string): string;
+  generateGlobalString(value: string): string;
 }
 
 interface RegexGeneratorLike {
@@ -97,6 +102,7 @@ interface StringMapGeneratorLike {
   generateStringMapSet(mapAlloca: string, key: string, value: string): string;
   generateStringMapGet(mapAlloca: string, key: string): string;
   generateStringMapHas(mapAlloca: string, key: string): string;
+  generateStringMapClear(mapAlloca: string): string;
 }
 
 interface StringSetGeneratorLike {
@@ -108,6 +114,7 @@ interface MapGeneratorLike {
   generateMapSet(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
   generateMapGet(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
   generateMapHas(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateMapClear(expr: MethodCallNode, params: string[]): string;
 }
 
 interface SetGeneratorLike {
@@ -130,6 +137,7 @@ interface ArrayGeneratorLike {
 
 interface ClassGeneratorLike {
   generateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
+  getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string } | null;
 }
 
 interface ArrowFunctionGeneratorLike {
@@ -193,6 +201,40 @@ export class MethodCallGenerator {
       return (expr as VariableNode).name;
     }
     return null;
+  }
+
+  private getThisFieldMapType(expr: Expression): { fieldName: string; keyType: string; valueType: string } | null {
+    if (expr.type !== 'member_access') return null;
+    const memberExpr = expr as MemberAccessNode;
+    if (memberExpr.object.type !== 'this') return null;
+
+    const fieldName = memberExpr.property;
+    if (!this.ctx.currentClassName) return null;
+
+    const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
+    if (!fieldInfo?.tsType) return null;
+
+    const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
+    if (!mapMatch) return null;
+
+    return { fieldName, keyType: mapMatch[1], valueType: mapMatch[2] };
+  }
+
+  private getThisFieldSetType(expr: Expression): { fieldName: string; valueType: string } | null {
+    if (expr.type !== 'member_access') return null;
+    const memberExpr = expr as MemberAccessNode;
+    if (memberExpr.object.type !== 'this') return null;
+
+    const fieldName = memberExpr.property;
+    if (!this.ctx.currentClassName) return null;
+
+    const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
+    if (!fieldInfo?.tsType) return null;
+
+    const setMatch = fieldInfo.tsType.match(/^Set<(\w+)>$/);
+    if (!setMatch) return null;
+
+    return { fieldName, valueType: setMatch[1] };
   }
 
   // Helper methods delegate to context
@@ -350,6 +392,9 @@ export class MethodCallGenerator {
     if (method === 'startsWith') {
       return this.handleStartsWith(expr, params);
     }
+    if (method === 'endsWith') {
+      return this.handleEndsWith(expr, params);
+    }
     if (method === 'trim') {
       return this.handleTrim(expr, params);
     }
@@ -362,12 +407,15 @@ export class MethodCallGenerator {
     if (method === 'slice') {
       return this.handleSlice(expr, params);
     }
+    if (method === 'replace') {
+      return this.handleReplace(expr, params);
+    }
     if (method === 'charAt') {
       return this.handleCharAt(expr, params);
     }
 
     // Handle Map methods
-    if (method === 'set' || method === 'get' || method === 'has') {
+    if (method === 'set' || method === 'get' || method === 'has' || method === 'clear') {
       const varName = this.getVariableName(expr.object);
       if (varName && this.ctx.symbolTable.isMap(varName)) {
         this.ctx.syncStateToGenerators();
@@ -383,9 +431,11 @@ export class MethodCallGenerator {
             } else if (method === 'get') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapGet(mapAlloca, keyValue);
-            } else {
+            } else if (method === 'has') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapHas(mapAlloca, keyValue);
+            } else {
+              return this.ctx.stringMapGen.generateStringMapClear(mapAlloca);
             }
           }
         }
@@ -394,8 +444,30 @@ export class MethodCallGenerator {
           return this.ctx.mapGen.generateMapSet(expr, params, this.ctx.generateExpression.bind(this.ctx));
         } else if (method === 'get') {
           return this.ctx.mapGen.generateMapGet(expr, params, this.ctx.generateExpression.bind(this.ctx));
-        } else {
+        } else if (method === 'has') {
           return this.ctx.mapGen.generateMapHas(expr, params, this.ctx.generateExpression.bind(this.ctx));
+        } else {
+          return this.ctx.mapGen.generateMapClear(expr, params);
+        }
+      }
+
+      const thisFieldMap = this.getThisFieldMapType(expr.object);
+      if (thisFieldMap) {
+        const mapPtr = this.ctx.generateExpression(expr.object, params);
+        if (thisFieldMap.keyType === 'string') {
+          if (method === 'set') {
+            const keyValue = this.ctx.generateExpression(expr.args[0], params);
+            const valueValue = this.ctx.generateExpression(expr.args[1], params);
+            return this.ctx.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue);
+          } else if (method === 'get') {
+            const keyValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
+          } else if (method === 'has') {
+            const keyValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.stringMapGen.generateStringMapHas(mapPtr, keyValue);
+          } else {
+            return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
+          }
         }
       }
     }
@@ -428,6 +500,22 @@ export class MethodCallGenerator {
           return this.ctx.setGen.generateSetHas(expr, params, this.ctx.generateExpression.bind(this.ctx));
         } else {
           return this.ctx.setGen.generateSetDelete(expr, params, this.ctx.generateExpression.bind(this.ctx));
+        }
+      }
+
+      const thisFieldSet = this.getThisFieldSetType(expr.object);
+      if (thisFieldSet) {
+        const setPtr = this.ctx.generateExpression(expr.object, params);
+        if (thisFieldSet.valueType === 'string') {
+          if (method === 'add') {
+            const valueValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.stringSetGen.generateStringSetAdd(setPtr, valueValue);
+          } else if (method === 'has') {
+            const valueValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.stringSetGen.generateStringSetHas(setPtr, valueValue);
+          } else {
+            throw new Error('Set.delete() not yet implemented for Set<string>');
+          }
         }
       }
     }
@@ -651,6 +739,18 @@ export class MethodCallGenerator {
     return this.ctx.stringGen.generateStartsWith(strPtr, prefix);
   }
 
+  private handleEndsWith(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+    const strPtr = this.ctx.generateExpression(expr.object, params);
+
+    if (expr.args.length !== 1) {
+      throw new Error(`endsWith() expects 1 argument, got ${expr.args.length}`);
+    }
+
+    const suffix = this.ctx.generateExpression(expr.args[0], params);
+    return this.ctx.stringGen.generateEndsWith(strPtr, suffix);
+  }
+
   private handleTrim(expr: MethodCallNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
     const strPtr = this.ctx.generateExpression(expr.object, params);
@@ -708,6 +808,34 @@ export class MethodCallGenerator {
     return this.ctx.stringGen.generateSlice(strPtr, startI32, endI32);
   }
 
+  private handleReplace(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+    const strPtr = this.ctx.generateExpression(expr.object, params);
+
+    if (expr.args.length !== 2) {
+      throw new Error(`replace() expects 2 arguments, got ${expr.args.length}`);
+    }
+
+    const searchArg = expr.args[0];
+    const replaceArg = expr.args[1];
+
+    if (searchArg.type === 'regex') {
+      const regexNode = searchArg as { pattern: string; flags: string };
+      const isGlobal = regexNode.flags.includes('g');
+      const searchStr = this.ctx.stringGen.generateGlobalString(regexNode.pattern);
+      const replaceStr = this.ctx.generateExpression(replaceArg, params);
+      if (isGlobal) {
+        return this.ctx.stringGen.generateReplaceAll(strPtr, searchStr, replaceStr);
+      } else {
+        return this.ctx.stringGen.generateReplace(strPtr, searchStr, replaceStr);
+      }
+    }
+
+    const searchStr = this.ctx.generateExpression(searchArg, params);
+    const replaceStr = this.ctx.generateExpression(replaceArg, params);
+    return this.ctx.stringGen.generateReplace(strPtr, searchStr, replaceStr);
+  }
+
   private handleCharAt(expr: MethodCallNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
     const strPtr = this.ctx.generateExpression(expr.object, params);
@@ -743,13 +871,45 @@ export class MethodCallGenerator {
         throw new Error('this.method() called outside of class method');
       }
       instancePtr = this.ctx.thisPointer;
-      const classWithMethod = this.ctx.ast.classes.find((c: ClassNode) =>
-        c.methods.some((m: ClassMethod) => m.name === method && !m.isConstructor)
-      );
-      if (!classWithMethod) {
-        throw new Error(`Method ${method} not found in any class`);
+      if (this.ctx.currentClassName) {
+        className = this.ctx.currentClassName;
+      } else {
+        const classWithMethod = this.ctx.ast.classes.find((c: ClassNode) =>
+          c.methods.some((m: ClassMethod) => m.name === method && !m.isConstructor)
+        );
+        if (!classWithMethod) {
+          throw new Error(`Method ${method} not found in any class`);
+        }
+        className = classWithMethod.name;
       }
-      className = classWithMethod.name;
+    } else if (expr.object.type === 'member_access') {
+      const memberAccess = expr.object as MemberAccessNode;
+      if (memberAccess.object.type === 'this' && this.ctx.currentClassName) {
+        const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberAccess.property);
+        if (fieldInfo?.tsType) {
+          const fieldClassName = fieldInfo.tsType;
+          const classExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === fieldClassName);
+          if (classExists) {
+            instancePtr = this.ctx.generateExpression(expr.object, params);
+            className = fieldClassName;
+          }
+        }
+      } else if (memberAccess.object.type === 'variable') {
+        const varName = (memberAccess.object as VariableNode).name;
+        if (this.ctx.symbolTable.isClass(varName)) {
+          const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
+          const outerClassName = classMeta.className;
+          const fieldInfo = this.ctx.classGen.getFieldInfo(outerClassName, memberAccess.property);
+          if (fieldInfo?.tsType) {
+            const fieldClassName = fieldInfo.tsType;
+            const classExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === fieldClassName);
+            if (classExists) {
+              instancePtr = this.ctx.generateExpression(expr.object, params);
+              className = fieldClassName;
+            }
+          }
+        }
+      }
     } else if (expr.object.type === 'super') {
       if (!this.ctx.thisPointer) {
         throw new Error('super.method() called outside of class method');
@@ -770,17 +930,27 @@ export class MethodCallGenerator {
     }
 
     if (className && instancePtr) {
-      const classNode = this.ctx.ast.classes.find((c: ClassNode) => c.name === className);
-      if (!classNode) {
-        throw new Error(`Class ${className} not found`);
-      }
-      const methodExists = classNode.methods.some((m: ClassMethod) => m.name === method && !m.isConstructor);
-      if (!methodExists) {
+      const resolvedClass = this.findClassWithMethod(className, method);
+      if (!resolvedClass) {
         throw new Error(`Method ${method} not found in class ${className}`);
       }
 
       this.ctx.syncStateToGenerators();
-      return this.ctx.classGen.generateMethodCall(instancePtr, className, method, expr.args, params);
+      return this.ctx.classGen.generateMethodCall(instancePtr, resolvedClass, method, expr.args, params);
+    }
+
+    return null;
+  }
+
+  private findClassWithMethod(className: string, methodName: string): string | null {
+    const classNode = this.ctx.ast.classes.find((c: ClassNode) => c.name === className);
+    if (!classNode) return null;
+
+    const methodExists = classNode.methods.some((m: ClassMethod) => m.name === methodName && !m.isConstructor);
+    if (methodExists) return className;
+
+    if (classNode.extends) {
+      return this.findClassWithMethod(classNode.extends, methodName);
     }
 
     return null;

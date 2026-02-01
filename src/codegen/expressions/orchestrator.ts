@@ -1,4 +1,4 @@
-import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, NewNode, RegexNode, ArrowFunctionNode, ConditionalExpressionNode, TemplateLiteralNode, MethodCallNode, AwaitExpressionNode } from '../../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, NewNode, RegexNode, ArrowFunctionNode, ConditionalExpressionNode, TemplateLiteralNode, MethodCallNode, AwaitExpressionNode, TypeAssertionNode } from '../../ast/types.js';
 import { LiteralExpressionGenerator } from './literals.js';
 import { VariableExpressionGenerator } from './variables.js';
 import { BinaryExpressionGenerator } from './operators/binary.js';
@@ -171,6 +171,12 @@ export class ExpressionGenerator {
       this.ctx.variableTypes.set(valueReg, 'i8*');
       this.ctx.usesPromises = true;
       return valueReg;
+    }
+
+    // Type assertions (expr as Type) - evaluate inner expression, type info tracked at declaration level
+    if (expr.type === 'type_assertion') {
+      const assertExpr = expr as TypeAssertionNode;
+      return this.generate(assertExpr.expression, params);
     }
 
     throw new Error(`Unknown expression type: ${expr.type}`);

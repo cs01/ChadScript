@@ -164,6 +164,38 @@ export interface Symbol {
  */
 export class SymbolTable {
   private symbols: Map<string, Symbol> = new Map();
+  private narrowedTypes: Map<string, ObjectMetadata[]> = new Map();
+
+  /**
+   * Narrow a symbol's object metadata (for type guards like `if (x.type === '...')`)
+   * Pushes the new metadata onto a stack so it can be restored later.
+   */
+  narrowType(name: string, narrowedMetadata: ObjectMetadata): void {
+    const symbol = this.symbols.get(name);
+    if (!symbol) return;
+
+    if (!this.narrowedTypes.has(name)) {
+      this.narrowedTypes.set(name, []);
+    }
+    const stack = this.narrowedTypes.get(name)!;
+    stack.push(symbol.objectMetadata || { keys: [], types: [] });
+
+    symbol.objectMetadata = narrowedMetadata;
+    symbol.kind = SymbolKind.Object;
+  }
+
+  /**
+   * Restore a symbol's object metadata after leaving a narrowed scope.
+   */
+  restoreType(name: string): void {
+    const symbol = this.symbols.get(name);
+    if (!symbol) return;
+
+    const stack = this.narrowedTypes.get(name);
+    if (stack && stack.length > 0) {
+      symbol.objectMetadata = stack.pop();
+    }
+  }
 
   /**
    * Define a new symbol in the table

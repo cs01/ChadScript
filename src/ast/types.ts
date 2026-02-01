@@ -140,7 +140,13 @@ export interface IndexAccessAssignmentNode {
   value: Expression;
 }
 
-export type Expression = NumberNode | StringNode | BooleanNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode | AwaitExpressionNode | MemberAccessAssignmentNode | IndexAccessAssignmentNode;
+export interface TypeAssertionNode {
+  type: 'type_assertion';
+  expression: Expression;
+  assertedType: string;
+}
+
+export type Expression = NumberNode | StringNode | BooleanNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode | AwaitExpressionNode | MemberAccessAssignmentNode | IndexAccessAssignmentNode | TypeAssertionNode;
 
 export interface VariableDeclaration {
   type: 'variable_declaration';

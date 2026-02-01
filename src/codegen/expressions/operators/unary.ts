@@ -1,10 +1,18 @@
-import { Expression } from '../../../ast/types.js';
+import { Expression, MemberAccessNode } from '../../../ast/types.js';
+
+interface ClassGeneratorLike {
+  getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
+  getClassFields(className: string): { name: string; fieldType: string }[];
+}
 
 interface UnaryExpressionContext {
   nextTemp(): string;
   emit(instruction: string): void;
   variableTypes: Map<string, string>;
   getVariableAlloca(name: string): string | undefined;
+  thisPointer?: string | null;
+  currentClassName?: string | null;
+  classGen?: ClassGeneratorLike;
 }
 
 export class UnaryExpressionGenerator {
@@ -37,6 +45,10 @@ export class UnaryExpressionGenerator {
   }
 
   private generatePostIncDec(op: string, operand: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    if (operand.type === 'member_access') {
+      return this.generateMemberAccessIncDec(op, operand as MemberAccessNode, true);
+    }
+
     if (operand.type !== 'variable') {
       throw new Error(`Post-increment/decrement requires a variable operand`);
     }
@@ -60,6 +72,10 @@ export class UnaryExpressionGenerator {
   }
 
   private generatePreIncDec(op: string, operand: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    if (operand.type === 'member_access') {
+      return this.generateMemberAccessIncDec(op, operand as MemberAccessNode, false);
+    }
+
     if (operand.type !== 'variable') {
       throw new Error(`Pre-increment/decrement requires a variable operand`);
     }
@@ -112,5 +128,38 @@ export class UnaryExpressionGenerator {
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = fneg double ${operand}`);
     return result;
+  }
+
+  private generateMemberAccessIncDec(op: string, memberExpr: MemberAccessNode, isPost: boolean): string {
+    if (memberExpr.object.type !== 'this') {
+      throw new Error(`Increment/decrement on member access only supported for 'this' fields`);
+    }
+
+    if (!this.ctx.thisPointer || !this.ctx.currentClassName || !this.ctx.classGen) {
+      throw new Error(`this.field increment/decrement used outside of class method`);
+    }
+
+    const fieldName = memberExpr.property;
+    const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
+    if (!fieldInfo) {
+      throw new Error(`Cannot find field '${fieldName}' in class ${this.ctx.currentClassName}`);
+    }
+
+    const fieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${this.ctx.currentClassName}_struct, %${this.ctx.currentClassName}_struct* ${this.ctx.thisPointer}, i32 0, i32 ${fieldInfo.index}`);
+
+    const originalValue = this.ctx.nextTemp();
+    this.ctx.emit(`${originalValue} = load double, double* ${fieldPtr}`);
+    this.ctx.variableTypes.set(originalValue, 'double');
+
+    const isIncrement = op === 'post++' || op === '++';
+    const delta = isIncrement ? '1.0' : '-1.0';
+    const newValue = this.ctx.nextTemp();
+    this.ctx.emit(`${newValue} = fadd double ${originalValue}, ${delta}`);
+    this.ctx.variableTypes.set(newValue, 'double');
+
+    this.ctx.emit(`store double ${newValue}, double* ${fieldPtr}`);
+
+    return isPost ? originalValue : newValue;
   }
 }

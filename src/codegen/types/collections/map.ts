@@ -304,6 +304,14 @@ export class MapGenerator {
     this.emit(`${size} = load i32, i32* ${sizeFieldPtr}`);
     return size;
   }
+
+  generateMapClear(expr: MethodCallNode, params: string[]): string {
+    const mapPtr = this.ctx.generateExpression(expr.object, params);
+    const sizeFieldPtr = this.nextTemp();
+    this.emit(`${sizeFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 2`);
+    this.emit(`store i32 0, i32* ${sizeFieldPtr}`);
+    return '0.0';
+  }
 }
 
 export class StringMapGenerator {
@@ -524,5 +532,12 @@ export class StringMapGenerator {
     const size = this.nextTemp();
     this.emit(`${size} = load i32, i32* ${sizeFieldPtr}`);
     return size;
+  }
+
+  generateStringMapClear(mapPtr: string): string {
+    const sizeFieldPtr = this.nextTemp();
+    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(`store i32 0, i32* ${sizeFieldPtr}`);
+    return '0.0';
   }
 }

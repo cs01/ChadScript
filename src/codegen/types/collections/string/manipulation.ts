@@ -490,3 +490,105 @@ export function generateTrim(this: BaseGenerator, strPtr: string): string {
 
   return result;
 }
+
+export function generateReplace(this: BaseGenerator, strPtr: string, searchPtr: string, replacePtr: string): string {
+  const foundPtr = this.nextTemp();
+  this.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${searchPtr})`);
+
+  const isNull = this.nextTemp();
+  this.emit(`${isNull} = icmp eq i8* ${foundPtr}, null`);
+
+  const foundLabel = this.nextLabel('replace_found');
+  const notFoundLabel = this.nextLabel('replace_not_found');
+  const endLabel = this.nextLabel('replace_end');
+
+  this.emit(`br i1 ${isNull}, label %${notFoundLabel}, label %${foundLabel}`);
+
+  this.emit(`${notFoundLabel}:`);
+  const originalDup = this.nextTemp();
+  this.emit(`${originalDup} = call i8* @strdup(i8* ${strPtr})`);
+  this.emit(`br label %${endLabel}`);
+
+  this.emit(`${foundLabel}:`);
+
+  const strLen = this.nextTemp();
+  this.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+  const searchLen = this.nextTemp();
+  this.emit(`${searchLen} = call i64 @strlen(i8* ${searchPtr})`);
+  const replaceLen = this.nextTemp();
+  this.emit(`${replaceLen} = call i64 @strlen(i8* ${replacePtr})`);
+
+  const newLen = this.nextTemp();
+  this.emit(`${newLen} = sub i64 ${strLen}, ${searchLen}`);
+  const newLen2 = this.nextTemp();
+  this.emit(`${newLen2} = add i64 ${newLen}, ${replaceLen}`);
+  const allocLen = this.nextTemp();
+  this.emit(`${allocLen} = add i64 ${newLen2}, 1`);
+
+  const resultPtr = this.nextTemp();
+  this.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 ${allocLen})`);
+
+  const prefixLen = this.nextTemp();
+  this.emit(`${prefixLen} = ptrtoint i8* ${foundPtr} to i64`);
+  const strStart = this.nextTemp();
+  this.emit(`${strStart} = ptrtoint i8* ${strPtr} to i64`);
+  const prefixBytes = this.nextTemp();
+  this.emit(`${prefixBytes} = sub i64 ${prefixLen}, ${strStart}`);
+
+  this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${resultPtr}, i8* ${strPtr}, i64 ${prefixBytes}, i1 false)`);
+
+  const insertPos = this.nextTemp();
+  this.emit(`${insertPos} = getelementptr i8, i8* ${resultPtr}, i64 ${prefixBytes}`);
+  this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${insertPos}, i8* ${replacePtr}, i64 ${replaceLen}, i1 false)`);
+
+  const suffixStart = this.nextTemp();
+  this.emit(`${suffixStart} = getelementptr i8, i8* ${foundPtr}, i64 ${searchLen}`);
+  const suffixLen = this.nextTemp();
+  this.emit(`${suffixLen} = call i64 @strlen(i8* ${suffixStart})`);
+  const suffixLenPlus1 = this.nextTemp();
+  this.emit(`${suffixLenPlus1} = add i64 ${suffixLen}, 1`);
+
+  const suffixDest = this.nextTemp();
+  this.emit(`${suffixDest} = getelementptr i8, i8* ${insertPos}, i64 ${replaceLen}`);
+  this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${suffixDest}, i8* ${suffixStart}, i64 ${suffixLenPlus1}, i1 false)`);
+
+  this.emit(`br label %${endLabel}`);
+
+  this.emit(`${endLabel}:`);
+  const result = this.nextTemp();
+  this.emit(`${result} = phi i8* [ ${originalDup}, %${notFoundLabel} ], [ ${resultPtr}, %${foundLabel} ]`);
+
+  return result;
+}
+
+export function generateReplaceAll(this: BaseGenerator, strPtr: string, searchPtr: string, replacePtr: string): string {
+  const resultPtr = this.nextTemp();
+  this.emit(`${resultPtr} = alloca i8*`);
+  this.emit(`store i8* ${strPtr}, i8** ${resultPtr}`);
+
+  const loopLabel = this.nextLabel('replaceall_loop');
+  const bodyLabel = this.nextLabel('replaceall_body');
+  const endLabel = this.nextLabel('replaceall_end');
+
+  this.emit(`br label %${loopLabel}`);
+
+  this.emit(`${loopLabel}:`);
+  const currentStr = this.nextTemp();
+  this.emit(`${currentStr} = load i8*, i8** ${resultPtr}`);
+  const foundPtr = this.nextTemp();
+  this.emit(`${foundPtr} = call i8* @strstr(i8* ${currentStr}, i8* ${searchPtr})`);
+  const isNull = this.nextTemp();
+  this.emit(`${isNull} = icmp eq i8* ${foundPtr}, null`);
+  this.emit(`br i1 ${isNull}, label %${endLabel}, label %${bodyLabel}`);
+
+  this.emit(`${bodyLabel}:`);
+  const replaced = generateReplace.call(this, currentStr, searchPtr, replacePtr);
+  this.emit(`store i8* ${replaced}, i8** ${resultPtr}`);
+  this.emit(`br label %${loopLabel}`);
+
+  this.emit(`${endLabel}:`);
+  const result = this.nextTemp();
+  this.emit(`${result} = load i8*, i8** ${resultPtr}`);
+
+  return result;
+}

@@ -1,9 +1,10 @@
-import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, ObjectNode } from '../../ast/types.js';
+import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 
 interface ClassGeneratorLike {
   getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[];
+  getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string } | null;
 }
 
 interface ArrowFunctionGeneratorLike {
@@ -53,6 +54,7 @@ export interface VariableAllocatorContext {
   exprGen: ExpressionGeneratorLike;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
   currentDeclaredInterfaceType: string | undefined;
+  currentClassName: string | null;
   typeChecker?: TypeChecker | null;
 }
 
@@ -128,7 +130,12 @@ export class VariableAllocator {
     } else if (stmt.value && stmt.value.type === 'arrow_function') {
       this.allocateArrowFunction(stmt, params);
     } else {
-      this.allocateNumeric(stmt, params);
+      const indexedObjectType = this.getIndexedObjectArrayType(stmt.value);
+      if (indexedObjectType) {
+        this.allocateIndexedObjectArray(stmt, params, indexedObjectType);
+      } else {
+        this.allocateNumeric(stmt, params);
+      }
     }
 
     this.ctx.expectedArrayElementType = null;
@@ -148,6 +155,13 @@ export class VariableAllocator {
   }
 
   private getDeclaredInterfaceType(stmt: VariableDeclaration): string | null {
+    if (stmt.value?.type === 'type_assertion') {
+      const assertedType = (stmt.value as { type: 'type_assertion'; expression: Expression; assertedType: string }).assertedType;
+      const interfaceDef = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === assertedType);
+      if (interfaceDef) {
+        return assertedType;
+      }
+    }
     if (!stmt.declaredType) return null;
     if (stmt.value?.type !== 'variable') return null;
     const interfaceDef = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === stmt.declaredType);
@@ -171,16 +185,34 @@ export class VariableAllocator {
   private getMapGetInterfaceType(expr: Expression): string | null {
     if (expr?.type !== 'method_call') return null;
     if (expr.method !== 'get') return null;
-    if (expr.object?.type !== 'variable') return null;
 
-    const mapName = expr.object.name;
-    if (!this.ctx.symbolTable.isMap(mapName)) return null;
+    let valueType: string | null = null;
 
-    const mapMeta = this.ctx.symbolTable.getMapMetadata(mapName);
-    if (!mapMeta) return null;
-    if (mapMeta.keyType !== 'string') return null;
+    if (expr.object?.type === 'variable') {
+      const mapName = expr.object.name;
+      if (!this.ctx.symbolTable.isMap(mapName)) return null;
 
-    const valueType = mapMeta.valueType;
+      const mapMeta = this.ctx.symbolTable.getMapMetadata(mapName);
+      if (!mapMeta) return null;
+      if (mapMeta.keyType !== 'string') return null;
+
+      valueType = mapMeta.valueType;
+    } else if (expr.object?.type === 'member_access') {
+      const memberExpr = expr.object as MemberAccessNode;
+      if (memberExpr.object.type !== 'this') return null;
+      if (!this.ctx.currentClassName) return null;
+
+      const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+      if (!fieldInfo?.tsType) return null;
+
+      const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
+      if (!mapMatch) return null;
+      if (mapMatch[1] !== 'string') return null;
+
+      valueType = mapMatch[2];
+    }
+
+    if (!valueType) return null;
     if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') return null;
 
     const interfaceDef = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === valueType);
@@ -520,6 +552,168 @@ export class VariableAllocator {
         }
       });
     }
+  }
+
+  private getIndexedObjectArrayType(expr: Expression | null): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+    if (!expr || expr.type !== 'index_access') return null;
+
+    const indexExpr = expr as IndexAccessNode;
+    if (indexExpr.object.type !== 'member_access') return null;
+
+    const memberAccess = indexExpr.object as MemberAccessNode;
+    const propertyName = memberAccess.property;
+
+    let objectMeta: ObjectMetadata | undefined;
+
+    if (memberAccess.object.type === 'variable') {
+      const varName = (memberAccess.object as VariableNode).name;
+      objectMeta = this.ctx.symbolTable.getObjectInfo(varName);
+    } else if (memberAccess.object.type === 'member_access') {
+      const elementType = this.resolveNestedMemberArrayType(memberAccess);
+      if (elementType) {
+        return this.getTypeInfoForElementType(elementType);
+      }
+      return null;
+    }
+
+    if (!objectMeta) return null;
+
+    const propIndex = objectMeta.keys.indexOf(propertyName);
+    if (propIndex === -1) return null;
+
+    const propTsType = objectMeta.tsTypes?.[propIndex];
+    if (!propTsType) return null;
+
+    const arrayMatch = propTsType.match(/^(.+)\[\]$/);
+    if (!arrayMatch) return null;
+
+    const elementType = arrayMatch[1];
+    return this.getTypeInfoForElementType(elementType);
+  }
+
+  private resolveNestedMemberArrayType(memberAccess: MemberAccessNode): string | null {
+    if (memberAccess.object.type !== 'member_access') return null;
+
+    const outerMember = memberAccess.object as MemberAccessNode;
+    const outerProp = outerMember.property;
+    const arrayProp = memberAccess.property;
+
+    let baseVarName: string | null = null;
+    if (outerMember.object.type === 'variable') {
+      baseVarName = (outerMember.object as VariableNode).name;
+    } else if (outerMember.object.type === 'this') {
+      baseVarName = 'this';
+    }
+
+    if (!baseVarName) return null;
+
+    let outerMeta: ObjectMetadata | undefined;
+    if (baseVarName === 'this') {
+      const classFieldInfo = this.getThisFieldInfo(outerProp);
+      if (classFieldInfo?.tsType) {
+        const interfaceDef = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === classFieldInfo.tsType);
+        if (interfaceDef) {
+          outerMeta = {
+            keys: interfaceDef.fields.map((f) => f.name),
+            types: interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type)),
+            tsTypes: interfaceDef.fields.map((f) => f.type)
+          };
+        }
+      }
+    } else {
+      outerMeta = this.ctx.symbolTable.getObjectInfo(baseVarName);
+    }
+
+    if (!outerMeta) return null;
+
+    const arrayPropIndex = outerMeta.keys.indexOf(arrayProp);
+    if (arrayPropIndex === -1) return null;
+
+    const arrayPropType = outerMeta.tsTypes?.[arrayPropIndex];
+    if (!arrayPropType) return null;
+
+    const arrayMatch = arrayPropType.match(/^(.+)\[\]$/);
+    if (!arrayMatch) return null;
+
+    return arrayMatch[1];
+  }
+
+  private getThisFieldInfo(fieldName: string): { tsType?: string } | null {
+    if (!this.ctx.currentClassName) return null;
+    return this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
+  }
+
+  private getTypeInfoForElementType(elementType: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+
+    const interfaceDef = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === elementType);
+    if (interfaceDef) {
+      return {
+        keys: interfaceDef.fields.map((f) => f.name),
+        types: interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type)),
+        tsTypes: interfaceDef.fields.map((f) => f.type)
+      };
+    }
+
+    const typeAlias = this.ctx.ast.typeAliases?.find((t: TypeAliasDeclaration) => t.name === elementType);
+    if (typeAlias && typeAlias.unionMembers) {
+      const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
+      if (commonFields.keys.length > 0) {
+        return commonFields;
+      }
+    }
+
+    return null;
+  }
+
+  private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[]; tsTypes: string[] } {
+    const interfaces = memberNames
+      .map(name => this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
+      .filter((i): i is InterfaceDeclaration => i !== undefined);
+
+    if (interfaces.length === 0) {
+      return { keys: [], types: [], tsTypes: [] };
+    }
+
+    const firstFields = interfaces[0].fields;
+    const commonFields: { name: string; type: string }[] = [];
+
+    for (const field of firstFields) {
+      const isCommon = interfaces.every((iface) =>
+        iface.fields.some((f) => f.name === field.name && this.areTypesCompatible(f.type, field.type))
+      );
+      if (isCommon) {
+        commonFields.push({ name: field.name, type: this.normalizeType(field.type) });
+      }
+    }
+
+    return {
+      keys: commonFields.map((f) => f.name),
+      types: commonFields.map((f) => this.tsTypeToLlvm(f.type)),
+      tsTypes: commonFields.map((f) => f.type)
+    };
+  }
+
+  private areTypesCompatible(type1: string, type2: string): boolean {
+    if (type1 === type2) return true;
+    const norm1 = this.normalizeType(type1);
+    const norm2 = this.normalizeType(type2);
+    return norm1 === norm2;
+  }
+
+  private normalizeType(type: string): string {
+    if (type.startsWith("'") && type.endsWith("'")) return 'string';
+    if (type.startsWith('"') && type.endsWith('"')) return 'string';
+    return type;
+  }
+
+  private allocateIndexedObjectArray(stmt: VariableDeclaration, params: string[], typeInfo: { keys: string[]; types: string[]; tsTypes: string[] }): void {
+    const allocaReg = this.ctx.nextTemp();
+    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+      objectMetadata: { keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }
+    });
+    this.ctx.emit(`${allocaReg} = alloca i8*`);
+    const objPtr = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
   }
 
   private tsTypeToLlvm(tsType: string): string {

@@ -24,6 +24,7 @@ import {
   MapNode,
   SetNode,
   BlockStatement,
+  TypeAssertionNode,
 } from '../../ast/types.js';
 import { transformStatement } from './statements.js';
 
@@ -109,7 +110,7 @@ export function transformExpression(node: ts.Expression, checker: ts.TypeChecker
 
     case ts.SyntaxKind.AsExpression:
     case ts.SyntaxKind.TypeAssertionExpression:
-      return transformExpression((node as ts.AsExpression).expression, checker);
+      return transformTypeAssertion(node as ts.AsExpression, checker);
 
     case ts.SyntaxKind.NonNullExpression:
       return transformExpression((node as ts.NonNullExpression).expression, checker);
@@ -490,4 +491,32 @@ function transformTypeOfExpression(node: ts.TypeOfExpression, checker: ts.TypeCh
     op: 'typeof',
     operand: transformExpression(node.expression, checker),
   };
+}
+
+function transformTypeAssertion(node: ts.AsExpression | ts.TypeAssertion, checker: ts.TypeChecker | undefined): TypeAssertionNode {
+  const expression = transformExpression(node.expression, checker);
+  const assertedType = getTypeNodeText(node.type);
+  return {
+    type: 'type_assertion',
+    expression,
+    assertedType,
+  };
+}
+
+function getTypeNodeText(typeNode: ts.TypeNode): string {
+  if (ts.isTypeReferenceNode(typeNode)) {
+    if (ts.isIdentifier(typeNode.typeName)) {
+      return typeNode.typeName.text;
+    }
+    if (ts.isQualifiedName(typeNode.typeName)) {
+      return typeNode.typeName.right.text;
+    }
+  }
+  if (ts.isArrayTypeNode(typeNode)) {
+    return getTypeNodeText(typeNode.elementType) + '[]';
+  }
+  if (typeNode.kind === ts.SyntaxKind.StringKeyword) return 'string';
+  if (typeNode.kind === ts.SyntaxKind.NumberKeyword) return 'number';
+  if (typeNode.kind === ts.SyntaxKind.BooleanKeyword) return 'boolean';
+  return typeNode.getText();
 }
