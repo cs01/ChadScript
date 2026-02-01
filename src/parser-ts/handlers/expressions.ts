@@ -334,7 +334,8 @@ function transformArrayLiteral(node: ts.ArrayLiteralExpression, checker: ts.Type
 function transformObjectLiteral(node: ts.ObjectLiteralExpression, checker: ts.TypeChecker | undefined): ObjectNode {
   const properties: { key: string; value: Expression }[] = [];
 
-  for (const prop of node.properties) {
+  for (let i = 0; i < node.properties.length; i++) {
+    const prop = node.properties[i];
     if (ts.isPropertyAssignment(prop)) {
       let key: string;
       if (ts.isIdentifier(prop.name)) {

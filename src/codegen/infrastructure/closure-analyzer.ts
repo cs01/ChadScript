@@ -204,8 +204,8 @@ export class ClosureAnalyzer {
         break;
 
       case 'object':
-        for (const prop of e.properties) {
-          this.walkExpression(prop.value);
+        for (let i = 0; i < e.properties.length; i++) {
+          this.walkExpression(e.properties[i].value);
         }
         break;
 

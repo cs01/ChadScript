@@ -43,8 +43,8 @@ export class ObjectGenerator {
     }
 
     const propMap = new Map<string, Expression>();
-    for (const prop of objExpr.properties) {
-      propMap.set(prop.key, prop.value);
+    for (let i = 0; i < objExpr.properties.length; i++) {
+      propMap.set(objExpr.properties[i].key, objExpr.properties[i].value);
     }
 
     const orderedFields: { key: string; llvmType: string; value: string }[] = [];
@@ -93,24 +93,22 @@ export class ObjectGenerator {
     const fieldTypes: { key: string; llvmType: string; value: string }[] = [];
 
     for (let i = 0; i < objExpr.properties.length; i++) {
-      const prop = objExpr.properties[i];
-      const key = prop.key;
+      const key = objExpr.properties[i].key;
 
       let llvmType: string;
-      const valueExpr = prop.value;
-      if (valueExpr.type === 'string' || this.ctx.isStringExpression(valueExpr)) {
+      if (objExpr.properties[i].value.type === 'string' || this.ctx.isStringExpression(objExpr.properties[i].value)) {
         llvmType = 'i8*';
-      } else if (valueExpr.type === 'array') {
+      } else if (objExpr.properties[i].value.type === 'array') {
         llvmType = '%Array*';
-      } else if (valueExpr.type === 'map') {
+      } else if (objExpr.properties[i].value.type === 'map') {
         llvmType = '%Map*';
-      } else if (valueExpr.type === 'set') {
+      } else if (objExpr.properties[i].value.type === 'set') {
         llvmType = '%Set*';
       } else {
         llvmType = 'double';
       }
 
-      const valueReg = this.ctx.generateExpression(prop.value, params);
+      const valueReg = this.ctx.generateExpression(objExpr.properties[i].value, params);
 
       let finalValue = valueReg;
       if (llvmType === 'i1') {

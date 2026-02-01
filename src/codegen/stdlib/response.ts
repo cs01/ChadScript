@@ -164,52 +164,51 @@ export class ResponseGenerator {
     parserIR += `  br i1 %json_is_null, label %json_error, label %json_ok\n\n`;
 
     parserIR += `json_error:\n`;
-    let fieldIndex = 0;
-    for (const prop of interfaceDef.properties) {
+    for (let fieldIndex = 0; fieldIndex < interfaceDef.properties.length; fieldIndex++) {
+      const propName = interfaceDef.properties[fieldIndex].name;
+      const propType = interfaceDef.properties[fieldIndex].type;
       const fieldPtr = `%err_field_ptr_${fieldIndex}`;
       parserIR += `  ${fieldPtr} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
-      if (prop.type === 'string') {
+      if (propType === 'string') {
         parserIR += `  store i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.empty_str, i64 0, i64 0), i8** ${fieldPtr}\n`;
-      } else if (prop.type === 'number') {
+      } else if (propType === 'number') {
         parserIR += `  store double 0.0, double* ${fieldPtr}\n`;
-      } else if (prop.type === 'boolean') {
+      } else if (propType === 'boolean') {
         parserIR += `  store i1 false, i1* ${fieldPtr}\n`;
       }
-      fieldIndex++;
     }
     parserIR += `  br label %json_done\n\n`;
 
     parserIR += `json_ok:\n`;
-    fieldIndex = 0;
-    for (const prop of interfaceDef.properties) {
+    for (let fieldIndex = 0; fieldIndex < interfaceDef.properties.length; fieldIndex++) {
+      const propName = interfaceDef.properties[fieldIndex].name;
+      const propType = interfaceDef.properties[fieldIndex].type;
       const fieldNameConst = this.ctx.nextString();
-      this.ctx.globalStrings.push(`${fieldNameConst} = private unnamed_addr constant [${prop.name.length + 1} x i8] c"${prop.name}\\00", align 1`);
+      this.ctx.globalStrings.push(`${fieldNameConst} = private unnamed_addr constant [${propName.length + 1} x i8] c"${propName}\\00", align 1`);
 
-      parserIR += `  ; Extract field "${prop.name}"\n`;
-      parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${prop.name.length + 1} x i8], [${prop.name.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
+      parserIR += `  ; Extract field "${propName}"\n`;
+      parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${propName.length + 1} x i8], [${propName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
 
-      if (prop.type === 'string') {
+      if (propType === 'string') {
         parserIR += `  %temp_str_${fieldIndex} = call i8* @cJSON_GetStringValue(i8* %item_${fieldIndex})\n`;
         parserIR += `  %safe_str_${fieldIndex} = call i8* @__safe_string(i8* %temp_str_${fieldIndex})\n`;
         parserIR += `  %value_${fieldIndex} = call i8* @strdup(i8* %safe_str_${fieldIndex})\n`;
-      } else if (prop.type === 'number') {
+      } else if (propType === 'number') {
         parserIR += `  %value_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})\n`;
-      } else if (prop.type === 'boolean') {
+      } else if (propType === 'boolean') {
         parserIR += `  %num_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})\n`;
         parserIR += `  %value_${fieldIndex} = fcmp one double %num_${fieldIndex}, 0.0\n`;
       }
 
       parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
 
-      if (prop.type === 'string') {
+      if (propType === 'string') {
         parserIR += `  store i8* %value_${fieldIndex}, i8** %field_ptr_${fieldIndex}\n\n`;
-      } else if (prop.type === 'number') {
+      } else if (propType === 'number') {
         parserIR += `  store double %value_${fieldIndex}, double* %field_ptr_${fieldIndex}\n\n`;
-      } else if (prop.type === 'boolean') {
+      } else if (propType === 'boolean') {
         parserIR += `  store i1 %value_${fieldIndex}, i1* %field_ptr_${fieldIndex}\n\n`;
       }
-
-      fieldIndex++;
     }
     parserIR += `  call void @cJSON_Delete(i8* %json_root)\n`;
     parserIR += `  br label %json_done\n\n`;

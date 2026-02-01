@@ -82,7 +82,12 @@ export class SemanticAnalyzer {
     }
 
     const inferredType = this.inferExpressionType(stmt.value, stmt.declaredType);
-    this.symbols.set(stmt.name, { ...inferredType, name: stmt.name });
+    const symbolEntry = {
+      type: inferredType.type,
+      llvmType: inferredType.llvmType,
+      name: stmt.name
+    };
+    this.symbols.set(stmt.name, symbolEntry);
   }
 
   private analyzeFunction(func: FunctionNode): void {
@@ -292,9 +297,9 @@ export class SemanticAnalyzer {
       const objExpr = expr as ObjectNode;
       const schema: { [key: string]: string } = {};
 
-      for (const prop of objExpr.properties) {
-        const valueType = this.inferExpressionType(prop.value);
-        schema[prop.key] = valueType.llvmType;
+      for (let i = 0; i < objExpr.properties.length; i++) {
+        const valueType = this.inferExpressionType(objExpr.properties[i].value);
+        schema[objExpr.properties[i].key] = valueType.llvmType;
       }
 
       return {
