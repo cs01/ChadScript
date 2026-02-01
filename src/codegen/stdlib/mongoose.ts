@@ -31,16 +31,21 @@ export class MongooseGenerator {
     ir += '; Mongoose string (pointer + length)\n';
     ir += '%struct.mg_str = type { i8*, i64 }\n\n';
 
+    ir += '; Mongoose HTTP header (name + value)\n';
+    ir += '%struct.mg_http_header = type { %struct.mg_str, %struct.mg_str }\n\n';
+
     ir += '; Mongoose HTTP message structure\n';
     ir += '; Contains parsed HTTP request/response data\n';
+    ir += '; Must match mongoose.h mg_http_message exactly\n';
     ir += '%struct.mg_http_message = type {\n';
-    ir += '  %struct.mg_str,  ; method (GET, POST, etc.)\n';
-    ir += '  %struct.mg_str,  ; uri\n';
-    ir += '  %struct.mg_str,  ; query\n';
-    ir += '  %struct.mg_str,  ; proto (HTTP/1.1)\n';
-    ir += '  [40 x %struct.mg_str], ; headers (name/value pairs, 20 headers max)\n';
-    ir += '  %struct.mg_str,  ; body\n';
-    ir += '  %struct.mg_str   ; message (raw message)\n';
+    ir += '  %struct.mg_str,  ; 0: method (GET, POST, etc.)\n';
+    ir += '  %struct.mg_str,  ; 1: uri\n';
+    ir += '  %struct.mg_str,  ; 2: query\n';
+    ir += '  %struct.mg_str,  ; 3: proto (HTTP/1.1)\n';
+    ir += '  [30 x %struct.mg_http_header], ; 4: headers (MG_MAX_HTTP_HEADERS = 30)\n';
+    ir += '  %struct.mg_str,  ; 5: body\n';
+    ir += '  %struct.mg_str,  ; 6: head (request line + headers)\n';
+    ir += '  %struct.mg_str   ; 7: message (full raw message)\n';
     ir += '}\n\n';
 
     ir += '; Core mongoose functions\n';
@@ -53,7 +58,7 @@ export class MongooseGenerator {
     ir += 'declare %struct.mg_connection* @mg_http_listen(%struct.mg_mgr*, i8*, void (%struct.mg_connection*, i32, i8*, i8*)*, i8*)\n';
     ir += 'declare void @mg_http_reply(%struct.mg_connection*, i32, i8*, i8*, ...)\n';
     ir += 'declare i32 @mg_http_match_uri(%struct.mg_http_message*, i8*)\n';
-    ir += 'declare %struct.mg_str @mg_http_get_header(%struct.mg_http_message*, i8*)\n';
+    ir += 'declare %struct.mg_str* @mg_http_get_header(%struct.mg_http_message*, i8*)\n';
     ir += '\n';
 
     ir += '; String utility functions\n';
@@ -118,14 +123,6 @@ export class MongooseGenerator {
     ir += '  %body_len = load i64, i64* %body_len_ptr\n';
     ir += '\n';
 
-    ir += '  ; Get Content-Type header using mg_http_get_header\n';
-    ir += '  %ct_header_name = getelementptr [13 x i8], [13 x i8]* @.str.content_type_header, i32 0, i32 0\n';
-    ir += '  %ct_mg_str = call %struct.mg_str @mg_http_get_header(%struct.mg_http_message* %hm, i8* %ct_header_name)\n';
-    ir += '  ; Extract mg_str fields (returned by value - use extractvalue)\n';
-    ir += '  %ct_buf = extractvalue %struct.mg_str %ct_mg_str, 0\n';
-    ir += '  %ct_len = extractvalue %struct.mg_str %ct_mg_str, 1\n';
-    ir += '\n';
-
     ir += '  ; Allocate and copy method with null terminator\n';
     ir += '  %method_alloc_size = add i64 %method_len, 1\n';
     ir += '  %method = call i8* @GC_malloc_atomic(i64 %method_alloc_size)\n';
@@ -142,7 +139,17 @@ export class MongooseGenerator {
     ir += '  store i8 0, i8* %body_null_pos\n';
     ir += '\n';
 
-    ir += '  ; Check if Content-Type header exists and copy it\n';
+    ir += '  ; Get Content-Type header using mg_http_get_header\n';
+    ir += '  %ct_header_name = getelementptr [13 x i8], [13 x i8]* @.str.content_type_header, i32 0, i32 0\n';
+    ir += '  %ct_ptr = call %struct.mg_str* @mg_http_get_header(%struct.mg_http_message* %hm, i8* %ct_header_name)\n';
+    ir += '  %ct_found = icmp ne %struct.mg_str* %ct_ptr, null\n';
+    ir += '  br i1 %ct_found, label %get_ct_fields, label %use_empty_ct\n\n';
+
+    ir += 'get_ct_fields:\n';
+    ir += '  %ct_buf_ptr = getelementptr %struct.mg_str, %struct.mg_str* %ct_ptr, i32 0, i32 0\n';
+    ir += '  %ct_buf = load i8*, i8** %ct_buf_ptr\n';
+    ir += '  %ct_len_ptr = getelementptr %struct.mg_str, %struct.mg_str* %ct_ptr, i32 0, i32 1\n';
+    ir += '  %ct_len = load i64, i64* %ct_len_ptr\n';
     ir += '  %has_ct = icmp sgt i64 %ct_len, 0\n';
     ir += '  br i1 %has_ct, label %copy_content_type, label %use_empty_ct\n\n';
 
@@ -155,7 +162,6 @@ export class MongooseGenerator {
     ir += '  br label %build_path\n\n';
 
     ir += 'use_empty_ct:\n';
-    ir += '  ; Use empty string for missing Content-Type\n';
     ir += '  %empty_ct = getelementptr [1 x i8], [1 x i8]* @.str.mongoose_empty, i32 0, i32 0\n';
     ir += '  br label %build_path\n\n';
 
