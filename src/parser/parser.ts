@@ -1,6 +1,6 @@
-import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, ClassNode, NewNode, TypeAliasDeclaration } from '../ast/types.js';
+import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, ClassNode, NewNode, TypeAliasDeclaration, EnumDeclaration } from '../ast/types.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
-import { parseFunction, parseClass, parseInterface, parseImport, parseExport, ParserContext, parseTypeAlias } from './declarations.js';
+import { parseFunction, parseClass, parseInterface, parseImport, parseExport, ParserContext, parseTypeAlias, parseEnum } from './declarations.js';
 import { parseBlock, parseStatement, parseIfStatement, parseWhileStatement, parseForStatement, parseVariableDeclaration, parseTryStatementTopLevel } from './statements.js';
 import { parseExpression as parseExpressionFn, parsePrimary as parsePrimaryFn, ExpressionParserContext } from './expressions.js';
 
@@ -14,6 +14,7 @@ export class Parser implements ExpressionParserContext {
   exports: any[] = [];
   interfaces: any[] = [];
   typeAliases: TypeAliasDeclaration[] = [];
+  enums: EnumDeclaration[] = [];
   topLevelStatements: VariableDeclaration[] = [];
   topLevelExpressions: (CallNode | NewNode | MethodCallNode)[] = [];
   topLevelItems: any[] = [];
@@ -116,6 +117,8 @@ export class Parser implements ExpressionParserContext {
         parseInterface(this);
       } else if (this.match('type')) {
         parseTypeAlias(this);
+      } else if (this.match('enum')) {
+        parseEnum(this);
       } else if (this.match('class')) {
         parseClass(this);
       } else if (this.match('async')) {
@@ -242,6 +245,7 @@ export class Parser implements ExpressionParserContext {
       exports: this.exports,
       interfaces: this.interfaces,
       typeAliases: this.typeAliases,
+      enums: this.enums,
       topLevelStatements: this.topLevelStatements,
       topLevelExpressions: this.topLevelExpressions,
       topLevelItems: this.topLevelItems
