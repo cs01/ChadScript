@@ -1,4 +1,93 @@
-import { Expression, NewNode, MethodCallNode } from '../../../ast/types.js';
+import {
+  Expression,
+  NewNode,
+  MethodCallNode,
+  MemberAccessNode,
+  VariableNode,
+  ObjectNode,
+  AST,
+  InterfaceDeclaration,
+  EnumDeclaration,
+  EnumMember,
+  ClassNode,
+} from '../../../ast/types.js';
+import type { SymbolTable } from '../../infrastructure/symbol-table.js';
+import type { TypeChecker, TypeInfo } from '../../../typescript/type-checker.js';
+
+interface PropertyTypeInfo {
+  type: string;
+  offset: number;
+}
+
+interface ClassGeneratorLike {
+  getFieldInfo(className: string, fieldName: string): FieldInfo | null;
+  getClassFields(className: string): FieldInfo[];
+  thisPointer?: string | null;
+  currentClassName?: string | null;
+}
+
+interface FieldInfo {
+  index: number;
+  type: string;
+}
+
+interface StringGeneratorLike {
+  createStringConstant(value: string): string;
+}
+
+interface MapGeneratorLike {
+  generateMapSize(mapPtr: string): string;
+}
+
+interface SetGeneratorLike {
+  generateSetSize(setPtr: string): string;
+}
+
+interface ResponseGeneratorLike {
+  generateStatus(responsePtr: string): string;
+  generateOk(responsePtr: string): string;
+}
+
+interface ObjectMetadata {
+  keys: string[];
+  types: string[];
+  tsTypes?: string[];
+}
+
+interface JsonObjectMeta {
+  keys: string[];
+  types: string[];
+  tsTypes?: string[];
+}
+
+interface InterfaceProperty {
+  name: string;
+  type: string;
+}
+
+export interface MemberAccessGeneratorContext {
+  nextTemp(): string;
+  nextLabel(prefix: string): string;
+  emit(instruction: string): void;
+  symbolTable: SymbolTable;
+  variableTypes: Map<string, string>;
+  ast?: AST;
+  typeChecker?: TypeChecker | null;
+  thisPointer?: string | null;
+  currentClassName?: string | null;
+  currentFunction?: string | null;
+  jsonObjectMetadata?: Map<string, JsonObjectMeta>;
+  getVariableType(name: string): string | undefined;
+  getVariableAlloca(name: string): string | undefined;
+  syncStateToGenerators(): void;
+  formatCodegenError(message: string, suggestion?: string): string;
+  getObjectMetadata(obj: ObjectNode): ObjectMetadata;
+  classGen: ClassGeneratorLike;
+  stringGen: StringGeneratorLike;
+  mapGen: MapGeneratorLike;
+  setGen: SetGeneratorLike;
+  responseGen: ResponseGeneratorLike;
+}
 
 /**
  * MemberAccessGenerator
@@ -13,9 +102,9 @@ import { Expression, NewNode, MethodCallNode } from '../../../ast/types.js';
  * - TypeScript interface-based property access
  */
 export class MemberAccessGenerator {
-  constructor(private ctx: any) {}
+  constructor(private ctx: MemberAccessGeneratorContext) {}
 
-  generate(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generate(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     const enumResult = this.handleEnumMemberAccess(expr);
     if (enumResult !== null) return enumResult;
 
@@ -66,24 +155,24 @@ export class MemberAccessGenerator {
     return this.handleParameterPropertyAccess(expr, params);
   }
 
-  private isProcessArgv(expr: any): boolean {
+  private isProcessArgv(expr: MemberAccessNode): boolean {
     return expr.object.type === 'variable' &&
-           (expr.object as any).name === 'process' &&
+           (expr.object as VariableNode).name === 'process' &&
            expr.property === 'argv';
   }
 
-  private handleEnumMemberAccess(expr: any): string | null {
+  private handleEnumMemberAccess(expr: MemberAccessNode): string | null {
     if (expr.object.type !== 'variable') return null;
 
-    const enumName = (expr.object as any).name;
+    const enumName = (expr.object as VariableNode).name;
     const memberName = expr.property;
     const enums = this.ctx.ast?.enums;
     if (!enums) return null;
 
-    const enumDecl = enums.find((e: any) => e.name === enumName);
+    const enumDecl = enums.find((e: EnumDeclaration) => e.name === enumName);
     if (!enumDecl) return null;
 
-    const member = enumDecl.members.find((m: any) => m.name === memberName);
+    const member = enumDecl.members.find((m: EnumMember) => m.name === memberName);
     if (!member) {
       throw new Error(`Enum member '${memberName}' not found in enum '${enumName}'`);
     }
@@ -95,10 +184,10 @@ export class MemberAccessGenerator {
     return result;
   }
 
-  private handleTypedJsonStructAccess(expr: any): string | null {
+  private handleTypedJsonStructAccess(expr: MemberAccessNode): string | null {
     if (expr.object.type !== 'variable') return null;
 
-    const varType = this.ctx.getVariableType(expr.object.name);
+    const varType = this.ctx.getVariableType((expr.object as VariableNode).name);
     if (!varType || !varType.startsWith('%') || !varType.endsWith('*')) return null;
     if (varType === '%Response*' || varType.includes('Array') || varType.includes('Map') || varType.includes('Set')) {
       return null;
@@ -110,13 +199,13 @@ export class MemberAccessGenerator {
     const interfaceDef = this.ctx.typeChecker.getInterfaceDefinition(structTypeName);
     if (!interfaceDef) return null;
 
-    const propIndex = interfaceDef.properties.findIndex((p: any) => p.name === expr.property);
+    const propIndex = interfaceDef.properties.findIndex((p: InterfaceProperty) => p.name === expr.property);
     if (propIndex === -1) {
       throw new Error(`Property '${expr.property}' not found in interface ${structTypeName}`);
     }
 
     const propType = interfaceDef.properties[propIndex].type;
-    const varPtr = this.ctx.getVariableAlloca(expr.object.name);
+    const varPtr = this.ctx.getVariableAlloca((expr.object as VariableNode).name);
     const structPtr = this.ctx.nextTemp();
     this.ctx.emit(`${structPtr} = load %${structTypeName}*, %${structTypeName}** ${varPtr}`);
 
@@ -174,26 +263,26 @@ export class MemberAccessGenerator {
     return argvStruct;
   }
 
-  private handleClassPropertyAccess(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+  private handleClassPropertyAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
     let className: string | null = null;
     let instancePtr: string | null = null;
 
-    if (expr.object.type === 'variable' && this.ctx.symbolTable.isClass(expr.object.name)) {
-      const classMeta = this.ctx.symbolTable.getClassInfo(expr.object.name)!;
+    if (expr.object.type === 'variable' && this.ctx.symbolTable.isClass((expr.object as VariableNode).name)) {
+      const classMeta = this.ctx.symbolTable.getClassInfo((expr.object as VariableNode).name)!;
       className = classMeta.className;
       instancePtr = generateExpressionFn(expr.object, params);
-    } else if ((expr.object as any).type === 'new') {
-      const newExpr = expr.object as any as NewNode;
+    } else if (expr.object.type === 'new') {
+      const newExpr = expr.object as NewNode;
       className = newExpr.className;
       instancePtr = generateExpressionFn(expr.object, params);
-    } else if ((expr.object as any).type === 'this') {
+    } else if (expr.object.type === 'this') {
       const thisPtr = this.ctx.thisPointer || this.ctx.classGen.thisPointer;
       if (!thisPtr) {
         throw new Error('this.field accessed outside of class method or constructor');
       }
       instancePtr = thisPtr;
-      const classWithField = this.ctx.ast.classes.find((c: any) => {
-        return c.methods.some((m: any) => true);
+      const classWithField = this.ctx.ast?.classes.find((c: ClassNode) => {
+        return c.methods.some((m) => true);
       });
       if (classWithField) {
         className = classWithField.name;
@@ -227,7 +316,7 @@ export class MemberAccessGenerator {
     }
   }
 
-  private loadFieldValue(fieldPtr: string, fieldInfo: any): string {
+  private loadFieldValue(fieldPtr: string, fieldInfo: FieldInfo): string {
     if (fieldInfo.type === 'string') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
@@ -257,8 +346,9 @@ export class MemberAccessGenerator {
     }
   }
 
-  private handleJsonPropertyAccess(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const jsonMeta = this.ctx.symbolTable.getObjectInfo(expr.object.name);
+  private handleJsonPropertyAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    const varName = (expr.object as VariableNode).name;
+    const jsonMeta = this.ctx.symbolTable.getObjectInfo(varName);
     let tsType: string | undefined;
     if (jsonMeta?.tsTypes) {
       const propIdx = jsonMeta.keys.indexOf(expr.property);
@@ -267,7 +357,7 @@ export class MemberAccessGenerator {
       }
     }
 
-    const jsonObjPtrPtr = this.ctx.getVariableAlloca(expr.object.name)!;
+    const jsonObjPtrPtr = this.ctx.getVariableAlloca(varName)!;
     const jsonObjPtr = this.ctx.nextTemp();
     this.ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
 
@@ -285,11 +375,11 @@ export class MemberAccessGenerator {
   }
 
   private handleNestedInterfaceField(fieldItem: string, tsType: string): string {
-    const nestedInterfaceDef = this.ctx.ast?.interfaces?.find((iface: any) => iface.name === tsType);
+    const nestedInterfaceDef = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
     if (nestedInterfaceDef) {
-      const keys = nestedInterfaceDef.fields.map((f: any) => f.name);
-      const tsTypes = nestedInterfaceDef.fields.map((f: any) => f.type);
-      const types = nestedInterfaceDef.fields.map((f: any) => this.tsTypeToLlvm(f.type));
+      const keys = nestedInterfaceDef.fields.map((f) => f.name);
+      const tsTypes = nestedInterfaceDef.fields.map((f) => f.type);
+      const types = nestedInterfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
       this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
       this.ctx.jsonObjectMetadata.set(fieldItem, { keys, types, tsTypes });
     }
@@ -350,7 +440,7 @@ export class MemberAccessGenerator {
     return result;
   }
 
-  private handleNestedJsonAccess(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+  private handleNestedJsonAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
     const innerResult = generateExpressionFn(expr.object, params);
     const nestedMeta = this.ctx.jsonObjectMetadata?.get(innerResult);
     if (!nestedMeta) return null;
@@ -402,23 +492,24 @@ export class MemberAccessGenerator {
     return result;
   }
 
-  private handleObjectPropertyAccess(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+  private handleObjectPropertyAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
     let objPtr: string = '';
     let keys: string[] = [];
     let types: string[] = [];
 
-    if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON(expr.object.name)) {
+    if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
       return null;  // Already handled in handleJsonPropertyAccess
-    } else if (expr.object.type === 'variable' && this.ctx.symbolTable.isObject(expr.object.name)) {
-      const objMeta = this.ctx.symbolTable.getObjectInfo(expr.object.name);
+    } else if (expr.object.type === 'variable' && this.ctx.symbolTable.isObject((expr.object as VariableNode).name)) {
+      const varName = (expr.object as VariableNode).name;
+      const objMeta = this.ctx.symbolTable.getObjectInfo(varName);
       if (!objMeta) return null;
       keys = objMeta.keys;
       types = objMeta.types;
-      const objPtrPtr = this.ctx.getVariableAlloca(expr.object.name)!;
+      const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
       objPtr = this.ctx.nextTemp();
       this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
-    } else if ((expr.object as any).type === 'object') {
-      const metadata = this.ctx.getObjectMetadata(expr.object as any);
+    } else if (expr.object.type === 'object') {
+      const metadata = this.ctx.getObjectMetadata(expr.object as ObjectNode);
       keys = metadata.keys;
       types = metadata.types;
       objPtr = generateExpressionFn(expr.object, params);
@@ -434,7 +525,7 @@ export class MemberAccessGenerator {
 
     const propIndex = keys.indexOf(expr.property);
     if (propIndex === -1) {
-      const objDesc = expr.object.type === 'variable' ? (expr.object as any).name : 'literal';
+      const objDesc = expr.object.type === 'variable' ? (expr.object as VariableNode).name : 'literal';
       throw new Error(`Unknown property: ${expr.property} on object ${objDesc}. Available properties: ${keys.join(', ')}`);
     }
 
@@ -453,11 +544,11 @@ export class MemberAccessGenerator {
     return value;
   }
 
-  private handleMethodCallPropertyAccess(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
-    const methodCall = expr.object as any as MethodCallNode;
+  private handleMethodCallPropertyAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+    const methodCall = expr.object as MethodCallNode;
     if (methodCall.method !== 'parse') return null;
     if (methodCall.object.type !== 'variable') return null;
-    if ((methodCall.object as any).name !== 'JSON') return null;
+    if ((methodCall.object as VariableNode).name !== 'JSON') return null;
 
     this.ctx.syncStateToGenerators();
     const jsonObjPtr = generateExpressionFn(expr.object, params);
@@ -469,8 +560,8 @@ export class MemberAccessGenerator {
     return this.extractJsonFieldValue(fieldItem);
   }
 
-  private handleLengthProperty(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    if (expr.object.type === 'variable' && this.ctx.symbolTable.isNumberArray(expr.object.name)) {
+  private handleLengthProperty(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    if (expr.object.type === 'variable' && this.ctx.symbolTable.isNumberArray((expr.object as VariableNode).name)) {
       return this.getArrayLength(expr.object, params, generateExpressionFn, '%Array');
     }
 
@@ -479,7 +570,7 @@ export class MemberAccessGenerator {
       return this.getStringArrayLength(stringArrayPtr);
     }
 
-    if (expr.object.type === 'variable' && this.ctx.symbolTable.isStringArray(expr.object.name)) {
+    if (expr.object.type === 'variable' && this.ctx.symbolTable.isStringArray((expr.object as VariableNode).name)) {
       const stringArrayPtr = generateExpressionFn(expr.object, params);
       return this.getStringArrayLength(stringArrayPtr);
     }
@@ -492,14 +583,15 @@ export class MemberAccessGenerator {
     return this.getStringLength(expr.object, params, generateExpressionFn);
   }
 
-  private isProcessArgvLength(expr: any): boolean {
-    return expr.object.type === 'member_access' &&
-           expr.object.object.type === 'variable' &&
-           (expr.object.object as any).name === 'process' &&
-           expr.object.property === 'argv';
+  private isProcessArgvLength(expr: MemberAccessNode): boolean {
+    if (expr.object.type !== 'member_access') return false;
+    const innerAccess = expr.object as MemberAccessNode;
+    return innerAccess.object.type === 'variable' &&
+           (innerAccess.object as VariableNode).name === 'process' &&
+           innerAccess.property === 'argv';
   }
 
-  private getArrayLength(obj: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string, arrayType: string): string {
+  private getArrayLength(obj: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string, arrayType: string): string {
     const arrayPtr = generateExpressionFn(obj, params);
     const lenPtr = this.ctx.nextTemp();
     this.ctx.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`);
@@ -522,10 +614,13 @@ export class MemberAccessGenerator {
     return len;
   }
 
-  private handleMemberAccessLength(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
-    if (expr.object.object.type === 'variable' && this.ctx.symbolTable.isClass(expr.object.object.name)) {
-      const classMeta = this.ctx.symbolTable.getClassInfo(expr.object.object.name)!;
-      const fieldInfo = this.ctx.classGen.getFieldInfo(classMeta.className, expr.object.property);
+  private handleMemberAccessLength(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+    if (expr.object.type !== 'member_access') return null;
+    const innerAccess = expr.object as MemberAccessNode;
+
+    if (innerAccess.object.type === 'variable' && this.ctx.symbolTable.isClass((innerAccess.object as VariableNode).name)) {
+      const classMeta = this.ctx.symbolTable.getClassInfo((innerAccess.object as VariableNode).name)!;
+      const fieldInfo = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
       if (fieldInfo && fieldInfo.type === 'string[]') {
         const stringArrayPtr = generateExpressionFn(expr.object, params);
         return this.getStringArrayLength(stringArrayPtr);
@@ -533,10 +628,10 @@ export class MemberAccessGenerator {
         const arrayPtr = generateExpressionFn(expr.object, params);
         return this.getArrayLengthFromPtr(arrayPtr, '%Array');
       }
-    } else if (expr.object.object.type === 'this') {
-      const className = this.ctx.currentClassName || (this.ctx.classGen as any).currentClassName;
+    } else if (innerAccess.object.type === 'this') {
+      const className = this.ctx.currentClassName || this.ctx.classGen.currentClassName;
       if (className) {
-        const fieldInfo = this.ctx.classGen.getFieldInfo(className, expr.object.property);
+        const fieldInfo = this.ctx.classGen.getFieldInfo(className, innerAccess.property);
         if (fieldInfo && fieldInfo.type === 'string[]') {
           const stringArrayPtr = generateExpressionFn(expr.object, params);
           return this.getStringArrayLength(stringArrayPtr);
@@ -560,7 +655,7 @@ export class MemberAccessGenerator {
     return len;
   }
 
-  private getStringLength(obj: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private getStringLength(obj: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     const objPtr = generateExpressionFn(obj, params);
     const lenI64 = this.ctx.nextTemp();
     this.ctx.emit(`${lenI64} = call i64 @strlen(i8* ${objPtr})`);
@@ -572,13 +667,13 @@ export class MemberAccessGenerator {
     return len;
   }
 
-  private handleSizeProperty(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
-    if (expr.object.type === 'variable' && this.ctx.symbolTable.isMap(expr.object.name)) {
+  private handleSizeProperty(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+    if (expr.object.type === 'variable' && this.ctx.symbolTable.isMap((expr.object as VariableNode).name)) {
       const mapPtr = generateExpressionFn(expr.object, params);
       this.ctx.syncStateToGenerators();
       return this.ctx.mapGen.generateMapSize(mapPtr);
     }
-    if (expr.object.type === 'variable' && this.ctx.symbolTable.isSet(expr.object.name)) {
+    if (expr.object.type === 'variable' && this.ctx.symbolTable.isSet((expr.object as VariableNode).name)) {
       const setPtr = generateExpressionFn(expr.object, params);
       this.ctx.syncStateToGenerators();
       return this.ctx.setGen.generateSetSize(setPtr);
@@ -586,14 +681,15 @@ export class MemberAccessGenerator {
     return null;
   }
 
-  private handleResponseProperty(expr: any): string | null {
+  private handleResponseProperty(expr: MemberAccessNode): string | null {
     if (expr.property !== 'status' && expr.property !== 'ok') return null;
     if (expr.object.type !== 'variable') return null;
 
-    const varType = this.ctx.getVariableType((expr.object as any).name);
+    const varName = (expr.object as VariableNode).name;
+    const varType = this.ctx.getVariableType(varName);
     if (varType !== '%Response*' && varType !== 'i8*') return null;
 
-    const varPtr = this.ctx.getVariableAlloca((expr.object as any).name);
+    const varPtr = this.ctx.getVariableAlloca(varName);
     let responsePtr: string;
 
     if (varType === 'i8*') {
@@ -614,12 +710,12 @@ export class MemberAccessGenerator {
     }
   }
 
-  private handleParameterPropertyAccess(expr: any, params: string[]): string {
+  private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {
     if (expr.object.type !== 'variable') {
       throw new Error(this.ctx.formatCodegenError(`Unknown property: ${expr.property}`));
     }
 
-    const varName = (expr.object as any).name;
+    const varName = (expr.object as VariableNode).name;
 
     if (params.includes(varName)) {
       if (this.ctx.typeChecker && this.ctx.currentFunction) {
@@ -665,9 +761,9 @@ export class MemberAccessGenerator {
     ));
   }
 
-  private accessTypedParameter(varName: string, property: string, typeInfo: any): string {
-    const properties = Array.from(typeInfo.properties.entries()) as [string, any][];
-    const propInfo = typeInfo.properties.get(property);
+  private accessTypedParameter(varName: string, property: string, typeInfo: TypeInfo): string {
+    const properties = Array.from(typeInfo.properties!.entries()) as [string, PropertyTypeInfo][];
+    const propInfo = typeInfo.properties!.get(property)!;
 
     const structTypes = properties.map(([_, info]) => info.type);
     const structType = `{ ${structTypes.join(', ')} }`;
