@@ -203,6 +203,13 @@ export interface TryStatement {
 
 export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | ForOfStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | Expression;
 
+export interface FunctionParameter {
+  name: string;
+  type?: string;
+  optional?: boolean;
+  defaultValue?: Expression;
+}
+
 export interface FunctionNode {
   name: string;
   params: string[];
@@ -211,6 +218,7 @@ export interface FunctionNode {
   paramTypes?: string[];
   typeParameters?: string[];
   async?: boolean;
+  parameters?: FunctionParameter[];
 }
 
 export interface ClassMethod {
