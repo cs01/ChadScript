@@ -397,6 +397,33 @@ export class Parser implements ExpressionParserContext {
       this.pos++;
       this.skipWhitespace();
       while (this.pos < this.code.length && this.code[this.pos] !== '}') {
+        if (this.code[this.pos] === '[') {
+          this.pos++;
+          this.skipWhitespace();
+          this.parseIdentifier();
+          this.skipWhitespace();
+          if (this.code[this.pos] === ':') {
+            this.pos++;
+            this.skipWhitespace();
+            this.skipTypeAnnotation();
+          }
+          this.skipWhitespace();
+          if (this.code[this.pos] === ']') {
+            this.pos++;
+          }
+          this.skipWhitespace();
+          if (this.code[this.pos] === ':') {
+            this.pos++;
+            this.skipWhitespace();
+            this.skipTypeAnnotation();
+          }
+          this.skipWhitespace();
+          if (this.code[this.pos] === ';' || this.code[this.pos] === ',') {
+            this.pos++;
+          }
+          this.skipWhitespace();
+          continue;
+        }
         if (/[a-zA-Z_]/.test(this.code[this.pos])) {
           this.parseIdentifier();
         }
@@ -430,7 +457,47 @@ export class Parser implements ExpressionParserContext {
     } else if (this.code[this.pos] === '(') {
       this.pos++;
       this.skipWhitespace();
+      const afterParen = this.pos;
+      let isGroupedType = false;
+      if (/[a-zA-Z_]/.test(this.code[this.pos])) {
+        this.parseIdentifier();
+        this.skipWhitespace();
+        if (this.code[this.pos] === '|' || this.code[this.pos] === '&' || this.code[this.pos] === ')' || this.code[this.pos] === '[' || this.code[this.pos] === '<') {
+          isGroupedType = true;
+          this.pos = afterParen;
+        } else {
+          this.pos = afterParen;
+        }
+      } else if (this.code[this.pos] === "'" || this.code[this.pos] === '"') {
+        isGroupedType = true;
+      }
+      if (isGroupedType) {
+        this.skipTypeAnnotation();
+        this.skipWhitespace();
+      }
       while (this.pos < this.code.length && this.code[this.pos] !== ')') {
+        if (this.code[this.pos] === '|' || this.code[this.pos] === '&') {
+          this.pos++;
+          this.skipWhitespace();
+          this.skipTypeAnnotation();
+          this.skipWhitespace();
+          continue;
+        }
+        if (this.code[this.pos] === "'" || this.code[this.pos] === '"') {
+          const quote = this.code[this.pos];
+          this.pos++;
+          while (this.pos < this.code.length && this.code[this.pos] !== quote) {
+            if (this.code[this.pos] === '\\') {
+              this.pos++;
+            }
+            this.pos++;
+          }
+          if (this.code[this.pos] === quote) {
+            this.pos++;
+          }
+          this.skipWhitespace();
+          continue;
+        }
         if (/[a-zA-Z_]/.test(this.code[this.pos])) {
           this.parseIdentifier();
         }

@@ -413,11 +413,23 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
       try {
         params.push(ctx.parseIdentifier());
         ctx.skipWhitespace();
+        if (ctx.code[ctx.pos] === ':') {
+          ctx.pos++;
+          ctx.skipWhitespace();
+          ctx.skipTypeAnnotation();
+          ctx.skipWhitespace();
+        }
         while (ctx.code[ctx.pos] === ',') {
           ctx.pos++;
           ctx.skipWhitespace();
           params.push(ctx.parseIdentifier());
           ctx.skipWhitespace();
+          if (ctx.code[ctx.pos] === ':') {
+            ctx.pos++;
+            ctx.skipWhitespace();
+            ctx.skipTypeAnnotation();
+            ctx.skipWhitespace();
+          }
         }
         if (ctx.code[ctx.pos] === ')') {
           ctx.pos++;

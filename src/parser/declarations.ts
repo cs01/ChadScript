@@ -49,6 +49,33 @@ export function parseInterface(ctx: ParserContext): void {
       break;
     }
 
+    if (ctx.code[ctx.pos] === '[') {
+      ctx.pos++;
+      ctx.skipWhitespace();
+      ctx.parseIdentifier();
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === ':') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+        ctx.skipTypeAnnotation();
+      }
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === ']') {
+        ctx.pos++;
+      }
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === ':') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+        ctx.skipTypeAnnotation();
+      }
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === ';') {
+        ctx.pos++;
+      }
+      continue;
+    }
+
     const fieldName = ctx.parseIdentifier();
     ctx.skipWhitespace();
 
@@ -344,6 +371,14 @@ export function parseClass(ctx: ParserContext): void {
       }
 
       ctx.skipWhitespace();
+      while (ctx.code[ctx.pos] === '|' || ctx.code[ctx.pos] === '&') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+        ctx.skipTypeAnnotation();
+        ctx.skipWhitespace();
+      }
+
+      ctx.skipWhitespace();
       if (ctx.code[ctx.pos] === '=') {
         ctx.pos++;
         ctx.skipWhitespace();
@@ -375,6 +410,9 @@ export function parseClass(ctx: ParserContext): void {
     const paramTypes: ('string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void')[] = [];
     ctx.skipWhitespace();
     if (ctx.code[ctx.pos] !== ')') {
+      if (ctx.match('private') || ctx.match('public') || ctx.match('protected') || ctx.match('readonly')) {
+        ctx.skipWhitespace();
+      }
       const paramName = ctx.parseIdentifier();
       let paramType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
       ctx.skipWhitespace();
@@ -399,6 +437,9 @@ export function parseClass(ctx: ParserContext): void {
 
       while (ctx.match(',')) {
         ctx.skipWhitespace();
+        if (ctx.match('private') || ctx.match('public') || ctx.match('protected') || ctx.match('readonly')) {
+          ctx.skipWhitespace();
+        }
         const nextParamName = ctx.parseIdentifier();
         let nextParamType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
         ctx.skipWhitespace();
@@ -429,6 +470,13 @@ export function parseClass(ctx: ParserContext): void {
       ctx.pos++;
       ctx.skipWhitespace();
       returnType = ctx.parseTypeAnnotation();
+      ctx.skipWhitespace();
+      while (ctx.code[ctx.pos] === '|' || ctx.code[ctx.pos] === '&') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+        ctx.skipTypeAnnotation();
+        ctx.skipWhitespace();
+      }
     }
     ctx.expect('{');
 
@@ -452,6 +500,10 @@ export function parseClass(ctx: ParserContext): void {
 
 export function parseImport(ctx: ParserContext): void {
   ctx.skipWhitespace();
+
+  if (ctx.match('type')) {
+    ctx.skipWhitespace();
+  }
 
   if (ctx.code[ctx.pos] === '*') {
     ctx.pos++;
@@ -695,6 +747,14 @@ export function parseExport(ctx: ParserContext): void {
         }
 
         ctx.skipWhitespace();
+        while (ctx.code[ctx.pos] === '|' || ctx.code[ctx.pos] === '&') {
+          ctx.pos++;
+          ctx.skipWhitespace();
+          ctx.skipTypeAnnotation();
+          ctx.skipWhitespace();
+        }
+
+        ctx.skipWhitespace();
         if (ctx.code[ctx.pos] === '=') {
           ctx.pos++;
           ctx.skipWhitespace();
@@ -720,6 +780,9 @@ export function parseExport(ctx: ParserContext): void {
       const paramTypes: ('string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void')[] = [];
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] !== ')') {
+        if (ctx.match('private') || ctx.match('public') || ctx.match('protected') || ctx.match('readonly')) {
+          ctx.skipWhitespace();
+        }
         const paramName = ctx.parseIdentifier();
         let paramType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
         ctx.skipWhitespace();
@@ -744,6 +807,9 @@ export function parseExport(ctx: ParserContext): void {
 
         while (ctx.match(',')) {
           ctx.skipWhitespace();
+          if (ctx.match('private') || ctx.match('public') || ctx.match('protected') || ctx.match('readonly')) {
+            ctx.skipWhitespace();
+          }
           const nextParamName = ctx.parseIdentifier();
           let nextParamType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
           ctx.skipWhitespace();
@@ -774,6 +840,13 @@ export function parseExport(ctx: ParserContext): void {
         ctx.pos++;
         ctx.skipWhitespace();
         returnType = ctx.parseTypeAnnotation();
+        ctx.skipWhitespace();
+        while (ctx.code[ctx.pos] === '|' || ctx.code[ctx.pos] === '&') {
+          ctx.pos++;
+          ctx.skipWhitespace();
+          ctx.skipTypeAnnotation();
+          ctx.skipWhitespace();
+        }
       }
       ctx.expect('{');
 
