@@ -2,16 +2,29 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { Parser } from './parser/parser.js';
+import { parseWithTSAPI } from './parser-ts/index.js';
 import { LLVMGenerator } from './codegen/llvm-generator.js';
 import { TypeChecker } from './typescript/type-checker.js';
 import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
 import { LogLevel, logger } from './utils/logger.js';
 
+let useTSParser = false;
+let linkTreeSitter = false;
+
+export function setUseTSParser(value: boolean): void {
+  useTSParser = value;
+}
+
+export function setLinkTreeSitter(value: boolean): void {
+  linkTreeSitter = value;
+}
+
 // External library paths
 const BDWGC_PATH = '/data/users/cssmith/git/bdwgc';
 const MONGOOSE_PATH = '/data/users/cssmith/git/mongoose';
 const LIBUV_PATH = '/data/users/cssmith/git/libuv';
+const TREESITTER_TS_PATH = 'node_modules/tree-sitter-typescript/typescript/src';
 
 // ============================================
 // MAIN COMPILER DRIVER
@@ -93,7 +106,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   }
 
   // Generate LLVM IR
-  const generator = new LLVMGenerator(mergedAST, typeChecker);
+  const generator = new LLVMGenerator(mergedAST, typeChecker, { linkTreeSitter });
   const llvmIR = generator.generate();
 
   // Write IR to file
@@ -114,13 +127,46 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   // - libcjson: JSON parsing
   // - libuv: Event loop and async I/O (timers, etc.)
   // - libm: Math functions
+  // - tree-sitter: Incremental parsing (optional, for self-hosting)
   const mongooseObj = `${MONGOOSE_PATH}/mongoose.o`;
   const gcLib = `${BDWGC_PATH}/libgc.a`;
 
   // Build link command with all libraries
-  const linkLibs = `-L${BDWGC_PATH} -lgc -lcurl -lcjson /lib64/libuv.so.1 -lm -lpthread`;
-  const linkCmd = `${useClang ? 'clang' : 'gcc'} ${objFile} ${mongooseObj} -o ${outputFile} -no-pie ${linkLibs}`;
-  logger.info(` "${linkerPath}" ${objFile} ${mongooseObj} -o ${outputFile} -no-pie ${linkLibs}`);
+  let linkLibs = `-L${BDWGC_PATH} -lgc -lcurl -lcjson /lib64/libuv.so.1 -lm -lpthread`;
+  let extraObjs = '';
+
+  if (linkTreeSitter) {
+    logger.info('  Compiling tree-sitter-typescript...');
+    const buildDir = path.join(process.cwd(), 'build');
+    if (!fs.existsSync(buildDir)) {
+      fs.mkdirSync(buildDir, { recursive: true });
+    }
+
+    const tsParserObj = path.join(buildDir, 'tree-sitter-typescript-parser.o');
+    const tsScannerObj = path.join(buildDir, 'tree-sitter-typescript-scanner.o');
+    const tsInclude = path.join(process.cwd(), TREESITTER_TS_PATH);
+    const commonInclude = path.join(process.cwd(), 'node_modules/tree-sitter-typescript');
+
+    if (!fs.existsSync(tsParserObj)) {
+      const parserSrc = path.join(tsInclude, 'parser.c');
+      const compileParser = `clang -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${parserSrc} -o ${tsParserObj}`;
+      logger.info(`  Compiling tree-sitter parser...`);
+      execSync(compileParser, { stdio: 'pipe' });
+    }
+
+    if (!fs.existsSync(tsScannerObj)) {
+      const scannerSrc = path.join(tsInclude, 'scanner.c');
+      const compileScanner = `clang -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${scannerSrc} -o ${tsScannerObj}`;
+      logger.info(`  Compiling tree-sitter scanner...`);
+      execSync(compileScanner, { stdio: 'pipe' });
+    }
+
+    extraObjs = ` ${tsParserObj} ${tsScannerObj}`;
+    linkLibs += ' /usr/lib64/libtree-sitter.so.0';
+  }
+
+  const linkCmd = `${useClang ? 'clang' : 'gcc'} ${objFile} ${mongooseObj}${extraObjs} -o ${outputFile} -no-pie ${linkLibs}`;
+  logger.info(` "${linkerPath}" ${objFile} ${mongooseObj}${extraObjs} -o ${outputFile} -no-pie ${linkLibs}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });
 
@@ -153,8 +199,15 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, display
 
   // Use displayPath for entry file (preserves relative/absolute as passed), absPath for imported files
   const pathForErrors = displayPath || absPath;
-  const parser = new Parser(code, pathForErrors);
-  const ast = parser.parse();
+
+  let ast: AST;
+  if (useTSParser) {
+    logger.info(`  Using TypeScript API parser`);
+    ast = parseWithTSAPI(code, { filename: pathForErrors });
+  } else {
+    const parser = new Parser(code, pathForErrors);
+    ast = parser.parse();
+  }
 
   // Start with this file's AST
   let mergedAST: AST = {

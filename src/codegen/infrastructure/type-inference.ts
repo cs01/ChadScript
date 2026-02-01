@@ -101,6 +101,12 @@ export class TypeInference {
     if (expr.type === 'template_literal') {
       return true;
     }
+    if (expr.type === 'call') {
+      const callExpr = expr as CallNode;
+      if (callExpr.name === '__ts_node_type' || callExpr.name === '__ts_node_text') {
+        return true;
+      }
+    }
     if (expr.type === 'variable') {
       const varType = this.ctx.getVariableType(expr.name);
       if (varType === 'i8*') {

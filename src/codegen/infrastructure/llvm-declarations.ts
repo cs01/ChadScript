@@ -18,6 +18,7 @@ export function getLLVMDeclarations(): string {
   ir += 'declare i8* @GC_malloc_atomic(i64)\n';
   ir += 'declare i8* @GC_realloc(i8*, i64)\n';
   ir += 'declare i8* @strcpy(i8*, i8*)\n';
+  ir += 'declare i8* @strncpy(i8*, i8*, i64)\n';
   ir += 'declare i8* @strcat(i8*, i8*)\n';
   ir += 'declare i8* @strdup(i8*)\n';
   ir += 'declare i64 @strlen(i8*)\n';
