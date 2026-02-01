@@ -123,19 +123,18 @@ export class LLVMGenerator extends BaseGenerator {
     const keys: string[] = [];
     const types: string[] = [];
 
-    for (const prop of objExpr.properties) {
-      keys.push(prop.key);
+    for (let i = 0; i < objExpr.properties.length; i++) {
+      keys.push(objExpr.properties[i].key);
 
-      const valueExpr = prop.value;
       let llvmType: string;
 
-      if (valueExpr.type === 'string' || this.isStringExpression(valueExpr)) {
+      if (objExpr.properties[i].value.type === 'string' || this.isStringExpression(objExpr.properties[i].value)) {
         llvmType = 'i8*';
-      } else if (valueExpr.type === 'array') {
-        llvmType = this.isStringArrayExpression(valueExpr) ? '%StringArray*' : '%Array*';
-      } else if (valueExpr.type === 'map') {
+      } else if (objExpr.properties[i].value.type === 'array') {
+        llvmType = this.isStringArrayExpression(objExpr.properties[i].value) ? '%StringArray*' : '%Array*';
+      } else if (objExpr.properties[i].value.type === 'map') {
         llvmType = '%Map*';
-      } else if (valueExpr.type === 'set') {
+      } else if (objExpr.properties[i].value.type === 'set') {
         llvmType = '%Set*';
       } else {
         llvmType = 'double';
@@ -716,6 +715,16 @@ export class LLVMGenerator extends BaseGenerator {
     this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*)* @${handlerName})`);
 
     return temp;
+  }
+
+  public getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null {
+    for (let i = 0; i < this.ast.interfaces.length; i++) {
+      const iface = this.ast.interfaces[i];
+      if (iface.name === name) {
+        return iface;
+      }
+    }
+    return null;
   }
 
   // Sync state to sub-generators - share Maps/arrays by reference

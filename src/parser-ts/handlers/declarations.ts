@@ -162,14 +162,14 @@ function transformMethodDeclaration(
 
   const paramTypes = node.parameters.map(p => {
     if (p.type) {
-      return mapToClassMethodType(extractTypeString(p.type));
+      return extractTypeString(p.type);
     }
-    return undefined;
-  }).filter(Boolean) as ClassMethod['paramTypes'];
+    return 'any';
+  });
 
-  let returnType: ClassMethod['returnType'];
+  let returnType: string | undefined;
   if (node.type) {
-    returnType = mapToClassMethodType(extractTypeString(node.type));
+    returnType = extractTypeString(node.type);
   }
 
   const body: BlockStatement = node.body
@@ -180,7 +180,7 @@ function transformMethodDeclaration(
     type: 'method',
     name,
     params,
-    paramTypes: paramTypes && paramTypes.length > 0 ? paramTypes : undefined,
+    paramTypes,
     returnType,
     body,
     isConstructor,
@@ -195,10 +195,10 @@ function transformConstructorDeclaration(
 
   const paramTypes = node.parameters.map(p => {
     if (p.type) {
-      return mapToClassMethodType(extractTypeString(p.type));
+      return extractTypeString(p.type);
     }
-    return undefined;
-  }).filter(Boolean) as ClassMethod['paramTypes'];
+    return 'any';
+  });
 
   const body: BlockStatement = node.body
     ? transformBlock(node.body, checker)
@@ -208,7 +208,7 @@ function transformConstructorDeclaration(
     type: 'method',
     name: 'constructor',
     params,
-    paramTypes: paramTypes && paramTypes.length > 0 ? paramTypes : undefined,
+    paramTypes,
     returnType: undefined,
     body,
     isConstructor: true,

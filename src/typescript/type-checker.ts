@@ -1,4 +1,5 @@
 import * as ts from 'typescript';
+import * as path from 'path';
 
 /**
  * TypeScript Type Checker Wrapper
@@ -22,8 +23,10 @@ export class TypeChecker {
     const compilerOptions: ts.CompilerOptions = {
       target: ts.ScriptTarget.ES2015,
       module: ts.ModuleKind.ES2015,
+      moduleResolution: ts.ModuleResolutionKind.NodeJs,
       strict: true,
       noEmit: true,
+      allowJs: true,
     };
 
     this.sourceFiles = new Map();
@@ -37,16 +40,20 @@ export class TypeChecker {
         true
       );
       this.sourceFiles.set(file.filename, sf);
+      const jsName = file.filename.replace(/\.ts$/, '.js');
+      if (jsName !== file.filename) {
+        this.sourceFiles.set(jsName, sf);
+      }
       filenames.push(file.filename);
     }
 
     const self = this;
     const host: ts.CompilerHost = {
-      getSourceFile: (fileName) => self.sourceFiles.get(fileName),
+      getSourceFile: (fileName) => self.lookupSourceFile(fileName),
       writeFile: () => {},
-      getCurrentDirectory: () => '',
+      getCurrentDirectory: () => process.cwd(),
       getDirectories: () => [],
-      fileExists: (fileName) => self.sourceFiles.has(fileName),
+      fileExists: (fileName) => self.lookupSourceFile(fileName) !== undefined,
       readFile: () => '',
       getCanonicalFileName: (fileName) => fileName,
       useCaseSensitiveFileNames: () => true,
@@ -56,6 +63,27 @@ export class TypeChecker {
 
     this.program = ts.createProgram(filenames, compilerOptions, host);
     this.checker = this.program.getTypeChecker();
+  }
+
+  private lookupSourceFile(fileName: string): ts.SourceFile | undefined {
+    if (this.sourceFiles.has(fileName)) {
+      return this.sourceFiles.get(fileName);
+    }
+    const tsName = fileName.replace(/\.js$/, '.ts');
+    if (tsName !== fileName && this.sourceFiles.has(tsName)) {
+      return this.sourceFiles.get(tsName);
+    }
+    for (const [key, sf] of this.sourceFiles.entries()) {
+      if (key.endsWith(fileName) || key.endsWith(fileName.replace(/\.js$/, '.ts'))) {
+        return sf;
+      }
+      const keyBase = path.basename(key);
+      const fileBase = path.basename(fileName);
+      if (keyBase === fileBase || keyBase === fileBase.replace(/\.js$/, '.ts')) {
+        return sf;
+      }
+    }
+    return undefined;
   }
 
   private findFunctionInAllFiles(functionName: string): ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration | undefined {

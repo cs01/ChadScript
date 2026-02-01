@@ -255,6 +255,11 @@ export interface IGeneratorContext {
    * Generate HTTP server setup code
    */
   generateHttpServe(expr: CallNode, params: string[]): string;
+
+  /**
+   * Look up an interface definition by name from the AST
+   */
+  getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null;
 }
 
 /**
@@ -387,6 +392,17 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   generateHttpServe(_expr: CallNode, _params: string[]): string {
     return this.nextTemp();
+  }
+
+  getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null {
+    if (!this.ast) return null;
+    for (let i = 0; i < this.ast.interfaces.length; i++) {
+      const iface = this.ast.interfaces[i];
+      if (iface.name === name) {
+        return iface;
+      }
+    }
+    return null;
   }
 
   reset(): void {
