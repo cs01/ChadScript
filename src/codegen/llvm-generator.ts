@@ -26,6 +26,7 @@ import { LibuvGenerator } from './stdlib/libuv.js';
 import { PromiseGenerator } from './stdlib/promise.js';
 import { ExpressionGenerator } from './expressions/orchestrator.js';
 import { TypeChecker } from '../typescript/type-checker.js';
+import { InterfaceStructGenerator } from './types/interface-struct-generator.js';
 
 // ============================================
 // LLVM IR CODE GENERATOR - Main Orchestrator
@@ -92,6 +93,9 @@ export class LLVMGenerator extends BaseGenerator {
   // Assignment generator
   private assignmentGen: AssignmentGenerator;
 
+  // Interface struct generator
+  public interfaceStructGen: InterfaceStructGenerator;
+
   // Helper: Format nice compiler errors
   private formatCodegenError(message: string, suggestion?: string): string {
     let error = `\x1b[31m\x1b[1merror:\x1b[0m ${message}\n`;
@@ -143,6 +147,8 @@ export class LLVMGenerator extends BaseGenerator {
     super();
     this.ast = ast;
     this.typeChecker = typeChecker;
+
+    this.interfaceStructGen = new InterfaceStructGenerator(ast.interfaces || []);
 
     // Initialize specialized generators with context (NEW pattern for RegexGenerator + ObjectGenerator)
     // These generators use explicit context instead of callback binding
@@ -315,6 +321,11 @@ export class LLVMGenerator extends BaseGenerator {
     let ir = '';
 
     ir += getLLVMDeclarations();
+
+    const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
+    if (interfaceStructDefs) {
+      this.globalStrings.unshift(interfaceStructDefs);
+    }
 
     ir += this.runtimeGen.generateFetchRuntime();
     ir += '\n';
