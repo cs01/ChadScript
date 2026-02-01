@@ -1,4 +1,31 @@
 import { logger } from '../../utils/logger.js';
+import type { SymbolTable } from '../infrastructure/symbol-table.js';
+
+interface ClassGeneratorLike {
+  getClassFields(className: string): { name: string; fieldType: string }[];
+}
+
+interface VariableExpressionContext {
+  symbolTable: SymbolTable;
+  variableTypes: Map<string, string>;
+  classGen: ClassGeneratorLike;
+  nextTemp(): string;
+  emit(instruction: string): void;
+  getVariableAlloca(name: string): string | undefined;
+  getVariableType(name: string): string | undefined;
+}
+
+interface ClassMeta {
+  ptr: string;
+  className: string;
+}
+
+interface ObjectMeta {
+  ptr: string;
+  keys: string[];
+  types: string[];
+  tsTypes?: string[];
+}
 
 /**
  * VariableExpressionGenerator
@@ -15,7 +42,7 @@ import { logger } from '../../utils/logger.js';
  * - Regular numeric/boolean variables
  */
 export class VariableExpressionGenerator {
-  constructor(private ctx: any) {}
+  constructor(private ctx: VariableExpressionContext) {}
 
   /**
    * Generate variable load
@@ -102,7 +129,7 @@ export class VariableExpressionGenerator {
     throw new Error(`Unknown variable: ${name}`);
   }
 
-  private loadClassInstance(name: string, classMeta: any): string {
+  private loadClassInstance(name: string, classMeta: ClassMeta): string {
     const fields = this.ctx.classGen.getClassFields(classMeta.className);
     const ptrType = fields.length > 0 ? `%${classMeta.className}_struct*` : 'double*';
 
@@ -140,7 +167,7 @@ export class VariableExpressionGenerator {
     }
   }
 
-  private loadObject(objectMeta: any): string {
+  private loadObject(objectMeta: ObjectMeta): string {
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = load i8*, i8** ${objectMeta.ptr}`);
     this.ctx.variableTypes.set(temp, 'i8*');
