@@ -112,11 +112,11 @@ export class FunctionGenerator {
         this.ctx.emit(`${allocaReg} = alloca i8*`);
         this.ctx.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
       } else if (llvmType === '%StringArray*') {
-        this.ctx.defineVariable(paramName, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
+        this.ctx.defineVariable(paramName, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', { isPointerAlloca: true });
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
         this.ctx.emit(`store %StringArray* %arg${i}, %StringArray** ${allocaReg}`);
       } else if (llvmType === '%Array*') {
-        this.ctx.defineVariable(paramName, allocaReg, '%Array*', SymbolKind.Array, 'local');
+        this.ctx.defineVariable(paramName, allocaReg, '%Array*', SymbolKind.Array, 'local', { isPointerAlloca: true });
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         this.ctx.emit(`store %Array* %arg${i}, %Array** ${allocaReg}`);
       } else {
