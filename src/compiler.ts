@@ -3,7 +3,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { Parser } from './parser/parser.js';
 import { parseWithTSAPI } from './parser-ts/index.js';
-import { LLVMGenerator } from './codegen/llvm-generator.js';
+import { LLVMGenerator, LLVMGeneratorOptions } from './codegen/llvm-generator.js';
 import { TypeChecker } from './typescript/type-checker.js';
 import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
@@ -11,6 +11,7 @@ import { LogLevel, logger } from './utils/logger.js';
 
 let useTSParser = false;
 let linkTreeSitter = false;
+let skipSemanticAnalysis = false;
 
 export function setUseTSParser(value: boolean): void {
   useTSParser = value;
@@ -18,6 +19,10 @@ export function setUseTSParser(value: boolean): void {
 
 export function setLinkTreeSitter(value: boolean): void {
   linkTreeSitter = value;
+}
+
+export function setSkipSemanticAnalysis(value: boolean): void {
+  skipSemanticAnalysis = value;
 }
 
 // External library paths
@@ -79,34 +84,47 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
 
   // Parse all files (starting from entry point, following imports)
   const compiledFiles = new Set<string>();
-  const mergedAST = compileMultiFile(inputFile, compiledFiles, inputFile);
+  const fileContents = new Map<string, string>();
+  const mergedAST = compileMultiFile(inputFile, compiledFiles, fileContents, inputFile);
 
-  // Run semantic analysis to catch type errors early
-  logger.info('Running semantic analysis...');
-  const analyzer = new SemanticAnalyzer(mergedAST);
-  const analysisSuccess = analyzer.analyze();
+  // Run semantic analysis to catch type errors early (unless skipped)
+  if (!skipSemanticAnalysis) {
+    logger.info('Running semantic analysis...');
+    const analyzer = new SemanticAnalyzer(mergedAST);
+    const analysisSuccess = analyzer.analyze();
 
-  if (!analysisSuccess) {
-    const errorOutput = analyzer.formatErrors();
-    console.error(errorOutput);
-    throw new Error('Semantic analysis failed. Fix the errors above and try again.');
+    if (!analysisSuccess) {
+      const errorOutput = analyzer.formatErrors();
+      console.error(errorOutput);
+      throw new Error('Semantic analysis failed. Fix the errors above and try again.');
+    }
+
+    logger.info('✓ Semantic analysis passed');
+  } else {
+    logger.info('Skipping semantic analysis (--skip-semantic-analysis)');
   }
 
-  logger.info('✓ Semantic analysis passed');
-
-  // Create TypeScript type checker if compiling a .ts file
+  // Create TypeScript type checker if compiling .ts files
   let typeChecker: TypeChecker | null = null;
   if (inputFile.endsWith('.ts')) {
     try {
-      const code = fs.readFileSync(inputFile, 'utf8');
-      typeChecker = new TypeChecker(inputFile, code);
+      const files: { filename: string; code: string }[] = [];
+      for (const [filename, code] of fileContents.entries()) {
+        if (filename.endsWith('.ts')) {
+          files.push({ filename, code });
+        }
+      }
+      if (files.length > 0) {
+        typeChecker = new TypeChecker(files);
+      }
     } catch (error) {
       logger.warn('Warning: Could not load TypeScript types: ' + error);
     }
   }
 
   // Generate LLVM IR
-  const generator = new LLVMGenerator(mergedAST, typeChecker, { linkTreeSitter });
+  const generatorOptions: LLVMGeneratorOptions = { linkTreeSitter: linkTreeSitter };
+  const generator = new LLVMGenerator(mergedAST, typeChecker, generatorOptions);
   const llvmIR = generator.generate();
 
   // Write IR to file
@@ -180,24 +198,18 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   // Silent on success (like clang)
 }
 
-function compileMultiFile(entryFile: string, compiledFiles: Set<string>, displayPath?: string): AST {
+function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileContents: Map<string, string>, displayPath?: string): AST {
   const absPath = path.resolve(entryFile);
 
-  // Avoid circular imports
   if (compiledFiles.has(absPath)) {
     return { imports: [], functions: [], classes: [], exports: [], interfaces: [], typeAliases: [], enums: [], topLevelStatements: [], topLevelExpressions: [], topLevelItems: [] };
   }
   compiledFiles.add(absPath);
 
-  // Read and parse this file
   logger.info(`  Parsing: ${absPath}`);
   const code = fs.readFileSync(absPath, 'utf8');
+  fileContents.set(absPath, code);
 
-  // Note: We do NOT transpile TypeScript files anymore because our parser needs
-  // to see the type annotations for class field declarations (e.g., argNames: string[])
-  // The parser has built-in support to skip/handle TypeScript type annotations
-
-  // Use displayPath for entry file (preserves relative/absolute as passed), absPath for imported files
   const pathForErrors = displayPath || absPath;
 
   let ast: AST;
@@ -209,7 +221,6 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, display
     ast = parser.parse();
   }
 
-  // Start with this file's AST
   let mergedAST: AST = {
     imports: [],
     functions: ast.functions.slice(),
@@ -223,26 +234,21 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, display
     topLevelItems: ast.topLevelItems?.slice() || []
   };
 
-  // Process imports - recursively compile imported files
   let i = 0;
   while (i < ast.imports.length) {
     const imp = ast.imports[i];
 
-    // Detect npm package imports (not relative/absolute paths)
     const isRelativeOrAbsolute = imp.source.startsWith('./') ||
                                    imp.source.startsWith('../') ||
                                    imp.source.startsWith('/');
 
     if (!isRelativeOrAbsolute) {
-      // This is an npm package or built-in module
       const builtinModules = ['fs', 'path', 'child_process'];
       if (builtinModules.includes(imp.source)) {
-        // Skip built-in Node.js modules (we can't compile these)
         i = i + 1;
         continue;
       }
 
-      // Error on npm packages - we can't compile them
       throw new Error(
         `Cannot compile npm package '${imp.source}' imported in ${absPath}\n` +
         `ChadScript only supports compiling local files (use relative imports like './file.js')\n` +
@@ -251,9 +257,8 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, display
     }
 
     const importPath = resolveImportPath(absPath, imp.source);
-    const importedAST = compileMultiFile(importPath, compiledFiles);
+    const importedAST = compileMultiFile(importPath, compiledFiles, fileContents);
 
-    // Merge functions, classes, and top-level statements from imported file
     mergedAST.functions = mergedAST.functions.concat(importedAST.functions);
     mergedAST.classes = mergedAST.classes.concat(importedAST.classes);
     mergedAST.interfaces = mergedAST.interfaces.concat(importedAST.interfaces);

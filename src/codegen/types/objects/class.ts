@@ -195,6 +195,8 @@ export class ClassGenerator {
     this.thisPointer = objPtr;
     // Set current class name for super resolution
     this.currentClassName = className;
+    // Set current function name for TypeChecker lookups
+    this.ctx.currentFunction = 'constructor';
     // Set return type for return statements in constructor body (update main generator)
     this.ctx.currentFunctionReturnType = structType;
 
@@ -269,6 +271,8 @@ export class ClassGenerator {
     this.thisPointer = thisLoaded;
     // Set current class name for super resolution
     this.currentClassName = className;
+    // Set current function name for TypeChecker lookups
+    this.ctx.currentFunction = method.name;
     // Set return type for return statements in method body (update main generator)
     this.ctx.currentFunctionReturnType = returnLLVMType;
 

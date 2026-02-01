@@ -26,8 +26,12 @@ import { LibuvGenerator } from './stdlib/libuv.js';
 import { PromiseGenerator } from './stdlib/promise.js';
 import { TreeSitterGenerator } from './stdlib/treesitter.js';
 import { ExpressionGenerator } from './expressions/orchestrator.js';
-import { TypeChecker } from '../typescript/type-checker.js';
+import type { TypeChecker } from '../typescript/type-checker.js';
 import { InterfaceStructGenerator } from './types/interface-struct-generator.js';
+
+export interface LLVMGeneratorOptions {
+  linkTreeSitter: boolean;
+}
 
 // ============================================
 // LLVM IR CODE GENERATOR - Main Orchestrator
@@ -145,11 +149,11 @@ export class LLVMGenerator extends BaseGenerator {
 
   private linkTreeSitter: boolean = false;
 
-  constructor(ast: AST, typeChecker: TypeChecker | null = null, options?: { linkTreeSitter?: boolean }) {
+  constructor(ast: AST, typeChecker: TypeChecker | null, options: LLVMGeneratorOptions) {
     super();
     this.ast = ast;
     this.typeChecker = typeChecker;
-    this.linkTreeSitter = options?.linkTreeSitter ?? false;
+    this.linkTreeSitter = options.linkTreeSitter;
 
     this.interfaceStructGen = new InterfaceStructGenerator(ast.interfaces || []);
 
@@ -195,12 +199,8 @@ export class LLVMGenerator extends BaseGenerator {
 
     // No more delegate binding needed - all generators use context pattern! 🎯
 
-    // Collect all imported function names
-    for (const imp of ast.imports) {
-      for (const spec of imp.specifiers) {
-        this.externalFunctions.add(spec);
-      }
-    }
+    // Note: External function tracking removed for self-hosting compatibility.
+    // All imported functions are compiled into the same binary, so no external declarations needed.
   }
 
   // Override reset to preserve top-level variables
