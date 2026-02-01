@@ -1,6 +1,6 @@
-import { Expression, Statement, BlockStatement } from '../../ast/types.js';
+import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
-import { SymbolKind } from '../infrastructure/symbol-table.js';
+import { SymbolKind, ObjectArrayMetadata } from '../infrastructure/symbol-table.js';
 
 // ============================================
 // CONTROL FLOW GENERATOR - If/while/loops
@@ -288,34 +288,32 @@ export class ControlFlowGenerator {
       throw new Error('Expected for...of statement');
     }
 
-    // Evaluate the iterable expression
+    const objectArrayInfo = this.getObjectArrayInfo(stmt.iterable);
+    if (objectArrayInfo) {
+      return this.generateObjectArrayForOf(stmt, params, objectArrayInfo);
+    }
+
     const iterableValue = this.ctx.generateExpression(stmt.iterable, params);
 
-    // Determine if it's a string array or numeric array
     const isStringArray = this.ctx.isStringArrayExpression(stmt.iterable);
     const arrayType = isStringArray ? '%StringArray' : '%Array';
     const elementType = isStringArray ? 'i8*' : 'double';
     const elementKind = isStringArray ? SymbolKind.String : SymbolKind.Number;
 
-    // Get the array length
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 1`);
     const lengthI32 = this.nextTemp();
     this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
 
-    // Create index variable (i32)
     const indexAlloca = this.nextTemp();
     this.emit(`${indexAlloca} = alloca i32`);
     this.emit(`store i32 0, i32* ${indexAlloca}`);
 
-    // Create loop variable for the current element
     const elemAlloca = this.nextTemp();
     this.emit(`${elemAlloca} = alloca ${elementType}`);
 
-    // Register the loop variable
     this.ctx.defineVariable(stmt.variableName, elemAlloca, elementType, elementKind, 'local');
 
-    // Generate unique labels
     const condLabel = this.nextLabel('forof_cond');
     const bodyLabel = this.nextLabel('forof_body');
     const updateLabel = this.nextLabel('forof_update');
@@ -387,6 +385,172 @@ export class ControlFlowGenerator {
     this.emit(`br label %${condLabel}`);
 
     // End block
+    this.emit(`${endLabel}:`);
+
+    return '0';
+  }
+
+  private getObjectArrayInfo(iterable: Expression): ObjectArrayMetadata | null {
+    if (!this.ctx.typeChecker || !this.ctx.currentFunction) {
+      return null;
+    }
+
+    if (iterable.type === 'member_access') {
+      const memberAccess = iterable as MemberAccessNode;
+      if (memberAccess.object.type === 'variable') {
+        const varName = (memberAccess.object as VariableNode).name;
+        const propName = memberAccess.property;
+        const arrayInfo = this.ctx.typeChecker.getArrayElementInterface(varName, propName, this.ctx.currentFunction);
+        if (arrayInfo) {
+          const elementKeys: string[] = [];
+          const elementTypes: string[] = [];
+          const elementTsTypes: string[] = [];
+          for (let i = 0; i < arrayInfo.properties.length; i++) {
+            const prop = arrayInfo.properties[i];
+            elementKeys.push(prop.name);
+            elementTsTypes.push(prop.type);
+            if (prop.type === 'string') {
+              elementTypes.push('i8*');
+            } else if (prop.type === 'number') {
+              elementTypes.push('double');
+            } else if (prop.type === 'boolean') {
+              elementTypes.push('i32');
+            } else {
+              elementTypes.push('i8*');
+            }
+          }
+          return {
+            elementInterfaceName: arrayInfo.interfaceName,
+            elementKeys,
+            elementTypes,
+            elementTsTypes
+          };
+        }
+      }
+    }
+
+    if (iterable.type === 'variable') {
+      const varName = (iterable as VariableNode).name;
+      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
+      if (objArrayMeta) {
+        return objArrayMeta;
+      }
+      const arrayInfo = this.ctx.typeChecker.getVariableArrayElementInterface(varName, this.ctx.currentFunction);
+      if (arrayInfo) {
+        const elementKeys: string[] = [];
+        const elementTypes: string[] = [];
+        const elementTsTypes: string[] = [];
+        for (let i = 0; i < arrayInfo.properties.length; i++) {
+          const prop = arrayInfo.properties[i];
+          elementKeys.push(prop.name);
+          elementTsTypes.push(prop.type);
+          if (prop.type === 'string') {
+            elementTypes.push('i8*');
+          } else if (prop.type === 'number') {
+            elementTypes.push('double');
+          } else if (prop.type === 'boolean') {
+            elementTypes.push('i32');
+          } else {
+            elementTypes.push('i8*');
+          }
+        }
+        return {
+          elementInterfaceName: arrayInfo.interfaceName,
+          elementKeys,
+          elementTypes,
+          elementTsTypes
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private generateObjectArrayForOf(stmt: Statement, params: string[], objArrayInfo: ObjectArrayMetadata): string {
+    if (stmt.type !== 'for_of') {
+      throw new Error('Expected for...of statement');
+    }
+
+    const iterableValue = this.ctx.generateExpression(stmt.iterable, params);
+
+    const structTypeFields = objArrayInfo.elementTypes.join(', ');
+    const structType = `{ ${structTypeFields} }`;
+
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 1`);
+    const lengthI32 = this.nextTemp();
+    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
+
+    const indexAlloca = this.nextTemp();
+    this.emit(`${indexAlloca} = alloca i32`);
+    this.emit(`store i32 0, i32* ${indexAlloca}`);
+
+    const elemAlloca = this.nextTemp();
+    this.emit(`${elemAlloca} = alloca i8*`);
+
+    this.ctx.defineVariable(stmt.variableName, elemAlloca, 'i8*', SymbolKind.Object, 'local', {
+      objectMetadata: {
+        keys: objArrayInfo.elementKeys,
+        types: objArrayInfo.elementTypes,
+        tsTypes: objArrayInfo.elementTsTypes
+      }
+    });
+
+    const condLabel = this.nextLabel('forof_cond');
+    const bodyLabel = this.nextLabel('forof_body');
+    const updateLabel = this.nextLabel('forof_update');
+    const endLabel = this.nextLabel('forof_end');
+
+    this.emit(`br label %${condLabel}`);
+
+    this.emit(`${condLabel}:`);
+    const currentIndex = this.nextTemp();
+    this.emit(`${currentIndex} = load i32, i32* ${indexAlloca}`);
+    const condBool = this.nextTemp();
+    this.emit(`${condBool} = icmp slt i32 ${currentIndex}, ${lengthI32}`);
+    this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+
+    this.emit(`${bodyLabel}:`);
+    this.currentLabel = bodyLabel;
+
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 0`);
+    const dataArray = this.nextTemp();
+    this.emit(`${dataArray} = load double*, double** ${dataPtr}`);
+
+    const elemPtrRaw = this.nextTemp();
+    this.emit(`${elemPtrRaw} = bitcast double* ${dataArray} to i8**`);
+
+    const indexI64 = this.nextTemp();
+    this.emit(`${indexI64} = sext i32 ${currentIndex} to i64`);
+    const elemPtrPtr = this.nextTemp();
+    this.emit(`${elemPtrPtr} = getelementptr inbounds i8*, i8** ${elemPtrRaw}, i64 ${indexI64}`);
+    const elemValue = this.nextTemp();
+    this.emit(`${elemValue} = load i8*, i8** ${elemPtrPtr}`);
+
+    this.emit(`store i8* ${elemValue}, i8** ${elemAlloca}`);
+
+    this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
+    this.ctx.generateBlock(stmt.body, params);
+    this.loopStack.pop();
+
+    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
+                              lastInstruction.startsWith('br ') ||
+                              lastInstruction.startsWith('unreachable') ||
+                              lastInstruction.startsWith('switch ');
+    if (!bodyHasTerminator) {
+      this.emit(`br label %${updateLabel}`);
+    }
+
+    this.emit(`${updateLabel}:`);
+    const loadedIndex = this.nextTemp();
+    this.emit(`${loadedIndex} = load i32, i32* ${indexAlloca}`);
+    const nextIndex = this.nextTemp();
+    this.emit(`${nextIndex} = add i32 ${loadedIndex}, 1`);
+    this.emit(`store i32 ${nextIndex}, i32* ${indexAlloca}`);
+    this.emit(`br label %${condLabel}`);
+
     this.emit(`${endLabel}:`);
 
     return '0';
