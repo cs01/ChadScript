@@ -201,6 +201,7 @@ export interface FunctionNode {
   params: string[];
   body: BlockStatement;
   returnType?: string;
+  paramTypes?: string[];
 }
 
 export interface ClassMethod {

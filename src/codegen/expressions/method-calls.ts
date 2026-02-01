@@ -631,23 +631,7 @@ export class MethodCallGenerator {
   }
 
   private isPromiseExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'new' && (expr as any).className === 'Promise') {
-      return true;
-    }
-    if (expr.type === 'variable') {
-      const varType = this.ctx.variableTypes.get(expr.name);
-      return varType === '%Promise*';
-    }
-    if ((expr as any).type === 'method_call') {
-      const methodExpr = expr as any;
-      if (methodExpr.method === 'then' || methodExpr.method === 'catch') {
-        return this.isPromiseExpression(methodExpr.object);
-      }
-      if (methodExpr.object.type === 'variable' && methodExpr.object.name === 'Promise') {
-        return true;
-      }
-    }
-    return false;
+    return this.ctx.isPromiseExpression(expr);
   }
 
   private handlePromiseStaticMethods(expr: MethodCallNode, params: string[]): string {
@@ -725,27 +709,36 @@ export class MethodCallGenerator {
     let onFulfilled = 'null';
     let onRejected = 'null';
 
+    const promiseCallbackTypes = { paramTypes: ['string'], returnType: 'void' };
+    const arrowFuncGen = this.ctx.exprGen.getArrowFunctionGenerator();
+
     if (isCatch) {
       if (expr.args.length > 0) {
         const callback = expr.args[0];
-        if ((callback as any).type === 'arrow_function' || (callback as any).type === 'variable') {
-          const callbackName = (callback as any).name || `__catch_callback_${this.ctx.nextTemp().replace('%', '')}`;
+        if ((callback as any).type === 'arrow_function') {
+          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes);
           onRejected = `@${callbackName}`;
+        } else if ((callback as any).type === 'variable') {
+          onRejected = `@${(callback as any).name}`;
         }
       }
     } else {
       if (expr.args.length > 0) {
         const callback = expr.args[0];
-        if ((callback as any).type === 'arrow_function' || (callback as any).type === 'variable') {
-          const callbackName = (callback as any).name || `__then_callback_${this.ctx.nextTemp().replace('%', '')}`;
+        if ((callback as any).type === 'arrow_function') {
+          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes);
           onFulfilled = `@${callbackName}`;
+        } else if ((callback as any).type === 'variable') {
+          onFulfilled = `@${(callback as any).name}`;
         }
       }
       if (expr.args.length > 1) {
         const callback = expr.args[1];
-        if ((callback as any).type === 'arrow_function' || (callback as any).type === 'variable') {
-          const callbackName = (callback as any).name || `__then_reject_callback_${this.ctx.nextTemp().replace('%', '')}`;
+        if ((callback as any).type === 'arrow_function') {
+          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes);
           onRejected = `@${callbackName}`;
+        } else if ((callback as any).type === 'variable') {
+          onRejected = `@${(callback as any).name}`;
         }
       }
     }
@@ -754,14 +747,14 @@ export class MethodCallGenerator {
     if (onFulfilled === 'null') {
       this.emit(`${onFulfilledPtr} = bitcast i8* null to void (i8*)*`);
     } else {
-      this.emit(`${onFulfilledPtr} = bitcast void ()* ${onFulfilled} to void (i8*)*`);
+      this.emit(`${onFulfilledPtr} = bitcast void (i8*)* ${onFulfilled} to void (i8*)*`);
     }
 
     const onRejectedPtr = this.nextTemp();
     if (onRejected === 'null') {
       this.emit(`${onRejectedPtr} = bitcast i8* null to void (i8*)*`);
     } else {
-      this.emit(`${onRejectedPtr} = bitcast void ()* ${onRejected} to void (i8*)*`);
+      this.emit(`${onRejectedPtr} = bitcast void (i8*)* ${onRejected} to void (i8*)*`);
     }
 
     const result = this.nextTemp();

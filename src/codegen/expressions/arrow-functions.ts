@@ -21,27 +21,26 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
    *
    * @param expr - The arrow function expression
    * @param params - Function parameters in scope
+   * @param typeHints - Optional type hints for parameters and return type
    * @returns Function name that can be referenced
    */
-  generateArrowFunction(expr: any, params: string[]): string {
+  generateArrowFunction(expr: any, params: string[], typeHints?: { paramTypes?: string[], returnType?: string }): string {
     const arrowFunc = expr;
     const funcName = `__lambda_${this.anonFuncCounter++}`;
 
-    // Create a FunctionNode
     const liftedFunc: FunctionNode = {
       name: funcName,
       params: arrowFunc.params,
       body: arrowFunc.body.type === 'block' ? arrowFunc.body : {
         type: 'block',
         statements: [{ type: 'return', value: arrowFunc.body }]
-      }
+      },
+      paramTypes: typeHints?.paramTypes,
+      returnType: typeHints?.returnType
     };
 
-    // Add to lifted functions list
     this.liftedFunctions.push(liftedFunc);
 
-    // Return the function name as a variable reference
-    // This allows it to be used with array methods
     return funcName;
   }
 
