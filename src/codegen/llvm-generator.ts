@@ -2,6 +2,7 @@ import { AST, Expression, FunctionNode, BlockStatement, MethodCallNode, NewNode,
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { TypeInference } from './infrastructure/type-inference.js';
 import { VariableAllocator } from './infrastructure/variable-allocator.js';
+import { getLLVMDeclarations, getSafeStringHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
 import { ObjectGenerator } from './types/objects/object.js';
@@ -294,160 +295,20 @@ export class LLVMGenerator extends BaseGenerator {
   generate(): string {
     let ir = '';
 
-    // Define array struct type: { double* data, i32 length, i32 capacity }
-    ir += '%Array = type { double*, i32, i32 }\n';
+    ir += getLLVMDeclarations();
 
-    // Define string array struct type: { i8** data, i32 length, i32 capacity }
-    ir += '%StringArray = type { i8**, i32, i32 }\n';
-
-    // Define Map struct type: { double* keys, double* values, i32 size, i32 capacity }
-    ir += '%Map = type { double*, double*, i32, i32 }\n';
-
-    // Define Set struct type: { double* values, i32 size, i32 capacity }
-    ir += '%Set = type { double*, i32, i32 }\n\n';
-
-    // Declare external C functions for string operations
-    ir += 'declare i8* @malloc(i64)\n';
-    ir += 'declare i8* @calloc(i64, i64)\n';
-    ir += 'declare void @free(i8*)\n';
-
-    // Boehm GC (libgc) declarations for automatic memory management
-    ir += '; Boehm GC - automatic garbage collection\n';
-    ir += 'declare void @GC_init()\n';
-    ir += 'declare i8* @GC_malloc(i64)\n';
-    ir += 'declare i8* @GC_malloc_atomic(i64)\n';
-    ir += 'declare i8* @GC_realloc(i8*, i64)\n';
-    ir += 'declare i8* @strcpy(i8*, i8*)\n';
-    ir += 'declare i8* @strcat(i8*, i8*)\n';
-    ir += 'declare i8* @strdup(i8*)\n';
-    ir += 'declare i64 @strlen(i8*)\n';
-    ir += 'declare i32 @strcmp(i8*, i8*)\n';
-    ir += 'declare i32 @strncmp(i8*, i8*, i64)\n';
-    ir += 'declare i32 @snprintf(i8*, i64, i8*, ...)\n';
-    ir += 'declare i64 @strtol(i8*, i8**, i32)\n';  // For parseInt
-    ir += 'declare i8* @strstr(i8*, i8*)\n';  // For indexOf
-    ir += 'declare void @llvm.memcpy.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n';
-    ir += '\n';
-
-    // Declare LLVM math intrinsics
-    ir += 'declare double @llvm.sqrt.f64(double)\n';
-    ir += 'declare double @llvm.pow.f64(double, double)\n';
-    ir += 'declare double @llvm.floor.f64(double)\n';
-    ir += 'declare double @llvm.ceil.f64(double)\n';
-    ir += 'declare double @llvm.round.f64(double)\n';
-    ir += 'declare double @llvm.fabs.f64(double)\n';
-    ir += '\n';
-
-    // Declare POSIX regex functions
-    ir += 'declare i32 @regcomp(i8*, i8*, i32)\n';
-    ir += 'declare i32 @regexec(i8*, i8*, i64, i8*, i32)\n';
-    ir += 'declare void @regfree(i8*)\n';
-    ir += '\n';
-
-    // Declare printf and fprintf for console output
-    ir += 'declare i32 @printf(i8*, ...)\n';
-    ir += 'declare i32 @fprintf(i8*, i8*, ...)\n';
-    ir += '@stderr = external global i8*\n';  // stderr FILE* pointer
-    ir += '\n';
-
-    // Declare exit and fflush for process.exit()
-    ir += 'declare void @exit(i32)\n';
-    ir += 'declare i32 @fflush(i8*)\n';
-    ir += '@stdout = external global i8*\n';  // stdout FILE* pointer
-    ir += '\n';
-
-    // Declare file I/O functions for fs module
-    ir += 'declare i8* @fopen(i8*, i8*)\n';
-    ir += 'declare i32 @fclose(i8*)\n';
-    ir += 'declare i64 @fread(i8*, i64, i64, i8*)\n';
-    ir += 'declare i64 @fwrite(i8*, i64, i64, i8*)\n';
-    ir += 'declare i32 @fseek(i8*, i64, i32)\n';
-    ir += 'declare i64 @ftell(i8*)\n';
-    ir += 'declare i32 @unlink(i8*)\n';
-    ir += '\n';
-
-    // Declare network/socket functions (POSIX)
-    ir += 'declare i32 @socket(i32, i32, i32)\n';      // socket(domain, type, protocol)
-    ir += 'declare i32 @close(i32)\n';                 // close(fd)
-    ir += 'declare i32 @bind(i32, i8*, i32)\n';        // bind(sockfd, addr, addrlen)
-    ir += 'declare i32 @listen(i32, i32)\n';           // listen(sockfd, backlog)
-    ir += 'declare i32 @accept(i32, i8*, i32*)\n';     // accept(sockfd, addr, addrlen)
-    ir += 'declare i32 @connect(i32, i8*, i32)\n';     // connect(sockfd, addr, addrlen)
-    ir += 'declare i64 @read(i32, i8*, i64)\n';        // read(fd, buf, count)
-    ir += 'declare i64 @write(i32, i8*, i64)\n';       // write(fd, buf, count)
-    ir += 'declare i16 @htons(i16)\n';                 // htons(hostshort) - network byte order
-    ir += '\n';
-
-    // Declare path functions for path module
-    ir += 'declare i8* @realpath(i8*, i8*)\n';
-    ir += 'declare i8* @dirname(i8*)\n';
-    ir += '\n';
-
-    // Declare system/process functions for child_process module
-    ir += 'declare i32 @system(i8*)\n';
-    ir += '\n';
-
-    // Declare functions for JSON module
-    ir += 'declare i32 @sprintf(i8*, i8*, ...)\n';
-    ir += '\n';
-
-    // libcurl for fetch() API
-    ir += '; libcurl functions\n';
-    ir += 'declare i8* @curl_easy_init()\n';
-    ir += 'declare i32 @curl_easy_setopt(i8*, i32, ...)\n';
-    ir += 'declare i32 @curl_easy_perform(i8*)\n';
-    ir += 'declare void @curl_easy_cleanup(i8*)\n';
-    ir += 'declare i8* @curl_easy_strerror(i32)\n';
-    ir += '\n';
-
-    // libcurl constants
-    ir += '@CURLOPT_URL = constant i32 10002\n';
-    ir += '@CURLOPT_WRITEFUNCTION = constant i32 20011\n';
-    ir += '@CURLOPT_WRITEDATA = constant i32 10001\n';
-    ir += '@CURLOPT_FOLLOWLOCATION = constant i32 52\n';
-    ir += '@CURLOPT_USERAGENT = constant i32 10018\n';
-    ir += '\n';
-
-    // fetch() runtime implementation
     ir += this.runtimeGen.generateFetchRuntime();
     ir += '\n';
 
-    // JSON parsing runtime
     ir += this.runtimeGen.generateJSONRuntime();
     ir += '\n';
 
-    // HTTP server runtime using mongoose - only declarations for now
-    // The full http_serve function will be emitted later if httpServe() is used
     ir += this.mongooseGen.generateDeclarations();
     ir += '\n';
 
-    // Helper function to safely get string or return empty string if NULL
-    ir += '; Return empty string if pointer is NULL, otherwise return the pointer\n';
-    ir += 'define i8* @__safe_string(i8* %str) {\n';
-    ir += 'entry:\n';
-    ir += '  %is_null = icmp eq i8* %str, null\n';
-    ir += '  br i1 %is_null, label %return_empty, label %return_str\n';
-    ir += '\n';
-    ir += 'return_empty:\n';
-    ir += '  ret i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.empty_str, i64 0, i64 0)\n';
-    ir += '\n';
-    ir += 'return_str:\n';
-    ir += '  ret i8* %str\n';
-    ir += '}\n';
-    ir += '\n';
+    ir += getSafeStringHelper();
 
-    // Empty string constant for NULL handling
-    ir += '@.empty_str = private unnamed_addr constant [1 x i8] c"\\00", align 1\n';
-    ir += '\n';
-
-    // Global variables for process.argv
-    ir += '@__argc = global i32 0\n';
-    ir += '@__argv = global i8** null\n';
-    ir += '\n';
-
-    // Global flag to detect ChadScript environment
-    ir += '@__chadscript = global double 1.0\n';
-    ir += '\n';
+    ir += getGlobalVariables();
 
     // Generate global variable declarations for top-level let/const
     ir += this.generateGlobalVariableDeclarations();
