@@ -273,6 +273,9 @@ export class TypeInference {
     if ((expr as any).type === 'new' && (expr as any).className === 'Promise') {
       return true;
     }
+    if (expr.type === 'call' && expr.name === 'fetch') {
+      return true;
+    }
     if (expr.type === 'method_call') {
       const methodExpr = expr as any;
       if (methodExpr.object.type === 'variable' && methodExpr.object.name === 'Promise') {
@@ -296,9 +299,6 @@ export class TypeInference {
   }
 
   isResponseExpression(expr: Expression): boolean {
-    if (expr.type === 'call' && expr.name === 'fetch') {
-      return true;
-    }
     if (expr.type === 'variable') {
       const varType = this.ctx.getVariableType(expr.name);
       if (varType === '%Response*') {

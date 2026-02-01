@@ -136,6 +136,19 @@ export class RuntimeGenerator {
     return ir;
   }
 
+  generateFetchAsyncWrapper(): string {
+    let ir = '; fetch_async() - Promise-returning wrapper around sync fetch\n';
+    ir += '; This enables await fetch(url) syntax\n';
+    ir += 'define %Promise* @fetch_async(i8* %url) {\n';
+    ir += 'entry:\n';
+    ir += '  %response = call %Response* @fetch(i8* %url)\n';
+    ir += '  %response_i8 = bitcast %Response* %response to i8*\n';
+    ir += '  %promise = call %Promise* @__Promise_resolve_static(i8* %response_i8)\n';
+    ir += '  ret %Promise* %promise\n';
+    ir += '}\n\n';
+    return ir;
+  }
+
   /**
    * Generate JSON parsing runtime using cJSON library
    *

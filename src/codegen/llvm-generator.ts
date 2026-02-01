@@ -393,6 +393,7 @@ export class LLVMGenerator extends BaseGenerator {
     if (this.usesPromises) {
       ir += '\n';
       ir += this.promiseGen.generateAll();
+      ir += this.runtimeGen.generateFetchAsyncWrapper();
     }
 
     // Add global string constants at the beginning
