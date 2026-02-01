@@ -1,4 +1,4 @@
-import { FunctionNode, ClassNode, ClassMethod, ImportDeclaration, ExportDeclaration, BlockStatement, TypeAliasDeclaration, EnumDeclaration } from '../ast/types.js';
+import { FunctionNode, ClassNode, ClassMethod, ImportDeclaration, ExportDeclaration, BlockStatement, TypeAliasDeclaration, EnumDeclaration, FunctionParameter, Expression } from '../ast/types.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
 
 export interface ParserContext {
@@ -168,32 +168,20 @@ export function parseFunction(ctx: ParserContext, isAsync: boolean = false): voi
 
   const params: string[] = [];
   const paramTypes: string[] = [];
+  const parameters: FunctionParameter[] = [];
   ctx.skipWhitespace();
   if (ctx.code[ctx.pos] !== ')') {
-    const paramName = ctx.parseIdentifier();
-    ctx.skipWhitespace();
-    if (ctx.code[ctx.pos] === ':') {
-      ctx.pos++;
-      ctx.skipWhitespace();
-      const typeStart = ctx.pos;
-      ctx.skipTypeAnnotation();
-      const paramType = ctx.code.substring(typeStart, ctx.pos).trim();
-      paramTypes.push(paramType);
-    }
-    params.push(paramName);
+    const firstParam = parseParameter(ctx);
+    params.push(firstParam.name);
+    if (firstParam.type) paramTypes.push(firstParam.type);
+    parameters.push(firstParam);
+
     while (ctx.match(',')) {
       ctx.skipWhitespace();
-      const nextParamName = ctx.parseIdentifier();
-      ctx.skipWhitespace();
-      if (ctx.code[ctx.pos] === ':') {
-        ctx.pos++;
-        ctx.skipWhitespace();
-        const typeStart = ctx.pos;
-        ctx.skipTypeAnnotation();
-        const paramType = ctx.code.substring(typeStart, ctx.pos).trim();
-        paramTypes.push(paramType);
-      }
-      params.push(nextParamName);
+      const nextParam = parseParameter(ctx);
+      params.push(nextParam.name);
+      if (nextParam.type) paramTypes.push(nextParam.type);
+      parameters.push(nextParam);
     }
   }
   ctx.expect(')');
@@ -213,7 +201,53 @@ export function parseFunction(ctx: ParserContext, isAsync: boolean = false): voi
   const body = ctx.parseBlock();
   ctx.expect('}');
 
-  ctx.functions.push({ name, params, paramTypes: paramTypes.length > 0 ? paramTypes : undefined, body, returnType, typeParameters, async: isAsync || undefined });
+  const hasOptionalOrDefault = parameters.some(p => p.optional || p.defaultValue);
+  ctx.functions.push({
+    name,
+    params,
+    paramTypes: paramTypes.length > 0 ? paramTypes : undefined,
+    body,
+    returnType,
+    typeParameters,
+    async: isAsync || undefined,
+    parameters: hasOptionalOrDefault ? parameters : undefined
+  });
+}
+
+function parseParameter(ctx: ParserContext): FunctionParameter {
+  const paramName = ctx.parseIdentifier();
+  ctx.skipWhitespace();
+
+  let optional = false;
+  if (ctx.code[ctx.pos] === '?') {
+    optional = true;
+    ctx.pos++;
+    ctx.skipWhitespace();
+  }
+
+  let paramType: string | undefined;
+  if (ctx.code[ctx.pos] === ':') {
+    ctx.pos++;
+    ctx.skipWhitespace();
+    const typeStart = ctx.pos;
+    ctx.skipTypeAnnotation();
+    paramType = ctx.code.substring(typeStart, ctx.pos).trim();
+  }
+
+  let defaultValue: Expression | undefined;
+  ctx.skipWhitespace();
+  if (ctx.code[ctx.pos] === '=') {
+    ctx.pos++;
+    ctx.skipWhitespace();
+    defaultValue = ctx.parseExpression();
+  }
+
+  return {
+    name: paramName,
+    type: paramType,
+    optional: optional || undefined,
+    defaultValue
+  };
 }
 
 export function parseClass(ctx: ParserContext): void {

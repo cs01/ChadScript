@@ -202,6 +202,10 @@ export class TypeInference {
       if (funcExpr.name === 'String') {
         return true;
       }
+      const func = this.ctx.ast.functions?.find((f: any) => f.name === funcExpr.name);
+      if (func && func.returnType === 'string') {
+        return true;
+      }
     }
     if (expr.type === 'method_call') {
       const methodExpr = expr as any as MethodCallNode;

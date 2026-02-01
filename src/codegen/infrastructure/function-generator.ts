@@ -1,4 +1,4 @@
-import { FunctionNode, BlockStatement, Expression } from '../../ast/types.js';
+import { FunctionNode, BlockStatement, Expression, FunctionParameter } from '../../ast/types.js';
 import { SymbolKind } from './symbol-table.js';
 import type { ClosureInfo } from './closure-analyzer.js';
 
@@ -126,11 +126,15 @@ export class FunctionGenerator {
 
     const liftedFunc = func as LiftedFunction;
     const hasClosure = liftedFunc.closureInfo && liftedFunc.closureInfo.captures.length > 0;
+    const hasOptionalParams = func.parameters && func.parameters.some(p => p.optional || p.defaultValue);
 
     let ir = `define ${returnType} @${func.name}(`;
     const paramStrings: string[] = [];
     if (hasClosure) {
       paramStrings.push('i8* %__env');
+    }
+    if (hasOptionalParams) {
+      paramStrings.push('i32 %__argc');
     }
     paramStrings.push(...func.params.map((_, i) => `${paramLLVMTypes[i]} %arg${i}`));
     ir += paramStrings.join(', ');
@@ -141,6 +145,8 @@ export class FunctionGenerator {
       const paramName = func.params[i];
       const allocaReg = this.ctx.nextTemp();
       const llvmType = paramLLVMTypes[i];
+      const paramInfo = func.parameters?.[i];
+      const isOptional = paramInfo?.optional || paramInfo?.defaultValue;
 
       if (llvmType === 'i8*') {
         if (paramTypes[i] === 'string') {
@@ -167,19 +173,35 @@ export class FunctionGenerator {
           }
         }
         this.ctx.emit(`${allocaReg} = alloca i8*`);
-        this.ctx.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
+        if (isOptional && hasOptionalParams) {
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, func.params);
+        } else {
+          this.ctx.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
+        }
       } else if (llvmType === '%StringArray*') {
         this.ctx.defineVariable(paramName, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', { isPointerAlloca: true });
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
-        this.ctx.emit(`store %StringArray* %arg${i}, %StringArray** ${allocaReg}`);
+        if (isOptional && hasOptionalParams) {
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, func.params);
+        } else {
+          this.ctx.emit(`store %StringArray* %arg${i}, %StringArray** ${allocaReg}`);
+        }
       } else if (llvmType === '%Array*') {
         this.ctx.defineVariable(paramName, allocaReg, '%Array*', SymbolKind.Array, 'local', { isPointerAlloca: true });
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
-        this.ctx.emit(`store %Array* %arg${i}, %Array** ${allocaReg}`);
+        if (isOptional && hasOptionalParams) {
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, func.params);
+        } else {
+          this.ctx.emit(`store %Array* %arg${i}, %Array** ${allocaReg}`);
+        }
       } else {
         this.ctx.defineVariable(paramName, allocaReg, 'double', SymbolKind.Number, 'local');
         this.ctx.emit(`${allocaReg} = alloca double`);
-        this.ctx.emit(`store double %arg${i}, double* ${allocaReg}`);
+        if (isOptional && hasOptionalParams) {
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, func.params);
+        } else {
+          this.ctx.emit(`store double %arg${i}, double* ${allocaReg}`);
+        }
       }
     }
 
@@ -309,6 +331,59 @@ export class FunctionGenerator {
       keys: commonFields.map(f => f.name),
       types: commonFields.map(f => this.tsTypeToLlvm(f.type))
     };
+  }
+
+  private labelCounter = 0;
+
+  private generateOptionalParamInit(
+    paramIndex: number,
+    allocaReg: string,
+    llvmType: string,
+    paramInfo: FunctionParameter,
+    params: string[]
+  ): void {
+    const labelId = this.labelCounter++;
+    const hasArgLabel = `has_arg_${labelId}`;
+    const noArgLabel = `no_arg_${labelId}`;
+    const doneLabel = `done_arg_${labelId}`;
+
+    const cmpReg = this.ctx.nextTemp();
+    this.ctx.emit(`${cmpReg} = icmp sgt i32 %__argc, ${paramIndex}`);
+    this.ctx.emit(`br i1 ${cmpReg}, label %${hasArgLabel}, label %${noArgLabel}`);
+
+    this.ctx.emit(`${hasArgLabel}:`);
+    const ptrType = this.getLlvmPtrType(llvmType);
+    this.ctx.emit(`store ${llvmType} %arg${paramIndex}, ${ptrType} ${allocaReg}`);
+    this.ctx.emit(`br label %${doneLabel}`);
+
+    this.ctx.emit(`${noArgLabel}:`);
+    if (paramInfo.defaultValue) {
+      this.ctx.syncStateToGenerators();
+      const defaultReg = this.ctx.generateExpression(paramInfo.defaultValue, params);
+      this.ctx.emit(`store ${llvmType} ${defaultReg}, ${ptrType} ${allocaReg}`);
+    } else {
+      const defaultVal = this.getDefaultValue(llvmType);
+      this.ctx.emit(`store ${llvmType} ${defaultVal}, ${ptrType} ${allocaReg}`);
+    }
+    this.ctx.emit(`br label %${doneLabel}`);
+
+    this.ctx.emit(`${doneLabel}:`);
+  }
+
+  private getLlvmPtrType(llvmType: string): string {
+    if (llvmType === 'double') return 'double*';
+    if (llvmType === 'i8*') return 'i8**';
+    if (llvmType === '%Array*') return '%Array**';
+    if (llvmType === '%StringArray*') return '%StringArray**';
+    return `${llvmType}*`;
+  }
+
+  private getDefaultValue(llvmType: string): string {
+    if (llvmType === 'double') return '0.0';
+    if (llvmType === 'i8*') return 'null';
+    if (llvmType === '%Array*') return 'null';
+    if (llvmType === '%StringArray*') return 'null';
+    return 'null';
   }
 
   generateMain(topLevelObjectVariables: Map<string, any>): string {

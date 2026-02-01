@@ -203,6 +203,8 @@ export class CallExpressionGenerator {
     let paramTypes: string[] = [];
 
     const func = this.ctx.ast.functions?.find((f: any) => f.name === expr.name);
+    const hasOptionalParams = func?.parameters?.some((p: any) => p.optional || p.defaultValue);
+
     if (func && func.async) {
       returnType = '%Promise*';
       this.ctx.usesPromises = true;
@@ -240,14 +242,26 @@ export class CallExpressionGenerator {
       }
     }
 
-    const args = expr.args.map((arg: any, i: number) => {
-      const result = generateExpressionFn(arg, params);
-      const paramType = paramTypes[i] || 'double';
-      return `${paramType} ${result}`;
-    }).join(', ');
+    const argsList: string[] = [];
+
+    if (hasOptionalParams) {
+      argsList.push(`i32 ${expr.args.length}`);
+    }
+
+    for (let i = 0; i < (func?.params?.length || expr.args.length); i++) {
+      if (i < expr.args.length) {
+        const result = generateExpressionFn(expr.args[i], params);
+        const paramType = paramTypes[i] || 'double';
+        argsList.push(`${paramType} ${result}`);
+      } else {
+        const paramType = paramTypes[i] || 'double';
+        const defaultVal = paramType === 'double' ? '0.0' : 'null';
+        argsList.push(`${paramType} ${defaultVal}`);
+      }
+    }
 
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = call ${returnType} @${expr.name}(${args})`);
+    this.ctx.emit(`${temp} = call ${returnType} @${expr.name}(${argsList.join(', ')})`);
     this.ctx.variableTypes.set(temp, returnType);
 
     return temp;
