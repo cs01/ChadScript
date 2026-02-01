@@ -1,7 +1,18 @@
-import { Expression, MethodCallNode } from '../../../ast/types.js';
+import { Expression, MethodCallNode, ArrowFunctionNode, VariableNode } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
+import { BaseGenerator } from '../../infrastructure/base-generator.js';
 import { generateArrayLiteral } from './array/literal.js';
 import { generateArrayPush, generateArrayPop } from './array/mutators.js';
+
+interface ArrayGeneratorShim {
+  nextTemp(): string;
+  nextLabel(prefix: string): string;
+  emit(instruction: string): void;
+  getDoubleSize(): number;
+  getVariableType(name: string): string | undefined;
+  variableTypes: Map<string, string>;
+  expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
+}
 
 export class ArrayGenerator {
   constructor(private ctx: IGeneratorContext) {}
@@ -23,18 +34,18 @@ export class ArrayGenerator {
   }
 
   generateArrayLiteral(expr: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    return generateArrayLiteral(this.createGeneratorShim(), expr, params, generateExpressionFn);
+    return generateArrayLiteral(this.createGeneratorShim() as unknown as BaseGenerator, expr, params, generateExpressionFn);
   }
 
   generateArrayPush(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    return generateArrayPush(this.createGeneratorShim(), expr, params, generateExpressionFn);
+    return generateArrayPush(this.createGeneratorShim() as unknown as BaseGenerator, expr, params, generateExpressionFn);
   }
 
   generateArrayPop(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    return generateArrayPop(this.createGeneratorShim(), expr, params, generateExpressionFn);
+    return generateArrayPop(this.createGeneratorShim() as unknown as BaseGenerator, expr, params, generateExpressionFn);
   }
 
-  private createGeneratorShim(): any {
+  private createGeneratorShim(): ArrayGeneratorShim {
     return {
       nextTemp: () => this.nextTemp(),
       nextLabel: (prefix: string) => this.nextLabel(prefix),
@@ -58,7 +69,7 @@ export class ArrayGenerator {
 
     if (predicateArg.type === 'variable') {
       predicateFn = predicateArg.name;
-    } else if ((predicateArg as any).type === 'arrow_function') {
+    } else if (predicateArg.type === 'arrow_function') {
       // Inline function - generate it and get the name
       predicateFn = generateExpressionFn(predicateArg, params);
     } else {
@@ -143,7 +154,7 @@ export class ArrayGenerator {
 
     if (predicateArg.type === 'variable') {
       predicateFn = predicateArg.name;
-    } else if ((predicateArg as any).type === 'arrow_function') {
+    } else if (predicateArg.type === 'arrow_function') {
       // Inline function - generate it and get the name
       predicateFn = generateExpressionFn(predicateArg, params);
     } else {
@@ -230,7 +241,7 @@ export class ArrayGenerator {
 
     if (predicateArg.type === 'variable') {
       predicateFn = predicateArg.name;
-    } else if ((predicateArg as any).type === 'arrow_function') {
+    } else if (predicateArg.type === 'arrow_function') {
       // Inline function - generate it and get the name
       predicateFn = generateExpressionFn(predicateArg, params);
     } else {
@@ -358,7 +369,7 @@ export class ArrayGenerator {
 
     if (callbackArg.type === 'variable') {
       callbackFn = callbackArg.name;
-    } else if ((callbackArg as any).type === 'arrow_function') {
+    } else if (callbackArg.type === 'arrow_function') {
       // Inline function - generate it and get the name
       callbackFn = generateExpressionFn(callbackArg, params);
     } else {
@@ -424,7 +435,7 @@ export class ArrayGenerator {
 
     if (callbackArg.type === 'variable') {
       callbackFn = callbackArg.name;
-    } else if ((callbackArg as any).type === 'arrow_function') {
+    } else if (callbackArg.type === 'arrow_function') {
       // Inline function - generate it and get the name
       callbackFn = generateExpressionFn(callbackArg, params);
     } else {
@@ -536,7 +547,7 @@ export class ArrayGenerator {
     // Determine if this is a string array or number array
     let isStringArray = false;
     if (expr.object.type === 'variable') {
-      const varName = (expr.object as any).name;
+      const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
       isStringArray = varType === '%StringArray*';
     } else {
