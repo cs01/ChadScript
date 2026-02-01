@@ -451,24 +451,75 @@ export function parseExport(ctx: ParserContext): void {
 
   if (ctx.match('function')) {
     const name = ctx.parseIdentifier();
+    ctx.skipWhitespace();
+
+    let typeParameters: string[] | undefined;
+    if (ctx.code[ctx.pos] === '<') {
+      typeParameters = [];
+      ctx.pos++;
+      ctx.skipWhitespace();
+      const firstTypeParam = ctx.parseIdentifier();
+      typeParameters.push(firstTypeParam);
+      ctx.skipWhitespace();
+      while (ctx.code[ctx.pos] === ',') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+        const nextTypeParam = ctx.parseIdentifier();
+        typeParameters.push(nextTypeParam);
+        ctx.skipWhitespace();
+      }
+      ctx.expect('>');
+    }
+
     ctx.expect('(');
 
     const params: string[] = [];
+    const paramTypes: string[] = [];
+    const parameters: FunctionParameter[] = [];
     ctx.skipWhitespace();
     if (ctx.code[ctx.pos] !== ')') {
-      params.push(ctx.parseIdentifier());
+      const firstParam = parseParameter(ctx);
+      params.push(firstParam.name);
+      if (firstParam.type) paramTypes.push(firstParam.type);
+      parameters.push(firstParam);
+
       while (ctx.match(',')) {
-        params.push(ctx.parseIdentifier());
+        ctx.skipWhitespace();
+        const nextParam = parseParameter(ctx);
+        params.push(nextParam.name);
+        if (nextParam.type) paramTypes.push(nextParam.type);
+        parameters.push(nextParam);
       }
     }
     ctx.expect(')');
+
+    let returnType: string | undefined;
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === ':') {
+      ctx.pos++;
+      ctx.skipWhitespace();
+      const typeStart = ctx.pos;
+      ctx.skipTypeAnnotation();
+      returnType = ctx.code.substring(typeStart, ctx.pos).trim();
+    }
+
     ctx.expect('{');
 
     const body = ctx.parseBlock();
     ctx.expect('}');
 
-    ctx.exports.push({ type: 'export', declaration: { name, params, body } });
-    ctx.functions.push({ name, params, body });
+    const hasOptionalOrDefault = parameters.some(p => p.optional || p.defaultValue);
+    const funcDecl = {
+      name,
+      params,
+      paramTypes: paramTypes.length > 0 ? paramTypes : undefined,
+      body,
+      returnType,
+      typeParameters,
+      parameters: hasOptionalOrDefault ? parameters : undefined
+    };
+    ctx.exports.push({ type: 'export', declaration: funcDecl });
+    ctx.functions.push(funcDecl);
   } else if (ctx.match('class')) {
     const name = ctx.parseIdentifier();
 
