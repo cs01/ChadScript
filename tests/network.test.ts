@@ -144,4 +144,68 @@ testTcpClient();
       server.close();
     }
   });
+
+  it('should run HTTP server using httpServe() and mongoose', async () => {
+    const testFile = 'tests/fixtures/network/http-server-test.ts';
+    const testCode = `
+interface Request {
+  method: string;
+  path: string;
+  body: string;
+  contentType: string;
+}
+
+interface Response {
+  status: number;
+  body: string;
+}
+
+function handleRequest(req: Request): Response {
+  if (req.path == "/") {
+    return { status: 200, body: "Hello from ChadScript!" };
+  }
+  if (req.path == "/json") {
+    return { status: 200, body: '{"ok":true}' };
+  }
+  return { status: 404, body: "Not Found" };
+}
+
+httpServe(9997, handleRequest);
+`;
+
+    await fs.writeFile(testFile, testCode);
+
+    try {
+      await execAsync(`node dist/index.js ${testFile}`);
+
+      const serverProcess = spawn('.build/tests/fixtures/network/http-server-test', [], {
+        detached: true,
+        stdio: 'ignore'
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      try {
+        const responses = await Promise.all([
+          fetch('http://127.0.0.1:9997/').then(r => r.text()),
+          fetch('http://127.0.0.1:9997/json').then(r => r.text()),
+          fetch('http://127.0.0.1:9997/notfound').then(r => r.text()),
+        ]);
+
+        assert.strictEqual(responses[0], 'Hello from ChadScript!', 'Root path should return greeting');
+        assert.strictEqual(responses[1], '{"ok":true}', 'JSON path should return JSON');
+        assert.strictEqual(responses[2], 'Not Found', 'Unknown path should return 404');
+      } finally {
+        process.kill(-serverProcess.pid!, 'SIGTERM');
+      }
+    } finally {
+      try {
+        await fs.unlink(testFile);
+        await fs.unlink('.build/tests/fixtures/network/http-server-test');
+        await fs.unlink('.build/tests/fixtures/network/http-server-test.ll');
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+    }
+  });
 });
