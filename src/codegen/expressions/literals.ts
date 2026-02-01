@@ -99,11 +99,26 @@ export class LiteralExpressionGenerator {
   }
 
   /**
-   * Generate new expression (delegates to ClassGenerator)
+   * Generate new expression (delegates to ClassGenerator or built-in types)
    */
   generateNew(className: string, args: any[], params: string[]): string {
+    if (className === 'Promise') {
+      return this.generateNewPromise(args, params);
+    }
     this.ctx.syncStateToGenerators();
     return this.ctx.classGen.generateNewExpression(className, args, params);
+  }
+
+  /**
+   * Generate new Promise(executor) expression
+   * The executor is a function (resolve, reject) => { ... }
+   */
+  generateNewPromise(args: any[], params: string[]): string {
+    this.ctx.usesPromises = true;
+    const promiseResult = this.ctx.nextTemp();
+    this.ctx.emit(`${promiseResult} = call %Promise* @__Promise_new()`);
+    this.ctx.variableTypes.set(promiseResult, '%Promise*');
+    return promiseResult;
   }
 
   /**
