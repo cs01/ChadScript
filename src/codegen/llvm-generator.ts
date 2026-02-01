@@ -64,7 +64,7 @@ export class LLVMGenerator extends BaseGenerator {
   private setGen: SetGenerator;
   private stringSetGen: StringSetGenerator;
   private controlFlowGen: ControlFlowGenerator;
-  private classGen: ClassGenerator;
+  public classGen: ClassGenerator;
   private regexGen: RegexGenerator;
 
   // Method generators (context pattern)

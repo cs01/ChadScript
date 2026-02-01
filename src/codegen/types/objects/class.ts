@@ -9,7 +9,7 @@ import { logger } from '../../../utils/logger.js';
 
 export class ClassGenerator {
   // Track class structures: className -> field info
-  private classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[]> = new Map();
+  private classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]> = new Map();
   // Track instance variables: varName -> className
   private instanceVariables: Map<string, string> = new Map();
 
@@ -28,14 +28,14 @@ export class ClassGenerator {
   private get ast() { return this.ctx.ast; }
 
   // Helper to get field info
-  getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' } | null {
+  getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string } | null {
     const fields = this.classFields.get(className);
     if (!fields) return null;
 
     const index = fields.findIndex(f => f.name === fieldName);
     if (index === -1) return null;
 
-    return { index, type: fields[index].fieldType };
+    return { index, type: fields[index].fieldType, tsType: fields[index].tsType };
   }
 
   // Helper to get class fields

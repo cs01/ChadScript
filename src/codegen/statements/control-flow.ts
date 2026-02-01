@@ -1,4 +1,4 @@
-import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode } from '../../ast/types.js';
+import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata } from '../infrastructure/symbol-table.js';
 
@@ -502,6 +502,16 @@ export class ControlFlowGenerator {
   }
 
   private getObjectArrayInfo(iterable: Expression): ObjectArrayMetadata | null {
+    if (iterable.type === 'binary') {
+      const binaryExpr = iterable as BinaryNode;
+      if (binaryExpr.op === '||') {
+        const leftInfo = this.getObjectArrayInfo(binaryExpr.left);
+        if (leftInfo) {
+          return leftInfo;
+        }
+      }
+    }
+
     if (iterable.type === 'member_access') {
       const memberAccess = iterable as MemberAccessNode;
       if (memberAccess.object.type === 'variable') {
@@ -636,6 +646,11 @@ export class ControlFlowGenerator {
           }
         }
       }
+
+      const chainedInfo = this.getChainedMemberAccessArrayInfo(memberAccess);
+      if (chainedInfo) {
+        return chainedInfo;
+      }
     }
 
     if (iterable.type === 'variable') {
@@ -674,6 +689,232 @@ export class ControlFlowGenerator {
       }
     }
 
+    return null;
+  }
+
+  private getChainedMemberAccessArrayInfo(memberAccess: MemberAccessNode): ObjectArrayMetadata | null {
+    const propName = memberAccess.property;
+    let intermediateTypeName: string | null = null;
+
+    if (memberAccess.object.type === 'member_access') {
+      const innerAccess = memberAccess.object as MemberAccessNode;
+      if (innerAccess.object.type === 'this') {
+        const className = this.ctx.currentClassName;
+        if (className) {
+          const fieldInfo = this.ctx.classGen.getFieldInfo(className, innerAccess.property);
+          if (fieldInfo && fieldInfo.tsType) {
+            intermediateTypeName = fieldInfo.tsType;
+          }
+        }
+      } else if (innerAccess.object.type === 'variable') {
+        const varName = (innerAccess.object as VariableNode).name;
+        if (this.ctx.symbolTable.isClass(varName)) {
+          const classMeta = this.ctx.symbolTable.getClassInfo(varName);
+          if (classMeta) {
+            const fieldInfo = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
+            if (fieldInfo && fieldInfo.tsType) {
+              intermediateTypeName = fieldInfo.tsType;
+            }
+          }
+        }
+      }
+    }
+
+    if (!intermediateTypeName) {
+      return null;
+    }
+
+    const iface = this.ctx.getInterfaceFromAST(intermediateTypeName);
+    if (!iface) {
+      return null;
+    }
+
+    const fieldDef = iface.fields.find(f => f.name === propName);
+    if (!fieldDef || !fieldDef.type.endsWith('[]')) {
+      return null;
+    }
+
+    const elementTypeName = fieldDef.type.slice(0, -2).trim();
+
+    if (elementTypeName.startsWith('{')) {
+      const fields = this.parseInlineObjectType(fieldDef.type);
+      if (fields) {
+        const elementKeys: string[] = [];
+        const elementTypes: string[] = [];
+        const elementTsTypes: string[] = [];
+        for (let i = 0; i < fields.length; i++) {
+          const f = fields[i];
+          elementKeys.push(f.name);
+          elementTsTypes.push(f.type);
+          if (f.type === 'string') {
+            elementTypes.push('i8*');
+          } else if (f.type === 'number') {
+            elementTypes.push('double');
+          } else if (f.type === 'boolean') {
+            elementTypes.push('i32');
+          } else {
+            elementTypes.push('i8*');
+          }
+        }
+        return {
+          elementInterfaceName: '__inline',
+          elementKeys,
+          elementTypes,
+          elementTsTypes
+        };
+      }
+    }
+
+    if (elementTypeName.startsWith('(') && elementTypeName.endsWith(')')) {
+      const unionInfo = this.parseUnionTypeCommonProperties(elementTypeName);
+      if (unionInfo) {
+        return unionInfo;
+      }
+    }
+
+    const elementIface = this.ctx.getInterfaceFromAST(elementTypeName);
+    if (elementIface) {
+      const elementKeys: string[] = [];
+      const elementTypes: string[] = [];
+      const elementTsTypes: string[] = [];
+      for (let i = 0; i < elementIface.fields.length; i++) {
+        const f = elementIface.fields[i];
+        elementKeys.push(f.name);
+        elementTsTypes.push(f.type);
+        if (f.type === 'string') {
+          elementTypes.push('i8*');
+        } else if (f.type === 'number') {
+          elementTypes.push('double');
+        } else if (f.type === 'boolean') {
+          elementTypes.push('i32');
+        } else {
+          elementTypes.push('i8*');
+        }
+      }
+      return {
+        elementInterfaceName: elementIface.name,
+        elementKeys,
+        elementTypes,
+        elementTsTypes
+      };
+    }
+
+    return null;
+  }
+
+  private parseUnionTypeCommonProperties(unionType: string): ObjectArrayMetadata | null {
+    const inner = unionType.slice(1, -1).trim();
+    const members = inner.split('|').map(m => m.trim());
+    if (members.length === 0) {
+      return null;
+    }
+
+    const memberInterfaces: { name: string; fields: { name: string; type: string }[] }[] = [];
+    for (let i = 0; i < members.length; i++) {
+      const memberName = members[i];
+      const iface = this.ctx.getInterfaceFromAST(memberName);
+      if (!iface) {
+        return null;
+      }
+      memberInterfaces.push(iface);
+    }
+
+    if (memberInterfaces.length === 0) {
+      return null;
+    }
+
+    const firstFields = new Map<string, string>();
+    for (let i = 0; i < memberInterfaces[0].fields.length; i++) {
+      const f = memberInterfaces[0].fields[i];
+      firstFields.set(f.name, f.type);
+    }
+
+    const commonFields: { name: string; type: string }[] = [];
+    for (const [fieldName, fieldType] of firstFields) {
+      let isCommon = true;
+      let resolvedType = fieldType;
+      for (let i = 1; i < memberInterfaces.length; i++) {
+        const otherIface = memberInterfaces[i];
+        const otherField = otherIface.fields.find(f => f.name === fieldName);
+        if (!otherField) {
+          isCommon = false;
+          break;
+        }
+        if (otherField.type !== fieldType) {
+          const bothAreLiteralStrings = this.isStringLiteralType(fieldType) && this.isStringLiteralType(otherField.type);
+          const areNullableCompatible = this.areNullableCompatible(fieldType, otherField.type);
+          if (bothAreLiteralStrings) {
+            resolvedType = 'string';
+          } else if (areNullableCompatible) {
+            resolvedType = this.getNullableBaseType(fieldType) || this.getNullableBaseType(otherField.type) || fieldType;
+          } else {
+            isCommon = false;
+            break;
+          }
+        }
+      }
+      if (isCommon) {
+        const normalizedType = this.isStringLiteralType(resolvedType) ? 'string' : resolvedType;
+        commonFields.push({ name: fieldName, type: normalizedType });
+      }
+    }
+
+    if (commonFields.length === 0) {
+      return null;
+    }
+
+    const elementKeys: string[] = [];
+    const elementTypes: string[] = [];
+    const elementTsTypes: string[] = [];
+    for (let i = 0; i < commonFields.length; i++) {
+      const f = commonFields[i];
+      elementKeys.push(f.name);
+      elementTsTypes.push(f.type);
+      if (f.type === 'string') {
+        elementTypes.push('i8*');
+      } else if (f.type === 'number') {
+        elementTypes.push('double');
+      } else if (f.type === 'boolean') {
+        elementTypes.push('i32');
+      } else {
+        elementTypes.push('i8*');
+      }
+    }
+
+    return {
+      elementInterfaceName: '__union',
+      elementKeys,
+      elementTypes,
+      elementTsTypes
+    };
+  }
+
+  private isStringLiteralType(typeStr: string): boolean {
+    return typeStr.startsWith("'") && typeStr.endsWith("'");
+  }
+
+  private areNullableCompatible(type1: string, type2: string): boolean {
+    const base1 = this.getNullableBaseType(type1);
+    const base2 = this.getNullableBaseType(type2);
+    if (base1 && base2) {
+      return base1 === base2;
+    }
+    if (base1) {
+      return base1 === type2;
+    }
+    if (base2) {
+      return type1 === base2;
+    }
+    return false;
+  }
+
+  private getNullableBaseType(typeStr: string): string | null {
+    if (typeStr.includes(' | null')) {
+      return typeStr.replace(' | null', '').trim();
+    }
+    if (typeStr.includes('| null')) {
+      return typeStr.replace('| null', '').trim();
+    }
     return null;
   }
 

@@ -30,6 +30,7 @@ interface ClassGeneratorLike {
 interface FieldInfo {
   index: number;
   type: string;
+  tsType?: string;
 }
 
 interface StringGeneratorLike {
@@ -288,11 +289,14 @@ export class MemberAccessGenerator {
         throw new Error('this.field accessed outside of class method or constructor');
       }
       instancePtr = thisPtr;
-      const classWithField = this.ctx.ast?.classes.find((c: ClassNode) => {
-        return c.methods.some((m) => true);
-      });
-      if (classWithField) {
-        className = classWithField.name;
+      className = this.ctx.currentClassName || this.ctx.classGen.currentClassName || null;
+      if (!className) {
+        const classWithField = this.ctx.ast?.classes.find((c: ClassNode) => {
+          return c.methods.some((m) => true);
+        });
+        if (classWithField) {
+          className = classWithField.name;
+        }
       }
     }
 
@@ -327,6 +331,9 @@ export class MemberAccessGenerator {
     if (fieldInfo.type === 'string') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+      if (fieldInfo.tsType) {
+        this.storeInterfaceMetadata(value, fieldInfo.tsType);
+      }
       return value;
     } else if (fieldInfo.type === 'string[]') {
       const value = this.ctx.nextTemp();
@@ -349,7 +356,21 @@ export class MemberAccessGenerator {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
       this.ctx.variableTypes.set(value, 'double');
+      if (fieldInfo.tsType) {
+        this.storeInterfaceMetadata(value, fieldInfo.tsType);
+      }
       return value;
+    }
+  }
+
+  private storeInterfaceMetadata(register: string, tsType: string): void {
+    const interfaceDef = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
+    if (interfaceDef) {
+      const keys = interfaceDef.fields.map((f) => f.name);
+      const tsTypes = interfaceDef.fields.map((f) => f.type);
+      const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
+      this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
+      this.ctx.jsonObjectMetadata.set(register, { keys, types, tsTypes });
     }
   }
 
