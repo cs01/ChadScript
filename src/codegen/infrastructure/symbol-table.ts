@@ -27,7 +27,8 @@ export enum SymbolKind {
   Class = 'class',             // Class instance (i32*)
   Regex = 'regex',             // i8* (compiled regex)
   JSON = 'json',               // i8* (cJSON object)
-  ProcessArgv = 'process_argv' // i8** (process.argv)
+  ProcessArgv = 'process_argv', // i8** (process.argv)
+  Closure = 'closure'          // Function with captured environment
 }
 
 /**
@@ -55,6 +56,16 @@ export interface ArrayMetadata {
 }
 
 /**
+ * Closure-specific metadata
+ */
+export interface ClosureMetadata {
+  lambdaName: string;          // The lifted function name (e.g., __lambda_0)
+  envStructName: string;       // The environment struct type name
+  envPtrRegister: string;      // Register holding the environment pointer
+  captures: { name: string; llvmType: string }[];  // Captured variables
+}
+
+/**
  * Symbol entry in the symbol table
  */
 export interface Symbol {
@@ -72,6 +83,7 @@ export interface Symbol {
   objectMetadata?: ObjectMetadata;
   classMetadata?: ClassMetadata;
   arrayMetadata?: ArrayMetadata;
+  closureMetadata?: ClosureMetadata;
 }
 
 /**
@@ -120,6 +132,7 @@ export class SymbolTable {
       objectMetadata?: ObjectMetadata;
       classMetadata?: ClassMetadata;
       arrayMetadata?: ArrayMetadata;
+      closureMetadata?: ClosureMetadata;
       isPointerAlloca?: boolean;
     }
   ): void {
@@ -302,9 +315,24 @@ export class SymbolTable {
     return this.symbols.get(name)?.kind === SymbolKind.ProcessArgv;
   }
 
+  isClosure(name: string): boolean {
+    return this.symbols.get(name)?.kind === SymbolKind.Closure;
+  }
+
   // ============================================
   // Metadata accessors
   // ============================================
+
+  /**
+   * Get closure metadata (lambda name, env struct, captures)
+   */
+  getClosureMetadata(name: string): ClosureMetadata | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol?.kind === SymbolKind.Closure) {
+      return symbol.closureMetadata;
+    }
+    return undefined;
+  }
 
   /**
    * Get object metadata (keys and types)
@@ -412,6 +440,19 @@ export class SymbolTable {
     for (const [name, symbol] of other.symbols.entries()) {
       this.symbols.set(name, { ...symbol });
     }
+  }
+
+  /**
+   * Get a Map of variable names to LLVM types for closure analysis.
+   * This is used by the ClosureAnalyzer to know what variables are available
+   * for capture and their types.
+   */
+  getScopeVarsForClosure(): Map<string, string> {
+    const scopeVars = new Map<string, string>();
+    for (const [name, symbol] of this.symbols.entries()) {
+      scopeVars.set(name, symbol.llvmType);
+    }
+    return scopeVars;
   }
 
   /**

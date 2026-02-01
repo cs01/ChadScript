@@ -195,6 +195,10 @@ export class CallExpressionGenerator {
   }
 
   private generateGenericCall(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    if (this.ctx.symbolTable.isClosure(expr.name)) {
+      return this.generateClosureCall(expr, params, generateExpressionFn);
+    }
+
     let returnType = 'double';
     let paramTypes: string[] = [];
 
@@ -231,6 +235,35 @@ export class CallExpressionGenerator {
 
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = call ${returnType} @${expr.name}(${args})`);
+    this.ctx.variableTypes.set(temp, returnType);
+
+    return temp;
+  }
+
+  private generateClosureCall(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    const closureMetadata = this.ctx.symbolTable.getClosureMetadata(expr.name);
+    if (!closureMetadata) {
+      throw new Error(`Closure metadata not found for: ${expr.name}`);
+    }
+
+    const { lambdaName, envPtrRegister, captures } = closureMetadata;
+
+    const returnType = 'double';
+
+    const argsList: string[] = [];
+    if (captures && captures.length > 0) {
+      argsList.push(`i8* ${envPtrRegister}`);
+    } else {
+      argsList.push('i8* null');
+    }
+
+    for (const arg of expr.args) {
+      const result = generateExpressionFn(arg, params);
+      argsList.push(`double ${result}`);
+    }
+
+    const temp = this.ctx.nextTemp();
+    this.ctx.emit(`${temp} = call ${returnType} @${lambdaName}(${argsList.join(', ')})`);
     this.ctx.variableTypes.set(temp, returnType);
 
     return temp;

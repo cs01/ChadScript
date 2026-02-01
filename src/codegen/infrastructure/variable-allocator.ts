@@ -25,6 +25,8 @@ export interface VariableAllocatorContext {
   formatCodegenError(message: string, suggestion?: string): string;
   ast: any;
   classGen: any;
+  symbolTable: any;
+  exprGen: any;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
   currentDeclaredInterfaceType: string | undefined;
 }
@@ -92,6 +94,8 @@ export class VariableAllocator {
       this.allocateRegex(stmt, params);
     } else if (isString) {
       this.allocateString(stmt, params);
+    } else if (stmt.value && stmt.value.type === 'arrow_function') {
+      this.allocateArrowFunction(stmt, params);
     } else {
       this.allocateNumeric(stmt, params);
     }
@@ -299,6 +303,58 @@ export class VariableAllocator {
 
     const value = this.ctx.generateExpression(stmt.value, params);
     this.ctx.emit(`store double ${value}, double* ${allocaReg}`);
+  }
+
+  private allocateArrowFunction(stmt: any, params: string[]): void {
+    const arrowFuncGen = this.ctx.exprGen.getArrowFunctionGenerator();
+    const scopeVars = this.ctx.symbolTable.getScopeVarsForClosure();
+    const lambdaName = arrowFuncGen.generateArrowFunction(stmt.value, params, undefined, scopeVars);
+
+    const closureInfo = arrowFuncGen.getClosureInfoForLambda(lambdaName);
+
+    if (closureInfo && closureInfo.captures.length > 0) {
+      const structSize = closureInfo.captures.length * 8;
+      const envMemReg = this.ctx.nextTemp();
+      this.ctx.emit(`${envMemReg} = call i8* @GC_malloc(i64 ${structSize})`);
+
+      const envTypedReg = this.ctx.nextTemp();
+      this.ctx.emit(`${envTypedReg} = bitcast i8* ${envMemReg} to ${closureInfo.envStructName}*`);
+
+      for (let i = 0; i < closureInfo.captures.length; i++) {
+        const capture = closureInfo.captures[i];
+        const allocaReg = this.ctx.symbolTable.getAlloca(capture.name);
+        if (!allocaReg) {
+          throw new Error(`Closure capture error: variable '${capture.name}' not found`);
+        }
+
+        const valueReg = this.ctx.nextTemp();
+        this.ctx.emit(`${valueReg} = load ${capture.llvmType}, ${capture.llvmType}* ${allocaReg}`);
+
+        const fieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldPtr} = getelementptr ${closureInfo.envStructName}, ${closureInfo.envStructName}* ${envTypedReg}, i32 0, i32 ${i}`);
+
+        this.ctx.emit(`store ${capture.llvmType} ${valueReg}, ${capture.llvmType}* ${fieldPtr}`);
+      }
+
+      this.ctx.defineVariable(stmt.name, envTypedReg, 'i8*', SymbolKind.Closure, 'local', {
+        closureMetadata: {
+          lambdaName,
+          envStructName: closureInfo.envStructName,
+          envPtrRegister: envMemReg,
+          captures: closureInfo.captures
+        }
+      });
+    } else {
+      const allocaReg = this.ctx.nextTemp();
+      this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Closure, 'local', {
+        closureMetadata: {
+          lambdaName,
+          envStructName: '',
+          envPtrRegister: 'null',
+          captures: []
+        }
+      });
+    }
   }
 
   private tsTypeToLlvm(tsType: string): string {

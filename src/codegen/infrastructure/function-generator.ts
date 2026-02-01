@@ -1,5 +1,10 @@
 import { FunctionNode, BlockStatement, Expression } from '../../ast/types.js';
 import { SymbolKind } from './symbol-table.js';
+import type { ClosureInfo } from './closure-analyzer.js';
+
+interface LiftedFunction extends FunctionNode {
+  closureInfo?: ClosureInfo;
+}
 
 export interface FunctionGeneratorContext {
   reset(): void;
@@ -116,8 +121,16 @@ export class FunctionGenerator {
       paramLLVMTypes.push('double');
     }
 
+    const liftedFunc = func as LiftedFunction;
+    const hasClosure = liftedFunc.closureInfo && liftedFunc.closureInfo.captures.length > 0;
+
     let ir = `define ${returnType} @${func.name}(`;
-    ir += func.params.map((_, i) => `${paramLLVMTypes[i]} %arg${i}`).join(', ');
+    const paramStrings: string[] = [];
+    if (hasClosure) {
+      paramStrings.push('i8* %__env');
+    }
+    paramStrings.push(...func.params.map((_, i) => `${paramLLVMTypes[i]} %arg${i}`));
+    ir += paramStrings.join(', ');
     ir += ') {\n';
     ir += 'entry:\n';
 
@@ -155,6 +168,28 @@ export class FunctionGenerator {
         this.ctx.defineVariable(paramName, allocaReg, 'double', SymbolKind.Number, 'local');
         this.ctx.emit(`${allocaReg} = alloca double`);
         this.ctx.emit(`store double %arg${i}, double* ${allocaReg}`);
+      }
+    }
+
+    if (hasClosure) {
+      const closureInfo = liftedFunc.closureInfo!;
+      const envTyped = this.ctx.nextTemp();
+      this.ctx.emit(`${envTyped} = bitcast i8* %__env to ${closureInfo.envStructName}*`);
+
+      for (let i = 0; i < closureInfo.captures.length; i++) {
+        const capture = closureInfo.captures[i];
+        const fieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldPtr} = getelementptr ${closureInfo.envStructName}, ${closureInfo.envStructName}* ${envTyped}, i32 0, i32 ${i}`);
+
+        const valueReg = this.ctx.nextTemp();
+        this.ctx.emit(`${valueReg} = load ${capture.llvmType}, ${capture.llvmType}* ${fieldPtr}`);
+
+        const allocaReg = this.ctx.nextTemp();
+        this.ctx.emit(`${allocaReg} = alloca ${capture.llvmType}`);
+        this.ctx.emit(`store ${capture.llvmType} ${valueReg}, ${capture.llvmType}* ${allocaReg}`);
+
+        const kind = this.llvmTypeToSymbolKind(capture.llvmType);
+        this.ctx.defineVariable(capture.name, allocaReg, capture.llvmType, kind, 'local');
       }
     }
 
@@ -225,6 +260,16 @@ export class FunctionGenerator {
     if (tsType === 'string[]') return '%StringArray*';
     if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
     return 'i8*';
+  }
+
+  private llvmTypeToSymbolKind(llvmType: string): SymbolKind {
+    if (llvmType === 'double') return SymbolKind.Number;
+    if (llvmType === 'i8*') return SymbolKind.String;
+    if (llvmType === '%Array*') return SymbolKind.Array;
+    if (llvmType === '%StringArray*') return SymbolKind.StringArray;
+    if (llvmType === '%Map*') return SymbolKind.Map;
+    if (llvmType === '%Set*') return SymbolKind.Set;
+    return SymbolKind.Object;
   }
 
   generateMain(topLevelObjectVariables: Map<string, any>): string {
