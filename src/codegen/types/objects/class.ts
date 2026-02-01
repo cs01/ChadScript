@@ -1,4 +1,4 @@
-import { Expression, ClassNode, ClassMethod, BlockStatement } from '../../../ast/types.js';
+import { Expression, ClassNode, ClassMethod, BlockStatement, VariableNode } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind } from '../../infrastructure/symbol-table.js';
 import { logger } from '../../../utils/logger.js';
@@ -318,12 +318,11 @@ export class ClassGenerator {
   }
 
   generateNewExpression(className: string, args: Expression[], params: string[]): string {
-    // Get constructor parameter types
-    const classNode = (this.ast as any).classes.find((c: any) => c.name === className);
+    const classNode = this.ast?.classes.find((c: ClassNode) => c.name === className);
     if (!classNode) {
       throw new Error(`Class ${className} not found`);
     }
-    const constructor = classNode.methods.find((m: any) => m.isConstructor);
+    const constructor = classNode.methods.find((m: ClassMethod) => m.isConstructor);
     const paramTypes = constructor?.paramTypes || [];
     const paramLLVMTypes: string[] = paramTypes.map((pType: string) => {
       if (pType === 'string') return 'i8*';
@@ -349,12 +348,11 @@ export class ClassGenerator {
   }
 
   generateMethodCall(instancePtr: string, className: string, methodName: string, args: Expression[], params: string[]): string {
-    // Look up the method to get its parameter and return types
-    const classNode = (this.ast as any).classes.find((c: any) => c.name === className);
+    const classNode = this.ast?.classes.find((c: ClassNode) => c.name === className);
     if (!classNode) {
       throw new Error(`Class ${className} not found`);
     }
-    const method = classNode.methods.find((m: any) => m.name === methodName && !m.isConstructor);
+    const method = classNode.methods.find((m: ClassMethod) => m.name === methodName && !m.isConstructor);
     if (!method) {
       throw new Error(`Method ${methodName} not found in class ${className}`);
     }
@@ -383,7 +381,7 @@ export class ClassGenerator {
         } else if (val.startsWith('@.str')) {
           argType = 'i8*';
         } else if (arg.type === 'variable') {
-          const varName = (arg as any).name;
+          const varName = (arg as VariableNode).name;
           if (this.variableTypes.has(`%${varName}`)) {
             argType = this.ctx.getVariableType(`%${varName}`)!;
           }
