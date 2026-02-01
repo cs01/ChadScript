@@ -1,4 +1,4 @@
-import { Expression, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, IfStatement, WhileStatement, ForStatement, ForOfStatement } from '../ast/types.js';
+import { Expression, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, IfStatement, WhileStatement, ForStatement, ForOfStatement, BinaryNode, MemberAccessNode, MemberAccessAssignmentNode } from '../ast/types.js';
 import { ParserContext } from './declarations.js';
 
 export function parseBlock(ctx: ParserContext): BlockStatement {
@@ -96,7 +96,7 @@ export function parseStatement(ctx: ParserContext): Statement {
 
   const savedPos = ctx.pos;
 
-  const leftExpr = (ctx as any).parsePrimary();
+  const leftExpr = ctx.parsePrimary();
   ctx.skipWhitespace();
 
   const ch = ctx.code[ctx.pos];
@@ -118,24 +118,31 @@ export function parseStatement(ctx: ParserContext): Statement {
   const value = ctx.parseExpression();
   ctx.expect(';');
 
-  let finalValue = value;
+  let finalValue: Expression = value;
   if (compoundOp) {
     finalValue = {
       type: 'binary',
       op: compoundOp,
       left: leftExpr,
       right: value
-    } as any;
+    } as BinaryNode;
   }
 
   if (leftExpr.type === 'variable') {
     return { type: 'assignment', name: leftExpr.name, value: finalValue };
   } else if (leftExpr.type === 'member_access') {
+    const memberExpr = leftExpr as MemberAccessNode;
+    const memberAssignment: MemberAccessAssignmentNode = {
+      type: 'member_access_assignment',
+      object: memberExpr.object,
+      property: memberExpr.property,
+      value: finalValue
+    };
     return {
       type: 'assignment',
-      name: `__member_access__${(leftExpr as any).property}__`,
-      value: { type: 'member_access_assignment', object: (leftExpr as any).object, property: (leftExpr as any).property, value: finalValue } as any
-    } as any;
+      name: `__member_access__${memberExpr.property}__`,
+      value: memberAssignment as unknown as Expression
+    };
   } else {
     throw new Error(`Cannot assign to ${leftExpr.type}`);
   }
