@@ -52,7 +52,7 @@ export class LLVMGenerator extends BaseGenerator {
 
   // Specialized generators
   private arrayGen: ArrayGenerator;
-  private stringGen: StringGenerator;
+  public stringGen: StringGenerator;
   private objectGen: ObjectGenerator;
   private mapGen: MapGenerator;
   private stringMapGen: StringMapGenerator;

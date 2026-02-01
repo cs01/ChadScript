@@ -14,10 +14,11 @@
  * - With interpolation: `Hello ${name}` -> concatenate "Hello " with name value
  */
 
-import { Expression } from '../../ast/types.js';
+import { Expression, TemplateLiteralNode } from '../../ast/types.js';
+import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
 export class TemplateLiteralGenerator {
-  constructor(private ctx: any) {}
+  constructor(private ctx: IGeneratorContext) {}
 
   // Helper methods delegate to context
   private get stringGen() { return this.ctx.stringGen; }
@@ -29,7 +30,7 @@ export class TemplateLiteralGenerator {
    * Input: { type: 'template_literal', parts: ['Hello ', name, '!'] }
    * Output: result register with concatenated string
    */
-  generate(expr: any, params: string[]): string {
+  generate(expr: TemplateLiteralNode, params: string[]): string {
     // Convert template literal to series of string concatenations
     // parts array contains strings and expressions interspersed
     if (expr.parts.length === 0) {

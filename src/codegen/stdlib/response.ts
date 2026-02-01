@@ -8,11 +8,25 @@
  * - response.ok - Boolean indicating success (status 200-299)
  */
 
+interface InterfaceStructGenerator {
+  hasInterface(name: string): boolean;
+}
+
+interface ResponseGeneratorContext {
+  nextTemp(): string;
+  nextLabel(prefix: string): string;
+  nextString(): string;
+  emit(instruction: string): void;
+  globalStrings: string[];
+  variableTypes: Map<string, string>;
+  interfaceStructGen?: InterfaceStructGenerator;
+}
+
 export class ResponseGenerator {
   private generatedStructs: Set<string> = new Set();  // Track generated interface structs
   private generatedParsers: Set<string> = new Set();  // Track generated JSON parsers
 
-  constructor(private ctx: any) {}
+  constructor(private ctx: ResponseGeneratorContext) {}
 
   /**
    * Generate Response.text() method call

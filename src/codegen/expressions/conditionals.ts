@@ -10,10 +10,11 @@
  * - Type conversion if branches return different types
  */
 
-import { Expression } from '../../ast/types.js';
+import { Expression, ConditionalExpressionNode } from '../../ast/types.js';
+import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
 export class ConditionalExpressionGenerator {
-  constructor(private ctx: any) {}
+  constructor(private ctx: IGeneratorContext) {}
 
   // Helper methods delegate to context
   private nextTemp() { return this.ctx.nextTemp(); }
@@ -28,7 +29,7 @@ export class ConditionalExpressionGenerator {
    * Input: { type: 'conditional', condition: ..., consequent: ..., alternate: ... }
    * Output: result register with value from true or false branch
    */
-  generate(expr: any, params: string[]): string {
+  generate(expr: ConditionalExpressionNode, params: string[]): string {
     // Generate unique labels
     const trueLabel = this.nextLabel('cond_true');
     const falseLabel = this.nextLabel('cond_false');

@@ -1,5 +1,6 @@
 import { Expression } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
+import { BaseGenerator } from '../../infrastructure/base-generator.js';
 import {
   createStringConstant as createStringConstantImpl,
   convertNumberToString as convertNumberToStringImpl,
@@ -38,7 +39,7 @@ export class StringGenerator {
   private nextString() { return this.ctx.nextString(); }
 
   // Create a shim object that looks like BaseGenerator for extracted functions
-  private createGeneratorShim(): any {
+  private createGeneratorShim(): BaseGenerator {
     return {
       nextTemp: () => this.nextTemp(),
       nextLabel: (prefix: string) => this.nextLabel(prefix),
@@ -47,7 +48,7 @@ export class StringGenerator {
       globalStrings: this.ctx.globalStrings,
       variableTypes: this.ctx.variableTypes,
       getVariableType: (name: string) => this.ctx.getVariableType(name),
-    };
+    } as unknown as BaseGenerator;
   }
 
   // ============================================
