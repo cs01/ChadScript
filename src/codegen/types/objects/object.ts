@@ -1,28 +1,33 @@
-import { Expression } from '../../../ast/types.js';
+import { Expression, ObjectNode } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
+import type { InterfaceStructGenerator } from '../interface-struct-generator.js';
+
+interface ObjectGeneratorContext extends IGeneratorContext {
+  currentDeclaredInterfaceType?: string;
+  interfaceStructGen?: InterfaceStructGenerator;
+}
 
 export class ObjectGenerator {
-  constructor(private ctx: IGeneratorContext) {}
+  constructor(private ctx: ObjectGeneratorContext) {}
 
   private nextTemp() { return this.ctx.nextTemp(); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
-  private get stringVariables() { return (this.ctx as any).stringVariables; }
 
   generateObjectLiteral(expr: Expression, params: string[]): string {
-    const objExpr = expr as any;
-    if (objExpr.type !== 'object') {
+    if (expr.type !== 'object') {
       throw new Error('Expected object literal');
     }
+    const objExpr = expr as ObjectNode;
 
-    const keys = objExpr.properties.map((p: any) => p.key);
+    const keys = objExpr.properties.map((p) => p.key);
     const numFields = keys.length;
 
     if (numFields === 0) {
       return '0';
     }
 
-    const declaredInterfaceType = (this.ctx as any).currentDeclaredInterfaceType;
-    const interfaceStructGen = (this.ctx as any).interfaceStructGen;
+    const declaredInterfaceType = this.ctx.currentDeclaredInterfaceType;
+    const interfaceStructGen = this.ctx.interfaceStructGen;
 
     if (declaredInterfaceType && interfaceStructGen?.hasInterface(declaredInterfaceType)) {
       return this.generateInterfaceObject(objExpr, params, declaredInterfaceType, interfaceStructGen);
@@ -31,13 +36,13 @@ export class ObjectGenerator {
     return this.generateInlineObject(objExpr, params);
   }
 
-  private generateInterfaceObject(objExpr: any, params: string[], interfaceName: string, interfaceStructGen: any): string {
+  private generateInterfaceObject(objExpr: ObjectNode, params: string[], interfaceName: string, interfaceStructGen: InterfaceStructGenerator): string {
     const ifaceInfo = interfaceStructGen.getInterfaceStruct(interfaceName);
     if (!ifaceInfo) {
       return this.generateInlineObject(objExpr, params);
     }
 
-    const propMap = new Map<string, any>();
+    const propMap = new Map<string, Expression>();
     for (const prop of objExpr.properties) {
       propMap.set(prop.key, prop.value);
     }
@@ -84,7 +89,7 @@ export class ObjectGenerator {
     return genericPtr;
   }
 
-  private generateInlineObject(objExpr: any, params: string[]): string {
+  private generateInlineObject(objExpr: ObjectNode, params: string[]): string {
     const fieldTypes: { key: string; llvmType: string; value: string }[] = [];
 
     for (let i = 0; i < objExpr.properties.length; i++) {
@@ -97,9 +102,9 @@ export class ObjectGenerator {
         llvmType = 'i8*';
       } else if (valueExpr.type === 'array') {
         llvmType = '%Array*';
-      } else if ((valueExpr as any).type === 'map') {
+      } else if (valueExpr.type === 'map') {
         llvmType = '%Map*';
-      } else if ((valueExpr as any).type === 'set') {
+      } else if (valueExpr.type === 'set') {
         llvmType = '%Set*';
       } else {
         llvmType = 'double';
