@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { TypeInference } from './infrastructure/type-inference.js';
 import { VariableAllocator } from './infrastructure/variable-allocator.js';
@@ -33,13 +33,13 @@ import { InterfaceStructGenerator } from './types/interface-struct-generator.js'
 // ============================================
 
 export class LLVMGenerator extends BaseGenerator {
-  public ast: AST; // Public for IGeneratorContext
-  private typeChecker: TypeChecker | null;
+  public ast: AST;
+  public typeChecker: TypeChecker | null;
   private externalFunctions: Set<string> = new Set();
-  private currentFunction: string = ''; // Track current function for type checking
-  public currentDeclaredInterfaceType: string | undefined; // Track interface type for object literal generation
-  public currentDeclaredMapType: string | undefined; // Track Map type for Map literal generation (e.g., "Map<string, string>")
-  public currentDeclaredSetType: string | undefined; // Track Set type for Set literal generation (e.g., "Set<string>")
+  public currentFunction: string = '';
+  public currentDeclaredInterfaceType: string | undefined;
+  public currentDeclaredMapType: string | undefined;
+  public currentDeclaredSetType: string | undefined;
   public currentFunctionReturnType: string = 'double';
   public isAsyncFunction: boolean = false;
   public asyncResultPromise: string = '';
@@ -74,9 +74,9 @@ export class LLVMGenerator extends BaseGenerator {
   private mongooseGen: MongooseGenerator;
   private libuvGen: LibuvGenerator;
   private promiseGen: PromiseGenerator;
-  private httpHandlers: string[] = [];  // Track HTTP handlers for mongoose event handler generation
-  private usesTimers: boolean = false;  // Track if setTimeout/setInterval is used
-  public usesPromises: boolean = false;  // Track if Promise is used
+  private httpHandlers: string[] = [];
+  public usesTimers: boolean = false;
+  public usesPromises: boolean = false;
 
   // Expression generator (context pattern)
   private exprGen: ExpressionGenerator;
@@ -672,17 +672,17 @@ export class LLVMGenerator extends BaseGenerator {
   }
 
   // Generate HTTP server - creates a TCP server that parses HTTP and calls handler
-  private generateHttpServe(expr: any, params: string[]): string {
+  public generateHttpServe(expr: CallNode, params: string[]): string {
     if (expr.args.length < 2) {
       throw new Error('httpServe() requires 2 arguments: port and handler function');
     }
 
     const portValue = this.generateExpression(expr.args[0], params);
-    const handlerName = (expr.args[1] as any).name; // Handler function name
-
-    if (!handlerName) {
+    const handlerArg = expr.args[1];
+    if (handlerArg.type !== 'variable') {
       throw new Error('httpServe() handler must be a function reference');
     }
+    const handlerName = (handlerArg as VariableNode).name;
 
     // Track handler for mongoose event handler generation
     this.httpHandlers.push(handlerName);
@@ -702,7 +702,7 @@ export class LLVMGenerator extends BaseGenerator {
   // Sync state to sub-generators - share Maps/arrays by reference
   // Note: Counters are already shared via bound methods (nextTemp, nextLabel, nextString)
   // Note: ALL generators now use context pattern - no state syncing needed! 🎉
-  private syncStateToGenerators() {
+  public syncStateToGenerators() {
     // No generators left to sync - all use context pattern!
     // This method kept for backward compatibility but is now a no-op
   }

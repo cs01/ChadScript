@@ -1,6 +1,9 @@
-import { FunctionNode, BlockStatement, Expression, FunctionParameter } from '../../ast/types.js';
-import { SymbolKind } from './symbol-table.js';
+import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, InterfaceDeclaration, TypeAliasDeclaration, TopLevelItem, AssignmentStatement, CallNode, NewNode, MethodCallNode } from '../../ast/types.js';
+import { SymbolKind, SymbolTable } from './symbol-table.js';
 import type { ClosureInfo } from './closure-analyzer.js';
+import type { TypeChecker } from '../../typescript/type-checker.js';
+import type { StringGenerator } from '../types/collections/string.js';
+import type { ControlFlowGenerator } from '../statements/control-flow.js';
 
 interface LiftedFunction extends FunctionNode {
   closureInfo?: ClosureInfo;
@@ -11,21 +14,21 @@ export interface FunctionGeneratorContext {
   syncStateToGenerators(): void;
   nextTemp(): string;
   emit(instruction: string): void;
-  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata?: any): void;
+  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata?: Record<string, unknown>): void;
   generateBlock(block: BlockStatement, params: string[]): string | null;
   generateExpression(expr: Expression, params: string[]): string;
-  allocateVariable(stmt: any, params: string[]): void;
+  allocateVariable(stmt: VariableDeclaration, params: string[]): void;
   currentFunction: string;
   currentFunctionReturnType: string;
   isAsyncFunction: boolean;
   asyncResultPromise: string;
-  ast: any;
-  typeChecker: any;
+  ast: AST;
+  typeChecker: TypeChecker | null;
   output: string[];
-  stringGen: any;
+  stringGen: StringGenerator;
   tempCounter: number;
-  symbolTable: any;
-  controlFlowGen: any;
+  symbolTable: SymbolTable;
+  controlFlowGen: ControlFlowGenerator;
 }
 
 export class FunctionGenerator {
@@ -152,11 +155,11 @@ export class FunctionGenerator {
         if (paramTypes[i] === 'string') {
           this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
         } else {
-          const interfaceDef = this.ctx.ast.interfaces?.find((iface: any) => iface.name === paramTypes[i]);
-          const typeAlias = this.ctx.ast.typeAliases?.find((t: any) => t.name === paramTypes[i]);
+          const interfaceDef = this.ctx.ast.interfaces?.find((iface: InterfaceDeclaration) => iface.name === paramTypes[i]);
+          const typeAlias = this.ctx.ast.typeAliases?.find((t: TypeAliasDeclaration) => t.name === paramTypes[i]);
           if (interfaceDef) {
-            const keys = interfaceDef.fields.map((f: any) => f.name);
-            const types = interfaceDef.fields.map((f: any) => this.tsTypeToLlvm(f.type));
+            const keys = interfaceDef.fields.map((f) => f.name);
+            const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
               objectMetadata: { keys, types },
               declaredType: paramTypes[i]
@@ -273,9 +276,10 @@ export class FunctionGenerator {
       if (stmt.type === 'return') {
         return true;
       }
-      if (stmt.type === 'if' && (stmt as any).thenBlock) {
-        if (this.hasReturnStatement((stmt as any).thenBlock)) return true;
-        if ((stmt as any).elseBlock && this.hasReturnStatement((stmt as any).elseBlock)) return true;
+      if (stmt.type === 'if') {
+        const ifStmt = stmt as IfStatement;
+        if (this.hasReturnStatement(ifStmt.thenBlock)) return true;
+        if (ifStmt.elseBlock && this.hasReturnStatement(ifStmt.elseBlock)) return true;
       }
       if (stmt.type === 'while' && stmt.body) {
         if (this.hasReturnStatement(stmt.body)) return true;
@@ -308,8 +312,8 @@ export class FunctionGenerator {
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
     const interfaces = memberNames
-      .map(name => this.ctx.ast.interfaces?.find((i: any) => i.name === name))
-      .filter((i: any) => i !== undefined);
+      .map(name => this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
+      .filter((i): i is InterfaceDeclaration => i !== undefined);
 
     if (interfaces.length === 0) {
       return { keys: [], types: [] };
@@ -319,8 +323,8 @@ export class FunctionGenerator {
     const commonFields: { name: string; type: string }[] = [];
 
     for (const field of firstFields) {
-      const isCommon = interfaces.every((iface: any) =>
-        iface.fields.some((f: any) => f.name === field.name && f.type === field.type)
+      const isCommon = interfaces.every((iface) =>
+        iface.fields.some((f) => f.name === field.name && f.type === field.type)
       );
       if (isCommon) {
         commonFields.push(field);
@@ -386,7 +390,7 @@ export class FunctionGenerator {
     return 'null';
   }
 
-  generateMain(topLevelObjectVariables: Map<string, any>): string {
+  generateMain(topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>): string {
     let ir = 'define i32 @main(i32 %argc, i8** %argv) {\n';
     ir += 'entry:\n';
 
@@ -402,46 +406,32 @@ export class FunctionGenerator {
 
     for (const item of this.ctx.ast.topLevelItems || []) {
       if (item.type === 'variable_declaration') {
-        this.ctx.allocateVariable(item, []);
+        this.ctx.allocateVariable(item as VariableDeclaration, []);
       } else if (item.type === 'if') {
         this.ctx.syncStateToGenerators();
-        this.ctx.controlFlowGen.generateIfStatement(item as any, []);
+        this.ctx.controlFlowGen.generateIfStatement(item as IfStatement, []);
       } else if (item.type === 'while') {
         this.ctx.syncStateToGenerators();
-        this.ctx.controlFlowGen.generateWhileStatement(item as any, []);
+        this.ctx.controlFlowGen.generateWhileStatement(item as WhileStatement, []);
       } else if (item.type === 'for') {
         this.ctx.syncStateToGenerators();
-        this.ctx.controlFlowGen.generateForStatement(item as any, []);
+        this.ctx.controlFlowGen.generateForStatement(item as ForStatement, []);
       } else if (item.type === 'for_of') {
         this.ctx.syncStateToGenerators();
-        this.ctx.controlFlowGen.generateForOfStatement(item as any, []);
+        this.ctx.controlFlowGen.generateForOfStatement(item as ForOfStatement, []);
       } else if (item.type === 'assignment') {
-        this.ctx.generateBlock({ type: 'block', statements: [item as any] }, []);
+        this.ctx.generateBlock({ type: 'block', statements: [item as AssignmentStatement] }, []);
       } else {
-        this.ctx.generateExpression(item, []);
+        this.ctx.generateExpression(item as Expression, []);
       }
     }
 
     if (!this.ctx.ast.topLevelItems || this.ctx.ast.topLevelItems.length === 0) {
       for (const stmt of this.ctx.ast.topLevelStatements) {
-        this.ctx.allocateVariable(stmt, []);
+        this.ctx.allocateVariable(stmt as VariableDeclaration, []);
       }
       for (const expr of this.ctx.ast.topLevelExpressions) {
-        if ((expr as any).type === 'if') {
-          this.ctx.syncStateToGenerators();
-          this.ctx.controlFlowGen.generateIfStatement(expr as any, []);
-        } else if ((expr as any).type === 'while') {
-          this.ctx.syncStateToGenerators();
-          this.ctx.controlFlowGen.generateWhileStatement(expr as any, []);
-        } else if ((expr as any).type === 'for') {
-          this.ctx.syncStateToGenerators();
-          this.ctx.controlFlowGen.generateForStatement(expr as any, []);
-        } else if ((expr as any).type === 'for_of') {
-          this.ctx.syncStateToGenerators();
-          this.ctx.controlFlowGen.generateForOfStatement(expr as any, []);
-        } else {
-          this.ctx.generateExpression(expr, []);
-        }
+        this.ctx.generateExpression(expr as Expression, []);
       }
     }
 
