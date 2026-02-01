@@ -1,12 +1,19 @@
 // Simple HTTP server example
 // Demonstrates native HTTP server compiled to a single binary
 
+interface Request {
+  method: string;
+  path: string;
+  body: string;
+  contentType: string;
+}
+
 interface Response {
   status: number;
   body: string;
 }
 
-function handleRequest(method: string, path: string, body: string): Response {
+function handleRequest(req: Request): Response {
   return { status: 200, body: "Hello from ChadScript HTTP Server!" };
 }
 
