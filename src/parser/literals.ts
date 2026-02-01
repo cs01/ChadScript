@@ -1,4 +1,4 @@
-import { Expression, ArrayNode, ObjectNode, MethodCallNode } from '../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MethodCallNode, VariableNode, SuperNode, BinaryNode, NumberNode } from '../ast/types.js';
 import { ParserContext } from './declarations.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
 
@@ -63,10 +63,10 @@ export function parseTemplateLiteral(ctx: LiteralParserContext, parseExpressionF
 
       const savedPos = ctx.pos;
       const savedCode = ctx.code;
-      (ctx as any).code = exprCode;
+      ctx.code = exprCode;
       ctx.pos = 0;
       const expr = parseExpressionFn(ctx);
-      (ctx as any).code = savedCode;
+      ctx.code = savedCode;
       ctx.pos = savedPos;
 
       parts.push(expr);
@@ -223,7 +223,7 @@ export function parseObjectLiteral(ctx: LiteralParserContext, parseExpressionFn:
 }
 
 export function parseMethodCall(ctx: LiteralParserContext, object: Expression, methodName: string, parseExpressionFn: (ctx: LiteralParserContext) => Expression): MethodCallNode {
-  if (object.type === 'variable' && (object as any).name === 'Object') {
+  if (object.type === 'variable' && (object as VariableNode).name === 'Object') {
     if (methodName === 'keys') {
       throw new Error(formatUnsupportedFeatureError('Object.keys'));
     }
@@ -291,7 +291,7 @@ export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Express
       if (ctx.code[ctx.pos] === '(') {
         expr = parseMethodCall(ctx, expr, property, parseExpressionFn);
         if (typeParameter) {
-          (expr as any).typeParameter = typeParameter;
+          (expr as MethodCallNode).typeParameter = typeParameter;
         }
       } else {
         expr = { type: 'member_access', object: expr, property };
@@ -301,7 +301,7 @@ export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Express
       const index = parseExpressionFn(ctx);
       ctx.expect(']');
       expr = { type: 'index_access', object: expr, index };
-    } else if (ctx.code[ctx.pos] === '(' && (expr as any).type === 'super') {
+    } else if (ctx.code[ctx.pos] === '(' && expr.type === 'super') {
       ctx.pos++;
       const args: Expression[] = [];
       ctx.skipWhitespace();
@@ -316,12 +316,14 @@ export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Express
     } else if (ctx.code[ctx.pos] === '+' && ctx.code[ctx.pos + 1] === '+') {
       ctx.pos += 2;
       if (expr.type === 'variable') {
-        expr = { type: 'binary', op: '+', left: expr, right: { type: 'number', value: 1 } } as any;
+        const one: NumberNode = { type: 'number', value: 1 };
+        expr = { type: 'binary', op: '+', left: expr, right: one } as BinaryNode;
       }
     } else if (ctx.code[ctx.pos] === '-' && ctx.code[ctx.pos + 1] === '-') {
       ctx.pos += 2;
       if (expr.type === 'variable') {
-        expr = { type: 'binary', op: '-', left: expr, right: { type: 'number', value: 1 } } as any;
+        const one: NumberNode = { type: 'number', value: 1 };
+        expr = { type: 'binary', op: '-', left: expr, right: one } as BinaryNode;
       }
     } else {
       break;
