@@ -1493,6 +1493,7 @@ function transformClassField(node: TreeSitterNode): ClassField | null {
 
   const name = nameNode.text;
   let fieldType: ClassField['fieldType'] = 'double';
+  let tsType: string | undefined;
 
   if (typeNode) {
     const typeStr = extractTypeString(typeNode);
@@ -1502,9 +1503,12 @@ function transformClassField(node: TreeSitterNode): ClassField | null {
     else if (typeStr === 'string[]') fieldType = 'string[]';
     else if (typeStr === 'number[]') fieldType = 'number[]';
     else if (typeStr === 'boolean[]') fieldType = 'boolean[]';
+    else {
+      tsType = typeStr;
+    }
   }
 
-  return { name, fieldType };
+  return { name, fieldType, tsType };
 }
 
 function transformClassMethod(node: TreeSitterNode): ClassMethod | null {

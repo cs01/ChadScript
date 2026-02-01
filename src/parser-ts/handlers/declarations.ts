@@ -136,6 +136,7 @@ function transformPropertyDeclaration(node: ts.PropertyDeclaration): ClassField 
 
   const name = node.name.text;
   let fieldType: ClassField['fieldType'] = 'double';
+  let tsType: string | undefined;
 
   if (node.type) {
     const typeStr = extractTypeString(node.type);
@@ -145,9 +146,12 @@ function transformPropertyDeclaration(node: ts.PropertyDeclaration): ClassField 
     else if (typeStr === 'string[]') fieldType = 'string[]';
     else if (typeStr === 'number[]') fieldType = 'number[]';
     else if (typeStr === 'boolean[]') fieldType = 'boolean[]';
+    else {
+      tsType = typeStr;
+    }
   }
 
-  return { name, fieldType };
+  return { name, fieldType, tsType };
 }
 
 function transformMethodDeclaration(

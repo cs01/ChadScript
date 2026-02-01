@@ -260,6 +260,14 @@ export interface IGeneratorContext {
    * Look up an interface definition by name from the AST
    */
   getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null;
+
+  /**
+   * Access to class generator for field type lookups
+   */
+  readonly classGen: {
+    getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
+    getClassFields(className: string): { name: string; fieldType: string }[];
+  };
 }
 
 /**
@@ -404,6 +412,11 @@ export class MockGeneratorContext implements IGeneratorContext {
     }
     return null;
   }
+
+  classGen = {
+    getFieldInfo: (_className: string, _fieldName: string): { index: number; type: string; tsType?: string } | null => null,
+    getClassFields: (_className: string): { name: string; fieldType: string }[] => [],
+  };
 
   reset(): void {
     this.tempCount = 0;
