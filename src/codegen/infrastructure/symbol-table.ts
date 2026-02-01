@@ -66,6 +66,16 @@ export interface ClosureMetadata {
 }
 
 /**
+ * Map-specific metadata for typed Maps
+ */
+export interface MapMetadata {
+  keyType: 'string' | 'number';   // TypeScript key type
+  valueType: string;              // TypeScript value type (string, number, or interface name)
+  llvmKeyType: string;            // LLVM type for keys (i8* for string, double for number)
+  llvmValueType: string;          // LLVM type for values
+}
+
+/**
  * Symbol entry in the symbol table
  */
 export interface Symbol {
@@ -84,6 +94,7 @@ export interface Symbol {
   classMetadata?: ClassMetadata;
   arrayMetadata?: ArrayMetadata;
   closureMetadata?: ClosureMetadata;
+  mapMetadata?: MapMetadata;
 }
 
 /**
@@ -133,6 +144,7 @@ export class SymbolTable {
       classMetadata?: ClassMetadata;
       arrayMetadata?: ArrayMetadata;
       closureMetadata?: ClosureMetadata;
+      mapMetadata?: MapMetadata;
       isPointerAlloca?: boolean;
     }
   ): void {
@@ -363,6 +375,17 @@ export class SymbolTable {
     const symbol = this.symbols.get(name);
     if (this.isArray(name)) {
       return symbol?.arrayMetadata;
+    }
+    return undefined;
+  }
+
+  /**
+   * Get map metadata (key/value types)
+   */
+  getMapMetadata(name: string): MapMetadata | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol?.kind === SymbolKind.Map) {
+      return symbol.mapMetadata;
     }
     return undefined;
   }

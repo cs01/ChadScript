@@ -237,6 +237,13 @@ export class TypeInference {
           }
         }
       }
+      if (methodExpr.method === 'get' && methodExpr.object.type === 'variable' &&
+          this.ctx.symbolTable.isMap(methodExpr.object.name)) {
+        const mapMeta = this.ctx.symbolTable.getMapMetadata(methodExpr.object.name);
+        if (mapMeta && mapMeta.valueType === 'string') {
+          return true;
+        }
+      }
     }
     if ((expr as any).type === 'conditional') {
       const condExpr = expr as any;

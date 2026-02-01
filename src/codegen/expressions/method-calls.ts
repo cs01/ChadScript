@@ -213,6 +213,23 @@ export class MethodCallGenerator {
     if (method === 'set' || method === 'get' || method === 'has') {
       if (expr.object.type === 'variable' && this.ctx.symbolTable.isMap(expr.object.name)) {
         this.ctx.syncStateToGenerators();
+        const mapMeta = this.ctx.symbolTable.getMapMetadata(expr.object.name);
+
+        if (mapMeta && mapMeta.keyType === 'string') {
+          const mapAlloca = this.ctx.symbolTable.getAlloca(expr.object.name);
+          if (method === 'set') {
+            const keyValue = this.ctx.generateExpression(expr.args[0], params);
+            const valueValue = this.ctx.generateExpression(expr.args[1], params);
+            return this.ctx.stringMapGen.generateStringMapSet(mapAlloca, keyValue, valueValue);
+          } else if (method === 'get') {
+            const keyValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.stringMapGen.generateStringMapGet(mapAlloca, keyValue);
+          } else {
+            const keyValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.stringMapGen.generateStringMapHas(mapAlloca, keyValue);
+          }
+        }
+
         if (method === 'set') {
           return this.ctx.mapGen.generateMapSet(expr, params, this.ctx.generateExpression.bind(this.ctx));
         } else if (method === 'get') {
