@@ -206,6 +206,19 @@ export class CallExpressionGenerator {
     if (func && func.async) {
       returnType = '%Promise*';
       this.ctx.usesPromises = true;
+    } else if (func && func.paramTypes && func.paramTypes.length > 0) {
+      if (func.returnType === 'string') {
+        returnType = 'i8*';
+      } else if (func.returnType && func.returnType !== 'number' && func.returnType !== 'boolean' && func.returnType !== 'void') {
+        returnType = 'i8*';
+      }
+      paramTypes = func.paramTypes.map((p: string) => {
+        if (p === 'string') return 'i8*';
+        if (p === 'string[]') return '%StringArray*';
+        if (p === 'number[]' || p === 'boolean[]') return '%Array*';
+        if (p !== 'number' && p !== 'boolean') return 'i8*';
+        return 'double';
+      });
     } else if (this.ctx.typeChecker) {
       try {
         const funcType = this.ctx.typeChecker.getFunctionType(expr.name);

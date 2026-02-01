@@ -72,6 +72,9 @@ export class FunctionGenerator {
         returnType = 'void';
         returnTypeIsVoid = true;
         this.ctx.currentFunctionReturnType = 'void';
+      } else if (func.returnType && func.returnType !== 'number' && func.returnType !== 'boolean') {
+        returnType = 'i8*';
+        this.ctx.currentFunctionReturnType = 'i8*';
       }
     } else if (this.ctx.typeChecker) {
       try {
@@ -144,11 +147,20 @@ export class FunctionGenerator {
           this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
         } else {
           const interfaceDef = this.ctx.ast.interfaces?.find((iface: any) => iface.name === paramTypes[i]);
+          const typeAlias = this.ctx.ast.typeAliases?.find((t: any) => t.name === paramTypes[i]);
           if (interfaceDef) {
             const keys = interfaceDef.fields.map((f: any) => f.name);
             const types = interfaceDef.fields.map((f: any) => this.tsTypeToLlvm(f.type));
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
-              objectMetadata: { keys, types }
+              objectMetadata: { keys, types },
+              declaredType: paramTypes[i]
+            });
+          } else if (typeAlias && typeAlias.unionMembers) {
+            const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
+            this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+              objectMetadata: commonFields,
+              unionType: paramTypes[i],
+              unionMembers: typeAlias.unionMembers
             });
           } else {
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local');
@@ -270,6 +282,33 @@ export class FunctionGenerator {
     if (llvmType === '%Map*') return SymbolKind.Map;
     if (llvmType === '%Set*') return SymbolKind.Set;
     return SymbolKind.Object;
+  }
+
+  private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
+    const interfaces = memberNames
+      .map(name => this.ctx.ast.interfaces?.find((i: any) => i.name === name))
+      .filter((i: any) => i !== undefined);
+
+    if (interfaces.length === 0) {
+      return { keys: [], types: [] };
+    }
+
+    const firstFields = interfaces[0].fields;
+    const commonFields: { name: string; type: string }[] = [];
+
+    for (const field of firstFields) {
+      const isCommon = interfaces.every((iface: any) =>
+        iface.fields.some((f: any) => f.name === field.name && f.type === field.type)
+      );
+      if (isCommon) {
+        commonFields.push(field);
+      }
+    }
+
+    return {
+      keys: commonFields.map(f => f.name),
+      types: commonFields.map(f => this.tsTypeToLlvm(f.type))
+    };
   }
 
   generateMain(topLevelObjectVariables: Map<string, any>): string {
