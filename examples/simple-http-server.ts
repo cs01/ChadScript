@@ -1,9 +1,7 @@
 // Simple HTTP server example
 // Demonstrates native HTTP server compiled to a single binary
 
-function handleRequest(method: string, path: string): string {
-  // For now, return a fixed response
-  // (String comparison not yet fully supported in ChadScript)
+function handleRequest(method: string, path: string, body: string): string {
   return "Hello from ChadScript HTTP Server!";
 }
 

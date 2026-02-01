@@ -623,7 +623,7 @@ export class LLVMGenerator extends BaseGenerator {
 
     // Call the runtime http_serve function
     const temp = this.nextTemp();
-    this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*, i8*)* @${handlerName})`);
+    this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*, i8*, i8*)* @${handlerName})`);
 
     return temp;
   }

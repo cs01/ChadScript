@@ -1,7 +1,7 @@
 // ChadScript HTTP Server Test Program
 // This program tests HTTP server functionality compiled to native code
 
-function handleRequest(method: string, path: string): string {
+function handleRequest(method: string, path: string, body: string): string {
   if (path == "/") {
     return "Hello from ChadScript!";
   }
@@ -17,6 +17,10 @@ function handleRequest(method: string, path: string): string {
   if (path.startsWith("/status/")) {
     const code = path.substring(8, path.length);
     return "Status " + code;
+  }
+
+  if (method == "POST" && path == "/echo") {
+    return body;
   }
 
   return "Not Found";
