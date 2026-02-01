@@ -20,6 +20,7 @@ import {
   generateCharAt as generateCharAtImpl,
   generateIndexOf as generateIndexOfImpl,
   generateIncludes as generateIncludesImpl,
+  generateEndsWith as generateEndsWithImpl,
 } from './string/search.js';
 import { generateSplit as generateSplitImpl } from './string/split.js';
 
@@ -135,6 +136,11 @@ export class StringGenerator {
   generateIncludes(strPtr: string, substring: string): string {
     const genShim = this.createGeneratorShim();
     return generateIncludesImpl.call(genShim, strPtr, substring);
+  }
+
+  generateEndsWith(strPtr: string, suffix: string): string {
+    const genShim = this.createGeneratorShim();
+    return generateEndsWithImpl.call(genShim, strPtr, suffix);
   }
 
   // ============================================

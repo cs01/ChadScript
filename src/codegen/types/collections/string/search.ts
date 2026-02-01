@@ -112,3 +112,42 @@ export function generateIncludes(this: BaseGenerator, strPtr: string, substring:
 
   return result;
 }
+
+export function generateEndsWith(this: BaseGenerator, strPtr: string, suffix: string): string {
+  const strLen = this.nextTemp();
+  this.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+
+  const suffixLen = this.nextTemp();
+  this.emit(`${suffixLen} = call i64 @strlen(i8* ${suffix})`);
+
+  const suffixLonger = this.nextTemp();
+  this.emit(`${suffixLonger} = icmp ugt i64 ${suffixLen}, ${strLen}`);
+
+  const checkLabel = this.nextLabel('endswith_check');
+  const falseLabel = this.nextLabel('endswith_false');
+  const endLabel = this.nextLabel('endswith_end');
+
+  this.emit(`br i1 ${suffixLonger}, label %${falseLabel}, label %${checkLabel}`);
+
+  this.emit(`${checkLabel}:`);
+  const offset = this.nextTemp();
+  this.emit(`${offset} = sub i64 ${strLen}, ${suffixLen}`);
+  const strEnd = this.nextTemp();
+  this.emit(`${strEnd} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${offset}`);
+  const cmpResult = this.nextTemp();
+  this.emit(`${cmpResult} = call i32 @strcmp(i8* ${strEnd}, i8* ${suffix})`);
+  const matches = this.nextTemp();
+  this.emit(`${matches} = icmp eq i32 ${cmpResult}, 0`);
+  const matchesI32 = this.nextTemp();
+  this.emit(`${matchesI32} = zext i1 ${matches} to i32`);
+  this.emit(`br label %${endLabel}`);
+
+  this.emit(`${falseLabel}:`);
+  this.emit(`br label %${endLabel}`);
+
+  this.emit(`${endLabel}:`);
+  const resultI32 = this.nextTemp();
+  this.emit(`${resultI32} = phi i32 [ ${matchesI32}, %${checkLabel} ], [ 0, %${falseLabel} ]`);
+
+  return resultI32;
+}
