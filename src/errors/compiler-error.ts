@@ -222,7 +222,7 @@ export class CompilerErrors {
    * Get all errors
    */
   getErrors(): CompilerError[] {
-    return [...this.errors];
+    return this.errors.slice();
   }
 
   /**
@@ -255,7 +255,7 @@ export class CompilerErrors {
     let output = `${red}✗ Compilation failed with ${this.errors.length} error${this.errors.length > 1 ? 's' : ''}:${reset}\n\n`;
 
     // Sort errors by location
-    const sorted = [...this.errors].sort((a, b) => {
+    const sorted = this.errors.slice().sort((a, b) => {
       if (a.filename !== b.filename) {
         return a.filename.localeCompare(b.filename);
       }

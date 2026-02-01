@@ -10,6 +10,7 @@ import {
   EnumDeclaration,
   EnumMember,
   ClassNode,
+  IndexAccessNode,
 } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker, TypeInfo } from '../../../typescript/type-checker.js';
@@ -130,6 +131,12 @@ export class MemberAccessGenerator {
     if (expr.object.type === 'member_access') {
       const nestedResult = this.handleNestedJsonAccess(expr, params, generateExpressionFn);
       if (nestedResult !== null) return nestedResult;
+    }
+
+    // Handle indexed access to object array elements (e.g., arr[i].property)
+    if (expr.object.type === 'index_access') {
+      const indexResult = this.handleIndexAccessPropertyAccess(expr, params, generateExpressionFn);
+      if (indexResult !== null) return indexResult;
     }
 
     // Handle regular object property access
@@ -458,6 +465,309 @@ export class MemberAccessGenerator {
     }
 
     return this.extractNestedJsonFieldValue(fieldItem);
+  }
+
+  private handleIndexAccessPropertyAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+    const indexAccess = expr.object as IndexAccessNode;
+    const elementInfo = this.getObjectArrayElementInfo(indexAccess.object);
+    if (!elementInfo) return null;
+
+    const arrayPtr = generateExpressionFn(indexAccess.object, params);
+    const indexDouble = generateExpressionFn(indexAccess.index, params);
+
+    const indexType = this.ctx.variableTypes.get(indexDouble);
+    let index = indexDouble;
+    if (indexType === 'double' || indexType === undefined) {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    }
+
+    const structTypeFields = elementInfo.types.join(', ');
+    const structType = `{ ${structTypeFields} }`;
+
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+
+    const data = this.ctx.nextTemp();
+    this.ctx.emit(`${data} = load ${structType}*, ${structType}** ${dataPtr}`);
+
+    const elemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elemPtr} = getelementptr inbounds ${structType}, ${structType}* ${data}, i32 ${index}`);
+
+    const propIndex = elementInfo.keys.indexOf(expr.property);
+    if (propIndex === -1) {
+      throw new Error(`Unknown property: ${expr.property}. Available properties: ${elementInfo.keys.join(', ')}`);
+    }
+
+    const propType = elementInfo.types[propIndex];
+    const propTsType = elementInfo.tsTypes[propIndex];
+    const fieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${elemPtr}, i32 0, i32 ${propIndex}`);
+
+    const value = this.ctx.nextTemp();
+    this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
+    this.ctx.variableTypes.set(value, propType);
+
+    if (propTsType && propTsType !== 'string' && propTsType !== 'number' && propTsType !== 'boolean') {
+      const interfaceInfo = this.getKnownTypeProperties(propTsType);
+      if (interfaceInfo) {
+        this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
+        this.ctx.jsonObjectMetadata.set(value, {
+          keys: interfaceInfo.keys,
+          types: interfaceInfo.types,
+          tsTypes: interfaceInfo.tsTypes
+        });
+      }
+    }
+
+    return value;
+  }
+
+  private getKnownTypeProperties(typeName: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+    if (typeName === 'Expression') {
+      return {
+        keys: ['type'],
+        types: ['i8*'],
+        tsTypes: ['string']
+      };
+    }
+    if (typeName === 'Statement') {
+      return {
+        keys: ['type'],
+        types: ['i8*'],
+        tsTypes: ['string']
+      };
+    }
+    const ifaceInfo = this.getInterfaceInfo(typeName);
+    if (ifaceInfo) {
+      return ifaceInfo;
+    }
+    return null;
+  }
+
+  private getInterfaceInfo(interfaceName: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+    if (!this.ctx.ast || !this.ctx.ast.interfaces) {
+      return null;
+    }
+    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      const iface = this.ctx.ast.interfaces[i];
+      if (iface.name === interfaceName) {
+        const keys: string[] = [];
+        const types: string[] = [];
+        const tsTypes: string[] = [];
+        for (let j = 0; j < iface.fields.length; j++) {
+          const f = iface.fields[j];
+          keys.push(f.name);
+          tsTypes.push(f.type);
+          if (f.type === 'string') {
+            types.push('i8*');
+          } else if (f.type === 'number') {
+            types.push('double');
+          } else if (f.type === 'boolean') {
+            types.push('i32');
+          } else {
+            types.push('i8*');
+          }
+        }
+        return { keys, types, tsTypes };
+      }
+    }
+    return null;
+  }
+
+  private getObjectArrayElementInfo(arrayExpr: Expression): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+    if (arrayExpr.type === 'member_access') {
+      const memberAccess = arrayExpr as MemberAccessNode;
+      if (memberAccess.object.type === 'variable') {
+        const varName = (memberAccess.object as VariableNode).name;
+        const propName = memberAccess.property;
+        if (this.ctx.typeChecker && this.ctx.currentFunction) {
+          const arrayInfo = this.ctx.typeChecker.getArrayElementInterface(varName, propName, this.ctx.currentFunction);
+          if (arrayInfo && arrayInfo.properties.length > 0) {
+            const keys: string[] = [];
+            const types: string[] = [];
+            const tsTypes: string[] = [];
+            for (let i = 0; i < arrayInfo.properties.length; i++) {
+              const prop = arrayInfo.properties[i];
+              keys.push(prop.name);
+              tsTypes.push(prop.type);
+              if (prop.type === 'string') {
+                types.push('i8*');
+              } else if (prop.type === 'number') {
+                types.push('double');
+              } else if (prop.type === 'boolean') {
+                types.push('i32');
+              } else {
+                types.push('i8*');
+              }
+            }
+            return { keys, types, tsTypes };
+          }
+        }
+        const paramType = this.getParameterTypeFromAST(varName);
+        if (paramType) {
+          const fieldType = this.getInterfaceFieldType(paramType, propName);
+          if (fieldType && fieldType.endsWith('[]')) {
+            const fields = this.parseInlineObjectType(fieldType);
+            if (fields) {
+              const keys: string[] = [];
+              const types: string[] = [];
+              const tsTypes: string[] = [];
+              for (let j = 0; j < fields.length; j++) {
+                const f = fields[j];
+                keys.push(f.name);
+                tsTypes.push(f.type);
+                if (f.type === 'string') {
+                  types.push('i8*');
+                } else if (f.type === 'number') {
+                  types.push('double');
+                } else if (f.type === 'boolean') {
+                  types.push('i32');
+                } else {
+                  types.push('i8*');
+                }
+              }
+              return { keys, types, tsTypes };
+            }
+          }
+        }
+        const symbol = this.ctx.symbolTable.lookup(varName);
+        if (symbol && symbol.objectMetadata && symbol.objectMetadata.tsTypes) {
+          const objKeys = symbol.objectMetadata.keys;
+          const objTsTypes = symbol.objectMetadata.tsTypes;
+          const idx = objKeys.indexOf(propName);
+          if (idx !== -1) {
+            const fieldType = objTsTypes[idx];
+            if (fieldType && fieldType.endsWith('[]')) {
+              const fields = this.parseInlineObjectType(fieldType);
+              if (fields) {
+                const keys: string[] = [];
+                const types: string[] = [];
+                const tsTypes: string[] = [];
+                for (let j = 0; j < fields.length; j++) {
+                  const f = fields[j];
+                  keys.push(f.name);
+                  tsTypes.push(f.type);
+                  if (f.type === 'string') {
+                    types.push('i8*');
+                  } else if (f.type === 'number') {
+                    types.push('double');
+                  } else if (f.type === 'boolean') {
+                    types.push('i32');
+                  } else {
+                    types.push('i8*');
+                  }
+                }
+                return { keys, types, tsTypes };
+              }
+            }
+          }
+        }
+      }
+    }
+    if (arrayExpr.type === 'variable') {
+      const varName = (arrayExpr as VariableNode).name;
+      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
+      if (objArrayMeta) {
+        return { keys: objArrayMeta.elementKeys, types: objArrayMeta.elementTypes, tsTypes: objArrayMeta.elementTsTypes || [] };
+      }
+      if (this.ctx.typeChecker && this.ctx.currentFunction) {
+        const arrayInfo = this.ctx.typeChecker.getVariableArrayElementInterface(varName, this.ctx.currentFunction);
+        if (arrayInfo && arrayInfo.properties.length > 0) {
+          const keys: string[] = [];
+          const types: string[] = [];
+          const tsTypes: string[] = [];
+          for (let i = 0; i < arrayInfo.properties.length; i++) {
+            const prop = arrayInfo.properties[i];
+            keys.push(prop.name);
+            tsTypes.push(prop.type);
+            if (prop.type === 'string') {
+              types.push('i8*');
+            } else if (prop.type === 'number') {
+              types.push('double');
+            } else if (prop.type === 'boolean') {
+              types.push('i32');
+            } else {
+              types.push('i8*');
+            }
+          }
+          return { keys, types, tsTypes };
+        }
+      }
+    }
+    return null;
+  }
+
+  private parseInlineObjectType(type: string): { name: string; type: string }[] | null {
+    if (!type.startsWith('{') || !type.endsWith('}[]')) {
+      return null;
+    }
+    const inner = type.slice(1, type.length - 3).trim();
+    const parts = inner.split(';');
+    const fields: { name: string; type: string }[] = [];
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      if (!part) continue;
+      const colonIdx = part.indexOf(':');
+      if (colonIdx === -1) continue;
+      const name = part.slice(0, colonIdx).trim();
+      const t = part.slice(colonIdx + 1).trim();
+      fields.push({ name, type: t });
+    }
+    return fields.length > 0 ? fields : null;
+  }
+
+  private getParameterTypeFromAST(paramName: string): string | null {
+    if (!this.ctx.ast || !this.ctx.currentFunction) {
+      return null;
+    }
+    for (let i = 0; i < this.ctx.ast.functions.length; i++) {
+      const fn = this.ctx.ast.functions[i];
+      if (fn.name === this.ctx.currentFunction) {
+        if (fn.parameters) {
+          for (let j = 0; j < fn.parameters.length; j++) {
+            const p = fn.parameters[j];
+            if (p.name === paramName && p.type) {
+              return p.type;
+            }
+          }
+        }
+      }
+    }
+    for (let i = 0; i < this.ctx.ast.classes.length; i++) {
+      const cls = this.ctx.ast.classes[i];
+      for (let j = 0; j < cls.methods.length; j++) {
+        const method = cls.methods[j];
+        if (method.name === this.ctx.currentFunction) {
+          if (method.paramTypes) {
+            for (let k = 0; k < method.params.length; k++) {
+              if (method.params[k] === paramName && method.paramTypes[k]) {
+                return method.paramTypes[k];
+              }
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private getInterfaceFieldType(interfaceName: string, fieldName: string): string | null {
+    if (!this.ctx.ast || !this.ctx.ast.interfaces) {
+      return null;
+    }
+    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      const iface = this.ctx.ast.interfaces[i];
+      if (iface.name === interfaceName) {
+        for (let j = 0; j < iface.fields.length; j++) {
+          const f = iface.fields[j];
+          if (f.name === fieldName) {
+            return f.type;
+          }
+        }
+      }
+    }
+    return null;
   }
 
   private extractNestedJsonFieldValue(fieldItem: string): string {

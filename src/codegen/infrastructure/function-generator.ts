@@ -139,7 +139,10 @@ export class FunctionGenerator {
     if (hasOptionalParams) {
       paramStrings.push('i32 %__argc');
     }
-    paramStrings.push(...func.params.map((_, i) => `${paramLLVMTypes[i]} %arg${i}`));
+    const paramMapped = func.params.map((_, i) => `${paramLLVMTypes[i]} %arg${i}`);
+    for (let i = 0; i < paramMapped.length; i++) {
+      paramStrings.push(paramMapped[i]);
+    }
     ir += paramStrings.join(', ');
     ir += ') {\n';
     ir += 'entry:\n';
