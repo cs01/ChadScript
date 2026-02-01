@@ -1,9 +1,9 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, MethodCallNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
-import { TypeInference } from './infrastructure/type-inference.js';
-import { VariableAllocator } from './infrastructure/variable-allocator.js';
-import { FunctionGenerator } from './infrastructure/function-generator.js';
-import { AssignmentGenerator } from './infrastructure/assignment-generator.js';
+import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
+import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
+import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/function-generator.js';
+import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructure/assignment-generator.js';
 import { getLLVMDeclarations, getSafeStringHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
@@ -109,7 +109,7 @@ export class LLVMGenerator extends BaseGenerator {
   }
 
   // Helper: Extract object literal metadata (keys and types)
-  private getObjectMetadata(objExpr: any): { keys: string[]; types: string[] } {
+  private getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (objExpr.type !== 'object') {
       return { keys: [], types: [] };
     }
@@ -120,7 +120,6 @@ export class LLVMGenerator extends BaseGenerator {
     for (const prop of objExpr.properties) {
       keys.push(prop.key);
 
-      // Determine type from value expression
       const valueExpr = prop.value;
       let llvmType: string;
 
@@ -128,12 +127,11 @@ export class LLVMGenerator extends BaseGenerator {
         llvmType = 'i8*';
       } else if (valueExpr.type === 'array') {
         llvmType = this.isStringArrayExpression(valueExpr) ? '%StringArray*' : '%Array*';
-      } else if ((valueExpr as any).type === 'map') {
+      } else if (valueExpr.type === 'map') {
         llvmType = '%Map*';
-      } else if ((valueExpr as any).type === 'set') {
+      } else if (valueExpr.type === 'set') {
         llvmType = '%Set*';
       } else {
-        // All numeric values (including booleans) are double
         llvmType = 'double';
       }
 
@@ -170,8 +168,6 @@ export class LLVMGenerator extends BaseGenerator {
 
     // Initialize expression generator with context pattern
     this.exprGen = new ExpressionGenerator(this);
-    // Set up fallback for unextracted expression types
-    (this as any).generateExpressionFallback = this.generateExpression.bind(this);
 
     // All generators now use context pattern! 🎉
     this.arrayGen = new ArrayGenerator(this);
@@ -183,18 +179,13 @@ export class LLVMGenerator extends BaseGenerator {
     this.controlFlowGen = new ControlFlowGenerator(this);
     this.classGen = new ClassGenerator(this);
 
-    // Initialize type inference helper - pass 'this' as context
-    // LLVMGenerator implements the TypeInferenceContext interface
-    this.typeInference = new TypeInference(this as any);
+    this.typeInference = new TypeInference(this as unknown as TypeInferenceContext);
 
-    // Initialize variable allocator
-    this.varAllocator = new VariableAllocator(this as any);
+    this.varAllocator = new VariableAllocator(this as unknown as VariableAllocatorContext);
 
-    // Initialize function generator
-    this.funcGen = new FunctionGenerator(this as any);
+    this.funcGen = new FunctionGenerator(this as unknown as FunctionGeneratorContext);
 
-    // Initialize assignment generator
-    this.assignmentGen = new AssignmentGenerator(this as any);
+    this.assignmentGen = new AssignmentGenerator(this as unknown as AssignmentGeneratorContext);
 
     // No more delegate binding needed - all generators use context pattern! 🎯
 
@@ -269,7 +260,7 @@ export class LLVMGenerator extends BaseGenerator {
           kind = SymbolKind.Regex;
           defaultValue = 'null';
         } else if (isClassInstance) {
-          const className = (stmt.value as any).className;
+          const className = (stmt.value as NewNode).className;
           const fields = this.classGen?.getClassFields(className) || [];
           llvmType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
           kind = SymbolKind.Class;
@@ -463,7 +454,7 @@ export class LLVMGenerator extends BaseGenerator {
    * @param stmt - Variable declaration statement
    * @param params - Function parameters for expression generation
    */
-  private allocateVariable(stmt: any, params: string[]): void {
+  private allocateVariable(stmt: VariableDeclaration, params: string[]): void {
     this.varAllocator.allocate(stmt, params);
   }
 
@@ -636,23 +627,25 @@ export class LLVMGenerator extends BaseGenerator {
   }
 
   public isAwaitExpression(expr: Expression): boolean {
-    return (expr as any).type === 'await';
+    return expr.type === 'await';
   }
 
   private isResponseExpression(expr: Expression): boolean {
     return this.typeInference.isResponseExpression(expr);
   }
 
-  private getTypedJsonInterface(expr: any): string | null {
-    return this.typeInference.getTypedJsonInterface(expr);
+  private getTypedJsonInterface(expr: Expression): string | null {
+    if (expr.type !== 'method_call') return null;
+    return this.typeInference.getTypedJsonInterface(expr as MethodCallNode);
   }
 
-  private getFunctionCallInterfaceReturn(expr: any): string | null {
+  private getFunctionCallInterfaceReturn(expr: Expression): string | null {
     return this.typeInference.getFunctionCallInterfaceReturn(expr);
   }
 
-  private getJSONParseInterface(expr: any): string | null {
-    return this.typeInference.getJSONParseInterface(expr);
+  private getJSONParseInterface(expr: Expression): string | null {
+    if (expr.type !== 'method_call') return null;
+    return this.typeInference.getJSONParseInterface(expr as MethodCallNode);
   }
 
   private isJSONParseExpression(expr: Expression): boolean {
@@ -663,7 +656,7 @@ export class LLVMGenerator extends BaseGenerator {
     return this.typeInference.isStringArrayExpression(expr);
   }
 
-  private isBooleanExpression(expr: any): boolean {
+  private isBooleanExpression(expr: Expression): boolean {
     return this.typeInference.isBooleanExpression(expr);
   }
 

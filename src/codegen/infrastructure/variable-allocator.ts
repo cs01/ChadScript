@@ -1,10 +1,32 @@
-import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration } from '../../ast/types.js';
-import { SymbolKind } from './symbol-table.js';
+import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, ObjectNode } from '../../ast/types.js';
+import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata } from './symbol-table.js';
+import type { TypeChecker } from '../../typescript/type-checker.js';
+
+interface ClassGeneratorLike {
+  getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[];
+}
+
+interface ArrowFunctionGeneratorLike {
+  generateArrowFunction(expr: Expression | null, params: string[], returnType?: string | { paramTypes?: string[], returnType?: string }, scopeVars?: Map<string, string>): string;
+  getClosureInfoForLambda(lambdaName: string): { envStructName: string; captures: { name: string; llvmType: string }[] } | null;
+}
+
+interface ExpressionGeneratorLike {
+  getArrowFunctionGenerator(): ArrowFunctionGeneratorLike;
+}
+
+type VariableMetadata = {
+  objectMetadata?: ObjectMetadata;
+  classMetadata?: ClassMetadata;
+  closureMetadata?: ClosureMetadata;
+  mapMetadata?: MapMetadata;
+  setMetadata?: SetMetadata;
+};
 
 export interface VariableAllocatorContext {
   nextTemp(): string;
   emit(instruction: string): void;
-  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata?: any): void;
+  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata?: VariableMetadata): void;
   generateExpression(expr: Expression, params: string[]): string;
   isStringExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
@@ -23,15 +45,15 @@ export interface VariableAllocatorContext {
   getTypedJsonInterface(expr: Expression): string | null;
   getFunctionCallInterfaceReturn(expr: Expression): string | null;
   getJSONParseInterface(expr: Expression): string | null;
-  getObjectMetadata(objExpr: Expression): { keys: string[]; types: string[] };
+  getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] };
   formatCodegenError(message: string, suggestion?: string): string;
   ast: AST;
-  classGen: any;
-  symbolTable: any;
-  exprGen: any;
+  classGen: ClassGeneratorLike;
+  symbolTable: SymbolTable;
+  exprGen: ExpressionGeneratorLike;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
   currentDeclaredInterfaceType: string | undefined;
-  typeChecker?: any;
+  typeChecker?: TypeChecker | null;
 }
 
 export class VariableAllocator {
@@ -182,7 +204,7 @@ export class VariableAllocator {
 
   private allocateClassInstance(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextTemp();
-    const newExpr = stmt.value as any as NewNode;
+    const newExpr = stmt.value as NewNode;
     const className = newExpr.className;
     const fields = this.ctx.classGen.getClassFields(className);
     const ptrType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
@@ -280,7 +302,7 @@ export class VariableAllocator {
       keys = interfaceDef.fields.map((f) => f.name);
       types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
     } else {
-      const metadata = this.ctx.getObjectMetadata(stmt.value as any);
+      const metadata = this.ctx.getObjectMetadata(stmt.value as ObjectNode);
       keys = metadata.keys;
       types = metadata.types;
     }
