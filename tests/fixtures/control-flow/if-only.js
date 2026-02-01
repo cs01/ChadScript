@@ -1,5 +1,5 @@
 // Test if without else - verifies absolute value function works
-function abs(x: number): void {
+function abs(x: number): number {
   let result = x;
   if (x < 0) {
     result = 0 - x;
