@@ -16,10 +16,9 @@ export interface TypeInfo {
 export class TypeChecker {
   private program: ts.Program;
   private checker: ts.TypeChecker;
-  private sourceFile: ts.SourceFile;
+  private sourceFiles: Map<string, ts.SourceFile>;
 
-  constructor(filename: string, code: string) {
-    // Create in-memory TypeScript program
+  constructor(files: { filename: string; code: string }[]) {
     const compilerOptions: ts.CompilerOptions = {
       target: ts.ScriptTarget.ES2015,
       module: ts.ModuleKind.ES2015,
@@ -27,21 +26,27 @@ export class TypeChecker {
       noEmit: true,
     };
 
-    // Create source file
-    this.sourceFile = ts.createSourceFile(
-      filename,
-      code,
-      ts.ScriptTarget.ES2015,
-      true
-    );
+    this.sourceFiles = new Map();
+    const filenames: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const sf = ts.createSourceFile(
+        file.filename,
+        file.code,
+        ts.ScriptTarget.ES2015,
+        true
+      );
+      this.sourceFiles.set(file.filename, sf);
+      filenames.push(file.filename);
+    }
 
-    // Create program
+    const self = this;
     const host: ts.CompilerHost = {
-      getSourceFile: (fileName) => fileName === filename ? this.sourceFile : undefined,
+      getSourceFile: (fileName) => self.sourceFiles.get(fileName),
       writeFile: () => {},
       getCurrentDirectory: () => '',
       getDirectories: () => [],
-      fileExists: () => true,
+      fileExists: (fileName) => self.sourceFiles.has(fileName),
       readFile: () => '',
       getCanonicalFileName: (fileName) => fileName,
       useCaseSensitiveFileNames: () => true,
@@ -49,8 +54,45 @@ export class TypeChecker {
       getDefaultLibFileName: () => 'lib.d.ts',
     };
 
-    this.program = ts.createProgram([filename], compilerOptions, host);
+    this.program = ts.createProgram(filenames, compilerOptions, host);
     this.checker = this.program.getTypeChecker();
+  }
+
+  private findFunctionInAllFiles(functionName: string): ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration | undefined {
+    for (const sourceFile of this.sourceFiles.values()) {
+      const result = this.findFunctionInNode(sourceFile, functionName);
+      if (result) {
+        return result;
+      }
+    }
+    return undefined;
+  }
+
+  private findFunctionInNode(node: ts.Node, functionName: string): ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration | undefined {
+    let found: ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration | undefined;
+
+    if (ts.isFunctionDeclaration(node) && node.name?.text === functionName) {
+      return node;
+    }
+
+    if (ts.isClassDeclaration(node)) {
+      for (const member of node.members) {
+        if (ts.isConstructorDeclaration(member) && functionName === 'constructor') {
+          return member;
+        }
+        if (ts.isMethodDeclaration(member) && ts.isIdentifier(member.name) && member.name.text === functionName) {
+          return member;
+        }
+      }
+    }
+
+    ts.forEachChild(node, (child) => {
+      if (!found) {
+        found = this.findFunctionInNode(child, functionName);
+      }
+    });
+
+    return found;
   }
 
   /**
@@ -63,20 +105,12 @@ export class TypeChecker {
    */
   getPropertyType(objectName: string, propertyName: string, functionName: string): TypeInfo | null {
     try {
-      // Find the function node
-      let targetFunction: ts.FunctionDeclaration | undefined;
-
-      ts.forEachChild(this.sourceFile, (node) => {
-        if (ts.isFunctionDeclaration(node) && node.name?.text === functionName) {
-          targetFunction = node;
-        }
-      });
+      const targetFunction = this.findFunctionInAllFiles(functionName);
 
       if (!targetFunction) {
         return null;
       }
 
-      // Find the parameter with matching name
       const param = targetFunction.parameters.find(p =>
         ts.isIdentifier(p.name) && p.name.text === objectName
       );
@@ -85,10 +119,8 @@ export class TypeChecker {
         return null;
       }
 
-      // Get the type from the type annotation
       const type = this.checker.getTypeFromTypeNode(param.type);
 
-      // Get property info
       const prop = type.getProperty(propertyName);
       if (!prop) {
         return null;
@@ -169,13 +201,7 @@ export class TypeChecker {
    */
   getParameterType(paramName: string, functionName: string): TypeInfo | null {
     try {
-      let targetFunction: ts.FunctionDeclaration | undefined;
-
-      ts.forEachChild(this.sourceFile, (node) => {
-        if (ts.isFunctionDeclaration(node) && node.name?.text === functionName) {
-          targetFunction = node;
-        }
-      });
+      const targetFunction = this.findFunctionInAllFiles(functionName);
 
       if (!targetFunction) {
         return null;
@@ -206,19 +232,12 @@ export class TypeChecker {
    */
   getFunctionType(functionName: string): { parameters: { name: string; type: string }[]; returnType: string } | null {
     try {
-      let targetFunction: ts.FunctionDeclaration | undefined;
-
-      ts.forEachChild(this.sourceFile, (node) => {
-        if (ts.isFunctionDeclaration(node) && node.name?.text === functionName) {
-          targetFunction = node;
-        }
-      });
+      const targetFunction = this.findFunctionInAllFiles(functionName);
 
       if (!targetFunction) {
         return null;
       }
 
-      // Get parameters
       const parameters: { name: string; type: string }[] = [];
       for (const param of targetFunction.parameters) {
         if (!ts.isIdentifier(param.name)) {
@@ -258,10 +277,10 @@ export class TypeChecker {
         });
       }
 
-      // Get return type
-      let returnType = 'void'; // Default to void if no type annotation
-      if (targetFunction.type) {
-        const type = this.checker.getTypeFromTypeNode(targetFunction.type);
+      let returnType = 'void';
+      const funcType = targetFunction as ts.FunctionDeclaration | ts.MethodDeclaration;
+      if (funcType.type) {
+        const type = this.checker.getTypeFromTypeNode(funcType.type);
         if (type.flags & ts.TypeFlags.String || type.flags & ts.TypeFlags.StringLiteral) {
           returnType = 'string';
         } else if (type.flags & ts.TypeFlags.Number || type.flags & ts.TypeFlags.NumberLiteral) {
@@ -289,18 +308,21 @@ export class TypeChecker {
     try {
       let targetInterface: ts.InterfaceDeclaration | undefined;
 
-      // Search for interface declaration
-      ts.forEachChild(this.sourceFile, (node) => {
-        if (ts.isInterfaceDeclaration(node) && node.name.text === interfaceName) {
-          targetInterface = node;
+      for (const sourceFile of this.sourceFiles.values()) {
+        ts.forEachChild(sourceFile, (node) => {
+          if (ts.isInterfaceDeclaration(node) && node.name.text === interfaceName) {
+            targetInterface = node;
+          }
+        });
+        if (targetInterface) {
+          break;
         }
-      });
+      }
 
       if (!targetInterface) {
         return null;
       }
 
-      // Extract properties
       const properties: { name: string; type: string }[] = [];
       for (const member of targetInterface.members) {
         if (ts.isPropertySignature(member) && ts.isIdentifier(member.name)) {
