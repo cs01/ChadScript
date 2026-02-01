@@ -37,6 +37,9 @@ export class LLVMGenerator extends BaseGenerator {
   private externalFunctions: Set<string> = new Set();
   private currentFunction: string = ''; // Track current function for type checking
   public currentDeclaredInterfaceType: string | undefined; // Track interface type for object literal generation
+  public currentFunctionReturnType: string = 'double';
+  public isAsyncFunction: boolean = false;
+  public asyncResultPromise: string = '';
 
   // Top-level variables (accessible from all functions)
   private topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }> = new Map();
@@ -492,20 +495,24 @@ export class LLVMGenerator extends BaseGenerator {
       } else if (stmt.type === 'return') {
         lastValue = this.generateExpression(stmt.value, params);
 
-        // Handle type conversion if needed (e.g., i32 to double)
-        // Check if we're returning i32 from a double function
-        if (this.currentFunctionReturnType === 'double') {
-          const valueType = this.getVariableType(lastValue);
-          // Only convert if we explicitly know it's i32
-          if (valueType === 'i32') {
-            const converted = this.nextTemp();
-            this.emit(`${converted} = sitofp i32 ${lastValue} to double`);
-            lastValue = converted;
+        if (this.isAsyncFunction) {
+          const valueAsPtr = this.nextTemp();
+          this.emit(`${valueAsPtr} = bitcast i8* ${lastValue} to i8*`);
+          this.emit(`call void @__Promise_resolve(%Promise* ${this.asyncResultPromise}, i8* ${lastValue})`);
+          this.emit(`ret %Promise* ${this.asyncResultPromise}`);
+        } else {
+          if (this.currentFunctionReturnType === 'double') {
+            const valueType = this.getVariableType(lastValue);
+            if (valueType === 'i32') {
+              const converted = this.nextTemp();
+              this.emit(`${converted} = sitofp i32 ${lastValue} to double`);
+              lastValue = converted;
+            }
           }
-        }
 
-        this.emit(`ret ${this.currentFunctionReturnType} ${lastValue}`);
-        hasTerminator = true;  // return generates 'ret', which is a terminator
+          this.emit(`ret ${this.currentFunctionReturnType} ${lastValue}`);
+        }
+        hasTerminator = true;
       } else if (stmt.type === 'if') {
         this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateIfStatement(stmt, params);
@@ -601,6 +608,10 @@ export class LLVMGenerator extends BaseGenerator {
 
   public isPromiseExpression(expr: Expression): boolean {
     return this.typeInference.isPromiseExpression(expr);
+  }
+
+  public isAwaitExpression(expr: Expression): boolean {
+    return (expr as any).type === 'await';
   }
 
   private isResponseExpression(expr: Expression): boolean {

@@ -225,8 +225,83 @@ export function parseMultiplicative(ctx: ExpressionParserContext): Expression {
   return left;
 }
 
+function parseAsyncArrowFunction(ctx: ExpressionParserContext): Expression {
+  ctx.expect('(');
+  ctx.skipWhitespace();
+
+  const params: string[] = [];
+  if (ctx.code[ctx.pos] !== ')') {
+    params.push(ctx.parseIdentifier());
+    ctx.skipWhitespace();
+    while (ctx.code[ctx.pos] === ',') {
+      ctx.pos++;
+      ctx.skipWhitespace();
+      params.push(ctx.parseIdentifier());
+      ctx.skipWhitespace();
+    }
+  }
+  ctx.expect(')');
+  ctx.skipWhitespace();
+  ctx.expect('=>');
+  ctx.skipWhitespace();
+
+  let body: Expression | BlockStatement;
+  if (ctx.code[ctx.pos] === '{') {
+    ctx.pos++;
+    body = parseBlock(ctx);
+    ctx.expect('}');
+  } else {
+    body = parseExpression(ctx);
+  }
+  return { type: 'arrow_function', params, body, async: true };
+}
+
 export function parsePrimary(ctx: ExpressionParserContext): Expression {
   ctx.skipWhitespace();
+
+  if (ctx.match('async')) {
+    ctx.skipWhitespace();
+    if (ctx.match('function')) {
+      ctx.skipWhitespace();
+      ctx.expect('(');
+
+      const params: string[] = [];
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] !== ')') {
+        params.push(ctx.parseIdentifier());
+        while (ctx.match(',')) {
+          params.push(ctx.parseIdentifier());
+        }
+      }
+      ctx.expect(')');
+      ctx.skipWhitespace();
+      ctx.expect('{');
+
+      const body = parseBlock(ctx);
+      ctx.expect('}');
+
+      return { type: 'arrow_function', params, body, async: true };
+    }
+    if (ctx.code[ctx.pos] === '(') {
+      return parseAsyncArrowFunction(ctx);
+    }
+    const paramName = ctx.parseIdentifier();
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === '=' && ctx.code[ctx.pos + 1] === '>') {
+      ctx.pos += 2;
+      ctx.skipWhitespace();
+      let body: Expression | BlockStatement;
+      if (ctx.code[ctx.pos] === '{') {
+        ctx.pos++;
+        body = parseBlock(ctx);
+        ctx.expect('}');
+      } else {
+        body = parseExpression(ctx);
+      }
+      return { type: 'arrow_function', params: [paramName], body, async: true };
+    }
+    throw new Error(`Expected arrow function or function after 'async'`);
+  }
 
   if (ctx.match('new')) {
     const className = ctx.parseIdentifier();
@@ -270,7 +345,8 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
   }
 
   if (ctx.match('await')) {
-    throw new Error(formatUnsupportedFeatureError('await'));
+    const argument = parsePrimary(ctx);
+    return { type: 'await', argument };
   }
 
   if (ctx.match('typeof')) {

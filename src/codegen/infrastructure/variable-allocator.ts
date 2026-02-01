@@ -17,6 +17,7 @@ export interface VariableAllocatorContext {
   isPromiseExpression(expr: Expression): boolean;
   isResponseExpression(expr: Expression): boolean;
   isJSONParseExpression(expr: Expression): boolean;
+  isAwaitExpression(expr: Expression): boolean;
   getTypedJsonInterface(expr: any): string | null;
   getFunctionCallInterfaceReturn(expr: any): string | null;
   getJSONParseInterface(expr: any): string | null;
@@ -57,6 +58,7 @@ export class VariableAllocator {
     const isSet = this.ctx.isSetExpression(stmt.value);
     const isRegex = this.ctx.isRegexExpression(stmt.value);
     const isPromise = this.ctx.isPromiseExpression(stmt.value);
+    const isAwait = this.ctx.isAwaitExpression(stmt.value);
     const isClassInstance = !isPromise && this.ctx.isClassInstanceExpression(stmt.value);
     const isResponse = this.ctx.isResponseExpression(stmt.value);
     const typedJsonInterface = this.ctx.getTypedJsonInterface(stmt.value);
@@ -64,6 +66,8 @@ export class VariableAllocator {
 
     if (functionInterfaceReturn) {
       this.allocateFunctionInterfaceReturn(stmt, params, functionInterfaceReturn);
+    } else if (isAwait) {
+      this.allocateAwaitResult(stmt, params);
     } else if (isPromise) {
       this.allocatePromise(stmt, params);
     } else if (isClassInstance) {
@@ -131,6 +135,15 @@ export class VariableAllocator {
 
     const promisePtr = this.ctx.generateExpression(stmt.value, params);
     this.ctx.emit(`store %Promise* ${promisePtr}, %Promise** ${allocaReg}`);
+  }
+
+  private allocateAwaitResult(stmt: any, params: string[]): void {
+    const allocaReg = this.ctx.nextTemp();
+    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
+    this.ctx.emit(`${allocaReg} = alloca i8*`);
+
+    const value = this.ctx.generateExpression(stmt.value, params);
+    this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
   }
 
   private allocateTypedJsonInterface(stmt: any, params: string[], interfaceName: string): void {

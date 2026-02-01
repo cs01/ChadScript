@@ -286,6 +286,12 @@ export class TypeInference {
       const varType = this.ctx.getVariableType(expr.name);
       return varType === '%Promise*';
     }
+    if (expr.type === 'call') {
+      const func = this.ctx.ast.functions?.find((f: any) => f.name === expr.name);
+      if (func && func.async) {
+        return true;
+      }
+    }
     return false;
   }
 
