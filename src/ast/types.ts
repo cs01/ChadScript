@@ -209,6 +209,7 @@ export interface FunctionNode {
   body: BlockStatement;
   returnType?: string;
   paramTypes?: string[];
+  typeParameters?: string[];
   async?: boolean;
 }
 

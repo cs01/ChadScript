@@ -68,6 +68,26 @@ export function parseInterface(ctx: ParserContext): void {
 
 export function parseFunction(ctx: ParserContext, isAsync: boolean = false): void {
   const name = ctx.parseIdentifier();
+  ctx.skipWhitespace();
+
+  let typeParameters: string[] | undefined;
+  if (ctx.code[ctx.pos] === '<') {
+    typeParameters = [];
+    ctx.pos++;
+    ctx.skipWhitespace();
+    const firstParam = ctx.parseIdentifier();
+    typeParameters.push(firstParam);
+    ctx.skipWhitespace();
+    while (ctx.code[ctx.pos] === ',') {
+      ctx.pos++;
+      ctx.skipWhitespace();
+      const nextParam = ctx.parseIdentifier();
+      typeParameters.push(nextParam);
+      ctx.skipWhitespace();
+    }
+    ctx.expect('>');
+  }
+
   ctx.expect('(');
 
   const params: string[] = [];
@@ -110,7 +130,7 @@ export function parseFunction(ctx: ParserContext, isAsync: boolean = false): voi
   const body = ctx.parseBlock();
   ctx.expect('}');
 
-  ctx.functions.push({ name, params, body, returnType, async: isAsync || undefined });
+  ctx.functions.push({ name, params, body, returnType, typeParameters, async: isAsync || undefined });
 }
 
 export function parseClass(ctx: ParserContext): void {
