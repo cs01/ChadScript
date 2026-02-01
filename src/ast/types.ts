@@ -126,7 +126,21 @@ export interface ConditionalExpressionNode {
   alternate: Expression;
 }
 
-export type Expression = NumberNode | StringNode | BooleanNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode | AwaitExpressionNode;
+export interface MemberAccessAssignmentNode {
+  type: 'member_access_assignment';
+  object: Expression;
+  property: string;
+  value: Expression;
+}
+
+export interface IndexAccessAssignmentNode {
+  type: 'index_access_assignment';
+  object: Expression;
+  index: Expression;
+  value: Expression;
+}
+
+export type Expression = NumberNode | StringNode | BooleanNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode | AwaitExpressionNode | MemberAccessAssignmentNode | IndexAccessAssignmentNode;
 
 export interface VariableDeclaration {
   type: 'variable_declaration';
@@ -203,6 +217,8 @@ export interface TryStatement {
 
 export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | ForOfStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | Expression;
 
+export type TopLevelItem = VariableDeclaration | AssignmentStatement | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | CallNode | NewNode | MethodCallNode;
+
 export interface FunctionParameter {
   name: string;
   type?: string;
@@ -262,9 +278,9 @@ export interface AST {
   interfaces: InterfaceDeclaration[];  // Interface definitions for JSON typing
   typeAliases: TypeAliasDeclaration[];  // Type alias declarations (union types)
   enums: EnumDeclaration[];  // Enum declarations (compile to integer constants)
-  topLevelStatements: VariableDeclaration[];  // Top-level const/let declarations
+  topLevelStatements: (VariableDeclaration | AssignmentStatement)[];  // Top-level const/let declarations and assignments
   topLevelExpressions: (CallNode | NewNode | MethodCallNode)[];  // Top-level expressions (console.log, etc.)
-  topLevelItems?: any[];  // Combined ordered list of all top-level statements and expressions
+  topLevelItems?: TopLevelItem[];  // Combined ordered list of all top-level statements and expressions
 }
 
 export interface InterfaceDeclaration {
