@@ -18,6 +18,7 @@ export interface VariableAllocatorContext {
   isResponseExpression(expr: Expression): boolean;
   isJSONParseExpression(expr: Expression): boolean;
   isAwaitExpression(expr: Expression): boolean;
+  currentDeclaredMapType: string | undefined;
   getTypedJsonInterface(expr: any): string | null;
   getFunctionCallInterfaceReturn(expr: any): string | null;
   getJSONParseInterface(expr: any): string | null;
@@ -235,14 +236,55 @@ export class VariableAllocator {
   }
 
   private allocateMap(stmt: any, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
-    this.ctx.defineVariable(stmt.name, allocaReg, '%Map*', SymbolKind.Map, 'local');
-    this.ctx.emit(`${allocaReg} = alloca %Map`);
+    const mapTypeInfo = this.parseMapType(stmt.declaredType);
 
+    if (mapTypeInfo && mapTypeInfo.keyType === 'string') {
+      this.allocateStringMap(stmt, params, mapTypeInfo);
+    } else {
+      const allocaReg = this.ctx.nextTemp();
+      this.ctx.defineVariable(stmt.name, allocaReg, '%Map*', SymbolKind.Map, 'local');
+      this.ctx.emit(`${allocaReg} = alloca %Map`);
+
+      const value = this.ctx.generateExpression(stmt.value, params);
+      const loadedMap = this.ctx.nextTemp();
+      this.ctx.emit(`${loadedMap} = load %Map, %Map* ${value}`);
+      this.ctx.emit(`store %Map ${loadedMap}, %Map* ${allocaReg}`);
+    }
+  }
+
+  private allocateStringMap(stmt: any, params: string[], mapTypeInfo: { keyType: string; valueType: string }): void {
+    const allocaReg = this.ctx.nextTemp();
+    const llvmValueType = this.tsTypeToLlvm(mapTypeInfo.valueType);
+
+    this.ctx.defineVariable(stmt.name, allocaReg, '%StringMap*', SymbolKind.Map, 'local', {
+      mapMetadata: {
+        keyType: 'string',
+        valueType: mapTypeInfo.valueType,
+        llvmKeyType: 'i8*',
+        llvmValueType
+      }
+    });
+    this.ctx.emit(`${allocaReg} = alloca %StringMap`);
+
+    this.ctx.currentDeclaredMapType = stmt.declaredType;
     const value = this.ctx.generateExpression(stmt.value, params);
+    this.ctx.currentDeclaredMapType = undefined;
+
     const loadedMap = this.ctx.nextTemp();
-    this.ctx.emit(`${loadedMap} = load %Map, %Map* ${value}`);
-    this.ctx.emit(`store %Map ${loadedMap}, %Map* ${allocaReg}`);
+    this.ctx.emit(`${loadedMap} = load %StringMap, %StringMap* ${value}`);
+    this.ctx.emit(`store %StringMap ${loadedMap}, %StringMap* ${allocaReg}`);
+  }
+
+  private parseMapType(declaredType: string | undefined): { keyType: string; valueType: string } | null {
+    if (!declaredType) return null;
+
+    const match = declaredType.match(/^Map<\s*(\w+)\s*,\s*(\w+)\s*>$/);
+    if (!match) return null;
+
+    return {
+      keyType: match[1],
+      valueType: match[2]
+    };
   }
 
   private allocateSet(stmt: any, params: string[]): void {

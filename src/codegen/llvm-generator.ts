@@ -8,7 +8,7 @@ import { getLLVMDeclarations, getSafeStringHelper, getGlobalVariables } from './
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
 import { ObjectGenerator } from './types/objects/object.js';
-import { MapGenerator } from './types/collections/map.js';
+import { MapGenerator, StringMapGenerator } from './types/collections/map.js';
 import { SetGenerator } from './types/collections/set.js';
 import { ControlFlowGenerator } from './statements/control-flow.js';
 import { ClassGenerator } from './types/objects/class.js';
@@ -37,6 +37,7 @@ export class LLVMGenerator extends BaseGenerator {
   private externalFunctions: Set<string> = new Set();
   private currentFunction: string = ''; // Track current function for type checking
   public currentDeclaredInterfaceType: string | undefined; // Track interface type for object literal generation
+  public currentDeclaredMapType: string | undefined; // Track Map type for Map literal generation (e.g., "Map<string, string>")
   public currentFunctionReturnType: string = 'double';
   public isAsyncFunction: boolean = false;
   public asyncResultPromise: string = '';
@@ -52,6 +53,7 @@ export class LLVMGenerator extends BaseGenerator {
   private stringGen: StringGenerator;
   private objectGen: ObjectGenerator;
   private mapGen: MapGenerator;
+  private stringMapGen: StringMapGenerator;
   private setGen: SetGenerator;
   private controlFlowGen: ControlFlowGenerator;
   private classGen: ClassGenerator;
@@ -167,6 +169,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.arrayGen = new ArrayGenerator(this);
     this.stringGen = new StringGenerator(this);
     this.mapGen = new MapGenerator(this);
+    this.stringMapGen = new StringMapGenerator(this);
     this.setGen = new SetGenerator(this);
     this.controlFlowGen = new ControlFlowGenerator(this);
     this.classGen = new ClassGenerator(this);

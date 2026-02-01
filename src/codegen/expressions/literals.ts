@@ -83,10 +83,19 @@ export class LiteralExpressionGenerator {
   }
 
   /**
-   * Generate Map literal (delegates to MapGenerator)
+   * Generate Map literal (delegates to MapGenerator or StringMapGenerator)
    */
   generateMap(expr: any, params: string[]): string {
     this.ctx.syncStateToGenerators();
+
+    const declaredType = this.ctx.currentDeclaredMapType;
+    if (declaredType) {
+      const match = declaredType.match(/^Map<\s*(\w+)\s*,\s*(\w+)\s*>$/);
+      if (match && match[1] === 'string') {
+        return this.ctx.stringMapGen.generateEmptyStringMap();
+      }
+    }
+
     return this.ctx.mapGen.generateMapLiteral(expr, params, this.ctx.generateExpression.bind(this.ctx));
   }
 
