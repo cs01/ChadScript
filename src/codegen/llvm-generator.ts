@@ -9,7 +9,7 @@ import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
 import { ObjectGenerator } from './types/objects/object.js';
 import { MapGenerator, StringMapGenerator } from './types/collections/map.js';
-import { SetGenerator } from './types/collections/set.js';
+import { SetGenerator, StringSetGenerator } from './types/collections/set.js';
 import { ControlFlowGenerator } from './statements/control-flow.js';
 import { ClassGenerator } from './types/objects/class.js';
 import { RegexGenerator } from './types/objects/regex.js';
@@ -38,6 +38,7 @@ export class LLVMGenerator extends BaseGenerator {
   private currentFunction: string = ''; // Track current function for type checking
   public currentDeclaredInterfaceType: string | undefined; // Track interface type for object literal generation
   public currentDeclaredMapType: string | undefined; // Track Map type for Map literal generation (e.g., "Map<string, string>")
+  public currentDeclaredSetType: string | undefined; // Track Set type for Set literal generation (e.g., "Set<string>")
   public currentFunctionReturnType: string = 'double';
   public isAsyncFunction: boolean = false;
   public asyncResultPromise: string = '';
@@ -55,6 +56,7 @@ export class LLVMGenerator extends BaseGenerator {
   private mapGen: MapGenerator;
   private stringMapGen: StringMapGenerator;
   private setGen: SetGenerator;
+  private stringSetGen: StringSetGenerator;
   private controlFlowGen: ControlFlowGenerator;
   private classGen: ClassGenerator;
   private regexGen: RegexGenerator;
@@ -171,6 +173,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.mapGen = new MapGenerator(this);
     this.stringMapGen = new StringMapGenerator(this);
     this.setGen = new SetGenerator(this);
+    this.stringSetGen = new StringSetGenerator(this);
     this.controlFlowGen = new ControlFlowGenerator(this);
     this.classGen = new ClassGenerator(this);
 

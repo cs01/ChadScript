@@ -244,6 +244,21 @@ export class MethodCallGenerator {
     if (method === 'add' || method === 'has' || method === 'delete') {
       if (expr.object.type === 'variable' && this.ctx.symbolTable.isSet(expr.object.name)) {
         this.ctx.syncStateToGenerators();
+        const setMeta = this.ctx.symbolTable.getSetMetadata(expr.object.name);
+
+        if (setMeta && setMeta.valueType === 'string') {
+          const setAlloca = this.ctx.symbolTable.getAlloca(expr.object.name);
+          if (method === 'add') {
+            const valueValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.stringSetGen.generateStringSetAdd(setAlloca, valueValue);
+          } else if (method === 'has') {
+            const valueValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.stringSetGen.generateStringSetHas(setAlloca, valueValue);
+          } else {
+            throw new Error('Set.delete() not yet implemented for Set<string>');
+          }
+        }
+
         if (method === 'add') {
           return this.ctx.setGen.generateSetAdd(expr, params, this.ctx.generateExpression.bind(this.ctx));
         } else if (method === 'has') {

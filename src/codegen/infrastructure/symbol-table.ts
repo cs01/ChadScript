@@ -76,6 +76,14 @@ export interface MapMetadata {
 }
 
 /**
+ * Set-specific metadata for typed Sets
+ */
+export interface SetMetadata {
+  valueType: 'string' | 'number'; // TypeScript value type
+  llvmValueType: string;          // LLVM type for values (i8* for string, double for number)
+}
+
+/**
  * Symbol entry in the symbol table
  */
 export interface Symbol {
@@ -95,6 +103,7 @@ export interface Symbol {
   arrayMetadata?: ArrayMetadata;
   closureMetadata?: ClosureMetadata;
   mapMetadata?: MapMetadata;
+  setMetadata?: SetMetadata;
 }
 
 /**
@@ -145,6 +154,7 @@ export class SymbolTable {
       arrayMetadata?: ArrayMetadata;
       closureMetadata?: ClosureMetadata;
       mapMetadata?: MapMetadata;
+      setMetadata?: SetMetadata;
       isPointerAlloca?: boolean;
     }
   ): void {
@@ -386,6 +396,17 @@ export class SymbolTable {
     const symbol = this.symbols.get(name);
     if (symbol?.kind === SymbolKind.Map) {
       return symbol.mapMetadata;
+    }
+    return undefined;
+  }
+
+  /**
+   * Get set metadata (value type)
+   */
+  getSetMetadata(name: string): SetMetadata | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol?.kind === SymbolKind.Set) {
+      return symbol.setMetadata;
     }
     return undefined;
   }

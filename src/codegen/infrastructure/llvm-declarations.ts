@@ -5,7 +5,8 @@ export function getLLVMDeclarations(): string {
   ir += '%StringArray = type { i8**, i32, i32 }\n';
   ir += '%Map = type { double*, double*, i32, i32 }\n';
   ir += '%StringMap = type { i8**, i8**, i32, i32 }\n';
-  ir += '%Set = type { double*, i32, i32 }\n\n';
+  ir += '%Set = type { double*, i32, i32 }\n';
+  ir += '%StringSet = type { i8**, i32, i32 }\n\n';
 
   ir += 'declare i8* @malloc(i64)\n';
   ir += 'declare i8* @calloc(i64, i64)\n';
