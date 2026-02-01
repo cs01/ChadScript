@@ -24,6 +24,7 @@ import { RuntimeGenerator } from './runtime/runtime.js';
 import { MongooseGenerator } from './stdlib/mongoose.js';
 import { LibuvGenerator } from './stdlib/libuv.js';
 import { PromiseGenerator } from './stdlib/promise.js';
+import { TreeSitterGenerator } from './stdlib/treesitter.js';
 import { ExpressionGenerator } from './expressions/orchestrator.js';
 import { TypeChecker } from '../typescript/type-checker.js';
 import { InterfaceStructGenerator } from './types/interface-struct-generator.js';
@@ -74,6 +75,7 @@ export class LLVMGenerator extends BaseGenerator {
   private mongooseGen: MongooseGenerator;
   private libuvGen: LibuvGenerator;
   private promiseGen: PromiseGenerator;
+  private treesitterGen: TreeSitterGenerator;
   private httpHandlers: string[] = [];
   public usesTimers: boolean = false;
   public usesPromises: boolean = false;
@@ -165,6 +167,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.mongooseGen = new MongooseGenerator();
     this.libuvGen = new LibuvGenerator();
     this.promiseGen = new PromiseGenerator();
+    this.treesitterGen = new TreeSitterGenerator();
 
     // Initialize expression generator with context pattern
     this.exprGen = new ExpressionGenerator(this);
@@ -331,6 +334,9 @@ export class LLVMGenerator extends BaseGenerator {
     ir += '\n';
 
     ir += this.promiseGen.generateDeclarations();
+    ir += '\n';
+
+    ir += this.treesitterGen.generateDeclarations();
     ir += '\n';
 
     ir += getSafeStringHelper();
