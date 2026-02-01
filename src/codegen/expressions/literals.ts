@@ -100,10 +100,19 @@ export class LiteralExpressionGenerator {
   }
 
   /**
-   * Generate Set literal (delegates to SetGenerator)
+   * Generate Set literal (delegates to SetGenerator or StringSetGenerator)
    */
   generateSet(expr: any, params: string[]): string {
     this.ctx.syncStateToGenerators();
+
+    const declaredType = this.ctx.currentDeclaredSetType;
+    if (declaredType) {
+      const match = declaredType.match(/^Set<\s*(\w+)\s*>$/);
+      if (match && match[1] === 'string') {
+        return this.ctx.stringSetGen.generateEmptyStringSet();
+      }
+    }
+
     return this.ctx.setGen.generateSetLiteral(expr, params, this.ctx.generateExpression.bind(this.ctx));
   }
 
