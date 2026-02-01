@@ -4,20 +4,21 @@ interface UnaryExpressionContext {
   nextTemp(): string;
   emit(instruction: string): void;
   variableTypes: Map<string, string>;
+  getVariableAlloca(name: string): string | undefined;
 }
 
-/**
- * UnaryExpressionGenerator
- *
- * Handles unary operations:
- * - ! (logical NOT)
- * - - (negation)
- * - + (unary plus, no-op)
- */
 export class UnaryExpressionGenerator {
   constructor(private ctx: UnaryExpressionContext) {}
 
   generate(op: string, operand: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    if (op === 'post++' || op === 'post--') {
+      return this.generatePostIncDec(op, operand, params, generateExpressionFn);
+    }
+
+    if (op === '++' || op === '--') {
+      return this.generatePreIncDec(op, operand, params, generateExpressionFn);
+    }
+
     const operandValue = generateExpressionFn(operand, params);
 
     if (op === '!') {
@@ -29,11 +30,56 @@ export class UnaryExpressionGenerator {
     }
 
     if (op === '+') {
-      // Unary + is a no-op for numbers, just return the operand
       return operandValue;
     }
 
     throw new Error(`Unknown unary operator: ${op}`);
+  }
+
+  private generatePostIncDec(op: string, operand: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    if (operand.type !== 'variable') {
+      throw new Error(`Post-increment/decrement requires a variable operand`);
+    }
+    const varName = operand.name;
+    const allocaReg = this.ctx.getVariableAlloca(varName);
+    if (!allocaReg) {
+      throw new Error(`Cannot find alloca for variable: ${varName}`);
+    }
+
+    const originalValue = this.ctx.nextTemp();
+    this.ctx.emit(`${originalValue} = load double, double* ${allocaReg}`);
+    this.ctx.variableTypes.set(originalValue, 'double');
+
+    const delta = op === 'post++' ? '1.0' : '-1.0';
+    const newValue = this.ctx.nextTemp();
+    this.ctx.emit(`${newValue} = fadd double ${originalValue}, ${delta}`);
+
+    this.ctx.emit(`store double ${newValue}, double* ${allocaReg}`);
+
+    return originalValue;
+  }
+
+  private generatePreIncDec(op: string, operand: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    if (operand.type !== 'variable') {
+      throw new Error(`Pre-increment/decrement requires a variable operand`);
+    }
+    const varName = operand.name;
+    const allocaReg = this.ctx.getVariableAlloca(varName);
+    if (!allocaReg) {
+      throw new Error(`Cannot find alloca for variable: ${varName}`);
+    }
+
+    const originalValue = this.ctx.nextTemp();
+    this.ctx.emit(`${originalValue} = load double, double* ${allocaReg}`);
+
+    const delta = op === '++' ? '1.0' : '-1.0';
+    const newValue = this.ctx.nextTemp();
+    this.ctx.emit(`${newValue} = fadd double ${originalValue}, ${delta}`);
+    this.ctx.variableTypes.set(newValue, 'double');
+
+    this.ctx.emit(`store double ${newValue}, double* ${allocaReg}`);
+
+    return newValue;
   }
 
   private generateLogicalNot(operand: string): string {
