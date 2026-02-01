@@ -30,6 +30,15 @@ export interface ParserContext {
 
 export function parseInterface(ctx: ParserContext): void {
   const name = ctx.parseIdentifier();
+  ctx.skipWhitespace();
+
+  if (ctx.match('extends')) {
+    ctx.parseIdentifier();
+    while (ctx.match(',')) {
+      ctx.parseIdentifier();
+    }
+  }
+
   ctx.expect('{');
 
   const fields: { name: string; type: string }[] = [];
@@ -287,11 +296,24 @@ export function parseClass(ctx: ParserContext): void {
     const identifier = ctx.parseIdentifier();
     ctx.skipWhitespace();
 
+    if (ctx.code[ctx.pos] === '=' && ctx.code[ctx.pos + 1] !== '>') {
+      ctx.pos++;
+      ctx.skipWhitespace();
+      ctx.parseExpression();
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === ';') {
+        ctx.pos++;
+      }
+      fields.push({ name: identifier, fieldType: 'double' });
+      continue;
+    }
+
     if (ctx.code[ctx.pos] === ':') {
       ctx.pos++;
       ctx.skipWhitespace();
 
       let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' = 'double';
+      const typeStart = ctx.pos;
 
       if (ctx.match('string')) {
         ctx.skipWhitespace();
@@ -318,11 +340,19 @@ export function parseClass(ctx: ParserContext): void {
           fieldType = 'boolean';
         }
       } else {
-        throw new Error(ctx.formatError(`Unsupported field type. Supported types: string, number, string[], number[], boolean[]`));
+        ctx.skipTypeAnnotation();
       }
 
       ctx.skipWhitespace();
-      ctx.expect(';');
+      if (ctx.code[ctx.pos] === '=') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+        ctx.parseExpression();
+        ctx.skipWhitespace();
+      }
+      if (ctx.code[ctx.pos] === ';') {
+        ctx.pos++;
+      }
 
       fields.push({ name: identifier, fieldType });
       continue;
@@ -348,10 +378,21 @@ export function parseClass(ctx: ParserContext): void {
       const paramName = ctx.parseIdentifier();
       let paramType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
       ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === '?') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+      }
       if (ctx.code[ctx.pos] === ':') {
         ctx.pos++;
         ctx.skipWhitespace();
         paramType = ctx.parseTypeAnnotation();
+      }
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === '=') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+        ctx.parseExpression();
+        ctx.skipWhitespace();
       }
       params.push(paramName);
       if (paramType) paramTypes.push(paramType);
@@ -361,10 +402,21 @@ export function parseClass(ctx: ParserContext): void {
         const nextParamName = ctx.parseIdentifier();
         let nextParamType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
         ctx.skipWhitespace();
+        if (ctx.code[ctx.pos] === '?') {
+          ctx.pos++;
+          ctx.skipWhitespace();
+        }
         if (ctx.code[ctx.pos] === ':') {
           ctx.pos++;
           ctx.skipWhitespace();
           nextParamType = ctx.parseTypeAnnotation();
+        }
+        ctx.skipWhitespace();
+        if (ctx.code[ctx.pos] === '=') {
+          ctx.pos++;
+          ctx.skipWhitespace();
+          ctx.parseExpression();
+          ctx.skipWhitespace();
         }
         params.push(nextParamName);
         if (nextParamType) paramTypes.push(nextParamType);
@@ -451,6 +503,33 @@ export function parseImport(ctx: ParserContext): void {
 export function parseExport(ctx: ParserContext): void {
   if (ctx.match('interface')) {
     parseInterface(ctx);
+    return;
+  }
+
+  if (ctx.match('type')) {
+    ctx.parseIdentifier();
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === '<') {
+      ctx.pos++;
+      ctx.skipTypeAnnotation();
+      while (ctx.match(',')) {
+        ctx.skipTypeAnnotation();
+      }
+      ctx.expect('>');
+    }
+    ctx.skipWhitespace();
+    ctx.expect('=');
+    ctx.skipWhitespace();
+    ctx.skipTypeAnnotation();
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === ';') {
+      ctx.pos++;
+    }
+    return;
+  }
+
+  if (ctx.match('enum')) {
+    parseEnum(ctx);
     return;
   }
 
@@ -569,6 +648,19 @@ export function parseExport(ctx: ParserContext): void {
       const identifier = ctx.parseIdentifier();
       ctx.skipWhitespace();
 
+      if (ctx.code[ctx.pos] === '=' && ctx.code[ctx.pos + 1] !== '>') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+        ctx.parseExpression();
+        ctx.skipWhitespace();
+        if (ctx.code[ctx.pos] === ';') {
+          ctx.pos++;
+        }
+        fields.push({ name: identifier, fieldType: 'double' });
+        ctx.skipWhitespace();
+        continue;
+      }
+
       if (ctx.code[ctx.pos] === ':') {
         ctx.pos++;
         ctx.skipWhitespace();
@@ -596,14 +688,22 @@ export function parseExport(ctx: ParserContext): void {
             ctx.pos += 2;
             fieldType = 'boolean[]';
           } else {
-            throw new Error(ctx.formatError(`boolean fields are not supported yet. Only string, number, and their array types are supported.`));
+            fieldType = 'boolean';
           }
         } else {
-          throw new Error(ctx.formatError(`Unsupported field type. Supported types: string, number, string[], number[], boolean[]`));
+          ctx.skipTypeAnnotation();
         }
 
         ctx.skipWhitespace();
-        ctx.expect(';');
+        if (ctx.code[ctx.pos] === '=') {
+          ctx.pos++;
+          ctx.skipWhitespace();
+          ctx.parseExpression();
+          ctx.skipWhitespace();
+        }
+        if (ctx.code[ctx.pos] === ';') {
+          ctx.pos++;
+        }
 
         fields.push({ name: identifier, fieldType });
         ctx.skipWhitespace();
@@ -623,10 +723,21 @@ export function parseExport(ctx: ParserContext): void {
         const paramName = ctx.parseIdentifier();
         let paramType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
         ctx.skipWhitespace();
+        if (ctx.code[ctx.pos] === '?') {
+          ctx.pos++;
+          ctx.skipWhitespace();
+        }
         if (ctx.code[ctx.pos] === ':') {
           ctx.pos++;
           ctx.skipWhitespace();
           paramType = ctx.parseTypeAnnotation();
+        }
+        ctx.skipWhitespace();
+        if (ctx.code[ctx.pos] === '=') {
+          ctx.pos++;
+          ctx.skipWhitespace();
+          ctx.parseExpression();
+          ctx.skipWhitespace();
         }
         params.push(paramName);
         if (paramType) paramTypes.push(paramType);
@@ -636,10 +747,21 @@ export function parseExport(ctx: ParserContext): void {
           const nextParamName = ctx.parseIdentifier();
           let nextParamType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
           ctx.skipWhitespace();
+          if (ctx.code[ctx.pos] === '?') {
+            ctx.pos++;
+            ctx.skipWhitespace();
+          }
           if (ctx.code[ctx.pos] === ':') {
             ctx.pos++;
             ctx.skipWhitespace();
             nextParamType = ctx.parseTypeAnnotation();
+          }
+          ctx.skipWhitespace();
+          if (ctx.code[ctx.pos] === '=') {
+            ctx.pos++;
+            ctx.skipWhitespace();
+            ctx.parseExpression();
+            ctx.skipWhitespace();
           }
           params.push(nextParamName);
           if (nextParamType) paramTypes.push(nextParamType);

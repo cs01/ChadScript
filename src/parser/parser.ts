@@ -263,6 +263,14 @@ export class Parser implements ExpressionParserContext {
         while (this.pos < this.code.length && this.code[this.pos] !== '\n') {
           this.pos++;
         }
+      } else if (this.code[this.pos] === '/' && this.code[this.pos + 1] === '*') {
+        this.pos += 2;
+        while (this.pos < this.code.length - 1 && !(this.code[this.pos] === '*' && this.code[this.pos + 1] === '/')) {
+          this.pos++;
+        }
+        if (this.pos < this.code.length - 1) {
+          this.pos += 2;
+        }
       } else {
         break;
       }
@@ -373,7 +381,105 @@ export class Parser implements ExpressionParserContext {
   skipTypeAnnotation(): void {
     this.skipWhitespace();
 
-    if (/[a-zA-Z_]/.test(this.code[this.pos])) {
+    if (this.match('keyof')) {
+      this.skipWhitespace();
+      this.skipTypeAnnotation();
+      return;
+    }
+
+    if (this.match('typeof')) {
+      this.skipWhitespace();
+      this.skipTypeAnnotation();
+      return;
+    }
+
+    if (this.code[this.pos] === '{') {
+      this.pos++;
+      this.skipWhitespace();
+      while (this.pos < this.code.length && this.code[this.pos] !== '}') {
+        if (/[a-zA-Z_]/.test(this.code[this.pos])) {
+          this.parseIdentifier();
+        }
+        this.skipWhitespace();
+        if (this.code[this.pos] === '?') {
+          this.pos++;
+          this.skipWhitespace();
+        }
+        if (this.code[this.pos] === ':') {
+          this.pos++;
+          this.skipWhitespace();
+          this.skipTypeAnnotation();
+        }
+        this.skipWhitespace();
+        if (this.code[this.pos] === ';' || this.code[this.pos] === ',') {
+          this.pos++;
+        }
+        this.skipWhitespace();
+      }
+      if (this.code[this.pos] === '}') {
+        this.pos++;
+      }
+      this.skipWhitespace();
+      while (this.code[this.pos] === '[') {
+        this.pos++;
+        this.skipWhitespace();
+        if (this.code[this.pos] === ']') {
+          this.pos++;
+        }
+      }
+    } else if (this.code[this.pos] === '(') {
+      this.pos++;
+      this.skipWhitespace();
+      while (this.pos < this.code.length && this.code[this.pos] !== ')') {
+        if (/[a-zA-Z_]/.test(this.code[this.pos])) {
+          this.parseIdentifier();
+        }
+        this.skipWhitespace();
+        if (this.code[this.pos] === '?') {
+          this.pos++;
+          this.skipWhitespace();
+        }
+        if (this.code[this.pos] === ':') {
+          this.pos++;
+          this.skipWhitespace();
+          this.skipTypeAnnotation();
+        }
+        this.skipWhitespace();
+        if (this.code[this.pos] === ',') {
+          this.pos++;
+        }
+        this.skipWhitespace();
+      }
+      if (this.code[this.pos] === ')') {
+        this.pos++;
+      }
+      this.skipWhitespace();
+      if (this.code[this.pos] === '=' && this.code[this.pos + 1] === '>') {
+        this.pos += 2;
+        this.skipWhitespace();
+        this.skipTypeAnnotation();
+      }
+      this.skipWhitespace();
+      while (this.code[this.pos] === '[') {
+        this.pos++;
+        this.skipWhitespace();
+        if (this.code[this.pos] === ']') {
+          this.pos++;
+        }
+      }
+    } else if (this.code[this.pos] === "'" || this.code[this.pos] === '"') {
+      const quote = this.code[this.pos];
+      this.pos++;
+      while (this.pos < this.code.length && this.code[this.pos] !== quote) {
+        if (this.code[this.pos] === '\\') {
+          this.pos++;
+        }
+        this.pos++;
+      }
+      if (this.code[this.pos] === quote) {
+        this.pos++;
+      }
+    } else if (/[a-zA-Z_]/.test(this.code[this.pos])) {
       this.parseIdentifier();
       this.skipWhitespace();
       if (this.code[this.pos] === '<') {
@@ -404,8 +510,28 @@ export class Parser implements ExpressionParserContext {
     while (this.code[this.pos] === '|' || this.code[this.pos] === '&') {
       this.pos++;
       this.skipWhitespace();
-      if (/[a-zA-Z_]/.test(this.code[this.pos])) {
+      if (this.code[this.pos] === "'" || this.code[this.pos] === '"') {
+        const quote = this.code[this.pos];
+        this.pos++;
+        while (this.pos < this.code.length && this.code[this.pos] !== quote) {
+          if (this.code[this.pos] === '\\') {
+            this.pos++;
+          }
+          this.pos++;
+        }
+        if (this.code[this.pos] === quote) {
+          this.pos++;
+        }
+      } else if (/[a-zA-Z_]/.test(this.code[this.pos])) {
         this.parseIdentifier();
+        this.skipWhitespace();
+        while (this.code[this.pos] === '[') {
+          this.pos++;
+          this.skipWhitespace();
+          if (this.code[this.pos] === ']') {
+            this.pos++;
+          }
+        }
       }
       this.skipWhitespace();
     }

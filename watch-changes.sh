@@ -1,7 +1,7 @@
 #!/bin/bash
 
 WATCH_DIR="${1:-.}"
-EXCLUDE_PATTERN="node_modules|\.git|nohup\.out|\.swp$|~$"
+EXCLUDE_PATTERN="node_modules|\.git|nohup\.out|.build|\.swp$|~$|.dist"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
