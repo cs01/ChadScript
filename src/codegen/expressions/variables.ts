@@ -5,7 +5,7 @@ interface ClassGeneratorLike {
   getClassFields(className: string): { name: string; fieldType: string }[];
 }
 
-interface VariableExpressionContext {
+export interface VariableExpressionContext {
   symbolTable: SymbolTable;
   variableTypes: Map<string, string>;
   classGen: ClassGeneratorLike;

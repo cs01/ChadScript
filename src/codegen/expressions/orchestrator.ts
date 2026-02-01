@@ -1,4 +1,4 @@
-import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, NewNode } from '../../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, NewNode, RegexNode, ArrowFunctionNode, ConditionalExpressionNode, TemplateLiteralNode, MethodCallNode, AwaitExpressionNode } from '../../ast/types.js';
 import { LiteralExpressionGenerator } from './literals.js';
 import { VariableExpressionGenerator } from './variables.js';
 import { BinaryExpressionGenerator } from './operators/binary.js';
@@ -10,6 +10,15 @@ import { ArrowFunctionExpressionGenerator } from './arrow-functions.js';
 import { ConditionalExpressionGenerator } from './conditionals.js';
 import { TemplateLiteralGenerator } from './templates.js';
 import { MethodCallGenerator } from './method-calls.js';
+import type { SymbolTable } from '../infrastructure/symbol-table.js';
+
+interface ExpressionOrchestratorContext {
+  symbolTable: SymbolTable;
+  variableTypes: Map<string, string>;
+  usesPromises: boolean;
+  nextTemp(): string;
+  emit(instruction: string): void;
+}
 
 /**
  * ExpressionGenerator
@@ -39,18 +48,19 @@ export class ExpressionGenerator {
   private templateLiteralGen: TemplateLiteralGenerator;
   private methodCallGen: MethodCallGenerator;
 
-  constructor(private ctx: any) {
-    this.literalGen = new LiteralExpressionGenerator(ctx);
-    this.variableGen = new VariableExpressionGenerator(ctx);
-    this.binaryGen = new BinaryExpressionGenerator(ctx);
-    this.unaryGen = new UnaryExpressionGenerator(ctx);
-    this.callGen = new CallExpressionGenerator(ctx);
-    this.indexAccessGen = new IndexAccessGenerator(ctx);
-    this.memberAccessGen = new MemberAccessGenerator(ctx);
+  constructor(private ctx: ExpressionOrchestratorContext) {
+    const subCtx = ctx as unknown;
+    this.literalGen = new LiteralExpressionGenerator(subCtx as ConstructorParameters<typeof LiteralExpressionGenerator>[0]);
+    this.variableGen = new VariableExpressionGenerator(subCtx as ConstructorParameters<typeof VariableExpressionGenerator>[0]);
+    this.binaryGen = new BinaryExpressionGenerator(subCtx as ConstructorParameters<typeof BinaryExpressionGenerator>[0]);
+    this.unaryGen = new UnaryExpressionGenerator(subCtx as ConstructorParameters<typeof UnaryExpressionGenerator>[0]);
+    this.callGen = new CallExpressionGenerator(subCtx as ConstructorParameters<typeof CallExpressionGenerator>[0]);
+    this.indexAccessGen = new IndexAccessGenerator(subCtx as ConstructorParameters<typeof IndexAccessGenerator>[0]);
+    this.memberAccessGen = new MemberAccessGenerator(subCtx as ConstructorParameters<typeof MemberAccessGenerator>[0]);
     this.arrowFunctionGen = new ArrowFunctionExpressionGenerator();
-    this.conditionalGen = new ConditionalExpressionGenerator(ctx);
-    this.templateLiteralGen = new TemplateLiteralGenerator(ctx);
-    this.methodCallGen = new MethodCallGenerator(ctx);
+    this.conditionalGen = new ConditionalExpressionGenerator(subCtx as ConstructorParameters<typeof ConditionalExpressionGenerator>[0]);
+    this.templateLiteralGen = new TemplateLiteralGenerator(subCtx as ConstructorParameters<typeof TemplateLiteralGenerator>[0]);
+    this.methodCallGen = new MethodCallGenerator(subCtx as ConstructorParameters<typeof MethodCallGenerator>[0]);
   }
 
   /**
@@ -71,8 +81,8 @@ export class ExpressionGenerator {
       return this.literalGen.generateString(expr.value);
     }
 
-    if ((expr as any).type === 'regex') {
-      const regexExpr = expr as any;
+    if (expr.type === 'regex') {
+      const regexExpr = expr as RegexNode;
       return this.literalGen.generateRegex(regexExpr.pattern, regexExpr.flags);
     }
 
@@ -97,7 +107,7 @@ export class ExpressionGenerator {
       return this.literalGen.generateNew(newExpr.className, newExpr.args, params);
     }
 
-    if ((expr as any).type === 'this') {
+    if (expr.type === 'this') {
       return this.literalGen.generateThis();
     }
 
@@ -132,29 +142,29 @@ export class ExpressionGenerator {
     }
 
     // Arrow functions
-    if ((expr as any).type === 'arrow_function') {
+    if (expr.type === 'arrow_function') {
       const scopeVars = this.ctx.symbolTable.getScopeVarsForClosure();
-      return this.arrowFunctionGen.generateArrowFunction(expr, params, undefined, scopeVars);
+      return this.arrowFunctionGen.generateArrowFunction(expr as ArrowFunctionNode, params, undefined, scopeVars);
     }
 
     // Conditional (ternary) expressions
-    if ((expr as any).type === 'conditional') {
-      return this.conditionalGen.generate(expr, params);
+    if (expr.type === 'conditional') {
+      return this.conditionalGen.generate(expr as ConditionalExpressionNode, params);
     }
 
     // Template literals
-    if ((expr as any).type === 'template_literal') {
-      return this.templateLiteralGen.generate(expr, params);
+    if (expr.type === 'template_literal') {
+      return this.templateLiteralGen.generate(expr as TemplateLiteralNode, params);
     }
 
     // Method calls
     if (expr.type === 'method_call') {
-      return this.methodCallGen.generate(expr as any, params);
+      return this.methodCallGen.generate(expr as MethodCallNode, params);
     }
 
     // Await expressions
-    if ((expr as any).type === 'await') {
-      const awaitExpr = expr as any;
+    if (expr.type === 'await') {
+      const awaitExpr = expr as AwaitExpressionNode;
       const promiseReg = this.generate(awaitExpr.argument, params);
       const valueReg = this.ctx.nextTemp();
       this.ctx.emit(`${valueReg} = call i8* @__Promise_get_value(%Promise* ${promiseReg})`);
@@ -163,7 +173,7 @@ export class ExpressionGenerator {
       return valueReg;
     }
 
-    throw new Error(`Unknown expression type: ${(expr as any).type}`);
+    throw new Error(`Unknown expression type: ${expr.type}`);
   }
 
   /**
