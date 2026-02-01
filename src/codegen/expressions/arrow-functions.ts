@@ -51,7 +51,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
 
     let funcParams = arrowFunc.params;
     if (typeHints?.paramTypes && typeHints.paramTypes.length > funcParams.length) {
-      funcParams = [...funcParams];
+      funcParams = funcParams.slice();
       for (let i = funcParams.length; i < typeHints.paramTypes.length; i++) {
         funcParams.push(`__unused_${i}`);
       }

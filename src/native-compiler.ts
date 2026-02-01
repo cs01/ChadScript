@@ -1,6 +1,6 @@
 import { parseSource, TreeSitterTree } from './parser-native/index.js';
 import { transformTree } from './parser-native/transformer.js';
-import { LLVMGenerator } from './codegen/llvm-generator.js';
+import { LLVMGenerator, LLVMGeneratorOptions } from './codegen/llvm-generator.js';
 import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST, ImportDeclaration } from './ast/types.js';
 
@@ -41,7 +41,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
 
   console.log('Semantic analysis passed');
 
-  const generator = new LLVMGenerator(mergedAST, null, { linkTreeSitter: true });
+  const generatorOptions: LLVMGeneratorOptions = { linkTreeSitter: true };
+  const generator = new LLVMGenerator(mergedAST, null, generatorOptions);
   const llvmIR = generator.generate();
 
   const irFile = outputFile + '.ll';
