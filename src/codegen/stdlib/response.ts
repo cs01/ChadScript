@@ -140,16 +140,31 @@ export class ResponseGenerator {
     let parserIR = `define %${typeName}* @parse_json_${typeName}(i8* %json_str) {\n`;
     parserIR += 'entry:\n';
 
-    // Parse JSON
-    parserIR += `  %json_root = call i8* @cJSON_Parse(i8* %json_str)\n`;
-
-    // Allocate struct (size = number of fields * 8 bytes per field)
     const structSize = interfaceDef.properties.length * 8;
     parserIR += `  %struct_bytes = call i8* @GC_malloc(i64 ${structSize})\n`;
-    parserIR += `  %struct_ptr = bitcast i8* %struct_bytes to %${typeName}*\n\n`;
+    parserIR += `  %struct_ptr = bitcast i8* %struct_bytes to %${typeName}*\n`;
+    parserIR += `  %json_root = call i8* @cJSON_Parse(i8* %json_str)\n`;
+    parserIR += `  %json_is_null = icmp eq i8* %json_root, null\n`;
+    parserIR += `  br i1 %json_is_null, label %json_error, label %json_ok\n\n`;
 
-    // Extract each field
+    parserIR += `json_error:\n`;
     let fieldIndex = 0;
+    for (const prop of interfaceDef.properties) {
+      const fieldPtr = `%err_field_ptr_${fieldIndex}`;
+      parserIR += `  ${fieldPtr} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
+      if (prop.type === 'string') {
+        parserIR += `  store i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.empty_str, i64 0, i64 0), i8** ${fieldPtr}\n`;
+      } else if (prop.type === 'number') {
+        parserIR += `  store double 0.0, double* ${fieldPtr}\n`;
+      } else if (prop.type === 'boolean') {
+        parserIR += `  store i1 false, i1* ${fieldPtr}\n`;
+      }
+      fieldIndex++;
+    }
+    parserIR += `  br label %json_done\n\n`;
+
+    parserIR += `json_ok:\n`;
+    fieldIndex = 0;
     for (const prop of interfaceDef.properties) {
       const fieldNameConst = this.ctx.nextString();
       this.ctx.globalStrings.push(`${fieldNameConst} = private unnamed_addr constant [${prop.name.length + 1} x i8] c"${prop.name}\\00", align 1`);
@@ -158,19 +173,16 @@ export class ResponseGenerator {
       parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${prop.name.length + 1} x i8], [${prop.name.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
 
       if (prop.type === 'string') {
-        // Get string value from cJSON (this returns a pointer into the cJSON object)
         parserIR += `  %temp_str_${fieldIndex} = call i8* @cJSON_GetStringValue(i8* %item_${fieldIndex})\n`;
-        // Duplicate the string so it survives after cJSON_Delete
-        parserIR += `  %value_${fieldIndex} = call i8* @strdup(i8* %temp_str_${fieldIndex})\n`;
+        parserIR += `  %safe_str_${fieldIndex} = call i8* @__safe_string(i8* %temp_str_${fieldIndex})\n`;
+        parserIR += `  %value_${fieldIndex} = call i8* @strdup(i8* %safe_str_${fieldIndex})\n`;
       } else if (prop.type === 'number') {
         parserIR += `  %value_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})\n`;
       } else if (prop.type === 'boolean') {
-        // Get as number, convert to boolean
         parserIR += `  %num_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})\n`;
         parserIR += `  %value_${fieldIndex} = fcmp one double %num_${fieldIndex}, 0.0\n`;
       }
 
-      // Store in struct
       parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
 
       if (prop.type === 'string') {
@@ -183,15 +195,13 @@ export class ResponseGenerator {
 
       fieldIndex++;
     }
-
-    // Clean up cJSON object
     parserIR += `  call void @cJSON_Delete(i8* %json_root)\n`;
+    parserIR += `  br label %json_done\n\n`;
 
-    // Return struct pointer
+    parserIR += `json_done:\n`;
     parserIR += `  ret %${typeName}* %struct_ptr\n`;
     parserIR += `}\n\n`;
 
-    // Add parser function to global strings (will be emitted before functions)
     this.ctx.globalStrings.push(parserIR);
   }
 
