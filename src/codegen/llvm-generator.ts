@@ -1,6 +1,7 @@
 import { AST, Expression, FunctionNode, BlockStatement, MethodCallNode, NewNode, ThisNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { TypeInference } from './infrastructure/type-inference.js';
+import { VariableAllocator } from './infrastructure/variable-allocator.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
 import { ObjectGenerator } from './types/objects/object.js';
@@ -66,6 +67,9 @@ export class LLVMGenerator extends BaseGenerator {
 
   // Type inference helper
   private typeInference: TypeInference;
+
+  // Variable allocator
+  private varAllocator: VariableAllocator;
 
   // Helper: Format nice compiler errors
   private formatCodegenError(message: string, suggestion?: string): string {
@@ -162,6 +166,9 @@ export class LLVMGenerator extends BaseGenerator {
     // Initialize type inference helper - pass 'this' as context
     // LLVMGenerator implements the TypeInferenceContext interface
     this.typeInference = new TypeInference(this as any);
+
+    // Initialize variable allocator
+    this.varAllocator = new VariableAllocator(this as any);
 
     // No more delegate binding needed - all generators use context pattern! 🎯
 
@@ -721,237 +728,7 @@ export class LLVMGenerator extends BaseGenerator {
    * @param params - Function parameters for expression generation
    */
   private allocateVariable(stmt: any, params: string[]): void {
-    // Handle uninitialized variables (e.g., let x;)
-    if (stmt.value === null) {
-      const allocaReg = this.nextTemp();
-      this.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
-      this.emit(`${allocaReg} = alloca double`);
-      this.emit(`store double 0.0, double* ${allocaReg}`);
-      return;
-    }
-
-    // Set expected array element type from TypeScript type annotation if available
-    if (stmt.declaredType) {
-      if (stmt.declaredType === 'string[]') {
-        this.expectedArrayElementType = 'string';
-      } else if (stmt.declaredType === 'number[]' || stmt.declaredType === 'boolean[]') {
-        this.expectedArrayElementType = 'number';
-      }
-    }
-
-    // Determine variable type (check isStringArray BEFORE isArray since string arrays are also arrays)
-    const isString = this.isStringExpression(stmt.value);
-    const isStringArray = this.isStringArrayExpression(stmt.value);
-    const isArray = !isStringArray && this.isArrayExpression(stmt.value);
-    const isJSONObject = this.isJSONParseExpression(stmt.value);
-    const isObject = !isJSONObject && this.isObjectExpression(stmt.value);
-    const isMap = this.isMapExpression(stmt.value);
-    const isSet = this.isSetExpression(stmt.value);
-    const isRegex = this.isRegexExpression(stmt.value);
-    const isClassInstance = this.isClassInstanceExpression(stmt.value);
-    const isResponse = this.isResponseExpression(stmt.value);
-    const typedJsonInterface = this.getTypedJsonInterface(stmt.value);
-    const functionInterfaceReturn = this.getFunctionCallInterfaceReturn(stmt.value);
-
-    if (functionInterfaceReturn) {
-      const interfaceDef = this.ast.interfaces!.find(i => i.name === functionInterfaceReturn)!;
-      const allocaReg = this.nextTemp();
-      const keys = interfaceDef.fields.map((f: any) => f.name);
-      const types = interfaceDef.fields.map((f: any) => {
-        const tsType = f.type;
-        if (tsType === 'string') return 'i8*';
-        if (tsType === 'number') return 'double';
-        if (tsType === 'boolean') return 'i1';
-        if (tsType === 'string[]') return '%StringArray*';
-        if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
-        return 'i8*';
-      });
-      this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
-        objectMetadata: { keys, types }
-      });
-      this.emit(`${allocaReg} = alloca i8*`);
-      const objPtr = this.generateExpression(stmt.value, params);
-      this.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
-    } else if (isClassInstance) {
-      const allocaReg = this.nextTemp();
-      const newExpr = stmt.value as any as NewNode;
-      const className = newExpr.className;
-      const fields = this.classGen.getClassFields(className);
-      const ptrType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
-
-      this.defineVariable(stmt.name, allocaReg, ptrType, SymbolKind.Class, 'local', {
-        classMetadata: { className }
-      });
-      this.emit(`${allocaReg} = alloca ${ptrType}`);
-
-      const instancePtr = this.generateExpression(stmt.value, params);
-      this.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
-    } else if (typedJsonInterface) {
-      // Typed JSON struct from .json<T>()
-      const allocaReg = this.nextTemp();
-      const structType = `%${typedJsonInterface}*`;
-      this.defineVariable(stmt.name, allocaReg, structType, SymbolKind.Object, 'local');
-      this.emit(`${allocaReg} = alloca ${structType}`);
-
-      const structPtr = this.generateExpression(stmt.value, params);
-      this.emit(`store ${structType} ${structPtr}, ${structType}* ${allocaReg}`);
-    } else if (isResponse) {
-      const allocaReg = this.nextTemp();
-      this.defineVariable(stmt.name, allocaReg, '%Response*', SymbolKind.Object, 'local');
-      this.emit(`${allocaReg} = alloca %Response*`);
-
-      const responsePtr = this.generateExpression(stmt.value, params);
-      this.emit(`store %Response* ${responsePtr}, %Response** ${allocaReg}`);
-    } else if (isJSONObject) {
-      const allocaReg = this.nextTemp();
-
-      // Check if this is a typed JSON.parse<T>() call
-      const interfaceName = this.getJSONParseInterface(stmt.value);
-      if (!interfaceName) {
-        throw new Error(
-          this.formatCodegenError(
-            'JSON.parse() requires a type parameter. This should have been caught by the parser.\n' +
-            'Use: JSON.parse<InterfaceName>(jsonString)'
-          )
-        );
-      }
-
-      // Check if type parameter matches an interface definition
-      const interfaceDef = this.ast.interfaces?.find(iface => iface.name === interfaceName);
-
-      if (!interfaceDef) {
-        // Not an interface - treat as primitive/array type literal (number, string, boolean, number[], etc.)
-        // These don't have object metadata, just parse as raw JSON
-        this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local');
-        this.emit(`${allocaReg} = alloca i8*`);
-        const jsonPtr = this.generateExpression(stmt.value, params);
-        this.emit(`store i8* ${jsonPtr}, i8** ${allocaReg}`);
-      } else {
-        // Interface type - use field metadata for property access
-        // Convert TypeScript types to LLVM types for metadata
-        const keys = interfaceDef.fields.map((f: any) => f.name);
-        const tsTypes = interfaceDef.fields.map((f: any) => f.type);
-        const types = interfaceDef.fields.map((f: any) => {
-          const tsType = f.type;
-          if (tsType === 'string') return 'i8*';
-          if (tsType === 'number') return 'double';
-          if (tsType === 'boolean') return 'double';
-          if (tsType === 'string[]') return '%StringArray*';
-          if (tsType === 'number[]') return '%Array*';
-          // For nested objects, return i8* (JSON pointer)
-          return 'i8*';
-        });
-
-        this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local', {
-          objectMetadata: { keys, types, tsTypes }
-        });
-
-        this.emit(`${allocaReg} = alloca i8*`);
-        const jsonPtr = this.generateExpression(stmt.value, params);
-        this.emit(`store i8* ${jsonPtr}, i8** ${allocaReg}`);
-      }
-    } else if (isObject) {
-      const allocaReg = this.nextTemp();
-
-      // Check if declared type is an interface - use interface types instead of inferring
-      const interfaceDef = stmt.declaredType
-        ? this.ast.interfaces?.find(iface => iface.name === stmt.declaredType)
-        : undefined;
-
-      let keys: string[];
-      let types: string[];
-
-      if (interfaceDef) {
-        keys = interfaceDef.fields.map((f: any) => f.name);
-        types = interfaceDef.fields.map((f: any) => {
-          const tsType = f.type;
-          if (tsType === 'string') return 'i8*';
-          if (tsType === 'number') return 'double';
-          if (tsType === 'boolean') return 'i1';
-          if (tsType === 'string[]') return '%StringArray*';
-          if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
-          return 'i8*';
-        });
-      } else {
-        const metadata = this.getObjectMetadata(stmt.value as any);
-        keys = metadata.keys;
-        types = metadata.types;
-      }
-
-      this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
-        objectMetadata: { keys, types }
-      });
-      this.emit(`${allocaReg} = alloca i8*`);
-
-      // Pass interface type info to expression generator
-      if (interfaceDef) {
-        this.currentDeclaredInterfaceType = stmt.declaredType;
-      }
-      const objExpr = this.generateExpression(stmt.value, params);
-      this.currentDeclaredInterfaceType = undefined;
-      this.emit(`store i8* ${objExpr}, i8** ${allocaReg}`);
-    } else if (isMap) {
-      const allocaReg = this.nextTemp();
-      this.defineVariable(stmt.name, allocaReg, '%Map*', SymbolKind.Map, 'local');
-      this.emit(`${allocaReg} = alloca %Map`);
-
-      const value = this.generateExpression(stmt.value, params);
-      const loadedMap = this.nextTemp();
-      this.emit(`${loadedMap} = load %Map, %Map* ${value}`);
-      this.emit(`store %Map ${loadedMap}, %Map* ${allocaReg}`);
-    } else if (isSet) {
-      const allocaReg = this.nextTemp();
-      this.defineVariable(stmt.name, allocaReg, '%Set*', SymbolKind.Set, 'local');
-      this.emit(`${allocaReg} = alloca %Set`);
-
-      const value = this.generateExpression(stmt.value, params);
-      const loadedSet = this.nextTemp();
-      this.emit(`${loadedSet} = load %Set, %Set* ${value}`);
-      this.emit(`store %Set ${loadedSet}, %Set* ${allocaReg}`);
-    } else if (isStringArray) {
-      const allocaReg = this.nextTemp();
-      this.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
-      this.emit(`${allocaReg} = alloca %StringArray`);
-
-      const value = this.generateExpression(stmt.value, params);
-      const loadedStringArray = this.nextTemp();
-      this.emit(`${loadedStringArray} = load %StringArray, %StringArray* ${value}`);
-      this.emit(`store %StringArray ${loadedStringArray}, %StringArray* ${allocaReg}`);
-    } else if (isArray) {
-      const allocaReg = this.nextTemp();
-      this.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local');
-      this.emit(`${allocaReg} = alloca %Array`);
-
-      const value = this.generateExpression(stmt.value, params);
-      const loadedArray = this.nextTemp();
-      this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
-      this.emit(`store %Array ${loadedArray}, %Array* ${allocaReg}`);
-    } else if (isRegex) {
-      const allocaReg = this.nextTemp();
-      this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Regex, 'local');
-      this.emit(`${allocaReg} = alloca i8*`);
-
-      const value = this.generateExpression(stmt.value, params);
-      this.emit(`store i8* ${value}, i8** ${allocaReg}`);
-    } else if (isString) {
-      const allocaReg = this.nextTemp();
-      this.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
-      this.emit(`${allocaReg} = alloca i8*`);
-
-      const value = this.generateExpression(stmt.value, params);
-      this.emit(`store i8* ${value}, i8** ${allocaReg}`);
-    } else {
-      // Numeric value (all numeric values, including booleans)
-      const allocaReg = this.nextTemp();
-      this.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
-      this.emit(`${allocaReg} = alloca double`);
-
-      const value = this.generateExpression(stmt.value, params);
-      this.emit(`store double ${value}, double* ${allocaReg}`);
-    }
-
-    // Reset expected array element type after variable declaration is complete
-    this.expectedArrayElementType = null;
+    this.varAllocator.allocate(stmt, params);
   }
 
   public generateBlock(block: BlockStatement, params: string[]): string | null {
