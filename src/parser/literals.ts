@@ -251,8 +251,9 @@ export function parseMethodCall(ctx: LiteralParserContext, object: Expression, m
 export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Expression, parseExpressionFn: (ctx: LiteralParserContext) => Expression): Expression {
   while (true) {
     ctx.skipWhitespace();
-    if (ctx.code[ctx.pos] === '.') {
-      ctx.pos++;
+    const isOptionalChain = ctx.code[ctx.pos] === '?' && ctx.code[ctx.pos + 1] === '.';
+    if (ctx.code[ctx.pos] === '.' || isOptionalChain) {
+      ctx.pos += isOptionalChain ? 2 : 1;
       const property = ctx.parseIdentifier();
       ctx.skipWhitespace();
 

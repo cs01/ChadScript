@@ -260,6 +260,14 @@ export function parseClass(ctx: ParserContext): void {
     extendsClass = ctx.parseIdentifier();
   }
 
+  ctx.skipWhitespace();
+  if (ctx.match('implements')) {
+    ctx.parseIdentifier();
+    while (ctx.match(',')) {
+      ctx.parseIdentifier();
+    }
+  }
+
   ctx.expect('{');
 
   const fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[] = [];
@@ -411,9 +419,19 @@ export function parseImport(ctx: ParserContext): void {
     const specifiers: string[] = [];
     ctx.skipWhitespace();
     if (ctx.code[ctx.pos] !== '}') {
-      specifiers.push(ctx.parseIdentifier());
+      let name = ctx.parseIdentifier();
+      ctx.skipWhitespace();
+      if (ctx.match('as')) {
+        name = ctx.parseIdentifier();
+      }
+      specifiers.push(name);
       while (ctx.match(',')) {
-        specifiers.push(ctx.parseIdentifier());
+        let nextName = ctx.parseIdentifier();
+        ctx.skipWhitespace();
+        if (ctx.match('as')) {
+          nextName = ctx.parseIdentifier();
+        }
+        specifiers.push(nextName);
       }
     }
     ctx.expect('}');
@@ -527,6 +545,14 @@ export function parseExport(ctx: ParserContext): void {
     ctx.skipWhitespace();
     if (ctx.match('extends')) {
       extendsClass = ctx.parseIdentifier();
+    }
+
+    ctx.skipWhitespace();
+    if (ctx.match('implements')) {
+      ctx.parseIdentifier();
+      while (ctx.match(',')) {
+        ctx.parseIdentifier();
+      }
     }
 
     ctx.expect('{');
