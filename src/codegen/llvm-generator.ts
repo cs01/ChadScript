@@ -22,6 +22,7 @@ import { FilesystemGenerator } from './stdlib/fs.js';
 import { ResponseGenerator } from './stdlib/response.js';
 import { RuntimeGenerator } from './runtime/runtime.js';
 import { MongooseGenerator } from './stdlib/mongoose.js';
+import { LibuvGenerator } from './stdlib/libuv.js';
 import { ExpressionGenerator } from './expressions/orchestrator.js';
 import { TypeChecker } from '../typescript/type-checker.js';
 
@@ -62,7 +63,9 @@ export class LLVMGenerator extends BaseGenerator {
   private responseGen: ResponseGenerator;
   private runtimeGen: RuntimeGenerator;
   private mongooseGen: MongooseGenerator;
+  private libuvGen: LibuvGenerator;
   private httpHandlers: string[] = [];  // Track HTTP handlers for mongoose event handler generation
+  private usesTimers: boolean = false;  // Track if setTimeout/setInterval is used
 
   // Expression generator (context pattern)
   private exprGen: ExpressionGenerator;
@@ -146,6 +149,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.responseGen = new ResponseGenerator(this);
     this.runtimeGen = new RuntimeGenerator();
     this.mongooseGen = new MongooseGenerator();
+    this.libuvGen = new LibuvGenerator();
 
     // Initialize expression generator with context pattern
     this.exprGen = new ExpressionGenerator(this);
@@ -308,6 +312,9 @@ export class LLVMGenerator extends BaseGenerator {
     ir += this.mongooseGen.generateDeclarations();
     ir += '\n';
 
+    ir += this.libuvGen.generateDeclarations();
+    ir += '\n';
+
     ir += getSafeStringHelper();
 
     ir += getGlobalVariables();
@@ -360,6 +367,16 @@ export class LLVMGenerator extends BaseGenerator {
       ir += this.mongooseGen.generateHttpServeFunction();
       ir += '\n';
       ir += this.mongooseGen.generateEventHandler(this.httpHandlers[0]);
+    }
+
+    // Generate libuv timer runtime if setTimeout/setInterval was used
+    if (this.usesTimers) {
+      ir += '\n';
+      ir += this.libuvGen.generateTimerCallbackWrapper();
+      ir += this.libuvGen.generateSetTimeout();
+      ir += this.libuvGen.generateSetInterval();
+      ir += this.libuvGen.generateClearTimer();
+      ir += this.libuvGen.generateRunEventLoop();
     }
 
     // Add global string constants at the beginning

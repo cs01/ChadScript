@@ -11,6 +11,7 @@ import { LogLevel, logger } from './utils/logger.js';
 // External library paths
 const BDWGC_PATH = '/data/users/cssmith/git/bdwgc';
 const MONGOOSE_PATH = '/data/users/cssmith/git/mongoose';
+const LIBUV_PATH = '/data/users/cssmith/git/libuv';
 
 // ============================================
 // MAIN COMPILER DRIVER
@@ -111,12 +112,13 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   // - mongoose: HTTP server (compiled object file)
   // - libcurl: HTTP client (fetch API)
   // - libcjson: JSON parsing
+  // - libuv: Event loop and async I/O (timers, etc.)
   // - libm: Math functions
   const mongooseObj = `${MONGOOSE_PATH}/mongoose.o`;
   const gcLib = `${BDWGC_PATH}/libgc.a`;
 
   // Build link command with all libraries
-  const linkLibs = `-L${BDWGC_PATH} -lgc -lcurl -lcjson -lm -lpthread`;
+  const linkLibs = `-L${BDWGC_PATH} -lgc -lcurl -lcjson /lib64/libuv.so.1 -lm -lpthread`;
   const linkCmd = `${useClang ? 'clang' : 'gcc'} ${objFile} ${mongooseObj} -o ${outputFile} -no-pie ${linkLibs}`;
   logger.info(` "${linkerPath}" ${objFile} ${mongooseObj} -o ${outputFile} -no-pie ${linkLibs}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';

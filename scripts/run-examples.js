@@ -18,6 +18,7 @@ const SELF_CONTAINED = [
   'class_assign_test.ts',
   'obj_assign_test.ts',
   'gc_test.ts',
+  'timers.ts',
 ];
 
 const SKIP_FILES = [
