@@ -1,4 +1,4 @@
-import { Expression, ClassNode, ClassMethod, BlockStatement, VariableNode } from '../../../ast/types.js';
+import { Expression, ClassNode, ClassMethod, BlockStatement, VariableNode, InterfaceDeclaration, TypeAliasDeclaration } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind } from '../../infrastructure/symbol-table.js';
 import { logger } from '../../../utils/logger.js';
@@ -29,13 +29,28 @@ export class ClassGenerator {
 
   // Helper to get field info
   getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string } | null {
-    const fields = this.classFields.get(className);
-    if (!fields) return null;
+    let fields = this.classFields.get(className);
 
-    const index = fields.findIndex(f => f.name === fieldName);
-    if (index === -1) return null;
+    if (!fields) {
+      const classNode = this.ast?.classes?.find((c: ClassNode) => c.name === className);
+      if (classNode?.fields) {
+        fields = classNode.fields;
+      }
+    }
 
-    return { index, type: fields[index].fieldType, tsType: fields[index].tsType };
+    if (fields) {
+      const index = fields.findIndex(f => f.name === fieldName);
+      if (index !== -1) {
+        return { index, type: fields[index].fieldType, tsType: fields[index].tsType };
+      }
+    }
+
+    const classNode = this.ast?.classes?.find((c: ClassNode) => c.name === className);
+    if (classNode?.extends) {
+      return this.getFieldInfo(classNode.extends, fieldName);
+    }
+
+    return null;
   }
 
   // Helper to get class fields
@@ -86,26 +101,16 @@ export class ClassGenerator {
   }
 
   private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[]): string {
-    // Constructor returns struct pointer (either %ClassName_struct* or double* for backward compat)
     const structType = fields.length > 0 ? `%${className}_struct*` : 'double*';
     let ir = `define ${structType} @${className}_constructor(`;
 
-    // Generate parameter list with proper types
     const paramLLVMTypes: string[] = [];
+    const paramTsTypes: string[] = constructor.paramTypes || [];
     if (constructor.paramTypes && constructor.paramTypes.length > 0) {
       for (const pType of constructor.paramTypes) {
-        if (pType === 'string') {
-          paramLLVMTypes.push('i8*');
-        } else if (pType === 'string[]') {
-          paramLLVMTypes.push('%StringArray*');
-        } else if (pType === 'number[]' || pType === 'boolean[]') {
-          paramLLVMTypes.push('%Array*');
-        } else {
-          paramLLVMTypes.push('double'); // number, boolean - use double for JavaScript semantics
-        }
+        paramLLVMTypes.push(this.tsTypeToLlvm(pType));
       }
     } else {
-      // Fallback: all double for numeric types (JavaScript semantics)
       for (let i = 0; i < constructor.params.length; i++) {
         paramLLVMTypes.push('double');
       }
@@ -115,19 +120,13 @@ export class ClassGenerator {
     ir += ') {\n';
     ir += 'entry:\n';
 
-    // Allocate stack space for parameters with proper types
     for (let i = 0; i < constructor.params.length; i++) {
       const paramName = constructor.params[i];
       const allocaReg = this.nextTemp();
       const llvmType = paramLLVMTypes[i];
+      const tsType = paramTsTypes[i];
 
-      // Determine symbol kind from LLVM type
-      const kind = llvmType === 'i8*' ? SymbolKind.String :
-                   llvmType === '%StringArray*' ? SymbolKind.StringArray :
-                   llvmType === '%Array*' ? SymbolKind.Array :
-                   llvmType === 'double' ? SymbolKind.Number : SymbolKind.Object;
-
-      this.ctx.defineVariable(paramName, allocaReg, llvmType, kind, 'local');
+      this.defineParameterWithType(paramName, allocaReg, llvmType, tsType);
       this.emit(`${allocaReg} = alloca ${llvmType}`);
       this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
     }
@@ -214,8 +213,7 @@ export class ClassGenerator {
   }
 
   private generateMethod(className: string, method: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[]): string {
-    // Determine return type from method's returnType annotation
-    let returnLLVMType = 'double'; // default for JavaScript semantics
+    let returnLLVMType = 'double';
     if (method.returnType) {
       if (method.returnType === 'string') {
         returnLLVMType = 'i8*';
@@ -226,29 +224,18 @@ export class ClassGenerator {
       } else if (method.returnType === 'void') {
         returnLLVMType = 'void';
       }
-      // else: number, boolean -> double
     }
 
-    // Method signature: first param is 'this' (struct pointer or double* for compat)
     const thisType = fields.length > 0 ? `%${className}_struct*` : 'double*';
     let ir = `define ${returnLLVMType} @${className}_${method.name}(${thisType} %this`;
 
-    // Generate parameter list with proper types
     const paramLLVMTypes: string[] = [];
+    const paramTsTypes: string[] = method.paramTypes || [];
     if (method.paramTypes && method.paramTypes.length > 0) {
       for (const pType of method.paramTypes) {
-        if (pType === 'string') {
-          paramLLVMTypes.push('i8*');
-        } else if (pType === 'string[]') {
-          paramLLVMTypes.push('%StringArray*');
-        } else if (pType === 'number[]' || pType === 'boolean[]') {
-          paramLLVMTypes.push('%Array*');
-        } else {
-          paramLLVMTypes.push('double'); // number, boolean - use double for JavaScript semantics
-        }
+        paramLLVMTypes.push(this.tsTypeToLlvm(pType));
       }
     } else {
-      // Fallback: all double for numeric types (JavaScript semantics)
       for (let i = 0; i < method.params.length; i++) {
         paramLLVMTypes.push('double');
       }
@@ -261,34 +248,23 @@ export class ClassGenerator {
     ir += ') {\n';
     ir += 'entry:\n';
 
-    // Allocate stack space for 'this' pointer and load it
     const thisAlloca = this.nextTemp();
     this.emit(`${thisAlloca} = alloca ${thisType}`);
     this.emit(`store ${thisType} %this, ${thisType}* ${thisAlloca}`);
     const thisLoaded = this.nextTemp();
     this.emit(`${thisLoaded} = load ${thisType}, ${thisType}* ${thisAlloca}`);
-    // Set 'this' pointer so method body can use it
     this.thisPointer = thisLoaded;
-    // Set current class name for super resolution
     this.currentClassName = className;
-    // Set current function name for TypeChecker lookups
     this.ctx.currentFunction = method.name;
-    // Set return type for return statements in method body (update main generator)
     this.ctx.currentFunctionReturnType = returnLLVMType;
 
-    // Allocate stack space for parameters with proper types
     for (let i = 0; i < method.params.length; i++) {
       const paramName = method.params[i];
       const allocaReg = this.nextTemp();
       const llvmType = paramLLVMTypes[i];
+      const tsType = paramTsTypes[i];
 
-      // Determine symbol kind from LLVM type
-      const kind = llvmType === 'i8*' ? SymbolKind.String :
-                   llvmType === '%StringArray*' ? SymbolKind.StringArray :
-                   llvmType === '%Array*' ? SymbolKind.Array :
-                   llvmType === 'double' ? SymbolKind.Number : SymbolKind.Object;
-
-      this.ctx.defineVariable(paramName, allocaReg, llvmType, kind, 'local');
+      this.defineParameterWithType(paramName, allocaReg, llvmType, tsType);
       this.emit(`${allocaReg} = alloca ${llvmType}`);
       this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
     }
@@ -425,5 +401,110 @@ export class ClassGenerator {
       this.emit(`${result} = call ${returnLLVMType} @${className}_${methodName}(${thisType} ${instancePtr}${argList})`);
       return result;
     }
+  }
+
+  private tsTypeToLlvm(tsType: string): string {
+    if (tsType === 'string') return 'i8*';
+    if (tsType === 'number') return 'double';
+    if (tsType === 'boolean') return 'double';
+    if (tsType === 'string[]') return '%StringArray*';
+    if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
+    return 'i8*';
+  }
+
+  private defineParameterWithType(paramName: string, allocaReg: string, llvmType: string, tsType: string | undefined): void {
+    if (!tsType || tsType === 'string') {
+      const kind = llvmType === 'i8*' ? SymbolKind.String :
+                   llvmType === '%StringArray*' ? SymbolKind.StringArray :
+                   llvmType === '%Array*' ? SymbolKind.Array :
+                   llvmType === 'double' ? SymbolKind.Number : SymbolKind.Object;
+      this.ctx.defineVariable(paramName, allocaReg, llvmType, kind, 'local');
+      return;
+    }
+
+    if (tsType === 'number' || tsType === 'boolean') {
+      this.ctx.defineVariable(paramName, allocaReg, 'double', SymbolKind.Number, 'local');
+      return;
+    }
+
+    if (tsType === 'string[]') {
+      this.ctx.defineVariable(paramName, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
+      return;
+    }
+
+    if (tsType === 'number[]' || tsType === 'boolean[]') {
+      this.ctx.defineVariable(paramName, allocaReg, '%Array*', SymbolKind.Array, 'local');
+      return;
+    }
+
+    const interfaceDef = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
+    if (interfaceDef) {
+      const keys = interfaceDef.fields.map((f) => f.name);
+      const types = interfaceDef.fields.map((f) => this.fieldTypeToLlvm(f.type));
+      const tsTypes = interfaceDef.fields.map((f) => f.type);
+      this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+        objectMetadata: { keys, types, tsTypes }
+      });
+      return;
+    }
+
+    const typeAlias = this.ctx.ast?.typeAliases?.find((t: TypeAliasDeclaration) => t.name === tsType);
+    if (typeAlias && typeAlias.unionMembers) {
+      const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
+      this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+        objectMetadata: commonFields
+      });
+      return;
+    }
+
+    this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind.Object, 'local');
+  }
+
+  private fieldTypeToLlvm(fieldType: string): string {
+    if (fieldType === 'string') return 'i8*';
+    if (fieldType === 'number') return 'double';
+    if (fieldType === 'boolean') return 'i8*';
+    if (fieldType.startsWith("'") || fieldType.startsWith('"')) return 'i8*';
+    return 'i8*';
+  }
+
+  private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
+    const interfaces = memberNames
+      .map(name => this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
+      .filter((i): i is InterfaceDeclaration => i !== undefined);
+
+    if (interfaces.length === 0) {
+      return { keys: [], types: [] };
+    }
+
+    const firstFields = interfaces[0].fields;
+    const commonFields: { name: string; type: string }[] = [];
+
+    for (const field of firstFields) {
+      const isCommon = interfaces.every((iface) =>
+        iface.fields.some((f) => f.name === field.name && this.areTypesCompatible(f.type, field.type))
+      );
+      if (isCommon) {
+        commonFields.push({ name: field.name, type: this.normalizeType(field.type) });
+      }
+    }
+
+    return {
+      keys: commonFields.map(f => f.name),
+      types: commonFields.map(f => this.fieldTypeToLlvm(f.type))
+    };
+  }
+
+  private areTypesCompatible(type1: string, type2: string): boolean {
+    if (type1 === type2) return true;
+    const norm1 = this.normalizeType(type1);
+    const norm2 = this.normalizeType(type2);
+    return norm1 === norm2;
+  }
+
+  private normalizeType(type: string): string {
+    if (type.startsWith("'") && type.endsWith("'")) return 'string';
+    if (type.startsWith('"') && type.endsWith('"')) return 'string';
+    return type;
   }
 }

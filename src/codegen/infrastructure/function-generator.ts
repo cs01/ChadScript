@@ -327,10 +327,10 @@ export class FunctionGenerator {
 
     for (const field of firstFields) {
       const isCommon = interfaces.every((iface) =>
-        iface.fields.some((f) => f.name === field.name && f.type === field.type)
+        iface.fields.some((f) => f.name === field.name && this.areTypesCompatible(f.type, field.type))
       );
       if (isCommon) {
-        commonFields.push(field);
+        commonFields.push({ name: field.name, type: this.normalizeType(field.type) });
       }
     }
 
@@ -338,6 +338,19 @@ export class FunctionGenerator {
       keys: commonFields.map(f => f.name),
       types: commonFields.map(f => this.tsTypeToLlvm(f.type))
     };
+  }
+
+  private areTypesCompatible(type1: string, type2: string): boolean {
+    if (type1 === type2) return true;
+    const norm1 = this.normalizeType(type1);
+    const norm2 = this.normalizeType(type2);
+    return norm1 === norm2;
+  }
+
+  private normalizeType(type: string): string {
+    if (type.startsWith("'") && type.endsWith("'")) return 'string';
+    if (type.startsWith('"') && type.endsWith('"')) return 'string';
+    return type;
   }
 
   private labelCounter = 0;

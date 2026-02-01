@@ -15,6 +15,8 @@ import {
   generateRepeat as generateRepeatImpl,
   generatePadStart as generatePadStartImpl,
   generateTrim as generateTrimImpl,
+  generateReplace as generateReplaceImpl,
+  generateReplaceAll as generateReplaceAllImpl,
 } from './string/manipulation.js';
 import {
   generateStartsWith as generateStartsWithImpl,
@@ -151,5 +153,24 @@ export class StringGenerator {
   generateSplit(strPtr: string, delimiter: string): string {
     const genShim = this.createGeneratorShim();
     return generateSplitImpl.call(genShim, strPtr, delimiter);
+  }
+
+  // ============================================
+  // String Replace
+  // ============================================
+
+  generateReplace(strPtr: string, search: string, replace: string): string {
+    const genShim = this.createGeneratorShim();
+    return generateReplaceImpl.call(genShim, strPtr, search, replace);
+  }
+
+  generateReplaceAll(strPtr: string, search: string, replace: string): string {
+    const genShim = this.createGeneratorShim();
+    return generateReplaceAllImpl.call(genShim, strPtr, search, replace);
+  }
+
+  generateGlobalString(value: string): string {
+    const genShim = this.createGeneratorShim();
+    return createStringConstantImpl.call(genShim, value);
   }
 }

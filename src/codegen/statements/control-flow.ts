@@ -1,6 +1,6 @@
-import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode } from '../../ast/types.js';
+import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, TypeAliasDeclaration } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
-import { SymbolKind, ObjectArrayMetadata } from '../infrastructure/symbol-table.js';
+import { SymbolKind, ObjectArrayMetadata, ObjectMetadata } from '../infrastructure/symbol-table.js';
 
 // ============================================
 // CONTROL FLOW GENERATOR - If/while/loops
@@ -49,40 +49,44 @@ export class ControlFlowGenerator {
       throw new Error('Expected if statement');
     }
 
-    // Generate unique labels
     const thenLabel = this.nextLabel('then');
     const elseLabel = this.nextLabel('else');
     const mergeLabel = this.nextLabel('merge');
 
-    // Evaluate condition
-    const condValue = this.ctx.generateExpression(stmt.condition, params);
+    const typeGuard = this.detectTypeGuard(stmt.condition);
 
-    // Convert to boolean for branching
+    const condValue = this.ctx.generateExpression(stmt.condition, params);
     const condBool = this.convertToBool(condValue);
 
-    // Branch based on condition
     if (stmt.elseBlock) {
       this.emit(`br i1 ${condBool}, label %${thenLabel}, label %${elseLabel}`);
     } else {
       this.emit(`br i1 ${condBool}, label %${thenLabel}, label %${mergeLabel}`);
     }
 
-    // Generate then block
     this.emit(`${thenLabel}:`);
     this.currentLabel = thenLabel;
+
+    if (typeGuard) {
+      this.ctx.symbolTable.narrowType(typeGuard.varName, typeGuard.narrowedMetadata);
+    }
+
     const thenValue = this.ctx.generateBlock(stmt.thenBlock, params);
-    // Check if the LAST instruction is a terminator
+
+    if (typeGuard) {
+      this.ctx.symbolTable.restoreType(typeGuard.varName);
+    }
+
     const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
     const thenHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
                               lastInstruction.startsWith('switch ');
-    // Find the actual last label by scanning backwards in the output
     let thenEndLabel = thenLabel;
     for (let i = this.output.length - 1; i >= 0; i--) {
       const line = this.output[i].trim();
       if (line.match(/^[a-z_]+[0-9]+:$/)) {
-        thenEndLabel = line.slice(0, -1); // Remove the trailing ':'
+        thenEndLabel = line.slice(0, -1);
         break;
       }
     }
@@ -90,7 +94,6 @@ export class ControlFlowGenerator {
       this.emit(`br label %${mergeLabel}`);
     }
 
-    // Generate else block if it exists
     let elseValue: string | null = null;
     let elseEndLabel = elseLabel;
     let elseHasTerminator = false;
@@ -98,17 +101,15 @@ export class ControlFlowGenerator {
       this.emit(`${elseLabel}:`);
       this.currentLabel = elseLabel;
       elseValue = this.ctx.generateBlock(stmt.elseBlock, params);
-      // Check if the LAST instruction is a terminator
       const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
       elseHasTerminator = lastInstruction.startsWith('ret ') ||
                                 lastInstruction.startsWith('br ') ||
                                 lastInstruction.startsWith('unreachable') ||
                                 lastInstruction.startsWith('switch ');
-      // Find the actual last label by scanning backwards in the output
       for (let i = this.output.length - 1; i >= 0; i--) {
         const line = this.output[i].trim();
         if (line.match(/^[a-z_]+[0-9]+:$/)) {
-          elseEndLabel = line.slice(0, -1); // Remove the trailing ':'
+          elseEndLabel = line.slice(0, -1);
           break;
         }
       }
@@ -117,10 +118,7 @@ export class ControlFlowGenerator {
       }
     }
 
-    // Skip merge point if both branches have terminators (unreachable code)
     if (stmt.elseBlock && thenHasTerminator && elseHasTerminator) {
-      // Both branches return/terminate, no merge point needed
-      // Return a default value (we won't use it anyway)
       return '0';
     }
 
@@ -486,6 +484,20 @@ export class ControlFlowGenerator {
         elementTsTypes
       };
     }
+
+    const typeAlias = this.ctx.ast?.typeAliases?.find((t: TypeAliasDeclaration) => t.name === elementInterface);
+    if (typeAlias && typeAlias.unionMembers) {
+      const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
+      if (commonFields.keys.length > 0) {
+        return {
+          elementInterfaceName: elementInterface,
+          elementKeys: commonFields.keys,
+          elementTypes: commonFields.types,
+          elementTsTypes: commonFields.tsTypes || commonFields.keys.map(() => 'string')
+        };
+      }
+    }
+
     return null;
   }
 
@@ -1128,5 +1140,115 @@ export class ControlFlowGenerator {
       this.variableTypes.set(result, 'double');
       return result;
     }
+  }
+
+  private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[]; tsTypes: string[] } {
+    const interfaces = memberNames
+      .map(name => this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
+      .filter((i): i is InterfaceDeclaration => i !== undefined);
+
+    if (interfaces.length === 0) {
+      return { keys: [], types: [], tsTypes: [] };
+    }
+
+    const firstFields = interfaces[0].fields;
+    const commonFields: { name: string; type: string }[] = [];
+
+    for (const field of firstFields) {
+      const isCommon = interfaces.every((iface) =>
+        iface.fields.some((f) => f.name === field.name && this.areTypesCompatible(f.type, field.type))
+      );
+      if (isCommon) {
+        commonFields.push({ name: field.name, type: this.normalizeType(field.type) });
+      }
+    }
+
+    return {
+      keys: commonFields.map(f => f.name),
+      types: commonFields.map(f => this.fieldTypeToLlvm(f.type)),
+      tsTypes: commonFields.map(f => f.type)
+    };
+  }
+
+  private areTypesCompatible(type1: string, type2: string): boolean {
+    if (type1 === type2) return true;
+    const norm1 = this.normalizeType(type1);
+    const norm2 = this.normalizeType(type2);
+    return norm1 === norm2;
+  }
+
+  private normalizeType(type: string): string {
+    if (type.startsWith("'") && type.endsWith("'")) return 'string';
+    if (type.startsWith('"') && type.endsWith('"')) return 'string';
+    return type;
+  }
+
+  private fieldTypeToLlvm(fieldType: string): string {
+    if (fieldType === 'string') return 'i8*';
+    if (fieldType === 'number') return 'double';
+    if (fieldType === 'boolean') return 'i8*';
+    if (fieldType.startsWith("'") || fieldType.startsWith('"')) return 'i8*';
+    return 'i8*';
+  }
+
+  private detectTypeGuard(condition: Expression): { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } } | null {
+    if (condition.type !== 'binary') return null;
+
+    const binary = condition as BinaryNode;
+    if (binary.op !== '===' && binary.op !== '==' && binary.op !== '!==' && binary.op !== '!=') return null;
+
+    let memberAccess: MemberAccessNode | null = null;
+    let literalValue: string | null = null;
+
+    if (binary.left.type === 'member_access' && binary.right.type === 'string') {
+      memberAccess = binary.left as MemberAccessNode;
+      literalValue = (binary.right as { type: 'string'; value: string }).value;
+    } else if (binary.right.type === 'member_access' && binary.left.type === 'string') {
+      memberAccess = binary.right as MemberAccessNode;
+      literalValue = (binary.left as { type: 'string'; value: string }).value;
+    }
+
+    if (!memberAccess || !literalValue) return null;
+    if (memberAccess.property !== 'type') return null;
+    if (memberAccess.object.type !== 'variable') return null;
+
+    const varName = (memberAccess.object as VariableNode).name;
+    const symbol = this.ctx.symbolTable.lookup(varName);
+    if (!symbol || !symbol.objectMetadata) return null;
+
+    const interfaceName = this.findInterfaceByDiscriminant(literalValue);
+    if (!interfaceName) return null;
+
+    const iface = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === interfaceName);
+    if (!iface) return null;
+
+    const keys = iface.fields.map((f) => f.name);
+    const types = iface.fields.map((f) => this.fieldTypeToLlvm(f.type));
+    const tsTypes = iface.fields.map((f) => f.type);
+
+    if (binary.op === '!==' || binary.op === '!=') {
+      return null;
+    }
+
+    return {
+      varName,
+      narrowedMetadata: { keys, types, tsTypes }
+    };
+  }
+
+  private findInterfaceByDiscriminant(discriminantValue: string): string | null {
+    if (!this.ctx.ast?.interfaces) return null;
+
+    for (const iface of this.ctx.ast.interfaces) {
+      for (const field of iface.fields) {
+        if (field.name === 'type') {
+          const fieldType = field.type;
+          if (fieldType === `'${discriminantValue}'` || fieldType === `"${discriminantValue}"`) {
+            return iface.name;
+          }
+        }
+      }
+    }
+    return null;
   }
 }
