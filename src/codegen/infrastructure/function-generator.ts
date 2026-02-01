@@ -36,7 +36,32 @@ export class FunctionGenerator {
     let returnTypeIsVoid = false;
     this.ctx.currentFunctionReturnType = 'double';
 
-    if (this.ctx.typeChecker) {
+    if (func.paramTypes && func.paramTypes.length > 0) {
+      for (let i = 0; i < func.params.length; i++) {
+        const paramType = func.paramTypes[i] || 'number';
+        paramTypes.push(paramType);
+        if (paramType === 'string') {
+          paramLLVMTypes.push('i8*');
+        } else if (paramType === 'string[]') {
+          paramLLVMTypes.push('%StringArray*');
+        } else if (paramType === 'number[]' || paramType === 'boolean[]') {
+          paramLLVMTypes.push('%Array*');
+        } else if (paramType !== 'number' && paramType !== 'boolean') {
+          paramLLVMTypes.push('i8*');
+        } else {
+          paramLLVMTypes.push('double');
+        }
+      }
+      if (func.returnType === 'string') {
+        returnType = 'i8*';
+        returnTypeIsString = true;
+        this.ctx.currentFunctionReturnType = 'i8*';
+      } else if (func.returnType === 'void') {
+        returnType = 'void';
+        returnTypeIsVoid = true;
+        this.ctx.currentFunctionReturnType = 'void';
+      }
+    } else if (this.ctx.typeChecker) {
       try {
         const funcType = this.ctx.typeChecker.getFunctionType(func.name);
         if (funcType) {
