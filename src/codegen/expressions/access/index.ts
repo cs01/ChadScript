@@ -1,4 +1,16 @@
-import { Expression } from '../../../ast/types.js';
+import { Expression, IndexAccessNode, MemberAccessNode, VariableNode } from '../../../ast/types.js';
+import type { SymbolTable } from '../../infrastructure/symbol-table.js';
+
+export interface IndexAccessGeneratorContext {
+  nextTemp(): string;
+  nextLabel(prefix: string): string;
+  emit(instruction: string): void;
+  variableTypes: Map<string, string>;
+  symbolTable: SymbolTable;
+  isStringArrayExpression(expr: Expression): boolean;
+  isArrayExpression(expr: Expression): boolean;
+  getVariableAlloca(name: string): string | undefined;
+}
 
 /**
  * IndexAccessGenerator
@@ -10,7 +22,7 @@ import { Expression } from '../../../ast/types.js';
  * - String character access (string[i])
  */
 export class IndexAccessGenerator {
-  constructor(private ctx: any) {}
+  constructor(private ctx: IndexAccessGeneratorContext) {}
 
   /**
    * Generate index access expression
@@ -18,19 +30,19 @@ export class IndexAccessGenerator {
    * @param params - Function parameter names
    * @param generateExpressionFn - Callback to generate sub-expressions
    */
-  generate(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generate(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // Check if it's process.argv[i]
     if (expr.object.type === 'member_access') {
-      const memberAccess = expr.object as any;
+      const memberAccess = expr.object as MemberAccessNode;
       if (memberAccess.object.type === 'variable' &&
-          memberAccess.object.name === 'process' &&
+          (memberAccess.object as VariableNode).name === 'process' &&
           memberAccess.property === 'argv') {
         return this.generateProcessArgvIndex(expr, params, generateExpressionFn);
       }
     }
 
     // Check if it's a JSON array (from JSON.parse<number[]> or similar)
-    if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON(expr.object.name)) {
+    if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
       return this.generateJSONArrayIndex(expr, params, generateExpressionFn);
     }
 
@@ -49,7 +61,7 @@ export class IndexAccessGenerator {
     }
   }
 
-  private generateProcessArgvIndex(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateProcessArgvIndex(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // Index into argv: process.argv[i]
     const argvStruct = generateExpressionFn(expr.object, params);
     const indexDouble = generateExpressionFn(expr.index, params);
@@ -84,7 +96,7 @@ export class IndexAccessGenerator {
     return arg;
   }
 
-  private generateStringArrayIndex(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateStringArrayIndex(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     const stringArrayPtr = generateExpressionFn(expr.object, params);
     const indexDouble = generateExpressionFn(expr.index, params);
 
@@ -112,7 +124,7 @@ export class IndexAccessGenerator {
     return elem;
   }
 
-  private generateNumericArrayIndex(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateNumericArrayIndex(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     const arrayPtr = generateExpressionFn(expr.object, params);
     const indexDouble = generateExpressionFn(expr.index, params);
 
@@ -140,7 +152,7 @@ export class IndexAccessGenerator {
     return elem;
   }
 
-  private generateStringCharIndex(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateStringCharIndex(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     const objPtr = generateExpressionFn(expr.object, params);
     const indexDouble = generateExpressionFn(expr.index, params);
 
@@ -172,9 +184,10 @@ export class IndexAccessGenerator {
     return charDouble;
   }
 
-  private generateJSONArrayIndex(expr: any, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateJSONArrayIndex(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // Load JSON array pointer
-    const jsonPtrPtr = this.ctx.getVariableAlloca(expr.object.name)!;
+    const varName = (expr.object as VariableNode).name;
+    const jsonPtrPtr = this.ctx.getVariableAlloca(varName)!;
     const jsonPtr = this.ctx.nextTemp();
     this.ctx.emit(`${jsonPtr} = load i8*, i8** ${jsonPtrPtr}`);
 
