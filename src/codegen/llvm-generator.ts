@@ -1,5 +1,6 @@
 import { AST, Expression, FunctionNode, BlockStatement, MethodCallNode, NewNode, ThisNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
+import { TypeInference } from './infrastructure/type-inference.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
 import { ObjectGenerator } from './types/objects/object.js';
@@ -62,6 +63,9 @@ export class LLVMGenerator extends BaseGenerator {
 
   // Expression generator (context pattern)
   private exprGen: ExpressionGenerator;
+
+  // Type inference helper
+  private typeInference: TypeInference;
 
   // Helper: Format nice compiler errors
   private formatCodegenError(message: string, suggestion?: string): string {
@@ -154,6 +158,10 @@ export class LLVMGenerator extends BaseGenerator {
     this.setGen = new SetGenerator(this);
     this.controlFlowGen = new ControlFlowGenerator(this);
     this.classGen = new ClassGenerator(this);
+
+    // Initialize type inference helper - pass 'this' as context
+    // LLVMGenerator implements the TypeInferenceContext interface
+    this.typeInference = new TypeInference(this as any);
 
     // No more delegate binding needed - all generators use context pattern! 🎯
 
@@ -251,13 +259,6 @@ export class LLVMGenerator extends BaseGenerator {
       ir += '\n';
     }
     return ir;
-  }
-
-  private isBooleanExpression(expr: any): boolean {
-    if (expr === null || expr === undefined) return false;
-    if (expr.type === 'boolean') return true;
-    if (expr.type === 'identifier' && (expr.name === 'true' || expr.name === 'false')) return true;
-    return false;
   }
 
   /**
@@ -1232,540 +1233,64 @@ export class LLVMGenerator extends BaseGenerator {
    * @returns LLVM register name containing the expression result (e.g., '%3')
    */
   public generateExpression(expr: Expression, params: string[]): string {
-    // Delegate to ExpressionGenerator for extracted types
-    // (literals, variables, binary, unary, call, index_access, member_access, arrow_function, method_call)
-    if (expr.type === 'number' || expr.type === 'boolean' || expr.type === 'string' ||
-        (expr as any).type === 'regex' || expr.type === 'array' || (expr as any).type === 'object' ||
-        (expr as any).type === 'map' || (expr as any).type === 'set' || (expr as any).type === 'new' ||
-        (expr as any).type === 'this' || expr.type === 'variable' ||
-        expr.type === 'binary' || expr.type === 'unary' || expr.type === 'call' ||
-        expr.type === 'index_access' || expr.type === 'member_access' ||
-        (expr as any).type === 'arrow_function' || expr.type === 'method_call') {
-      return this.exprGen.generate(expr, params);
-    }
-
-    if ((expr as any).type === 'conditional') {
-      const conditionalExpr = expr as any;
-
-      // Generate unique labels
-      const trueLabel = this.nextLabel('cond_true');
-      const falseLabel = this.nextLabel('cond_false');
-      const mergeLabel = this.nextLabel('cond_merge');
-
-      // Evaluate condition
-      const condValue = this.generateExpression(conditionalExpr.condition, params);
-
-      // Convert to boolean for branching
-      const condValueType = this.getVariableType(condValue);
-      let condBool: string;
-
-      if (condValueType === 'double' || (condValue.includes('.') && !condValue.startsWith('%'))) {
-        // Value is double, use fcmp directly
-        condBool = this.nextTemp();
-        this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
-      } else {
-        // Value is i32, convert to double first
-        const condDouble = this.nextTemp();
-        this.emit(`${condDouble} = sitofp i32 ${condValue} to double`);
-        condBool = this.nextTemp();
-        this.emit(`${condBool} = fcmp one double ${condDouble}, 0.0`);
-      }
-
-      // Branch based on condition
-      this.emit(`br i1 ${condBool}, label %${trueLabel}, label %${falseLabel}`);
-
-      // True branch - generate expression but don't emit branch yet
-      this.emit(`${trueLabel}:`);
-      let trueValue = this.generateExpression(conditionalExpr.consequent, params);
-      const trueType = this.getVariableType(trueValue);
-      const trueLabelEnd = this.getCurrentLabel();
-      const trueBranchPos = this.output.length;
-      this.emit(`br label %${mergeLabel}`);
-
-      // False branch - generate expression but don't emit branch yet
-      this.emit(`${falseLabel}:`);
-      let falseValue = this.generateExpression(conditionalExpr.alternate, params);
-      const falseType = this.getVariableType(falseValue);
-      const falseLabelEnd = this.getCurrentLabel();
-      const falseBranchPos = this.output.length;
-      this.emit(`br label %${mergeLabel}`);
-
-      // Determine the result type - use i8* for strings, double if either value is double
-      let resultType: string;
-      if (trueType === 'i8*' || falseType === 'i8*') {
-        resultType = 'i8*';
-      } else if (trueType === 'double' || falseType === 'double') {
-        resultType = 'double';
-      } else {
-        resultType = 'i32';
-      }
-
-      // If we need type conversions, insert them before the branch instructions
-      let trueVal = trueValue;
-      let falseVal = falseValue;
-
-      if (resultType === 'double') {
-        if (trueType === 'i32') {
-          trueVal = this.nextTemp();
-          const convInstr = `  ${trueVal} = sitofp i32 ${trueValue} to double`;
-          this.output.splice(trueBranchPos, 0, convInstr);
-        }
-        if (falseType === 'i32') {
-          const insertPos = trueType === 'i32' ? falseBranchPos + 1 : falseBranchPos;
-          falseVal = this.nextTemp();
-          const convInstr = `  ${falseVal} = sitofp i32 ${falseValue} to double`;
-          this.output.splice(insertPos, 0, convInstr);
-        }
-      }
-
-      // Merge point with phi node
-      this.emit(`${mergeLabel}:`);
-      const result = this.nextTemp();
-      this.emit(`${result} = phi ${resultType} [ ${trueVal}, %${trueLabelEnd} ], [ ${falseVal}, %${falseLabelEnd} ]`);
-      this.variableTypes.set(result, resultType);
-
-      return result;
-    }
-
-    if ((expr as any).type === 'template_literal') {
-      const templateExpr = expr as any;
-
-      // Convert template literal to series of string concatenations
-      // parts array contains strings and expressions interspersed
-      if (templateExpr.parts.length === 0) {
-        // Empty template literal
-        this.syncStateToGenerators();
-        return this.stringGen.createStringConstant('');
-      }
-
-      if (templateExpr.parts.length === 1 && typeof templateExpr.parts[0] === 'string') {
-        // Simple string with no interpolation
-        this.syncStateToGenerators();
-        return this.stringGen.createStringConstant(templateExpr.parts[0]);
-      }
-
-      // Build result by concatenating parts
-      this.syncStateToGenerators();
-      let result: string | null = null;
-
-      for (const part of templateExpr.parts) {
-        let partValue: string;
-
-        if (typeof part === 'string') {
-          // String literal part
-          partValue = this.stringGen.createStringConstant(part);
-        } else {
-          // Expression part - need to convert to string
-          // For now, we only support expressions that are already strings
-          // TODO: Add number-to-string conversion
-          partValue = this.generateExpression(part, params);
-        }
-
-        if (result === null) {
-          result = partValue;
-        } else {
-          // Concatenate with previous result
-          result = this.stringGen.generateStringConcatDirect(result, partValue);
-        }
-      }
-
-      return result!;
-    }
-
-    throw new Error(`Unknown expression type: ${(expr as any).type}`);
+    // Delegate all expression types to ExpressionGenerator
+    return this.exprGen.generate(expr, params);
   }
 
   public isArrayExpression(expr: Expression): boolean {
-    if (expr.type === 'array') {
-      return true;
-    }
-    if (expr.type === 'variable') {
-      // Check both arrayVariables (legacy) and variableTypes (new system)
-      if (this.symbolTable.isNumberArray(expr.name)) {
-        return true;
-      }
-      const varType = this.getVariableType(expr.name);
-      if (varType === '%Array*') {
-        return true;
-      }
-      return false;
-    }
-    // Check if it's a method call that returns an array (e.g., .filter(), .map())
-    if (expr.type === 'method_call') {
-      const method = (expr as any).method;
-      return method === 'filter' || method === 'map'; // filter() and map() return new arrays
-    }
-    // Check if it's a member access to a numeric/boolean array field
-    if (expr.type === 'member_access') {
-      const memberExpr = expr as any;
-      if (memberExpr.object.type === 'variable' && this.symbolTable.isClass(memberExpr.object.name)) {
-        const classMeta = this.symbolTable.getClassInfo(memberExpr.object.name)!;
-        const fieldInfo = this.classGen.getFieldInfo(classMeta.className, memberExpr.property);
-        if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
-          return true;
-        }
-      }
-      // Check for this.field access
-      if ((memberExpr.object as any).type === 'this') {
-        // Find current class
-        const classNode = this.ast.classes.find(c => true); // Simplified
-        if (classNode) {
-          const fieldInfo = this.classGen.getFieldInfo(classNode.name, memberExpr.property);
-          if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
+    return this.typeInference.isArrayExpression(expr);
   }
 
   public isObjectExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'object') {
-      return true;
-    }
-    if (expr.type === 'variable') {
-      return this.symbolTable.isObject(expr.name);
-    }
-    return false;
+    return this.typeInference.isObjectExpression(expr);
   }
 
   private isMapExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'map') {
-      return true;
-    }
-    if (expr.type === 'variable') {
-      return this.symbolTable.isMap(expr.name);
-    }
-    return false;
+    return this.typeInference.isMapExpression(expr);
   }
 
   private isSetExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'set') {
-      return true;
-    }
-    if (expr.type === 'variable') {
-      return this.symbolTable.isSet(expr.name);
-    }
-    return false;
+    return this.typeInference.isSetExpression(expr);
   }
 
   public isStringExpression(expr: Expression): boolean {
-    if (expr.type === 'string') {
-      return true;
-    }
-    if ((expr as any).type === 'template_literal') {
-      return true;
-    }
-    if (expr.type === 'variable') {
-      // Check variable type in SymbolTable
-      const varType = this.getVariableType(expr.name);
-      if (varType === 'i8*') {
-        return true;
-      }
-      return false;
-    }
-    if (expr.type === 'binary' && expr.op === '+') {
-      return this.isStringExpression(expr.left) || this.isStringExpression(expr.right);
-    }
-    // Check if it's a member access on an object with TypeScript types
-    if (expr.type === 'member_access') {
-      const memberExpr = expr as any;
-      // Check if it's accessing a string property
-      if (memberExpr.object.type === 'variable') {
-        const varName = memberExpr.object.name;
-        // Check object variables with tracked types
-        const objMeta = this.symbolTable.getObjectInfo(varName);
-        if (objMeta) {
-          const propIndex = objMeta.keys.indexOf(memberExpr.property);
-          if (propIndex >= 0 && objMeta.types[propIndex] === 'i8*') {
-            return true;
-          }
-        }
-        // Check typed JSON struct properties (from .json<T>())
-        const varType = this.getVariableType(varName);
-        if (varType && varType.startsWith('%') && varType.endsWith('*') &&
-            !varType.includes('Array') && !varType.includes('Response') &&
-            !varType.includes('Map') && !varType.includes('Set')) {
-          const structTypeName = varType.substring(1, varType.length - 1);
-          if (this.typeChecker) {
-            const interfaceDef = this.typeChecker.getInterfaceDefinition(structTypeName);
-            if (interfaceDef) {
-              const prop = interfaceDef.properties.find((p: any) => p.name === memberExpr.property);
-              if (prop && prop.type === 'string') {
-                return true;
-              }
-            }
-          }
-        }
-        // Check class instances
-        if (this.symbolTable.isClass(varName)) {
-          const classMeta = this.symbolTable.getClassInfo(varName)!;
-          const fieldInfo = this.classGen.getFieldInfo(classMeta.className, memberExpr.property);
-          if (fieldInfo && fieldInfo.type === 'string') {
-            return true;
-          }
-        }
-        // Check TypeScript types for function parameters
-        if (this.typeChecker && this.currentFunction && this.getVariableAlloca(varName) !== undefined) {
-          const typeInfo = this.typeChecker.getPropertyType(varName, memberExpr.property, this.currentFunction);
-          if (typeInfo && typeInfo.llvmType === 'i8*') {
-            return true;
-          }
-        }
-      }
-      // Check for this.field access to string fields
-      if (memberExpr.object.type === 'this') {
-        // Check both this instance's currentClassName and the classGen's
-        const className = this.currentClassName || (this.classGen as any).currentClassName;
-        if (className) {
-          const fieldInfo = this.classGen.getFieldInfo(className, memberExpr.property);
-          if (fieldInfo && fieldInfo.type === 'string') {
-            return true;
-          }
-        }
-      }
-    }
-    // Check if it's process.argv[i] or stringArray[i]
-    if (expr.type === 'index_access') {
-      const indexExpr = expr as any;
-      // Check for process.argv[i]
-      if (indexExpr.object.type === 'member_access') {
-        const memberAccess = indexExpr.object;
-        if (memberAccess.object.type === 'variable' &&
-            memberAccess.object.name === 'process' &&
-            memberAccess.property === 'argv') {
-          return true;
-        }
-      }
-      // Check for stringArray[i]
-      if (indexExpr.object.type === 'variable') {
-        const varName = indexExpr.object.name;
-        // Check variable type in SymbolTable
-        const varType = this.getVariableType(varName);
-        if (varType === '%StringArray*') {
-          return true;
-        }
-      }
-      // Check for this.field[i] where field is a string array
-      if (indexExpr.object.type === 'member_access') {
-        const memberAccess = indexExpr.object;
-        if (memberAccess.object.type === 'variable' && memberAccess.object.name === 'this') {
-          // Check if this field is a string array in the current class
-          const className = this.currentClassName || (this.classGen as any).currentClassName;
-          if (className) {
-            const fieldInfo = this.classGen.getFieldInfo(className, memberAccess.property);
-            if (fieldInfo && fieldInfo.type === 'string[]') {
-              return true;
-            }
-          }
-        }
-        // Check for classInstance.field[i] where field is a string array
-        if (memberAccess.object.type === 'variable' && this.symbolTable.isClass(memberAccess.object.name)) {
-          const classMeta = this.symbolTable.getClassInfo(memberAccess.object.name)!;
-          const fieldInfo = this.classGen.getFieldInfo(classMeta.className, memberAccess.property);
-          if (fieldInfo && fieldInfo.type === 'string[]') {
-            return true;
-          }
-        }
-      }
-    }
-    // Check if it's a function call that returns a string
-    if (expr.type === 'call') {
-      const funcExpr = expr as any;
-      // String() constructor returns a string
-      if (funcExpr.name === 'String') {
-        return true;
-      }
-    }
-    // Check if it's a method call that returns a string
-    if (expr.type === 'method_call') {
-      const methodExpr = expr as any as MethodCallNode;
-      // fs.readFileSync returns a string
-      if (methodExpr.object.type === 'variable' &&
-          (methodExpr.object as any).name === 'fs' &&
-          methodExpr.method === 'readFileSync') {
-        return true;
-      }
-      // path methods that return strings
-      if (methodExpr.object.type === 'variable' &&
-          (methodExpr.object as any).name === 'path' &&
-          (methodExpr.method === 'resolve' || methodExpr.method === 'dirname')) {
-        return true;
-      }
-      // JSON.stringify returns a string
-      if (methodExpr.object.type === 'variable' &&
-          (methodExpr.object as any).name === 'JSON' &&
-          methodExpr.method === 'stringify') {
-        return true;
-      }
-      // String methods that return strings
-      if (methodExpr.method === 'substr' || methodExpr.method === 'substring' ||
-          methodExpr.method === 'concat' || methodExpr.method === 'repeat' ||
-          methodExpr.method === 'padStart' || methodExpr.method === 'charAt' ||
-          methodExpr.method === 'trim' || methodExpr.method === 'slice' ||
-          methodExpr.method === 'text') {  // 🎓 Response.text() returns string
-        return true;
-      }
-      // Check class instance method return types
-      if (methodExpr.object.type === 'variable' && this.symbolTable.isClass(methodExpr.object.name)) {
-        const classMeta = this.symbolTable.getClassInfo(methodExpr.object.name)!;
-        const classNode = this.ast.classes.find(c => c.name === classMeta.className);
-        if (classNode) {
-          const method = classNode.methods.find(m => m.name === methodExpr.method && !m.isConstructor);
-          if (method && method.returnType === 'string') {
-            return true;
-          }
-        }
-      }
-    }
-    // Check if it's a conditional expression where at least one branch is a string
-    if ((expr as any).type === 'conditional') {
-      const condExpr = expr as any;
-      return this.isStringExpression(condExpr.consequent) || this.isStringExpression(condExpr.alternate);
-    }
-    return false;
+    return this.typeInference.isStringExpression(expr);
   }
 
   private isRegexExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'regex') {
-      return true;
-    }
-    if (expr.type === 'variable') {
-      return this.symbolTable.isRegex(expr.name);
-    }
-    return false;
+    return this.typeInference.isRegexExpression(expr);
   }
 
   private isClassInstanceExpression(expr: Expression): boolean {
-    if ((expr as any).type === 'new') {
-      return true;
-    }
-    if (expr.type === 'variable') {
-      return this.symbolTable.isClass(expr.name);
-    }
-    return false;
+    return this.typeInference.isClassInstanceExpression(expr);
   }
 
-  /**
-   * Check if an expression returns a Response object (from fetch())
-   */
   private isResponseExpression(expr: Expression): boolean {
-    // fetch() returns Response*
-    if (expr.type === 'call' && expr.name === 'fetch') {
-      return true;
-    }
-    // Variables that hold Response objects
-    if (expr.type === 'variable') {
-      const varType = this.getVariableType(expr.name);
-      if (varType === '%Response*') {
-        return true;
-      }
-    }
-    return false;
+    return this.typeInference.isResponseExpression(expr);
   }
 
-  /**
-   * Check if an expression returns a typed JSON struct (from .json<T>())
-   * Returns the interface name if it's a typed JSON call, null otherwise
-   */
   private getTypedJsonInterface(expr: any): string | null {
-    // Check for .json<T>() method call
-    if (expr.type === 'method_call' && expr.method === 'json' && expr.typeParameter) {
-      return expr.typeParameter;
-    }
-    return null;
+    return this.typeInference.getTypedJsonInterface(expr);
   }
 
   private getFunctionCallInterfaceReturn(expr: any): string | null {
-    if (expr.type !== 'call') return null;
-    const func = this.ast.functions.find(f => f.name === expr.name);
-    if (!func || !func.returnType) return null;
-    const iface = this.ast.interfaces?.find(i => i.name === func.returnType);
-    if (iface) return func.returnType;
-    return null;
+    return this.typeInference.getFunctionCallInterfaceReturn(expr);
   }
 
   private getJSONParseInterface(expr: any): string | null {
-    // Check for JSON.parse<T>() method call
-    if (expr.type === 'method_call' &&
-        expr.method === 'parse' &&
-        expr.object?.type === 'variable' &&
-        expr.object?.name === 'JSON' &&
-        expr.typeParameter) {
-      return expr.typeParameter;
-    }
-    return null;
+    return this.typeInference.getJSONParseInterface(expr);
   }
 
   private isJSONParseExpression(expr: Expression): boolean {
-    // Check if this is a JSON.parse() call
-    if (expr.type === 'method_call') {
-      const methodCall = expr as any;
-      return methodCall.method === 'parse' &&
-             methodCall.object.type === 'variable' &&
-             methodCall.object.name === 'JSON';
-    }
-    if (expr.type === 'variable') {
-      return this.symbolTable.isJSON(expr.name);
-    }
-    return false;
+    return this.typeInference.isJSONParseExpression(expr);
   }
 
   public isStringArrayExpression(expr: Expression): boolean {
-    if (expr.type === 'variable') {
-      // Check variable type in SymbolTable
-      const varType = this.getVariableType(expr.name);
-      if (varType === '%StringArray*') {
-        return true;
-      }
-      return false;
-    }
-    // Check if it's an array literal with all string elements
-    if (expr.type === 'array') {
-      const elements = (expr as any).elements || [];
+    return this.typeInference.isStringArrayExpression(expr);
+  }
 
-      // For empty arrays, use expectedArrayElementType (set from declaredType)
-      if (elements.length === 0 && this.expectedArrayElementType === 'string') {
-        return true;
-      }
-
-      return elements.length > 0 && elements.every((elem: Expression) => elem.type === 'string');
-    }
-    // Check if it's a method call that returns a StringArray (e.g., .split())
-    if (expr.type === 'method_call') {
-      const method = (expr as any).method;
-      return method === 'split';
-    }
-    // Check if it's a member access to a string array field
-    if (expr.type === 'member_access') {
-      const memberExpr = expr as any;
-      // Check for process.argv
-      if (memberExpr.object.type === 'variable' &&
-          memberExpr.object.name === 'process' &&
-          memberExpr.property === 'argv') {
-        return true;
-      }
-      if (memberExpr.object.type === 'variable' && this.symbolTable.isClass(memberExpr.object.name)) {
-        const classMeta = this.symbolTable.getClassInfo(memberExpr.object.name)!;
-        const fieldInfo = this.classGen.getFieldInfo(classMeta.className, memberExpr.property);
-        if (fieldInfo && fieldInfo.type === 'string[]') {
-          return true;
-        }
-      }
-      // Check for this.field access
-      if ((memberExpr.object as any).type === 'this') {
-        // Find current class
-        const classNode = this.ast.classes.find(c => true); // Simplified
-        if (classNode) {
-          const fieldInfo = this.classGen.getFieldInfo(classNode.name, memberExpr.property);
-          if (fieldInfo && fieldInfo.type === 'string[]') {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
+  private isBooleanExpression(expr: any): boolean {
+    return this.typeInference.isBooleanExpression(expr);
   }
 
   private generateMain(): string {
