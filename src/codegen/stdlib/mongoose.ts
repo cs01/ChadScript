@@ -72,6 +72,9 @@ export class MongooseGenerator {
   /**
    * Generate the HTTP server event handler wrapper
    * This bridges mongoose's C callback to ChadScript's handler function
+   *
+   * Handler receives a Request object: { method: string, path: string, body: string, contentType: string }
+   * Handler returns a Response object: { status: number, body: string }
    */
   generateEventHandler(handlerName: string): string {
     let ir = '; HTTP event handler wrapper for mongoose\n';
@@ -115,6 +118,14 @@ export class MongooseGenerator {
     ir += '  %body_len = load i64, i64* %body_len_ptr\n';
     ir += '\n';
 
+    ir += '  ; Get Content-Type header using mg_http_get_header\n';
+    ir += '  %ct_header_name = getelementptr [13 x i8], [13 x i8]* @.str.content_type_header, i32 0, i32 0\n';
+    ir += '  %ct_mg_str = call %struct.mg_str @mg_http_get_header(%struct.mg_http_message* %hm, i8* %ct_header_name)\n';
+    ir += '  ; Extract mg_str fields (returned by value - use extractvalue)\n';
+    ir += '  %ct_buf = extractvalue %struct.mg_str %ct_mg_str, 0\n';
+    ir += '  %ct_len = extractvalue %struct.mg_str %ct_mg_str, 1\n';
+    ir += '\n';
+
     ir += '  ; Allocate and copy method with null terminator\n';
     ir += '  %method_alloc_size = add i64 %method_len, 1\n';
     ir += '  %method = call i8* @GC_malloc_atomic(i64 %method_alloc_size)\n';
@@ -129,6 +140,27 @@ export class MongooseGenerator {
     ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %body, i8* %body_buf, i64 %body_len, i1 false)\n';
     ir += '  %body_null_pos = getelementptr i8, i8* %body, i64 %body_len\n';
     ir += '  store i8 0, i8* %body_null_pos\n';
+    ir += '\n';
+
+    ir += '  ; Check if Content-Type header exists and copy it\n';
+    ir += '  %has_ct = icmp sgt i64 %ct_len, 0\n';
+    ir += '  br i1 %has_ct, label %copy_content_type, label %use_empty_ct\n\n';
+
+    ir += 'copy_content_type:\n';
+    ir += '  %ct_alloc_size = add i64 %ct_len, 1\n';
+    ir += '  %ct_str = call i8* @GC_malloc_atomic(i64 %ct_alloc_size)\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %ct_str, i8* %ct_buf, i64 %ct_len, i1 false)\n';
+    ir += '  %ct_null_pos = getelementptr i8, i8* %ct_str, i64 %ct_len\n';
+    ir += '  store i8 0, i8* %ct_null_pos\n';
+    ir += '  br label %build_path\n\n';
+
+    ir += 'use_empty_ct:\n';
+    ir += '  ; Use empty string for missing Content-Type\n';
+    ir += '  %empty_ct = getelementptr [1 x i8], [1 x i8]* @.str.empty, i32 0, i32 0\n';
+    ir += '  br label %build_path\n\n';
+
+    ir += 'build_path:\n';
+    ir += '  %content_type_val = phi i8* [ %ct_str, %copy_content_type ], [ %empty_ct, %use_empty_ct ]\n';
     ir += '\n';
 
     ir += '  ; Check if there is a query string\n';
@@ -168,9 +200,36 @@ export class MongooseGenerator {
     ir += '  %path = phi i8* [ %path_full, %build_full_path ], [ %path_only, %use_uri_only ]\n';
     ir += '\n';
 
-    ir += `  ; Call user handler: ${handlerName}(method, path, body) -> Response object\n`;
+    ir += '  ; Build Request object: { i8* method, i8* path, i8* body, i8* contentType }\n';
+    ir += '  ; Allocate Request struct (4 pointers = 32 bytes)\n';
+    ir += '  %req_mem = call i8* @GC_malloc(i64 32)\n';
+    ir += '  %req_struct = bitcast i8* %req_mem to { i8*, i8*, i8*, i8* }*\n';
+    ir += '\n';
+
+    ir += '  ; Store method (field 0)\n';
+    ir += '  %req_method_ptr = getelementptr { i8*, i8*, i8*, i8* }, { i8*, i8*, i8*, i8* }* %req_struct, i32 0, i32 0\n';
+    ir += '  store i8* %method, i8** %req_method_ptr\n';
+    ir += '\n';
+
+    ir += '  ; Store path (field 1)\n';
+    ir += '  %req_path_ptr = getelementptr { i8*, i8*, i8*, i8* }, { i8*, i8*, i8*, i8* }* %req_struct, i32 0, i32 1\n';
+    ir += '  store i8* %path, i8** %req_path_ptr\n';
+    ir += '\n';
+
+    ir += '  ; Store body (field 2)\n';
+    ir += '  %req_body_ptr = getelementptr { i8*, i8*, i8*, i8* }, { i8*, i8*, i8*, i8* }* %req_struct, i32 0, i32 2\n';
+    ir += '  store i8* %body, i8** %req_body_ptr\n';
+    ir += '\n';
+
+    ir += '  ; Store contentType (field 3)\n';
+    ir += '  %req_ct_ptr = getelementptr { i8*, i8*, i8*, i8* }, { i8*, i8*, i8*, i8* }* %req_struct, i32 0, i32 3\n';
+    ir += '  store i8* %content_type_val, i8** %req_ct_ptr\n';
+    ir += '\n';
+
+    ir += `  ; Call user handler: ${handlerName}(request) -> Response object\n`;
+    ir += `  ; Request struct layout: { i8* method, i8* path, i8* body, i8* contentType }\n`;
     ir += `  ; Response struct layout: { double status, i8* body }\n`;
-    ir += `  %response_ptr = call i8* @${handlerName}(i8* %method, i8* %path, i8* %body)\n`;
+    ir += `  %response_ptr = call i8* @${handlerName}(i8* %req_mem)\n`;
     ir += '\n';
 
     ir += '  ; Cast response pointer to Response struct { double, i8* }\n';
@@ -189,9 +248,9 @@ export class MongooseGenerator {
     ir += '\n';
 
     ir += '  ; Send HTTP response with extracted status code\n';
-    ir += '  %content_type = getelementptr [27 x i8], [27 x i8]* @.str.content_type_text, i32 0, i32 0\n';
+    ir += '  %resp_content_type = getelementptr [27 x i8], [27 x i8]* @.str.content_type_text, i32 0, i32 0\n';
     ir += '  %body_fmt = getelementptr [3 x i8], [3 x i8]* @.str.body_fmt, i32 0, i32 0\n';
-    ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 %status_code, i8* %content_type, i8* %body_fmt, i8* %response_body)\n';
+    ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 %status_code, i8* %resp_content_type, i8* %body_fmt, i8* %response_body)\n';
     ir += '\n';
 
     ir += '  ; GC will handle cleanup of allocated strings\n';
@@ -203,6 +262,8 @@ export class MongooseGenerator {
 
     ir += '@.str.content_type_text = private constant [27 x i8] c"Content-Type: text/plain\\0D\\0A\\00"\n';
     ir += '@.str.body_fmt = private constant [3 x i8] c"%s\\00"\n';
+    ir += '@.str.content_type_header = private constant [13 x i8] c"Content-Type\\00"\n';
+    ir += '@.str.empty = private constant [1 x i8] c"\\00"\n';
 
     return ir;
   }
@@ -213,7 +274,8 @@ export class MongooseGenerator {
    */
   generateHttpServeFunction(): string {
     let ir = '; httpServe(port, handler) - Start HTTP server using mongoose\n';
-    ir += 'define i32 @http_serve(i32 %port, i8* (i8*, i8*, i8*)* %handler) {\n';
+    ir += '; Handler takes Request object (i8*) and returns Response object (i8*)\n';
+    ir += 'define i32 @http_serve(i32 %port, i8* (i8*)* %handler) {\n';
     ir += 'entry:\n';
     ir += '  ; Allocate mongoose manager on stack\n';
     ir += '  %mgr = alloca %struct.mg_mgr\n';
@@ -234,7 +296,7 @@ export class MongooseGenerator {
     ir += '\n';
 
     ir += '  ; Start HTTP listener\n';
-    ir += '  %handler_ptr = bitcast i8* (i8*, i8*)* %handler to i8*\n';
+    ir += '  %handler_ptr = bitcast i8* (i8*)* %handler to i8*\n';
     ir += '  %conn = call %struct.mg_connection* @mg_http_listen(%struct.mg_mgr* %mgr, i8* %url, void (%struct.mg_connection*, i32, i8*, i8*)* @__mg_http_handler, i8* %handler_ptr)\n';
     ir += '\n';
 

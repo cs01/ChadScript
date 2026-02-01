@@ -622,8 +622,9 @@ export class LLVMGenerator extends BaseGenerator {
     this.emit(`${portI32} = fptosi double ${portValue} to i32`);
 
     // Call the runtime http_serve function
+    // Handler now takes a single Request object (i8*) and returns Response object (i8*)
     const temp = this.nextTemp();
-    this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*, i8*, i8*)* @${handlerName})`);
+    this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*)* @${handlerName})`);
 
     return temp;
   }
