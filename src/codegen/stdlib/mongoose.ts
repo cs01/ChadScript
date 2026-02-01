@@ -168,14 +168,30 @@ export class MongooseGenerator {
     ir += '  %path = phi i8* [ %path_full, %build_full_path ], [ %path_only, %use_uri_only ]\n';
     ir += '\n';
 
-    ir += `  ; Call user handler: ${handlerName}(method, path, body) -> response string\n`;
-    ir += `  %response = call i8* @${handlerName}(i8* %method, i8* %path, i8* %body)\n`;
+    ir += `  ; Call user handler: ${handlerName}(method, path, body) -> Response object\n`;
+    ir += `  ; Response struct layout: { double status, i8* body }\n`;
+    ir += `  %response_ptr = call i8* @${handlerName}(i8* %method, i8* %path, i8* %body)\n`;
     ir += '\n';
 
-    ir += '  ; Send HTTP 200 response with text/plain content type\n';
+    ir += '  ; Cast response pointer to Response struct { double, i8* }\n';
+    ir += '  %response_struct = bitcast i8* %response_ptr to { double, i8* }*\n';
+    ir += '\n';
+
+    ir += '  ; Extract status code (field 0)\n';
+    ir += '  %status_ptr = getelementptr { double, i8* }, { double, i8* }* %response_struct, i32 0, i32 0\n';
+    ir += '  %status_dbl = load double, double* %status_ptr\n';
+    ir += '  %status_code = fptosi double %status_dbl to i32\n';
+    ir += '\n';
+
+    ir += '  ; Extract body string (field 1)\n';
+    ir += '  %body_ptr_loc = getelementptr { double, i8* }, { double, i8* }* %response_struct, i32 0, i32 1\n';
+    ir += '  %response_body = load i8*, i8** %body_ptr_loc\n';
+    ir += '\n';
+
+    ir += '  ; Send HTTP response with extracted status code\n';
     ir += '  %content_type = getelementptr [27 x i8], [27 x i8]* @.str.content_type_text, i32 0, i32 0\n';
     ir += '  %body_fmt = getelementptr [3 x i8], [3 x i8]* @.str.body_fmt, i32 0, i32 0\n';
-    ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 200, i8* %content_type, i8* %body_fmt, i8* %response)\n';
+    ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 %status_code, i8* %content_type, i8* %body_fmt, i8* %response_body)\n';
     ir += '\n';
 
     ir += '  ; GC will handle cleanup of allocated strings\n';
