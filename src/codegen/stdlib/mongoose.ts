@@ -108,12 +108,27 @@ export class MongooseGenerator {
     ir += '  %query_len = load i64, i64* %query_len_ptr\n';
     ir += '\n';
 
+    ir += '  ; Get body mg_str (field 5: after proto and headers)\n';
+    ir += '  %body_buf_ptr = getelementptr %struct.mg_http_message, %struct.mg_http_message* %hm, i32 0, i32 5, i32 0\n';
+    ir += '  %body_buf = load i8*, i8** %body_buf_ptr\n';
+    ir += '  %body_len_ptr = getelementptr %struct.mg_http_message, %struct.mg_http_message* %hm, i32 0, i32 5, i32 1\n';
+    ir += '  %body_len = load i64, i64* %body_len_ptr\n';
+    ir += '\n';
+
     ir += '  ; Allocate and copy method with null terminator\n';
     ir += '  %method_alloc_size = add i64 %method_len, 1\n';
     ir += '  %method = call i8* @GC_malloc_atomic(i64 %method_alloc_size)\n';
     ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %method, i8* %method_buf, i64 %method_len, i1 false)\n';
     ir += '  %method_null_pos = getelementptr i8, i8* %method, i64 %method_len\n';
     ir += '  store i8 0, i8* %method_null_pos\n';
+    ir += '\n';
+
+    ir += '  ; Allocate and copy body with null terminator\n';
+    ir += '  %body_alloc_size = add i64 %body_len, 1\n';
+    ir += '  %body = call i8* @GC_malloc_atomic(i64 %body_alloc_size)\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %body, i8* %body_buf, i64 %body_len, i1 false)\n';
+    ir += '  %body_null_pos = getelementptr i8, i8* %body, i64 %body_len\n';
+    ir += '  store i8 0, i8* %body_null_pos\n';
     ir += '\n';
 
     ir += '  ; Check if there is a query string\n';
@@ -123,13 +138,13 @@ export class MongooseGenerator {
     ir += 'build_full_path:\n';
     ir += '  ; Build path = uri + "?" + query\n';
     ir += '  %path_total_len = add i64 %uri_len, %query_len\n';
-    ir += '  %path_total_len2 = add i64 %path_total_len, 2\n'; // +1 for '?' +1 for null
+    ir += '  %path_total_len2 = add i64 %path_total_len, 2\n';
     ir += '  %path_full = call i8* @GC_malloc_atomic(i64 %path_total_len2)\n';
     ir += '  ; Copy uri\n';
     ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %path_full, i8* %uri_buf, i64 %uri_len, i1 false)\n';
     ir += '  ; Add "?"\n';
     ir += '  %qmark_pos = getelementptr i8, i8* %path_full, i64 %uri_len\n';
-    ir += '  store i8 63, i8* %qmark_pos\n'; // 63 = '?'
+    ir += '  store i8 63, i8* %qmark_pos\n';
     ir += '  ; Copy query\n';
     ir += '  %query_start = add i64 %uri_len, 1\n';
     ir += '  %query_dest = getelementptr i8, i8* %path_full, i64 %query_start\n';
@@ -153,8 +168,8 @@ export class MongooseGenerator {
     ir += '  %path = phi i8* [ %path_full, %build_full_path ], [ %path_only, %use_uri_only ]\n';
     ir += '\n';
 
-    ir += `  ; Call user handler: ${handlerName}(method, path) -> response string\n`;
-    ir += `  %response = call i8* @${handlerName}(i8* %method, i8* %path)\n`;
+    ir += `  ; Call user handler: ${handlerName}(method, path, body) -> response string\n`;
+    ir += `  %response = call i8* @${handlerName}(i8* %method, i8* %path, i8* %body)\n`;
     ir += '\n';
 
     ir += '  ; Send HTTP 200 response with text/plain content type\n';
@@ -182,7 +197,7 @@ export class MongooseGenerator {
    */
   generateHttpServeFunction(): string {
     let ir = '; httpServe(port, handler) - Start HTTP server using mongoose\n';
-    ir += 'define i32 @http_serve(i32 %port, i8* (i8*, i8*)* %handler) {\n';
+    ir += 'define i32 @http_serve(i32 %port, i8* (i8*, i8*, i8*)* %handler) {\n';
     ir += 'entry:\n';
     ir += '  ; Allocate mongoose manager on stack\n';
     ir += '  %mgr = alloca %struct.mg_mgr\n';
