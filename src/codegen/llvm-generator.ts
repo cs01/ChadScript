@@ -23,6 +23,7 @@ import { ResponseGenerator } from './stdlib/response.js';
 import { RuntimeGenerator } from './runtime/runtime.js';
 import { MongooseGenerator } from './stdlib/mongoose.js';
 import { LibuvGenerator } from './stdlib/libuv.js';
+import { PromiseGenerator } from './stdlib/promise.js';
 import { ExpressionGenerator } from './expressions/orchestrator.js';
 import { TypeChecker } from '../typescript/type-checker.js';
 
@@ -64,8 +65,10 @@ export class LLVMGenerator extends BaseGenerator {
   private runtimeGen: RuntimeGenerator;
   private mongooseGen: MongooseGenerator;
   private libuvGen: LibuvGenerator;
+  private promiseGen: PromiseGenerator;
   private httpHandlers: string[] = [];  // Track HTTP handlers for mongoose event handler generation
   private usesTimers: boolean = false;  // Track if setTimeout/setInterval is used
+  public usesPromises: boolean = false;  // Track if Promise is used
 
   // Expression generator (context pattern)
   private exprGen: ExpressionGenerator;
@@ -150,6 +153,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.runtimeGen = new RuntimeGenerator();
     this.mongooseGen = new MongooseGenerator();
     this.libuvGen = new LibuvGenerator();
+    this.promiseGen = new PromiseGenerator();
 
     // Initialize expression generator with context pattern
     this.exprGen = new ExpressionGenerator(this);
@@ -315,6 +319,9 @@ export class LLVMGenerator extends BaseGenerator {
     ir += this.libuvGen.generateDeclarations();
     ir += '\n';
 
+    ir += this.promiseGen.generateDeclarations();
+    ir += '\n';
+
     ir += getSafeStringHelper();
 
     ir += getGlobalVariables();
@@ -377,6 +384,12 @@ export class LLVMGenerator extends BaseGenerator {
       ir += this.libuvGen.generateSetInterval();
       ir += this.libuvGen.generateClearTimer();
       ir += this.libuvGen.generateRunEventLoop();
+    }
+
+    // Generate Promise runtime if Promise is used
+    if (this.usesPromises) {
+      ir += '\n';
+      ir += this.promiseGen.generateAll();
     }
 
     // Add global string constants at the beginning
@@ -584,6 +597,10 @@ export class LLVMGenerator extends BaseGenerator {
 
   private isClassInstanceExpression(expr: Expression): boolean {
     return this.typeInference.isClassInstanceExpression(expr);
+  }
+
+  public isPromiseExpression(expr: Expression): boolean {
+    return this.typeInference.isPromiseExpression(expr);
   }
 
   private isResponseExpression(expr: Expression): boolean {

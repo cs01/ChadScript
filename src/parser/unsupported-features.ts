@@ -130,24 +130,24 @@ Static compilation means no runtime property enumeration.`,
 
   'async': {
     feature: "'async' keyword",
-    reason: `async/await requires an event loop and Promise infrastructure.
-ChadScript has no runtime - it compiles to synchronous native code.
-There's no event loop, no Promises, no async scheduler.`,
-    suggestion: `Use synchronous APIs only. ChadScript provides blocking I/O:
+    reason: `async/await syntax is not yet fully implemented.
+ChadScript has Promise support, but the async/await syntax parser is still in development.`,
+    suggestion: `Use Promise-based APIs directly:
 
-  // ❌ Async (not supported)
+  // ❌ Async syntax (coming soon)
   async function fetchData() {
     const response = await fetch(url);
     return response;
   }
 
-  // ✅ Synchronous (supported)
-  function fetchData(): string {
-    const response = fetch(url);  // Blocking call
-    return response;
+  // ✅ Promise-based (supported)
+  function fetchData(): void {
+    Promise.resolve(fetch(url))
+      .then(onSuccess)
+      .catch(onError);
   }
 
-Note: fetch() in ChadScript is synchronous (blocks until response).`,
+Note: Promise.resolve(), Promise.reject(), .then(), .catch() are supported.`,
     examples: [
       {
         bad: `async function getData() { }`,
@@ -157,36 +157,18 @@ Note: fetch() in ChadScript is synchronous (blocks until response).`,
 
   'await': {
     feature: "'await' keyword",
-    reason: `await requires Promises and an event loop.
-ChadScript has no async runtime - all operations are synchronous.`,
-    suggestion: `Remove await and use synchronous APIs:
+    reason: `await syntax is not yet fully implemented.
+Use Promise.then() for handling async results.`,
+    suggestion: `Remove await and use .then() chaining:
 
-  // ❌ Async
+  // ❌ Await syntax (coming soon)
   const data = await fetch(url);
 
-  // ✅ Sync
-  const data = fetch(url);  // Blocks until complete`,
+  // ✅ Promise chaining (supported)
+  fetch(url).then(handleData);`,
     examples: [
       {
         bad: `const result = await promise;`,
-      }
-    ]
-  },
-
-  'Promise': {
-    feature: "'Promise' class",
-    reason: `Promises require an event loop and async execution model.
-Native code execution is inherently synchronous.`,
-    suggestion: `Use callbacks or synchronous patterns:
-
-  // Instead of Promises, use direct function calls
-  function processData(): string {
-    const data = fetch(url);  // Synchronous
-    return transform(data);
-  }`,
-    examples: [
-      {
-        bad: `return new Promise((resolve) => { });`,
       }
     ]
   },
@@ -425,7 +407,6 @@ export function isUnsupportedKeyword(keyword: string): boolean {
 export function isUnsupportedAPI(name: string): boolean {
   const unsupportedAPIs = [
     'Object.keys', 'Object.values', 'Object.entries',
-    'Promise', 'setTimeout', 'setInterval',
   ];
   return unsupportedAPIs.some(api => name.includes(api));
 }

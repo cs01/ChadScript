@@ -257,10 +257,34 @@ export class TypeInference {
 
   isClassInstanceExpression(expr: Expression): boolean {
     if ((expr as any).type === 'new') {
+      const className = (expr as any).className;
+      if (className === 'Promise') {
+        return false;
+      }
       return true;
     }
     if (expr.type === 'variable') {
       return this.ctx.symbolTable.isClass(expr.name);
+    }
+    return false;
+  }
+
+  isPromiseExpression(expr: Expression): boolean {
+    if ((expr as any).type === 'new' && (expr as any).className === 'Promise') {
+      return true;
+    }
+    if (expr.type === 'method_call') {
+      const methodExpr = expr as any;
+      if (methodExpr.object.type === 'variable' && methodExpr.object.name === 'Promise') {
+        return true;
+      }
+      if (methodExpr.method === 'then' || methodExpr.method === 'catch') {
+        return this.isPromiseExpression(methodExpr.object);
+      }
+    }
+    if (expr.type === 'variable') {
+      const varType = this.ctx.getVariableType(expr.name);
+      return varType === '%Promise*';
     }
     return false;
   }

@@ -14,6 +14,7 @@ export interface VariableAllocatorContext {
   isSetExpression(expr: Expression): boolean;
   isRegexExpression(expr: Expression): boolean;
   isClassInstanceExpression(expr: Expression): boolean;
+  isPromiseExpression(expr: Expression): boolean;
   isResponseExpression(expr: Expression): boolean;
   isJSONParseExpression(expr: Expression): boolean;
   getTypedJsonInterface(expr: any): string | null;
@@ -55,13 +56,16 @@ export class VariableAllocator {
     const isMap = this.ctx.isMapExpression(stmt.value);
     const isSet = this.ctx.isSetExpression(stmt.value);
     const isRegex = this.ctx.isRegexExpression(stmt.value);
-    const isClassInstance = this.ctx.isClassInstanceExpression(stmt.value);
+    const isPromise = this.ctx.isPromiseExpression(stmt.value);
+    const isClassInstance = !isPromise && this.ctx.isClassInstanceExpression(stmt.value);
     const isResponse = this.ctx.isResponseExpression(stmt.value);
     const typedJsonInterface = this.ctx.getTypedJsonInterface(stmt.value);
     const functionInterfaceReturn = this.ctx.getFunctionCallInterfaceReturn(stmt.value);
 
     if (functionInterfaceReturn) {
       this.allocateFunctionInterfaceReturn(stmt, params, functionInterfaceReturn);
+    } else if (isPromise) {
+      this.allocatePromise(stmt, params);
     } else if (isClassInstance) {
       this.allocateClassInstance(stmt, params);
     } else if (typedJsonInterface) {
@@ -118,6 +122,15 @@ export class VariableAllocator {
 
     const instancePtr = this.ctx.generateExpression(stmt.value, params);
     this.ctx.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
+  }
+
+  private allocatePromise(stmt: any, params: string[]): void {
+    const allocaReg = this.ctx.nextTemp();
+    this.ctx.defineVariable(stmt.name, allocaReg, '%Promise*', SymbolKind.Object, 'local');
+    this.ctx.emit(`${allocaReg} = alloca %Promise*`);
+
+    const promisePtr = this.ctx.generateExpression(stmt.value, params);
+    this.ctx.emit(`store %Promise* ${promisePtr}, %Promise** ${allocaReg}`);
   }
 
   private allocateTypedJsonInterface(stmt: any, params: string[], interfaceName: string): void {
