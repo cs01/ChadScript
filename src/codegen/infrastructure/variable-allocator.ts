@@ -69,8 +69,11 @@ export class VariableAllocator {
     const typedJsonInterface = this.ctx.getTypedJsonInterface(stmt.value);
     const functionInterfaceReturn = this.ctx.getFunctionCallInterfaceReturn(stmt.value);
     const mapGetInterfaceType = this.getMapGetInterfaceType(stmt.value);
+    const declaredInterfaceType = this.getDeclaredInterfaceType(stmt);
 
-    if (mapGetInterfaceType) {
+    if (declaredInterfaceType) {
+      this.allocateDeclaredInterface(stmt, params, declaredInterfaceType);
+    } else if (mapGetInterfaceType) {
       this.allocateMapGetInterface(stmt, params, mapGetInterfaceType);
     } else if (functionInterfaceReturn) {
       this.allocateFunctionInterfaceReturn(stmt, params, functionInterfaceReturn);
@@ -110,6 +113,27 @@ export class VariableAllocator {
   }
 
   private allocateFunctionInterfaceReturn(stmt: any, params: string[], interfaceName: string): void {
+    const interfaceDef = this.ctx.ast.interfaces!.find((i: any) => i.name === interfaceName)!;
+    const allocaReg = this.ctx.nextTemp();
+    const keys = interfaceDef.fields.map((f: any) => f.name);
+    const types = interfaceDef.fields.map((f: any) => this.tsTypeToLlvm(f.type));
+    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+      objectMetadata: { keys, types }
+    });
+    this.ctx.emit(`${allocaReg} = alloca i8*`);
+    const objPtr = this.ctx.generateExpression(stmt.value, params);
+    this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
+  }
+
+  private getDeclaredInterfaceType(stmt: any): string | null {
+    if (!stmt.declaredType) return null;
+    if (stmt.value?.type !== 'variable') return null;
+    const interfaceDef = this.ctx.ast.interfaces?.find((i: any) => i.name === stmt.declaredType);
+    if (!interfaceDef) return null;
+    return stmt.declaredType;
+  }
+
+  private allocateDeclaredInterface(stmt: any, params: string[], interfaceName: string): void {
     const interfaceDef = this.ctx.ast.interfaces!.find((i: any) => i.name === interfaceName)!;
     const allocaReg = this.ctx.nextTemp();
     const keys = interfaceDef.fields.map((f: any) => f.name);

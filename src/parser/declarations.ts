@@ -1,4 +1,4 @@
-import { FunctionNode, ClassNode, ClassMethod, ImportDeclaration, ExportDeclaration, BlockStatement } from '../ast/types.js';
+import { FunctionNode, ClassNode, ClassMethod, ImportDeclaration, ExportDeclaration, BlockStatement, TypeAliasDeclaration } from '../ast/types.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
 
 export interface ParserContext {
@@ -10,6 +10,7 @@ export interface ParserContext {
   imports: ImportDeclaration[];
   exports: ExportDeclaration[];
   interfaces: any[];
+  typeAliases: TypeAliasDeclaration[];
   topLevelStatements: any[];
   topLevelItems: any[];
   skipWhitespace(): void;
@@ -66,6 +67,32 @@ export function parseInterface(ctx: ParserContext): void {
   ctx.interfaces.push({ name, fields });
 }
 
+export function parseTypeAlias(ctx: ParserContext): void {
+  const name = ctx.parseIdentifier();
+  ctx.skipWhitespace();
+  ctx.expect('=');
+  ctx.skipWhitespace();
+
+  const unionMembers: string[] = [];
+  const firstMember = ctx.parseIdentifier();
+  unionMembers.push(firstMember);
+
+  ctx.skipWhitespace();
+  while (ctx.code[ctx.pos] === '|') {
+    ctx.pos++;
+    ctx.skipWhitespace();
+    const nextMember = ctx.parseIdentifier();
+    unionMembers.push(nextMember);
+    ctx.skipWhitespace();
+  }
+
+  if (ctx.code[ctx.pos] === ';') {
+    ctx.pos++;
+  }
+
+  ctx.typeAliases.push({ name, unionMembers });
+}
+
 export function parseFunction(ctx: ParserContext, isAsync: boolean = false): void {
   const name = ctx.parseIdentifier();
   ctx.skipWhitespace();
@@ -91,6 +118,7 @@ export function parseFunction(ctx: ParserContext, isAsync: boolean = false): voi
   ctx.expect('(');
 
   const params: string[] = [];
+  const paramTypes: string[] = [];
   ctx.skipWhitespace();
   if (ctx.code[ctx.pos] !== ')') {
     const paramName = ctx.parseIdentifier();
@@ -98,7 +126,10 @@ export function parseFunction(ctx: ParserContext, isAsync: boolean = false): voi
     if (ctx.code[ctx.pos] === ':') {
       ctx.pos++;
       ctx.skipWhitespace();
+      const typeStart = ctx.pos;
       ctx.skipTypeAnnotation();
+      const paramType = ctx.code.substring(typeStart, ctx.pos).trim();
+      paramTypes.push(paramType);
     }
     params.push(paramName);
     while (ctx.match(',')) {
@@ -108,7 +139,10 @@ export function parseFunction(ctx: ParserContext, isAsync: boolean = false): voi
       if (ctx.code[ctx.pos] === ':') {
         ctx.pos++;
         ctx.skipWhitespace();
+        const typeStart = ctx.pos;
         ctx.skipTypeAnnotation();
+        const paramType = ctx.code.substring(typeStart, ctx.pos).trim();
+        paramTypes.push(paramType);
       }
       params.push(nextParamName);
     }
@@ -130,7 +164,7 @@ export function parseFunction(ctx: ParserContext, isAsync: boolean = false): voi
   const body = ctx.parseBlock();
   ctx.expect('}');
 
-  ctx.functions.push({ name, params, body, returnType, typeParameters, async: isAsync || undefined });
+  ctx.functions.push({ name, params, paramTypes: paramTypes.length > 0 ? paramTypes : undefined, body, returnType, typeParameters, async: isAsync || undefined });
 }
 
 export function parseClass(ctx: ParserContext): void {

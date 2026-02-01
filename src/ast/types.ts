@@ -252,6 +252,7 @@ export interface AST {
   classes: ClassNode[];
   exports: ExportDeclaration[];
   interfaces: InterfaceDeclaration[];  // Interface definitions for JSON typing
+  typeAliases: TypeAliasDeclaration[];  // Type alias declarations (union types)
   topLevelStatements: VariableDeclaration[];  // Top-level const/let declarations
   topLevelExpressions: (CallNode | NewNode | MethodCallNode)[];  // Top-level expressions (console.log, etc.)
   topLevelItems?: any[];  // Combined ordered list of all top-level statements and expressions
@@ -260,4 +261,9 @@ export interface AST {
 export interface InterfaceDeclaration {
   name: string;
   fields: { name: string; type: string }[];  // e.g., [{ name: 'age', type: 'number' }, { name: 'name', type: 'string' }]
+}
+
+export interface TypeAliasDeclaration {
+  name: string;
+  unionMembers: string[];  // e.g., ['NumberNode', 'StringNode', 'BinaryNode']
 }
