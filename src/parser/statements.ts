@@ -34,6 +34,11 @@ export function parseStatement(ctx: ParserContext): Statement {
   }
 
   if (ctx.match('return')) {
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === ';') {
+      ctx.pos++;
+      return { type: 'return', value: { type: 'number', value: 0 } };
+    }
     const value = ctx.parseExpression();
     ctx.expect(';');
     return { type: 'return', value };

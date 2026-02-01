@@ -274,9 +274,7 @@ c.increment();
 
 Supports inheritance and method overriding.
 
-## Examples
-
-See `/examples/` for working examples: CLI tools (`hello.ts`, `word-count.ts`), network servers (`tcp-server.ts`, `simple-http-server.ts`), and more.
+See `/examples/` for more working examples: CLI tools (`hello.ts`, `word-count.ts`), network servers (`tcp-server.ts`, `simple-http-server.ts`), and more.
 
 ```bash
 npx tsx src/index.ts examples/word-count.ts
@@ -444,6 +442,18 @@ TypeScript → JS (strip types) → AST (parser) → LLVM IR (codegen) → nativ
 | `boolean` | `double` | 8B |
 | `Array<T>`, `Map<K,V>`, `Set<T>` | pointer | 8B |
 | Interface | `struct*` | packed |
+
+### Type System Characteristics
+
+| Property | What it means |
+|----------|---------------|
+| **Static** | Types checked at compile time, not runtime |
+| **Strong** | No silent type coercion (unlike JavaScript's `"5" - 3 = 2`) |
+| **Structural** | Interfaces match by shape, not by name |
+| **Inferred** | Compiler figures out types without explicit annotations |
+| **Monomorphized** | Generics generate specialized code per type (fast!) |
+
+ChadScript prioritizes **soundness over completeness**: if it compiles, the types are correct at runtime. Not all valid TypeScript programs compile yet, but the ones that do won't have type errors.
 
 ## Known Limitations
 

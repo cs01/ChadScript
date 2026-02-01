@@ -209,6 +209,13 @@ export function parseAdditive(ctx: ExpressionParserContext): Expression {
 export function parseMultiplicative(ctx: ExpressionParserContext): Expression {
   let left = parsePrimary(ctx);
 
+  ctx.skipWhitespace();
+  while (ctx.match('as')) {
+    ctx.skipWhitespace();
+    ctx.skipTypeAnnotation();
+    ctx.skipWhitespace();
+  }
+
   while (true) {
     ctx.skipWhitespace();
     const op = ctx.code[ctx.pos];
@@ -216,6 +223,12 @@ export function parseMultiplicative(ctx: ExpressionParserContext): Expression {
     if (op === '*' || op === '/' || op === '%') {
       ctx.pos++;
       const right = parsePrimary(ctx);
+      ctx.skipWhitespace();
+      while (ctx.match('as')) {
+        ctx.skipWhitespace();
+        ctx.skipTypeAnnotation();
+        ctx.skipWhitespace();
+      }
       left = { type: 'binary', op, left, right };
     } else {
       break;
@@ -436,14 +449,7 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
       ctx.skipWhitespace();
       if (ctx.match('as')) {
         ctx.skipWhitespace();
-        ctx.parseIdentifier();
-        ctx.skipWhitespace();
-        while (ctx.code[ctx.pos] === '|' || ctx.code[ctx.pos] === '&') {
-          ctx.pos++;
-          ctx.skipWhitespace();
-          ctx.parseIdentifier();
-          ctx.skipWhitespace();
-        }
+        ctx.skipTypeAnnotation();
       }
       ctx.expect(')');
       return parsePostfixExpressions(ctx, expr, parseExpression);
