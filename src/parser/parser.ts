@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, ClassNode, NewNode, TypeAliasDeclaration, EnumDeclaration, ImportDeclaration, ExportDeclaration, InterfaceDeclaration, TopLevelItem, AssignmentStatement, TryStatement } from '../ast/types.js';
+import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, ClassNode, NewNode, TypeAliasDeclaration, EnumDeclaration, ImportDeclaration, ExportDeclaration, InterfaceDeclaration, TopLevelItem, AssignmentStatement, TryStatement, ForStatement, ForOfStatement, WhileStatement, IfStatement, VariableNode, MemberAccessNode, IndexAccessNode, BinaryNode } from '../ast/types.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
 import { parseFunction, parseClass, parseInterface, parseImport, parseExport, ParserContext, parseTypeAlias, parseEnum } from './declarations.js';
 import { parseBlock, parseStatement, parseIfStatement, parseWhileStatement, parseForStatement, parseVariableDeclaration, parseTryStatementTopLevel } from './statements.js';
@@ -16,7 +16,7 @@ export class Parser implements ExpressionParserContext {
   typeAliases: TypeAliasDeclaration[] = [];
   enums: EnumDeclaration[] = [];
   topLevelStatements: (VariableDeclaration | AssignmentStatement)[] = [];
-  topLevelExpressions: (CallNode | NewNode | MethodCallNode)[] = [];
+  topLevelExpressions: (CallNode | NewNode | MethodCallNode | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement)[] = [];
   topLevelItems: TopLevelItem[] = [];
 
   constructor(code: string, filename: string = '<input>') {
@@ -143,19 +143,19 @@ export class Parser implements ExpressionParserContext {
         this.skipComment();
       } else if (this.match('for')) {
         const forStmt = parseForStatement(this);
-        this.topLevelExpressions.push(forStmt as any);
+        this.topLevelExpressions.push(forStmt);
         this.topLevelItems.push(forStmt);
       } else if (this.match('while')) {
         const whileStmt = parseWhileStatement(this);
-        this.topLevelExpressions.push(whileStmt as any);
+        this.topLevelExpressions.push(whileStmt);
         this.topLevelItems.push(whileStmt);
       } else if (this.match('if')) {
         const ifStmt = parseIfStatement(this);
-        this.topLevelExpressions.push(ifStmt as any);
+        this.topLevelExpressions.push(ifStmt);
         this.topLevelItems.push(ifStmt);
       } else if (this.match('try')) {
         const tryStmt = this.parseTryStatement();
-        this.topLevelExpressions.push(tryStmt as any);
+        this.topLevelExpressions.push(tryStmt);
         this.topLevelItems.push(tryStmt);
       } else {
         const savedPos = this.pos;
@@ -180,7 +180,7 @@ export class Parser implements ExpressionParserContext {
               this.pos++;
             }
             if (expr.type === 'call' || expr.type === 'new' || expr.type === 'method_call') {
-              this.topLevelExpressions.push(expr as any);
+              this.topLevelExpressions.push(expr as CallNode | NewNode | MethodCallNode);
               this.topLevelItems.push(expr);
             }
             continue;
@@ -192,30 +192,32 @@ export class Parser implements ExpressionParserContext {
             this.pos++;
           }
 
-          let finalValue = value;
+          let finalValue: Expression = value;
           if (compoundOp) {
             finalValue = {
               type: 'binary',
               op: compoundOp,
               left: leftExpr,
               right: value
-            } as any;
+            } as BinaryNode;
           }
 
           let assignment: AssignmentStatement;
           if (leftExpr.type === 'variable') {
-            assignment = { type: 'assignment', name: (leftExpr as any).name, value: finalValue };
+            assignment = { type: 'assignment', name: (leftExpr as VariableNode).name, value: finalValue };
           } else if (leftExpr.type === 'member_access') {
+            const memberExpr = leftExpr as MemberAccessNode;
             assignment = {
               type: 'assignment',
-              name: `__member_access__${(leftExpr as any).property}__`,
-              value: { type: 'member_access_assignment', object: (leftExpr as any).object, property: (leftExpr as any).property, value: finalValue }
+              name: `__member_access__${memberExpr.property}__`,
+              value: { type: 'member_access_assignment', object: memberExpr.object, property: memberExpr.property, value: finalValue }
             };
           } else if (leftExpr.type === 'index_access') {
+            const indexExpr = leftExpr as IndexAccessNode;
             assignment = {
               type: 'assignment',
               name: '__index_access__',
-              value: { type: 'index_access_assignment', object: (leftExpr as any).object, index: (leftExpr as any).index, value: finalValue }
+              value: { type: 'index_access_assignment', object: indexExpr.object, index: indexExpr.index, value: finalValue }
             };
           } else {
             throw new Error(`Cannot assign to ${leftExpr.type}`);
