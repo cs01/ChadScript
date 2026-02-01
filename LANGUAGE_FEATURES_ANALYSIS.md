@@ -363,7 +363,14 @@ if (/[a-zA-Z]/.test(str[0])) { }
 const match = code.match(/pattern/g);
 ```
 
-### 2.8 Async/Await** ❌ UNSUPPORTED (and not used)
+### 2.8 Async/Await ✓ SUPPORTED
+- `async function` declarations
+- `await` expressions
+- Promise class with .then()/.catch()
+- Promise.all() for parallel operations
+- fetch() returns Promise
+
+**Note:** Not used in the compiler itself, so not required for self-hosting
 
 ---
 
@@ -371,7 +378,6 @@ const match = code.match(/pattern/g);
 
 - Destructuring assignment
 - Spread operators
-- async/await and Promises
 - Dynamic code execution (eval)
 - typeof/instanceof operators
 - Object.keys/Object.values/Object.entries
@@ -537,6 +543,7 @@ const match = code.match(/pattern/g);
 - Object literals
 - Template literals
 - Try/catch error handling
+- Async/await and Promises
 
 ### Partially Supported
 - For-of loops (works but limited to known iterables)
@@ -545,7 +552,6 @@ const match = code.match(/pattern/g);
 
 ### Not Supported (By Design)
 - Dynamic features (eval, typeof, instanceof)
-- Async operations (async/await, Promises)
 - Runtime reflection (Object.keys, for...in)
 - Advanced ES6+ (destructuring, spread)
 
