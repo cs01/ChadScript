@@ -166,10 +166,18 @@ export function parseArrayLiteral(ctx: LiteralParserContext, parseExpressionFn: 
   const elements: Expression[] = [];
   ctx.skipWhitespace();
   if (ctx.code[ctx.pos] !== ']') {
+    if (ctx.code[ctx.pos] === '.' && ctx.code[ctx.pos + 1] === '.' && ctx.code[ctx.pos + 2] === '.') {
+      ctx.pos += 3;
+      ctx.skipWhitespace();
+    }
     elements.push(parseExpressionFn(ctx));
     while (ctx.match(',')) {
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] === ']') break;
+      if (ctx.code[ctx.pos] === '.' && ctx.code[ctx.pos + 1] === '.' && ctx.code[ctx.pos + 2] === '.') {
+        ctx.pos += 3;
+        ctx.skipWhitespace();
+      }
       elements.push(parseExpressionFn(ctx));
     }
   }
@@ -179,29 +187,16 @@ export function parseArrayLiteral(ctx: LiteralParserContext, parseExpressionFn: 
 
 export function parseObjectLiteral(ctx: LiteralParserContext, parseExpressionFn: (ctx: LiteralParserContext) => Expression): ObjectNode {
   ctx.expect('{');
-  const properties: { key: string; value: Expression }[] = [];
+  const properties: { key: string; value: Expression; spread?: boolean }[] = [];
   ctx.skipWhitespace();
   if (ctx.code[ctx.pos] !== '}') {
-    let key: string;
-    if (ctx.code[ctx.pos] === '"' || ctx.code[ctx.pos] === "'") {
-      key = ctx.parseString();
-    } else {
-      key = ctx.parseIdentifier();
-    }
-    ctx.skipWhitespace();
-
-    let value: Expression;
-    if (ctx.code[ctx.pos] === ':') {
-      ctx.pos++;
-      value = parseExpressionFn(ctx);
-    } else {
-      value = { type: 'variable', name: key };
-    }
-    properties.push({ key, value });
-
-    while (ctx.match(',')) {
+    if (ctx.code[ctx.pos] === '.' && ctx.code[ctx.pos + 1] === '.' && ctx.code[ctx.pos + 2] === '.') {
+      ctx.pos += 3;
       ctx.skipWhitespace();
-      if (ctx.code[ctx.pos] === '}') break;
+      const spreadExpr = parseExpressionFn(ctx);
+      properties.push({ key: '__spread__', value: spreadExpr, spread: true });
+    } else {
+      let key: string;
       if (ctx.code[ctx.pos] === '"' || ctx.code[ctx.pos] === "'") {
         key = ctx.parseString();
       } else {
@@ -209,6 +204,7 @@ export function parseObjectLiteral(ctx: LiteralParserContext, parseExpressionFn:
       }
       ctx.skipWhitespace();
 
+      let value: Expression;
       if (ctx.code[ctx.pos] === ':') {
         ctx.pos++;
         value = parseExpressionFn(ctx);
@@ -216,6 +212,34 @@ export function parseObjectLiteral(ctx: LiteralParserContext, parseExpressionFn:
         value = { type: 'variable', name: key };
       }
       properties.push({ key, value });
+    }
+
+    while (ctx.match(',')) {
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === '}') break;
+      if (ctx.code[ctx.pos] === '.' && ctx.code[ctx.pos + 1] === '.' && ctx.code[ctx.pos + 2] === '.') {
+        ctx.pos += 3;
+        ctx.skipWhitespace();
+        const spreadExpr = parseExpressionFn(ctx);
+        properties.push({ key: '__spread__', value: spreadExpr, spread: true });
+      } else {
+        let key: string;
+        if (ctx.code[ctx.pos] === '"' || ctx.code[ctx.pos] === "'") {
+          key = ctx.parseString();
+        } else {
+          key = ctx.parseIdentifier();
+        }
+        ctx.skipWhitespace();
+
+        let value: Expression;
+        if (ctx.code[ctx.pos] === ':') {
+          ctx.pos++;
+          value = parseExpressionFn(ctx);
+        } else {
+          value = { type: 'variable', name: key };
+        }
+        properties.push({ key, value });
+      }
     }
   }
   ctx.expect('}');
@@ -326,6 +350,8 @@ export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Express
         const one: NumberNode = { type: 'number', value: 1 };
         expr = { type: 'binary', op: '-', left: expr, right: one } as BinaryNode;
       }
+    } else if (ctx.code[ctx.pos] === '!' && ctx.code[ctx.pos + 1] !== '=') {
+      ctx.pos++;
     } else {
       break;
     }

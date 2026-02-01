@@ -1,4 +1,4 @@
-import { Expression, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, IfStatement, WhileStatement, ForStatement, ForOfStatement, BinaryNode, MemberAccessNode, MemberAccessAssignmentNode } from '../ast/types.js';
+import { Expression, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, IfStatement, WhileStatement, ForStatement, ForOfStatement, BinaryNode, MemberAccessNode, MemberAccessAssignmentNode, IndexAccessNode, IndexAccessAssignmentNode } from '../ast/types.js';
 import { ParserContext } from './declarations.js';
 
 export function parseBlock(ctx: ParserContext): BlockStatement {
@@ -147,6 +147,19 @@ export function parseStatement(ctx: ParserContext): Statement {
       type: 'assignment',
       name: `__member_access__${memberExpr.property}__`,
       value: memberAssignment as unknown as Expression
+    };
+  } else if (leftExpr.type === 'index_access') {
+    const indexExpr = leftExpr as IndexAccessNode;
+    const indexAssignment: IndexAccessAssignmentNode = {
+      type: 'index_access_assignment',
+      object: indexExpr.object,
+      index: indexExpr.index,
+      value: finalValue
+    };
+    return {
+      type: 'assignment',
+      name: '__index_access__',
+      value: indexAssignment as unknown as Expression
     };
   } else {
     throw new Error(`Cannot assign to ${leftExpr.type}`);
@@ -306,6 +319,47 @@ export function parseVariableDeclaration(ctx: ParserContext): VariableDeclaratio
   } else {
     throw new Error('Expected let, const, or var');
   }
+
+  ctx.skipWhitespace();
+
+  if (ctx.code[ctx.pos] === '{') {
+    ctx.pos++;
+    ctx.skipWhitespace();
+    let depth = 1;
+    while (ctx.pos < ctx.code.length && depth > 0) {
+      if (ctx.code[ctx.pos] === '{') depth++;
+      else if (ctx.code[ctx.pos] === '}') depth--;
+      ctx.pos++;
+    }
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === '=') {
+      ctx.pos++;
+      ctx.parseExpression();
+    }
+    ctx.skipWhitespace();
+    ctx.expect(';');
+    return { type: 'variable_declaration', kind, name: '__destructured__', value: null, declaredType: undefined };
+  }
+
+  if (ctx.code[ctx.pos] === '[') {
+    ctx.pos++;
+    ctx.skipWhitespace();
+    let depth = 1;
+    while (ctx.pos < ctx.code.length && depth > 0) {
+      if (ctx.code[ctx.pos] === '[') depth++;
+      else if (ctx.code[ctx.pos] === ']') depth--;
+      ctx.pos++;
+    }
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === '=') {
+      ctx.pos++;
+      ctx.parseExpression();
+    }
+    ctx.skipWhitespace();
+    ctx.expect(';');
+    return { type: 'variable_declaration', kind, name: '__destructured__', value: null, declaredType: undefined };
+  }
+
   const name = ctx.parseIdentifier();
   ctx.skipWhitespace();
 
