@@ -156,7 +156,7 @@ export class MongooseGenerator {
 
     ir += 'use_empty_ct:\n';
     ir += '  ; Use empty string for missing Content-Type\n';
-    ir += '  %empty_ct = getelementptr [1 x i8], [1 x i8]* @.str.empty, i32 0, i32 0\n';
+    ir += '  %empty_ct = getelementptr [1 x i8], [1 x i8]* @.str.mongoose_empty, i32 0, i32 0\n';
     ir += '  br label %build_path\n\n';
 
     ir += 'build_path:\n';
@@ -263,7 +263,7 @@ export class MongooseGenerator {
     ir += '@.str.content_type_text = private constant [27 x i8] c"Content-Type: text/plain\\0D\\0A\\00"\n';
     ir += '@.str.body_fmt = private constant [3 x i8] c"%s\\00"\n';
     ir += '@.str.content_type_header = private constant [13 x i8] c"Content-Type\\00"\n';
-    ir += '@.str.empty = private constant [1 x i8] c"\\00"\n';
+    ir += '@.str.mongoose_empty = private constant [1 x i8] c"\\00"\n';
 
     return ir;
   }
