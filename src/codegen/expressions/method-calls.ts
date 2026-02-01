@@ -709,7 +709,7 @@ export class MethodCallGenerator {
     let onFulfilled = 'null';
     let onRejected = 'null';
 
-    const promiseCallbackTypes = { paramTypes: ['string'], returnType: 'void' };
+    const promiseCallbackTypes = { paramTypes: ['string', 'any'], returnType: 'void' };
     const arrowFuncGen = this.ctx.exprGen.getArrowFunctionGenerator();
 
     if (isCatch) {
@@ -745,20 +745,20 @@ export class MethodCallGenerator {
 
     const onFulfilledPtr = this.nextTemp();
     if (onFulfilled === 'null') {
-      this.emit(`${onFulfilledPtr} = bitcast i8* null to void (i8*)*`);
+      this.emit(`${onFulfilledPtr} = bitcast i8* null to void (i8*, i8*)*`);
     } else {
-      this.emit(`${onFulfilledPtr} = bitcast void (i8*)* ${onFulfilled} to void (i8*)*`);
+      this.emit(`${onFulfilledPtr} = bitcast void (i8*, i8*)* ${onFulfilled} to void (i8*, i8*)*`);
     }
 
     const onRejectedPtr = this.nextTemp();
     if (onRejected === 'null') {
-      this.emit(`${onRejectedPtr} = bitcast i8* null to void (i8*)*`);
+      this.emit(`${onRejectedPtr} = bitcast i8* null to void (i8*, i8*)*`);
     } else {
-      this.emit(`${onRejectedPtr} = bitcast void (i8*)* ${onRejected} to void (i8*)*`);
+      this.emit(`${onRejectedPtr} = bitcast void (i8*, i8*)* ${onRejected} to void (i8*, i8*)*`);
     }
 
     const result = this.nextTemp();
-    this.emit(`${result} = call %Promise* @__Promise_then(%Promise* ${promisePtr}, void (i8*)* ${onFulfilledPtr}, void (i8*)* ${onRejectedPtr})`);
+    this.emit(`${result} = call %Promise* @__Promise_then(%Promise* ${promisePtr}, void (i8*, i8*)* ${onFulfilledPtr}, void (i8*, i8*)* ${onRejectedPtr})`);
     this.ctx.variableTypes.set(result, '%Promise*');
     return result;
   }
