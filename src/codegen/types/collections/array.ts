@@ -3,43 +3,43 @@ import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { generateArrayLiteral } from './array/literal.js';
 import { generateArrayPush, generateArrayPop } from './array/mutators.js';
 
-// ============================================
-// ARRAY GENERATOR - Array operations
-// ============================================
-
 export class ArrayGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  // Helper methods delegate to context
   private nextTemp() { return this.ctx.nextTemp(); }
   private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
-  private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
+
+  private loadArrayMeta(arrayPtr: string): { length: string; dataPtr: string } {
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.nextTemp();
+    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
+    return { length, dataPtr };
+  }
 
   generateArrayLiteral(expr: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    // For the extracted function, we still pass it a BaseGenerator-compatible object
-    // Create a shim that exposes BaseGenerator interface methods
-    const genShim = this.createGeneratorShim();
-    return generateArrayLiteral(genShim, expr, params, generateExpressionFn);
+    return generateArrayLiteral(this.createGeneratorShim(), expr, params, generateExpressionFn);
   }
 
   generateArrayPush(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const genShim = this.createGeneratorShim();
-    return generateArrayPush(genShim, expr, params, generateExpressionFn);
+    return generateArrayPush(this.createGeneratorShim(), expr, params, generateExpressionFn);
   }
 
   generateArrayPop(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const genShim = this.createGeneratorShim();
-    return generateArrayPop(genShim, expr, params, generateExpressionFn);
+    return generateArrayPop(this.createGeneratorShim(), expr, params, generateExpressionFn);
   }
 
-  // Create a shim object that looks like BaseGenerator for extracted functions
   private createGeneratorShim(): any {
     return {
       nextTemp: () => this.nextTemp(),
       nextLabel: (prefix: string) => this.nextLabel(prefix),
       emit: (instruction: string) => this.emit(instruction),
-      getDoubleSize: () => this.getDoubleSize(),
+      getDoubleSize: () => 8,
       getVariableType: (name: string) => this.ctx.getVariableType(name),
       variableTypes: this.ctx.variableTypes,
       expectedArrayElementType: this.ctx.expectedArrayElementType,
@@ -66,18 +66,7 @@ export class ArrayGenerator {
     }
 
     const arrayPtr = generateExpressionFn(expr.object, params);
-
-    // Load array length
-    const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
-    const length = this.nextTemp();
-    this.emit(`${length} = load i32, i32* ${lenPtr}`);
-
-    // Load data pointer
-    const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-    const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
+    const { length, dataPtr } = this.loadArrayMeta(arrayPtr);
 
     // Loop setup
     const loopLabel = this.nextLabel('find_loop');
@@ -162,18 +151,7 @@ export class ArrayGenerator {
     }
 
     const arrayPtr = generateExpressionFn(expr.object, params);
-
-    // Load array length
-    const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
-    const length = this.nextTemp();
-    this.emit(`${length} = load i32, i32* ${lenPtr}`);
-
-    // Load data pointer
-    const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-    const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
+    const { length, dataPtr } = this.loadArrayMeta(arrayPtr);
 
     // Loop setup
     const loopLabel = this.nextLabel('some_loop');
@@ -278,7 +256,7 @@ export class ArrayGenerator {
     this.emit(`${resultArrayPtr} = alloca %Array`);
 
     // Allocate data array on heap - compute size of double dynamically
-    const doubleSize = this.getDoubleSize();
+    const doubleSize = 8;
     const lengthI64 = this.nextTemp();
     this.emit(`${lengthI64} = zext i32 ${length} to i64`);
     const dataSizeI64 = this.nextTemp();
@@ -388,18 +366,7 @@ export class ArrayGenerator {
     }
 
     const arrayPtr = generateExpressionFn(expr.object, params);
-
-    // Load array length
-    const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
-    const length = this.nextTemp();
-    this.emit(`${length} = load i32, i32* ${lenPtr}`);
-
-    // Load data pointer
-    const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-    const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
+    const { length, dataPtr } = this.loadArrayMeta(arrayPtr);
 
     // Loop setup
     const loopLabel = this.nextLabel('foreach_loop');
@@ -483,7 +450,7 @@ export class ArrayGenerator {
     this.emit(`${resultArrayPtr} = alloca %Array`);
 
     // Allocate data for result array - compute size of double dynamically
-    const doubleSize = this.getDoubleSize();
+    const doubleSize = 8;
     const lengthI64 = this.nextTemp();
     this.emit(`${lengthI64} = zext i32 ${length} to i64`);
     const resultSizeI64 = this.nextTemp();
