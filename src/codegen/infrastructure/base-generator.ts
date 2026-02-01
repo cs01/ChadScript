@@ -1,5 +1,5 @@
 import { Expression } from '../../ast/types.js';
-import { SymbolTable, SymbolKind } from './symbol-table.js';
+import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
 
 // Re-export for convenience
 export { SymbolTable, SymbolKind };
@@ -125,7 +125,7 @@ export class BaseGenerator {
   /**
    * Define a variable in the symbol table
    */
-  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global' = 'local', metadata?: any) {
+  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global' = 'local', metadata?: SymbolMetadata) {
     this.symbolTable.define(name, kind, llvmType, allocaReg, scope, metadata);
   }
 

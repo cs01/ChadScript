@@ -12,7 +12,7 @@
  */
 
 import { BaseGenerator } from '../infrastructure/base-generator.js';
-import type { Expression, FunctionNode, BlockStatement } from '../../ast/types.js';
+import type { Expression, FunctionNode, BlockStatement, ArrowFunctionNode } from '../../ast/types.js';
 import { ClosureAnalyzer, CapturedVariable, ClosureInfo } from '../infrastructure/closure-analyzer.js';
 
 export interface LiftedFunction extends FunctionNode {
@@ -41,7 +41,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
    * @returns Function name that can be referenced
    */
   generateArrowFunction(
-    expr: any,
+    expr: ArrowFunctionNode,
     params: string[],
     typeHints?: { paramTypes?: string[], returnType?: string },
     scopeVars?: Map<string, string>

@@ -19,7 +19,7 @@
  */
 
 import { Expression, BlockStatement, AST, CallNode } from '../../ast/types.js';
-import { SymbolTable, SymbolKind } from './symbol-table.js';
+import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 
 /**
@@ -115,7 +115,7 @@ export interface IGeneratorContext {
     llvmType: string,
     kind: import('./symbol-table.js').SymbolKind,
     scope?: 'local' | 'global',
-    metadata?: any
+    metadata?: SymbolMetadata
   ): void;
 
   /**
@@ -243,6 +243,15 @@ export interface IGeneratorContext {
   syncStateToGenerators(): void;
 
   /**
+   * String generator for string operations
+   */
+  readonly stringGen: {
+    createStringConstant(value: string): string;
+    generateStringConcat(left: Expression, right: Expression, params: string[]): string;
+    generateStringConcatDirect(left: string, right: string): string;
+  };
+
+  /**
    * Generate HTTP server setup code
    */
   generateHttpServe(expr: CallNode, params: string[]): string;
@@ -337,7 +346,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     llvmType: string,
     kind: SymbolKind,
     scope: 'local' | 'global' = 'local',
-    metadata?: any
+    metadata?: SymbolMetadata
   ): void {
     this.symbolTable.define(name, kind, llvmType, allocaReg, scope, metadata);
   }
@@ -369,6 +378,12 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   syncStateToGenerators(): void {
   }
+
+  stringGen = {
+    createStringConstant: (_value: string): string => this.nextTemp(),
+    generateStringConcat: (_left: Expression, _right: Expression, _params: string[]): string => this.nextTemp(),
+    generateStringConcatDirect: (_left: string, _right: string): string => this.nextTemp(),
+  };
 
   generateHttpServe(_expr: CallNode, _params: string[]): string {
     return this.nextTemp();

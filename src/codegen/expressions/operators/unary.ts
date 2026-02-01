@@ -1,5 +1,11 @@
 import { Expression } from '../../../ast/types.js';
 
+interface UnaryExpressionContext {
+  nextTemp(): string;
+  emit(instruction: string): void;
+  variableTypes: Map<string, string>;
+}
+
 /**
  * UnaryExpressionGenerator
  *
@@ -9,7 +15,7 @@ import { Expression } from '../../../ast/types.js';
  * - + (unary plus, no-op)
  */
 export class UnaryExpressionGenerator {
-  constructor(private ctx: any) {}
+  constructor(private ctx: UnaryExpressionContext) {}
 
   generate(op: string, operand: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     const operandValue = generateExpressionFn(operand, params);

@@ -84,6 +84,19 @@ export interface SetMetadata {
 }
 
 /**
+ * Combined metadata type for symbol definitions
+ */
+export interface SymbolMetadata {
+  objectMetadata?: ObjectMetadata;
+  classMetadata?: ClassMetadata;
+  arrayMetadata?: ArrayMetadata;
+  closureMetadata?: ClosureMetadata;
+  mapMetadata?: MapMetadata;
+  setMetadata?: SetMetadata;
+  isPointerAlloca?: boolean;
+}
+
+/**
  * Symbol entry in the symbol table
  */
 export interface Symbol {
@@ -148,15 +161,7 @@ export class SymbolTable {
     llvmType: string,
     allocaRegister: string,
     scope: 'local' | 'global' = 'local',
-    metadata?: {
-      objectMetadata?: ObjectMetadata;
-      classMetadata?: ClassMetadata;
-      arrayMetadata?: ArrayMetadata;
-      closureMetadata?: ClosureMetadata;
-      mapMetadata?: MapMetadata;
-      setMetadata?: SetMetadata;
-      isPointerAlloca?: boolean;
-    }
+    metadata?: SymbolMetadata
   ): void {
     const symbol: Symbol = {
       name,
