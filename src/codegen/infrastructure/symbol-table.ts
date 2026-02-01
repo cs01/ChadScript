@@ -21,6 +21,7 @@ export enum SymbolKind {
   Array = 'array',             // %Array*
   StringArray = 'string_array', // %StringArray*
   BooleanArray = 'boolean_array', // %BooleanArray*
+  ObjectArray = 'object_array', // Array of typed objects (e.g., ObjectProperty[])
   Object = 'object',           // Struct with fields
   Map = 'map',                 // %Map*
   Set = 'set',                 // %Set*
@@ -53,6 +54,16 @@ export interface ClassMetadata {
  */
 export interface ArrayMetadata {
   elementType: 'string' | 'number' | 'boolean';
+}
+
+/**
+ * Object array metadata - for arrays of typed objects (e.g., ObjectProperty[])
+ */
+export interface ObjectArrayMetadata {
+  elementInterfaceName: string;
+  elementKeys: string[];
+  elementTypes: string[];  // LLVM types for each field
+  elementTsTypes?: string[];  // TypeScript types for nested resolution
 }
 
 /**
@@ -90,6 +101,7 @@ export interface SymbolMetadata {
   objectMetadata?: ObjectMetadata;
   classMetadata?: ClassMetadata;
   arrayMetadata?: ArrayMetadata;
+  objectArrayMetadata?: ObjectArrayMetadata;
   closureMetadata?: ClosureMetadata;
   mapMetadata?: MapMetadata;
   setMetadata?: SetMetadata;
@@ -114,6 +126,7 @@ export interface Symbol {
   objectMetadata?: ObjectMetadata;
   classMetadata?: ClassMetadata;
   arrayMetadata?: ArrayMetadata;
+  objectArrayMetadata?: ObjectArrayMetadata;
   closureMetadata?: ClosureMetadata;
   mapMetadata?: MapMetadata;
   setMetadata?: SetMetadata;
@@ -346,6 +359,10 @@ export class SymbolTable {
     return this.symbols.get(name)?.kind === SymbolKind.Closure;
   }
 
+  isObjectArray(name: string): boolean {
+    return this.symbols.get(name)?.kind === SymbolKind.ObjectArray;
+  }
+
   // ============================================
   // Metadata accessors
   // ============================================
@@ -412,6 +429,14 @@ export class SymbolTable {
     const symbol = this.symbols.get(name);
     if (symbol?.kind === SymbolKind.Set) {
       return symbol.setMetadata;
+    }
+    return undefined;
+  }
+
+  getObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol?.kind === SymbolKind.ObjectArray) {
+      return symbol.objectArrayMetadata;
     }
     return undefined;
   }
@@ -487,7 +512,8 @@ export class SymbolTable {
    */
   merge(other: SymbolTable): void {
     for (const [name, symbol] of other.symbols.entries()) {
-      this.symbols.set(name, { ...symbol });
+      const clonedSymbol = Object.assign({}, symbol);
+      this.symbols.set(name, clonedSymbol);
     }
   }
 

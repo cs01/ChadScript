@@ -349,4 +349,143 @@ export class TypeChecker {
       return null;
     }
   }
+
+  getArrayElementInterface(objectName: string, propertyName: string, functionName: string): { interfaceName: string; properties: { name: string; type: string }[] } | null {
+    try {
+      const targetFunction = this.findFunctionInAllFiles(functionName);
+      if (!targetFunction) {
+        return null;
+      }
+
+      const param = targetFunction.parameters.find(p =>
+        ts.isIdentifier(p.name) && p.name.text === objectName
+      );
+
+      if (!param || !param.type) {
+        return null;
+      }
+
+      const objectType = this.checker.getTypeFromTypeNode(param.type);
+      const prop = objectType.getProperty(propertyName);
+      if (!prop) {
+        return null;
+      }
+
+      const propType = this.checker.getTypeOfSymbolAtLocation(prop, param);
+      if (!this.checker.isArrayType(propType as ts.ObjectType)) {
+        return null;
+      }
+
+      const typeArgs = this.checker.getTypeArguments(propType as ts.TypeReference);
+      if (!typeArgs || typeArgs.length === 0) {
+        return null;
+      }
+
+      const elementType = typeArgs[0];
+      const interfaceName = this.checker.typeToString(elementType);
+
+      const interfaceDef = this.getInterfaceDefinition(interfaceName);
+      if (interfaceDef) {
+        return {
+          interfaceName,
+          properties: interfaceDef.properties
+        };
+      }
+
+      if (elementType.flags & ts.TypeFlags.Object) {
+        const objType = elementType as ts.ObjectType;
+        const props = objType.getProperties();
+        if (props.length > 0) {
+          const properties: { name: string; type: string }[] = [];
+          for (const p of props) {
+            const pType = this.checker.getTypeOfSymbolAtLocation(p, param);
+            let propType = 'any';
+            if (pType.flags & ts.TypeFlags.String || pType.flags & ts.TypeFlags.StringLiteral) {
+              propType = 'string';
+            } else if (pType.flags & ts.TypeFlags.Number || pType.flags & ts.TypeFlags.NumberLiteral) {
+              propType = 'number';
+            } else if (pType.flags & ts.TypeFlags.Boolean || pType.flags & ts.TypeFlags.BooleanLiteral) {
+              propType = 'boolean';
+            }
+            properties.push({ name: p.name, type: propType });
+          }
+          return { interfaceName: '__anonymous', properties };
+        }
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  getVariableArrayElementInterface(varName: string, functionName: string): { interfaceName: string; properties: { name: string; type: string }[] } | null {
+    try {
+      const targetFunction = this.findFunctionInAllFiles(functionName);
+      if (!targetFunction) {
+        return null;
+      }
+
+      let varDecl: ts.VariableDeclaration | undefined;
+      const visitNode = (node: ts.Node): void => {
+        if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === varName) {
+          varDecl = node;
+        }
+        if (!varDecl) {
+          ts.forEachChild(node, visitNode);
+        }
+      };
+      visitNode(targetFunction);
+
+      if (!varDecl || !varDecl.type) {
+        return null;
+      }
+
+      const varType = this.checker.getTypeFromTypeNode(varDecl.type);
+      if (!this.checker.isArrayType(varType as ts.ObjectType)) {
+        return null;
+      }
+
+      const typeArgs = this.checker.getTypeArguments(varType as ts.TypeReference);
+      if (!typeArgs || typeArgs.length === 0) {
+        return null;
+      }
+
+      const elementType = typeArgs[0];
+      const interfaceName = this.checker.typeToString(elementType);
+
+      const interfaceDef = this.getInterfaceDefinition(interfaceName);
+      if (interfaceDef) {
+        return {
+          interfaceName,
+          properties: interfaceDef.properties
+        };
+      }
+
+      if (elementType.flags & ts.TypeFlags.Object) {
+        const objType = elementType as ts.ObjectType;
+        const props = objType.getProperties();
+        if (props.length > 0) {
+          const properties: { name: string; type: string }[] = [];
+          for (const p of props) {
+            const pType = this.checker.getTypeOfSymbolAtLocation(p, varDecl);
+            let propType = 'any';
+            if (pType.flags & ts.TypeFlags.String || pType.flags & ts.TypeFlags.StringLiteral) {
+              propType = 'string';
+            } else if (pType.flags & ts.TypeFlags.Number || pType.flags & ts.TypeFlags.NumberLiteral) {
+              propType = 'number';
+            } else if (pType.flags & ts.TypeFlags.Boolean || pType.flags & ts.TypeFlags.BooleanLiteral) {
+              propType = 'boolean';
+            }
+            properties.push({ name: p.name, type: propType });
+          }
+          return { interfaceName: '__anonymous', properties };
+        }
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
 }
