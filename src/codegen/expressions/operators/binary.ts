@@ -1,5 +1,23 @@
 import { Expression } from '../../../ast/types.js';
 
+interface ControlFlowGeneratorLike {
+  generateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string;
+}
+
+interface StringGeneratorLike {
+  generateStringConcat(left: Expression, right: Expression, params: string[]): string;
+}
+
+export interface BinaryExpressionGeneratorContext {
+  nextTemp(): string;
+  emit(instruction: string): void;
+  syncStateToGenerators(): void;
+  isStringExpression(expr: Expression): boolean;
+  variableTypes: Map<string, string>;
+  controlFlowGen: ControlFlowGeneratorLike;
+  stringGen: StringGeneratorLike;
+}
+
 /**
  * BinaryExpressionGenerator
  *
@@ -13,7 +31,7 @@ import { Expression } from '../../../ast/types.js';
  *   - Numeric comparisons use fcmp
  */
 export class BinaryExpressionGenerator {
-  constructor(private ctx: any) {}
+  constructor(private ctx: BinaryExpressionGeneratorContext) {}
 
   generate(op: string, left: Expression, right: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
     // Logical operators need short-circuit evaluation

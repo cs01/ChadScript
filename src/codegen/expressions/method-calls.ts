@@ -20,23 +20,180 @@
  * This class acts as a dispatcher/orchestrator for method call routing.
  */
 
-import { Expression } from '../../ast/types.js';
+import {
+  Expression,
+  MethodCallNode,
+  NewNode,
+  VariableNode,
+  ObjectNode,
+  ArrowFunctionNode,
+  AST,
+  ClassNode,
+  ClassMethod,
+  FunctionNode,
+} from '../../ast/types.js';
+import type { SymbolTable } from '../infrastructure/symbol-table.js';
+import type { TypeChecker } from '../../typescript/type-checker.js';
 
-interface MethodCallNode {
-  type: 'method_call';
-  object: Expression;
-  method: string;
-  args: Expression[];
+interface SubGenerator {
+  canHandle(expr: MethodCallNode): boolean;
 }
 
-interface NewNode {
-  type: 'new';
-  className: string;
-  args: Expression[];
+interface ConsoleGeneratorLike extends SubGenerator {
+  generateConsoleCall(method: string, args: Expression[], params: string[]): string;
+}
+
+interface ProcessGeneratorLike extends SubGenerator {
+  generateProcessExit(expr: MethodCallNode, params: string[]): string;
+}
+
+interface FilesystemGeneratorLike extends SubGenerator {
+  generateReadFileSync(expr: MethodCallNode, params: string[]): string;
+  generateWriteFileSync(expr: MethodCallNode, params: string[]): string;
+  generateExistsSync(expr: MethodCallNode, params: string[]): string;
+  generateUnlinkSync(expr: MethodCallNode, params: string[]): string;
+}
+
+interface PathGeneratorLike {
+  generateResolve(expr: MethodCallNode, params: string[]): string;
+  generateDirname(expr: MethodCallNode, params: string[]): string;
+}
+
+interface JsonGeneratorLike extends SubGenerator {
+  generateParse(expr: MethodCallNode, params: string[]): string;
+  generateStringify(expr: MethodCallNode, params: string[]): string;
+}
+
+interface MathGeneratorLike extends SubGenerator {
+  generateMathMethod(expr: MethodCallNode, params: string[]): string;
+}
+
+interface StringGeneratorLike {
+  createStringConstant(value: string): string;
+  generateSubstr(strPtr: string, startIndex: string, length: string | null): string;
+  generateStringConcatDirect(left: string, right: string): string;
+  generateRepeat(strPtr: string, count: string): string;
+  generatePadStart(strPtr: string, targetLength: string, padString: string): string;
+  generateSplit(strPtr: string, delimiter: string): string;
+  generateStartsWith(strPtr: string, prefix: string): string;
+  generateTrim(strPtr: string): string;
+  generateIndexOf(strPtr: string, substring: string): string;
+  generateIncludes(strPtr: string, substring: string): string;
+  generateSlice(strPtr: string, start: string, end: string | null): string;
+  generateCharAt(strPtr: string, index: string): string;
+}
+
+interface RegexGeneratorLike {
+  generateRegexTest(regexPtr: string, testStr: string): string;
+}
+
+interface ResponseGeneratorLike {
+  generateText(responsePtr: string): string;
+  generateJson(responsePtr: string): string;
+  generateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string;
+}
+
+interface StringMapGeneratorLike {
+  generateStringMapSet(mapAlloca: string, key: string, value: string): string;
+  generateStringMapGet(mapAlloca: string, key: string): string;
+  generateStringMapHas(mapAlloca: string, key: string): string;
+}
+
+interface StringSetGeneratorLike {
+  generateStringSetAdd(setAlloca: string, value: string): string;
+  generateStringSetHas(setAlloca: string, value: string): string;
+}
+
+interface MapGeneratorLike {
+  generateMapSet(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateMapGet(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateMapHas(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+}
+
+interface SetGeneratorLike {
+  generateSetAdd(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateSetHas(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateSetDelete(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+}
+
+interface ArrayGeneratorLike {
+  generateArrayPush(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateArrayPop(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateArrayIncludes(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateArrayMap(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateArrayJoin(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateArrayFind(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateArraySome(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateArrayFilter(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateArrayForEach(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+}
+
+interface ClassGeneratorLike {
+  generateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
+}
+
+interface ArrowFunctionGeneratorLike {
+  generateArrowFunction(
+    callback: Expression,
+    params: string[],
+    callbackTypes?: { paramTypes?: string[]; returnType?: string },
+    scopeVars?: Map<string, string>
+  ): string;
+}
+
+interface ExpressionGeneratorLike {
+  getArrowFunctionGenerator(): ArrowFunctionGeneratorLike;
+}
+
+export interface MethodCallGeneratorContext {
+  nextTemp(): string;
+  emit(instruction: string): void;
+  generateExpression(expr: Expression, params: string[]): string;
+  syncStateToGenerators(): void;
+  isStringExpression(expr: Expression): boolean;
+  isArrayExpression(expr: Expression): boolean;
+  isStringArrayExpression(expr: Expression): boolean;
+  isRegexExpression(expr: Expression): boolean;
+  isPromiseExpression(expr: Expression): boolean;
+  formatCodegenError(message: string, suggestion: string): string;
+  symbolTable: SymbolTable;
+  variableTypes: Map<string, string>;
+  thisPointer: string | null;
+  currentClassName: string | null;
+  ast: AST;
+  typeChecker: TypeChecker | null;
+  usesPromises: boolean;
+  consoleGen: ConsoleGeneratorLike;
+  processGen: ProcessGeneratorLike;
+  fsGen: FilesystemGeneratorLike;
+  pathGen: PathGeneratorLike;
+  jsonGen: JsonGeneratorLike;
+  mathGen: MathGeneratorLike;
+  stringGen: StringGeneratorLike;
+  regexGen: RegexGeneratorLike;
+  responseGen: ResponseGeneratorLike;
+  stringMapGen: StringMapGeneratorLike;
+  stringSetGen: StringSetGeneratorLike;
+  mapGen: MapGeneratorLike;
+  setGen: SetGeneratorLike;
+  arrayGen: ArrayGeneratorLike;
+  classGen: ClassGeneratorLike;
+  exprGen: ExpressionGeneratorLike;
 }
 
 export class MethodCallGenerator {
-  constructor(private ctx: any) {}
+  constructor(private ctx: MethodCallGeneratorContext) {}
+
+  private isVariableWithName(expr: Expression, name: string): expr is VariableNode {
+    return expr.type === 'variable' && (expr as VariableNode).name === name;
+  }
+
+  private getVariableName(expr: Expression): string | null {
+    if (expr.type === 'variable') {
+      return (expr as VariableNode).name;
+    }
+    return null;
+  }
 
   // Helper methods delegate to context
   private nextTemp() { return this.ctx.nextTemp(); }
@@ -58,7 +215,7 @@ export class MethodCallGenerator {
     const method = expr.method;
 
     // Handle Promise static methods (Promise.resolve, Promise.reject, Promise.all)
-    if (expr.object.type === 'variable' && (expr.object as any).name === 'Promise') {
+    if (this.isVariableWithName(expr.object, 'Promise')) {
       return this.handlePromiseStaticMethods(expr, params);
     }
 
@@ -97,17 +254,19 @@ export class MethodCallGenerator {
     }
 
     // Handle path.resolve() and path.dirname() (delegated to PathGenerator)
-    if (method === 'resolve' && expr.object.type === 'variable' && (expr.object as any).name === 'path') {
+    if (method === 'resolve' && this.isVariableWithName(expr.object, 'path')) {
       return this.ctx.pathGen.generateResolve(expr, params);
     }
-    if (method === 'dirname' && expr.object.type === 'variable' && (expr.object as any).name === 'path') {
+    if (method === 'dirname' && this.isVariableWithName(expr.object, 'path')) {
       return this.ctx.pathGen.generateDirname(expr, params);
     }
 
     // Handle execSync() from child_process
-    if (method === 'execSync' && expr.object.type === 'variable' &&
-        ((expr.object as any).name === 'child_process' || (expr.object as any).name === 'cp')) {
-      return this.handleExecSync(expr, params);
+    if (method === 'execSync') {
+      const objName = this.getVariableName(expr.object);
+      if (objName === 'child_process' || objName === 'cp') {
+        return this.handleExecSync(expr, params);
+      }
     }
 
     // Handle JSON.parse() and JSON.stringify() (delegated to JsonGenerator)
@@ -125,7 +284,7 @@ export class MethodCallGenerator {
     }
 
     // Handle JSON.stringify() (legacy implementation)
-    if (method === 'stringify' && expr.object.type === 'variable' && (expr.object as any).name === 'JSON') {
+    if (method === 'stringify' && this.isVariableWithName(expr.object, 'JSON')) {
       return this.handleJsonStringify(expr, params);
     }
 
@@ -153,15 +312,13 @@ export class MethodCallGenerator {
         if (method === 'text') {
           return this.ctx.responseGen.generateText(responsePtr);
         } else if (method === 'json') {
-          // Check for typed JSON parsing with generics: .json<TypeName>()
-          if ((expr as any).typeParameter && this.ctx.typeChecker) {
-            const typeName = (expr as any).typeParameter;
+          if (expr.typeParameter && this.ctx.typeChecker) {
+            const typeName = expr.typeParameter;
             const interfaceDef = this.ctx.typeChecker.getInterfaceDefinition(typeName);
             if (interfaceDef) {
               return this.ctx.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef);
             }
           }
-          // Fall back to untyped JSON parsing
           return this.ctx.responseGen.generateJson(responsePtr);
         }
       } catch (e) {
@@ -211,22 +368,25 @@ export class MethodCallGenerator {
 
     // Handle Map methods
     if (method === 'set' || method === 'get' || method === 'has') {
-      if (expr.object.type === 'variable' && this.ctx.symbolTable.isMap(expr.object.name)) {
+      const varName = this.getVariableName(expr.object);
+      if (varName && this.ctx.symbolTable.isMap(varName)) {
         this.ctx.syncStateToGenerators();
-        const mapMeta = this.ctx.symbolTable.getMapMetadata(expr.object.name);
+        const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
 
         if (mapMeta && mapMeta.keyType === 'string') {
-          const mapAlloca = this.ctx.symbolTable.getAlloca(expr.object.name);
-          if (method === 'set') {
-            const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            const valueValue = this.ctx.generateExpression(expr.args[1], params);
-            return this.ctx.stringMapGen.generateStringMapSet(mapAlloca, keyValue, valueValue);
-          } else if (method === 'get') {
-            const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringMapGen.generateStringMapGet(mapAlloca, keyValue);
-          } else {
-            const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringMapGen.generateStringMapHas(mapAlloca, keyValue);
+          const mapAlloca = this.ctx.symbolTable.getAlloca(varName);
+          if (mapAlloca) {
+            if (method === 'set') {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              const valueValue = this.ctx.generateExpression(expr.args[1], params);
+              return this.ctx.stringMapGen.generateStringMapSet(mapAlloca, keyValue, valueValue);
+            } else if (method === 'get') {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.stringMapGen.generateStringMapGet(mapAlloca, keyValue);
+            } else {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.stringMapGen.generateStringMapHas(mapAlloca, keyValue);
+            }
           }
         }
 
@@ -242,20 +402,23 @@ export class MethodCallGenerator {
 
     // Handle Set methods
     if (method === 'add' || method === 'has' || method === 'delete') {
-      if (expr.object.type === 'variable' && this.ctx.symbolTable.isSet(expr.object.name)) {
+      const varName = this.getVariableName(expr.object);
+      if (varName && this.ctx.symbolTable.isSet(varName)) {
         this.ctx.syncStateToGenerators();
-        const setMeta = this.ctx.symbolTable.getSetMetadata(expr.object.name);
+        const setMeta = this.ctx.symbolTable.getSetMetadata(varName);
 
         if (setMeta && setMeta.valueType === 'string') {
-          const setAlloca = this.ctx.symbolTable.getAlloca(expr.object.name);
-          if (method === 'add') {
-            const valueValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringSetGen.generateStringSetAdd(setAlloca, valueValue);
-          } else if (method === 'has') {
-            const valueValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringSetGen.generateStringSetHas(setAlloca, valueValue);
-          } else {
-            throw new Error('Set.delete() not yet implemented for Set<string>');
+          const setAlloca = this.ctx.symbolTable.getAlloca(varName);
+          if (setAlloca) {
+            if (method === 'add') {
+              const valueValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.stringSetGen.generateStringSetAdd(setAlloca, valueValue);
+            } else if (method === 'has') {
+              const valueValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.stringSetGen.generateStringSetHas(setAlloca, valueValue);
+            } else {
+              throw new Error('Set.delete() not yet implemented for Set<string>');
+            }
           }
         }
 
@@ -564,34 +727,37 @@ export class MethodCallGenerator {
     let className: string | null = null;
     let instancePtr: string | null = null;
 
-    if (expr.object.type === 'variable' && this.ctx.symbolTable.isClass(expr.object.name)) {
-      const classMeta = this.ctx.symbolTable.getClassInfo(expr.object.name)!;
-      className = classMeta.className;
-      instancePtr = this.ctx.generateExpression(expr.object, params);
-    } else if ((expr.object as any).type === 'new') {
-      const newExpr = expr.object as any as NewNode;
+    if (expr.object.type === 'variable') {
+      const varName = (expr.object as VariableNode).name;
+      if (this.ctx.symbolTable.isClass(varName)) {
+        const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
+        className = classMeta.className;
+        instancePtr = this.ctx.generateExpression(expr.object, params);
+      }
+    } else if (expr.object.type === 'new') {
+      const newExpr = expr.object as NewNode;
       className = newExpr.className;
       instancePtr = this.ctx.generateExpression(expr.object, params);
-    } else if ((expr.object as any).type === 'this') {
+    } else if (expr.object.type === 'this') {
       if (!this.ctx.thisPointer) {
         throw new Error('this.method() called outside of class method');
       }
       instancePtr = this.ctx.thisPointer;
-      const classWithMethod = this.ctx.ast.classes.find((c: any) =>
-        c.methods.some((m: any) => m.name === method && !m.isConstructor)
+      const classWithMethod = this.ctx.ast.classes.find((c: ClassNode) =>
+        c.methods.some((m: ClassMethod) => m.name === method && !m.isConstructor)
       );
       if (!classWithMethod) {
         throw new Error(`Method ${method} not found in any class`);
       }
       className = classWithMethod.name;
-    } else if ((expr.object as any).type === 'super') {
+    } else if (expr.object.type === 'super') {
       if (!this.ctx.thisPointer) {
         throw new Error('super.method() called outside of class method');
       }
       if (!this.ctx.currentClassName) {
         throw new Error('super.method() called outside of class context');
       }
-      const currentClass = this.ctx.ast.classes.find((c: any) => c.name === this.ctx.currentClassName);
+      const currentClass = this.ctx.ast.classes.find((c: ClassNode) => c.name === this.ctx.currentClassName);
       if (!currentClass || !currentClass.extends) {
         throw new Error(`super.method() called but current class ${this.ctx.currentClassName} has no parent class`);
       }
@@ -599,16 +765,16 @@ export class MethodCallGenerator {
       className = currentClass.extends;
 
       if (method === '') {
-        return '0'; // super() constructor call - no-op for now
+        return '0';
       }
     }
 
     if (className && instancePtr) {
-      const classNode = this.ctx.ast.classes.find((c: any) => c.name === className);
+      const classNode = this.ctx.ast.classes.find((c: ClassNode) => c.name === className);
       if (!classNode) {
         throw new Error(`Class ${className} not found`);
       }
-      const methodExists = classNode.methods.some((m: any) => m.name === method && !m.isConstructor);
+      const methodExists = classNode.methods.some((m: ClassMethod) => m.name === method && !m.isConstructor);
       if (!methodExists) {
         throw new Error(`Method ${method} not found in class ${className}`);
       }
@@ -624,19 +790,22 @@ export class MethodCallGenerator {
     const method = expr.method;
     let isObjectMethod = false;
 
-    if (expr.object.type === 'variable' && this.ctx.symbolTable.isObject(expr.object.name)) {
-      const objMeta = this.ctx.symbolTable.getObjectInfo(expr.object.name)!;
-      isObjectMethod = objMeta.keys.includes(method);
-    } else if ((expr.object as any).type === 'object') {
-      const objExpr = expr.object as any;
-      isObjectMethod = objExpr.properties.some((p: any) => p.key === method);
+    if (expr.object.type === 'variable') {
+      const varName = (expr.object as VariableNode).name;
+      if (this.ctx.symbolTable.isObject(varName)) {
+        const objMeta = this.ctx.symbolTable.getObjectInfo(varName)!;
+        isObjectMethod = objMeta.keys.includes(method);
+      }
+    } else if (expr.object.type === 'object') {
+      const objExpr = expr.object as ObjectNode;
+      isObjectMethod = objExpr.properties.some((p: { key: string; value: Expression }) => p.key === method);
     }
 
     if (!isObjectMethod) {
       return null;
     }
 
-    const funcExists = this.ctx.ast.functions.some((f: any) => f.name === method);
+    const funcExists = this.ctx.ast.functions.some((f: FunctionNode) => f.name === method);
     if (!funcExists) {
       throw new Error(`Function ${method} not found for object method call`);
     }
@@ -650,10 +819,9 @@ export class MethodCallGenerator {
         const funcType = this.ctx.typeChecker.getFunctionType(method);
         if (funcType) {
           returnType = funcType.returnType === 'string' ? 'i8*' : 'double';
-          paramTypes = funcType.parameters.map((p: any) => p.type === 'string' ? 'i8*' : 'double');
+          paramTypes = funcType.parameters.map((p: { name: string; type: string }) => p.type === 'string' ? 'i8*' : 'double');
         }
       } catch (e) {
-        // Fall back to double
       }
     }
 
@@ -752,34 +920,29 @@ export class MethodCallGenerator {
     const arrowFuncGen = this.ctx.exprGen.getArrowFunctionGenerator();
     const scopeVars = this.ctx.symbolTable.getScopeVarsForClosure();
 
+    const processCallback = (callback: Expression): string | null => {
+      if (callback.type === 'arrow_function') {
+        const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes, scopeVars);
+        return `@${callbackName}`;
+      } else if (callback.type === 'variable') {
+        return `@${(callback as VariableNode).name}`;
+      }
+      return null;
+    };
+
     if (isCatch) {
       if (expr.args.length > 0) {
-        const callback = expr.args[0];
-        if ((callback as any).type === 'arrow_function') {
-          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes, scopeVars);
-          onRejected = `@${callbackName}`;
-        } else if ((callback as any).type === 'variable') {
-          onRejected = `@${(callback as any).name}`;
-        }
+        const result = processCallback(expr.args[0]);
+        if (result) onRejected = result;
       }
     } else {
       if (expr.args.length > 0) {
-        const callback = expr.args[0];
-        if ((callback as any).type === 'arrow_function') {
-          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes, scopeVars);
-          onFulfilled = `@${callbackName}`;
-        } else if ((callback as any).type === 'variable') {
-          onFulfilled = `@${(callback as any).name}`;
-        }
+        const result = processCallback(expr.args[0]);
+        if (result) onFulfilled = result;
       }
       if (expr.args.length > 1) {
-        const callback = expr.args[1];
-        if ((callback as any).type === 'arrow_function') {
-          const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes, scopeVars);
-          onRejected = `@${callbackName}`;
-        } else if ((callback as any).type === 'variable') {
-          onRejected = `@${(callback as any).name}`;
-        }
+        const result = processCallback(expr.args[1]);
+        if (result) onRejected = result;
       }
     }
 

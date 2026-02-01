@@ -1,4 +1,18 @@
-import { Expression, NewNode } from '../../ast/types.js';
+import {
+  Expression,
+  NewNode,
+  VariableNode,
+  MemberAccessAssignmentNode,
+  AST,
+  ClassNode,
+  AssignmentStatement,
+} from '../../ast/types.js';
+import type { SymbolTable } from './symbol-table.js';
+
+interface ClassGeneratorLike {
+  getFieldInfo(className: string, property: string): { index: number; type: string } | null;
+  getClassFields(className: string): { name: string; llvmType: string }[];
+}
 
 export interface AssignmentGeneratorContext {
   nextTemp(): string;
@@ -6,45 +20,47 @@ export interface AssignmentGeneratorContext {
   generateExpression(expr: Expression, params: string[]): string;
   getVariableAlloca(name: string): string | null;
   getVariableType(name: string): string | null;
-  symbolTable: any;
-  classGen: any;
+  symbolTable: SymbolTable;
+  classGen: ClassGeneratorLike;
   thisPointer: string | null;
-  ast: any;
+  ast: AST;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
 }
 
 export class AssignmentGenerator {
   constructor(private ctx: AssignmentGeneratorContext) {}
 
-  generateMemberAccessAssignment(stmt: any, params: string[]): void {
-    const memberAccessValue = stmt.value as any;
-    if (memberAccessValue.type !== 'member_access_assignment') {
+  generateMemberAccessAssignment(stmt: AssignmentStatement, params: string[]): void {
+    if (stmt.value.type !== 'member_access_assignment') {
       throw new Error('Invalid member access assignment format');
     }
+    const memberAccessValue = stmt.value as MemberAccessAssignmentNode;
 
     const object = memberAccessValue.object;
     const property = memberAccessValue.property;
 
-    let instancePtr: string | null = null;
     let className: string | null = null;
 
-    if (object.type === 'variable' && this.ctx.symbolTable.isClass(object.name)) {
-      const classMeta = this.ctx.symbolTable.getClassInfo(object.name)!;
-      className = classMeta.className;
-    } else if ((object as any).type === 'new') {
-      const newExpr = object as any as NewNode;
+    if (object.type === 'variable') {
+      const varName = (object as VariableNode).name;
+      if (this.ctx.symbolTable.isClass(varName)) {
+        const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
+        className = classMeta.className;
+      } else if (this.ctx.symbolTable.isObject(varName)) {
+        this.handleObjectPropertyAssignment(object as VariableNode, property, memberAccessValue, params);
+        return;
+      }
+    } else if (object.type === 'new') {
+      const newExpr = object as NewNode;
       className = newExpr.className;
-    } else if ((object as any).type === 'this') {
+    } else if (object.type === 'this') {
       if (!this.ctx.thisPointer) {
         throw new Error('this.field = value used outside of class method or constructor');
       }
-      const classWithField = this.ctx.ast.classes.find((c: any) => true);
+      const classWithField = this.ctx.ast.classes.find((_c: ClassNode) => true);
       if (classWithField) {
         className = classWithField.name;
       }
-    } else if (object.type === 'variable' && this.ctx.symbolTable.isObject(object.name)) {
-      this.handleObjectPropertyAssignment(object, property, memberAccessValue, params);
-      return;
     }
 
     if (className) {
@@ -52,7 +68,12 @@ export class AssignmentGenerator {
     }
   }
 
-  private handleObjectPropertyAssignment(object: any, property: string, memberAccessValue: any, params: string[]): void {
+  private handleObjectPropertyAssignment(
+    object: VariableNode,
+    property: string,
+    memberAccessValue: MemberAccessAssignmentNode,
+    params: string[]
+  ): void {
     const objMeta = this.ctx.symbolTable.getObjectInfo(object.name);
     if (!objMeta) return;
 
@@ -83,7 +104,13 @@ export class AssignmentGenerator {
     }
   }
 
-  private handleClassFieldAssignment(object: any, className: string, property: string, memberAccessValue: any, params: string[]): void {
+  private handleClassFieldAssignment(
+    object: Expression,
+    className: string,
+    property: string,
+    memberAccessValue: MemberAccessAssignmentNode,
+    params: string[]
+  ): void {
     let fieldInfo = this.ctx.classGen.getFieldInfo(className, property);
 
     if (fieldInfo && fieldInfo.type === 'string[]') {
@@ -98,18 +125,19 @@ export class AssignmentGenerator {
     this.ctx.expectedArrayElementType = null;
 
     let instancePtr: string | null = null;
-    if (object.type === 'variable' && this.ctx.symbolTable.isClass(object.name)) {
+    if (object.type === 'variable') {
+      const varName = (object as VariableNode).name;
+      if (this.ctx.symbolTable.isClass(varName)) {
+        instancePtr = this.ctx.generateExpression(object, params);
+      }
+    } else if (object.type === 'new') {
       instancePtr = this.ctx.generateExpression(object, params);
-    } else if ((object as any).type === 'new') {
-      instancePtr = this.ctx.generateExpression(object, params);
-    } else if ((object as any).type === 'this') {
+    } else if (object.type === 'this') {
       instancePtr = this.ctx.thisPointer;
-    } else {
-      throw new Error(`Cannot assign to property of ${object.type}`);
     }
 
     if (!instancePtr) {
-      throw new Error('Could not determine class instance for field assignment');
+      throw new Error(`Cannot determine class instance for field assignment on ${object.type}`);
     }
 
     const fields = this.ctx.classGen.getClassFields(className);
@@ -132,11 +160,16 @@ export class AssignmentGenerator {
     }
   }
 
-  private storeFieldValue(fieldInfo: any, fieldPtr: string, value: string, memberAccessValue: any): void {
+  private storeFieldValue(
+    fieldInfo: { index: number; type: string },
+    fieldPtr: string,
+    value: string,
+    memberAccessValue: MemberAccessAssignmentNode
+  ): void {
     if (fieldInfo.type === 'string') {
       let isAlreadyPointer = false;
       if (memberAccessValue.value.type === 'variable') {
-        const varType = this.ctx.getVariableType(memberAccessValue.value.name);
+        const varType = this.ctx.getVariableType((memberAccessValue.value as VariableNode).name);
         if (varType === 'i8*' || varType?.includes('*')) {
           isAlreadyPointer = true;
         }
