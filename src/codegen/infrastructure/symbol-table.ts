@@ -50,6 +50,14 @@ export interface ClassMetadata {
 }
 
 /**
+ * Return type for getClassInfo method
+ */
+export interface ClassInfo {
+  ptr: string;
+  className: string;
+}
+
+/**
  * Array-specific metadata
  */
 export interface ArrayMetadata {
@@ -519,7 +527,7 @@ export class SymbolTable {
   /**
    * Get class instance info (legacy classInstanceVariables.get())
    */
-  getClassInfo(name: string): { ptr: string; className: string } | undefined {
+  getClassInfo(name: string): ClassInfo | undefined {
     const symbol = this.symbols.get(name);
     if (symbol?.kind === SymbolKind.Class && symbol.classMetadata) {
       return {
