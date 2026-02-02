@@ -21,6 +21,7 @@
 import { Expression, BlockStatement, AST, CallNode } from '../../ast/types.js';
 import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
+import type { TypeResolver } from './type-resolver/index.js';
 
 /**
  * Interface defining what sub-generators need from parent generator.
@@ -222,6 +223,11 @@ export interface IGeneratorContext {
   readonly typeChecker?: TypeChecker | null;
 
   /**
+   * Consolidated type resolution (interfaces, unions, type guards)
+   */
+  readonly typeResolver?: TypeResolver;
+
+  /**
    * Whether the current compilation uses Promises
    */
   usesPromises: boolean;
@@ -297,6 +303,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public ast?: AST;
   public currentLabel = 'entry';
   public typeChecker: TypeChecker | null = null;
+  public typeResolver?: TypeResolver;
   public usesPromises = false;
   public usesTimers = false;
   public currentFunction: string | null = null;
