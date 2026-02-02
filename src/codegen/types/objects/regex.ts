@@ -15,6 +15,7 @@ export class RegexGenerator {
   // Helper methods delegate to context
   private nextTemp() { return this.ctx.nextTemp(); }
   private nextString() { return this.ctx.nextString(); }
+  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
   private get globalStrings() { return this.ctx.globalStrings; }
   private get variableTypes() { return (this.ctx as any).variableTypes; } // Legacy map
@@ -97,5 +98,107 @@ export class RegexGenerator {
   generateRegexFree(regexPtr: string): void {
     // Call regfree(regex_t *preg) - GC will handle the memory
     this.emit(`call void @regfree(i8* ${regexPtr})`);
+  }
+
+  generateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string {
+    const MAX_GROUPS = numGroups + 1;
+    const regmatchSize = 8;
+    const pmatchSize = MAX_GROUPS * regmatchSize;
+
+    const pmatchPtr = this.nextTemp();
+    this.emit(`${pmatchPtr} = call i8* @GC_malloc(i64 ${pmatchSize})`);
+
+    const execResult = this.nextTemp();
+    this.emit(`${execResult} = call i32 @regexec(i8* ${regexPtr}, i8* ${testStr}, i64 ${MAX_GROUPS}, i8* ${pmatchPtr}, i32 0)`);
+
+    const isNoMatch = this.nextTemp();
+    this.emit(`${isNoMatch} = icmp ne i32 ${execResult}, 0`);
+
+    const noMatchLabel = this.nextLabel('match_nomatch');
+    const matchLabel = this.nextLabel('match_found');
+    const endLabel = this.nextLabel('match_end');
+
+    this.emit(`br i1 ${isNoMatch}, label %${noMatchLabel}, label %${matchLabel}`);
+
+    this.emit(`${noMatchLabel}:`);
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${matchLabel}:`);
+
+    const arrayPtr = this.nextTemp();
+    this.emit(`${arrayPtr} = call i8* @GC_malloc(i64 24)`);
+    const typedArrayPtr = this.nextTemp();
+    this.emit(`${typedArrayPtr} = bitcast i8* ${arrayPtr} to %StringArray*`);
+
+    const dataSize = MAX_GROUPS * 8;
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = call i8* @GC_malloc(i64 ${dataSize})`);
+    const typedDataPtr = this.nextTemp();
+    this.emit(`${typedDataPtr} = bitcast i8* ${dataPtr} to i8**`);
+
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${typedArrayPtr}, i32 0, i32 0`);
+    this.emit(`store i8** ${typedDataPtr}, i8*** ${dataPtrField}`);
+
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${typedArrayPtr}, i32 0, i32 1`);
+    this.emit(`store i32 ${MAX_GROUPS}, i32* ${lenPtr}`);
+
+    const capPtr = this.nextTemp();
+    this.emit(`${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${typedArrayPtr}, i32 0, i32 2`);
+    this.emit(`store i32 ${MAX_GROUPS}, i32* ${capPtr}`);
+
+    const typedPmatch = this.nextTemp();
+    this.emit(`${typedPmatch} = bitcast i8* ${pmatchPtr} to i32*`);
+
+    for (let i = 0; i < MAX_GROUPS; i++) {
+      const rmSoPtr = this.nextTemp();
+      this.emit(`${rmSoPtr} = getelementptr inbounds i32, i32* ${typedPmatch}, i64 ${i * 2}`);
+      const rmSo = this.nextTemp();
+      this.emit(`${rmSo} = load i32, i32* ${rmSoPtr}`);
+
+      const rmEoPtr = this.nextTemp();
+      this.emit(`${rmEoPtr} = getelementptr inbounds i32, i32* ${typedPmatch}, i64 ${i * 2 + 1}`);
+      const rmEo = this.nextTemp();
+      this.emit(`${rmEo} = load i32, i32* ${rmEoPtr}`);
+
+      const matchLen = this.nextTemp();
+      this.emit(`${matchLen} = sub i32 ${rmEo}, ${rmSo}`);
+
+      const matchLenI64 = this.nextTemp();
+      this.emit(`${matchLenI64} = sext i32 ${matchLen} to i64`);
+
+      const matchLenPlus1 = this.nextTemp();
+      this.emit(`${matchLenPlus1} = add i64 ${matchLenI64}, 1`);
+
+      const substrPtr = this.nextTemp();
+      this.emit(`${substrPtr} = call i8* @GC_malloc_atomic(i64 ${matchLenPlus1})`);
+
+      const rmSoI64 = this.nextTemp();
+      this.emit(`${rmSoI64} = sext i32 ${rmSo} to i64`);
+
+      const srcPtr = this.nextTemp();
+      this.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${testStr}, i64 ${rmSoI64}`);
+
+      const strncpyResult = this.nextTemp();
+      this.emit(`${strncpyResult} = call i8* @strncpy(i8* ${substrPtr}, i8* ${srcPtr}, i64 ${matchLenI64})`);
+
+      const nullPos = this.nextTemp();
+      this.emit(`${nullPos} = getelementptr inbounds i8, i8* ${substrPtr}, i64 ${matchLenI64}`);
+      this.emit(`store i8 0, i8* ${nullPos}`);
+
+      const elemPtr = this.nextTemp();
+      this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${typedDataPtr}, i64 ${i}`);
+      this.emit(`store i8* ${substrPtr}, i8** ${elemPtr}`);
+    }
+
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${endLabel}:`);
+    const result = this.nextTemp();
+    this.emit(`${result} = phi i8* [ null, %${noMatchLabel} ], [ ${arrayPtr}, %${matchLabel} ]`);
+    this.variableTypes.set(result, 'i8*');
+
+    return result;
   }
 }

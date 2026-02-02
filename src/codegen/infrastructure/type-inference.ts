@@ -521,7 +521,7 @@ export class TypeInference {
     }
     if (expr.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
-      return methodExpr.method === 'split';
+      return methodExpr.method === 'split' || methodExpr.method === 'match';
     }
     if (expr.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
