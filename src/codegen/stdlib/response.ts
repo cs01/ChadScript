@@ -12,6 +12,10 @@ interface InterfaceStructGenerator {
   hasInterface(name: string): boolean;
 }
 
+interface InterfaceDefInfo {
+  properties: { name: string; type: string }[];
+}
+
 interface ResponseGeneratorContext {
   nextTemp(): string;
   nextLabel(prefix: string): string;
@@ -101,7 +105,7 @@ export class ResponseGenerator {
   generateTypedJson(
     responsePtr: string,
     typeName: string,
-    interfaceDef: { properties: { name: string; type: string }[] }
+    interfaceDef: InterfaceDefInfo
   ): string {
     const interfaceStructGen = this.ctx.interfaceStructGen;
     const alreadyDefined = interfaceStructGen?.hasInterface(typeName);
@@ -132,7 +136,7 @@ export class ResponseGenerator {
    */
   private generateJsonStruct(
     typeName: string,
-    interfaceDef: { properties: { name: string; type: string }[] }
+    interfaceDef: InterfaceDefInfo
   ): void {
     // Build struct type: %TypeName = type { i8*, double, i8*, ... }
     const fieldTypes = interfaceDef.properties.map(prop => {
@@ -151,7 +155,7 @@ export class ResponseGenerator {
    */
   private generateJsonParser(
     typeName: string,
-    interfaceDef: { properties: { name: string; type: string }[] }
+    interfaceDef: InterfaceDefInfo
   ): void {
     let parserIR = `define %${typeName}* @parse_json_${typeName}(i8* %json_str) {\n`;
     parserIR += 'entry:\n';

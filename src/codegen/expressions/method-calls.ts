@@ -100,7 +100,11 @@ interface RegexGeneratorLike {
 interface ResponseGeneratorLike {
   generateText(responsePtr: string): string;
   generateJson(responsePtr: string): string;
-  generateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string;
+  generateTypedJson(responsePtr: string, typeName: string, interfaceDef: InterfaceDefInfo): string;
+}
+
+interface InterfaceDefInfo {
+  properties: { name: string; type: string }[];
 }
 
 interface StringMapGeneratorLike {
@@ -203,11 +207,12 @@ export interface MethodCallGeneratorContext {
 export class MethodCallGenerator {
   constructor(private ctx: MethodCallGeneratorContext) {}
 
-  private getInterfaceFromAST(name: string): { properties: { name: string; type: string }[] } | null {
+  private getInterfaceFromAST(name: string): InterfaceDefInfo | null {
     if (!this.ctx.ast?.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
       if (this.ctx.ast.interfaces[i].name === name) {
-        const iface = this.ctx.ast.interfaces[i];
+        const ifaceResult = this.ctx.ast.interfaces[i];
+        const iface = ifaceResult as InterfaceDeclaration;
         const properties: { name: string; type: string }[] = [];
         for (let j = 0; j < iface.fields.length; j++) {
           properties.push({ name: iface.fields[j].name, type: iface.fields[j].type });
@@ -408,8 +413,9 @@ export class MethodCallGenerator {
         } else if (method === 'json') {
           if (expr.typeParameter) {
             const typeName = expr.typeParameter;
-            const interfaceDef = this.getInterfaceFromAST(typeName);
-            if (interfaceDef) {
+            const interfaceDefResult = this.getInterfaceFromAST(typeName);
+            if (interfaceDefResult) {
+              const interfaceDef = interfaceDefResult as InterfaceDefInfo;
               return this.ctx.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef);
             }
           }
