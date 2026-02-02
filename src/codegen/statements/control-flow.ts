@@ -3,6 +3,8 @@ import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata, ObjectMetadata } from '../infrastructure/symbol-table.js';
 import type { TypeResolver, UnionCommonFields } from '../infrastructure/type-resolver/index.js';
 
+interface ExprBase { type: string; }
+
 interface FieldInfo {
   index: number;
   type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean';
@@ -1340,18 +1342,21 @@ export class ControlFlowGenerator {
   }
 
   private isMapEntriesCall(expr: Expression): boolean {
-    if (expr.type !== 'method_call') return false;
+    const e = expr as ExprBase;
+    if (e.type !== 'method_call') return false;
     const methodCall = expr as MethodCallNode;
     if (methodCall.method !== 'entries') return false;
 
-    if (methodCall.object.type === 'variable') {
+    const objBase = methodCall.object as ExprBase;
+    if (objBase.type === 'variable') {
       const varName = (methodCall.object as VariableNode).name;
       return this.ctx.symbolTable.isMap(varName);
     }
 
-    if (methodCall.object.type === 'member_access') {
+    if (objBase.type === 'member_access') {
       const memberExpr = methodCall.object as MemberAccessNode;
-      if (memberExpr.object.type === 'this' && this.ctx.currentClassName) {
+      const memberObjBase = memberExpr.object as ExprBase;
+      if (memberObjBase.type === 'this' && this.ctx.currentClassName) {
         const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
@@ -1364,7 +1369,8 @@ export class ControlFlowGenerator {
   }
 
   private getMapValueTypeInfo(iterable: Expression): { valueType: string; objectMetadata?: ObjectMetadata } | null {
-    if (iterable.type !== 'method_call') return null;
+    const e = iterable as ExprBase;
+    if (e.type !== 'method_call') return null;
     const methodCall = iterable as MethodCallNode;
     if (methodCall.method !== 'entries') return null;
 

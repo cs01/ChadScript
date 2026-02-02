@@ -2,6 +2,10 @@ import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, Ass
 
 type SymbolType = 'number' | 'string' | 'boolean' | 'array<number>' | 'array<string>' | 'object' | 'class' | 'unknown';
 
+interface ExpressionBase {
+  type: string;
+}
+
 /**
  * Semantic Analyzer - Pre-codegen type validation
  *
@@ -204,8 +208,10 @@ export class SemanticAnalyzer {
    * @param declaredType Optional TypeScript type annotation (e.g., "string[]")
    */
   private inferExpressionType(expr: Expression, declaredType?: string): TypedSymbol {
+    const e = expr as ExpressionBase;
+
     // String literal
-    if (expr.type === 'string') {
+    if (e.type === 'string') {
       return {
         name: '',
         type: 'string',
@@ -214,7 +220,7 @@ export class SemanticAnalyzer {
     }
 
     // Number literal
-    if (expr.type === 'number') {
+    if (e.type === 'number') {
       return {
         name: '',
         type: 'number',
@@ -223,7 +229,7 @@ export class SemanticAnalyzer {
     }
 
     // Boolean literal
-    if (expr.type === 'boolean') {
+    if (e.type === 'boolean') {
       return {
         name: '',
         type: 'boolean',
@@ -232,7 +238,7 @@ export class SemanticAnalyzer {
     }
 
     // Array literal - VALIDATE HOMOGENEITY HERE
-    if (expr.type === 'array') {
+    if (e.type === 'array') {
       const arrayExpr = expr as ArrayNode;
       const elements = arrayExpr.elements || [];
 
@@ -293,7 +299,7 @@ export class SemanticAnalyzer {
       }
     }
 
-    if (expr.type === 'object') {
+    if (e.type === 'object') {
       const objExpr = expr as ObjectNode;
       const schema = new Map<string, string>();
 
@@ -312,7 +318,7 @@ export class SemanticAnalyzer {
     }
 
     // Variable reference - look up in symbol table
-    if (expr.type === 'variable') {
+    if (e.type === 'variable') {
       const varExpr = expr as VariableNode;
       const symbol = this.symbols.get(varExpr.name);
       if (!symbol) {
@@ -330,7 +336,7 @@ export class SemanticAnalyzer {
     }
 
     // Method call - special cases
-    if (expr.type === 'method_call') {
+    if (e.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
 
       if (['substr', 'substring', 'concat', 'repeat', 'padStart', 'charAt'].includes(methodExpr.method)) {
@@ -355,7 +361,7 @@ export class SemanticAnalyzer {
       }
     }
 
-    if (expr.type === 'binary') {
+    if (e.type === 'binary') {
       const binExpr = expr as BinaryNode;
 
       if (binExpr.op === '+') {
