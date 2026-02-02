@@ -949,6 +949,12 @@ export class MethodCallGenerator {
             }
           }
         }
+      } else if (memberAccess.object.type === 'member_access') {
+        const resolvedType = this.resolveNestedMemberAccessType(expr.object);
+        if (resolvedType) {
+          instancePtr = this.ctx.generateExpression(expr.object, params);
+          className = resolvedType;
+        }
       }
     } else if (expr.object.type === 'super') {
       if (!this.ctx.thisPointer) {
@@ -991,6 +997,65 @@ export class MethodCallGenerator {
 
     if (classNode.extends) {
       return this.findClassWithMethod(classNode.extends, methodName);
+    }
+
+    return null;
+  }
+
+  private resolveNestedMemberAccessType(expr: Expression): string | null {
+    if (expr.type === 'this') {
+      return this.ctx.currentClassName;
+    }
+
+    if (expr.type === 'variable') {
+      const varName = (expr as VariableNode).name;
+      if (this.ctx.symbolTable.isClass(varName)) {
+        const classMeta = this.ctx.symbolTable.getClassInfo(varName);
+        return classMeta?.className || null;
+      }
+      return null;
+    }
+
+    if (expr.type === 'member_access') {
+      const memberAccess = expr as MemberAccessNode;
+      const parentType = this.resolveNestedMemberAccessType(memberAccess.object);
+      if (!parentType) {
+        return null;
+      }
+
+      const classExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === parentType);
+      if (classExists) {
+        const fieldInfo = this.ctx.classGen.getFieldInfo(parentType, memberAccess.property);
+        if (fieldInfo?.tsType) {
+          const fieldClassExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === fieldInfo.tsType);
+          if (fieldClassExists) {
+            return fieldInfo.tsType;
+          }
+          const fieldInterfaceExists = this.ctx.ast.interfaces.some(i => i.name === fieldInfo.tsType);
+          if (fieldInterfaceExists) {
+            return fieldInfo.tsType;
+          }
+        }
+        return null;
+      }
+
+      const interfaceDecl = this.ctx.ast.interfaces.find(i => i.name === parentType);
+      if (interfaceDecl) {
+        const field = interfaceDecl.fields.find(f => f.name === memberAccess.property);
+        if (field) {
+          const fieldClassExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === field.type);
+          if (fieldClassExists) {
+            return field.type;
+          }
+          const fieldInterfaceExists = this.ctx.ast.interfaces.some(i => i.name === field.type);
+          if (fieldInterfaceExists) {
+            return field.type;
+          }
+        }
+        return null;
+      }
+
+      return null;
     }
 
     return null;
