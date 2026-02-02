@@ -43,6 +43,7 @@ export interface LiteralGeneratorContext {
   syncStateToGenerators(): void;
   generateExpression(expr: Expression, params: string[]): string;
   variableTypes: Map<string, string>;
+  setVariableType(name: string, type: string): void;
   usesPromises: boolean;
   thisPointer: string | null;
   currentDeclaredMapType?: string;
@@ -88,7 +89,7 @@ export class LiteralExpressionGenerator {
       const temp = this.ctx.nextTemp();
       const intValue = Math.floor(value);
       this.ctx.emit(`${temp} = sitofp i32 ${intValue} to double`);
-      this.ctx.variableTypes.set(temp, 'double');
+      this.ctx.setVariableType(temp, 'double');
       return temp;
     } else {
       // Floating-point literals stay as constants
@@ -104,7 +105,7 @@ export class LiteralExpressionGenerator {
     const boolValue = value ? 1 : 0;
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = sitofp i32 ${boolValue} to double`);
-    this.ctx.variableTypes.set(temp, 'double');
+    this.ctx.setVariableType(temp, 'double');
     return temp;
   }
 
@@ -193,7 +194,7 @@ export class LiteralExpressionGenerator {
     this.ctx.usesPromises = true;
     const promiseResult = this.ctx.nextTemp();
     this.ctx.emit(`${promiseResult} = call %Promise* @__Promise_new()`);
-    this.ctx.variableTypes.set(promiseResult, '%Promise*');
+    this.ctx.setVariableType(promiseResult, '%Promise*');
     return promiseResult;
   }
 

@@ -23,7 +23,7 @@ export function createStringConstant(ctx: BaseGenerator, value: string): string 
   ctx.emit(
     `${ptrReg} = getelementptr inbounds [${length} x i8], [${length} x i8]* ${globalName}, i64 0, i64 0`
   );
-  ctx.variableTypes.set(ptrReg, 'i8*');
+  ctx.setVariableType(ptrReg, 'i8*');
   return ptrReg;
 }
 

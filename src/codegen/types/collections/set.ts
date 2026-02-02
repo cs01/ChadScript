@@ -365,7 +365,7 @@ export class StringSetGenerator {
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
     this.emit(`${result} = load double, double* ${resultReg}`);
-    this.ctx.variableTypes.set(result, 'double');
+    this.ctx.setVariableType(result, 'double');
 
     return result;
   }

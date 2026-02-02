@@ -20,7 +20,6 @@ export class ConditionalExpressionGenerator {
   private nextTemp() { return this.ctx.nextTemp(); }
   private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
-  private get variableTypes() { return this.ctx.variableTypes; }
 
   /**
    * Generate code for conditional (ternary) expression
@@ -76,8 +75,8 @@ export class ConditionalExpressionGenerator {
     const result = this.nextTemp();
 
     // Determine the result type - use double if either value is double, i8* for strings
-    const trueType = this.ctx.getVariableType(trueValue) || this.variableTypes.get(trueValue);
-    const falseType = this.ctx.getVariableType(falseValue) || this.variableTypes.get(falseValue);
+    const trueType = this.ctx.getVariableType(trueValue);
+    const falseType = this.ctx.getVariableType(falseValue);
     let resultType: string;
     if (trueType === 'i8*' || falseType === 'i8*') {
       resultType = 'i8*';
@@ -104,7 +103,7 @@ export class ConditionalExpressionGenerator {
     }
 
     this.emit(`${result} = phi ${resultType} [ ${trueVal}, %${trueLabelEnd} ], [ ${falseVal}, %${falseLabelEnd} ]`);
-    this.variableTypes.set(result, resultType);
+    this.ctx.setVariableType(result, resultType);
 
     return result;
   }

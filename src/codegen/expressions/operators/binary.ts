@@ -14,6 +14,8 @@ export interface BinaryExpressionGeneratorContext {
   syncStateToGenerators(): void;
   isStringExpression(expr: Expression): boolean;
   variableTypes: Map<string, string>;
+  getVariableType(name: string): string | undefined;
+  setVariableType(name: string, type: string): void;
   controlFlowGen: ControlFlowGeneratorLike;
   stringGen: StringGeneratorLike;
   generateExpression(expr: Expression, params: string[]): string;
@@ -94,7 +96,7 @@ export class BinaryExpressionGenerator {
   private generateArithmetic(op: string, llvmOp: string, left: string, right: string): string {
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = ${llvmOp} double ${left}, ${right}`);
-    this.ctx.variableTypes.set(temp, 'double');
+    this.ctx.setVariableType(temp, 'double');
     return temp;
   }
 
@@ -110,7 +112,7 @@ export class BinaryExpressionGenerator {
 
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i64 ${resultInt} to double`);
-    this.ctx.variableTypes.set(resultDouble, 'double');
+    this.ctx.setVariableType(resultDouble, 'double');
     return resultDouble;
   }
 
@@ -120,8 +122,8 @@ export class BinaryExpressionGenerator {
     const rightIsString = this.ctx.isStringExpression(rightExpr);
 
     // Also check if generated values are tracked as strings
-    const leftType = this.ctx.variableTypes.get(leftValue) || 'double';
-    const rightType = this.ctx.variableTypes.get(rightValue) || 'double';
+    const leftType = this.ctx.getVariableType(leftValue) || 'double';
+    const rightType = this.ctx.getVariableType(rightValue) || 'double';
     const leftIsStringType = leftType === 'i8*' || leftValue.startsWith('@.str');
     const rightIsStringType = rightType === 'i8*' || rightValue.startsWith('@.str');
 
@@ -147,8 +149,8 @@ export class BinaryExpressionGenerator {
     this.ctx.syncStateToGenerators();
 
     // Handle i32 values from JSON property access - convert to i8*
-    const leftType = this.ctx.variableTypes.get(left);
-    const rightType = this.ctx.variableTypes.get(right);
+    const leftType = this.ctx.getVariableType(left);
+    const rightType = this.ctx.getVariableType(right);
 
     let leftPtr = left;
     let rightPtr = right;
@@ -181,14 +183,14 @@ export class BinaryExpressionGenerator {
     this.ctx.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
     const extResult = this.ctx.nextTemp();
     this.ctx.emit(`${extResult} = sitofp i32 ${i32Result} to double`);
-    this.ctx.variableTypes.set(extResult, 'double');
+    this.ctx.setVariableType(extResult, 'double');
     return extResult;
   }
 
   private generateNumericComparison(cond: string, left: string, right: string): string {
     // Handle i32 values from JSON property access - convert to double
-    const leftType = this.ctx.variableTypes.get(left);
-    const rightType = this.ctx.variableTypes.get(right);
+    const leftType = this.ctx.getVariableType(left);
+    const rightType = this.ctx.getVariableType(right);
 
     let leftDouble = left;
     let rightDouble = right;
@@ -213,7 +215,7 @@ export class BinaryExpressionGenerator {
     this.ctx.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
     const doubleResult = this.ctx.nextTemp();
     this.ctx.emit(`${doubleResult} = sitofp i32 ${i32Result} to double`);
-    this.ctx.variableTypes.set(doubleResult, 'double');
+    this.ctx.setVariableType(doubleResult, 'double');
     return doubleResult;
   }
 }

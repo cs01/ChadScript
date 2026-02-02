@@ -10,6 +10,7 @@ interface ArrayGeneratorShim {
   emit(instruction: string): void;
   getDoubleSize(): number;
   getVariableType(name: string): string | undefined;
+  setVariableType(name: string, type: string): void;
   variableTypes: Map<string, string>;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
   generateExpression(expr: Expression, params: string[]): string;
@@ -53,6 +54,7 @@ export class ArrayGenerator {
       emit: (instruction: string) => this.emit(instruction),
       getDoubleSize: () => 8,
       getVariableType: (name: string) => this.ctx.getVariableType(name),
+      setVariableType: (name: string, type: string) => this.ctx.setVariableType(name, type),
       variableTypes: this.ctx.variableTypes,
       expectedArrayElementType: this.ctx.expectedArrayElementType,
       generateExpression: (expr: Expression, params: string[]) => this.ctx.generateExpression(expr, params),

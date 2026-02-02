@@ -83,6 +83,7 @@ export interface MemberAccessGeneratorContext {
   currentFunction?: string | null;
   jsonObjectMetadata?: Map<string, JsonObjectMeta>;
   getVariableType(name: string): string | undefined;
+  setVariableType(name: string, type: string): void;
   getVariableAlloca(name: string): string | undefined;
   syncStateToGenerators(): void;
   formatCodegenError(message: string, suggestion?: string): string;
@@ -339,7 +340,7 @@ export class MemberAccessGenerator {
     const valueStr = String(value);
     const formattedValue = valueStr.indexOf('.') === -1 ? valueStr + '.0' : valueStr;
     this.ctx.emit(`${result} = fadd double ${formattedValue}, 0.0`);
-    this.ctx.variableTypes.set(result, 'double');
+    this.ctx.setVariableType(result, 'double');
     return result;
   }
 
@@ -383,24 +384,24 @@ export class MemberAccessGenerator {
     if (propType === 'string') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, 'i8*');
+      this.ctx.setVariableType(value, 'i8*');
       return value;
     } else if (propType === 'number') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, 'double');
+      this.ctx.setVariableType(value, 'double');
       return value;
     } else if (propType === 'boolean') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i1, i1* ${fieldPtr}`);
       const doubleValue = this.ctx.nextTemp();
       this.ctx.emit(`${doubleValue} = uitofp i1 ${value} to double`);
-      this.ctx.variableTypes.set(doubleValue, 'double');
+      this.ctx.setVariableType(doubleValue, 'double');
       return doubleValue;
     } else if (propType === 'string[]') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, '%StringArray*');
+      this.ctx.setVariableType(value, '%StringArray*');
       return value;
     } else {
       let nestedTypeName = propType;
@@ -417,7 +418,7 @@ export class MemberAccessGenerator {
         const value = this.ctx.nextTemp();
         if (isTypeAlias) {
           this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
-          this.ctx.variableTypes.set(value, 'i8*');
+          this.ctx.setVariableType(value, 'i8*');
           const keys = nestedInterface.properties.map((p: InterfaceProperty) => p.name);
           const types = nestedInterface.properties.map((p: InterfaceProperty) => this.tsTypeToLlvm(p.type));
           const tsTypes = nestedInterface.properties.map((p: InterfaceProperty) => p.type);
@@ -425,7 +426,7 @@ export class MemberAccessGenerator {
           this.ctx.jsonObjectMetadata.set(value, { keys, types, tsTypes });
         } else {
           this.ctx.emit(`${value} = load %${nestedTypeName}*, %${nestedTypeName}** ${fieldPtr}`);
-          this.ctx.variableTypes.set(value, `%${nestedTypeName}*`);
+          this.ctx.setVariableType(value, `%${nestedTypeName}*`);
         }
         return value;
       }
@@ -459,7 +460,7 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 2`);
     this.ctx.emit(`store i32 ${argc}, i32* ${capField}`);
 
-    this.ctx.variableTypes.set(argvStruct, '%StringArray*');
+    this.ctx.setVariableType(argvStruct, '%StringArray*');
     return argvStruct;
   }
 
@@ -548,44 +549,44 @@ export class MemberAccessGenerator {
     } else if (fieldInfo.type === 'string[]') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, '%StringArray*');
+      this.ctx.setVariableType(value, '%StringArray*');
       return value;
     } else if (fieldInfo.type.endsWith('[]')) {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, '%Array*');
+      this.ctx.setVariableType(value, '%Array*');
       return value;
     } else if (fieldInfo.type === 'boolean') {
       const boolValue = this.ctx.nextTemp();
       this.ctx.emit(`${boolValue} = load i1, i1* ${fieldPtr}`);
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = uitofp i1 ${boolValue} to double`);
-      this.ctx.variableTypes.set(value, 'double');
+      this.ctx.setVariableType(value, 'double');
       return value;
     } else if (fieldInfo.tsType?.startsWith('Map<string,')) {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %StringMap*, %StringMap** ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, '%StringMap*');
+      this.ctx.setVariableType(value, '%StringMap*');
       return value;
     } else if (fieldInfo.tsType?.startsWith('Map<')) {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %Map*, %Map** ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, '%Map*');
+      this.ctx.setVariableType(value, '%Map*');
       return value;
     } else if (fieldInfo.tsType === 'Set<string>') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %StringSet*, %StringSet** ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, '%StringSet*');
+      this.ctx.setVariableType(value, '%StringSet*');
       return value;
     } else if (fieldInfo.tsType?.startsWith('Set<')) {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %Set*, %Set** ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, '%Set*');
+      this.ctx.setVariableType(value, '%Set*');
       return value;
     } else {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, 'double');
+      this.ctx.setVariableType(value, 'double');
       if (fieldInfo.tsType) {
         this.storeInterfaceMetadata(value, fieldInfo.tsType);
       }
@@ -659,7 +660,7 @@ export class MemberAccessGenerator {
       this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
       this.ctx.jsonObjectMetadata.set(fieldItem, { keys, types, tsTypes });
     }
-    this.ctx.variableTypes.set(fieldItem, 'i8*');
+    this.ctx.setVariableType(fieldItem, 'i8*');
     return fieldItem;
   }
 
@@ -712,7 +713,7 @@ export class MemberAccessGenerator {
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi i32 [ ${numValue}, %${numberLabel} ], [ ${strAsInt}, %${stringLabel} ], [ 0, %${noFieldLabel} ]`);
 
-    this.ctx.variableTypes.set(result, 'i32');
+    this.ctx.setVariableType(result, 'i32');
     return result;
   }
 
@@ -744,7 +745,7 @@ export class MemberAccessGenerator {
 
   private handleChainedInterfaceAccess(expr: MemberAccessNode, params: string[]): string | null {
     const innerPtr = this.ctx.generateExpression(expr.object, params);
-    const innerType = this.ctx.variableTypes.get(innerPtr);
+    const innerType = this.ctx.getVariableType(innerPtr);
 
     if (innerType === 'i8*') {
       if (!this.ctx.jsonObjectMetadata) return null;
@@ -792,24 +793,24 @@ export class MemberAccessGenerator {
     if (propType === 'string') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, 'i8*');
+      this.ctx.setVariableType(value, 'i8*');
       return value;
     } else if (propType === 'number') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, 'double');
+      this.ctx.setVariableType(value, 'double');
       return value;
     } else if (propType === 'boolean') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i1, i1* ${fieldPtr}`);
       const doubleValue = this.ctx.nextTemp();
       this.ctx.emit(`${doubleValue} = uitofp i1 ${value} to double`);
-      this.ctx.variableTypes.set(doubleValue, 'double');
+      this.ctx.setVariableType(doubleValue, 'double');
       return doubleValue;
     } else if (propType === 'string[]') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
-      this.ctx.variableTypes.set(value, '%StringArray*');
+      this.ctx.setVariableType(value, '%StringArray*');
       return value;
     } else {
       let nestedTypeName = propType;
@@ -820,7 +821,7 @@ export class MemberAccessGenerator {
       if (nestedInterfaceDefResult) {
         const value = this.ctx.nextTemp();
         this.ctx.emit(`${value} = load %${nestedTypeName}*, %${nestedTypeName}** ${fieldPtr}`);
-        this.ctx.variableTypes.set(value, `%${nestedTypeName}*`);
+        this.ctx.setVariableType(value, `%${nestedTypeName}*`);
         return value;
       }
       return null;
@@ -836,7 +837,7 @@ export class MemberAccessGenerator {
     const arrayPtr = this.ctx.generateExpression(indexAccess.object, params);
     const indexDouble = this.ctx.generateExpression(indexAccess.index, params);
 
-    const indexType = this.ctx.variableTypes.get(indexDouble);
+    const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
     if (indexType === 'double' || indexType === undefined) {
       index = this.ctx.nextTemp();
@@ -867,7 +868,7 @@ export class MemberAccessGenerator {
 
     const value = this.ctx.nextTemp();
     this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
-    this.ctx.variableTypes.set(value, propType);
+    this.ctx.setVariableType(value, propType);
 
     if (propTsType && propTsType !== 'string' && propTsType !== 'number' && propTsType !== 'boolean') {
       const interfaceInfoRaw = this.getKnownTypeProperties(propTsType);
@@ -1190,7 +1191,7 @@ export class MemberAccessGenerator {
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi i32 [ ${numValue}, %${numberLabel} ], [ ${strAsInt}, %${stringLabel} ]`);
 
-    this.ctx.variableTypes.set(result, 'i32');
+    this.ctx.setVariableType(result, 'i32');
     return result;
   }
 
@@ -1247,7 +1248,7 @@ export class MemberAccessGenerator {
 
     const value = this.ctx.nextTemp();
     this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
-    this.ctx.variableTypes.set(value, propType);
+    this.ctx.setVariableType(value, propType);
 
     if (propTsType && propTsType !== 'string' && propTsType !== 'number' && propTsType !== 'boolean') {
       const interfaceInfoRaw = this.getKnownTypeProperties(propTsType);
@@ -1339,7 +1340,7 @@ export class MemberAccessGenerator {
 
     const value = this.ctx.nextTemp();
     this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
-    this.ctx.variableTypes.set(value, propType);
+    this.ctx.setVariableType(value, propType);
 
     return value;
   }
@@ -1383,7 +1384,7 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
     const len = this.ctx.nextTemp();
     this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.variableTypes.set(len, 'double');
+    this.ctx.setVariableType(len, 'double');
     return len;
   }
 
@@ -1394,7 +1395,7 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
     const len = this.ctx.nextTemp();
     this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.variableTypes.set(len, 'double');
+    this.ctx.setVariableType(len, 'double');
     return len;
   }
 
@@ -1437,7 +1438,7 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
     const len = this.ctx.nextTemp();
     this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.variableTypes.set(len, 'double');
+    this.ctx.setVariableType(len, 'double');
     return len;
   }
 
@@ -1449,7 +1450,7 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
     const len = this.ctx.nextTemp();
     this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.variableTypes.set(len, 'double');
+    this.ctx.setVariableType(len, 'double');
     return len;
   }
 
@@ -1546,17 +1547,17 @@ export class MemberAccessGenerator {
               if (propType === 'string') {
                 const value = this.ctx.nextTemp();
                 this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
-                this.ctx.variableTypes.set(value, 'i8*');
+                this.ctx.setVariableType(value, 'i8*');
                 return value;
               } else if (propType === 'number') {
                 const value = this.ctx.nextTemp();
                 this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
-                this.ctx.variableTypes.set(value, 'double');
+                this.ctx.setVariableType(value, 'double');
                 return value;
               } else if (propType === 'boolean') {
                 const value = this.ctx.nextTemp();
                 this.ctx.emit(`${value} = load i32, i32* ${fieldPtr}`);
-                this.ctx.variableTypes.set(value, 'i32');
+                this.ctx.setVariableType(value, 'i32');
                 return value;
               }
             }
@@ -1669,7 +1670,7 @@ export class MemberAccessGenerator {
 
     const value = this.ctx.nextTemp();
     this.ctx.emit(`${value} = load ${fieldLlvmType}, ${fieldLlvmType}* ${fieldPtr}`);
-    this.ctx.variableTypes.set(value, fieldLlvmType);
+    this.ctx.setVariableType(value, fieldLlvmType);
 
     if (field.type && ['string', 'number', 'boolean'].indexOf(field.type) === -1 && !field.type.endsWith('[]')) {
       this.storeInterfaceMetadata(value, field.type);
@@ -1727,7 +1728,7 @@ export class MemberAccessGenerator {
 
     const value = this.ctx.nextTemp();
     this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
-    this.ctx.variableTypes.set(value, propType);
+    this.ctx.setVariableType(value, propType);
 
     return value;
   }
@@ -1751,7 +1752,7 @@ export class MemberAccessGenerator {
 
     const value = this.ctx.nextTemp();
     this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
-    this.ctx.variableTypes.set(value, propType);
+    this.ctx.setVariableType(value, propType);
 
     return value;
   }

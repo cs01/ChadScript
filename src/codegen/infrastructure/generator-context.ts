@@ -134,6 +134,11 @@ export interface IGeneratorContext {
    */
   getVariableAlloca(name: string): string | undefined;
 
+  /**
+   * Set type for a temporary register (used for LLVM registers like %0, %1, etc)
+   */
+  setVariableType(name: string, type: string): void;
+
   // ============================================
   // Output Buffer
   // ============================================
@@ -380,6 +385,10 @@ export class MockGeneratorContext implements IGeneratorContext {
 
     // Fall back to temporary register types
     return this.variableTypes.get(name);
+  }
+
+  setVariableType(name: string, type: string): void {
+    this.variableTypes.set(name, type);
   }
 
   getVariableAlloca(name: string): string | undefined {

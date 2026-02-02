@@ -89,7 +89,7 @@ export class RegexGenerator {
     // Convert to double for JavaScript semantics
     const result = this.nextTemp();
     this.emit(`${result} = sitofp i32 ${i32Result} to double`);
-    this.ctx.variableTypes.set(result, 'double');
+    this.ctx.setVariableType(result, 'double');
 
     return result;
   }
@@ -197,7 +197,7 @@ export class RegexGenerator {
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
     this.emit(`${result} = phi i8* [ null, %${noMatchLabel} ], [ ${arrayPtr}, %${matchLabel} ]`);
-    this.ctx.variableTypes.set(result, 'i8*');
+    this.ctx.setVariableType(result, 'i8*');
 
     return result;
   }
