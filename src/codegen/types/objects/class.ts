@@ -400,7 +400,7 @@ export class ClassGenerator {
     if (!hasTerminator) {
       if (returnLLVMType === 'void') {
         ir += '  ret void\n';
-      } else if (result !== null && result !== '') {
+      } else if (result !== null && result !== '' && result !== '0') {
         ir += `  ret ${returnLLVMType} ${result}\n`;
       } else {
         // Default return value for non-void functions with no explicit return

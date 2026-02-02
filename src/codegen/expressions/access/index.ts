@@ -13,6 +13,7 @@ export interface IndexAccessGeneratorContext {
   symbolTable: SymbolTable;
   isStringArrayExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
+  isObjectArrayExpression(expr: Expression): boolean;
   getVariableAlloca(name: string): string | undefined;
   generateExpression(expr: Expression, params: string[]): string;
 }
@@ -52,13 +53,15 @@ export class IndexAccessGenerator {
       return this.generateJSONArrayIndex(expr, params);
     }
 
-    // Determine if we're indexing into a string array or numeric array
-    // We use isStringArrayExpression/isArrayExpression which check types comprehensively
+    // Determine if we're indexing into a string array, numeric array, or object array
     const isStringArray = this.ctx.isStringArrayExpression(expr.object);
-    const isNumericArray = !isStringArray && this.ctx.isArrayExpression(expr.object);
+    const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
+    const isNumericArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(expr.object);
 
     if (isStringArray) {
       return this.generateStringArrayIndex(expr, params);
+    } else if (isObjectArray) {
+      return this.generateObjectArrayIndex(expr, params);
     } else if (isNumericArray) {
       return this.generateNumericArrayIndex(expr, params);
     } else {
@@ -158,6 +161,35 @@ export class IndexAccessGenerator {
     return elem;
   }
 
+  private generateObjectArrayIndex(expr: IndexAccessNode, params: string[]): string {
+    const arrayPtr = this.ctx.generateExpression(expr.object, params);
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
+
+    const indexType = this.ctx.getVariableType(indexDouble);
+    let index = indexDouble;
+    if (indexType === 'double') {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    }
+
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+
+    const dataDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${dataDouble} = load double*, double** ${dataPtr}`);
+
+    const data = this.ctx.nextTemp();
+    this.ctx.emit(`${data} = bitcast double* ${dataDouble} to i8**`);
+
+    const elemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${data}, i32 ${index}`);
+
+    const elem = this.ctx.nextTemp();
+    this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+    this.ctx.setVariableType(elem, 'i8*');
+    return elem;
+  }
+
   private generateStringCharIndex(expr: IndexAccessNode, params: string[]): string {
     const objPtr = this.ctx.generateExpression(expr.object, params);
     const indexDouble = this.ctx.generateExpression(expr.index, params);
@@ -179,15 +211,22 @@ export class IndexAccessGenerator {
     const charI8 = this.ctx.nextTemp();
     this.ctx.emit(`${charI8} = load i8, i8* ${charPtr}`);
 
-    const charI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${charI32} = zext i8 ${charI8} to i32`);
+    // TypeScript str[i] returns a single-character string, not a number
+    // Allocate 2 bytes for the character + null terminator
+    const strBuf = this.ctx.nextTemp();
+    this.ctx.emit(`${strBuf} = call i8* @GC_malloc_atomic(i64 2)`);
 
-    // Convert char code to double for compatibility with numeric system
-    const charDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${charDouble} = sitofp i32 ${charI32} to double`);
-    this.ctx.setVariableType(charDouble, 'double');
+    // Store the character at position 0
+    this.ctx.emit(`store i8 ${charI8}, i8* ${strBuf}`);
 
-    return charDouble;
+    // Store null terminator at position 1
+    const nullPos = this.ctx.nextTemp();
+    this.ctx.emit(`${nullPos} = getelementptr inbounds i8, i8* ${strBuf}, i64 1`);
+    this.ctx.emit(`store i8 0, i8* ${nullPos}`);
+
+    this.ctx.setVariableType(strBuf, 'i8*');
+
+    return strBuf;
   }
 
   private generateJSONArrayIndex(expr: IndexAccessNode, params: string[]): string {
@@ -210,7 +249,24 @@ export class IndexAccessGenerator {
     const itemPtr = this.ctx.nextTemp();
     this.ctx.emit(`${itemPtr} = call i8* @cJSON_GetArrayItem(i8* ${jsonPtr}, i32 ${index})`);
 
-    // Check if item is a number or string and extract value
+    // Check if item is an object - if so, return the item pointer directly
+    const isObject = this.ctx.nextTemp();
+    this.ctx.emit(`${isObject} = call i32 @cJSON_IsObject(i8* ${itemPtr})`);
+    const isObjBool = this.ctx.nextTemp();
+    this.ctx.emit(`${isObjBool} = icmp ne i32 ${isObject}, 0`);
+
+    const objectLabel = this.ctx.nextLabel('json_arr_object');
+    const primitiveLabel = this.ctx.nextLabel('json_arr_primitive');
+    const objEndLabel = this.ctx.nextLabel('json_arr_obj_end');
+
+    this.ctx.emit(`br i1 ${isObjBool}, label %${objectLabel}, label %${primitiveLabel}`);
+
+    // Object case - return item pointer as-is
+    this.ctx.emit(`${objectLabel}:`);
+    this.ctx.emit(`br label %${objEndLabel}`);
+
+    // Primitive case - check if number or string
+    this.ctx.emit(`${primitiveLabel}:`);
     const isNumber = this.ctx.nextTemp();
     this.ctx.emit(`${isNumber} = call i32 @cJSON_IsNumber(i8* ${itemPtr})`);
     const isNumBool = this.ctx.nextTemp();
@@ -218,7 +274,7 @@ export class IndexAccessGenerator {
 
     const numberLabel = this.ctx.nextLabel('json_arr_number');
     const stringLabel = this.ctx.nextLabel('json_arr_string');
-    const endLabel = this.ctx.nextLabel('json_arr_end');
+    const primEndLabel = this.ctx.nextLabel('json_arr_prim_end');
 
     this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
 
@@ -226,23 +282,29 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${numberLabel}:`);
     const numValue = this.ctx.nextTemp();
     this.ctx.emit(`${numValue} = call double @cJSON_GetNumberValue(i8* ${itemPtr})`);
-    this.ctx.emit(`br label %${endLabel}`);
+    const numAsPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${numAsPtr} = fptosi double ${numValue} to i64`);
+    const numPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${numPtr} = inttoptr i64 ${numAsPtr} to i8*`);
+    this.ctx.emit(`br label %${primEndLabel}`);
 
     // String case
     this.ctx.emit(`${stringLabel}:`);
     const strValue = this.ctx.nextTemp();
     this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${itemPtr})`);
-    const strAsDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${strAsDouble} = ptrtoint i8* ${strValue} to i64`);
-    const strDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${strDouble} = sitofp i64 ${strAsDouble} to double`);
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emit(`br label %${primEndLabel}`);
 
-    // Merge
-    this.ctx.emit(`${endLabel}:`);
+    // Merge primitives
+    this.ctx.emit(`${primEndLabel}:`);
+    const primResult = this.ctx.nextTemp();
+    this.ctx.emit(`${primResult} = phi i8* [ ${numPtr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ]`);
+    this.ctx.emit(`br label %${objEndLabel}`);
+
+    // Final merge
+    this.ctx.emit(`${objEndLabel}:`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi double [ ${numValue}, %${numberLabel} ], [ ${strDouble}, %${stringLabel} ]`);
-    this.ctx.setVariableType(result, 'double');
+    this.ctx.emit(`${result} = phi i8* [ ${itemPtr}, %${objectLabel} ], [ ${primResult}, %${primEndLabel} ]`);
+    this.ctx.setVariableType(result, 'i8*');
 
     return result;
   }
