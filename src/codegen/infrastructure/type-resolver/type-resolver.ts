@@ -15,7 +15,15 @@ export interface TypeResolverContext {
 }
 
 export class TypeResolver {
+  private interfaceCache = new Map<string, InterfaceDeclaration | null>();
+  private classCache = new Map<string, ClassNode | null>();
+
   constructor(private ctx: TypeResolverContext) {}
+
+  clearCaches(): void {
+    this.interfaceCache.clear();
+    this.classCache.clear();
+  }
 
   private stripOptional(name: string): string {
     if (name.endsWith('?')) {
@@ -25,13 +33,21 @@ export class TypeResolver {
   }
 
   getInterface(name: string): InterfaceDeclaration | null {
-    if (!this.ctx.ast?.interfaces) return null;
+    if (this.interfaceCache.has(name)) {
+      return this.interfaceCache.get(name) || null;
+    }
+    if (!this.ctx.ast?.interfaces) {
+      this.interfaceCache.set(name, null);
+      return null;
+    }
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
       const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
       if (iface.name === name) {
+        this.interfaceCache.set(name, iface);
         return iface;
       }
     }
+    this.interfaceCache.set(name, null);
     return null;
   }
 
@@ -161,13 +177,21 @@ export class TypeResolver {
   }
 
   getClass(name: string): ClassNode | null {
-    if (!this.ctx.ast?.classes) return null;
+    if (this.classCache.has(name)) {
+      return this.classCache.get(name) || null;
+    }
+    if (!this.ctx.ast?.classes) {
+      this.classCache.set(name, null);
+      return null;
+    }
     for (let i = 0; i < this.ctx.ast.classes.length; i++) {
       const cls = this.ctx.ast.classes[i] as ClassNode;
       if (cls.name === name) {
+        this.classCache.set(name, cls);
         return cls;
       }
     }
+    this.classCache.set(name, null);
     return null;
   }
 
