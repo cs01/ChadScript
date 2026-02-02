@@ -14,6 +14,7 @@ export interface FunctionGeneratorContext {
   syncStateToGenerators(): void;
   nextTemp(): string;
   emit(instruction: string): void;
+  setCurrentLabel(label: string): void;
   defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata?: Record<string, unknown>): void;
   generateBlock(block: BlockStatement, params: string[]): string | null;
   generateExpression(expr: Expression, params: string[]): string;
@@ -33,6 +34,13 @@ export interface FunctionGeneratorContext {
 
 export class FunctionGenerator {
   constructor(private ctx: FunctionGeneratorContext) {}
+
+  private stripOptional(name: string): string {
+    if (name.endsWith('?')) {
+      return name.slice(0, -1);
+    }
+    return name;
+  }
 
   generate(func: FunctionNode): string {
     this.ctx.reset();
@@ -149,6 +157,7 @@ export class FunctionGenerator {
     ir += paramStrings.join(', ');
     ir += ') {\n';
     ir += 'entry:\n';
+    this.ctx.setCurrentLabel('entry');
 
     for (let i = 0; i < func.params.length; i++) {
       const paramName = func.params[i];
@@ -201,7 +210,7 @@ export class FunctionGenerator {
             const types: string[] = [];
             for (let j = 0; j < interfaceDef.fields.length; j++) {
               const field = interfaceDef.fields[j] as { name: string; type: string };
-              keys.push(field.name);
+              keys.push(this.stripOptional(field.name));
               types.push(this.tsTypeToLlvm(field.type));
             }
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
@@ -282,6 +291,26 @@ export class FunctionGenerator {
 
     const result = this.ctx.generateBlock(func.body, func.params);
 
+    // Check for and fix incomplete return statements
+    for (let i = 0; i < this.ctx.output.length; i++) {
+      const line = this.ctx.output[i].trim();
+      // Match 'ret <type>' without a value (e.g., 'ret i8*' or 'ret double')
+      const retMatch = line.match(/^ret (i8\*|double|%\w+\*?)$/);
+      if (retMatch) {
+        const retType = retMatch[1];
+        let defaultValue: string;
+        if (retType === 'double') {
+          defaultValue = '0.0';
+        } else if (retType === 'i8*') {
+          this.ctx.syncStateToGenerators();
+          defaultValue = this.ctx.stringGen.createStringConstant('');
+        } else {
+          defaultValue = 'null';
+        }
+        this.ctx.output[i] = `ret ${retType} ${defaultValue}`;
+      }
+    }
+
     if (this.ctx.output.length > 0) {
       ir += this.ctx.output.map(line => '  ' + line).join('\n') + '\n';
     }
@@ -298,7 +327,7 @@ export class FunctionGenerator {
         ir += `  ret %Promise* ${this.ctx.asyncResultPromise}\n`;
       } else if (returnTypeIsVoid) {
         ir += '  ret void\n';
-      } else if (result !== null) {
+      } else if (result !== null && result !== '' && result !== '0') {
         ir += `  ret ${returnType} ${result}\n`;
       } else {
         if (returnTypeIsString) {
@@ -406,7 +435,7 @@ export class FunctionGenerator {
     const types: string[] = [];
     for (let i = 0; i < commonFields.length; i++) {
       const cf = commonFields[i] as CommonField;
-      keys.push(cf.name);
+      keys.push(this.stripOptional(cf.name));
       types.push(this.tsTypeToLlvm(cf.type));
     }
 
@@ -482,6 +511,7 @@ export class FunctionGenerator {
   generateMain(topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>): string {
     let ir = 'define i32 @main(i32 %argc, i8** %argv) {\n';
     ir += 'entry:\n';
+    this.ctx.setCurrentLabel('entry');
 
     ir += '  ; Initialize garbage collector\n';
     ir += '  call void @GC_init()\n';

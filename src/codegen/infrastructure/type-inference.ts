@@ -414,6 +414,9 @@ export class TypeInference {
         if (varType === '%StringArray*') {
           return true;
         }
+        if (varType === 'i8*') {
+          return true;
+        }
       }
       if (idxObjBase.type === 'member_access') {
         const memberAccess = indexExpr.object as MemberAccessNode;

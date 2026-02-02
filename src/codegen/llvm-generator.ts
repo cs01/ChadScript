@@ -542,7 +542,26 @@ export class LLVMGenerator extends BaseGenerator {
           this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
         }
       } else if (stmt.type === 'return') {
+        if (!stmt.value) {
+          // Return without value - use default based on return type
+          if (this.currentFunctionReturnType === 'void') {
+            this.emit(`ret void`);
+          } else if (this.currentFunctionReturnType === 'i8*') {
+            this.syncStateToGenerators();
+            const emptyStr = this.stringGen.createStringConstant('');
+            this.emit(`ret i8* ${emptyStr}`);
+          } else {
+            this.emit(`ret ${this.currentFunctionReturnType} 0.0`);
+          }
+          hasTerminator = true;
+          continue;
+        }
+
         lastValue = this.generateExpression(stmt.value as Expression, params);
+
+        if (!lastValue || lastValue === '') {
+          throw new Error(`Return statement generated empty value for function ${this.currentFunction}`);
+        }
 
         if (this.isAsyncFunction) {
           const valueAsPtr = this.nextTemp();
@@ -559,7 +578,11 @@ export class LLVMGenerator extends BaseGenerator {
             }
           }
 
-          this.emit(`ret ${this.currentFunctionReturnType} ${lastValue}`);
+          if (this.currentFunctionReturnType === 'void') {
+            this.emit(`ret void`);
+          } else {
+            this.emit(`ret ${this.currentFunctionReturnType} ${lastValue}`);
+          }
         }
         hasTerminator = true;
       } else if (stmt.type === 'if') {
@@ -629,6 +652,10 @@ export class LLVMGenerator extends BaseGenerator {
 
   public isArrayExpression(expr: Expression): boolean {
     return this.typeInference.isArrayExpression(expr);
+  }
+
+  public isObjectArrayExpression(expr: Expression): boolean {
+    return this.typeInference.isObjectArrayExpression(expr);
   }
 
   public isObjectExpression(expr: Expression): boolean {
