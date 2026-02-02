@@ -4,12 +4,13 @@ import { IGeneratorContext } from '../infrastructure/generator-context.js';
 /**
  * Console Method Generator
  *
- * Generates LLVM IR for console.log() and console.error() methods.
+ * Generates LLVM IR for console.log(), console.error(), and console.warn() methods.
  * Uses printf for stdout and fprintf for stderr.
  *
  * Supported methods:
  * - console.log(value) → printf to stdout
  * - console.error(value) → fprintf to stderr
+ * - console.warn(value) → fprintf to stderr (same as error)
  *
  * Supported value types:
  * - Strings: Uses "%s\n" format
@@ -25,7 +26,7 @@ export class ConsoleGenerator {
   canHandle(expr: MethodCallNode): boolean {
     return expr.object.type === 'variable' &&
            (expr.object as any).name === 'console' &&
-           (expr.method === 'log' || expr.method === 'error');
+           (expr.method === 'log' || expr.method === 'error' || expr.method === 'warn');
   }
 
   /**
@@ -45,12 +46,13 @@ export class ConsoleGenerator {
     // Handle console.log(value) - print first argument
     // For simplicity, we only handle one argument at a time
     const arg = args[0];
+    const argTyped = arg as { type: string; name: string };
     const argValue = this.ctx.generateExpression(arg, params);
     const isString = this.ctx.isStringExpression(arg);
 
     // Check if it's a Response object (from fetch())
-    if (arg.type === 'variable') {
-      const varType = this.ctx.getVariableType((arg as any).name);
+    if (argTyped.type === 'variable') {
+      const varType = this.ctx.getVariableType(argTyped.name);
       if (varType === '%Response*') {
         return this.generateResponsePrint(method, argValue);
       }
@@ -70,7 +72,7 @@ export class ConsoleGenerator {
     const formatStr = this.ctx.createStringConstant('\n');
     const temp = this.ctx.nextTemp();
 
-    if (method === 'error') {
+    if (method === 'error' || method === 'warn') {
       // fprintf(stderr, "\n")
       this.ctx.emit(`${temp} = load i8*, i8** @stderr`);
       const temp2 = this.ctx.nextTemp();
@@ -90,7 +92,7 @@ export class ConsoleGenerator {
     const formatStr = this.ctx.createStringConstant('%s\n');
     const temp = this.ctx.nextTemp();
 
-    if (method === 'error') {
+    if (method === 'error' || method === 'warn') {
       // fprintf(stderr, "%s\n", value)
       this.ctx.emit(`${temp} = load i8*, i8** @stderr`);
       const temp2 = this.ctx.nextTemp();
@@ -110,7 +112,7 @@ export class ConsoleGenerator {
     const formatStr = this.ctx.createStringConstant('%g\n');
     const temp = this.ctx.nextTemp();
 
-    if (method === 'error') {
+    if (method === 'error' || method === 'warn') {
       // fprintf(stderr, "%g\n", value)
       this.ctx.emit(`${temp} = load i8*, i8** @stderr`);
       const temp2 = this.ctx.nextTemp();

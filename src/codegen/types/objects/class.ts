@@ -474,6 +474,7 @@ export class ClassGenerator {
     const argParts: string[] = [];
     for (let ai = 0; ai < args.length; ai++) {
       const arg = args[ai];
+      const argTyped = arg as { type: string };
       const val = this.ctx.generateExpression(arg, params);
 
       // Use the declared paramType if available, otherwise infer
@@ -482,13 +483,13 @@ export class ClassGenerator {
         argType = paramLLVMTypes[ai];
       } else {
         // Fallback inference for variadic or untyped params
-        if (this.variableTypes.has(val)) {
+        if (this.ctx.variableTypes.has(val)) {
           argType = this.ctx.getVariableType(val)!;
         } else if (val.startsWith('@.str')) {
           argType = 'i8*';
-        } else if (arg.type === 'variable') {
+        } else if (argTyped.type === 'variable') {
           const varName = (arg as VariableNode).name;
-          if (this.variableTypes.has(`%${varName}`)) {
+          if (this.ctx.variableTypes.has(`%${varName}`)) {
             argType = this.ctx.getVariableType(`%${varName}`)!;
           }
         }

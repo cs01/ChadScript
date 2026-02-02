@@ -34,7 +34,7 @@ export class RegexGenerator {
     const length = pattern.length + 1;
     const globalName = this.nextString();
 
-    this.globalStrings.push(
+    this.ctx.globalStrings.push(
       `${globalName} = private unnamed_addr constant [${length} x i8] c"${escaped}\\00", align 1`
     );
 
@@ -89,7 +89,7 @@ export class RegexGenerator {
     // Convert to double for JavaScript semantics
     const result = this.nextTemp();
     this.emit(`${result} = sitofp i32 ${i32Result} to double`);
-    this.variableTypes.set(result, 'double');
+    this.ctx.variableTypes.set(result, 'double');
 
     return result;
   }
@@ -197,7 +197,7 @@ export class RegexGenerator {
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
     this.emit(`${result} = phi i8* [ null, %${noMatchLabel} ], [ ${arrayPtr}, %${matchLabel} ]`);
-    this.variableTypes.set(result, 'i8*');
+    this.ctx.variableTypes.set(result, 'i8*');
 
     return result;
   }
