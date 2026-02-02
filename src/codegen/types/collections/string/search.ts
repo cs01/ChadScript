@@ -4,150 +4,132 @@ import { BaseGenerator } from '../../../infrastructure/base-generator.js';
 // STRING SEARCH - String search and query operations
 // ============================================
 
-export function generateStartsWith(this: BaseGenerator, strPtr: string, prefix: string): string {
-  const prefixLen = this.nextTemp();
-  this.emit(`${prefixLen} = call i64 @strlen(i8* ${prefix})`);
+export function generateStartsWith(ctx: BaseGenerator, strPtr: string, prefix: string): string {
+  const prefixLen = ctx.nextTemp();
+  ctx.emit(`${prefixLen} = call i64 @strlen(i8* ${prefix})`);
 
-  const cmpResult = this.nextTemp();
-  this.emit(`${cmpResult} = call i32 @strncmp(i8* ${strPtr}, i8* ${prefix}, i64 ${prefixLen})`);
+  const cmpResult = ctx.nextTemp();
+  ctx.emit(`${cmpResult} = call i32 @strncmp(i8* ${strPtr}, i8* ${prefix}, i64 ${prefixLen})`);
 
-  const result = this.nextTemp();
-  this.emit(`${result} = icmp eq i32 ${cmpResult}, 0`);
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = icmp eq i32 ${cmpResult}, 0`);
 
-  const resultI32 = this.nextTemp();
-  this.emit(`${resultI32} = zext i1 ${result} to i32`);
+  const resultI32 = ctx.nextTemp();
+  ctx.emit(`${resultI32} = zext i1 ${result} to i32`);
 
   return resultI32;
 }
 
-export function generateCharAt(this: BaseGenerator, strPtr: string, index: string): string {
-  // Get the character at the given index and return it as a single-character string
+export function generateCharAt(ctx: BaseGenerator, strPtr: string, index: string): string {
+  const indexI64 = ctx.nextTemp();
+  ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
 
-  // Convert index to i64 for getelementptr
-  const indexI64 = this.nextTemp();
-  this.emit(`${indexI64} = sext i32 ${index} to i64`);
+  const charPtr = ctx.nextTemp();
+  ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
 
-  // Get pointer to the character at index
-  const charPtr = this.nextTemp();
-  this.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
+  const charI8 = ctx.nextTemp();
+  ctx.emit(`${charI8} = load i8, i8* ${charPtr}`);
 
-  // Load the character
-  const charI8 = this.nextTemp();
-  this.emit(`${charI8} = load i8, i8* ${charPtr}`);
+  const resultPtr = ctx.nextTemp();
+  ctx.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 2)`);
 
-  // Allocate a 2-byte buffer for single-char string (char + null terminator)
-  const resultPtr = this.nextTemp();
-  this.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 2)`);
+  ctx.emit(`store i8 ${charI8}, i8* ${resultPtr}`);
 
-  // Store the character in the buffer
-  this.emit(`store i8 ${charI8}, i8* ${resultPtr}`);
-
-  // Store null terminator
-  const nullPtr = this.nextTemp();
-  this.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 1`);
-  this.emit(`store i8 0, i8* ${nullPtr}`);
+  const nullPtr = ctx.nextTemp();
+  ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 1`);
+  ctx.emit(`store i8 0, i8* ${nullPtr}`);
 
   return resultPtr;
 }
 
-export function generateIndexOf(this: BaseGenerator, strPtr: string, substring: string): string {
-  // Use strstr to find the substring
-  const foundPtr = this.nextTemp();
-  this.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${substring})`);
+export function generateIndexOf(ctx: BaseGenerator, strPtr: string, substring: string): string {
+  const foundPtr = ctx.nextTemp();
+  ctx.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${substring})`);
 
-  // Check if substring was found (strstr returns NULL if not found)
-  const isNull = this.nextTemp();
-  this.emit(`${isNull} = icmp eq i8* ${foundPtr}, null`);
+  const isNull = ctx.nextTemp();
+  ctx.emit(`${isNull} = icmp eq i8* ${foundPtr}, null`);
 
-  const notFoundLabel = this.nextLabel('indexof_notfound');
-  const foundLabel = this.nextLabel('indexof_found');
-  const endLabel = this.nextLabel('indexof_end');
+  const notFoundLabel = ctx.nextLabel('indexof_notfound');
+  const foundLabel = ctx.nextLabel('indexof_found');
+  const endLabel = ctx.nextLabel('indexof_end');
 
-  this.emit(`br i1 ${isNull}, label %${notFoundLabel}, label %${foundLabel}`);
+  ctx.emit(`br i1 ${isNull}, label %${notFoundLabel}, label %${foundLabel}`);
 
-  // Not found - return -1
-  this.emit(`${notFoundLabel}:`);
-  this.emit(`br label %${endLabel}`);
+  ctx.emit(`${notFoundLabel}:`);
+  ctx.emit(`br label %${endLabel}`);
 
-  // Found - calculate index by subtracting pointers
-  this.emit(`${foundLabel}:`);
-  const strPtrInt = this.nextTemp();
-  this.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
-  const foundPtrInt = this.nextTemp();
-  this.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
-  const indexI64 = this.nextTemp();
-  this.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
-  const indexI32 = this.nextTemp();
-  this.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
-  this.emit(`br label %${endLabel}`);
+  ctx.emit(`${foundLabel}:`);
+  const strPtrInt = ctx.nextTemp();
+  ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
+  const foundPtrInt = ctx.nextTemp();
+  ctx.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
+  const indexI64 = ctx.nextTemp();
+  ctx.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
+  const indexI32 = ctx.nextTemp();
+  ctx.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+  ctx.emit(`br label %${endLabel}`);
 
-  // End - phi node to select result (-1 or index)
-  this.emit(`${endLabel}:`);
-  const resultI32 = this.nextTemp();
-  this.emit(`${resultI32} = phi i32 [ -1, %${notFoundLabel} ], [ ${indexI32}, %${foundLabel} ]`);
+  ctx.emit(`${endLabel}:`);
+  const resultI32 = ctx.nextTemp();
+  ctx.emit(`${resultI32} = phi i32 [ -1, %${notFoundLabel} ], [ ${indexI32}, %${foundLabel} ]`);
 
-  // Convert to double for compatibility with ChadScript's numeric type
-  const result = this.nextTemp();
-  this.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
 
   return result;
 }
 
-export function generateIncludes(this: BaseGenerator, strPtr: string, substring: string): string {
-  // Use strstr to find the substring
-  const foundPtr = this.nextTemp();
-  this.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${substring})`);
+export function generateIncludes(ctx: BaseGenerator, strPtr: string, substring: string): string {
+  const foundPtr = ctx.nextTemp();
+  ctx.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${substring})`);
 
-  // Check if substring was found (strstr returns NULL if not found)
-  // Return 1 if found (not null), 0 if not found (null)
-  const isNull = this.nextTemp();
-  this.emit(`${isNull} = icmp ne i8* ${foundPtr}, null`);
+  const isNull = ctx.nextTemp();
+  ctx.emit(`${isNull} = icmp ne i8* ${foundPtr}, null`);
 
-  // Convert i1 to i32, then to double for compatibility
-  const resultI32 = this.nextTemp();
-  this.emit(`${resultI32} = zext i1 ${isNull} to i32`);
+  const resultI32 = ctx.nextTemp();
+  ctx.emit(`${resultI32} = zext i1 ${isNull} to i32`);
 
-  const result = this.nextTemp();
-  this.emit(`${result} = sitofp i32 ${resultI32} to double`);
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
 
   return result;
 }
 
-export function generateEndsWith(this: BaseGenerator, strPtr: string, suffix: string): string {
-  const strLen = this.nextTemp();
-  this.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+export function generateEndsWith(ctx: BaseGenerator, strPtr: string, suffix: string): string {
+  const strLen = ctx.nextTemp();
+  ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
 
-  const suffixLen = this.nextTemp();
-  this.emit(`${suffixLen} = call i64 @strlen(i8* ${suffix})`);
+  const suffixLen = ctx.nextTemp();
+  ctx.emit(`${suffixLen} = call i64 @strlen(i8* ${suffix})`);
 
-  const suffixLonger = this.nextTemp();
-  this.emit(`${suffixLonger} = icmp ugt i64 ${suffixLen}, ${strLen}`);
+  const suffixLonger = ctx.nextTemp();
+  ctx.emit(`${suffixLonger} = icmp ugt i64 ${suffixLen}, ${strLen}`);
 
-  const checkLabel = this.nextLabel('endswith_check');
-  const falseLabel = this.nextLabel('endswith_false');
-  const endLabel = this.nextLabel('endswith_end');
+  const checkLabel = ctx.nextLabel('endswith_check');
+  const falseLabel = ctx.nextLabel('endswith_false');
+  const endLabel = ctx.nextLabel('endswith_end');
 
-  this.emit(`br i1 ${suffixLonger}, label %${falseLabel}, label %${checkLabel}`);
+  ctx.emit(`br i1 ${suffixLonger}, label %${falseLabel}, label %${checkLabel}`);
 
-  this.emit(`${checkLabel}:`);
-  const offset = this.nextTemp();
-  this.emit(`${offset} = sub i64 ${strLen}, ${suffixLen}`);
-  const strEnd = this.nextTemp();
-  this.emit(`${strEnd} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${offset}`);
-  const cmpResult = this.nextTemp();
-  this.emit(`${cmpResult} = call i32 @strcmp(i8* ${strEnd}, i8* ${suffix})`);
-  const matches = this.nextTemp();
-  this.emit(`${matches} = icmp eq i32 ${cmpResult}, 0`);
-  const matchesI32 = this.nextTemp();
-  this.emit(`${matchesI32} = zext i1 ${matches} to i32`);
-  this.emit(`br label %${endLabel}`);
+  ctx.emit(`${checkLabel}:`);
+  const offset = ctx.nextTemp();
+  ctx.emit(`${offset} = sub i64 ${strLen}, ${suffixLen}`);
+  const strEnd = ctx.nextTemp();
+  ctx.emit(`${strEnd} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${offset}`);
+  const cmpResult = ctx.nextTemp();
+  ctx.emit(`${cmpResult} = call i32 @strcmp(i8* ${strEnd}, i8* ${suffix})`);
+  const matches = ctx.nextTemp();
+  ctx.emit(`${matches} = icmp eq i32 ${cmpResult}, 0`);
+  const matchesI32 = ctx.nextTemp();
+  ctx.emit(`${matchesI32} = zext i1 ${matches} to i32`);
+  ctx.emit(`br label %${endLabel}`);
 
-  this.emit(`${falseLabel}:`);
-  this.emit(`br label %${endLabel}`);
+  ctx.emit(`${falseLabel}:`);
+  ctx.emit(`br label %${endLabel}`);
 
-  this.emit(`${endLabel}:`);
-  const resultI32 = this.nextTemp();
-  this.emit(`${resultI32} = phi i32 [ ${matchesI32}, %${checkLabel} ], [ 0, %${falseLabel} ]`);
+  ctx.emit(`${endLabel}:`);
+  const resultI32 = ctx.nextTemp();
+  ctx.emit(`${resultI32} = phi i32 [ ${matchesI32}, %${checkLabel} ], [ 0, %${falseLabel} ]`);
 
   return resultI32;
 }
