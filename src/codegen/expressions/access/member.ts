@@ -113,6 +113,13 @@ export interface MemberAccessGeneratorContext {
 export class MemberAccessGenerator {
   constructor(private ctx: MemberAccessGeneratorContext) {}
 
+  private stripOptional(name: string): string {
+    if (name.endsWith('?')) {
+      return name.slice(0, -1);
+    }
+    return name;
+  }
+
   private getInterfaceFromAST(name: string): InterfaceInfo | null {
     const baseName = this.extractBaseTypeName(name);
     if (!this.ctx.ast?.interfaces) return null;
@@ -122,7 +129,11 @@ export class MemberAccessGenerator {
         const properties: InterfaceProperty[] = [];
         for (let j = 0; j < iface.fields.length; j++) {
           const field = iface.fields[j] as { name: string; type: string };
-          properties.push({ name: field.name, type: field.type });
+          let fieldName = field.name;
+          if (fieldName.endsWith('?')) {
+            fieldName = fieldName.slice(0, -1);
+          }
+          properties.push({ name: fieldName, type: field.type });
         }
         return { properties };
       }
@@ -283,6 +294,10 @@ export class MemberAccessGenerator {
       // Handle chained interface property access (e.g., symbol.objectMetadata.keys)
       const chainedResult = this.handleChainedInterfaceAccess(expr, params);
       if (chainedResult !== null) return chainedResult;
+
+      // Handle class field chained access (e.g., this.ast.topLevelStatements)
+      const classFieldChainResult = this.handleClassFieldChainedAccess(expr, params);
+      if (classFieldChainResult !== null) return classFieldChainResult;
     }
 
     // Handle indexed access to object array elements (e.g., arr[i].property)
@@ -367,12 +382,23 @@ export class MemberAccessGenerator {
     }
 
     const value = member.value;
-    const result = this.ctx.nextTemp();
-    const valueStr = String(value);
-    const formattedValue = valueStr.indexOf('.') === -1 ? valueStr + '.0' : valueStr;
-    this.ctx.emit(`${result} = fadd double ${formattedValue}, 0.0`);
-    this.ctx.setVariableType(result, 'double');
-    return result;
+    const valueNum = Number(value);
+    const isNumeric = !isNaN(valueNum);
+    if (!isNumeric) {
+      const strValue = String(value);
+      const strId = this.ctx.stringGen.createStringConstant(strValue);
+      const result = this.ctx.nextTemp();
+      this.ctx.emit(`${result} = getelementptr inbounds [${strValue.length + 1} x i8], [${strValue.length + 1} x i8]* ${strId}, i32 0, i32 0`);
+      this.ctx.setVariableType(result, 'i8*');
+      return result;
+    } else {
+      const result = this.ctx.nextTemp();
+      const valueStr = String(value);
+      const formattedValue = valueStr.indexOf('.') === -1 ? valueStr + '.0' : valueStr;
+      this.ctx.emit(`${result} = fadd double ${formattedValue}, 0.0`);
+      this.ctx.setVariableType(result, 'double');
+      return result;
+    }
   }
 
   private handleTypedJsonStructAccess(expr: MemberAccessNode): string | null {
@@ -457,7 +483,7 @@ export class MemberAccessGenerator {
           const nestedProps = nestedInterface.properties as InterfaceProperty[];
           for (let pi = 0; pi < nestedProps.length; pi++) {
             const p = nestedProps[pi] as { name: string; type: string };
-            keys.push(p.name);
+            keys.push(this.stripOptional(p.name));
             types.push(this.tsTypeToLlvm(p.type));
             tsTypes.push(p.type);
           }
@@ -582,6 +608,7 @@ export class MemberAccessGenerator {
     if (fieldInfo.type === 'string') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+      this.ctx.setVariableType(value, 'i8*');
       if (fieldInfo.tsType) {
         this.storeInterfaceMetadata(value, fieldInfo.tsType);
       }
@@ -623,10 +650,16 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load %Set*, %Set** ${fieldPtr}`);
       this.ctx.setVariableType(value, '%Set*');
       return value;
-    } else {
+    } else if ((fieldInfo.type === 'double' || fieldInfo.type === 'number') &&
+               (!fieldInfo.tsType || fieldInfo.tsType === 'number' || fieldInfo.tsType === 'boolean')) {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
       this.ctx.setVariableType(value, 'double');
+      return value;
+    } else {
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+      this.ctx.setVariableType(value, 'i8*');
       if (fieldInfo.tsType) {
         this.storeInterfaceMetadata(value, fieldInfo.tsType);
       }
@@ -643,7 +676,7 @@ export class MemberAccessGenerator {
       const types: string[] = [];
       for (let i = 0; i < interfaceDef.fields.length; i++) {
         const f = interfaceDef.fields[i] as { name: string; type: string };
-        keys.push(f.name);
+        keys.push(this.stripOptional(f.name));
         tsTypes.push(f.type);
         types.push(this.tsTypeToLlvm(f.type));
       }
@@ -693,7 +726,7 @@ export class MemberAccessGenerator {
       const types: string[] = [];
       for (let i = 0; i < nestedInterfaceDef.fields.length; i++) {
         const f = nestedInterfaceDef.fields[i] as { name: string; type: string };
-        keys.push(f.name);
+        keys.push(this.stripOptional(f.name));
         tsTypes.push(f.type);
         types.push(this.tsTypeToLlvm(f.type));
       }
@@ -710,6 +743,18 @@ export class MemberAccessGenerator {
     if (t === 'boolean') return 'double';
     if (t === 'string[]') return '%StringArray*';
     if (t === 'number[]') return '%Array*';
+    return 'i8*';
+  }
+
+  private interfaceTsTypeToLlvm(t: string): string {
+    if (t === 'string') return 'i8*';
+    if (t === 'number') return 'double';
+    if (t === 'boolean') return 'double';
+    if (t === 'string[]') return '%StringArray*';
+    if (t === 'number[]' || t === 'boolean[]') return '%Array*';
+    if (t.endsWith('[]')) return '%Array*';
+    const interfaceInfo = this.getInterfaceFromAST(t);
+    if (interfaceInfo) return `%${t}*`;
     return 'i8*';
   }
 
@@ -868,6 +913,91 @@ export class MemberAccessGenerator {
     }
   }
 
+  private handleClassFieldChainedAccess(expr: MemberAccessNode, params: string[]): string | null {
+    const innerExpr = expr.object as MemberAccessNode;
+    const innerObjBase = innerExpr.object as ExprBase;
+
+    if (innerObjBase.type !== 'this') return null;
+
+    const className = this.ctx.currentClassName || this.ctx.classGen?.currentClassName;
+    if (!className) return null;
+
+    const fieldName = innerExpr.property;
+    const fieldInfoResult = this.ctx.classGen?.getFieldInfo(className, fieldName);
+    if (!fieldInfoResult) return null;
+    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+    if (!fieldInfo.tsType) return null;
+
+    const interfaceDefResult = this.getInterfaceDecl(fieldInfo.tsType);
+    if (!interfaceDefResult) {
+      const interfaceInfoResult = this.getInterfaceFromAST(fieldInfo.tsType);
+      if (!interfaceInfoResult) return null;
+      const interfaceInfo = interfaceInfoResult as InterfaceInfo;
+
+      let propIndex = -1;
+      for (let i = 0; i < interfaceInfo.properties.length; i++) {
+        const p = interfaceInfo.properties[i] as InterfaceProperty;
+        if (p.name === expr.property) {
+          propIndex = i;
+          break;
+        }
+      }
+      if (propIndex === -1) return null;
+
+      const innerPtr = this.ctx.generateExpression(expr.object, params);
+      const propField = interfaceInfo.properties[propIndex] as InterfaceProperty;
+      const propType = propField.type;
+      const llvmType = this.tsTypeToLlvm(propType);
+
+      const fieldPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${fieldInfo.tsType}, %${fieldInfo.tsType}* ${innerPtr}, i32 0, i32 ${propIndex}`);
+
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load ${llvmType}, ${llvmType}* ${fieldPtr}`);
+      this.ctx.setVariableType(value, llvmType);
+      return value;
+    }
+
+    const interfaceDef = interfaceDefResult as InterfaceDeclaration;
+    let propIndex = -1;
+    let propTsType: string | undefined;
+    for (let i = 0; i < interfaceDef.fields.length; i++) {
+      const f = interfaceDef.fields[i] as { name: string; type: string };
+      const fName = this.stripOptional(f.name);
+      if (fName === expr.property) {
+        propIndex = i;
+        propTsType = f.type;
+        break;
+      }
+    }
+    if (propIndex === -1) return null;
+
+    const innerPtr = this.ctx.generateExpression(expr.object, params);
+
+    this.ctx.syncStateToGenerators();
+    const fieldNameStr = this.ctx.stringGen.createStringConstant(expr.property);
+    const fieldItem = this.ctx.nextTemp();
+    this.ctx.emit(`${fieldItem} = call i8* @cJSON_GetObjectItem(i8* ${innerPtr}, i8* ${fieldNameStr})`);
+
+    if (propTsType === 'string') {
+      const strValue = this.ctx.nextTemp();
+      this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${fieldItem})`);
+      this.ctx.setVariableType(strValue, 'i8*');
+      return strValue;
+    } else if (propTsType === 'number' || propTsType === 'boolean') {
+      const numValue = this.ctx.nextTemp();
+      this.ctx.emit(`${numValue} = call double @cJSON_GetNumberValue(i8* ${fieldItem})`);
+      this.ctx.setVariableType(numValue, 'double');
+      return numValue;
+    } else {
+      this.ctx.setVariableType(fieldItem, 'i8*');
+      if (propTsType) {
+        this.storeInterfaceMetadata(fieldItem, propTsType);
+      }
+      return fieldItem;
+    }
+  }
+
   private handleIndexAccessPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
     const indexAccess = expr.object as IndexAccessNode;
     const elementInfoRaw = this.getObjectArrayElementInfo(indexAccess.object);
@@ -969,7 +1099,7 @@ export class MemberAccessGenerator {
         const tsTypes: string[] = [];
         for (let j = 0; j < iface.fields.length; j++) {
           const f = iface.fields[j] as { name: string; type: string };
-          keys.push(f.name);
+          keys.push(this.stripOptional(f.name));
           tsTypes.push(f.type);
           if (f.type === 'string') {
             types.push('i8*');
@@ -996,7 +1126,7 @@ export class MemberAccessGenerator {
     const tsTypes: string[] = [];
     for (let i = 0; i < typeAliasProps.properties.length; i++) {
       const p = typeAliasProps.properties[i] as InterfaceProperty;
-      keys.push(p.name);
+      keys.push(this.stripOptional(p.name));
       tsTypes.push(p.type);
       types.push(this.tsTypeToLlvm(p.type));
     }
@@ -1073,7 +1203,7 @@ export class MemberAccessGenerator {
               const tsTypes: string[] = [];
               for (let j = 0; j < fields.length; j++) {
                 const f = fields[j] as { name: string; type: string };
-                keys.push(f.name);
+                keys.push(this.stripOptional(f.name));
                 tsTypes.push(f.type);
                 if (f.type === 'string') {
                   types.push('i8*');
@@ -1104,7 +1234,7 @@ export class MemberAccessGenerator {
                 const tsTypes: string[] = [];
                 for (let j = 0; j < fields.length; j++) {
                   const f = fields[j] as { name: string; type: string };
-                  keys.push(f.name);
+                  keys.push(this.stripOptional(f.name));
                   tsTypes.push(f.type);
                   if (f.type === 'string') {
                     types.push('i8*');
@@ -1196,7 +1326,11 @@ export class MemberAccessGenerator {
       if (iface.name === interfaceName) {
         for (let j = 0; j < iface.fields.length; j++) {
           const f = iface.fields[j] as { name: string; type: string };
-          if (f.name === fieldName) {
+          let fName = f.name;
+          if (fName.endsWith('?')) {
+            fName = fName.slice(0, -1);
+          }
+          if (fName === fieldName) {
             return f.type;
           }
         }
@@ -1465,6 +1599,23 @@ export class MemberAccessGenerator {
         const arrayPtr = this.ctx.generateExpression(expr.object, params);
         return this.getArrayLengthFromPtr(arrayPtr, '%Array');
       }
+    } else if (innerAccessObjBase.type === 'variable') {
+      const varName = (innerAccess.object as VariableNode).name;
+      if (params.indexOf(varName) !== -1) {
+        const paramInterfaceType = this.getParameterTypeFromAST(varName);
+        if (paramInterfaceType) {
+          const fieldType = this.getInterfaceFieldType(paramInterfaceType, innerAccess.property);
+          if (fieldType) {
+            if (fieldType === 'string[]') {
+              const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
+              return this.getStringArrayLength(stringArrayPtr);
+            } else if (fieldType.endsWith('[]')) {
+              const arrayPtr = this.ctx.generateExpression(expr.object, params);
+              return this.getArrayLengthFromPtr(arrayPtr, '%Array');
+            }
+          }
+        }
+      }
     } else if (innerAccessObjBase.type === 'this') {
       const className = this.ctx.currentClassName || this.ctx.classGen.currentClassName;
       if (className) {
@@ -1591,19 +1742,16 @@ export class MemberAccessGenerator {
               const structTypes: string[] = [];
               for (let i = 0; i < interfaceDef.properties.length; i++) {
                 const prop = interfaceDef.properties[i] as InterfaceProperty;
-                const t = prop.type;
-                if (t === 'string') structTypes.push('i8*');
-                else if (t === 'number') structTypes.push('double');
-                else if (t === 'boolean') structTypes.push('i32');
-                else structTypes.push('i8*');
+                structTypes.push(this.interfaceTsTypeToLlvm(prop.type));
               }
               const structType = `{ ${structTypes.join(', ')} }`;
-              const objPtrI32 = this.ctx.nextTemp();
-              this.ctx.emit(`${objPtrI32} = load i32, i32* ${paramPtr}`);
+              const objPtrRaw = this.ctx.nextTemp();
+              this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${paramPtr}`);
               const objPtr = this.ctx.nextTemp();
-              this.ctx.emit(`${objPtr} = inttoptr i32 ${objPtrI32} to ${structType}*`);
+              this.ctx.emit(`${objPtr} = bitcast i8* ${objPtrRaw} to ${structType}*`);
               const fieldPtr = this.ctx.nextTemp();
               this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${propIndex}`);
+              const llvmFieldType = this.interfaceTsTypeToLlvm(propType);
               if (propType === 'string') {
                 const value = this.ctx.nextTemp();
                 this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
@@ -1615,9 +1763,25 @@ export class MemberAccessGenerator {
                 this.ctx.setVariableType(value, 'double');
                 return value;
               } else if (propType === 'boolean') {
+                const boolVal = this.ctx.nextTemp();
+                this.ctx.emit(`${boolVal} = load double, double* ${fieldPtr}`);
+                this.ctx.setVariableType(boolVal, 'double');
+                return boolVal;
+              } else if (propType === 'string[]') {
                 const value = this.ctx.nextTemp();
-                this.ctx.emit(`${value} = load i32, i32* ${fieldPtr}`);
-                this.ctx.setVariableType(value, 'i32');
+                this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
+                this.ctx.setVariableType(value, '%StringArray*');
+                return value;
+              } else if (propType.endsWith('[]')) {
+                const value = this.ctx.nextTemp();
+                this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
+                this.ctx.setVariableType(value, '%Array*');
+                return value;
+              } else {
+                const value = this.ctx.nextTemp();
+                this.ctx.emit(`${value} = load ${llvmFieldType}, ${llvmFieldType}* ${fieldPtr}`);
+                this.ctx.setVariableType(value, llvmFieldType);
+                this.storeInterfaceMetadata(value, propType);
                 return value;
               }
             }

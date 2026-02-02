@@ -355,6 +355,7 @@ export class ClassGenerator {
     this.ctx.currentClassName = className;
     this.ctx.currentFunction = method.name;
     this.ctx.currentFunctionReturnType = returnLLVMType;
+    this.ctx.currentFunctionTsReturnType = method.returnType;
 
     for (let i = 0; i < method.params.length; i++) {
       const paramName = method.params[i];

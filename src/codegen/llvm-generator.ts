@@ -47,6 +47,7 @@ export class LLVMGenerator extends BaseGenerator {
   public currentDeclaredMapType: string | undefined;
   public currentDeclaredSetType: string | undefined;
   public currentFunctionReturnType: string = 'double';
+  public currentFunctionTsReturnType: string | undefined;
   public isAsyncFunction: boolean = false;
   public asyncResultPromise: string = '';
 
@@ -121,6 +122,22 @@ export class LLVMGenerator extends BaseGenerator {
     return error;
   }
 
+  private extractInlineInterfaceType(returnType: string): string | null {
+    if (returnType.startsWith('{')) {
+      return returnType;
+    }
+    if (returnType.indexOf(' | ') !== -1) {
+      const parts = returnType.split(' | ');
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i].trim();
+        if (part.startsWith('{')) {
+          return part;
+        }
+      }
+    }
+    return null;
+  }
+
   // Helper: Extract object literal metadata (keys and types)
   private getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (objExpr.type !== 'object') {
@@ -138,8 +155,10 @@ export class LLVMGenerator extends BaseGenerator {
 
       if (prop.value.type === 'string' || this.isStringExpression(prop.value)) {
         llvmType = 'i8*';
-      } else if (prop.value.type === 'array') {
+      } else if (prop.value.type === 'array' || this.isStringArrayExpression(prop.value)) {
         llvmType = this.isStringArrayExpression(prop.value) ? '%StringArray*' : '%Array*';
+      } else if (this.isArrayExpression(prop.value)) {
+        llvmType = '%Array*';
       } else if (prop.value.type === 'map') {
         llvmType = '%Map*';
       } else if (prop.value.type === 'set') {
@@ -557,7 +576,15 @@ export class LLVMGenerator extends BaseGenerator {
           continue;
         }
 
+        const stmtValueBase = stmt.value as { type: string };
+        if (stmtValueBase.type === 'object' && this.currentFunctionTsReturnType) {
+          const inlineType = this.extractInlineInterfaceType(this.currentFunctionTsReturnType);
+          if (inlineType) {
+            this.currentDeclaredInterfaceType = inlineType;
+          }
+        }
         lastValue = this.generateExpression(stmt.value as Expression, params);
+        this.currentDeclaredInterfaceType = undefined;
 
         if (!lastValue || lastValue === '') {
           throw new Error(`Return statement generated empty value for function ${this.currentFunction}`);

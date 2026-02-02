@@ -192,6 +192,11 @@ export interface IGeneratorContext {
   currentFunctionReturnType: string;
 
   /**
+   * Current function TypeScript return type (for inline interface object generation)
+   */
+  currentFunctionTsReturnType: string | undefined;
+
+  /**
    * Expected array element type (for type-aware array generation)
    */
   expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
@@ -314,6 +319,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public variableTypes: Map<string, string> = new Map();
   public globalStrings: string[] = [];
   public currentFunctionReturnType = 'double';
+  public currentFunctionTsReturnType: string | undefined = undefined;
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null;
   public thisPointer: string | null = null;
   public currentClassName: string | null = null;
@@ -462,8 +468,35 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   emit(instruction: string): void {
+    // Quick validation for store instructions
+    if (instruction.startsWith('store ')) {
+      // Parse: "store <valueType> <value>, <ptrType> <ptr>"
+      // Find first space after "store "
+      const afterStore = instruction.substring(6);
+      const firstSpace = afterStore.indexOf(' ');
+      if (firstSpace > 0) {
+        const valueType = afterStore.substring(0, firstSpace);
+        const commaPos = instruction.indexOf(',');
+        if (commaPos > 0) {
+          // Skip ", " (comma + space)
+          const afterComma = instruction.substring(commaPos + 2);
+          const ptrTypeEnd = afterComma.indexOf(' ');
+          if (ptrTypeEnd > 0) {
+            const ptrType = afterComma.substring(0, ptrTypeEnd);
+            if (ptrType.endsWith('*')) {
+              const expectedType = ptrType.substring(0, ptrType.length - 1);
+              if (valueType !== expectedType) {
+                const msg = 'Type mismatch: value=' + valueType + ' ptr=' + ptrType + ' in: ' + instruction;
+                throw new Error(msg);
+              }
+            }
+          }
+        }
+      }
+    }
     this.output.push(instruction);
   }
+
 
   getCurrentLabel(): string {
     return this.currentLabel;

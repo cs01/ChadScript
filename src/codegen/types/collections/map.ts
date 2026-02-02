@@ -576,6 +576,7 @@ export class StringMapGenerator {
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
     this.emit(`${result} = load i8*, i8** ${resultReg}`);
+    this.ctx.setVariableType(result, 'i8*');
 
     return result;
   }
