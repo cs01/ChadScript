@@ -79,40 +79,33 @@ export class FunctionGenerator {
         returnType = 'i8*';
         this.ctx.currentFunctionReturnType = 'i8*';
       }
-    } else if (this.ctx.typeChecker) {
-      try {
-        const funcType = this.ctx.typeChecker.getFunctionType(func.name);
-        if (funcType) {
-          if (funcType.returnType === 'string') {
-            returnType = 'i8*';
-            returnTypeIsString = true;
-            this.ctx.currentFunctionReturnType = 'i8*';
-          } else if (funcType.returnType === 'void') {
-            returnType = 'void';
-            returnTypeIsVoid = true;
-            this.ctx.currentFunctionReturnType = 'void';
-          } else if (funcType.returnType !== 'number' && funcType.returnType !== 'boolean') {
-            returnType = 'i8*';
-            this.ctx.currentFunctionReturnType = 'i8*';
-          }
-
-          for (let i = 0; i < func.params.length; i++) {
-            const paramType = funcType.parameters[i]?.type || 'number';
-            paramTypes.push(paramType);
-            if (paramType === 'string') {
-              paramLLVMTypes.push('i8*');
-            } else if (paramType === 'string[]') {
-              paramLLVMTypes.push('%StringArray*');
-            } else if (paramType === 'number[]' || paramType === 'boolean[]') {
-              paramLLVMTypes.push('%Array*');
-            } else if (paramType !== 'number' && paramType !== 'boolean') {
-              paramLLVMTypes.push('i8*');
-            } else {
-              paramLLVMTypes.push('double');
-            }
-          }
+    } else if (func.parameters && func.parameters.length > 0) {
+      for (let i = 0; i < func.params.length; i++) {
+        const paramType = func.parameters[i]?.type || 'number';
+        paramTypes.push(paramType);
+        if (paramType === 'string') {
+          paramLLVMTypes.push('i8*');
+        } else if (paramType === 'string[]') {
+          paramLLVMTypes.push('%StringArray*');
+        } else if (paramType === 'number[]' || paramType === 'boolean[]') {
+          paramLLVMTypes.push('%Array*');
+        } else if (paramType !== 'number' && paramType !== 'boolean') {
+          paramLLVMTypes.push('i8*');
+        } else {
+          paramLLVMTypes.push('double');
         }
-      } catch {
+      }
+      if (func.returnType === 'string') {
+        returnType = 'i8*';
+        returnTypeIsString = true;
+        this.ctx.currentFunctionReturnType = 'i8*';
+      } else if (func.returnType === 'void') {
+        returnType = 'void';
+        returnTypeIsVoid = true;
+        this.ctx.currentFunctionReturnType = 'void';
+      } else if (func.returnType && func.returnType !== 'number' && func.returnType !== 'boolean') {
+        returnType = 'i8*';
+        this.ctx.currentFunctionReturnType = 'i8*';
       }
     }
 

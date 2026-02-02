@@ -534,34 +534,6 @@ export class ControlFlowGenerator {
       if (memberAccess.object.type === 'variable') {
         const varName = (memberAccess.object as VariableNode).name;
         const propName = memberAccess.property;
-        if (this.ctx.typeChecker && this.ctx.currentFunction) {
-          const arrayInfo = this.ctx.typeChecker.getArrayElementInterface(varName, propName, this.ctx.currentFunction);
-          if (arrayInfo && arrayInfo.properties.length > 0) {
-            const elementKeys: string[] = [];
-            const elementTypes: string[] = [];
-            const elementTsTypes: string[] = [];
-            for (let i = 0; i < arrayInfo.properties.length; i++) {
-              const prop = arrayInfo.properties[i];
-              elementKeys.push(prop.name);
-              elementTsTypes.push(prop.type);
-              if (prop.type === 'string') {
-                elementTypes.push('i8*');
-              } else if (prop.type === 'number') {
-                elementTypes.push('double');
-              } else if (prop.type === 'boolean') {
-                elementTypes.push('i32');
-              } else {
-                elementTypes.push('i8*');
-              }
-            }
-            return {
-              elementInterfaceName: arrayInfo.interfaceName,
-              elementKeys,
-              elementTypes,
-              elementTsTypes
-            };
-          }
-        }
         const fromAST = this.getObjectArrayInfoFromAST(varName, propName);
         if (fromAST) {
           return fromAST;
@@ -675,34 +647,6 @@ export class ControlFlowGenerator {
       const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
       if (objArrayMeta) {
         return objArrayMeta;
-      }
-      if (this.ctx.typeChecker && this.ctx.currentFunction) {
-        const arrayInfo = this.ctx.typeChecker.getVariableArrayElementInterface(varName, this.ctx.currentFunction);
-        if (arrayInfo && arrayInfo.properties.length > 0) {
-          const elementKeys: string[] = [];
-          const elementTypes: string[] = [];
-          const elementTsTypes: string[] = [];
-          for (let i = 0; i < arrayInfo.properties.length; i++) {
-            const prop = arrayInfo.properties[i];
-            elementKeys.push(prop.name);
-            elementTsTypes.push(prop.type);
-            if (prop.type === 'string') {
-              elementTypes.push('i8*');
-            } else if (prop.type === 'number') {
-              elementTypes.push('double');
-            } else if (prop.type === 'boolean') {
-              elementTypes.push('i32');
-            } else {
-              elementTypes.push('i8*');
-            }
-          }
-          return {
-            elementInterfaceName: arrayInfo.interfaceName,
-            elementKeys,
-            elementTypes,
-            elementTsTypes
-          };
-        }
       }
     }
 

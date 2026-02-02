@@ -198,6 +198,31 @@ export interface MethodCallGeneratorContext {
 export class MethodCallGenerator {
   constructor(private ctx: MethodCallGeneratorContext) {}
 
+  private getInterfaceFromAST(name: string): { properties: { name: string; type: string }[] } | null {
+    if (!this.ctx.ast?.interfaces) return null;
+    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      if (this.ctx.ast.interfaces[i].name === name) {
+        const iface = this.ctx.ast.interfaces[i];
+        const properties: { name: string; type: string }[] = [];
+        for (let j = 0; j < iface.fields.length; j++) {
+          properties.push({ name: iface.fields[j].name, type: iface.fields[j].type });
+        }
+        return { properties };
+      }
+    }
+    return null;
+  }
+
+  private getFunctionFromAST(name: string): FunctionNode | null {
+    if (!this.ctx.ast?.functions) return null;
+    for (let i = 0; i < this.ctx.ast.functions.length; i++) {
+      if (this.ctx.ast.functions[i].name === name) {
+        return this.ctx.ast.functions[i];
+      }
+    }
+    return null;
+  }
+
   private isVariableWithName(expr: Expression, name: string): expr is VariableNode {
     return expr.type === 'variable' && (expr as VariableNode).name === name;
   }
@@ -376,9 +401,9 @@ export class MethodCallGenerator {
         if (method === 'text') {
           return this.ctx.responseGen.generateText(responsePtr);
         } else if (method === 'json') {
-          if (expr.typeParameter && this.ctx.typeChecker) {
+          if (expr.typeParameter) {
             const typeName = expr.typeParameter;
-            const interfaceDef = this.ctx.typeChecker.getInterfaceDefinition(typeName);
+            const interfaceDef = this.getInterfaceFromAST(typeName);
             if (interfaceDef) {
               return this.ctx.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef);
             }
@@ -1092,18 +1117,17 @@ export class MethodCallGenerator {
       throw new Error(`Function ${method} not found for object method call`);
     }
 
-    // Get function type from type checker for correct parameter/return types
+    // Get function type from AST for correct parameter/return types
     let returnType = 'double';
     let paramTypes: string[] = [];
 
-    if (this.ctx.typeChecker) {
-      try {
-        const funcType = this.ctx.typeChecker.getFunctionType(method);
-        if (funcType) {
-          returnType = funcType.returnType === 'string' ? 'i8*' : 'double';
-          paramTypes = funcType.parameters.map((p: { name: string; type: string }) => p.type === 'string' ? 'i8*' : 'double');
-        }
-      } catch (e) {
+    const funcNode = this.getFunctionFromAST(method);
+    if (funcNode) {
+      returnType = funcNode.returnType === 'string' ? 'i8*' : 'double';
+      if (funcNode.parameters) {
+        paramTypes = funcNode.parameters.map(p => p.type === 'string' ? 'i8*' : 'double');
+      } else if (funcNode.paramTypes) {
+        paramTypes = funcNode.paramTypes.map(t => t === 'string' ? 'i8*' : 'double');
       }
     }
 
