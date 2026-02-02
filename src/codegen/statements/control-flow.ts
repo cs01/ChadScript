@@ -1137,11 +1137,17 @@ export class ControlFlowGenerator {
       }
     }
 
-    return {
-      keys: commonFields.map(f => f.name),
-      types: commonFields.map(f => this.fieldTypeToLlvm(f.type)),
-      tsTypes: commonFields.map(f => f.type)
-    };
+    const keys: string[] = [];
+    const types: string[] = [];
+    const tsTypes: string[] = [];
+    for (let i = 0; i < commonFields.length; i++) {
+      const f = commonFields[i];
+      keys.push(f.name);
+      types.push(this.fieldTypeToLlvm(f.type));
+      tsTypes.push(f.type);
+    }
+
+    return { keys, types, tsTypes };
   }
 
   private areTypesCompatible(type1: string, type2: string): boolean {
@@ -1209,9 +1215,15 @@ export class ControlFlowGenerator {
     const iface = ifaceResult as InterfaceDeclaration;
     if (!ifaceResult) return null;
 
-    const keys = iface.fields.map((f) => f.name);
-    const types = iface.fields.map((f) => this.fieldTypeToLlvm(f.type));
-    const tsTypes = iface.fields.map((f) => f.type);
+    const keys: string[] = [];
+    const types: string[] = [];
+    const tsTypes: string[] = [];
+    for (let i = 0; i < iface.fields.length; i++) {
+      const f = iface.fields[i];
+      keys.push(f.name);
+      types.push(this.fieldTypeToLlvm(f.type));
+      tsTypes.push(f.type);
+    }
 
     if (binary.op === '!==' || binary.op === '!=') {
       return null;

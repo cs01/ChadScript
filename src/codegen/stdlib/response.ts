@@ -138,13 +138,19 @@ export class ResponseGenerator {
     typeName: string,
     interfaceDef: InterfaceDefInfo
   ): void {
-    // Build struct type: %TypeName = type { i8*, double, i8*, ... }
-    const fieldTypes = interfaceDef.properties.map(prop => {
-      if (prop.type === 'string') return 'i8*';
-      if (prop.type === 'number') return 'double';
-      if (prop.type === 'boolean') return 'i1';
-      return 'i8*';  // default to string for unknown types
-    });
+    const fieldTypes: string[] = [];
+    for (let i = 0; i < interfaceDef.properties.length; i++) {
+      const prop = interfaceDef.properties[i] as { name: string; type: string };
+      if (prop.type === 'string') {
+        fieldTypes.push('i8*');
+      } else if (prop.type === 'number') {
+        fieldTypes.push('double');
+      } else if (prop.type === 'boolean') {
+        fieldTypes.push('i1');
+      } else {
+        fieldTypes.push('i8*');
+      }
+    }
 
     const structDef = `%${typeName} = type { ${fieldTypes.join(', ')} }\n`;
     this.ctx.globalStrings.unshift(structDef);  // Add to beginning of global strings

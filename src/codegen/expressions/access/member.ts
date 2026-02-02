@@ -568,9 +568,15 @@ export class MemberAccessGenerator {
     const interfaceDefResult = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
     if (interfaceDefResult) {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-      const keys = interfaceDef.fields.map((f) => f.name);
-      const tsTypes = interfaceDef.fields.map((f) => f.type);
-      const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
+      const keys: string[] = [];
+      const tsTypes: string[] = [];
+      const types: string[] = [];
+      for (let i = 0; i < interfaceDef.fields.length; i++) {
+        const f = interfaceDef.fields[i];
+        keys.push(f.name);
+        tsTypes.push(f.type);
+        types.push(this.tsTypeToLlvm(f.type));
+      }
       this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
       this.ctx.jsonObjectMetadata.set(register, { keys, types, tsTypes });
     }
@@ -608,9 +614,15 @@ export class MemberAccessGenerator {
     const nestedInterfaceDefResult = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
     const nestedInterfaceDef = nestedInterfaceDefResult as InterfaceDeclaration;
     if (nestedInterfaceDefResult) {
-      const keys = nestedInterfaceDef.fields.map((f) => f.name);
-      const tsTypes = nestedInterfaceDef.fields.map((f) => f.type);
-      const types = nestedInterfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
+      const keys: string[] = [];
+      const tsTypes: string[] = [];
+      const types: string[] = [];
+      for (let i = 0; i < nestedInterfaceDef.fields.length; i++) {
+        const f = nestedInterfaceDef.fields[i];
+        keys.push(f.name);
+        tsTypes.push(f.type);
+        types.push(this.tsTypeToLlvm(f.type));
+      }
       this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
       this.ctx.jsonObjectMetadata.set(fieldItem, { keys, types, tsTypes });
     }
@@ -1238,11 +1250,18 @@ export class MemberAccessGenerator {
 
     const propIndex = interfaceDef.fields.findIndex((f) => f.name === expr.property);
     if (propIndex === -1) {
-      throw new Error(`Unknown property: ${expr.property} on interface ${valueType}. Available properties: ${interfaceDef.fields.map(f => f.name).join(', ')}`);
+      const fieldNames: string[] = [];
+      for (let i = 0; i < interfaceDef.fields.length; i++) {
+        fieldNames.push(interfaceDef.fields[i].name);
+      }
+      throw new Error(`Unknown property: ${expr.property} on interface ${valueType}. Available properties: ${fieldNames.join(', ')}`);
     }
 
     const propType = this.tsTypeToLlvm(interfaceDef.fields[propIndex].type);
-    const structTypes = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
+    const structTypes: string[] = [];
+    for (let i = 0; i < interfaceDef.fields.length; i++) {
+      structTypes.push(this.tsTypeToLlvm(interfaceDef.fields[i].type));
+    }
     const structType = `{ ${structTypes.join(', ')} }`;
 
     const typedPtr = this.ctx.nextTemp();
@@ -1556,8 +1575,10 @@ export class MemberAccessGenerator {
     const field = interfaceDef.fields[fieldIndex];
     const fieldLlvmType = this.tsTypeToLlvm(field.type);
 
-    const keys = interfaceDef.fields.map((f) => f.name);
-    const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
+    const types: string[] = [];
+    for (let i = 0; i < interfaceDef.fields.length; i++) {
+      types.push(this.tsTypeToLlvm(interfaceDef.fields[i].type));
+    }
     const structType = `{ ${types.join(', ')} }`;
 
     const objPtr = generateExpressionFn(assertion.expression, params);

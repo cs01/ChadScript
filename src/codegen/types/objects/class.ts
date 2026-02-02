@@ -82,17 +82,29 @@ export class ClassGenerator {
     // Define LLVM struct type for this class
     // Example: %Parser_struct = type { i8*, i32, %StringArray*, %Array* } for fields [code: string, pos: number, items: string[], nums: number[]]
     if (classNode.fields.length > 0) {
-      const fieldTypes = classNode.fields.map(f => {
-        if (f.fieldType === 'string') return 'i8*';
-        if (f.fieldType === 'string[]') return '%StringArray*';
-        if (f.fieldType.endsWith('[]')) return '%Array*';
-        if (f.fieldType === 'boolean') return 'i1';
-        if (f.tsType?.startsWith('Map<string,')) return '%StringMap*';
-        if (f.tsType?.startsWith('Map<')) return '%Map*';
-        if (f.tsType?.startsWith('Set<string>')) return '%StringSet*';
-        if (f.tsType?.startsWith('Set<')) return '%Set*';
-        return 'double';
-      });
+      const fieldTypes: string[] = [];
+      for (let fi = 0; fi < classNode.fields.length; fi++) {
+        const f = classNode.fields[fi];
+        if (f.fieldType === 'string') {
+          fieldTypes.push('i8*');
+        } else if (f.fieldType === 'string[]') {
+          fieldTypes.push('%StringArray*');
+        } else if (f.fieldType.endsWith('[]')) {
+          fieldTypes.push('%Array*');
+        } else if (f.fieldType === 'boolean') {
+          fieldTypes.push('i1');
+        } else if (f.tsType?.startsWith('Map<string,')) {
+          fieldTypes.push('%StringMap*');
+        } else if (f.tsType?.startsWith('Map<')) {
+          fieldTypes.push('%Map*');
+        } else if (f.tsType?.startsWith('Set<string>')) {
+          fieldTypes.push('%StringSet*');
+        } else if (f.tsType?.startsWith('Set<')) {
+          fieldTypes.push('%Set*');
+        } else {
+          fieldTypes.push('double');
+        }
+      }
       ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
     }
 
@@ -468,9 +480,15 @@ export class ClassGenerator {
     const interfaceDefResult = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
     if (interfaceDefResult) {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-      const keys = interfaceDef.fields.map((f) => f.name);
-      const types = interfaceDef.fields.map((f) => this.fieldTypeToLlvm(f.type));
-      const tsTypes = interfaceDef.fields.map((f) => f.type);
+      const keys: string[] = [];
+      const types: string[] = [];
+      const tsTypes: string[] = [];
+      for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
+        const f = interfaceDef.fields[fi];
+        keys.push(f.name);
+        types.push(this.fieldTypeToLlvm(f.type));
+        tsTypes.push(f.type);
+      }
       this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
         objectMetadata: { keys, types, tsTypes }
       });
@@ -522,9 +540,17 @@ export class ClassGenerator {
       }
     }
 
+    const keys: string[] = [];
+    const types: string[] = [];
+    for (let fi = 0; fi < commonFields.length; fi++) {
+      const f = commonFields[fi];
+      keys.push(f.name);
+      types.push(this.fieldTypeToLlvm(f.type));
+    }
+
     return {
-      keys: commonFields.map(f => f.name),
-      types: commonFields.map(f => this.fieldTypeToLlvm(f.type))
+      keys: keys,
+      types: types
     };
   }
 

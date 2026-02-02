@@ -215,9 +215,14 @@ export class VariableAllocator {
     const interfaceDefResult = this.getInterface(interfaceName);
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     const allocaReg = this.ctx.nextTemp();
-    const keys = interfaceDef.fields.map((f) => f.name);
-    const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
-    const tsTypes = interfaceDef.fields.map((f) => f.type);
+    const keys: string[] = [];
+    const types: string[] = [];
+    const tsTypes: string[] = [];
+    for (let i = 0; i < interfaceDef.fields.length; i++) {
+      keys.push(interfaceDef.fields[i].name);
+      types.push(this.tsTypeToLlvm(interfaceDef.fields[i].type));
+      tsTypes.push(interfaceDef.fields[i].type);
+    }
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
       objectMetadata: { keys, types, tsTypes },
       interfaceType: interfaceName
@@ -231,9 +236,14 @@ export class VariableAllocator {
     const interfaceDefResult = this.getInterface(interfaceName);
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     const allocaReg = this.ctx.nextTemp();
-    const keys = interfaceDef.fields.map((f) => f.name);
-    const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
-    const tsTypes = interfaceDef.fields.map((f) => f.type);
+    const keys: string[] = [];
+    const types: string[] = [];
+    const tsTypes: string[] = [];
+    for (let i = 0; i < interfaceDef.fields.length; i++) {
+      keys.push(interfaceDef.fields[i].name);
+      types.push(this.tsTypeToLlvm(interfaceDef.fields[i].type));
+      tsTypes.push(interfaceDef.fields[i].type);
+    }
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
       objectMetadata: { keys, types, tsTypes },
       interfaceType: interfaceName
@@ -263,9 +273,14 @@ export class VariableAllocator {
     const interfaceDefResult = this.getInterface(interfaceName);
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     const allocaReg = this.ctx.nextTemp();
-    const keys = interfaceDef.fields.map((f) => f.name);
-    const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
-    const tsTypes = interfaceDef.fields.map((f) => f.type);
+    const keys: string[] = [];
+    const types: string[] = [];
+    const tsTypes: string[] = [];
+    for (let i = 0; i < interfaceDef.fields.length; i++) {
+      keys.push(interfaceDef.fields[i].name);
+      types.push(this.tsTypeToLlvm(interfaceDef.fields[i].type));
+      tsTypes.push(interfaceDef.fields[i].type);
+    }
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
       objectMetadata: { keys, types, tsTypes }
     });
@@ -324,8 +339,12 @@ export class VariableAllocator {
     const interfaceDefResult = this.getInterface(interfaceName);
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     const allocaReg = this.ctx.nextTemp();
-    const keys = interfaceDef.fields.map((f) => f.name);
-    const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
+    const keys: string[] = [];
+    const types: string[] = [];
+    for (let i = 0; i < interfaceDef.fields.length; i++) {
+      keys.push(interfaceDef.fields[i].name);
+      types.push(this.tsTypeToLlvm(interfaceDef.fields[i].type));
+    }
     const llvmType = `%${interfaceName}*`;
     this.ctx.defineVariable(stmt.name, allocaReg, llvmType, SymbolKind.Object, 'local', {
       objectMetadata: { keys, types }
@@ -411,9 +430,14 @@ export class VariableAllocator {
       this.ctx.emit(`store i8* ${jsonPtr}, i8** ${allocaReg}`);
     } else {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-      const keys = interfaceDef.fields.map((f) => f.name);
-      const tsTypes = interfaceDef.fields.map((f) => f.type);
-      const types = interfaceDef.fields.map((f) => this.tsTypeToLlvmJson(f.type));
+      const keys: string[] = [];
+      const tsTypes: string[] = [];
+      const types: string[] = [];
+      for (let i = 0; i < interfaceDef.fields.length; i++) {
+        keys.push(interfaceDef.fields[i].name);
+        tsTypes.push(interfaceDef.fields[i].type);
+        types.push(this.tsTypeToLlvmJson(interfaceDef.fields[i].type));
+      }
 
       this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local', {
         objectMetadata: { keys, types, tsTypes }
@@ -436,8 +460,12 @@ export class VariableAllocator {
 
     if (interfaceDefResult) {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-      keys = interfaceDef.fields.map((f) => f.name);
-      types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
+      keys = [];
+      types = [];
+      for (let i = 0; i < interfaceDef.fields.length; i++) {
+        keys.push(interfaceDef.fields[i].name);
+        types.push(this.tsTypeToLlvm(interfaceDef.fields[i].type));
+      }
     } else {
       const metadataResult = this.ctx.getObjectMetadata(stmt.value as ObjectNode);
       const metadata = metadataResult as ObjectMetadataResult;
@@ -773,11 +801,15 @@ export class VariableAllocator {
     const interfaceDefResult = this.getInterface(elementType);
     if (interfaceDefResult) {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-      return {
-        keys: interfaceDef.fields.map((f) => f.name),
-        types: interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type)),
-        tsTypes: interfaceDef.fields.map((f) => f.type)
-      };
+      const keys: string[] = [];
+      const types: string[] = [];
+      const tsTypes: string[] = [];
+      for (let i = 0; i < interfaceDef.fields.length; i++) {
+        keys.push(interfaceDef.fields[i].name);
+        types.push(this.tsTypeToLlvm(interfaceDef.fields[i].type));
+        tsTypes.push(interfaceDef.fields[i].type);
+      }
+      return { keys, types, tsTypes };
     }
 
     const typeAlias = this.getTypeAlias(elementType);
@@ -823,11 +855,16 @@ export class VariableAllocator {
       }
     }
 
-    return {
-      keys: commonFields.map((f) => f.name),
-      types: commonFields.map((f) => this.tsTypeToLlvm(f.type)),
-      tsTypes: commonFields.map((f) => f.type)
-    };
+    const keys: string[] = [];
+    const types: string[] = [];
+    const tsTypes: string[] = [];
+    for (let i = 0; i < commonFields.length; i++) {
+      keys.push(commonFields[i].name);
+      types.push(this.tsTypeToLlvm(commonFields[i].type));
+      tsTypes.push(commonFields[i].type);
+    }
+
+    return { keys, types, tsTypes };
   }
 
   private areTypesCompatible(type1: string, type2: string): boolean {
