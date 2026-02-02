@@ -105,7 +105,24 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
       break;
     }
 
-    case ts.SyntaxKind.ExportDeclaration:
+    case ts.SyntaxKind.ExportDeclaration: {
+      const exportDecl = node as ts.ExportDeclaration;
+      if (exportDecl.isTypeOnly) {
+        break;
+      }
+      if (exportDecl.moduleSpecifier && ts.isStringLiteral(exportDecl.moduleSpecifier)) {
+        const source = exportDecl.moduleSpecifier.text;
+        const specifiers: string[] = [];
+        if (exportDecl.exportClause && ts.isNamedExports(exportDecl.exportClause)) {
+          for (const element of exportDecl.exportClause.elements) {
+            specifiers.push(element.name.text);
+          }
+        }
+        const syntheticImport: ImportDeclaration = { type: 'import', specifiers, source };
+        ast.imports.push(syntheticImport);
+      }
+      break;
+    }
     case ts.SyntaxKind.ExportAssignment: {
       break;
     }
