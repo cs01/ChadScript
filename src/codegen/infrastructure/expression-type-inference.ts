@@ -1,5 +1,5 @@
 import { Expression, VariableNode, BinaryNode, MemberAccessNode, IndexAccessNode, MethodCallNode, CallNode, ArrayNode, ObjectNode, StringNode, NumberNode, BooleanNode, TypeAssertionNode, ConditionalExpressionNode } from '../../ast/types.js';
-import { ResolvedType, createResolvedType, parseTypeString } from './type-system.js';
+import { ResolvedType, createResolvedType, parseTypeString, createIntegerType, createFloatType } from './type-system.js';
 import { SymbolTable } from './symbol-table.js';
 import type { TypeResolver } from './type-resolver/index.js';
 
@@ -186,6 +186,18 @@ function inferBinaryType(expr: BinaryNode, ctx: ExpressionTypeContext): Resolved
 function inferMemberAccessType(expr: MemberAccessNode, ctx: ExpressionTypeContext): ResolvedType | undefined {
   const objBase = expr.object as ExprBase;
 
+  if (expr.property === 'length') {
+    const objType = inferExpressionType(expr.object, ctx);
+    if (objType) {
+      if (objType.base === 'string' && objType.arrayDepth === 0) {
+        return createIntegerType();
+      }
+      if (objType.arrayDepth > 0) {
+        return createIntegerType();
+      }
+    }
+  }
+
   if (objBase.type === 'variable') {
     const varName = (expr.object as VariableNode).name;
 
@@ -269,9 +281,8 @@ function inferMethodCallType(expr: MethodCallNode, ctx: ExpressionTypeContext): 
     return createResolvedType('string');
   }
 
-  if (method === 'indexOf' || method === 'lastIndexOf' || method === 'length' ||
-      method === 'charCodeAt') {
-    return createResolvedType('number');
+  if (method === 'indexOf' || method === 'lastIndexOf' || method === 'charCodeAt') {
+    return createIntegerType();
   }
 
   if (method === 'includes' || method === 'startsWith' || method === 'endsWith') {
@@ -279,7 +290,7 @@ function inferMethodCallType(expr: MethodCallNode, ctx: ExpressionTypeContext): 
   }
 
   if (method === 'push' || method === 'pop' || method === 'shift' || method === 'unshift') {
-    return createResolvedType('number');
+    return createIntegerType();
   }
 
   if (method === 'map' || method === 'filter') {
@@ -301,8 +312,11 @@ function inferCallType(expr: CallNode, ctx: ExpressionTypeContext): ResolvedType
   if (expr.name === 'String') {
     return createResolvedType('string');
   }
-  if (expr.name === 'Number' || expr.name === 'parseInt' || expr.name === 'parseFloat') {
-    return createResolvedType('number');
+  if (expr.name === 'parseInt') {
+    return createIntegerType();
+  }
+  if (expr.name === 'Number' || expr.name === 'parseFloat') {
+    return createFloatType();
   }
   if (expr.name === 'Boolean') {
     return createResolvedType('boolean');
