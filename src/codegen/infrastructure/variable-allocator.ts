@@ -2,6 +2,7 @@ import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, In
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import { TypeResolver, UnionCommonFields } from './type-resolver/index.js';
+import { stripOptional } from './type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -96,13 +97,6 @@ export interface VariableAllocatorContext {
 
 export class VariableAllocator {
   constructor(private ctx: VariableAllocatorContext) {}
-
-  private stripOptional(name: string): string {
-    if (name.endsWith('?')) {
-      return name.slice(0, -1);
-    }
-    return name;
-  }
 
   private getInterface(name: string): InterfaceDeclaration | null {
     if (this.ctx.typeResolver) {
@@ -245,7 +239,7 @@ export class VariableAllocator {
       if (inlineFields) {
         for (let i = 0; i < inlineFields.length; i++) {
           const field = inlineFields[i] as { name: string; type: string };
-          keys.push(this.stripOptional(field.name));
+          keys.push(stripOptional(field.name));
           types.push(this.tsTypeToLlvm(field.type));
           tsTypes.push(field.type);
         }
@@ -255,7 +249,7 @@ export class VariableAllocator {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       for (let i = 0; i < interfaceDef.fields.length; i++) {
         const field = interfaceDef.fields[i] as { name: string; type: string };
-        keys.push(this.stripOptional(field.name));
+        keys.push(stripOptional(field.name));
         types.push(this.tsTypeToLlvm(field.type));
         tsTypes.push(field.type);
       }
@@ -281,7 +275,7 @@ export class VariableAllocator {
       if (inlineFields) {
         for (let i = 0; i < inlineFields.length; i++) {
           const field = inlineFields[i] as { name: string; type: string };
-          keys.push(this.stripOptional(field.name));
+          keys.push(stripOptional(field.name));
           types.push(this.tsTypeToLlvm(field.type));
           tsTypes.push(field.type);
         }
@@ -291,7 +285,7 @@ export class VariableAllocator {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       for (let i = 0; i < interfaceDef.fields.length; i++) {
         const field = interfaceDef.fields[i] as { name: string; type: string };
-        keys.push(this.stripOptional(field.name));
+        keys.push(stripOptional(field.name));
         types.push(this.tsTypeToLlvm(field.type));
         tsTypes.push(field.type);
       }
@@ -358,7 +352,7 @@ export class VariableAllocator {
       if (inlineFields) {
         for (let i = 0; i < inlineFields.length; i++) {
           const field = inlineFields[i] as { name: string; type: string };
-          keys.push(this.stripOptional(field.name));
+          keys.push(stripOptional(field.name));
           types.push(this.tsTypeToLlvm(field.type));
           tsTypes.push(field.type);
         }
@@ -368,7 +362,7 @@ export class VariableAllocator {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       for (let i = 0; i < interfaceDef.fields.length; i++) {
         const field = interfaceDef.fields[i] as { name: string; type: string };
-        keys.push(this.stripOptional(field.name));
+        keys.push(stripOptional(field.name));
         types.push(this.tsTypeToLlvm(field.type));
         tsTypes.push(field.type);
       }
@@ -446,7 +440,7 @@ export class VariableAllocator {
     const types: string[] = [];
     for (let i = 0; i < interfaceDef.fields.length; i++) {
       const field = interfaceDef.fields[i] as { name: string; type: string };
-      keys.push(this.stripOptional(field.name));
+      keys.push(stripOptional(field.name));
       types.push(this.tsTypeToLlvm(field.type));
     }
     const llvmType = `%${interfaceName}*`;
@@ -592,7 +586,7 @@ export class VariableAllocator {
       const types: string[] = [];
       for (let i = 0; i < interfaceDef.fields.length; i++) {
         const field = interfaceDef.fields[i] as { name: string; type: string };
-        keys.push(this.stripOptional(field.name));
+        keys.push(stripOptional(field.name));
         tsTypes.push(field.type);
         types.push(this.tsTypeToLlvmJson(field.type));
       }
@@ -622,7 +616,7 @@ export class VariableAllocator {
       types = [];
       for (let i = 0; i < interfaceDef.fields.length; i++) {
         const field = interfaceDef.fields[i] as { name: string; type: string };
-        keys.push(this.stripOptional(field.name));
+        keys.push(stripOptional(field.name));
         types.push(this.tsTypeToLlvm(field.type));
       }
     } else {
@@ -1018,7 +1012,7 @@ export class VariableAllocator {
       const tsTypes: string[] = [];
       for (let i = 0; i < interfaceDef.fields.length; i++) {
         const field = interfaceDef.fields[i] as { name: string; type: string };
-        keys.push(this.stripOptional(field.name));
+        keys.push(stripOptional(field.name));
         types.push(this.tsTypeToLlvm(field.type));
         tsTypes.push(field.type);
       }
@@ -1089,7 +1083,7 @@ export class VariableAllocator {
     const tsTypes: string[] = [];
     for (let i = 0; i < commonFields.length; i++) {
       const cf = commonFields[i] as CommonField;
-      keys.push(this.stripOptional(cf.name));
+      keys.push(stripOptional(cf.name));
       types.push(this.tsTypeToLlvm(cf.type));
       tsTypes.push(cf.type);
     }

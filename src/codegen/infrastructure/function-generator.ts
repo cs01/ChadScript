@@ -4,6 +4,7 @@ import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { StringGenerator } from '../types/collections/string.js';
 import type { ControlFlowGenerator } from '../statements/control-flow.js';
+import { stripOptional } from './type-system.js';
 
 interface LiftedFunction extends FunctionNode {
   closureInfo?: ClosureInfo;
@@ -35,13 +36,6 @@ export interface FunctionGeneratorContext {
 
 export class FunctionGenerator {
   constructor(private ctx: FunctionGeneratorContext) {}
-
-  private stripOptional(name: string): string {
-    if (name.endsWith('?')) {
-      return name.slice(0, -1);
-    }
-    return name;
-  }
 
   generate(func: FunctionNode): string {
     this.ctx.reset();
@@ -203,7 +197,7 @@ export class FunctionGenerator {
             const types: string[] = [];
             for (let j = 0; j < interfaceDef.fields.length; j++) {
               const field = interfaceDef.fields[j] as { name: string; type: string };
-              keys.push(this.stripOptional(field.name));
+              keys.push(stripOptional(field.name));
               types.push(this.tsTypeToLlvm(field.type));
             }
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
@@ -428,7 +422,7 @@ export class FunctionGenerator {
     const types: string[] = [];
     for (let i = 0; i < commonFields.length; i++) {
       const cf = commonFields[i] as CommonField;
-      keys.push(this.stripOptional(cf.name));
+      keys.push(stripOptional(cf.name));
       types.push(this.tsTypeToLlvm(cf.type));
     }
 

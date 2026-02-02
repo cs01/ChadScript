@@ -18,6 +18,7 @@ import {
 } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
+import { stripOptional } from '../../infrastructure/type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -112,13 +113,6 @@ export interface MemberAccessGeneratorContext {
  */
 export class MemberAccessGenerator {
   constructor(private ctx: MemberAccessGeneratorContext) {}
-
-  private stripOptional(name: string): string {
-    if (name.endsWith('?')) {
-      return name.slice(0, -1);
-    }
-    return name;
-  }
 
   private getInterfaceFromAST(name: string): InterfaceInfo | null {
     const baseName = this.extractBaseTypeName(name);
@@ -483,7 +477,7 @@ export class MemberAccessGenerator {
           const nestedProps = nestedInterface.properties as InterfaceProperty[];
           for (let pi = 0; pi < nestedProps.length; pi++) {
             const p = nestedProps[pi] as { name: string; type: string };
-            keys.push(this.stripOptional(p.name));
+            keys.push(stripOptional(p.name));
             types.push(this.tsTypeToLlvm(p.type));
             tsTypes.push(p.type);
           }
@@ -676,7 +670,7 @@ export class MemberAccessGenerator {
       const types: string[] = [];
       for (let i = 0; i < interfaceDef.fields.length; i++) {
         const f = interfaceDef.fields[i] as { name: string; type: string };
-        keys.push(this.stripOptional(f.name));
+        keys.push(stripOptional(f.name));
         tsTypes.push(f.type);
         types.push(this.tsTypeToLlvm(f.type));
       }
@@ -726,7 +720,7 @@ export class MemberAccessGenerator {
       const types: string[] = [];
       for (let i = 0; i < nestedInterfaceDef.fields.length; i++) {
         const f = nestedInterfaceDef.fields[i] as { name: string; type: string };
-        keys.push(this.stripOptional(f.name));
+        keys.push(stripOptional(f.name));
         tsTypes.push(f.type);
         types.push(this.tsTypeToLlvm(f.type));
       }
@@ -963,7 +957,7 @@ export class MemberAccessGenerator {
     let propTsType: string | undefined;
     for (let i = 0; i < interfaceDef.fields.length; i++) {
       const f = interfaceDef.fields[i] as { name: string; type: string };
-      const fName = this.stripOptional(f.name);
+      const fName = stripOptional(f.name);
       if (fName === expr.property) {
         propIndex = i;
         propTsType = f.type;
@@ -1099,7 +1093,7 @@ export class MemberAccessGenerator {
         const tsTypes: string[] = [];
         for (let j = 0; j < iface.fields.length; j++) {
           const f = iface.fields[j] as { name: string; type: string };
-          keys.push(this.stripOptional(f.name));
+          keys.push(stripOptional(f.name));
           tsTypes.push(f.type);
           if (f.type === 'string') {
             types.push('i8*');
@@ -1126,7 +1120,7 @@ export class MemberAccessGenerator {
     const tsTypes: string[] = [];
     for (let i = 0; i < typeAliasProps.properties.length; i++) {
       const p = typeAliasProps.properties[i] as InterfaceProperty;
-      keys.push(this.stripOptional(p.name));
+      keys.push(stripOptional(p.name));
       tsTypes.push(p.type);
       types.push(this.tsTypeToLlvm(p.type));
     }
@@ -1203,7 +1197,7 @@ export class MemberAccessGenerator {
               const tsTypes: string[] = [];
               for (let j = 0; j < fields.length; j++) {
                 const f = fields[j] as { name: string; type: string };
-                keys.push(this.stripOptional(f.name));
+                keys.push(stripOptional(f.name));
                 tsTypes.push(f.type);
                 if (f.type === 'string') {
                   types.push('i8*');
@@ -1234,7 +1228,7 @@ export class MemberAccessGenerator {
                 const tsTypes: string[] = [];
                 for (let j = 0; j < fields.length; j++) {
                   const f = fields[j] as { name: string; type: string };
-                  keys.push(this.stripOptional(f.name));
+                  keys.push(stripOptional(f.name));
                   tsTypes.push(f.type);
                   if (f.type === 'string') {
                     types.push('i8*');
