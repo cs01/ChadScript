@@ -1,17 +1,5 @@
 import { Expression } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
-import { BaseGenerator } from '../../infrastructure/base-generator.js';
-
-interface StringGenContext {
-  nextTemp(): string;
-  nextLabel(prefix: string): string;
-  emit(instruction: string): void;
-  nextString(): string;
-  globalStrings: string[];
-  variableTypes: Map<string, string>;
-  getVariableType(name: string): string | undefined;
-  setVariableType(name: string, type: string): void;
-}
 
 import {
   createStringConstant as createStringConstantImpl,
@@ -29,10 +17,13 @@ import {
   generateTrim as generateTrimImpl,
   generateReplace as generateReplaceImpl,
   generateReplaceAll as generateReplaceAllImpl,
+  generateToUpperCase as generateToUpperCaseImpl,
+  generateToLowerCase as generateToLowerCaseImpl,
 } from './string/manipulation.js';
 import {
   generateStartsWith as generateStartsWithImpl,
   generateCharAt as generateCharAtImpl,
+  generateCharCodeAt as generateCharCodeAtImpl,
   generateIndexOf as generateIndexOfImpl,
   generateIncludes as generateIncludesImpl,
   generateEndsWith as generateEndsWithImpl,
@@ -51,33 +42,16 @@ export class StringGenerator {
   private emit(instruction: string) { this.ctx.emit(instruction); }
   private nextString() { return this.ctx.nextString(); }
 
-  private createGeneratorShim(): BaseGenerator {
-    const ctx = this.ctx as StringGenContext;
-    const shim = {
-      nextTemp: function(): string { return ctx.nextTemp(); },
-      nextLabel: function(prefix: string): string { return ctx.nextLabel(prefix); },
-      emit: function(instruction: string): void { ctx.emit(instruction); },
-      nextString: function(): string { return ctx.nextString(); },
-      globalStrings: ctx.globalStrings,
-      variableTypes: ctx.variableTypes,
-      getVariableType: function(name: string): string | undefined { return ctx.getVariableType(name); },
-      setVariableType: function(name: string, type: string): void { ctx.setVariableType(name, type); },
-    } as unknown as BaseGenerator;
-    return shim;
-  }
-
   // ============================================
   // String Constants & Conversions
   // ============================================
 
   createStringConstant(value: string): string {
-    const genShim = this.createGeneratorShim();
-    return createStringConstantImpl(genShim, value);
+    return createStringConstantImpl(this.ctx, value);
   }
 
   convertNumberToString(numValue: string): string {
-    const genShim = this.createGeneratorShim();
-    return convertNumberToStringImpl(genShim, numValue);
+    return convertNumberToStringImpl(this.ctx, numValue);
   }
 
   // ============================================
@@ -85,21 +59,11 @@ export class StringGenerator {
   // ============================================
 
   generateStringConcat(left: Expression, right: Expression, params: string[]): string {
-    const genShim = this.createGeneratorShim();
-    const ctx = this.ctx;
-    return generateStringConcatImpl(
-      genShim,
-      left,
-      right,
-      params,
-      (expr: Expression, p: string[]) => ctx.generateExpression(expr, p),
-      (expr: Expression) => ctx.isStringExpression(expr)
-    );
+    return generateStringConcatImpl(this.ctx, left, right, params);
   }
 
   generateStringConcatDirect(leftStr: string, rightStr: string): string {
-    const genShim = this.createGeneratorShim();
-    return generateStringConcatDirectImpl(genShim, leftStr, rightStr);
+    return generateStringConcatDirectImpl(this.ctx, leftStr, rightStr);
   }
 
   // ============================================
@@ -107,28 +71,31 @@ export class StringGenerator {
   // ============================================
 
   generateSubstr(strPtr: string, startIndex: string, length: string | null): string {
-    const genShim = this.createGeneratorShim();
-    return generateSubstrImpl(genShim, strPtr, startIndex, length);
+    return generateSubstrImpl(this.ctx, strPtr, startIndex, length);
   }
 
   generateSlice(strPtr: string, startIndex: string, endIndex: string | null): string {
-    const genShim = this.createGeneratorShim();
-    return generateSliceImpl(genShim, strPtr, startIndex, endIndex);
+    return generateSliceImpl(this.ctx, strPtr, startIndex, endIndex);
   }
 
   generateRepeat(strPtr: string, count: string): string {
-    const genShim = this.createGeneratorShim();
-    return generateRepeatImpl(genShim, strPtr, count);
+    return generateRepeatImpl(this.ctx, strPtr, count);
   }
 
   generatePadStart(strPtr: string, targetLength: string, padString: string): string {
-    const genShim = this.createGeneratorShim();
-    return generatePadStartImpl(genShim, strPtr, targetLength, padString);
+    return generatePadStartImpl(this.ctx, strPtr, targetLength, padString);
   }
 
   generateTrim(strPtr: string): string {
-    const genShim = this.createGeneratorShim();
-    return generateTrimImpl(genShim, strPtr);
+    return generateTrimImpl(this.ctx, strPtr);
+  }
+
+  generateToUpperCase(strPtr: string): string {
+    return generateToUpperCaseImpl(this.ctx, strPtr);
+  }
+
+  generateToLowerCase(strPtr: string): string {
+    return generateToLowerCaseImpl(this.ctx, strPtr);
   }
 
   // ============================================
@@ -136,28 +103,27 @@ export class StringGenerator {
   // ============================================
 
   generateStartsWith(strPtr: string, prefix: string): string {
-    const genShim = this.createGeneratorShim();
-    return generateStartsWithImpl(genShim, strPtr, prefix);
+    return generateStartsWithImpl(this.ctx, strPtr, prefix);
   }
 
   generateCharAt(strPtr: string, index: string): string {
-    const genShim = this.createGeneratorShim();
-    return generateCharAtImpl(genShim, strPtr, index);
+    return generateCharAtImpl(this.ctx, strPtr, index);
+  }
+
+  generateCharCodeAt(strPtr: string, index: string): string {
+    return generateCharCodeAtImpl(this.ctx, strPtr, index);
   }
 
   generateIndexOf(strPtr: string, substring: string): string {
-    const genShim = this.createGeneratorShim();
-    return generateIndexOfImpl(genShim, strPtr, substring);
+    return generateIndexOfImpl(this.ctx, strPtr, substring);
   }
 
   generateIncludes(strPtr: string, substring: string): string {
-    const genShim = this.createGeneratorShim();
-    return generateIncludesImpl(genShim, strPtr, substring);
+    return generateIncludesImpl(this.ctx, strPtr, substring);
   }
 
   generateEndsWith(strPtr: string, suffix: string): string {
-    const genShim = this.createGeneratorShim();
-    return generateEndsWithImpl(genShim, strPtr, suffix);
+    return generateEndsWithImpl(this.ctx, strPtr, suffix);
   }
 
   // ============================================
@@ -165,8 +131,7 @@ export class StringGenerator {
   // ============================================
 
   generateSplit(strPtr: string, delimiter: string): string {
-    const genShim = this.createGeneratorShim();
-    return generateSplitImpl(genShim, strPtr, delimiter);
+    return generateSplitImpl(this.ctx, strPtr, delimiter);
   }
 
   // ============================================
@@ -174,17 +139,14 @@ export class StringGenerator {
   // ============================================
 
   generateReplace(strPtr: string, search: string, replace: string): string {
-    const genShim = this.createGeneratorShim();
-    return generateReplaceImpl(genShim, strPtr, search, replace);
+    return generateReplaceImpl(this.ctx, strPtr, search, replace);
   }
 
   generateReplaceAll(strPtr: string, search: string, replace: string): string {
-    const genShim = this.createGeneratorShim();
-    return generateReplaceAllImpl(genShim, strPtr, search, replace);
+    return generateReplaceAllImpl(this.ctx, strPtr, search, replace);
   }
 
   generateGlobalString(value: string): string {
-    const genShim = this.createGeneratorShim();
-    return createStringConstantImpl(genShim, value);
+    return createStringConstantImpl(this.ctx, value);
   }
 }

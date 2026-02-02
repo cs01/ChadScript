@@ -119,10 +119,13 @@ export class InterfaceStructGenerator {
 
     let ir = '; Interface struct type definitions\n';
     let hasNonConflicting = false;
+    const emittedNames: string[] = [];
 
     for (let idx = 0; idx < this.interfaces.length; idx++) {
       const ifaceName = this.getInterfaceName(idx);
       if (isBuiltinType(ifaceName)) continue;
+      if (emittedNames.indexOf(ifaceName) !== -1) continue;
+      emittedNames.push(ifaceName);
       hasNonConflicting = true;
       const info = this.interfaceStructs.get(ifaceName)!;
       const fieldTypes = this.getFieldTypesString(info);

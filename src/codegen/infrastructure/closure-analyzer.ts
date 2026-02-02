@@ -34,13 +34,15 @@ export class ClosureAnalyzer {
    *
    * @param params - The arrow function's parameter names
    * @param body - The arrow function's body (expression or block)
-   * @param scopeVars - Variables available in the outer scope with their types
+   * @param scopeVarNamesIn - Names of variables available in the outer scope
+   * @param scopeVarTypesIn - LLVM types of variables available in the outer scope
    * @param lambdaName - The lifted function name (for generating env struct name)
    */
   analyze(
     params: string[],
     body: Expression | BlockStatement,
-    scopeVars: Map<string, string>,
+    scopeVarNamesIn: string[],
+    scopeVarTypesIn: string[],
     lambdaName: string
   ): ClosureInfo {
     this.declaredVars = new Set();
@@ -48,15 +50,9 @@ export class ClosureAnalyzer {
 
     this.scopeVarNames = [];
     this.scopeVarTypes = [];
-    const scopeVarKeys: string[] = [];
-    const scopeVarValues: string[] = [];
-    scopeVars.forEach((llvmType, name) => {
-      scopeVarKeys.push(name);
-      scopeVarValues.push(llvmType);
-    });
-    for (let i = 0; i < scopeVarKeys.length; i++) {
-      this.scopeVarNames.push(scopeVarKeys[i]);
-      this.scopeVarTypes.push(scopeVarValues[i]);
+    for (let i = 0; i < scopeVarNamesIn.length; i++) {
+      this.scopeVarNames.push(scopeVarNamesIn[i]);
+      this.scopeVarTypes.push(scopeVarTypesIn[i]);
     }
 
     for (const param of params) {

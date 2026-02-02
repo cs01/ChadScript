@@ -161,9 +161,17 @@ export class ClassGenerator {
       ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
     }
 
-    const constructorResult = classNode.methods.find(m => m.isConstructor);
+    let constructorResult: ClassMethod | null = null;
+    const regularMethods: ClassMethod[] = [];
+    for (let mi = 0; mi < classNode.methods.length; mi++) {
+      const m = classNode.methods[mi] as { isConstructor: boolean };
+      if (m.isConstructor) {
+        constructorResult = classNode.methods[mi] as ClassMethod;
+      } else {
+        regularMethods.push(classNode.methods[mi] as ClassMethod);
+      }
+    }
     const constructor = constructorResult as ClassMethod;
-    const regularMethods = classNode.methods.filter(m => !m.isConstructor);
 
     // Generate constructor function (returns pointer to struct)
     if (constructorResult) {
@@ -566,7 +574,16 @@ export class ClassGenerator {
       return;
     }
 
-    const interfaceDefResult = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
+    let interfaceDefResult: InterfaceDeclaration | null = null;
+    if (this.ctx.ast?.interfaces) {
+      for (let ii = 0; ii < this.ctx.ast.interfaces.length; ii++) {
+        const iface = this.ctx.ast.interfaces[ii] as InterfaceDeclaration;
+        if (iface.name === tsType) {
+          interfaceDefResult = iface;
+          break;
+        }
+      }
+    }
     if (interfaceDefResult) {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       const keys: string[] = [];

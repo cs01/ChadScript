@@ -669,6 +669,20 @@ export class SymbolTable {
     return scopeVars;
   }
 
+  getScopeVarsArraysForClosure(): { names: string[]; types: string[] } {
+    const names: string[] = [];
+    const types: string[] = [];
+    for (let i = 0; i < this.symbolKeys.length; i++) {
+      const name = this.symbolKeys[i];
+      const symbol = this.symbols.get(name);
+      if (symbol) {
+        names.push(name);
+        types.push(symbol.llvmType);
+      }
+    }
+    return { names: names, types: types };
+  }
+
   /**
    * Debug: Print all symbols
    */

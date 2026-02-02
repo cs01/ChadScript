@@ -18,18 +18,63 @@ export class RegexGenerator {
   private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
 
+  private byteToHex(b: number): string {
+    const hexChars = '0123456789ABCDEF';
+    const hi = hexChars.charAt((b >> 4) & 0xF);
+    const lo = hexChars.charAt(b & 0xF);
+    return hi + lo;
+  }
+
   // Compile a regex pattern and return a pointer to the compiled regex
   // Returns a pointer to regex_t struct (i8*)
   generateRegexCompile(pattern: string, flags: string): string {
-    // Create a global string constant for the pattern
-    const escaped = pattern
-      .replace(/\\/g, '\\5C')
-      .replace(/\n/g, '\\0A')
-      .replace(/\t/g, '\\09')
-      .replace(/\r/g, '\\0D')
-      .replace(/"/g, '\\"');
+    let escaped = '';
+    let byteCount = 0;
+    for (let i = 0; i < pattern.length; i++) {
+      const ch = pattern[i];
+      const code = pattern.charCodeAt(i);
+      if (ch === '\\') {
+        escaped += '\\5C';
+        byteCount += 1;
+      } else if (ch === '\n') {
+        escaped += '\\0A';
+        byteCount += 1;
+      } else if (ch === '\r') {
+        escaped += '\\0D';
+        byteCount += 1;
+      } else if (ch === '\t') {
+        escaped += '\\09';
+        byteCount += 1;
+      } else if (ch === '"') {
+        escaped += '\\"';
+        byteCount += 1;
+      } else if (code < 32 || code > 126) {
+        if (code < 128) {
+          escaped += '\\' + this.byteToHex(code);
+          byteCount += 1;
+        } else if (code < 0x800) {
+          escaped += '\\' + this.byteToHex(0xC0 | (code >> 6));
+          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          byteCount += 2;
+        } else if (code < 0x10000) {
+          escaped += '\\' + this.byteToHex(0xE0 | (code >> 12));
+          escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
+          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          byteCount += 3;
+        } else {
+          escaped += '\\' + this.byteToHex(0xF0 | (code >> 18));
+          escaped += '\\' + this.byteToHex(0x80 | ((code >> 12) & 0x3F));
+          escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
+          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          byteCount += 4;
+        }
+      } else {
+        escaped += ch;
+        byteCount += 1;
+      }
+    }
 
-    const length = pattern.length + 1;
+    const length = byteCount + 1;
     const globalName = this.nextString();
 
     this.ctx.globalStrings.push(

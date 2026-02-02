@@ -1,10 +1,10 @@
-import { BaseGenerator } from '../../../infrastructure/base-generator.js';
+import { IGeneratorContext } from '../../../infrastructure/generator-context.js';
 
 // ============================================
 // STRING SEARCH - String search and query operations
 // ============================================
 
-export function generateStartsWith(ctx: BaseGenerator, strPtr: string, prefix: string): string {
+export function generateStartsWith(ctx: IGeneratorContext, strPtr: string, prefix: string): string {
   const prefixLen = ctx.nextTemp();
   ctx.emit(`${prefixLen} = call i64 @strlen(i8* ${prefix})`);
 
@@ -20,7 +20,7 @@ export function generateStartsWith(ctx: BaseGenerator, strPtr: string, prefix: s
   return resultI32;
 }
 
-export function generateCharAt(ctx: BaseGenerator, strPtr: string, index: string): string {
+export function generateCharAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
   const indexI64 = ctx.nextTemp();
   ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
 
@@ -42,7 +42,27 @@ export function generateCharAt(ctx: BaseGenerator, strPtr: string, index: string
   return resultPtr;
 }
 
-export function generateIndexOf(ctx: BaseGenerator, strPtr: string, substring: string): string {
+export function generateCharCodeAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
+  const indexI64 = ctx.nextTemp();
+  ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+
+  const charPtr = ctx.nextTemp();
+  ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${indexI64}`);
+
+  const charI8 = ctx.nextTemp();
+  ctx.emit(`${charI8} = load i8, i8* ${charPtr}`);
+
+  const charI32 = ctx.nextTemp();
+  ctx.emit(`${charI32} = zext i8 ${charI8} to i32`);
+
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = sitofp i32 ${charI32} to double`);
+  ctx.setVariableType(result, 'double');
+
+  return result;
+}
+
+export function generateIndexOf(ctx: IGeneratorContext, strPtr: string, substring: string): string {
   const foundPtr = ctx.nextTemp();
   ctx.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${substring})`);
 
@@ -79,7 +99,7 @@ export function generateIndexOf(ctx: BaseGenerator, strPtr: string, substring: s
   return result;
 }
 
-export function generateIncludes(ctx: BaseGenerator, strPtr: string, substring: string): string {
+export function generateIncludes(ctx: IGeneratorContext, strPtr: string, substring: string): string {
   const foundPtr = ctx.nextTemp();
   ctx.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${substring})`);
 
@@ -95,7 +115,7 @@ export function generateIncludes(ctx: BaseGenerator, strPtr: string, substring: 
   return result;
 }
 
-export function generateEndsWith(ctx: BaseGenerator, strPtr: string, suffix: string): string {
+export function generateEndsWith(ctx: IGeneratorContext, strPtr: string, suffix: string): string {
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
 

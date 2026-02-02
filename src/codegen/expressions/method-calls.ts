@@ -86,10 +86,13 @@ interface StringGeneratorLike {
   generateStartsWith(strPtr: string, prefix: string): string;
   generateEndsWith(strPtr: string, suffix: string): string;
   generateTrim(strPtr: string): string;
+  generateToUpperCase(strPtr: string): string;
+  generateToLowerCase(strPtr: string): string;
   generateIndexOf(strPtr: string, substring: string): string;
   generateIncludes(strPtr: string, substring: string): string;
   generateSlice(strPtr: string, start: string, end: string | null): string;
   generateCharAt(strPtr: string, index: string): string;
+  generateCharCodeAt(strPtr: string, index: string): string;
   generateReplace(strPtr: string, search: string, replace: string): string;
   generateReplaceAll(strPtr: string, search: string, replace: string): string;
   generateGlobalString(value: string): string;
@@ -163,7 +166,8 @@ interface ArrowFunctionGeneratorLike {
     callback: Expression,
     params: string[],
     callbackTypes?: { paramTypes?: string[]; returnType?: string },
-    scopeVars?: Map<string, string>
+    scopeVarNames?: string[],
+    scopeVarTypes?: string[]
   ): string;
 }
 
@@ -318,7 +322,16 @@ export class MethodCallGenerator {
         }
       }
 
-      const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === nestedType);
+      let classDecl: ClassNode | null = null;
+      if (this.ctx.ast?.classes) {
+        for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+          const c = this.ctx.ast.classes[ci] as ClassNode;
+          if (c.name === nestedType) {
+            classDecl = c;
+            break;
+          }
+        }
+      }
       if (classDecl) {
         const cls = classDecl as ClassNode;
         let field: { name: string; tsType: string } | null = null;
@@ -380,7 +393,16 @@ export class MethodCallGenerator {
       }
     }
 
-    const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === parentType);
+    let classDecl: ClassNode | null = null;
+    if (this.ctx.ast?.classes) {
+      for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+        const c = this.ctx.ast.classes[ci] as ClassNode;
+        if (c.name === parentType) {
+          classDecl = c;
+          break;
+        }
+      }
+    }
     if (classDecl) {
       const cls = classDecl as ClassNode;
       let field: { name: string; tsType: string } | null = null;
@@ -478,7 +500,16 @@ export class MethodCallGenerator {
         }
       }
 
-      const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === nestedType);
+      let classDecl: ClassNode | null = null;
+      if (this.ctx.ast?.classes) {
+        for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+          const c = this.ctx.ast.classes[ci] as ClassNode;
+          if (c.name === nestedType) {
+            classDecl = c;
+            break;
+          }
+        }
+      }
       if (classDecl) {
         const cls = classDecl as ClassNode;
         let field: { name: string; tsType: string } | null = null;
@@ -709,6 +740,15 @@ export class MethodCallGenerator {
     }
     if (method === 'charAt') {
       return this.handleCharAt(expr, params);
+    }
+    if (method === 'charCodeAt') {
+      return this.handleCharCodeAt(expr, params);
+    }
+    if (method === 'toUpperCase') {
+      return this.handleToUpperCase(expr, params);
+    }
+    if (method === 'toLowerCase') {
+      return this.handleToLowerCase(expr, params);
     }
     if (method === 'match') {
       return this.handleMatch(expr, params);
@@ -1171,6 +1211,32 @@ export class MethodCallGenerator {
     return this.ctx.stringGen.generateCharAt(strPtr, indexI32);
   }
 
+  private handleCharCodeAt(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+    const strPtr = this.ctx.generateExpression(expr.object, params);
+
+    if (expr.args.length !== 1) {
+      throw new Error('charCodeAt() expects 1 argument, got ' + expr.args.length);
+    }
+
+    const indexDouble = this.ctx.generateExpression(expr.args[0], params);
+    const indexI32 = this.ctx.nextTemp();
+    this.ctx.emit(indexI32 + ' = fptosi double ' + indexDouble + ' to i32');
+    return this.ctx.stringGen.generateCharCodeAt(strPtr, indexI32);
+  }
+
+  private handleToUpperCase(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+    const strPtr = this.ctx.generateExpression(expr.object, params);
+    return this.ctx.stringGen.generateToUpperCase(strPtr);
+  }
+
+  private handleToLowerCase(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+    const strPtr = this.ctx.generateExpression(expr.object, params);
+    return this.ctx.stringGen.generateToLowerCase(strPtr);
+  }
+
   private handleMatch(expr: MethodCallNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
     const strPtr = this.ctx.generateExpression(expr.object, params);
@@ -1328,7 +1394,14 @@ export class MethodCallGenerator {
       if (!this.ctx.currentClassName) {
         throw new Error('super.method() called outside of class context');
       }
-      const currentClassResult = this.ctx.ast.classes.find((c: ClassNode) => c.name === this.ctx.currentClassName);
+      let currentClassResult: ClassNode | null = null;
+      for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+        const c = this.ctx.ast.classes[ci] as ClassNode;
+        if (c.name === this.ctx.currentClassName) {
+          currentClassResult = c;
+          break;
+        }
+      }
       const currentClass = currentClassResult as ClassNode;
       if (!currentClassResult || !currentClass.extends) {
         throw new Error(`super.method() called but current class ${this.ctx.currentClassName} has no parent class`);
@@ -1379,7 +1452,14 @@ export class MethodCallGenerator {
   }
 
   private findClassWithMethod(className: string, methodName: string): string | null {
-    const classNodeResult = this.ctx.ast.classes.find((c: ClassNode) => c.name === className);
+    let classNodeResult: ClassNode | null = null;
+    for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+      const c = this.ctx.ast.classes[ci] as ClassNode;
+      if (c.name === className) {
+        classNodeResult = c;
+        break;
+      }
+    }
     const classNode = classNodeResult as ClassNode;
     if (!classNodeResult) return null;
 
@@ -1666,31 +1746,40 @@ export class MethodCallGenerator {
     let onRejected = 'null';
 
     const promiseCallbackTypes = { paramTypes: ['string', 'any'], returnType: 'void' };
-    const scopeVars = this.ctx.symbolTable.getScopeVarsForClosure();
-
-    const processCallback = (callback: Expression): string | null => {
-      if (callback.type === 'arrow_function') {
-        const callbackName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(callback, params, promiseCallbackTypes, scopeVars);
-        return `@${callbackName}`;
-      } else if (callback.type === 'variable') {
-        return `@${(callback as VariableNode).name}`;
-      }
-      return null;
-    };
+    const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
+    const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
 
     if (isCatch) {
       if (expr.args.length > 0) {
-        const result = processCallback(expr.args[0]);
-        if (result) onRejected = result;
+        const callback = expr.args[0] as Expression;
+        const callbackBase = callback as ExprBase;
+        if (callbackBase.type === 'arrow_function') {
+          const callbackName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+          onRejected = `@${callbackName}`;
+        } else if (callbackBase.type === 'variable') {
+          onRejected = `@${(callback as VariableNode).name}`;
+        }
       }
     } else {
       if (expr.args.length > 0) {
-        const result = processCallback(expr.args[0]);
-        if (result) onFulfilled = result;
+        const callback = expr.args[0] as Expression;
+        const callbackBase = callback as ExprBase;
+        if (callbackBase.type === 'arrow_function') {
+          const callbackName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+          onFulfilled = `@${callbackName}`;
+        } else if (callbackBase.type === 'variable') {
+          onFulfilled = `@${(callback as VariableNode).name}`;
+        }
       }
       if (expr.args.length > 1) {
-        const result = processCallback(expr.args[1]);
-        if (result) onRejected = result;
+        const callback = expr.args[1] as Expression;
+        const callbackBase = callback as ExprBase;
+        if (callbackBase.type === 'arrow_function') {
+          const callbackName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+          onRejected = `@${callbackName}`;
+        } else if (callbackBase.type === 'variable') {
+          onRejected = `@${(callback as VariableNode).name}`;
+        }
       }
     }
 
@@ -1725,7 +1814,7 @@ export class MethodCallGenerator {
     }
     console.log('[DEBUG] throwUnsupportedMethodError method:', method, 'objectType:', objectType);
     const stringMethods = [
-      'charAt', 'concat', 'padStart', 'repeat', 'split', 'startsWith', 'substring', 'substr'
+      'charAt', 'charCodeAt', 'concat', 'padStart', 'repeat', 'split', 'startsWith', 'substring', 'substr', 'toUpperCase', 'toLowerCase'
     ];
     const arrayMethods = [
       'push', 'map', 'join', 'find', 'some', 'every', 'filter', 'forEach'

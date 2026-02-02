@@ -1,10 +1,10 @@
-import { BaseGenerator } from '../../../infrastructure/base-generator.js';
+import { IGeneratorContext } from '../../../infrastructure/generator-context.js';
 
 // ============================================
 // STRING MANIPULATION - Substring, slice, repeat, pad, trim operations
 // ============================================
 
-export function generateSubstr(ctx: BaseGenerator, strPtr: string, startIndex: string, length: string | null): string {
+export function generateSubstr(ctx: IGeneratorContext, strPtr: string, startIndex: string, length: string | null): string {
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
   const strLenI32 = ctx.nextTemp();
@@ -59,7 +59,7 @@ export function generateSubstr(ctx: BaseGenerator, strPtr: string, startIndex: s
   return resultPtr;
 }
 
-export function generateRepeat(ctx: BaseGenerator, strPtr: string, count: string): string {
+export function generateRepeat(ctx: IGeneratorContext, strPtr: string, count: string): string {
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
 
@@ -108,7 +108,7 @@ export function generateRepeat(ctx: BaseGenerator, strPtr: string, count: string
   return resultPtr;
 }
 
-export function generatePadStart(ctx: BaseGenerator, strPtr: string, targetLength: string, padString: string): string {
+export function generatePadStart(ctx: IGeneratorContext, strPtr: string, targetLength: string, padString: string): string {
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
   const strLenI32 = ctx.nextTemp();
@@ -211,7 +211,7 @@ export function generatePadStart(ctx: BaseGenerator, strPtr: string, targetLengt
   return result;
 }
 
-export function generateSlice(ctx: BaseGenerator, strPtr: string, startIndex: string, endIndex: string | null): string {
+export function generateSlice(ctx: IGeneratorContext, strPtr: string, startIndex: string, endIndex: string | null): string {
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
   const strLenI32 = ctx.nextTemp();
@@ -271,7 +271,7 @@ export function generateSlice(ctx: BaseGenerator, strPtr: string, startIndex: st
   return generateSubstr(ctx, strPtr, finalStart, finalLen);
 }
 
-export function generateTrim(ctx: BaseGenerator, strPtr: string): string {
+export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
   const strLenI32 = ctx.nextTemp();
@@ -434,7 +434,7 @@ export function generateTrim(ctx: BaseGenerator, strPtr: string): string {
   return result;
 }
 
-export function generateReplace(ctx: BaseGenerator, strPtr: string, searchPtr: string, replacePtr: string): string {
+export function generateReplace(ctx: IGeneratorContext, strPtr: string, searchPtr: string, replacePtr: string): string {
   const foundPtr = ctx.nextTemp();
   ctx.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${searchPtr})`);
 
@@ -504,7 +504,7 @@ export function generateReplace(ctx: BaseGenerator, strPtr: string, searchPtr: s
   return result;
 }
 
-export function generateReplaceAll(ctx: BaseGenerator, strPtr: string, searchPtr: string, replacePtr: string): string {
+export function generateReplaceAll(ctx: IGeneratorContext, strPtr: string, searchPtr: string, replacePtr: string): string {
   const resultPtr = ctx.nextTemp();
   ctx.emit(`${resultPtr} = alloca i8*`);
   ctx.emit(`store i8* ${strPtr}, i8** ${resultPtr}`);
@@ -534,4 +534,128 @@ export function generateReplaceAll(ctx: BaseGenerator, strPtr: string, searchPtr
   ctx.emit(`${result} = load i8*, i8** ${resultPtr}`);
 
   return result;
+}
+
+export function generateToUpperCase(ctx: IGeneratorContext, strPtr: string): string {
+  const strLen = ctx.nextTemp();
+  ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+
+  const allocLen = ctx.nextTemp();
+  ctx.emit(`${allocLen} = add i64 ${strLen}, 1`);
+
+  const resultPtr = ctx.nextTemp();
+  ctx.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 ${allocLen})`);
+
+  const idxPtr = ctx.nextTemp();
+  ctx.emit(`${idxPtr} = alloca i64, align 8`);
+  ctx.emit(`store i64 0, i64* ${idxPtr}`);
+
+  const loopLabel = ctx.nextLabel('toupper_loop');
+  const bodyLabel = ctx.nextLabel('toupper_body');
+  const endLabel = ctx.nextLabel('toupper_end');
+
+  ctx.emit(`br label %${loopLabel}`);
+
+  ctx.emit(`${loopLabel}:`);
+  const idx = ctx.nextTemp();
+  ctx.emit(`${idx} = load i64, i64* ${idxPtr}`);
+  const cond = ctx.nextTemp();
+  ctx.emit(`${cond} = icmp slt i64 ${idx}, ${strLen}`);
+  ctx.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+  ctx.emit(`${bodyLabel}:`);
+  const srcPtr = ctx.nextTemp();
+  ctx.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${idx}`);
+  const ch = ctx.nextTemp();
+  ctx.emit(`${ch} = load i8, i8* ${srcPtr}`);
+
+  const isLowerA = ctx.nextTemp();
+  ctx.emit(`${isLowerA} = icmp sge i8 ${ch}, 97`);
+  const isLowerZ = ctx.nextTemp();
+  ctx.emit(`${isLowerZ} = icmp sle i8 ${ch}, 122`);
+  const isLower = ctx.nextTemp();
+  ctx.emit(`${isLower} = and i1 ${isLowerA}, ${isLowerZ}`);
+
+  const upperCh = ctx.nextTemp();
+  ctx.emit(`${upperCh} = sub i8 ${ch}, 32`);
+  const finalCh = ctx.nextTemp();
+  ctx.emit(`${finalCh} = select i1 ${isLower}, i8 ${upperCh}, i8 ${ch}`);
+
+  const dstPtr = ctx.nextTemp();
+  ctx.emit(`${dstPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${idx}`);
+  ctx.emit(`store i8 ${finalCh}, i8* ${dstPtr}`);
+
+  const nextIdx = ctx.nextTemp();
+  ctx.emit(`${nextIdx} = add i64 ${idx}, 1`);
+  ctx.emit(`store i64 ${nextIdx}, i64* ${idxPtr}`);
+  ctx.emit(`br label %${loopLabel}`);
+
+  ctx.emit(`${endLabel}:`);
+  const nullPtr = ctx.nextTemp();
+  ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${strLen}`);
+  ctx.emit(`store i8 0, i8* ${nullPtr}`);
+
+  return resultPtr;
+}
+
+export function generateToLowerCase(ctx: IGeneratorContext, strPtr: string): string {
+  const strLen = ctx.nextTemp();
+  ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+
+  const allocLen = ctx.nextTemp();
+  ctx.emit(`${allocLen} = add i64 ${strLen}, 1`);
+
+  const resultPtr = ctx.nextTemp();
+  ctx.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 ${allocLen})`);
+
+  const idxPtr = ctx.nextTemp();
+  ctx.emit(`${idxPtr} = alloca i64, align 8`);
+  ctx.emit(`store i64 0, i64* ${idxPtr}`);
+
+  const loopLabel = ctx.nextLabel('tolower_loop');
+  const bodyLabel = ctx.nextLabel('tolower_body');
+  const endLabel = ctx.nextLabel('tolower_end');
+
+  ctx.emit(`br label %${loopLabel}`);
+
+  ctx.emit(`${loopLabel}:`);
+  const idx = ctx.nextTemp();
+  ctx.emit(`${idx} = load i64, i64* ${idxPtr}`);
+  const cond = ctx.nextTemp();
+  ctx.emit(`${cond} = icmp slt i64 ${idx}, ${strLen}`);
+  ctx.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+  ctx.emit(`${bodyLabel}:`);
+  const srcPtr = ctx.nextTemp();
+  ctx.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${idx}`);
+  const ch = ctx.nextTemp();
+  ctx.emit(`${ch} = load i8, i8* ${srcPtr}`);
+
+  const isUpperA = ctx.nextTemp();
+  ctx.emit(`${isUpperA} = icmp sge i8 ${ch}, 65`);
+  const isUpperZ = ctx.nextTemp();
+  ctx.emit(`${isUpperZ} = icmp sle i8 ${ch}, 90`);
+  const isUpper = ctx.nextTemp();
+  ctx.emit(`${isUpper} = and i1 ${isUpperA}, ${isUpperZ}`);
+
+  const lowerCh = ctx.nextTemp();
+  ctx.emit(`${lowerCh} = add i8 ${ch}, 32`);
+  const finalCh = ctx.nextTemp();
+  ctx.emit(`${finalCh} = select i1 ${isUpper}, i8 ${lowerCh}, i8 ${ch}`);
+
+  const dstPtr = ctx.nextTemp();
+  ctx.emit(`${dstPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${idx}`);
+  ctx.emit(`store i8 ${finalCh}, i8* ${dstPtr}`);
+
+  const nextIdx = ctx.nextTemp();
+  ctx.emit(`${nextIdx} = add i64 ${idx}, 1`);
+  ctx.emit(`store i64 ${nextIdx}, i64* ${idxPtr}`);
+  ctx.emit(`br label %${loopLabel}`);
+
+  ctx.emit(`${endLabel}:`);
+  const nullPtr = ctx.nextTemp();
+  ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${strLen}`);
+  ctx.emit(`store i8 0, i8* ${nullPtr}`);
+
+  return resultPtr;
 }
