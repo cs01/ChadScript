@@ -22,6 +22,7 @@ import { Expression, BlockStatement, AST, CallNode } from '../../ast/types.js';
 import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
+import type { ResolvedType } from './type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -222,6 +223,23 @@ export interface IGeneratorContext {
   readonly variableTypes: Map<string, string>;
 
   /**
+   * Expression type cache - maps expressions to their resolved types
+   * Caches type inference results to avoid repeated computation
+   */
+  readonly expressionTypes: Map<Expression, ResolvedType>;
+
+  /**
+   * Get or compute the type of an expression
+   * Returns undefined if type cannot be determined
+   */
+  getExpressionType(expr: Expression): ResolvedType | undefined;
+
+  /**
+   * Cache an expression's type for future lookups
+   */
+  setExpressionType(expr: Expression, type: ResolvedType): void;
+
+  /**
    * LLVM IR output buffer
    * Used to check for terminators and other instruction analysis
    */
@@ -317,6 +335,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public output: string[] = [];
   public symbolTable = new SymbolTable();
   public variableTypes: Map<string, string> = new Map();
+  public expressionTypes: Map<Expression, ResolvedType> = new Map();
   public globalStrings: string[] = [];
   public currentFunctionReturnType = 'double';
   public currentFunctionTsReturnType: string | undefined = undefined;
@@ -330,6 +349,14 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesPromises = false;
   public usesTimers = false;
   public currentFunction: string | null = null;
+
+  getExpressionType(expr: Expression): ResolvedType | undefined {
+    return this.expressionTypes.get(expr);
+  }
+
+  setExpressionType(expr: Expression, type: ResolvedType): void {
+    this.expressionTypes.set(expr, type);
+  }
 
   generateExpression(expr: Expression, params: string[]): string {
     // Mock implementation - returns a dummy register

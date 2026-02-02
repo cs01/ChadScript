@@ -1,5 +1,6 @@
 import { Expression } from '../../ast/types.js';
 import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
+import type { ResolvedType } from './type-system.js';
 
 // Re-export for convenience
 export { SymbolTable, SymbolKind };
@@ -23,6 +24,9 @@ export class BaseGenerator {
   // Named variables use SymbolTable instead
   public variableTypes: Map<string, string> = new Map();
 
+  // Expression type cache - maps expressions to their resolved types
+  public expressionTypes: Map<Expression, ResolvedType> = new Map();
+
   public thisPointer: string | null = null; // Current 'this' pointer (i32*)
   public currentClassName: string | null = null; // Current class name (for super resolution)
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null; // Expected array element type for context-aware generation
@@ -42,6 +46,9 @@ export class BaseGenerator {
 
     // Clear temporary register types
     this.variableTypes.clear();
+
+    // Clear expression type cache
+    this.expressionTypes.clear();
 
     this.thisPointer = null;
     this.currentClassName = null;
@@ -191,6 +198,20 @@ export class BaseGenerator {
    */
   setVariableType(name: string, type: string): void {
     this.variableTypes.set(name, type);
+  }
+
+  /**
+   * Get cached type for an expression
+   */
+  getExpressionType(expr: Expression): ResolvedType | undefined {
+    return this.expressionTypes.get(expr);
+  }
+
+  /**
+   * Cache type for an expression
+   */
+  setExpressionType(expr: Expression, type: ResolvedType): void {
+    this.expressionTypes.set(expr, type);
   }
 
   /**
