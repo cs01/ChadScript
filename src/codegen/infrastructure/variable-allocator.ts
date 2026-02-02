@@ -2,7 +2,7 @@ import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, In
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import { TypeResolver, UnionCommonFields } from './type-resolver/index.js';
-import { stripOptional } from './type-system.js';
+import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil, tsTypeToLlvmJson as tsTypeToLlvmJsonUtil } from './type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -1121,27 +1121,11 @@ export class VariableAllocator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.tsTypeToLlvm(tsType);
-    }
-    if (tsType === 'string') return 'i8*';
-    if (tsType === 'number') return 'double';
-    if (tsType === 'boolean') return 'i1';
-    if (tsType === 'string[]') return '%StringArray*';
-    if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
-    return 'i8*';
+    return tsTypeToLlvmUtil(tsType);
   }
 
   private tsTypeToLlvmJson(tsType: string): string {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.tsTypeToLlvmJson(tsType);
-    }
-    if (tsType === 'string') return 'i8*';
-    if (tsType === 'number') return 'double';
-    if (tsType === 'boolean') return 'double';
-    if (tsType === 'string[]') return '%StringArray*';
-    if (tsType === 'number[]') return '%Array*';
-    return 'i8*';
+    return tsTypeToLlvmJsonUtil(tsType);
   }
 
   private getArrayMethodReturnType(expr: Expression | null): { keys: string[]; types: string[]; tsTypes: string[] } | null {

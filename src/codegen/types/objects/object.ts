@@ -1,6 +1,7 @@
 import { Expression, ObjectNode, ObjectProperty } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import type { InterfaceStructGenerator } from '../interface-struct-generator.js';
+import { tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
 
 interface ObjectGeneratorContext extends IGeneratorContext {
   currentDeclaredInterfaceType?: string;
@@ -69,12 +70,7 @@ export class ObjectGenerator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
-    if (tsType === 'string') return 'i8*';
-    if (tsType === 'number') return 'double';
-    if (tsType === 'boolean') return 'double';
-    if (tsType === 'string[]') return '%StringArray*';
-    if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
-    return 'i8*';
+    return tsTypeToLlvmUtil(tsType);
   }
 
   private generateInlineInterfaceObject(objExpr: ObjectNode, params: string[], typeStr: string): string {

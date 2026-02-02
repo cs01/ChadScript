@@ -2,7 +2,7 @@ import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expres
 import { SymbolTable, ObjectMetadata, SymbolKind } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo, ClassGeneratorLike } from './types.js';
-import { ResolvedType, createResolvedType, parseTypeString, stripOptional } from '../type-system.js';
+import { ResolvedType, createResolvedType, parseTypeString, stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil, tsTypeToLlvmJson as tsTypeToLlvmJsonUtil } from '../type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -322,22 +322,11 @@ export class TypeResolver {
   }
 
   tsTypeToLlvm(tsType: string): string {
-    if (tsType === 'string') return 'i8*';
-    if (tsType === 'number') return 'double';
-    if (tsType === 'boolean') return 'i1';
-    if (tsType === 'string[]') return '%StringArray*';
-    if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
-    if (tsType.startsWith("'") || tsType.startsWith('"')) return 'i8*';
-    return 'i8*';
+    return tsTypeToLlvmUtil(tsType);
   }
 
   tsTypeToLlvmJson(tsType: string): string {
-    if (tsType === 'string') return 'i8*';
-    if (tsType === 'number') return 'double';
-    if (tsType === 'boolean') return 'double';
-    if (tsType === 'string[]') return '%StringArray*';
-    if (tsType === 'number[]') return '%Array*';
-    return 'i8*';
+    return tsTypeToLlvmJsonUtil(tsType);
   }
 
   getClassFieldInfo(className: string, fieldName: string): FieldInfo | null {

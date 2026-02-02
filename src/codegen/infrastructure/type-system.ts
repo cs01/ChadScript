@@ -286,3 +286,23 @@ export function getNumericLlvmType(resolved: ResolvedType | undefined): string {
   }
   return resolved.qualifiers.numericKind === 'integer' ? 'i32' : 'double';
 }
+
+export function tsTypeToLlvm(tsType: string): string {
+  if (tsType === 'string') return 'i8*';
+  if (tsType === 'number') return 'double';
+  if (tsType === 'boolean') return 'double';
+  if (tsType === 'void') return 'void';
+  if (tsType === 'string[]') return '%StringArray*';
+  if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
+  if (tsType.startsWith("'") || tsType.startsWith('"')) return 'i8*';
+  return 'i8*';
+}
+
+export function tsTypeToLlvmJson(tsType: string): string {
+  if (tsType === 'string') return 'i8*';
+  if (tsType === 'number') return 'double';
+  if (tsType === 'boolean') return 'double';
+  if (tsType === 'string[]') return '%StringArray*';
+  if (tsType === 'number[]') return '%Array*';
+  return 'i8*';
+}

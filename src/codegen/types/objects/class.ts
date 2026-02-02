@@ -1,7 +1,7 @@
 import { Expression, ClassNode, ClassMethod, ClassField, BlockStatement, VariableNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, CommonField } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind } from '../../infrastructure/symbol-table.js';
-import { stripOptional } from '../../infrastructure/type-system.js';
+import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
 
 // ============================================
 // CLASS GENERATOR - Class and instance operations
@@ -535,13 +535,7 @@ export class ClassGenerator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
-    if (tsType === 'string') return 'i8*';
-    if (tsType === 'number') return 'double';
-    if (tsType === 'boolean') return 'double';
-    if (tsType === 'void') return 'void';
-    if (tsType === 'string[]') return '%StringArray*';
-    if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
-    return 'i8*';
+    return tsTypeToLlvmUtil(tsType);
   }
 
   private methodReturnTypeToLlvm(returnType: string): string {

@@ -1,4 +1,5 @@
 import { InterfaceDeclaration, InterfaceField } from '../../ast/types.js';
+import { tsTypeToLlvm as tsTypeToLlvmUtil } from '../infrastructure/type-system.js';
 
 const BUILTIN_TYPES = [
   'Array', 'StringArray', 'Map', 'StringMap', 'Set', 'StringSet',
@@ -72,14 +73,13 @@ export class InterfaceStructGenerator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
-    if (tsType === 'string') return 'i8*';
-    if (tsType === 'number') return 'double';
-    if (tsType === 'boolean') return 'double';
-    if (tsType === 'string[]') return '%StringArray*';
-    if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
-    if (tsType.endsWith('[]')) return '%Array*';
-    if (this.interfaceStructs.has(tsType)) return `%${tsType}*`;
-    return 'i8*';
+    if (tsType.endsWith('[]') && tsType !== 'string[]' && tsType !== 'number[]' && tsType !== 'boolean[]') {
+      return '%Array*';
+    }
+    if (this.interfaceStructs.has(tsType)) {
+      return `%${tsType}*`;
+    }
+    return tsTypeToLlvmUtil(tsType);
   }
 
   getInterfaceStruct(name: string): InterfaceStructInfo | undefined {
