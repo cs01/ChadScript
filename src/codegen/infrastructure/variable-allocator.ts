@@ -1,7 +1,7 @@
 import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, InterfaceField, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
-import { TypeResolver } from './type-resolver/index.js';
+import { TypeResolver, UnionCommonFields } from './type-resolver/index.js';
 
 interface ClassGeneratorLike {
   getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[];
@@ -783,7 +783,7 @@ export class VariableAllocator {
     const typeAlias = this.getTypeAlias(elementType);
     if (typeAlias && typeAlias.unionMembers) {
       const commonFieldsResult = this.getUnionCommonFields(typeAlias.unionMembers);
-      const commonFields = commonFieldsResult as { keys: string[]; types: string[]; tsTypes: string[] };
+      const commonFields = commonFieldsResult as UnionCommonFields;
       if (commonFields.keys.length > 0) {
         return commonFields;
       }
@@ -813,7 +813,8 @@ export class VariableAllocator {
     const firstFields = firstInterface.fields;
     const commonFields: { name: string; type: string }[] = [];
 
-    for (const field of firstFields) {
+    for (let fi = 0; fi < firstFields.length; fi++) {
+      const field = firstFields[fi] as InterfaceField;
       const isCommon = interfaces.every((iface) =>
         iface.fields.some((f) => f.name === field.name && this.areTypesCompatible(f.type, field.type))
       );
@@ -848,7 +849,7 @@ export class VariableAllocator {
     return type;
   }
 
-  private allocateIndexedObjectArray(stmt: VariableDeclaration, params: string[], typeInfo: { keys: string[]; types: string[]; tsTypes: string[] }): void {
+  private allocateIndexedObjectArray(stmt: VariableDeclaration, params: string[], typeInfo: UnionCommonFields): void {
     const allocaReg = this.ctx.nextTemp();
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
       objectMetadata: { keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }
@@ -893,7 +894,7 @@ export class VariableAllocator {
     return null;
   }
 
-  private allocateArrayMethodReturn(stmt: VariableDeclaration, params: string[], typeInfo: { keys: string[]; types: string[]; tsTypes: string[] }): void {
+  private allocateArrayMethodReturn(stmt: VariableDeclaration, params: string[], typeInfo: UnionCommonFields): void {
     const allocaReg = this.ctx.nextTemp();
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
       objectMetadata: { keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }
