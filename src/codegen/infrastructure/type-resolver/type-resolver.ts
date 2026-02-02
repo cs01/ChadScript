@@ -86,7 +86,7 @@ export class TypeResolver {
       if (member.object.type === 'this') {
         if (this.ctx.currentClassName && this.ctx.classGen) {
           const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, member.property);
-          const fieldInfo = fieldInfoResult as FieldInfo;
+          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
             return fieldInfo.tsType;
           }
@@ -235,7 +235,7 @@ export class TypeResolver {
 
   getClassFieldMapType(className: string, fieldName: string): MapTypeInfo | null {
     const fieldInfoResult = this.getClassFieldInfo(className, fieldName);
-    const fieldInfo = fieldInfoResult as FieldInfo;
+    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const match = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
@@ -254,7 +254,7 @@ export class TypeResolver {
 
   getClassFieldSetType(className: string, fieldName: string): SetTypeInfo | null {
     const fieldInfoResult = this.getClassFieldInfo(className, fieldName);
-    const fieldInfo = fieldInfoResult as FieldInfo;
+    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const match = fieldInfo.tsType.match(/^Set<(\w+)>$/);
@@ -431,7 +431,7 @@ export class TypeResolver {
       if (!this.ctx.currentClassName) return null;
 
       const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, fieldName);
-      const fieldInfo = fieldInfoResult as FieldInfo;
+      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
       const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
@@ -563,7 +563,7 @@ export class TypeResolver {
     if (!this.ctx.currentClassName) return null;
 
     const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, fieldName);
-    const fieldInfo = fieldInfoResult as FieldInfo;
+    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const setMatch = fieldInfo.tsType.match(/^Set<(\w+)>$/);

@@ -506,18 +506,28 @@ export class ControlFlowGenerator {
       };
     }
 
-    const typeAliasResult = this.ctx.ast?.typeAliases?.find((t: TypeAliasDeclaration) => t.name === elementInterface);
-    const typeAlias = typeAliasResult as TypeAliasDeclaration;
-    if (typeAliasResult && typeAlias.unionMembers) {
-      const commonFieldsResult = this.getUnionCommonFields(typeAlias.unionMembers);
-      const commonFields = commonFieldsResult as UnionCommonFields;
-      if (commonFields.keys.length > 0) {
-        return {
-          elementInterfaceName: elementInterface,
-          elementKeys: commonFields.keys,
-          elementTypes: commonFields.types,
-          elementTsTypes: commonFields.tsTypes || commonFields.keys.map(() => 'string')
-        };
+    let typeAlias: { name: string; unionMembers: string[] } | null = null;
+    const typeAliases = this.ctx.ast?.typeAliases || [];
+    for (let i = 0; i < typeAliases.length; i++) {
+      const ta = typeAliases[i] as { name: string; unionMembers: string[] };
+      if (ta.name === elementInterface) {
+        typeAlias = ta;
+        break;
+      }
+    }
+    if (typeAlias) {
+      const typeAliasTyped = typeAlias as { name: string; unionMembers: string[] };
+      if (typeAliasTyped.unionMembers) {
+        const commonFieldsResult = this.getUnionCommonFields(typeAliasTyped.unionMembers);
+        const commonFields = commonFieldsResult as UnionCommonFields;
+        if (commonFields.keys.length > 0) {
+          return {
+            elementInterfaceName: elementInterface,
+            elementKeys: commonFields.keys,
+            elementTypes: commonFields.types,
+            elementTsTypes: commonFields.tsTypes || commonFields.keys.map(() => 'string')
+          };
+        }
       }
     }
 

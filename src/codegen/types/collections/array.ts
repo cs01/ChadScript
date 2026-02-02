@@ -79,7 +79,9 @@ export class ArrayGenerator {
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
-    const { length, dataPtr } = this.loadArrayMeta(arrayPtr);
+    const arrayMeta = this.loadArrayMeta(arrayPtr) as { length: string; dataPtr: string };
+    const length = arrayMeta.length;
+    const dataPtr = arrayMeta.dataPtr;
 
     // Loop setup
     const loopLabel = this.nextLabel('find_loop');
@@ -164,7 +166,9 @@ export class ArrayGenerator {
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
-    const { length, dataPtr } = this.loadArrayMeta(arrayPtr);
+    const arrayMeta = this.loadArrayMeta(arrayPtr) as { length: string; dataPtr: string };
+    const length = arrayMeta.length;
+    const dataPtr = arrayMeta.dataPtr;
 
     // Loop setup
     const loopLabel = this.nextLabel('some_loop');
@@ -249,7 +253,9 @@ export class ArrayGenerator {
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
-    const { length, dataPtr } = this.loadArrayMeta(arrayPtr);
+    const arrayMeta = this.loadArrayMeta(arrayPtr) as { length: string; dataPtr: string };
+    const length = arrayMeta.length;
+    const dataPtr = arrayMeta.dataPtr;
 
     const loopLabel = this.nextLabel('every_loop');
     const checkLabel = this.nextLabel('every_check');
@@ -453,7 +459,9 @@ export class ArrayGenerator {
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
-    const { length, dataPtr } = this.loadArrayMeta(arrayPtr);
+    const arrayMeta = this.loadArrayMeta(arrayPtr) as { length: string; dataPtr: string };
+    const length = arrayMeta.length;
+    const dataPtr = arrayMeta.dataPtr;
 
     // Loop setup
     const loopLabel = this.nextLabel('foreach_loop');

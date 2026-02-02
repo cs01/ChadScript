@@ -591,14 +591,24 @@ export class ClassGenerator {
       return;
     }
 
-    const typeAliasResult = this.ctx.ast?.typeAliases?.find((t: TypeAliasDeclaration) => t.name === tsType);
-    const typeAlias = typeAliasResult as TypeAliasDeclaration;
-    if (typeAliasResult && typeAlias.unionMembers) {
-      const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
-      this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
-        objectMetadata: commonFields
-      });
-      return;
+    let typeAlias: { name: string; unionMembers: string[] } | null = null;
+    const typeAliases = this.ctx.ast?.typeAliases || [];
+    for (let i = 0; i < typeAliases.length; i++) {
+      const ta = typeAliases[i] as { name: string; unionMembers: string[] };
+      if (ta.name === tsType) {
+        typeAlias = ta;
+        break;
+      }
+    }
+    if (typeAlias) {
+      const typeAliasTyped = typeAlias as { name: string; unionMembers: string[] };
+      if (typeAliasTyped.unionMembers) {
+        const commonFields = this.getUnionCommonFields(typeAliasTyped.unionMembers);
+        this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+          objectMetadata: commonFields
+        });
+        return;
+      }
     }
 
     this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind.Object, 'local');
@@ -613,16 +623,24 @@ export class ClassGenerator {
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
-    const interfacesRaw = memberNames
-      .map(name => this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
-      .filter((i): i is InterfaceDeclaration => i !== undefined);
-    const interfaces = interfacesRaw as InterfaceDeclaration[];
+    const interfaces: { name: string; fields: { name: string; type: string }[] }[] = [];
+    const astInterfaces = this.ctx.ast?.interfaces || [];
+    for (let i = 0; i < memberNames.length; i++) {
+      const memberName = memberNames[i];
+      for (let j = 0; j < astInterfaces.length; j++) {
+        const iface = astInterfaces[j] as { name: string; fields: { name: string; type: string }[] };
+        if (iface.name === memberName) {
+          interfaces.push(iface);
+          break;
+        }
+      }
+    }
 
     if (interfaces.length === 0) {
       return { keys: [], types: [] };
     }
 
-    const firstInterface = interfaces[0] as InterfaceDeclaration;
+    const firstInterface = interfaces[0] as { name: string; fields: { name: string; type: string }[] };
     const firstFields = firstInterface.fields;
     const commonFields: CommonField[] = [];
 

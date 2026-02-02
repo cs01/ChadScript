@@ -346,7 +346,9 @@ export class CallExpressionGenerator {
       throw new Error(`Closure metadata not found for: ${expr.name}`);
     }
 
-    const { lambdaName, envPtrRegister, captures } = closureMetadata;
+    const lambdaName = closureMetadata.lambdaName;
+    const envPtrRegister = closureMetadata.envPtrRegister;
+    const captures = closureMetadata.captures;
 
     const returnType = 'double';
 
