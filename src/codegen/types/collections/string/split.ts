@@ -5,302 +5,268 @@ import { generateSubstr } from './manipulation.js';
 // STRING SPLIT - Complex string splitting into arrays
 // ============================================
 
-export function generateSplit(this: BaseGenerator, strPtr: string, delimiter: string): string {
-  // Get string length
-  const strLen = this.nextTemp();
-  this.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
-  const strLenI32 = this.nextTemp();
-  this.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+export function generateSplit(ctx: BaseGenerator, strPtr: string, delimiter: string): string {
+  const strLen = ctx.nextTemp();
+  ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+  const strLenI32 = ctx.nextTemp();
+  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
 
-  // Get delimiter length
-  const delimLen = this.nextTemp();
-  this.emit(`${delimLen} = call i64 @strlen(i8* ${delimiter})`);
-  const delimLenI32 = this.nextTemp();
-  this.emit(`${delimLenI32} = trunc i64 ${delimLen} to i32`);
+  const delimLen = ctx.nextTemp();
+  ctx.emit(`${delimLen} = call i64 @strlen(i8* ${delimiter})`);
+  const delimLenI32 = ctx.nextTemp();
+  ctx.emit(`${delimLenI32} = trunc i64 ${delimLen} to i32`);
 
-  // Special case: empty delimiter - split into individual characters
-  const isEmptyDelim = this.nextTemp();
-  this.emit(`${isEmptyDelim} = icmp eq i32 ${delimLenI32}, 0`);
+  const isEmptyDelim = ctx.nextTemp();
+  ctx.emit(`${isEmptyDelim} = icmp eq i32 ${delimLenI32}, 0`);
 
-  const emptyDelimLabel = this.nextLabel('split_empty_delim');
-  const normalSplitLabel = this.nextLabel('split_normal');
-  const endLabel = this.nextLabel('split_end');
+  const emptyDelimLabel = ctx.nextLabel('split_empty_delim');
+  const normalSplitLabel = ctx.nextLabel('split_normal');
+  const endLabel = ctx.nextLabel('split_end');
 
-  this.emit(`br i1 ${isEmptyDelim}, label %${emptyDelimLabel}, label %${normalSplitLabel}`);
+  ctx.emit(`br i1 ${isEmptyDelim}, label %${emptyDelimLabel}, label %${normalSplitLabel}`);
 
-  // === Empty delimiter case: split into characters ===
-  this.emit(`${emptyDelimLabel}:`);
+  ctx.emit(`${emptyDelimLabel}:`);
 
-  // Allocate StringArray with length = string length
-  const emptyArrPtr = this.nextTemp();
-  this.emit(`${emptyArrPtr} = alloca %StringArray`);
+  const emptyArrPtr = ctx.nextTemp();
+  ctx.emit(`${emptyArrPtr} = alloca %StringArray`);
 
-  // Allocate data array (i8** with strLenI32 elements)
-  const emptyDataSize = this.nextTemp();
-  this.emit(`${emptyDataSize} = mul i32 ${strLenI32}, 8`); // 8 bytes per pointer
-  const emptyDataSizeI64 = this.nextTemp();
-  this.emit(`${emptyDataSizeI64} = zext i32 ${emptyDataSize} to i64`);
-  const emptyDataMem = this.nextTemp();
-  this.emit(`${emptyDataMem} = call i8* @GC_malloc(i64 ${emptyDataSizeI64})`);
-  const emptyDataPtr = this.nextTemp();
-  this.emit(`${emptyDataPtr} = bitcast i8* ${emptyDataMem} to i8**`);
+  const emptyDataSize = ctx.nextTemp();
+  ctx.emit(`${emptyDataSize} = mul i32 ${strLenI32}, 8`);
+  const emptyDataSizeI64 = ctx.nextTemp();
+  ctx.emit(`${emptyDataSizeI64} = zext i32 ${emptyDataSize} to i64`);
+  const emptyDataMem = ctx.nextTemp();
+  ctx.emit(`${emptyDataMem} = call i8* @GC_malloc(i64 ${emptyDataSizeI64})`);
+  const emptyDataPtr = ctx.nextTemp();
+  ctx.emit(`${emptyDataPtr} = bitcast i8* ${emptyDataMem} to i8**`);
 
-  // Loop to create single-character strings
-  const emptyLoopLabel = this.nextLabel('split_empty_loop');
-  const emptyLoopBodyLabel = this.nextLabel('split_empty_body');
-  const emptyLoopEndLabel = this.nextLabel('split_empty_end');
+  const emptyLoopLabel = ctx.nextLabel('split_empty_loop');
+  const emptyLoopBodyLabel = ctx.nextLabel('split_empty_body');
+  const emptyLoopEndLabel = ctx.nextLabel('split_empty_end');
 
-  const emptyCounterPtr = this.nextTemp();
-  this.emit(`${emptyCounterPtr} = alloca i32`);
-  this.emit(`store i32 0, i32* ${emptyCounterPtr}`);
-  this.emit(`br label %${emptyLoopLabel}`);
+  const emptyCounterPtr = ctx.nextTemp();
+  ctx.emit(`${emptyCounterPtr} = alloca i32`);
+  ctx.emit(`store i32 0, i32* ${emptyCounterPtr}`);
+  ctx.emit(`br label %${emptyLoopLabel}`);
 
-  this.emit(`${emptyLoopLabel}:`);
-  const emptyCounterVal = this.nextTemp();
-  this.emit(`${emptyCounterVal} = load i32, i32* ${emptyCounterPtr}`);
-  const emptyLoopCond = this.nextTemp();
-  this.emit(`${emptyLoopCond} = icmp slt i32 ${emptyCounterVal}, ${strLenI32}`);
-  this.emit(`br i1 ${emptyLoopCond}, label %${emptyLoopBodyLabel}, label %${emptyLoopEndLabel}`);
+  ctx.emit(`${emptyLoopLabel}:`);
+  const emptyCounterVal = ctx.nextTemp();
+  ctx.emit(`${emptyCounterVal} = load i32, i32* ${emptyCounterPtr}`);
+  const emptyLoopCond = ctx.nextTemp();
+  ctx.emit(`${emptyLoopCond} = icmp slt i32 ${emptyCounterVal}, ${strLenI32}`);
+  ctx.emit(`br i1 ${emptyLoopCond}, label %${emptyLoopBodyLabel}, label %${emptyLoopEndLabel}`);
 
-  this.emit(`${emptyLoopBodyLabel}:`);
-  // Allocate 2-byte string (char + null terminator)
-  const charStr = this.nextTemp();
-  this.emit(`${charStr} = call i8* @GC_malloc_atomic(i64 2)`);
+  ctx.emit(`${emptyLoopBodyLabel}:`);
+  const charStr = ctx.nextTemp();
+  ctx.emit(`${charStr} = call i8* @GC_malloc_atomic(i64 2)`);
 
-  // Get character at index
-  const charIdx = this.nextTemp();
-  this.emit(`${charIdx} = sext i32 ${emptyCounterVal} to i64`);
-  const charPtr = this.nextTemp();
-  this.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${charIdx}`);
-  const charVal = this.nextTemp();
-  this.emit(`${charVal} = load i8, i8* ${charPtr}`);
+  const charIdx = ctx.nextTemp();
+  ctx.emit(`${charIdx} = sext i32 ${emptyCounterVal} to i64`);
+  const charPtr = ctx.nextTemp();
+  ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${charIdx}`);
+  const charVal = ctx.nextTemp();
+  ctx.emit(`${charVal} = load i8, i8* ${charPtr}`);
 
-  // Store character and null terminator
-  this.emit(`store i8 ${charVal}, i8* ${charStr}`);
-  const nullPtr = this.nextTemp();
-  this.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${charStr}, i64 1`);
-  this.emit(`store i8 0, i8* ${nullPtr}`);
+  ctx.emit(`store i8 ${charVal}, i8* ${charStr}`);
+  const nullPtr = ctx.nextTemp();
+  ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${charStr}, i64 1`);
+  ctx.emit(`store i8 0, i8* ${nullPtr}`);
 
-  // Store string pointer in array
-  const emptyElemPtr = this.nextTemp();
-  this.emit(`${emptyElemPtr} = getelementptr inbounds i8*, i8** ${emptyDataPtr}, i32 ${emptyCounterVal}`);
-  this.emit(`store i8* ${charStr}, i8** ${emptyElemPtr}`);
+  const emptyElemPtr = ctx.nextTemp();
+  ctx.emit(`${emptyElemPtr} = getelementptr inbounds i8*, i8** ${emptyDataPtr}, i32 ${emptyCounterVal}`);
+  ctx.emit(`store i8* ${charStr}, i8** ${emptyElemPtr}`);
 
-  // Increment counter
-  const emptyNextCounter = this.nextTemp();
-  this.emit(`${emptyNextCounter} = add i32 ${emptyCounterVal}, 1`);
-  this.emit(`store i32 ${emptyNextCounter}, i32* ${emptyCounterPtr}`);
-  this.emit(`br label %${emptyLoopLabel}`);
+  const emptyNextCounter = ctx.nextTemp();
+  ctx.emit(`${emptyNextCounter} = add i32 ${emptyCounterVal}, 1`);
+  ctx.emit(`store i32 ${emptyNextCounter}, i32* ${emptyCounterPtr}`);
+  ctx.emit(`br label %${emptyLoopLabel}`);
 
-  this.emit(`${emptyLoopEndLabel}:`);
+  ctx.emit(`${emptyLoopEndLabel}:`);
 
-  // Store data pointer in StringArray struct (field 0)
-  const emptyDataField = this.nextTemp();
-  this.emit(`${emptyDataField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 0`);
-  this.emit(`store i8** ${emptyDataPtr}, i8*** ${emptyDataField}`);
+  const emptyDataField = ctx.nextTemp();
+  ctx.emit(`${emptyDataField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 0`);
+  ctx.emit(`store i8** ${emptyDataPtr}, i8*** ${emptyDataField}`);
 
-  // Store length in StringArray struct (field 1)
-  const emptyLenField = this.nextTemp();
-  this.emit(`${emptyLenField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 1`);
-  this.emit(`store i32 ${strLenI32}, i32* ${emptyLenField}`);
+  const emptyLenField = ctx.nextTemp();
+  ctx.emit(`${emptyLenField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 1`);
+  ctx.emit(`store i32 ${strLenI32}, i32* ${emptyLenField}`);
 
-  // Store capacity in StringArray struct (field 2)
-  const emptyCapField = this.nextTemp();
-  this.emit(`${emptyCapField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 2`);
-  this.emit(`store i32 ${strLenI32}, i32* ${emptyCapField}`);
+  const emptyCapField = ctx.nextTemp();
+  ctx.emit(`${emptyCapField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 2`);
+  ctx.emit(`store i32 ${strLenI32}, i32* ${emptyCapField}`);
 
-  this.emit(`br label %${endLabel}`);
+  ctx.emit(`br label %${endLabel}`);
 
-  // === Normal split case ===
-  this.emit(`${normalSplitLabel}:`);
+  ctx.emit(`${normalSplitLabel}:`);
 
-  // Convert delimiter length to i64 once (will be used in both loops)
-  const delimLenI64 = this.nextTemp();
-  this.emit(`${delimLenI64} = zext i32 ${delimLenI32} to i64`);
+  const delimLenI64 = ctx.nextTemp();
+  ctx.emit(`${delimLenI64} = zext i32 ${delimLenI32} to i64`);
 
-  // First pass: count how many parts we'll have
-  // We'll scan through the string and count occurrences of the delimiter
-  const countLabel = this.nextLabel('split_count');
-  const countBodyLabel = this.nextLabel('split_count_body');
-  const countCheckLabel = this.nextLabel('split_count_check');
-  const countEndLabel = this.nextLabel('split_count_end');
+  const countLabel = ctx.nextLabel('split_count');
+  const countBodyLabel = ctx.nextLabel('split_count_body');
+  const countCheckLabel = ctx.nextLabel('split_count_check');
+  const countEndLabel = ctx.nextLabel('split_count_end');
 
-  const partCountPtr = this.nextTemp();
-  this.emit(`${partCountPtr} = alloca i32`);
-  this.emit(`store i32 1, i32* ${partCountPtr}`); // At least 1 part
+  const partCountPtr = ctx.nextTemp();
+  ctx.emit(`${partCountPtr} = alloca i32`);
+  ctx.emit(`store i32 1, i32* ${partCountPtr}`);
 
-  const scanPosPtr = this.nextTemp();
-  this.emit(`${scanPosPtr} = alloca i32`);
-  this.emit(`store i32 0, i32* ${scanPosPtr}`);
+  const scanPosPtr = ctx.nextTemp();
+  ctx.emit(`${scanPosPtr} = alloca i32`);
+  ctx.emit(`store i32 0, i32* ${scanPosPtr}`);
 
-  this.emit(`br label %${countLabel}`);
+  ctx.emit(`br label %${countLabel}`);
 
-  this.emit(`${countLabel}:`);
-  const scanPos = this.nextTemp();
-  this.emit(`${scanPos} = load i32, i32* ${scanPosPtr}`);
-  const canContinue = this.nextTemp();
-  this.emit(`${canContinue} = icmp slt i32 ${scanPos}, ${strLenI32}`);
-  this.emit(`br i1 ${canContinue}, label %${countBodyLabel}, label %${countEndLabel}`);
+  ctx.emit(`${countLabel}:`);
+  const scanPos = ctx.nextTemp();
+  ctx.emit(`${scanPos} = load i32, i32* ${scanPosPtr}`);
+  const canContinue = ctx.nextTemp();
+  ctx.emit(`${canContinue} = icmp slt i32 ${scanPos}, ${strLenI32}`);
+  ctx.emit(`br i1 ${canContinue}, label %${countBodyLabel}, label %${countEndLabel}`);
 
-  this.emit(`${countBodyLabel}:`);
-  // Check if delimiter matches at current position
-  const scanPosI64 = this.nextTemp();
-  this.emit(`${scanPosI64} = sext i32 ${scanPos} to i64`);
-  const checkPtr = this.nextTemp();
-  this.emit(`${checkPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${scanPosI64}`);
-  const cmpResult = this.nextTemp();
-  this.emit(`${cmpResult} = call i32 @strncmp(i8* ${checkPtr}, i8* ${delimiter}, i64 ${delimLenI64})`);
-  const isMatch = this.nextTemp();
-  this.emit(`${isMatch} = icmp eq i32 ${cmpResult}, 0`);
+  ctx.emit(`${countBodyLabel}:`);
+  const scanPosI64 = ctx.nextTemp();
+  ctx.emit(`${scanPosI64} = sext i32 ${scanPos} to i64`);
+  const checkPtr = ctx.nextTemp();
+  ctx.emit(`${checkPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${scanPosI64}`);
+  const cmpResult = ctx.nextTemp();
+  ctx.emit(`${cmpResult} = call i32 @strncmp(i8* ${checkPtr}, i8* ${delimiter}, i64 ${delimLenI64})`);
+  const isMatch = ctx.nextTemp();
+  ctx.emit(`${isMatch} = icmp eq i32 ${cmpResult}, 0`);
 
-  this.emit(`br i1 ${isMatch}, label %${countCheckLabel}, label %${countCheckLabel}`);
+  ctx.emit(`br i1 ${isMatch}, label %${countCheckLabel}, label %${countCheckLabel}`);
 
-  this.emit(`${countCheckLabel}:`);
-  // If match, increment part count and skip delimiter length
-  const partCount = this.nextTemp();
-  this.emit(`${partCount} = load i32, i32* ${partCountPtr}`);
-  const newPartCount = this.nextTemp();
-  this.emit(`${newPartCount} = select i1 ${isMatch}, i32 ${partCount}, i32 ${partCount}`);
-  const incPartCount = this.nextTemp();
-  this.emit(`${incPartCount} = add i32 ${newPartCount}, 1`);
-  const finalPartCount = this.nextTemp();
-  this.emit(`${finalPartCount} = select i1 ${isMatch}, i32 ${incPartCount}, i32 ${newPartCount}`);
-  this.emit(`store i32 ${finalPartCount}, i32* ${partCountPtr}`);
+  ctx.emit(`${countCheckLabel}:`);
+  const partCount = ctx.nextTemp();
+  ctx.emit(`${partCount} = load i32, i32* ${partCountPtr}`);
+  const newPartCount = ctx.nextTemp();
+  ctx.emit(`${newPartCount} = select i1 ${isMatch}, i32 ${partCount}, i32 ${partCount}`);
+  const incPartCount = ctx.nextTemp();
+  ctx.emit(`${incPartCount} = add i32 ${newPartCount}, 1`);
+  const finalPartCount = ctx.nextTemp();
+  ctx.emit(`${finalPartCount} = select i1 ${isMatch}, i32 ${incPartCount}, i32 ${newPartCount}`);
+  ctx.emit(`store i32 ${finalPartCount}, i32* ${partCountPtr}`);
 
-  // Move position forward (by delimiter length if match, by 1 otherwise)
-  const skipAmount = this.nextTemp();
-  this.emit(`${skipAmount} = select i1 ${isMatch}, i32 ${delimLenI32}, i32 1`);
-  const nextScanPos = this.nextTemp();
-  this.emit(`${nextScanPos} = add i32 ${scanPos}, ${skipAmount}`);
-  this.emit(`store i32 ${nextScanPos}, i32* ${scanPosPtr}`);
-  this.emit(`br label %${countLabel}`);
+  const skipAmount = ctx.nextTemp();
+  ctx.emit(`${skipAmount} = select i1 ${isMatch}, i32 ${delimLenI32}, i32 1`);
+  const nextScanPos = ctx.nextTemp();
+  ctx.emit(`${nextScanPos} = add i32 ${scanPos}, ${skipAmount}`);
+  ctx.emit(`store i32 ${nextScanPos}, i32* ${scanPosPtr}`);
+  ctx.emit(`br label %${countLabel}`);
 
-  this.emit(`${countEndLabel}:`);
-  const totalParts = this.nextTemp();
-  this.emit(`${totalParts} = load i32, i32* ${partCountPtr}`);
+  ctx.emit(`${countEndLabel}:`);
+  const totalParts = ctx.nextTemp();
+  ctx.emit(`${totalParts} = load i32, i32* ${partCountPtr}`);
 
-  // Allocate StringArray
-  const arrayPtr = this.nextTemp();
-  this.emit(`${arrayPtr} = alloca %StringArray`);
+  const arrayPtr = ctx.nextTemp();
+  ctx.emit(`${arrayPtr} = alloca %StringArray`);
 
-  // Allocate data array (i8** with totalParts elements)
-  const dataSize = this.nextTemp();
-  this.emit(`${dataSize} = mul i32 ${totalParts}, 8`); // 8 bytes per pointer
-  const dataSizeI64 = this.nextTemp();
-  this.emit(`${dataSizeI64} = zext i32 ${dataSize} to i64`);
-  const dataMem = this.nextTemp();
-  this.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSizeI64})`);
-  const dataPtr = this.nextTemp();
-  this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
+  const dataSize = ctx.nextTemp();
+  ctx.emit(`${dataSize} = mul i32 ${totalParts}, 8`);
+  const dataSizeI64 = ctx.nextTemp();
+  ctx.emit(`${dataSizeI64} = zext i32 ${dataSize} to i64`);
+  const dataMem = ctx.nextTemp();
+  ctx.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSizeI64})`);
+  const dataPtr = ctx.nextTemp();
+  ctx.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
 
-  // Second pass: extract substrings
-  const extractLabel = this.nextLabel('split_extract');
-  const extractBodyLabel = this.nextLabel('split_extract_body');
-  const extractMatchLabel = this.nextLabel('split_extract_match');
-  const extractNoMatchLabel = this.nextLabel('split_extract_nomatch');
-  const extractStoreLabel = this.nextLabel('split_extract_store');
-  const extractEndLabel = this.nextLabel('split_extract_end');
+  const extractLabel = ctx.nextLabel('split_extract');
+  const extractBodyLabel = ctx.nextLabel('split_extract_body');
+  const extractMatchLabel = ctx.nextLabel('split_extract_match');
+  const extractNoMatchLabel = ctx.nextLabel('split_extract_nomatch');
+  const extractStoreLabel = ctx.nextLabel('split_extract_store');
+  const extractEndLabel = ctx.nextLabel('split_extract_end');
 
-  const startPosPtr = this.nextTemp();
-  this.emit(`${startPosPtr} = alloca i32`);
-  this.emit(`store i32 0, i32* ${startPosPtr}`);
+  const startPosPtr = ctx.nextTemp();
+  ctx.emit(`${startPosPtr} = alloca i32`);
+  ctx.emit(`store i32 0, i32* ${startPosPtr}`);
 
-  const curPosPtr = this.nextTemp();
-  this.emit(`${curPosPtr} = alloca i32`);
-  this.emit(`store i32 0, i32* ${curPosPtr}`);
+  const curPosPtr = ctx.nextTemp();
+  ctx.emit(`${curPosPtr} = alloca i32`);
+  ctx.emit(`store i32 0, i32* ${curPosPtr}`);
 
-  const partIndexPtr = this.nextTemp();
-  this.emit(`${partIndexPtr} = alloca i32`);
-  this.emit(`store i32 0, i32* ${partIndexPtr}`);
+  const partIndexPtr = ctx.nextTemp();
+  ctx.emit(`${partIndexPtr} = alloca i32`);
+  ctx.emit(`store i32 0, i32* ${partIndexPtr}`);
 
-  this.emit(`br label %${extractLabel}`);
+  ctx.emit(`br label %${extractLabel}`);
 
-  this.emit(`${extractLabel}:`);
-  const curPos = this.nextTemp();
-  this.emit(`${curPos} = load i32, i32* ${curPosPtr}`);
-  const extractCond = this.nextTemp();
-  this.emit(`${extractCond} = icmp sle i32 ${curPos}, ${strLenI32}`);
-  this.emit(`br i1 ${extractCond}, label %${extractBodyLabel}, label %${extractEndLabel}`);
+  ctx.emit(`${extractLabel}:`);
+  const curPos = ctx.nextTemp();
+  ctx.emit(`${curPos} = load i32, i32* ${curPosPtr}`);
+  const extractCond = ctx.nextTemp();
+  ctx.emit(`${extractCond} = icmp sle i32 ${curPos}, ${strLenI32}`);
+  ctx.emit(`br i1 ${extractCond}, label %${extractBodyLabel}, label %${extractEndLabel}`);
 
-  this.emit(`${extractBodyLabel}:`);
-  // Check if we're at end or if delimiter matches
-  const atEnd = this.nextTemp();
-  this.emit(`${atEnd} = icmp eq i32 ${curPos}, ${strLenI32}`);
+  ctx.emit(`${extractBodyLabel}:`);
+  const atEnd = ctx.nextTemp();
+  ctx.emit(`${atEnd} = icmp eq i32 ${curPos}, ${strLenI32}`);
 
-  const curPosI64 = this.nextTemp();
-  this.emit(`${curPosI64} = sext i32 ${curPos} to i64`);
-  const extractCheckPtr = this.nextTemp();
-  this.emit(`${extractCheckPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${curPosI64}`);
-  const extractCmpResult = this.nextTemp();
-  this.emit(`${extractCmpResult} = call i32 @strncmp(i8* ${extractCheckPtr}, i8* ${delimiter}, i64 ${delimLenI64})`);
-  const extractIsMatch = this.nextTemp();
-  this.emit(`${extractIsMatch} = icmp eq i32 ${extractCmpResult}, 0`);
+  const curPosI64 = ctx.nextTemp();
+  ctx.emit(`${curPosI64} = sext i32 ${curPos} to i64`);
+  const extractCheckPtr = ctx.nextTemp();
+  ctx.emit(`${extractCheckPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${curPosI64}`);
+  const extractCmpResult = ctx.nextTemp();
+  ctx.emit(`${extractCmpResult} = call i32 @strncmp(i8* ${extractCheckPtr}, i8* ${delimiter}, i64 ${delimLenI64})`);
+  const extractIsMatch = ctx.nextTemp();
+  ctx.emit(`${extractIsMatch} = icmp eq i32 ${extractCmpResult}, 0`);
 
-  const shouldExtract = this.nextTemp();
-  this.emit(`${shouldExtract} = or i1 ${atEnd}, ${extractIsMatch}`);
+  const shouldExtract = ctx.nextTemp();
+  ctx.emit(`${shouldExtract} = or i1 ${atEnd}, ${extractIsMatch}`);
 
-  this.emit(`br i1 ${shouldExtract}, label %${extractMatchLabel}, label %${extractNoMatchLabel}`);
+  ctx.emit(`br i1 ${shouldExtract}, label %${extractMatchLabel}, label %${extractNoMatchLabel}`);
 
-  this.emit(`${extractMatchLabel}:`);
-  // Extract substring from startPos to curPos
-  const startPos = this.nextTemp();
-  this.emit(`${startPos} = load i32, i32* ${startPosPtr}`);
-  const partLen = this.nextTemp();
-  this.emit(`${partLen} = sub i32 ${curPos}, ${startPos}`);
+  ctx.emit(`${extractMatchLabel}:`);
+  const startPos = ctx.nextTemp();
+  ctx.emit(`${startPos} = load i32, i32* ${startPosPtr}`);
+  const partLen = ctx.nextTemp();
+  ctx.emit(`${partLen} = sub i32 ${curPos}, ${startPos}`);
 
-  // Use substr to extract the part
-  const partStr = generateSubstr.call(this, strPtr, startPos, partLen);
+  const partStr = generateSubstr(ctx, strPtr, startPos, partLen);
 
-  // Store in array
-  const partIndex = this.nextTemp();
-  this.emit(`${partIndex} = load i32, i32* ${partIndexPtr}`);
-  const partElemPtr = this.nextTemp();
-  this.emit(`${partElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${partIndex}`);
-  this.emit(`store i8* ${partStr}, i8** ${partElemPtr}`);
+  const partIndex = ctx.nextTemp();
+  ctx.emit(`${partIndex} = load i32, i32* ${partIndexPtr}`);
+  const partElemPtr = ctx.nextTemp();
+  ctx.emit(`${partElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${partIndex}`);
+  ctx.emit(`store i8* ${partStr}, i8** ${partElemPtr}`);
 
-  // Update indices
-  const nextPartIndex = this.nextTemp();
-  this.emit(`${nextPartIndex} = add i32 ${partIndex}, 1`);
-  this.emit(`store i32 ${nextPartIndex}, i32* ${partIndexPtr}`);
+  const nextPartIndex = ctx.nextTemp();
+  ctx.emit(`${nextPartIndex} = add i32 ${partIndex}, 1`);
+  ctx.emit(`store i32 ${nextPartIndex}, i32* ${partIndexPtr}`);
 
-  const newStartPos = this.nextTemp();
-  this.emit(`${newStartPos} = add i32 ${curPos}, ${delimLenI32}`);
-  this.emit(`store i32 ${newStartPos}, i32* ${startPosPtr}`);
+  const newStartPos = ctx.nextTemp();
+  ctx.emit(`${newStartPos} = add i32 ${curPos}, ${delimLenI32}`);
+  ctx.emit(`store i32 ${newStartPos}, i32* ${startPosPtr}`);
 
-  const newCurPos = this.nextTemp();
-  this.emit(`${newCurPos} = add i32 ${curPos}, ${delimLenI32}`);
-  this.emit(`store i32 ${newCurPos}, i32* ${curPosPtr}`);
-  this.emit(`br label %${extractLabel}`);
+  const newCurPos = ctx.nextTemp();
+  ctx.emit(`${newCurPos} = add i32 ${curPos}, ${delimLenI32}`);
+  ctx.emit(`store i32 ${newCurPos}, i32* ${curPosPtr}`);
+  ctx.emit(`br label %${extractLabel}`);
 
-  this.emit(`${extractNoMatchLabel}:`);
-  const incCurPos = this.nextTemp();
-  this.emit(`${incCurPos} = add i32 ${curPos}, 1`);
-  this.emit(`store i32 ${incCurPos}, i32* ${curPosPtr}`);
-  this.emit(`br label %${extractLabel}`);
+  ctx.emit(`${extractNoMatchLabel}:`);
+  const incCurPos = ctx.nextTemp();
+  ctx.emit(`${incCurPos} = add i32 ${curPos}, 1`);
+  ctx.emit(`store i32 ${incCurPos}, i32* ${curPosPtr}`);
+  ctx.emit(`br label %${extractLabel}`);
 
-  this.emit(`${extractEndLabel}:`);
+  ctx.emit(`${extractEndLabel}:`);
 
-  // Store data pointer in StringArray struct (field 0)
-  const dataField = this.nextTemp();
-  this.emit(`${dataField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
-  this.emit(`store i8** ${dataPtr}, i8*** ${dataField}`);
+  const dataField = ctx.nextTemp();
+  ctx.emit(`${dataField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+  ctx.emit(`store i8** ${dataPtr}, i8*** ${dataField}`);
 
-  // Store length in StringArray struct (field 1)
-  const lenField = this.nextTemp();
-  this.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
-  this.emit(`store i32 ${totalParts}, i32* ${lenField}`);
+  const lenField = ctx.nextTemp();
+  ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+  ctx.emit(`store i32 ${totalParts}, i32* ${lenField}`);
 
-  // Store capacity in StringArray struct (field 2)
-  const capField = this.nextTemp();
-  this.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
-  this.emit(`store i32 ${totalParts}, i32* ${capField}`);
+  const capField = ctx.nextTemp();
+  ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+  ctx.emit(`store i32 ${totalParts}, i32* ${capField}`);
 
-  this.emit(`br label %${endLabel}`);
+  ctx.emit(`br label %${endLabel}`);
 
-  // === End - phi node to select result ===
-  this.emit(`${endLabel}:`);
-  const result = this.nextTemp();
-  this.emit(`${result} = phi %StringArray* [ ${emptyArrPtr}, %${emptyLoopEndLabel} ], [ ${arrayPtr}, %${extractEndLabel} ]`);
+  ctx.emit(`${endLabel}:`);
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = phi %StringArray* [ ${emptyArrPtr}, %${emptyLoopEndLabel} ], [ ${arrayPtr}, %${extractEndLabel} ]`);
 
   return result;
 }
