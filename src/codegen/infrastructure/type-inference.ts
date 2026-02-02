@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration } from '../../ast/types.js';
+import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration, BinaryNode } from '../../ast/types.js';
 import { SymbolTable } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { ClassGenerator } from '../types/objects/class.js';
@@ -52,9 +52,9 @@ export class TypeInference {
         }
       }
       if (memberExpr.object.type === 'this') {
-        const classNode = this.ctx.ast.classes[0];
-        if (classNode) {
-          const fieldType = this.ctx.classGen?.getFieldType(classNode.name, memberExpr.property);
+        const className = this.ctx.currentClassName;
+        if (className) {
+          const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
           if (fieldType === 'number[]' || fieldType === 'boolean[]') {
             return true;
           }
@@ -114,32 +114,30 @@ export class TypeInference {
       }
       return false;
     }
-    if (expr.type === 'binary' && expr.op === '+') {
-      return this.isStringExpression(expr.left) || this.isStringExpression(expr.right);
+    if (expr.type === 'binary') {
+      const binaryExpr = expr as BinaryNode;
+      if (binaryExpr.op === '+') {
+        return this.isStringExpression(binaryExpr.left) || this.isStringExpression(binaryExpr.right);
+      }
     }
     if (expr.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
       if (memberExpr.object.type === 'variable') {
         const varName = memberExpr.object.name;
-        const objMeta = this.ctx.symbolTable.getObjectInfo(varName);
-        if (objMeta) {
-          const propIndex = objMeta.keys.indexOf(memberExpr.property);
-          if (propIndex >= 0 && objMeta.types[propIndex] === 'i8*') {
-            return true;
-          }
+        const propType = this.ctx.symbolTable.getObjectPropertyType(varName, memberExpr.property);
+        if (propType === 'i8*') {
+          return true;
         }
         const varType = this.ctx.symbolTable.getType(varName);
         if (varType && varType.startsWith('%') && varType.endsWith('*') &&
             !varType.includes('Array') && !varType.includes('Response') &&
             !varType.includes('Map') && !varType.includes('Set')) {
           const structTypeName = varType.substring(1, varType.length - 1);
-          if (this.ctx.typeChecker) {
-            const interfaceDef = this.ctx.typeChecker.getInterfaceDefinition(structTypeName);
-            if (interfaceDef) {
-              const prop = interfaceDef.properties.find((p) => p.name === memberExpr.property);
-              if (prop && prop.type === 'string') {
-                return true;
-              }
+          const interfaceDef = this.ctx.ast.interfaces.find((i: InterfaceDeclaration) => i.name === structTypeName);
+          if (interfaceDef) {
+            const prop = interfaceDef.fields.find((f) => f.name === memberExpr.property);
+            if (prop && prop.type === 'string') {
+              return true;
             }
           }
         }
@@ -410,9 +408,9 @@ export class TypeInference {
         }
       }
       if (memberExpr.object.type === 'this') {
-        const classNode = this.ctx.ast.classes[0];
-        if (classNode) {
-          const fieldType = this.ctx.classGen?.getFieldType(classNode.name, memberExpr.property);
+        const className = this.ctx.currentClassName;
+        if (className) {
+          const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
           if (fieldType === 'string[]') {
             return true;
           }
