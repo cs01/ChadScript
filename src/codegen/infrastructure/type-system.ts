@@ -207,3 +207,78 @@ export function typeToString(resolved: ResolvedType): string {
 
   return str;
 }
+
+export interface NumericConversionContext {
+  nextTemp(): string;
+  emit(instruction: string): void;
+  setVariableType?(name: string, type: string): void;
+}
+
+export function ensureDouble(
+  value: string,
+  sourceType: ResolvedType | undefined,
+  ctx: NumericConversionContext
+): string {
+  if (!sourceType || sourceType.base !== 'number') {
+    return value;
+  }
+  if (sourceType.qualifiers.numericKind !== 'integer') {
+    return value;
+  }
+  const temp = ctx.nextTemp();
+  ctx.emit(`${temp} = sitofp i32 ${value} to double`);
+  if (ctx.setVariableType) {
+    ctx.setVariableType(temp, 'double');
+  }
+  return temp;
+}
+
+export function ensureI32(
+  value: string,
+  sourceType: ResolvedType | undefined,
+  ctx: NumericConversionContext
+): string {
+  if (!sourceType || sourceType.base !== 'number') {
+    return value;
+  }
+  if (sourceType.qualifiers.numericKind === 'integer') {
+    return value;
+  }
+  const temp = ctx.nextTemp();
+  ctx.emit(`${temp} = fptosi double ${value} to i32`);
+  if (ctx.setVariableType) {
+    ctx.setVariableType(temp, 'i32');
+  }
+  return temp;
+}
+
+export function ensureI64(
+  value: string,
+  sourceType: ResolvedType | undefined,
+  ctx: NumericConversionContext
+): string {
+  if (!sourceType || sourceType.base !== 'number') {
+    return value;
+  }
+  if (sourceType.qualifiers.numericKind === 'integer') {
+    const temp = ctx.nextTemp();
+    ctx.emit(`${temp} = sext i32 ${value} to i64`);
+    if (ctx.setVariableType) {
+      ctx.setVariableType(temp, 'i64');
+    }
+    return temp;
+  }
+  const temp = ctx.nextTemp();
+  ctx.emit(`${temp} = fptosi double ${value} to i64`);
+  if (ctx.setVariableType) {
+    ctx.setVariableType(temp, 'i64');
+  }
+  return temp;
+}
+
+export function getNumericLlvmType(resolved: ResolvedType | undefined): string {
+  if (!resolved || resolved.base !== 'number') {
+    return 'double';
+  }
+  return resolved.qualifiers.numericKind === 'integer' ? 'i32' : 'double';
+}
