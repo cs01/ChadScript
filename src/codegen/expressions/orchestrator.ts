@@ -1,4 +1,4 @@
-import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, NewNode, RegexNode, ArrowFunctionNode, ConditionalExpressionNode, TemplateLiteralNode, MethodCallNode, AwaitExpressionNode, TypeAssertionNode } from '../../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, NewNode, RegexNode, ArrowFunctionNode, ConditionalExpressionNode, TemplateLiteralNode, MethodCallNode, AwaitExpressionNode, TypeAssertionNode, IndexAccessAssignmentNode } from '../../ast/types.js';
 import { LiteralExpressionGenerator } from './literals.js';
 import { VariableExpressionGenerator } from './variables.js';
 import { BinaryExpressionGenerator } from './operators/binary.js';
@@ -179,6 +179,11 @@ export class ExpressionGenerator {
     if (expr.type === 'type_assertion') {
       const assertExpr = expr as TypeAssertionNode;
       return this.generate(assertExpr.expression, params);
+    }
+
+    // Index access assignment (arr[i] = value)
+    if (expr.type === 'index_access_assignment') {
+      return this.indexAccessGen.generateAssignment(expr as IndexAccessAssignmentNode, params);
     }
 
     throw new Error(`Unknown expression type: ${expr.type}`);
