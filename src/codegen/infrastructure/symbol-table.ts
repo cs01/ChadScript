@@ -11,6 +11,8 @@
  *   processArgvVariables
  */
 
+import type { ResolvedType } from './type-system.js';
+
 /**
  * Symbol kind for different variable types
  */
@@ -115,6 +117,7 @@ export interface SymbolMetadata {
   setMetadata?: SetMetadata;
   isPointerAlloca?: boolean;
   interfaceType?: string;
+  resolvedType?: ResolvedType;
 }
 
 /**
@@ -130,6 +133,9 @@ export interface Symbol {
   // True if alloca contains a pointer (e.g., function parameter %Array** holding %Array*)
   // False if alloca contains the value directly (e.g., local %Array* pointing to %Array struct)
   isPointerAlloca?: boolean;
+
+  // Cached ResolvedType for efficient type lookups
+  resolvedType?: ResolvedType;
 
   // Optional metadata for complex types
   objectMetadata?: ObjectMetadata;
@@ -290,6 +296,27 @@ export class SymbolTable {
       return symbol.interfaceType;
     }
     return undefined;
+  }
+
+  /**
+   * Get resolved type for a variable (cached ResolvedType)
+   */
+  getResolvedType(name: string): ResolvedType | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol) {
+      return symbol.resolvedType;
+    }
+    return undefined;
+  }
+
+  /**
+   * Set resolved type for a variable (cache ResolvedType)
+   */
+  setResolvedType(name: string, resolvedType: ResolvedType): void {
+    const symbol = this.symbols.get(name);
+    if (symbol) {
+      symbol.resolvedType = resolvedType;
+    }
   }
 
   /**
