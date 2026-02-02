@@ -277,8 +277,9 @@ export class ClosureAnalyzer {
       case 'template_literal': {
         const e = expr as { type: string; parts: (string | Expression)[] };
         for (const part of e.parts) {
-          if (typeof part !== 'string') {
-            this.walkExpression(part);
+          const partAsObj = part as { type: string };
+          if (partAsObj.type) {
+            this.walkExpression(part as Expression);
           }
         }
         break;

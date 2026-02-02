@@ -18,13 +18,6 @@ export class ClassGenerator {
   private nextTemp() { return this.ctx.nextTemp(); }
   private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
-  private get output() { return this.ctx.output; }
-  private get variableTypes() { return this.ctx.variableTypes; }
-  private get thisPointer() { return this.ctx.thisPointer; }
-  private set thisPointer(ptr: string | null) { this.ctx.thisPointer = ptr; }
-  private get currentClassName() { return this.ctx.currentClassName; }
-  private set currentClassName(name: string | null) { this.ctx.currentClassName = name; }
-  private get ast() { return this.ctx.ast; }
 
   // Helper to get field info
   getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string } | null {
@@ -175,7 +168,7 @@ export class ClassGenerator {
     // Generate constructor function (returns pointer to struct)
     if (constructorResult) {
       // Clear output by removing all elements (preserving reference)
-      this.output.length = 0;
+      this.ctx.output.length = 0;
       ir += this.generateConstructor(className, constructor, classNode.fields);
       ir += '\n';
     }
@@ -183,7 +176,7 @@ export class ClassGenerator {
     // Generate regular methods
     for (const method of regularMethods) {
       // Clear output by removing all elements (preserving reference)
-      this.output.length = 0;
+      this.ctx.output.length = 0;
       ir += this.generateMethod(className, method, classNode.fields);
       ir += '\n';
     }
@@ -288,9 +281,9 @@ export class ClassGenerator {
     }
 
     // Set 'this' pointer so constructor body can use it
-    this.thisPointer = objPtr;
+    this.ctx.thisPointer = objPtr;
     // Set current class name for super resolution
-    this.currentClassName = className;
+    this.ctx.currentClassName = className;
     // Set current function name for TypeChecker lookups
     this.ctx.currentFunction = 'constructor';
     // Set return type for return statements in constructor body (update main generator)
@@ -300,8 +293,8 @@ export class ClassGenerator {
     const bodyResult = this.ctx.generateBlock(constructor.body, constructor.params);
 
     // Return the instance pointer
-    if (this.output.length > 0) {
-      ir += this.output.map(line => '  ' + line).join('\n') + '\n';
+    if (this.ctx.output.length > 0) {
+      ir += this.ctx.output.map(line => '  ' + line).join('\n') + '\n';
     }
     ir += `  ret ${structType} ${objPtr}\n`;
     ir += '}\n';
@@ -350,8 +343,8 @@ export class ClassGenerator {
     this.emit(`store ${thisType} %this, ${thisType}* ${thisAlloca}`);
     const thisLoaded = this.nextTemp();
     this.emit(`${thisLoaded} = load ${thisType}, ${thisType}* ${thisAlloca}`);
-    this.thisPointer = thisLoaded;
-    this.currentClassName = className;
+    this.ctx.thisPointer = thisLoaded;
+    this.ctx.currentClassName = className;
     this.ctx.currentFunction = method.name;
     this.ctx.currentFunctionReturnType = returnLLVMType;
 
@@ -370,8 +363,8 @@ export class ClassGenerator {
     const result = this.ctx.generateBlock(method.body, method.params);
 
     // Add generated instructions
-    if (this.output.length > 0) {
-      ir += this.output.map(line => '  ' + line).join('\n') + '\n';
+    if (this.ctx.output.length > 0) {
+      ir += this.ctx.output.map(line => '  ' + line).join('\n') + '\n';
     }
 
     // Return value based on declared return type

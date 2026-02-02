@@ -20,9 +20,6 @@ import { IGeneratorContext } from '../infrastructure/generator-context.js';
 export class TemplateLiteralGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  // Helper methods delegate to context
-  private get stringGen() { return this.ctx.stringGen; }
-
   /**
    * Generate code for template literal expression
    *
@@ -36,13 +33,16 @@ export class TemplateLiteralGenerator {
     if (expr.parts.length === 0) {
       // Empty template literal
       this.ctx.syncStateToGenerators();
-      return this.stringGen.createStringConstant('');
+      return this.ctx.stringGen.createStringConstant('');
     }
 
-    if (expr.parts.length === 1 && typeof expr.parts[0] === 'string') {
-      // Simple string with no interpolation
-      this.ctx.syncStateToGenerators();
-      return this.stringGen.createStringConstant(expr.parts[0]);
+    if (expr.parts.length === 1) {
+      const firstPart = expr.parts[0] as { type: string };
+      if (!firstPart.type) {
+        // Simple string with no interpolation (no type property means it's a string)
+        this.ctx.syncStateToGenerators();
+        return this.ctx.stringGen.createStringConstant(expr.parts[0] as string);
+      }
     }
 
     // Build result by concatenating parts
@@ -52,21 +52,22 @@ export class TemplateLiteralGenerator {
     for (const part of expr.parts) {
       let partValue: string;
 
-      if (typeof part === 'string') {
-        // String literal part
-        partValue = this.stringGen.createStringConstant(part);
+      const partAsObj = part as { type: string };
+      if (!partAsObj.type) {
+        // String literal part (no type property means it's a string)
+        partValue = this.ctx.stringGen.createStringConstant(part as string);
       } else {
         // Expression part - need to convert to string
         // For now, we only support expressions that are already strings
         // TODO: Add number-to-string conversion
-        partValue = this.ctx.generateExpression(part, params);
+        partValue = this.ctx.generateExpression(part as Expression, params);
       }
 
       if (result === null) {
         result = partValue;
       } else {
         // Concatenate with previous result
-        result = this.stringGen.generateStringConcatDirect(result, partValue);
+        result = this.ctx.stringGen.generateStringConcatDirect(result, partValue);
       }
     }
 

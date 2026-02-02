@@ -28,6 +28,12 @@ export interface IClassGenContext {
   getClassFields(className: string): { name: string; fieldType: string }[];
 }
 
+export interface IStringGenerator {
+  createStringConstant(value: string): string;
+  generateStringConcat(left: Expression, right: Expression, params: string[]): string;
+  generateStringConcatDirect(left: string, right: string): string;
+}
+
 /**
  * Interface defining what sub-generators need from parent generator.
  * This makes dependencies explicit and testable.
@@ -261,11 +267,7 @@ export interface IGeneratorContext {
   /**
    * String generator for string operations
    */
-  readonly stringGen: {
-    createStringConstant(value: string): string;
-    generateStringConcat(left: Expression, right: Expression, params: string[]): string;
-    generateStringConcatDirect(left: string, right: string): string;
-  };
+  readonly stringGen: IStringGenerator;
 
   /**
    * Generate HTTP server setup code

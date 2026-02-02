@@ -640,7 +640,13 @@ function transformTemplateString(node: TreeSitterNode): TemplateLiteralNode | St
   }
 
   if (!hasSubstitutions && parts.length <= 1) {
-    const text = parts.length === 1 && typeof parts[0] === 'string' ? parts[0] : '';
+    let text = '';
+    if (parts.length === 1) {
+      const firstPart = parts[0] as { type: string };
+      if (!firstPart.type) {
+        text = parts[0] as string;
+      }
+    }
     return { type: 'string', value: text };
   }
 
