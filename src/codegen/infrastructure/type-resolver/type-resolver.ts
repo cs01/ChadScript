@@ -20,9 +20,8 @@ export class TypeResolver {
   getInterface(name: string): InterfaceDeclaration | null {
     if (!this.ctx.ast?.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      const iface = this.ctx.ast.interfaces[i];
-      if (iface.name === name) {
-        return iface;
+      if (this.ctx.ast.interfaces[i].name === name) {
+        return this.ctx.ast.interfaces[i];
       }
     }
     return null;
@@ -52,9 +51,8 @@ export class TypeResolver {
   getTypeAlias(name: string): TypeAliasDeclaration | null {
     if (!this.ctx.ast?.typeAliases) return null;
     for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
-      const alias = this.ctx.ast.typeAliases[i];
-      if (alias.name === name) {
-        return alias;
+      if (this.ctx.ast.typeAliases[i].name === name) {
+        return this.ctx.ast.typeAliases[i];
       }
     }
     return null;
@@ -63,9 +61,8 @@ export class TypeResolver {
   getFunction(name: string): FunctionNode | null {
     if (!this.ctx.ast?.functions) return null;
     for (let i = 0; i < this.ctx.ast.functions.length; i++) {
-      const func = this.ctx.ast.functions[i];
-      if (func.name === name) {
-        return func;
+      if (this.ctx.ast.functions[i].name === name) {
+        return this.ctx.ast.functions[i];
       }
     }
     return null;
@@ -74,9 +71,8 @@ export class TypeResolver {
   getClass(name: string): ClassNode | null {
     if (!this.ctx.ast?.classes) return null;
     for (let i = 0; i < this.ctx.ast.classes.length; i++) {
-      const cls = this.ctx.ast.classes[i];
-      if (cls.name === name) {
-        return cls;
+      if (this.ctx.ast.classes[i].name === name) {
+        return this.ctx.ast.classes[i];
       }
     }
     return null;
@@ -272,12 +268,28 @@ export class TypeResolver {
   findInterfaceByDiscriminant(value: string, field: string = 'type'): string | null {
     if (!this.ctx.ast?.interfaces) return null;
 
-    for (const iface of this.ctx.ast.interfaces) {
-      for (const f of iface.fields) {
-        if (f.name === field) {
-          if (f.type === `'${value}'` || f.type === `"${value}"`) {
-            return iface.name;
-          }
+    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      const match = this.checkInterfaceForDiscriminant(
+        this.ctx.ast.interfaces[i].name,
+        this.ctx.ast.interfaces[i].fields,
+        value,
+        field
+      );
+      if (match) return match;
+    }
+    return null;
+  }
+
+  private checkInterfaceForDiscriminant(
+    ifaceName: string,
+    fields: { name: string; type: string }[],
+    value: string,
+    field: string
+  ): string | null {
+    for (let i = 0; i < fields.length; i++) {
+      if (fields[i].name === field) {
+        if (fields[i].type === `'${value}'` || fields[i].type === `"${value}"`) {
+          return ifaceName;
         }
       }
     }

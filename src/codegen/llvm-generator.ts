@@ -725,9 +725,8 @@ export class LLVMGenerator extends BaseGenerator {
 
   public getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null {
     for (let i = 0; i < this.ast.interfaces.length; i++) {
-      const iface = this.ast.interfaces[i];
-      if (iface.name === name) {
-        return iface;
+      if (this.ast.interfaces[i].name === name) {
+        return this.ast.interfaces[i];
       }
     }
     return null;
