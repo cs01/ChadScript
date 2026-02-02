@@ -202,12 +202,6 @@ export class TypeInference {
             }
           }
         }
-        if (this.ctx.typeChecker && this.ctx.currentFunction && this.ctx.symbolTable.getAlloca(varName) !== undefined) {
-          const typeInfo = this.ctx.typeChecker.getPropertyType(varName, memberExpr.property, this.ctx.currentFunction);
-          if (typeInfo && typeInfo.llvmType === 'i8*') {
-            return true;
-          }
-        }
       }
       if (memberExpr.object.type === 'this') {
         const className = this.ctx.currentClassName;

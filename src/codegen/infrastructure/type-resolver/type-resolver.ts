@@ -48,6 +48,16 @@ export class TypeResolver {
     return null;
   }
 
+  getInterfaceDefinition(interfaceName: string): { properties: { name: string; type: string }[] } | null {
+    const iface = this.getInterface(interfaceName);
+    if (!iface) return null;
+    const properties: { name: string; type: string }[] = [];
+    for (let i = 0; i < iface.fields.length; i++) {
+      properties.push({ name: iface.fields[i].name, type: iface.fields[i].type });
+    }
+    return { properties };
+  }
+
   private resolveMemberAccessArrayType(memberAccess: MemberAccessNode): string | null {
     const objectType = this.resolveMemberAccessObjectType(memberAccess.object);
     if (!objectType) return null;
@@ -105,6 +115,28 @@ export class TypeResolver {
       }
     }
     return null;
+  }
+
+  getFunctionType(functionName: string): { parameters: { name: string; type: string }[]; returnType: string } | null {
+    const func = this.getFunction(functionName);
+    if (!func) return null;
+    const parameters: { name: string; type: string }[] = [];
+    if (func.parameters) {
+      for (let i = 0; i < func.parameters.length; i++) {
+        parameters.push({
+          name: func.parameters[i].name,
+          type: func.parameters[i].type || 'number'
+        });
+      }
+    } else if (func.params && func.paramTypes) {
+      for (let i = 0; i < func.params.length; i++) {
+        parameters.push({
+          name: func.params[i],
+          type: func.paramTypes[i] || 'number'
+        });
+      }
+    }
+    return { parameters, returnType: func.returnType || 'void' };
   }
 
   getClass(name: string): ClassNode | null {
@@ -433,22 +465,6 @@ export class TypeResolver {
           types: objArrayMeta.elementTypes,
           tsTypes: objArrayMeta.elementTsTypes
         };
-      }
-
-      if (this.ctx.typeChecker && this.ctx.currentFunction) {
-        const arrayInfo = this.ctx.typeChecker.getVariableArrayElementInterface(varName, this.ctx.currentFunction);
-        if (arrayInfo && arrayInfo.properties.length > 0) {
-          const keys: string[] = [];
-          const types: string[] = [];
-          const tsTypes: string[] = [];
-          for (let i = 0; i < arrayInfo.properties.length; i++) {
-            const prop = arrayInfo.properties[i];
-            keys.push(prop.name);
-            tsTypes.push(prop.type);
-            types.push(this.tsTypeToLlvm(prop.type));
-          }
-          return { keys, types, tsTypes };
-        }
       }
     }
 

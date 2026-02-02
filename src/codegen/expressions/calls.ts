@@ -12,6 +12,16 @@ import { IGeneratorContext } from '../infrastructure/generator-context.js';
 export class CallExpressionGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
+  private getFunctionFromAST(name: string): FunctionNode | null {
+    if (!this.ctx.ast?.functions) return null;
+    for (let i = 0; i < this.ctx.ast.functions.length; i++) {
+      if (this.ctx.ast.functions[i].name === name) {
+        return this.ctx.ast.functions[i];
+      }
+    }
+    return null;
+  }
+
   /**
    * Generate function call expression
    * @param expr - Call expression node
@@ -274,24 +284,31 @@ export class CallExpressionGenerator {
         if (p !== 'number' && p !== 'boolean') return 'i8*';
         return 'double';
       });
-    } else if (this.ctx.typeChecker) {
-      try {
-        const funcType = this.ctx.typeChecker.getFunctionType(expr.name);
-        if (funcType) {
-          if (funcType.returnType === 'string') {
-            returnType = 'i8*';
-          } else if (funcType.returnType !== 'number' && funcType.returnType !== 'boolean' && funcType.returnType !== 'void') {
-            returnType = 'i8*';
-          }
-          paramTypes = funcType.parameters.map((p) => {
+    } else {
+      const funcNode = this.getFunctionFromAST(expr.name);
+      if (funcNode) {
+        if (funcNode.returnType === 'string') {
+          returnType = 'i8*';
+        } else if (funcNode.returnType && funcNode.returnType !== 'number' && funcNode.returnType !== 'boolean' && funcNode.returnType !== 'void') {
+          returnType = 'i8*';
+        }
+        if (funcNode.parameters) {
+          paramTypes = funcNode.parameters.map((p) => {
             if (p.type === 'string') return 'i8*';
             if (p.type === 'string[]') return '%StringArray*';
             if (p.type === 'number[]' || p.type === 'boolean[]') return '%Array*';
-            if (p.type !== 'number' && p.type !== 'boolean') return 'i8*';
+            if (p.type && p.type !== 'number' && p.type !== 'boolean') return 'i8*';
+            return 'double';
+          });
+        } else if (funcNode.paramTypes) {
+          paramTypes = funcNode.paramTypes.map((t) => {
+            if (t === 'string') return 'i8*';
+            if (t === 'string[]') return '%StringArray*';
+            if (t === 'number[]' || t === 'boolean[]') return '%Array*';
+            if (t !== 'number' && t !== 'boolean') return 'i8*';
             return 'double';
           });
         }
-      } catch (e) {
       }
     }
 
