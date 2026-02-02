@@ -1,42 +1,60 @@
 import { Expression } from '../../../../ast/types.js';
-import { BaseGenerator } from '../../../infrastructure/base-generator.js';
+
+interface ExprBase { type: string; }
+interface ArrayExpr { type: string; elements: Expression[]; }
+
+interface ArrayLiteralContext {
+  nextTemp(): string;
+  emit(instruction: string): void;
+  getVariableType(name: string): string | undefined;
+  setVariableType(name: string, type: string): void;
+  generateExpression(expr: Expression, params: string[]): string;
+  expectedArrayElementType: string | null;
+}
 
 /**
  * Array literal generation
  * Handles creation of numeric, string, and pointer arrays
  */
 export function generateArrayLiteral(
-  gen: BaseGenerator,
+  gen: ArrayLiteralContext,
   expr: Expression,
   params: string[]
 ): string {
-  if (expr.type !== 'array') {
+  const e = expr as ExprBase;
+  if (e.type !== 'array') {
     throw new Error('Expected array literal');
   }
 
-  const length = expr.elements.length;
+  const arrExpr = expr as ArrayExpr;
+  const length = arrExpr.elements.length;
 
   // Determine if this is a string array:
   // 1. All elements are strings, OR
   // 2. Empty array with expectedArrayElementType='string' from context
-  let isStringArray = length > 0 && expr.elements.every(elem => elem.type === 'string');
+  let isStringArray = length > 0 && arrExpr.elements.every(elem => {
+    const el = elem as ExprBase;
+    return el.type === 'string';
+  });
   if (length === 0 && gen.expectedArrayElementType === 'string') {
     isStringArray = true;
   }
 
-  const isPointerArray = length > 0 && expr.elements.some(elem => {
-    if (elem.type === 'variable') {
+  const isPointerArray = length > 0 && arrExpr.elements.some(elem => {
+    const el = elem as ExprBase;
+    if (el.type === 'variable') {
       const varName = (elem as any).name;
       const varType = gen.getVariableType(varName);
       return varType && (varType.indexOf('%Promise') !== -1 || varType.indexOf('*') !== -1);
     }
-    if (elem.type === 'method_call') {
+    if (el.type === 'method_call') {
       const obj = (elem as any).object;
-      if (obj && obj.type === 'variable' && obj.name === 'Promise') {
+      const objBase = obj as ExprBase;
+      if (obj && objBase.type === 'variable' && obj.name === 'Promise') {
         return true;
       }
     }
-    if (elem.type === 'call') {
+    if (el.type === 'call') {
       const callName = (elem as any).name;
       if (callName === 'fetch') {
         return true;
@@ -68,8 +86,8 @@ export function generateArrayLiteral(
     gen.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
 
     // Store each string element
-    for (let i = 0; i < expr.elements.length; i++) {
-      const elemValue = (gen as any).generateExpression(expr.elements[i], params);
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const elemValue = gen.generateExpression(arrExpr.elements[i], params);
       const elemPtr = gen.nextTemp();
       gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
       gen.emit(`store i8* ${elemValue}, i8** ${elemPtr}`);
@@ -113,8 +131,8 @@ export function generateArrayLiteral(
     gen.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
 
     // Store each pointer element
-    for (let i = 0; i < expr.elements.length; i++) {
-      const elemValue = (gen as any).generateExpression(expr.elements[i], params);
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const elemValue = gen.generateExpression(arrExpr.elements[i], params);
       const elemCast = gen.nextTemp();
       gen.emit(`${elemCast} = bitcast ${gen.getVariableType(elemValue) || 'i8*'} ${elemValue} to i8*`);
       const elemPtr = gen.nextTemp();
@@ -164,8 +182,8 @@ export function generateArrayLiteral(
     gen.emit(`${dataPtr} = bitcast i8* ${dataMem} to double*`);
 
     // Store each element
-    for (let i = 0; i < expr.elements.length; i++) {
-      const elemValue = (gen as any).generateExpression(expr.elements[i], params);
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const elemValue = gen.generateExpression(arrExpr.elements[i], params);
       const elemPtr = gen.nextTemp();
       gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
       gen.emit(`store double ${elemValue}, double* ${elemPtr}`);

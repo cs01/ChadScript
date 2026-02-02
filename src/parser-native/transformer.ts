@@ -46,6 +46,7 @@ import {
 } from '../ast/types.js';
 
 interface ExprBase { type: string; }
+interface NodeBase { type: string; isNamed: boolean; text: string; namedChildCount: number; childCount: number; }
 
 export function transformTree(tree: TreeSitterTree): AST {
   return transformProgram(tree.rootNode);
@@ -216,20 +217,21 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = getNamedChild(node, i);
     if (!child) continue;
+    const c = child as NodeBase;
 
-    if (child.type === 'function_declaration') {
+    if (c.type === 'function_declaration') {
       const func = transformFunctionDeclaration(child);
       if (func) {
         ast.functions.push(func);
         ast.exports.push({ type: 'export', declaration: func });
       }
-    } else if (child.type === 'class_declaration') {
+    } else if (c.type === 'class_declaration') {
       const cls = transformClassDeclaration(child);
       if (cls) {
         ast.classes.push(cls);
         ast.exports.push({ type: 'export', declaration: cls });
       }
-    } else if (child.type === 'lexical_declaration') {
+    } else if (c.type === 'lexical_declaration') {
       const varDecls = transformLexicalDeclaration(child);
       for (const varDecl of varDecls) {
         ast.topLevelStatements.push(varDecl);
@@ -363,8 +365,10 @@ function transformBinaryExpression(node: TreeSitterNode): BinaryNode {
   let op = '';
   for (let i = 0; i < node.childCount; i++) {
     const child = getChild(node, i);
-    if (child && !child.isNamed) {
-      const t = child.type;
+    if (!child) continue;
+    const c = child as NodeBase;
+    if (!c.isNamed) {
+      const t = c.type;
       if (['+', '-', '*', '/', '%', '<', '>', '<=', '>=', '==', '===', '!=', '!==',
            '&&', '||', '??', '&', '|', '^', '<<', '>>', '>>>'].includes(t)) {
         op = t;
@@ -396,9 +400,10 @@ function transformUnaryExpression(node: TreeSitterNode): UnaryNode {
   for (let i = 0; i < node.childCount; i++) {
     const child = getChild(node, i);
     if (!child) continue;
-    if (!child.isNamed) {
-      if (['-', '+', '!', '~'].includes(child.type)) {
-        op = child.type;
+    const c = child as NodeBase;
+    if (!c.isNamed) {
+      if (['-', '+', '!', '~'].includes(c.type)) {
+        op = c.type;
       }
     } else {
       operandNode = child;
@@ -420,9 +425,10 @@ function transformUpdateExpression(node: TreeSitterNode): UnaryNode {
   for (let i = 0; i < node.childCount; i++) {
     const child = getChild(node, i);
     if (!child) continue;
-    if (!child.isNamed) {
-      if (child.type === '++' || child.type === '--') {
-        op = child.type;
+    const c = child as NodeBase;
+    if (!c.isNamed) {
+      if (c.type === '++' || c.type === '--') {
+        op = c.type;
         isPrefix = i === 0;
       }
     } else {
@@ -447,7 +453,8 @@ function transformCallExpression(node: TreeSitterNode): CallNode | MethodCallNod
 
   const args: Expression[] = [];
   if (argsNode) {
-    for (let i = 0; i < argsNode.namedChildCount; i++) {
+    const an = argsNode as NodeBase;
+    for (let i = 0; i < an.namedChildCount; i++) {
       const argChild = getNamedChild(argsNode, i);
       if (argChild) {
         args.push(transformExpression(argChild));
@@ -457,10 +464,13 @@ function transformCallExpression(node: TreeSitterNode): CallNode | MethodCallNod
 
   let typeParameter: string | undefined;
   const typeArgsNode = getChildByFieldName(node, 'type_arguments');
-  if (typeArgsNode && typeArgsNode.namedChildCount > 0) {
-    const firstTypeArg = getNamedChild(typeArgsNode, 0);
-    if (firstTypeArg) {
-      typeParameter = firstTypeArg.text;
+  if (typeArgsNode) {
+    const tan = typeArgsNode as NodeBase;
+    if (tan.namedChildCount > 0) {
+      const firstTypeArg = getNamedChild(typeArgsNode, 0);
+      if (firstTypeArg) {
+        typeParameter = (firstTypeArg as NodeBase).text;
+      }
     }
   }
 
@@ -468,11 +478,12 @@ function transformCallExpression(node: TreeSitterNode): CallNode | MethodCallNod
     return { type: 'call', name: '', args };
   }
 
-  if (funcNode.type === 'member_expression') {
+  const fn = funcNode as NodeBase;
+  if (fn.type === 'member_expression') {
     const objNode = getChildByFieldName(funcNode, 'object');
     const propNode = getChildByFieldName(funcNode, 'property');
     const object = objNode ? transformExpression(objNode) : { type: 'variable' as const, name: 'undefined' };
-    const method = propNode ? propNode.text : '';
+    const method = propNode ? (propNode as NodeBase).text : '';
 
     return {
       type: 'method_call',
@@ -481,8 +492,8 @@ function transformCallExpression(node: TreeSitterNode): CallNode | MethodCallNod
       args,
       typeParameter,
     };
-  } else if (funcNode.type === 'identifier') {
-    return { type: 'call', name: funcNode.text, args };
+  } else if (fn.type === 'identifier') {
+    return { type: 'call', name: fn.text, args };
   } else {
     const callee = transformExpression(funcNode);
     return {
@@ -501,7 +512,7 @@ function transformMemberExpression(node: TreeSitterNode): MemberAccessNode {
   return {
     type: 'member_access',
     object: objNode ? transformExpression(objNode) : { type: 'variable', name: 'undefined' },
-    property: propNode ? propNode.text : '',
+    property: propNode ? (propNode as NodeBase).text : '',
   };
 }
 
@@ -533,27 +544,30 @@ function transformObjectExpression(node: TreeSitterNode): ObjectNode {
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = getNamedChild(node, i);
     if (!child) continue;
+    const c = child as NodeBase;
 
-    if (child.type === 'pair') {
+    if (c.type === 'pair') {
       const keyNode = getChildByFieldName(child, 'key');
       const valueNode = getChildByFieldName(child, 'value');
 
       let key = '';
       if (keyNode) {
-        if (keyNode.type === 'property_identifier' || keyNode.type === 'identifier') {
-          key = keyNode.text;
-        } else if (keyNode.type === 'string') {
-          key = keyNode.text.slice(1, -1);
-        } else if (keyNode.type === 'computed_property_name') {
+        const k = keyNode as NodeBase;
+        if (k.type === 'property_identifier' || k.type === 'identifier') {
+          key = k.text;
+        } else if (k.type === 'string') {
+          key = k.text.slice(1, -1);
+        } else if (k.type === 'computed_property_name') {
           const inner = getNamedChild(keyNode, 0);
           if (inner) {
             const expr = transformExpression(inner);
             const eKey = expr as ExprBase;
-            const exprVal = expr as { value?: string; name?: string };
+            const exprStr = expr as { type: string; value: string };
+            const exprVar = expr as { type: string; name: string };
             if (eKey.type === 'string') {
-              key = exprVal.value || '';
+              key = exprStr.value || '';
             } else if (eKey.type === 'variable') {
-              key = `[${exprVal.name}]`;
+              key = `[${exprVar.name}]`;
             } else {
               key = '[computed]';
             }
@@ -563,15 +577,15 @@ function transformObjectExpression(node: TreeSitterNode): ObjectNode {
 
       const value = valueNode ? transformExpression(valueNode) : { type: 'variable' as const, name: 'undefined' };
       properties.push({ key, value });
-    } else if (child.type === 'shorthand_property_identifier') {
-      const key = child.text;
+    } else if (c.type === 'shorthand_property_identifier') {
+      const key = c.text;
       properties.push({ key, value: { type: 'variable', name: key } });
-    } else if (child.type === 'method_definition') {
+    } else if (c.type === 'method_definition') {
       const nameNode = getChildByFieldName(child, 'name');
       const paramsNode = getChildByFieldName(child, 'parameters');
       const bodyNode = getChildByFieldName(child, 'body');
 
-      const key = nameNode ? nameNode.text : '';
+      const key = nameNode ? (nameNode as NodeBase).text : '';
       const params = paramsNode ? extractFunctionParams(paramsNode) : [];
       const body = bodyNode ? transformStatementBlock(bodyNode) : { type: 'block' as const, statements: [] };
 
@@ -593,7 +607,8 @@ function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNo
 
   const args: Expression[] = [];
   if (argsNode) {
-    for (let i = 0; i < argsNode.namedChildCount; i++) {
+    const an = argsNode as NodeBase;
+    for (let i = 0; i < an.namedChildCount; i++) {
       const child = getNamedChild(argsNode, i);
       if (child) {
         args.push(transformExpression(child));
@@ -601,24 +616,31 @@ function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNo
     }
   }
 
-  const className = constructorNode ? constructorNode.text : '';
+  const className = constructorNode ? (constructorNode as NodeBase).text : '';
 
   if (className === 'Map') {
-    if (args.length > 0 && args[0].type === 'array') {
-      const entries = (args[0] as ArrayNode).elements.map(elem => {
-        if (elem.type === 'array' && (elem as ArrayNode).elements.length === 2) {
-          return { key: (elem as ArrayNode).elements[0], value: (elem as ArrayNode).elements[1] };
-        }
-        return { key: elem, value: { type: 'variable' as const, name: 'undefined' } };
-      });
-      return { type: 'map', entries };
+    if (args.length > 0) {
+      const firstArg = args[0] as ExprBase;
+      if (firstArg.type === 'array') {
+        const entries = (args[0] as ArrayNode).elements.map(elem => {
+          const elemBase = elem as ExprBase;
+          if (elemBase.type === 'array' && (elem as ArrayNode).elements.length === 2) {
+            return { key: (elem as ArrayNode).elements[0], value: (elem as ArrayNode).elements[1] };
+          }
+          return { key: elem, value: { type: 'variable' as const, name: 'undefined' } };
+        });
+        return { type: 'map', entries };
+      }
     }
     return { type: 'map', entries: [] };
   }
 
   if (className === 'Set') {
-    if (args.length > 0 && args[0].type === 'array') {
-      return { type: 'set', values: (args[0] as ArrayNode).elements };
+    if (args.length > 0) {
+      const firstArg = args[0] as ExprBase;
+      if (firstArg.type === 'array') {
+        return { type: 'set', values: (args[0] as ArrayNode).elements };
+      }
     }
     return { type: 'set', values: [] };
   }
@@ -633,18 +655,19 @@ function transformTemplateString(node: TreeSitterNode): TemplateLiteralNode | St
   for (let i = 0; i < node.childCount; i++) {
     const child = getChild(node, i);
     if (!child) continue;
+    const c = child as NodeBase;
 
-    if (child.type === 'string_fragment' || child.type === 'template_content') {
-      parts.push(child.text);
-    } else if (child.type === 'template_substitution') {
+    if (c.type === 'string_fragment' || c.type === 'template_content') {
+      parts.push(c.text);
+    } else if (c.type === 'template_substitution') {
       hasSubstitutions = true;
       const exprChild = getNamedChild(child, 0);
       if (exprChild) {
         parts.push(transformExpression(exprChild));
       }
-    } else if (child.type === '`') {
+    } else if (c.type === '`') {
       continue;
-    } else if (child.isNamed) {
+    } else if (c.isNamed) {
       hasSubstitutions = true;
       parts.push(transformExpression(child));
     }
@@ -670,8 +693,9 @@ function transformArrowFunction(node: TreeSitterNode): ArrowFunctionNode {
 
   let params: string[] = [];
   if (paramsNode) {
-    if (paramsNode.type === 'identifier') {
-      params = [paramsNode.text];
+    const pn = paramsNode as NodeBase;
+    if (pn.type === 'identifier') {
+      params = [pn.text];
     } else {
       params = extractFunctionParams(paramsNode);
     }
@@ -679,7 +703,8 @@ function transformArrowFunction(node: TreeSitterNode): ArrowFunctionNode {
 
   let body: Expression | BlockStatement;
   if (bodyNode) {
-    if (bodyNode.type === 'statement_block') {
+    const bn = bodyNode as NodeBase;
+    if (bn.type === 'statement_block') {
       body = transformStatementBlock(bodyNode);
     } else {
       body = transformExpression(bodyNode);
@@ -691,7 +716,9 @@ function transformArrowFunction(node: TreeSitterNode): ArrowFunctionNode {
   let isAsync = false;
   for (let i = 0; i < node.childCount; i++) {
     const child = getChild(node, i);
-    if (child && child.type === 'async') {
+    if (!child) continue;
+    const c = child as NodeBase;
+    if (c.type === 'async') {
       isAsync = true;
       break;
     }
@@ -715,7 +742,9 @@ function transformFunctionExpression(node: TreeSitterNode): ArrowFunctionNode {
   let isAsync = false;
   for (let i = 0; i < node.childCount; i++) {
     const child = getChild(node, i);
-    if (child && child.type === 'async') {
+    if (!child) continue;
+    const c = child as NodeBase;
+    if (c.type === 'async') {
       isAsync = true;
       break;
     }
@@ -751,8 +780,14 @@ function transformAwaitExpression(node: TreeSitterNode): Expression {
 }
 
 function transformRegexNode(node: TreeSitterNode): RegexNode {
-  const text = node.text;
-  const lastSlash = text.lastIndexOf('/');
+  const text = (node as NodeBase).text;
+  let lastSlash = -1;
+  for (let i = text.length - 1; i >= 0; i--) {
+    if (text.charAt(i) === '/') {
+      lastSlash = i;
+      break;
+    }
+  }
   const pattern = text.slice(1, lastSlash);
   const flags = text.slice(lastSlash + 1);
   return { type: 'regex', pattern, flags };
@@ -765,30 +800,35 @@ function transformAssignmentExpression(node: TreeSitterNode): Expression {
   const right = rightNode ? transformExpression(rightNode) : { type: 'variable' as const, name: 'undefined' };
 
   if (leftNode) {
-    if (leftNode.type === 'identifier') {
+    const ln = leftNode as NodeBase;
+    if (ln.type === 'identifier') {
       return {
         type: 'binary',
         op: '=',
-        left: { type: 'variable', name: leftNode.text },
+        left: { type: 'variable', name: ln.text },
         right,
       };
-    } else if (leftNode.type === 'member_expression') {
+    } else if (ln.type === 'member_expression') {
       const obj = transformExpression(leftNode);
-      if (obj.type === 'member_access') {
+      const objBase = obj as ExprBase;
+      if (objBase.type === 'member_access') {
+        const objTyped = obj as { type: string; object: Expression; property: string };
         return {
           type: 'member_access_assignment',
-          object: obj.object,
-          property: obj.property,
+          object: objTyped.object,
+          property: objTyped.property,
           value: right,
         };
       }
-    } else if (leftNode.type === 'subscript_expression') {
+    } else if (ln.type === 'subscript_expression') {
       const obj = transformExpression(leftNode);
-      if (obj.type === 'index_access') {
+      const objBase = obj as ExprBase;
+      if (objBase.type === 'index_access') {
+        const objTyped = obj as { type: string; object: Expression; index: Expression };
         return {
           type: 'index_access_assignment',
-          object: obj.object,
-          index: obj.index,
+          object: objTyped.object,
+          index: objTyped.index,
           value: right,
         };
       }
@@ -805,8 +845,10 @@ function transformAugmentedAssignmentExpression(node: TreeSitterNode): Expressio
   let op = '';
   for (let i = 0; i < node.childCount; i++) {
     const child = getChild(node, i);
-    if (child && !child.isNamed) {
-      const t = child.type;
+    if (!child) continue;
+    const c = child as NodeBase;
+    if (!c.isNamed) {
+      const t = c.type;
       if (['+=', '-=', '*=', '/=', '%=', '|=', '&=', '^=', '<<=', '>>='].includes(t)) {
         op = t.slice(0, -1);
         break;
@@ -817,31 +859,37 @@ function transformAugmentedAssignmentExpression(node: TreeSitterNode): Expressio
   const left = leftNode ? transformExpression(leftNode) : { type: 'variable' as const, name: 'undefined' };
   const right = rightNode ? transformExpression(rightNode) : { type: 'variable' as const, name: 'undefined' };
   const newValue: BinaryNode = { type: 'binary', op, left, right };
+  const leftBase = left as ExprBase;
 
-  if (leftNode && leftNode.type === 'identifier') {
-    return {
-      type: 'binary',
-      op: '=',
-      left,
-      right: newValue,
-    };
-  } else if (leftNode && leftNode.type === 'member_expression') {
-    if (left.type === 'member_access') {
+  if (leftNode) {
+    const ln = leftNode as NodeBase;
+    if (ln.type === 'identifier') {
       return {
-        type: 'member_access_assignment',
-        object: left.object,
-        property: left.property,
-        value: newValue,
+        type: 'binary',
+        op: '=',
+        left,
+        right: newValue,
       };
-    }
-  } else if (leftNode && leftNode.type === 'subscript_expression') {
-    if (left.type === 'index_access') {
-      return {
-        type: 'index_access_assignment',
-        object: left.object,
-        index: left.index,
-        value: newValue,
-      };
+    } else if (ln.type === 'member_expression') {
+      if (leftBase.type === 'member_access') {
+        const leftTyped = left as { type: string; object: Expression; property: string };
+        return {
+          type: 'member_access_assignment',
+          object: leftTyped.object,
+          property: leftTyped.property,
+          value: newValue,
+        };
+      }
+    } else if (ln.type === 'subscript_expression') {
+      if (leftBase.type === 'index_access') {
+        const leftTyped = left as { type: string; object: Expression; index: Expression };
+        return {
+          type: 'index_access_assignment',
+          object: leftTyped.object,
+          index: leftTyped.index,
+          value: newValue,
+        };
+      }
     }
   }
 
@@ -911,31 +959,39 @@ function transformStatement(node: TreeSitterNode): Statement | null {
 function transformExpressionStatementNode(node: TreeSitterNode): Statement | null {
   const exprNode = getNamedChild(node, 0);
   if (!exprNode) return null;
+  const en = exprNode as NodeBase;
 
   const expr = transformExpression(exprNode);
 
-  if (exprNode.type === 'assignment_expression' || exprNode.type === 'augmented_assignment_expression') {
+  if (en.type === 'assignment_expression' || en.type === 'augmented_assignment_expression') {
     const leftNode = getChildByFieldName(exprNode, 'left');
-    if (leftNode && leftNode.type === 'identifier') {
-      const exprBase = expr as ExprBase;
-      const exprTyped = expr as { type: string; op?: string; right?: Expression };
-      return {
-        type: 'assignment',
-        name: leftNode.text,
-        value: exprBase.type === 'binary' && exprTyped.op === '=' ? exprTyped.right! : expr,
-      };
-    } else if (leftNode && leftNode.type === 'member_expression') {
-      return {
-        type: 'assignment',
-        name: `__member_access__`,
-        value: expr,
-      };
-    } else if (leftNode && leftNode.type === 'subscript_expression') {
-      return {
-        type: 'assignment',
-        name: `__index_access__`,
-        value: expr,
-      };
+    if (leftNode) {
+      const ln = leftNode as NodeBase;
+      if (ln.type === 'identifier') {
+        const exprBase = expr as ExprBase;
+        const exprTyped = expr as { type: string; op: string; right: Expression };
+        let valueToAssign = expr;
+        if (exprBase.type === 'binary' && exprTyped.op === '=') {
+          valueToAssign = exprTyped.right;
+        }
+        return {
+          type: 'assignment',
+          name: ln.text,
+          value: valueToAssign,
+        };
+      } else if (ln.type === 'member_expression') {
+        return {
+          type: 'assignment',
+          name: `__member_access__`,
+          value: expr,
+        };
+      } else if (ln.type === 'subscript_expression') {
+        return {
+          type: 'assignment',
+          name: `__index_access__`,
+          value: expr,
+        };
+      }
     }
   }
 
@@ -948,7 +1004,9 @@ function transformLexicalDeclaration(node: TreeSitterNode): VariableDeclaration[
   let kind: 'let' | 'const' = 'let';
   for (let i = 0; i < node.childCount; i++) {
     const child = getChild(node, i);
-    if (child && child.type === 'const') {
+    if (!child) continue;
+    const c = child as NodeBase;
+    if (c.type === 'const') {
       kind = 'const';
       break;
     }
@@ -956,7 +1014,9 @@ function transformLexicalDeclaration(node: TreeSitterNode): VariableDeclaration[
 
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = getNamedChild(node, i);
-    if (child && child.type === 'variable_declarator') {
+    if (!child) continue;
+    const c = child as NodeBase;
+    if (c.type === 'variable_declarator') {
       const decl = transformVariableDeclarator(child, kind);
       if (decl) {
         declarations.push(decl);
@@ -972,7 +1032,7 @@ function transformVariableDeclarator(node: TreeSitterNode, kind: 'let' | 'const'
   const valueNode = getChildByFieldName(node, 'value');
   const typeNode = getChildByFieldName(node, 'type');
 
-  const name = nameNode ? nameNode.text : '';
+  const name = nameNode ? (nameNode as NodeBase).text : '';
   const value = valueNode ? transformExpression(valueNode) : null;
 
   let declaredType: string | undefined;
@@ -996,7 +1056,8 @@ function transformIfStatement(node: TreeSitterNode): IfStatement {
 
   let condition: Expression;
   if (condNode) {
-    if (condNode.type === 'parenthesized_expression') {
+    const cn = condNode as NodeBase;
+    if (cn.type === 'parenthesized_expression') {
       const inner = getNamedChild(condNode, 0);
       condition = inner ? transformExpression(inner) : { type: 'boolean', value: false };
     } else {
@@ -1010,13 +1071,15 @@ function transformIfStatement(node: TreeSitterNode): IfStatement {
 
   let elseBlock: BlockStatement | null = null;
   if (altNode) {
-    if (altNode.type === 'if_statement') {
+    const an = altNode as NodeBase;
+    if (an.type === 'if_statement') {
       const nestedIf = transformIfStatement(altNode);
       elseBlock = { type: 'block', statements: [nestedIf] };
-    } else if (altNode.type === 'else_clause') {
+    } else if (an.type === 'else_clause') {
       const elseBody = getNamedChild(altNode, 0);
       if (elseBody) {
-        if (elseBody.type === 'if_statement') {
+        const eb = elseBody as NodeBase;
+        if (eb.type === 'if_statement') {
           const nestedIf = transformIfStatement(elseBody);
           elseBlock = { type: 'block', statements: [nestedIf] };
         } else {
@@ -1037,7 +1100,8 @@ function transformWhileStatement(node: TreeSitterNode): WhileStatement {
 
   let condition: Expression;
   if (condNode) {
-    if (condNode.type === 'parenthesized_expression') {
+    const cn = condNode as NodeBase;
+    if (cn.type === 'parenthesized_expression') {
       const inner = getNamedChild(condNode, 0);
       condition = inner ? transformExpression(inner) : { type: 'boolean', value: true };
     } else {
@@ -1060,18 +1124,22 @@ function transformForStatement(node: TreeSitterNode): ForStatement {
 
   let init: VariableDeclaration | AssignmentStatement | null = null;
   if (initNode) {
-    if (initNode.type === 'lexical_declaration' || initNode.type === 'variable_declaration') {
+    const inn = initNode as NodeBase;
+    if (inn.type === 'lexical_declaration' || inn.type === 'variable_declaration') {
       const decls = transformLexicalDeclaration(initNode);
       init = decls.length > 0 ? decls[0] : null;
-    } else if (initNode.type === 'assignment_expression') {
+    } else if (inn.type === 'assignment_expression') {
       const leftNode = getChildByFieldName(initNode, 'left');
       const rightNode = getChildByFieldName(initNode, 'right');
-      if (leftNode && leftNode.type === 'identifier') {
-        init = {
-          type: 'assignment',
-          name: leftNode.text,
-          value: rightNode ? transformExpression(rightNode) : { type: 'number', value: 0 },
-        };
+      if (leftNode) {
+        const ln = leftNode as NodeBase;
+        if (ln.type === 'identifier') {
+          init = {
+            type: 'assignment',
+            name: ln.text,
+            value: rightNode ? transformExpression(rightNode) : { type: 'number', value: 0 },
+          };
+        }
       }
     }
   }
@@ -1083,14 +1151,20 @@ function transformForStatement(node: TreeSitterNode): ForStatement {
 
   let update: AssignmentStatement | Expression | null = null;
   if (incrNode) {
-    if (incrNode.type === 'assignment_expression' || incrNode.type === 'augmented_assignment_expression') {
+    const incn = incrNode as NodeBase;
+    if (incn.type === 'assignment_expression' || incn.type === 'augmented_assignment_expression') {
       const leftNode = getChildByFieldName(incrNode, 'left');
-      if (leftNode && leftNode.type === 'identifier') {
-        update = {
-          type: 'assignment',
-          name: leftNode.text,
-          value: transformExpression(incrNode),
-        };
+      if (leftNode) {
+        const ln = leftNode as NodeBase;
+        if (ln.type === 'identifier') {
+          update = {
+            type: 'assignment',
+            name: ln.text,
+            value: transformExpression(incrNode),
+          };
+        } else {
+          update = transformExpression(incrNode);
+        }
       } else {
         update = transformExpression(incrNode);
       }
@@ -1112,16 +1186,16 @@ function transformForInStatement(node: TreeSitterNode): ForOfStatement {
 
   for (let i = 0; i < node.childCount; i++) {
     const child = getChild(node, i);
-    if (child) {
-      if (child.type === 'of') {
-        isForOf = true;
-      } else if (child.type === 'const') {
-        variableKind = 'const';
-      } else if (child.type === 'let') {
-        variableKind = 'let';
-      } else if (child.type === 'var') {
-        variableKind = 'var';
-      }
+    if (!child) continue;
+    const c = child as NodeBase;
+    if (c.type === 'of') {
+      isForOf = true;
+    } else if (c.type === 'const') {
+      variableKind = 'const';
+    } else if (c.type === 'let') {
+      variableKind = 'let';
+    } else if (c.type === 'var') {
+      variableKind = 'var';
     }
   }
 
@@ -1130,14 +1204,17 @@ function transformForInStatement(node: TreeSitterNode): ForOfStatement {
   const bodyNode = getChildByFieldName(node, 'body');
 
   if (leftNode) {
-    if (leftNode.type === 'identifier') {
-      variableName = leftNode.text;
-    } else if (leftNode.type === 'array_pattern') {
+    const ln = leftNode as NodeBase;
+    if (ln.type === 'identifier') {
+      variableName = ln.text;
+    } else if (ln.type === 'array_pattern') {
       destructuredNames = [];
-      for (let i = 0; i < leftNode.childCount; i++) {
+      for (let i = 0; i < ln.childCount; i++) {
         const child = getChild(leftNode, i);
-        if (child && child.type === 'identifier') {
-          destructuredNames.push(child.text);
+        if (!child) continue;
+        const c = child as NodeBase;
+        if (c.type === 'identifier') {
+          destructuredNames.push(c.text);
         }
       }
       variableName = destructuredNames[0] || '';
@@ -1183,7 +1260,7 @@ function transformTryStatement(node: TreeSitterNode): TryStatement {
     const paramNode = getChildByFieldName(handlerNode, 'parameter');
     const catchBodyNode = getChildByFieldName(handlerNode, 'body');
 
-    const param = paramNode ? paramNode.text : 'e';
+    const param = paramNode ? (paramNode as NodeBase).text : 'e';
     const body = catchBodyNode ? transformStatementBlock(catchBodyNode) : { type: 'block' as const, statements: [] };
     catchClause = { param, body };
   }
@@ -1209,11 +1286,13 @@ function transformSwitchStatement(node: TreeSitterNode): IfStatement {
   let current: IfStatement | null = null;
 
   if (bodyNode) {
-    for (let i = 0; i < bodyNode.namedChildCount; i++) {
+    const bn = bodyNode as NodeBase;
+    for (let i = 0; i < bn.namedChildCount; i++) {
       const clause = getNamedChild(bodyNode, i);
       if (!clause) continue;
+      const cl = clause as NodeBase;
 
-      if (clause.type === 'switch_case') {
+      if (cl.type === 'switch_case') {
         const valueNode = getChildByFieldName(clause, 'value');
         if (valueNode) {
           const caseExpr = transformExpression(valueNode);
@@ -1225,9 +1304,11 @@ function transformSwitchStatement(node: TreeSitterNode): IfStatement {
           };
 
           const statements: Statement[] = [];
-          for (let j = 0; j < clause.namedChildCount; j++) {
+          for (let j = 0; j < cl.namedChildCount; j++) {
             const stmtNode = getNamedChild(clause, j);
-            if (stmtNode && stmtNode !== valueNode && stmtNode.type !== 'break_statement') {
+            if (!stmtNode) continue;
+            const sn = stmtNode as NodeBase;
+            if (stmtNode !== valueNode && sn.type !== 'break_statement') {
               const stmt = transformStatement(stmtNode);
               if (stmt) statements.push(stmt);
             }
@@ -1248,11 +1329,13 @@ function transformSwitchStatement(node: TreeSitterNode): IfStatement {
             current = ifStmt;
           }
         }
-      } else if (clause.type === 'switch_default') {
+      } else if (cl.type === 'switch_default') {
         const statements: Statement[] = [];
-        for (let j = 0; j < clause.namedChildCount; j++) {
+        for (let j = 0; j < cl.namedChildCount; j++) {
           const stmtNode = getNamedChild(clause, j);
-          if (stmtNode && stmtNode.type !== 'break_statement') {
+          if (!stmtNode) continue;
+          const sn = stmtNode as NodeBase;
+          if (sn.type !== 'break_statement') {
             const stmt = transformStatement(stmtNode);
             if (stmt) statements.push(stmt);
           }
@@ -1288,7 +1371,8 @@ function transformStatementBlock(node: TreeSitterNode): BlockStatement {
 }
 
 function wrapInBlock(node: TreeSitterNode): BlockStatement {
-  if (node.type === 'statement_block') {
+  const n = node as NodeBase;
+  if (n.type === 'statement_block') {
     return transformStatementBlock(node);
   }
   const stmt = transformStatement(node);
@@ -1304,7 +1388,8 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
 
   if (!nameNode) return null;
 
-  const name = nameNode.text;
+  const nn = nameNode as NodeBase;
+  const name = nn.text;
   const params = paramsNode ? extractFunctionParams(paramsNode) : [];
   const body = bodyNode ? transformStatementBlock(bodyNode) : { type: 'block' as const, statements: [] };
 
@@ -1316,12 +1401,15 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
   let typeParameters: string[] | undefined;
   if (typeParamsNode) {
     typeParameters = [];
-    for (let i = 0; i < typeParamsNode.namedChildCount; i++) {
+    const tpn = typeParamsNode as NodeBase;
+    for (let i = 0; i < tpn.namedChildCount; i++) {
       const tp = getNamedChild(typeParamsNode, i);
-      if (tp && tp.type === 'type_parameter') {
+      if (!tp) continue;
+      const tpBase = tp as NodeBase;
+      if (tpBase.type === 'type_parameter') {
         const tpName = getChildByFieldName(tp, 'name');
         if (tpName) {
-          typeParameters.push(tpName.text);
+          typeParameters.push((tpName as NodeBase).text);
         }
       }
     }
@@ -1330,7 +1418,9 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
   let isAsync = false;
   for (let i = 0; i < node.childCount; i++) {
     const child = getChild(node, i);
-    if (child && child.type === 'async') {
+    if (!child) continue;
+    const c = child as NodeBase;
+    if (c.type === 'async') {
       isAsync = true;
       break;
     }
@@ -1355,15 +1445,18 @@ function extractFunctionParams(paramsNode: TreeSitterNode): string[] {
   const params: string[] = [];
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const param = getNamedChild(paramsNode, i);
-    if (param) {
-      if (param.type === 'required_parameter' || param.type === 'optional_parameter') {
-        const patternNode = getChildByFieldName(param, 'pattern');
-        if (patternNode && patternNode.type === 'identifier') {
-          params.push(patternNode.text);
+    if (!param) continue;
+    const p = param as NodeBase;
+    if (p.type === 'required_parameter' || p.type === 'optional_parameter') {
+      const patternNode = getChildByFieldName(param, 'pattern');
+      if (patternNode) {
+        const pn = patternNode as NodeBase;
+        if (pn.type === 'identifier') {
+          params.push(pn.text);
         }
-      } else if (param.type === 'identifier') {
-        params.push(param.text);
       }
+    } else if (p.type === 'identifier') {
+      params.push(p.text);
     }
   }
   return params;
@@ -1375,7 +1468,9 @@ function extractParamTypes(paramsNode: TreeSitterNode): string[] | undefined {
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const param = getNamedChild(paramsNode, i);
-    if (param && (param.type === 'required_parameter' || param.type === 'optional_parameter')) {
+    if (!param) continue;
+    const p = param as NodeBase;
+    if (p.type === 'required_parameter' || p.type === 'optional_parameter') {
       const typeNode = getChildByFieldName(param, 'type');
       if (typeNode) {
         types.push(extractTypeString(typeNode));
@@ -1394,14 +1489,16 @@ function extractFunctionParameters(paramsNode: TreeSitterNode): FunctionParamete
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const param = getNamedChild(paramsNode, i);
-    if (param && (param.type === 'required_parameter' || param.type === 'optional_parameter')) {
+    if (!param) continue;
+    const p = param as NodeBase;
+    if (p.type === 'required_parameter' || p.type === 'optional_parameter') {
       const patternNode = getChildByFieldName(param, 'pattern');
       const typeNode = getChildByFieldName(param, 'type');
       const valueNode = getChildByFieldName(param, 'value');
 
-      const name = patternNode && patternNode.type === 'identifier' ? patternNode.text : '';
+      const name = patternNode ? ((patternNode as NodeBase).type === 'identifier' ? (patternNode as NodeBase).text : '') : '';
       const type = typeNode ? extractTypeString(typeNode) : undefined;
-      const optional = param.type === 'optional_parameter';
+      const optional = p.type === 'optional_parameter';
       const defaultValue = valueNode ? transformExpression(valueNode) : undefined;
 
       params.push({ name, type, optional, defaultValue });
@@ -1412,26 +1509,28 @@ function extractFunctionParameters(paramsNode: TreeSitterNode): FunctionParamete
 }
 
 function extractTypeString(typeNode: TreeSitterNode): string {
-  if (typeNode.type === 'type_annotation') {
+  const tn = typeNode as NodeBase;
+  if (tn.type === 'type_annotation') {
     const inner = getNamedChild(typeNode, 0);
     return inner ? extractTypeString(inner) : 'any';
   }
 
-  if (typeNode.type === 'predefined_type') {
-    return typeNode.text;
+  if (tn.type === 'predefined_type') {
+    return tn.text;
   }
 
-  if (typeNode.type === 'type_identifier') {
-    return typeNode.text;
+  if (tn.type === 'type_identifier') {
+    return tn.text;
   }
 
-  if (typeNode.type === 'generic_type') {
+  if (tn.type === 'generic_type') {
     const nameNode = getChildByFieldName(typeNode, 'name');
     const argsNode = getChildByFieldName(typeNode, 'type_arguments');
-    const name = nameNode ? nameNode.text : '';
+    const name = nameNode ? (nameNode as NodeBase).text : '';
     if (argsNode) {
+      const an = argsNode as NodeBase;
       const args: string[] = [];
-      for (let i = 0; i < argsNode.namedChildCount; i++) {
+      for (let i = 0; i < an.namedChildCount; i++) {
         const arg = getNamedChild(argsNode, i);
         if (arg) {
           args.push(extractTypeString(arg));
@@ -1442,13 +1541,13 @@ function extractTypeString(typeNode: TreeSitterNode): string {
     return name;
   }
 
-  if (typeNode.type === 'array_type') {
+  if (tn.type === 'array_type') {
     const elemNode = getNamedChild(typeNode, 0);
     const elem = elemNode ? extractTypeString(elemNode) : 'any';
     return `${elem}[]`;
   }
 
-  if (typeNode.type === 'union_type') {
+  if (tn.type === 'union_type') {
     const types: string[] = [];
     for (let i = 0; i < typeNode.namedChildCount; i++) {
       const t = getNamedChild(typeNode, i);
@@ -1459,29 +1558,33 @@ function extractTypeString(typeNode: TreeSitterNode): string {
     return types.join(' | ');
   }
 
-  if (typeNode.type === 'function_type') {
+  if (tn.type === 'function_type') {
     return 'Function';
   }
 
-  return typeNode.text;
+  return tn.text;
 }
 
 function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
   const nameNode = getChildByFieldName(node, 'name');
   if (!nameNode) return null;
 
-  const name = nameNode.text;
+  const name = (nameNode as NodeBase).text;
 
   let extendsClause: string | undefined;
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = getNamedChild(node, i);
-    if (child && child.type === 'class_heritage') {
-      for (let j = 0; j < child.namedChildCount; j++) {
+    if (!child) continue;
+    const c = child as NodeBase;
+    if (c.type === 'class_heritage') {
+      for (let j = 0; j < c.namedChildCount; j++) {
         const clause = getNamedChild(child, j);
-        if (clause && clause.type === 'extends_clause') {
+        if (!clause) continue;
+        const cl = clause as NodeBase;
+        if (cl.type === 'extends_clause') {
           const valueNode = getChildByFieldName(clause, 'value');
           if (valueNode) {
-            extendsClause = valueNode.text;
+            extendsClause = (valueNode as NodeBase).text;
           }
         }
       }
@@ -1493,16 +1596,18 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
 
   const bodyNode = getChildByFieldName(node, 'body');
   if (bodyNode) {
-    for (let i = 0; i < bodyNode.namedChildCount; i++) {
+    const bn = bodyNode as NodeBase;
+    for (let i = 0; i < bn.namedChildCount; i++) {
       const member = getNamedChild(bodyNode, i);
       if (!member) continue;
+      const m = member as NodeBase;
 
-      if (member.type === 'public_field_definition' || member.type === 'property_definition') {
+      if (m.type === 'public_field_definition' || m.type === 'property_definition') {
         const field = transformClassField(member);
         if (field) {
           fields.push(field);
         }
-      } else if (member.type === 'method_definition') {
+      } else if (m.type === 'method_definition') {
         const method = transformClassMethod(member);
         if (method) {
           methods.push(method);
@@ -1520,7 +1625,7 @@ function transformClassField(node: TreeSitterNode): ClassField | null {
 
   if (!nameNode) return null;
 
-  const name = nameNode.text;
+  const name = (nameNode as NodeBase).text;
   let fieldType: ClassField['fieldType'] = 'double';
   let tsType: string | undefined;
 
@@ -1546,7 +1651,7 @@ function transformClassMethod(node: TreeSitterNode): ClassMethod | null {
   const bodyNode = getChildByFieldName(node, 'body');
   const returnTypeNode = getChildByFieldName(node, 'return_type');
 
-  const name = nameNode ? nameNode.text : '';
+  const name = nameNode ? (nameNode as NodeBase).text : '';
   const isConstructor = name === 'constructor';
 
   const params = paramsNode ? extractFunctionParams(paramsNode) : [];
@@ -1590,7 +1695,9 @@ function extractClassParamTypes(paramsNode: TreeSitterNode): ClassMethod['paramT
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const param = getNamedChild(paramsNode, i);
-    if (param && (param.type === 'required_parameter' || param.type === 'optional_parameter')) {
+    if (!param) continue;
+    const p = param as NodeBase;
+    if (p.type === 'required_parameter' || p.type === 'optional_parameter') {
       const typeNode = getChildByFieldName(param, 'type');
       if (typeNode) {
         const typeStr = extractTypeString(typeNode);
@@ -1612,17 +1719,20 @@ function transformInterfaceDeclaration(node: TreeSitterNode): InterfaceDeclarati
 
   if (!nameNode) return null;
 
-  const name = nameNode.text;
+  const name = (nameNode as NodeBase).text;
   const fields: { name: string; type: string }[] = [];
 
   if (bodyNode) {
-    for (let i = 0; i < bodyNode.namedChildCount; i++) {
+    const bn = bodyNode as NodeBase;
+    for (let i = 0; i < bn.namedChildCount; i++) {
       const member = getNamedChild(bodyNode, i);
-      if (member && member.type === 'property_signature') {
+      if (!member) continue;
+      const m = member as NodeBase;
+      if (m.type === 'property_signature') {
         const propNameNode = getChildByFieldName(member, 'name');
         const propTypeNode = getChildByFieldName(member, 'type');
 
-        const fieldName = propNameNode ? propNameNode.text : '';
+        const fieldName = propNameNode ? (propNameNode as NodeBase).text : '';
         const fieldType = propTypeNode ? extractTypeString(propTypeNode) : 'any';
         fields.push({ name: fieldName, type: fieldType });
       }
@@ -1638,12 +1748,13 @@ function transformTypeAliasDeclaration(node: TreeSitterNode): TypeAliasDeclarati
 
   if (!nameNode) return null;
 
-  const name = nameNode.text;
+  const name = (nameNode as NodeBase).text;
   const unionMembers: string[] = [];
 
   if (valueNode) {
-    if (valueNode.type === 'union_type') {
-      for (let i = 0; i < valueNode.namedChildCount; i++) {
+    const vn = valueNode as NodeBase;
+    if (vn.type === 'union_type') {
+      for (let i = 0; i < vn.namedChildCount; i++) {
         const t = getNamedChild(valueNode, i);
         if (t) {
           unionMembers.push(extractTypeString(t));
@@ -1663,22 +1774,26 @@ function transformEnumDeclaration(node: TreeSitterNode): EnumDeclaration | null 
 
   if (!nameNode) return null;
 
-  const name = nameNode.text;
+  const name = (nameNode as NodeBase).text;
   const members: EnumMember[] = [];
 
   let currentValue = 0;
   if (bodyNode) {
-    for (let i = 0; i < bodyNode.namedChildCount; i++) {
+    const bn = bodyNode as NodeBase;
+    for (let i = 0; i < bn.namedChildCount; i++) {
       const member = getNamedChild(bodyNode, i);
       if (member) {
         const memberNameNode = getChildByFieldName(member, 'name');
         const memberValueNode = getChildByFieldName(member, 'value');
 
-        const memberName = memberNameNode ? memberNameNode.text : '';
+        const memberName = memberNameNode ? (memberNameNode as NodeBase).text : '';
         let value = currentValue;
 
-        if (memberValueNode && memberValueNode.type === 'number') {
-          value = parseInt(memberValueNode.text, 10);
+        if (memberValueNode) {
+          const mvn = memberValueNode as NodeBase;
+          if (mvn.type === 'number') {
+            value = parseInt(mvn.text, 10);
+          }
         }
 
         members.push({ name: memberName, value });
@@ -1694,7 +1809,7 @@ function transformImportStatement(node: TreeSitterNode): ImportDeclaration | nul
   const sourceNode = getChildByFieldName(node, 'source');
   if (!sourceNode) return null;
 
-  let source = sourceNode.text;
+  let source = (sourceNode as NodeBase).text;
   if ((source.startsWith('"') && source.endsWith('"')) ||
       (source.startsWith("'") && source.endsWith("'"))) {
     source = source.slice(1, -1);
@@ -1705,28 +1820,32 @@ function transformImportStatement(node: TreeSitterNode): ImportDeclaration | nul
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = getNamedChild(node, i);
     if (!child) continue;
+    const c = child as NodeBase;
 
-    if (child.type === 'import_clause') {
-      for (let j = 0; j < child.namedChildCount; j++) {
+    if (c.type === 'import_clause') {
+      for (let j = 0; j < c.namedChildCount; j++) {
         const clause = getNamedChild(child, j);
         if (!clause) continue;
+        const cl = clause as NodeBase;
 
-        if (clause.type === 'identifier') {
-          specifiers.push(clause.text);
-        } else if (clause.type === 'named_imports') {
-          for (let k = 0; k < clause.namedChildCount; k++) {
+        if (cl.type === 'identifier') {
+          specifiers.push(cl.text);
+        } else if (cl.type === 'named_imports') {
+          for (let k = 0; k < cl.namedChildCount; k++) {
             const spec = getNamedChild(clause, k);
-            if (spec && spec.type === 'import_specifier') {
+            if (!spec) continue;
+            const sp = spec as NodeBase;
+            if (sp.type === 'import_specifier') {
               const nameNode = getChildByFieldName(spec, 'name');
               if (nameNode) {
-                specifiers.push(nameNode.text);
+                specifiers.push((nameNode as NodeBase).text);
               }
             }
           }
-        } else if (clause.type === 'namespace_import') {
+        } else if (cl.type === 'namespace_import') {
           const nameNode = getNamedChild(clause, 0);
           if (nameNode) {
-            specifiers.push(`* as ${nameNode.text}`);
+            specifiers.push(`* as ${(nameNode as NodeBase).text}`);
           }
         }
       }

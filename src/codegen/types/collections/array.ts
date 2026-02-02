@@ -1,6 +1,5 @@
 import { Expression, MethodCallNode, ArrowFunctionNode, VariableNode } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
-import { BaseGenerator } from '../../infrastructure/base-generator.js';
 import { generateArrayLiteral } from './array/literal.js';
 import { generateArrayPush, generateArrayPop } from './array/mutators.js';
 
@@ -8,7 +7,7 @@ interface ArrayGeneratorShim {
   nextTemp(): string;
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
-  getDoubleSize(): number;
+  getDoubleSize(): string;
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   variableTypes: Map<string, string>;
@@ -36,15 +35,15 @@ export class ArrayGenerator {
   }
 
   generateArrayLiteral(expr: Expression, params: string[]): string {
-    return generateArrayLiteral(this.createGeneratorShim() as unknown as BaseGenerator, expr, params);
+    return generateArrayLiteral(this.createGeneratorShim(), expr, params);
   }
 
   generateArrayPush(expr: MethodCallNode, params: string[]): string {
-    return generateArrayPush(this.createGeneratorShim() as unknown as BaseGenerator, expr, params);
+    return generateArrayPush(this.createGeneratorShim(), expr, params);
   }
 
   generateArrayPop(expr: MethodCallNode, params: string[]): string {
-    return generateArrayPop(this.createGeneratorShim() as unknown as BaseGenerator, expr, params);
+    return generateArrayPop(this.createGeneratorShim(), expr, params);
   }
 
   private createGeneratorShim(): ArrayGeneratorShim {
@@ -52,7 +51,13 @@ export class ArrayGenerator {
       nextTemp: () => this.nextTemp(),
       nextLabel: (prefix: string) => this.nextLabel(prefix),
       emit: (instruction: string) => this.emit(instruction),
-      getDoubleSize: () => 8,
+      getDoubleSize: () => {
+        const sizePtr = this.nextTemp();
+        this.emit(`${sizePtr} = getelementptr double, double* null, i32 1`);
+        const size = this.nextTemp();
+        this.emit(`${size} = ptrtoint double* ${sizePtr} to i64`);
+        return size;
+      },
       getVariableType: (name: string) => this.ctx.getVariableType(name),
       setVariableType: (name: string, type: string) => this.ctx.setVariableType(name, type),
       variableTypes: this.ctx.variableTypes,
