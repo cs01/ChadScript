@@ -106,23 +106,25 @@ export class UnaryExpressionGenerator {
   }
 
   private generateLogicalNot(operand: string): string {
-    // Check if operand is double or i32
     const operandType = this.ctx.getVariableType(operand);
     let cmpResult: string;
 
     if (operandType === 'double' || (operand.indexOf('.') !== -1 && !operand.startsWith('%'))) {
-      // Operand is double, use fcmp directly
       cmpResult = this.ctx.nextTemp();
       this.ctx.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);
-    } else {
-      // Operand is i32, convert to double first
+    } else if (operandType && operandType.indexOf('*') !== -1) {
+      cmpResult = this.ctx.nextTemp();
+      this.ctx.emit(`${cmpResult} = icmp eq ${operandType} ${operand}, null`);
+    } else if (operandType === 'i32') {
       const operandDouble = this.ctx.nextTemp();
       this.ctx.emit(`${operandDouble} = sitofp i32 ${operand} to double`);
       cmpResult = this.ctx.nextTemp();
       this.ctx.emit(`${cmpResult} = fcmp oeq double ${operandDouble}, 0.0`);
+    } else {
+      cmpResult = this.ctx.nextTemp();
+      this.ctx.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);
     }
 
-    // Convert boolean result to double
     const i32Result = this.ctx.nextTemp();
     this.ctx.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
     const result = this.ctx.nextTemp();
