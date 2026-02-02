@@ -12,7 +12,7 @@
  */
 
 import { BaseGenerator } from '../infrastructure/base-generator.js';
-import type { Expression, FunctionNode, BlockStatement, ArrowFunctionNode } from '../../ast/types.js';
+import { Expression, FunctionNode, BlockStatement, ArrowFunctionNode } from '../../ast/types.js';
 import { ClosureAnalyzer, CapturedVariable, ClosureInfo } from '../infrastructure/closure-analyzer.js';
 
 export interface LiftedFunction extends FunctionNode {
@@ -22,6 +22,11 @@ export interface LiftedFunction extends FunctionNode {
 export interface EnvStructDef {
   name: string;
   fields: CapturedVariable[];
+}
+
+interface ArrowFunctionTypeHints {
+  paramTypes?: string[];
+  returnType?: string;
 }
 
 export class ArrowFunctionExpressionGenerator extends BaseGenerator {
@@ -43,48 +48,51 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
   generateArrowFunction(
     expr: ArrowFunctionNode,
     params: string[],
-    typeHints?: { paramTypes?: string[], returnType?: string },
+    typeHints?: ArrowFunctionTypeHints,
     scopeVars?: Map<string, string>
   ): string {
-    const arrowFunc = expr;
     const funcName = `__lambda_${this.anonFuncCounter++}`;
 
-    let funcParams = arrowFunc.params;
+    let funcParams = expr.params;
     if (typeHints?.paramTypes && typeHints.paramTypes.length > funcParams.length) {
-      funcParams = funcParams.slice();
+      funcParams = funcParams.slice(0);
       for (let i = funcParams.length; i < typeHints.paramTypes.length; i++) {
         funcParams.push(`__unused_${i}`);
       }
     }
 
     let closureInfo: ClosureInfo | undefined;
+    let closureCaptures: CapturedVariable[] = [];
+    let closureEnvStructName: string = '';
 
-    if (scopeVars && scopeVars.size > 0) {
-      closureInfo = this.closureAnalyzer.analyze(
+    if (scopeVars) {
+      const analyzeResult = this.closureAnalyzer.analyze(
         funcParams,
-        arrowFunc.body,
+        expr.body,
         scopeVars,
         funcName
       );
+      const typedResult = analyzeResult as { captures: CapturedVariable[]; envStructName: string };
+      closureCaptures = typedResult.captures;
+      closureEnvStructName = typedResult.envStructName;
 
-      if (closureInfo.captures.length > 0) {
+      if (closureCaptures.length > 0) {
         this.envStructDefs.push({
-          name: closureInfo.envStructName,
-          fields: closureInfo.captures
+          name: closureEnvStructName,
+          fields: closureCaptures
         });
 
-        arrowFunc.captures = closureInfo.captures;
-      } else {
-        closureInfo = undefined;
+        expr.captures = closureCaptures;
+        closureInfo = typedResult;
       }
     }
 
     const liftedFunc: LiftedFunction = {
       name: funcName,
       params: funcParams,
-      body: arrowFunc.body.type === 'block' ? arrowFunc.body : {
+      body: expr.body.type === 'block' ? expr.body : {
         type: 'block',
-        statements: [{ type: 'return', value: arrowFunc.body }]
+        statements: [{ type: 'return', value: expr.body }]
       },
       paramTypes: typeHints?.paramTypes,
       returnType: typeHints?.returnType,
@@ -101,7 +109,9 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
    */
   getEnvStructDefinitions(): string {
     let ir = '';
-    for (const envDef of this.envStructDefs) {
+    for (let defIdx = 0; defIdx < this.envStructDefs.length; defIdx++) {
+      const envDefRaw = this.envStructDefs[defIdx];
+      const envDef = envDefRaw as { name: string; fields: CapturedVariable[] };
       const fieldTypesArr: string[] = [];
       for (let i = 0; i < envDef.fields.length; i++) {
         const envField = envDef.fields[i] as { name: string; llvmType: string };
@@ -133,14 +143,15 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
   getClosureInfoForLambda(lambdaName: string): ClosureInfo | undefined {
     let funcResult: LiftedFunction | null = null;
     for (let i = 0; i < this.liftedFunctions.length; i++) {
-      const f = this.liftedFunctions[i] as LiftedFunction;
+      const fRaw = this.liftedFunctions[i];
+      const f = fRaw as { name: string; closureInfo: ClosureInfo };
       if (f.name === lambdaName) {
-        funcResult = f;
+        funcResult = fRaw as LiftedFunction;
         break;
       }
     }
-    const func = funcResult as LiftedFunction;
     if (funcResult) {
+      const func = funcResult as { closureInfo: ClosureInfo };
       return func.closureInfo;
     }
     return undefined;

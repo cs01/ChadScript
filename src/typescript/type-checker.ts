@@ -1,18 +1,15 @@
 import * as ts from 'typescript';
 import * as path from 'path';
 
+export type { TypeInfo, PropertyTypeInfo } from '../codegen/infrastructure/types.js';
+import type { TypeInfo, PropertyTypeInfo } from '../codegen/infrastructure/types.js';
+
 /**
  * TypeScript Type Checker Wrapper
  *
  * Provides type information for ChadScript compilation.
  * Uses TypeScript's compiler API to resolve types at compile time.
  */
-
-export interface TypeInfo {
-  kind: 'primitive' | 'object' | 'array' | 'unknown';
-  llvmType: string;
-  properties?: Map<string, { type: string; offset: number }>;
-}
 
 export class TypeChecker {
   private program: ts.Program;
@@ -156,11 +153,13 @@ export class TypeChecker {
 
       const propType = this.checker.getTypeOfSymbolAtLocation(prop, param);
       const llvmType = this.typeToLLVM(propType);
+      const objProps = this.getObjectProperties(type);
 
       return {
         kind: 'primitive',
         llvmType,
-        properties: this.getObjectProperties(type),
+        properties: objProps.map,
+        propertyKeys: objProps.keys,
       };
     } catch (error) {
       return null;
@@ -170,8 +169,9 @@ export class TypeChecker {
   /**
    * Get all properties of an object type
    */
-  private getObjectProperties(type: ts.Type): Map<string, { type: string; offset: number }> {
+  private getObjectProperties(type: ts.Type): { map: Map<string, { type: string; offset: number }>; keys: string[] } {
     const props = new Map<string, { type: string; offset: number }>();
+    const keys: string[] = [];
     const properties = type.getProperties();
 
     properties.forEach((prop, index) => {
@@ -183,9 +183,10 @@ export class TypeChecker {
         type: this.typeToLLVM(propType),
         offset: index,
       });
+      keys.push(prop.name);
     });
 
-    return props;
+    return { map: props, keys };
   }
 
   /**
@@ -244,11 +245,13 @@ export class TypeChecker {
       }
 
       const type = this.checker.getTypeFromTypeNode(param.type);
+      const objProps = this.getObjectProperties(type);
 
       return {
         kind: 'object',
         llvmType: 'i8*',
-        properties: this.getObjectProperties(type),
+        properties: objProps.map,
+        propertyKeys: objProps.keys,
       };
     } catch (error) {
       return null;

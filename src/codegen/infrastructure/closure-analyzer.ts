@@ -41,8 +41,8 @@ export class ClosureAnalyzer {
     scopeVars: Map<string, string>,
     lambdaName: string
   ): ClosureInfo {
-    this.declaredVars.clear();
-    this.referencedVars.clear();
+    this.declaredVars = new Set();
+    this.referencedVars = new Set();
 
     for (const param of params) {
       this.declaredVars.add(param);
