@@ -5,5 +5,7 @@ export {
   SetTypeInfo,
   TypeResolution,
   TypeGuardInfo,
-  UnionCommonFields
+  UnionCommonFields,
+  ThisFieldMapInfo,
+  ThisFieldSetInfo
 } from './types.js';

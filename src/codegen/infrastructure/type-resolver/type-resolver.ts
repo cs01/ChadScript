@@ -1,7 +1,7 @@
 import { AST, InterfaceDeclaration, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode } from '../../../ast/types.js';
 import { SymbolTable, ObjectMetadata } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
-import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields } from './types.js';
+import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo } from './types.js';
 
 export interface TypeResolverContext {
   ast?: AST;
@@ -262,5 +262,39 @@ export class TypeResolver {
     if (typeStr.startsWith("'") && typeStr.endsWith("'")) return 'string';
     if (typeStr.startsWith('"') && typeStr.endsWith('"')) return 'string';
     return typeStr;
+  }
+
+  getThisFieldMapType(expr: Expression): ThisFieldMapInfo | null {
+    if (expr.type !== 'member_access') return null;
+    const memberExpr = expr as MemberAccessNode;
+    if (memberExpr.object.type !== 'this') return null;
+
+    const fieldName = memberExpr.property;
+    if (!this.ctx.currentClassName) return null;
+
+    const fieldInfo = this.getClassFieldInfo(this.ctx.currentClassName, fieldName);
+    if (!fieldInfo?.tsType) return null;
+
+    const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
+    if (!mapMatch) return null;
+
+    return { fieldName, keyType: mapMatch[1], valueType: mapMatch[2] };
+  }
+
+  getThisFieldSetType(expr: Expression): ThisFieldSetInfo | null {
+    if (expr.type !== 'member_access') return null;
+    const memberExpr = expr as MemberAccessNode;
+    if (memberExpr.object.type !== 'this') return null;
+
+    const fieldName = memberExpr.property;
+    if (!this.ctx.currentClassName) return null;
+
+    const fieldInfo = this.getClassFieldInfo(this.ctx.currentClassName, fieldName);
+    if (!fieldInfo?.tsType) return null;
+
+    const setMatch = fieldInfo.tsType.match(/^Set<(\w+)>$/);
+    if (!setMatch) return null;
+
+    return { fieldName, valueType: setMatch[1] };
   }
 }

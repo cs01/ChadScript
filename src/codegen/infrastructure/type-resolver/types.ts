@@ -35,3 +35,14 @@ export interface UnionCommonFields {
   types: string[];
   tsTypes: string[];
 }
+
+export interface ThisFieldMapInfo {
+  fieldName: string;
+  keyType: string;
+  valueType: string;
+}
+
+export interface ThisFieldSetInfo {
+  fieldName: string;
+  valueType: string;
+}
