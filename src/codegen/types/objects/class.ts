@@ -84,7 +84,7 @@ export class ClassGenerator {
     if (classNode.fields.length > 0) {
       const fieldTypes: string[] = [];
       for (let fi = 0; fi < classNode.fields.length; fi++) {
-        const f = classNode.fields[fi] as ClassField;
+        const f = classNode.fields[fi] as { name: string; fieldType: string; tsType?: string };
         if (f.fieldType === 'string') {
           fieldTypes.push('i8*');
         } else if (f.fieldType === 'string[]') {
@@ -485,7 +485,7 @@ export class ClassGenerator {
       const types: string[] = [];
       const tsTypes: string[] = [];
       for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-        const f = interfaceDef.fields[fi] as InterfaceField;
+        const f = interfaceDef.fields[fi] as { name: string; type: string };
         keys.push(f.name);
         types.push(this.fieldTypeToLlvm(f.type));
         tsTypes.push(f.type);
@@ -532,7 +532,7 @@ export class ClassGenerator {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as InterfaceField;
+      const field = firstFields[fi] as { name: string; type: string };
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const ifaceTyped = interfaces[ii] as { fields: { name: string; type: string }[] };

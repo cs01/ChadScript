@@ -33,7 +33,7 @@ export class TypeResolver {
     const types: string[] = [];
     const tsTypes: string[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as InterfaceField;
+      const f = iface.fields[i] as { name: string; type: string };
       keys.push(f.name);
       types.push(this.tsTypeToLlvm(f.type));
       tsTypes.push(f.type);
@@ -45,7 +45,7 @@ export class TypeResolver {
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as InterfaceField;
+      const f = iface.fields[i] as { name: string; type: string };
       if (f.name === propName) {
         return f;
       }
@@ -58,7 +58,7 @@ export class TypeResolver {
     if (!iface) return null;
     const properties: { name: string; type: string }[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as InterfaceField;
+      const f = iface.fields[i] as { name: string; type: string };
       properties.push({ name: f.name, type: f.type });
     }
     return { properties };
@@ -175,10 +175,23 @@ export class TypeResolver {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as InterfaceField;
-      const isCommon = interfaces.every(iface =>
-        iface.fields.some(f => f.name === field.name && this.areTypesCompatible(f.type, field.type))
-      );
+      const field = firstFields[fi] as { name: string; type: string };
+      let isCommon = true;
+      for (let ii = 0; ii < interfaces.length; ii++) {
+        const iface = interfaces[ii] as InterfaceDeclaration;
+        let hasMatch = false;
+        for (let jj = 0; jj < iface.fields.length; jj++) {
+          const f = iface.fields[jj] as { name: string; type: string };
+          if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
+            hasMatch = true;
+            break;
+          }
+        }
+        if (!hasMatch) {
+          isCommon = false;
+          break;
+        }
+      }
       if (isCommon) {
         commonFields.push({ name: field.name, type: this.normalizeType(field.type) });
       }
@@ -386,7 +399,7 @@ export class TypeResolver {
     field: string
   ): string | null {
     for (let i = 0; i < fields.length; i++) {
-      const f = fields[i] as InterfaceField;
+      const f = fields[i] as { name: string; type: string };
       if (f.name === field) {
         if (f.type === `'${value}'` || f.type === `"${value}"`) {
           return ifaceName;
@@ -434,9 +447,17 @@ export class TypeResolver {
       const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === nestedType);
       if (ifaceDecl) {
         const iface = ifaceDecl as InterfaceDeclaration;
-        const field = iface.fields.find(f => f.name === memberExpr.property);
+        let field: { name: string; type: string } | null = null;
+        for (let i = 0; i < iface.fields.length; i++) {
+          const f = iface.fields[i] as { name: string; type: string };
+          if (f.name === memberExpr.property) {
+            field = f;
+            break;
+          }
+        }
         if (field) {
-          const mapMatch = field.type.match(/^Map<(\w+),\s*(.+)>$/);
+          const fieldTyped = field as { name: string; type: string };
+          const mapMatch = fieldTyped.type.match(/^Map<(\w+),\s*(.+)>$/);
           if (mapMatch) {
             return { fieldName: memberExpr.property, keyType: mapMatch[1], valueType: mapMatch[2] };
           }
@@ -446,11 +467,21 @@ export class TypeResolver {
       const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === nestedType);
       if (classDecl) {
         const cls = classDecl as ClassNode;
-        const field = cls.fields.find(f => f.name === memberExpr.property);
-        if (field && field.tsType) {
-          const mapMatch = field.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-          if (mapMatch) {
-            return { fieldName: memberExpr.property, keyType: mapMatch[1], valueType: mapMatch[2] };
+        let field: { name: string; tsType: string } | null = null;
+        for (let i = 0; i < cls.fields.length; i++) {
+          const f = cls.fields[i] as { name: string; tsType: string };
+          if (f.name === memberExpr.property) {
+            field = f;
+            break;
+          }
+        }
+        if (field) {
+          const fieldTyped = field as { name: string; tsType: string };
+          if (fieldTyped.tsType) {
+            const mapMatch = fieldTyped.tsType.match(/^Map<(\w+),\s*(.+)>$/);
+            if (mapMatch) {
+              return { fieldName: memberExpr.property, keyType: mapMatch[1], valueType: mapMatch[2] };
+            }
           }
         }
       }
@@ -473,9 +504,17 @@ export class TypeResolver {
     const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === parentType);
     if (ifaceDecl) {
       const iface = ifaceDecl as InterfaceDeclaration;
-      const field = iface.fields.find(f => f.name === memberExpr.property);
+      let field: { name: string; type: string } | null = null;
+      for (let i = 0; i < iface.fields.length; i++) {
+        const f = iface.fields[i] as { name: string; type: string };
+        if (f.name === memberExpr.property) {
+          field = f;
+          break;
+        }
+      }
       if (field) {
-        let fieldType = field.type;
+        const fieldTyped = field as { name: string; type: string };
+        let fieldType = fieldTyped.type;
         if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
           fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
         }
@@ -489,16 +528,26 @@ export class TypeResolver {
     const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === parentType);
     if (classDecl) {
       const cls = classDecl as ClassNode;
-      const field = cls.fields.find(f => f.name === memberExpr.property);
-      if (field && field.tsType) {
-        let fieldType = field.tsType;
-        if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
-          fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
+      let field: { name: string; tsType: string } | null = null;
+      for (let i = 0; i < cls.fields.length; i++) {
+        const f = cls.fields[i] as { name: string; tsType: string };
+        if (f.name === memberExpr.property) {
+          field = f;
+          break;
         }
-        if (fieldType.endsWith('?')) {
-          fieldType = fieldType.slice(0, -1);
+      }
+      if (field) {
+        const fieldTyped = field as { name: string; tsType: string };
+        if (fieldTyped.tsType) {
+          let fieldType = fieldTyped.tsType;
+          if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
+            fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
+          }
+          if (fieldType.endsWith('?')) {
+            fieldType = fieldType.slice(0, -1);
+          }
+          return fieldType;
         }
-        return fieldType;
       }
     }
 

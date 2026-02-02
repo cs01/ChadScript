@@ -221,7 +221,7 @@ export class MethodCallGenerator {
       if (ifaceItem.name === name) {
         const properties: { name: string; type: string }[] = [];
         for (let j = 0; j < ifaceItem.fields.length; j++) {
-          const field = ifaceItem.fields[j] as InterfaceField;
+          const field = ifaceItem.fields[j] as { name: string; type: string };
           properties.push({ name: field.name, type: field.type });
         }
         return { properties };
@@ -281,9 +281,17 @@ export class MethodCallGenerator {
       const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === nestedType);
       if (ifaceDecl) {
         const iface = ifaceDecl as InterfaceDeclaration;
-        const field = iface.fields.find(f => f.name === memberExpr.property);
+        let field: { name: string; type: string } | null = null;
+        for (let i = 0; i < iface.fields.length; i++) {
+          const f = iface.fields[i] as { name: string; type: string };
+          if (f.name === memberExpr.property) {
+            field = f;
+            break;
+          }
+        }
         if (field) {
-          const mapMatch = field.type.match(/^Map<(\w+),\s*(.+)>$/);
+          const fieldTyped = field as { name: string; type: string };
+          const mapMatch = fieldTyped.type.match(/^Map<(\w+),\s*(.+)>$/);
           if (mapMatch) {
             return { fieldName: memberExpr.property, keyType: mapMatch[1], valueType: mapMatch[2] };
           }
@@ -293,11 +301,21 @@ export class MethodCallGenerator {
       const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === nestedType);
       if (classDecl) {
         const cls = classDecl as ClassNode;
-        const field = cls.fields.find(f => f.name === memberExpr.property);
-        if (field && field.tsType) {
-          const mapMatch = field.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-          if (mapMatch) {
-            return { fieldName: memberExpr.property, keyType: mapMatch[1], valueType: mapMatch[2] };
+        let field: { name: string; tsType: string } | null = null;
+        for (let i = 0; i < cls.fields.length; i++) {
+          const f = cls.fields[i] as { name: string; tsType: string };
+          if (f.name === memberExpr.property) {
+            field = f;
+            break;
+          }
+        }
+        if (field) {
+          const fieldTyped = field as { name: string; tsType: string };
+          if (fieldTyped.tsType) {
+            const mapMatch = fieldTyped.tsType.match(/^Map<(\w+),\s*(.+)>$/);
+            if (mapMatch) {
+              return { fieldName: memberExpr.property, keyType: mapMatch[1], valueType: mapMatch[2] };
+            }
           }
         }
       }
@@ -320,9 +338,17 @@ export class MethodCallGenerator {
     const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === parentType);
     if (ifaceDecl) {
       const iface = ifaceDecl as InterfaceDeclaration;
-      const field = iface.fields.find(f => f.name === memberExpr.property);
+      let field: { name: string; type: string } | null = null;
+      for (let i = 0; i < iface.fields.length; i++) {
+        const f = iface.fields[i] as { name: string; type: string };
+        if (f.name === memberExpr.property) {
+          field = f;
+          break;
+        }
+      }
       if (field) {
-        let fieldType = field.type;
+        const fieldTyped = field as { name: string; type: string };
+        let fieldType = fieldTyped.type;
         if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
           fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
         }
@@ -336,16 +362,26 @@ export class MethodCallGenerator {
     const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === parentType);
     if (classDecl) {
       const cls = classDecl as ClassNode;
-      const field = cls.fields.find(f => f.name === memberExpr.property);
-      if (field && field.tsType) {
-        let fieldType = field.tsType;
-        if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
-          fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
+      let field: { name: string; tsType: string } | null = null;
+      for (let i = 0; i < cls.fields.length; i++) {
+        const f = cls.fields[i] as { name: string; tsType: string };
+        if (f.name === memberExpr.property) {
+          field = f;
+          break;
         }
-        if (fieldType.endsWith('?')) {
-          fieldType = fieldType.slice(0, -1);
+      }
+      if (field) {
+        const fieldTyped = field as { name: string; tsType: string };
+        if (fieldTyped.tsType) {
+          let fieldType = fieldTyped.tsType;
+          if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
+            fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
+          }
+          if (fieldType.endsWith('?')) {
+            fieldType = fieldType.slice(0, -1);
+          }
+          return fieldType;
         }
-        return fieldType;
       }
     }
 
@@ -1232,7 +1268,7 @@ export class MethodCallGenerator {
           if (fieldClassExists) {
             return fieldInfo.tsType;
           }
-          const fieldInterfaceExists = this.ctx.ast.interfaces.some(i => i.name === fieldInfo.tsType);
+          const fieldInterfaceExists = this.ctx.ast.interfaces.some((i: InterfaceDeclaration) => i.name === fieldInfo.tsType);
           if (fieldInterfaceExists) {
             return fieldInfo.tsType;
           }
@@ -1240,11 +1276,18 @@ export class MethodCallGenerator {
         return null;
       }
 
-      const interfaceDeclResult = this.ctx.ast.interfaces.find(i => i.name === parentType);
+      const interfaceDeclResult = this.ctx.ast.interfaces.find((i: InterfaceDeclaration) => i.name === parentType);
       const interfaceDecl = interfaceDeclResult as InterfaceDeclaration;
       if (interfaceDeclResult) {
-        const fieldResult = interfaceDecl.fields.find(f => f.name === memberAccess.property);
-        const field = fieldResult as InterfaceField;
+        let fieldResult: InterfaceField | null = null;
+        for (let i = 0; i < interfaceDecl.fields.length; i++) {
+          const f = interfaceDecl.fields[i] as { name: string; type: string };
+          if (f.name === memberAccess.property) {
+            fieldResult = f;
+            break;
+          }
+        }
+        const field = fieldResult as { name: string; type: string };
         if (fieldResult) {
           let fieldType = field.type;
           if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
@@ -1254,7 +1297,7 @@ export class MethodCallGenerator {
           if (fieldClassExists) {
             return fieldType;
           }
-          const fieldInterfaceExists = this.ctx.ast.interfaces.some(i => i.name === fieldType);
+          const fieldInterfaceExists = this.ctx.ast.interfaces.some((i: InterfaceDeclaration) => i.name === fieldType);
           if (fieldInterfaceExists) {
             return fieldType;
           }
