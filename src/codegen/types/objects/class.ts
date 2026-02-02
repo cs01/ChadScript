@@ -1,6 +1,7 @@
 import { Expression, ClassNode, ClassMethod, ClassField, BlockStatement, VariableNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, CommonField } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind } from '../../infrastructure/symbol-table.js';
+import { stripOptional } from '../../infrastructure/type-system.js';
 
 // ============================================
 // CLASS GENERATOR - Class and instance operations
@@ -13,13 +14,6 @@ export class ClassGenerator {
   private instanceVariables: Map<string, string> = new Map();
 
   constructor(private ctx: IGeneratorContext) {}
-
-  private stripOptional(name: string): string {
-    if (name.endsWith('?')) {
-      return name.slice(0, -1);
-    }
-    return name;
-  }
 
   private fieldToLlvmType(f: ClassField): string {
     if (f.fieldType === 'string') {
@@ -616,7 +610,7 @@ export class ClassGenerator {
       const tsTypes: string[] = [];
       for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
         const f = interfaceDef.fields[fi] as { name: string; type: string };
-        keys.push(this.stripOptional(f.name));
+        keys.push(stripOptional(f.name));
         types.push(this.fieldTypeToLlvm(f.type));
         tsTypes.push(f.type);
       }
@@ -706,7 +700,7 @@ export class ClassGenerator {
     const types: string[] = [];
     for (let fi = 0; fi < commonFields.length; fi++) {
       const f = commonFields[fi] as CommonField;
-      keys.push(this.stripOptional(f.name));
+      keys.push(stripOptional(f.name));
       types.push(this.fieldTypeToLlvm(f.type));
     }
 

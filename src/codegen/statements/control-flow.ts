@@ -2,6 +2,7 @@ import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, 
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata, ObjectMetadata } from '../infrastructure/symbol-table.js';
 import type { TypeResolver, UnionCommonFields } from '../infrastructure/type-resolver/index.js';
+import { stripOptional } from '../infrastructure/type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -25,13 +26,6 @@ export class ControlFlowGenerator {
   private nextTemp() { return this.ctx.nextTemp(); }
   private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
-
-  private stripOptional(name: string): string {
-    if (name.endsWith('?')) {
-      return name.slice(0, -1);
-    }
-    return name;
-  }
 
   // Helper to convert a value to boolean (i1) for branching
   private convertToBool(value: string): string {
@@ -1246,7 +1240,7 @@ export class ControlFlowGenerator {
     const tsTypes: string[] = [];
     for (let i = 0; i < commonFields.length; i++) {
       const f = commonFields[i] as CommonField;
-      keys.push(this.stripOptional(f.name));
+      keys.push(stripOptional(f.name));
       types.push(this.fieldTypeToLlvm(f.type));
       tsTypes.push(f.type);
     }
@@ -1341,7 +1335,7 @@ export class ControlFlowGenerator {
     const tsTypes: string[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
       const f = iface.fields[i] as { name: string; type: string };
-      keys.push(this.stripOptional(f.name));
+      keys.push(stripOptional(f.name));
       types.push(this.fieldTypeToLlvm(f.type));
       tsTypes.push(f.type);
     }

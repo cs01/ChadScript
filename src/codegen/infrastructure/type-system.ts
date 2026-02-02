@@ -1,5 +1,9 @@
 export type NumericKind = 'integer' | 'float';
 
+export function stripOptional(name: string): string {
+  return name.endsWith('?') ? name.slice(0, -1) : name;
+}
+
 export interface TypeQualifiers {
   isNullable: boolean;
   isOptional: boolean;

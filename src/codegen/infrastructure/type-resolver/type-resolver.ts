@@ -2,7 +2,7 @@ import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expres
 import { SymbolTable, ObjectMetadata, SymbolKind } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo, ClassGeneratorLike } from './types.js';
-import { ResolvedType, createResolvedType, parseTypeString } from '../type-system.js';
+import { ResolvedType, createResolvedType, parseTypeString, stripOptional } from '../type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -106,13 +106,6 @@ export class TypeResolver {
   }
 
 
-  private stripOptional(name: string): string {
-    if (name.endsWith('?')) {
-      return name.slice(0, -1);
-    }
-    return name;
-  }
-
   getInterface(name: string): InterfaceDeclaration | null {
     if (this.interfaceCache.has(name)) {
       return this.interfaceCache.get(name) || null;
@@ -140,7 +133,7 @@ export class TypeResolver {
     const tsTypes: string[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
       const f = iface.fields[i] as { name: string; type: string };
-      keys.push(this.stripOptional(f.name));
+      keys.push(stripOptional(f.name));
       types.push(this.tsTypeToLlvm(f.type));
       tsTypes.push(f.type);
     }
@@ -321,7 +314,7 @@ export class TypeResolver {
     const tsTypes: string[] = [];
     for (let i = 0; i < commonFields.length; i++) {
       const f = commonFields[i] as CommonField;
-      keys.push(this.stripOptional(f.name));
+      keys.push(stripOptional(f.name));
       types.push(this.tsTypeToLlvm(f.type));
       tsTypes.push(f.type);
     }
