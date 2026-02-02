@@ -250,8 +250,8 @@ export class TypeInference {
         }
         const varType = this.ctx.symbolTable.getType(varName);
         if (varType && varType.startsWith('%') && varType.endsWith('*') &&
-            !varType.includes('Array') && !varType.includes('Response') &&
-            !varType.includes('Map') && !varType.includes('Set')) {
+            varType.indexOf('Array') === -1 && varType.indexOf('Response') === -1 &&
+            varType.indexOf('Map') === -1 && varType.indexOf('Set') === -1) {
           const structTypeName = varType.substring(1, varType.length - 1);
           const prop = this.getInterfaceProperty(structTypeName, memberExpr.property);
           if (prop && prop.type === 'string') {
@@ -467,7 +467,7 @@ export class TypeInference {
     if (!method || !method.returnType) return null;
 
     let returnType = method.returnType;
-    if (returnType.includes(' | ')) {
+    if (returnType.indexOf(' | ') !== -1) {
       const parts = returnType.split(' | ');
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i].trim();

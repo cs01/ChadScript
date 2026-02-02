@@ -207,7 +207,7 @@ export class AssignmentGenerator {
       let isAlreadyPointer = false;
       if (memberAccessValue.value.type === 'variable') {
         const varType = this.ctx.getVariableType((memberAccessValue.value as VariableNode).name);
-        if (varType === 'i8*' || varType?.includes('*')) {
+        if (varType === 'i8*' || (varType && varType.indexOf('*') !== -1)) {
           isAlreadyPointer = true;
         }
       } else if (memberAccessValue.value.type === 'string') {

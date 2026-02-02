@@ -68,17 +68,18 @@ export class ExpressionGenerator {
    * Delegates to appropriate sub-generator based on expression type
    */
   generate(expr: Expression, params: string[]): string {
+    const exprTyped = expr as { type: string; value: number | string | boolean; name: string; op: string; operand: Expression; left: Expression; right: Expression };
     // Literals
     if (expr.type === 'number') {
-      return this.literalGen.generateNumber(expr.value);
+      return this.literalGen.generateNumber(exprTyped.value as number);
     }
 
     if (expr.type === 'boolean') {
-      return this.literalGen.generateBoolean(expr.value);
+      return this.literalGen.generateBoolean(exprTyped.value as boolean);
     }
 
     if (expr.type === 'string') {
-      return this.literalGen.generateString(expr.value);
+      return this.literalGen.generateString(exprTyped.value as string);
     }
 
     if (expr.type === 'regex') {
@@ -113,17 +114,17 @@ export class ExpressionGenerator {
 
     // Variables
     if (expr.type === 'variable') {
-      return this.variableGen.generate(expr.name);
+      return this.variableGen.generate(exprTyped.name);
     }
 
     // Unary operators
     if (expr.type === 'unary') {
-      return this.unaryGen.generate(expr.op, expr.operand, params);
+      return this.unaryGen.generate(exprTyped.op, exprTyped.operand, params);
     }
 
     // Binary operators
     if (expr.type === 'binary') {
-      return this.binaryGen.generate(expr.op, expr.left, expr.right, params);
+      return this.binaryGen.generate(exprTyped.op, exprTyped.left, exprTyped.right, params);
     }
 
     // Call expressions

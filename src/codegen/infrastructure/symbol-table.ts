@@ -174,7 +174,9 @@ export interface Symbol {
  */
 export class SymbolTable {
   private symbols: Map<string, Symbol> = new Map();
+  private symbolKeys: string[] = [];
   private narrowedTypes: Map<string, ObjectMetadata[]> = new Map();
+  private narrowedKeys: string[] = [];
 
   /**
    * Narrow a symbol's object metadata (for type guards like `if (x.type === '...')`)
@@ -226,6 +228,9 @@ export class SymbolTable {
       scope,
       ...metadata
     };
+    if (!this.symbols.has(name)) {
+      this.symbolKeys.push(name);
+    }
     this.symbols.set(name, symbol);
   }
 
@@ -293,45 +298,84 @@ export class SymbolTable {
    */
   clear(): void {
     this.symbols.clear();
+    this.symbolKeys = [];
   }
 
   /**
    * Clear only local symbols (preserve globals)
    */
   clearLocals(): void {
-    for (const [name, symbol] of this.symbols.entries()) {
-      if (symbol.scope === 'local') {
+    const newKeys: string[] = [];
+    for (let i = 0; i < this.symbolKeys.length; i++) {
+      const name = this.symbolKeys[i];
+      const symbol = this.symbols.get(name);
+      if (symbol && symbol.scope === 'local') {
         this.symbols.delete(name);
+      } else {
+        newKeys.push(name);
       }
     }
+    this.symbolKeys = newKeys;
   }
 
   /**
    * Get all symbols
    */
   getAll(): Symbol[] {
-    return Array.from(this.symbols.values());
+    const result: Symbol[] = [];
+    for (let i = 0; i < this.symbolKeys.length; i++) {
+      const name = this.symbolKeys[i];
+      const symbol = this.symbols.get(name);
+      if (symbol) {
+        result.push(symbol);
+      }
+    }
+    return result;
   }
 
   /**
    * Get all symbols of a specific kind
    */
   getByKind(kind: SymbolKind): Symbol[] {
-    return Array.from(this.symbols.values()).filter(s => s.kind === kind);
+    const result: Symbol[] = [];
+    for (let i = 0; i < this.symbolKeys.length; i++) {
+      const name = this.symbolKeys[i];
+      const s = this.symbols.get(name);
+      if (s && s.kind === kind) {
+        result.push(s);
+      }
+    }
+    return result;
   }
 
   /**
    * Get all local symbols
    */
   getLocals(): Symbol[] {
-    return Array.from(this.symbols.values()).filter(s => s.scope === 'local');
+    const result: Symbol[] = [];
+    for (let i = 0; i < this.symbolKeys.length; i++) {
+      const name = this.symbolKeys[i];
+      const s = this.symbols.get(name);
+      if (s && s.scope === 'local') {
+        result.push(s);
+      }
+    }
+    return result;
   }
 
   /**
    * Get all global symbols
    */
   getGlobals(): Symbol[] {
-    return Array.from(this.symbols.values()).filter(s => s.scope === 'global');
+    const result: Symbol[] = [];
+    for (let i = 0; i < this.symbolKeys.length; i++) {
+      const name = this.symbolKeys[i];
+      const s = this.symbols.get(name);
+      if (s && s.scope === 'global') {
+        result.push(s);
+      }
+    }
+    return result;
   }
 
   // ============================================
@@ -581,8 +625,12 @@ export class SymbolTable {
    */
   getScopeVarsForClosure(): Map<string, string> {
     const scopeVars = new Map<string, string>();
-    for (const [name, symbol] of this.symbols.entries()) {
-      scopeVars.set(name, symbol.llvmType);
+    for (let i = 0; i < this.symbolKeys.length; i++) {
+      const name = this.symbolKeys[i];
+      const symbol = this.symbols.get(name);
+      if (symbol) {
+        scopeVars.set(name, symbol.llvmType);
+      }
     }
     return scopeVars;
   }
@@ -592,16 +640,20 @@ export class SymbolTable {
    */
   dump(): string {
     let output = '=== Symbol Table ===\n';
-    for (const [name, symbol] of this.symbols.entries()) {
-      output += `${name}: ${symbol.kind} (${symbol.llvmType}) -> ${symbol.allocaRegister} [${symbol.scope}]\n`;
-      if (symbol.objectMetadata) {
-        output += `  Object: keys=${symbol.objectMetadata.keys.join(', ')}\n`;
-      }
-      if (symbol.classMetadata) {
-        output += `  Class: ${symbol.classMetadata.className}\n`;
-      }
-      if (symbol.arrayMetadata) {
-        output += `  Array: elementType=${symbol.arrayMetadata.elementType}\n`;
+    for (let i = 0; i < this.symbolKeys.length; i++) {
+      const name = this.symbolKeys[i];
+      const symbol = this.symbols.get(name);
+      if (symbol) {
+        output += `${name}: ${symbol.kind} (${symbol.llvmType}) -> ${symbol.allocaRegister} [${symbol.scope}]\n`;
+        if (symbol.objectMetadata) {
+          output += `  Object: keys=${symbol.objectMetadata.keys.join(', ')}\n`;
+        }
+        if (symbol.classMetadata) {
+          output += `  Class: ${symbol.classMetadata.className}\n`;
+        }
+        if (symbol.arrayMetadata) {
+          output += `  Array: elementType=${symbol.arrayMetadata.elementType}\n`;
+        }
       }
     }
     return output;

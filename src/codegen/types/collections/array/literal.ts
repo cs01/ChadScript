@@ -28,7 +28,7 @@ export function generateArrayLiteral(
     if (elem.type === 'variable') {
       const varName = (elem as any).name;
       const varType = gen.getVariableType(varName);
-      return varType && (varType.includes('%Promise') || varType.includes('*'));
+      return varType && (varType.indexOf('%Promise') !== -1 || varType.indexOf('*') !== -1);
     }
     if (elem.type === 'method_call') {
       const obj = (elem as any).object;
