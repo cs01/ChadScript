@@ -124,30 +124,30 @@ interface StringSetGeneratorLike {
 }
 
 interface MapGeneratorLike {
-  generateMapSet(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateMapGet(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateMapHas(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateMapSet(expr: MethodCallNode, params: string[]): string;
+  generateMapGet(expr: MethodCallNode, params: string[]): string;
+  generateMapHas(expr: MethodCallNode, params: string[]): string;
   generateMapClear(expr: MethodCallNode, params: string[]): string;
-  generateMapDelete(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateMapDelete(expr: MethodCallNode, params: string[]): string;
 }
 
 interface SetGeneratorLike {
-  generateSetAdd(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateSetHas(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateSetDelete(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateSetAdd(expr: MethodCallNode, params: string[]): string;
+  generateSetHas(expr: MethodCallNode, params: string[]): string;
+  generateSetDelete(expr: MethodCallNode, params: string[]): string;
 }
 
 interface ArrayGeneratorLike {
-  generateArrayPush(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateArrayPop(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateArrayIncludes(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateArrayMap(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateArrayJoin(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateArrayFind(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateArraySome(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateArrayEvery(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateArrayFilter(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
-  generateArrayForEach(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateArrayPush(expr: MethodCallNode, params: string[]): string;
+  generateArrayPop(expr: MethodCallNode, params: string[]): string;
+  generateArrayIncludes(expr: MethodCallNode, params: string[]): string;
+  generateArrayMap(expr: MethodCallNode, params: string[]): string;
+  generateArrayJoin(expr: MethodCallNode, params: string[]): string;
+  generateArrayFind(expr: MethodCallNode, params: string[]): string;
+  generateArraySome(expr: MethodCallNode, params: string[]): string;
+  generateArrayEvery(expr: MethodCallNode, params: string[]): string;
+  generateArrayFilter(expr: MethodCallNode, params: string[]): string;
+  generateArrayForEach(expr: MethodCallNode, params: string[]): string;
 }
 
 interface ClassGeneratorLike {
@@ -633,13 +633,13 @@ export class MethodCallGenerator {
         }
 
         if (method === 'set') {
-          return this.ctx.mapGen.generateMapSet(expr, params, this.ctx.generateExpression.bind(this.ctx));
+          return this.ctx.mapGen.generateMapSet(expr, params);
         } else if (method === 'get') {
-          return this.ctx.mapGen.generateMapGet(expr, params, this.ctx.generateExpression.bind(this.ctx));
+          return this.ctx.mapGen.generateMapGet(expr, params);
         } else if (method === 'has') {
-          return this.ctx.mapGen.generateMapHas(expr, params, this.ctx.generateExpression.bind(this.ctx));
+          return this.ctx.mapGen.generateMapHas(expr, params);
         } else if (method === 'delete') {
-          return this.ctx.mapGen.generateMapDelete(expr, params, this.ctx.generateExpression.bind(this.ctx));
+          return this.ctx.mapGen.generateMapDelete(expr, params);
         } else if (method === 'entries' || method === 'values') {
           throw new Error(`Map.${method}() only supported for Map<string, *> types`);
         } else {
@@ -698,11 +698,11 @@ export class MethodCallGenerator {
         }
 
         if (method === 'add') {
-          return this.ctx.setGen.generateSetAdd(expr, params, this.ctx.generateExpression.bind(this.ctx));
+          return this.ctx.setGen.generateSetAdd(expr, params);
         } else if (method === 'has') {
-          return this.ctx.setGen.generateSetHas(expr, params, this.ctx.generateExpression.bind(this.ctx));
+          return this.ctx.setGen.generateSetHas(expr, params);
         } else {
-          return this.ctx.setGen.generateSetDelete(expr, params, this.ctx.generateExpression.bind(this.ctx));
+          return this.ctx.setGen.generateSetDelete(expr, params);
         }
       }
 
@@ -725,25 +725,25 @@ export class MethodCallGenerator {
 
     // Handle array methods (arrayGen uses context pattern - no sync needed! 🎯)
     if (method === 'push') {
-      return this.ctx.arrayGen.generateArrayPush(expr, params, this.ctx.generateExpression.bind(this.ctx));
+      return this.ctx.arrayGen.generateArrayPush(expr, params);
     } else if (method === 'pop') {
-      return this.ctx.arrayGen.generateArrayPop(expr, params, this.ctx.generateExpression.bind(this.ctx));
+      return this.ctx.arrayGen.generateArrayPop(expr, params);
     } else if (method === 'includes' && this.ctx.isArrayExpression(expr.object)) {
-      return this.ctx.arrayGen.generateArrayIncludes(expr, params, this.ctx.generateExpression.bind(this.ctx));
+      return this.ctx.arrayGen.generateArrayIncludes(expr, params);
     } else if (method === 'map') {
-      return this.ctx.arrayGen.generateArrayMap(expr, params, this.ctx.generateExpression.bind(this.ctx));
+      return this.ctx.arrayGen.generateArrayMap(expr, params);
     } else if (method === 'join') {
-      return this.ctx.arrayGen.generateArrayJoin(expr, params, this.ctx.generateExpression.bind(this.ctx));
+      return this.ctx.arrayGen.generateArrayJoin(expr, params);
     } else if (method === 'find') {
-      return this.ctx.arrayGen.generateArrayFind(expr, params, this.ctx.generateExpression.bind(this.ctx));
+      return this.ctx.arrayGen.generateArrayFind(expr, params);
     } else if (method === 'some') {
-      return this.ctx.arrayGen.generateArraySome(expr, params, this.ctx.generateExpression.bind(this.ctx));
+      return this.ctx.arrayGen.generateArraySome(expr, params);
     } else if (method === 'every') {
-      return this.ctx.arrayGen.generateArrayEvery(expr, params, this.ctx.generateExpression.bind(this.ctx));
+      return this.ctx.arrayGen.generateArrayEvery(expr, params);
     } else if (method === 'filter') {
-      return this.ctx.arrayGen.generateArrayFilter(expr, params, this.ctx.generateExpression.bind(this.ctx));
+      return this.ctx.arrayGen.generateArrayFilter(expr, params);
     } else if (method === 'forEach') {
-      return this.ctx.arrayGen.generateArrayForEach(expr, params, this.ctx.generateExpression.bind(this.ctx));
+      return this.ctx.arrayGen.generateArrayForEach(expr, params);
     }
 
     // Handle class instance methods

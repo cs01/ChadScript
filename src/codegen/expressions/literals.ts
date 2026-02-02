@@ -9,7 +9,7 @@ interface RegexGeneratorLike {
 }
 
 interface ArrayGeneratorLike {
-  generateArrayLiteral(expr: ArrayNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateArrayLiteral(expr: ArrayNode, params: string[]): string;
 }
 
 interface ObjectGeneratorLike {
@@ -17,11 +17,11 @@ interface ObjectGeneratorLike {
 }
 
 interface MapGeneratorLike {
-  generateMapLiteral(expr: MapNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateMapLiteral(expr: MapNode, params: string[]): string;
 }
 
 interface SetGeneratorLike {
-  generateSetLiteral(expr: SetNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateSetLiteral(expr: SetNode, params: string[]): string;
 }
 
 interface StringMapGeneratorLike {
@@ -129,7 +129,7 @@ export class LiteralExpressionGenerator {
    * ArrayGenerator uses context pattern - no sync needed! 🎯
    */
   generateArray(expr: ArrayNode, params: string[]): string {
-    return this.ctx.arrayGen.generateArrayLiteral(expr, params, this.ctx.generateExpression.bind(this.ctx));
+    return this.ctx.arrayGen.generateArrayLiteral(expr, params);
   }
 
   /**
@@ -154,7 +154,7 @@ export class LiteralExpressionGenerator {
       }
     }
 
-    return this.ctx.mapGen.generateMapLiteral(expr, params, this.ctx.generateExpression.bind(this.ctx));
+    return this.ctx.mapGen.generateMapLiteral(expr, params);
   }
 
   /**
@@ -171,7 +171,7 @@ export class LiteralExpressionGenerator {
       }
     }
 
-    return this.ctx.setGen.generateSetLiteral(expr, params, this.ctx.generateExpression.bind(this.ctx));
+    return this.ctx.setGen.generateSetLiteral(expr, params);
   }
 
   /**

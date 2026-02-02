@@ -97,6 +97,7 @@ export interface MemberAccessGeneratorContext {
   mapGen: MapGeneratorLike;
   setGen: SetGeneratorLike;
   responseGen: ResponseGeneratorLike;
+  generateExpression(expr: Expression, params: string[]): string;
 }
 
 /**
@@ -237,7 +238,7 @@ export class MemberAccessGenerator {
     return type1;
   }
 
-  generate(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generate(expr: MemberAccessNode, params: string[]): string {
     const enumResult = this.handleEnumMemberAccess(expr);
     if (enumResult !== null) return enumResult;
 
@@ -251,54 +252,54 @@ export class MemberAccessGenerator {
     }
 
     // Handle class instance property access
-    const classResult = this.handleClassPropertyAccess(expr, params, generateExpressionFn);
+    const classResult = this.handleClassPropertyAccess(expr, params);
     if (classResult !== null) return classResult;
 
     // Handle JSON object property access
     if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON(expr.object.name)) {
-      return this.handleJsonPropertyAccess(expr, params, generateExpressionFn);
+      return this.handleJsonPropertyAccess(expr, params);
     }
 
     // Handle nested JSON object access
     if (expr.object.type === 'member_access') {
-      const nestedResult = this.handleNestedJsonAccess(expr, params, generateExpressionFn);
+      const nestedResult = this.handleNestedJsonAccess(expr, params);
       if (nestedResult !== null) return nestedResult;
 
       // Handle chained interface property access (e.g., symbol.objectMetadata.keys)
-      const chainedResult = this.handleChainedInterfaceAccess(expr, params, generateExpressionFn);
+      const chainedResult = this.handleChainedInterfaceAccess(expr, params);
       if (chainedResult !== null) return chainedResult;
     }
 
     // Handle indexed access to object array elements (e.g., arr[i].property)
     if (expr.object.type === 'index_access') {
-      const indexResult = this.handleIndexAccessPropertyAccess(expr, params, generateExpressionFn);
+      const indexResult = this.handleIndexAccessPropertyAccess(expr, params);
       if (indexResult !== null) return indexResult;
     }
 
     // Handle type assertion property access (e.g., (expr as Type).property)
     if (expr.object.type === 'type_assertion') {
-      const assertResult = this.handleTypeAssertionPropertyAccess(expr, params, generateExpressionFn);
+      const assertResult = this.handleTypeAssertionPropertyAccess(expr, params);
       if (assertResult !== null) return assertResult;
     }
 
     // Handle method call result property access (e.g., map.get(key)?.property)
     if (expr.object.type === 'method_call') {
-      const methodResult = this.handleMethodCallResultPropertyAccess(expr, params, generateExpressionFn);
+      const methodResult = this.handleMethodCallResultPropertyAccess(expr, params);
       if (methodResult !== null) return methodResult;
     }
 
     // Handle regular object property access
-    const objResult = this.handleObjectPropertyAccess(expr, params, generateExpressionFn);
+    const objResult = this.handleObjectPropertyAccess(expr, params);
     if (objResult !== null) return objResult;
 
     // Handle .length property
     if (expr.property === 'length') {
-      return this.handleLengthProperty(expr, params, generateExpressionFn);
+      return this.handleLengthProperty(expr, params);
     }
 
     // Handle .size property (Map/Set)
     if (expr.property === 'size') {
-      const sizeResult = this.handleSizeProperty(expr, params, generateExpressionFn);
+      const sizeResult = this.handleSizeProperty(expr, params);
       if (sizeResult !== null) return sizeResult;
     }
 
@@ -454,18 +455,18 @@ export class MemberAccessGenerator {
     return argvStruct;
   }
 
-  private handleClassPropertyAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+  private handleClassPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
     let className: string | null = null;
     let instancePtr: string | null = null;
 
     if (expr.object.type === 'variable' && this.ctx.symbolTable.isClass((expr.object as VariableNode).name)) {
       const classMeta = this.ctx.symbolTable.getClassInfo((expr.object as VariableNode).name)!;
       className = classMeta.className;
-      instancePtr = generateExpressionFn(expr.object, params);
+      instancePtr = this.ctx.generateExpression(expr.object, params);
     } else if (expr.object.type === 'new') {
       const newExpr = expr.object as NewNode;
       className = newExpr.className;
-      instancePtr = generateExpressionFn(expr.object, params);
+      instancePtr = this.ctx.generateExpression(expr.object, params);
     } else if (expr.object.type === 'this') {
       const thisPtr = this.ctx.thisPointer || this.ctx.classGen.thisPointer;
       if (!thisPtr) {
@@ -601,7 +602,7 @@ export class MemberAccessGenerator {
     }
   }
 
-  private handleJsonPropertyAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private handleJsonPropertyAccess(expr: MemberAccessNode, params: string[]): string {
     const varName = (expr.object as VariableNode).name;
     const jsonMeta = this.ctx.symbolTable.getObjectInfo(varName);
     let tsType: string | undefined;
@@ -702,8 +703,8 @@ export class MemberAccessGenerator {
     return result;
   }
 
-  private handleNestedJsonAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
-    const innerResult = generateExpressionFn(expr.object, params);
+  private handleNestedJsonAccess(expr: MemberAccessNode, params: string[]): string | null {
+    const innerResult = this.ctx.generateExpression(expr.object, params);
     const nestedMeta = this.ctx.jsonObjectMetadata?.get(innerResult);
     if (!nestedMeta) return null;
 
@@ -722,8 +723,8 @@ export class MemberAccessGenerator {
     return this.extractNestedJsonFieldValue(fieldItem);
   }
 
-  private handleChainedInterfaceAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
-    const innerPtr = generateExpressionFn(expr.object, params);
+  private handleChainedInterfaceAccess(expr: MemberAccessNode, params: string[]): string | null {
+    const innerPtr = this.ctx.generateExpression(expr.object, params);
     const innerType = this.ctx.variableTypes.get(innerPtr);
 
     if (innerType === 'i8*') {
@@ -796,13 +797,13 @@ export class MemberAccessGenerator {
     }
   }
 
-  private handleIndexAccessPropertyAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+  private handleIndexAccessPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
     const indexAccess = expr.object as IndexAccessNode;
     const elementInfo = this.getObjectArrayElementInfo(indexAccess.object);
     if (!elementInfo) return null;
 
-    const arrayPtr = generateExpressionFn(indexAccess.object, params);
-    const indexDouble = generateExpressionFn(indexAccess.index, params);
+    const arrayPtr = this.ctx.generateExpression(indexAccess.object, params);
+    const indexDouble = this.ctx.generateExpression(indexAccess.index, params);
 
     const indexType = this.ctx.variableTypes.get(indexDouble);
     let index = indexDouble;
@@ -1159,7 +1160,7 @@ export class MemberAccessGenerator {
     return result;
   }
 
-  private handleObjectPropertyAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+  private handleObjectPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
     let objPtr: string = '';
     let keys: string[] = [];
     let types: string[] = [];
@@ -1182,9 +1183,9 @@ export class MemberAccessGenerator {
       const metadata = metadataResult as ObjectMetadata;
       keys = metadata.keys;
       types = metadata.types;
-      objPtr = generateExpressionFn(expr.object, params);
+      objPtr = this.ctx.generateExpression(expr.object, params);
     } else if (expr.object.type === 'method_call') {
-      const result = this.handleMethodCallPropertyAccess(expr, params, generateExpressionFn);
+      const result = this.handleMethodCallPropertyAccess(expr, params);
       if (result !== null) return result;
       return null;
     } else {
@@ -1228,14 +1229,14 @@ export class MemberAccessGenerator {
     return value;
   }
 
-  private handleMethodCallPropertyAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+  private handleMethodCallPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
     const methodCall = expr.object as MethodCallNode;
     if (methodCall.method !== 'parse') return null;
     if (methodCall.object.type !== 'variable') return null;
     if ((methodCall.object as VariableNode).name !== 'JSON') return null;
 
     this.ctx.syncStateToGenerators();
-    const jsonObjPtr = generateExpressionFn(expr.object, params);
+    const jsonObjPtr = this.ctx.generateExpression(expr.object, params);
     const fieldNameStr = this.ctx.stringGen.createStringConstant(expr.property);
 
     const fieldItem = this.ctx.nextTemp();
@@ -1244,7 +1245,7 @@ export class MemberAccessGenerator {
     return this.extractJsonFieldValue(fieldItem);
   }
 
-  private handleMethodCallResultPropertyAccess(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+  private handleMethodCallResultPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
     const methodCall = expr.object as MethodCallNode;
 
     if (methodCall.method !== 'get') return null;
@@ -1266,7 +1267,7 @@ export class MemberAccessGenerator {
     if (!interfaceDefResult) return null;
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
 
-    const objPtr = generateExpressionFn(expr.object, params);
+    const objPtr = this.ctx.generateExpression(expr.object, params);
 
     const propIndex = interfaceDef.fields.findIndex((f) => f.name === expr.property);
     if (propIndex === -1) {
@@ -1300,27 +1301,27 @@ export class MemberAccessGenerator {
     return value;
   }
 
-  private handleLengthProperty(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private handleLengthProperty(expr: MemberAccessNode, params: string[]): string {
     if (expr.object.type === 'variable' && this.ctx.symbolTable.isNumberArray((expr.object as VariableNode).name)) {
-      return this.getArrayLength(expr.object, params, generateExpressionFn, '%Array');
+      return this.getArrayLength(expr.object, params, '%Array');
     }
 
     if (this.isProcessArgvLength(expr)) {
-      const stringArrayPtr = generateExpressionFn(expr.object, params);
+      const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
       return this.getStringArrayLength(stringArrayPtr);
     }
 
     if (expr.object.type === 'variable' && this.ctx.symbolTable.isStringArray((expr.object as VariableNode).name)) {
-      const stringArrayPtr = generateExpressionFn(expr.object, params);
+      const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
       return this.getStringArrayLength(stringArrayPtr);
     }
 
     if (expr.object.type === 'member_access') {
-      const result = this.handleMemberAccessLength(expr, params, generateExpressionFn);
+      const result = this.handleMemberAccessLength(expr, params);
       if (result !== null) return result;
     }
 
-    return this.getStringLength(expr.object, params, generateExpressionFn);
+    return this.getStringLength(expr.object, params);
   }
 
   private isProcessArgvLength(expr: MemberAccessNode): boolean {
@@ -1331,8 +1332,8 @@ export class MemberAccessGenerator {
            innerAccess.property === 'argv';
   }
 
-  private getArrayLength(obj: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string, arrayType: string): string {
-    const arrayPtr = generateExpressionFn(obj, params);
+  private getArrayLength(obj: Expression, params: string[], arrayType: string): string {
+    const arrayPtr = this.ctx.generateExpression(obj, params);
     const lenPtr = this.ctx.nextTemp();
     this.ctx.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`);
     const lenI32 = this.ctx.nextTemp();
@@ -1354,7 +1355,7 @@ export class MemberAccessGenerator {
     return len;
   }
 
-  private handleMemberAccessLength(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+  private handleMemberAccessLength(expr: MemberAccessNode, params: string[]): string | null {
     if (expr.object.type !== 'member_access') return null;
     const innerAccess = expr.object as MemberAccessNode;
 
@@ -1362,10 +1363,10 @@ export class MemberAccessGenerator {
       const classMeta = this.ctx.symbolTable.getClassInfo((innerAccess.object as VariableNode).name)!;
       const fieldInfo = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
       if (fieldInfo && fieldInfo.type === 'string[]') {
-        const stringArrayPtr = generateExpressionFn(expr.object, params);
+        const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
         return this.getStringArrayLength(stringArrayPtr);
       } else if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
-        const arrayPtr = generateExpressionFn(expr.object, params);
+        const arrayPtr = this.ctx.generateExpression(expr.object, params);
         return this.getArrayLengthFromPtr(arrayPtr, '%Array');
       }
     } else if (innerAccess.object.type === 'this') {
@@ -1373,10 +1374,10 @@ export class MemberAccessGenerator {
       if (className) {
         const fieldInfo = this.ctx.classGen.getFieldInfo(className, innerAccess.property);
         if (fieldInfo && fieldInfo.type === 'string[]') {
-          const stringArrayPtr = generateExpressionFn(expr.object, params);
+          const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
           return this.getStringArrayLength(stringArrayPtr);
         } else if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
-          const arrayPtr = generateExpressionFn(expr.object, params);
+          const arrayPtr = this.ctx.generateExpression(expr.object, params);
           return this.getArrayLengthFromPtr(arrayPtr, '%Array');
         }
       }
@@ -1395,8 +1396,8 @@ export class MemberAccessGenerator {
     return len;
   }
 
-  private getStringLength(obj: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const objPtr = generateExpressionFn(obj, params);
+  private getStringLength(obj: Expression, params: string[]): string {
+    const objPtr = this.ctx.generateExpression(obj, params);
     const lenI64 = this.ctx.nextTemp();
     this.ctx.emit(`${lenI64} = call i64 @strlen(i8* ${objPtr})`);
     const lenI32 = this.ctx.nextTemp();
@@ -1407,14 +1408,14 @@ export class MemberAccessGenerator {
     return len;
   }
 
-  private handleSizeProperty(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string | null {
+  private handleSizeProperty(expr: MemberAccessNode, params: string[]): string | null {
     if (expr.object.type === 'variable' && this.ctx.symbolTable.isMap((expr.object as VariableNode).name)) {
-      const mapPtr = generateExpressionFn(expr.object, params);
+      const mapPtr = this.ctx.generateExpression(expr.object, params);
       this.ctx.syncStateToGenerators();
       return this.ctx.mapGen.generateMapSize(mapPtr);
     }
     if (expr.object.type === 'variable' && this.ctx.symbolTable.isSet((expr.object as VariableNode).name)) {
-      const setPtr = generateExpressionFn(expr.object, params);
+      const setPtr = this.ctx.generateExpression(expr.object, params);
       this.ctx.syncStateToGenerators();
       return this.ctx.setGen.generateSetSize(setPtr);
     }
@@ -1579,8 +1580,7 @@ export class MemberAccessGenerator {
 
   private handleTypeAssertionPropertyAccess(
     expr: MemberAccessNode,
-    params: string[],
-    generateExpressionFn: (expr: Expression, params: string[]) => string
+    params: string[]
   ): string | null {
     if (expr.object.type !== 'type_assertion') return null;
 
@@ -1598,7 +1598,7 @@ export class MemberAccessGenerator {
           object: assertion.expression,
           property: property
         };
-        return this.generate(syntheticExpr, params, generateExpressionFn);
+        return this.generate(syntheticExpr, params);
       }
       fields = inlineFields;
     } else {
@@ -1611,7 +1611,7 @@ export class MemberAccessGenerator {
           object: assertion.expression,
           property: property
         };
-        return this.generate(syntheticExpr, params, generateExpressionFn);
+        return this.generate(syntheticExpr, params);
       }
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       fields = interfaceDef.fields;
@@ -1637,7 +1637,7 @@ export class MemberAccessGenerator {
     }
     const structType = `{ ${types.join(', ')} }`;
 
-    const objPtr = generateExpressionFn(assertion.expression, params);
+    const objPtr = this.ctx.generateExpression(assertion.expression, params);
 
     const typedPtr = this.ctx.nextTemp();
     this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);

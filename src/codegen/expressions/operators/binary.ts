@@ -16,6 +16,7 @@ export interface BinaryExpressionGeneratorContext {
   variableTypes: Map<string, string>;
   controlFlowGen: ControlFlowGeneratorLike;
   stringGen: StringGeneratorLike;
+  generateExpression(expr: Expression, params: string[]): string;
 }
 
 /**
@@ -33,7 +34,7 @@ export interface BinaryExpressionGeneratorContext {
 export class BinaryExpressionGenerator {
   constructor(private ctx: BinaryExpressionGeneratorContext) {}
 
-  generate(op: string, left: Expression, right: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generate(op: string, left: Expression, right: Expression, params: string[]): string {
     // Logical operators need short-circuit evaluation
     if (op === '&&' || op === '||') {
       this.ctx.syncStateToGenerators();
@@ -46,8 +47,8 @@ export class BinaryExpressionGenerator {
       return this.ctx.stringGen.generateStringConcat(left, right, params);
     }
 
-    const leftValue = generateExpressionFn(left, params);
-    const rightValue = generateExpressionFn(right, params);
+    const leftValue = this.ctx.generateExpression(left, params);
+    const rightValue = this.ctx.generateExpression(right, params);
 
     // Arithmetic operators (floating-point)
     const arithMap: { [key: string]: string } = {

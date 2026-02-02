@@ -27,9 +27,8 @@ export class CallExpressionGenerator {
    * Generate function call expression
    * @param expr - Call expression node
    * @param params - Function parameter names
-   * @param generateExpressionFn - Callback to generate sub-expressions
    */
-  generate(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generate(expr: CallNode, params: string[]): string {
     // Handle httpServe() special built-in function
     if (expr.name === 'httpServe') {
       return this.ctx.generateHttpServe(expr, params);
@@ -37,17 +36,17 @@ export class CallExpressionGenerator {
 
     // Handle setTimeout() - libuv timer (one-shot)
     if (expr.name === 'setTimeout') {
-      return this.generateSetTimeout(expr, params, generateExpressionFn);
+      return this.generateSetTimeout(expr, params);
     }
 
     // Handle setInterval() - libuv timer (repeating)
     if (expr.name === 'setInterval') {
-      return this.generateSetInterval(expr, params, generateExpressionFn);
+      return this.generateSetInterval(expr, params);
     }
 
     // Handle clearTimeout() / clearInterval() - stop timer
     if (expr.name === 'clearTimeout' || expr.name === 'clearInterval') {
-      return this.generateClearTimer(expr, params, generateExpressionFn);
+      return this.generateClearTimer(expr, params);
     }
 
     // Handle runEventLoop() - run libuv event loop
@@ -61,7 +60,7 @@ export class CallExpressionGenerator {
       if (expr.args.length < 1) {
         throw new Error('fetch() requires at least 1 argument (URL)');
       }
-      const urlValue = generateExpressionFn(expr.args[0], params);
+      const urlValue = this.ctx.generateExpression(expr.args[0], params);
       const temp = this.ctx.nextTemp();
       this.ctx.usesPromises = true;
       this.ctx.emit(`${temp} = call %Promise* @fetch_async(i8* ${urlValue})`);
@@ -71,87 +70,87 @@ export class CallExpressionGenerator {
 
     // Handle parseInt(str, radix?) global function
     if (expr.name === 'parseInt') {
-      return this.generateParseInt(expr, params, generateExpressionFn);
+      return this.generateParseInt(expr, params);
     }
 
     // Handle C built-in functions with proper signatures
     if (expr.name === 'malloc') {
-      return this.generateMalloc(expr, params, generateExpressionFn);
+      return this.generateMalloc(expr, params);
     }
 
     if (expr.name === 'free') {
-      return this.generateFree(expr, params, generateExpressionFn);
+      return this.generateFree(expr, params);
     }
 
     if (expr.name === 'socket') {
-      return this.generateSocket(expr, params, generateExpressionFn);
+      return this.generateSocket(expr, params);
     }
 
     if (expr.name === 'close') {
-      return this.generateClose(expr, params, generateExpressionFn);
+      return this.generateClose(expr, params);
     }
 
     if (expr.name === 'htons') {
-      return this.generateHtons(expr, params, generateExpressionFn);
+      return this.generateHtons(expr, params);
     }
 
     if (expr.name === '__ts_parse_source') {
-      return this.generateTsParseSource(expr, params, generateExpressionFn);
+      return this.generateTsParseSource(expr, params);
     }
 
     if (expr.name === '__ts_get_root_node') {
-      return this.generateTsGetRootNode(expr, params, generateExpressionFn);
+      return this.generateTsGetRootNode(expr, params);
     }
 
     if (expr.name === '__ts_node_type') {
-      return this.generateTsNodeType(expr, params, generateExpressionFn);
+      return this.generateTsNodeType(expr, params);
     }
 
     if (expr.name === '__ts_node_child_count') {
-      return this.generateTsNodeChildCount(expr, params, generateExpressionFn);
+      return this.generateTsNodeChildCount(expr, params);
     }
 
     if (expr.name === '__ts_node_named_child_count') {
-      return this.generateTsNodeNamedChildCount(expr, params, generateExpressionFn);
+      return this.generateTsNodeNamedChildCount(expr, params);
     }
 
     if (expr.name === '__ts_node_child') {
-      return this.generateTsNodeChild(expr, params, generateExpressionFn);
+      return this.generateTsNodeChild(expr, params);
     }
 
     if (expr.name === '__ts_node_named_child') {
-      return this.generateTsNodeNamedChild(expr, params, generateExpressionFn);
+      return this.generateTsNodeNamedChild(expr, params);
     }
 
     if (expr.name === '__ts_node_text') {
-      return this.generateTsNodeText(expr, params, generateExpressionFn);
+      return this.generateTsNodeText(expr, params);
     }
 
     if (expr.name === '__ts_node_is_null') {
-      return this.generateTsNodeIsNull(expr, params, generateExpressionFn);
+      return this.generateTsNodeIsNull(expr, params);
     }
 
     if (expr.name === '__ts_node_is_named') {
-      return this.generateTsNodeIsNamed(expr, params, generateExpressionFn);
+      return this.generateTsNodeIsNamed(expr, params);
     }
 
     if (expr.name === '__ts_node_start_byte') {
-      return this.generateTsNodeStartByte(expr, params, generateExpressionFn);
+      return this.generateTsNodeStartByte(expr, params);
     }
 
     if (expr.name === '__ts_node_end_byte') {
-      return this.generateTsNodeEndByte(expr, params, generateExpressionFn);
+      return this.generateTsNodeEndByte(expr, params);
     }
 
     if (expr.name === '__ts_node_child_by_field_name') {
-      return this.generateTsNodeChildByFieldName(expr, params, generateExpressionFn);
+      return this.generateTsNodeChildByFieldName(expr, params);
     }
 
     // Generic function call with type checking
-    return this.generateGenericCall(expr, params, generateExpressionFn);
+    return this.generateGenericCall(expr, params);
   }
 
-  private generateParseInt(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateParseInt(expr: CallNode, params: string[]): string {
     if (expr.args.length < 1 || expr.args.length > 2) {
       throw new Error('parseInt() requires 1 or 2 arguments (string, radix?)');
     }
@@ -159,12 +158,12 @@ export class CallExpressionGenerator {
     this.ctx.syncStateToGenerators();
 
     // Get the string argument
-    const strValue = generateExpressionFn(expr.args[0], params);
+    const strValue = this.ctx.generateExpression(expr.args[0], params);
 
     // Get the radix argument (default to 10 if not provided)
     let radixValue: string;
     if (expr.args.length === 2) {
-      const radixDouble = generateExpressionFn(expr.args[1], params);
+      const radixDouble = this.ctx.generateExpression(expr.args[1], params);
       // Convert double to i32
       radixValue = this.ctx.nextTemp();
       this.ctx.emit(`${radixValue} = fptosi double ${radixDouble} to i32`);
@@ -188,9 +187,9 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateMalloc(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateMalloc(expr: CallNode, params: string[]): string {
     // malloc(size: number) -> i8*
-    const sizeDouble = generateExpressionFn(expr.args[0], params);
+    const sizeDouble = this.ctx.generateExpression(expr.args[0], params);
     const sizeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${sizeI64} = fptosi double ${sizeDouble} to i64`);
     const result = this.ctx.nextTemp();
@@ -203,9 +202,9 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateFree(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateFree(expr: CallNode, params: string[]): string {
     // free(ptr: number) -> void
-    const ptrDouble = generateExpressionFn(expr.args[0], params);
+    const ptrDouble = this.ctx.generateExpression(expr.args[0], params);
     const ptrI32 = this.ctx.nextTemp();
     this.ctx.emit(`${ptrI32} = fptosi double ${ptrDouble} to i32`);
     const ptr = this.ctx.nextTemp();
@@ -214,11 +213,11 @@ export class CallExpressionGenerator {
     return '0.0'; // Return dummy value
   }
 
-  private generateSocket(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateSocket(expr: CallNode, params: string[]): string {
     // socket(domain: number, type: number, protocol: number) -> i32
-    const domainDouble = generateExpressionFn(expr.args[0], params);
-    const typeDouble = generateExpressionFn(expr.args[1], params);
-    const protocolDouble = generateExpressionFn(expr.args[2], params);
+    const domainDouble = this.ctx.generateExpression(expr.args[0], params);
+    const typeDouble = this.ctx.generateExpression(expr.args[1], params);
+    const protocolDouble = this.ctx.generateExpression(expr.args[2], params);
     const domain = this.ctx.nextTemp();
     this.ctx.emit(`${domain} = fptosi double ${domainDouble} to i32`);
     const type = this.ctx.nextTemp();
@@ -232,9 +231,9 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateClose(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateClose(expr: CallNode, params: string[]): string {
     // close(fd: number) -> i32
-    const fdDouble = generateExpressionFn(expr.args[0], params);
+    const fdDouble = this.ctx.generateExpression(expr.args[0], params);
     const fd = this.ctx.nextTemp();
     this.ctx.emit(`${fd} = fptosi double ${fdDouble} to i32`);
     const resultI32 = this.ctx.nextTemp();
@@ -244,9 +243,9 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateHtons(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateHtons(expr: CallNode, params: string[]): string {
     // htons(hostshort: number) -> i16
-    const hostshortDouble = generateExpressionFn(expr.args[0], params);
+    const hostshortDouble = this.ctx.generateExpression(expr.args[0], params);
     const hostshort = this.ctx.nextTemp();
     this.ctx.emit(`${hostshort} = fptosi double ${hostshortDouble} to i16`);
     const resultI16 = this.ctx.nextTemp();
@@ -258,9 +257,9 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateGenericCall(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateGenericCall(expr: CallNode, params: string[]): string {
     if (this.ctx.symbolTable.isClosure(expr.name)) {
-      return this.generateClosureCall(expr, params, generateExpressionFn);
+      return this.generateClosureCall(expr, params);
     }
 
     let returnType = 'double';
@@ -324,7 +323,7 @@ export class CallExpressionGenerator {
 
     for (let i = 0; i < (func?.params?.length || expr.args.length); i++) {
       if (i < expr.args.length) {
-        const result = generateExpressionFn(expr.args[i], params);
+        const result = this.ctx.generateExpression(expr.args[i], params);
         const paramType = paramTypes[i] || 'double';
         argsList.push(`${paramType} ${result}`);
       } else {
@@ -341,7 +340,7 @@ export class CallExpressionGenerator {
     return temp;
   }
 
-  private generateClosureCall(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateClosureCall(expr: CallNode, params: string[]): string {
     const closureMetadata = this.ctx.symbolTable.getClosureMetadata(expr.name);
     if (!closureMetadata) {
       throw new Error(`Closure metadata not found for: ${expr.name}`);
@@ -359,7 +358,7 @@ export class CallExpressionGenerator {
     }
 
     for (const arg of expr.args) {
-      const result = generateExpressionFn(arg, params);
+      const result = this.ctx.generateExpression(arg, params);
       argsList.push(`double ${result}`);
     }
 
@@ -370,7 +369,7 @@ export class CallExpressionGenerator {
     return temp;
   }
 
-  private generateSetTimeout(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateSetTimeout(expr: CallNode, params: string[]): string {
     if (expr.args.length < 2) {
       throw new Error('setTimeout() requires 2 arguments (callback, delay_ms)');
     }
@@ -383,7 +382,7 @@ export class CallExpressionGenerator {
     }
     const callbackName = (callbackArg as VariableNode).name;
 
-    const delayValue = generateExpressionFn(expr.args[1], params);
+    const delayValue = this.ctx.generateExpression(expr.args[1], params);
 
     const callbackPtr = this.ctx.nextTemp();
     this.ctx.emit(`${callbackPtr} = bitcast void ()* @${callbackName} to void ()*`);
@@ -395,7 +394,7 @@ export class CallExpressionGenerator {
     return result;
   }
 
-  private generateSetInterval(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateSetInterval(expr: CallNode, params: string[]): string {
     if (expr.args.length < 2) {
       throw new Error('setInterval() requires 2 arguments (callback, interval_ms)');
     }
@@ -408,7 +407,7 @@ export class CallExpressionGenerator {
     }
     const callbackName = (callbackArg as VariableNode).name;
 
-    const intervalValue = generateExpressionFn(expr.args[1], params);
+    const intervalValue = this.ctx.generateExpression(expr.args[1], params);
 
     const callbackPtr = this.ctx.nextTemp();
     this.ctx.emit(`${callbackPtr} = bitcast void ()* @${callbackName} to void ()*`);
@@ -420,12 +419,12 @@ export class CallExpressionGenerator {
     return result;
   }
 
-  private generateClearTimer(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateClearTimer(expr: CallNode, params: string[]): string {
     if (expr.args.length < 1) {
       throw new Error('clearTimeout/clearInterval requires 1 argument (timer_id)');
     }
 
-    const timerIdValue = generateExpressionFn(expr.args[0], params);
+    const timerIdValue = this.ctx.generateExpression(expr.args[0], params);
 
     this.ctx.emit(`call void @__clearTimer(i8* ${timerIdValue})`);
 
@@ -438,9 +437,9 @@ export class CallExpressionGenerator {
     return '0.0';
   }
 
-  private generateTsParseSource(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const sourceValue = generateExpressionFn(expr.args[0], params);
-    const lengthDouble = generateExpressionFn(expr.args[1], params);
+  private generateTsParseSource(expr: CallNode, params: string[]): string {
+    const sourceValue = this.ctx.generateExpression(expr.args[0], params);
+    const lengthDouble = this.ctx.generateExpression(expr.args[1], params);
     const lengthI32 = this.ctx.nextTemp();
     this.ctx.emit(`${lengthI32} = fptosi double ${lengthDouble} to i32`);
     const resultPtr = this.ctx.nextTemp();
@@ -453,8 +452,8 @@ export class CallExpressionGenerator {
     return result;
   }
 
-  private generateTsGetRootNode(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const treeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsGetRootNode(expr: CallNode, params: string[]): string {
+    const treeValue = this.ctx.generateExpression(expr.args[0], params);
     const treeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${treeI64} = bitcast double ${treeValue} to i64`);
     const treePtr = this.ctx.nextTemp();
@@ -469,8 +468,8 @@ export class CallExpressionGenerator {
     return result;
   }
 
-  private generateTsNodeType(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const nodeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsNodeType(expr: CallNode, params: string[]): string {
+    const nodeValue = this.ctx.generateExpression(expr.args[0], params);
     const nodeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
@@ -481,8 +480,8 @@ export class CallExpressionGenerator {
     return result;
   }
 
-  private generateTsNodeChildCount(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const nodeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsNodeChildCount(expr: CallNode, params: string[]): string {
+    const nodeValue = this.ctx.generateExpression(expr.args[0], params);
     const nodeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
@@ -494,8 +493,8 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateTsNodeNamedChildCount(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const nodeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsNodeNamedChildCount(expr: CallNode, params: string[]): string {
+    const nodeValue = this.ctx.generateExpression(expr.args[0], params);
     const nodeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
@@ -507,13 +506,13 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateTsNodeChild(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const nodeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsNodeChild(expr: CallNode, params: string[]): string {
+    const nodeValue = this.ctx.generateExpression(expr.args[0], params);
     const nodeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
     this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
-    const indexDouble = generateExpressionFn(expr.args[1], params);
+    const indexDouble = this.ctx.generateExpression(expr.args[1], params);
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(`${indexI32} = fptosi double ${indexDouble} to i32`);
     const resultPtr = this.ctx.nextTemp();
@@ -526,13 +525,13 @@ export class CallExpressionGenerator {
     return result;
   }
 
-  private generateTsNodeNamedChild(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const nodeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsNodeNamedChild(expr: CallNode, params: string[]): string {
+    const nodeValue = this.ctx.generateExpression(expr.args[0], params);
     const nodeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
     this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
-    const indexDouble = generateExpressionFn(expr.args[1], params);
+    const indexDouble = this.ctx.generateExpression(expr.args[1], params);
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(`${indexI32} = fptosi double ${indexDouble} to i32`);
     const resultPtr = this.ctx.nextTemp();
@@ -545,21 +544,21 @@ export class CallExpressionGenerator {
     return result;
   }
 
-  private generateTsNodeText(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const nodeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsNodeText(expr: CallNode, params: string[]): string {
+    const nodeValue = this.ctx.generateExpression(expr.args[0], params);
     const nodeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
     this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
-    const sourceValue = generateExpressionFn(expr.args[1], params);
+    const sourceValue = this.ctx.generateExpression(expr.args[1], params);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__ts_node_text(%TSNode* ${nodePtr}, i8* ${sourceValue})`);
     this.ctx.variableTypes.set(result, 'i8*');
     return result;
   }
 
-  private generateTsNodeIsNull(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const nodeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsNodeIsNull(expr: CallNode, params: string[]): string {
+    const nodeValue = this.ctx.generateExpression(expr.args[0], params);
     const nodeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
@@ -571,8 +570,8 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateTsNodeIsNamed(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const nodeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsNodeIsNamed(expr: CallNode, params: string[]): string {
+    const nodeValue = this.ctx.generateExpression(expr.args[0], params);
     const nodeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
@@ -584,8 +583,8 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateTsNodeStartByte(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const nodeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsNodeStartByte(expr: CallNode, params: string[]): string {
+    const nodeValue = this.ctx.generateExpression(expr.args[0], params);
     const nodeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
@@ -597,8 +596,8 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateTsNodeEndByte(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const nodeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsNodeEndByte(expr: CallNode, params: string[]): string {
+    const nodeValue = this.ctx.generateExpression(expr.args[0], params);
     const nodeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
@@ -610,14 +609,14 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
-  private generateTsNodeChildByFieldName(expr: CallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const nodeValue = generateExpressionFn(expr.args[0], params);
+  private generateTsNodeChildByFieldName(expr: CallNode, params: string[]): string {
+    const nodeValue = this.ctx.generateExpression(expr.args[0], params);
     const nodeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
     this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
-    const fieldValue = generateExpressionFn(expr.args[1], params);
-    const fieldLenDouble = generateExpressionFn(expr.args[2], params);
+    const fieldValue = this.ctx.generateExpression(expr.args[1], params);
+    const fieldLenDouble = this.ctx.generateExpression(expr.args[2], params);
     const fieldLenI32 = this.ctx.nextTemp();
     this.ctx.emit(`${fieldLenI32} = fptosi double ${fieldLenDouble} to i32`);
     const resultPtr = this.ctx.nextTemp();
