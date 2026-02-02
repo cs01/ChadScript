@@ -539,6 +539,17 @@ export class SymbolTable {
   }
 
   /**
+   * Get class name for a variable (returns string directly for ChadScript compatibility)
+   */
+  getClassName(name: string): string | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol?.kind === SymbolKind.Class && symbol.classMetadata) {
+      return symbol.classMetadata.className;
+    }
+    return undefined;
+  }
+
+  /**
    * Clone symbol table (useful for nested scopes)
    */
   clone(): SymbolTable {

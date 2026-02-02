@@ -53,6 +53,18 @@ export class ClassGenerator {
     return null;
   }
 
+  // Helper to get just the field type as a string (for ChadScript compatibility)
+  getFieldType(className: string, fieldName: string): string | null {
+    const info = this.getFieldInfo(className, fieldName);
+    return info ? info.type : null;
+  }
+
+  // Helper to get just the tsType as a string (for ChadScript compatibility)
+  getFieldTsType(className: string, fieldName: string): string | null {
+    const info = this.getFieldInfo(className, fieldName);
+    return info?.tsType || null;
+  }
+
   // Helper to get class fields
   getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[] {
     return this.classFields.get(className) || [];
