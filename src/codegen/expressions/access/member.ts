@@ -17,12 +17,7 @@ import {
   ClassField,
 } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
-import type { TypeChecker, TypeInfo } from '../../../typescript/type-checker.js';
-
-interface PropertyTypeInfo {
-  type: string;
-  offset: number;
-}
+import type { TypeChecker } from '../../../typescript/type-checker.js';
 
 interface ClassGeneratorLike {
   getFieldInfo(className: string, fieldName: string): FieldInfo | null;
@@ -1605,49 +1600,6 @@ export class MemberAccessGenerator {
     ));
   }
 
-  private accessTypedParameter(varName: string, property: string, typeInfo: TypeInfo): string {
-    const properties = Array.from(typeInfo.properties!.entries()) as [string, PropertyTypeInfo][];
-    const propInfo = typeInfo.properties!.get(property)!;
-
-    const structTypes: string[] = [];
-    for (let i = 0; i < properties.length; i++) {
-      const entry = properties[i] as [string, PropertyTypeInfo];
-      const info = entry[1];
-      structTypes.push(info.type);
-    }
-    const structType = `{ ${structTypes.join(', ')} }`;
-    let propIndex = -1;
-    for (let i = 0; i < properties.length; i++) {
-      const entry = properties[i] as [string, PropertyTypeInfo];
-      const name = entry[0];
-      if (name === property) {
-        propIndex = i;
-        break;
-      }
-    }
-
-    const paramPtr = this.ctx.getVariableAlloca(varName);
-    if (!paramPtr) {
-      throw new Error(`Parameter ${varName} not found in variables`);
-    }
-    const objPtrI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${objPtrI32} = load i32, i32* ${paramPtr}`);
-
-    const objPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${objPtr} = inttoptr i32 ${objPtrI32} to i8*`);
-
-    const typedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
-
-    const fieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${propIndex}`);
-
-    const value = this.ctx.nextTemp();
-    this.ctx.emit(`${value} = load ${propInfo.type}, ${propInfo.type}* ${fieldPtr}`);
-
-    return value;
-  }
-
   private handleTypeAssertionPropertyAccess(
     expr: MemberAccessNode,
     params: string[]
@@ -1748,7 +1700,7 @@ export class MemberAccessGenerator {
     return fields;
   }
 
-  private accessObjectWithMetadata(varName: string, property: string, metadata: { keys: string[]; types: string[] }): string {
+  private accessObjectWithMetadata(varName: string, property: string, metadata: ObjectMetadata): string {
     const propIndex = metadata.keys.indexOf(property);
     if (propIndex === -1) {
       throw new Error(this.ctx.formatCodegenError(

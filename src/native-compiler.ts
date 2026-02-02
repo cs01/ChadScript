@@ -80,15 +80,15 @@ function compileMultiFile(entryFile: string, compiledFiles: string[]): AST {
 
   const mergedAST: AST = {
     imports: [],
-    functions: ast.functions.slice(),
-    classes: ast.classes.slice(),
-    exports: ast.exports.slice(),
-    interfaces: ast.interfaces.slice(),
-    typeAliases: ast.typeAliases ? ast.typeAliases.slice() : [],
-    enums: ast.enums ? ast.enums.slice() : [],
-    topLevelStatements: ast.topLevelStatements.slice(),
-    topLevelExpressions: ast.topLevelExpressions.slice(),
-    topLevelItems: ast.topLevelItems ? ast.topLevelItems.slice() : []
+    functions: ast.functions.slice(0),
+    classes: ast.classes.slice(0),
+    exports: ast.exports.slice(0),
+    interfaces: ast.interfaces.slice(0),
+    typeAliases: ast.typeAliases ? ast.typeAliases.slice(0) : [],
+    enums: ast.enums ? ast.enums.slice(0) : [],
+    topLevelStatements: ast.topLevelStatements.slice(0),
+    topLevelExpressions: ast.topLevelExpressions.slice(0),
+    topLevelItems: ast.topLevelItems ? ast.topLevelItems.slice(0) : []
   };
 
   let i = 0;
