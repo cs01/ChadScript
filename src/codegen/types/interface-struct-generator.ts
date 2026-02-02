@@ -1,4 +1,4 @@
-import { InterfaceDeclaration } from '../../ast/types.js';
+import { InterfaceDeclaration, InterfaceField } from '../../ast/types.js';
 
 const BUILTIN_TYPES = new Set([
   'Array', 'StringArray', 'Map', 'StringMap', 'Set', 'StringSet',
@@ -51,10 +51,11 @@ export class InterfaceStructGenerator {
     const fields = this.getInterfaceFields(idx);
     const result: { name: string; tsType: string; llvmType: string }[] = [];
     for (let i = 0; i < fields.length; i++) {
+      const f = fields[i] as InterfaceField;
       result.push({
-        name: fields[i].name,
-        tsType: fields[i].type,
-        llvmType: this.tsTypeToLlvm(fields[i].type)
+        name: f.name,
+        tsType: f.type,
+        llvmType: this.tsTypeToLlvm(f.type)
       });
     }
     return result;
@@ -85,7 +86,8 @@ export class InterfaceStructGenerator {
     const iface = this.interfaceStructs.get(interfaceName);
     if (!iface) return -1;
     for (let i = 0; i < iface.fields.length; i++) {
-      if (iface.fields[i].name === fieldName) {
+      const field = iface.fields[i] as { name: string; tsType: string; llvmType: string };
+      if (field.name === fieldName) {
         return i;
       }
     }
@@ -96,8 +98,9 @@ export class InterfaceStructGenerator {
     const iface = this.interfaceStructs.get(interfaceName);
     if (!iface) return undefined;
     for (let i = 0; i < iface.fields.length; i++) {
-      if (iface.fields[i].name === fieldName) {
-        return iface.fields[i].llvmType;
+      const field = iface.fields[i] as { name: string; tsType: string; llvmType: string };
+      if (field.name === fieldName) {
+        return field.llvmType;
       }
     }
     return undefined;
@@ -127,7 +130,8 @@ export class InterfaceStructGenerator {
   private getFieldTypesString(info: InterfaceStructInfo): string {
     const types: string[] = [];
     for (let i = 0; i < info.fields.length; i++) {
-      types.push(info.fields[i].llvmType);
+      const field = info.fields[i] as { name: string; tsType: string; llvmType: string };
+      types.push(field.llvmType);
     }
     return types.join(', ');
   }
@@ -144,7 +148,8 @@ export class InterfaceStructGenerator {
     if (!info) return 0;
     let size = 0;
     for (let i = 0; i < info.fields.length; i++) {
-      if (info.fields[i].llvmType === 'double') size += 8;
+      const field = info.fields[i] as { name: string; tsType: string; llvmType: string };
+      if (field.llvmType === 'double') size += 8;
       else size += 8;
     }
     return size;

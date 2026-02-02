@@ -7,6 +7,7 @@ import {
   ObjectNode,
   AST,
   InterfaceDeclaration,
+  InterfaceField,
   EnumDeclaration,
   EnumMember,
   ClassNode,
@@ -115,11 +116,12 @@ export class MemberAccessGenerator {
     const baseName = this.extractBaseTypeName(name);
     if (!this.ctx.ast?.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      if (this.ctx.ast.interfaces[i].name === baseName) {
-        const iface = this.ctx.ast.interfaces[i];
+      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+      if (iface.name === baseName) {
         const properties: InterfaceProperty[] = [];
         for (let j = 0; j < iface.fields.length; j++) {
-          properties.push({ name: iface.fields[j].name, type: iface.fields[j].type });
+          const field = iface.fields[j] as InterfaceField;
+          properties.push({ name: field.name, type: field.type });
         }
         return { properties };
       }
@@ -316,11 +318,13 @@ export class MemberAccessGenerator {
     const enums = this.ctx.ast?.enums;
     if (!enums) return null;
 
-    const enumDecl = enums.find((e: EnumDeclaration) => e.name === enumName);
-    if (!enumDecl) return null;
+    const enumDeclResult = enums.find((e: EnumDeclaration) => e.name === enumName);
+    const enumDecl = enumDeclResult as EnumDeclaration;
+    if (!enumDeclResult) return null;
 
-    const member = enumDecl.members.find((m: EnumMember) => m.name === memberName);
-    if (!member) {
+    const memberResult = enumDecl.members.find((m: EnumMember) => m.name === memberName);
+    const member = memberResult as EnumMember;
+    if (!memberResult) {
       throw new Error(`Enum member '${memberName}' not found in enum '${enumName}'`);
     }
 
@@ -463,10 +467,11 @@ export class MemberAccessGenerator {
       instancePtr = thisPtr;
       className = this.ctx.currentClassName || this.ctx.classGen.currentClassName || null;
       if (!className) {
-        const classWithField = this.ctx.ast?.classes.find((c: ClassNode) => {
+        const classWithFieldResult = this.ctx.ast?.classes.find((c: ClassNode) => {
           return c.methods.some((m) => true);
         });
-        if (classWithField) {
+        const classWithField = classWithFieldResult as ClassNode;
+        if (classWithFieldResult) {
           className = classWithField.name;
         }
       }
@@ -596,8 +601,9 @@ export class MemberAccessGenerator {
   }
 
   private handleNestedInterfaceField(fieldItem: string, tsType: string): string {
-    const nestedInterfaceDef = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
-    if (nestedInterfaceDef) {
+    const nestedInterfaceDefResult = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
+    const nestedInterfaceDef = nestedInterfaceDefResult as InterfaceDeclaration;
+    if (nestedInterfaceDefResult) {
       const keys = nestedInterfaceDef.fields.map((f) => f.name);
       const tsTypes = nestedInterfaceDef.fields.map((f) => f.type);
       const types = nestedInterfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));

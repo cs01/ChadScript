@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, MethodCallNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, MethodCallNode, InterfaceDeclaration } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
@@ -729,7 +729,8 @@ export class LLVMGenerator extends BaseGenerator {
 
   public getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null {
     for (let i = 0; i < this.ast.interfaces.length; i++) {
-      if (this.ast.interfaces[i].name === name) {
+      const iface = this.ast.interfaces[i] as InterfaceDeclaration;
+      if (iface.name === name) {
         return this.ast.interfaces[i];
       }
     }

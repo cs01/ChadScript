@@ -126,8 +126,12 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
    * Get closure info for a specific lambda by name.
    */
   getClosureInfoForLambda(lambdaName: string): ClosureInfo | undefined {
-    const func = this.liftedFunctions.find(f => f.name === lambdaName);
-    return func?.closureInfo;
+    const funcResult = this.liftedFunctions.find(f => f.name === lambdaName);
+    const func = funcResult as LiftedFunction;
+    if (funcResult) {
+      return func.closureInfo;
+    }
+    return undefined;
   }
 
   /**

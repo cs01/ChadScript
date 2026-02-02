@@ -1122,7 +1122,8 @@ export class ControlFlowGenerator {
       return { keys: [], types: [], tsTypes: [] };
     }
 
-    const firstFields = interfaces[0].fields;
+    const firstInterface = interfaces[0] as InterfaceDeclaration;
+    const firstFields = firstInterface.fields;
     const commonFields: { name: string; type: string }[] = [];
 
     for (const field of firstFields) {

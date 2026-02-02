@@ -33,6 +33,7 @@ import {
   FunctionNode,
   MemberAccessNode,
   InterfaceDeclaration,
+  InterfaceField,
   RegexNode,
 } from '../../ast/types.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
@@ -216,12 +217,12 @@ export class MethodCallGenerator {
   private getInterfaceFromAST(name: string): InterfaceDefInfo | null {
     if (!this.ctx.ast?.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      if (this.ctx.ast.interfaces[i].name === name) {
-        const ifaceResult = this.ctx.ast.interfaces[i];
-        const iface = ifaceResult as InterfaceDeclaration;
+      const ifaceItem = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+      if (ifaceItem.name === name) {
         const properties: { name: string; type: string }[] = [];
-        for (let j = 0; j < iface.fields.length; j++) {
-          properties.push({ name: iface.fields[j].name, type: iface.fields[j].type });
+        for (let j = 0; j < ifaceItem.fields.length; j++) {
+          const field = ifaceItem.fields[j] as InterfaceField;
+          properties.push({ name: field.name, type: field.type });
         }
         return { properties };
       }
@@ -232,8 +233,9 @@ export class MethodCallGenerator {
   private getFunctionFromAST(name: string): FunctionNode | null {
     if (!this.ctx.ast?.functions) return null;
     for (let i = 0; i < this.ctx.ast.functions.length; i++) {
-      if (this.ctx.ast.functions[i].name === name) {
-        return this.ctx.ast.functions[i];
+      const func = this.ctx.ast.functions[i] as FunctionNode;
+      if (func.name === name) {
+        return func;
       }
     }
     return null;
@@ -1160,10 +1162,12 @@ export class MethodCallGenerator {
         return null;
       }
 
-      const interfaceDecl = this.ctx.ast.interfaces.find(i => i.name === parentType);
-      if (interfaceDecl) {
-        const field = interfaceDecl.fields.find(f => f.name === memberAccess.property);
-        if (field) {
+      const interfaceDeclResult = this.ctx.ast.interfaces.find(i => i.name === parentType);
+      const interfaceDecl = interfaceDeclResult as InterfaceDeclaration;
+      if (interfaceDeclResult) {
+        const fieldResult = interfaceDecl.fields.find(f => f.name === memberAccess.property);
+        const field = fieldResult as InterfaceField;
+        if (fieldResult) {
           let fieldType = field.type;
           if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
             fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
