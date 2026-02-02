@@ -136,7 +136,12 @@ export class VariableAllocator {
       if (indexedObjectType) {
         this.allocateIndexedObjectArray(stmt, params, indexedObjectType);
       } else {
-        this.allocateNumeric(stmt, params);
+        const arrayMethodReturnType = this.getArrayMethodReturnType(stmt.value);
+        if (arrayMethodReturnType) {
+          this.allocateArrayMethodReturn(stmt, params, arrayMethodReturnType);
+        } else {
+          this.allocateNumeric(stmt, params);
+        }
       }
     }
 
@@ -756,5 +761,26 @@ export class VariableAllocator {
     if (tsType === 'string[]') return '%StringArray*';
     if (tsType === 'number[]') return '%Array*';
     return 'i8*';
+  }
+
+  private getArrayMethodReturnType(expr: Expression | null): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+    if (!expr) return null;
+    if (this.ctx.typeResolver) {
+      const result = this.ctx.typeResolver.resolveArrayMethodReturnType(expr);
+      if (result) {
+        return { keys: result.keys, types: result.types, tsTypes: result.tsTypes || [] };
+      }
+    }
+    return null;
+  }
+
+  private allocateArrayMethodReturn(stmt: VariableDeclaration, params: string[], typeInfo: { keys: string[]; types: string[]; tsTypes: string[] }): void {
+    const allocaReg = this.ctx.nextTemp();
+    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+      objectMetadata: { keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }
+    });
+    this.ctx.emit(`${allocaReg} = alloca i8*`);
+    const objPtr = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
   }
 }
