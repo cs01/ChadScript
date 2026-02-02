@@ -1264,13 +1264,23 @@ export class ControlFlowGenerator {
 
     if (!this.ctx.ast?.interfaces) return null;
 
-    for (const iface of this.ctx.ast.interfaces) {
-      for (const field of iface.fields) {
-        if (field.name === 'type') {
-          const fieldType = field.type;
-          if (fieldType === `'${discriminantValue}'` || fieldType === `"${discriminantValue}"`) {
-            return iface.name;
-          }
+    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      const match = this.checkDiscriminant(
+        this.ctx.ast.interfaces[i].name,
+        this.ctx.ast.interfaces[i].fields,
+        discriminantValue
+      );
+      if (match) return match;
+    }
+    return null;
+  }
+
+  private checkDiscriminant(ifaceName: string, fields: { name: string; type: string }[], discriminantValue: string): string | null {
+    for (let i = 0; i < fields.length; i++) {
+      if (fields[i].name === 'type') {
+        const fieldType = fields[i].type;
+        if (fieldType === `'${discriminantValue}'` || fieldType === `"${discriminantValue}"`) {
+          return ifaceName;
         }
       }
     }

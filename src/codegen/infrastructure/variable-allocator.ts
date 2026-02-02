@@ -69,9 +69,8 @@ export class VariableAllocator {
     }
     if (!this.ctx.ast.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      const iface = this.ctx.ast.interfaces[i];
-      if (iface.name === name) {
-        return iface;
+      if (this.ctx.ast.interfaces[i].name === name) {
+        return this.ctx.ast.interfaces[i];
       }
     }
     return null;
@@ -83,9 +82,8 @@ export class VariableAllocator {
     }
     if (!this.ctx.ast.typeAliases) return null;
     for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
-      const alias = this.ctx.ast.typeAliases[i];
-      if (alias.name === name) {
-        return alias;
+      if (this.ctx.ast.typeAliases[i].name === name) {
+        return this.ctx.ast.typeAliases[i];
       }
     }
     return null;

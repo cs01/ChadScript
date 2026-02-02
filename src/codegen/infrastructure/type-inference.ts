@@ -19,9 +19,8 @@ export class TypeInference {
   private getInterface(name: string): InterfaceDeclaration | null {
     if (!this.ctx.ast.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      const iface = this.ctx.ast.interfaces[i];
-      if (iface.name === name) {
-        return iface;
+      if (this.ctx.ast.interfaces[i].name === name) {
+        return this.ctx.ast.interfaces[i];
       }
     }
     return null;

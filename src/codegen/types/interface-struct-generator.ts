@@ -20,22 +20,44 @@ export class InterfaceStructGenerator {
   }
 
   private buildInterfaceStructs(): void {
-    for (const iface of this.interfaces) {
-      const isBuiltinConflict = BUILTIN_TYPES.has(iface.name);
-      const fields = iface.fields.map(f => ({
-        name: f.name,
-        tsType: f.type,
-        llvmType: this.tsTypeToLlvm(f.type)
-      }));
+    for (let idx = 0; idx < this.interfaces.length; idx++) {
+      this.processInterface(idx);
+    }
+  }
 
-      const structType = `%${iface.name}`;
-      this.interfaceStructs.set(iface.name, {
-        name: iface.name,
-        llvmType: structType,
-        fields,
-        isBuiltinConflict
+  private processInterface(idx: number): void {
+    const ifaceName = this.getInterfaceName(idx);
+    const isBuiltinConflict = BUILTIN_TYPES.has(ifaceName);
+    const fields = this.buildFields(idx);
+
+    const structType = `%${ifaceName}`;
+    this.interfaceStructs.set(ifaceName, {
+      name: ifaceName,
+      llvmType: structType,
+      fields,
+      isBuiltinConflict
+    });
+  }
+
+  private getInterfaceName(idx: number): string {
+    return this.interfaces[idx].name;
+  }
+
+  private getInterfaceFields(idx: number): { name: string; type: string }[] {
+    return this.interfaces[idx].fields;
+  }
+
+  private buildFields(idx: number): { name: string; tsType: string; llvmType: string }[] {
+    const fields = this.getInterfaceFields(idx);
+    const result: { name: string; tsType: string; llvmType: string }[] = [];
+    for (let i = 0; i < fields.length; i++) {
+      result.push({
+        name: fields[i].name,
+        tsType: fields[i].type,
+        llvmType: this.tsTypeToLlvm(fields[i].type)
       });
     }
+    return result;
   }
 
   private tsTypeToLlvm(tsType: string): string {
@@ -62,38 +84,58 @@ export class InterfaceStructGenerator {
   getFieldIndex(interfaceName: string, fieldName: string): number {
     const iface = this.interfaceStructs.get(interfaceName);
     if (!iface) return -1;
-    return iface.fields.findIndex(f => f.name === fieldName);
+    for (let i = 0; i < iface.fields.length; i++) {
+      if (iface.fields[i].name === fieldName) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   getFieldType(interfaceName: string, fieldName: string): string | undefined {
     const iface = this.interfaceStructs.get(interfaceName);
     if (!iface) return undefined;
-    const field = iface.fields.find(f => f.name === fieldName);
-    return field?.llvmType;
+    for (let i = 0; i < iface.fields.length; i++) {
+      if (iface.fields[i].name === fieldName) {
+        return iface.fields[i].llvmType;
+      }
+    }
+    return undefined;
   }
 
   generateStructTypeDefinitions(): string {
     if (this.interfaces.length === 0) return '';
 
-    const nonConflicting = this.interfaces.filter(i => !BUILTIN_TYPES.has(i.name));
-    if (nonConflicting.length === 0) return '';
-
     let ir = '; Interface struct type definitions\n';
+    let hasNonConflicting = false;
 
-    for (const iface of nonConflicting) {
-      const info = this.interfaceStructs.get(iface.name)!;
-      const fieldTypes = info.fields.map(f => f.llvmType).join(', ');
-      ir += `%${iface.name} = type { ${fieldTypes} }\n`;
+    for (let idx = 0; idx < this.interfaces.length; idx++) {
+      const ifaceName = this.getInterfaceName(idx);
+      if (BUILTIN_TYPES.has(ifaceName)) continue;
+      hasNonConflicting = true;
+      const info = this.interfaceStructs.get(ifaceName)!;
+      const fieldTypes = this.getFieldTypesString(info);
+      ir += `%${ifaceName} = type { ${fieldTypes} }\n`;
     }
+
+    if (!hasNonConflicting) return '';
 
     ir += '\n';
     return ir;
   }
 
+  private getFieldTypesString(info: InterfaceStructInfo): string {
+    const types: string[] = [];
+    for (let i = 0; i < info.fields.length; i++) {
+      types.push(info.fields[i].llvmType);
+    }
+    return types.join(', ');
+  }
+
   getInlineStructType(interfaceName: string): string {
     const info = this.interfaceStructs.get(interfaceName);
     if (!info) return '';
-    const fieldTypes = info.fields.map(f => f.llvmType).join(', ');
+    const fieldTypes = this.getFieldTypesString(info);
     return `{ ${fieldTypes} }`;
   }
 
@@ -101,8 +143,8 @@ export class InterfaceStructGenerator {
     const info = this.interfaceStructs.get(interfaceName);
     if (!info) return 0;
     let size = 0;
-    for (const field of info.fields) {
-      if (field.llvmType === 'double') size += 8;
+    for (let i = 0; i < info.fields.length; i++) {
+      if (info.fields[i].llvmType === 'double') size += 8;
       else size += 8;
     }
     return size;
