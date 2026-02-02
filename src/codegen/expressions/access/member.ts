@@ -1135,7 +1135,8 @@ export class MemberAccessGenerator {
       objPtr = this.ctx.nextTemp();
       this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
     } else if (expr.object.type === 'object') {
-      const metadata = this.ctx.getObjectMetadata(expr.object as ObjectNode);
+      const metadataResult = this.ctx.getObjectMetadata(expr.object as ObjectNode);
+      const metadata = metadataResult as ObjectMetadata;
       keys = metadata.keys;
       types = metadata.types;
       objPtr = generateExpressionFn(expr.object, params);
