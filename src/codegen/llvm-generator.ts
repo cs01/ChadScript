@@ -5,7 +5,7 @@ import { VariableAllocator, VariableAllocatorContext } from './infrastructure/va
 import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/function-generator.js';
 import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructure/assignment-generator.js';
 import { getLLVMDeclarations, getSafeStringHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
-import { TypeResolver } from './infrastructure/type-resolver/index.js';
+import { TypeResolver, TypeResolverContext } from './infrastructure/type-resolver/index.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
 import { ObjectGenerator } from './types/objects/object.js';
@@ -194,13 +194,7 @@ export class LLVMGenerator extends BaseGenerator {
 
     this.typeInference = new TypeInference(this as unknown as TypeInferenceContext);
 
-    this.typeResolver = new TypeResolver({
-      ast: this.ast,
-      symbolTable: this.symbolTable,
-      typeChecker: this.typeChecker,
-      currentClassName: this.currentClassName,
-      classGen: this.classGen
-    });
+    this.typeResolver = new TypeResolver(this as unknown as TypeResolverContext);
 
     this.varAllocator = new VariableAllocator(this as unknown as VariableAllocatorContext);
 

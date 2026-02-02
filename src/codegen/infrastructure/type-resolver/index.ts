@@ -1,5 +1,6 @@
-export { TypeResolver, TypeResolverContext } from './type-resolver.js';
-export {
+export { TypeResolver } from './type-resolver.js';
+export type { TypeResolverContext } from './type-resolver.js';
+export type {
   FieldInfo,
   MapTypeInfo,
   SetTypeInfo,
