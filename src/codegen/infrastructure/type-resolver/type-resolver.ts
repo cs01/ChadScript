@@ -165,10 +165,13 @@ export class TypeResolver {
   }
 
   getUnionCommonFields(memberNames: string[]): UnionCommonFields {
-    const interfacesRaw = memberNames
-      .map(name => this.getInterface(name))
-      .filter((i): i is InterfaceDeclaration => i !== null);
-    const interfaces = interfacesRaw as InterfaceDeclaration[];
+    const interfaces: InterfaceDeclaration[] = [];
+    for (let i = 0; i < memberNames.length; i++) {
+      const iface = this.getInterface(memberNames[i]);
+      if (iface !== null) {
+        interfaces.push(iface);
+      }
+    }
 
     if (interfaces.length === 0) {
       return { keys: [], types: [], tsTypes: [] };
@@ -464,7 +467,7 @@ export class TypeResolver {
       const nestedType = this.resolveNestedMemberType(memberExpr.object);
       if (!nestedType) return null;
 
-      const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === nestedType);
+      const ifaceDecl = this.getInterface(nestedType);
       if (ifaceDecl) {
         const iface = ifaceDecl as InterfaceDeclaration;
         let field: { name: string; type: string } | null = null;
@@ -484,7 +487,7 @@ export class TypeResolver {
         }
       }
 
-      const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === nestedType);
+      const classDecl = this.getClass(nestedType);
       if (classDecl) {
         const cls = classDecl as ClassNode;
         let field: { name: string; tsType: string } | null = null;
@@ -521,7 +524,7 @@ export class TypeResolver {
     const parentType = this.resolveNestedMemberType(memberExpr.object);
     if (!parentType) return null;
 
-    const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === parentType);
+    const ifaceDecl = this.getInterface(parentType);
     if (ifaceDecl) {
       const iface = ifaceDecl as InterfaceDeclaration;
       let field: { name: string; type: string } | null = null;
@@ -545,7 +548,7 @@ export class TypeResolver {
       }
     }
 
-    const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === parentType);
+    const classDecl = this.getClass(parentType);
     if (classDecl) {
       const cls = classDecl as ClassNode;
       let field: { name: string; tsType: string } | null = null;
@@ -615,7 +618,7 @@ export class TypeResolver {
       const nestedType = this.resolveNestedMemberType(memberExpr.object);
       if (!nestedType) return null;
 
-      const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === nestedType);
+      const ifaceDecl = this.getInterface(nestedType);
       if (ifaceDecl) {
         const iface = ifaceDecl as InterfaceDeclaration;
         let field: { name: string; type: string } | null = null;
@@ -635,7 +638,7 @@ export class TypeResolver {
         }
       }
 
-      const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === nestedType);
+      const classDecl = this.getClass(nestedType);
       if (classDecl) {
         const cls = classDecl as ClassNode;
         let field: { name: string; tsType: string } | null = null;

@@ -235,6 +235,17 @@ export class MethodCallGenerator {
     return null;
   }
 
+  private getInterfaceDecl(name: string): InterfaceDeclaration | null {
+    if (!this.ctx.ast?.interfaces) return null;
+    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+      if (iface.name === name) {
+        return iface;
+      }
+    }
+    return null;
+  }
+
   private getFunctionFromAST(name: string): FunctionNode | null {
     if (!this.ctx.ast?.functions) return null;
     for (let i = 0; i < this.ctx.ast.functions.length; i++) {
@@ -287,7 +298,7 @@ export class MethodCallGenerator {
       const nestedType = this.resolveNestedMemberType(memberExpr.object);
       if (!nestedType) return null;
 
-      const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === nestedType);
+      const ifaceDecl = this.getInterfaceDecl(nestedType);
       if (ifaceDecl) {
         const iface = ifaceDecl as InterfaceDeclaration;
         let field: { name: string; type: string } | null = null;
@@ -345,7 +356,7 @@ export class MethodCallGenerator {
     const parentType = this.resolveNestedMemberType(memberExpr.object);
     if (!parentType) return null;
 
-    const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === parentType);
+    const ifaceDecl = this.getInterfaceDecl(parentType);
     if (ifaceDecl) {
       const iface = ifaceDecl as InterfaceDeclaration;
       let field: { name: string; type: string } | null = null;
@@ -447,7 +458,7 @@ export class MethodCallGenerator {
       const nestedType = this.resolveNestedMemberType(memberExpr.object);
       if (!nestedType) return null;
 
-      const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === nestedType);
+      const ifaceDecl = this.getInterfaceDecl(nestedType);
       if (ifaceDecl) {
         const iface = ifaceDecl as InterfaceDeclaration;
         let field: { name: string; type: string } | null = null;
@@ -863,7 +874,8 @@ export class MethodCallGenerator {
     }
 
     // Build a helpful error message with supported methods
-    this.throwUnsupportedMethodError(method, expr.object.type, expr.object);
+    const exprObjBase = expr.object as ExprBase;
+    this.throwUnsupportedMethodError(method, exprObjBase.type, expr.object);
   }
 
   private handleExecSync(expr: MethodCallNode, params: string[]): string {
@@ -1189,7 +1201,8 @@ export class MethodCallGenerator {
     let className: string | null = null;
     let instancePtr: string | null = null;
 
-    if (expr.object.type === 'variable') {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
       if (this.ctx.symbolTable.isClass(varName)) {
         const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
@@ -1205,13 +1218,13 @@ export class MethodCallGenerator {
           }
         }
       }
-    } else if (expr.object.type === 'new') {
+    } else if (exprObjBase.type === 'new') {
       const newExpr = expr.object as NewNode;
       className = newExpr.className;
       instancePtr = this.ctx.generateExpression(expr.object, params);
-    } else if (expr.object.type === 'this') {
+    } else if (exprObjBase.type === 'this') {
       if (!this.ctx.thisPointer) {
-        throw new Error('this.method() called outside of class method');
+        throw new Error(`this.${method}() called outside of class method`);
       }
       instancePtr = this.ctx.thisPointer;
       if (this.ctx.currentClassName) {
@@ -1233,9 +1246,10 @@ export class MethodCallGenerator {
         }
         className = classWithMethod.name;
       }
-    } else if (expr.object.type === 'member_access') {
+    } else if (exprObjBase.type === 'member_access') {
       const memberAccess = expr.object as MemberAccessNode;
-      if (memberAccess.object.type === 'this' && this.ctx.currentClassName) {
+      const memberAccessObjBase = memberAccess.object as ExprBase;
+      if (memberAccessObjBase.type === 'this' && this.ctx.currentClassName) {
         const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
@@ -1265,7 +1279,7 @@ export class MethodCallGenerator {
             }
           }
         }
-      } else if (memberAccess.object.type === 'variable') {
+      } else if (memberAccessObjBase.type === 'variable') {
         const varName = (memberAccess.object as VariableNode).name;
         if (this.ctx.symbolTable.isClass(varName)) {
           const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
@@ -1300,14 +1314,14 @@ export class MethodCallGenerator {
             }
           }
         }
-      } else if (memberAccess.object.type === 'member_access') {
+      } else if (memberAccessObjBase.type === 'member_access') {
         const resolvedType = this.resolveNestedMemberAccessType(expr.object);
         if (resolvedType) {
           instancePtr = this.ctx.generateExpression(expr.object, params);
           className = resolvedType;
         }
       }
-    } else if (expr.object.type === 'super') {
+    } else if (exprObjBase.type === 'super') {
       if (!this.ctx.thisPointer) {
         throw new Error('super.method() called outside of class method');
       }
@@ -1325,7 +1339,7 @@ export class MethodCallGenerator {
       if (method === '') {
         return '0';
       }
-    } else if (expr.object.type === 'type_assertion') {
+    } else if (exprObjBase.type === 'type_assertion') {
       const assertExpr = expr.object as TypeAssertionNode;
       const innerExpr = assertExpr.expression;
       const innerExprBase = innerExpr as ExprBase;
@@ -1455,7 +1469,7 @@ export class MethodCallGenerator {
         return null;
       }
 
-      const interfaceDeclResult = this.ctx.ast.interfaces.find((i: InterfaceDeclaration) => i.name === parentType);
+      const interfaceDeclResult = this.getInterfaceDecl(parentType);
       const interfaceDecl = interfaceDeclResult as InterfaceDeclaration;
       if (interfaceDeclResult) {
         let fieldResult: InterfaceField | null = null;
@@ -1502,7 +1516,8 @@ export class MethodCallGenerator {
     const method = expr.method;
     let isObjectMethod = false;
 
-    if (expr.object.type === 'variable') {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
       if (this.ctx.symbolTable.isObject(varName)) {
         const objMetaRaw = this.ctx.symbolTable.getObjectInfo(varName);
@@ -1512,7 +1527,7 @@ export class MethodCallGenerator {
         const objMeta = objMetaRaw as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] | undefined };
         isObjectMethod = objMeta.keys.indexOf(method) !== -1;
       }
-    } else if (expr.object.type === 'object') {
+    } else if (exprObjBase.type === 'object') {
       const objExpr = expr.object as ObjectNode;
       for (let pi = 0; pi < objExpr.properties.length; pi++) {
         const p = objExpr.properties[pi] as { key: string };

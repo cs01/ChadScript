@@ -18,7 +18,9 @@
     "cli-tests": "node --import tsx tools/run-cli-tests.ts",
     "http-tests": "node --import tsx tools/run-http-tests.ts",
     "check-progress": "node --import tsx scripts/check-progress.ts",
-    "examples": "node scripts/run-examples.js"
+    "examples": "node scripts/run-examples.js",
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit && npm run test:fast"
   },
   "keywords": [
     "compiler",

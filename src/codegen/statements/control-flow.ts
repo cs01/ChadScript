@@ -549,6 +549,17 @@ export class ControlFlowGenerator {
     return null;
   }
 
+  private getInterfaceDecl(name: string): InterfaceDeclaration | null {
+    if (!this.ctx.ast?.interfaces) return null;
+    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+      if (iface.name === name) {
+        return iface;
+      }
+    }
+    return null;
+  }
+
   private getObjectArrayInfo(iterable: Expression): ObjectArrayMetadata | null {
     if (iterable.type === 'binary') {
       const binaryExpr = iterable as BinaryNode;
@@ -562,7 +573,8 @@ export class ControlFlowGenerator {
 
     if (iterable.type === 'member_access') {
       const memberAccess = iterable as { type: string; object: Expression; property: string };
-      if (memberAccess.object.type === 'variable') {
+      const memberAccessObjBase = memberAccess.object as ExprBase;
+      if (memberAccessObjBase.type === 'variable') {
         const varName = (memberAccess.object as VariableNode).name;
         const propName = memberAccess.property;
         const fromAST = this.getObjectArrayInfoFromAST(varName, propName);
@@ -690,9 +702,11 @@ export class ControlFlowGenerator {
     const propName = ma.property;
     let intermediateTypeName: string | null = null;
 
-    if (ma.object.type === 'member_access') {
+    const maObjBase = ma.object as ExprBase;
+    if (maObjBase.type === 'member_access') {
       const innerAccess = ma.object as { type: string; object: Expression; property: string };
-      if (innerAccess.object.type === 'this') {
+      const innerAccessObjBase = innerAccess.object as ExprBase;
+      if (innerAccessObjBase.type === 'this') {
         const className = this.ctx.currentClassName;
         if (className) {
           const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, innerAccess.property);
@@ -701,7 +715,7 @@ export class ControlFlowGenerator {
             intermediateTypeName = fieldInfo.tsType;
           }
         }
-      } else if (innerAccess.object.type === 'variable') {
+      } else if (innerAccessObjBase.type === 'variable') {
         const varName = (innerAccess.object as VariableNode).name;
         if (this.ctx.symbolTable.isClass(varName)) {
           const classMeta = this.ctx.symbolTable.getClassInfo(varName);
@@ -1156,7 +1170,7 @@ export class ControlFlowGenerator {
     const foundInterfaces: InterfaceDeclaration[] = [];
     for (let i = 0; i < memberNames.length; i++) {
       const name = memberNames[i];
-      const ifaceResult = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === name);
+      const ifaceResult = this.getInterfaceDecl(name);
       const iface = ifaceResult as InterfaceDeclaration;
       if (ifaceResult) {
         foundInterfaces.push(iface);
@@ -1261,7 +1275,8 @@ export class ControlFlowGenerator {
     if (!memberAccess || !literalValue) return null;
     const ma = memberAccess as { type: string; object: Expression; property: string };
     if (ma.property !== 'type') return null;
-    if (ma.object.type !== 'variable') return null;
+    const maObjBase = ma.object as ExprBase;
+    if (maObjBase.type !== 'variable') return null;
 
     const varName = (ma.object as VariableNode).name;
     const symbol = this.ctx.symbolTable.lookup(varName);
@@ -1270,7 +1285,7 @@ export class ControlFlowGenerator {
     const interfaceName = this.findInterfaceByDiscriminant(literalValue);
     if (!interfaceName) return null;
 
-    const ifaceResult = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === interfaceName);
+    const ifaceResult = this.getInterfaceDecl(interfaceName);
     if (!ifaceResult) return null;
     const iface = ifaceResult as { name: string; fields: { name: string; type: string }[] };
 
@@ -1376,15 +1391,17 @@ export class ControlFlowGenerator {
 
     let valueType: string | null = null;
 
-    if (methodCall.object.type === 'variable') {
+    const methodCallObjBase = methodCall.object as ExprBase;
+    if (methodCallObjBase.type === 'variable') {
       const varName = (methodCall.object as VariableNode).name;
       const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
       if (mapMeta) {
         valueType = mapMeta.valueType;
       }
-    } else if (methodCall.object.type === 'member_access') {
+    } else if (methodCallObjBase.type === 'member_access') {
       const memberExpr = methodCall.object as MemberAccessNode;
-      if (memberExpr.object.type === 'this' && this.ctx.currentClassName) {
+      const memberExprObjBase = memberExpr.object as ExprBase;
+      if (memberExprObjBase.type === 'this' && this.ctx.currentClassName) {
         const mapTypeInfo = this.ctx.typeResolver?.getClassFieldMapType(
           this.ctx.currentClassName,
           memberExpr.property

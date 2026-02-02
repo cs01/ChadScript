@@ -1,4 +1,7 @@
 import { Expression, MethodCallNode } from '../../ast/types.js';
+
+interface ExprBase { type: string; }
+
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
 /**
@@ -22,7 +25,8 @@ export class MathGenerator {
    * Check if this method call is a Math.* method
    */
   canHandle(expr: MethodCallNode): boolean {
-    return expr.object.type === 'variable' &&
+    const exprObjBase = expr.object as ExprBase;
+    return exprObjBase.type === 'variable' &&
            (expr.object as any).name === 'Math' &&
            this.getSupportedMethods().indexOf(expr.method) !== -1;
   }

@@ -48,10 +48,16 @@ export class ClosureAnalyzer {
 
     this.scopeVarNames = [];
     this.scopeVarTypes = [];
+    const scopeVarKeys: string[] = [];
+    const scopeVarValues: string[] = [];
     scopeVars.forEach((llvmType, name) => {
-      this.scopeVarNames.push(name);
-      this.scopeVarTypes.push(llvmType);
+      scopeVarKeys.push(name);
+      scopeVarValues.push(llvmType);
     });
+    for (let i = 0; i < scopeVarKeys.length; i++) {
+      this.scopeVarNames.push(scopeVarKeys[i]);
+      this.scopeVarTypes.push(scopeVarValues[i]);
+    }
 
     for (const param of params) {
       this.declaredVars.add(param);

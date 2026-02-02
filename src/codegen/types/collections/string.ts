@@ -1,6 +1,18 @@
 import { Expression } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { BaseGenerator } from '../../infrastructure/base-generator.js';
+
+interface StringGenContext {
+  nextTemp(): string;
+  nextLabel(prefix: string): string;
+  emit(instruction: string): void;
+  nextString(): string;
+  globalStrings: string[];
+  variableTypes: Map<string, string>;
+  getVariableType(name: string): string | undefined;
+  setVariableType(name: string, type: string): void;
+}
+
 import {
   createStringConstant as createStringConstantImpl,
   convertNumberToString as convertNumberToStringImpl,
@@ -40,16 +52,18 @@ export class StringGenerator {
   private nextString() { return this.ctx.nextString(); }
 
   private createGeneratorShim(): BaseGenerator {
-    return {
-      nextTemp: () => this.nextTemp(),
-      nextLabel: (prefix: string) => this.nextLabel(prefix),
-      emit: (instruction: string) => this.emit(instruction),
-      nextString: () => this.nextString(),
-      globalStrings: this.ctx.globalStrings,
-      variableTypes: this.ctx.variableTypes,
-      getVariableType: (name: string) => this.ctx.getVariableType(name),
-      setVariableType: (name: string, type: string) => this.ctx.setVariableType(name, type),
+    const ctx = this.ctx as StringGenContext;
+    const shim = {
+      nextTemp: function(): string { return ctx.nextTemp(); },
+      nextLabel: function(prefix: string): string { return ctx.nextLabel(prefix); },
+      emit: function(instruction: string): void { ctx.emit(instruction); },
+      nextString: function(): string { return ctx.nextString(); },
+      globalStrings: ctx.globalStrings,
+      variableTypes: ctx.variableTypes,
+      getVariableType: function(name: string): string | undefined { return ctx.getVariableType(name); },
+      setVariableType: function(name: string, type: string): void { ctx.setVariableType(name, type); },
     } as unknown as BaseGenerator;
+    return shim;
   }
 
   // ============================================

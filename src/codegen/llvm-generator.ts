@@ -212,19 +212,9 @@ export class LLVMGenerator extends BaseGenerator {
     // All imported functions are compiled into the same binary, so no external declarations needed.
   }
 
-  // Override reset to preserve top-level variables
+  // Override reset - globals are now preserved by clearLocals()
   reset() {
     super.reset();
-    // Restore top-level object variables after reset
-    this.topLevelObjectVariables.forEach((meta, name) => {
-      this.defineVariable(name, meta.ptr, 'i8*', SymbolKind.Object, 'global', {
-        objectMetadata: { keys: meta.keys, types: meta.types }
-      });
-    });
-    // Restore global variables after reset so functions can access them
-    this.globalVariables.forEach((info, name) => {
-      this.defineVariable(name, `@${name}`, info.llvmType, info.kind, 'global');
-    });
   }
 
   private generateGlobalVariableDeclarations(): string {
@@ -294,6 +284,7 @@ export class LLVMGenerator extends BaseGenerator {
 
         ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
         this.globalVariables.set(name, { llvmType, kind, initialized: false });
+        this.defineVariable(name, `@${name}`, llvmType, kind, 'global');
       }
     }
     if (ir.length > 0) {

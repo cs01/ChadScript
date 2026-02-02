@@ -37,8 +37,8 @@ export class BaseGenerator {
     this.currentLabel = 'entry';
     this.output = [];
 
-    // Clear unified symbol table
-    this.symbolTable.clear();
+    // Clear unified symbol table (preserve globals)
+    this.symbolTable.clearLocals();
 
     // Clear temporary register types
     this.variableTypes.clear();
