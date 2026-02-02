@@ -861,12 +861,15 @@ export class VariableAllocator {
       return { keys, types, tsTypes };
     }
 
-    const typeAlias = this.getTypeAlias(elementType);
-    if (typeAlias && typeAlias.unionMembers) {
-      const commonFieldsResult = this.getUnionCommonFields(typeAlias.unionMembers);
-      const commonFields = commonFieldsResult as UnionCommonFields;
-      if (commonFields.keys.length > 0) {
-        return commonFields;
+    const typeAliasRaw = this.getTypeAlias(elementType);
+    if (typeAliasRaw) {
+      const typeAlias = typeAliasRaw as { name: string; unionMembers: string[] };
+      if (typeAlias.unionMembers) {
+        const commonFieldsResult = this.getUnionCommonFields(typeAlias.unionMembers);
+        const commonFields = commonFieldsResult as UnionCommonFields;
+        if (commonFields.keys.length > 0) {
+          return commonFields;
+        }
       }
     }
 

@@ -158,7 +158,7 @@ export class MemberAccessGenerator {
 
   private getTypeAliasCommonProperties(name: string): { properties: InterfaceProperty[] } | null {
     if (!this.ctx.ast?.typeAliases || !this.ctx.ast?.interfaces) return null;
-    let typeAlias = null;
+    let typeAlias: { name: string; unionMembers: string[] } | null = null;
     for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
       const ta = this.ctx.ast.typeAliases[i] as { name: string; unionMembers: string[] };
       if (ta.name === name) {
@@ -166,10 +166,12 @@ export class MemberAccessGenerator {
         break;
       }
     }
-    if (!typeAlias || typeAlias.unionMembers.length === 0) return null;
+    if (!typeAlias) return null;
+    const typeAliasTyped = typeAlias as { name: string; unionMembers: string[] };
+    if (typeAliasTyped.unionMembers.length === 0) return null;
     const memberInterfaces: { properties: InterfaceProperty[] }[] = [];
-    for (let i = 0; i < typeAlias.unionMembers.length; i++) {
-      const memberName = typeAlias.unionMembers[i];
+    for (let i = 0; i < typeAliasTyped.unionMembers.length; i++) {
+      const memberName = typeAliasTyped.unionMembers[i];
       let found = null;
       for (let j = 0; j < this.ctx.ast.interfaces.length; j++) {
         const iface = this.ctx.ast.interfaces[j] as InterfaceDeclaration;
@@ -189,15 +191,17 @@ export class MemberAccessGenerator {
     }
     if (memberInterfaces.length === 0) return null;
     const commonProps: InterfaceProperty[] = [];
-    const firstProps = memberInterfaces[0].properties;
+    const firstMember = memberInterfaces[0] as { properties: InterfaceProperty[] };
+    const firstProps = firstMember.properties;
     for (let i = 0; i < firstProps.length; i++) {
-      const prop = firstProps[i];
+      const prop = firstProps[i] as InterfaceProperty;
       let existsInAll = true;
       let unifiedType = prop.type;
       for (let j = 1; j < memberInterfaces.length; j++) {
+        const member = memberInterfaces[j] as { properties: InterfaceProperty[] };
         let foundInMember = false;
-        for (let k = 0; k < memberInterfaces[j].properties.length; k++) {
-          const mp = memberInterfaces[j].properties[k] as InterfaceProperty;
+        for (let k = 0; k < member.properties.length; k++) {
+          const mp = member.properties[k] as InterfaceProperty;
           if (mp.name === prop.name) {
             foundInMember = true;
             const otherType = mp.type;
@@ -337,7 +341,9 @@ export class MemberAccessGenerator {
 
     const value = member.value;
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = fadd double ${value.toFixed(1)}, 0.0`);
+    const valueStr = String(value);
+    const formattedValue = valueStr.indexOf('.') === -1 ? valueStr + '.0' : valueStr;
+    this.ctx.emit(`${result} = fadd double ${formattedValue}, 0.0`);
     this.ctx.variableTypes.set(result, 'double');
     return result;
   }
@@ -358,7 +364,14 @@ export class MemberAccessGenerator {
     if (!interfaceDefResult) return null;
     const interfaceDef = interfaceDefResult as InterfaceInfo;
 
-    const propIndex = interfaceDef.properties.findIndex((p: InterfaceProperty) => p.name === expr.property);
+    let propIndex = -1;
+    for (let i = 0; i < interfaceDef.properties.length; i++) {
+      const p = interfaceDef.properties[i] as InterfaceProperty;
+      if (p.name === expr.property) {
+        propIndex = i;
+        break;
+      }
+    }
     if (propIndex === -1) {
       throw new Error(`Property '${expr.property}' not found in interface ${structTypeName}`);
     }
@@ -751,7 +764,14 @@ export class MemberAccessGenerator {
     }
     const innerInterfaceDef = innerInterfaceDefResult as InterfaceInfo;
 
-    const propIndex = innerInterfaceDef.properties.findIndex((p: InterfaceProperty) => p.name === expr.property);
+    let propIndex = -1;
+    for (let i = 0; i < innerInterfaceDef.properties.length; i++) {
+      const p = innerInterfaceDef.properties[i] as InterfaceProperty;
+      if (p.name === expr.property) {
+        propIndex = i;
+        break;
+      }
+    }
     if (propIndex === -1) return null;
 
     const innerPropField = innerInterfaceDef.properties[propIndex] as InterfaceProperty;
@@ -1270,7 +1290,14 @@ export class MemberAccessGenerator {
 
     const objPtr = this.ctx.generateExpression(expr.object, params);
 
-    const propIndex = interfaceDef.fields.findIndex((f) => f.name === expr.property);
+    let propIndex = -1;
+    for (let i = 0; i < interfaceDef.fields.length; i++) {
+      const f = interfaceDef.fields[i] as { name: string; type: string };
+      if (f.name === expr.property) {
+        propIndex = i;
+        break;
+      }
+    }
     if (propIndex === -1) {
       const fieldNames: string[] = [];
       for (let i = 0; i < interfaceDef.fields.length; i++) {
@@ -1470,7 +1497,14 @@ export class MemberAccessGenerator {
         const interfaceDefResult = this.getInterfaceFromAST(paramInterfaceType);
         if (interfaceDefResult) {
           const interfaceDef = interfaceDefResult as InterfaceInfo;
-          const propIndex = interfaceDef.properties.findIndex((p: InterfaceProperty) => p.name === expr.property);
+          let propIndex = -1;
+          for (let pi = 0; pi < interfaceDef.properties.length; pi++) {
+            const p = interfaceDef.properties[pi] as InterfaceProperty;
+            if (p.name === expr.property) {
+              propIndex = pi;
+              break;
+            }
+          }
           if (propIndex !== -1) {
             const propField = interfaceDef.properties[propIndex] as InterfaceProperty;
             const propType = propField.type;
@@ -1553,9 +1587,22 @@ export class MemberAccessGenerator {
     const properties = Array.from(typeInfo.properties!.entries()) as [string, PropertyTypeInfo][];
     const propInfo = typeInfo.properties!.get(property)!;
 
-    const structTypes = properties.map(([_, info]) => info.type);
+    const structTypes: string[] = [];
+    for (let i = 0; i < properties.length; i++) {
+      const entry = properties[i] as [string, PropertyTypeInfo];
+      const info = entry[1];
+      structTypes.push(info.type);
+    }
     const structType = `{ ${structTypes.join(', ')} }`;
-    const propIndex = properties.findIndex(([name, _]) => name === property);
+    let propIndex = -1;
+    for (let i = 0; i < properties.length; i++) {
+      const entry = properties[i] as [string, PropertyTypeInfo];
+      const name = entry[0];
+      if (name === property) {
+        propIndex = i;
+        break;
+      }
+    }
 
     const paramPtr = this.ctx.getVariableAlloca(varName);
     if (!paramPtr) {

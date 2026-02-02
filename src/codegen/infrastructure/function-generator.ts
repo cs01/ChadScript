@@ -152,11 +152,28 @@ export class FunctionGenerator {
         if (paramTypes[i] === 'string') {
           this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
         } else {
-          const interfaceDefResult = this.ctx.ast.interfaces?.find((iface: InterfaceDeclaration) => iface.name === paramTypes[i]);
-          const typeAliasResult = this.ctx.ast.typeAliases?.find((t: TypeAliasDeclaration) => t.name === paramTypes[i]);
-          const typeAlias = typeAliasResult as TypeAliasDeclaration;
+          let interfaceDefResult: { name: string; fields: { name: string; type: string }[] } | null = null;
+          const interfaces = this.ctx.ast.interfaces || [];
+          for (let j = 0; j < interfaces.length; j++) {
+            const iface = interfaces[j] as { name: string; fields: { name: string; type: string }[] };
+            if (iface.name === paramTypes[i]) {
+              interfaceDefResult = iface;
+              break;
+            }
+          }
+
+          let typeAliasResult: { name: string; unionMembers: string[] } | null = null;
+          const typeAliases = this.ctx.ast.typeAliases || [];
+          for (let j = 0; j < typeAliases.length; j++) {
+            const ta = typeAliases[j] as { name: string; unionMembers: string[] };
+            if (ta.name === paramTypes[i]) {
+              typeAliasResult = ta;
+              break;
+            }
+          }
+
           if (interfaceDefResult) {
-            const interfaceDef = interfaceDefResult as InterfaceDeclaration;
+            const interfaceDef = interfaceDefResult as { name: string; fields: { name: string; type: string }[] };
             const keys: string[] = [];
             const types: string[] = [];
             for (let j = 0; j < interfaceDef.fields.length; j++) {
@@ -168,12 +185,12 @@ export class FunctionGenerator {
               objectMetadata: { keys, types },
               declaredType: paramTypes[i]
             });
-          } else if (typeAliasResult && typeAlias.unionMembers) {
-            const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
+          } else if (typeAliasResult && typeAliasResult.unionMembers) {
+            const commonFields = this.getUnionCommonFields(typeAliasResult.unionMembers);
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
               objectMetadata: commonFields,
               unionType: paramTypes[i],
-              unionMembers: typeAlias.unionMembers
+              unionMembers: typeAliasResult.unionMembers
             });
           } else {
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local');
@@ -317,16 +334,24 @@ export class FunctionGenerator {
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
-    const interfacesRaw = memberNames
-      .map(name => this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
-      .filter((i): i is InterfaceDeclaration => i !== undefined);
-    const interfaces = interfacesRaw as InterfaceDeclaration[];
+    const interfaces: { name: string; fields: { name: string; type: string }[] }[] = [];
+    const astInterfaces = this.ctx.ast.interfaces || [];
+    for (let i = 0; i < memberNames.length; i++) {
+      const memberName = memberNames[i];
+      for (let j = 0; j < astInterfaces.length; j++) {
+        const iface = astInterfaces[j] as { name: string; fields: { name: string; type: string }[] };
+        if (iface.name === memberName) {
+          interfaces.push(iface);
+          break;
+        }
+      }
+    }
 
     if (interfaces.length === 0) {
       return { keys: [], types: [] };
     }
 
-    const firstInterface = interfaces[0] as InterfaceDeclaration;
+    const firstInterface = interfaces[0] as { name: string; fields: { name: string; type: string }[] };
     const firstFields = firstInterface.fields;
     const commonFields: CommonField[] = [];
 
