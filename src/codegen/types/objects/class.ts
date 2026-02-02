@@ -32,7 +32,16 @@ export class ClassGenerator {
     let fields = this.classFields.get(className);
 
     if (!fields) {
-      const classNodeResult = this.ast?.classes?.find((c: ClassNode) => c.name === className);
+      let classNodeResult: ClassNode | null = null;
+      if (this.ctx.ast && this.ctx.ast.classes) {
+        for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+          const c = this.ctx.ast.classes[ci] as { name: string };
+          if (c.name === className) {
+            classNodeResult = this.ctx.ast.classes[ci] as ClassNode;
+            break;
+          }
+        }
+      }
       const classNodeInner = classNodeResult as ClassNode;
       if (classNodeResult) {
         fields = classNodeInner.fields;
@@ -54,7 +63,16 @@ export class ClassGenerator {
       }
     }
 
-    const classNodeResult2 = this.ast?.classes?.find((c: ClassNode) => c.name === className);
+    let classNodeResult2: ClassNode | null = null;
+    if (this.ctx.ast && this.ctx.ast.classes) {
+      for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+        const c = this.ctx.ast.classes[ci] as { name: string };
+        if (c.name === className) {
+          classNodeResult2 = this.ctx.ast.classes[ci] as ClassNode;
+          break;
+        }
+      }
+    }
     const classNodeOuter = classNodeResult2 as ClassNode;
     if (classNodeResult2 && classNodeOuter.extends) {
       return this.getFieldInfo(classNodeOuter.extends as string, fieldName);
@@ -66,13 +84,21 @@ export class ClassGenerator {
   // Helper to get just the field type as a string (for ChadScript compatibility)
   getFieldType(className: string, fieldName: string): string | null {
     const info = this.getFieldInfo(className, fieldName);
-    return info ? info.type : null;
+    if (info) {
+      const infoTyped = info as { index: number; type: string; tsType: string };
+      return infoTyped.type;
+    }
+    return null;
   }
 
   // Helper to get just the tsType as a string (for ChadScript compatibility)
   getFieldTsType(className: string, fieldName: string): string | null {
     const info = this.getFieldInfo(className, fieldName);
-    return info?.tsType || null;
+    if (info) {
+      const infoTyped = info as { index: number; type: string; tsType: string };
+      return infoTyped.tsType || null;
+    }
+    return null;
   }
 
   // Helper to get class fields
@@ -92,7 +118,7 @@ export class ClassGenerator {
     if (classNode.fields.length > 0) {
       const fieldTypes: string[] = [];
       for (let fi = 0; fi < classNode.fields.length; fi++) {
-        const f = classNode.fields[fi] as { name: string; fieldType: string; tsType?: string };
+        const f = classNode.fields[fi] as { name: string; fieldType: string; tsType: string };
         if (f.fieldType === 'string') {
           fieldTypes.push('i8*');
         } else if (f.fieldType === 'string[]') {
@@ -101,13 +127,13 @@ export class ClassGenerator {
           fieldTypes.push('%Array*');
         } else if (f.fieldType === 'boolean') {
           fieldTypes.push('i1');
-        } else if (f.tsType?.startsWith('Map<string,')) {
+        } else if (f.tsType && f.tsType.startsWith('Map<string,')) {
           fieldTypes.push('%StringMap*');
-        } else if (f.tsType?.startsWith('Map<')) {
+        } else if (f.tsType && f.tsType.startsWith('Map<')) {
           fieldTypes.push('%Map*');
-        } else if (f.tsType?.startsWith('Set<string>')) {
+        } else if (f.tsType && f.tsType.startsWith('Set<string>')) {
           fieldTypes.push('%StringSet*');
-        } else if (f.tsType?.startsWith('Set<')) {
+        } else if (f.tsType && f.tsType.startsWith('Set<')) {
           fieldTypes.push('%Set*');
         } else {
           fieldTypes.push('double');
@@ -343,27 +369,53 @@ export class ClassGenerator {
   }
 
   generateNewExpression(className: string, args: Expression[], params: string[]): string {
-    const classNodeResult = this.ast?.classes.find((c: ClassNode) => c.name === className);
+    let classNodeResult: ClassNode | null = null;
+    if (this.ctx.ast && this.ctx.ast.classes) {
+      for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+        const c = this.ctx.ast.classes[ci] as { name: string };
+        if (c.name === className) {
+          classNodeResult = this.ctx.ast.classes[ci] as ClassNode;
+          break;
+        }
+      }
+    }
     const classNode = classNodeResult as ClassNode;
     if (!classNodeResult) {
       throw new Error(`Class ${className} not found`);
     }
-    const constructorResult2 = classNode.methods.find((m: ClassMethod) => m.isConstructor);
+    let constructorResult2: ClassMethod | null = null;
+    for (let mi = 0; mi < classNode.methods.length; mi++) {
+      const m = classNode.methods[mi] as { name: string; isConstructor: boolean };
+      if (m.isConstructor) {
+        constructorResult2 = classNode.methods[mi] as ClassMethod;
+        break;
+      }
+    }
     const constructor2 = constructorResult2 as ClassMethod;
-    const paramTypes = constructor2?.paramTypes || [];
-    const paramLLVMTypes: string[] = paramTypes.map((pType: string) => {
-      if (pType === 'string') return 'i8*';
-      if (pType === 'string[]') return '%StringArray*';
-      if (pType === 'number[]' || pType === 'boolean[]') return '%Array*';
-      return 'double'; // number, boolean
-    });
+    const paramTypes = constructor2 ? (constructor2 as { paramTypes: string[] }).paramTypes || [] : [];
+    const paramLLVMTypes: string[] = [];
+    for (let pi = 0; pi < paramTypes.length; pi++) {
+      const pType = paramTypes[pi];
+      if (pType === 'string') {
+        paramLLVMTypes.push('i8*');
+      } else if (pType === 'string[]') {
+        paramLLVMTypes.push('%StringArray*');
+      } else if (pType === 'number[]' || pType === 'boolean[]') {
+        paramLLVMTypes.push('%Array*');
+      } else {
+        paramLLVMTypes.push('double');
+      }
+    }
 
     // Call the constructor with correct parameter types
-    const argValues = args.map((arg, i) => {
+    const argParts: string[] = [];
+    for (let ai = 0; ai < args.length; ai++) {
+      const arg = args[ai];
       const val = this.ctx.generateExpression(arg, params);
-      const argType = i < paramLLVMTypes.length ? paramLLVMTypes[i] : 'double';
-      return `${argType} ${val}`;
-    }).join(', ');
+      const argType = ai < paramLLVMTypes.length ? paramLLVMTypes[ai] : 'double';
+      argParts.push(argType + ' ' + val);
+    }
+    const argValues = argParts.join(', ');
 
     const fields = this.classFields.get(className) || [];
     const returnType = fields.length > 0 ? `%${className}_struct*` : 'double*';
@@ -375,34 +427,59 @@ export class ClassGenerator {
   }
 
   generateMethodCall(instancePtr: string, className: string, methodName: string, args: Expression[], params: string[]): string {
-    const classNodeResult3 = this.ast?.classes.find((c: ClassNode) => c.name === className);
+    let classNodeResult3: ClassNode | null = null;
+    if (this.ctx.ast && this.ctx.ast.classes) {
+      for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+        const c = this.ctx.ast.classes[ci] as { name: string };
+        if (c.name === className) {
+          classNodeResult3 = this.ctx.ast.classes[ci] as ClassNode;
+          break;
+        }
+      }
+    }
     const classNode3 = classNodeResult3 as ClassNode;
     if (!classNodeResult3) {
       throw new Error(`Class ${className} not found`);
     }
-    const methodResult = classNode3.methods.find((m: ClassMethod) => m.name === methodName && !m.isConstructor);
+    let methodResult: ClassMethod | null = null;
+    for (let mi = 0; mi < classNode3.methods.length; mi++) {
+      const m = classNode3.methods[mi] as { name: string; isConstructor: boolean };
+      if (m.name === methodName && !m.isConstructor) {
+        methodResult = classNode3.methods[mi] as ClassMethod;
+        break;
+      }
+    }
     const method = methodResult as ClassMethod;
     if (!methodResult) {
       throw new Error(`Method ${methodName} not found in class ${className}`);
     }
 
     // Determine parameter types
-    const paramTypes = method.paramTypes || [];
-    const paramLLVMTypes: string[] = paramTypes.map((pType: string) => {
-      if (pType === 'string') return 'i8*';
-      if (pType === 'string[]') return '%StringArray*';
-      if (pType === 'number[]' || pType === 'boolean[]') return '%Array*';
-      return 'double'; // number, boolean
-    });
+    const paramTypes = (method as { paramTypes: string[] }).paramTypes || [];
+    const paramLLVMTypes: string[] = [];
+    for (let pi = 0; pi < paramTypes.length; pi++) {
+      const pType = paramTypes[pi];
+      if (pType === 'string') {
+        paramLLVMTypes.push('i8*');
+      } else if (pType === 'string[]') {
+        paramLLVMTypes.push('%StringArray*');
+      } else if (pType === 'number[]' || pType === 'boolean[]') {
+        paramLLVMTypes.push('%Array*');
+      } else {
+        paramLLVMTypes.push('double');
+      }
+    }
 
     // Generate arguments with correct types based on paramTypes
-    const argValues = args.map((arg, i) => {
+    const argParts: string[] = [];
+    for (let ai = 0; ai < args.length; ai++) {
+      const arg = args[ai];
       const val = this.ctx.generateExpression(arg, params);
 
       // Use the declared paramType if available, otherwise infer
       let argType = 'double'; // default for JavaScript semantics
-      if (i < paramLLVMTypes.length) {
-        argType = paramLLVMTypes[i];
+      if (ai < paramLLVMTypes.length) {
+        argType = paramLLVMTypes[ai];
       } else {
         // Fallback inference for variadic or untyped params
         if (this.variableTypes.has(val)) {
@@ -417,19 +494,21 @@ export class ClassGenerator {
         }
       }
 
-      return `${argType} ${val}`;
-    }).join(', ');
+      argParts.push(argType + ' ' + val);
+    }
+    const argValues = argParts.join(', ');
 
     // Determine return type
     let returnLLVMType = 'double'; // default for JavaScript semantics
-    if (method.returnType) {
-      if (method.returnType === 'string') {
+    const methodTyped = method as { returnType: string };
+    if (methodTyped.returnType) {
+      if (methodTyped.returnType === 'string') {
         returnLLVMType = 'i8*';
-      } else if (method.returnType === 'string[]') {
+      } else if (methodTyped.returnType === 'string[]') {
         returnLLVMType = '%StringArray*';
-      } else if (method.returnType === 'number[]' || method.returnType === 'boolean[]') {
+      } else if (methodTyped.returnType === 'number[]' || methodTyped.returnType === 'boolean[]') {
         returnLLVMType = '%Array*';
-      } else if (method.returnType === 'void') {
+      } else if (methodTyped.returnType === 'void') {
         returnLLVMType = 'void';
       }
       // else: number, boolean -> double
