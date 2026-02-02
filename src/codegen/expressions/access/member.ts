@@ -108,9 +108,10 @@ export class MemberAccessGenerator {
   constructor(private ctx: MemberAccessGeneratorContext) {}
 
   private getInterfaceFromAST(name: string): { properties: InterfaceProperty[] } | null {
+    const baseName = this.extractBaseTypeName(name);
     if (!this.ctx.ast?.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      if (this.ctx.ast.interfaces[i].name === name) {
+      if (this.ctx.ast.interfaces[i].name === baseName) {
         const iface = this.ctx.ast.interfaces[i];
         const properties: InterfaceProperty[] = [];
         for (let j = 0; j < iface.fields.length; j++) {
@@ -119,7 +120,99 @@ export class MemberAccessGenerator {
         return { properties };
       }
     }
+    const typeAliasResult = this.getTypeAliasCommonProperties(baseName);
+    if (typeAliasResult) return typeAliasResult;
     return null;
+  }
+
+  private extractBaseTypeName(typeStr: string): string {
+    const parts = typeStr.split('|');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      if (part !== 'null' && part !== 'undefined') {
+        return part;
+      }
+    }
+    return typeStr;
+  }
+
+  private getTypeAliasCommonProperties(name: string): { properties: InterfaceProperty[] } | null {
+    if (!this.ctx.ast?.typeAliases || !this.ctx.ast?.interfaces) return null;
+    let typeAlias = null;
+    for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
+      if (this.ctx.ast.typeAliases[i].name === name) {
+        typeAlias = this.ctx.ast.typeAliases[i];
+        break;
+      }
+    }
+    if (!typeAlias || typeAlias.unionMembers.length === 0) return null;
+    const memberInterfaces: { properties: InterfaceProperty[] }[] = [];
+    for (let i = 0; i < typeAlias.unionMembers.length; i++) {
+      const memberName = typeAlias.unionMembers[i];
+      let found = null;
+      for (let j = 0; j < this.ctx.ast.interfaces.length; j++) {
+        if (this.ctx.ast.interfaces[j].name === memberName) {
+          const iface = this.ctx.ast.interfaces[j];
+          const properties: InterfaceProperty[] = [];
+          for (let k = 0; k < iface.fields.length; k++) {
+            properties.push({ name: iface.fields[k].name, type: iface.fields[k].type });
+          }
+          found = { properties };
+          break;
+        }
+      }
+      if (found) {
+        memberInterfaces.push(found);
+      }
+    }
+    if (memberInterfaces.length === 0) return null;
+    const commonProps: InterfaceProperty[] = [];
+    const firstProps = memberInterfaces[0].properties;
+    for (let i = 0; i < firstProps.length; i++) {
+      const prop = firstProps[i];
+      let existsInAll = true;
+      let unifiedType = prop.type;
+      for (let j = 1; j < memberInterfaces.length; j++) {
+        let foundInMember = false;
+        for (let k = 0; k < memberInterfaces[j].properties.length; k++) {
+          if (memberInterfaces[j].properties[k].name === prop.name) {
+            foundInMember = true;
+            const otherType = memberInterfaces[j].properties[k].type;
+            if (this.areTypesCompatible(unifiedType, otherType)) {
+              unifiedType = this.unifyTypes(unifiedType, otherType);
+            } else {
+              foundInMember = false;
+            }
+            break;
+          }
+        }
+        if (!foundInMember) {
+          existsInAll = false;
+          break;
+        }
+      }
+      if (existsInAll) {
+        commonProps.push({ name: prop.name, type: unifiedType });
+      }
+    }
+    if (commonProps.length === 0) return null;
+    return { properties: commonProps };
+  }
+
+  private areTypesCompatible(type1: string, type2: string): boolean {
+    if (type1 === type2) return true;
+    const isStringLiteral1 = type1.startsWith("'") && type1.endsWith("'");
+    const isStringLiteral2 = type2.startsWith("'") && type2.endsWith("'");
+    if (isStringLiteral1 && isStringLiteral2) return true;
+    if ((isStringLiteral1 && type2 === 'string') || (isStringLiteral2 && type1 === 'string')) return true;
+    return false;
+  }
+
+  private unifyTypes(type1: string, type2: string): string {
+    const isStringLiteral1 = type1.startsWith("'") && type1.endsWith("'");
+    const isStringLiteral2 = type2.startsWith("'") && type2.endsWith("'");
+    if (isStringLiteral1 || isStringLiteral2) return 'string';
+    return type1;
   }
 
   generate(expr: MemberAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
