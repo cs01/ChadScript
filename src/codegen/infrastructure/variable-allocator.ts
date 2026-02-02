@@ -1,6 +1,7 @@
 import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
+import { TypeResolver } from './type-resolver/index.js';
 
 interface ClassGeneratorLike {
   getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[];
@@ -56,6 +57,7 @@ export interface VariableAllocatorContext {
   currentDeclaredInterfaceType: string | undefined;
   currentClassName: string | null;
   typeChecker?: TypeChecker | null;
+  typeResolver?: TypeResolver;
 }
 
 export class VariableAllocator {
@@ -183,6 +185,9 @@ export class VariableAllocator {
   }
 
   private getMapGetInterfaceType(expr: Expression): string | null {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.getMapGetInterfaceType(expr);
+    }
     if (expr?.type !== 'method_call') return null;
     if (expr.method !== 'get') return null;
 
@@ -226,12 +231,15 @@ export class VariableAllocator {
     const allocaReg = this.ctx.nextTemp();
     const keys = interfaceDef.fields.map((f) => f.name);
     const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+    const llvmType = `%${interfaceName}*`;
+    this.ctx.defineVariable(stmt.name, allocaReg, llvmType, SymbolKind.Object, 'local', {
       objectMetadata: { keys, types }
     });
-    this.ctx.emit(`${allocaReg} = alloca i8*`);
+    this.ctx.emit(`${allocaReg} = alloca ${llvmType}`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
+    const typedPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${llvmType}`);
+    this.ctx.emit(`store ${llvmType} ${typedPtr}, ${llvmType}* ${allocaReg}`);
   }
 
   private allocateClassInstance(stmt: VariableDeclaration, params: string[]): void {
@@ -666,6 +674,9 @@ export class VariableAllocator {
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[]; tsTypes: string[] } {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.getUnionCommonFields(memberNames);
+    }
     const interfaces = memberNames
       .map(name => this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
       .filter((i): i is InterfaceDeclaration => i !== undefined);
@@ -694,6 +705,9 @@ export class VariableAllocator {
   }
 
   private areTypesCompatible(type1: string, type2: string): boolean {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.areTypesCompatible(type1, type2);
+    }
     if (type1 === type2) return true;
     const norm1 = this.normalizeType(type1);
     const norm2 = this.normalizeType(type2);
@@ -701,6 +715,9 @@ export class VariableAllocator {
   }
 
   private normalizeType(type: string): string {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.normalizeType(type);
+    }
     if (type.startsWith("'") && type.endsWith("'")) return 'string';
     if (type.startsWith('"') && type.endsWith('"')) return 'string';
     return type;
@@ -717,6 +734,9 @@ export class VariableAllocator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.tsTypeToLlvm(tsType);
+    }
     if (tsType === 'string') return 'i8*';
     if (tsType === 'number') return 'double';
     if (tsType === 'boolean') return 'i1';
@@ -726,6 +746,9 @@ export class VariableAllocator {
   }
 
   private tsTypeToLlvmJson(tsType: string): string {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.tsTypeToLlvmJson(tsType);
+    }
     if (tsType === 'string') return 'i8*';
     if (tsType === 'number') return 'double';
     if (tsType === 'boolean') return 'double';
