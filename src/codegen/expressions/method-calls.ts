@@ -35,6 +35,7 @@ import {
   InterfaceDeclaration,
   InterfaceField,
   RegexNode,
+  TypeAssertionNode,
 } from '../../ast/types.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
@@ -1194,6 +1195,15 @@ export class MethodCallGenerator {
         const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
         className = classMeta.className;
         instancePtr = this.ctx.generateExpression(expr.object, params);
+      } else {
+        const interfaceType = this.ctx.symbolTable.getInterfaceType(varName);
+        if (interfaceType) {
+          const implClass = this.findClassImplementingInterfaceMethod(interfaceType, method);
+          if (implClass) {
+            instancePtr = this.ctx.generateExpression(expr.object, params);
+            className = implClass;
+          }
+        }
       }
     } else if (expr.object.type === 'new') {
       const newExpr = expr.object as NewNode;
@@ -1314,6 +1324,18 @@ export class MethodCallGenerator {
 
       if (method === '') {
         return '0';
+      }
+    } else if (expr.object.type === 'type_assertion') {
+      const assertExpr = expr.object as TypeAssertionNode;
+      const innerExpr = assertExpr.expression;
+      const innerExprBase = innerExpr as ExprBase;
+      if (innerExprBase.type === 'variable') {
+        const varName = (innerExpr as VariableNode).name;
+        if (this.ctx.symbolTable.isClass(varName)) {
+          const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
+          className = classMeta.className;
+          instancePtr = this.ctx.generateExpression(innerExpr, params);
+        }
       }
     }
 

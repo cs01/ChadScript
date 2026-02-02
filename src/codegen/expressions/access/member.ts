@@ -1499,7 +1499,12 @@ export class MemberAccessGenerator {
 
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {
     if (expr.object.type !== 'variable') {
-      throw new Error(this.ctx.formatCodegenError(`Unknown property: ${expr.property} (object type: ${expr.object.type})`));
+      let debugInfo = `Property: ${expr.property}, Object type: ${expr.object.type}`;
+      if (expr.object.type === 'member_access') {
+        const innerExpr = expr.object as MemberAccessNode;
+        debugInfo += `, Inner property: ${innerExpr.property}, Inner object type: ${innerExpr.object.type}`;
+      }
+      throw new Error(this.ctx.formatCodegenError(`Unknown property access: ${debugInfo}`));
     }
 
     const varName = (expr.object as VariableNode).name;

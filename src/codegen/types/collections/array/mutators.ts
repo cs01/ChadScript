@@ -1,12 +1,21 @@
-import { MethodCallNode } from '../../../../ast/types.js';
-import { BaseGenerator } from '../../../infrastructure/base-generator.js';
+import { Expression, MethodCallNode } from '../../../../ast/types.js';
+
+interface ArrayMutatorContext {
+  nextTemp(): string;
+  nextLabel(prefix: string): string;
+  emit(instruction: string): void;
+  getVariableType(name: string): string | undefined;
+  setVariableType(name: string, type: string): void;
+  getDoubleSize(): string;
+  generateExpression(expr: Expression, params: string[]): string;
+}
 
 /**
  * Array mutator operations (push, pop)
  */
 
 export function generateArrayPush(
-  gen: BaseGenerator,
+  gen: ArrayMutatorContext,
   expr: MethodCallNode,
   params: string[]
 ): string {
@@ -15,13 +24,13 @@ export function generateArrayPush(
     throw new Error('push() requires exactly 1 argument');
   }
 
-  const arrayPtr = (gen as any).generateExpression(expr.object, params);
-  const value = (gen as any).generateExpression(expr.args[0], params);
+  const arrayPtr = gen.generateExpression(expr.object, params);
+  const value = gen.generateExpression(expr.args[0], params);
 
   // Determine if this is a string array or number array
   let isStringArray = false;
   if (expr.object.type === 'variable') {
-    const varName = (expr.object as any).name;
+    const varName = (expr.object as { name: string }).name;
     const varType = gen.getVariableType(varName);
     isStringArray = varType === '%StringArray*';
   } else {
@@ -38,7 +47,7 @@ export function generateArrayPush(
 }
 
 export function generateArrayPop(
-  gen: BaseGenerator,
+  gen: ArrayMutatorContext,
   expr: MethodCallNode,
   params: string[]
 ): string {
@@ -47,12 +56,12 @@ export function generateArrayPop(
     throw new Error('pop() requires 0 arguments');
   }
 
-  const arrayPtr = (gen as any).generateExpression(expr.object, params);
+  const arrayPtr = gen.generateExpression(expr.object, params);
 
   // Determine if this is a string array or number array
   let isStringArray = false;
   if (expr.object.type === 'variable') {
-    const varName = (expr.object as any).name;
+    const varName = (expr.object as { name: string }).name;
     const varType = gen.getVariableType(varName);
     isStringArray = varType === '%StringArray*';
   } else {
@@ -67,7 +76,7 @@ export function generateArrayPop(
   }
 }
 
-function generateIntArrayPop(gen: BaseGenerator, arrayPtr: string): string {
+function generateIntArrayPop(gen: ArrayMutatorContext, arrayPtr: string): string {
   // Pop from %Array (int/boolean array)
 
   // Load current length
@@ -122,7 +131,7 @@ function generateIntArrayPop(gen: BaseGenerator, arrayPtr: string): string {
   return result;
 }
 
-function generateStringArrayPop(gen: BaseGenerator, arrayPtr: string): string {
+function generateStringArrayPop(gen: ArrayMutatorContext, arrayPtr: string): string {
   // Pop from %StringArray (string array)
 
   // Load current length
@@ -180,7 +189,7 @@ function generateStringArrayPop(gen: BaseGenerator, arrayPtr: string): string {
   return result;
 }
 
-function generateIntArrayPush(gen: BaseGenerator, arrayPtr: string, value: string): string {
+function generateIntArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value: string): string {
   // Push to %Array (int/boolean array)
 
   // Load current length
@@ -277,7 +286,7 @@ function generateIntArrayPush(gen: BaseGenerator, arrayPtr: string, value: strin
   return newLenDouble;
 }
 
-function generateStringArrayPush(gen: BaseGenerator, arrayPtr: string, value: string): string {
+function generateStringArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value: string): string {
   // Push to %StringArray (string array)
 
   // Load current length

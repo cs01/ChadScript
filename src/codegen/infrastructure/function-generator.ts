@@ -152,6 +152,16 @@ export class FunctionGenerator {
         if (paramTypes[i] === 'string') {
           this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
         } else {
+          let classDefResult: { name: string } | null = null;
+          const classes = this.ctx.ast.classes || [];
+          for (let j = 0; j < classes.length; j++) {
+            const cls = classes[j] as { name: string };
+            if (cls.name === paramTypes[i]) {
+              classDefResult = cls;
+              break;
+            }
+          }
+
           let interfaceDefResult: { name: string; fields: { name: string; type: string }[] } | null = null;
           const interfaces = this.ctx.ast.interfaces || [];
           for (let j = 0; j < interfaces.length; j++) {
@@ -172,7 +182,11 @@ export class FunctionGenerator {
             }
           }
 
-          if (interfaceDefResult) {
+          if (classDefResult) {
+            this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Class, 'local', {
+              classMetadata: { className: classDefResult.name }
+            });
+          } else if (interfaceDefResult) {
             const interfaceDef = interfaceDefResult as { name: string; fields: { name: string; type: string }[] };
             const keys: string[] = [];
             const types: string[] = [];
@@ -183,7 +197,7 @@ export class FunctionGenerator {
             }
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
               objectMetadata: { keys, types },
-              declaredType: paramTypes[i]
+              interfaceType: paramTypes[i]
             });
           } else if (typeAliasResult && typeAliasResult.unionMembers) {
             const commonFields = this.getUnionCommonFields(typeAliasResult.unionMembers);

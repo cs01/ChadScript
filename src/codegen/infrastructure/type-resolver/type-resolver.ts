@@ -3,6 +3,8 @@ import { SymbolTable, ObjectMetadata } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo, ClassGeneratorLike } from './types.js';
 
+interface ExprBase { type: string; }
+
 export interface TypeResolverContext {
   ast?: AST;
   symbolTable: SymbolTable;
@@ -78,12 +80,14 @@ export class TypeResolver {
   }
 
   private resolveMemberAccessObjectType(expr: Expression): string | null {
-    if (expr.type === 'this') {
+    const exprBase = expr as ExprBase;
+    if (exprBase.type === 'this') {
       return this.ctx.currentClassName || null;
     }
-    if (expr.type === 'member_access') {
+    if (exprBase.type === 'member_access') {
       const member = expr as MemberAccessNode;
-      if (member.object.type === 'this') {
+      const memberObjBase = member.object as ExprBase;
+      if (memberObjBase.type === 'this') {
         if (this.ctx.currentClassName && this.ctx.classGen) {
           const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, member.property);
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
@@ -286,7 +290,8 @@ export class TypeResolver {
       valueType = mapMeta.valueType;
     } else if (methodCall.object?.type === 'member_access') {
       const memberExpr = methodCall.object as MemberAccessNode;
-      if (memberExpr.object.type !== 'this') return null;
+      const memberExprObjBase = memberExpr.object as ExprBase;
+      if (memberExprObjBase.type !== 'this') return null;
       if (!this.ctx.currentClassName) return null;
 
       const mapType = this.getClassFieldMapType(this.ctx.currentClassName, memberExpr.property);
@@ -306,14 +311,16 @@ export class TypeResolver {
   }
 
   resolveIndexedAccessType(expr: IndexAccessNode): ObjectMetadata | null {
-    if (expr.object.type !== 'member_access') return null;
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type !== 'member_access') return null;
 
     const memberAccess = expr.object as MemberAccessNode;
     const propertyName = memberAccess.property;
 
     let objectMeta: ObjectMetadata | undefined;
 
-    if (memberAccess.object.type === 'variable') {
+    const memberAccessObjBase = memberAccess.object as ExprBase;
+    if (memberAccessObjBase.type === 'variable') {
       const varName = (memberAccess.object as VariableNode).name;
       objectMeta = this.ctx.symbolTable.getObjectInfo(varName);
     }
@@ -358,7 +365,8 @@ export class TypeResolver {
     const memberAccess = memberAccessVar as MemberAccessNode;
     const literalValue = literalValueVar as string;
     if (memberAccess.property !== 'type') return null;
-    if (memberAccess.object.type !== 'variable') return null;
+    const memberAccessObjBase2 = memberAccess.object as ExprBase;
+    if (memberAccessObjBase2.type !== 'variable') return null;
 
     const varName = (memberAccess.object as VariableNode).name;
     const symbol = this.ctx.symbolTable.lookup(varName);
@@ -433,10 +441,12 @@ export class TypeResolver {
   }
 
   getThisFieldMapType(expr: Expression): ThisFieldMapInfo | null {
-    if (expr.type !== 'member_access') return null;
+    const exprBase = expr as ExprBase;
+    if (exprBase.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
 
-    if (memberExpr.object.type === 'this') {
+    const memberExprObjBase = memberExpr.object as ExprBase;
+    if (memberExprObjBase.type === 'this') {
       const fieldName = memberExpr.property;
       if (!this.ctx.currentClassName) return null;
 
@@ -450,7 +460,7 @@ export class TypeResolver {
       return { fieldName, keyType: mapMatch[1], valueType: mapMatch[2] };
     }
 
-    if (memberExpr.object.type === 'member_access') {
+    if (memberExprObjBase.type === 'member_access') {
       const nestedType = this.resolveNestedMemberType(memberExpr.object);
       if (!nestedType) return null;
 
@@ -565,9 +575,11 @@ export class TypeResolver {
   }
 
   getThisFieldSetType(expr: Expression): ThisFieldSetInfo | null {
-    if (expr.type !== 'member_access') return null;
+    const exprBaseSet = expr as ExprBase;
+    if (exprBaseSet.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
-    if (memberExpr.object.type !== 'this') return null;
+    const memberExprObjBaseSet = memberExpr.object as ExprBase;
+    if (memberExprObjBaseSet.type !== 'this') return null;
 
     const fieldName = memberExpr.property;
     if (!this.ctx.currentClassName) return null;
@@ -583,10 +595,12 @@ export class TypeResolver {
   }
 
   getThisFieldMapKeyType(expr: Expression): string | null {
-    if (expr.type !== 'member_access') return null;
+    const exprBaseKey = expr as ExprBase;
+    if (exprBaseKey.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
 
-    if (memberExpr.object.type === 'this') {
+    const memberExprObjBaseKey = memberExpr.object as ExprBase;
+    if (memberExprObjBaseKey.type === 'this') {
       if (!this.ctx.currentClassName) return null;
       const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, memberExpr.property);
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
@@ -597,7 +611,7 @@ export class TypeResolver {
       return mapMatch[1];
     }
 
-    if (memberExpr.object.type === 'member_access') {
+    if (memberExprObjBaseKey.type === 'member_access') {
       const nestedType = this.resolveNestedMemberType(memberExpr.object);
       if (!nestedType) return null;
 
@@ -648,9 +662,11 @@ export class TypeResolver {
   }
 
   getThisFieldSetValueType(expr: Expression): string | null {
-    if (expr.type !== 'member_access') return null;
+    const exprBaseSetVal = expr as ExprBase;
+    if (exprBaseSetVal.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
-    if (memberExpr.object.type !== 'this') return null;
+    const memberExprObjBaseSetVal = memberExpr.object as ExprBase;
+    if (memberExprObjBaseSetVal.type !== 'this') return null;
 
     if (!this.ctx.currentClassName) return null;
     const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, memberExpr.property);

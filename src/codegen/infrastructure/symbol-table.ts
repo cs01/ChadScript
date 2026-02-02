@@ -282,6 +282,17 @@ export class SymbolTable {
   }
 
   /**
+   * Get interface type for a variable (if it's an interface-typed object)
+   */
+  getInterfaceType(name: string): string | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol) {
+      return symbol.interfaceType;
+    }
+    return undefined;
+  }
+
+  /**
    * Check if alloca contains a pointer (requires load) vs value directly
    */
   isPointerAlloca(name: string): boolean {
