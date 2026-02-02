@@ -105,7 +105,7 @@ const smokeTests: TestCase[] = [
   {
     name: 'logical-operators',
     fixture: 'tests/fixtures/logical/logical-operators.js',
-    expectedExitCode: 1,
+    expectedExitCode: 5,
     description: 'Logical: || and && should work'
   }
 ];

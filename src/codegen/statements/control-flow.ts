@@ -39,6 +39,11 @@ export class ControlFlowGenerator {
       const condBool = this.nextTemp();
       this.emit(`${condBool} = fcmp one double ${value}, 0.0`);
       return condBool;
+    } else if (valueType && valueType.indexOf('*') !== -1) {
+      // Value is a pointer type, check if non-null
+      const condBool = this.nextTemp();
+      this.emit(`${condBool} = icmp ne ${valueType} ${value}, null`);
+      return condBool;
     } else {
       // Value is i32 or unknown (assume i32), convert to double then use fcmp
       const condDouble = this.nextTemp();
@@ -1123,43 +1128,57 @@ export class ControlFlowGenerator {
   }
 
   generateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string {
-    // For && and ||, we need short-circuit evaluation
-    // We'll use a simpler non-short-circuit version for now (like C's & and |)
+    // JavaScript semantics: return the value, not a boolean
+    // a || b: returns a if truthy, otherwise b
+    // a && b: returns a if falsy, otherwise b
+
     const leftValue = this.ctx.generateExpression(left, params);
-    const rightValue = this.ctx.generateExpression(right, params);
-
-    // Convert both to booleans (0 or 1)
+    const leftType = this.ctx.getVariableType(leftValue) || 'double';
     const leftBool = this.convertToBool(leftValue);
-    const leftInt = this.nextTemp();
-    this.emit(`${leftInt} = zext i1 ${leftBool} to i32`);
+    const leftEndLabel = this.ctx.getCurrentLabel();
 
-    const rightBool = this.convertToBool(rightValue);
-    const rightInt = this.nextTemp();
-    this.emit(`${rightInt} = zext i1 ${rightBool} to i32`);
+    const evalRightLabel = this.nextLabel('logop_eval_right');
+    const endLabel = this.nextLabel('logop_end');
 
-    if (op === '&&') {
-      // Both must be non-zero (use integer multiply)
-      const i32Result = this.nextTemp();
-      this.emit(`${i32Result} = mul i32 ${leftInt}, ${rightInt}`);
-      // Convert to double for JavaScript semantics
-      const result = this.nextTemp();
-      this.emit(`${result} = sitofp i32 ${i32Result} to double`);
-      this.ctx.setVariableType(result, 'double');
-      return result;
+    if (op === '||') {
+      this.emit(`br i1 ${leftBool}, label %${endLabel}, label %${evalRightLabel}`);
     } else {
-      // At least one must be non-zero (add and clamp to 1)
-      const sum = this.nextTemp();
-      this.emit(`${sum} = add i32 ${leftInt}, ${rightInt}`);
-      const cmp = this.nextTemp();
-      this.emit(`${cmp} = icmp ne i32 ${sum}, 0`);
-      const i32Result = this.nextTemp();
-      this.emit(`${i32Result} = zext i1 ${cmp} to i32`);
-      // Convert to double for JavaScript semantics
-      const result = this.nextTemp();
-      this.emit(`${result} = sitofp i32 ${i32Result} to double`);
-      this.ctx.setVariableType(result, 'double');
-      return result;
+      this.emit(`br i1 ${leftBool}, label %${evalRightLabel}, label %${endLabel}`);
     }
+
+    this.emit(`${evalRightLabel}:`);
+    const rightValue = this.ctx.generateExpression(right, params);
+    const rightType = this.ctx.getVariableType(rightValue) || 'double';
+    const evalRightEndLabel = this.ctx.getCurrentLabel();
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${endLabel}:`);
+
+    const resultType = this.getPhiType(leftType, rightType);
+    const leftForPhi = this.coerceToType(leftValue, leftType, resultType);
+    const rightForPhi = this.coerceToType(rightValue, rightType, resultType);
+
+    const result = this.nextTemp();
+    this.emit(`${result} = phi ${resultType} [ ${leftForPhi}, %${leftEndLabel} ], [ ${rightForPhi}, %${evalRightEndLabel} ]`);
+    this.ctx.setVariableType(result, resultType);
+    return result;
+  }
+
+  private getPhiType(type1: string, type2: string): string {
+    if (type1 === type2) return type1;
+    if (type1.indexOf('*') !== -1) return type1;
+    if (type2.indexOf('*') !== -1) return type2;
+    return 'double';
+  }
+
+  private coerceToType(value: string, fromType: string, toType: string): string {
+    if (fromType === toType) return value;
+    if (toType.indexOf('*') !== -1 && fromType === 'double') {
+      const coerced = this.nextTemp();
+      this.emit(`${coerced} = inttoptr i64 0 to ${toType}`);
+      return coerced;
+    }
+    return value;
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[]; tsTypes: string[] } {
@@ -1246,7 +1265,7 @@ export class ControlFlowGenerator {
   private fieldTypeToLlvm(fieldType: string): string {
     if (fieldType === 'string') return 'i8*';
     if (fieldType === 'number') return 'double';
-    if (fieldType === 'boolean') return 'i8*';
+    if (fieldType === 'boolean') return 'double';
     if (fieldType.startsWith("'") || fieldType.startsWith('"')) return 'i8*';
     return 'i8*';
   }
