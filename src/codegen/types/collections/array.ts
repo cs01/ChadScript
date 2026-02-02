@@ -153,7 +153,7 @@ export class ArrayGenerator {
     let predicateFn: string;
 
     if (predicateArg.type === 'variable') {
-      predicateFn = predicateArg.name;
+      predicateFn = (predicateArg as VariableNode).name;
     } else if (predicateArg.type === 'arrow_function') {
       // Inline function - generate it and get the name
       predicateFn = generateExpressionFn(predicateArg, params);
@@ -222,6 +222,80 @@ export class ArrayGenerator {
     this.emit(`br label %${checkLabel}`);
 
     // End
+    this.emit(`${endLabel}:`);
+    const resultI32 = this.nextTemp();
+    this.emit(`${resultI32} = load i32, i32* ${resultPtr}`);
+    const result = this.nextTemp();
+    this.emit(`${result} = sitofp i32 ${resultI32} to double`);
+    return result;
+  }
+
+  generateArrayEvery(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+    if (expr.args.length !== 1) {
+      throw new Error('every() requires exactly 1 argument (predicate function)');
+    }
+
+    const predicateArg = expr.args[0];
+    let predicateFn: string;
+
+    if (predicateArg.type === 'variable') {
+      predicateFn = (predicateArg as VariableNode).name;
+    } else if (predicateArg.type === 'arrow_function') {
+      predicateFn = generateExpressionFn(predicateArg, params);
+    } else {
+      throw new Error('every() argument must be a function name or inline function');
+    }
+
+    const arrayPtr = generateExpressionFn(expr.object, params);
+    const { length, dataPtr } = this.loadArrayMeta(arrayPtr);
+
+    const loopLabel = this.nextLabel('every_loop');
+    const checkLabel = this.nextLabel('every_check');
+    const bodyLabel = this.nextLabel('every_body');
+    const failedLabel = this.nextLabel('every_failed');
+    const endLabel = this.nextLabel('every_end');
+
+    const counterPtr = this.nextTemp();
+    this.emit(`${counterPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${counterPtr}`);
+
+    const resultPtr = this.nextTemp();
+    this.emit(`${resultPtr} = alloca i32`);
+    this.emit(`store i32 1, i32* ${resultPtr}`);
+
+    this.emit(`br label %${checkLabel}`);
+
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    this.emit(`${bodyLabel}:`);
+
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load double, double* ${elemPtr}`);
+
+    const predicateResult = this.nextTemp();
+    this.emit(`${predicateResult} = call double @${predicateFn}(double ${elem})`);
+
+    const isFalsy = this.nextTemp();
+    this.emit(`${isFalsy} = fcmp oeq double ${predicateResult}, 0.0`);
+    this.emit(`br i1 ${isFalsy}, label %${failedLabel}, label %${loopLabel}`);
+
+    this.emit(`${failedLabel}:`);
+    this.emit(`store i32 0, i32* ${resultPtr}`);
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${loopLabel}:`);
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
     this.emit(`${endLabel}:`);
     const resultI32 = this.nextTemp();
     this.emit(`${resultI32} = load i32, i32* ${resultPtr}`);

@@ -141,10 +141,11 @@ export class TypeInference {
       return true;
     }
     if (expr.type === 'variable') {
-      if (this.ctx.symbolTable.isNumberArray(expr.name)) {
+      const varExpr = expr as VariableNode;
+      if (this.ctx.symbolTable.isNumberArray(varExpr.name)) {
         return true;
       }
-      const varType = this.ctx.symbolTable.getType(expr.name);
+      const varType = this.ctx.symbolTable.getType(varExpr.name);
       if (varType === '%Array*') {
         return true;
       }
@@ -156,8 +157,8 @@ export class TypeInference {
     }
     if (expr.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
-      if (memberExpr.object.type === 'variable' && this.ctx.symbolTable.isClass(memberExpr.object.name)) {
-        const className = this.ctx.symbolTable.getClassName(memberExpr.object.name);
+      if (memberExpr.object.type === 'variable' && this.ctx.symbolTable.isClass((memberExpr.object as VariableNode).name)) {
+        const className = this.ctx.symbolTable.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
           const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
           if (fieldType === 'number[]' || fieldType === 'boolean[]') {
@@ -183,7 +184,7 @@ export class TypeInference {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.ctx.symbolTable.isObject(expr.name);
+      return this.ctx.symbolTable.isObject((expr as VariableNode).name);
     }
     return false;
   }
@@ -193,7 +194,7 @@ export class TypeInference {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.ctx.symbolTable.isMap(expr.name);
+      return this.ctx.symbolTable.isMap((expr as VariableNode).name);
     }
     return false;
   }
@@ -203,7 +204,7 @@ export class TypeInference {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.ctx.symbolTable.isSet(expr.name);
+      return this.ctx.symbolTable.isSet((expr as VariableNode).name);
     }
     return false;
   }
@@ -222,7 +223,7 @@ export class TypeInference {
       }
     }
     if (expr.type === 'variable') {
-      const varType = this.ctx.symbolTable.getType(expr.name);
+      const varType = this.ctx.symbolTable.getType((expr as VariableNode).name);
       if (varType === 'i8*') {
         return true;
       }
@@ -237,7 +238,7 @@ export class TypeInference {
     if (expr.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
       if (memberExpr.object.type === 'variable') {
-        const varName = memberExpr.object.name;
+        const varName = (memberExpr.object as VariableNode).name;
         const propType = this.ctx.symbolTable.getObjectPropertyType(varName, memberExpr.property);
         if (propType === 'i8*') {
           return true;
@@ -277,13 +278,13 @@ export class TypeInference {
       if (indexExpr.object.type === 'member_access') {
         const memberAccess = indexExpr.object as MemberAccessNode;
         if (memberAccess.object.type === 'variable' &&
-            memberAccess.object.name === 'process' &&
+            (memberAccess.object as VariableNode).name === 'process' &&
             memberAccess.property === 'argv') {
           return true;
         }
       }
       if (indexExpr.object.type === 'variable') {
-        const varName = indexExpr.object.name;
+        const varName = (indexExpr.object as VariableNode).name;
         const varType = this.ctx.symbolTable.getType(varName);
         if (varType === '%StringArray*') {
           return true;
@@ -291,7 +292,7 @@ export class TypeInference {
       }
       if (indexExpr.object.type === 'member_access') {
         const memberAccess = indexExpr.object as MemberAccessNode;
-        if (memberAccess.object.type === 'variable' && memberAccess.object.name === 'this') {
+        if (memberAccess.object.type === 'variable' && (memberAccess.object as VariableNode).name === 'this') {
           const className = this.ctx.currentClassName;
           if (className) {
             const fieldType = this.ctx.classGen?.getFieldType(className, memberAccess.property);
@@ -300,8 +301,8 @@ export class TypeInference {
             }
           }
         }
-        if (memberAccess.object.type === 'variable' && this.ctx.symbolTable.isClass(memberAccess.object.name)) {
-          const className = this.ctx.symbolTable.getClassName(memberAccess.object.name);
+        if (memberAccess.object.type === 'variable' && this.ctx.symbolTable.isClass((memberAccess.object as VariableNode).name)) {
+          const className = this.ctx.symbolTable.getClassName((memberAccess.object as VariableNode).name);
           if (className) {
             const fieldType = this.ctx.classGen?.getFieldType(className, memberAccess.property);
             if (fieldType === 'string[]') {
@@ -374,7 +375,7 @@ export class TypeInference {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.ctx.symbolTable.isRegex(expr.name);
+      return this.ctx.symbolTable.isRegex((expr as VariableNode).name);
     }
     return false;
   }
@@ -388,7 +389,7 @@ export class TypeInference {
       return true;
     }
     if (expr.type === 'variable') {
-      return this.ctx.symbolTable.isClass(expr.name);
+      return this.ctx.symbolTable.isClass((expr as VariableNode).name);
     }
     return false;
   }
@@ -397,7 +398,7 @@ export class TypeInference {
     if (expr.type === 'new' && (expr as NewNode).className === 'Promise') {
       return true;
     }
-    if (expr.type === 'call' && expr.name === 'fetch') {
+    if (expr.type === 'call' && (expr as CallNode).name === 'fetch') {
       return true;
     }
     if (expr.type === 'method_call') {
@@ -410,11 +411,11 @@ export class TypeInference {
       }
     }
     if (expr.type === 'variable') {
-      const varType = this.ctx.symbolTable.getType(expr.name);
+      const varType = this.ctx.symbolTable.getType((expr as VariableNode).name);
       return varType === '%Promise*';
     }
     if (expr.type === 'call') {
-      const func = this.getFunction(expr.name);
+      const func = this.getFunction((expr as CallNode).name);
       if (func && func.async) {
         return true;
       }
@@ -424,7 +425,7 @@ export class TypeInference {
 
   isResponseExpression(expr: Expression): boolean {
     if (expr.type === 'variable') {
-      const varType = this.ctx.symbolTable.getType(expr.name);
+      const varType = this.ctx.symbolTable.getType((expr as VariableNode).name);
       if (varType === '%Response*') {
         return true;
       }
@@ -497,14 +498,14 @@ export class TypeInference {
              (methodCall.object as VariableNode).name === 'JSON';
     }
     if (expr.type === 'variable') {
-      return this.ctx.symbolTable.isJSON(expr.name);
+      return this.ctx.symbolTable.isJSON((expr as VariableNode).name);
     }
     return false;
   }
 
   isStringArrayExpression(expr: Expression): boolean {
     if (expr.type === 'variable') {
-      const varType = this.ctx.symbolTable.getType(expr.name);
+      const varType = this.ctx.symbolTable.getType((expr as VariableNode).name);
       if (varType === '%StringArray*') {
         return true;
       }
@@ -525,12 +526,12 @@ export class TypeInference {
     if (expr.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
       if (memberExpr.object.type === 'variable' &&
-          memberExpr.object.name === 'process' &&
+          (memberExpr.object as VariableNode).name === 'process' &&
           memberExpr.property === 'argv') {
         return true;
       }
-      if (memberExpr.object.type === 'variable' && this.ctx.symbolTable.isClass(memberExpr.object.name)) {
-        const className = this.ctx.symbolTable.getClassName(memberExpr.object.name);
+      if (memberExpr.object.type === 'variable' && this.ctx.symbolTable.isClass((memberExpr.object as VariableNode).name)) {
+        const className = this.ctx.symbolTable.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
           const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
           if (fieldType === 'string[]') {
