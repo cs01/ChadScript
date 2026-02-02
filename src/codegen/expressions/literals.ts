@@ -148,7 +148,7 @@ export class LiteralExpressionGenerator {
 
     const declaredType = this.ctx.currentDeclaredMapType;
     if (declaredType) {
-      const match = declaredType.match(/^Map<\s*(\w+)\s*,\s*(\w+)\s*>$/);
+      const match = declaredType.match(/^Map<\s*(\w+)\s*,\s*(.+)\s*>$/);
       if (match && match[1] === 'string') {
         return this.ctx.stringMapGen.generateEmptyStringMap();
       }

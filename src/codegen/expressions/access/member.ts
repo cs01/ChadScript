@@ -387,6 +387,26 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = uitofp i1 ${boolValue} to double`);
       this.ctx.variableTypes.set(value, 'double');
       return value;
+    } else if (fieldInfo.tsType?.startsWith('Map<string,')) {
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load %StringMap*, %StringMap** ${fieldPtr}`);
+      this.ctx.variableTypes.set(value, '%StringMap*');
+      return value;
+    } else if (fieldInfo.tsType?.startsWith('Map<')) {
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load %Map*, %Map** ${fieldPtr}`);
+      this.ctx.variableTypes.set(value, '%Map*');
+      return value;
+    } else if (fieldInfo.tsType === 'Set<string>') {
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load %StringSet*, %StringSet** ${fieldPtr}`);
+      this.ctx.variableTypes.set(value, '%StringSet*');
+      return value;
+    } else if (fieldInfo.tsType?.startsWith('Set<')) {
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load %Set*, %Set** ${fieldPtr}`);
+      this.ctx.variableTypes.set(value, '%Set*');
+      return value;
     } else {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
