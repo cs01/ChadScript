@@ -33,7 +33,7 @@ export class TypeResolver {
     const types: string[] = [];
     const tsTypes: string[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i];
+      const f = iface.fields[i] as InterfaceField;
       keys.push(f.name);
       types.push(this.tsTypeToLlvm(f.type));
       tsTypes.push(f.type);
@@ -453,7 +453,7 @@ export class TypeResolver {
 
     if (method !== 'find') return null;
 
-    const arrayExpr = methodCall.object;
+    const arrayExpr = methodCall.object as { type: string };
 
     if (arrayExpr.type === 'member_access') {
       const memberAccess = arrayExpr as MemberAccessNode;
@@ -461,7 +461,7 @@ export class TypeResolver {
 
       let objectMeta: ObjectMetadata | undefined;
 
-      const memberObj = memberAccess.object;
+      const memberObj = memberAccess.object as { type: string };
       if (memberObj.type === 'variable') {
         const varName = (memberObj as VariableNode).name;
         objectMeta = this.ctx.symbolTable.getObjectInfo(varName);

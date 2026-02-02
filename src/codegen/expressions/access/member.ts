@@ -361,7 +361,8 @@ export class MemberAccessGenerator {
       throw new Error(`Property '${expr.property}' not found in interface ${structTypeName}`);
     }
 
-    const propType = interfaceDef.properties[propIndex].type;
+    const propField = interfaceDef.properties[propIndex] as InterfaceProperty;
+    const propType = propField.type;
     const varPtr = this.ctx.getVariableAlloca((expr.object as VariableNode).name);
     const structPtr = this.ctx.nextTemp();
     this.ctx.emit(`${structPtr} = load %${structTypeName}*, %${structTypeName}** ${varPtr}`);
@@ -573,7 +574,7 @@ export class MemberAccessGenerator {
       const tsTypes: string[] = [];
       const types: string[] = [];
       for (let i = 0; i < interfaceDef.fields.length; i++) {
-        const f = interfaceDef.fields[i];
+        const f = interfaceDef.fields[i] as InterfaceField;
         keys.push(f.name);
         tsTypes.push(f.type);
         types.push(this.tsTypeToLlvm(f.type));
@@ -619,7 +620,7 @@ export class MemberAccessGenerator {
       const tsTypes: string[] = [];
       const types: string[] = [];
       for (let i = 0; i < nestedInterfaceDef.fields.length; i++) {
-        const f = nestedInterfaceDef.fields[i];
+        const f = nestedInterfaceDef.fields[i] as InterfaceField;
         keys.push(f.name);
         tsTypes.push(f.type);
         types.push(this.tsTypeToLlvm(f.type));
@@ -734,7 +735,8 @@ export class MemberAccessGenerator {
     const propIndex = innerInterfaceDef.properties.findIndex((p: InterfaceProperty) => p.name === expr.property);
     if (propIndex === -1) return null;
 
-    const propType = innerInterfaceDef.properties[propIndex].type;
+    const innerPropField = innerInterfaceDef.properties[propIndex] as InterfaceProperty;
+    const propType = innerPropField.type;
 
     const fieldPtr = this.ctx.nextTemp();
     this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${innerInterfaceName}, %${innerInterfaceName}* ${innerPtr}, i32 0, i32 ${propIndex}`);
@@ -875,7 +877,7 @@ export class MemberAccessGenerator {
         const types: string[] = [];
         const tsTypes: string[] = [];
         for (let j = 0; j < iface.fields.length; j++) {
-          const f = iface.fields[j];
+          const f = iface.fields[j] as InterfaceField;
           keys.push(f.name);
           tsTypes.push(f.type);
           if (f.type === 'string') {
@@ -1098,7 +1100,7 @@ export class MemberAccessGenerator {
       const iface = this.ctx.ast.interfaces[i];
       if (iface.name === interfaceName) {
         for (let j = 0; j < iface.fields.length; j++) {
-          const f = iface.fields[j];
+          const f = iface.fields[j] as InterfaceField;
           if (f.name === fieldName) {
             return f.type;
           }

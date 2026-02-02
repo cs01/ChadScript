@@ -1,4 +1,4 @@
-import { Expression, ClassNode, ClassMethod, BlockStatement, VariableNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, CommonField } from '../../../ast/types.js';
+import { Expression, ClassNode, ClassMethod, ClassField, BlockStatement, VariableNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, CommonField } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind } from '../../infrastructure/symbol-table.js';
 import { logger } from '../../../utils/logger.js';
@@ -84,7 +84,7 @@ export class ClassGenerator {
     if (classNode.fields.length > 0) {
       const fieldTypes: string[] = [];
       for (let fi = 0; fi < classNode.fields.length; fi++) {
-        const f = classNode.fields[fi];
+        const f = classNode.fields[fi] as ClassField;
         if (f.fieldType === 'string') {
           fieldTypes.push('i8*');
         } else if (f.fieldType === 'string[]') {
@@ -485,7 +485,7 @@ export class ClassGenerator {
       const types: string[] = [];
       const tsTypes: string[] = [];
       for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-        const f = interfaceDef.fields[fi];
+        const f = interfaceDef.fields[fi] as InterfaceField;
         keys.push(f.name);
         types.push(this.fieldTypeToLlvm(f.type));
         tsTypes.push(f.type);

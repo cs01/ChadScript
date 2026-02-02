@@ -448,7 +448,7 @@ export class ControlFlowGenerator {
         const elementTypes: string[] = [];
         const elementTsTypes: string[] = [];
         for (let i = 0; i < fields.length; i++) {
-          const f = fields[i];
+          const f = fields[i] as { name: string; type: string };
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
           if (f.type === 'string') {
@@ -475,7 +475,7 @@ export class ControlFlowGenerator {
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
       for (let i = 0; i < iface.fields.length; i++) {
-        const f = iface.fields[i];
+        const f = iface.fields[i] as { name: string; type: string };
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
         if (f.type === 'string') {
@@ -518,7 +518,7 @@ export class ControlFlowGenerator {
     const iface = this.ctx.getInterfaceFromAST(interfaceName);
     if (!iface) return null;
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i];
+      const f = iface.fields[i] as { name: string; type: string };
       if (f.name === fieldName) {
         return f.type;
       }
@@ -620,7 +620,7 @@ export class ControlFlowGenerator {
               const elementTypes: string[] = [];
               const elementTsTypes: string[] = [];
               for (let i = 0; i < elemIface.fields.length; i++) {
-                const f = elemIface.fields[i];
+                const f = elemIface.fields[i] as { name: string; type: string };
                 elementKeys.push(f.name);
                 elementTsTypes.push(f.type);
                 if (f.type === 'string') {
@@ -715,7 +715,7 @@ export class ControlFlowGenerator {
         const elementTypes: string[] = [];
         const elementTsTypes: string[] = [];
         for (let i = 0; i < fields.length; i++) {
-          const f = fields[i];
+          const f = fields[i] as { name: string; type: string };
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
           if (f.type === 'string') {
@@ -750,7 +750,7 @@ export class ControlFlowGenerator {
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
       for (let i = 0; i < elementIface.fields.length; i++) {
-        const f = elementIface.fields[i];
+        const f = elementIface.fields[i] as { name: string; type: string };
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
         if (f.type === 'string') {
@@ -797,7 +797,7 @@ export class ControlFlowGenerator {
 
     const firstFields = new Map<string, string>();
     for (let i = 0; i < memberInterfaces[0].fields.length; i++) {
-      const f = memberInterfaces[0].fields[i];
+      const f = memberInterfaces[0].fields[i] as { name: string; type: string };
       firstFields.set(f.name, f.type);
     }
 
@@ -1219,7 +1219,7 @@ export class ControlFlowGenerator {
     const types: string[] = [];
     const tsTypes: string[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i];
+      const f = iface.fields[i] as { name: string; type: string };
       keys.push(f.name);
       types.push(this.fieldTypeToLlvm(f.type));
       tsTypes.push(f.type);
