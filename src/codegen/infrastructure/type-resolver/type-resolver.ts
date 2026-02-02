@@ -17,6 +17,13 @@ export interface TypeResolverContext {
 export class TypeResolver {
   constructor(private ctx: TypeResolverContext) {}
 
+  private stripOptional(name: string): string {
+    if (name.endsWith('?')) {
+      return name.slice(0, -1);
+    }
+    return name;
+  }
+
   getInterface(name: string): InterfaceDeclaration | null {
     if (!this.ctx.ast?.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
@@ -36,7 +43,7 @@ export class TypeResolver {
     const tsTypes: string[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
       const f = iface.fields[i] as { name: string; type: string };
-      keys.push(f.name);
+      keys.push(this.stripOptional(f.name));
       types.push(this.tsTypeToLlvm(f.type));
       tsTypes.push(f.type);
     }
@@ -209,7 +216,7 @@ export class TypeResolver {
     const tsTypes: string[] = [];
     for (let i = 0; i < commonFields.length; i++) {
       const f = commonFields[i] as CommonField;
-      keys.push(f.name);
+      keys.push(this.stripOptional(f.name));
       types.push(this.tsTypeToLlvm(f.type));
       tsTypes.push(f.type);
     }
@@ -306,6 +313,10 @@ export class TypeResolver {
 
     if (!valueType) return null;
     if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') return null;
+
+    if (valueType.endsWith('[]')) {
+      return valueType;
+    }
 
     const interfaceDef = this.getInterface(valueType);
     if (!interfaceDef) return null;

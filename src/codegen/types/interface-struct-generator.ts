@@ -58,8 +58,12 @@ export class InterfaceStructGenerator {
     const result: { name: string; tsType: string; llvmType: string }[] = [];
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i] as { name: string; type: string };
+      let fieldName = f.name;
+      if (fieldName.endsWith('?')) {
+        fieldName = fieldName.slice(0, -1);
+      }
       result.push({
-        name: f.name,
+        name: fieldName,
         tsType: f.type,
         llvmType: this.tsTypeToLlvm(f.type)
       });

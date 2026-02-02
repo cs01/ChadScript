@@ -421,7 +421,7 @@ export class TypeInference {
       if (idxObjBase.type === 'member_access') {
         const memberAccess = indexExpr.object as MemberAccessNode;
         const memberObjBase = memberAccess.object as ExprBase;
-        if (memberObjBase.type === 'variable' && (memberAccess.object as VariableNode).name === 'this') {
+        if (memberObjBase.type === 'this') {
           const className = this.ctx.currentClassName;
           if (className) {
             const fieldType = this.ctx.classGen?.getFieldType(className, memberAccess.property);
@@ -517,6 +517,20 @@ export class TypeInference {
           return true;
         }
       }
+      if (methodExpr.method === 'get' && methodObjBase.type === 'member_access') {
+        const memberAccess = methodExpr.object as MemberAccessNode;
+        const memberAccessObjBase = memberAccess.object as ExprBase;
+        if (memberAccessObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
+          const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberAccess.property);
+          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+          if (fieldInfoResult && fieldInfo.tsType) {
+            const mapMatch = fieldInfo.tsType.match(/^Map<string,\s*string>$/);
+            if (mapMatch) {
+              return true;
+            }
+          }
+        }
+      }
     }
     if (e.type === 'conditional') {
       const condExpr = expr as ConditionalExpressionNode;
@@ -564,8 +578,9 @@ export class TypeInference {
           const memberExpr = methodExpr.object as MemberAccessNode;
           const memberExprObjBase = memberExpr.object as ExprBase;
           if (memberExprObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
-            const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
-            if (fieldInfo && fieldInfo.tsType) {
+            const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+            const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+            if (fieldInfoResult && fieldInfo.tsType) {
               const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
               if (mapMatch && mapMatch[2] && this.getClass(mapMatch[2])) {
                 return true;
@@ -634,8 +649,29 @@ export class TypeInference {
     const callExpr = expr as CallNode;
     const func = this.getFunction(callExpr.name);
     if (!func || !func.returnType) return null;
-    const iface = this.getInterface(func.returnType);
-    if (iface) return func.returnType;
+
+    let returnType = func.returnType;
+
+    if (returnType.indexOf(' | ') !== -1) {
+      const parts = returnType.split(' | ');
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i].trim();
+        if (part !== 'null' && part !== 'undefined') {
+          if (part.startsWith('{')) {
+            return part;
+          }
+          const iface = this.getInterface(part);
+          if (iface) return part;
+        }
+      }
+    }
+
+    if (returnType.startsWith('{')) {
+      return returnType;
+    }
+
+    const iface = this.getInterface(returnType);
+    if (iface) return returnType;
     return null;
   }
 
@@ -657,10 +693,17 @@ export class TypeInference {
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i].trim();
         if (part !== 'null' && part !== 'undefined') {
+          if (part.startsWith('{')) {
+            return part;
+          }
           const iface = this.getInterface(part);
           if (iface) return part;
         }
       }
+    }
+
+    if (returnType.startsWith('{')) {
+      return returnType;
     }
 
     const iface = this.getInterface(returnType);
@@ -741,6 +784,16 @@ export class TypeInference {
           }
         }
       }
+      if (objBase.type === 'variable' && this.ctx.symbolTable.isObject((memberExpr.object as VariableNode).name)) {
+        const varName = (memberExpr.object as VariableNode).name;
+        const objInfo = this.ctx.symbolTable.getObjectInfo(varName);
+        if (objInfo && objInfo.tsTypes) {
+          const propIdx = objInfo.keys.indexOf(memberExpr.property);
+          if (propIdx >= 0 && objInfo.tsTypes[propIdx] === 'string[]') {
+            return true;
+          }
+        }
+      }
       if (objBase.type === 'this') {
         const className = this.ctx.currentClassName;
         if (className) {
@@ -750,8 +803,55 @@ export class TypeInference {
           }
         }
       }
+      if (objBase.type === 'member_access') {
+        const nestedMemberTsType = this.resolveNestedMemberAccessTsType(memberExpr.object as MemberAccessNode);
+        if (nestedMemberTsType) {
+          const fieldProp = this.getInterfaceProperty(nestedMemberTsType, memberExpr.property);
+          if (fieldProp && fieldProp.type === 'string[]') {
+            return true;
+          }
+        }
+      }
     }
     return false;
+  }
+
+  private resolveNestedMemberAccessTsType(memberExpr: MemberAccessNode): string | null {
+    const objBase = memberExpr.object as ExprBase;
+    if (objBase.type === 'variable') {
+      const varName = (memberExpr.object as VariableNode).name;
+      if (this.ctx.symbolTable.isObject(varName)) {
+        const objInfo = this.ctx.symbolTable.getObjectInfo(varName);
+        if (objInfo && objInfo.tsTypes) {
+          const propIdx = objInfo.keys.indexOf(memberExpr.property);
+          if (propIdx >= 0) {
+            return objInfo.tsTypes[propIdx];
+          }
+        }
+      }
+      if (this.ctx.symbolTable.isClass(varName)) {
+        const className = this.ctx.symbolTable.getClassName(varName);
+        if (className) {
+          return this.ctx.classGen?.getFieldTsType(className, memberExpr.property) || null;
+        }
+      }
+    }
+    if (objBase.type === 'this') {
+      const className = this.ctx.currentClassName;
+      if (className) {
+        return this.ctx.classGen?.getFieldTsType(className, memberExpr.property) || null;
+      }
+    }
+    if (objBase.type === 'member_access') {
+      const nestedType = this.resolveNestedMemberAccessTsType(memberExpr.object as MemberAccessNode);
+      if (nestedType) {
+        const prop = this.getInterfaceProperty(nestedType, memberExpr.property);
+        if (prop) {
+          return prop.type;
+        }
+      }
+    }
+    return null;
   }
 
   private returnTypeIsString(returnType: string): boolean {
@@ -761,6 +861,24 @@ export class TypeInference {
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i].trim();
         if (part === 'string') return true;
+        if (part !== 'undefined' && part !== 'null' && this.isStringEnum(part)) return true;
+      }
+    }
+    if (this.isStringEnum(returnType)) return true;
+    return false;
+  }
+
+  private isStringEnum(typeName: string): boolean {
+    if (!this.ctx.ast.enums) return false;
+    for (let i = 0; i < this.ctx.ast.enums.length; i++) {
+      const enumDecl = this.ctx.ast.enums[i];
+      if (enumDecl.name === typeName) {
+        if (enumDecl.members && enumDecl.members.length > 0) {
+          const firstMember = enumDecl.members[0];
+          const valueNum = Number(firstMember.value);
+          const isNumeric = !isNaN(valueNum);
+          return !isNumeric;
+        }
       }
     }
     return false;

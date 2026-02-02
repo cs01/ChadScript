@@ -26,6 +26,13 @@ export class ControlFlowGenerator {
   private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
 
+  private stripOptional(name: string): string {
+    if (name.endsWith('?')) {
+      return name.slice(0, -1);
+    }
+    return name;
+  }
+
   // Helper to convert a value to boolean (i1) for branching
   private convertToBool(value: string): string {
     // Check if value is a double or i32 based on variable types
@@ -45,7 +52,13 @@ export class ControlFlowGenerator {
       this.emit(`${condBool} = icmp ne ${valueType} ${value}, null`);
       return condBool;
     } else {
-      // Value is i32 or unknown (assume i32), convert to double then use fcmp
+      // Value is i32, convert to double then use fcmp
+      // But first check if it looks like a temp register - if so, assume double
+      if (value.startsWith('%')) {
+        const condBool = this.nextTemp();
+        this.emit(`${condBool} = fcmp one double ${value}, 0.0`);
+        return condBool;
+      }
       const condDouble = this.nextTemp();
       this.emit(`${condDouble} = sitofp i32 ${value} to double`);
       const condBool = this.nextTemp();
@@ -1233,7 +1246,7 @@ export class ControlFlowGenerator {
     const tsTypes: string[] = [];
     for (let i = 0; i < commonFields.length; i++) {
       const f = commonFields[i] as CommonField;
-      keys.push(f.name);
+      keys.push(this.stripOptional(f.name));
       types.push(this.fieldTypeToLlvm(f.type));
       tsTypes.push(f.type);
     }
@@ -1328,7 +1341,7 @@ export class ControlFlowGenerator {
     const tsTypes: string[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
       const f = iface.fields[i] as { name: string; type: string };
-      keys.push(f.name);
+      keys.push(this.stripOptional(f.name));
       types.push(this.fieldTypeToLlvm(f.type));
       tsTypes.push(f.type);
     }

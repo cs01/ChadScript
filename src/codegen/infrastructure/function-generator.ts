@@ -21,6 +21,7 @@ export interface FunctionGeneratorContext {
   allocateVariable(stmt: VariableDeclaration, params: string[]): void;
   currentFunction: string;
   currentFunctionReturnType: string;
+  currentFunctionTsReturnType: string | undefined;
   isAsyncFunction: boolean;
   asyncResultPromise: string;
   ast: AST;
@@ -75,18 +76,6 @@ export class FunctionGenerator {
           paramLLVMTypes.push('double');
         }
       }
-      if (func.returnType === 'string') {
-        returnType = 'i8*';
-        returnTypeIsString = true;
-        this.ctx.currentFunctionReturnType = 'i8*';
-      } else if (func.returnType === 'void') {
-        returnType = 'void';
-        returnTypeIsVoid = true;
-        this.ctx.currentFunctionReturnType = 'void';
-      } else if (func.returnType && func.returnType !== 'number' && func.returnType !== 'boolean') {
-        returnType = 'i8*';
-        this.ctx.currentFunctionReturnType = 'i8*';
-      }
     } else if (func.parameters && func.parameters.length > 0) {
       for (let i = 0; i < func.params.length; i++) {
         const param = func.parameters[i] as { name: string; type: string };
@@ -104,6 +93,9 @@ export class FunctionGenerator {
           paramLLVMTypes.push('double');
         }
       }
+    }
+
+    if (!func.async) {
       if (func.returnType === 'string') {
         returnType = 'i8*';
         returnTypeIsString = true;
@@ -116,6 +108,7 @@ export class FunctionGenerator {
         returnType = 'i8*';
         this.ctx.currentFunctionReturnType = 'i8*';
       }
+      this.ctx.currentFunctionTsReturnType = func.returnType;
     }
 
     if (!returnTypeIsString && !returnTypeIsVoid && !this.hasReturnStatement(func.body)) {

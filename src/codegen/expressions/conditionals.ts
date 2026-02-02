@@ -52,12 +52,16 @@ export class ConditionalExpressionGenerator {
     } else if (condValueType === 'i1') {
       // Value is already a boolean
       condBool = condValue;
-    } else {
+    } else if (condValueType === 'i32') {
       // Value is i32, convert to double first
       const condDouble = this.nextTemp();
       this.emit(`${condDouble} = sitofp i32 ${condValue} to double`);
       condBool = this.nextTemp();
       this.emit(`${condBool} = fcmp one double ${condDouble}, 0.0`);
+    } else {
+      // Default: assume double (from method call returns, etc.)
+      condBool = this.nextTemp();
+      this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
     }
 
     // Branch based on condition

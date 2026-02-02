@@ -92,6 +92,11 @@ export class VariableExpressionGenerator {
       if (llvmType === '%Array*') {
         const isPointerAlloca = this.ctx.symbolTable.isPointerAlloca(name);
         return this.loadArray(allocaReg, '%Array*', isPointerAlloca);
+      } else if (llvmType === 'i8*') {
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}`);
+        this.ctx.setVariableType(temp, 'i8*');
+        return temp;
       }
       return allocaReg;
     }
@@ -103,6 +108,11 @@ export class VariableExpressionGenerator {
       if (llvmType === '%StringArray*') {
         const isPointerAlloca = this.ctx.symbolTable.isPointerAlloca(name);
         return this.loadArray(allocaReg, '%StringArray*', isPointerAlloca);
+      } else if (llvmType === 'i8*') {
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}`);
+        this.ctx.setVariableType(temp, 'i8*');
+        return temp;
       }
       return allocaReg;
     }

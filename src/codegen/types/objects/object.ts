@@ -32,11 +32,110 @@ export class ObjectGenerator {
 
     const declaredInterfaceType = this.ctx.currentDeclaredInterfaceType;
 
+    if (declaredInterfaceType && declaredInterfaceType.startsWith('{')) {
+      return this.generateInlineInterfaceObject(objExpr, params, declaredInterfaceType);
+    }
+
     if (declaredInterfaceType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(declaredInterfaceType)) {
       return this.generateInterfaceObject(objExpr, params, declaredInterfaceType);
     }
 
     return this.generateInlineObject(objExpr, params);
+  }
+
+  private parseInlineInterfaceFields(typeStr: string): { name: string; type: string }[] {
+    if (!typeStr.startsWith('{') || !typeStr.endsWith('}')) {
+      return [];
+    }
+    const inner = typeStr.slice(1, typeStr.length - 1).trim();
+    if (inner.length === 0) {
+      return [];
+    }
+    const fields: { name: string; type: string }[] = [];
+    const parts = inner.split(';');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      if (!part) continue;
+      const colonIdx = part.indexOf(':');
+      if (colonIdx === -1) continue;
+      let name = part.slice(0, colonIdx).trim();
+      const fieldType = part.slice(colonIdx + 1).trim();
+      if (name.endsWith('?')) {
+        name = name.slice(0, -1);
+      }
+      fields.push({ name, type: fieldType });
+    }
+    return fields;
+  }
+
+  private tsTypeToLlvm(tsType: string): string {
+    if (tsType === 'string') return 'i8*';
+    if (tsType === 'number') return 'double';
+    if (tsType === 'boolean') return 'double';
+    if (tsType === 'string[]') return '%StringArray*';
+    if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
+    return 'i8*';
+  }
+
+  private generateInlineInterfaceObject(objExpr: ObjectNode, params: string[], typeStr: string): string {
+    const fields = this.parseInlineInterfaceFields(typeStr);
+    if (fields.length === 0) {
+      return this.generateInlineObject(objExpr, params);
+    }
+
+    const propMap = new Map<string, Expression>();
+    for (let i = 0; i < objExpr.properties.length; i++) {
+      const prop = objExpr.properties[i] as ObjectProperty;
+      propMap.set(prop.key, prop.value);
+    }
+
+    const orderedFields: { key: string; llvmType: string; value: string }[] = [];
+
+    for (let fieldIdx = 0; fieldIdx < fields.length; fieldIdx++) {
+      const field = fields[fieldIdx] as { name: string; type: string };
+      const llvmType = this.tsTypeToLlvm(field.type);
+      const valueExpr = propMap.get(field.name);
+      let finalValue: string;
+
+      if (!valueExpr) {
+        if (llvmType === 'double') {
+          finalValue = '0.0';
+        } else {
+          finalValue = 'null';
+        }
+      } else {
+        finalValue = this.ctx.generateExpression(valueExpr, params);
+      }
+
+      orderedFields.push({ key: field.name, llvmType, value: finalValue });
+    }
+
+    const llvmTypes: string[] = [];
+    for (let i = 0; i < orderedFields.length; i++) {
+      const ft = orderedFields[i] as { key: string; llvmType: string; value: string };
+      llvmTypes.push(ft.llvmType);
+    }
+    const structFields = llvmTypes.join(', ');
+    const structSizeBytes = orderedFields.length * 8;
+
+    const objMem = this.nextTemp();
+    this.emit(`${objMem} = call i8* @GC_malloc(i64 ${structSizeBytes})`);
+
+    const structType = `{ ${structFields} }`;
+    const objPtr = this.nextTemp();
+    this.emit(`${objPtr} = bitcast i8* ${objMem} to ${structType}*`);
+
+    for (let i = 0; i < orderedFields.length; i++) {
+      const field = orderedFields[i] as { key: string; llvmType: string; value: string };
+      const fieldPtr = this.nextTemp();
+      this.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${i}`);
+      this.emit(`store ${field.llvmType} ${field.value}, ${field.llvmType}* ${fieldPtr}`);
+    }
+
+    const genericPtr = this.nextTemp();
+    this.emit(`${genericPtr} = bitcast ${structType}* ${objPtr} to i8*`);
+
+    return genericPtr;
   }
 
   private generateInterfaceObject(objExpr: ObjectNode, params: string[], interfaceName: string): string {
@@ -113,7 +212,9 @@ export class ObjectGenerator {
       let llvmType: string;
       if (prop.value.type === 'string' || this.ctx.isStringExpression(prop.value)) {
         llvmType = 'i8*';
-      } else if (prop.value.type === 'array') {
+      } else if (this.ctx.isStringArrayExpression(prop.value)) {
+        llvmType = '%StringArray*';
+      } else if (prop.value.type === 'array' || this.ctx.isArrayExpression(prop.value)) {
         llvmType = '%Array*';
       } else if (prop.value.type === 'map') {
         llvmType = '%Map*';
