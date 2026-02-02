@@ -458,8 +458,9 @@ export class ClassGenerator {
       return;
     }
 
-    const interfaceDef = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
-    if (interfaceDef) {
+    const interfaceDefResult = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
+    if (interfaceDefResult) {
+      const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       const keys = interfaceDef.fields.map((f) => f.name);
       const types = interfaceDef.fields.map((f) => this.fieldTypeToLlvm(f.type));
       const tsTypes = interfaceDef.fields.map((f) => f.type);

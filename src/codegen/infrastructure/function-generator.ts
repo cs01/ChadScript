@@ -151,9 +151,10 @@ export class FunctionGenerator {
         if (paramTypes[i] === 'string') {
           this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
         } else {
-          const interfaceDef = this.ctx.ast.interfaces?.find((iface: InterfaceDeclaration) => iface.name === paramTypes[i]);
+          const interfaceDefResult = this.ctx.ast.interfaces?.find((iface: InterfaceDeclaration) => iface.name === paramTypes[i]);
           const typeAlias = this.ctx.ast.typeAliases?.find((t: TypeAliasDeclaration) => t.name === paramTypes[i]);
-          if (interfaceDef) {
+          if (interfaceDefResult) {
+            const interfaceDef = interfaceDefResult as InterfaceDeclaration;
             const keys = interfaceDef.fields.map((f) => f.name);
             const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
