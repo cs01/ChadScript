@@ -396,6 +396,44 @@ export class TypeInference {
     return null;
   }
 
+  getMethodCallInterfaceReturn(expr: Expression): string | null {
+    if (expr.type !== 'method_call') return null;
+    const methodExpr = expr as MethodCallNode;
+
+    let className: string | null = null;
+
+    if (methodExpr.object.type === 'this') {
+      className = this.ctx.currentClassName;
+    } else if (methodExpr.object.type === 'variable') {
+      const varName = (methodExpr.object as VariableNode).name;
+      if (this.ctx.symbolTable.isClass(varName)) {
+        className = this.ctx.symbolTable.getClassName(varName) || null;
+      }
+    }
+
+    if (!className) return null;
+
+    const method = this.getClassMethod(className, methodExpr.method);
+    if (!method || !method.returnType) return null;
+
+    let returnType = method.returnType;
+    if (returnType.includes(' | ')) {
+      const parts = returnType.split(' | ');
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i].trim();
+        if (part !== 'null' && part !== 'undefined') {
+          const iface = this.getInterface(part);
+          if (iface) return part;
+        }
+      }
+    }
+
+    const iface = this.getInterface(returnType);
+    if (iface) return returnType;
+
+    return null;
+  }
+
   getJSONParseInterface(expr: MethodCallNode): string | null {
     if (expr.type === 'method_call' &&
         expr.method === 'parse' &&
