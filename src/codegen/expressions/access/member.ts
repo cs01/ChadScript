@@ -68,6 +68,10 @@ interface InterfaceProperty {
   type: string;
 }
 
+interface InterfaceInfo {
+  properties: InterfaceProperty[];
+}
+
 export interface MemberAccessGeneratorContext {
   nextTemp(): string;
   nextLabel(prefix: string): string;
@@ -107,7 +111,7 @@ export interface MemberAccessGeneratorContext {
 export class MemberAccessGenerator {
   constructor(private ctx: MemberAccessGeneratorContext) {}
 
-  private getInterfaceFromAST(name: string): { properties: InterfaceProperty[] } | null {
+  private getInterfaceFromAST(name: string): InterfaceInfo | null {
     const baseName = this.extractBaseTypeName(name);
     if (!this.ctx.ast?.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
@@ -339,8 +343,9 @@ export class MemberAccessGenerator {
 
     const structTypeName = varType.substring(1, varType.length - 1);
 
-    const interfaceDef = this.getInterfaceFromAST(structTypeName);
-    if (!interfaceDef) return null;
+    const interfaceDefResult = this.getInterfaceFromAST(structTypeName);
+    if (!interfaceDefResult) return null;
+    const interfaceDef = interfaceDefResult as InterfaceInfo;
 
     const propIndex = interfaceDef.properties.findIndex((p: InterfaceProperty) => p.name === expr.property);
     if (propIndex === -1) {
@@ -386,8 +391,9 @@ export class MemberAccessGenerator {
         nestedTypeName = nestedTypeName.split(' | ')[0].trim();
       }
       const isTypeAlias = this.isTypeAlias(nestedTypeName);
-      const nestedInterface = this.getInterfaceFromAST(nestedTypeName);
-      if (nestedInterface) {
+      const nestedInterfaceResult = this.getInterfaceFromAST(nestedTypeName);
+      if (nestedInterfaceResult) {
+        const nestedInterface = nestedInterfaceResult as InterfaceInfo;
         const value = this.ctx.nextTemp();
         if (isTypeAlias) {
           this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
@@ -550,8 +556,9 @@ export class MemberAccessGenerator {
   }
 
   private storeInterfaceMetadata(register: string, tsType: string): void {
-    const interfaceDef = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
-    if (interfaceDef) {
+    const interfaceDefResult = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === tsType);
+    if (interfaceDefResult) {
+      const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       const keys = interfaceDef.fields.map((f) => f.name);
       const tsTypes = interfaceDef.fields.map((f) => f.type);
       const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
@@ -695,10 +702,11 @@ export class MemberAccessGenerator {
 
     let innerInterfaceName = innerType.substring(1, innerType.length - 1);
 
-    const innerInterfaceDef = this.getInterfaceFromAST(innerInterfaceName);
-    if (!innerInterfaceDef) {
+    const innerInterfaceDefResult = this.getInterfaceFromAST(innerInterfaceName);
+    if (!innerInterfaceDefResult) {
       return null;
     }
+    const innerInterfaceDef = innerInterfaceDefResult as InterfaceInfo;
 
     const propIndex = innerInterfaceDef.properties.findIndex((p: InterfaceProperty) => p.name === expr.property);
     if (propIndex === -1) return null;
@@ -735,8 +743,8 @@ export class MemberAccessGenerator {
       if (nestedTypeName.endsWith('?')) {
         nestedTypeName = nestedTypeName.slice(0, -1);
       }
-      const nestedInterfaceDef = this.getInterfaceFromAST(nestedTypeName);
-      if (nestedInterfaceDef) {
+      const nestedInterfaceDefResult = this.getInterfaceFromAST(nestedTypeName);
+      if (nestedInterfaceDefResult) {
         const value = this.ctx.nextTemp();
         this.ctx.emit(`${value} = load %${nestedTypeName}*, %${nestedTypeName}** ${fieldPtr}`);
         this.ctx.variableTypes.set(value, `%${nestedTypeName}*`);
@@ -1209,8 +1217,9 @@ export class MemberAccessGenerator {
     if (!mapMatch) return null;
 
     const valueType = mapMatch[2];
-    const interfaceDef = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === valueType);
-    if (!interfaceDef) return null;
+    const interfaceDefResult = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === valueType);
+    if (!interfaceDefResult) return null;
+    const interfaceDef = interfaceDefResult as InterfaceDeclaration;
 
     const objPtr = generateExpressionFn(expr.object, params);
 
@@ -1401,8 +1410,9 @@ export class MemberAccessGenerator {
     if (params.includes(varName)) {
       const paramInterfaceType = this.getParameterTypeFromAST(varName);
       if (paramInterfaceType) {
-        const interfaceDef = this.getInterfaceFromAST(paramInterfaceType);
-        if (interfaceDef) {
+        const interfaceDefResult = this.getInterfaceFromAST(paramInterfaceType);
+        if (interfaceDefResult) {
+          const interfaceDef = interfaceDefResult as InterfaceInfo;
           const propIndex = interfaceDef.properties.findIndex((p: InterfaceProperty) => p.name === expr.property);
           if (propIndex !== -1) {
             const propType = interfaceDef.properties[propIndex].type;
@@ -1521,10 +1531,11 @@ export class MemberAccessGenerator {
     const assertedType = assertion.assertedType;
     const property = expr.property;
 
-    const interfaceDef = this.ctx.ast?.interfaces?.find(
+    const interfaceDefResult = this.ctx.ast?.interfaces?.find(
       (iface: InterfaceDeclaration) => iface.name === assertedType
     );
-    if (!interfaceDef) return null;
+    if (!interfaceDefResult) return null;
+    const interfaceDef = interfaceDefResult as InterfaceDeclaration;
 
     const fieldIndex = interfaceDef.fields.findIndex((f) => f.name === property);
     if (fieldIndex === -1) return null;
