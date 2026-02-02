@@ -1,4 +1,4 @@
-import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode } from '../../ast/types.js';
+import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, InterfaceField, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import { TypeResolver } from './type-resolver/index.js';
@@ -101,8 +101,9 @@ export class VariableAllocator {
     }
     if (!this.ctx.ast.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      if (this.ctx.ast.interfaces[i].name === name) {
-        return this.ctx.ast.interfaces[i];
+      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+      if (iface.name === name) {
+        return iface;
       }
     }
     return null;
@@ -114,8 +115,9 @@ export class VariableAllocator {
     }
     if (!this.ctx.ast.typeAliases) return null;
     for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
-      if (this.ctx.ast.typeAliases[i].name === name) {
-        return this.ctx.ast.typeAliases[i];
+      const ta = this.ctx.ast.typeAliases[i] as TypeAliasDeclaration;
+      if (ta.name === name) {
+        return ta;
       }
     }
     return null;
@@ -753,8 +755,9 @@ export class VariableAllocator {
     if (!ifaceResult) return null;
     const iface = ifaceResult as InterfaceDeclaration;
     for (let i = 0; i < iface.fields.length; i++) {
-      if (iface.fields[i].name === fieldName) {
-        return iface.fields[i].type;
+      const f = iface.fields[i] as InterfaceField;
+      if (f.name === fieldName) {
+        return f.type;
       }
     }
     return null;
@@ -779,7 +782,8 @@ export class VariableAllocator {
 
     const typeAlias = this.getTypeAlias(elementType);
     if (typeAlias && typeAlias.unionMembers) {
-      const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
+      const commonFieldsResult = this.getUnionCommonFields(typeAlias.unionMembers);
+      const commonFields = commonFieldsResult as { keys: string[]; types: string[]; tsTypes: string[] };
       if (commonFields.keys.length > 0) {
         return commonFields;
       }

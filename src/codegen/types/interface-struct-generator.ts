@@ -40,11 +40,13 @@ export class InterfaceStructGenerator {
   }
 
   private getInterfaceName(idx: number): string {
-    return this.interfaces[idx].name;
+    const iface = this.interfaces[idx] as InterfaceDeclaration;
+    return iface.name;
   }
 
   private getInterfaceFields(idx: number): { name: string; type: string }[] {
-    return this.interfaces[idx].fields;
+    const iface = this.interfaces[idx] as InterfaceDeclaration;
+    return iface.fields;
   }
 
   private buildFields(idx: number): { name: string; tsType: string; llvmType: string }[] {

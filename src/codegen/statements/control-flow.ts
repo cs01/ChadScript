@@ -499,7 +499,8 @@ export class ControlFlowGenerator {
     const typeAliasResult = this.ctx.ast?.typeAliases?.find((t: TypeAliasDeclaration) => t.name === elementInterface);
     const typeAlias = typeAliasResult as TypeAliasDeclaration;
     if (typeAliasResult && typeAlias.unionMembers) {
-      const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
+      const commonFieldsResult = this.getUnionCommonFields(typeAlias.unionMembers);
+      const commonFields = commonFieldsResult as { keys: string[]; types: string[]; tsTypes: string[] };
       if (commonFields.keys.length > 0) {
         return {
           elementInterfaceName: elementInterface,
@@ -1229,9 +1230,10 @@ export class ControlFlowGenerator {
     if (!this.ctx.ast?.interfaces) return null;
 
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
       const match = this.checkDiscriminant(
-        this.ctx.ast.interfaces[i].name,
-        this.ctx.ast.interfaces[i].fields,
+        iface.name,
+        iface.fields,
         discriminantValue
       );
       if (match) return match;
@@ -1241,8 +1243,9 @@ export class ControlFlowGenerator {
 
   private checkDiscriminant(ifaceName: string, fields: { name: string; type: string }[], discriminantValue: string): string | null {
     for (let i = 0; i < fields.length; i++) {
-      if (fields[i].name === 'type') {
-        const fieldType = fields[i].type;
+      const f = fields[i] as { name: string; type: string };
+      if (f.name === 'type') {
+        const fieldType = f.type;
         if (fieldType === `'${discriminantValue}'` || fieldType === `"${discriminantValue}"`) {
           return ifaceName;
         }

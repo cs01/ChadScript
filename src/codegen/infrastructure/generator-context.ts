@@ -412,8 +412,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null {
     if (!this.ast) return null;
     for (let i = 0; i < this.ast.interfaces.length; i++) {
-      if (this.ast.interfaces[i].name === name) {
-        return this.ast.interfaces[i];
+      const iface = this.ast.interfaces[i] as { name: string; fields: { name: string; type: string }[] };
+      if (iface.name === name) {
+        return iface;
       }
     }
     return null;
