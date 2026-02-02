@@ -5,6 +5,7 @@ import {
   MemberAccessAssignmentNode,
   AST,
   ClassNode,
+  ClassField,
   AssignmentStatement,
 } from '../../ast/types.js';
 import type { SymbolTable } from './symbol-table.js';
@@ -32,6 +33,7 @@ export interface AssignmentGeneratorContext {
   ast: AST;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
   currentDeclaredMapType: string | undefined;
+  currentClassName: string | null;
 }
 
 export class AssignmentGenerator {
@@ -65,10 +67,15 @@ export class AssignmentGenerator {
       if (!this.ctx.thisPointer) {
         throw new Error('this.field = value used outside of class method or constructor');
       }
-      const classWithFieldResult = this.ctx.ast.classes.find((_c: ClassNode) => true);
-      const classWithField = classWithFieldResult as ClassNode;
-      if (classWithFieldResult) {
-        className = classWithField.name;
+      className = this.ctx.currentClassName;
+      if (!className) {
+        const classWithFieldResult = this.ctx.ast.classes.find((c: ClassNode) => {
+          return c.fields.some((f: ClassField) => f.name === property);
+        });
+        const classWithField = classWithFieldResult as ClassNode;
+        if (classWithFieldResult) {
+          className = classWithField.name;
+        }
       }
     }
 
