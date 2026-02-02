@@ -713,9 +713,50 @@ export class MemberAccessGenerator {
     return null;
   }
 
+  private resolveMemberAccessType(expr: MemberAccessNode): string | null {
+    const objectType = this.resolveExpressionType(expr.object);
+    if (!objectType) return null;
+    const fieldType = this.getInterfaceFieldType(objectType, expr.property);
+    return fieldType;
+  }
+
+  private resolveExpressionType(expr: Expression): string | null {
+    if (expr.type === 'this') {
+      const className = this.ctx.currentClassName || this.ctx.classGen.currentClassName;
+      return className || null;
+    }
+    if (expr.type === 'member_access') {
+      const memberAccess = expr as MemberAccessNode;
+      if (memberAccess.object.type === 'this') {
+        const className = this.ctx.currentClassName || this.ctx.classGen.currentClassName;
+        if (className) {
+          const fieldInfo = this.ctx.classGen.getFieldInfo(className, memberAccess.property);
+          if (fieldInfo && fieldInfo.tsType) {
+            return fieldInfo.tsType;
+          }
+        }
+        return null;
+      }
+      const objectType = this.resolveExpressionType(memberAccess.object);
+      if (objectType) {
+        const fieldType = this.getInterfaceFieldType(objectType, memberAccess.property);
+        return fieldType;
+      }
+    }
+    return null;
+  }
+
   private getObjectArrayElementInfo(arrayExpr: Expression): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     if (arrayExpr.type === 'member_access') {
       const memberAccess = arrayExpr as MemberAccessNode;
+      const arrayType = this.resolveMemberAccessType(memberAccess);
+      if (arrayType && arrayType.endsWith('[]')) {
+        const elementType = arrayType.slice(0, -2);
+        const interfaceInfo = this.getInterfaceInfo(elementType);
+        if (interfaceInfo) {
+          return interfaceInfo;
+        }
+      }
       if (memberAccess.object.type === 'variable') {
         const varName = (memberAccess.object as VariableNode).name;
         const propName = memberAccess.property;

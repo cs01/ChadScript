@@ -608,7 +608,7 @@ export class VariableAllocator {
     if (memberAccess.object.type === 'variable') {
       const varName = (memberAccess.object as VariableNode).name;
       objectMeta = this.ctx.symbolTable.getObjectInfo(varName);
-    } else if (memberAccess.object.type === 'member_access') {
+    } else if (memberAccess.object.type === 'member_access' || memberAccess.object.type === 'this') {
       const elementType = this.resolveNestedMemberArrayType(memberAccess);
       if (elementType) {
         return this.getTypeInfoForElementType(elementType);
@@ -632,50 +632,57 @@ export class VariableAllocator {
   }
 
   private resolveNestedMemberArrayType(memberAccess: MemberAccessNode): string | null {
-    if (memberAccess.object.type !== 'member_access') return null;
+    const objectType = this.resolveMemberAccessObjectType(memberAccess.object);
+    if (!objectType) return null;
 
-    const outerMember = memberAccess.object as MemberAccessNode;
-    const outerProp = outerMember.property;
-    const arrayProp = memberAccess.property;
+    const fieldType = this.getInterfaceFieldTypeByName(objectType, memberAccess.property);
+    if (!fieldType) return null;
 
-    let baseVarName: string | null = null;
-    if (outerMember.object.type === 'variable') {
-      baseVarName = (outerMember.object as VariableNode).name;
-    } else if (outerMember.object.type === 'this') {
-      baseVarName = 'this';
-    }
-
-    if (!baseVarName) return null;
-
-    let outerMeta: ObjectMetadata | undefined;
-    if (baseVarName === 'this') {
-      const classFieldInfo = this.getThisFieldInfo(outerProp);
-      if (classFieldInfo?.tsType) {
-        const interfaceDef = this.getInterface(classFieldInfo.tsType);
-        if (interfaceDef) {
-          outerMeta = {
-            keys: interfaceDef.fields.map((f) => f.name),
-            types: interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type)),
-            tsTypes: interfaceDef.fields.map((f) => f.type)
-          };
-        }
-      }
-    } else {
-      outerMeta = this.ctx.symbolTable.getObjectInfo(baseVarName);
-    }
-
-    if (!outerMeta) return null;
-
-    const arrayPropIndex = outerMeta.keys.indexOf(arrayProp);
-    if (arrayPropIndex === -1) return null;
-
-    const arrayPropType = outerMeta.tsTypes?.[arrayPropIndex];
-    if (!arrayPropType) return null;
-
-    const arrayMatch = arrayPropType.match(/^(.+)\[\]$/);
+    const arrayMatch = fieldType.match(/^(.+)\[\]$/);
     if (!arrayMatch) return null;
 
     return arrayMatch[1];
+  }
+
+  private resolveMemberAccessObjectType(expr: Expression): string | null {
+    if (expr.type === 'this') {
+      return this.ctx.currentClassName || null;
+    }
+    if (expr.type === 'variable') {
+      const varName = (expr as VariableNode).name;
+      const symbol = this.ctx.symbolTable.lookup(varName);
+      if (symbol?.objectMetadata?.tsTypes) {
+        return symbol.llvmType;
+      }
+      return null;
+    }
+    if (expr.type === 'member_access') {
+      const member = expr as MemberAccessNode;
+      if (member.object.type === 'this') {
+        const fieldInfo = this.getThisFieldInfo(member.property);
+        if (fieldInfo?.tsType) {
+          return fieldInfo.tsType;
+        }
+        return null;
+      }
+      const objectType = this.resolveMemberAccessObjectType(member.object);
+      if (objectType) {
+        const fieldType = this.getInterfaceFieldTypeByName(objectType, member.property);
+        return fieldType;
+      }
+    }
+    return null;
+  }
+
+  private getInterfaceFieldTypeByName(interfaceName: string, fieldName: string): string | null {
+    const iface = this.getInterface(interfaceName);
+    if (!iface) return null;
+    for (let i = 0; i < iface.fields.length; i++) {
+      if (iface.fields[i].name === fieldName) {
+        return iface.fields[i].type;
+      }
+    }
+    return null;
   }
 
   private getThisFieldInfo(fieldName: string): { tsType?: string } | null {
