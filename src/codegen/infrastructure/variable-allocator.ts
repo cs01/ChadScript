@@ -186,7 +186,8 @@ export class VariableAllocator {
   }
 
   private allocateFunctionInterfaceReturn(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const interfaceDef = this.getInterface(interfaceName)!;
+    const interfaceDefResult = this.getInterface(interfaceName);
+    const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     const allocaReg = this.ctx.nextTemp();
     const keys = interfaceDef.fields.map((f) => f.name);
     const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
@@ -201,7 +202,8 @@ export class VariableAllocator {
   }
 
   private allocateMethodInterfaceReturn(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const interfaceDef = this.getInterface(interfaceName)!;
+    const interfaceDefResult = this.getInterface(interfaceName);
+    const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     const allocaReg = this.ctx.nextTemp();
     const keys = interfaceDef.fields.map((f) => f.name);
     const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
@@ -219,20 +221,21 @@ export class VariableAllocator {
     if (stmt.value?.type === 'type_assertion') {
       const assertionNode = stmt.value as TypeAssertionNode;
       const assertedType = assertionNode.assertedType;
-      const interfaceDef = this.getInterface(assertedType);
-      if (interfaceDef) {
+      const interfaceDefResult = this.getInterface(assertedType);
+      if (interfaceDefResult) {
         return assertedType;
       }
     }
     if (!stmt.declaredType) return null;
     if (stmt.value?.type !== 'variable') return null;
-    const interfaceDef = this.getInterface(stmt.declaredType);
-    if (!interfaceDef) return null;
+    const interfaceDefResult2 = this.getInterface(stmt.declaredType);
+    if (!interfaceDefResult2) return null;
     return stmt.declaredType;
   }
 
   private allocateDeclaredInterface(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const interfaceDef = this.getInterface(interfaceName)!;
+    const interfaceDefResult = this.getInterface(interfaceName);
+    const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     const allocaReg = this.ctx.nextTemp();
     const keys = interfaceDef.fields.map((f) => f.name);
     const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
@@ -285,14 +288,15 @@ export class VariableAllocator {
     if (!valueType) return null;
     if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') return null;
 
-    const interfaceDef = this.getInterface(valueType);
-    if (!interfaceDef) return null;
+    const interfaceDefResult = this.getInterface(valueType);
+    if (!interfaceDefResult) return null;
 
     return valueType;
   }
 
   private allocateMapGetInterface(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const interfaceDef = this.getInterface(interfaceName)!;
+    const interfaceDefResult = this.getInterface(interfaceName);
+    const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     const allocaReg = this.ctx.nextTemp();
     const keys = interfaceDef.fields.map((f) => f.name);
     const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
@@ -372,14 +376,15 @@ export class VariableAllocator {
       );
     }
 
-    const interfaceDef = this.getInterface(interfaceName);
+    const interfaceDefResult = this.getInterface(interfaceName);
 
-    if (!interfaceDef) {
+    if (!interfaceDefResult) {
       this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local');
       this.ctx.emit(`${allocaReg} = alloca i8*`);
       const jsonPtr = this.ctx.generateExpression(stmt.value!, params);
       this.ctx.emit(`store i8* ${jsonPtr}, i8** ${allocaReg}`);
     } else {
+      const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       const keys = interfaceDef.fields.map((f) => f.name);
       const tsTypes = interfaceDef.fields.map((f) => f.type);
       const types = interfaceDef.fields.map((f) => this.tsTypeToLlvmJson(f.type));
@@ -396,14 +401,15 @@ export class VariableAllocator {
 
   private allocateObject(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextTemp();
-    const interfaceDef = stmt.declaredType
+    const interfaceDefResult = stmt.declaredType
       ? this.getInterface(stmt.declaredType)
       : null;
 
     let keys: string[];
     let types: string[];
 
-    if (interfaceDef) {
+    if (interfaceDefResult) {
+      const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       keys = interfaceDef.fields.map((f) => f.name);
       types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
     } else {
@@ -417,7 +423,7 @@ export class VariableAllocator {
     });
     this.ctx.emit(`${allocaReg} = alloca i8*`);
 
-    if (interfaceDef) {
+    if (interfaceDefResult) {
       this.ctx.currentDeclaredInterfaceType = stmt.declaredType;
     }
     const objExpr = this.ctx.generateExpression(stmt.value!, params);
@@ -708,8 +714,9 @@ export class VariableAllocator {
   }
 
   private getInterfaceFieldTypeByName(interfaceName: string, fieldName: string): string | null {
-    const iface = this.getInterface(interfaceName);
-    if (!iface) return null;
+    const ifaceResult = this.getInterface(interfaceName);
+    if (!ifaceResult) return null;
+    const iface = ifaceResult as InterfaceDeclaration;
     for (let i = 0; i < iface.fields.length; i++) {
       if (iface.fields[i].name === fieldName) {
         return iface.fields[i].type;
@@ -725,8 +732,9 @@ export class VariableAllocator {
 
   private getTypeInfoForElementType(elementType: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
 
-    const interfaceDef = this.getInterface(elementType);
-    if (interfaceDef) {
+    const interfaceDefResult = this.getInterface(elementType);
+    if (interfaceDefResult) {
+      const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       return {
         keys: interfaceDef.fields.map((f) => f.name),
         types: interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type)),
@@ -751,8 +759,9 @@ export class VariableAllocator {
     }
     const interfaces: InterfaceDeclaration[] = [];
     for (let i = 0; i < memberNames.length; i++) {
-      const iface = this.getInterface(memberNames[i]);
-      if (iface) {
+      const ifaceResult = this.getInterface(memberNames[i]);
+      if (ifaceResult) {
+        const iface = ifaceResult as InterfaceDeclaration;
         interfaces.push(iface);
       }
     }
