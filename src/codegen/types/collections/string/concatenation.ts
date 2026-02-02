@@ -1,5 +1,5 @@
 import { Expression } from '../../../../ast/types.js';
-import { BaseGenerator } from '../../../infrastructure/base-generator.js';
+import { IGeneratorContext } from '../../../infrastructure/generator-context.js';
 import { convertNumberToString } from './constants.js';
 
 // ============================================
@@ -7,18 +7,16 @@ import { convertNumberToString } from './constants.js';
 // ============================================
 
 export function generateStringConcat(
-  ctx: BaseGenerator,
+  ctx: IGeneratorContext,
   left: Expression,
   right: Expression,
-  params: string[],
-  generateExpression: (expr: Expression, params: string[]) => string,
-  isStringExpression: (expr: Expression) => boolean
+  params: string[]
 ): string {
-  const leftValue = generateExpression(left, params);
-  const rightValue = generateExpression(right, params);
+  const leftValue = ctx.generateExpression(left, params);
+  const rightValue = ctx.generateExpression(right, params);
 
-  const leftIsString = isStringExpression(left) || ctx.getVariableType(leftValue) === 'i8*';
-  const rightIsString = isStringExpression(right) || ctx.getVariableType(rightValue) === 'i8*';
+  const leftIsString = ctx.isStringExpression(left) || ctx.getVariableType(leftValue) === 'i8*';
+  const rightIsString = ctx.isStringExpression(right) || ctx.getVariableType(rightValue) === 'i8*';
 
   const leftStr = leftIsString ? leftValue : convertNumberToString(ctx, leftValue);
   const rightStr = rightIsString ? rightValue : convertNumberToString(ctx, rightValue);
@@ -26,7 +24,7 @@ export function generateStringConcat(
   return generateStringConcatDirect(ctx, leftStr, rightStr);
 }
 
-export function generateStringConcatDirect(ctx: BaseGenerator, leftStr: string, rightStr: string): string {
+export function generateStringConcatDirect(ctx: IGeneratorContext, leftStr: string, rightStr: string): string {
   const leftLen = ctx.nextTemp();
   ctx.emit(`${leftLen} = call i64 @strlen(i8* ${leftStr})`);
   const rightLen = ctx.nextTemp();

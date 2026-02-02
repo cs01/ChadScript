@@ -42,14 +42,16 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
    * @param expr - The arrow function expression
    * @param params - Function parameters in scope
    * @param typeHints - Optional type hints for parameters and return type
-   * @param scopeVars - Variables available in outer scope for closure capture
+   * @param scopeVarNames - Names of variables available in outer scope for closure capture
+   * @param scopeVarTypes - LLVM types corresponding to scopeVarNames
    * @returns Function name that can be referenced
    */
   generateArrowFunction(
     expr: ArrowFunctionNode,
     params: string[],
     typeHints?: ArrowFunctionTypeHints,
-    scopeVars?: Map<string, string>
+    scopeVarNames?: string[],
+    scopeVarTypes?: string[]
   ): string {
     const funcName = `__lambda_${this.anonFuncCounter++}`;
 
@@ -65,11 +67,12 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     let closureCaptures: CapturedVariable[] = [];
     let closureEnvStructName: string = '';
 
-    if (scopeVars) {
+    if (scopeVarNames && scopeVarTypes) {
       const analyzeResult = this.closureAnalyzer.analyze(
         funcParams,
         expr.body,
-        scopeVars,
+        scopeVarNames,
+        scopeVarTypes,
         funcName
       );
       const typedResult = analyzeResult as { captures: CapturedVariable[]; envStructName: string };

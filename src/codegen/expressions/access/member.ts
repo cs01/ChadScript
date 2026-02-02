@@ -342,11 +342,25 @@ export class MemberAccessGenerator {
     const enums = this.ctx.ast?.enums;
     if (!enums) return null;
 
-    const enumDeclResult = enums.find((e: EnumDeclaration) => e.name === enumName);
+    let enumDeclResult: EnumDeclaration | null = null;
+    for (let ei = 0; ei < enums.length; ei++) {
+      const e = enums[ei] as EnumDeclaration;
+      if (e.name === enumName) {
+        enumDeclResult = e;
+        break;
+      }
+    }
     const enumDecl = enumDeclResult as EnumDeclaration;
     if (!enumDeclResult) return null;
 
-    const memberResult = enumDecl.members.find((m: EnumMember) => m.name === memberName);
+    let memberResult: EnumMember | null = null;
+    for (let mi = 0; mi < enumDecl.members.length; mi++) {
+      const m = enumDecl.members[mi] as EnumMember;
+      if (m.name === memberName) {
+        memberResult = m;
+        break;
+      }
+    }
     const member = memberResult as EnumMember;
     if (!memberResult) {
       throw new Error(`Enum member '${memberName}' not found in enum '${enumName}'`);
@@ -1672,9 +1686,16 @@ export class MemberAccessGenerator {
       }
       fields = inlineFields;
     } else {
-      const interfaceDefResult = this.ctx.ast?.interfaces?.find(
-        (iface: InterfaceDeclaration) => iface.name === assertedType
-      );
+      let interfaceDefResult: InterfaceDeclaration | null = null;
+      if (this.ctx.ast?.interfaces) {
+        for (let ii = 0; ii < this.ctx.ast.interfaces.length; ii++) {
+          const iface = this.ctx.ast.interfaces[ii] as InterfaceDeclaration;
+          if (iface.name === assertedType) {
+            interfaceDefResult = iface;
+            break;
+          }
+        }
+      }
       if (!interfaceDefResult) {
         const syntheticExpr: MemberAccessNode = {
           type: 'member_access',

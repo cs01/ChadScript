@@ -104,6 +104,12 @@ export interface IGeneratorContext {
   nextString(): string;
 
   /**
+   * Get the size of a double in bytes (generates LLVM IR)
+   * Used for array memory allocation
+   */
+  getDoubleSize(): string;
+
+  /**
    * Create a string constant and add it to global strings
    * Returns: @.str.N (the string ID)
    *
@@ -360,16 +366,69 @@ export class MockGeneratorContext implements IGeneratorContext {
     return `@.str.${this.stringCount++}`;
   }
 
+  getDoubleSize(): string {
+    const sizePtr = this.nextTemp();
+    this.emit(`${sizePtr} = getelementptr double, double* null, i32 1`);
+    const size = this.nextTemp();
+    this.emit(`${size} = ptrtoint double* ${sizePtr} to i64`);
+    return size;
+  }
+
+  private byteToHex(b: number): string {
+    const hexChars = '0123456789ABCDEF';
+    const hi = hexChars.charAt((b >> 4) & 0xF);
+    const lo = hexChars.charAt(b & 0xF);
+    return hi + lo;
+  }
+
   createStringConstant(value: string): string {
     const strId = this.nextString();
-    // Escape special characters for LLVM string constants
-    const escaped = value
-      .replace(/\\/g, '\\\\')
-      .replace(/\n/g, '\\0A')
-      .replace(/"/g, '\\"')
-      .replace(/\r/g, '\\0D')
-      .replace(/\t/g, '\\09');
-    const len = value.length + 1; // +1 for null terminator
+    let escaped = '';
+    let byteCount = 0;
+    for (let i = 0; i < value.length; i++) {
+      const ch = value[i];
+      const code = value.charCodeAt(i);
+      if (ch === '\\') {
+        escaped += '\\\\';
+        byteCount += 1;
+      } else if (ch === '\n') {
+        escaped += '\\0A';
+        byteCount += 1;
+      } else if (ch === '\r') {
+        escaped += '\\0D';
+        byteCount += 1;
+      } else if (ch === '\t') {
+        escaped += '\\09';
+        byteCount += 1;
+      } else if (ch === '"') {
+        escaped += '\\"';
+        byteCount += 1;
+      } else if (code < 32 || code > 126) {
+        if (code < 128) {
+          escaped += '\\' + this.byteToHex(code);
+          byteCount += 1;
+        } else if (code < 0x800) {
+          escaped += '\\' + this.byteToHex(0xC0 | (code >> 6));
+          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          byteCount += 2;
+        } else if (code < 0x10000) {
+          escaped += '\\' + this.byteToHex(0xE0 | (code >> 12));
+          escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
+          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          byteCount += 3;
+        } else {
+          escaped += '\\' + this.byteToHex(0xF0 | (code >> 18));
+          escaped += '\\' + this.byteToHex(0x80 | ((code >> 12) & 0x3F));
+          escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
+          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          byteCount += 4;
+        }
+      } else {
+        escaped += ch;
+        byteCount += 1;
+      }
+    }
+    const len = byteCount + 1;
     this.globalStrings.push(`${strId} = private unnamed_addr constant [${len} x i8] c"${escaped}\\00", align 1`);
     return strId;
   }

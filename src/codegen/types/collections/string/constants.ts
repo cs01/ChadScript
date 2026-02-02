@@ -1,18 +1,65 @@
-import { BaseGenerator } from '../../../infrastructure/base-generator.js';
+import { IGeneratorContext } from '../../../infrastructure/generator-context.js';
 
 // ============================================
 // STRING CONSTANTS - String constant creation and number conversion
 // ============================================
 
-export function createStringConstant(ctx: BaseGenerator, value: string): string {
-  const escaped = value
-    .replace(/\\/g, '\\5C')
-    .replace(/\n/g, '\\0A')
-    .replace(/\t/g, '\\09')
-    .replace(/\r/g, '\\0D')
-    .replace(/"/g, '\\22');
+const HEX_CHARS = '0123456789ABCDEF';
 
-  const length = value.length + 1;
+function byteToHex(b: number): string {
+  const hi = HEX_CHARS.charAt((b >> 4) & 0xF);
+  const lo = HEX_CHARS.charAt(b & 0xF);
+  return hi + lo;
+}
+
+export function createStringConstant(ctx: IGeneratorContext, value: string): string {
+  let escaped = '';
+  let byteCount = 0;
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    const code = value.charCodeAt(i);
+    if (ch === '\\') {
+      escaped += '\\5C';
+      byteCount += 1;
+    } else if (ch === '\n') {
+      escaped += '\\0A';
+      byteCount += 1;
+    } else if (ch === '\r') {
+      escaped += '\\0D';
+      byteCount += 1;
+    } else if (ch === '\t') {
+      escaped += '\\09';
+      byteCount += 1;
+    } else if (ch === '"') {
+      escaped += '\\22';
+      byteCount += 1;
+    } else if (code < 32 || code > 126) {
+      if (code < 128) {
+        escaped += '\\' + byteToHex(code);
+        byteCount += 1;
+      } else if (code < 0x800) {
+        escaped += '\\' + byteToHex(0xC0 | (code >> 6));
+        escaped += '\\' + byteToHex(0x80 | (code & 0x3F));
+        byteCount += 2;
+      } else if (code < 0x10000) {
+        escaped += '\\' + byteToHex(0xE0 | (code >> 12));
+        escaped += '\\' + byteToHex(0x80 | ((code >> 6) & 0x3F));
+        escaped += '\\' + byteToHex(0x80 | (code & 0x3F));
+        byteCount += 3;
+      } else {
+        escaped += '\\' + byteToHex(0xF0 | (code >> 18));
+        escaped += '\\' + byteToHex(0x80 | ((code >> 12) & 0x3F));
+        escaped += '\\' + byteToHex(0x80 | ((code >> 6) & 0x3F));
+        escaped += '\\' + byteToHex(0x80 | (code & 0x3F));
+        byteCount += 4;
+      }
+    } else {
+      escaped += ch;
+      byteCount += 1;
+    }
+  }
+
+  const length = byteCount + 1;
   const globalName = ctx.nextString();
 
   ctx.globalStrings.push(
@@ -27,7 +74,7 @@ export function createStringConstant(ctx: BaseGenerator, value: string): string 
   return ptrReg;
 }
 
-export function convertNumberToString(ctx: BaseGenerator, numValue: string): string {
+export function convertNumberToString(ctx: IGeneratorContext, numValue: string): string {
   const intValue = ctx.nextTemp();
   ctx.emit(`${intValue} = fptosi double ${numValue} to i32`);
 

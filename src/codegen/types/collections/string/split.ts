@@ -1,11 +1,11 @@
-import { BaseGenerator } from '../../../infrastructure/base-generator.js';
+import { IGeneratorContext } from '../../../infrastructure/generator-context.js';
 import { generateSubstr } from './manipulation.js';
 
 // ============================================
 // STRING SPLIT - Complex string splitting into arrays
 // ============================================
 
-export function generateSplit(ctx: BaseGenerator, strPtr: string, delimiter: string): string {
+export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter: string): string {
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
   const strLenI32 = ctx.nextTemp();

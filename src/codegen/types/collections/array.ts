@@ -2,32 +2,9 @@ import { Expression, MethodCallNode, ArrowFunctionNode, VariableNode } from '../
 
 interface ExprBase { type: string; }
 
-interface ArrayGenContext {
-  nextTemp(): string;
-  nextLabel(prefix: string): string;
-  emit(instruction: string): void;
-  variableTypes: Map<string, string>;
-  expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
-  getVariableType(name: string): string | undefined;
-  setVariableType(name: string, type: string): void;
-  generateExpression(expr: Expression, params: string[]): string;
-}
-
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { generateArrayLiteral } from './array/literal.js';
 import { generateArrayPush, generateArrayPop } from './array/mutators.js';
-
-interface ArrayGeneratorShim {
-  nextTemp(): string;
-  nextLabel(prefix: string): string;
-  emit(instruction: string): void;
-  getDoubleSize(): string;
-  getVariableType(name: string): string | undefined;
-  setVariableType(name: string, type: string): void;
-  variableTypes: Map<string, string>;
-  expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
-  generateExpression(expr: Expression, params: string[]): string;
-}
 
 export class ArrayGenerator {
   constructor(private ctx: IGeneratorContext) {}
@@ -49,37 +26,17 @@ export class ArrayGenerator {
   }
 
   generateArrayLiteral(expr: Expression, params: string[]): string {
-    return generateArrayLiteral(this.createGeneratorShim(), expr, params);
+    return generateArrayLiteral(this.ctx, expr, params);
   }
 
   generateArrayPush(expr: MethodCallNode, params: string[]): string {
-    return generateArrayPush(this.createGeneratorShim(), expr, params);
+    return generateArrayPush(this.ctx, expr, params);
   }
 
   generateArrayPop(expr: MethodCallNode, params: string[]): string {
-    return generateArrayPop(this.createGeneratorShim(), expr, params);
+    return generateArrayPop(this.ctx, expr, params);
   }
 
-  private createGeneratorShim(): ArrayGeneratorShim {
-    const ctx = this.ctx as ArrayGenContext;
-    return {
-      nextTemp: function(): string { return ctx.nextTemp(); },
-      nextLabel: function(prefix: string): string { return ctx.nextLabel(prefix); },
-      emit: function(instruction: string): void { ctx.emit(instruction); },
-      getDoubleSize: function(): string {
-        const sizePtr = ctx.nextTemp();
-        ctx.emit(`${sizePtr} = getelementptr double, double* null, i32 1`);
-        const size = ctx.nextTemp();
-        ctx.emit(`${size} = ptrtoint double* ${sizePtr} to i64`);
-        return size;
-      },
-      getVariableType: function(name: string): string | undefined { return ctx.getVariableType(name); },
-      setVariableType: function(name: string, type: string): void { ctx.setVariableType(name, type); },
-      variableTypes: ctx.variableTypes,
-      expectedArrayElementType: ctx.expectedArrayElementType,
-      generateExpression: function(expr: Expression, params: string[]): string { return ctx.generateExpression(expr, params); },
-    };
-  }
   generateArrayFind(expr: MethodCallNode, params: string[]): string {
     // arr.find(predicateFn) - returns first element where predicate returns truthy, or 0 if not found
     // Accepts a variable reference to a function that takes (element) and returns boolean-ish

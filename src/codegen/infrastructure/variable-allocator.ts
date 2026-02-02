@@ -17,7 +17,7 @@ interface FieldInfo {
 }
 
 interface ArrowFunctionGeneratorLike {
-  generateArrowFunction(expr: Expression | null, params: string[], returnType?: string | { paramTypes?: string[], returnType?: string }, scopeVars?: Map<string, string>): string;
+  generateArrowFunction(expr: Expression | null, params: string[], returnType?: string | { paramTypes?: string[], returnType?: string }, scopeVarNames?: string[], scopeVarTypes?: string[]): string;
   getClosureInfoForLambda(lambdaName: string): ClosureInfoResult | null;
 }
 
@@ -692,8 +692,9 @@ export class VariableAllocator {
   }
 
   private allocateArrowFunction(stmt: VariableDeclaration, params: string[]): void {
-    const scopeVars = this.ctx.symbolTable.getScopeVarsForClosure();
-    const lambdaName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(stmt.value, params, undefined, scopeVars);
+    const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
+    const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
+    const lambdaName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(stmt.value, params, undefined, scopeVarsTyped.names, scopeVarsTyped.types);
 
     const closureInfoResult = this.ctx.exprGen.arrowFunctionGen.getClosureInfoForLambda(lambdaName);
     const closureInfo = closureInfoResult as ClosureInfoResult;

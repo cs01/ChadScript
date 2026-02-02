@@ -2,6 +2,9 @@ import { Expression } from '../../../../ast/types.js';
 
 interface ExprBase { type: string; }
 interface ArrayExpr { type: string; elements: Expression[]; }
+interface VariableExpr { type: string; name: string; }
+interface MethodCallExpr { type: string; object: Expression; method: string; }
+interface CallExpr { type: string; name: string; }
 
 interface ArrayLiteralContext {
   nextTemp(): string;
@@ -32,36 +35,58 @@ export function generateArrayLiteral(
   // Determine if this is a string array:
   // 1. All elements are strings, OR
   // 2. Empty array with expectedArrayElementType='string' from context
-  let isStringArray = length > 0 && arrExpr.elements.every(elem => {
-    const el = elem as ExprBase;
-    return el.type === 'string';
-  });
+  let isStringArray = false;
+  if (length > 0) {
+    let allStrings = true;
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const el = arrExpr.elements[i] as ExprBase;
+      if (el.type !== 'string') {
+        allStrings = false;
+        break;
+      }
+    }
+    isStringArray = allStrings;
+  }
   if (length === 0 && gen.expectedArrayElementType === 'string') {
     isStringArray = true;
   }
 
-  const isPointerArray = length > 0 && arrExpr.elements.some(elem => {
-    const el = elem as ExprBase;
-    if (el.type === 'variable') {
-      const varName = (elem as any).name;
-      const varType = gen.getVariableType(varName);
-      return varType && (varType.indexOf('%Promise') !== -1 || varType.indexOf('*') !== -1);
-    }
-    if (el.type === 'method_call') {
-      const obj = (elem as any).object;
-      const objBase = obj as ExprBase;
-      if (obj && objBase.type === 'variable' && obj.name === 'Promise') {
-        return true;
+  let isPointerArray = false;
+  if (length > 0) {
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const elem = arrExpr.elements[i];
+      const el = elem as ExprBase;
+      if (el.type === 'variable') {
+        const varExpr = elem as VariableExpr;
+        const varName = varExpr.name;
+        const varType = gen.getVariableType(varName);
+        if (varType && (varType.indexOf('%Promise') !== -1 || varType.indexOf('*') !== -1)) {
+          isPointerArray = true;
+          break;
+        }
+      }
+      if (el.type === 'method_call') {
+        const mcExpr = elem as MethodCallExpr;
+        const obj = mcExpr.object;
+        const objBase = obj as ExprBase;
+        if (obj && objBase.type === 'variable') {
+          const objVar = obj as VariableExpr;
+          if (objVar.name === 'Promise') {
+            isPointerArray = true;
+            break;
+          }
+        }
+      }
+      if (el.type === 'call') {
+        const callExpr = elem as CallExpr;
+        const callName = callExpr.name;
+        if (callName === 'fetch') {
+          isPointerArray = true;
+          break;
+        }
       }
     }
-    if (el.type === 'call') {
-      const callName = (elem as any).name;
-      if (callName === 'fetch') {
-        return true;
-      }
-    }
-    return false;
-  });
+  }
 
   if (isStringArray) {
     // Generate string array - allocate on HEAP, not stack
