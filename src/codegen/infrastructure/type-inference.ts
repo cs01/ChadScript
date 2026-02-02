@@ -2,6 +2,7 @@ import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, Cal
 import { SymbolTable } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { ClassGenerator } from '../types/objects/class.js';
+import type { TypeResolver } from './type-resolver/index.js';
 
 interface ExprBase { type: string; }
 
@@ -13,12 +14,16 @@ export interface TypeInferenceContext {
   ast: AST;
   typeChecker: TypeChecker | null;
   classGen: ClassGenerator | null;
+  typeResolver?: TypeResolver;
 }
 
 export class TypeInference {
   constructor(private ctx: TypeInferenceContext) {}
 
   private getInterface(name: string): InterfaceDeclaration | null {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.getInterface(name);
+    }
     if (!this.ctx.ast.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
       const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
@@ -30,6 +35,9 @@ export class TypeInference {
   }
 
   private getInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.getInterfaceProperty(interfaceName, propName);
+    }
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
     for (let i = 0; i < iface.fields.length; i++) {
