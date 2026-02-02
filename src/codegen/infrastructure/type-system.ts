@@ -1,6 +1,9 @@
+export type NumericKind = 'integer' | 'float';
+
 export interface TypeQualifiers {
   isNullable: boolean;
   isOptional: boolean;
+  numericKind?: NumericKind;
 }
 
 export interface ResolvedType {
@@ -148,6 +151,22 @@ export function typeEquals(a: ResolvedType, b: ResolvedType): boolean {
 
 export function isNumericType(resolved: ResolvedType): boolean {
   return resolved.base === 'number' && resolved.arrayDepth === 0;
+}
+
+export function isIntegerType(resolved: ResolvedType): boolean {
+  return resolved.base === 'number' && resolved.arrayDepth === 0 && resolved.qualifiers.numericKind === 'integer';
+}
+
+export function isFloatType(resolved: ResolvedType): boolean {
+  return resolved.base === 'number' && resolved.arrayDepth === 0 && resolved.qualifiers.numericKind !== 'integer';
+}
+
+export function createIntegerType(): ResolvedType {
+  return createResolvedType('number', { numericKind: 'integer' });
+}
+
+export function createFloatType(): ResolvedType {
+  return createResolvedType('number', { numericKind: 'float' });
 }
 
 export function isStringType(resolved: ResolvedType): boolean {
