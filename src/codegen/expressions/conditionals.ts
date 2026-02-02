@@ -45,6 +45,13 @@ export class ConditionalExpressionGenerator {
       // Value is double, use fcmp directly
       condBool = this.nextTemp();
       this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
+    } else if (condValueType && condValueType.indexOf('*') !== -1) {
+      // Value is a pointer type, check if non-null
+      condBool = this.nextTemp();
+      this.emit(`${condBool} = icmp ne ${condValueType} ${condValue}, null`);
+    } else if (condValueType === 'i1') {
+      // Value is already a boolean
+      condBool = condValue;
     } else {
       // Value is i32, convert to double first
       const condDouble = this.nextTemp();

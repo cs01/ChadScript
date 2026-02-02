@@ -237,6 +237,8 @@ export class AssignmentGenerator {
       this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
     } else if (fieldInfo.tsType?.startsWith('Set<')) {
       this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
+    } else if (fieldInfo.tsType && fieldInfo.tsType !== 'number' && fieldInfo.tsType !== 'boolean') {
+      this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
     } else {
       this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
     }

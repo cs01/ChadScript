@@ -14,6 +14,43 @@ export class ClassGenerator {
 
   constructor(private ctx: IGeneratorContext) {}
 
+  private fieldToLlvmType(f: ClassField): string {
+    if (f.fieldType === 'string') {
+      return 'i8*';
+    } else if (f.fieldType === 'string[]') {
+      return '%StringArray*';
+    } else if (f.fieldType.endsWith('[]')) {
+      return '%Array*';
+    } else if (f.fieldType === 'boolean') {
+      return 'i1';
+    } else if (f.tsType) {
+      if (f.tsType.startsWith('Map<string,')) {
+        return '%StringMap*';
+      } else if (f.tsType.startsWith('Map<')) {
+        return '%Map*';
+      } else if (f.tsType === 'Set<string>') {
+        return '%StringSet*';
+      } else if (f.tsType.startsWith('Set<')) {
+        return '%Set*';
+      } else if (f.tsType === 'number' || f.tsType === 'boolean') {
+        return 'double';
+      } else {
+        return 'i8*';
+      }
+    }
+    return 'double';
+  }
+
+  private emitFieldInit(fieldPtr: string, llvmType: string): void {
+    if (llvmType === 'i1') {
+      this.emit(`store i1 false, i1* ${fieldPtr}`);
+    } else if (llvmType === 'double') {
+      this.emit(`store double 0.0, double* ${fieldPtr}`);
+    } else {
+      this.emit(`store ${llvmType} null, ${llvmType}* ${fieldPtr}`);
+    }
+  }
+
   // Helper methods delegate to context
   private nextTemp() { return this.ctx.nextTemp(); }
   private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
@@ -137,26 +174,8 @@ export class ClassGenerator {
     if (classNode.fields.length > 0) {
       const fieldTypes: string[] = [];
       for (let fi = 0; fi < classNode.fields.length; fi++) {
-        const f = classNode.fields[fi] as { name: string; fieldType: string; tsType: string };
-        if (f.fieldType === 'string') {
-          fieldTypes.push('i8*');
-        } else if (f.fieldType === 'string[]') {
-          fieldTypes.push('%StringArray*');
-        } else if (f.fieldType.endsWith('[]')) {
-          fieldTypes.push('%Array*');
-        } else if (f.fieldType === 'boolean') {
-          fieldTypes.push('i1');
-        } else if (f.tsType && f.tsType.startsWith('Map<string,')) {
-          fieldTypes.push('%StringMap*');
-        } else if (f.tsType && f.tsType.startsWith('Map<')) {
-          fieldTypes.push('%Map*');
-        } else if (f.tsType && f.tsType.startsWith('Set<string>')) {
-          fieldTypes.push('%StringSet*');
-        } else if (f.tsType && f.tsType.startsWith('Set<')) {
-          fieldTypes.push('%Set*');
-        } else {
-          fieldTypes.push('double');
-        }
+        const f = classNode.fields[fi] as ClassField;
+        fieldTypes.push(this.fieldToLlvmType(f));
       }
       ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
     }
@@ -242,29 +261,9 @@ export class ClassGenerator {
       for (let i = 0; i < fields.length; i++) {
         const fieldPtr = this.nextTemp();
         const classField = fields[i];
-        const fieldType = classField.fieldType;
-        const tsType = classField.tsType;
+        const llvmType = this.fieldToLlvmType(classField);
         this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${objPtr}, i32 0, i32 ${i}`);
-
-        if (fieldType === 'string') {
-          this.emit(`store i8* null, i8** ${fieldPtr}`);
-        } else if (fieldType === 'string[]') {
-          this.emit(`store %StringArray* null, %StringArray** ${fieldPtr}`);
-        } else if (fieldType.endsWith('[]')) {
-          this.emit(`store %Array* null, %Array** ${fieldPtr}`);
-        } else if (fieldType === 'boolean') {
-          this.emit(`store i1 false, i1* ${fieldPtr}`);
-        } else if (tsType?.startsWith('Map<string,')) {
-          this.emit(`store %StringMap* null, %StringMap** ${fieldPtr}`);
-        } else if (tsType?.startsWith('Map<')) {
-          this.emit(`store %Map* null, %Map** ${fieldPtr}`);
-        } else if (tsType === 'Set<string>') {
-          this.emit(`store %StringSet* null, %StringSet** ${fieldPtr}`);
-        } else if (tsType?.startsWith('Set<')) {
-          this.emit(`store %Set* null, %Set** ${fieldPtr}`);
-        } else {
-          this.emit(`store double 0.0, double* ${fieldPtr}`);
-        }
+        this.emitFieldInit(fieldPtr, llvmType);
       }
     } else {
       // Backward compatibility: no fields, use old array approach with double*
@@ -313,15 +312,7 @@ export class ClassGenerator {
   private generateMethod(className: string, method: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[]): string {
     let returnLLVMType = 'double';
     if (method.returnType) {
-      if (method.returnType === 'string') {
-        returnLLVMType = 'i8*';
-      } else if (method.returnType === 'string[]') {
-        returnLLVMType = '%StringArray*';
-      } else if (method.returnType === 'number[]' || method.returnType === 'boolean[]') {
-        returnLLVMType = '%Array*';
-      } else if (method.returnType === 'void') {
-        returnLLVMType = 'void';
-      }
+      returnLLVMType = this.tsTypeToLlvm(method.returnType);
     }
 
     const thisType = fields.length > 0 ? `%${className}_struct*` : 'double*';
@@ -423,15 +414,7 @@ export class ClassGenerator {
     const paramLLVMTypes: string[] = [];
     for (let pi = 0; pi < paramTypes.length; pi++) {
       const pType = paramTypes[pi];
-      if (pType === 'string') {
-        paramLLVMTypes.push('i8*');
-      } else if (pType === 'string[]') {
-        paramLLVMTypes.push('%StringArray*');
-      } else if (pType === 'number[]' || pType === 'boolean[]') {
-        paramLLVMTypes.push('%Array*');
-      } else {
-        paramLLVMTypes.push('double');
-      }
+      paramLLVMTypes.push(this.tsTypeToLlvm(pType));
     }
 
     // Call the constructor with correct parameter types
@@ -467,15 +450,7 @@ export class ClassGenerator {
     const paramLLVMTypes: string[] = [];
     for (let pi = 0; pi < paramTypes.length; pi++) {
       const pType = paramTypes[pi];
-      if (pType === 'string') {
-        paramLLVMTypes.push('i8*');
-      } else if (pType === 'string[]') {
-        paramLLVMTypes.push('%StringArray*');
-      } else if (pType === 'number[]' || pType === 'boolean[]') {
-        paramLLVMTypes.push('%Array*');
-      } else {
-        paramLLVMTypes.push('double');
-      }
+      paramLLVMTypes.push(this.tsTypeToLlvm(pType));
     }
 
     // Generate arguments with correct types based on paramTypes
@@ -544,6 +519,7 @@ export class ClassGenerator {
     if (tsType === 'string') return 'i8*';
     if (tsType === 'number') return 'double';
     if (tsType === 'boolean') return 'double';
+    if (tsType === 'void') return 'void';
     if (tsType === 'string[]') return '%StringArray*';
     if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
     return 'i8*';
@@ -627,7 +603,7 @@ export class ClassGenerator {
   private fieldTypeToLlvm(fieldType: string): string {
     if (fieldType === 'string') return 'i8*';
     if (fieldType === 'number') return 'double';
-    if (fieldType === 'boolean') return 'i8*';
+    if (fieldType === 'boolean') return 'double';
     if (fieldType.startsWith("'") || fieldType.startsWith('"')) return 'i8*';
     return 'i8*';
   }

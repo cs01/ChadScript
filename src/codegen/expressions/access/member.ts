@@ -976,7 +976,7 @@ export class MemberAccessGenerator {
           } else if (f.type === 'number') {
             types.push('double');
           } else if (f.type === 'boolean') {
-            types.push('i32');
+            types.push('double');
           } else {
             types.push('i8*');
           }
@@ -1080,7 +1080,7 @@ export class MemberAccessGenerator {
                 } else if (f.type === 'number') {
                   types.push('double');
                 } else if (f.type === 'boolean') {
-                  types.push('i32');
+                  types.push('double');
                 } else {
                   types.push('i8*');
                 }
@@ -1111,7 +1111,7 @@ export class MemberAccessGenerator {
                   } else if (f.type === 'number') {
                     types.push('double');
                   } else if (f.type === 'boolean') {
-                    types.push('i32');
+                    types.push('double');
                   } else {
                     types.push('i8*');
                   }
