@@ -26,7 +26,7 @@ export class ConsoleGenerator {
   canHandle(expr: MethodCallNode): boolean {
     return expr.object.type === 'variable' &&
            (expr.object as any).name === 'console' &&
-           (expr.method === 'log' || expr.method === 'error' || expr.method === 'warn');
+           (expr.method === 'log' || expr.method === 'error' || expr.method === 'warn' || expr.method === 'debug');
   }
 
   /**

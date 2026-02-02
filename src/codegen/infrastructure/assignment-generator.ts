@@ -179,12 +179,13 @@ export class AssignmentGenerator {
     const fields = this.ctx.classGen.getClassFields(className);
 
     if (fieldInfo) {
+      const fi = fieldInfo as { index: number; type: string };
       const fieldPtr = this.ctx.nextTemp();
       if (fields.length > 0) {
-        this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${instancePtr}, i32 0, i32 ${fieldInfo.index}`);
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${instancePtr}, i32 0, i32 ${fi.index}`);
         this.storeFieldValue(fieldInfo, fieldPtr, value, memberAccessValue);
       } else {
-        this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 ${fieldInfo.index}`);
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 ${fi.index}`);
         this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
       }
     } else if (fields.length === 0) {

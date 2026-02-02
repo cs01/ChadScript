@@ -114,7 +114,9 @@ export class ClosureAnalyzer {
       case 'if': {
         const s = stmt as { type: string; condition: Expression; consequent: BlockStatement; alternate: Statement | BlockStatement | null };
         this.walkExpression(s.condition);
-        this.walkBlock(s.consequent);
+        if (s.consequent) {
+          this.walkBlock(s.consequent);
+        }
         if (s.alternate) {
           const alt = s.alternate as { type: string };
           if (alt.type === 'if') {

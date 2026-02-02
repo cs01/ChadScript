@@ -1,4 +1,3 @@
-import { logger } from '../../utils/logger.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 
 interface ClassGeneratorLike {
@@ -191,7 +190,6 @@ export class VariableExpressionGenerator {
   private loadRegularVariable(name: string, allocaReg: string): string {
     const temp = this.ctx.nextTemp();
     const varType = this.ctx.getVariableType(name) || 'double';
-    logger.debug(`Loading variable "${name}", type: "${varType}", alloca: "${allocaReg}"`);
     this.ctx.emit(`${temp} = load ${varType}, ${varType}* ${allocaReg}`);
     this.ctx.variableTypes.set(temp, varType);
     return temp;

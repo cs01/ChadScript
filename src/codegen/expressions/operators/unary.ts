@@ -53,7 +53,8 @@ export class UnaryExpressionGenerator {
     if (operand.type !== 'variable') {
       throw new Error(`Post-increment/decrement requires a variable operand`);
     }
-    const varName = operand.name;
+    const operandVar = operand as { type: string; name: string };
+    const varName = operandVar.name;
     const allocaReg = this.ctx.getVariableAlloca(varName);
     if (!allocaReg) {
       throw new Error(`Cannot find alloca for variable: ${varName}`);
@@ -80,7 +81,8 @@ export class UnaryExpressionGenerator {
     if (operand.type !== 'variable') {
       throw new Error(`Pre-increment/decrement requires a variable operand`);
     }
-    const varName = operand.name;
+    const operandVarPre = operand as { type: string; name: string };
+    const varName = operandVarPre.name;
     const allocaReg = this.ctx.getVariableAlloca(varName);
     if (!allocaReg) {
       throw new Error(`Cannot find alloca for variable: ${varName}`);
@@ -141,10 +143,11 @@ export class UnaryExpressionGenerator {
     }
 
     const fieldName = memberExpr.property;
-    const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
-    if (!fieldInfo) {
+    const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
+    if (!fieldInfoResult) {
       throw new Error(`Cannot find field '${fieldName}' in class ${this.ctx.currentClassName}`);
     }
+    const fieldInfo = fieldInfoResult as { index: number; type: string };
 
     const fieldPtr = this.ctx.nextTemp();
     this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${this.ctx.currentClassName}_struct, %${this.ctx.currentClassName}_struct* ${this.ctx.thisPointer}, i32 0, i32 ${fieldInfo.index}`);
