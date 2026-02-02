@@ -16,6 +16,62 @@ export interface TypeInferenceContext {
 export class TypeInference {
   constructor(private ctx: TypeInferenceContext) {}
 
+  private getInterface(name: string): InterfaceDeclaration | null {
+    if (!this.ctx.ast.interfaces) return null;
+    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      const iface = this.ctx.ast.interfaces[i];
+      if (iface.name === name) {
+        return iface;
+      }
+    }
+    return null;
+  }
+
+  private getInterfaceProperty(interfaceName: string, propName: string): { name: string; type: string } | null {
+    const iface = this.getInterface(interfaceName);
+    if (!iface) return null;
+    for (let i = 0; i < iface.fields.length; i++) {
+      if (iface.fields[i].name === propName) {
+        return iface.fields[i];
+      }
+    }
+    return null;
+  }
+
+  private getFunction(name: string): FunctionNode | null {
+    if (!this.ctx.ast.functions) return null;
+    for (let i = 0; i < this.ctx.ast.functions.length; i++) {
+      const func = this.ctx.ast.functions[i];
+      if (func.name === name) {
+        return func;
+      }
+    }
+    return null;
+  }
+
+  private getClass(name: string): ClassNode | null {
+    if (!this.ctx.ast.classes) return null;
+    for (let i = 0; i < this.ctx.ast.classes.length; i++) {
+      const cls = this.ctx.ast.classes[i];
+      if (cls.name === name) {
+        return cls;
+      }
+    }
+    return null;
+  }
+
+  private getClassMethod(className: string, methodName: string): ClassMethod | null {
+    const cls = this.getClass(className);
+    if (!cls) return null;
+    for (let i = 0; i < cls.methods.length; i++) {
+      const method = cls.methods[i];
+      if (method.name === methodName && !method.isConstructor) {
+        return method;
+      }
+    }
+    return null;
+  }
+
   isBooleanExpression(expr: Expression | null | undefined): boolean {
     if (expr === null || expr === undefined) return false;
     if (expr.type === 'boolean') return true;
@@ -133,12 +189,9 @@ export class TypeInference {
             !varType.includes('Array') && !varType.includes('Response') &&
             !varType.includes('Map') && !varType.includes('Set')) {
           const structTypeName = varType.substring(1, varType.length - 1);
-          const interfaceDef = this.ctx.ast.interfaces.find((i: InterfaceDeclaration) => i.name === structTypeName);
-          if (interfaceDef) {
-            const prop = interfaceDef.fields.find((f) => f.name === memberExpr.property);
-            if (prop && prop.type === 'string') {
-              return true;
-            }
+          const prop = this.getInterfaceProperty(structTypeName, memberExpr.property);
+          if (prop && prop.type === 'string') {
+            return true;
           }
         }
         if (this.ctx.symbolTable.isClass(varName)) {
@@ -211,7 +264,7 @@ export class TypeInference {
       if (funcExpr.name === 'String') {
         return true;
       }
-      const func = this.ctx.ast.functions?.find((f: FunctionNode) => f.name === funcExpr.name);
+      const func = this.getFunction(funcExpr.name);
       if (func && func.returnType === 'string') {
         return true;
       }
@@ -243,12 +296,9 @@ export class TypeInference {
       if (methodExpr.object.type === 'variable' && this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)) {
         const className = this.ctx.symbolTable.getClassName((methodExpr.object as VariableNode).name);
         if (className) {
-          const classNode = this.ctx.ast.classes.find((c: ClassNode) => c.name === className);
-          if (classNode) {
-            const method = classNode.methods.find((m: ClassMethod) => m.name === methodExpr.method && !m.isConstructor);
-            if (method && method.returnType === 'string') {
-              return true;
-            }
+          const method = this.getClassMethod(className, methodExpr.method);
+          if (method && method.returnType === 'string') {
+            return true;
           }
         }
       }
@@ -312,7 +362,7 @@ export class TypeInference {
       return varType === '%Promise*';
     }
     if (expr.type === 'call') {
-      const func = this.ctx.ast.functions?.find((f: FunctionNode) => f.name === expr.name);
+      const func = this.getFunction(expr.name);
       if (func && func.async) {
         return true;
       }
@@ -340,9 +390,9 @@ export class TypeInference {
   getFunctionCallInterfaceReturn(expr: Expression): string | null {
     if (expr.type !== 'call') return null;
     const callExpr = expr as CallNode;
-    const func = this.ctx.ast.functions.find((f: FunctionNode) => f.name === callExpr.name);
+    const func = this.getFunction(callExpr.name);
     if (!func || !func.returnType) return null;
-    const iface = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === func.returnType);
+    const iface = this.getInterface(func.returnType);
     if (iface) return func.returnType;
     return null;
   }
