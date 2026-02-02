@@ -16,6 +16,7 @@
 
 import { Expression, TemplateLiteralNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
+import { convertNumberToString } from '../types/collections/string/constants.js';
 
 export class TemplateLiteralGenerator {
   constructor(private ctx: IGeneratorContext) {}
@@ -57,10 +58,13 @@ export class TemplateLiteralGenerator {
         // String literal part (no type property means it's a string)
         partValue = this.ctx.stringGen.createStringConstant(part as string);
       } else {
-        // Expression part - need to convert to string
-        // For now, we only support expressions that are already strings
-        // TODO: Add number-to-string conversion
-        partValue = this.ctx.generateExpression(part as Expression, params);
+        const exprPart = part as Expression;
+        const exprValue = this.ctx.generateExpression(exprPart, params);
+        if (this.ctx.isStringExpression(exprPart) || this.ctx.getVariableType(exprValue) === 'i8*') {
+          partValue = exprValue;
+        } else {
+          partValue = convertNumberToString(this.ctx, exprValue);
+        }
       }
 
       if (result === null) {
