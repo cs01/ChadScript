@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode } from '../../../ast/types.js';
+import { Expression, MethodCallNode, MapEntry } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 
 // ============================================
@@ -77,8 +77,9 @@ export class MapGenerator {
 
     // Populate initial entries
     for (let i = 0; i < mapExpr.entries.length; i++) {
-      const keyValue = generateExpressionFn(mapExpr.entries[i].key, params);
-      const valueValue = generateExpressionFn(mapExpr.entries[i].value, params);
+      const entry = mapExpr.entries[i] as MapEntry;
+      const keyValue = generateExpressionFn(entry.key, params);
+      const valueValue = generateExpressionFn(entry.value, params);
 
       // Store key
       const keyElemPtr = this.nextTemp();

@@ -1,4 +1,4 @@
-import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, TopLevelItem, AssignmentStatement, CallNode, NewNode, MethodCallNode } from '../../ast/types.js';
+import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, TopLevelItem, AssignmentStatement, CallNode, NewNode, MethodCallNode, CommonField } from '../../ast/types.js';
 import { SymbolKind, SymbolTable } from './symbol-table.js';
 import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
@@ -159,8 +159,9 @@ export class FunctionGenerator {
             const keys: string[] = [];
             const types: string[] = [];
             for (let j = 0; j < interfaceDef.fields.length; j++) {
-              keys.push(interfaceDef.fields[j].name);
-              types.push(this.tsTypeToLlvm(interfaceDef.fields[j].type));
+              const field = interfaceDef.fields[j] as InterfaceField;
+              keys.push(field.name);
+              types.push(this.tsTypeToLlvm(field.type));
             }
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
               objectMetadata: { keys, types },
@@ -324,7 +325,7 @@ export class FunctionGenerator {
 
     const firstInterface = interfaces[0] as InterfaceDeclaration;
     const firstFields = firstInterface.fields;
-    const commonFields: { name: string; type: string }[] = [];
+    const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
       const field = firstFields[fi] as InterfaceField;
@@ -339,8 +340,9 @@ export class FunctionGenerator {
     const keys: string[] = [];
     const types: string[] = [];
     for (let i = 0; i < commonFields.length; i++) {
-      keys.push(commonFields[i].name);
-      types.push(this.tsTypeToLlvm(commonFields[i].type));
+      const cf = commonFields[i] as CommonField;
+      keys.push(cf.name);
+      types.push(this.tsTypeToLlvm(cf.type));
     }
 
     return { keys, types };

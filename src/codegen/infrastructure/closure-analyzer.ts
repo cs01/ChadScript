@@ -11,7 +11,7 @@
  * to the lifted lambda function.
  */
 
-import type { Expression, BlockStatement, Statement } from '../../ast/types.js';
+import type { Expression, BlockStatement, Statement, ObjectProperty } from '../../ast/types.js';
 
 export interface CapturedVariable {
   name: string;
@@ -205,7 +205,8 @@ export class ClosureAnalyzer {
 
       case 'object':
         for (let i = 0; i < e.properties.length; i++) {
-          this.walkExpression(e.properties[i].value);
+          const prop = e.properties[i] as ObjectProperty;
+          this.walkExpression(prop.value);
         }
         break;
 

@@ -1,4 +1,4 @@
-import { Expression, ClassNode, ClassMethod, BlockStatement, VariableNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration } from '../../../ast/types.js';
+import { Expression, ClassNode, ClassMethod, BlockStatement, VariableNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, CommonField } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind } from '../../infrastructure/symbol-table.js';
 import { logger } from '../../../utils/logger.js';
@@ -180,8 +180,9 @@ export class ClassGenerator {
       // Initialize all fields to 0/null
       for (let i = 0; i < fields.length; i++) {
         const fieldPtr = this.nextTemp();
-        const fieldType = fields[i].fieldType;
-        const tsType = fields[i].tsType;
+        const classField = fields[i];
+        const fieldType = classField.fieldType;
+        const tsType = classField.tsType;
         this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${objPtr}, i32 0, i32 ${i}`);
 
         if (fieldType === 'string') {
@@ -528,7 +529,7 @@ export class ClassGenerator {
 
     const firstInterface = interfaces[0] as InterfaceDeclaration;
     const firstFields = firstInterface.fields;
-    const commonFields: { name: string; type: string }[] = [];
+    const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
       const field = firstFields[fi] as InterfaceField;
@@ -543,7 +544,7 @@ export class ClassGenerator {
     const keys: string[] = [];
     const types: string[] = [];
     for (let fi = 0; fi < commonFields.length; fi++) {
-      const f = commonFields[fi];
+      const f = commonFields[fi] as CommonField;
       keys.push(f.name);
       types.push(this.fieldTypeToLlvm(f.type));
     }
