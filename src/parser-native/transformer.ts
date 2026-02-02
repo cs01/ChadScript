@@ -1087,6 +1087,7 @@ function transformForStatement(node: TreeSitterNode): ForStatement {
 
 function transformForInStatement(node: TreeSitterNode): ForOfStatement {
   let variableName = '';
+  let destructuredNames: string[] | undefined;
   let variableKind: 'let' | 'const' | 'var' = 'const';
   let isForOf = false;
 
@@ -1112,6 +1113,15 @@ function transformForInStatement(node: TreeSitterNode): ForOfStatement {
   if (leftNode) {
     if (leftNode.type === 'identifier') {
       variableName = leftNode.text;
+    } else if (leftNode.type === 'array_pattern') {
+      destructuredNames = [];
+      for (let i = 0; i < leftNode.childCount; i++) {
+        const child = getChild(leftNode, i);
+        if (child && child.type === 'identifier') {
+          destructuredNames.push(child.text);
+        }
+      }
+      variableName = destructuredNames[0] || '';
     }
   }
 
@@ -1133,7 +1143,7 @@ function transformForInStatement(node: TreeSitterNode): ForOfStatement {
 
   const body = bodyNode ? wrapInBlock(bodyNode) : { type: 'block' as const, statements: [] };
 
-  return { type: 'for_of', variableKind, variableName, iterable, body };
+  return { type: 'for_of', variableKind, variableName, destructuredNames, iterable, body };
 }
 
 function transformThrowStatement(node: TreeSitterNode): ThrowStatement {
