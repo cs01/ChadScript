@@ -1,4 +1,4 @@
-import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, NewNode, RegexNode, ArrowFunctionNode, ConditionalExpressionNode, TemplateLiteralNode, MethodCallNode, AwaitExpressionNode, TypeAssertionNode, IndexAccessAssignmentNode } from '../../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, NewNode, RegexNode, ArrowFunctionNode, ConditionalExpressionNode, TemplateLiteralNode, MethodCallNode, AwaitExpressionNode, TypeAssertionNode, IndexAccessAssignmentNode, CallNode, IndexAccessNode, MemberAccessNode } from '../../ast/types.js';
 import { LiteralExpressionGenerator } from './literals.js';
 import { VariableExpressionGenerator } from './variables.js';
 import { BinaryExpressionGenerator } from './operators/binary.js';
@@ -71,24 +71,24 @@ export class ExpressionGenerator {
   generate(expr: Expression, params: string[]): string {
     const exprTyped = expr as { type: string; value: number | string | boolean; name: string; op: string; operand: Expression; left: Expression; right: Expression };
     // Literals
-    if (expr.type === 'number') {
+    if (exprTyped.type === 'number') {
       return this.literalGen.generateNumber(exprTyped.value as number);
     }
 
-    if (expr.type === 'boolean') {
+    if (exprTyped.type === 'boolean') {
       return this.literalGen.generateBoolean(exprTyped.value as boolean);
     }
 
-    if (expr.type === 'string') {
+    if (exprTyped.type === 'string') {
       return this.literalGen.generateString(exprTyped.value as string);
     }
 
-    if (expr.type === 'regex') {
+    if (exprTyped.type === 'regex') {
       const regexExpr = expr as RegexNode;
       return this.literalGen.generateRegex(regexExpr.pattern, regexExpr.flags);
     }
 
-    if (expr.type === 'array') {
+    if (exprTyped.type === 'array') {
       return this.literalGen.generateArray(expr as ArrayNode, params);
     }
 
@@ -109,63 +109,63 @@ export class ExpressionGenerator {
       return this.literalGen.generateNew(newExpr.className, newExpr.args, params);
     }
 
-    if (expr.type === 'this') {
+    if (exprTyped.type === 'this') {
       return this.literalGen.generateThis();
     }
 
     // Variables
-    if (expr.type === 'variable') {
+    if (exprTyped.type === 'variable') {
       return this.variableGen.generate(exprTyped.name);
     }
 
     // Unary operators
-    if (expr.type === 'unary') {
+    if (exprTyped.type === 'unary') {
       return this.unaryGen.generate(exprTyped.op, exprTyped.operand, params);
     }
 
     // Binary operators
-    if (expr.type === 'binary') {
+    if (exprTyped.type === 'binary') {
       return this.binaryGen.generate(exprTyped.op, exprTyped.left, exprTyped.right, params);
     }
 
     // Call expressions
-    if (expr.type === 'call') {
-      return this.callGen.generate(expr, params);
+    if (exprTyped.type === 'call') {
+      return this.callGen.generate(expr as CallNode, params);
     }
 
     // Index access
-    if (expr.type === 'index_access') {
-      return this.indexAccessGen.generate(expr, params);
+    if (exprTyped.type === 'index_access') {
+      return this.indexAccessGen.generate(expr as IndexAccessNode, params);
     }
 
     // Member access
-    if (expr.type === 'member_access') {
-      return this.memberAccessGen.generate(expr, params);
+    if (exprTyped.type === 'member_access') {
+      return this.memberAccessGen.generate(expr as MemberAccessNode, params);
     }
 
     // Arrow functions
-    if (expr.type === 'arrow_function') {
+    if (exprTyped.type === 'arrow_function') {
       const scopeVars = this.ctx.symbolTable.getScopeVarsForClosure();
       return this.arrowFunctionGen.generateArrowFunction(expr as ArrowFunctionNode, params, undefined, scopeVars);
     }
 
     // Conditional (ternary) expressions
-    if (expr.type === 'conditional') {
+    if (exprTyped.type === 'conditional') {
       return this.conditionalGen.generate(expr as ConditionalExpressionNode, params);
     }
 
     // Template literals
-    if (expr.type === 'template_literal') {
+    if (exprTyped.type === 'template_literal') {
       return this.templateLiteralGen.generate(expr as TemplateLiteralNode, params);
     }
 
     // Method calls
-    if (expr.type === 'method_call') {
+    if (exprTyped.type === 'method_call') {
       return this.methodCallGen.generate(expr as MethodCallNode, params);
     }
 
     // Await expressions
-    if (expr.type === 'await') {
+    if (exprTyped.type === 'await') {
       const awaitExpr = expr as AwaitExpressionNode;
       const promiseReg = this.generate(awaitExpr.argument, params);
       const valueReg = this.ctx.nextTemp();
@@ -176,17 +176,17 @@ export class ExpressionGenerator {
     }
 
     // Type assertions (expr as Type) - evaluate inner expression, type info tracked at declaration level
-    if (expr.type === 'type_assertion') {
+    if (exprTyped.type === 'type_assertion') {
       const assertExpr = expr as TypeAssertionNode;
       return this.generate(assertExpr.expression, params);
     }
 
     // Index access assignment (arr[i] = value)
-    if (expr.type === 'index_access_assignment') {
+    if (exprTyped.type === 'index_access_assignment') {
       return this.indexAccessGen.generateAssignment(expr as IndexAccessAssignmentNode, params);
     }
 
-    throw new Error(`Unknown expression type: ${expr.type}`);
+    throw new Error(`Unknown expression type: ${exprTyped.type}`);
   }
 
   /**

@@ -45,6 +45,8 @@ import {
   SetNode,
 } from '../ast/types.js';
 
+interface ExprBase { type: string; }
+
 export function transformTree(tree: TreeSitterTree): AST {
   return transformProgram(tree.rootNode);
 }
@@ -180,26 +182,33 @@ function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
   if (!exprNode) return;
 
   const expr = transformExpression(exprNode);
+  const e = expr as ExprBase;
 
-  if (expr.type === 'member_access_assignment' || expr.type === 'index_access_assignment') {
+  if (e.type === 'member_access_assignment' || e.type === 'index_access_assignment') {
+    const memberExprTyped = expr as { type: string; property: string };
     const assignment: AssignmentStatement = {
       type: 'assignment',
-      name: expr.type === 'member_access_assignment' ? `__member_access__${expr.property}__` : '__index_access__',
+      name: e.type === 'member_access_assignment' ? `__member_access__${memberExprTyped.property}__` : '__index_access__',
       value: expr,
     };
     ast.topLevelStatements.push(assignment);
     ast.topLevelItems!.push(assignment);
-  } else if (expr.type === 'call' || expr.type === 'new' || expr.type === 'method_call') {
+  } else if (e.type === 'call' || e.type === 'new' || e.type === 'method_call') {
     ast.topLevelExpressions.push(expr as CallNode | NewNode | MethodCallNode);
     ast.topLevelItems!.push(expr as TopLevelItem);
-  } else if (expr.type === 'binary' && expr.op === '=') {
-    const assignment: AssignmentStatement = {
-      type: 'assignment',
-      name: expr.left.type === 'variable' ? expr.left.name : '__unknown__',
-      value: expr.right,
-    };
-    ast.topLevelStatements.push(assignment);
-    ast.topLevelItems!.push(assignment);
+  } else if (e.type === 'binary') {
+    const binExprTyped = expr as { type: string; op: string; left: Expression; right: Expression };
+    if (binExprTyped.op === '=') {
+      const leftExprBase = binExprTyped.left as ExprBase;
+      const leftExprVar = binExprTyped.left as { type: string; name: string };
+      const assignment: AssignmentStatement = {
+        type: 'assignment',
+        name: leftExprBase.type === 'variable' ? leftExprVar.name : '__unknown__',
+        value: binExprTyped.right,
+      };
+      ast.topLevelStatements.push(assignment);
+      ast.topLevelItems!.push(assignment);
+    }
   }
 }
 
@@ -539,10 +548,12 @@ function transformObjectExpression(node: TreeSitterNode): ObjectNode {
           const inner = getNamedChild(keyNode, 0);
           if (inner) {
             const expr = transformExpression(inner);
-            if (expr.type === 'string') {
-              key = expr.value;
-            } else if (expr.type === 'variable') {
-              key = `[${expr.name}]`;
+            const eKey = expr as ExprBase;
+            const exprVal = expr as { value?: string; name?: string };
+            if (eKey.type === 'string') {
+              key = exprVal.value || '';
+            } else if (eKey.type === 'variable') {
+              key = `[${exprVal.name}]`;
             } else {
               key = '[computed]';
             }
@@ -906,10 +917,12 @@ function transformExpressionStatementNode(node: TreeSitterNode): Statement | nul
   if (exprNode.type === 'assignment_expression' || exprNode.type === 'augmented_assignment_expression') {
     const leftNode = getChildByFieldName(exprNode, 'left');
     if (leftNode && leftNode.type === 'identifier') {
+      const exprBase = expr as ExprBase;
+      const exprTyped = expr as { type: string; op?: string; right?: Expression };
       return {
         type: 'assignment',
         name: leftNode.text,
-        value: expr.type === 'binary' && expr.op === '=' ? expr.right : expr,
+        value: exprBase.type === 'binary' && exprTyped.op === '=' ? exprTyped.right! : expr,
       };
     } else if (leftNode && leftNode.type === 'member_expression') {
       return {

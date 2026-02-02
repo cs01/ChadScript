@@ -23,6 +23,8 @@ import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
 
+interface ExprBase { type: string; }
+
 export interface IClassGenContext {
   getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
   getClassFields(className: string): { name: string; fieldType: string }[];
@@ -328,11 +330,13 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   isStringExpression(expr: Expression): boolean {
-    return expr.type === 'string';
+    const e = expr as ExprBase;
+    return e.type === 'string';
   }
 
   isArrayExpression(expr: Expression): boolean {
-    return expr.type === 'array';
+    const e = expr as ExprBase;
+    return e.type === 'array';
   }
 
   isStringArrayExpression(expr: Expression): boolean {
@@ -340,7 +344,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   isObjectExpression(expr: Expression): boolean {
-    return expr.type === 'object';
+    const e = expr as ExprBase;
+    return e.type === 'object';
   }
 
   nextTemp(): string {

@@ -3,6 +3,8 @@ import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, Cl
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import { TypeResolver, UnionCommonFields } from './type-resolver/index.js';
 
+interface ExprBase { type: string; }
+
 interface ClassGeneratorLike {
   getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[];
   getFieldInfo(className: string, fieldName: string): FieldInfo | null;
@@ -742,20 +744,24 @@ export class VariableAllocator {
   }
 
   private getIndexedObjectArrayType(expr: Expression | null): { keys: string[]; types: string[]; tsTypes: string[] } | null {
-    if (!expr || expr.type !== 'index_access') return null;
+    if (!expr) return null;
+    const e = expr as ExprBase;
+    if (e.type !== 'index_access') return null;
 
     const indexExpr = expr as IndexAccessNode;
-    if (indexExpr.object.type !== 'member_access') return null;
+    const idxObjBase = indexExpr.object as ExprBase;
+    if (idxObjBase.type !== 'member_access') return null;
 
     const memberAccess = indexExpr.object as { type: string; object: Expression; property: string };
     const propertyName = memberAccess.property;
 
     let objectMeta: ObjectMetadata | undefined;
 
-    if (memberAccess.object.type === 'variable') {
+    const memberObjBase = memberAccess.object as ExprBase;
+    if (memberObjBase.type === 'variable') {
       const varName = (memberAccess.object as VariableNode).name;
       objectMeta = this.ctx.symbolTable.getObjectInfo(varName) as ObjectMetadata;
-    } else if (memberAccess.object.type === 'member_access' || memberAccess.object.type === 'this') {
+    } else if (memberObjBase.type === 'member_access' || memberObjBase.type === 'this') {
       const memberAccessTyped = memberAccess as { type: string; object: Expression; property: string };
       const elementType = this.resolveNestedMemberArrayType(memberAccessTyped as MemberAccessNode);
       if (elementType) {
@@ -796,10 +802,11 @@ export class VariableAllocator {
   }
 
   private resolveMemberAccessObjectType(expr: Expression): string | null {
-    if (expr.type === 'this') {
+    const e = expr as ExprBase;
+    if (e.type === 'this') {
       return this.ctx.currentClassName || null;
     }
-    if (expr.type === 'variable') {
+    if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
       const symbol = this.ctx.symbolTable.lookup(varName);
       if (symbol?.objectMetadata?.tsTypes) {
@@ -807,9 +814,10 @@ export class VariableAllocator {
       }
       return null;
     }
-    if (expr.type === 'member_access') {
+    if (e.type === 'member_access') {
       const member = expr as MemberAccessNode;
-      if (member.object.type === 'this') {
+      const memberObjBase = member.object as ExprBase;
+      if (memberObjBase.type === 'this') {
         const fieldInfoResult = this.getThisFieldInfo(member.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {

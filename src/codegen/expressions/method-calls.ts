@@ -40,6 +40,8 @@ import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from '../infrastructure/type-resolver/index.js';
 
+interface ExprBase { type: string; }
+
 interface SubGenerator {
   canHandle(expr: MethodCallNode): boolean;
 }
@@ -244,11 +246,13 @@ export class MethodCallGenerator {
   }
 
   private isVariableWithName(expr: Expression, name: string): expr is VariableNode {
-    return expr.type === 'variable' && (expr as VariableNode).name === name;
+    const e = expr as ExprBase;
+    return e.type === 'variable' && (expr as VariableNode).name === name;
   }
 
   private getVariableName(expr: Expression): string | null {
-    if (expr.type === 'variable') {
+    const e = expr as ExprBase;
+    if (e.type === 'variable') {
       return (expr as VariableNode).name;
     }
     return null;
@@ -259,10 +263,12 @@ export class MethodCallGenerator {
       return this.ctx.typeResolver.getThisFieldMapType(expr);
     }
 
-    if (expr.type !== 'member_access') return null;
+    const e = expr as ExprBase;
+    if (e.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
 
-    if (memberExpr.object.type === 'this') {
+    const objBase = memberExpr.object as ExprBase;
+    if (objBase.type === 'this') {
       const fieldName = memberExpr.property;
       if (!this.ctx.currentClassName) return null;
 
@@ -276,7 +282,7 @@ export class MethodCallGenerator {
       return { fieldName, keyType: mapMatch[1], valueType: mapMatch[2] };
     }
 
-    if (memberExpr.object.type === 'member_access') {
+    if (objBase.type === 'member_access') {
       const nestedType = this.resolveNestedMemberType(memberExpr.object);
       if (!nestedType) return null;
 
@@ -327,11 +333,12 @@ export class MethodCallGenerator {
   }
 
   private resolveNestedMemberType(expr: Expression): string | null {
-    if (expr.type === 'this') {
+    const e = expr as ExprBase;
+    if (e.type === 'this') {
       return this.ctx.currentClassName || null;
     }
 
-    if (expr.type !== 'member_access') return null;
+    if (e.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
 
     const parentType = this.resolveNestedMemberType(memberExpr.object);
@@ -395,9 +402,11 @@ export class MethodCallGenerator {
       return this.ctx.typeResolver.getThisFieldSetType(expr);
     }
 
-    if (expr.type !== 'member_access') return null;
+    const e = expr as ExprBase;
+    if (e.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
-    if (memberExpr.object.type !== 'this') return null;
+    const objBase = memberExpr.object as ExprBase;
+    if (objBase.type !== 'this') return null;
 
     const fieldName = memberExpr.property;
     if (!this.ctx.currentClassName) return null;
@@ -417,10 +426,12 @@ export class MethodCallGenerator {
       return this.ctx.typeResolver.getThisFieldMapKeyType(expr);
     }
 
-    if (expr.type !== 'member_access') return null;
+    const e2 = expr as ExprBase;
+    if (e2.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
 
-    if (memberExpr.object.type === 'this') {
+    const objBase = memberExpr.object as ExprBase;
+    if (objBase.type === 'this') {
       if (!this.ctx.currentClassName) return null;
       const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
@@ -431,7 +442,7 @@ export class MethodCallGenerator {
       return mapMatch[1];
     }
 
-    if (memberExpr.object.type === 'member_access') {
+    if (objBase.type === 'member_access') {
       const nestedType = this.resolveNestedMemberType(memberExpr.object);
       if (!nestedType) return null;
 
@@ -486,9 +497,11 @@ export class MethodCallGenerator {
       return this.ctx.typeResolver.getThisFieldSetValueType(expr);
     }
 
-    if (expr.type !== 'member_access') return null;
+    const e = expr as ExprBase;
+    if (e.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
-    if (memberExpr.object.type !== 'this') return null;
+    const objBase = memberExpr.object as ExprBase;
+    if (objBase.type !== 'this') return null;
 
     if (!this.ctx.currentClassName) return null;
     const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
@@ -1370,11 +1383,12 @@ export class MethodCallGenerator {
   }
 
   private resolveNestedMemberAccessType(expr: Expression): string | null {
-    if (expr.type === 'this') {
+    const e = expr as ExprBase;
+    if (e.type === 'this') {
       return this.ctx.currentClassName;
     }
 
-    if (expr.type === 'variable') {
+    if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
       if (this.ctx.symbolTable.isClass(varName)) {
         const classMeta = this.ctx.symbolTable.getClassInfo(varName);
@@ -1383,7 +1397,7 @@ export class MethodCallGenerator {
       return null;
     }
 
-    if (expr.type === 'member_access') {
+    if (e.type === 'member_access') {
       const memberAccess = expr as MemberAccessNode;
       const parentType = this.resolveNestedMemberAccessType(memberAccess.object);
       if (!parentType) {
@@ -1664,9 +1678,13 @@ export class MethodCallGenerator {
   }
 
   private throwUnsupportedMethodError(method: string, objectType?: string, expr?: Expression): never {
-    if (expr && expr.type === 'member_access') {
-      const memberExpr = expr as MemberAccessNode;
-      console.log('[DEBUG] throwUnsupportedMethodError - member access property:', memberExpr.property, 'object.type:', memberExpr.object.type);
+    if (expr) {
+      const e = expr as ExprBase;
+      if (e.type === 'member_access') {
+        const memberExpr = expr as MemberAccessNode;
+        const memberObjBase = memberExpr.object as ExprBase;
+        console.log('[DEBUG] throwUnsupportedMethodError - member access property:', memberExpr.property, 'object.type:', memberObjBase.type);
+      }
     }
     console.log('[DEBUG] throwUnsupportedMethodError method:', method, 'objectType:', objectType);
     const stringMethods = [
