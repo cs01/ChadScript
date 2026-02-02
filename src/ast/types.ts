@@ -198,6 +198,7 @@ export interface ForOfStatement {
   type: 'for_of';
   variableKind: 'let' | 'const' | 'var';
   variableName: string;
+  destructuredNames?: string[];
   iterable: Expression;
   body: BlockStatement;
 }

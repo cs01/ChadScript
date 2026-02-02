@@ -1,4 +1,4 @@
-import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, TypeAliasDeclaration } from '../../ast/types.js';
+import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, TypeAliasDeclaration, ForOfStatement, MethodCallNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata, ObjectMetadata } from '../infrastructure/symbol-table.js';
 import type { TypeResolver } from '../infrastructure/type-resolver/index.js';
@@ -290,6 +290,10 @@ export class ControlFlowGenerator {
     const objectArrayInfo = this.getObjectArrayInfo(stmt.iterable);
     if (objectArrayInfo) {
       return this.generateObjectArrayForOf(stmt, params, objectArrayInfo);
+    }
+
+    if (stmt.destructuredNames && stmt.destructuredNames.length === 2 && this.isMapEntriesCall(stmt.iterable)) {
+      return this.generateMapEntriesForOf(stmt, params);
     }
 
     const iterableValue = this.ctx.generateExpression(stmt.iterable, params);
@@ -1271,5 +1275,122 @@ export class ControlFlowGenerator {
       }
     }
     return null;
+  }
+
+  private isMapEntriesCall(expr: Expression): boolean {
+    if (expr.type !== 'method_call') return false;
+    const methodCall = expr as MethodCallNode;
+    if (methodCall.method !== 'entries') return false;
+
+    if (methodCall.object.type === 'variable') {
+      const varName = (methodCall.object as VariableNode).name;
+      return this.ctx.symbolTable.isMap(varName);
+    }
+
+    if (methodCall.object.type === 'member_access') {
+      const memberExpr = methodCall.object as MemberAccessNode;
+      if (memberExpr.object.type === 'this' && this.ctx.currentClassName) {
+        const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+        if (fieldInfo?.tsType && fieldInfo.tsType.startsWith('Map<')) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private generateMapEntriesForOf(stmt: ForOfStatement, params: string[]): string {
+    const [keyName, valueName] = stmt.destructuredNames!;
+
+    const iterableValue = this.ctx.generateExpression(stmt.iterable, params);
+
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 0`);
+    const lengthI32 = this.nextTemp();
+    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
+
+    const indexAlloca = this.nextTemp();
+    this.emit(`${indexAlloca} = alloca i32`);
+    this.emit(`store i32 0, i32* ${indexAlloca}`);
+
+    const keyAlloca = this.nextTemp();
+    this.emit(`${keyAlloca} = alloca i8*`);
+    const valueAlloca = this.nextTemp();
+    this.emit(`${valueAlloca} = alloca i8*`);
+
+    this.ctx.defineVariable(keyName, keyAlloca, 'i8*', SymbolKind.String, 'local');
+    this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.String, 'local');
+
+    const condLabel = this.nextLabel('mapof_cond');
+    const bodyLabel = this.nextLabel('mapof_body');
+    const updateLabel = this.nextLabel('mapof_update');
+    const endLabel = this.nextLabel('mapof_end');
+
+    this.emit(`br label %${condLabel}`);
+
+    this.emit(`${condLabel}:`);
+    const currentIndex = this.nextTemp();
+    this.emit(`${currentIndex} = load i32, i32* ${indexAlloca}`);
+    const condBool = this.nextTemp();
+    this.emit(`${condBool} = icmp slt i32 ${currentIndex}, ${lengthI32}`);
+    this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+
+    this.emit(`${bodyLabel}:`);
+    this.currentLabel = bodyLabel;
+
+    const dataFieldPtr = this.nextTemp();
+    this.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 2`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}`);
+    const dataCast = this.nextTemp();
+    this.emit(`${dataCast} = bitcast double* ${dataPtr} to i8**`);
+
+    const indexI64 = this.nextTemp();
+    this.emit(`${indexI64} = sext i32 ${currentIndex} to i64`);
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataCast}, i64 ${indexI64}`);
+    const entryRaw = this.nextTemp();
+    this.emit(`${entryRaw} = load i8*, i8** ${elemPtr}`);
+
+    const entryPtr = this.nextTemp();
+    this.emit(`${entryPtr} = bitcast i8* ${entryRaw} to { i8*, i8* }*`);
+
+    const keySlotPtr = this.nextTemp();
+    this.emit(`${keySlotPtr} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryPtr}, i32 0, i32 0`);
+    const keyVal = this.nextTemp();
+    this.emit(`${keyVal} = load i8*, i8** ${keySlotPtr}`);
+    this.emit(`store i8* ${keyVal}, i8** ${keyAlloca}`);
+
+    const valueSlotPtr = this.nextTemp();
+    this.emit(`${valueSlotPtr} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryPtr}, i32 0, i32 1`);
+    const valueVal = this.nextTemp();
+    this.emit(`${valueVal} = load i8*, i8** ${valueSlotPtr}`);
+    this.emit(`store i8* ${valueVal}, i8** ${valueAlloca}`);
+
+    this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
+    this.ctx.generateBlock(stmt.body, params);
+    this.loopStack.pop();
+
+    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
+                              lastInstruction.startsWith('br ') ||
+                              lastInstruction.startsWith('unreachable') ||
+                              lastInstruction.startsWith('switch ');
+    if (!bodyHasTerminator) {
+      this.emit(`br label %${updateLabel}`);
+    }
+
+    this.emit(`${updateLabel}:`);
+    const loadedIndex = this.nextTemp();
+    this.emit(`${loadedIndex} = load i32, i32* ${indexAlloca}`);
+    const nextIndex = this.nextTemp();
+    this.emit(`${nextIndex} = add i32 ${loadedIndex}, 1`);
+    this.emit(`store i32 ${nextIndex}, i32* ${indexAlloca}`);
+    this.emit(`br label %${condLabel}`);
+
+    this.emit(`${endLabel}:`);
+
+    return '0';
   }
 }
