@@ -571,7 +571,7 @@ export class ControlFlowGenerator {
                 const elementTypes: string[] = [];
                 const elementTsTypes: string[] = [];
                 for (let i = 0; i < fields.length; i++) {
-                  const f = fields[i];
+                  const f = fields[i] as { name: string; type: string };
                   elementKeys.push(f.name);
                   elementTsTypes.push(f.type);
                   if (f.type === 'string') {
@@ -604,7 +604,7 @@ export class ControlFlowGenerator {
               const elementTypes: string[] = [];
               const elementTsTypes: string[] = [];
               for (let i = 0; i < fields.length; i++) {
-                const f = fields[i];
+                const f = fields[i] as { name: string; type: string };
                 elementKeys.push(f.name);
                 elementTsTypes.push(f.type);
                 if (f.type === 'string') {
@@ -627,11 +627,12 @@ export class ControlFlowGenerator {
             const elementIfaceName = fieldType.slice(0, -2).trim();
             const elemIface = this.ctx.getInterfaceFromAST(elementIfaceName);
             if (elemIface) {
+              const elemIfaceTyped = elemIface as { name: string; fields: Array<{ name: string; type: string }> };
               const elementKeys: string[] = [];
               const elementTypes: string[] = [];
               const elementTsTypes: string[] = [];
-              for (let i = 0; i < elemIface.fields.length; i++) {
-                const f = elemIface.fields[i] as { name: string; type: string };
+              for (let i = 0; i < elemIfaceTyped.fields.length; i++) {
+                const f = elemIfaceTyped.fields[i] as { name: string; type: string };
                 elementKeys.push(f.name);
                 elementTsTypes.push(f.type);
                 if (f.type === 'string') {
@@ -645,7 +646,7 @@ export class ControlFlowGenerator {
                 }
               }
               return {
-                elementInterfaceName: elemIface.name,
+                elementInterfaceName: elemIfaceTyped.name,
                 elementKeys,
                 elementTypes,
                 elementTsTypes

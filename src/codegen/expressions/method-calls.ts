@@ -1104,9 +1104,16 @@ export class MethodCallGenerator {
       if (this.ctx.currentClassName) {
         className = this.ctx.currentClassName;
       } else {
-        const classWithMethodResult = this.ctx.ast.classes.find((c: ClassNode) =>
-          c.methods.some((m: ClassMethod) => m.name === method && !m.isConstructor)
-        );
+        let classWithMethodResult: ClassNode | null = null;
+        for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+          const c = this.ctx.ast.classes[ci] as { name: string; methods: Array<{ name: string; isConstructor: boolean }> };
+          let hasMethod = false;
+          for (let mi = 0; mi < c.methods.length; mi++) {
+            const m = c.methods[mi] as { name: string; isConstructor: boolean };
+            if (m.name === method && !m.isConstructor) { hasMethod = true; break; }
+          }
+          if (hasMethod) { classWithMethodResult = this.ctx.ast.classes[ci] as ClassNode; break; }
+        }
         const classWithMethod = classWithMethodResult as ClassNode;
         if (!classWithMethodResult) {
           throw new Error(`Method ${method} not found in any class`);
@@ -1120,12 +1127,22 @@ export class MethodCallGenerator {
         const fieldInfo = fieldInfoResult as FieldInfo;
         if (fieldInfoResult && fieldInfo.tsType) {
           const fieldClassName = fieldInfo.tsType;
-          const classExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === fieldClassName);
+          let classExists = false;
+          for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+            const c = this.ctx.ast.classes[ci] as { name: string };
+            if (c.name === fieldClassName) { classExists = true; break; }
+          }
           if (classExists) {
             instancePtr = this.ctx.generateExpression(expr.object, params);
             className = fieldClassName;
           } else {
-            const interfaceExists = this.ctx.ast.interfaces && this.ctx.ast.interfaces.some((i: InterfaceDeclaration) => i.name === fieldClassName);
+            let interfaceExists = false;
+            if (this.ctx.ast.interfaces) {
+              for (let ii = 0; ii < this.ctx.ast.interfaces.length; ii++) {
+                const iface = this.ctx.ast.interfaces[ii] as { name: string };
+                if (iface.name === fieldClassName) { interfaceExists = true; break; }
+              }
+            }
             if (interfaceExists) {
               const implClass = this.findClassImplementingInterfaceMethod(fieldClassName, method);
               if (implClass) {
@@ -1144,12 +1161,22 @@ export class MethodCallGenerator {
           const fieldInfo = fieldInfoResult as FieldInfo;
           if (fieldInfoResult && fieldInfo.tsType) {
             const fieldClassName = fieldInfo.tsType;
-            const classExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === fieldClassName);
+            let classExists = false;
+            for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+              const c = this.ctx.ast.classes[ci] as { name: string };
+              if (c.name === fieldClassName) { classExists = true; break; }
+            }
             if (classExists) {
               instancePtr = this.ctx.generateExpression(expr.object, params);
               className = fieldClassName;
             } else {
-              const interfaceExists = this.ctx.ast.interfaces && this.ctx.ast.interfaces.some((i: InterfaceDeclaration) => i.name === fieldClassName);
+              let interfaceExists = false;
+              if (this.ctx.ast.interfaces) {
+                for (let ii = 0; ii < this.ctx.ast.interfaces.length; ii++) {
+                  const iface = this.ctx.ast.interfaces[ii] as { name: string };
+                  if (iface.name === fieldClassName) { interfaceExists = true; break; }
+                }
+              }
               if (interfaceExists) {
                 const implClass = this.findClassImplementingInterfaceMethod(fieldClassName, method);
                 if (implClass) {
@@ -1190,7 +1217,13 @@ export class MethodCallGenerator {
     if (className && instancePtr) {
       let resolvedClass = this.findClassWithMethod(className, method);
       if (!resolvedClass) {
-        const interfaceExists = this.ctx.ast.interfaces && this.ctx.ast.interfaces.some((i: InterfaceDeclaration) => i.name === className);
+        let interfaceExists = false;
+        if (this.ctx.ast.interfaces) {
+          for (let ii = 0; ii < this.ctx.ast.interfaces.length; ii++) {
+            const iface = this.ctx.ast.interfaces[ii] as { name: string };
+            if (iface.name === className) { interfaceExists = true; break; }
+          }
+        }
         if (interfaceExists) {
           resolvedClass = this.findClassImplementingInterfaceMethod(className, method);
         }
@@ -1211,7 +1244,11 @@ export class MethodCallGenerator {
     const classNode = classNodeResult as ClassNode;
     if (!classNodeResult) return null;
 
-    const methodExists = classNode.methods.some((m: ClassMethod) => m.name === methodName && !m.isConstructor);
+    let methodExists = false;
+    for (let mi = 0; mi < classNode.methods.length; mi++) {
+      const m = classNode.methods[mi] as { name: string; isConstructor: boolean };
+      if (m.name === methodName && !m.isConstructor) { methodExists = true; break; }
+    }
     if (methodExists) return className;
 
     if (classNode.extends) {
@@ -1224,7 +1261,11 @@ export class MethodCallGenerator {
   private findClassImplementingInterfaceMethod(_interfaceName: string, methodName: string): string | null {
     for (let i = 0; i < this.ctx.ast.classes.length; i++) {
       const cls = this.ctx.ast.classes[i];
-      const hasMethod = cls.methods.some((m: ClassMethod) => m.name === methodName && !m.isConstructor);
+      let hasMethod = false;
+      for (let mi = 0; mi < cls.methods.length; mi++) {
+        const m = cls.methods[mi] as { name: string; isConstructor: boolean };
+        if (m.name === methodName && !m.isConstructor) { hasMethod = true; break; }
+      }
       if (hasMethod) {
         return cls.name;
       }
@@ -1259,16 +1300,28 @@ export class MethodCallGenerator {
         return null;
       }
 
-      const classExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === parentType);
+      let classExists = false;
+      for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+        const c = this.ctx.ast.classes[ci] as { name: string };
+        if (c.name === parentType) { classExists = true; break; }
+      }
       if (classExists) {
         const fieldInfoResult = this.ctx.classGen.getFieldInfo(parentType, memberAccess.property);
         const fieldInfo = fieldInfoResult as FieldInfo;
         if (fieldInfoResult && fieldInfo.tsType) {
-          const fieldClassExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === fieldInfo.tsType);
+          let fieldClassExists = false;
+          for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+            const c = this.ctx.ast.classes[ci] as { name: string };
+            if (c.name === fieldInfo.tsType) { fieldClassExists = true; break; }
+          }
           if (fieldClassExists) {
             return fieldInfo.tsType;
           }
-          const fieldInterfaceExists = this.ctx.ast.interfaces.some((i: InterfaceDeclaration) => i.name === fieldInfo.tsType);
+          let fieldInterfaceExists = false;
+          for (let ii = 0; ii < this.ctx.ast.interfaces.length; ii++) {
+            const iface = this.ctx.ast.interfaces[ii] as { name: string };
+            if (iface.name === fieldInfo.tsType) { fieldInterfaceExists = true; break; }
+          }
           if (fieldInterfaceExists) {
             return fieldInfo.tsType;
           }
@@ -1293,11 +1346,19 @@ export class MethodCallGenerator {
           if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
             fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
           }
-          const fieldClassExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === fieldType);
+          let fieldClassExists = false;
+          for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+            const c = this.ctx.ast.classes[ci] as { name: string };
+            if (c.name === fieldType) { fieldClassExists = true; break; }
+          }
           if (fieldClassExists) {
             return fieldType;
           }
-          const fieldInterfaceExists = this.ctx.ast.interfaces.some((i: InterfaceDeclaration) => i.name === fieldType);
+          let fieldInterfaceExists = false;
+          for (let ii = 0; ii < this.ctx.ast.interfaces.length; ii++) {
+            const iface = this.ctx.ast.interfaces[ii] as { name: string };
+            if (iface.name === fieldType) { fieldInterfaceExists = true; break; }
+          }
           if (fieldInterfaceExists) {
             return fieldType;
           }
@@ -1326,7 +1387,10 @@ export class MethodCallGenerator {
       }
     } else if (expr.object.type === 'object') {
       const objExpr = expr.object as ObjectNode;
-      isObjectMethod = objExpr.properties.some((p: { key: string; value: Expression }) => p.key === method);
+      for (let pi = 0; pi < objExpr.properties.length; pi++) {
+        const p = objExpr.properties[pi] as { key: string };
+        if (p.key === method) { isObjectMethod = true; break; }
+      }
     }
 
     if (!isObjectMethod) {
