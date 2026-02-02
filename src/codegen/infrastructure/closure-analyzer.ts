@@ -26,6 +26,8 @@ export interface ClosureInfo {
 export class ClosureAnalyzer {
   private declaredVars: Set<string> = new Set();
   private referencedVars: Set<string> = new Set();
+  private scopeVarNames: string[] = [];
+  private scopeVarTypes: string[] = [];
 
   /**
    * Analyze an arrow function and return information about captured variables.
@@ -44,6 +46,13 @@ export class ClosureAnalyzer {
     this.declaredVars = new Set();
     this.referencedVars = new Set();
 
+    this.scopeVarNames = [];
+    this.scopeVarTypes = [];
+    scopeVars.forEach((llvmType, name) => {
+      this.scopeVarNames.push(name);
+      this.scopeVarTypes.push(llvmType);
+    });
+
     for (const param of params) {
       this.declaredVars.add(param);
     }
@@ -57,10 +66,10 @@ export class ClosureAnalyzer {
 
     const captures: CapturedVariable[] = [];
     for (const varName of this.referencedVars) {
-      if (!this.declaredVars.has(varName) && scopeVars.has(varName)) {
+      if (!this.declaredVars.has(varName) && this.hasScopeVar(varName)) {
         captures.push({
           name: varName,
-          llvmType: scopeVars.get(varName)!
+          llvmType: this.getScopeVarType(varName)
         });
       }
     }
@@ -69,6 +78,18 @@ export class ClosureAnalyzer {
       captures,
       envStructName: `%__env_${lambdaName}`
     };
+  }
+
+  private hasScopeVar(name: string): boolean {
+    return this.scopeVarNames.indexOf(name) !== -1;
+  }
+
+  private getScopeVarType(name: string): string {
+    const idx = this.scopeVarNames.indexOf(name);
+    if (idx !== -1) {
+      return this.scopeVarTypes[idx];
+    }
+    return 'double';
   }
 
   private walkBlock(block: BlockStatement): void {
