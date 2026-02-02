@@ -911,8 +911,9 @@ export class MemberAccessGenerator {
       if (memberAccess.object.type === 'this') {
         const className = this.ctx.currentClassName || this.ctx.classGen.currentClassName;
         if (className) {
-          const fieldInfo = this.ctx.classGen.getFieldInfo(className, memberAccess.property);
-          if (fieldInfo && fieldInfo.tsType) {
+          const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, memberAccess.property);
+          const fieldInfo = fieldInfoResult as FieldInfo;
+          if (fieldInfoResult && fieldInfo.tsType) {
             return fieldInfo.tsType;
           }
         }
@@ -1211,8 +1212,9 @@ export class MemberAccessGenerator {
     if (memberExpr.object.type !== 'this') return null;
     if (!this.ctx.classGen?.currentClassName) return null;
 
-    const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.classGen.currentClassName, memberExpr.property);
-    if (!fieldInfo?.tsType) return null;
+    const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.classGen.currentClassName, memberExpr.property);
+    const fieldInfo = fieldInfoResult as FieldInfo;
+    if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
     if (!mapMatch) return null;

@@ -16,11 +16,21 @@ interface FieldInfo {
 
 interface ArrowFunctionGeneratorLike {
   generateArrowFunction(expr: Expression | null, params: string[], returnType?: string | { paramTypes?: string[], returnType?: string }, scopeVars?: Map<string, string>): string;
-  getClosureInfoForLambda(lambdaName: string): { envStructName: string; captures: { name: string; llvmType: string }[] } | null;
+  getClosureInfoForLambda(lambdaName: string): ClosureInfoResult | null;
+}
+
+interface ClosureInfoResult {
+  envStructName: string;
+  captures: CaptureInfo[];
+}
+
+interface CaptureInfo {
+  name: string;
+  llvmType: string;
 }
 
 interface ExpressionGeneratorLike {
-  getArrowFunctionGenerator(): ArrowFunctionGeneratorLike;
+  arrowFunctionGen: ArrowFunctionGeneratorLike;
 }
 
 type VariableMetadata = {
@@ -603,34 +613,35 @@ export class VariableAllocator {
   }
 
   private allocateArrowFunction(stmt: VariableDeclaration, params: string[]): void {
-    const arrowFuncGen = this.ctx.exprGen.getArrowFunctionGenerator();
     const scopeVars = this.ctx.symbolTable.getScopeVarsForClosure();
-    const lambdaName = arrowFuncGen.generateArrowFunction(stmt.value, params, undefined, scopeVars);
+    const lambdaName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(stmt.value, params, undefined, scopeVars);
 
-    const closureInfo = arrowFuncGen.getClosureInfoForLambda(lambdaName);
+    const closureInfoResult = this.ctx.exprGen.arrowFunctionGen.getClosureInfoForLambda(lambdaName);
+    const closureInfo = closureInfoResult as ClosureInfoResult;
 
-    if (closureInfo && closureInfo.captures.length > 0) {
-      const structSize = closureInfo.captures.length * 8;
+    if (closureInfoResult && closureInfo.captures.length > 0) {
+      const captures = closureInfo.captures as CaptureInfo[];
+      const structSize = captures.length * 8;
       const envMemReg = this.ctx.nextTemp();
       this.ctx.emit(`${envMemReg} = call i8* @GC_malloc(i64 ${structSize})`);
 
       const envTypedReg = this.ctx.nextTemp();
       this.ctx.emit(`${envTypedReg} = bitcast i8* ${envMemReg} to ${closureInfo.envStructName}*`);
 
-      for (let i = 0; i < closureInfo.captures.length; i++) {
-        const capture = closureInfo.captures[i];
-        const allocaReg = this.ctx.symbolTable.getAlloca(capture.name);
+      for (let i = 0; i < captures.length; i++) {
+        const captureItem = captures[i] as CaptureInfo;
+        const allocaReg = this.ctx.symbolTable.getAlloca(captureItem.name);
         if (!allocaReg) {
-          throw new Error(`Closure capture error: variable '${capture.name}' not found`);
+          throw new Error(`Closure capture error: variable '${captureItem.name}' not found`);
         }
 
         const valueReg = this.ctx.nextTemp();
-        this.ctx.emit(`${valueReg} = load ${capture.llvmType}, ${capture.llvmType}* ${allocaReg}`);
+        this.ctx.emit(`${valueReg} = load ${captureItem.llvmType}, ${captureItem.llvmType}* ${allocaReg}`);
 
         const fieldPtr = this.ctx.nextTemp();
         this.ctx.emit(`${fieldPtr} = getelementptr ${closureInfo.envStructName}, ${closureInfo.envStructName}* ${envTypedReg}, i32 0, i32 ${i}`);
 
-        this.ctx.emit(`store ${capture.llvmType} ${valueReg}, ${capture.llvmType}* ${fieldPtr}`);
+        this.ctx.emit(`store ${captureItem.llvmType} ${valueReg}, ${captureItem.llvmType}* ${fieldPtr}`);
       }
 
       this.ctx.defineVariable(stmt.name, envTypedReg, 'i8*', SymbolKind.Closure, 'local', {
@@ -638,7 +649,7 @@ export class VariableAllocator {
           lambdaName,
           envStructName: closureInfo.envStructName,
           envPtrRegister: envMemReg,
-          captures: closureInfo.captures
+          captures: captures
         }
       });
     } else {
@@ -667,7 +678,7 @@ export class VariableAllocator {
 
     if (memberAccess.object.type === 'variable') {
       const varName = (memberAccess.object as VariableNode).name;
-      objectMeta = this.ctx.symbolTable.getObjectInfo(varName);
+      objectMeta = this.ctx.symbolTable.getObjectInfo(varName) as ObjectMetadata;
     } else if (memberAccess.object.type === 'member_access' || memberAccess.object.type === 'this') {
       const elementType = this.resolveNestedMemberArrayType(memberAccess);
       if (elementType) {
@@ -678,10 +689,12 @@ export class VariableAllocator {
 
     if (!objectMeta) return null;
 
-    const propIndex = objectMeta.keys.indexOf(propertyName);
+    const objMeta = objectMeta as ObjectMetadata;
+    const propIndex = objMeta.keys.indexOf(propertyName);
     if (propIndex === -1) return null;
 
-    const propTsType = objectMeta.tsTypes?.[propIndex];
+    const objMetaTsTypes = objMeta.tsTypes as string[];
+    const propTsType = objMetaTsTypes[propIndex];
     if (!propTsType) return null;
 
     const arrayMatch = propTsType.match(/^(.+)\[\]$/);
@@ -719,8 +732,9 @@ export class VariableAllocator {
     if (expr.type === 'member_access') {
       const member = expr as MemberAccessNode;
       if (member.object.type === 'this') {
-        const fieldInfo = this.getThisFieldInfo(member.property);
-        if (fieldInfo?.tsType) {
+        const fieldInfoResult = this.getThisFieldInfo(member.property);
+        const fieldInfo = fieldInfoResult as FieldInfo;
+        if (fieldInfoResult && fieldInfo.tsType) {
           return fieldInfo.tsType;
         }
         return null;

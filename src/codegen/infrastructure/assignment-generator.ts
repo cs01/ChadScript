@@ -10,8 +10,14 @@ import {
 import type { SymbolTable } from './symbol-table.js';
 
 interface ClassGeneratorLike {
-  getFieldInfo(className: string, property: string): { index: number; type: string; tsType?: string } | null;
+  getFieldInfo(className: string, property: string): FieldInfo | null;
   getClassFields(className: string): { name: string; llvmType: string }[];
+}
+
+interface FieldInfo {
+  index: number;
+  type: string;
+  tsType?: string;
 }
 
 export interface AssignmentGeneratorContext {
@@ -58,8 +64,9 @@ export class AssignmentGenerator {
       if (!this.ctx.thisPointer) {
         throw new Error('this.field = value used outside of class method or constructor');
       }
-      const classWithField = this.ctx.ast.classes.find((_c: ClassNode) => true);
-      if (classWithField) {
+      const classWithFieldResult = this.ctx.ast.classes.find((_c: ClassNode) => true);
+      const classWithField = classWithFieldResult as ClassNode;
+      if (classWithFieldResult) {
         className = classWithField.name;
       }
     }
@@ -112,17 +119,18 @@ export class AssignmentGenerator {
     memberAccessValue: MemberAccessAssignmentNode,
     params: string[]
   ): void {
-    let fieldInfo = this.ctx.classGen.getFieldInfo(className, property);
+    let fieldInfoResult = this.ctx.classGen.getFieldInfo(className, property);
+    const fieldInfo = fieldInfoResult as FieldInfo;
 
-    if (fieldInfo && fieldInfo.type === 'string[]') {
+    if (fieldInfoResult && fieldInfo.type === 'string[]') {
       this.ctx.expectedArrayElementType = 'string';
-    } else if (fieldInfo && fieldInfo.type === 'number[]') {
+    } else if (fieldInfoResult && fieldInfo.type === 'number[]') {
       this.ctx.expectedArrayElementType = 'number';
-    } else if (fieldInfo && fieldInfo.type === 'boolean[]') {
+    } else if (fieldInfoResult && fieldInfo.type === 'boolean[]') {
       this.ctx.expectedArrayElementType = 'boolean';
     }
 
-    if (fieldInfo?.tsType?.startsWith('Map<string,')) {
+    if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<string,')) {
       this.ctx.currentDeclaredMapType = fieldInfo.tsType;
     }
 

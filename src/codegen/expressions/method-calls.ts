@@ -164,7 +164,13 @@ interface ArrowFunctionGeneratorLike {
 }
 
 interface ExpressionGeneratorLike {
-  getArrowFunctionGenerator(): ArrowFunctionGeneratorLike;
+  arrowFunctionGen: ArrowFunctionGeneratorLike;
+}
+
+interface FieldInfo {
+  index: number;
+  type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean';
+  tsType?: string;
 }
 
 export interface MethodCallGeneratorContext {
@@ -256,8 +262,9 @@ export class MethodCallGenerator {
     const fieldName = memberExpr.property;
     if (!this.ctx.currentClassName) return null;
 
-    const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
-    if (!fieldInfo?.tsType) return null;
+    const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
+    const fieldInfo = fieldInfoResult as FieldInfo;
+    if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
     if (!mapMatch) return null;
@@ -277,8 +284,9 @@ export class MethodCallGenerator {
     const fieldName = memberExpr.property;
     if (!this.ctx.currentClassName) return null;
 
-    const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
-    if (!fieldInfo?.tsType) return null;
+    const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
+    const fieldInfo = fieldInfoResult as FieldInfo;
+    if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const setMatch = fieldInfo.tsType.match(/^Set<(\w+)>$/);
     if (!setMatch) return null;
@@ -980,10 +988,11 @@ export class MethodCallGenerator {
       if (this.ctx.currentClassName) {
         className = this.ctx.currentClassName;
       } else {
-        const classWithMethod = this.ctx.ast.classes.find((c: ClassNode) =>
+        const classWithMethodResult = this.ctx.ast.classes.find((c: ClassNode) =>
           c.methods.some((m: ClassMethod) => m.name === method && !m.isConstructor)
         );
-        if (!classWithMethod) {
+        const classWithMethod = classWithMethodResult as ClassNode;
+        if (!classWithMethodResult) {
           throw new Error(`Method ${method} not found in any class`);
         }
         className = classWithMethod.name;
@@ -991,8 +1000,9 @@ export class MethodCallGenerator {
     } else if (expr.object.type === 'member_access') {
       const memberAccess = expr.object as MemberAccessNode;
       if (memberAccess.object.type === 'this' && this.ctx.currentClassName) {
-        const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberAccess.property);
-        if (fieldInfo?.tsType) {
+        const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberAccess.property);
+        const fieldInfo = fieldInfoResult as FieldInfo;
+        if (fieldInfoResult && fieldInfo.tsType) {
           const fieldClassName = fieldInfo.tsType;
           const classExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === fieldClassName);
           if (classExists) {
@@ -1014,8 +1024,9 @@ export class MethodCallGenerator {
         if (this.ctx.symbolTable.isClass(varName)) {
           const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
           const outerClassName = classMeta.className;
-          const fieldInfo = this.ctx.classGen.getFieldInfo(outerClassName, memberAccess.property);
-          if (fieldInfo?.tsType) {
+          const fieldInfoResult = this.ctx.classGen.getFieldInfo(outerClassName, memberAccess.property);
+          const fieldInfo = fieldInfoResult as FieldInfo;
+          if (fieldInfoResult && fieldInfo.tsType) {
             const fieldClassName = fieldInfo.tsType;
             const classExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === fieldClassName);
             if (classExists) {
@@ -1047,8 +1058,9 @@ export class MethodCallGenerator {
       if (!this.ctx.currentClassName) {
         throw new Error('super.method() called outside of class context');
       }
-      const currentClass = this.ctx.ast.classes.find((c: ClassNode) => c.name === this.ctx.currentClassName);
-      if (!currentClass || !currentClass.extends) {
+      const currentClassResult = this.ctx.ast.classes.find((c: ClassNode) => c.name === this.ctx.currentClassName);
+      const currentClass = currentClassResult as ClassNode;
+      if (!currentClassResult || !currentClass.extends) {
         throw new Error(`super.method() called but current class ${this.ctx.currentClassName} has no parent class`);
       }
       instancePtr = this.ctx.thisPointer;
@@ -1079,8 +1091,9 @@ export class MethodCallGenerator {
   }
 
   private findClassWithMethod(className: string, methodName: string): string | null {
-    const classNode = this.ctx.ast.classes.find((c: ClassNode) => c.name === className);
-    if (!classNode) return null;
+    const classNodeResult = this.ctx.ast.classes.find((c: ClassNode) => c.name === className);
+    const classNode = classNodeResult as ClassNode;
+    if (!classNodeResult) return null;
 
     const methodExists = classNode.methods.some((m: ClassMethod) => m.name === methodName && !m.isConstructor);
     if (methodExists) return className;
@@ -1132,8 +1145,9 @@ export class MethodCallGenerator {
 
       const classExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === parentType);
       if (classExists) {
-        const fieldInfo = this.ctx.classGen.getFieldInfo(parentType, memberAccess.property);
-        if (fieldInfo?.tsType) {
+        const fieldInfoResult = this.ctx.classGen.getFieldInfo(parentType, memberAccess.property);
+        const fieldInfo = fieldInfoResult as FieldInfo;
+        if (fieldInfoResult && fieldInfo.tsType) {
           const fieldClassExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === fieldInfo.tsType);
           if (fieldClassExists) {
             return fieldInfo.tsType;
@@ -1305,12 +1319,11 @@ export class MethodCallGenerator {
     let onRejected = 'null';
 
     const promiseCallbackTypes = { paramTypes: ['string', 'any'], returnType: 'void' };
-    const arrowFuncGen = this.ctx.exprGen.getArrowFunctionGenerator();
     const scopeVars = this.ctx.symbolTable.getScopeVarsForClosure();
 
     const processCallback = (callback: Expression): string | null => {
       if (callback.type === 'arrow_function') {
-        const callbackName = arrowFuncGen.generateArrowFunction(callback, params, promiseCallbackTypes, scopeVars);
+        const callbackName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(callback, params, promiseCallbackTypes, scopeVars);
         return `@${callbackName}`;
       } else if (callback.type === 'variable') {
         return `@${(callback as VariableNode).name}`;

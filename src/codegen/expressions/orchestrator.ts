@@ -43,7 +43,7 @@ export class ExpressionGenerator {
   private callGen: CallExpressionGenerator;
   private indexAccessGen: IndexAccessGenerator;
   private memberAccessGen: MemberAccessGenerator;
-  private arrowFunctionGen: ArrowFunctionExpressionGenerator;
+  public arrowFunctionGen: ArrowFunctionExpressionGenerator;
   private conditionalGen: ConditionalExpressionGenerator;
   private templateLiteralGen: TemplateLiteralGenerator;
   private methodCallGen: MethodCallGenerator;
