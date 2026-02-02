@@ -35,6 +35,7 @@ import {
 } from '../../ast/types.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
+import type { TypeResolver } from '../infrastructure/type-resolver/index.js';
 
 interface SubGenerator {
   canHandle(expr: MethodCallNode): boolean;
@@ -103,6 +104,9 @@ interface StringMapGeneratorLike {
   generateStringMapGet(mapAlloca: string, key: string): string;
   generateStringMapHas(mapAlloca: string, key: string): string;
   generateStringMapClear(mapAlloca: string): string;
+  generateStringMapDelete(mapAlloca: string, key: string): string;
+  generateStringMapEntries(mapAlloca: string): string;
+  generateStringMapValues(mapAlloca: string): string;
 }
 
 interface StringSetGeneratorLike {
@@ -115,6 +119,7 @@ interface MapGeneratorLike {
   generateMapGet(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
   generateMapHas(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
   generateMapClear(expr: MethodCallNode, params: string[]): string;
+  generateMapDelete(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
 }
 
 interface SetGeneratorLike {
@@ -170,6 +175,7 @@ export interface MethodCallGeneratorContext {
   currentClassName: string | null;
   ast: AST;
   typeChecker: TypeChecker | null;
+  typeResolver?: TypeResolver;
   usesPromises: boolean;
   consoleGen: ConsoleGeneratorLike;
   processGen: ProcessGeneratorLike;
@@ -204,6 +210,10 @@ export class MethodCallGenerator {
   }
 
   private getThisFieldMapType(expr: Expression): { fieldName: string; keyType: string; valueType: string } | null {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.getThisFieldMapType(expr);
+    }
+
     if (expr.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
     if (memberExpr.object.type !== 'this') return null;
@@ -221,6 +231,10 @@ export class MethodCallGenerator {
   }
 
   private getThisFieldSetType(expr: Expression): { fieldName: string; valueType: string } | null {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.getThisFieldSetType(expr);
+    }
+
     if (expr.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
     if (memberExpr.object.type !== 'this') return null;
@@ -259,6 +273,14 @@ export class MethodCallGenerator {
     // Handle Promise static methods (Promise.resolve, Promise.reject, Promise.all)
     if (this.isVariableWithName(expr.object, 'Promise')) {
       return this.handlePromiseStaticMethods(expr, params);
+    }
+
+    // Handle Array.from() - returns the argument as-is since our iterators already produce arrays
+    if (this.isVariableWithName(expr.object, 'Array') && method === 'from') {
+      if (expr.args.length === 0) {
+        throw new Error('Array.from() requires at least 1 argument');
+      }
+      return this.ctx.generateExpression(expr.args[0], params);
     }
 
     // Handle Promise instance methods (.then, .catch)
@@ -415,7 +437,7 @@ export class MethodCallGenerator {
     }
 
     // Handle Map methods
-    if (method === 'set' || method === 'get' || method === 'has' || method === 'clear') {
+    if (method === 'set' || method === 'get' || method === 'has' || method === 'clear' || method === 'delete' || method === 'entries' || method === 'values') {
       const varName = this.getVariableName(expr.object);
       if (varName && this.ctx.symbolTable.isMap(varName)) {
         this.ctx.syncStateToGenerators();
@@ -434,6 +456,13 @@ export class MethodCallGenerator {
             } else if (method === 'has') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapHas(mapAlloca, keyValue);
+            } else if (method === 'delete') {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.stringMapGen.generateStringMapDelete(mapAlloca, keyValue);
+            } else if (method === 'entries') {
+              return this.ctx.stringMapGen.generateStringMapEntries(mapAlloca);
+            } else if (method === 'values') {
+              return this.ctx.stringMapGen.generateStringMapValues(mapAlloca);
             } else {
               return this.ctx.stringMapGen.generateStringMapClear(mapAlloca);
             }
@@ -446,6 +475,10 @@ export class MethodCallGenerator {
           return this.ctx.mapGen.generateMapGet(expr, params, this.ctx.generateExpression.bind(this.ctx));
         } else if (method === 'has') {
           return this.ctx.mapGen.generateMapHas(expr, params, this.ctx.generateExpression.bind(this.ctx));
+        } else if (method === 'delete') {
+          return this.ctx.mapGen.generateMapDelete(expr, params, this.ctx.generateExpression.bind(this.ctx));
+        } else if (method === 'entries' || method === 'values') {
+          throw new Error(`Map.${method}() only supported for Map<string, *> types`);
         } else {
           return this.ctx.mapGen.generateMapClear(expr, params);
         }
@@ -465,6 +498,13 @@ export class MethodCallGenerator {
           } else if (method === 'has') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringMapGen.generateStringMapHas(mapPtr, keyValue);
+          } else if (method === 'delete') {
+            const keyValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.stringMapGen.generateStringMapDelete(mapPtr, keyValue);
+          } else if (method === 'entries') {
+            return this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
+          } else if (method === 'values') {
+            return this.ctx.stringMapGen.generateStringMapValues(mapPtr);
           } else {
             return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
           }
