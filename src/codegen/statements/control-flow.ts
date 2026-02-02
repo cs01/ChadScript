@@ -23,10 +23,6 @@ export class ControlFlowGenerator {
   private nextTemp() { return this.ctx.nextTemp(); }
   private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
-  private get output() { return this.ctx.output; }
-  private get variableTypes() { return this.ctx.variableTypes; }
-  private get currentLabel() { return this.ctx.currentLabel; }
-  private set currentLabel(label: string) { this.ctx.currentLabel = label; }
 
   // Helper to convert a value to boolean (i1) for branching
   private convertToBool(value: string): string {
@@ -56,42 +52,46 @@ export class ControlFlowGenerator {
       throw new Error('Expected if statement');
     }
 
+    const ifStmt = stmt as { type: string; condition: Expression; thenBlock: BlockStatement; elseBlock: BlockStatement | null };
+
     const thenLabel = this.nextLabel('then');
     const elseLabel = this.nextLabel('else');
     const mergeLabel = this.nextLabel('merge');
 
-    const typeGuard = this.detectTypeGuard(stmt.condition);
+    const typeGuard = this.detectTypeGuard(ifStmt.condition);
 
-    const condValue = this.ctx.generateExpression(stmt.condition, params);
+    const condValue = this.ctx.generateExpression(ifStmt.condition, params);
     const condBool = this.convertToBool(condValue);
 
-    if (stmt.elseBlock) {
+    if (ifStmt.elseBlock) {
       this.emit(`br i1 ${condBool}, label %${thenLabel}, label %${elseLabel}`);
     } else {
       this.emit(`br i1 ${condBool}, label %${thenLabel}, label %${mergeLabel}`);
     }
 
     this.emit(`${thenLabel}:`);
-    this.currentLabel = thenLabel;
+    this.ctx.currentLabel = thenLabel;
 
     if (typeGuard) {
-      this.ctx.symbolTable.narrowType(typeGuard.varName, typeGuard.narrowedMetadata);
+      const tg = typeGuard as { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } };
+      this.ctx.symbolTable.narrowType(tg.varName, tg.narrowedMetadata);
     }
 
-    const thenValue = this.ctx.generateBlock(stmt.thenBlock, params);
+    const thenValue = this.ctx.generateBlock(ifStmt.thenBlock, params);
 
     if (typeGuard) {
-      this.ctx.symbolTable.restoreType(typeGuard.varName);
+      const tg = typeGuard as { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } };
+      this.ctx.symbolTable.restoreType(tg.varName);
     }
 
-    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
     const thenHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
                               lastInstruction.startsWith('switch ');
     let thenEndLabel = thenLabel;
-    for (let i = this.output.length - 1; i >= 0; i--) {
-      const line = this.output[i].trim();
+    for (let i = this.ctx.output.length - 1; i >= 0; i--) {
+      const line = this.ctx.output[i].trim();
       if (line.match(/^[a-z_]+[0-9]+:$/)) {
         thenEndLabel = line.slice(0, -1);
         break;
@@ -104,17 +104,17 @@ export class ControlFlowGenerator {
     let elseValue: string | null = null;
     let elseEndLabel = elseLabel;
     let elseHasTerminator = false;
-    if (stmt.elseBlock) {
+    if (ifStmt.elseBlock) {
       this.emit(`${elseLabel}:`);
-      this.currentLabel = elseLabel;
-      elseValue = this.ctx.generateBlock(stmt.elseBlock, params);
-      const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+      this.ctx.currentLabel = elseLabel;
+      elseValue = this.ctx.generateBlock(ifStmt.elseBlock, params);
+      const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
       elseHasTerminator = lastInstruction.startsWith('ret ') ||
                                 lastInstruction.startsWith('br ') ||
                                 lastInstruction.startsWith('unreachable') ||
                                 lastInstruction.startsWith('switch ');
-      for (let i = this.output.length - 1; i >= 0; i--) {
-        const line = this.output[i].trim();
+      for (let i = this.ctx.output.length - 1; i >= 0; i--) {
+        const line = this.ctx.output[i].trim();
         if (line.match(/^[a-z_]+[0-9]+:$/)) {
           elseEndLabel = line.slice(0, -1);
           break;
@@ -125,28 +125,28 @@ export class ControlFlowGenerator {
       }
     }
 
-    if (stmt.elseBlock && thenHasTerminator && elseHasTerminator) {
+    if (ifStmt.elseBlock && thenHasTerminator && elseHasTerminator) {
       return '0';
     }
 
     // Merge point
     this.emit(`${mergeLabel}:`);
-    this.currentLabel = mergeLabel;
+    this.ctx.currentLabel = mergeLabel;
 
     return '0';
   }
 
   private findBranchPosition(label: string): number {
-    for (let i = this.output.length - 1; i >= 0; i--) {
-      const line = this.output[i].trim();
-      if (line.startsWith('br label %') && this.output.slice(0, i).some(l => l.trim() === `${label}:`)) {
+    for (let i = this.ctx.output.length - 1; i >= 0; i--) {
+      const line = this.ctx.output[i].trim();
+      if (line.startsWith('br label %') && this.ctx.output.slice(0, i).some(l => l.trim() === `${label}:`)) {
         let foundLabel = false;
         for (let j = i - 1; j >= 0; j--) {
-          if (this.output[j].trim() === `${label}:`) {
+          if (this.ctx.output[j].trim() === `${label}:`) {
             foundLabel = true;
             break;
           }
-          if (this.output[j].trim().match(/^[a-z_]+[0-9]*:$/)) {
+          if (this.ctx.output[j].trim().match(/^[a-z_]+[0-9]*:$/)) {
             break;
           }
         }
@@ -163,6 +163,8 @@ export class ControlFlowGenerator {
       throw new Error('Expected while statement');
     }
 
+    const whileStmt = stmt as { type: string; condition: Expression; body: BlockStatement };
+
     // Generate unique labels
     const condLabel = this.nextLabel('while_cond');
     const bodyLabel = this.nextLabel('while_body');
@@ -173,18 +175,18 @@ export class ControlFlowGenerator {
 
     // Condition block
     this.emit(`${condLabel}:`);
-    const condValue = this.ctx.generateExpression(stmt.condition, params);
+    const condValue = this.ctx.generateExpression(whileStmt.condition, params);
     const condBool = this.convertToBool(condValue);
     this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
 
     // Body block - push loop context for break/continue
     this.emit(`${bodyLabel}:`);
-    this.currentLabel = bodyLabel;
+    this.ctx.currentLabel = bodyLabel;
     this.loopStack.push({ continueLabel: condLabel, breakLabel: endLabel });
-    this.ctx.generateBlock(stmt.body, params);
+    this.ctx.generateBlock(whileStmt.body, params);
     this.loopStack.pop();
     // Check if the LAST instruction is a terminator
-    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
@@ -204,26 +206,30 @@ export class ControlFlowGenerator {
       throw new Error('Expected for statement');
     }
 
+    const forStmt = stmt as { type: string; init: Statement | null; condition: Expression | null; update: Statement | null; body: BlockStatement };
+
     // Generate init if present
-    if (stmt.init) {
-      if (stmt.init.type === 'variable_declaration') {
+    if (forStmt.init) {
+      const initTyped = forStmt.init as { type: string; name: string; value: Expression | null };
+      if (initTyped.type === 'variable_declaration') {
         // Handle variable declaration - allocate and store
-        if (!stmt.init.value) {
+        if (!initTyped.value) {
           throw new Error('Variable declaration in for loop must have an initializer');
         }
-        const value = this.ctx.generateExpression(stmt.init.value, params);
+        const value = this.ctx.generateExpression(initTyped.value, params);
         const allocaReg = this.nextTemp();
         // Register the variable in the variables map
-        this.ctx.defineVariable(stmt.init.name, allocaReg, 'double', SymbolKind.Number, 'local');
+        this.ctx.defineVariable(initTyped.name, allocaReg, 'double', SymbolKind.Number, 'local');
         this.emit(`${allocaReg} = alloca double`);
         this.emit(`store double ${value}, double* ${allocaReg}`);
-      } else if (stmt.init.type === 'assignment') {
-        const value = this.ctx.generateExpression(stmt.init.value, params);
-        const allocaReg = this.ctx.getVariableAlloca(stmt.init.name);
+      } else if (initTyped.type === 'assignment') {
+        const initAssign = forStmt.init as { type: string; name: string; value: Expression };
+        const value = this.ctx.generateExpression(initAssign.value, params);
+        const allocaReg = this.ctx.getVariableAlloca(initAssign.name);
         if (!allocaReg) {
-          throw new Error(`Variable ${stmt.init.name} not found`);
+          throw new Error(`Variable ${initAssign.name} not found`);
         }
-        const varType = this.ctx.getVariableType(stmt.init.name) || 'double';
+        const varType = this.ctx.getVariableType(initAssign.name) || 'double';
         this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
       }
     }
@@ -239,8 +245,8 @@ export class ControlFlowGenerator {
 
     // Condition block
     this.emit(`${condLabel}:`);
-    if (stmt.condition) {
-      const condValue = this.ctx.generateExpression(stmt.condition, params);
+    if (forStmt.condition) {
+      const condValue = this.ctx.generateExpression(forStmt.condition, params);
       const condBool = this.convertToBool(condValue);
       this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
     } else {
@@ -250,12 +256,12 @@ export class ControlFlowGenerator {
 
     // Body block - push loop context for break/continue
     this.emit(`${bodyLabel}:`);
-    this.currentLabel = bodyLabel;
+    this.ctx.currentLabel = bodyLabel;
     this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
-    this.ctx.generateBlock(stmt.body, params);
+    this.ctx.generateBlock(forStmt.body, params);
     this.loopStack.pop();
     // Check if the LAST instruction is a terminator
-    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
@@ -266,18 +272,19 @@ export class ControlFlowGenerator {
 
     // Update block
     this.emit(`${updateLabel}:`);
-    if (stmt.update) {
-      if (stmt.update.type === 'assignment') {
-        const value = this.ctx.generateExpression(stmt.update.value, params);
-        const allocaReg = this.ctx.getVariableAlloca(stmt.update.name);
+    if (forStmt.update) {
+      const updateTyped = forStmt.update as { type: string; name: string; value: Expression };
+      if (updateTyped.type === 'assignment') {
+        const value = this.ctx.generateExpression(updateTyped.value, params);
+        const allocaReg = this.ctx.getVariableAlloca(updateTyped.name);
         if (!allocaReg) {
-          throw new Error(`Variable ${stmt.update.name} not found in update`);
+          throw new Error(`Variable ${updateTyped.name} not found in update`);
         }
-        const varType = this.ctx.getVariableType(stmt.update.name) || 'double';
+        const varType = this.ctx.getVariableType(updateTyped.name) || 'double';
         this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
       } else {
         // It's an expression (like i++)
-        this.ctx.generateExpression(stmt.update, params);
+        this.ctx.generateExpression(forStmt.update as Expression, params);
       }
     }
     this.emit(`br label %${condLabel}`);
@@ -293,18 +300,20 @@ export class ControlFlowGenerator {
       throw new Error('Expected for...of statement');
     }
 
-    const objectArrayInfo = this.getObjectArrayInfo(stmt.iterable);
+    const forOfStmt = stmt as { type: string; variableName: string; iterable: Expression; body: BlockStatement; destructuredNames: string[] | null };
+
+    const objectArrayInfo = this.getObjectArrayInfo(forOfStmt.iterable);
     if (objectArrayInfo) {
       return this.generateObjectArrayForOf(stmt, params, objectArrayInfo);
     }
 
-    if (stmt.destructuredNames && stmt.destructuredNames.length === 2 && this.isMapEntriesCall(stmt.iterable)) {
+    if (forOfStmt.destructuredNames && forOfStmt.destructuredNames.length === 2 && this.isMapEntriesCall(forOfStmt.iterable)) {
       return this.generateMapEntriesForOf(stmt, params);
     }
 
-    const iterableValue = this.ctx.generateExpression(stmt.iterable, params);
+    const iterableValue = this.ctx.generateExpression(forOfStmt.iterable, params);
 
-    const isStringArray = this.ctx.isStringArrayExpression(stmt.iterable);
+    const isStringArray = this.ctx.isStringArrayExpression(forOfStmt.iterable);
     const arrayType = isStringArray ? '%StringArray' : '%Array';
     const elementType = isStringArray ? 'i8*' : 'double';
     const elementKind = isStringArray ? SymbolKind.String : SymbolKind.Number;
@@ -321,7 +330,7 @@ export class ControlFlowGenerator {
     const elemAlloca = this.nextTemp();
     this.emit(`${elemAlloca} = alloca ${elementType}`);
 
-    this.ctx.defineVariable(stmt.variableName, elemAlloca, elementType, elementKind, 'local');
+    this.ctx.defineVariable(forOfStmt.variableName, elemAlloca, elementType, elementKind, 'local');
 
     const condLabel = this.nextLabel('forof_cond');
     const bodyLabel = this.nextLabel('forof_body');
@@ -341,7 +350,7 @@ export class ControlFlowGenerator {
 
     // Body block
     this.emit(`${bodyLabel}:`);
-    this.currentLabel = bodyLabel;
+    this.ctx.currentLabel = bodyLabel;
 
     // Load current element from array
     // Get pointer to the data array
@@ -371,11 +380,11 @@ export class ControlFlowGenerator {
 
     // Execute the loop body
     this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
-    this.ctx.generateBlock(stmt.body, params);
+    this.ctx.generateBlock(forOfStmt.body, params);
     this.loopStack.pop();
 
     // Check if body has terminator
-    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
@@ -471,11 +480,12 @@ export class ControlFlowGenerator {
     }
     const iface = this.ctx.getInterfaceFromAST(elementInterface);
     if (iface) {
+      const ifaceTyped = iface as { name: string; fields: { name: string; type: string }[] };
       const elementKeys: string[] = [];
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
-      for (let i = 0; i < iface.fields.length; i++) {
-        const f = iface.fields[i] as { name: string; type: string };
+      for (let i = 0; i < ifaceTyped.fields.length; i++) {
+        const f = ifaceTyped.fields[i] as { name: string; type: string };
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
         if (f.type === 'string') {
@@ -489,7 +499,7 @@ export class ControlFlowGenerator {
         }
       }
       return {
-        elementInterfaceName: iface.name,
+        elementInterfaceName: ifaceTyped.name,
         elementKeys,
         elementTypes,
         elementTsTypes
@@ -517,8 +527,9 @@ export class ControlFlowGenerator {
   private getInterfaceFieldType(interfaceName: string, fieldName: string): string | null {
     const iface = this.ctx.getInterfaceFromAST(interfaceName);
     if (!iface) return null;
-    for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as { name: string; type: string };
+    const ifaceTyped = iface as { name: string; fields: { name: string; type: string }[] };
+    for (let i = 0; i < ifaceTyped.fields.length; i++) {
+      const f = ifaceTyped.fields[i] as { name: string; type: string };
       if (f.name === fieldName) {
         return f.type;
       }
@@ -699,8 +710,9 @@ export class ControlFlowGenerator {
     if (!iface) {
       return null;
     }
+    const ifaceTyped = iface as { name: string; fields: { name: string; type: string }[] };
 
-    const fieldDefResult = iface.fields.find(f => f.name === propName);
+    const fieldDefResult = ifaceTyped.fields.find(f => f.name === propName);
     const fieldDef = fieldDefResult as InterfaceField;
     if (!fieldDefResult || !fieldDef.type.endsWith('[]')) {
       return null;
@@ -931,7 +943,9 @@ export class ControlFlowGenerator {
       throw new Error('Expected for...of statement');
     }
 
-    const iterableValue = this.ctx.generateExpression(stmt.iterable, params);
+    const forOfStmt = stmt as { type: string; variableName: string; iterable: Expression; body: BlockStatement };
+
+    const iterableValue = this.ctx.generateExpression(forOfStmt.iterable, params);
 
     const structTypeFields = objArrayInfo.elementTypes.join(', ');
     const structType = `{ ${structTypeFields} }`;
@@ -948,7 +962,7 @@ export class ControlFlowGenerator {
     const elemAlloca = this.nextTemp();
     this.emit(`${elemAlloca} = alloca i8*`);
 
-    this.ctx.defineVariable(stmt.variableName, elemAlloca, 'i8*', SymbolKind.Object, 'local', {
+    this.ctx.defineVariable(forOfStmt.variableName, elemAlloca, 'i8*', SymbolKind.Object, 'local', {
       objectMetadata: {
         keys: objArrayInfo.elementKeys,
         types: objArrayInfo.elementTypes,
@@ -971,7 +985,7 @@ export class ControlFlowGenerator {
     this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
 
     this.emit(`${bodyLabel}:`);
-    this.currentLabel = bodyLabel;
+    this.ctx.currentLabel = bodyLabel;
 
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 0`);
@@ -991,10 +1005,10 @@ export class ControlFlowGenerator {
     this.emit(`store i8* ${elemValue}, i8** ${elemAlloca}`);
 
     this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
-    this.ctx.generateBlock(stmt.body, params);
+    this.ctx.generateBlock(forOfStmt.body, params);
     this.loopStack.pop();
 
-    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
@@ -1085,7 +1099,7 @@ export class ControlFlowGenerator {
       // Convert to double for JavaScript semantics
       const result = this.nextTemp();
       this.emit(`${result} = sitofp i32 ${i32Result} to double`);
-      this.variableTypes.set(result, 'double');
+      this.ctx.variableTypes.set(result, 'double');
       return result;
     } else {
       // At least one must be non-zero (add and clamp to 1)
@@ -1098,7 +1112,7 @@ export class ControlFlowGenerator {
       // Convert to double for JavaScript semantics
       const result = this.nextTemp();
       this.emit(`${result} = sitofp i32 ${i32Result} to double`);
-      this.variableTypes.set(result, 'double');
+      this.ctx.variableTypes.set(result, 'double');
       return result;
     }
   }
@@ -1129,9 +1143,22 @@ export class ControlFlowGenerator {
 
     for (let fi = 0; fi < firstFields.length; fi++) {
       const field = firstFields[fi] as InterfaceField;
-      const isCommon = interfaces.every((iface) =>
-        iface.fields.some((f) => f.name === field.name && this.areTypesCompatible(f.type, field.type))
-      );
+      let isCommon = true;
+      for (let ii = 0; ii < interfaces.length; ii++) {
+        const ifaceTyped = interfaces[ii] as { fields: { name: string; type: string }[] };
+        let found = false;
+        for (let fj = 0; fj < ifaceTyped.fields.length; fj++) {
+          const f = ifaceTyped.fields[fj] as { name: string; type: string };
+          if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          isCommon = false;
+          break;
+        }
+      }
       if (isCommon) {
         commonFields.push({ name: field.name, type: this.normalizeType(field.type) });
       }
@@ -1212,8 +1239,8 @@ export class ControlFlowGenerator {
     if (!interfaceName) return null;
 
     const ifaceResult = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === interfaceName);
-    const iface = ifaceResult as InterfaceDeclaration;
     if (!ifaceResult) return null;
+    const iface = ifaceResult as { name: string; fields: { name: string; type: string }[] };
 
     const keys: string[] = [];
     const types: string[] = [];
@@ -1243,7 +1270,7 @@ export class ControlFlowGenerator {
     if (!this.ctx.ast?.interfaces) return null;
 
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+      const iface = this.ctx.ast.interfaces[i] as { name: string; fields: { name: string; type: string }[] };
       const match = this.checkDiscriminant(
         iface.name,
         iface.fields,
@@ -1377,7 +1404,7 @@ export class ControlFlowGenerator {
     this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
 
     this.emit(`${bodyLabel}:`);
-    this.currentLabel = bodyLabel;
+    this.ctx.currentLabel = bodyLabel;
 
     const dataFieldPtr = this.nextTemp();
     this.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 2`);
@@ -1412,7 +1439,7 @@ export class ControlFlowGenerator {
     this.ctx.generateBlock(stmt.body, params);
     this.loopStack.pop();
 
-    const lastInstruction = this.output[this.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||

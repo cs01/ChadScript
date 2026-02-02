@@ -21,7 +21,7 @@ export class SetGenerator {
   private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
 
   generateSetLiteral(expr: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const setExpr = expr as any;
+    const setExpr = expr as { type: string; values: Expression[] };
     if (setExpr.type !== 'set') {
       throw new Error('Expected set literal');
     }
@@ -63,16 +63,16 @@ export class SetGenerator {
     const seen = new Set();
     let actualIndex = 0;
     for (let i = 0; i < setExpr.values.length; i++) {
-      const valueExpr = setExpr.values[i];
+      const valueExprTyped = setExpr.values[i] as { type: string; value: number };
 
       // For literal numbers, we can dedupe at compile time
-      if ((valueExpr as any).type === 'number') {
-        const numVal = (valueExpr as any).value;
+      if (valueExprTyped.type === 'number') {
+        const numVal = valueExprTyped.value;
         if (seen.has(numVal)) continue;
         seen.add(numVal);
       }
 
-      const valueValue = generateExpressionFn(valueExpr, params);
+      const valueValue = generateExpressionFn(setExpr.values[i] as Expression, params);
 
       // Store value
       const valueElemPtr = this.nextTemp();
@@ -365,7 +365,7 @@ export class StringSetGenerator {
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
     this.emit(`${result} = load double, double* ${resultReg}`);
-    (this.ctx as any).variableTypes?.set(result, 'double');
+    this.ctx.variableTypes.set(result, 'double');
 
     return result;
   }

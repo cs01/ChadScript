@@ -259,19 +259,97 @@ export class MethodCallGenerator {
 
     if (expr.type !== 'member_access') return null;
     const memberExpr = expr as MemberAccessNode;
-    if (memberExpr.object.type !== 'this') return null;
 
-    const fieldName = memberExpr.property;
-    if (!this.ctx.currentClassName) return null;
+    if (memberExpr.object.type === 'this') {
+      const fieldName = memberExpr.property;
+      if (!this.ctx.currentClassName) return null;
 
-    const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
-    const fieldInfo = fieldInfoResult as FieldInfo;
-    if (!fieldInfoResult || !fieldInfo.tsType) return null;
+      const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
+      const fieldInfo = fieldInfoResult as FieldInfo;
+      if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
-    const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-    if (!mapMatch) return null;
+      const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
+      if (!mapMatch) return null;
 
-    return { fieldName, keyType: mapMatch[1], valueType: mapMatch[2] };
+      return { fieldName, keyType: mapMatch[1], valueType: mapMatch[2] };
+    }
+
+    if (memberExpr.object.type === 'member_access') {
+      const nestedType = this.resolveNestedMemberType(memberExpr.object);
+      if (!nestedType) return null;
+
+      const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === nestedType);
+      if (ifaceDecl) {
+        const iface = ifaceDecl as InterfaceDeclaration;
+        const field = iface.fields.find(f => f.name === memberExpr.property);
+        if (field) {
+          const mapMatch = field.type.match(/^Map<(\w+),\s*(.+)>$/);
+          if (mapMatch) {
+            return { fieldName: memberExpr.property, keyType: mapMatch[1], valueType: mapMatch[2] };
+          }
+        }
+      }
+
+      const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === nestedType);
+      if (classDecl) {
+        const cls = classDecl as ClassNode;
+        const field = cls.fields.find(f => f.name === memberExpr.property);
+        if (field && field.tsType) {
+          const mapMatch = field.tsType.match(/^Map<(\w+),\s*(.+)>$/);
+          if (mapMatch) {
+            return { fieldName: memberExpr.property, keyType: mapMatch[1], valueType: mapMatch[2] };
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private resolveNestedMemberType(expr: Expression): string | null {
+    if (expr.type === 'this') {
+      return this.ctx.currentClassName || null;
+    }
+
+    if (expr.type !== 'member_access') return null;
+    const memberExpr = expr as MemberAccessNode;
+
+    const parentType = this.resolveNestedMemberType(memberExpr.object);
+    if (!parentType) return null;
+
+    const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === parentType);
+    if (ifaceDecl) {
+      const iface = ifaceDecl as InterfaceDeclaration;
+      const field = iface.fields.find(f => f.name === memberExpr.property);
+      if (field) {
+        let fieldType = field.type;
+        if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
+          fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
+        }
+        if (fieldType.endsWith('?')) {
+          fieldType = fieldType.slice(0, -1);
+        }
+        return fieldType;
+      }
+    }
+
+    const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === parentType);
+    if (classDecl) {
+      const cls = classDecl as ClassNode;
+      const field = cls.fields.find(f => f.name === memberExpr.property);
+      if (field && field.tsType) {
+        let fieldType = field.tsType;
+        if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
+          fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
+        }
+        if (fieldType.endsWith('?')) {
+          fieldType = fieldType.slice(0, -1);
+        }
+        return fieldType;
+      }
+    }
+
+    return null;
   }
 
   private getThisFieldSetType(expr: Expression): { fieldName: string; valueType: string } | null {
@@ -645,7 +723,7 @@ export class MethodCallGenerator {
     }
 
     // Build a helpful error message with supported methods
-    this.throwUnsupportedMethodError(method);
+    this.throwUnsupportedMethodError(method, expr.object.type, expr.object);
   }
 
   private handleExecSync(expr: MethodCallNode, params: string[]): string {
@@ -1380,7 +1458,12 @@ export class MethodCallGenerator {
     return result;
   }
 
-  private throwUnsupportedMethodError(method: string): never {
+  private throwUnsupportedMethodError(method: string, objectType?: string, expr?: Expression): never {
+    if (expr && expr.type === 'member_access') {
+      const memberExpr = expr as MemberAccessNode;
+      console.log('[DEBUG] throwUnsupportedMethodError - member access property:', memberExpr.property, 'object.type:', memberExpr.object.type);
+    }
+    console.log('[DEBUG] throwUnsupportedMethodError method:', method, 'objectType:', objectType);
     const stringMethods = [
       'charAt', 'concat', 'padStart', 'repeat', 'split', 'startsWith', 'substring', 'substr'
     ];
