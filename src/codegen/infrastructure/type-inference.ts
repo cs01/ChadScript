@@ -71,6 +71,65 @@ export class TypeInference {
     return null;
   }
 
+  private resolveClassNameFromExpression(expr: Expression): string | null {
+    if (expr.type === 'this') {
+      return this.ctx.currentClassName;
+    }
+    if (expr.type === 'variable') {
+      const varName = (expr as VariableNode).name;
+      if (this.ctx.symbolTable.isClass(varName)) {
+        return this.ctx.symbolTable.getClassName(varName) || null;
+      }
+      return null;
+    }
+    if (expr.type === 'member_access') {
+      const memberExpr = expr as MemberAccessNode;
+      const objectType = this.resolveTypeFromExpression(memberExpr.object);
+      if (!objectType) return null;
+      const fieldType = this.getFieldTypeFromType(objectType, memberExpr.property);
+      if (fieldType) {
+        const cls = this.getClass(fieldType);
+        if (cls) return fieldType;
+      }
+      return null;
+    }
+    return null;
+  }
+
+  private resolveTypeFromExpression(expr: Expression): string | null {
+    if (expr.type === 'this') {
+      return this.ctx.currentClassName;
+    }
+    if (expr.type === 'variable') {
+      const varName = (expr as VariableNode).name;
+      if (this.ctx.symbolTable.isClass(varName)) {
+        return this.ctx.symbolTable.getClassName(varName) || null;
+      }
+      return null;
+    }
+    if (expr.type === 'member_access') {
+      const memberExpr = expr as MemberAccessNode;
+      const objectType = this.resolveTypeFromExpression(memberExpr.object);
+      if (!objectType) return null;
+      return this.getFieldTypeFromType(objectType, memberExpr.property);
+    }
+    return null;
+  }
+
+  private getFieldTypeFromType(typeName: string, fieldName: string): string | null {
+    const cls = this.getClass(typeName);
+    if (cls) {
+      const fieldTsType = this.ctx.classGen?.getFieldTsType(typeName, fieldName);
+      if (fieldTsType) return fieldTsType;
+    }
+    const iface = this.getInterface(typeName);
+    if (iface) {
+      const field = this.getInterfaceProperty(typeName, fieldName);
+      if (field) return field.type;
+    }
+    return null;
+  }
+
   isBooleanExpression(expr: Expression | null | undefined): boolean {
     if (expr === null || expr === undefined) return false;
     if (expr.type === 'boolean') return true;
@@ -394,16 +453,7 @@ export class TypeInference {
     if (expr.type !== 'method_call') return null;
     const methodExpr = expr as MethodCallNode;
 
-    let className: string | null = null;
-
-    if (methodExpr.object.type === 'this') {
-      className = this.ctx.currentClassName;
-    } else if (methodExpr.object.type === 'variable') {
-      const varName = (methodExpr.object as VariableNode).name;
-      if (this.ctx.symbolTable.isClass(varName)) {
-        className = this.ctx.symbolTable.getClassName(varName) || null;
-      }
-    }
+    const className = this.resolveClassNameFromExpression(methodExpr.object);
 
     if (!className) return null;
 
