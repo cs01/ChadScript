@@ -14,6 +14,7 @@ import {
   IndexAccessNode,
   TypeAssertionNode,
   FunctionParameter,
+  ClassField,
 } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker, TypeInfo } from '../../../typescript/type-checker.js';
@@ -473,8 +474,9 @@ export class MemberAccessGenerator {
       instancePtr = thisPtr;
       className = this.ctx.currentClassName || this.ctx.classGen.currentClassName || null;
       if (!className) {
+        const fieldName = expr.property;
         const classWithFieldResult = this.ctx.ast?.classes.find((c: ClassNode) => {
-          return c.methods.some((m) => true);
+          return c.fields.some((f: ClassField) => f.name === fieldName);
         });
         const classWithField = classWithFieldResult as ClassNode;
         if (classWithFieldResult) {
