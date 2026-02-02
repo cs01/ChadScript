@@ -1,4 +1,4 @@
-import { AST, InterfaceDeclaration, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode } from '../../../ast/types.js';
+import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode } from '../../../ast/types.js';
 import { SymbolTable, ObjectMetadata } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo } from './types.js';
@@ -37,7 +37,7 @@ export class TypeResolver {
     };
   }
 
-  getInterfaceProperty(interfaceName: string, propName: string): { name: string; type: string } | null {
+  getInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null {
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
     for (let i = 0; i < iface.fields.length; i++) {

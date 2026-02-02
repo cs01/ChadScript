@@ -292,9 +292,14 @@ export interface AST {
   topLevelItems?: TopLevelItem[];  // Combined ordered list of all top-level statements and expressions
 }
 
+export interface InterfaceField {
+  name: string;
+  type: string;
+}
+
 export interface InterfaceDeclaration {
   name: string;
-  fields: { name: string; type: string }[];  // e.g., [{ name: 'age', type: 'number' }, { name: 'name', type: 'string' }]
+  fields: InterfaceField[];
 }
 
 export interface TypeAliasDeclaration {

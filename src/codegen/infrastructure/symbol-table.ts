@@ -114,6 +114,7 @@ export interface SymbolMetadata {
   mapMetadata?: MapMetadata;
   setMetadata?: SetMetadata;
   isPointerAlloca?: boolean;
+  interfaceType?: string;
 }
 
 /**
@@ -138,6 +139,7 @@ export interface Symbol {
   closureMetadata?: ClosureMetadata;
   mapMetadata?: MapMetadata;
   setMetadata?: SetMetadata;
+  interfaceType?: string;
 }
 
 /**

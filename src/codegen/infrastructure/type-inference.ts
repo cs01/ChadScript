@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration, BinaryNode } from '../../ast/types.js';
+import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration, InterfaceField, BinaryNode } from '../../ast/types.js';
 import { SymbolTable } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { ClassGenerator } from '../types/objects/class.js';
@@ -26,7 +26,7 @@ export class TypeInference {
     return null;
   }
 
-  private getInterfaceProperty(interfaceName: string, propName: string): { name: string; type: string } | null {
+  private getInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null {
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
     for (let i = 0; i < iface.fields.length; i++) {

@@ -725,6 +725,14 @@ export class MemberAccessGenerator {
       const className = this.ctx.currentClassName || this.ctx.classGen.currentClassName;
       return className || null;
     }
+    if (expr.type === 'variable') {
+      const varName = (expr as VariableNode).name;
+      const symbol = this.ctx.symbolTable.lookup(varName);
+      if (symbol && symbol.objectMetadata) {
+        return symbol.interfaceType || null;
+      }
+      return null;
+    }
     if (expr.type === 'member_access') {
       const memberAccess = expr as MemberAccessNode;
       if (memberAccess.object.type === 'this') {
