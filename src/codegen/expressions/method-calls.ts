@@ -32,6 +32,7 @@ import {
   ClassMethod,
   FunctionNode,
   MemberAccessNode,
+  InterfaceDeclaration,
 } from '../../ast/types.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
@@ -136,6 +137,7 @@ interface ArrayGeneratorLike {
   generateArrayJoin(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
   generateArrayFind(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
   generateArraySome(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
+  generateArrayEvery(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
   generateArrayFilter(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
   generateArrayForEach(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string;
 }
@@ -600,6 +602,8 @@ export class MethodCallGenerator {
       return this.ctx.arrayGen.generateArrayFind(expr, params, this.ctx.generateExpression.bind(this.ctx));
     } else if (method === 'some') {
       return this.ctx.arrayGen.generateArraySome(expr, params, this.ctx.generateExpression.bind(this.ctx));
+    } else if (method === 'every') {
+      return this.ctx.arrayGen.generateArrayEvery(expr, params, this.ctx.generateExpression.bind(this.ctx));
     } else if (method === 'filter') {
       return this.ctx.arrayGen.generateArrayFilter(expr, params, this.ctx.generateExpression.bind(this.ctx));
     } else if (method === 'forEach') {
@@ -957,6 +961,15 @@ export class MethodCallGenerator {
           if (classExists) {
             instancePtr = this.ctx.generateExpression(expr.object, params);
             className = fieldClassName;
+          } else {
+            const interfaceExists = this.ctx.ast.interfaces && this.ctx.ast.interfaces.some((i: InterfaceDeclaration) => i.name === fieldClassName);
+            if (interfaceExists) {
+              const implClass = this.findClassImplementingInterfaceMethod(fieldClassName, method);
+              if (implClass) {
+                instancePtr = this.ctx.generateExpression(expr.object, params);
+                className = implClass;
+              }
+            }
           }
         }
       } else if (memberAccess.object.type === 'variable') {
@@ -971,6 +984,15 @@ export class MethodCallGenerator {
             if (classExists) {
               instancePtr = this.ctx.generateExpression(expr.object, params);
               className = fieldClassName;
+            } else {
+              const interfaceExists = this.ctx.ast.interfaces && this.ctx.ast.interfaces.some((i: InterfaceDeclaration) => i.name === fieldClassName);
+              if (interfaceExists) {
+                const implClass = this.findClassImplementingInterfaceMethod(fieldClassName, method);
+                if (implClass) {
+                  instancePtr = this.ctx.generateExpression(expr.object, params);
+                  className = implClass;
+                }
+              }
             }
           }
         }
@@ -1001,7 +1023,13 @@ export class MethodCallGenerator {
     }
 
     if (className && instancePtr) {
-      const resolvedClass = this.findClassWithMethod(className, method);
+      let resolvedClass = this.findClassWithMethod(className, method);
+      if (!resolvedClass) {
+        const interfaceExists = this.ctx.ast.interfaces && this.ctx.ast.interfaces.some((i: InterfaceDeclaration) => i.name === className);
+        if (interfaceExists) {
+          resolvedClass = this.findClassImplementingInterfaceMethod(className, method);
+        }
+      }
       if (!resolvedClass) {
         throw new Error(`Method ${method} not found in class ${className}`);
       }
@@ -1024,6 +1052,23 @@ export class MethodCallGenerator {
       return this.findClassWithMethod(classNode.extends, methodName);
     }
 
+    return null;
+  }
+
+  private findClassImplementingInterfaceMethod(_interfaceName: string, methodName: string): string | null {
+    for (let i = 0; i < this.ctx.ast.classes.length; i++) {
+      const cls = this.ctx.ast.classes[i];
+      const hasMethod = cls.methods.some((m: ClassMethod) => m.name === methodName && !m.isConstructor);
+      if (hasMethod) {
+        return cls.name;
+      }
+      if (cls.extends) {
+        const parentHasMethod = this.findClassWithMethod(cls.extends, methodName);
+        if (parentHasMethod) {
+          return cls.name;
+        }
+      }
+    }
     return null;
   }
 
@@ -1277,7 +1322,7 @@ export class MethodCallGenerator {
       'charAt', 'concat', 'padStart', 'repeat', 'split', 'startsWith', 'substring', 'substr'
     ];
     const arrayMethods = [
-      'push', 'map', 'join', 'find', 'some', 'filter', 'forEach'
+      'push', 'map', 'join', 'find', 'some', 'every', 'filter', 'forEach'
     ];
     const mapMethods = [
       'set', 'get', 'has'
