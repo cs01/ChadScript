@@ -1,4 +1,4 @@
-import { Expression, ArrayNode, ObjectNode, MethodCallNode, VariableNode, SuperNode, BinaryNode, NumberNode } from '../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MethodCallNode, VariableNode, SuperNode, BinaryNode, NumberNode, TypeAssertionNode } from '../ast/types.js';
 import { ParserContext } from './declarations.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
 
@@ -353,7 +353,46 @@ export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Express
     } else if (ctx.code[ctx.pos] === '!' && ctx.code[ctx.pos + 1] !== '=') {
       ctx.pos++;
     } else {
-      break;
+      ctx.skipWhitespace();
+      if (ctx.code.slice(ctx.pos, ctx.pos + 3) === 'as ' && ctx.pos > 0) {
+        ctx.pos += 3;
+        ctx.skipWhitespace();
+        const typeStart = ctx.pos;
+        let braceDepth = 0;
+        let angleBracketDepth = 0;
+        let assertedType = '';
+
+        if (ctx.code[ctx.pos] === '{') {
+          braceDepth = 1;
+          assertedType += ctx.code[ctx.pos++];
+          while (ctx.pos < ctx.code.length && braceDepth > 0) {
+            if (ctx.code[ctx.pos] === '{') braceDepth++;
+            if (ctx.code[ctx.pos] === '}') braceDepth--;
+            assertedType += ctx.code[ctx.pos++];
+          }
+        } else {
+          while (ctx.pos < ctx.code.length && /[a-zA-Z0-9_<>\[\],\|]/.test(ctx.code[ctx.pos])) {
+            if (ctx.code[ctx.pos] === '<') angleBracketDepth++;
+            if (ctx.code[ctx.pos] === '>') angleBracketDepth--;
+            assertedType += ctx.code[ctx.pos++];
+            if (angleBracketDepth === 0) {
+              const peekAhead = ctx.code[ctx.pos];
+              if (peekAhead === ';' || peekAhead === ')' || peekAhead === ',' || peekAhead === '}' || peekAhead === ']' || /\s/.test(peekAhead)) {
+                break;
+              }
+            }
+          }
+        }
+
+        if (assertedType.trim().length === 0) {
+          ctx.pos = typeStart - 3;
+          break;
+        } else {
+          expr = { type: 'type_assertion', expression: expr, assertedType: assertedType.trim() };
+        }
+      } else {
+        break;
+      }
     }
   }
   return expr;

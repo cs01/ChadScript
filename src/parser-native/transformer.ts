@@ -43,6 +43,7 @@ import {
   RegexNode,
   MapNode,
   SetNode,
+  TypeAssertionNode,
 } from '../ast/types.js';
 
 interface ExprBase { type: string; }
@@ -327,9 +328,11 @@ function transformExpression(node: TreeSitterNode): Expression {
 
     case 'as_expression':
     case 'type_assertion':
+      return transformTypeAssertion(node);
+
     case 'satisfies_expression':
-      const exprChild = getNamedChild(node, 0);
-      return exprChild ? transformExpression(exprChild) : { type: 'variable', name: 'undefined' };
+      const satisfiesExprChild = getNamedChild(node, 0);
+      return satisfiesExprChild ? transformExpression(satisfiesExprChild) : { type: 'variable', name: 'undefined' };
 
     case 'non_null_expression':
       const nnChild = getNamedChild(node, 0);
@@ -341,6 +344,29 @@ function transformExpression(node: TreeSitterNode): Expression {
     default:
       return { type: 'variable', name: 'undefined' };
   }
+}
+
+function transformTypeAssertion(node: TreeSitterNode): TypeAssertionNode {
+  const exprChild = getNamedChild(node, 0);
+  const expression = exprChild ? transformExpression(exprChild) : { type: 'variable' as const, name: 'undefined' };
+
+  let assertedType = 'unknown';
+  for (let i = 1; i < node.namedChildCount; i++) {
+    const typeChild = getNamedChild(node, i);
+    if (typeChild) {
+      const tc = typeChild as NodeBase;
+      if (tc.type !== 'identifier' || tc.text !== 'as') {
+        assertedType = tc.text;
+        break;
+      }
+    }
+  }
+
+  return {
+    type: 'type_assertion',
+    expression,
+    assertedType
+  };
 }
 
 function transformStringNode(node: TreeSitterNode): StringNode {
