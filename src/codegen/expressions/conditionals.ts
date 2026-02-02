@@ -42,7 +42,7 @@ export class ConditionalExpressionGenerator {
     const condValueType = this.ctx.getVariableType(condValue);
     let condBool: string;
 
-    if (condValueType === 'double' || (condValue.includes('.') && !condValue.startsWith('%'))) {
+    if (condValueType === 'double' || (condValue.indexOf('.') !== -1 && !condValue.startsWith('%'))) {
       // Value is double, use fcmp directly
       condBool = this.nextTemp();
       this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);

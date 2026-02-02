@@ -106,7 +106,7 @@ export class UnaryExpressionGenerator {
     const operandType = this.ctx.variableTypes.get(operand);
     let cmpResult: string;
 
-    if (operandType === 'double' || (operand.includes('.') && !operand.startsWith('%'))) {
+    if (operandType === 'double' || (operand.indexOf('.') !== -1 && !operand.startsWith('%'))) {
       // Operand is double, use fcmp directly
       cmpResult = this.ctx.nextTemp();
       this.ctx.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);

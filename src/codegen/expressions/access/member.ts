@@ -354,7 +354,7 @@ export class MemberAccessGenerator {
     const varName = (expr.object as VariableNode).name;
     const varType = this.ctx.getVariableType(varName);
     if (!varType || !varType.startsWith('%') || !varType.endsWith('*')) return null;
-    if (varType === '%Response*' || varType.includes('Array') || varType.includes('Map') || varType.includes('Set')) {
+    if (varType === '%Response*' || varType.indexOf('Array') !== -1 || varType.indexOf('Map') !== -1 || varType.indexOf('Set') !== -1) {
       return null;
     }
 
@@ -412,7 +412,7 @@ export class MemberAccessGenerator {
       if (nestedTypeName.endsWith('?')) {
         nestedTypeName = nestedTypeName.slice(0, -1);
       }
-      if (nestedTypeName.includes(' | ')) {
+      if (nestedTypeName.indexOf(' | ') !== -1) {
         nestedTypeName = nestedTypeName.split(' | ')[0].trim();
       }
       const isTypeAlias = this.isTypeAlias(nestedTypeName);
@@ -618,12 +618,16 @@ export class MemberAccessGenerator {
 
   private handleJsonPropertyAccess(expr: MemberAccessNode, params: string[]): string {
     const varName = (expr.object as VariableNode).name;
-    const jsonMeta = this.ctx.symbolTable.getObjectInfo(varName);
+    const jsonMetaRaw = this.ctx.symbolTable.getObjectInfo(varName);
     let tsType: string | undefined;
-    if (jsonMeta?.tsTypes) {
-      const propIdx = jsonMeta.keys.indexOf(expr.property);
-      if (propIdx !== -1) {
-        tsType = jsonMeta.tsTypes[propIdx];
+    if (jsonMetaRaw) {
+      const jsonMeta = jsonMetaRaw as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] | undefined };
+      if (jsonMeta.tsTypes) {
+        const tsTypesArr = jsonMeta.tsTypes as string[];
+        const propIdx = jsonMeta.keys.indexOf(expr.property);
+        if (propIdx !== -1) {
+          tsType = tsTypesArr[propIdx];
+        }
       }
     }
 
@@ -637,7 +641,7 @@ export class MemberAccessGenerator {
     const fieldItem = this.ctx.nextTemp();
     this.ctx.emit(`${fieldItem} = call i8* @cJSON_GetObjectItem(i8* ${jsonObjPtr}, i8* ${fieldNameStr})`);
 
-    if (tsType && !['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'].includes(tsType)) {
+    if (tsType && ['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'].indexOf(tsType) === -1) {
       return this.handleNestedInterfaceField(fieldItem, tsType);
     }
 
@@ -719,8 +723,10 @@ export class MemberAccessGenerator {
 
   private handleNestedJsonAccess(expr: MemberAccessNode, params: string[]): string | null {
     const innerResult = this.ctx.generateExpression(expr.object, params);
-    const nestedMeta = this.ctx.jsonObjectMetadata?.get(innerResult);
-    if (!nestedMeta) return null;
+    if (!this.ctx.jsonObjectMetadata) return null;
+    const nestedMetaRaw = this.ctx.jsonObjectMetadata.get(innerResult);
+    if (!nestedMetaRaw) return null;
+    const nestedMeta = nestedMetaRaw as { keys: string[]; types: string[]; tsTypes: string[] | undefined };
 
     this.ctx.syncStateToGenerators();
     const fieldNameStr = this.ctx.stringGen.createStringConstant(expr.property);
@@ -728,9 +734,13 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${fieldItem} = call i8* @cJSON_GetObjectItem(i8* ${innerResult}, i8* ${fieldNameStr})`);
 
     const propIdx = nestedMeta.keys.indexOf(expr.property);
-    const tsType = propIdx !== -1 ? nestedMeta.tsTypes?.[propIdx] : undefined;
+    let tsType: string | undefined;
+    if (propIdx !== -1 && nestedMeta.tsTypes) {
+      const tsTypesArr = nestedMeta.tsTypes as string[];
+      tsType = tsTypesArr[propIdx];
+    }
 
-    if (tsType && !['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'].includes(tsType)) {
+    if (tsType && ['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'].indexOf(tsType) === -1) {
       return this.handleNestedInterfaceField(fieldItem, tsType);
     }
 
@@ -742,11 +752,15 @@ export class MemberAccessGenerator {
     const innerType = this.ctx.variableTypes.get(innerPtr);
 
     if (innerType === 'i8*') {
-      const metadata = this.ctx.jsonObjectMetadata?.get(innerPtr);
-      if (metadata && metadata.keys && metadata.types) {
-        const propIndex = metadata.keys.indexOf(expr.property);
-        if (propIndex !== -1) {
-          return this.accessObjectProperty(innerPtr, expr.property, metadata.keys, metadata.types, metadata.tsTypes);
+      if (!this.ctx.jsonObjectMetadata) return null;
+      const metadataRaw = this.ctx.jsonObjectMetadata.get(innerPtr);
+      if (metadataRaw) {
+        const metadata = metadataRaw as { keys: string[]; types: string[]; tsTypes: string[] | undefined };
+        if (metadata.keys && metadata.types) {
+          const propIndex = metadata.keys.indexOf(expr.property);
+          if (propIndex !== -1) {
+            return this.accessObjectProperty(innerPtr, expr.property, metadata.keys, metadata.types, metadata.tsTypes);
+          }
         }
       }
       return null;
@@ -820,8 +834,9 @@ export class MemberAccessGenerator {
 
   private handleIndexAccessPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
     const indexAccess = expr.object as IndexAccessNode;
-    const elementInfo = this.getObjectArrayElementInfo(indexAccess.object);
-    if (!elementInfo) return null;
+    const elementInfoRaw = this.getObjectArrayElementInfo(indexAccess.object);
+    if (!elementInfoRaw) return null;
+    const elementInfo = elementInfoRaw as { keys: string[]; types: string[]; tsTypes: string[] };
 
     const arrayPtr = this.ctx.generateExpression(indexAccess.object, params);
     const indexDouble = this.ctx.generateExpression(indexAccess.index, params);
@@ -860,8 +875,9 @@ export class MemberAccessGenerator {
     this.ctx.variableTypes.set(value, propType);
 
     if (propTsType && propTsType !== 'string' && propTsType !== 'number' && propTsType !== 'boolean') {
-      const interfaceInfo = this.getKnownTypeProperties(propTsType);
-      if (interfaceInfo) {
+      const interfaceInfoRaw = this.getKnownTypeProperties(propTsType);
+      if (interfaceInfoRaw) {
+        const interfaceInfo = interfaceInfoRaw as { keys: string[]; types: string[]; tsTypes: string[] };
         this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
         this.ctx.jsonObjectMetadata.set(value, {
           keys: interfaceInfo.keys,
@@ -876,7 +892,7 @@ export class MemberAccessGenerator {
 
   private getKnownTypeProperties(typeName: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     let baseName = typeName;
-    if (baseName.includes(' | ')) {
+    if (baseName.indexOf(' | ') !== -1) {
       const parts = baseName.split(' | ');
       baseName = parts[0].trim();
     }
@@ -936,8 +952,9 @@ export class MemberAccessGenerator {
   }
 
   private getTypeAliasInfo(typeName: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
-    const typeAliasProps = this.getTypeAliasCommonProperties(typeName);
-    if (!typeAliasProps) return null;
+    const typeAliasPropsRaw = this.getTypeAliasCommonProperties(typeName);
+    if (!typeAliasPropsRaw) return null;
+    const typeAliasProps = typeAliasPropsRaw as { properties: InterfaceProperty[] };
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
@@ -998,8 +1015,9 @@ export class MemberAccessGenerator {
       const arrayType = this.resolveMemberAccessType(memberAccess);
       if (arrayType && arrayType.endsWith('[]')) {
         const elementType = arrayType.slice(0, -2);
-        const interfaceInfo = this.getInterfaceInfo(elementType);
-        if (interfaceInfo) {
+        const interfaceInfoRaw = this.getInterfaceInfo(elementType);
+        if (interfaceInfoRaw) {
+          const interfaceInfo = interfaceInfoRaw as { keys: string[]; types: string[]; tsTypes: string[] };
           return interfaceInfo;
         }
       }
@@ -1016,7 +1034,7 @@ export class MemberAccessGenerator {
               const types: string[] = [];
               const tsTypes: string[] = [];
               for (let j = 0; j < fields.length; j++) {
-                const f = fields[j];
+                const f = fields[j] as { name: string; type: string };
                 keys.push(f.name);
                 tsTypes.push(f.type);
                 if (f.type === 'string') {
@@ -1047,7 +1065,7 @@ export class MemberAccessGenerator {
                 const types: string[] = [];
                 const tsTypes: string[] = [];
                 for (let j = 0; j < fields.length; j++) {
-                  const f = fields[j];
+                  const f = fields[j] as { name: string; type: string };
                   keys.push(f.name);
                   tsTypes.push(f.type);
                   if (f.type === 'string') {
@@ -1191,8 +1209,9 @@ export class MemberAccessGenerator {
       return null;  // Already handled in handleJsonPropertyAccess
     } else if (expr.object.type === 'variable' && this.ctx.symbolTable.isObject((expr.object as VariableNode).name)) {
       const varName = (expr.object as VariableNode).name;
-      const objMeta = this.ctx.symbolTable.getObjectInfo(varName);
-      if (!objMeta) return null;
+      const objMetaRaw = this.ctx.symbolTable.getObjectInfo(varName);
+      if (!objMetaRaw) return null;
+      const objMeta = objMetaRaw as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] | undefined };
       keys = objMeta.keys;
       types = objMeta.types;
       tsTypes = objMeta.tsTypes;
@@ -1236,8 +1255,9 @@ export class MemberAccessGenerator {
     this.ctx.variableTypes.set(value, propType);
 
     if (propTsType && propTsType !== 'string' && propTsType !== 'number' && propTsType !== 'boolean') {
-      const interfaceInfo = this.getKnownTypeProperties(propTsType);
-      if (interfaceInfo) {
+      const interfaceInfoRaw = this.getKnownTypeProperties(propTsType);
+      if (interfaceInfoRaw) {
+        const interfaceInfo = interfaceInfoRaw as { keys: string[]; types: string[]; tsTypes: string[] };
         this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
         this.ctx.jsonObjectMetadata.set(value, {
           keys: interfaceInfo.keys,
@@ -1493,7 +1513,7 @@ export class MemberAccessGenerator {
       return this.accessObjectWithMetadata(varName, expr.property, symbol.objectMetadata);
     }
 
-    if (params.includes(varName)) {
+    if (params.indexOf(varName) !== -1) {
       const paramInterfaceType = this.getParameterTypeFromAST(varName);
       if (paramInterfaceType) {
         const interfaceDefResult = this.getInterfaceFromAST(paramInterfaceType);
@@ -1699,7 +1719,7 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${value} = load ${fieldLlvmType}, ${fieldLlvmType}* ${fieldPtr}`);
     this.ctx.variableTypes.set(value, fieldLlvmType);
 
-    if (field.type && !['string', 'number', 'boolean'].includes(field.type) && !field.type.endsWith('[]')) {
+    if (field.type && ['string', 'number', 'boolean'].indexOf(field.type) === -1 && !field.type.endsWith('[]')) {
       this.storeInterfaceMetadata(value, field.type);
     }
 

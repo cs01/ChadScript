@@ -24,7 +24,7 @@ export class MathGenerator {
   canHandle(expr: MethodCallNode): boolean {
     return expr.object.type === 'variable' &&
            (expr.object as any).name === 'Math' &&
-           this.getSupportedMethods().includes(expr.method);
+           this.getSupportedMethods().indexOf(expr.method) !== -1;
   }
 
   /**

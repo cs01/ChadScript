@@ -21,7 +21,7 @@ export class FilesystemGenerator {
   canHandle(expr: MethodCallNode): boolean {
     return expr.object.type === 'variable' &&
            (expr.object as any).name === 'fs' &&
-           ['readFileSync', 'writeFileSync', 'existsSync', 'unlinkSync'].includes(expr.method);
+           ['readFileSync', 'writeFileSync', 'existsSync', 'unlinkSync'].indexOf(expr.method) !== -1;
   }
 
   /**

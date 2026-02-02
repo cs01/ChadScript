@@ -1026,7 +1026,7 @@ export class MethodCallGenerator {
 
     if (searchArg.type === 'regex') {
       const regexNode = searchArg as { pattern: string; flags: string };
-      const isGlobal = regexNode.flags.includes('g');
+      const isGlobal = regexNode.flags.indexOf('g') !== -1;
       const searchStr = this.ctx.stringGen.generateGlobalString(regexNode.pattern);
       const replaceStr = this.ctx.generateExpression(replaceArg, params);
       if (isGlobal) {
@@ -1379,11 +1379,12 @@ export class MethodCallGenerator {
     if (expr.object.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
       if (this.ctx.symbolTable.isObject(varName)) {
-        const objMeta = this.ctx.symbolTable.getObjectInfo(varName);
-        if (!objMeta) {
+        const objMetaRaw = this.ctx.symbolTable.getObjectInfo(varName);
+        if (!objMetaRaw) {
           return null;
         }
-        isObjectMethod = objMeta.keys.includes(method);
+        const objMeta = objMetaRaw as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] | undefined };
+        isObjectMethod = objMeta.keys.indexOf(method) !== -1;
       }
     } else if (expr.object.type === 'object') {
       const objExpr = expr.object as ObjectNode;

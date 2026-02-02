@@ -32,7 +32,7 @@ export class ControlFlowGenerator {
     if (valueType === 'i1') {
       // Value is already a boolean (i1), use it directly
       return value;
-    } else if (valueType === 'double' || (value.includes('.') && !value.startsWith('%'))) {
+    } else if (valueType === 'double' || (value.indexOf('.') !== -1 && !value.startsWith('%'))) {
       // Value is a double, use fcmp
       const condBool = this.nextTemp();
       this.emit(`${condBool} = fcmp one double ${value}, 0.0`);
@@ -922,10 +922,10 @@ export class ControlFlowGenerator {
   }
 
   private getNullableBaseType(typeStr: string): string | null {
-    if (typeStr.includes(' | null')) {
+    if (typeStr.indexOf(' | null') !== -1) {
       return typeStr.replace(' | null', '').trim();
     }
-    if (typeStr.includes('| null')) {
+    if (typeStr.indexOf('| null') !== -1) {
       return typeStr.replace('| null', '').trim();
     }
     return null;

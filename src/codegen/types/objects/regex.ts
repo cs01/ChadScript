@@ -52,7 +52,7 @@ export class RegexGenerator {
     // Determine regex flags (for now, we'll use REG_EXTENDED = 1)
     // REG_EXTENDED = 1, REG_ICASE = 2, REG_NOSUB = 4
     let cflags = 1; // REG_EXTENDED by default
-    if (flags.includes('i')) {
+    if (flags.indexOf('i') !== -1) {
       cflags = cflags | 2; // REG_ICASE
     }
 

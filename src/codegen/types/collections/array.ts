@@ -66,14 +66,14 @@ export class ArrayGenerator {
     }
 
     // Get the function name from the argument
-    const predicateArg = expr.args[0];
+    const predicateArg = expr.args[0] as { type: string; name: string };
     let predicateFn: string;
 
     if (predicateArg.type === 'variable') {
       predicateFn = predicateArg.name;
     } else if (predicateArg.type === 'arrow_function') {
       // Inline function - generate it and get the name
-      predicateFn = this.ctx.generateExpression(predicateArg, params);
+      predicateFn = this.ctx.generateExpression(expr.args[0], params);
     } else {
       throw new Error('find() argument must be a function name or inline function');
     }
@@ -153,14 +153,14 @@ export class ArrayGenerator {
       throw new Error('some() requires exactly 1 argument (predicate function)');
     }
 
-    const predicateArg = expr.args[0];
+    const predicateArg = expr.args[0] as { type: string; name: string };
     let predicateFn: string;
 
     if (predicateArg.type === 'variable') {
-      predicateFn = (predicateArg as VariableNode).name;
+      predicateFn = predicateArg.name;
     } else if (predicateArg.type === 'arrow_function') {
       // Inline function - generate it and get the name
-      predicateFn = this.ctx.generateExpression(predicateArg, params);
+      predicateFn = this.ctx.generateExpression(expr.args[0], params);
     } else {
       throw new Error('some() argument must be a function name or inline function');
     }
@@ -318,14 +318,14 @@ export class ArrayGenerator {
       throw new Error('filter() requires exactly 1 argument (predicate function)');
     }
 
-    const predicateArg = expr.args[0];
+    const predicateArg = expr.args[0] as { type: string; name: string };
     let predicateFn: string;
 
     if (predicateArg.type === 'variable') {
       predicateFn = predicateArg.name;
     } else if (predicateArg.type === 'arrow_function') {
       // Inline function - generate it and get the name
-      predicateFn = this.ctx.generateExpression(predicateArg, params);
+      predicateFn = this.ctx.generateExpression(expr.args[0], params);
     } else {
       throw new Error('filter() argument must be a function name or inline function');
     }
@@ -446,14 +446,14 @@ export class ArrayGenerator {
       throw new Error('forEach() requires exactly 1 argument (callback function)');
     }
 
-    const callbackArg = expr.args[0];
+    const callbackArg = expr.args[0] as { type: string; name: string };
     let callbackFn: string;
 
     if (callbackArg.type === 'variable') {
       callbackFn = callbackArg.name;
     } else if (callbackArg.type === 'arrow_function') {
       // Inline function - generate it and get the name
-      callbackFn = this.ctx.generateExpression(callbackArg, params);
+      callbackFn = this.ctx.generateExpression(expr.args[0], params);
     } else {
       throw new Error('forEach() argument must be a function name or inline function');
     }
@@ -514,14 +514,14 @@ export class ArrayGenerator {
       throw new Error('map() requires exactly 1 argument (callback function)');
     }
 
-    const callbackArg = expr.args[0];
+    const callbackArg = expr.args[0] as { type: string; name: string };
     let callbackFn: string;
 
     if (callbackArg.type === 'variable') {
       callbackFn = callbackArg.name;
     } else if (callbackArg.type === 'arrow_function') {
       // Inline function - generate it and get the name
-      callbackFn = this.ctx.generateExpression(callbackArg, params);
+      callbackFn = this.ctx.generateExpression(expr.args[0], params);
     } else {
       throw new Error('map() argument must be a function name or inline function');
     }
