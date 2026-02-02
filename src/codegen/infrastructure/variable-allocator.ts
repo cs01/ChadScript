@@ -176,8 +176,9 @@ export class VariableAllocator {
     const allocaReg = this.ctx.nextTemp();
     const keys = interfaceDef.fields.map((f) => f.name);
     const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
+    const tsTypes = interfaceDef.fields.map((f) => f.type);
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
-      objectMetadata: { keys, types }
+      objectMetadata: { keys, types, tsTypes }
     });
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
