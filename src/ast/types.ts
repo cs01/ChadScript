@@ -32,6 +32,7 @@ export interface MemberAccessNode {
   type: 'member_access';
   object: Expression;
   property: string;
+  optional?: boolean;
 }
 
 export interface IndexAccessNode {
