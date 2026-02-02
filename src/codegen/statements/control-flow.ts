@@ -1,4 +1,4 @@
-import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, TypeAliasDeclaration, ForOfStatement, MethodCallNode, InterfaceField } from '../../ast/types.js';
+import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, TypeAliasDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata, ObjectMetadata } from '../infrastructure/symbol-table.js';
 import type { TypeResolver, UnionCommonFields } from '../infrastructure/type-resolver/index.js';
@@ -801,7 +801,7 @@ export class ControlFlowGenerator {
       firstFields.set(f.name, f.type);
     }
 
-    const commonFields: { name: string; type: string }[] = [];
+    const commonFields: CommonField[] = [];
     for (const [fieldName, fieldType] of firstFields) {
       let isCommon = true;
       let resolvedType = fieldType;
@@ -840,7 +840,7 @@ export class ControlFlowGenerator {
     const elementTypes: string[] = [];
     const elementTsTypes: string[] = [];
     for (let i = 0; i < commonFields.length; i++) {
-      const f = commonFields[i];
+      const f = commonFields[i] as CommonField;
       elementKeys.push(f.name);
       elementTsTypes.push(f.type);
       if (f.type === 'string') {
@@ -900,7 +900,7 @@ export class ControlFlowGenerator {
       if (fn.name === this.ctx.currentFunction) {
         if (fn.parameters) {
           for (let j = 0; j < fn.parameters.length; j++) {
-            const p = fn.parameters[j];
+            const p = fn.parameters[j] as FunctionParameter;
             if (p.name === paramName && p.type) {
               return p.type;
             }
@@ -1125,7 +1125,7 @@ export class ControlFlowGenerator {
 
     const firstInterface = interfaces[0] as InterfaceDeclaration;
     const firstFields = firstInterface.fields;
-    const commonFields: { name: string; type: string }[] = [];
+    const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
       const field = firstFields[fi] as InterfaceField;
@@ -1141,7 +1141,7 @@ export class ControlFlowGenerator {
     const types: string[] = [];
     const tsTypes: string[] = [];
     for (let i = 0; i < commonFields.length; i++) {
-      const f = commonFields[i];
+      const f = commonFields[i] as CommonField;
       keys.push(f.name);
       types.push(this.fieldTypeToLlvm(f.type));
       tsTypes.push(f.type);

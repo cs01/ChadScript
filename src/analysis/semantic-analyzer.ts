@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, MethodCallNode, BinaryNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode } from '../ast/types.js';
 
 type SymbolType = 'number' | 'string' | 'boolean' | 'array<number>' | 'array<string>' | 'object' | 'class' | 'unknown';
 
@@ -298,8 +298,9 @@ export class SemanticAnalyzer {
       const schema: { [key: string]: string } = {};
 
       for (let i = 0; i < objExpr.properties.length; i++) {
-        const valueType = this.inferExpressionType(objExpr.properties[i].value);
-        schema[objExpr.properties[i].key] = valueType.llvmType;
+        const prop = objExpr.properties[i] as ObjectProperty;
+        const valueType = this.inferExpressionType(prop.value);
+        schema[prop.key] = valueType.llvmType;
       }
 
       return {

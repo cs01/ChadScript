@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, MethodCallNode, InterfaceDeclaration } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
@@ -128,17 +128,18 @@ export class LLVMGenerator extends BaseGenerator {
     const types: string[] = [];
 
     for (let i = 0; i < objExpr.properties.length; i++) {
-      keys.push(objExpr.properties[i].key);
+      const prop = objExpr.properties[i] as ObjectProperty;
+      keys.push(prop.key);
 
       let llvmType: string;
 
-      if (objExpr.properties[i].value.type === 'string' || this.isStringExpression(objExpr.properties[i].value)) {
+      if (prop.value.type === 'string' || this.isStringExpression(prop.value)) {
         llvmType = 'i8*';
-      } else if (objExpr.properties[i].value.type === 'array') {
-        llvmType = this.isStringArrayExpression(objExpr.properties[i].value) ? '%StringArray*' : '%Array*';
-      } else if (objExpr.properties[i].value.type === 'map') {
+      } else if (prop.value.type === 'array') {
+        llvmType = this.isStringArrayExpression(prop.value) ? '%StringArray*' : '%Array*';
+      } else if (prop.value.type === 'map') {
         llvmType = '%Map*';
-      } else if (objExpr.properties[i].value.type === 'set') {
+      } else if (prop.value.type === 'set') {
         llvmType = '%Set*';
       } else {
         llvmType = 'double';

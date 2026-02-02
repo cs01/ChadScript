@@ -46,14 +46,29 @@ export interface ArrayNode {
   elements: Expression[];
 }
 
+export interface ObjectProperty {
+  key: string;
+  value: Expression;
+}
+
+export interface CommonField {
+  name: string;
+  type: string;
+}
+
 export interface ObjectNode {
   type: 'object';
-  properties: { key: string; value: Expression }[];
+  properties: ObjectProperty[];
+}
+
+export interface MapEntry {
+  key: Expression;
+  value: Expression;
 }
 
 export interface MapNode {
   type: 'map';
-  entries: { key: Expression; value: Expression }[];
+  entries: MapEntry[];
 }
 
 export interface SetNode {

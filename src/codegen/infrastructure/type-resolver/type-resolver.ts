@@ -1,4 +1,4 @@
-import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode } from '../../../ast/types.js';
+import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode, CommonField, FunctionParameter } from '../../../ast/types.js';
 import { SymbolTable, ObjectMetadata } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo, ClassGeneratorLike } from './types.js';
@@ -132,7 +132,7 @@ export class TypeResolver {
     const parameters: { name: string; type: string }[] = [];
     if (func.parameters) {
       for (let i = 0; i < func.parameters.length; i++) {
-        const p = func.parameters[i] as { name: string; type?: string };
+        const p = func.parameters[i] as FunctionParameter;
         parameters.push({
           name: p.name,
           type: p.type || 'number'
@@ -172,7 +172,7 @@ export class TypeResolver {
 
     const firstInterface = interfaces[0] as InterfaceDeclaration;
     const firstFields = firstInterface.fields;
-    const commonFields: { name: string; type: string }[] = [];
+    const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
       const field = firstFields[fi] as InterfaceField;
@@ -188,7 +188,7 @@ export class TypeResolver {
     const types: string[] = [];
     const tsTypes: string[] = [];
     for (let i = 0; i < commonFields.length; i++) {
-      const f = commonFields[i];
+      const f = commonFields[i] as CommonField;
       keys.push(f.name);
       types.push(this.tsTypeToLlvm(f.type));
       tsTypes.push(f.type);

@@ -104,7 +104,8 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     for (const envDef of this.envStructDefs) {
       const fieldTypesArr: string[] = [];
       for (let i = 0; i < envDef.fields.length; i++) {
-        fieldTypesArr.push(envDef.fields[i].llvmType + '*');
+        const envField = envDef.fields[i];
+        fieldTypesArr.push(envField.llvmType + '*');
       }
       const fieldTypes = fieldTypesArr.join(', ');
       ir += `${envDef.name} = type { ${fieldTypes} }\n`;

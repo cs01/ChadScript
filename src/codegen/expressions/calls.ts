@@ -1,4 +1,4 @@
-import { Expression, CallNode, FunctionNode, VariableNode } from '../../ast/types.js';
+import { Expression, CallNode, FunctionNode, VariableNode, FunctionParameter } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
 /**
@@ -296,7 +296,7 @@ export class CallExpressionGenerator {
         }
         if (funcNode.parameters) {
           for (let i = 0; i < funcNode.parameters.length; i++) {
-            const p = funcNode.parameters[i];
+            const p = funcNode.parameters[i] as FunctionParameter;
             if (p.type === 'string') paramTypes.push('i8*');
             else if (p.type === 'string[]') paramTypes.push('%StringArray*');
             else if (p.type === 'number[]' || p.type === 'boolean[]') paramTypes.push('%Array*');

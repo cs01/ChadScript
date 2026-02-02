@@ -1,4 +1,4 @@
-import { Expression, ObjectNode } from '../../../ast/types.js';
+import { Expression, ObjectNode, ObjectProperty } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import type { InterfaceStructGenerator } from '../interface-struct-generator.js';
 
@@ -21,7 +21,8 @@ export class ObjectGenerator {
 
     const keys: string[] = [];
     for (let i = 0; i < objExpr.properties.length; i++) {
-      keys.push(objExpr.properties[i].key);
+      const prop = objExpr.properties[i] as ObjectProperty;
+      keys.push(prop.key);
     }
     const numFields = keys.length;
 
@@ -47,7 +48,8 @@ export class ObjectGenerator {
 
     const propMap = new Map<string, Expression>();
     for (let i = 0; i < objExpr.properties.length; i++) {
-      propMap.set(objExpr.properties[i].key, objExpr.properties[i].value);
+      const prop = objExpr.properties[i] as ObjectProperty;
+      propMap.set(prop.key, prop.value);
     }
 
     const orderedFields: { key: string; llvmType: string; value: string }[] = [];
@@ -105,22 +107,23 @@ export class ObjectGenerator {
     const fieldTypes: { key: string; llvmType: string; value: string }[] = [];
 
     for (let i = 0; i < objExpr.properties.length; i++) {
-      const key = objExpr.properties[i].key;
+      const prop = objExpr.properties[i] as ObjectProperty;
+      const key = prop.key;
 
       let llvmType: string;
-      if (objExpr.properties[i].value.type === 'string' || this.ctx.isStringExpression(objExpr.properties[i].value)) {
+      if (prop.value.type === 'string' || this.ctx.isStringExpression(prop.value)) {
         llvmType = 'i8*';
-      } else if (objExpr.properties[i].value.type === 'array') {
+      } else if (prop.value.type === 'array') {
         llvmType = '%Array*';
-      } else if (objExpr.properties[i].value.type === 'map') {
+      } else if (prop.value.type === 'map') {
         llvmType = '%Map*';
-      } else if (objExpr.properties[i].value.type === 'set') {
+      } else if (prop.value.type === 'set') {
         llvmType = '%Set*';
       } else {
         llvmType = 'double';
       }
 
-      const valueReg = this.ctx.generateExpression(objExpr.properties[i].value, params);
+      const valueReg = this.ctx.generateExpression(prop.value, params);
 
       let finalValue = valueReg;
       if (llvmType === 'i1') {
@@ -134,7 +137,8 @@ export class ObjectGenerator {
 
     const llvmTypes: string[] = [];
     for (let i = 0; i < fieldTypes.length; i++) {
-      llvmTypes.push(fieldTypes[i].llvmType);
+      const ft = fieldTypes[i];
+      llvmTypes.push(ft.llvmType);
     }
     const structFields = llvmTypes.join(', ');
     const structSizeBytes = fieldTypes.length * 8;

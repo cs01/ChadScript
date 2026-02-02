@@ -13,6 +13,7 @@ import {
   ClassNode,
   IndexAccessNode,
   TypeAssertionNode,
+  FunctionParameter,
 } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker, TypeInfo } from '../../../typescript/type-checker.js';
@@ -900,7 +901,7 @@ export class MemberAccessGenerator {
     const types: string[] = [];
     const tsTypes: string[] = [];
     for (let i = 0; i < typeAliasProps.properties.length; i++) {
-      const p = typeAliasProps.properties[i];
+      const p = typeAliasProps.properties[i] as InterfaceProperty;
       keys.push(p.name);
       tsTypes.push(p.type);
       types.push(this.tsTypeToLlvm(p.type));
@@ -1063,7 +1064,7 @@ export class MemberAccessGenerator {
       if (fn.name === this.ctx.currentFunction) {
         if (fn.parameters) {
           for (let j = 0; j < fn.parameters.length; j++) {
-            const p = fn.parameters[j];
+            const p = fn.parameters[j] as FunctionParameter;
             if (p.name === paramName && p.type) {
               return p.type;
             }
@@ -1252,15 +1253,18 @@ export class MemberAccessGenerator {
     if (propIndex === -1) {
       const fieldNames: string[] = [];
       for (let i = 0; i < interfaceDef.fields.length; i++) {
-        fieldNames.push(interfaceDef.fields[i].name);
+        const field = interfaceDef.fields[i] as InterfaceField;
+        fieldNames.push(field.name);
       }
       throw new Error(`Unknown property: ${expr.property} on interface ${valueType}. Available properties: ${fieldNames.join(', ')}`);
     }
 
-    const propType = this.tsTypeToLlvm(interfaceDef.fields[propIndex].type);
+    const propField = interfaceDef.fields[propIndex] as InterfaceField;
+    const propType = this.tsTypeToLlvm(propField.type);
     const structTypes: string[] = [];
     for (let i = 0; i < interfaceDef.fields.length; i++) {
-      structTypes.push(this.tsTypeToLlvm(interfaceDef.fields[i].type));
+      const field = interfaceDef.fields[i] as InterfaceField;
+      structTypes.push(this.tsTypeToLlvm(field.type));
     }
     const structType = `{ ${structTypes.join(', ')} }`;
 
@@ -1447,12 +1451,14 @@ export class MemberAccessGenerator {
           const interfaceDef = interfaceDefResult as InterfaceInfo;
           const propIndex = interfaceDef.properties.findIndex((p: InterfaceProperty) => p.name === expr.property);
           if (propIndex !== -1) {
-            const propType = interfaceDef.properties[propIndex].type;
+            const propField = interfaceDef.properties[propIndex] as InterfaceProperty;
+            const propType = propField.type;
             const paramPtr = this.ctx.getVariableAlloca(varName);
             if (paramPtr) {
               const structTypes: string[] = [];
               for (let i = 0; i < interfaceDef.properties.length; i++) {
-                const t = interfaceDef.properties[i].type;
+                const prop = interfaceDef.properties[i] as InterfaceProperty;
+                const t = prop.type;
                 if (t === 'string') structTypes.push('i8*');
                 else if (t === 'number') structTypes.push('double');
                 else if (t === 'boolean') structTypes.push('i32');
@@ -1577,7 +1583,8 @@ export class MemberAccessGenerator {
 
     const types: string[] = [];
     for (let i = 0; i < interfaceDef.fields.length; i++) {
-      types.push(this.tsTypeToLlvm(interfaceDef.fields[i].type));
+      const field = interfaceDef.fields[i] as InterfaceField;
+      types.push(this.tsTypeToLlvm(field.type));
     }
     const structType = `{ ${types.join(', ')} }`;
 
