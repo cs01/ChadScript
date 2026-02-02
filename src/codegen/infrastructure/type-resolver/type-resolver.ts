@@ -1,4 +1,4 @@
-import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode, CommonField, FunctionParameter } from '../../../ast/types.js';
+import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode, CommonField, FunctionParameter, MethodCallNode, StringNode } from '../../../ast/types.js';
 import { SymbolTable, ObjectMetadata } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo, ClassGeneratorLike } from './types.js';
@@ -257,9 +257,9 @@ export class TypeResolver {
 
   getMapGetInterfaceType(expr: Expression): string | null {
     if (expr?.type !== 'method_call') return null;
-    if ((expr as { method: string }).method !== 'get') return null;
+    const methodCall = expr as MethodCallNode;
+    if (methodCall.method !== 'get') return null;
 
-    const methodCall = expr as { object: Expression; method: string };
     let valueType: string | null = null;
 
     if (methodCall.object?.type === 'variable') {
@@ -306,11 +306,13 @@ export class TypeResolver {
     }
 
     if (!objectMeta) return null;
+    const objMeta = objectMeta as ObjectMetadata;
 
-    const propIndex = objectMeta.keys.indexOf(propertyName);
+    const propIndex = objMeta.keys.indexOf(propertyName);
     if (propIndex === -1) return null;
 
-    const propTsType = objectMeta.tsTypes?.[propIndex];
+    const tsTypesArr = objMeta.tsTypes as string[];
+    const propTsType = tsTypesArr[propIndex];
     if (!propTsType) return null;
 
     const arrayMatch = propTsType.match(/^(.+)\[\]$/);
@@ -326,18 +328,22 @@ export class TypeResolver {
     const binary = condition as BinaryNode;
     if (binary.op !== '===' && binary.op !== '==') return null;
 
-    let memberAccess: MemberAccessNode | null = null;
-    let literalValue: string | null = null;
+    let memberAccessVar: MemberAccessNode | null = null;
+    let literalValueVar: string | null = null;
 
     if (binary.left.type === 'member_access' && binary.right.type === 'string') {
-      memberAccess = binary.left as MemberAccessNode;
-      literalValue = (binary.right as { type: 'string'; value: string }).value;
+      memberAccessVar = binary.left as MemberAccessNode;
+      const stringNode = binary.right as StringNode;
+      literalValueVar = stringNode.value;
     } else if (binary.right.type === 'member_access' && binary.left.type === 'string') {
-      memberAccess = binary.right as MemberAccessNode;
-      literalValue = (binary.left as { type: 'string'; value: string }).value;
+      memberAccessVar = binary.right as MemberAccessNode;
+      const stringNode = binary.left as StringNode;
+      literalValueVar = stringNode.value;
     }
 
-    if (!memberAccess || !literalValue) return null;
+    if (!memberAccessVar || !literalValueVar) return null;
+    const memberAccess = memberAccessVar as MemberAccessNode;
+    const literalValue = literalValueVar as string;
     if (memberAccess.property !== 'type') return null;
     if (memberAccess.object.type !== 'variable') return null;
 
@@ -375,12 +381,12 @@ export class TypeResolver {
 
   private checkInterfaceForDiscriminant(
     ifaceName: string,
-    fields: { name: string; type: string }[],
+    fields: InterfaceField[],
     value: string,
     field: string
   ): string | null {
     for (let i = 0; i < fields.length; i++) {
-      const f = fields[i] as { name: string; type: string };
+      const f = fields[i] as InterfaceField;
       if (f.name === field) {
         if (f.type === `'${value}'` || f.type === `"${value}"`) {
           return ifaceName;
@@ -442,7 +448,7 @@ export class TypeResolver {
   resolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null {
     if (expr?.type !== 'method_call') return null;
 
-    const methodCall = expr as { object: Expression; method: string; args: Expression[] };
+    const methodCall = expr as MethodCallNode;
     const method = methodCall.method;
 
     if (method !== 'find') return null;
@@ -455,10 +461,11 @@ export class TypeResolver {
 
       let objectMeta: ObjectMetadata | undefined;
 
-      if (memberAccess.object.type === 'variable') {
-        const varName = (memberAccess.object as VariableNode).name;
+      const memberObj = memberAccess.object;
+      if (memberObj.type === 'variable') {
+        const varName = (memberObj as VariableNode).name;
         objectMeta = this.ctx.symbolTable.getObjectInfo(varName);
-      } else if (memberAccess.object.type === 'member_access' || memberAccess.object.type === 'this') {
+      } else if (memberObj.type === 'member_access' || memberObj.type === 'this') {
         const arrayType = this.resolveMemberAccessArrayType(memberAccess);
         if (arrayType) {
           return this.getInterfaceMetadata(arrayType);
@@ -467,11 +474,13 @@ export class TypeResolver {
       }
 
       if (!objectMeta) return null;
+      const objMeta = objectMeta as ObjectMetadata;
 
-      const propIndex = objectMeta.keys.indexOf(propertyName);
+      const propIndex = objMeta.keys.indexOf(propertyName);
       if (propIndex === -1) return null;
 
-      const propTsType = objectMeta.tsTypes?.[propIndex];
+      const tsTypesArr = objMeta.tsTypes as string[];
+      const propTsType = tsTypesArr[propIndex];
       if (!propTsType) return null;
 
       const arrayMatch = propTsType.match(/^(.+)\[\]$/);
@@ -482,7 +491,8 @@ export class TypeResolver {
     }
 
     if (arrayExpr.type === 'variable') {
-      const varName = (arrayExpr as VariableNode).name;
+      const varExpr = arrayExpr as VariableNode;
+      const varName = varExpr.name;
       const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
       if (objArrayMeta) {
         return {

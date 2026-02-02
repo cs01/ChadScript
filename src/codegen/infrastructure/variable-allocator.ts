@@ -259,6 +259,9 @@ export class VariableAllocator {
     if (stmt.value?.type === 'type_assertion') {
       const assertionNode = stmt.value as TypeAssertionNode;
       const assertedType = assertionNode.assertedType;
+      if (assertedType.startsWith('{')) {
+        return assertedType;
+      }
       const interfaceDefResult = this.getInterface(assertedType);
       if (interfaceDefResult) {
         return assertedType;
@@ -271,21 +274,58 @@ export class VariableAllocator {
     return stmt.declaredType;
   }
 
+  private parseInlineObjectType(typeStr: string): InterfaceField[] | null {
+    if (!typeStr.startsWith('{') || !typeStr.endsWith('}')) {
+      return null;
+    }
+    const inner = typeStr.slice(1, typeStr.length - 1).trim();
+    if (inner.length === 0) {
+      return [];
+    }
+    const fields: InterfaceField[] = [];
+    const parts = inner.split(';');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      if (!part) continue;
+      const colonIdx = part.indexOf(':');
+      if (colonIdx === -1) continue;
+      const name = part.slice(0, colonIdx).trim();
+      const fieldType = part.slice(colonIdx + 1).trim();
+      fields.push({ name, type: fieldType });
+    }
+    return fields;
+  }
+
   private allocateDeclaredInterface(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const interfaceDefResult = this.getInterface(interfaceName);
-    const interfaceDef = interfaceDefResult as InterfaceDeclaration;
     const allocaReg = this.ctx.nextTemp();
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
-    for (let i = 0; i < interfaceDef.fields.length; i++) {
-      const field = interfaceDef.fields[i] as InterfaceField;
-      keys.push(field.name);
-      types.push(this.tsTypeToLlvm(field.type));
-      tsTypes.push(field.type);
+
+    if (interfaceName.startsWith('{')) {
+      const inlineFields = this.parseInlineObjectType(interfaceName);
+      if (inlineFields) {
+        for (let i = 0; i < inlineFields.length; i++) {
+          const field = inlineFields[i] as InterfaceField;
+          keys.push(field.name);
+          types.push(this.tsTypeToLlvm(field.type));
+          tsTypes.push(field.type);
+        }
+      }
+    } else {
+      const interfaceDefResult = this.getInterface(interfaceName);
+      const interfaceDef = interfaceDefResult as InterfaceDeclaration;
+      for (let i = 0; i < interfaceDef.fields.length; i++) {
+        const field = interfaceDef.fields[i] as InterfaceField;
+        keys.push(field.name);
+        types.push(this.tsTypeToLlvm(field.type));
+        tsTypes.push(field.type);
+      }
     }
+
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
-      objectMetadata: { keys, types, tsTypes }
+      objectMetadata: { keys, types, tsTypes },
+      interfaceType: interfaceName
     });
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);

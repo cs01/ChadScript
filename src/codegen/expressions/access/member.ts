@@ -1569,22 +1569,38 @@ export class MemberAccessGenerator {
     const assertedType = assertion.assertedType;
     const property = expr.property;
 
-    const interfaceDefResult = this.ctx.ast?.interfaces?.find(
-      (iface: InterfaceDeclaration) => iface.name === assertedType
-    );
-    if (!interfaceDefResult) return null;
-    const interfaceDef = interfaceDefResult as InterfaceDeclaration;
+    let fields: InterfaceField[] = [];
 
-    const fieldIndex = interfaceDef.fields.findIndex((f) => f.name === property);
+    if (assertedType.startsWith('{')) {
+      const inlineFields = this.parseInlineObjectTypeForAssertion(assertedType);
+      if (!inlineFields) return null;
+      fields = inlineFields;
+    } else {
+      const interfaceDefResult = this.ctx.ast?.interfaces?.find(
+        (iface: InterfaceDeclaration) => iface.name === assertedType
+      );
+      if (!interfaceDefResult) return null;
+      const interfaceDef = interfaceDefResult as InterfaceDeclaration;
+      fields = interfaceDef.fields;
+    }
+
+    let fieldIndex = -1;
+    for (let i = 0; i < fields.length; i++) {
+      const f = fields[i] as InterfaceField;
+      if (f.name === property) {
+        fieldIndex = i;
+        break;
+      }
+    }
     if (fieldIndex === -1) return null;
 
-    const field = interfaceDef.fields[fieldIndex];
+    const field = fields[fieldIndex] as InterfaceField;
     const fieldLlvmType = this.tsTypeToLlvm(field.type);
 
     const types: string[] = [];
-    for (let i = 0; i < interfaceDef.fields.length; i++) {
-      const field = interfaceDef.fields[i] as InterfaceField;
-      types.push(this.tsTypeToLlvm(field.type));
+    for (let i = 0; i < fields.length; i++) {
+      const f = fields[i] as InterfaceField;
+      types.push(this.tsTypeToLlvm(f.type));
     }
     const structType = `{ ${types.join(', ')} }`;
 
@@ -1605,6 +1621,28 @@ export class MemberAccessGenerator {
     }
 
     return value;
+  }
+
+  private parseInlineObjectTypeForAssertion(typeStr: string): InterfaceField[] | null {
+    if (!typeStr.startsWith('{') || !typeStr.endsWith('}')) {
+      return null;
+    }
+    const inner = typeStr.slice(1, typeStr.length - 1).trim();
+    if (inner.length === 0) {
+      return [];
+    }
+    const fields: InterfaceField[] = [];
+    const parts = inner.split(';');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      if (!part) continue;
+      const colonIdx = part.indexOf(':');
+      if (colonIdx === -1) continue;
+      const name = part.slice(0, colonIdx).trim();
+      const fieldType = part.slice(colonIdx + 1).trim();
+      fields.push({ name, type: fieldType });
+    }
+    return fields;
   }
 
   private accessObjectWithMetadata(varName: string, property: string, metadata: { keys: string[]; types: string[] }): string {
