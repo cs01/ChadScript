@@ -265,13 +265,14 @@ export class CallExpressionGenerator {
     let returnType = 'double';
     let paramTypes: string[] = [];
 
-    const func = this.ctx.ast?.functions?.find((f: FunctionNode) => f.name === expr.name);
-    const hasOptionalParams = func?.parameters?.some((p) => p.optional || p.defaultValue);
+    const funcResult = this.ctx.ast?.functions?.find((f: FunctionNode) => f.name === expr.name);
+    const func = funcResult as FunctionNode;
+    const hasOptionalParams = funcResult ? func.parameters?.some((p) => p.optional || p.defaultValue) : false;
 
-    if (func && func.async) {
+    if (funcResult && func.async) {
       returnType = '%Promise*';
       this.ctx.usesPromises = true;
-    } else if (func && func.paramTypes && func.paramTypes.length > 0) {
+    } else if (funcResult && func.paramTypes && func.paramTypes.length > 0) {
       if (func.returnType === 'string') {
         returnType = 'i8*';
       } else if (func.returnType && func.returnType !== 'number' && func.returnType !== 'boolean' && func.returnType !== 'void') {

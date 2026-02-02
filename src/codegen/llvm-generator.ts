@@ -397,7 +397,7 @@ export class LLVMGenerator extends BaseGenerator {
     const mainIr = this.generateMain();
 
     // Generate environment struct type definitions for closures
-    const envStructDefs = this.exprGen.getArrowFunctionGenerator().getEnvStructDefinitions();
+    const envStructDefs = this.exprGen.arrowFunctionGen.getEnvStructDefinitions();
     if (envStructDefs) {
       ir += envStructDefs;
       ir += '\n';
@@ -405,7 +405,7 @@ export class LLVMGenerator extends BaseGenerator {
 
     // Generate lifted functions (discovered during user function and main generation)
     // These need to be placed BEFORE user functions so they can be called
-    const liftedFunctions = this.exprGen.getArrowFunctionGenerator().getLiftedFunctions();
+    const liftedFunctions = this.exprGen.arrowFunctionGen.getLiftedFunctions();
     for (const func of liftedFunctions) {
       ir += this.generateFunction(func);
       ir += '\n';

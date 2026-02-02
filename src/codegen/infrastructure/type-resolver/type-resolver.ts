@@ -79,9 +79,10 @@ export class TypeResolver {
       const member = expr as MemberAccessNode;
       if (member.object.type === 'this') {
         if (this.ctx.currentClassName && this.ctx.classGen) {
-          const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, member.property);
-          if (fieldInfo && 'tsType' in fieldInfo && fieldInfo.tsType) {
-            return fieldInfo.tsType as string;
+          const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, member.property);
+          const fieldInfo = fieldInfoResult as FieldInfo;
+          if (fieldInfoResult && fieldInfo.tsType) {
+            return fieldInfo.tsType;
           }
         }
         return null;
@@ -202,8 +203,9 @@ export class TypeResolver {
   }
 
   getClassFieldMapType(className: string, fieldName: string): MapTypeInfo | null {
-    const fieldInfo = this.getClassFieldInfo(className, fieldName);
-    if (!fieldInfo?.tsType) return null;
+    const fieldInfoResult = this.getClassFieldInfo(className, fieldName);
+    const fieldInfo = fieldInfoResult as FieldInfo;
+    if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const match = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
     if (!match) return null;
@@ -220,8 +222,9 @@ export class TypeResolver {
   }
 
   getClassFieldSetType(className: string, fieldName: string): SetTypeInfo | null {
-    const fieldInfo = this.getClassFieldInfo(className, fieldName);
-    if (!fieldInfo?.tsType) return null;
+    const fieldInfoResult = this.getClassFieldInfo(className, fieldName);
+    const fieldInfo = fieldInfoResult as FieldInfo;
+    if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const match = fieldInfo.tsType.match(/^Set<(\w+)>$/);
     if (!match) return null;
@@ -388,8 +391,9 @@ export class TypeResolver {
     const fieldName = memberExpr.property;
     if (!this.ctx.currentClassName) return null;
 
-    const fieldInfo = this.getClassFieldInfo(this.ctx.currentClassName, fieldName);
-    if (!fieldInfo?.tsType) return null;
+    const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, fieldName);
+    const fieldInfo = fieldInfoResult as FieldInfo;
+    if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
     if (!mapMatch) return null;
@@ -405,8 +409,9 @@ export class TypeResolver {
     const fieldName = memberExpr.property;
     if (!this.ctx.currentClassName) return null;
 
-    const fieldInfo = this.getClassFieldInfo(this.ctx.currentClassName, fieldName);
-    if (!fieldInfo?.tsType) return null;
+    const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, fieldName);
+    const fieldInfo = fieldInfoResult as FieldInfo;
+    if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const setMatch = fieldInfo.tsType.match(/^Set<(\w+)>$/);
     if (!setMatch) return null;

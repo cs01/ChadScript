@@ -1,7 +1,13 @@
-import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, TypeAliasDeclaration, ForOfStatement, MethodCallNode } from '../../ast/types.js';
+import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, TypeAliasDeclaration, ForOfStatement, MethodCallNode, InterfaceField } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata, ObjectMetadata } from '../infrastructure/symbol-table.js';
 import type { TypeResolver } from '../infrastructure/type-resolver/index.js';
+
+interface FieldInfo {
+  index: number;
+  type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean';
+  tsType?: string;
+}
 
 // ============================================
 // CONTROL FLOW GENERATOR - If/while/loops
@@ -490,8 +496,9 @@ export class ControlFlowGenerator {
       };
     }
 
-    const typeAlias = this.ctx.ast?.typeAliases?.find((t: TypeAliasDeclaration) => t.name === elementInterface);
-    if (typeAlias && typeAlias.unionMembers) {
+    const typeAliasResult = this.ctx.ast?.typeAliases?.find((t: TypeAliasDeclaration) => t.name === elementInterface);
+    const typeAlias = typeAliasResult as TypeAliasDeclaration;
+    if (typeAliasResult && typeAlias.unionMembers) {
       const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
       if (commonFields.keys.length > 0) {
         return {
@@ -662,8 +669,9 @@ export class ControlFlowGenerator {
       if (innerAccess.object.type === 'this') {
         const className = this.ctx.currentClassName;
         if (className) {
-          const fieldInfo = this.ctx.classGen.getFieldInfo(className, innerAccess.property);
-          if (fieldInfo && fieldInfo.tsType) {
+          const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, innerAccess.property);
+          const fieldInfo = fieldInfoResult as FieldInfo;
+          if (fieldInfoResult && fieldInfo.tsType) {
             intermediateTypeName = fieldInfo.tsType;
           }
         }
@@ -672,8 +680,9 @@ export class ControlFlowGenerator {
         if (this.ctx.symbolTable.isClass(varName)) {
           const classMeta = this.ctx.symbolTable.getClassInfo(varName);
           if (classMeta) {
-            const fieldInfo = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
-            if (fieldInfo && fieldInfo.tsType) {
+            const fieldInfoResult = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
+            const fieldInfo = fieldInfoResult as FieldInfo;
+            if (fieldInfoResult && fieldInfo.tsType) {
               intermediateTypeName = fieldInfo.tsType;
             }
           }
@@ -690,8 +699,9 @@ export class ControlFlowGenerator {
       return null;
     }
 
-    const fieldDef = iface.fields.find(f => f.name === propName);
-    if (!fieldDef || !fieldDef.type.endsWith('[]')) {
+    const fieldDefResult = iface.fields.find(f => f.name === propName);
+    const fieldDef = fieldDefResult as InterfaceField;
+    if (!fieldDefResult || !fieldDef.type.endsWith('[]')) {
       return null;
     }
 
@@ -796,8 +806,9 @@ export class ControlFlowGenerator {
       let resolvedType = fieldType;
       for (let i = 1; i < memberInterfaces.length; i++) {
         const otherIface = memberInterfaces[i];
-        const otherField = otherIface.fields.find(f => f.name === fieldName);
-        if (!otherField) {
+        const otherFieldResult = otherIface.fields.find(f => f.name === fieldName);
+        const otherField = otherFieldResult as InterfaceField;
+        if (!otherFieldResult) {
           isCommon = false;
           break;
         }
@@ -1096,9 +1107,16 @@ export class ControlFlowGenerator {
       return this.ctx.typeResolver.getUnionCommonFields(memberNames);
     }
 
-    const interfaces = memberNames
-      .map(name => this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
-      .filter((i): i is InterfaceDeclaration => i !== undefined);
+    const foundInterfaces: InterfaceDeclaration[] = [];
+    for (let i = 0; i < memberNames.length; i++) {
+      const name = memberNames[i];
+      const ifaceResult = this.ctx.ast?.interfaces?.find((iface: InterfaceDeclaration) => iface.name === name);
+      const iface = ifaceResult as InterfaceDeclaration;
+      if (ifaceResult) {
+        foundInterfaces.push(iface);
+      }
+    }
+    const interfaces = foundInterfaces;
 
     if (interfaces.length === 0) {
       return { keys: [], types: [], tsTypes: [] };
@@ -1184,8 +1202,9 @@ export class ControlFlowGenerator {
     const interfaceName = this.findInterfaceByDiscriminant(literalValue);
     if (!interfaceName) return null;
 
-    const iface = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === interfaceName);
-    if (!iface) return null;
+    const ifaceResult = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === interfaceName);
+    const iface = ifaceResult as InterfaceDeclaration;
+    if (!ifaceResult) return null;
 
     const keys = iface.fields.map((f) => f.name);
     const types = iface.fields.map((f) => this.fieldTypeToLlvm(f.type));
@@ -1244,8 +1263,9 @@ export class ControlFlowGenerator {
     if (methodCall.object.type === 'member_access') {
       const memberExpr = methodCall.object as MemberAccessNode;
       if (memberExpr.object.type === 'this' && this.ctx.currentClassName) {
-        const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
-        if (fieldInfo?.tsType && fieldInfo.tsType.startsWith('Map<')) {
+        const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+        const fieldInfo = fieldInfoResult as FieldInfo;
+        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
           return true;
         }
       }
