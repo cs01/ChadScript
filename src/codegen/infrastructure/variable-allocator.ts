@@ -1,11 +1,17 @@
-import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration } from '../../ast/types.js';
+import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import { TypeResolver } from './type-resolver/index.js';
 
 interface ClassGeneratorLike {
   getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[];
-  getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string } | null;
+  getFieldInfo(className: string, fieldName: string): FieldInfo | null;
+}
+
+interface FieldInfo {
+  index: number;
+  type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean';
+  tsType?: string;
 }
 
 interface ArrowFunctionGeneratorLike {
@@ -211,7 +217,8 @@ export class VariableAllocator {
 
   private getDeclaredInterfaceType(stmt: VariableDeclaration): string | null {
     if (stmt.value?.type === 'type_assertion') {
-      const assertedType = (stmt.value as { type: 'type_assertion'; expression: Expression; assertedType: string }).assertedType;
+      const assertionNode = stmt.value as TypeAssertionNode;
+      const assertedType = assertionNode.assertedType;
       const interfaceDef = this.getInterface(assertedType);
       if (interfaceDef) {
         return assertedType;
@@ -243,12 +250,14 @@ export class VariableAllocator {
       return this.ctx.typeResolver.getMapGetInterfaceType(expr);
     }
     if (expr?.type !== 'method_call') return null;
-    if (expr.method !== 'get') return null;
+    const methodExpr = expr as MethodCallNode;
+    if (methodExpr.method !== 'get') return null;
 
     let valueType: string | null = null;
 
-    if (expr.object?.type === 'variable') {
-      const mapName = expr.object.name;
+    if (methodExpr.object?.type === 'variable') {
+      const varObj = methodExpr.object as VariableNode;
+      const mapName = varObj.name;
       if (!this.ctx.symbolTable.isMap(mapName)) return null;
 
       const mapMeta = this.ctx.symbolTable.getMapMetadata(mapName);
@@ -256,13 +265,15 @@ export class VariableAllocator {
       if (mapMeta.keyType !== 'string') return null;
 
       valueType = mapMeta.valueType;
-    } else if (expr.object?.type === 'member_access') {
-      const memberExpr = expr.object as MemberAccessNode;
+    } else if (methodExpr.object?.type === 'member_access') {
+      const memberExpr = methodExpr.object as MemberAccessNode;
       if (memberExpr.object.type !== 'this') return null;
       if (!this.ctx.currentClassName) return null;
 
-      const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
-      if (!fieldInfo?.tsType) return null;
+      const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+      if (!fieldInfoResult) return null;
+      const fieldInfo = fieldInfoResult as FieldInfo;
+      if (!fieldInfo.tsType) return null;
 
       const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
       if (!mapMatch) return null;
