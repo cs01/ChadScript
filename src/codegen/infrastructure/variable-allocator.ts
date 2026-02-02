@@ -356,7 +356,8 @@ export class VariableAllocator {
       valueType = mapMeta.valueType;
     } else if (methodExpr.object?.type === 'member_access') {
       const memberExpr = methodExpr.object as MemberAccessNode;
-      if (memberExpr.object.type !== 'this') return null;
+      const memberExprObjBase = memberExpr.object as ExprBase;
+      if (memberExprObjBase.type !== 'this') return null;
       if (!this.ctx.currentClassName) return null;
 
       const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);

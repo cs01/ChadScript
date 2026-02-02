@@ -1,5 +1,7 @@
 import { Expression, MemberAccessNode } from '../../../ast/types.js';
 
+interface ExprBase { type: string; }
+
 interface ClassGeneratorLike {
   getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
   getClassFields(className: string): { name: string; fieldType: string }[];
@@ -136,7 +138,8 @@ export class UnaryExpressionGenerator {
   }
 
   private generateMemberAccessIncDec(op: string, memberExpr: MemberAccessNode, isPost: boolean): string {
-    if (memberExpr.object.type !== 'this') {
+    const memberExprObjBase = memberExpr.object as ExprBase;
+    if (memberExprObjBase.type !== 'this') {
       throw new Error(`Increment/decrement on member access only supported for 'this' fields`);
     }
 

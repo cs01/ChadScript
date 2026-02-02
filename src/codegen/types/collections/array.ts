@@ -1,4 +1,18 @@
 import { Expression, MethodCallNode, ArrowFunctionNode, VariableNode } from '../../../ast/types.js';
+
+interface ExprBase { type: string; }
+
+interface ArrayGenContext {
+  nextTemp(): string;
+  nextLabel(prefix: string): string;
+  emit(instruction: string): void;
+  variableTypes: Map<string, string>;
+  expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
+  getVariableType(name: string): string | undefined;
+  setVariableType(name: string, type: string): void;
+  generateExpression(expr: Expression, params: string[]): string;
+}
+
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { generateArrayLiteral } from './array/literal.js';
 import { generateArrayPush, generateArrayPop } from './array/mutators.js';
@@ -47,22 +61,23 @@ export class ArrayGenerator {
   }
 
   private createGeneratorShim(): ArrayGeneratorShim {
+    const ctx = this.ctx as ArrayGenContext;
     return {
-      nextTemp: () => this.nextTemp(),
-      nextLabel: (prefix: string) => this.nextLabel(prefix),
-      emit: (instruction: string) => this.emit(instruction),
-      getDoubleSize: () => {
-        const sizePtr = this.nextTemp();
-        this.emit(`${sizePtr} = getelementptr double, double* null, i32 1`);
-        const size = this.nextTemp();
-        this.emit(`${size} = ptrtoint double* ${sizePtr} to i64`);
+      nextTemp: function(): string { return ctx.nextTemp(); },
+      nextLabel: function(prefix: string): string { return ctx.nextLabel(prefix); },
+      emit: function(instruction: string): void { ctx.emit(instruction); },
+      getDoubleSize: function(): string {
+        const sizePtr = ctx.nextTemp();
+        ctx.emit(`${sizePtr} = getelementptr double, double* null, i32 1`);
+        const size = ctx.nextTemp();
+        ctx.emit(`${size} = ptrtoint double* ${sizePtr} to i64`);
         return size;
       },
-      getVariableType: (name: string) => this.ctx.getVariableType(name),
-      setVariableType: (name: string, type: string) => this.ctx.setVariableType(name, type),
-      variableTypes: this.ctx.variableTypes,
-      expectedArrayElementType: this.ctx.expectedArrayElementType,
-      generateExpression: (expr: Expression, params: string[]) => this.ctx.generateExpression(expr, params),
+      getVariableType: function(name: string): string | undefined { return ctx.getVariableType(name); },
+      setVariableType: function(name: string, type: string): void { ctx.setVariableType(name, type); },
+      variableTypes: ctx.variableTypes,
+      expectedArrayElementType: ctx.expectedArrayElementType,
+      generateExpression: function(expr: Expression, params: string[]): string { return ctx.generateExpression(expr, params); },
     };
   }
   generateArrayFind(expr: MethodCallNode, params: string[]): string {
@@ -637,7 +652,8 @@ export class ArrayGenerator {
 
     // Determine if this is a string array or number array
     let isStringArray = false;
-    if (expr.object.type === 'variable') {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
       isStringArray = varType === '%StringArray*';

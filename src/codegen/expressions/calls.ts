@@ -265,9 +265,19 @@ export class CallExpressionGenerator {
     let returnType = 'double';
     let paramTypes: string[] = [];
 
-    const funcResult = this.ctx.ast?.functions?.find((f: FunctionNode) => f.name === expr.name);
+    const funcResult = this.getFunctionFromAST(expr.name);
     const func = funcResult as FunctionNode;
-    const hasOptionalParams = funcResult ? func.parameters?.some((p) => p.optional || p.defaultValue) : false;
+    let hasOptionalParams = false;
+    if (funcResult && func.parameters) {
+      for (let i = 0; i < func.parameters.length; i++) {
+        const p = func.parameters[i];
+        const pTyped = p as { optional: boolean; defaultValue: unknown };
+        if (pTyped.optional || pTyped.defaultValue) {
+          hasOptionalParams = true;
+          break;
+        }
+      }
+    }
 
     if (funcResult && func.async) {
       returnType = '%Promise*';
@@ -278,13 +288,20 @@ export class CallExpressionGenerator {
       } else if (func.returnType && func.returnType !== 'number' && func.returnType !== 'boolean' && func.returnType !== 'void') {
         returnType = 'i8*';
       }
-      paramTypes = func.paramTypes.map((p: string) => {
-        if (p === 'string') return 'i8*';
-        if (p === 'string[]') return '%StringArray*';
-        if (p === 'number[]' || p === 'boolean[]') return '%Array*';
-        if (p !== 'number' && p !== 'boolean') return 'i8*';
-        return 'double';
-      });
+      for (let i = 0; i < func.paramTypes.length; i++) {
+        const p = func.paramTypes[i] as string;
+        if (p === 'string') {
+          paramTypes.push('i8*');
+        } else if (p === 'string[]') {
+          paramTypes.push('%StringArray*');
+        } else if (p === 'number[]' || p === 'boolean[]') {
+          paramTypes.push('%Array*');
+        } else if (p !== 'number' && p !== 'boolean') {
+          paramTypes.push('i8*');
+        } else {
+          paramTypes.push('double');
+        }
+      }
     } else {
       const funcNode = this.getFunctionFromAST(expr.name);
       if (funcNode) {

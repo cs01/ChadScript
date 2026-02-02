@@ -418,9 +418,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   stringGen = {
-    createStringConstant: (_value: string): string => this.nextTemp(),
-    generateStringConcat: (_left: Expression, _right: Expression, _params: string[]): string => this.nextTemp(),
-    generateStringConcatDirect: (_left: string, _right: string): string => this.nextTemp(),
+    createStringConstant: (_value: string): string => '%0',
+    generateStringConcat: (_left: Expression, _right: Expression, _params: string[]): string => '%0',
+    generateStringConcatDirect: (_left: string, _right: string): string => '%0',
   };
 
   generateHttpServe(_expr: CallNode, _params: string[]): string {

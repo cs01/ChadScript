@@ -1,4 +1,6 @@
 import { Expression, IndexAccessNode, IndexAccessAssignmentNode, MemberAccessNode, VariableNode } from '../../../ast/types.js';
+
+interface ExprBase { type: string; }
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 
 export interface IndexAccessGeneratorContext {
@@ -34,9 +36,11 @@ export class IndexAccessGenerator {
    */
   generate(expr: IndexAccessNode, params: string[]): string {
     // Check if it's process.argv[i]
-    if (expr.object.type === 'member_access') {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === 'member_access') {
       const memberAccess = expr.object as MemberAccessNode;
-      if (memberAccess.object.type === 'variable' &&
+      const memberAccessObjBase = memberAccess.object as ExprBase;
+      if (memberAccessObjBase.type === 'variable' &&
           (memberAccess.object as VariableNode).name === 'process' &&
           memberAccess.property === 'argv') {
         return this.generateProcessArgvIndex(expr, params);
@@ -44,7 +48,7 @@ export class IndexAccessGenerator {
     }
 
     // Check if it's a JSON array (from JSON.parse<number[]> or similar)
-    if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
+    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
       return this.generateJSONArrayIndex(expr, params);
     }
 

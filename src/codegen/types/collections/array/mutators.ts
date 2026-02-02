@@ -1,5 +1,7 @@
 import { Expression, MethodCallNode } from '../../../../ast/types.js';
 
+interface ExprBase { type: string; }
+
 interface ArrayMutatorContext {
   nextTemp(): string;
   nextLabel(prefix: string): string;
@@ -29,7 +31,8 @@ export function generateArrayPush(
 
   // Determine if this is a string array or number array
   let isStringArray = false;
-  if (expr.object.type === 'variable') {
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type === 'variable') {
     const varName = (expr.object as { name: string }).name;
     const varType = gen.getVariableType(varName);
     isStringArray = varType === '%StringArray*';
@@ -60,7 +63,8 @@ export function generateArrayPop(
 
   // Determine if this is a string array or number array
   let isStringArray = false;
-  if (expr.object.type === 'variable') {
+  const exprObjBase2 = expr.object as ExprBase;
+  if (exprObjBase2.type === 'variable') {
     const varName = (expr.object as { name: string }).name;
     const varType = gen.getVariableType(varName);
     isStringArray = varType === '%StringArray*';

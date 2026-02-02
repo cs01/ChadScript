@@ -123,7 +123,17 @@ export class FunctionGenerator {
 
     const liftedFunc = func as LiftedFunction;
     const hasClosure = liftedFunc.closureInfo && liftedFunc.closureInfo.captures.length > 0;
-    const hasOptionalParams = func.parameters && func.parameters.some(p => p.optional || p.defaultValue);
+    let hasOptionalParams = false;
+    if (func.parameters) {
+      for (let i = 0; i < func.parameters.length; i++) {
+        const p = func.parameters[i];
+        const pTyped = p as { optional: boolean; defaultValue: unknown };
+        if (pTyped.optional || pTyped.defaultValue) {
+          hasOptionalParams = true;
+          break;
+        }
+      }
+    }
 
     let ir = `define ${returnType} @${func.name}(`;
     const paramStrings: string[] = [];
@@ -133,9 +143,8 @@ export class FunctionGenerator {
     if (hasOptionalParams) {
       paramStrings.push('i32 %__argc');
     }
-    const paramMapped = func.params.map((_, i) => `${paramLLVMTypes[i]} %arg${i}`);
-    for (let i = 0; i < paramMapped.length; i++) {
-      paramStrings.push(paramMapped[i]);
+    for (let i = 0; i < func.params.length; i++) {
+      paramStrings.push(`${paramLLVMTypes[i]} %arg${i}`);
     }
     ir += paramStrings.join(', ');
     ir += ') {\n';
