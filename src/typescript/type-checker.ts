@@ -356,15 +356,16 @@ export class TypeChecker {
         if (ts.isPropertySignature(member) && ts.isIdentifier(member.name)) {
           const propName = member.name.text;
           let propType = 'any';
+          const isOptional = member.questionToken !== undefined;
 
           if (member.type) {
-            const type = this.checker.getTypeFromTypeNode(member.type);
-            if (type.flags & ts.TypeFlags.String || type.flags & ts.TypeFlags.StringLiteral) {
-              propType = 'string';
-            } else if (type.flags & ts.TypeFlags.Number || type.flags & ts.TypeFlags.NumberLiteral) {
-              propType = 'number';
-            } else if (type.flags & ts.TypeFlags.Boolean || type.flags & ts.TypeFlags.BooleanLiteral) {
-              propType = 'boolean';
+            if (ts.isArrayTypeNode(member.type)) {
+              const elementTypeNode = member.type.elementType;
+              const elemText = elementTypeNode.getText();
+              propType = elemText + '[]';
+            } else {
+              const type = this.checker.getTypeFromTypeNode(member.type);
+              propType = this.resolvePropertyType(type, isOptional);
             }
           }
 
@@ -376,6 +377,53 @@ export class TypeChecker {
     } catch (error) {
       return null;
     }
+  }
+
+  private resolvePropertyType(type: ts.Type, isOptional: boolean): string {
+    if (type.flags & ts.TypeFlags.String || type.flags & ts.TypeFlags.StringLiteral) {
+      return 'string';
+    }
+    if (type.flags & ts.TypeFlags.Number || type.flags & ts.TypeFlags.NumberLiteral) {
+      return 'number';
+    }
+    if (type.flags & ts.TypeFlags.Boolean || type.flags & ts.TypeFlags.BooleanLiteral) {
+      return 'boolean';
+    }
+
+    if (type.flags & ts.TypeFlags.Union) {
+      const unionType = type as ts.UnionType;
+      const nonNullTypes = unionType.types.filter(t =>
+        !(t.flags & ts.TypeFlags.Undefined) && !(t.flags & ts.TypeFlags.Null)
+      );
+      if (nonNullTypes.length === 1) {
+        const innerType = this.resolvePropertyType(nonNullTypes[0], false);
+        return isOptional ? innerType + '?' : innerType;
+      }
+    }
+
+    try {
+      if (this.checker.isArrayType(type as ts.ObjectType)) {
+        const typeArgs = this.checker.getTypeArguments(type as ts.TypeReference);
+        if (typeArgs && typeArgs.length > 0) {
+          const elementType = this.resolvePropertyType(typeArgs[0], false);
+          return elementType + '[]';
+        }
+        return 'any[]';
+      }
+    } catch {
+    }
+
+    if (type.flags & ts.TypeFlags.Object) {
+      const typeName = this.checker.typeToString(type);
+      if (typeName && typeName !== 'object' && !typeName.includes('{')) {
+        if (typeName.endsWith('[]')) {
+          return typeName;
+        }
+        return isOptional ? typeName + '?' : typeName;
+      }
+    }
+
+    return 'any';
   }
 
   getArrayElementInterface(objectName: string, propertyName: string, functionName: string): { interfaceName: string; properties: { name: string; type: string }[] } | null {

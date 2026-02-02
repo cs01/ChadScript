@@ -212,7 +212,8 @@ export class MemberAccessGenerator {
   private handleTypedJsonStructAccess(expr: MemberAccessNode): string | null {
     if (expr.object.type !== 'variable') return null;
 
-    const varType = this.ctx.getVariableType((expr.object as VariableNode).name);
+    const varName = (expr.object as VariableNode).name;
+    const varType = this.ctx.getVariableType(varName);
     if (!varType || !varType.startsWith('%') || !varType.endsWith('*')) return null;
     if (varType === '%Response*' || varType.includes('Array') || varType.includes('Map') || varType.includes('Set')) {
       return null;
