@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, Statement, AssignmentStatement } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
@@ -229,7 +229,9 @@ export class LLVMGenerator extends BaseGenerator {
 
   private generateGlobalVariableDeclarations(): string {
     let ir = '';
-    for (const stmt of this.ast.topLevelStatements || []) {
+    const stmts = this.ast.topLevelStatements || [];
+    for (let stmtIdx = 0; stmtIdx < stmts.length; stmtIdx++) {
+      const stmt = stmts[stmtIdx] as { type: string; name: string; value: Expression | null; kind: string };
       if (stmt.type === 'variable_declaration' && stmt.value !== null) {
         const name = stmt.name;
         const isString = this.isStringExpression(stmt.value);
@@ -502,21 +504,23 @@ export class LLVMGenerator extends BaseGenerator {
 
     // thisPointer is now shared via context - no sync needed!
 
-    for (const stmt of block.statements) {
+    for (let stmtIdx = 0; stmtIdx < block.statements.length; stmtIdx++) {
+      const stmtRaw = block.statements[stmtIdx];
+      const stmt = stmtRaw as { type: string; name: string; value: Expression | null };
       // Stop processing if we've already generated a terminator
       if (hasTerminator) {
         break;
       }
 
       if (stmt.type === 'variable_declaration') {
-        this.allocateVariable(stmt, params);
+        this.allocateVariable(stmtRaw as VariableDeclaration, params);
       } else if (stmt.type === 'assignment') {
         // Check if this is a member access assignment (this.field = value)
         if (stmt.name.startsWith('__member_access__')) {
-          this.assignmentGen.generateMemberAccessAssignment(stmt, params);
+          this.assignmentGen.generateMemberAccessAssignment(stmtRaw as AssignmentStatement, params);
         } else {
           // Regular variable assignment
-          const value = this.generateExpression(stmt.value, params);
+          const value = this.generateExpression(stmt.value as Expression, params);
 
           // Check for string variable
           const stringAllocaReg = this.symbolTable.getStringAlloca(stmt.name);
@@ -547,7 +551,7 @@ export class LLVMGenerator extends BaseGenerator {
           this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
         }
       } else if (stmt.type === 'return') {
-        lastValue = this.generateExpression(stmt.value, params);
+        lastValue = this.generateExpression(stmt.value as Expression, params);
 
         if (this.isAsyncFunction) {
           const valueAsPtr = this.nextTemp();
@@ -569,17 +573,17 @@ export class LLVMGenerator extends BaseGenerator {
         hasTerminator = true;
       } else if (stmt.type === 'if') {
         this.syncStateToGenerators();
-        lastValue = this.controlFlowGen.generateIfStatement(stmt, params);
+        lastValue = this.controlFlowGen.generateIfStatement(stmtRaw as Statement, params);
         // Don't need to sync back - counters are already shared via bound methods
       } else if (stmt.type === 'while') {
         this.syncStateToGenerators();
-        lastValue = this.controlFlowGen.generateWhileStatement(stmt, params);
+        lastValue = this.controlFlowGen.generateWhileStatement(stmtRaw as Statement, params);
       } else if (stmt.type === 'for') {
         this.syncStateToGenerators();
-        lastValue = this.controlFlowGen.generateForStatement(stmt, params);
+        lastValue = this.controlFlowGen.generateForStatement(stmtRaw as Statement, params);
       } else if (stmt.type === 'for_of') {
         this.syncStateToGenerators();
-        lastValue = this.controlFlowGen.generateForOfStatement(stmt, params);
+        lastValue = this.controlFlowGen.generateForOfStatement(stmtRaw as Statement, params);
       } else if (stmt.type === 'break') {
         this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateBreakStatement();
@@ -590,14 +594,14 @@ export class LLVMGenerator extends BaseGenerator {
         hasTerminator = true;  // continue generates 'br', which is a terminator
       } else if (stmt.type === 'throw') {
         this.syncStateToGenerators();
-        lastValue = this.controlFlowGen.generateThrowStatement(stmt, params);
+        lastValue = this.controlFlowGen.generateThrowStatement(stmtRaw as Statement, params);
         hasTerminator = true;  // throw generates 'unreachable', which is a terminator
       } else if (stmt.type === 'try') {
         this.syncStateToGenerators();
-        lastValue = this.controlFlowGen.generateTryStatement(stmt, params);
+        lastValue = this.controlFlowGen.generateTryStatement(stmtRaw as Statement, params);
       } else {
         // Expression statement
-        lastValue = this.generateExpression(stmt, params);
+        lastValue = this.generateExpression(stmtRaw as Expression, params);
       }
     }
 

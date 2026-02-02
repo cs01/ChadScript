@@ -359,7 +359,7 @@ export class VariableAllocator {
 
       const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
       if (!fieldInfoResult) return null;
-      const fieldInfo = fieldInfoResult as FieldInfo;
+      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfo.tsType) return null;
 
       const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
@@ -811,7 +811,7 @@ export class VariableAllocator {
       const member = expr as MemberAccessNode;
       if (member.object.type === 'this') {
         const fieldInfoResult = this.getThisFieldInfo(member.property);
-        const fieldInfo = fieldInfoResult as FieldInfo;
+        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
           return fieldInfo.tsType;
         }

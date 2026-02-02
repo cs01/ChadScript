@@ -142,7 +142,7 @@ export class AssignmentGenerator {
     params: string[]
   ): void {
     let fieldInfoResult = this.ctx.classGen.getFieldInfo(className, property);
-    const fieldInfo = fieldInfoResult as FieldInfo;
+    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
 
     if (fieldInfoResult && fieldInfo.type === 'string[]') {
       this.ctx.expectedArrayElementType = 'string';

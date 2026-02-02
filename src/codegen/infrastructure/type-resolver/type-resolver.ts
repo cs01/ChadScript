@@ -370,6 +370,16 @@ export class TypeResolver {
     const metadata = this.getInterfaceMetadata(interfaceName);
     if (!metadata) return null;
 
+    const currentKeys = symbol.objectMetadata.keys;
+    let isSubset = true;
+    for (let ki = 0; ki < metadata.keys.length; ki++) {
+      if (currentKeys.indexOf(metadata.keys[ki]) === -1) {
+        isSubset = false;
+        break;
+      }
+    }
+    if (!isSubset) return null;
+
     return {
       varName,
       narrowedMetadata: metadata
