@@ -5,8 +5,6 @@ import type { ClassGenerator } from '../types/objects/class.js';
 
 export interface TypeInferenceContext {
   symbolTable: SymbolTable;
-  getVariableType(name: string): string | undefined;
-  getVariableAlloca(name: string): string | undefined;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
   currentClassName: string | null;
   currentFunction: string;
@@ -32,7 +30,7 @@ export class TypeInference {
       if (this.ctx.symbolTable.isNumberArray(expr.name)) {
         return true;
       }
-      const varType = this.ctx.getVariableType(expr.name);
+      const varType = this.ctx.symbolTable.getType(expr.name);
       if (varType === '%Array*') {
         return true;
       }
@@ -108,7 +106,7 @@ export class TypeInference {
       }
     }
     if (expr.type === 'variable') {
-      const varType = this.ctx.getVariableType(expr.name);
+      const varType = this.ctx.symbolTable.getType(expr.name);
       if (varType === 'i8*') {
         return true;
       }
@@ -128,7 +126,7 @@ export class TypeInference {
             return true;
           }
         }
-        const varType = this.ctx.getVariableType(varName);
+        const varType = this.ctx.symbolTable.getType(varName);
         if (varType && varType.startsWith('%') && varType.endsWith('*') &&
             !varType.includes('Array') && !varType.includes('Response') &&
             !varType.includes('Map') && !varType.includes('Set')) {
@@ -150,7 +148,7 @@ export class TypeInference {
             return true;
           }
         }
-        if (this.ctx.typeChecker && this.ctx.currentFunction && this.ctx.getVariableAlloca(varName) !== undefined) {
+        if (this.ctx.typeChecker && this.ctx.currentFunction && this.ctx.symbolTable.getAlloca(varName) !== undefined) {
           const typeInfo = this.ctx.typeChecker.getPropertyType(varName, memberExpr.property, this.ctx.currentFunction);
           if (typeInfo && typeInfo.llvmType === 'i8*') {
             return true;
@@ -179,7 +177,7 @@ export class TypeInference {
       }
       if (indexExpr.object.type === 'variable') {
         const varName = indexExpr.object.name;
-        const varType = this.ctx.getVariableType(varName);
+        const varType = this.ctx.symbolTable.getType(varName);
         if (varType === '%StringArray*') {
           return true;
         }
@@ -304,7 +302,7 @@ export class TypeInference {
       }
     }
     if (expr.type === 'variable') {
-      const varType = this.ctx.getVariableType(expr.name);
+      const varType = this.ctx.symbolTable.getType(expr.name);
       return varType === '%Promise*';
     }
     if (expr.type === 'call') {
@@ -318,7 +316,7 @@ export class TypeInference {
 
   isResponseExpression(expr: Expression): boolean {
     if (expr.type === 'variable') {
-      const varType = this.ctx.getVariableType(expr.name);
+      const varType = this.ctx.symbolTable.getType(expr.name);
       if (varType === '%Response*') {
         return true;
       }
@@ -369,7 +367,7 @@ export class TypeInference {
 
   isStringArrayExpression(expr: Expression): boolean {
     if (expr.type === 'variable') {
-      const varType = this.ctx.getVariableType(expr.name);
+      const varType = this.ctx.symbolTable.getType(expr.name);
       if (varType === '%StringArray*') {
         return true;
       }
