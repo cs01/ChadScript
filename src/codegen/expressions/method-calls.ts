@@ -1333,7 +1333,14 @@ export class MethodCallGenerator {
       return null;
     }
 
-    const funcExists = this.ctx.ast.functions.some((f: FunctionNode) => f.name === method);
+    let funcExists = false;
+    for (let i = 0; i < this.ctx.ast.functions.length; i++) {
+      const f = this.ctx.ast.functions[i] as FunctionNode;
+      if (f.name === method) {
+        funcExists = true;
+        break;
+      }
+    }
     if (!funcExists) {
       throw new Error(`Function ${method} not found for object method call`);
     }

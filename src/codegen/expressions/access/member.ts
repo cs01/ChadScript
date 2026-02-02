@@ -475,9 +475,24 @@ export class MemberAccessGenerator {
       className = this.ctx.currentClassName || this.ctx.classGen.currentClassName || null;
       if (!className) {
         const fieldName = expr.property;
-        const classWithFieldResult = this.ctx.ast?.classes.find((c: ClassNode) => {
-          return c.fields.some((f: ClassField) => f.name === fieldName);
-        });
+        let classWithFieldResult: ClassNode | null = null;
+        const astClasses = this.ctx.ast?.classes;
+        const classes = astClasses || [];
+        for (let ci = 0; ci < classes.length; ci++) {
+          const c = classes[ci] as ClassNode;
+          let hasField = false;
+          for (let fi = 0; fi < c.fields.length; fi++) {
+            const f = c.fields[fi] as { name: string };
+            if (f.name === fieldName) {
+              hasField = true;
+              break;
+            }
+          }
+          if (hasField) {
+            classWithFieldResult = c;
+            break;
+          }
+        }
         const classWithField = classWithFieldResult as ClassNode;
         if (classWithFieldResult) {
           className = classWithField.name;
