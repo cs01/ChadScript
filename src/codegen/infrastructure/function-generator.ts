@@ -81,7 +81,8 @@ export class FunctionGenerator {
       }
     } else if (func.parameters && func.parameters.length > 0) {
       for (let i = 0; i < func.params.length; i++) {
-        const paramType = func.parameters[i]?.type || 'number';
+        const param = func.parameters[i] as { name: string; type: string };
+        const paramType = param?.type || 'number';
         paramTypes.push(paramType);
         if (paramType === 'string') {
           paramLLVMTypes.push('i8*');
@@ -284,11 +285,13 @@ export class FunctionGenerator {
         if (this.hasReturnStatement(ifStmt.thenBlock)) return true;
         if (ifStmt.elseBlock && this.hasReturnStatement(ifStmt.elseBlock)) return true;
       }
-      if (stmt.type === 'while' && stmt.body) {
-        if (this.hasReturnStatement(stmt.body)) return true;
+      if (stmt.type === 'while') {
+        const whileStmt = stmt as WhileStatement;
+        if (whileStmt.body && this.hasReturnStatement(whileStmt.body)) return true;
       }
-      if (stmt.type === 'for' && stmt.body) {
-        if (this.hasReturnStatement(stmt.body)) return true;
+      if (stmt.type === 'for') {
+        const forStmt = stmt as ForStatement;
+        if (forStmt.body && this.hasReturnStatement(forStmt.body)) return true;
       }
     }
     return false;

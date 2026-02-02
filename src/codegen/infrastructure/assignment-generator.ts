@@ -44,11 +44,12 @@ export class AssignmentGenerator {
     const memberAccessValue = stmt.value as MemberAccessAssignmentNode;
 
     const object = memberAccessValue.object;
+    const objectTyped = object as { type: string };
     const property = memberAccessValue.property;
 
     let className: string | null = null;
 
-    if (object.type === 'variable') {
+    if (objectTyped.type === 'variable') {
       const varName = (object as VariableNode).name;
       if (this.ctx.symbolTable.isClass(varName)) {
         const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
@@ -57,10 +58,10 @@ export class AssignmentGenerator {
         this.handleObjectPropertyAssignment(object as VariableNode, property, memberAccessValue, params);
         return;
       }
-    } else if (object.type === 'new') {
+    } else if (objectTyped.type === 'new') {
       const newExpr = object as NewNode;
       className = newExpr.className;
-    } else if (object.type === 'this') {
+    } else if (objectTyped.type === 'this') {
       if (!this.ctx.thisPointer) {
         throw new Error('this.field = value used outside of class method or constructor');
       }
@@ -82,8 +83,9 @@ export class AssignmentGenerator {
     memberAccessValue: MemberAccessAssignmentNode,
     params: string[]
   ): void {
-    const objMeta = this.ctx.symbolTable.getObjectInfo(object.name);
-    if (!objMeta) return;
+    const objMetaResult = this.ctx.symbolTable.getObjectInfo(object.name);
+    if (!objMetaResult) return;
+    const objMeta = objMetaResult as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] };
 
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
     const propIndex = objMeta.keys.indexOf(property);
