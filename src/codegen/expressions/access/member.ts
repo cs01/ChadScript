@@ -944,6 +944,7 @@ export class MemberAccessGenerator {
     let objPtr: string = '';
     let keys: string[] = [];
     let types: string[] = [];
+    let tsTypes: string[] | undefined = undefined;
 
     if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
       return null;  // Already handled in handleJsonPropertyAccess
@@ -953,6 +954,7 @@ export class MemberAccessGenerator {
       if (!objMeta) return null;
       keys = objMeta.keys;
       types = objMeta.types;
+      tsTypes = objMeta.tsTypes;
       const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
       objPtr = this.ctx.nextTemp();
       this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
@@ -978,6 +980,7 @@ export class MemberAccessGenerator {
     }
 
     const propType = types[propIndex];
+    const propTsType = tsTypes ? tsTypes[propIndex] : undefined;
     const structType = `{ ${types.join(', ')} }`;
 
     const typedPtr = this.ctx.nextTemp();
@@ -989,6 +992,19 @@ export class MemberAccessGenerator {
     const value = this.ctx.nextTemp();
     this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
     this.ctx.variableTypes.set(value, propType);
+
+    if (propTsType && propTsType !== 'string' && propTsType !== 'number' && propTsType !== 'boolean') {
+      const interfaceInfo = this.getKnownTypeProperties(propTsType);
+      if (interfaceInfo) {
+        this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
+        this.ctx.jsonObjectMetadata.set(value, {
+          keys: interfaceInfo.keys,
+          types: interfaceInfo.types,
+          tsTypes: interfaceInfo.tsTypes
+        });
+      }
+    }
+
     return value;
   }
 
