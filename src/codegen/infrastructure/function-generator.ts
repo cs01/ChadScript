@@ -4,7 +4,7 @@ import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { StringGenerator } from '../types/collections/string.js';
 import type { ControlFlowGenerator } from '../statements/control-flow.js';
-import { stripOptional } from './type-system.js';
+import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from './type-system.js';
 
 interface LiftedFunction extends FunctionNode {
   closureInfo?: ClosureInfo;
@@ -355,12 +355,7 @@ export class FunctionGenerator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
-    if (tsType === 'string') return 'i8*';
-    if (tsType === 'number') return 'double';
-    if (tsType === 'boolean') return 'i1';
-    if (tsType === 'string[]') return '%StringArray*';
-    if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
-    return 'i8*';
+    return tsTypeToLlvmUtil(tsType);
   }
 
   private llvmTypeToSymbolKind(llvmType: string): SymbolKind {

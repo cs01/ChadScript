@@ -18,7 +18,7 @@ import {
 } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
-import { stripOptional } from '../../infrastructure/type-system.js';
+import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -732,12 +732,7 @@ export class MemberAccessGenerator {
   }
 
   private tsTypeToLlvm(t: string): string {
-    if (t === 'string') return 'i8*';
-    if (t === 'number') return 'double';
-    if (t === 'boolean') return 'double';
-    if (t === 'string[]') return '%StringArray*';
-    if (t === 'number[]') return '%Array*';
-    return 'i8*';
+    return tsTypeToLlvmUtil(t);
   }
 
   private interfaceTsTypeToLlvm(t: string): string {
