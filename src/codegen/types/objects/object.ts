@@ -31,17 +31,16 @@ export class ObjectGenerator {
     }
 
     const declaredInterfaceType = this.ctx.currentDeclaredInterfaceType;
-    const interfaceStructGen = this.ctx.interfaceStructGen;
 
-    if (declaredInterfaceType && interfaceStructGen?.hasInterface(declaredInterfaceType)) {
-      return this.generateInterfaceObject(objExpr, params, declaredInterfaceType, interfaceStructGen);
+    if (declaredInterfaceType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(declaredInterfaceType)) {
+      return this.generateInterfaceObject(objExpr, params, declaredInterfaceType);
     }
 
     return this.generateInlineObject(objExpr, params);
   }
 
-  private generateInterfaceObject(objExpr: ObjectNode, params: string[], interfaceName: string, interfaceStructGen: InterfaceStructGenerator): string {
-    const ifaceInfo = interfaceStructGen.getInterfaceStruct(interfaceName);
+  private generateInterfaceObject(objExpr: ObjectNode, params: string[], interfaceName: string): string {
+    const ifaceInfo = this.ctx.interfaceStructGen!.getInterfaceStruct(interfaceName);
     if (!ifaceInfo) {
       return this.generateInlineObject(objExpr, params);
     }
@@ -54,7 +53,8 @@ export class ObjectGenerator {
 
     const orderedFields: { key: string; llvmType: string; value: string }[] = [];
 
-    for (const field of ifaceInfo.fields) {
+    for (let fieldIdx = 0; fieldIdx < ifaceInfo.fields.length; fieldIdx++) {
+      const field = ifaceInfo.fields[fieldIdx] as { name: string; tsType: string; llvmType: string };
       const valueExpr = propMap.get(field.name);
       let finalValue: string;
 
@@ -82,7 +82,7 @@ export class ObjectGenerator {
     }
 
     const structType = `%${interfaceName}`;
-    const structSize = interfaceStructGen.getStructSize(interfaceName);
+    const structSize = this.ctx.interfaceStructGen!.getStructSize(interfaceName);
 
     const objMem = this.nextTemp();
     this.emit(`${objMem} = call i8* @GC_malloc(i64 ${structSize})`);
@@ -91,7 +91,7 @@ export class ObjectGenerator {
     this.emit(`${objPtr} = bitcast i8* ${objMem} to ${structType}*`);
 
     for (let i = 0; i < orderedFields.length; i++) {
-      const field = orderedFields[i];
+      const field = orderedFields[i] as { key: string; llvmType: string; value: string };
       const fieldPtr = this.nextTemp();
       this.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${i}`);
       this.emit(`store ${field.llvmType} ${field.value}, ${field.llvmType}* ${fieldPtr}`);
@@ -137,7 +137,7 @@ export class ObjectGenerator {
 
     const llvmTypes: string[] = [];
     for (let i = 0; i < fieldTypes.length; i++) {
-      const ft = fieldTypes[i];
+      const ft = fieldTypes[i] as { key: string; llvmType: string; value: string };
       llvmTypes.push(ft.llvmType);
     }
     const structFields = llvmTypes.join(', ');
@@ -151,7 +151,7 @@ export class ObjectGenerator {
     this.emit(`${objPtr} = bitcast i8* ${objMem} to ${structType}*`);
 
     for (let i = 0; i < fieldTypes.length; i++) {
-      const field = fieldTypes[i];
+      const field = fieldTypes[i] as { key: string; llvmType: string; value: string };
       const fieldPtr = this.nextTemp();
       this.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${i}`);
       this.emit(`store ${field.llvmType} ${field.value}, ${field.llvmType}* ${fieldPtr}`);

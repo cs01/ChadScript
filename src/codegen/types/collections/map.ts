@@ -22,7 +22,7 @@ export class MapGenerator {
   private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
 
   generateMapLiteral(expr: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const mapExpr = expr as any;
+    const mapExpr = expr as { type: string; entries: MapEntry[] };
     if (mapExpr.type !== 'map') {
       throw new Error('Expected map literal');
     }

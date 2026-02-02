@@ -87,8 +87,9 @@ export class InterfaceStructGenerator {
   getFieldIndex(interfaceName: string, fieldName: string): number {
     const iface = this.interfaceStructs.get(interfaceName);
     if (!iface) return -1;
-    for (let i = 0; i < iface.fields.length; i++) {
-      const field = iface.fields[i] as { name: string; tsType: string; llvmType: string };
+    const ifaceTyped = iface as InterfaceStructInfo;
+    for (let i = 0; i < ifaceTyped.fields.length; i++) {
+      const field = ifaceTyped.fields[i] as { name: string; tsType: string; llvmType: string };
       if (field.name === fieldName) {
         return i;
       }
@@ -99,8 +100,9 @@ export class InterfaceStructGenerator {
   getFieldType(interfaceName: string, fieldName: string): string | undefined {
     const iface = this.interfaceStructs.get(interfaceName);
     if (!iface) return undefined;
-    for (let i = 0; i < iface.fields.length; i++) {
-      const field = iface.fields[i] as { name: string; tsType: string; llvmType: string };
+    const ifaceTyped = iface as InterfaceStructInfo;
+    for (let i = 0; i < ifaceTyped.fields.length; i++) {
+      const field = ifaceTyped.fields[i] as { name: string; tsType: string; llvmType: string };
       if (field.name === fieldName) {
         return field.llvmType;
       }

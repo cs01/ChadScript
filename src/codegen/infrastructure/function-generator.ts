@@ -332,9 +332,22 @@ export class FunctionGenerator {
 
     for (let fi = 0; fi < firstFields.length; fi++) {
       const field = firstFields[fi] as InterfaceField;
-      const isCommon = interfaces.every((iface) =>
-        iface.fields.some((f) => f.name === field.name && this.areTypesCompatible(f.type, field.type))
-      );
+      let isCommon = true;
+      for (let ii = 0; ii < interfaces.length; ii++) {
+        const ifaceTyped = interfaces[ii] as { fields: { name: string; type: string }[] };
+        let found = false;
+        for (let fj = 0; fj < ifaceTyped.fields.length; fj++) {
+          const f = ifaceTyped.fields[fj] as { name: string; type: string };
+          if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          isCommon = false;
+          break;
+        }
+      }
       if (isCommon) {
         commonFields.push({ name: field.name, type: this.normalizeType(field.type) });
       }

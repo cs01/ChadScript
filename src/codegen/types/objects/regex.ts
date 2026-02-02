@@ -18,7 +18,7 @@ export class RegexGenerator {
   private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
   private get globalStrings() { return this.ctx.globalStrings; }
-  private get variableTypes() { return (this.ctx as any).variableTypes; } // Legacy map
+  private get variableTypes() { return this.ctx.variableTypes; }
 
   // Compile a regex pattern and return a pointer to the compiled regex
   // Returns a pointer to regex_t struct (i8*)
