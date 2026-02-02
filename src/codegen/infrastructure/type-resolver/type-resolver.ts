@@ -20,8 +20,9 @@ export class TypeResolver {
   getInterface(name: string): InterfaceDeclaration | null {
     if (!this.ctx.ast?.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      if (this.ctx.ast.interfaces[i].name === name) {
-        return this.ctx.ast.interfaces[i];
+      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+      if (iface.name === name) {
+        return iface;
       }
     }
     return null;
@@ -41,8 +42,9 @@ export class TypeResolver {
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
     for (let i = 0; i < iface.fields.length; i++) {
-      if (iface.fields[i].name === propName) {
-        return iface.fields[i];
+      const f = iface.fields[i] as InterfaceField;
+      if (f.name === propName) {
+        return f;
       }
     }
     return null;
@@ -53,7 +55,8 @@ export class TypeResolver {
     if (!iface) return null;
     const properties: { name: string; type: string }[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
-      properties.push({ name: iface.fields[i].name, type: iface.fields[i].type });
+      const f = iface.fields[i] as InterfaceField;
+      properties.push({ name: f.name, type: f.type });
     }
     return { properties };
   }
@@ -101,8 +104,9 @@ export class TypeResolver {
   getTypeAlias(name: string): TypeAliasDeclaration | null {
     if (!this.ctx.ast?.typeAliases) return null;
     for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
-      if (this.ctx.ast.typeAliases[i].name === name) {
-        return this.ctx.ast.typeAliases[i];
+      const ta = this.ctx.ast.typeAliases[i] as TypeAliasDeclaration;
+      if (ta.name === name) {
+        return ta;
       }
     }
     return null;
@@ -111,8 +115,9 @@ export class TypeResolver {
   getFunction(name: string): FunctionNode | null {
     if (!this.ctx.ast?.functions) return null;
     for (let i = 0; i < this.ctx.ast.functions.length; i++) {
-      if (this.ctx.ast.functions[i].name === name) {
-        return this.ctx.ast.functions[i];
+      const fn = this.ctx.ast.functions[i] as FunctionNode;
+      if (fn.name === name) {
+        return fn;
       }
     }
     return null;
@@ -124,9 +129,10 @@ export class TypeResolver {
     const parameters: { name: string; type: string }[] = [];
     if (func.parameters) {
       for (let i = 0; i < func.parameters.length; i++) {
+        const p = func.parameters[i] as { name: string; type?: string };
         parameters.push({
-          name: func.parameters[i].name,
-          type: func.parameters[i].type || 'number'
+          name: p.name,
+          type: p.type || 'number'
         });
       }
     } else if (func.params && func.paramTypes) {
@@ -143,8 +149,9 @@ export class TypeResolver {
   getClass(name: string): ClassNode | null {
     if (!this.ctx.ast?.classes) return null;
     for (let i = 0; i < this.ctx.ast.classes.length; i++) {
-      if (this.ctx.ast.classes[i].name === name) {
-        return this.ctx.ast.classes[i];
+      const cls = this.ctx.ast.classes[i] as ClassNode;
+      if (cls.name === name) {
+        return cls;
       }
     }
     return null;
@@ -345,9 +352,10 @@ export class TypeResolver {
     if (!this.ctx.ast?.interfaces) return null;
 
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
       const match = this.checkInterfaceForDiscriminant(
-        this.ctx.ast.interfaces[i].name,
-        this.ctx.ast.interfaces[i].fields,
+        iface.name,
+        iface.fields,
         value,
         field
       );
@@ -363,8 +371,9 @@ export class TypeResolver {
     field: string
   ): string | null {
     for (let i = 0; i < fields.length; i++) {
-      if (fields[i].name === field) {
-        if (fields[i].type === `'${value}'` || fields[i].type === `"${value}"`) {
+      const f = fields[i] as { name: string; type: string };
+      if (f.name === field) {
+        if (f.type === `'${value}'` || f.type === `"${value}"`) {
           return ifaceName;
         }
       }

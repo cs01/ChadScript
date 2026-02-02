@@ -15,8 +15,9 @@ export class CallExpressionGenerator {
   private getFunctionFromAST(name: string): FunctionNode | null {
     if (!this.ctx.ast?.functions) return null;
     for (let i = 0; i < this.ctx.ast.functions.length; i++) {
-      if (this.ctx.ast.functions[i].name === name) {
-        return this.ctx.ast.functions[i];
+      const fn = this.ctx.ast.functions[i] as FunctionNode;
+      if (fn.name === name) {
+        return fn;
       }
     }
     return null;

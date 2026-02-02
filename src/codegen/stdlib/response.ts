@@ -169,8 +169,9 @@ export class ResponseGenerator {
 
     parserIR += `json_error:\n`;
     for (let fieldIndex = 0; fieldIndex < interfaceDef.properties.length; fieldIndex++) {
-      const propName = interfaceDef.properties[fieldIndex].name;
-      const propType = interfaceDef.properties[fieldIndex].type;
+      const prop = interfaceDef.properties[fieldIndex] as { name: string; type: string };
+      const propName = prop.name;
+      const propType = prop.type;
       const fieldPtr = `%err_field_ptr_${fieldIndex}`;
       parserIR += `  ${fieldPtr} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
       if (propType === 'string') {
@@ -185,8 +186,9 @@ export class ResponseGenerator {
 
     parserIR += `json_ok:\n`;
     for (let fieldIndex = 0; fieldIndex < interfaceDef.properties.length; fieldIndex++) {
-      const propName = interfaceDef.properties[fieldIndex].name;
-      const propType = interfaceDef.properties[fieldIndex].type;
+      const prop = interfaceDef.properties[fieldIndex] as { name: string; type: string };
+      const propName = prop.name;
+      const propType = prop.type;
       const fieldNameConst = this.ctx.nextString();
       this.ctx.globalStrings.push(`${fieldNameConst} = private unnamed_addr constant [${propName.length + 1} x i8] c"${propName}\\00", align 1`);
 

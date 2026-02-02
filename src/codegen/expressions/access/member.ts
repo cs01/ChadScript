@@ -145,7 +145,8 @@ export class MemberAccessGenerator {
   private isTypeAlias(name: string): boolean {
     if (!this.ctx.ast?.typeAliases) return false;
     for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
-      if (this.ctx.ast.typeAliases[i].name === name) {
+      const ta = this.ctx.ast.typeAliases[i] as { name: string };
+      if (ta.name === name) {
         return true;
       }
     }
@@ -156,8 +157,9 @@ export class MemberAccessGenerator {
     if (!this.ctx.ast?.typeAliases || !this.ctx.ast?.interfaces) return null;
     let typeAlias = null;
     for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
-      if (this.ctx.ast.typeAliases[i].name === name) {
-        typeAlias = this.ctx.ast.typeAliases[i];
+      const ta = this.ctx.ast.typeAliases[i] as { name: string; unionMembers: string[] };
+      if (ta.name === name) {
+        typeAlias = ta;
         break;
       }
     }
@@ -167,11 +169,12 @@ export class MemberAccessGenerator {
       const memberName = typeAlias.unionMembers[i];
       let found = null;
       for (let j = 0; j < this.ctx.ast.interfaces.length; j++) {
-        if (this.ctx.ast.interfaces[j].name === memberName) {
-          const iface = this.ctx.ast.interfaces[j];
+        const iface = this.ctx.ast.interfaces[j] as InterfaceDeclaration;
+        if (iface.name === memberName) {
           const properties: InterfaceProperty[] = [];
           for (let k = 0; k < iface.fields.length; k++) {
-            properties.push({ name: iface.fields[k].name, type: iface.fields[k].type });
+            const f = iface.fields[k] as InterfaceField;
+            properties.push({ name: f.name, type: f.type });
           }
           found = { properties };
           break;
@@ -191,9 +194,10 @@ export class MemberAccessGenerator {
       for (let j = 1; j < memberInterfaces.length; j++) {
         let foundInMember = false;
         for (let k = 0; k < memberInterfaces[j].properties.length; k++) {
-          if (memberInterfaces[j].properties[k].name === prop.name) {
+          const mp = memberInterfaces[j].properties[k] as InterfaceProperty;
+          if (mp.name === prop.name) {
             foundInMember = true;
-            const otherType = memberInterfaces[j].properties[k].type;
+            const otherType = mp.type;
             if (this.areTypesCompatible(unifiedType, otherType)) {
               unifiedType = this.unifyTypes(unifiedType, otherType);
             } else {
@@ -1406,7 +1410,7 @@ export class MemberAccessGenerator {
 
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {
     if (expr.object.type !== 'variable') {
-      throw new Error(this.ctx.formatCodegenError(`Unknown property: ${expr.property}`));
+      throw new Error(this.ctx.formatCodegenError(`Unknown property: ${expr.property} (object type: ${expr.object.type})`));
     }
 
     const varName = (expr.object as VariableNode).name;
