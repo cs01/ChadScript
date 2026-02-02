@@ -582,6 +582,86 @@ export class TypeResolver {
     return { fieldName, valueType: setMatch[1] };
   }
 
+  getThisFieldMapKeyType(expr: Expression): string | null {
+    if (expr.type !== 'member_access') return null;
+    const memberExpr = expr as MemberAccessNode;
+
+    if (memberExpr.object.type === 'this') {
+      if (!this.ctx.currentClassName) return null;
+      const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, memberExpr.property);
+      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+      if (!fieldInfoResult || !fieldInfo.tsType) return null;
+
+      const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
+      if (!mapMatch) return null;
+      return mapMatch[1];
+    }
+
+    if (memberExpr.object.type === 'member_access') {
+      const nestedType = this.resolveNestedMemberType(memberExpr.object);
+      if (!nestedType) return null;
+
+      const ifaceDecl = this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === nestedType);
+      if (ifaceDecl) {
+        const iface = ifaceDecl as InterfaceDeclaration;
+        let field: { name: string; type: string } | null = null;
+        for (let i = 0; i < iface.fields.length; i++) {
+          const f = iface.fields[i] as { name: string; type: string };
+          if (f.name === memberExpr.property) {
+            field = f;
+            break;
+          }
+        }
+        if (field) {
+          const fieldTyped = field as { name: string; type: string };
+          const mapMatch = fieldTyped.type.match(/^Map<(\w+),\s*(.+)>$/);
+          if (mapMatch) {
+            return mapMatch[1];
+          }
+        }
+      }
+
+      const classDecl = this.ctx.ast?.classes?.find((c: ClassNode) => c.name === nestedType);
+      if (classDecl) {
+        const cls = classDecl as ClassNode;
+        let field: { name: string; tsType: string } | null = null;
+        for (let i = 0; i < cls.fields.length; i++) {
+          const f = cls.fields[i] as { name: string; tsType: string };
+          if (f.name === memberExpr.property) {
+            field = f;
+            break;
+          }
+        }
+        if (field) {
+          const fieldTyped = field as { name: string; tsType: string };
+          if (fieldTyped.tsType) {
+            const mapMatch = fieldTyped.tsType.match(/^Map<(\w+),\s*(.+)>$/);
+            if (mapMatch) {
+              return mapMatch[1];
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  getThisFieldSetValueType(expr: Expression): string | null {
+    if (expr.type !== 'member_access') return null;
+    const memberExpr = expr as MemberAccessNode;
+    if (memberExpr.object.type !== 'this') return null;
+
+    if (!this.ctx.currentClassName) return null;
+    const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, memberExpr.property);
+    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+    if (!fieldInfoResult || !fieldInfo.tsType) return null;
+
+    const setMatch = fieldInfo.tsType.match(/^Set<(\w+)>$/);
+    if (!setMatch) return null;
+    return setMatch[1];
+  }
+
   resolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null {
     if (expr?.type !== 'method_call') return null;
 

@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+
 declare function __ts_parse_source(source: string, length: number): number;
 declare function __ts_get_root_node(tree: number): number;
 declare function __ts_node_type(node: number): string;
@@ -88,10 +90,6 @@ export function parseSource(source: string): TreeSitterTree {
 }
 
 export function parseFile(filepath: string): TreeSitterTree {
-  const fs_readFileSync = (globalThis as any).fs_readFileSync;
-  if (!fs_readFileSync) {
-    throw new Error('fs_readFileSync not available - this function requires the fs stdlib');
-  }
-  const source = fs_readFileSync(filepath);
+  const source = fs.readFileSync(filepath, 'utf-8');
   return parseSource(source);
 }

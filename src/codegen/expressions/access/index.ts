@@ -1,4 +1,4 @@
-import { Expression, IndexAccessNode, MemberAccessNode, VariableNode } from '../../../ast/types.js';
+import { Expression, IndexAccessNode, IndexAccessAssignmentNode, MemberAccessNode, VariableNode } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 
 export interface IndexAccessGeneratorContext {
@@ -241,5 +241,81 @@ export class IndexAccessGenerator {
     this.ctx.setVariableType(result, 'double');
 
     return result;
+  }
+
+  generateAssignment(expr: IndexAccessAssignmentNode, params: string[]): string {
+    const value = this.ctx.generateExpression(expr.value, params);
+    const isStringArray = this.ctx.isStringArrayExpression(expr.object);
+    const isNumericArray = !isStringArray && this.ctx.isArrayExpression(expr.object);
+
+    if (isStringArray) {
+      return this.generateStringArrayAssignment(expr, value, params);
+    } else if (isNumericArray) {
+      return this.generateNumericArrayAssignment(expr, value, params);
+    } else {
+      throw new Error('Index access assignment only supported for arrays');
+    }
+  }
+
+  private generateStringArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
+    const objectExpr = expr.object as VariableNode;
+    const varName = objectExpr.name;
+
+    const arrayAllocaReg = this.ctx.symbolTable.getArrayAlloca(varName);
+    if (!arrayAllocaReg) {
+      throw new Error(`Unknown string array variable: ${varName}`);
+    }
+
+    const arrayPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${arrayPtr} = load %StringArray*, %StringArray** ${arrayAllocaReg}`);
+
+    const dataFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = load i8**, i8*** ${dataFieldPtr}`);
+
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
+    const index = this.ctx.nextTemp();
+    this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    const indexI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+
+    const elementPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elementPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i64 ${indexI64}`);
+
+    this.ctx.emit(`store i8* ${value}, i8** ${elementPtr}`);
+
+    return value;
+  }
+
+  private generateNumericArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
+    const objectExpr = expr.object as VariableNode;
+    const varName = objectExpr.name;
+
+    const arrayAllocaReg = this.ctx.symbolTable.getArrayAlloca(varName);
+    if (!arrayAllocaReg) {
+      throw new Error(`Unknown numeric array variable: ${varName}`);
+    }
+
+    const arrayPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${arrayPtr} = load %Array*, %Array** ${arrayAllocaReg}`);
+
+    const dataFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}`);
+
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
+    const index = this.ctx.nextTemp();
+    this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    const indexI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+
+    const elementPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elementPtr} = getelementptr inbounds double, double* ${dataPtr}, i64 ${indexI64}`);
+
+    this.ctx.emit(`store double ${value}, double* ${elementPtr}`);
+
+    return value;
   }
 }

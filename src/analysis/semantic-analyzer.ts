@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode, VariableNode } from '../ast/types.js';
 
 type SymbolType = 'number' | 'string' | 'boolean' | 'array<number>' | 'array<string>' | 'object' | 'class' | 'unknown';
 
@@ -13,7 +13,7 @@ export interface TypedSymbol {
   name: string;
   type: SymbolType;
   llvmType: string;
-  objectSchema?: { [key: string]: string };
+  objectSchema?: Map<string, string>;
 }
 
 export interface AnalysisError {
@@ -295,12 +295,12 @@ export class SemanticAnalyzer {
 
     if (expr.type === 'object') {
       const objExpr = expr as ObjectNode;
-      const schema: { [key: string]: string } = {};
+      const schema = new Map<string, string>();
 
       for (let i = 0; i < objExpr.properties.length; i++) {
         const prop = objExpr.properties[i] as ObjectProperty;
         const valueType = this.inferExpressionType(prop.value);
-        schema[prop.key] = valueType.llvmType;
+        schema.set(prop.key, valueType.llvmType);
       }
 
       return {
@@ -313,14 +313,15 @@ export class SemanticAnalyzer {
 
     // Variable reference - look up in symbol table
     if (expr.type === 'variable') {
-      const symbol = this.symbols.get(expr.name);
+      const varExpr = expr as VariableNode;
+      const symbol = this.symbols.get(varExpr.name);
       if (!symbol) {
         this.errors.push({
-          message: `Reference to undeclared variable '${expr.name}'`,
+          message: `Reference to undeclared variable '${varExpr.name}'`,
           location: this.currentFunction,
         });
         return {
-          name: expr.name,
+          name: varExpr.name,
           type: 'unknown',
           llvmType: 'double',
         };
@@ -404,7 +405,8 @@ export class SemanticAnalyzer {
 
     let output = '\x1b[31m\x1b[1m✗ Semantic Analysis Errors:\x1b[0m\n\n';
 
-    for (const error of this.errors) {
+    for (let i = 0; i < this.errors.length; i++) {
+      const error = this.errors[i] as AnalysisError;
       output += `  \x1b[31m•\x1b[0m ${error.message}\n`;
       if (error.location) {
         output += `    \x1b[90mLocation: ${error.location}\x1b[0m\n`;

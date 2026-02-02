@@ -1,9 +1,13 @@
 import { InterfaceDeclaration, InterfaceField } from '../../ast/types.js';
 
-const BUILTIN_TYPES = new Set([
+const BUILTIN_TYPES = [
   'Array', 'StringArray', 'Map', 'StringMap', 'Set', 'StringSet',
   'Response', 'FetchBuffer', 'Promise', 'PromiseCallback', 'PromiseAllState', 'PromiseAllContext'
-]);
+];
+
+function isBuiltinType(name: string): boolean {
+  return BUILTIN_TYPES.indexOf(name) !== -1;
+}
 
 export interface InterfaceStructInfo {
   name: string;
@@ -27,7 +31,7 @@ export class InterfaceStructGenerator {
 
   private processInterface(idx: number): void {
     const ifaceName = this.getInterfaceName(idx);
-    const isBuiltinConflict = BUILTIN_TYPES.has(ifaceName);
+    const isBuiltinConflict = isBuiltinType(ifaceName);
     const fields = this.buildFields(idx);
 
     const structType = `%${ifaceName}`;
@@ -118,7 +122,7 @@ export class InterfaceStructGenerator {
 
     for (let idx = 0; idx < this.interfaces.length; idx++) {
       const ifaceName = this.getInterfaceName(idx);
-      if (BUILTIN_TYPES.has(ifaceName)) continue;
+      if (isBuiltinType(ifaceName)) continue;
       hasNonConflicting = true;
       const info = this.interfaceStructs.get(ifaceName)!;
       const fieldTypes = this.getFieldTypesString(info);
