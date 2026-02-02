@@ -20,7 +20,7 @@ export class SetGenerator {
   private emit(instruction: string) { this.ctx.emit(instruction); }
   private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
 
-  generateSetLiteral(expr: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generateSetLiteral(expr: Expression, params: string[]): string {
     const setExpr = expr as { type: string; values: Expression[] };
     if (setExpr.type !== 'set') {
       throw new Error('Expected set literal');
@@ -72,7 +72,7 @@ export class SetGenerator {
         seen.add(numVal);
       }
 
-      const valueValue = generateExpressionFn(setExpr.values[i] as Expression, params);
+      const valueValue = this.ctx.generateExpression(setExpr.values[i] as Expression, params);
 
       // Store value
       const valueElemPtr = this.nextTemp();
@@ -89,17 +89,17 @@ export class SetGenerator {
     return setPtr;
   }
 
-  generateSetAdd(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generateSetAdd(expr: MethodCallNode, params: string[]): string {
     // set.add(value)
     if (expr.args.length !== 1) {
       throw new Error('Set.add() requires exactly 1 argument');
     }
 
     // Get set pointer
-    const setPtr = generateExpressionFn(expr.object, params);
+    const setPtr = this.ctx.generateExpression(expr.object, params);
 
     // Generate value
-    const valueToAdd = generateExpressionFn(expr.args[0], params);
+    const valueToAdd = this.ctx.generateExpression(expr.args[0], params);
 
     // Check if value already exists (simple linear search)
     // Load current array and size
@@ -130,17 +130,17 @@ export class SetGenerator {
     return setPtr;
   }
 
-  generateSetHas(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generateSetHas(expr: MethodCallNode, params: string[]): string {
     // set.has(value) - returns 1 if value exists, 0 otherwise
     if (expr.args.length !== 1) {
       throw new Error('Set.has() requires exactly 1 argument');
     }
 
     // Get set pointer
-    const setPtr = generateExpressionFn(expr.object, params);
+    const setPtr = this.ctx.generateExpression(expr.object, params);
 
     // Generate value
-    const valueToFind = generateExpressionFn(expr.args[0], params);
+    const valueToFind = this.ctx.generateExpression(expr.args[0], params);
 
     // Load array and size
     const valuesFieldPtr = this.nextTemp();
@@ -210,17 +210,17 @@ export class SetGenerator {
     return size;
   }
 
-  generateSetDelete(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generateSetDelete(expr: MethodCallNode, params: string[]): string {
     // set.delete(value) - returns 1 if deleted, 0 if not found
     if (expr.args.length !== 1) {
       throw new Error('Set.delete() requires exactly 1 argument');
     }
 
     // Get set pointer
-    const setPtr = generateExpressionFn(expr.object, params);
+    const setPtr = this.ctx.generateExpression(expr.object, params);
 
     // Generate value
-    const valueToDelete = generateExpressionFn(expr.args[0], params);
+    const valueToDelete = this.ctx.generateExpression(expr.args[0], params);
 
     // Load array and size
     const valuesFieldPtr = this.nextTemp();

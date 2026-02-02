@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode } from '../../../../ast/types.js';
+import { MethodCallNode } from '../../../../ast/types.js';
 import { BaseGenerator } from '../../../infrastructure/base-generator.js';
 
 /**
@@ -8,16 +8,15 @@ import { BaseGenerator } from '../../../infrastructure/base-generator.js';
 export function generateArrayPush(
   gen: BaseGenerator,
   expr: MethodCallNode,
-  params: string[],
-  generateExpressionFn: (expr: Expression, params: string[]) => string
+  params: string[]
 ): string {
   // arr.push(value) - adds value to array and returns new length
   if (expr.args.length !== 1) {
     throw new Error('push() requires exactly 1 argument');
   }
 
-  const arrayPtr = generateExpressionFn(expr.object, params);
-  const value = generateExpressionFn(expr.args[0], params);
+  const arrayPtr = (gen as any).generateExpression(expr.object, params);
+  const value = (gen as any).generateExpression(expr.args[0], params);
 
   // Determine if this is a string array or number array
   let isStringArray = false;
@@ -41,15 +40,14 @@ export function generateArrayPush(
 export function generateArrayPop(
   gen: BaseGenerator,
   expr: MethodCallNode,
-  params: string[],
-  generateExpressionFn: (expr: Expression, params: string[]) => string
+  params: string[]
 ): string {
   // arr.pop() - removes and returns last element
   if (expr.args.length !== 0) {
     throw new Error('pop() requires 0 arguments');
   }
 
-  const arrayPtr = generateExpressionFn(expr.object, params);
+  const arrayPtr = (gen as any).generateExpression(expr.object, params);
 
   // Determine if this is a string array or number array
   let isStringArray = false;

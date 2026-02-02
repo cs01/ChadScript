@@ -10,6 +10,7 @@ export interface IndexAccessGeneratorContext {
   isStringArrayExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
   getVariableAlloca(name: string): string | undefined;
+  generateExpression(expr: Expression, params: string[]): string;
 }
 
 /**
@@ -28,22 +29,21 @@ export class IndexAccessGenerator {
    * Generate index access expression
    * @param expr - Index access expression node
    * @param params - Function parameter names
-   * @param generateExpressionFn - Callback to generate sub-expressions
    */
-  generate(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generate(expr: IndexAccessNode, params: string[]): string {
     // Check if it's process.argv[i]
     if (expr.object.type === 'member_access') {
       const memberAccess = expr.object as MemberAccessNode;
       if (memberAccess.object.type === 'variable' &&
           (memberAccess.object as VariableNode).name === 'process' &&
           memberAccess.property === 'argv') {
-        return this.generateProcessArgvIndex(expr, params, generateExpressionFn);
+        return this.generateProcessArgvIndex(expr, params);
       }
     }
 
     // Check if it's a JSON array (from JSON.parse<number[]> or similar)
     if (expr.object.type === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
-      return this.generateJSONArrayIndex(expr, params, generateExpressionFn);
+      return this.generateJSONArrayIndex(expr, params);
     }
 
     // Determine if we're indexing into a string array or numeric array
@@ -52,19 +52,19 @@ export class IndexAccessGenerator {
     const isNumericArray = !isStringArray && this.ctx.isArrayExpression(expr.object);
 
     if (isStringArray) {
-      return this.generateStringArrayIndex(expr, params, generateExpressionFn);
+      return this.generateStringArrayIndex(expr, params);
     } else if (isNumericArray) {
-      return this.generateNumericArrayIndex(expr, params, generateExpressionFn);
+      return this.generateNumericArrayIndex(expr, params);
     } else {
       // Handle string[index] - returns character code as i32, then convert to double
-      return this.generateStringCharIndex(expr, params, generateExpressionFn);
+      return this.generateStringCharIndex(expr, params);
     }
   }
 
-  private generateProcessArgvIndex(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateProcessArgvIndex(expr: IndexAccessNode, params: string[]): string {
     // Index into argv: process.argv[i]
-    const argvStruct = generateExpressionFn(expr.object, params);
-    const indexDouble = generateExpressionFn(expr.index, params);
+    const argvStruct = this.ctx.generateExpression(expr.object, params);
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
 
     // Convert double index to i32
     const index = this.ctx.nextTemp();
@@ -96,9 +96,9 @@ export class IndexAccessGenerator {
     return arg;
   }
 
-  private generateStringArrayIndex(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const stringArrayPtr = generateExpressionFn(expr.object, params);
-    const indexDouble = generateExpressionFn(expr.index, params);
+  private generateStringArrayIndex(expr: IndexAccessNode, params: string[]): string {
+    const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
 
     // Convert double index to i32 for getelementptr
     const indexType = this.ctx.variableTypes.get(indexDouble);
@@ -124,9 +124,9 @@ export class IndexAccessGenerator {
     return elem;
   }
 
-  private generateNumericArrayIndex(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const arrayPtr = generateExpressionFn(expr.object, params);
-    const indexDouble = generateExpressionFn(expr.index, params);
+  private generateNumericArrayIndex(expr: IndexAccessNode, params: string[]): string {
+    const arrayPtr = this.ctx.generateExpression(expr.object, params);
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
 
     // Convert double index to i32 for getelementptr
     const indexType = this.ctx.variableTypes.get(indexDouble);
@@ -152,9 +152,9 @@ export class IndexAccessGenerator {
     return elem;
   }
 
-  private generateStringCharIndex(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
-    const objPtr = generateExpressionFn(expr.object, params);
-    const indexDouble = generateExpressionFn(expr.index, params);
+  private generateStringCharIndex(expr: IndexAccessNode, params: string[]): string {
+    const objPtr = this.ctx.generateExpression(expr.object, params);
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
 
     // Convert double index to i32 (assume double if not explicitly i32)
     const indexType = this.ctx.variableTypes.get(indexDouble);
@@ -184,7 +184,7 @@ export class IndexAccessGenerator {
     return charDouble;
   }
 
-  private generateJSONArrayIndex(expr: IndexAccessNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generateJSONArrayIndex(expr: IndexAccessNode, params: string[]): string {
     // Load JSON array pointer
     const varName = (expr.object as VariableNode).name;
     const jsonPtrPtr = this.ctx.getVariableAlloca(varName)!;
@@ -192,7 +192,7 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${jsonPtr} = load i8*, i8** ${jsonPtrPtr}`);
 
     // Generate index and convert to i32
-    const indexDouble = generateExpressionFn(expr.index, params);
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
     const indexType = this.ctx.variableTypes.get(indexDouble);
     let index = indexDouble;
     if (indexType === 'double' || indexType === undefined) {

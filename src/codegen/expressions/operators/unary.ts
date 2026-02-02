@@ -13,21 +13,22 @@ interface UnaryExpressionContext {
   thisPointer?: string | null;
   currentClassName?: string | null;
   classGen?: ClassGeneratorLike;
+  generateExpression(expr: Expression, params: string[]): string;
 }
 
 export class UnaryExpressionGenerator {
   constructor(private ctx: UnaryExpressionContext) {}
 
-  generate(op: string, operand: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generate(op: string, operand: Expression, params: string[]): string {
     if (op === 'post++' || op === 'post--') {
-      return this.generatePostIncDec(op, operand, params, generateExpressionFn);
+      return this.generatePostIncDec(op, operand, params);
     }
 
     if (op === '++' || op === '--') {
-      return this.generatePreIncDec(op, operand, params, generateExpressionFn);
+      return this.generatePreIncDec(op, operand, params);
     }
 
-    const operandValue = generateExpressionFn(operand, params);
+    const operandValue = this.ctx.generateExpression(operand, params);
 
     if (op === '!') {
       return this.generateLogicalNot(operandValue);
@@ -44,7 +45,7 @@ export class UnaryExpressionGenerator {
     throw new Error(`Unknown unary operator: ${op}`);
   }
 
-  private generatePostIncDec(op: string, operand: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generatePostIncDec(op: string, operand: Expression, params: string[]): string {
     if (operand.type === 'member_access') {
       return this.generateMemberAccessIncDec(op, operand as MemberAccessNode, true);
     }
@@ -71,7 +72,7 @@ export class UnaryExpressionGenerator {
     return originalValue;
   }
 
-  private generatePreIncDec(op: string, operand: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  private generatePreIncDec(op: string, operand: Expression, params: string[]): string {
     if (operand.type === 'member_access') {
       return this.generateMemberAccessIncDec(op, operand as MemberAccessNode, false);
     }

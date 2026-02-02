@@ -118,27 +118,27 @@ export class ExpressionGenerator {
 
     // Unary operators
     if (expr.type === 'unary') {
-      return this.unaryGen.generate(expr.op, expr.operand, params, this.generate.bind(this));
+      return this.unaryGen.generate(expr.op, expr.operand, params);
     }
 
     // Binary operators
     if (expr.type === 'binary') {
-      return this.binaryGen.generate(expr.op, expr.left, expr.right, params, this.generate.bind(this));
+      return this.binaryGen.generate(expr.op, expr.left, expr.right, params);
     }
 
     // Call expressions
     if (expr.type === 'call') {
-      return this.callGen.generate(expr, params, this.generate.bind(this));
+      return this.callGen.generate(expr, params);
     }
 
     // Index access
     if (expr.type === 'index_access') {
-      return this.indexAccessGen.generate(expr, params, this.generate.bind(this));
+      return this.indexAccessGen.generate(expr, params);
     }
 
     // Member access
     if (expr.type === 'member_access') {
-      return this.memberAccessGen.generate(expr, params, this.generate.bind(this));
+      return this.memberAccessGen.generate(expr, params);
     }
 
     // Arrow functions

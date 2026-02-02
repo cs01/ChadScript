@@ -8,8 +8,7 @@ import { BaseGenerator } from '../../../infrastructure/base-generator.js';
 export function generateArrayLiteral(
   gen: BaseGenerator,
   expr: Expression,
-  params: string[],
-  generateExpressionFn: (expr: Expression, params: string[]) => string
+  params: string[]
 ): string {
   if (expr.type !== 'array') {
     throw new Error('Expected array literal');
@@ -70,7 +69,7 @@ export function generateArrayLiteral(
 
     // Store each string element
     for (let i = 0; i < expr.elements.length; i++) {
-      const elemValue = generateExpressionFn(expr.elements[i], params);
+      const elemValue = (gen as any).generateExpression(expr.elements[i], params);
       const elemPtr = gen.nextTemp();
       gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
       gen.emit(`store i8* ${elemValue}, i8** ${elemPtr}`);
@@ -115,7 +114,7 @@ export function generateArrayLiteral(
 
     // Store each pointer element
     for (let i = 0; i < expr.elements.length; i++) {
-      const elemValue = generateExpressionFn(expr.elements[i], params);
+      const elemValue = (gen as any).generateExpression(expr.elements[i], params);
       const elemCast = gen.nextTemp();
       gen.emit(`${elemCast} = bitcast ${gen.variableTypes.get(elemValue) || 'i8*'} ${elemValue} to i8*`);
       const elemPtr = gen.nextTemp();
@@ -166,7 +165,7 @@ export function generateArrayLiteral(
 
     // Store each element
     for (let i = 0; i < expr.elements.length; i++) {
-      const elemValue = generateExpressionFn(expr.elements[i], params);
+      const elemValue = (gen as any).generateExpression(expr.elements[i], params);
       const elemPtr = gen.nextTemp();
       gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
       gen.emit(`store double ${elemValue}, double* ${elemPtr}`);

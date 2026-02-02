@@ -21,7 +21,7 @@ export class MapGenerator {
   private emit(instruction: string) { this.ctx.emit(instruction); }
   private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
 
-  generateMapLiteral(expr: Expression, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generateMapLiteral(expr: Expression, params: string[]): string {
     const mapExpr = expr as { type: string; entries: MapEntry[] };
     if (mapExpr.type !== 'map') {
       throw new Error('Expected map literal');
@@ -78,8 +78,8 @@ export class MapGenerator {
     // Populate initial entries
     for (let i = 0; i < mapExpr.entries.length; i++) {
       const entry = mapExpr.entries[i] as MapEntry;
-      const keyValue = generateExpressionFn(entry.key, params);
-      const valueValue = generateExpressionFn(entry.value, params);
+      const keyValue = this.ctx.generateExpression(entry.key, params);
+      const valueValue = this.ctx.generateExpression(entry.value, params);
 
       // Store key
       const keyElemPtr = this.nextTemp();
@@ -95,18 +95,18 @@ export class MapGenerator {
     return mapPtr;
   }
 
-  generateMapSet(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generateMapSet(expr: MethodCallNode, params: string[]): string {
     // map.set(key, value)
     if (expr.args.length !== 2) {
       throw new Error('Map.set() requires exactly 2 arguments');
     }
 
     // Get map pointer
-    const mapPtr = generateExpressionFn(expr.object, params);
+    const mapPtr = this.ctx.generateExpression(expr.object, params);
 
     // Generate key and value
-    const keyValue = generateExpressionFn(expr.args[0], params);
-    const valueValue = generateExpressionFn(expr.args[1], params);
+    const keyValue = this.ctx.generateExpression(expr.args[0], params);
+    const valueValue = this.ctx.generateExpression(expr.args[1], params);
 
     // Load current arrays and size
     const keysFieldPtr = this.nextTemp();
@@ -144,17 +144,17 @@ export class MapGenerator {
     return mapPtr;
   }
 
-  generateMapGet(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generateMapGet(expr: MethodCallNode, params: string[]): string {
     // map.get(key)
     if (expr.args.length !== 1) {
       throw new Error('Map.get() requires exactly 1 argument');
     }
 
     // Get map pointer
-    const mapPtr = generateExpressionFn(expr.object, params);
+    const mapPtr = this.ctx.generateExpression(expr.object, params);
 
     // Generate key
-    const keyToFind = generateExpressionFn(expr.args[0], params);
+    const keyToFind = this.ctx.generateExpression(expr.args[0], params);
 
     // Load arrays and size
     const keysFieldPtr = this.nextTemp();
@@ -226,17 +226,17 @@ export class MapGenerator {
     return result;
   }
 
-  generateMapHas(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generateMapHas(expr: MethodCallNode, params: string[]): string {
     // map.has(key) - returns 1 if key exists, 0 otherwise
     if (expr.args.length !== 1) {
       throw new Error('Map.has() requires exactly 1 argument');
     }
 
     // Get map pointer
-    const mapPtr = generateExpressionFn(expr.object, params);
+    const mapPtr = this.ctx.generateExpression(expr.object, params);
 
     // Generate key
-    const keyToFind = generateExpressionFn(expr.args[0], params);
+    const keyToFind = this.ctx.generateExpression(expr.args[0], params);
 
     // Load arrays and size
     const keysFieldPtr = this.nextTemp();
@@ -314,13 +314,13 @@ export class MapGenerator {
     return '0.0';
   }
 
-  generateMapDelete(expr: MethodCallNode, params: string[], generateExpressionFn: (expr: Expression, params: string[]) => string): string {
+  generateMapDelete(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
       throw new Error('Map.delete() requires exactly 1 argument');
     }
 
-    const mapPtr = generateExpressionFn(expr.object, params);
-    const keyToFind = generateExpressionFn(expr.args[0], params);
+    const mapPtr = this.ctx.generateExpression(expr.object, params);
+    const keyToFind = this.ctx.generateExpression(expr.args[0], params);
 
     const keysFieldPtr = this.nextTemp();
     this.emit(`${keysFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 0`);
