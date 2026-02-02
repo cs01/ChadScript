@@ -40,7 +40,7 @@ export class TypeInference {
     }
     if (expr.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
-      return methodExpr.method === 'filter' || methodExpr.method === 'map';
+      return methodExpr.method === 'filter' || methodExpr.method === 'map' || methodExpr.method === 'entries' || methodExpr.method === 'values';
     }
     if (expr.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;

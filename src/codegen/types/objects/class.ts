@@ -70,9 +70,13 @@ export class ClassGenerator {
     if (classNode.fields.length > 0) {
       const fieldTypes = classNode.fields.map(f => {
         if (f.fieldType === 'string') return 'i8*';
-        if (f.fieldType === 'string[]') return '%StringArray*';  // String arrays
-        if (f.fieldType.endsWith('[]')) return '%Array*';  // Number/boolean arrays
-        if (f.fieldType === 'boolean') return 'i1';  // Boolean fields
+        if (f.fieldType === 'string[]') return '%StringArray*';
+        if (f.fieldType.endsWith('[]')) return '%Array*';
+        if (f.fieldType === 'boolean') return 'i1';
+        if (f.tsType?.startsWith('Map<string,')) return '%StringMap*';
+        if (f.tsType?.startsWith('Map<')) return '%Map*';
+        if (f.tsType?.startsWith('Set<string>')) return '%StringSet*';
+        if (f.tsType?.startsWith('Set<')) return '%Set*';
         return 'double';
       });
       ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
@@ -100,7 +104,7 @@ export class ClassGenerator {
     return ir;
   }
 
-  private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[]): string {
+  private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]): string {
     const structType = fields.length > 0 ? `%${className}_struct*` : 'double*';
     let ir = `define ${structType} @${className}_constructor(`;
 
@@ -150,21 +154,26 @@ export class ClassGenerator {
       for (let i = 0; i < fields.length; i++) {
         const fieldPtr = this.nextTemp();
         const fieldType = fields[i].fieldType;
+        const tsType = fields[i].tsType;
         this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${objPtr}, i32 0, i32 ${i}`);
 
         if (fieldType === 'string') {
           this.emit(`store i8* null, i8** ${fieldPtr}`);
         } else if (fieldType === 'string[]') {
-          // String array fields - initialize to null
           this.emit(`store %StringArray* null, %StringArray** ${fieldPtr}`);
         } else if (fieldType.endsWith('[]')) {
-          // Number/boolean array fields - initialize to null
           this.emit(`store %Array* null, %Array** ${fieldPtr}`);
         } else if (fieldType === 'boolean') {
-          // Boolean fields - initialize to false (i1)
           this.emit(`store i1 false, i1* ${fieldPtr}`);
+        } else if (tsType?.startsWith('Map<string,')) {
+          this.emit(`store %StringMap* null, %StringMap** ${fieldPtr}`);
+        } else if (tsType?.startsWith('Map<')) {
+          this.emit(`store %Map* null, %Map** ${fieldPtr}`);
+        } else if (tsType === 'Set<string>') {
+          this.emit(`store %StringSet* null, %StringSet** ${fieldPtr}`);
+        } else if (tsType?.startsWith('Set<')) {
+          this.emit(`store %Set* null, %Set** ${fieldPtr}`);
         } else {
-          // double fields
           this.emit(`store double 0.0, double* ${fieldPtr}`);
         }
       }

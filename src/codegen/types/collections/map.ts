@@ -430,8 +430,14 @@ export class StringMapGenerator {
   private getPtrSize() { return 8; }
 
   generateEmptyStringMap(): string {
+    const sizeofPtr = this.nextTemp();
+    this.emit(`${sizeofPtr} = getelementptr %StringMap, %StringMap* null, i32 1`);
+    const structSize = this.nextTemp();
+    this.emit(`${structSize} = ptrtoint %StringMap* ${sizeofPtr} to i64`);
+    const mapMem = this.nextTemp();
+    this.emit(`${mapMem} = call i8* @GC_malloc(i64 ${structSize})`);
     const mapPtr = this.nextTemp();
-    this.emit(`${mapPtr} = alloca %StringMap`);
+    this.emit(`${mapPtr} = bitcast i8* ${mapMem} to %StringMap*`);
 
     const initialCapacity = 4;
     const ptrSize = this.getPtrSize();

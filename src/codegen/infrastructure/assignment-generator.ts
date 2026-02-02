@@ -10,7 +10,7 @@ import {
 import type { SymbolTable } from './symbol-table.js';
 
 interface ClassGeneratorLike {
-  getFieldInfo(className: string, property: string): { index: number; type: string } | null;
+  getFieldInfo(className: string, property: string): { index: number; type: string; tsType?: string } | null;
   getClassFields(className: string): { name: string; llvmType: string }[];
 }
 
@@ -25,6 +25,7 @@ export interface AssignmentGeneratorContext {
   thisPointer: string | null;
   ast: AST;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
+  currentDeclaredMapType: string | undefined;
 }
 
 export class AssignmentGenerator {
@@ -121,8 +122,13 @@ export class AssignmentGenerator {
       this.ctx.expectedArrayElementType = 'boolean';
     }
 
+    if (fieldInfo?.tsType?.startsWith('Map<string,')) {
+      this.ctx.currentDeclaredMapType = fieldInfo.tsType;
+    }
+
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
     this.ctx.expectedArrayElementType = null;
+    this.ctx.currentDeclaredMapType = undefined;
 
     let instancePtr: string | null = null;
     if (object.type === 'variable') {
@@ -161,7 +167,7 @@ export class AssignmentGenerator {
   }
 
   private storeFieldValue(
-    fieldInfo: { index: number; type: string },
+    fieldInfo: { index: number; type: string; tsType?: string },
     fieldPtr: string,
     value: string,
     memberAccessValue: MemberAccessAssignmentNode
@@ -192,6 +198,14 @@ export class AssignmentGenerator {
       const boolValue = this.ctx.nextTemp();
       this.ctx.emit(`${boolValue} = fcmp one double ${value}, 0.0`);
       this.ctx.emit(`store i1 ${boolValue}, i1* ${fieldPtr}`);
+    } else if (fieldInfo.tsType?.startsWith('Map<string,')) {
+      this.ctx.emit(`store %StringMap* ${value}, %StringMap** ${fieldPtr}`);
+    } else if (fieldInfo.tsType?.startsWith('Map<')) {
+      this.ctx.emit(`store %Map* ${value}, %Map** ${fieldPtr}`);
+    } else if (fieldInfo.tsType === 'Set<string>') {
+      this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
+    } else if (fieldInfo.tsType?.startsWith('Set<')) {
+      this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
     } else {
       this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
     }
