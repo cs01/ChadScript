@@ -306,7 +306,7 @@ export function parseClass(ctx: ParserContext): void {
 
   ctx.expect('{');
 
-  const fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[] = [];
+  const fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[] = [];
   const methods: ClassMethod[] = [];
 
   while (true) {
@@ -378,6 +378,9 @@ export function parseClass(ctx: ParserContext): void {
         ctx.skipWhitespace();
       }
 
+      const typeEnd = ctx.pos;
+      const tsType = ctx.code.substring(typeStart, typeEnd).trim();
+
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] === '=') {
         ctx.pos++;
@@ -389,7 +392,7 @@ export function parseClass(ctx: ParserContext): void {
         ctx.pos++;
       }
 
-      fields.push({ name: identifier, fieldType });
+      fields.push({ name: identifier, fieldType, tsType });
       continue;
     }
 
@@ -688,7 +691,7 @@ export function parseExport(ctx: ParserContext): void {
 
     ctx.expect('{');
 
-    const fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[] = [];
+    const fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[] = [];
     const methods: ClassMethod[] = [];
     ctx.skipWhitespace();
     while (ctx.code[ctx.pos] !== '}') {
@@ -718,6 +721,7 @@ export function parseExport(ctx: ParserContext): void {
         ctx.skipWhitespace();
 
         let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' = 'double';
+        const typeStart = ctx.pos;
         if (ctx.match('string')) {
           ctx.skipWhitespace();
           if (ctx.code[ctx.pos] === '[' && ctx.code[ctx.pos + 1] === ']') {
@@ -754,6 +758,9 @@ export function parseExport(ctx: ParserContext): void {
           ctx.skipWhitespace();
         }
 
+        const typeEnd = ctx.pos;
+        const tsType = ctx.code.substring(typeStart, typeEnd).trim();
+
         ctx.skipWhitespace();
         if (ctx.code[ctx.pos] === '=') {
           ctx.pos++;
@@ -765,7 +772,7 @@ export function parseExport(ctx: ParserContext): void {
           ctx.pos++;
         }
 
-        fields.push({ name: identifier, fieldType });
+        fields.push({ name: identifier, fieldType, tsType });
         ctx.skipWhitespace();
         continue;
       }
