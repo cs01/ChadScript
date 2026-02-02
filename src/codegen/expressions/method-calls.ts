@@ -1225,18 +1225,27 @@ export class MethodCallGenerator {
     if (funcNode) {
       returnType = funcNode.returnType === 'string' ? 'i8*' : 'double';
       if (funcNode.parameters) {
-        paramTypes = funcNode.parameters.map(p => p.type === 'string' ? 'i8*' : 'double');
+        for (let i = 0; i < funcNode.parameters.length; i++) {
+          const param = funcNode.parameters[i];
+          paramTypes.push(param.type === 'string' ? 'i8*' : 'double');
+        }
       } else if (funcNode.paramTypes) {
-        paramTypes = funcNode.paramTypes.map(t => t === 'string' ? 'i8*' : 'double');
+        for (let i = 0; i < funcNode.paramTypes.length; i++) {
+          const t = funcNode.paramTypes[i];
+          paramTypes.push(t === 'string' ? 'i8*' : 'double');
+        }
       }
     }
 
     // Generate arguments
-    const args = expr.args.map((arg, i) => {
+    const argParts: string[] = [];
+    for (let i = 0; i < expr.args.length; i++) {
+      const arg = expr.args[i];
       const result = this.ctx.generateExpression(arg, params);
       const paramType = paramTypes[i] || 'double';
-      return `${paramType} ${result}`;
-    }).join(', ');
+      argParts.push(paramType + ' ' + result);
+    }
+    const args = argParts.join(', ');
 
     const temp = this.nextTemp();
     this.emit(`${temp} = call ${returnType} @${method}(${args})`);

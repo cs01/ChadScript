@@ -19,7 +19,10 @@ export class ObjectGenerator {
     }
     const objExpr = expr as ObjectNode;
 
-    const keys = objExpr.properties.map((p) => p.key);
+    const keys: string[] = [];
+    for (let i = 0; i < objExpr.properties.length; i++) {
+      keys.push(objExpr.properties[i].key);
+    }
     const numFields = keys.length;
 
     if (numFields === 0) {
@@ -129,7 +132,11 @@ export class ObjectGenerator {
       fieldTypes.push({ key, llvmType, value: finalValue });
     }
 
-    const structFields = fieldTypes.map(f => f.llvmType).join(', ');
+    const llvmTypes: string[] = [];
+    for (let i = 0; i < fieldTypes.length; i++) {
+      llvmTypes.push(fieldTypes[i].llvmType);
+    }
+    const structFields = llvmTypes.join(', ');
     const structSizeBytes = fieldTypes.length * 8;
 
     const objMem = this.nextTemp();

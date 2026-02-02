@@ -295,21 +295,23 @@ export class CallExpressionGenerator {
           returnType = 'i8*';
         }
         if (funcNode.parameters) {
-          paramTypes = funcNode.parameters.map((p) => {
-            if (p.type === 'string') return 'i8*';
-            if (p.type === 'string[]') return '%StringArray*';
-            if (p.type === 'number[]' || p.type === 'boolean[]') return '%Array*';
-            if (p.type && p.type !== 'number' && p.type !== 'boolean') return 'i8*';
-            return 'double';
-          });
+          for (let i = 0; i < funcNode.parameters.length; i++) {
+            const p = funcNode.parameters[i];
+            if (p.type === 'string') paramTypes.push('i8*');
+            else if (p.type === 'string[]') paramTypes.push('%StringArray*');
+            else if (p.type === 'number[]' || p.type === 'boolean[]') paramTypes.push('%Array*');
+            else if (p.type && p.type !== 'number' && p.type !== 'boolean') paramTypes.push('i8*');
+            else paramTypes.push('double');
+          }
         } else if (funcNode.paramTypes) {
-          paramTypes = funcNode.paramTypes.map((t) => {
-            if (t === 'string') return 'i8*';
-            if (t === 'string[]') return '%StringArray*';
-            if (t === 'number[]' || t === 'boolean[]') return '%Array*';
-            if (t !== 'number' && t !== 'boolean') return 'i8*';
-            return 'double';
-          });
+          for (let i = 0; i < funcNode.paramTypes.length; i++) {
+            const t = funcNode.paramTypes[i];
+            if (t === 'string') paramTypes.push('i8*');
+            else if (t === 'string[]') paramTypes.push('%StringArray*');
+            else if (t === 'number[]' || t === 'boolean[]') paramTypes.push('%Array*');
+            else if (t !== 'number' && t !== 'boolean') paramTypes.push('i8*');
+            else paramTypes.push('double');
+          }
         }
       }
     }

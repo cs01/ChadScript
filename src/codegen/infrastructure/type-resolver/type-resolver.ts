@@ -29,11 +29,16 @@ export class TypeResolver {
   getInterfaceMetadata(name: string): ObjectMetadata | null {
     const iface = this.getInterface(name);
     if (!iface) return null;
-    return {
-      keys: iface.fields.map(f => f.name),
-      types: iface.fields.map(f => this.tsTypeToLlvm(f.type)),
-      tsTypes: iface.fields.map(f => f.type)
-    };
+    const keys: string[] = [];
+    const types: string[] = [];
+    const tsTypes: string[] = [];
+    for (let i = 0; i < iface.fields.length; i++) {
+      const f = iface.fields[i];
+      keys.push(f.name);
+      types.push(this.tsTypeToLlvm(f.type));
+      tsTypes.push(f.type);
+    }
+    return { keys, types, tsTypes };
   }
 
   getInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null {
@@ -179,11 +184,16 @@ export class TypeResolver {
       }
     }
 
-    return {
-      keys: commonFields.map(f => f.name),
-      types: commonFields.map(f => this.tsTypeToLlvm(f.type)),
-      tsTypes: commonFields.map(f => f.type)
-    };
+    const keys: string[] = [];
+    const types: string[] = [];
+    const tsTypes: string[] = [];
+    for (let i = 0; i < commonFields.length; i++) {
+      const f = commonFields[i];
+      keys.push(f.name);
+      types.push(this.tsTypeToLlvm(f.type));
+      tsTypes.push(f.type);
+    }
+    return { keys, types, tsTypes };
   }
 
   tsTypeToLlvm(tsType: string): string {

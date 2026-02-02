@@ -156,8 +156,12 @@ export class FunctionGenerator {
           const typeAlias = typeAliasResult as TypeAliasDeclaration;
           if (interfaceDefResult) {
             const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-            const keys = interfaceDef.fields.map((f) => f.name);
-            const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
+            const keys: string[] = [];
+            const types: string[] = [];
+            for (let j = 0; j < interfaceDef.fields.length; j++) {
+              keys.push(interfaceDef.fields[j].name);
+              types.push(this.tsTypeToLlvm(interfaceDef.fields[j].type));
+            }
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
               objectMetadata: { keys, types },
               declaredType: paramTypes[i]
@@ -332,10 +336,14 @@ export class FunctionGenerator {
       }
     }
 
-    return {
-      keys: commonFields.map(f => f.name),
-      types: commonFields.map(f => this.tsTypeToLlvm(f.type))
-    };
+    const keys: string[] = [];
+    const types: string[] = [];
+    for (let i = 0; i < commonFields.length; i++) {
+      keys.push(commonFields[i].name);
+      types.push(this.tsTypeToLlvm(commonFields[i].type));
+    }
+
+    return { keys, types };
   }
 
   private areTypesCompatible(type1: string, type2: string): boolean {
