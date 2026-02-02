@@ -43,17 +43,19 @@ export class TypeInference {
     if (expr.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
       if (memberExpr.object.type === 'variable' && this.ctx.symbolTable.isClass(memberExpr.object.name)) {
-        const classMeta = this.ctx.symbolTable.getClassInfo(memberExpr.object.name)!;
-        const fieldInfo = this.ctx.classGen?.getFieldInfo(classMeta.className, memberExpr.property);
-        if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
-          return true;
+        const className = this.ctx.symbolTable.getClassName(memberExpr.object.name);
+        if (className) {
+          const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
+          if (fieldType === 'number[]' || fieldType === 'boolean[]') {
+            return true;
+          }
         }
       }
       if (memberExpr.object.type === 'this') {
         const classNode = this.ctx.ast.classes[0];
         if (classNode) {
-          const fieldInfo = this.ctx.classGen?.getFieldInfo(classNode.name, memberExpr.property);
-          if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
+          const fieldType = this.ctx.classGen?.getFieldType(classNode.name, memberExpr.property);
+          if (fieldType === 'number[]' || fieldType === 'boolean[]') {
             return true;
           }
         }
@@ -142,10 +144,12 @@ export class TypeInference {
           }
         }
         if (this.ctx.symbolTable.isClass(varName)) {
-          const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
-          const fieldInfo = this.ctx.classGen?.getFieldInfo(classMeta.className, memberExpr.property);
-          if (fieldInfo && fieldInfo.type === 'string') {
-            return true;
+          const className = this.ctx.symbolTable.getClassName(varName);
+          if (className) {
+            const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
+            if (fieldType === 'string') {
+              return true;
+            }
           }
         }
         if (this.ctx.typeChecker && this.ctx.currentFunction && this.ctx.symbolTable.getAlloca(varName) !== undefined) {
@@ -158,8 +162,8 @@ export class TypeInference {
       if (memberExpr.object.type === 'this') {
         const className = this.ctx.currentClassName;
         if (className) {
-          const fieldInfo = this.ctx.classGen?.getFieldInfo(className, memberExpr.property);
-          if (fieldInfo && fieldInfo.type === 'string') {
+          const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
+          if (fieldType === 'string') {
             return true;
           }
         }
@@ -187,17 +191,19 @@ export class TypeInference {
         if (memberAccess.object.type === 'variable' && memberAccess.object.name === 'this') {
           const className = this.ctx.currentClassName;
           if (className) {
-            const fieldInfo = this.ctx.classGen?.getFieldInfo(className, memberAccess.property);
-            if (fieldInfo && fieldInfo.type === 'string[]') {
+            const fieldType = this.ctx.classGen?.getFieldType(className, memberAccess.property);
+            if (fieldType === 'string[]') {
               return true;
             }
           }
         }
         if (memberAccess.object.type === 'variable' && this.ctx.symbolTable.isClass(memberAccess.object.name)) {
-          const classMeta = this.ctx.symbolTable.getClassInfo(memberAccess.object.name)!;
-          const fieldInfo = this.ctx.classGen?.getFieldInfo(classMeta.className, memberAccess.property);
-          if (fieldInfo && fieldInfo.type === 'string[]') {
-            return true;
+          const className = this.ctx.symbolTable.getClassName(memberAccess.object.name);
+          if (className) {
+            const fieldType = this.ctx.classGen?.getFieldType(className, memberAccess.property);
+            if (fieldType === 'string[]') {
+              return true;
+            }
           }
         }
       }
@@ -237,12 +243,14 @@ export class TypeInference {
         return true;
       }
       if (methodExpr.object.type === 'variable' && this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)) {
-        const classMeta = this.ctx.symbolTable.getClassInfo((methodExpr.object as VariableNode).name)!;
-        const classNode = this.ctx.ast.classes.find((c: ClassNode) => c.name === classMeta.className);
-        if (classNode) {
-          const method = classNode.methods.find((m: ClassMethod) => m.name === methodExpr.method && !m.isConstructor);
-          if (method && method.returnType === 'string') {
-            return true;
+        const className = this.ctx.symbolTable.getClassName((methodExpr.object as VariableNode).name);
+        if (className) {
+          const classNode = this.ctx.ast.classes.find((c: ClassNode) => c.name === className);
+          if (classNode) {
+            const method = classNode.methods.find((m: ClassMethod) => m.name === methodExpr.method && !m.isConstructor);
+            if (method && method.returnType === 'string') {
+              return true;
+            }
           }
         }
       }
@@ -393,17 +401,19 @@ export class TypeInference {
         return true;
       }
       if (memberExpr.object.type === 'variable' && this.ctx.symbolTable.isClass(memberExpr.object.name)) {
-        const classMeta = this.ctx.symbolTable.getClassInfo(memberExpr.object.name)!;
-        const fieldInfo = this.ctx.classGen?.getFieldInfo(classMeta.className, memberExpr.property);
-        if (fieldInfo && fieldInfo.type === 'string[]') {
-          return true;
+        const className = this.ctx.symbolTable.getClassName(memberExpr.object.name);
+        if (className) {
+          const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
+          if (fieldType === 'string[]') {
+            return true;
+          }
         }
       }
       if (memberExpr.object.type === 'this') {
         const classNode = this.ctx.ast.classes[0];
         if (classNode) {
-          const fieldInfo = this.ctx.classGen?.getFieldInfo(classNode.name, memberExpr.property);
-          if (fieldInfo && fieldInfo.type === 'string[]') {
+          const fieldType = this.ctx.classGen?.getFieldType(classNode.name, memberExpr.property);
+          if (fieldType === 'string[]') {
             return true;
           }
         }
