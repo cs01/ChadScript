@@ -324,6 +324,13 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
       if (ctx.code[ctx.pos] === '<') {
         ctx.pos++;
         ctx.skipTypeAnnotation();
+        ctx.skipWhitespace();
+        while (ctx.code[ctx.pos] === ',') {
+          ctx.pos++;
+          ctx.skipWhitespace();
+          ctx.skipTypeAnnotation();
+          ctx.skipWhitespace();
+        }
         ctx.expect('>');
       }
       ctx.expect('(');
@@ -341,6 +348,13 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
     if (ctx.code[ctx.pos] === '<') {
       ctx.pos++;
       ctx.skipTypeAnnotation();
+      ctx.skipWhitespace();
+      while (ctx.code[ctx.pos] === ',') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+        ctx.skipTypeAnnotation();
+        ctx.skipWhitespace();
+      }
       ctx.expect('>');
     }
     ctx.expect('(');

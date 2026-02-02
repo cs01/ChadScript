@@ -1,7 +1,6 @@
 import { Expression, ClassNode, ClassMethod, ClassField, BlockStatement, VariableNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, CommonField } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind } from '../../infrastructure/symbol-table.js';
-import { logger } from '../../../utils/logger.js';
 
 // ============================================
 // CLASS GENERATOR - Class and instance operations
@@ -97,6 +96,33 @@ export class ClassGenerator {
     if (info) {
       const infoTyped = info as { index: number; type: string; tsType: string };
       return infoTyped.tsType || null;
+    }
+    return null;
+  }
+
+  getMethodInfo(className: string, methodName: string): { method: ClassMethod; ownerClass: string } | null {
+    let classNodeResult: ClassNode | null = null;
+    if (this.ctx.ast && this.ctx.ast.classes) {
+      for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+        const c = this.ctx.ast.classes[ci] as { name: string };
+        if (c.name === className) {
+          classNodeResult = this.ctx.ast.classes[ci] as ClassNode;
+          break;
+        }
+      }
+    }
+    if (!classNodeResult) {
+      return null;
+    }
+    const classNode = classNodeResult as ClassNode;
+    for (let mi = 0; mi < classNode.methods.length; mi++) {
+      const m = classNode.methods[mi] as { name: string; isConstructor: boolean };
+      if (m.name === methodName && !m.isConstructor) {
+        return { method: classNode.methods[mi] as ClassMethod, ownerClass: className };
+      }
+    }
+    if (classNode.extends) {
+      return this.getMethodInfo(classNode.extends as string, methodName);
     }
     return null;
   }
@@ -427,32 +453,13 @@ export class ClassGenerator {
   }
 
   generateMethodCall(instancePtr: string, className: string, methodName: string, args: Expression[], params: string[]): string {
-    let classNodeResult3: ClassNode | null = null;
-    if (this.ctx.ast && this.ctx.ast.classes) {
-      for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
-        const c = this.ctx.ast.classes[ci] as { name: string };
-        if (c.name === className) {
-          classNodeResult3 = this.ctx.ast.classes[ci] as ClassNode;
-          break;
-        }
-      }
-    }
-    const classNode3 = classNodeResult3 as ClassNode;
-    if (!classNodeResult3) {
-      throw new Error(`Class ${className} not found`);
-    }
-    let methodResult: ClassMethod | null = null;
-    for (let mi = 0; mi < classNode3.methods.length; mi++) {
-      const m = classNode3.methods[mi] as { name: string; isConstructor: boolean };
-      if (m.name === methodName && !m.isConstructor) {
-        methodResult = classNode3.methods[mi] as ClassMethod;
-        break;
-      }
-    }
-    const method = methodResult as ClassMethod;
-    if (!methodResult) {
+    const methodInfoResult = this.getMethodInfo(className, methodName);
+    if (!methodInfoResult) {
       throw new Error(`Method ${methodName} not found in class ${className}`);
     }
+    const methodInfo = methodInfoResult as { method: ClassMethod; ownerClass: string };
+    const method = methodInfo.method;
+    const methodOwnerClass = methodInfo.ownerClass;
 
     // Determine parameter types
     const paramTypes = (method as { paramTypes: string[] }).paramTypes || [];
@@ -523,11 +530,11 @@ export class ClassGenerator {
 
     if (returnLLVMType === 'void') {
       // Void methods don't return a value
-      this.emit(`call void @${className}_${methodName}(${thisType} ${instancePtr}${argList})`);
+      this.emit(`call void @${methodOwnerClass}_${methodName}(${thisType} ${instancePtr}${argList})`);
       return '0'; // Return dummy value for void calls
     } else {
       const result = this.nextTemp();
-      this.emit(`${result} = call ${returnLLVMType} @${className}_${methodName}(${thisType} ${instancePtr}${argList})`);
+      this.emit(`${result} = call ${returnLLVMType} @${methodOwnerClass}_${methodName}(${thisType} ${instancePtr}${argList})`);
       return result;
     }
   }

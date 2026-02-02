@@ -503,14 +503,15 @@ export class MemberAccessGenerator {
 
     if (!className || !instancePtr) return null;
 
-    const fieldInfo = this.ctx.classGen.getFieldInfo(className, expr.property);
+    const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, expr.property);
     const fields = this.ctx.classGen.getClassFields(className);
 
-    if (fieldInfo) {
+    if (fieldInfoResult) {
+      const fieldInfo = fieldInfoResult as { index: number; type: string };
       const fieldPtr = this.ctx.nextTemp();
       if (fields.length > 0) {
         this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${instancePtr}, i32 0, i32 ${fieldInfo.index}`);
-        return this.loadFieldValue(fieldPtr, fieldInfo);
+        return this.loadFieldValue(fieldPtr, fieldInfoResult);
       } else {
         this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 ${fieldInfo.index}`);
         const value = this.ctx.nextTemp();

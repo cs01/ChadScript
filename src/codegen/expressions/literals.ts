@@ -81,7 +81,7 @@ export class LiteralExpressionGenerator {
    * Converts integers to double via sitofp for consistency with JavaScript semantics
    */
   generateNumber(value: number): string {
-    const isInteger = Number.isInteger(value);
+    const isInteger = (Math.floor(value) === value);
 
     if (isInteger) {
       // Generate integer literals as registers that can be converted to i32 or double as needed
