@@ -48,6 +48,45 @@ export class TypeResolver {
     return null;
   }
 
+  private resolveMemberAccessArrayType(memberAccess: MemberAccessNode): string | null {
+    const objectType = this.resolveMemberAccessObjectType(memberAccess.object);
+    if (!objectType) return null;
+
+    const fieldProp = this.getInterfaceProperty(objectType, memberAccess.property);
+    if (!fieldProp) return null;
+
+    const arrayMatch = fieldProp.type.match(/^(.+)\[\]$/);
+    if (!arrayMatch) return null;
+
+    return arrayMatch[1];
+  }
+
+  private resolveMemberAccessObjectType(expr: Expression): string | null {
+    if (expr.type === 'this') {
+      return this.ctx.currentClassName || null;
+    }
+    if (expr.type === 'member_access') {
+      const member = expr as MemberAccessNode;
+      if (member.object.type === 'this') {
+        if (this.ctx.currentClassName && this.ctx.classGen) {
+          const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, member.property);
+          if (fieldInfo && 'tsType' in fieldInfo && fieldInfo.tsType) {
+            return fieldInfo.tsType as string;
+          }
+        }
+        return null;
+      }
+      const objectType = this.resolveMemberAccessObjectType(member.object);
+      if (objectType) {
+        const fieldProp = this.getInterfaceProperty(objectType, member.property);
+        if (fieldProp) {
+          return fieldProp.type;
+        }
+      }
+    }
+    return null;
+  }
+
   getTypeAlias(name: string): TypeAliasDeclaration | null {
     if (!this.ctx.ast?.typeAliases) return null;
     for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
@@ -362,6 +401,12 @@ export class TypeResolver {
       if (memberAccess.object.type === 'variable') {
         const varName = (memberAccess.object as VariableNode).name;
         objectMeta = this.ctx.symbolTable.getObjectInfo(varName);
+      } else if (memberAccess.object.type === 'member_access' || memberAccess.object.type === 'this') {
+        const arrayType = this.resolveMemberAccessArrayType(memberAccess);
+        if (arrayType) {
+          return this.getInterfaceMetadata(arrayType);
+        }
+        return null;
       }
 
       if (!objectMeta) return null;
