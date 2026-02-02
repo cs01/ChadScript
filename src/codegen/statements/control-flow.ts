@@ -1,6 +1,7 @@
 import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, TypeAliasDeclaration } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata, ObjectMetadata } from '../infrastructure/symbol-table.js';
+import type { TypeResolver } from '../infrastructure/type-resolver/index.js';
 
 // ============================================
 // CONTROL FLOW GENERATOR - If/while/loops
@@ -1143,6 +1144,10 @@ export class ControlFlowGenerator {
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[]; tsTypes: string[] } {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.getUnionCommonFields(memberNames);
+    }
+
     const interfaces = memberNames
       .map(name => this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
       .filter((i): i is InterfaceDeclaration => i !== undefined);
@@ -1171,6 +1176,10 @@ export class ControlFlowGenerator {
   }
 
   private areTypesCompatible(type1: string, type2: string): boolean {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.areTypesCompatible(type1, type2);
+    }
+
     if (type1 === type2) return true;
     const norm1 = this.normalizeType(type1);
     const norm2 = this.normalizeType(type2);
@@ -1178,6 +1187,10 @@ export class ControlFlowGenerator {
   }
 
   private normalizeType(type: string): string {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.normalizeType(type);
+    }
+
     if (type.startsWith("'") && type.endsWith("'")) return 'string';
     if (type.startsWith('"') && type.endsWith('"')) return 'string';
     return type;
@@ -1192,6 +1205,10 @@ export class ControlFlowGenerator {
   }
 
   private detectTypeGuard(condition: Expression): { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } } | null {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.detectTypeGuard(condition);
+    }
+
     if (condition.type !== 'binary') return null;
 
     const binary = condition as BinaryNode;
@@ -1237,6 +1254,10 @@ export class ControlFlowGenerator {
   }
 
   private findInterfaceByDiscriminant(discriminantValue: string): string | null {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.findInterfaceByDiscriminant(discriminantValue);
+    }
+
     if (!this.ctx.ast?.interfaces) return null;
 
     for (const iface of this.ctx.ast.interfaces) {
