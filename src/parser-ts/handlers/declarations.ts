@@ -106,9 +106,10 @@ export function transformClassDeclaration(
         methods.push(method);
       }
     } else if (ts.isConstructorDeclaration(member)) {
-      const method = transformConstructorDeclaration(member, checker);
-      if (method) {
-        methods.push(method);
+      const result = transformConstructorDeclaration(member, checker);
+      if (result) {
+        methods.push(result.method);
+        fields.push(...result.parameterProperties);
       }
     } else if (ts.isGetAccessorDeclaration(member)) {
       const method = transformAccessorDeclaration(member, checker, 'get');
@@ -194,7 +195,7 @@ function transformMethodDeclaration(
 function transformConstructorDeclaration(
   node: ts.ConstructorDeclaration,
   checker: ts.TypeChecker | undefined
-): ClassMethod | null {
+): { method: ClassMethod; parameterProperties: ClassField[] } | null {
   const params = node.parameters.map(p => ts.isIdentifier(p.name) ? p.name.text : '');
 
   const paramTypes = node.parameters.map(p => {
@@ -204,18 +205,49 @@ function transformConstructorDeclaration(
     return 'any';
   });
 
+  const parameterProperties: ClassField[] = [];
+  for (const param of node.parameters) {
+    const hasAccessModifier = param.modifiers?.some(m =>
+      m.kind === ts.SyntaxKind.PrivateKeyword ||
+      m.kind === ts.SyntaxKind.PublicKeyword ||
+      m.kind === ts.SyntaxKind.ProtectedKeyword ||
+      m.kind === ts.SyntaxKind.ReadonlyKeyword
+    );
+    if (hasAccessModifier && ts.isIdentifier(param.name)) {
+      const name = param.name.text;
+      let fieldType: ClassField['fieldType'] = 'double';
+      let tsType: string | undefined;
+      if (param.type) {
+        const typeStr = extractTypeString(param.type);
+        if (typeStr === 'string') fieldType = 'string';
+        else if (typeStr === 'number') fieldType = 'double';
+        else if (typeStr === 'boolean') fieldType = 'boolean';
+        else if (typeStr === 'string[]') fieldType = 'string[]';
+        else if (typeStr === 'number[]') fieldType = 'number[]';
+        else if (typeStr === 'boolean[]') fieldType = 'boolean[]';
+        else {
+          tsType = typeStr;
+        }
+      }
+      parameterProperties.push({ name, fieldType, tsType });
+    }
+  }
+
   const body: BlockStatement = node.body
     ? transformBlock(node.body, checker)
     : { type: 'block', statements: [] };
 
   return {
-    type: 'method',
-    name: 'constructor',
-    params,
-    paramTypes,
-    returnType: undefined,
-    body,
-    isConstructor: true,
+    method: {
+      type: 'method',
+      name: 'constructor',
+      params,
+      paramTypes,
+      returnType: undefined,
+      body,
+      isConstructor: true,
+    },
+    parameterProperties,
   };
 }
 
