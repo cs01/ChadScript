@@ -1043,13 +1043,17 @@ export class MethodCallGenerator {
       if (interfaceDecl) {
         const field = interfaceDecl.fields.find(f => f.name === memberAccess.property);
         if (field) {
-          const fieldClassExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === field.type);
-          if (fieldClassExists) {
-            return field.type;
+          let fieldType = field.type;
+          if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
+            fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
           }
-          const fieldInterfaceExists = this.ctx.ast.interfaces.some(i => i.name === field.type);
+          const fieldClassExists = this.ctx.ast.classes.some((c: ClassNode) => c.name === fieldType);
+          if (fieldClassExists) {
+            return fieldType;
+          }
+          const fieldInterfaceExists = this.ctx.ast.interfaces.some(i => i.name === fieldType);
           if (fieldInterfaceExists) {
-            return field.type;
+            return fieldType;
           }
         }
         return null;
