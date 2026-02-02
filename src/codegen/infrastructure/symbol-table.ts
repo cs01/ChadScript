@@ -525,6 +525,20 @@ export class SymbolTable {
   }
 
   /**
+   * Get the LLVM type of a property on an object variable (for ChadScript compatibility)
+   */
+  getObjectPropertyType(varName: string, propertyName: string): string | null {
+    const symbol = this.symbols.get(varName);
+    if ((symbol?.kind === SymbolKind.Object || symbol?.kind === SymbolKind.JSON) && symbol.objectMetadata) {
+      const idx = symbol.objectMetadata.keys.indexOf(propertyName);
+      if (idx >= 0) {
+        return symbol.objectMetadata.types[idx];
+      }
+    }
+    return null;
+  }
+
+  /**
    * Get class instance info (legacy classInstanceVariables.get())
    */
   getClassInfo(name: string): ClassInfo | undefined {
