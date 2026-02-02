@@ -177,7 +177,7 @@ export class AssignmentGenerator {
   }
 
   private storeFieldValue(
-    fieldInfo: { index: number; type: string; tsType?: string },
+    fieldInfo: FieldInfo,
     fieldPtr: string,
     value: string,
     memberAccessValue: MemberAccessAssignmentNode

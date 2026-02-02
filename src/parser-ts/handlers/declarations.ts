@@ -150,6 +150,11 @@ function transformPropertyDeclaration(node: ts.PropertyDeclaration): ClassField 
     else {
       tsType = typeStr;
     }
+  } else if (node.initializer && ts.isNewExpression(node.initializer)) {
+    const newExpr = node.initializer;
+    if (newExpr.expression && ts.isIdentifier(newExpr.expression)) {
+      tsType = newExpr.expression.text;
+    }
   }
 
   return { name, fieldType, tsType };
