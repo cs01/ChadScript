@@ -32,6 +32,20 @@ type VariableMetadata = {
   interfaceType?: string;
 };
 
+interface ObjectMetadataResult {
+  keys: string[];
+  types: string[];
+}
+
+interface MapTypeInfo {
+  keyType: string;
+  valueType: string;
+}
+
+interface SetTypeInfo {
+  valueType: string;
+}
+
 export interface VariableAllocatorContext {
   nextTemp(): string;
   emit(instruction: string): void;
@@ -413,7 +427,8 @@ export class VariableAllocator {
       keys = interfaceDef.fields.map((f) => f.name);
       types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
     } else {
-      const metadata = this.ctx.getObjectMetadata(stmt.value as ObjectNode);
+      const metadataResult = this.ctx.getObjectMetadata(stmt.value as ObjectNode);
+      const metadata = metadataResult as ObjectMetadataResult;
       keys = metadata.keys;
       types = metadata.types;
     }
@@ -432,23 +447,26 @@ export class VariableAllocator {
   }
 
   private allocateMap(stmt: VariableDeclaration, params: string[]): void {
-    const mapTypeInfo = this.parseMapType(stmt.declaredType);
+    const mapTypeInfoResult = this.parseMapType(stmt.declaredType);
 
-    if (mapTypeInfo && mapTypeInfo.keyType === 'string') {
-      this.allocateStringMap(stmt, params, mapTypeInfo);
-    } else {
-      const allocaReg = this.ctx.nextTemp();
-      this.ctx.defineVariable(stmt.name, allocaReg, '%Map*', SymbolKind.Map, 'local');
-      this.ctx.emit(`${allocaReg} = alloca %Map`);
-
-      const value = this.ctx.generateExpression(stmt.value!, params);
-      const loadedMap = this.ctx.nextTemp();
-      this.ctx.emit(`${loadedMap} = load %Map, %Map* ${value}`);
-      this.ctx.emit(`store %Map ${loadedMap}, %Map* ${allocaReg}`);
+    if (mapTypeInfoResult) {
+      const mapTypeInfo = mapTypeInfoResult as MapTypeInfo;
+      if (mapTypeInfo.keyType === 'string') {
+        this.allocateStringMap(stmt, params, mapTypeInfo);
+        return;
+      }
     }
+    const allocaReg = this.ctx.nextTemp();
+    this.ctx.defineVariable(stmt.name, allocaReg, '%Map*', SymbolKind.Map, 'local');
+    this.ctx.emit(`${allocaReg} = alloca %Map`);
+
+    const value = this.ctx.generateExpression(stmt.value!, params);
+    const loadedMap = this.ctx.nextTemp();
+    this.ctx.emit(`${loadedMap} = load %Map, %Map* ${value}`);
+    this.ctx.emit(`store %Map ${loadedMap}, %Map* ${allocaReg}`);
   }
 
-  private allocateStringMap(stmt: VariableDeclaration, params: string[], mapTypeInfo: { keyType: string; valueType: string }): void {
+  private allocateStringMap(stmt: VariableDeclaration, params: string[], mapTypeInfo: MapTypeInfo): void {
     const allocaReg = this.ctx.nextTemp();
     const llvmValueType = this.tsTypeToLlvm(mapTypeInfo.valueType);
 
@@ -471,7 +489,7 @@ export class VariableAllocator {
     this.ctx.emit(`store %StringMap ${loadedMap}, %StringMap* ${allocaReg}`);
   }
 
-  private parseMapType(declaredType: string | undefined): { keyType: string; valueType: string } | null {
+  private parseMapType(declaredType: string | undefined): MapTypeInfo | null {
     if (!declaredType) return null;
 
     const match = declaredType.match(/^Map<\s*(\w+)\s*,\s*(\w+)\s*>$/);
@@ -483,7 +501,7 @@ export class VariableAllocator {
     };
   }
 
-  private parseSetType(declaredType: string | undefined): { valueType: string } | null {
+  private parseSetType(declaredType: string | undefined): SetTypeInfo | null {
     if (!declaredType) return null;
 
     const match = declaredType.match(/^Set<\s*(\w+)\s*>$/);
@@ -495,23 +513,26 @@ export class VariableAllocator {
   }
 
   private allocateSet(stmt: VariableDeclaration, params: string[]): void {
-    const setTypeInfo = this.parseSetType(stmt.declaredType);
+    const setTypeInfoResult = this.parseSetType(stmt.declaredType);
 
-    if (setTypeInfo && setTypeInfo.valueType === 'string') {
-      this.allocateStringSet(stmt, params, setTypeInfo);
-    } else {
-      const allocaReg = this.ctx.nextTemp();
-      this.ctx.defineVariable(stmt.name, allocaReg, '%Set*', SymbolKind.Set, 'local');
-      this.ctx.emit(`${allocaReg} = alloca %Set`);
-
-      const value = this.ctx.generateExpression(stmt.value!, params);
-      const loadedSet = this.ctx.nextTemp();
-      this.ctx.emit(`${loadedSet} = load %Set, %Set* ${value}`);
-      this.ctx.emit(`store %Set ${loadedSet}, %Set* ${allocaReg}`);
+    if (setTypeInfoResult) {
+      const setTypeInfo = setTypeInfoResult as SetTypeInfo;
+      if (setTypeInfo.valueType === 'string') {
+        this.allocateStringSet(stmt, params, setTypeInfo);
+        return;
+      }
     }
+    const allocaReg = this.ctx.nextTemp();
+    this.ctx.defineVariable(stmt.name, allocaReg, '%Set*', SymbolKind.Set, 'local');
+    this.ctx.emit(`${allocaReg} = alloca %Set`);
+
+    const value = this.ctx.generateExpression(stmt.value!, params);
+    const loadedSet = this.ctx.nextTemp();
+    this.ctx.emit(`${loadedSet} = load %Set, %Set* ${value}`);
+    this.ctx.emit(`store %Set ${loadedSet}, %Set* ${allocaReg}`);
   }
 
-  private allocateStringSet(stmt: VariableDeclaration, params: string[], setTypeInfo: { valueType: string }): void {
+  private allocateStringSet(stmt: VariableDeclaration, params: string[], setTypeInfo: SetTypeInfo): void {
     const allocaReg = this.ctx.nextTemp();
     const llvmValueType = this.tsTypeToLlvm(setTypeInfo.valueType);
 
