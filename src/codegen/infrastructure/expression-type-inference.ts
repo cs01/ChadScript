@@ -117,8 +117,19 @@ function inferArrayType(expr: ArrayNode, ctx: ExpressionTypeContext): ResolvedTy
 }
 
 function inferVariableType(expr: VariableNode, ctx: ExpressionTypeContext): ResolvedType | undefined {
+  // Use TypeResolver.getCompleteType() as the single source of truth for variable types
+  if (ctx.typeResolver) {
+    const resolved = ctx.typeResolver.getCompleteType(expr.name);
+    if (resolved) return resolved;
+  }
+
+  // Fallback for when TypeResolver is not available
   const symbol = ctx.symbolTable.lookup(expr.name);
   if (!symbol) return undefined;
+
+  if (symbol.resolvedType) {
+    return symbol.resolvedType;
+  }
 
   if (symbol.interfaceType) {
     return parseTypeString(symbol.interfaceType);

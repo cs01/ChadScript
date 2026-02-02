@@ -1,7 +1,8 @@
 import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode, CommonField, FunctionParameter, MethodCallNode, StringNode } from '../../../ast/types.js';
-import { SymbolTable, ObjectMetadata } from '../symbol-table.js';
+import { SymbolTable, ObjectMetadata, SymbolKind } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo, ClassGeneratorLike } from './types.js';
+import { ResolvedType, createResolvedType, parseTypeString } from '../type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -24,6 +25,86 @@ export class TypeResolver {
     this.interfaceCache.clear();
     this.classCache.clear();
   }
+
+  getCompleteType(name: string): ResolvedType | null {
+    // Check if we have a cached resolved type
+    const cached = this.ctx.symbolTable.getResolvedType(name);
+    if (cached) return cached;
+
+    const symbol = this.ctx.symbolTable.lookup(name);
+    if (!symbol) return null;
+
+    let resolved: ResolvedType | null = null;
+
+    if (symbol.interfaceType) {
+      resolved = parseTypeString(symbol.interfaceType);
+    } else if (symbol.mapMetadata) {
+      const keyType = parseTypeString(symbol.mapMetadata.keyType);
+      const valueType = parseTypeString(symbol.mapMetadata.valueType);
+      resolved = createResolvedType('Map', {}, 0, [keyType, valueType]);
+    } else if (symbol.setMetadata) {
+      const valueType = parseTypeString(symbol.setMetadata.valueType);
+      resolved = createResolvedType('Set', {}, 0, [valueType]);
+    } else if (symbol.objectArrayMetadata) {
+      resolved = createResolvedType(symbol.objectArrayMetadata.elementInterfaceName, {}, 1);
+    } else if (symbol.arrayMetadata) {
+      resolved = createResolvedType(symbol.arrayMetadata.elementType, {}, 1);
+    } else if (symbol.kind === SymbolKind.StringArray) {
+      resolved = createResolvedType('string', {}, 1);
+    } else if (symbol.kind === SymbolKind.BooleanArray) {
+      resolved = createResolvedType('boolean', {}, 1);
+    } else if (symbol.classMetadata) {
+      resolved = createResolvedType(symbol.classMetadata.className);
+    } else {
+      switch (symbol.llvmType) {
+        case 'double':
+          resolved = createResolvedType('number');
+          break;
+        case 'i8*':
+          resolved = createResolvedType('string');
+          break;
+        case 'i1':
+          resolved = createResolvedType('boolean');
+          break;
+        case '%Array*':
+          resolved = createResolvedType('number', {}, 1);
+          break;
+        case '%StringArray*':
+          resolved = createResolvedType('string', {}, 1);
+          break;
+        case '%Map*':
+          resolved = createResolvedType('Map');
+          break;
+        case '%StringMap*':
+          resolved = createResolvedType('Map', {}, 0, [createResolvedType('string'), createResolvedType('unknown')]);
+          break;
+        case '%Set*':
+          resolved = createResolvedType('Set');
+          break;
+        case '%StringSet*':
+          resolved = createResolvedType('Set', {}, 0, [createResolvedType('string')]);
+          break;
+        default:
+          if (symbol.llvmType.startsWith('%') && symbol.llvmType.endsWith('*')) {
+            const typeName = symbol.llvmType.slice(1, -1);
+            if (typeName.endsWith('_struct')) {
+              resolved = createResolvedType(typeName.slice(0, -7));
+            } else {
+              resolved = createResolvedType(typeName);
+            }
+          }
+          break;
+      }
+    }
+
+    // Cache the resolved type for future lookups
+    if (resolved) {
+      this.ctx.symbolTable.setResolvedType(name, resolved);
+    }
+
+    return resolved;
+  }
+
 
   private stripOptional(name: string): string {
     if (name.endsWith('?')) {
