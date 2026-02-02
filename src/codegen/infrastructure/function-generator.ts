@@ -1,4 +1,4 @@
-import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, InterfaceDeclaration, TypeAliasDeclaration, TopLevelItem, AssignmentStatement, CallNode, NewNode, MethodCallNode } from '../../ast/types.js';
+import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, TopLevelItem, AssignmentStatement, CallNode, NewNode, MethodCallNode } from '../../ast/types.js';
 import { SymbolKind, SymbolTable } from './symbol-table.js';
 import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
@@ -322,7 +322,8 @@ export class FunctionGenerator {
     const firstFields = firstInterface.fields;
     const commonFields: { name: string; type: string }[] = [];
 
-    for (const field of firstFields) {
+    for (let fi = 0; fi < firstFields.length; fi++) {
+      const field = firstFields[fi] as InterfaceField;
       const isCommon = interfaces.every((iface) =>
         iface.fields.some((f) => f.name === field.name && this.areTypesCompatible(f.type, field.type))
       );

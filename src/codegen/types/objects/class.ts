@@ -1,4 +1,4 @@
-import { Expression, ClassNode, ClassMethod, BlockStatement, VariableNode, InterfaceDeclaration, TypeAliasDeclaration } from '../../../ast/types.js';
+import { Expression, ClassNode, ClassMethod, BlockStatement, VariableNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind } from '../../infrastructure/symbol-table.js';
 import { logger } from '../../../utils/logger.js';
@@ -512,7 +512,8 @@ export class ClassGenerator {
     const firstFields = firstInterface.fields;
     const commonFields: { name: string; type: string }[] = [];
 
-    for (const field of firstFields) {
+    for (let fi = 0; fi < firstFields.length; fi++) {
+      const field = firstFields[fi] as InterfaceField;
       const isCommon = interfaces.every((iface) =>
         iface.fields.some((f) => f.name === field.name && this.areTypesCompatible(f.type, field.type))
       );

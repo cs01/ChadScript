@@ -171,7 +171,8 @@ export class TypeResolver {
     const firstFields = firstInterface.fields;
     const commonFields: { name: string; type: string }[] = [];
 
-    for (const field of firstFields) {
+    for (let fi = 0; fi < firstFields.length; fi++) {
+      const field = firstFields[fi] as InterfaceField;
       const isCommon = interfaces.every(iface =>
         iface.fields.some(f => f.name === field.name && this.areTypesCompatible(f.type, field.type))
       );

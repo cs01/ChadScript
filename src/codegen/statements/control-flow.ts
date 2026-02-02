@@ -1,7 +1,7 @@
 import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, TypeAliasDeclaration, ForOfStatement, MethodCallNode, InterfaceField } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata, ObjectMetadata } from '../infrastructure/symbol-table.js';
-import type { TypeResolver } from '../infrastructure/type-resolver/index.js';
+import type { TypeResolver, UnionCommonFields } from '../infrastructure/type-resolver/index.js';
 
 interface FieldInfo {
   index: number;
@@ -500,7 +500,7 @@ export class ControlFlowGenerator {
     const typeAlias = typeAliasResult as TypeAliasDeclaration;
     if (typeAliasResult && typeAlias.unionMembers) {
       const commonFieldsResult = this.getUnionCommonFields(typeAlias.unionMembers);
-      const commonFields = commonFieldsResult as { keys: string[]; types: string[]; tsTypes: string[] };
+      const commonFields = commonFieldsResult as UnionCommonFields;
       if (commonFields.keys.length > 0) {
         return {
           elementInterfaceName: elementInterface,
@@ -1127,7 +1127,8 @@ export class ControlFlowGenerator {
     const firstFields = firstInterface.fields;
     const commonFields: { name: string; type: string }[] = [];
 
-    for (const field of firstFields) {
+    for (let fi = 0; fi < firstFields.length; fi++) {
+      const field = firstFields[fi] as InterfaceField;
       const isCommon = interfaces.every((iface) =>
         iface.fields.some((f) => f.name === field.name && this.areTypesCompatible(f.type, field.type))
       );
