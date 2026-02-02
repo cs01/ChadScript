@@ -152,7 +152,15 @@ export class ResponseGenerator {
     }
 
     const structDef = `%${typeName} = type { ${fieldTypes.join(', ')} }\n`;
-    this.ctx.globalStrings.unshift(structDef);  // Add to beginning of global strings
+    // Manual unshift: add structDef at the beginning of globalStrings
+    const newGlobalStrings: string[] = [structDef];
+    for (let i = 0; i < this.ctx.globalStrings.length; i++) {
+      newGlobalStrings.push(this.ctx.globalStrings[i]);
+    }
+    this.ctx.globalStrings.length = 0;
+    for (let i = 0; i < newGlobalStrings.length; i++) {
+      this.ctx.globalStrings.push(newGlobalStrings[i]);
+    }
   }
 
   /**

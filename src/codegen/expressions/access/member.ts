@@ -1592,13 +1592,27 @@ export class MemberAccessGenerator {
 
     if (assertedType.startsWith('{')) {
       const inlineFields = this.parseInlineObjectTypeForAssertion(assertedType);
-      if (!inlineFields) return null;
+      if (!inlineFields) {
+        const syntheticExpr: MemberAccessNode = {
+          type: 'member_access',
+          object: assertion.expression,
+          property: property
+        };
+        return this.generate(syntheticExpr, params, generateExpressionFn);
+      }
       fields = inlineFields;
     } else {
       const interfaceDefResult = this.ctx.ast?.interfaces?.find(
         (iface: InterfaceDeclaration) => iface.name === assertedType
       );
-      if (!interfaceDefResult) return null;
+      if (!interfaceDefResult) {
+        const syntheticExpr: MemberAccessNode = {
+          type: 'member_access',
+          object: assertion.expression,
+          property: property
+        };
+        return this.generate(syntheticExpr, params, generateExpressionFn);
+      }
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       fields = interfaceDef.fields;
     }

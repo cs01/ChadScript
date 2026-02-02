@@ -106,6 +106,9 @@ export class LLVMGenerator extends BaseGenerator {
   // Interface struct generator
   public interfaceStructGen: InterfaceStructGenerator;
 
+  // Cache for interface struct defs (used at end of generate())
+  private interfaceStructDefsCache: string = '';
+
   // Helper: Format nice compiler errors
   private formatCodegenError(message: string, suggestion?: string): string {
     let error = `\x1b[31m\x1b[1merror:\x1b[0m ${message}\n`;
@@ -326,9 +329,7 @@ export class LLVMGenerator extends BaseGenerator {
     ir += getLLVMDeclarations();
 
     const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
-    if (interfaceStructDefs) {
-      this.globalStrings.unshift(interfaceStructDefs);
-    }
+    this.interfaceStructDefsCache = interfaceStructDefs;
 
     ir += this.runtimeGen.generateFetchRuntime();
     ir += '\n';
@@ -446,6 +447,11 @@ export class LLVMGenerator extends BaseGenerator {
     // Add global string constants at the beginning
     if (this.globalStrings.length > 0) {
       ir = this.globalStrings.join('\n') + '\n\n' + ir;
+    }
+
+    // Add interface struct defs at the very beginning
+    if (this.interfaceStructDefsCache) {
+      ir = this.interfaceStructDefsCache + '\n' + ir;
     }
 
     return ir;
