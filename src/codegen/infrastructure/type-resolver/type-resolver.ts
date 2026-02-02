@@ -297,4 +297,71 @@ export class TypeResolver {
 
     return { fieldName, valueType: setMatch[1] };
   }
+
+  resolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null {
+    if (expr?.type !== 'method_call') return null;
+
+    const methodCall = expr as { object: Expression; method: string; args: Expression[] };
+    const method = methodCall.method;
+
+    if (method !== 'find') return null;
+
+    const arrayExpr = methodCall.object;
+
+    if (arrayExpr.type === 'member_access') {
+      const memberAccess = arrayExpr as MemberAccessNode;
+      const propertyName = memberAccess.property;
+
+      let objectMeta: ObjectMetadata | undefined;
+
+      if (memberAccess.object.type === 'variable') {
+        const varName = (memberAccess.object as VariableNode).name;
+        objectMeta = this.ctx.symbolTable.getObjectInfo(varName);
+      }
+
+      if (!objectMeta) return null;
+
+      const propIndex = objectMeta.keys.indexOf(propertyName);
+      if (propIndex === -1) return null;
+
+      const propTsType = objectMeta.tsTypes?.[propIndex];
+      if (!propTsType) return null;
+
+      const arrayMatch = propTsType.match(/^(.+)\[\]$/);
+      if (!arrayMatch) return null;
+
+      const elementType = arrayMatch[1];
+      return this.getInterfaceMetadata(elementType);
+    }
+
+    if (arrayExpr.type === 'variable') {
+      const varName = (arrayExpr as VariableNode).name;
+      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
+      if (objArrayMeta) {
+        return {
+          keys: objArrayMeta.elementKeys,
+          types: objArrayMeta.elementTypes,
+          tsTypes: objArrayMeta.elementTsTypes
+        };
+      }
+
+      if (this.ctx.typeChecker && this.ctx.currentFunction) {
+        const arrayInfo = this.ctx.typeChecker.getVariableArrayElementInterface(varName, this.ctx.currentFunction);
+        if (arrayInfo && arrayInfo.properties.length > 0) {
+          const keys: string[] = [];
+          const types: string[] = [];
+          const tsTypes: string[] = [];
+          for (let i = 0; i < arrayInfo.properties.length; i++) {
+            const prop = arrayInfo.properties[i];
+            keys.push(prop.name);
+            tsTypes.push(prop.type);
+            types.push(this.tsTypeToLlvm(prop.type));
+          }
+          return { keys, types, tsTypes };
+        }
+      }
+    }
+
+    return null;
+  }
 }
