@@ -277,11 +277,20 @@ function transformForStatement(node: ts.ForStatement, checker: ts.TypeChecker | 
 function transformForOfStatement(node: ts.ForOfStatement, checker: ts.TypeChecker | undefined): ForOfStatement {
   let variableName = '';
   let variableKind: 'let' | 'const' | 'var' = 'const';
+  let destructuredNames: string[] | undefined;
 
   if (ts.isVariableDeclarationList(node.initializer)) {
     const decl = node.initializer.declarations[0];
     if (ts.isIdentifier(decl.name)) {
       variableName = decl.name.text;
+    } else if (ts.isArrayBindingPattern(decl.name)) {
+      destructuredNames = [];
+      for (const element of decl.name.elements) {
+        if (ts.isBindingElement(element) && ts.isIdentifier(element.name)) {
+          destructuredNames.push(element.name.text);
+        }
+      }
+      variableName = destructuredNames[0] || '';
     }
     variableKind = (node.initializer.flags & ts.NodeFlags.Const) ? 'const' : 'let';
   }
@@ -289,7 +298,7 @@ function transformForOfStatement(node: ts.ForOfStatement, checker: ts.TypeChecke
   const iterable = transformExpression(node.expression, checker);
   const body = wrapInBlock(node.statement, checker);
 
-  return { type: 'for_of', variableKind, variableName, iterable, body };
+  return { type: 'for_of', variableKind, variableName, destructuredNames, iterable, body };
 }
 
 function transformForInStatement(node: ts.ForInStatement, checker: ts.TypeChecker | undefined): ForOfStatement {

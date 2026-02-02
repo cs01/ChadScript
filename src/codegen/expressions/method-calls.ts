@@ -1003,7 +1003,10 @@ export class MethodCallGenerator {
     if (expr.object.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
       if (this.ctx.symbolTable.isObject(varName)) {
-        const objMeta = this.ctx.symbolTable.getObjectInfo(varName)!;
+        const objMeta = this.ctx.symbolTable.getObjectInfo(varName);
+        if (!objMeta) {
+          return null;
+        }
         isObjectMethod = objMeta.keys.includes(method);
       }
     } else if (expr.object.type === 'object') {
