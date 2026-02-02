@@ -33,6 +33,7 @@ import {
   FunctionNode,
   MemberAccessNode,
   InterfaceDeclaration,
+  RegexNode,
 } from '../../ast/types.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
@@ -92,6 +93,8 @@ interface StringGeneratorLike {
 
 interface RegexGeneratorLike {
   generateRegexTest(regexPtr: string, testStr: string): string;
+  generateRegexCompile(pattern: string, flags: string): string;
+  generateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string;
 }
 
 interface ResponseGeneratorLike {
@@ -461,6 +464,9 @@ export class MethodCallGenerator {
     }
     if (method === 'charAt') {
       return this.handleCharAt(expr, params);
+    }
+    if (method === 'match') {
+      return this.handleMatch(expr, params);
     }
 
     // Handle Map methods
@@ -917,6 +923,31 @@ export class MethodCallGenerator {
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(indexI32 + ' = fptosi double ' + indexDouble + ' to i32');
     return this.ctx.stringGen.generateCharAt(strPtr, indexI32);
+  }
+
+  private handleMatch(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+    const strPtr = this.ctx.generateExpression(expr.object, params);
+
+    if (expr.args.length !== 1) {
+      throw new Error('match() expects 1 argument (a regex), got ' + expr.args.length);
+    }
+
+    const regexArg = expr.args[0];
+    if (regexArg.type !== 'regex') {
+      throw new Error('match() expects a regex literal argument');
+    }
+
+    const regexNode = regexArg as RegexNode;
+    const pattern = regexNode.pattern;
+    const flags = regexNode.flags || '';
+
+    const numGroups = (pattern.match(/\(/g) || []).length;
+
+    const regexPtr = this.ctx.regexGen.generateRegexCompile(pattern, flags);
+    const result = this.ctx.regexGen.generateRegexMatch(regexPtr, strPtr, numGroups);
+
+    return result;
   }
 
   private handleClassMethods(expr: MethodCallNode, params: string[]): string | null {
