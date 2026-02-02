@@ -151,15 +151,17 @@ export class TypeResolver {
   }
 
   getUnionCommonFields(memberNames: string[]): UnionCommonFields {
-    const interfaces = memberNames
+    const interfacesRaw = memberNames
       .map(name => this.getInterface(name))
       .filter((i): i is InterfaceDeclaration => i !== null);
+    const interfaces = interfacesRaw as InterfaceDeclaration[];
 
     if (interfaces.length === 0) {
       return { keys: [], types: [], tsTypes: [] };
     }
 
-    const firstFields = interfaces[0].fields;
+    const firstInterface = interfaces[0] as InterfaceDeclaration;
+    const firstFields = firstInterface.fields;
     const commonFields: { name: string; type: string }[] = [];
 
     for (const field of firstFields) {

@@ -32,9 +32,10 @@ export class ClassGenerator {
     let fields = this.classFields.get(className);
 
     if (!fields) {
-      const classNode = this.ast?.classes?.find((c: ClassNode) => c.name === className);
-      if (classNode?.fields) {
-        fields = classNode.fields;
+      const classNodeResult = this.ast?.classes?.find((c: ClassNode) => c.name === className);
+      const classNodeInner = classNodeResult as ClassNode;
+      if (classNodeResult) {
+        fields = classNodeInner.fields;
       }
     }
 
@@ -45,9 +46,10 @@ export class ClassGenerator {
       }
     }
 
-    const classNode = this.ast?.classes?.find((c: ClassNode) => c.name === className);
-    if (classNode?.extends) {
-      return this.getFieldInfo(classNode.extends, fieldName);
+    const classNodeResult2 = this.ast?.classes?.find((c: ClassNode) => c.name === className);
+    const classNodeOuter = classNodeResult2 as ClassNode;
+    if (classNodeResult2 && classNodeOuter.extends) {
+      return this.getFieldInfo(classNodeOuter.extends as string, fieldName);
     }
 
     return null;
@@ -94,11 +96,12 @@ export class ClassGenerator {
       ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
     }
 
-    const constructor = classNode.methods.find(m => m.isConstructor);
+    const constructorResult = classNode.methods.find(m => m.isConstructor);
+    const constructor = constructorResult as ClassMethod;
     const regularMethods = classNode.methods.filter(m => !m.isConstructor);
 
     // Generate constructor function (returns pointer to struct)
-    if (constructor) {
+    if (constructorResult) {
       // Clear output by removing all elements (preserving reference)
       this.output.length = 0;
       ir += this.generateConstructor(className, constructor, classNode.fields);
@@ -319,12 +322,14 @@ export class ClassGenerator {
   }
 
   generateNewExpression(className: string, args: Expression[], params: string[]): string {
-    const classNode = this.ast?.classes.find((c: ClassNode) => c.name === className);
-    if (!classNode) {
+    const classNodeResult = this.ast?.classes.find((c: ClassNode) => c.name === className);
+    const classNode = classNodeResult as ClassNode;
+    if (!classNodeResult) {
       throw new Error(`Class ${className} not found`);
     }
-    const constructor = classNode.methods.find((m: ClassMethod) => m.isConstructor);
-    const paramTypes = constructor?.paramTypes || [];
+    const constructorResult2 = classNode.methods.find((m: ClassMethod) => m.isConstructor);
+    const constructor2 = constructorResult2 as ClassMethod;
+    const paramTypes = constructor2?.paramTypes || [];
     const paramLLVMTypes: string[] = paramTypes.map((pType: string) => {
       if (pType === 'string') return 'i8*';
       if (pType === 'string[]') return '%StringArray*';
@@ -349,12 +354,14 @@ export class ClassGenerator {
   }
 
   generateMethodCall(instancePtr: string, className: string, methodName: string, args: Expression[], params: string[]): string {
-    const classNode = this.ast?.classes.find((c: ClassNode) => c.name === className);
-    if (!classNode) {
+    const classNodeResult3 = this.ast?.classes.find((c: ClassNode) => c.name === className);
+    const classNode3 = classNodeResult3 as ClassNode;
+    if (!classNodeResult3) {
       throw new Error(`Class ${className} not found`);
     }
-    const method = classNode.methods.find((m: ClassMethod) => m.name === methodName && !m.isConstructor);
-    if (!method) {
+    const methodResult = classNode3.methods.find((m: ClassMethod) => m.name === methodName && !m.isConstructor);
+    const method = methodResult as ClassMethod;
+    if (!methodResult) {
       throw new Error(`Method ${methodName} not found in class ${className}`);
     }
 
@@ -470,8 +477,9 @@ export class ClassGenerator {
       return;
     }
 
-    const typeAlias = this.ctx.ast?.typeAliases?.find((t: TypeAliasDeclaration) => t.name === tsType);
-    if (typeAlias && typeAlias.unionMembers) {
+    const typeAliasResult = this.ctx.ast?.typeAliases?.find((t: TypeAliasDeclaration) => t.name === tsType);
+    const typeAlias = typeAliasResult as TypeAliasDeclaration;
+    if (typeAliasResult && typeAlias.unionMembers) {
       const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
       this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
         objectMetadata: commonFields
@@ -491,15 +499,17 @@ export class ClassGenerator {
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
-    const interfaces = memberNames
+    const interfacesRaw = memberNames
       .map(name => this.ctx.ast?.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
       .filter((i): i is InterfaceDeclaration => i !== undefined);
+    const interfaces = interfacesRaw as InterfaceDeclaration[];
 
     if (interfaces.length === 0) {
       return { keys: [], types: [] };
     }
 
-    const firstFields = interfaces[0].fields;
+    const firstInterface = interfaces[0] as InterfaceDeclaration;
+    const firstFields = firstInterface.fields;
     const commonFields: { name: string; type: string }[] = [];
 
     for (const field of firstFields) {

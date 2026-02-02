@@ -152,7 +152,8 @@ export class FunctionGenerator {
           this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
         } else {
           const interfaceDefResult = this.ctx.ast.interfaces?.find((iface: InterfaceDeclaration) => iface.name === paramTypes[i]);
-          const typeAlias = this.ctx.ast.typeAliases?.find((t: TypeAliasDeclaration) => t.name === paramTypes[i]);
+          const typeAliasResult = this.ctx.ast.typeAliases?.find((t: TypeAliasDeclaration) => t.name === paramTypes[i]);
+          const typeAlias = typeAliasResult as TypeAliasDeclaration;
           if (interfaceDefResult) {
             const interfaceDef = interfaceDefResult as InterfaceDeclaration;
             const keys = interfaceDef.fields.map((f) => f.name);
@@ -161,7 +162,7 @@ export class FunctionGenerator {
               objectMetadata: { keys, types },
               declaredType: paramTypes[i]
             });
-          } else if (typeAlias && typeAlias.unionMembers) {
+          } else if (typeAliasResult && typeAlias.unionMembers) {
             const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
               objectMetadata: commonFields,
@@ -308,15 +309,17 @@ export class FunctionGenerator {
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
-    const interfaces = memberNames
+    const interfacesRaw = memberNames
       .map(name => this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
       .filter((i): i is InterfaceDeclaration => i !== undefined);
+    const interfaces = interfacesRaw as InterfaceDeclaration[];
 
     if (interfaces.length === 0) {
       return { keys: [], types: [] };
     }
 
-    const firstFields = interfaces[0].fields;
+    const firstInterface = interfaces[0] as InterfaceDeclaration;
+    const firstFields = firstInterface.fields;
     const commonFields: { name: string; type: string }[] = [];
 
     for (const field of firstFields) {
