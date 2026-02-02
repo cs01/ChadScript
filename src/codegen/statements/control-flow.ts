@@ -694,7 +694,7 @@ export class ControlFlowGenerator {
         const className = this.ctx.currentClassName;
         if (className) {
           const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, innerAccess.property);
-          const fieldInfo = fieldInfoResult as FieldInfo;
+          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
             intermediateTypeName = fieldInfo.tsType;
           }
@@ -705,7 +705,7 @@ export class ControlFlowGenerator {
           const classMeta = this.ctx.symbolTable.getClassInfo(varName);
           if (classMeta) {
             const fieldInfoResult = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
-            const fieldInfo = fieldInfoResult as FieldInfo;
+            const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
             if (fieldInfoResult && fieldInfo.tsType) {
               intermediateTypeName = fieldInfo.tsType;
             }
@@ -1272,6 +1272,21 @@ export class ControlFlowGenerator {
     if (!ifaceResult) return null;
     const iface = ifaceResult as { name: string; fields: { name: string; type: string }[] };
 
+    const currentKeys = symbol.objectMetadata.keys;
+    const ifaceKeys: string[] = [];
+    for (let fi = 0; fi < iface.fields.length; fi++) {
+      const f = iface.fields[fi] as { name: string; type: string };
+      ifaceKeys.push(f.name);
+    }
+    let isSubset = true;
+    for (let ki = 0; ki < ifaceKeys.length; ki++) {
+      if (currentKeys.indexOf(ifaceKeys[ki]) === -1) {
+        isSubset = false;
+        break;
+      }
+    }
+    if (!isSubset) return null;
+
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
@@ -1338,7 +1353,7 @@ export class ControlFlowGenerator {
       const memberExpr = methodCall.object as MemberAccessNode;
       if (memberExpr.object.type === 'this' && this.ctx.currentClassName) {
         const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
-        const fieldInfo = fieldInfoResult as FieldInfo;
+        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
           return true;
         }

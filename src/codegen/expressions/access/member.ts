@@ -976,7 +976,7 @@ export class MemberAccessGenerator {
         const className = this.ctx.currentClassName || this.ctx.classGen.currentClassName;
         if (className) {
           const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, memberAccess.property);
-          const fieldInfo = fieldInfoResult as FieldInfo;
+          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
             return fieldInfo.tsType;
           }
@@ -1277,7 +1277,7 @@ export class MemberAccessGenerator {
     if (!this.ctx.classGen?.currentClassName) return null;
 
     const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.classGen.currentClassName, memberExpr.property);
-    const fieldInfo = fieldInfoResult as FieldInfo;
+    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
@@ -1389,22 +1389,24 @@ export class MemberAccessGenerator {
 
     if (innerAccess.object.type === 'variable' && this.ctx.symbolTable.isClass((innerAccess.object as VariableNode).name)) {
       const classMeta = this.ctx.symbolTable.getClassInfo((innerAccess.object as VariableNode).name)!;
-      const fieldInfo = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
-      if (fieldInfo && fieldInfo.type === 'string[]') {
+      const fieldInfoResult = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
+      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+      if (fieldInfoResult && fieldInfo.type === 'string[]') {
         const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
         return this.getStringArrayLength(stringArrayPtr);
-      } else if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
+      } else if (fieldInfoResult && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
         const arrayPtr = this.ctx.generateExpression(expr.object, params);
         return this.getArrayLengthFromPtr(arrayPtr, '%Array');
       }
     } else if (innerAccess.object.type === 'this') {
       const className = this.ctx.currentClassName || this.ctx.classGen.currentClassName;
       if (className) {
-        const fieldInfo = this.ctx.classGen.getFieldInfo(className, innerAccess.property);
-        if (fieldInfo && fieldInfo.type === 'string[]') {
+        const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, innerAccess.property);
+        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        if (fieldInfoResult && fieldInfo.type === 'string[]') {
           const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
           return this.getStringArrayLength(stringArrayPtr);
-        } else if (fieldInfo && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
+        } else if (fieldInfoResult && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
           const arrayPtr = this.ctx.generateExpression(expr.object, params);
           return this.getArrayLengthFromPtr(arrayPtr, '%Array');
         }

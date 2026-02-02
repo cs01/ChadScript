@@ -265,7 +265,7 @@ export class MethodCallGenerator {
       if (!this.ctx.currentClassName) return null;
 
       const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
-      const fieldInfo = fieldInfoResult as FieldInfo;
+      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
       const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
@@ -401,7 +401,7 @@ export class MethodCallGenerator {
     if (!this.ctx.currentClassName) return null;
 
     const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
-    const fieldInfo = fieldInfoResult as FieldInfo;
+    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
     const setMatch = fieldInfo.tsType.match(/^Set<(\w+)>$/);
@@ -1124,7 +1124,7 @@ export class MethodCallGenerator {
       const memberAccess = expr.object as MemberAccessNode;
       if (memberAccess.object.type === 'this' && this.ctx.currentClassName) {
         const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberAccess.property);
-        const fieldInfo = fieldInfoResult as FieldInfo;
+        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
           const fieldClassName = fieldInfo.tsType;
           let classExists = false;
@@ -1158,7 +1158,7 @@ export class MethodCallGenerator {
           const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
           const outerClassName = classMeta.className;
           const fieldInfoResult = this.ctx.classGen.getFieldInfo(outerClassName, memberAccess.property);
-          const fieldInfo = fieldInfoResult as FieldInfo;
+          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
             const fieldClassName = fieldInfo.tsType;
             let classExists = false;
@@ -1307,7 +1307,7 @@ export class MethodCallGenerator {
       }
       if (classExists) {
         const fieldInfoResult = this.ctx.classGen.getFieldInfo(parentType, memberAccess.property);
-        const fieldInfo = fieldInfoResult as FieldInfo;
+        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
           let fieldClassExists = false;
           for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {

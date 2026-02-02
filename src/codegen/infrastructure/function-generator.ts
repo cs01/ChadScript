@@ -293,21 +293,22 @@ export class FunctionGenerator {
   }
 
   private hasReturnStatement(block: BlockStatement): boolean {
-    for (const stmt of block.statements) {
+    for (let i = 0; i < block.statements.length; i++) {
+      const stmt = block.statements[i] as { type: string };
       if (stmt.type === 'return') {
         return true;
       }
       if (stmt.type === 'if') {
-        const ifStmt = stmt as IfStatement;
+        const ifStmt = block.statements[i] as IfStatement;
         if (this.hasReturnStatement(ifStmt.thenBlock)) return true;
         if (ifStmt.elseBlock && this.hasReturnStatement(ifStmt.elseBlock)) return true;
       }
       if (stmt.type === 'while') {
-        const whileStmt = stmt as WhileStatement;
+        const whileStmt = block.statements[i] as WhileStatement;
         if (whileStmt.body && this.hasReturnStatement(whileStmt.body)) return true;
       }
       if (stmt.type === 'for') {
-        const forStmt = stmt as ForStatement;
+        const forStmt = block.statements[i] as ForStatement;
         if (forStmt.body && this.hasReturnStatement(forStmt.body)) return true;
       }
     }
@@ -492,11 +493,13 @@ export class FunctionGenerator {
     }
 
     if (!this.ctx.ast.topLevelItems || this.ctx.ast.topLevelItems.length === 0) {
-      for (const stmt of this.ctx.ast.topLevelStatements) {
-        this.ctx.allocateVariable(stmt as VariableDeclaration, []);
+      for (let i = 0; i < this.ctx.ast.topLevelStatements.length; i++) {
+        const stmt = this.ctx.ast.topLevelStatements[i] as VariableDeclaration;
+        this.ctx.allocateVariable(stmt, []);
       }
-      for (const expr of this.ctx.ast.topLevelExpressions) {
-        this.ctx.generateExpression(expr as Expression, []);
+      for (let i = 0; i < this.ctx.ast.topLevelExpressions.length; i++) {
+        const expr = this.ctx.ast.topLevelExpressions[i] as Expression;
+        this.ctx.generateExpression(expr, []);
       }
     }
 

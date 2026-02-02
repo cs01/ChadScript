@@ -72,7 +72,8 @@ export class ClosureAnalyzer {
   }
 
   private walkBlock(block: BlockStatement): void {
-    for (const stmt of block.statements) {
+    for (let i = 0; i < block.statements.length; i++) {
+      const stmt = block.statements[i] as Statement;
       this.walkStatement(stmt);
     }
   }
