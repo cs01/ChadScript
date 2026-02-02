@@ -310,10 +310,12 @@ function transformCallExpression(node: ts.CallExpression, checker: ts.TypeChecke
 
 function transformPropertyAccessExpression(node: ts.PropertyAccessExpression, checker: ts.TypeChecker | undefined): MemberAccessNode {
   const object = transformExpression(node.expression, checker);
+  const isOptional = node.questionDotToken !== undefined;
   return {
     type: 'member_access',
     object,
     property: node.name.text,
+    optional: isOptional || undefined,
   };
 }
 
