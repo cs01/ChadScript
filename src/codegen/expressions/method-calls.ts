@@ -1280,12 +1280,15 @@ export class MethodCallGenerator {
   }
 
   private resolveNestedMemberAccessType(expr: Expression): string | null {
+    console.log('[DEBUG] resolveNestedMemberAccessType called with type:', expr.type);
     if (expr.type === 'this') {
+      console.log('[DEBUG] resolveNestedMemberAccessType returning currentClassName:', this.ctx.currentClassName);
       return this.ctx.currentClassName;
     }
 
     if (expr.type === 'variable') {
       const varName = (expr as VariableNode).name;
+      console.log('[DEBUG] resolveNestedMemberAccessType variable:', varName, 'isClass:', this.ctx.symbolTable.isClass(varName));
       if (this.ctx.symbolTable.isClass(varName)) {
         const classMeta = this.ctx.symbolTable.getClassInfo(varName);
         return classMeta?.className || null;
@@ -1295,7 +1298,9 @@ export class MethodCallGenerator {
 
     if (expr.type === 'member_access') {
       const memberAccess = expr as MemberAccessNode;
+      console.log('[DEBUG] resolveNestedMemberAccessType member_access property:', memberAccess.property);
       const parentType = this.resolveNestedMemberAccessType(memberAccess.object);
+      console.log('[DEBUG] resolveNestedMemberAccessType parentType:', parentType);
       if (!parentType) {
         return null;
       }
@@ -1331,6 +1336,7 @@ export class MethodCallGenerator {
 
       const interfaceDeclResult = this.ctx.ast.interfaces.find((i: InterfaceDeclaration) => i.name === parentType);
       const interfaceDecl = interfaceDeclResult as InterfaceDeclaration;
+      console.log('[DEBUG] resolveNestedMemberAccessType looking for interface:', parentType, 'found:', !!interfaceDeclResult);
       if (interfaceDeclResult) {
         let fieldResult: InterfaceField | null = null;
         for (let i = 0; i < interfaceDecl.fields.length; i++) {
@@ -1341,6 +1347,7 @@ export class MethodCallGenerator {
           }
         }
         const field = fieldResult as { name: string; type: string };
+        console.log('[DEBUG] resolveNestedMemberAccessType looking for field:', memberAccess.property, 'found:', !!fieldResult, 'type:', fieldResult ? field.type : 'N/A');
         if (fieldResult) {
           let fieldType = field.type;
           if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {

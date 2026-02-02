@@ -23,6 +23,11 @@ import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
 
+export interface IClassGenContext {
+  getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
+  getClassFields(className: string): { name: string; fieldType: string }[];
+}
+
 /**
  * Interface defining what sub-generators need from parent generator.
  * This makes dependencies explicit and testable.
@@ -270,10 +275,7 @@ export interface IGeneratorContext {
   /**
    * Access to class generator for field type lookups
    */
-  readonly classGen: {
-    getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
-    getClassFields(className: string): { name: string; fieldType: string }[];
-  };
+  readonly classGen: IClassGenContext;
 }
 
 /**

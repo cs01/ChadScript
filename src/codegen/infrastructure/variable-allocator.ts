@@ -747,7 +747,7 @@ export class VariableAllocator {
     const indexExpr = expr as IndexAccessNode;
     if (indexExpr.object.type !== 'member_access') return null;
 
-    const memberAccess = indexExpr.object as MemberAccessNode;
+    const memberAccess = indexExpr.object as { type: string; object: Expression; property: string };
     const propertyName = memberAccess.property;
 
     let objectMeta: ObjectMetadata | undefined;
@@ -756,7 +756,8 @@ export class VariableAllocator {
       const varName = (memberAccess.object as VariableNode).name;
       objectMeta = this.ctx.symbolTable.getObjectInfo(varName) as ObjectMetadata;
     } else if (memberAccess.object.type === 'member_access' || memberAccess.object.type === 'this') {
-      const elementType = this.resolveNestedMemberArrayType(memberAccess);
+      const memberAccessTyped = memberAccess as { type: string; object: Expression; property: string };
+      const elementType = this.resolveNestedMemberArrayType(memberAccessTyped as MemberAccessNode);
       if (elementType) {
         return this.getTypeInfoForElementType(elementType);
       }
@@ -781,10 +782,11 @@ export class VariableAllocator {
   }
 
   private resolveNestedMemberArrayType(memberAccess: MemberAccessNode): string | null {
-    const objectType = this.resolveMemberAccessObjectType(memberAccess.object);
+    const ma = memberAccess as { type: string; object: Expression; property: string };
+    const objectType = this.resolveMemberAccessObjectType(ma.object);
     if (!objectType) return null;
 
-    const fieldType = this.getInterfaceFieldTypeByName(objectType, memberAccess.property);
+    const fieldType = this.getInterfaceFieldTypeByName(objectType, ma.property);
     if (!fieldType) return null;
 
     const arrayMatch = fieldType.match(/^(.+)\[\]$/);

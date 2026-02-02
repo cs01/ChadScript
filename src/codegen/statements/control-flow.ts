@@ -549,7 +549,7 @@ export class ControlFlowGenerator {
     }
 
     if (iterable.type === 'member_access') {
-      const memberAccess = iterable as MemberAccessNode;
+      const memberAccess = iterable as { type: string; object: Expression; property: string };
       if (memberAccess.object.type === 'variable') {
         const varName = (memberAccess.object as VariableNode).name;
         const propName = memberAccess.property;
@@ -656,7 +656,7 @@ export class ControlFlowGenerator {
         }
       }
 
-      const chainedInfo = this.getChainedMemberAccessArrayInfo(memberAccess);
+      const chainedInfo = this.getChainedMemberAccessArrayInfo(iterable as MemberAccessNode);
       if (chainedInfo) {
         return chainedInfo;
       }
@@ -674,11 +674,12 @@ export class ControlFlowGenerator {
   }
 
   private getChainedMemberAccessArrayInfo(memberAccess: MemberAccessNode): ObjectArrayMetadata | null {
-    const propName = memberAccess.property;
+    const ma = memberAccess as { type: string; object: Expression; property: string };
+    const propName = ma.property;
     let intermediateTypeName: string | null = null;
 
-    if (memberAccess.object.type === 'member_access') {
-      const innerAccess = memberAccess.object as MemberAccessNode;
+    if (ma.object.type === 'member_access') {
+      const innerAccess = ma.object as { type: string; object: Expression; property: string };
       if (innerAccess.object.type === 'this') {
         const className = this.ctx.currentClassName;
         if (className) {
@@ -766,11 +767,12 @@ export class ControlFlowGenerator {
 
     const elementIface = this.ctx.getInterfaceFromAST(elementTypeName);
     if (elementIface) {
+      const elementIfaceTyped = elementIface as { name: string; fields: { name: string; type: string }[] };
       const elementKeys: string[] = [];
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
-      for (let i = 0; i < elementIface.fields.length; i++) {
-        const f = elementIface.fields[i] as { name: string; type: string };
+      for (let i = 0; i < elementIfaceTyped.fields.length; i++) {
+        const f = elementIfaceTyped.fields[i] as { name: string; type: string };
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
         if (f.type === 'string') {
@@ -784,7 +786,7 @@ export class ControlFlowGenerator {
         }
       }
       return {
-        elementInterfaceName: elementIface.name,
+        elementInterfaceName: elementIfaceTyped.name,
         elementKeys,
         elementTypes,
         elementTsTypes
@@ -816,8 +818,9 @@ export class ControlFlowGenerator {
     }
 
     const firstFields = new Map<string, string>();
-    for (let i = 0; i < memberInterfaces[0].fields.length; i++) {
-      const f = memberInterfaces[0].fields[i] as { name: string; type: string };
+    const firstInterface = memberInterfaces[0] as { name: string; fields: { name: string; type: string }[] };
+    for (let i = 0; i < firstInterface.fields.length; i++) {
+      const f = firstInterface.fields[i] as { name: string; type: string };
       firstFields.set(f.name, f.type);
     }
 
@@ -826,7 +829,7 @@ export class ControlFlowGenerator {
       let isCommon = true;
       let resolvedType = fieldType;
       for (let i = 1; i < memberInterfaces.length; i++) {
-        const otherIface = memberInterfaces[i];
+        const otherIface = memberInterfaces[i] as { name: string; fields: { name: string; type: string }[] };
         let otherFieldResult: InterfaceField | null = null;
         for (let j = 0; j < otherIface.fields.length; j++) {
           const f = otherIface.fields[j] as { name: string; type: string };
@@ -1049,7 +1052,7 @@ export class ControlFlowGenerator {
     if (this.loopStack.length === 0) {
       throw new Error('break statement outside of loop');
     }
-    const loop = this.loopStack[this.loopStack.length - 1];
+    const loop = this.loopStack[this.loopStack.length - 1] as { continueLabel: string; breakLabel: string };
     this.emit(`br label %${loop.breakLabel}`);
     return '0';
   }
@@ -1058,7 +1061,7 @@ export class ControlFlowGenerator {
     if (this.loopStack.length === 0) {
       throw new Error('continue statement outside of loop');
     }
-    const loop = this.loopStack[this.loopStack.length - 1];
+    const loop = this.loopStack[this.loopStack.length - 1] as { continueLabel: string; breakLabel: string };
     this.emit(`br label %${loop.continueLabel}`);
     return '0';
   }
@@ -1079,14 +1082,15 @@ export class ControlFlowGenerator {
     if (stmt.type !== 'try') {
       throw new Error('Expected try statement');
     }
+    const tryStmt = stmt as { type: string; tryBlock: BlockStatement; catchClause: { param: string; body: BlockStatement } | null; finallyBlock: BlockStatement | null };
 
     // For now, we'll just execute the try block and ignore catch/finally
     // Full exception handling would require LLVM's invoke/landingpad support
-    this.ctx.generateBlock(stmt.tryBlock, params);
+    this.ctx.generateBlock(tryStmt.tryBlock, params);
 
     // If there's a finally block, execute it unconditionally
-    if (stmt.finallyBlock) {
-      this.ctx.generateBlock(stmt.finallyBlock, params);
+    if (tryStmt.finallyBlock) {
+      this.ctx.generateBlock(tryStmt.finallyBlock, params);
     }
 
     return '0';
@@ -1243,10 +1247,11 @@ export class ControlFlowGenerator {
     }
 
     if (!memberAccess || !literalValue) return null;
-    if (memberAccess.property !== 'type') return null;
-    if (memberAccess.object.type !== 'variable') return null;
+    const ma = memberAccess as { type: string; object: Expression; property: string };
+    if (ma.property !== 'type') return null;
+    if (ma.object.type !== 'variable') return null;
 
-    const varName = (memberAccess.object as VariableNode).name;
+    const varName = (ma.object as VariableNode).name;
     const symbol = this.ctx.symbolTable.lookup(varName);
     if (!symbol || !symbol.objectMetadata) return null;
 
@@ -1374,7 +1379,9 @@ export class ControlFlowGenerator {
   }
 
   private generateMapEntriesForOf(stmt: ForOfStatement, params: string[]): string {
-    const [keyName, valueName] = stmt.destructuredNames!;
+    const destructuredNames = stmt.destructuredNames as string[];
+    const keyName = destructuredNames[0];
+    const valueName = destructuredNames[1];
 
     const valueTypeInfo = this.getMapValueTypeInfo(stmt.iterable);
 
@@ -1396,10 +1403,15 @@ export class ControlFlowGenerator {
 
     this.ctx.defineVariable(keyName, keyAlloca, 'i8*', SymbolKind.String, 'local');
 
-    if (valueTypeInfo?.objectMetadata) {
-      this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.Object, 'local', {
-        objectMetadata: valueTypeInfo.objectMetadata
-      });
+    if (valueTypeInfo) {
+      const vti = valueTypeInfo as { valueType: string; objectMetadata: ObjectMetadata | undefined };
+      if (vti.objectMetadata) {
+        this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.Object, 'local', {
+          objectMetadata: vti.objectMetadata
+        });
+      } else {
+        this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.String, 'local');
+      }
     } else {
       this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.String, 'local');
     }
