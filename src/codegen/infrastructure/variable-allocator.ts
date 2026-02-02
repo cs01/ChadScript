@@ -63,6 +63,34 @@ export interface VariableAllocatorContext {
 export class VariableAllocator {
   constructor(private ctx: VariableAllocatorContext) {}
 
+  private getInterface(name: string): InterfaceDeclaration | null {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.getInterface(name);
+    }
+    if (!this.ctx.ast.interfaces) return null;
+    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      const iface = this.ctx.ast.interfaces[i];
+      if (iface.name === name) {
+        return iface;
+      }
+    }
+    return null;
+  }
+
+  private getTypeAlias(name: string): TypeAliasDeclaration | null {
+    if (this.ctx.typeResolver) {
+      return this.ctx.typeResolver.getTypeAlias(name);
+    }
+    if (!this.ctx.ast.typeAliases) return null;
+    for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
+      const alias = this.ctx.ast.typeAliases[i];
+      if (alias.name === name) {
+        return alias;
+      }
+    }
+    return null;
+  }
+
   allocate(stmt: VariableDeclaration, params: string[]): void {
     if (stmt.value === null) {
       const allocaReg = this.ctx.nextTemp();
@@ -149,7 +177,7 @@ export class VariableAllocator {
   }
 
   private allocateFunctionInterfaceReturn(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const interfaceDef = this.ctx.ast.interfaces!.find((i: InterfaceDeclaration) => i.name === interfaceName)!;
+    const interfaceDef = this.getInterface(interfaceName)!;
     const allocaReg = this.ctx.nextTemp();
     const keys = interfaceDef.fields.map((f) => f.name);
     const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
@@ -164,20 +192,20 @@ export class VariableAllocator {
   private getDeclaredInterfaceType(stmt: VariableDeclaration): string | null {
     if (stmt.value?.type === 'type_assertion') {
       const assertedType = (stmt.value as { type: 'type_assertion'; expression: Expression; assertedType: string }).assertedType;
-      const interfaceDef = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === assertedType);
+      const interfaceDef = this.getInterface(assertedType);
       if (interfaceDef) {
         return assertedType;
       }
     }
     if (!stmt.declaredType) return null;
     if (stmt.value?.type !== 'variable') return null;
-    const interfaceDef = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === stmt.declaredType);
+    const interfaceDef = this.getInterface(stmt.declaredType);
     if (!interfaceDef) return null;
     return stmt.declaredType;
   }
 
   private allocateDeclaredInterface(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const interfaceDef = this.ctx.ast.interfaces!.find((i: InterfaceDeclaration) => i.name === interfaceName)!;
+    const interfaceDef = this.getInterface(interfaceName)!;
     const allocaReg = this.ctx.nextTemp();
     const keys = interfaceDef.fields.map((f) => f.name);
     const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
@@ -226,14 +254,14 @@ export class VariableAllocator {
     if (!valueType) return null;
     if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') return null;
 
-    const interfaceDef = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === valueType);
+    const interfaceDef = this.getInterface(valueType);
     if (!interfaceDef) return null;
 
     return valueType;
   }
 
   private allocateMapGetInterface(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const interfaceDef = this.ctx.ast.interfaces!.find((i: InterfaceDeclaration) => i.name === interfaceName)!;
+    const interfaceDef = this.getInterface(interfaceName)!;
     const allocaReg = this.ctx.nextTemp();
     const keys = interfaceDef.fields.map((f) => f.name);
     const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
@@ -313,7 +341,7 @@ export class VariableAllocator {
       );
     }
 
-    const interfaceDef = this.ctx.ast.interfaces?.find((iface: InterfaceDeclaration) => iface.name === interfaceName);
+    const interfaceDef = this.getInterface(interfaceName);
 
     if (!interfaceDef) {
       this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local');
@@ -338,8 +366,8 @@ export class VariableAllocator {
   private allocateObject(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextTemp();
     const interfaceDef = stmt.declaredType
-      ? this.ctx.ast.interfaces?.find((iface: InterfaceDeclaration) => iface.name === stmt.declaredType)
-      : undefined;
+      ? this.getInterface(stmt.declaredType)
+      : null;
 
     let keys: string[];
     let types: string[];
@@ -625,7 +653,7 @@ export class VariableAllocator {
     if (baseVarName === 'this') {
       const classFieldInfo = this.getThisFieldInfo(outerProp);
       if (classFieldInfo?.tsType) {
-        const interfaceDef = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === classFieldInfo.tsType);
+        const interfaceDef = this.getInterface(classFieldInfo.tsType);
         if (interfaceDef) {
           outerMeta = {
             keys: interfaceDef.fields.map((f) => f.name),
@@ -659,7 +687,7 @@ export class VariableAllocator {
 
   private getTypeInfoForElementType(elementType: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
 
-    const interfaceDef = this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === elementType);
+    const interfaceDef = this.getInterface(elementType);
     if (interfaceDef) {
       return {
         keys: interfaceDef.fields.map((f) => f.name),
@@ -668,7 +696,7 @@ export class VariableAllocator {
       };
     }
 
-    const typeAlias = this.ctx.ast.typeAliases?.find((t: TypeAliasDeclaration) => t.name === elementType);
+    const typeAlias = this.getTypeAlias(elementType);
     if (typeAlias && typeAlias.unionMembers) {
       const commonFields = this.getUnionCommonFields(typeAlias.unionMembers);
       if (commonFields.keys.length > 0) {
@@ -683,9 +711,13 @@ export class VariableAllocator {
     if (this.ctx.typeResolver) {
       return this.ctx.typeResolver.getUnionCommonFields(memberNames);
     }
-    const interfaces = memberNames
-      .map(name => this.ctx.ast.interfaces?.find((i: InterfaceDeclaration) => i.name === name))
-      .filter((i): i is InterfaceDeclaration => i !== undefined);
+    const interfaces: InterfaceDeclaration[] = [];
+    for (let i = 0; i < memberNames.length; i++) {
+      const iface = this.getInterface(memberNames[i]);
+      if (iface) {
+        interfaces.push(iface);
+      }
+    }
 
     if (interfaces.length === 0) {
       return { keys: [], types: [], tsTypes: [] };

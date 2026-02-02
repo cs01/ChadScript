@@ -1,4 +1,4 @@
-import { AST, InterfaceDeclaration, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode } from '../../../ast/types.js';
+import { AST, InterfaceDeclaration, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode } from '../../../ast/types.js';
 import { SymbolTable, ObjectMetadata } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo } from './types.js';
@@ -38,12 +38,45 @@ export class TypeResolver {
     };
   }
 
+  getInterfaceProperty(interfaceName: string, propName: string): { name: string; type: string } | null {
+    const iface = this.getInterface(interfaceName);
+    if (!iface) return null;
+    for (let i = 0; i < iface.fields.length; i++) {
+      if (iface.fields[i].name === propName) {
+        return iface.fields[i];
+      }
+    }
+    return null;
+  }
+
   getTypeAlias(name: string): TypeAliasDeclaration | null {
     if (!this.ctx.ast?.typeAliases) return null;
     for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
       const alias = this.ctx.ast.typeAliases[i];
       if (alias.name === name) {
         return alias;
+      }
+    }
+    return null;
+  }
+
+  getFunction(name: string): FunctionNode | null {
+    if (!this.ctx.ast?.functions) return null;
+    for (let i = 0; i < this.ctx.ast.functions.length; i++) {
+      const func = this.ctx.ast.functions[i];
+      if (func.name === name) {
+        return func;
+      }
+    }
+    return null;
+  }
+
+  getClass(name: string): ClassNode | null {
+    if (!this.ctx.ast?.classes) return null;
+    for (let i = 0; i < this.ctx.ast.classes.length; i++) {
+      const cls = this.ctx.ast.classes[i];
+      if (cls.name === name) {
+        return cls;
       }
     }
     return null;
