@@ -1,7 +1,7 @@
 import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode } from '../../../ast/types.js';
 import { SymbolTable, ObjectMetadata } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
-import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo } from './types.js';
+import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo, ClassGeneratorLike } from './types.js';
 
 export interface TypeResolverContext {
   ast?: AST;
@@ -9,9 +9,7 @@ export interface TypeResolverContext {
   typeChecker?: TypeChecker | null;
   currentClassName?: string | null;
   currentFunction?: string | null;
-  classGen?: {
-    getFieldInfo(className: string, fieldName: string): FieldInfo | null;
-  };
+  classGen?: ClassGeneratorLike;
 }
 
 export class TypeResolver {
