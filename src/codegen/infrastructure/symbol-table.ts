@@ -540,16 +540,6 @@ export class SymbolTable {
   }
 
   /**
-   * Merge another symbol table into this one
-   */
-  merge(other: SymbolTable): void {
-    for (const [name, symbol] of other.symbols.entries()) {
-      const clonedSymbol = Object.assign({}, symbol);
-      this.symbols.set(name, clonedSymbol);
-    }
-  }
-
-  /**
    * Get a Map of variable names to LLVM types for closure analysis.
    * This is used by the ClosureAnalyzer to know what variables are available
    * for capture and their types.

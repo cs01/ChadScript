@@ -1300,8 +1300,50 @@ export class ControlFlowGenerator {
     return false;
   }
 
+  private getMapValueTypeInfo(iterable: Expression): { valueType: string; objectMetadata?: ObjectMetadata } | null {
+    if (iterable.type !== 'method_call') return null;
+    const methodCall = iterable as MethodCallNode;
+    if (methodCall.method !== 'entries') return null;
+
+    let valueType: string | null = null;
+
+    if (methodCall.object.type === 'variable') {
+      const varName = (methodCall.object as VariableNode).name;
+      const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+      if (mapMeta) {
+        valueType = mapMeta.valueType;
+      }
+    } else if (methodCall.object.type === 'member_access') {
+      const memberExpr = methodCall.object as MemberAccessNode;
+      if (memberExpr.object.type === 'this' && this.ctx.currentClassName) {
+        const mapTypeInfo = this.ctx.typeResolver?.getClassFieldMapType(
+          this.ctx.currentClassName,
+          memberExpr.property
+        );
+        if (mapTypeInfo) {
+          valueType = mapTypeInfo.valueType;
+        }
+      }
+    }
+
+    if (!valueType) return null;
+
+    if (valueType === 'string' || valueType === 'number') {
+      return { valueType };
+    }
+
+    const metadata = this.ctx.typeResolver?.getInterfaceMetadata(valueType);
+    if (metadata) {
+      return { valueType, objectMetadata: metadata };
+    }
+
+    return { valueType };
+  }
+
   private generateMapEntriesForOf(stmt: ForOfStatement, params: string[]): string {
     const [keyName, valueName] = stmt.destructuredNames!;
+
+    const valueTypeInfo = this.getMapValueTypeInfo(stmt.iterable);
 
     const iterableValue = this.ctx.generateExpression(stmt.iterable, params);
 
@@ -1320,7 +1362,14 @@ export class ControlFlowGenerator {
     this.emit(`${valueAlloca} = alloca i8*`);
 
     this.ctx.defineVariable(keyName, keyAlloca, 'i8*', SymbolKind.String, 'local');
-    this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.String, 'local');
+
+    if (valueTypeInfo?.objectMetadata) {
+      this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.Object, 'local', {
+        objectMetadata: valueTypeInfo.objectMetadata
+      });
+    } else {
+      this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.String, 'local');
+    }
 
     const condLabel = this.nextLabel('mapof_cond');
     const bodyLabel = this.nextLabel('mapof_body');

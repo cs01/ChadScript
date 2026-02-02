@@ -76,7 +76,6 @@ if (!fs.existsSync(outputDir)) {
 try {
   compile(inputFile, outputFile, logLevel);
 } catch (error) {
-  // Error messages are already formatted by the compiler
   logger.error((error as Error).message);
   process.exit(1);
 }
