@@ -11,13 +11,16 @@ export function generateStartsWith(ctx: IGeneratorContext, strPtr: string, prefi
   const cmpResult = ctx.nextTemp();
   ctx.emit(`${cmpResult} = call i32 @strncmp(i8* ${strPtr}, i8* ${prefix}, i64 ${prefixLen})`);
 
-  const result = ctx.nextTemp();
-  ctx.emit(`${result} = icmp eq i32 ${cmpResult}, 0`);
+  const resultBool = ctx.nextTemp();
+  ctx.emit(`${resultBool} = icmp eq i32 ${cmpResult}, 0`);
 
   const resultI32 = ctx.nextTemp();
-  ctx.emit(`${resultI32} = zext i1 ${result} to i32`);
+  ctx.emit(`${resultI32} = zext i1 ${resultBool} to i32`);
 
-  return resultI32;
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+
+  return result;
 }
 
 export function generateCharAt(ctx: IGeneratorContext, strPtr: string, index: string): string {
@@ -142,14 +145,16 @@ export function generateEndsWith(ctx: IGeneratorContext, strPtr: string, suffix:
   ctx.emit(`${matches} = icmp eq i32 ${cmpResult}, 0`);
   const matchesI32 = ctx.nextTemp();
   ctx.emit(`${matchesI32} = zext i1 ${matches} to i32`);
+  const matchesDouble = ctx.nextTemp();
+  ctx.emit(`${matchesDouble} = sitofp i32 ${matchesI32} to double`);
   ctx.emit(`br label %${endLabel}`);
 
   ctx.emit(`${falseLabel}:`);
   ctx.emit(`br label %${endLabel}`);
 
   ctx.emit(`${endLabel}:`);
-  const resultI32 = ctx.nextTemp();
-  ctx.emit(`${resultI32} = phi i32 [ ${matchesI32}, %${checkLabel} ], [ 0, %${falseLabel} ]`);
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = phi double [ ${matchesDouble}, %${checkLabel} ], [ 0.0, %${falseLabel} ]`);
 
-  return resultI32;
+  return result;
 }

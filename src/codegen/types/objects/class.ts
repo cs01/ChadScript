@@ -14,6 +14,13 @@ export class ClassGenerator {
 
   constructor(private ctx: IGeneratorContext) {}
 
+  private stripOptional(name: string): string {
+    if (name.endsWith('?')) {
+      return name.slice(0, -1);
+    }
+    return name;
+  }
+
   private fieldToLlvmType(f: ClassField): string {
     if (f.fieldType === 'string') {
       return 'i8*';
@@ -230,6 +237,7 @@ export class ClassGenerator {
     ir += paramLLVMTypes.map((t, i) => `${t} %arg${i}`).join(', ');
     ir += ') {\n';
     ir += 'entry:\n';
+    this.ctx.setCurrentLabel('entry');
 
     for (let i = 0; i < constructor.params.length; i++) {
       const paramName = constructor.params[i];
@@ -336,6 +344,7 @@ export class ClassGenerator {
     }
     ir += ') {\n';
     ir += 'entry:\n';
+    this.ctx.setCurrentLabel('entry');
 
     const thisAlloca = this.nextTemp();
     this.emit(`${thisAlloca} = alloca ${thisType}`);
@@ -361,24 +370,47 @@ export class ClassGenerator {
     // Generate body
     const result = this.ctx.generateBlock(method.body, method.params);
 
+    // Check for and fix incomplete return statements
+    for (let i = 0; i < this.ctx.output.length; i++) {
+      const line = this.ctx.output[i].trim();
+      const retMatch = line.match(/^ret (i8\*|double|%\w+\*?)$/);
+      if (retMatch) {
+        const retType = retMatch[1];
+        let defaultValue: string;
+        if (retType === 'double') {
+          defaultValue = '0.0';
+        } else if (retType === 'i8*') {
+          defaultValue = 'null';
+        } else {
+          defaultValue = 'null';
+        }
+        this.ctx.output[i] = `ret ${retType} ${defaultValue}`;
+      }
+    }
+
     // Add generated instructions
     if (this.ctx.output.length > 0) {
       ir += this.ctx.output.map(line => '  ' + line).join('\n') + '\n';
     }
 
     // Return value based on declared return type
-    if (returnLLVMType === 'void') {
-      ir += '  ret void\n';
-    } else if (result !== null) {
-      ir += `  ret ${returnLLVMType} ${result}\n`;
-    } else {
-      // Default return value for non-void functions with no explicit return
-      if (returnLLVMType === 'i8*') {
-        ir += '  ret i8* null\n';
-      } else if (returnLLVMType === '%StringArray*' || returnLLVMType === '%Array*') {
-        ir += `  ret ${returnLLVMType} null\n`;
+    const lastInstruction = this.ctx.output.length > 0 ? this.ctx.output[this.ctx.output.length - 1].trim() : '';
+    const hasTerminator = lastInstruction.startsWith('ret ') || lastInstruction.startsWith('br ') || lastInstruction === 'unreachable';
+
+    if (!hasTerminator) {
+      if (returnLLVMType === 'void') {
+        ir += '  ret void\n';
+      } else if (result !== null && result !== '') {
+        ir += `  ret ${returnLLVMType} ${result}\n`;
       } else {
-        ir += '  ret i32 0\n';
+        // Default return value for non-void functions with no explicit return
+        if (returnLLVMType === 'i8*') {
+          ir += '  ret i8* null\n';
+        } else if (returnLLVMType === '%StringArray*' || returnLLVMType === '%Array*') {
+          ir += `  ret ${returnLLVMType} null\n`;
+        } else {
+          ir += `  ret ${returnLLVMType} 0.0\n`;
+        }
       }
     }
     ir += '}\n';
@@ -486,16 +518,7 @@ export class ClassGenerator {
     let returnLLVMType = 'double'; // default for JavaScript semantics
     const methodTyped = method as { returnType: string };
     if (methodTyped.returnType) {
-      if (methodTyped.returnType === 'string') {
-        returnLLVMType = 'i8*';
-      } else if (methodTyped.returnType === 'string[]') {
-        returnLLVMType = '%StringArray*';
-      } else if (methodTyped.returnType === 'number[]' || methodTyped.returnType === 'boolean[]') {
-        returnLLVMType = '%Array*';
-      } else if (methodTyped.returnType === 'void') {
-        returnLLVMType = 'void';
-      }
-      // else: number, boolean -> double
+      returnLLVMType = this.methodReturnTypeToLlvm(methodTyped.returnType);
     }
 
     const fields = this.classFields.get(className) || [];
@@ -511,6 +534,7 @@ export class ClassGenerator {
     } else {
       const result = this.nextTemp();
       this.emit(`${result} = call ${returnLLVMType} @${methodOwnerClass}_${methodName}(${thisType} ${instancePtr}${argList})`);
+      this.ctx.setVariableType(result, returnLLVMType);
       return result;
     }
   }
@@ -522,6 +546,30 @@ export class ClassGenerator {
     if (tsType === 'void') return 'void';
     if (tsType === 'string[]') return '%StringArray*';
     if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
+    return 'i8*';
+  }
+
+  private methodReturnTypeToLlvm(returnType: string): string {
+    if (returnType === 'string') return 'i8*';
+    if (returnType === 'string[]') return '%StringArray*';
+    if (returnType === 'number[]' || returnType === 'boolean[]') return '%Array*';
+    if (returnType === 'void') return 'void';
+    if (returnType === 'number' || returnType === 'boolean') return 'double';
+    if (returnType.indexOf(' | ') !== -1) {
+      const parts = returnType.split(' | ');
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i].trim();
+        if (part === 'string') return 'i8*';
+        if (part === 'string[]') return '%StringArray*';
+        if (part === 'number[]' || part === 'boolean[]') return '%Array*';
+      }
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i].trim();
+        if (part !== 'null' && part !== 'undefined') {
+          return 'i8*';
+        }
+      }
+    }
     return 'i8*';
   }
 
@@ -567,7 +615,7 @@ export class ClassGenerator {
       const tsTypes: string[] = [];
       for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
         const f = interfaceDef.fields[fi] as { name: string; type: string };
-        keys.push(f.name);
+        keys.push(this.stripOptional(f.name));
         types.push(this.fieldTypeToLlvm(f.type));
         tsTypes.push(f.type);
       }
@@ -657,7 +705,7 @@ export class ClassGenerator {
     const types: string[] = [];
     for (let fi = 0; fi < commonFields.length; fi++) {
       const f = commonFields[fi] as CommonField;
-      keys.push(f.name);
+      keys.push(this.stripOptional(f.name));
       types.push(this.fieldTypeToLlvm(f.type));
     }
 

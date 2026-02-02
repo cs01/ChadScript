@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration, InterfaceField, BinaryNode } from '../../ast/types.js';
+import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration, InterfaceField, BinaryNode, TypeAssertionNode } from '../../ast/types.js';
 import { SymbolTable } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { ClassGenerator } from '../types/objects/class.js';
@@ -34,7 +34,11 @@ export class TypeInference {
     if (!iface) return null;
     for (let i = 0; i < iface.fields.length; i++) {
       const f = iface.fields[i] as { name: string; type: string };
-      if (f.name === propName) {
+      let fieldName = f.name;
+      if (fieldName.endsWith('?')) {
+        fieldName = fieldName.slice(0, -1);
+      }
+      if (fieldName === propName) {
         return f;
       }
     }
@@ -64,12 +68,44 @@ export class TypeInference {
   }
 
   private getClassMethod(className: string, methodName: string): ClassMethod | null {
-    const cls = this.getClass(className);
-    if (!cls) return null;
-    for (let i = 0; i < cls.methods.length; i++) {
-      const method = cls.methods[i];
-      if (method.name === methodName && !method.isConstructor) {
-        return method;
+    let cls = this.getClass(className);
+    while (cls) {
+      for (let i = 0; i < cls.methods.length; i++) {
+        const method = cls.methods[i];
+        if (method.name === methodName && !method.isConstructor) {
+          return method;
+        }
+      }
+      if (cls.extends) {
+        cls = this.getClass(cls.extends);
+      } else {
+        cls = null;
+      }
+    }
+    return null;
+  }
+
+  private getParameterType(paramName: string): string | null {
+    const currentFunc = this.ctx.currentFunction;
+    if (!currentFunc) return null;
+    const func = this.getFunction(currentFunc);
+    if (func && func.parameters) {
+      for (let i = 0; i < func.parameters.length; i++) {
+        const p = func.parameters[i] as { name: string; type?: string };
+        if (p.name === paramName && p.type) {
+          return p.type;
+        }
+      }
+    }
+    const className = this.ctx.currentClassName;
+    if (className) {
+      const method = this.getClassMethod(className, currentFunc);
+      if (method && method.paramTypes) {
+        for (let i = 0; i < method.params.length; i++) {
+          if (method.params[i] === paramName && method.paramTypes[i]) {
+            return method.paramTypes[i];
+          }
+        }
       }
     }
     return null;
@@ -151,6 +187,20 @@ export class TypeInference {
     if (e.type === 'array') {
       return true;
     }
+    if (e.type === 'binary') {
+      const binExpr = expr as BinaryNode;
+      if (binExpr.op === '||') {
+        const leftIsArray = this.isArrayExpression(binExpr.left);
+        const rightIsArray = this.isArrayExpression(binExpr.right);
+        const rightBase = binExpr.right as ExprBase;
+        if (leftIsArray && rightBase.type === 'array') {
+          return true;
+        }
+        if (rightIsArray && leftIsArray) {
+          return true;
+        }
+      }
+    }
     if (e.type === 'variable') {
       const varExpr = expr as VariableNode;
       if (this.ctx.symbolTable.isNumberArray(varExpr.name)) {
@@ -187,6 +237,16 @@ export class TypeInference {
           }
         }
       }
+      if (objBase.type === 'variable') {
+        const varName = (memberExpr.object as VariableNode).name;
+        const paramType = this.getParameterType(varName);
+        if (paramType) {
+          const fieldType = this.getFieldTypeFromType(paramType, memberExpr.property);
+          if (fieldType && fieldType.endsWith('[]')) {
+            return true;
+          }
+        }
+      }
     }
     return false;
   }
@@ -198,6 +258,41 @@ export class TypeInference {
     }
     if (e.type === 'variable') {
       return this.ctx.symbolTable.isObject((expr as VariableNode).name);
+    }
+    return false;
+  }
+
+  isObjectArrayExpression(expr: Expression): boolean {
+    const e = expr as ExprBase;
+    if (e.type === 'member_access') {
+      const memberExpr = expr as MemberAccessNode;
+      const objBase = memberExpr.object as ExprBase;
+      if (objBase.type === 'variable') {
+        const varName = (memberExpr.object as VariableNode).name;
+        const paramType = this.getParameterType(varName);
+        if (paramType) {
+          const fieldType = this.getFieldTypeFromType(paramType, memberExpr.property);
+          if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
+            return true;
+          }
+        }
+      }
+      if (objBase.type === 'member_access') {
+        const nestedMember = memberExpr.object as MemberAccessNode;
+        const nestedObjBase = nestedMember.object as ExprBase;
+        if (nestedObjBase.type === 'this') {
+          const className = this.ctx.currentClassName;
+          if (className) {
+            const fieldTsType = this.ctx.classGen?.getFieldTsType(className, nestedMember.property);
+            if (fieldTsType) {
+              const fieldType = this.getFieldTypeFromType(fieldTsType, memberExpr.property);
+              if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
+                return true;
+              }
+            }
+          }
+        }
+      }
     }
     return false;
   }
@@ -250,6 +345,9 @@ export class TypeInference {
       if (binaryExpr.op === '+') {
         return this.isStringExpression(binaryExpr.left) || this.isStringExpression(binaryExpr.right);
       }
+      if (binaryExpr.op === '||') {
+        return this.isStringExpression(binaryExpr.left) || this.isStringExpression(binaryExpr.right);
+      }
     }
     if (e.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
@@ -287,6 +385,14 @@ export class TypeInference {
           if (fieldType === 'string') {
             return true;
           }
+        }
+      }
+      if (objBase.type === 'type_assertion') {
+        const assertExpr = memberExpr.object as TypeAssertionNode;
+        const assertedType = assertExpr.assertedType;
+        const prop = this.getInterfaceProperty(assertedType, memberExpr.property);
+        if (prop && prop.type === 'string') {
+          return true;
         }
       }
     }
@@ -371,8 +477,33 @@ export class TypeInference {
         const className = this.ctx.symbolTable.getClassName((methodExpr.object as VariableNode).name);
         if (className) {
           const method = this.getClassMethod(className, methodExpr.method);
-          if (method && method.returnType === 'string') {
-            return true;
+          if (method && method.returnType) {
+            if (this.returnTypeIsString(method.returnType)) {
+              return true;
+            }
+          }
+        }
+      }
+      if (methodObjBase.type === 'this') {
+        const className = this.ctx.currentClassName;
+        if (className) {
+          const method = this.getClassMethod(className, methodExpr.method);
+          if (method && method.returnType) {
+            if (this.returnTypeIsString(method.returnType)) {
+              return true;
+            }
+          }
+        }
+      }
+      if (methodObjBase.type === 'member_access') {
+        const memberAccess = methodExpr.object as MemberAccessNode;
+        const fieldClassName = this.resolveClassNameFromExpression(memberAccess);
+        if (fieldClassName) {
+          const method = this.getClassMethod(fieldClassName, methodExpr.method);
+          if (method && method.returnType) {
+            if (this.returnTypeIsString(method.returnType)) {
+              return true;
+            }
           }
         }
       }
@@ -588,6 +719,18 @@ export class TypeInference {
             return true;
           }
         }
+      }
+    }
+    return false;
+  }
+
+  private returnTypeIsString(returnType: string): boolean {
+    if (returnType === 'string') return true;
+    if (returnType.indexOf(' | ') !== -1) {
+      const parts = returnType.split(' | ');
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i].trim();
+        if (part === 'string') return true;
       }
     }
     return false;
