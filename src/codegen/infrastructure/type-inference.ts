@@ -548,6 +548,33 @@ export class TypeInference {
     if (e.type === 'variable') {
       return this.ctx.symbolTable.isClass((expr as VariableNode).name);
     }
+    if (e.type === 'method_call') {
+      const methodExpr = expr as MethodCallNode;
+      if (methodExpr.method === 'get') {
+        const methodObjBase = methodExpr.object as ExprBase;
+        if (methodObjBase.type === 'variable') {
+          const varName = (methodExpr.object as VariableNode).name;
+          if (this.ctx.symbolTable.isMap(varName)) {
+            const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+            if (mapMeta && mapMeta.valueType && this.getClass(mapMeta.valueType)) {
+              return true;
+            }
+          }
+        } else if (methodObjBase.type === 'member_access') {
+          const memberExpr = methodExpr.object as MemberAccessNode;
+          const memberExprObjBase = memberExpr.object as ExprBase;
+          if (memberExprObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
+            const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+            if (fieldInfo && fieldInfo.tsType) {
+              const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
+              if (mapMatch && mapMatch[2] && this.getClass(mapMatch[2])) {
+                return true;
+              }
+            }
+          }
+        }
+      }
+    }
     return false;
   }
 
