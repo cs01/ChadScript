@@ -712,8 +712,15 @@ export class ControlFlowGenerator {
     }
     const ifaceTyped = iface as { name: string; fields: { name: string; type: string }[] };
 
-    const fieldDefResult = ifaceTyped.fields.find(f => f.name === propName);
-    const fieldDef = fieldDefResult as InterfaceField;
+    let fieldDefResult: InterfaceField | null = null;
+    for (let i = 0; i < ifaceTyped.fields.length; i++) {
+      const f = ifaceTyped.fields[i] as { name: string; type: string };
+      if (f.name === propName) {
+        fieldDefResult = f as { name: string; type: string };
+        break;
+      }
+    }
+    const fieldDef = fieldDefResult as { name: string; type: string };
     if (!fieldDefResult || !fieldDef.type.endsWith('[]')) {
       return null;
     }
@@ -819,8 +826,15 @@ export class ControlFlowGenerator {
       let resolvedType = fieldType;
       for (let i = 1; i < memberInterfaces.length; i++) {
         const otherIface = memberInterfaces[i];
-        const otherFieldResult = otherIface.fields.find(f => f.name === fieldName);
-        const otherField = otherFieldResult as InterfaceField;
+        let otherFieldResult: InterfaceField | null = null;
+        for (let j = 0; j < otherIface.fields.length; j++) {
+          const f = otherIface.fields[j] as { name: string; type: string };
+          if (f.name === fieldName) {
+            otherFieldResult = f;
+            break;
+          }
+        }
+        const otherField = otherFieldResult as { name: string; type: string };
         if (!otherFieldResult) {
           isCommon = false;
           break;
@@ -1142,7 +1156,7 @@ export class ControlFlowGenerator {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as InterfaceField;
+      const field = firstFields[fi] as { name: string; type: string };
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const ifaceTyped = interfaces[ii] as { fields: { name: string; type: string }[] };

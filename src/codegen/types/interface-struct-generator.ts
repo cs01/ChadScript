@@ -53,7 +53,7 @@ export class InterfaceStructGenerator {
     const fields = this.getInterfaceFields(idx);
     const result: { name: string; tsType: string; llvmType: string }[] = [];
     for (let i = 0; i < fields.length; i++) {
-      const f = fields[i] as InterfaceField;
+      const f = fields[i] as { name: string; type: string };
       result.push({
         name: f.name,
         tsType: f.type,

@@ -31,7 +31,7 @@ export class TypeInference {
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as InterfaceField;
+      const f = iface.fields[i] as { name: string; type: string };
       if (f.name === propName) {
         return f;
       }
@@ -127,7 +127,10 @@ export class TypeInference {
     const iface = this.getInterface(typeName);
     if (iface) {
       const field = this.getInterfaceProperty(typeName, fieldName);
-      if (field) return field.type;
+      if (field) {
+        const fieldTyped = field as { name: string; type: string };
+        return fieldTyped.type;
+      }
     }
     return null;
   }

@@ -160,7 +160,7 @@ export class FunctionGenerator {
             const keys: string[] = [];
             const types: string[] = [];
             for (let j = 0; j < interfaceDef.fields.length; j++) {
-              const field = interfaceDef.fields[j] as InterfaceField;
+              const field = interfaceDef.fields[j] as { name: string; type: string };
               keys.push(field.name);
               types.push(this.tsTypeToLlvm(field.type));
             }
@@ -331,7 +331,7 @@ export class FunctionGenerator {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as InterfaceField;
+      const field = firstFields[fi] as { name: string; type: string };
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const ifaceTyped = interfaces[ii] as { fields: { name: string; type: string }[] };

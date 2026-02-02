@@ -122,7 +122,7 @@ export class MemberAccessGenerator {
       if (iface.name === baseName) {
         const properties: InterfaceProperty[] = [];
         for (let j = 0; j < iface.fields.length; j++) {
-          const field = iface.fields[j] as InterfaceField;
+          const field = iface.fields[j] as { name: string; type: string };
           properties.push({ name: field.name, type: field.type });
         }
         return { properties };
@@ -175,7 +175,7 @@ export class MemberAccessGenerator {
         if (iface.name === memberName) {
           const properties: InterfaceProperty[] = [];
           for (let k = 0; k < iface.fields.length; k++) {
-            const f = iface.fields[k] as InterfaceField;
+            const f = iface.fields[k] as { name: string; type: string };
             properties.push({ name: f.name, type: f.type });
           }
           found = { properties };
@@ -576,7 +576,7 @@ export class MemberAccessGenerator {
       const tsTypes: string[] = [];
       const types: string[] = [];
       for (let i = 0; i < interfaceDef.fields.length; i++) {
-        const f = interfaceDef.fields[i] as InterfaceField;
+        const f = interfaceDef.fields[i] as { name: string; type: string };
         keys.push(f.name);
         tsTypes.push(f.type);
         types.push(this.tsTypeToLlvm(f.type));
@@ -622,7 +622,7 @@ export class MemberAccessGenerator {
       const tsTypes: string[] = [];
       const types: string[] = [];
       for (let i = 0; i < nestedInterfaceDef.fields.length; i++) {
-        const f = nestedInterfaceDef.fields[i] as InterfaceField;
+        const f = nestedInterfaceDef.fields[i] as { name: string; type: string };
         keys.push(f.name);
         tsTypes.push(f.type);
         types.push(this.tsTypeToLlvm(f.type));
@@ -879,7 +879,7 @@ export class MemberAccessGenerator {
         const types: string[] = [];
         const tsTypes: string[] = [];
         for (let j = 0; j < iface.fields.length; j++) {
-          const f = iface.fields[j] as InterfaceField;
+          const f = iface.fields[j] as { name: string; type: string };
           keys.push(f.name);
           tsTypes.push(f.type);
           if (f.type === 'string') {
@@ -1102,7 +1102,7 @@ export class MemberAccessGenerator {
       const iface = this.ctx.ast.interfaces[i];
       if (iface.name === interfaceName) {
         for (let j = 0; j < iface.fields.length; j++) {
-          const f = iface.fields[j] as InterfaceField;
+          const f = iface.fields[j] as { name: string; type: string };
           if (f.name === fieldName) {
             return f.type;
           }
@@ -1257,17 +1257,17 @@ export class MemberAccessGenerator {
     if (propIndex === -1) {
       const fieldNames: string[] = [];
       for (let i = 0; i < interfaceDef.fields.length; i++) {
-        const field = interfaceDef.fields[i] as InterfaceField;
+        const field = interfaceDef.fields[i] as { name: string; type: string };
         fieldNames.push(field.name);
       }
       throw new Error(`Unknown property: ${expr.property} on interface ${valueType}. Available properties: ${fieldNames.join(', ')}`);
     }
 
-    const propField = interfaceDef.fields[propIndex] as InterfaceField;
+    const propField = interfaceDef.fields[propIndex] as { name: string; type: string };
     const propType = this.tsTypeToLlvm(propField.type);
     const structTypes: string[] = [];
     for (let i = 0; i < interfaceDef.fields.length; i++) {
-      const field = interfaceDef.fields[i] as InterfaceField;
+      const field = interfaceDef.fields[i] as { name: string; type: string };
       structTypes.push(this.tsTypeToLlvm(field.type));
     }
     const structType = `{ ${structTypes.join(', ')} }`;
@@ -1590,7 +1590,7 @@ export class MemberAccessGenerator {
 
     let fieldIndex = -1;
     for (let i = 0; i < fields.length; i++) {
-      const f = fields[i] as InterfaceField;
+      const f = fields[i] as { name: string; type: string };
       if (f.name === property) {
         fieldIndex = i;
         break;
@@ -1598,12 +1598,12 @@ export class MemberAccessGenerator {
     }
     if (fieldIndex === -1) return null;
 
-    const field = fields[fieldIndex] as InterfaceField;
+    const field = fields[fieldIndex] as { name: string; type: string };
     const fieldLlvmType = this.tsTypeToLlvm(field.type);
 
     const types: string[] = [];
     for (let i = 0; i < fields.length; i++) {
-      const f = fields[i] as InterfaceField;
+      const f = fields[i] as { name: string; type: string };
       types.push(this.tsTypeToLlvm(f.type));
     }
     const structType = `{ ${types.join(', ')} }`;
