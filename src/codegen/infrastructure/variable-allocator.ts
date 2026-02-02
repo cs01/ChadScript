@@ -46,6 +46,7 @@ export interface VariableAllocatorContext {
   currentDeclaredSetType: string | undefined;
   getTypedJsonInterface(expr: Expression): string | null;
   getFunctionCallInterfaceReturn(expr: Expression): string | null;
+  getMethodCallInterfaceReturn(expr: Expression): string | null;
   getJSONParseInterface(expr: Expression): string | null;
   getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] };
   formatCodegenError(message: string, suggestion?: string): string;
@@ -120,6 +121,7 @@ export class VariableAllocator {
     const isResponse = this.ctx.isResponseExpression(stmt.value);
     const typedJsonInterface = this.ctx.getTypedJsonInterface(stmt.value);
     const functionInterfaceReturn = this.ctx.getFunctionCallInterfaceReturn(stmt.value);
+    const methodInterfaceReturn = this.ctx.getMethodCallInterfaceReturn(stmt.value);
     const mapGetInterfaceType = this.getMapGetInterfaceType(stmt.value);
     const declaredInterfaceType = this.getDeclaredInterfaceType(stmt);
 
@@ -129,6 +131,8 @@ export class VariableAllocator {
       this.allocateMapGetInterface(stmt, params, mapGetInterfaceType);
     } else if (functionInterfaceReturn) {
       this.allocateFunctionInterfaceReturn(stmt, params, functionInterfaceReturn);
+    } else if (methodInterfaceReturn) {
+      this.allocateMethodInterfaceReturn(stmt, params, methodInterfaceReturn);
     } else if (isAwait) {
       this.allocateAwaitResult(stmt, params);
     } else if (isPromise) {
@@ -181,6 +185,20 @@ export class VariableAllocator {
     const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
       objectMetadata: { keys, types }
+    });
+    this.ctx.emit(`${allocaReg} = alloca i8*`);
+    const objPtr = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
+  }
+
+  private allocateMethodInterfaceReturn(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
+    const interfaceDef = this.getInterface(interfaceName)!;
+    const allocaReg = this.ctx.nextTemp();
+    const keys = interfaceDef.fields.map((f) => f.name);
+    const types = interfaceDef.fields.map((f) => this.tsTypeToLlvm(f.type));
+    const tsTypes = interfaceDef.fields.map((f) => f.type);
+    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+      objectMetadata: { keys, types, tsTypes }
     });
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
