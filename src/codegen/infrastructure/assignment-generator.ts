@@ -69,9 +69,22 @@ export class AssignmentGenerator {
       }
       className = this.ctx.currentClassName;
       if (!className) {
-        const classWithFieldResult = this.ctx.ast.classes.find((c: ClassNode) => {
-          return c.fields.some((f: ClassField) => f.name === property);
-        });
+        let classWithFieldResult: ClassNode | null = null;
+        for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+          const c = this.ctx.ast.classes[ci] as ClassNode;
+          let hasField = false;
+          for (let fi = 0; fi < c.fields.length; fi++) {
+            const f = c.fields[fi] as { name: string };
+            if (f.name === property) {
+              hasField = true;
+              break;
+            }
+          }
+          if (hasField) {
+            classWithFieldResult = c;
+            break;
+          }
+        }
         const classWithField = classWithFieldResult as ClassNode;
         if (classWithFieldResult) {
           className = classWithField.name;

@@ -40,9 +40,17 @@ export class ClassGenerator {
     }
 
     if (fields) {
-      const index = fields.findIndex(f => f.name === fieldName);
+      let index = -1;
+      for (let i = 0; i < fields.length; i++) {
+        const f = fields[i] as { name: string; fieldType: string; tsType: string };
+        if (f.name === fieldName) {
+          index = i;
+          break;
+        }
+      }
       if (index !== -1) {
-        return { index, type: fields[index].fieldType, tsType: fields[index].tsType };
+        const foundField = fields[index] as { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType: string };
+        return { index, type: foundField.fieldType, tsType: foundField.tsType };
       }
     }
 
