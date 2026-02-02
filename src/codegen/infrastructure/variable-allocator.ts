@@ -426,10 +426,21 @@ export class VariableAllocator {
 
   private allocateClassInstance(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextTemp();
-    const newExpr = stmt.value as NewNode;
-    const className = newExpr.className;
+    let className: string;
+
+    const valueBase = stmt.value as ExprBase;
+    if (valueBase.type === 'new') {
+      const newExpr = stmt.value as NewNode;
+      className = newExpr.className;
+    } else if (valueBase.type === 'method_call') {
+      const methodExpr = stmt.value as MethodCallNode;
+      className = this.getMapGetClassName(methodExpr) || 'Unknown';
+    } else {
+      throw new Error(`Cannot allocate class instance for expression type: ${valueBase.type}`);
+    }
+
     const fields = this.ctx.classGen.getClassFields(className);
-    const ptrType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
+    const ptrType = fields.length > 0 ? `%${className}_struct*` : 'i8*';
 
     this.ctx.defineVariable(stmt.name, allocaReg, ptrType, SymbolKind.Class, 'local', {
       classMetadata: { className }
@@ -437,7 +448,40 @@ export class VariableAllocator {
     this.ctx.emit(`${allocaReg} = alloca ${ptrType}`);
 
     const instancePtr = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
+    if (fields.length > 0) {
+      const typedPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${typedPtr} = bitcast i8* ${instancePtr} to ${ptrType}`);
+      this.ctx.emit(`store ${ptrType} ${typedPtr}, ${ptrType}* ${allocaReg}`);
+    } else {
+      this.ctx.emit(`store ${ptrType} ${instancePtr}, ${ptrType}* ${allocaReg}`);
+    }
+  }
+
+  private getMapGetClassName(methodExpr: MethodCallNode): string | null {
+    if (methodExpr.method !== 'get') return null;
+    const methodObjBase = methodExpr.object as ExprBase;
+    if (methodObjBase.type === 'variable') {
+      const varName = (methodExpr.object as VariableNode).name;
+      if (this.ctx.symbolTable.isMap(varName)) {
+        const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+        if (mapMeta && mapMeta.valueType) {
+          return mapMeta.valueType;
+        }
+      }
+    } else if (methodObjBase.type === 'member_access') {
+      const memberExpr = methodExpr.object as MemberAccessNode;
+      const memberExprObjBase = memberExpr.object as ExprBase;
+      if (memberExprObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
+        const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+        if (fieldInfo && fieldInfo.tsType) {
+          const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
+          if (mapMatch && mapMatch[2]) {
+            return mapMatch[2];
+          }
+        }
+      }
+    }
+    return null;
   }
 
   private allocatePromise(stmt: VariableDeclaration, params: string[]): void {
