@@ -64,7 +64,7 @@ export class CallExpressionGenerator {
       const temp = this.ctx.nextTemp();
       this.ctx.usesPromises = true;
       this.ctx.emit(`${temp} = call %Promise* @fetch_async(i8* ${urlValue})`);
-      this.ctx.variableTypes.set(temp, '%Promise*');
+      this.ctx.setVariableType(temp, '%Promise*');
       return temp;
     }
 
@@ -335,7 +335,7 @@ export class CallExpressionGenerator {
 
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = call ${returnType} @${expr.name}(${argsList.join(', ')})`);
-    this.ctx.variableTypes.set(temp, returnType);
+    this.ctx.setVariableType(temp, returnType);
 
     return temp;
   }
@@ -366,7 +366,7 @@ export class CallExpressionGenerator {
 
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = call ${returnType} @${lambdaName}(${argsList.join(', ')})`);
-    this.ctx.variableTypes.set(temp, returnType);
+    this.ctx.setVariableType(temp, returnType);
 
     return temp;
   }
@@ -391,7 +391,7 @@ export class CallExpressionGenerator {
 
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__setTimeout(void ()* ${callbackPtr}, double ${delayValue})`);
-    this.ctx.variableTypes.set(result, 'i8*');
+    this.ctx.setVariableType(result, 'i8*');
 
     return result;
   }
@@ -416,7 +416,7 @@ export class CallExpressionGenerator {
 
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__setInterval(void ()* ${callbackPtr}, double ${intervalValue})`);
-    this.ctx.variableTypes.set(result, 'i8*');
+    this.ctx.setVariableType(result, 'i8*');
 
     return result;
   }
@@ -450,7 +450,7 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${resultI64} = ptrtoint %TSTree* ${resultPtr} to i64`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = bitcast i64 ${resultI64} to double`);
-    this.ctx.variableTypes.set(result, '%TSTree*');
+    this.ctx.setVariableType(result, '%TSTree*');
     return result;
   }
 
@@ -466,7 +466,7 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${resultI64} = ptrtoint %TSNode* ${resultPtr} to i64`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = bitcast i64 ${resultI64} to double`);
-    this.ctx.variableTypes.set(result, '%TSNode*');
+    this.ctx.setVariableType(result, '%TSNode*');
     return result;
   }
 
@@ -478,7 +478,7 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__ts_node_type(%TSNode* ${nodePtr})`);
-    this.ctx.variableTypes.set(result, 'i8*');
+    this.ctx.setVariableType(result, 'i8*');
     return result;
   }
 
@@ -523,7 +523,7 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${resultI64} = ptrtoint %TSNode* ${resultPtr} to i64`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = bitcast i64 ${resultI64} to double`);
-    this.ctx.variableTypes.set(result, '%TSNode*');
+    this.ctx.setVariableType(result, '%TSNode*');
     return result;
   }
 
@@ -542,7 +542,7 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${resultI64} = ptrtoint %TSNode* ${resultPtr} to i64`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = bitcast i64 ${resultI64} to double`);
-    this.ctx.variableTypes.set(result, '%TSNode*');
+    this.ctx.setVariableType(result, '%TSNode*');
     return result;
   }
 
@@ -555,7 +555,7 @@ export class CallExpressionGenerator {
     const sourceValue = this.ctx.generateExpression(expr.args[1], params);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__ts_node_text(%TSNode* ${nodePtr}, i8* ${sourceValue})`);
-    this.ctx.variableTypes.set(result, 'i8*');
+    this.ctx.setVariableType(result, 'i8*');
     return result;
   }
 
@@ -627,7 +627,7 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${resultI64} = ptrtoint %TSNode* ${resultPtr} to i64`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = bitcast i64 ${resultI64} to double`);
-    this.ctx.variableTypes.set(result, '%TSNode*');
+    this.ctx.setVariableType(result, '%TSNode*');
     return result;
   }
 }

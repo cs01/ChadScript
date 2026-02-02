@@ -7,6 +7,7 @@ interface ClassGeneratorLike {
 export interface VariableExpressionContext {
   symbolTable: SymbolTable;
   variableTypes: Map<string, string>;
+  setVariableType(name: string, type: string): void;
   classGen: ClassGeneratorLike;
   nextTemp(): string;
   emit(instruction: string): void;
@@ -51,14 +52,14 @@ export class VariableExpressionGenerator {
     if (name === 'null') {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
-      this.ctx.variableTypes.set(temp, 'i8*');
+      this.ctx.setVariableType(temp, 'i8*');
       return temp;
     }
 
     if (name === 'undefined') {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
-      this.ctx.variableTypes.set(temp, 'i8*');
+      this.ctx.setVariableType(temp, 'i8*');
       return temp;
     }
 
@@ -130,7 +131,7 @@ export class VariableExpressionGenerator {
     if (name === '__chadscript') {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = load double, double* @__chadscript`);
-      this.ctx.variableTypes.set(temp, 'double');
+      this.ctx.setVariableType(temp, 'double');
       return temp;
     }
 
@@ -148,21 +149,21 @@ export class VariableExpressionGenerator {
 
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = load ${ptrType}, ${ptrType}* ${classMeta.ptr}`);
-    this.ctx.variableTypes.set(temp, ptrType);
+    this.ctx.setVariableType(temp, ptrType);
     return temp;
   }
 
   private loadRegex(allocaReg: string): string {
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}`);
-    this.ctx.variableTypes.set(temp, 'i8*');
+    this.ctx.setVariableType(temp, 'i8*');
     return temp;
   }
 
   private loadString(allocaReg: string): string {
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}`);
-    this.ctx.variableTypes.set(temp, 'i8*');
+    this.ctx.setVariableType(temp, 'i8*');
     return temp;
   }
 
@@ -171,11 +172,11 @@ export class VariableExpressionGenerator {
       // Function parameter: alloca contains a pointer, need to load it
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = load ${arrayType}, ${arrayType}* ${allocaReg}`);
-      this.ctx.variableTypes.set(temp, arrayType);
+      this.ctx.setVariableType(temp, arrayType);
       return temp;
     } else {
       // Local variable: alloca IS the pointer to the array struct
-      this.ctx.variableTypes.set(allocaReg, arrayType);
+      this.ctx.setVariableType(allocaReg, arrayType);
       return allocaReg;
     }
   }
@@ -183,7 +184,7 @@ export class VariableExpressionGenerator {
   private loadObject(objectMeta: ObjectMeta): string {
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = load i8*, i8** ${objectMeta.ptr}`);
-    this.ctx.variableTypes.set(temp, 'i8*');
+    this.ctx.setVariableType(temp, 'i8*');
     return temp;
   }
 
@@ -191,7 +192,7 @@ export class VariableExpressionGenerator {
     const temp = this.ctx.nextTemp();
     const varType = this.ctx.getVariableType(name) || 'double';
     this.ctx.emit(`${temp} = load ${varType}, ${varType}* ${allocaReg}`);
-    this.ctx.variableTypes.set(temp, varType);
+    this.ctx.setVariableType(temp, varType);
     return temp;
   }
 }

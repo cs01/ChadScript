@@ -1128,7 +1128,7 @@ export class ControlFlowGenerator {
       // Convert to double for JavaScript semantics
       const result = this.nextTemp();
       this.emit(`${result} = sitofp i32 ${i32Result} to double`);
-      this.ctx.variableTypes.set(result, 'double');
+      this.ctx.setVariableType(result, 'double');
       return result;
     } else {
       // At least one must be non-zero (add and clamp to 1)
@@ -1141,7 +1141,7 @@ export class ControlFlowGenerator {
       // Convert to double for JavaScript semantics
       const result = this.nextTemp();
       this.emit(`${result} = sitofp i32 ${i32Result} to double`);
-      this.ctx.variableTypes.set(result, 'double');
+      this.ctx.setVariableType(result, 'double');
       return result;
     }
   }

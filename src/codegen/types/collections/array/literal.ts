@@ -90,7 +90,7 @@ export function generateArrayLiteral(
     gen.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
     gen.emit(`store i32 ${length}, i32* ${capField}`);
 
-    gen.variableTypes.set(arrayPtr, '%StringArray*');
+    gen.setVariableType(arrayPtr, '%StringArray*');
     return arrayPtr;
   } else if (isPointerArray) {
     // Generate pointer array (for Promise[], any[], etc.) - uses %Array with i8** data
@@ -116,7 +116,7 @@ export function generateArrayLiteral(
     for (let i = 0; i < expr.elements.length; i++) {
       const elemValue = (gen as any).generateExpression(expr.elements[i], params);
       const elemCast = gen.nextTemp();
-      gen.emit(`${elemCast} = bitcast ${gen.variableTypes.get(elemValue) || 'i8*'} ${elemValue} to i8*`);
+      gen.emit(`${elemCast} = bitcast ${gen.getVariableType(elemValue) || 'i8*'} ${elemValue} to i8*`);
       const elemPtr = gen.nextTemp();
       gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
       gen.emit(`store i8* ${elemCast}, i8** ${elemPtr}`);
@@ -139,7 +139,7 @@ export function generateArrayLiteral(
     gen.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
     gen.emit(`store i32 ${length}, i32* ${capField}`);
 
-    gen.variableTypes.set(arrayPtr, '%Array*');
+    gen.setVariableType(arrayPtr, '%Array*');
     return arrayPtr;
   } else {
     // Generate numeric array - allocate on HEAP, not stack
@@ -186,7 +186,7 @@ export function generateArrayLiteral(
     gen.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
     gen.emit(`store i32 ${length}, i32* ${capField}`);
 
-    gen.variableTypes.set(arrayPtr, '%Array*');
+    gen.setVariableType(arrayPtr, '%Array*');
     return arrayPtr;
   }
 }

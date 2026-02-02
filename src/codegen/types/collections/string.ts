@@ -48,6 +48,7 @@ export class StringGenerator {
       globalStrings: this.ctx.globalStrings,
       variableTypes: this.ctx.variableTypes,
       getVariableType: (name: string) => this.ctx.getVariableType(name),
+      setVariableType: (name: string, type: string) => this.ctx.setVariableType(name, type),
     } as unknown as BaseGenerator;
   }
 

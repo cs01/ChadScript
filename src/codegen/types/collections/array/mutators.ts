@@ -273,7 +273,7 @@ function generateIntArrayPush(gen: BaseGenerator, arrayPtr: string, value: strin
   // Return new length as double (JavaScript semantics)
   const newLenDouble = gen.nextTemp();
   gen.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
-  gen.variableTypes.set(newLenDouble, 'double');
+  gen.setVariableType(newLenDouble, 'double');
   return newLenDouble;
 }
 
@@ -368,6 +368,6 @@ function generateStringArrayPush(gen: BaseGenerator, arrayPtr: string, value: st
   // Return new length as double (JavaScript semantics)
   const newLenDouble = gen.nextTemp();
   gen.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
-  gen.variableTypes.set(newLenDouble, 'double');
+  gen.setVariableType(newLenDouble, 'double');
   return newLenDouble;
 }

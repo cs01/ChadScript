@@ -143,6 +143,13 @@ export class BaseGenerator {
   }
 
   /**
+   * Set type for a temporary register
+   */
+  setVariableType(name: string, type: string): void {
+    this.variableTypes.set(name, type);
+  }
+
+  /**
    * Lookup variable alloca
    */
   getVariableAlloca(name: string): string | undefined {

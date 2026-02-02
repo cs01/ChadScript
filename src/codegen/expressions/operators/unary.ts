@@ -9,6 +9,8 @@ interface UnaryExpressionContext {
   nextTemp(): string;
   emit(instruction: string): void;
   variableTypes: Map<string, string>;
+  getVariableType(name: string): string | undefined;
+  setVariableType(name: string, type: string): void;
   getVariableAlloca(name: string): string | undefined;
   thisPointer?: string | null;
   currentClassName?: string | null;
@@ -62,7 +64,7 @@ export class UnaryExpressionGenerator {
 
     const originalValue = this.ctx.nextTemp();
     this.ctx.emit(`${originalValue} = load double, double* ${allocaReg}`);
-    this.ctx.variableTypes.set(originalValue, 'double');
+    this.ctx.setVariableType(originalValue, 'double');
 
     const delta = op === 'post++' ? '1.0' : '-1.0';
     const newValue = this.ctx.nextTemp();
@@ -94,7 +96,7 @@ export class UnaryExpressionGenerator {
     const delta = op === '++' ? '1.0' : '-1.0';
     const newValue = this.ctx.nextTemp();
     this.ctx.emit(`${newValue} = fadd double ${originalValue}, ${delta}`);
-    this.ctx.variableTypes.set(newValue, 'double');
+    this.ctx.setVariableType(newValue, 'double');
 
     this.ctx.emit(`store double ${newValue}, double* ${allocaReg}`);
 
@@ -103,7 +105,7 @@ export class UnaryExpressionGenerator {
 
   private generateLogicalNot(operand: string): string {
     // Check if operand is double or i32
-    const operandType = this.ctx.variableTypes.get(operand);
+    const operandType = this.ctx.getVariableType(operand);
     let cmpResult: string;
 
     if (operandType === 'double' || (operand.indexOf('.') !== -1 && !operand.startsWith('%'))) {
@@ -123,7 +125,7 @@ export class UnaryExpressionGenerator {
     this.ctx.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = sitofp i32 ${i32Result} to double`);
-    this.ctx.variableTypes.set(result, 'double');
+    this.ctx.setVariableType(result, 'double');
     return result;
   }
 
@@ -154,13 +156,13 @@ export class UnaryExpressionGenerator {
 
     const originalValue = this.ctx.nextTemp();
     this.ctx.emit(`${originalValue} = load double, double* ${fieldPtr}`);
-    this.ctx.variableTypes.set(originalValue, 'double');
+    this.ctx.setVariableType(originalValue, 'double');
 
     const isIncrement = op === 'post++' || op === '++';
     const delta = isIncrement ? '1.0' : '-1.0';
     const newValue = this.ctx.nextTemp();
     this.ctx.emit(`${newValue} = fadd double ${originalValue}, ${delta}`);
-    this.ctx.variableTypes.set(newValue, 'double');
+    this.ctx.setVariableType(newValue, 'double');
 
     this.ctx.emit(`store double ${newValue}, double* ${fieldPtr}`);
 

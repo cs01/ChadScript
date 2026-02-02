@@ -6,6 +6,8 @@ export interface IndexAccessGeneratorContext {
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
   variableTypes: Map<string, string>;
+  getVariableType(name: string): string | undefined;
+  setVariableType(name: string, type: string): void;
   symbolTable: SymbolTable;
   isStringArrayExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
@@ -91,7 +93,7 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${arg} = call i8* @__safe_string(i8* ${argRaw})`);
 
     // Track this temporary register as string type
-    this.ctx.variableTypes.set(arg, 'i8*');
+    this.ctx.setVariableType(arg, 'i8*');
 
     return arg;
   }
@@ -101,7 +103,7 @@ export class IndexAccessGenerator {
     const indexDouble = this.ctx.generateExpression(expr.index, params);
 
     // Convert double index to i32 for getelementptr
-    const indexType = this.ctx.variableTypes.get(indexDouble);
+    const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
     if (indexType === 'double') {
       index = this.ctx.nextTemp();
@@ -120,7 +122,7 @@ export class IndexAccessGenerator {
     const elem = this.ctx.nextTemp();
     this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
     // Track that this loaded value is a string
-    this.ctx.variableTypes.set(elem, 'i8*');
+    this.ctx.setVariableType(elem, 'i8*');
     return elem;
   }
 
@@ -129,7 +131,7 @@ export class IndexAccessGenerator {
     const indexDouble = this.ctx.generateExpression(expr.index, params);
 
     // Convert double index to i32 for getelementptr
-    const indexType = this.ctx.variableTypes.get(indexDouble);
+    const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
     if (indexType === 'double') {
       index = this.ctx.nextTemp();
@@ -148,7 +150,7 @@ export class IndexAccessGenerator {
     // Load double element
     const elem = this.ctx.nextTemp();
     this.ctx.emit(`${elem} = load double, double* ${elemPtr}`);
-    this.ctx.variableTypes.set(elem, 'double');
+    this.ctx.setVariableType(elem, 'double');
     return elem;
   }
 
@@ -157,7 +159,7 @@ export class IndexAccessGenerator {
     const indexDouble = this.ctx.generateExpression(expr.index, params);
 
     // Convert double index to i32 (assume double if not explicitly i32)
-    const indexType = this.ctx.variableTypes.get(indexDouble);
+    const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
     if (indexType !== 'i32') {
       index = this.ctx.nextTemp();
@@ -179,7 +181,7 @@ export class IndexAccessGenerator {
     // Convert char code to double for compatibility with numeric system
     const charDouble = this.ctx.nextTemp();
     this.ctx.emit(`${charDouble} = sitofp i32 ${charI32} to double`);
-    this.ctx.variableTypes.set(charDouble, 'double');
+    this.ctx.setVariableType(charDouble, 'double');
 
     return charDouble;
   }
@@ -193,7 +195,7 @@ export class IndexAccessGenerator {
 
     // Generate index and convert to i32
     const indexDouble = this.ctx.generateExpression(expr.index, params);
-    const indexType = this.ctx.variableTypes.get(indexDouble);
+    const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
     if (indexType === 'double' || indexType === undefined) {
       index = this.ctx.nextTemp();
@@ -236,7 +238,7 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${endLabel}:`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi double [ ${numValue}, %${numberLabel} ], [ ${strDouble}, %${stringLabel} ]`);
-    this.ctx.variableTypes.set(result, 'double');
+    this.ctx.setVariableType(result, 'double');
 
     return result;
   }

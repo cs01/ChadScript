@@ -15,6 +15,7 @@ import type { SymbolTable } from '../infrastructure/symbol-table.js';
 interface ExpressionOrchestratorContext {
   symbolTable: SymbolTable;
   variableTypes: Map<string, string>;
+  setVariableType(name: string, type: string): void;
   usesPromises: boolean;
   nextTemp(): string;
   emit(instruction: string): void;
@@ -169,7 +170,7 @@ export class ExpressionGenerator {
       const promiseReg = this.generate(awaitExpr.argument, params);
       const valueReg = this.ctx.nextTemp();
       this.ctx.emit(`${valueReg} = call i8* @__Promise_get_value(%Promise* ${promiseReg})`);
-      this.ctx.variableTypes.set(valueReg, 'i8*');
+      this.ctx.setVariableType(valueReg, 'i8*');
       this.ctx.usesPromises = true;
       return valueReg;
     }

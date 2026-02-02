@@ -187,6 +187,8 @@ export interface MethodCallGeneratorContext {
   formatCodegenError(message: string, suggestion: string): string;
   symbolTable: SymbolTable;
   variableTypes: Map<string, string>;
+  getVariableType(name: string): string | undefined;
+  setVariableType(name: string, type: string): void;
   thisPointer: string | null;
   currentClassName: string | null;
   ast: AST;
@@ -525,7 +527,7 @@ export class MethodCallGenerator {
         this.ctx.syncStateToGenerators();
         let responsePtr = this.ctx.generateExpression(expr.object, params);
 
-        const objType = this.ctx.variableTypes.get(responsePtr);
+        const objType = this.ctx.getVariableType(responsePtr);
         if (objType === 'i8*') {
           const castPtr = this.ctx.nextTemp();
           this.ctx.emit(`${castPtr} = bitcast i8* ${responsePtr} to %Response*`);
@@ -1459,7 +1461,7 @@ export class MethodCallGenerator {
         const value = this.ctx.generateExpression(expr.args[0], params);
         valuePtr = this.nextTemp();
         this.emit(`${valuePtr} = bitcast i8* null to i8*`);
-        const valueType = this.ctx.variableTypes.get(value) || 'double';
+        const valueType = this.ctx.getVariableType(value) || 'double';
         if (valueType === 'i8*') {
           valuePtr = value;
         } else {
@@ -1475,7 +1477,7 @@ export class MethodCallGenerator {
       }
       const result = this.nextTemp();
       this.emit(`${result} = call %Promise* @__Promise_resolve_static(i8* ${valuePtr})`);
-      this.ctx.variableTypes.set(result, '%Promise*');
+      this.ctx.setVariableType(result, '%Promise*');
       return result;
     }
 
@@ -1483,7 +1485,7 @@ export class MethodCallGenerator {
       let reasonPtr: string;
       if (expr.args.length > 0) {
         const reason = this.ctx.generateExpression(expr.args[0], params);
-        const reasonType = this.ctx.variableTypes.get(reason) || 'double';
+        const reasonType = this.ctx.getVariableType(reason) || 'double';
         if (reasonType === 'i8*') {
           reasonPtr = reason;
         } else {
@@ -1499,7 +1501,7 @@ export class MethodCallGenerator {
       }
       const result = this.nextTemp();
       this.emit(`${result} = call %Promise* @__Promise_reject_static(i8* ${reasonPtr})`);
-      this.ctx.variableTypes.set(result, '%Promise*');
+      this.ctx.setVariableType(result, '%Promise*');
       return result;
     }
 
@@ -1510,7 +1512,7 @@ export class MethodCallGenerator {
       const promisesArray = this.ctx.generateExpression(expr.args[0], params);
       const result = this.nextTemp();
       this.emit(`${result} = call %Promise* @__Promise_all(%Array* ${promisesArray})`);
-      this.ctx.variableTypes.set(result, '%Promise*');
+      this.ctx.setVariableType(result, '%Promise*');
       return result;
     }
 
@@ -1569,7 +1571,7 @@ export class MethodCallGenerator {
 
     const result = this.nextTemp();
     this.emit(`${result} = call %Promise* @__Promise_then(%Promise* ${promisePtr}, void (i8*, i8*)* ${onFulfilledPtr}, void (i8*, i8*)* ${onRejectedPtr})`);
-    this.ctx.variableTypes.set(result, '%Promise*');
+    this.ctx.setVariableType(result, '%Promise*');
     return result;
   }
 
