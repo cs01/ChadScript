@@ -6,6 +6,13 @@ import type { TypeResolver } from './type-resolver/index.js';
 
 interface ExprBase { type: string; }
 
+function isStringType(t: string): boolean {
+  if (t === 'string') return true;
+  if (t === 'string | null' || t === 'string | undefined') return true;
+  if (t === 'null | string' || t === 'undefined | string') return true;
+  return false;
+}
+
 export interface TypeInferenceContext {
   symbolTable: SymbolTable;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
@@ -372,7 +379,7 @@ export class TypeInference {
             varType.indexOf('Map') === -1 && varType.indexOf('Set') === -1) {
           const structTypeName = varType.substring(1, varType.length - 1);
           const prop = this.getInterfaceProperty(structTypeName, memberExpr.property);
-          if (prop && prop.type === 'string') {
+          if (prop && isStringType(prop.type)) {
             return true;
           }
         }
@@ -399,7 +406,7 @@ export class TypeInference {
         const assertExpr = memberExpr.object as TypeAssertionNode;
         const assertedType = assertExpr.assertedType;
         const prop = this.getInterfaceProperty(assertedType, memberExpr.property);
-        if (prop && prop.type === 'string') {
+        if (prop && isStringType(prop.type)) {
           return true;
         }
       }
@@ -407,7 +414,7 @@ export class TypeInference {
         const nestedMemberTsType = this.resolveNestedMemberAccessTsType(memberExpr.object as MemberAccessNode);
         if (nestedMemberTsType) {
           const fieldProp = this.getInterfaceProperty(nestedMemberTsType, memberExpr.property);
-          if (fieldProp && fieldProp.type === 'string') {
+          if (fieldProp && isStringType(fieldProp.type)) {
             return true;
           }
         } else {
