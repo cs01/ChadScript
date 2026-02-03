@@ -1333,38 +1333,36 @@ export class ControlFlowGenerator {
   }
 
   generateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string {
-    // JavaScript semantics: return the value, not a boolean
-    // a || b: returns a if truthy, otherwise b
-    // a && b: returns a if falsy, otherwise b
-
     const leftValue = this.ctx.generateExpression(left, params);
     const leftType = this.ctx.getVariableType(leftValue) || 'double';
     const leftBool = this.convertToBool(leftValue);
-    const leftEndLabel = this.ctx.getCurrentLabel();
 
     const evalRightLabel = this.nextLabel('logop_eval_right');
     const endLabel = this.nextLabel('logop_end');
+    const leftCoerceLabel = this.nextLabel('logop_left_coerce');
 
     if (op === '||') {
-      this.emit(`br i1 ${leftBool}, label %${endLabel}, label %${evalRightLabel}`);
+      this.emit(`br i1 ${leftBool}, label %${leftCoerceLabel}, label %${evalRightLabel}`);
     } else {
-      this.emit(`br i1 ${leftBool}, label %${evalRightLabel}, label %${endLabel}`);
+      this.emit(`br i1 ${leftBool}, label %${evalRightLabel}, label %${leftCoerceLabel}`);
     }
 
     this.emit(`${evalRightLabel}:`);
     const rightValue = this.ctx.generateExpression(right, params);
     const rightType = this.ctx.getVariableType(rightValue) || 'double';
-    const evalRightEndLabel = this.ctx.getCurrentLabel();
+    const resultType = this.getPhiType(leftType, rightType);
+    const rightForPhi = this.coerceToTypeNoPhi(rightValue, rightType, resultType);
+    const rightCoerceEndLabel = this.ctx.getCurrentLabel();
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${leftCoerceLabel}:`);
+    const leftForPhi = this.coerceToTypeNoPhi(leftValue, leftType, resultType);
+    const leftCoerceEndLabel = this.ctx.getCurrentLabel();
     this.emit(`br label %${endLabel}`);
 
     this.emit(`${endLabel}:`);
-
-    const resultType = this.getPhiType(leftType, rightType);
-    const leftForPhi = this.coerceToType(leftValue, leftType, resultType);
-    const rightForPhi = this.coerceToType(rightValue, rightType, resultType);
-
     const result = this.nextTemp();
-    this.emit(`${result} = phi ${resultType} [ ${leftForPhi}, %${leftEndLabel} ], [ ${rightForPhi}, %${evalRightEndLabel} ]`);
+    this.emit(`${result} = phi ${resultType} [ ${leftForPhi}, %${leftCoerceEndLabel} ], [ ${rightForPhi}, %${rightCoerceEndLabel} ]`);
     this.ctx.setVariableType(result, resultType);
     return result;
   }
@@ -1376,7 +1374,7 @@ export class ControlFlowGenerator {
     return 'double';
   }
 
-  private coerceToType(value: string, fromType: string, toType: string): string {
+  private coerceToTypeNoPhi(value: string, fromType: string, toType: string): string {
     if (fromType === toType) return value;
     if (toType.indexOf('*') !== -1 && fromType === 'double') {
       const coerced = this.nextTemp();
