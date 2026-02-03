@@ -4,7 +4,7 @@ import { TypeInference, TypeInferenceContext } from './infrastructure/type-infer
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
 import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/function-generator.js';
 import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructure/assignment-generator.js';
-import { getLLVMDeclarations, getSafeStringHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
+import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
 import { TypeResolver, TypeResolverContext } from './infrastructure/type-resolver/index.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
@@ -412,6 +412,7 @@ export class LLVMGenerator extends BaseGenerator {
     }
 
     ir += getSafeStringHelper();
+    ir += getDoubleToStringHelper();
 
     ir += getGlobalVariables();
 
