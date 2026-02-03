@@ -37,6 +37,10 @@ export interface IStringGenerator {
   generateStringConcatDirect(left: string, right: string): string;
 }
 
+export interface IStringMapGenerator {
+  generateStringMapEntries(mapPtr: string): string;
+}
+
 /**
  * Interface defining what sub-generators need from parent generator.
  * This makes dependencies explicit and testable.
@@ -327,6 +331,11 @@ export interface IGeneratorContext {
    * Access to class generator for field type lookups
    */
   readonly classGen: IClassGenContext;
+
+  /**
+   * Access to string map generator for Map<string, *> operations
+   */
+  readonly stringMapGen: IStringMapGenerator;
 }
 
 /**
@@ -350,13 +359,13 @@ export class MockGeneratorContext implements IGeneratorContext {
   public variableTypes: Map<string, string> = new Map();
   public expressionTypes: Map<Expression, ResolvedType> = new Map();
   public globalStrings: string[] = [];
-  public currentFunctionReturnType = 'double';
+  public currentFunctionReturnType: string = 'double';
   public currentFunctionTsReturnType: string | undefined = undefined;
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null;
   public thisPointer: string | null = null;
   public currentClassName: string | null = null;
   public ast?: AST;
-  public currentLabel = 'entry';
+  public currentLabel: string = 'entry';
   public typeChecker: TypeChecker | null = null;
   public typeResolver?: TypeResolver;
   public usesPromises = false;
@@ -577,6 +586,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   classGen = {
     getFieldInfo: (_className: string, _fieldName: string): { index: number; type: string; tsType?: string } | null => null,
     getClassFields: (_className: string): { name: string; fieldType: string }[] => [],
+  };
+
+  stringMapGen = {
+    generateStringMapEntries: (_mapPtr: string): string => '%mock_entries',
   };
 
   resolveImportAlias(localName: string): string {
