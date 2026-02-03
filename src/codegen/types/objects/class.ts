@@ -51,8 +51,8 @@ export class ClassGenerator {
   }
 
   // Helper methods delegate to context
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextTemp(): string { return this.ctx.nextTemp(); }
+  private emit(instruction: string): void { this.ctx.emit(instruction); }
 
   // Helper to get field info
   getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string } | null {
@@ -629,6 +629,22 @@ export class ClassGenerator {
         });
         return;
       }
+    }
+
+    let classDef: { name: string } | null = null;
+    const classes = this.ctx.ast?.classes || [];
+    for (let i = 0; i < classes.length; i++) {
+      const cls = classes[i] as { name: string };
+      if (cls.name === tsType) {
+        classDef = cls;
+        break;
+      }
+    }
+    if (classDef) {
+      this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Class, 'local', {
+        classMetadata: { className: classDef.name }
+      });
+      return;
     }
 
     this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind.Object, 'local');
