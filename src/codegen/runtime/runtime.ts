@@ -168,6 +168,7 @@ export class RuntimeGenerator {
     ir += 'declare void @cJSON_Delete(i8*)\n';
     ir += 'declare i32 @cJSON_IsNumber(i8*)\n';
     ir += 'declare i32 @cJSON_IsString(i8*)\n';
+    ir += 'declare i32 @cJSON_IsObject(i8*)\n';
     ir += '\n';
 
     // Use cJSON's official API functions (portable across all platforms)
