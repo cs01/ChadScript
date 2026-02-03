@@ -165,6 +165,7 @@ export class RuntimeGenerator {
     ir += 'declare i8* @cJSON_Parse(i8*)\n';
     ir += 'declare i8* @cJSON_GetObjectItem(i8*, i8*)\n';
     ir += 'declare i8* @cJSON_GetArrayItem(i8*, i32)\n';
+    ir += 'declare i32 @cJSON_GetArraySize(i8*)\n';
     ir += 'declare void @cJSON_Delete(i8*)\n';
     ir += 'declare i32 @cJSON_IsNumber(i8*)\n';
     ir += 'declare i32 @cJSON_IsString(i8*)\n';
