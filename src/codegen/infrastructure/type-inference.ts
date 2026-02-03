@@ -210,7 +210,62 @@ export class TypeInference {
         return fieldTyped.type;
       }
     }
+    if (typeName.startsWith('{') && typeName.endsWith('}')) {
+      const inlineField = this.getInlineObjectField(typeName, fieldName);
+      if (inlineField) {
+        return inlineField;
+      }
+    }
     return null;
+  }
+
+  private getInlineObjectField(typeStr: string, fieldName: string): string | null {
+    const inner = typeStr.slice(1, typeStr.length - 1).trim();
+    if (inner.length === 0) return null;
+    const fields = this.parseInlineObjectFields(inner);
+    for (let i = 0; i < fields.length; i++) {
+      const field = fields[i] as { name: string; type: string };
+      const cleanName = field.name.replace(/\?$/, '');
+      if (cleanName === fieldName) {
+        return field.type;
+      }
+    }
+    return null;
+  }
+
+  private parseInlineObjectFields(inner: string): { name: string; type: string }[] {
+    const fields: { name: string; type: string }[] = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i];
+      if (ch === '{' || ch === '(' || ch === '[' || ch === '<') {
+        depth++;
+      } else if (ch === '}' || ch === ')' || ch === ']' || ch === '>') {
+        depth--;
+      } else if (ch === ';' && depth === 0) {
+        const part = inner.slice(start, i).trim();
+        if (part) {
+          const colonIdx = part.indexOf(':');
+          if (colonIdx !== -1) {
+            const name = part.slice(0, colonIdx).trim();
+            const fieldType = part.slice(colonIdx + 1).trim();
+            fields.push({ name, type: fieldType });
+          }
+        }
+        start = i + 1;
+      }
+    }
+    const lastPart = inner.slice(start).trim();
+    if (lastPart) {
+      const colonIdx = lastPart.indexOf(':');
+      if (colonIdx !== -1) {
+        const name = lastPart.slice(0, colonIdx).trim();
+        const fieldType = lastPart.slice(colonIdx + 1).trim();
+        fields.push({ name, type: fieldType });
+      }
+    }
+    return fields;
   }
 
   private resolveInterfaceTypeFromExpression(expr: Expression): string | null {
@@ -637,7 +692,7 @@ export class TypeInference {
           methodExpr.method === 'concat' || methodExpr.method === 'repeat' ||
           methodExpr.method === 'padStart' || methodExpr.method === 'charAt' ||
           methodExpr.method === 'trim' || methodExpr.method === 'slice' ||
-          methodExpr.method === 'text') {
+          methodExpr.method === 'text' || methodExpr.method === 'getVariableType') {
         return true;
       }
       if (methodObjBase.type === 'variable' && this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)) {
@@ -859,6 +914,16 @@ export class TypeInference {
   getMethodCallInterfaceReturn(expr: Expression): string | null {
     const e = expr as ExprBase;
 
+    if (e.type === 'type_assertion') {
+      const assertion = expr as TypeAssertionNode;
+      if (assertion.assertedType.startsWith('{')) {
+        return assertion.assertedType;
+      }
+      const iface = this.getInterface(assertion.assertedType);
+      if (iface) return assertion.assertedType;
+      return this.getMethodCallInterfaceReturn(assertion.expression);
+    }
+
     if (e.type === 'conditional') {
       const condExpr = expr as ConditionalExpressionNode;
       const consequentResult = this.getMethodCallInterfaceReturn(condExpr.consequent);
@@ -964,6 +1029,13 @@ export class TypeInference {
 
   isStringArrayExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
+    if (e.type === 'type_assertion') {
+      const assertion = expr as TypeAssertionNode;
+      if (assertion.assertedType === 'string[]') {
+        return true;
+      }
+      return this.isStringArrayExpression(assertion.expression);
+    }
     if (e.type === 'variable') {
       const varType = this.ctx.symbolTable.getType((expr as VariableNode).name);
       if (varType === '%StringArray*') {
@@ -984,7 +1056,13 @@ export class TypeInference {
     }
     if (e.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
-      return methodExpr.method === 'split' || methodExpr.method === 'match';
+      if (methodExpr.method === 'split' || methodExpr.method === 'match') {
+        return true;
+      }
+      if (methodExpr.method === 'map' || methodExpr.method === 'filter') {
+        return this.isStringArrayExpression(methodExpr.object);
+      }
+      return false;
     }
     if (e.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
