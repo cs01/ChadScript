@@ -174,12 +174,6 @@ interface ExpressionGeneratorLike {
   arrowFunctionGen: ArrowFunctionGeneratorLike;
 }
 
-interface FieldInfo {
-  index: number;
-  type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean';
-  tsType?: string;
-}
-
 export interface MethodCallGeneratorContext {
   nextTemp(): string;
   emit(instruction: string): void;

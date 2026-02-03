@@ -2,7 +2,7 @@ import * as ts from 'typescript';
 import * as path from 'path';
 
 export type { TypeInfo, PropertyTypeInfo } from '../codegen/infrastructure/types.js';
-import type { TypeInfo, PropertyTypeInfo } from '../codegen/infrastructure/types.js';
+import type { TypeInfo } from '../codegen/infrastructure/types.js';
 
 /**
  * TypeScript Type Checker Wrapper
