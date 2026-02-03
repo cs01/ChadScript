@@ -245,8 +245,13 @@ export class BaseGenerator {
   private looksLikeDoubleValue(value: string): boolean {
     if (value === '0.0' || value === '1.0') return true;
     if (value.includes('.') && !value.includes('%')) {
-      const num = parseFloat(value);
-      return !isNaN(num);
+      for (let i = 0; i < value.length; i++) {
+        const ch = value.charAt(i);
+        if (ch !== '.' && ch !== '-' && (ch < '0' || ch > '9')) {
+          return false;
+        }
+      }
+      return value.length > 0;
     }
     return false;
   }
