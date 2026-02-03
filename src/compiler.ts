@@ -118,6 +118,9 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
       }
     } catch (error) {
       logger.warn('Warning: Could not load TypeScript types: ' + error);
+      if (error instanceof Error) {
+        logger.warn('Stack trace: ' + error.stack);
+      }
     }
   }
 

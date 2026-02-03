@@ -15,6 +15,7 @@ export class TypeChecker {
   private program: ts.Program;
   private checker: ts.TypeChecker;
   private sourceFiles: Map<string, ts.SourceFile>;
+  private lookupCache: Map<string, ts.SourceFile | null>;
 
   constructor(files: { filename: string; code: string }[]) {
     const compilerOptions: ts.CompilerOptions = {
@@ -24,9 +25,14 @@ export class TypeChecker {
       strict: true,
       noEmit: true,
       allowJs: true,
+      skipLibCheck: true,
+      skipDefaultLibCheck: true,
+      noLib: true,
+      noResolve: true,
     };
 
     this.sourceFiles = new Map();
+    this.lookupCache = new Map();
     const filenames: string[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -63,24 +69,37 @@ export class TypeChecker {
   }
 
   private lookupSourceFile(fileName: string): ts.SourceFile | undefined {
+    if (this.lookupCache.has(fileName)) {
+      const cached = this.lookupCache.get(fileName);
+      return cached === null ? undefined : cached;
+    }
+
+    let result: ts.SourceFile | undefined;
+
     if (this.sourceFiles.has(fileName)) {
-      return this.sourceFiles.get(fileName);
-    }
-    const tsName = fileName.replace(/\.js$/, '.ts');
-    if (tsName !== fileName && this.sourceFiles.has(tsName)) {
-      return this.sourceFiles.get(tsName);
-    }
-    for (const [key, sf] of this.sourceFiles.entries()) {
-      if (key.endsWith(fileName) || key.endsWith(fileName.replace(/\.js$/, '.ts'))) {
-        return sf;
+      result = this.sourceFiles.get(fileName);
+    } else {
+      const tsName = fileName.replace(/\.js$/, '.ts');
+      if (tsName !== fileName && this.sourceFiles.has(tsName)) {
+        result = this.sourceFiles.get(tsName);
+      } else {
+        for (const [key, sf] of this.sourceFiles.entries()) {
+          if (key.endsWith(fileName) || key.endsWith(fileName.replace(/\.js$/, '.ts'))) {
+            result = sf;
+            break;
+          }
+          const keyBase = path.basename(key);
+          const fileBase = path.basename(fileName);
+          if (keyBase === fileBase || keyBase === fileBase.replace(/\.js$/, '.ts')) {
+            result = sf;
+            break;
+          }
+        }
       }
-      const keyBase = path.basename(key);
-      const fileBase = path.basename(fileName);
-      if (keyBase === fileBase || keyBase === fileBase.replace(/\.js$/, '.ts')) {
-        return sf;
-      }
     }
-    return undefined;
+
+    this.lookupCache.set(fileName, result === undefined ? null : result);
+    return result;
   }
 
   private findFunctionInAllFiles(functionName: string): ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration | undefined {
