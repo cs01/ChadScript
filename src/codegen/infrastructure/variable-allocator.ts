@@ -465,16 +465,16 @@ export class VariableAllocator {
       }
     }
 
-    this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.ObjectArray, 'local');
+    this.ctx.defineVariable(stmt.name, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local');
     this.ctx.symbolTable.setObjectArrayMetadata(stmt.name, {
       elementInterfaceName: arrayInfo.elementType,
       elementKeys,
       elementTypes,
       elementTsTypes
     });
-    this.ctx.emit(`${allocaReg} = alloca %Array*`);
+    this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
     const arrPtr = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.emit(`store %Array* ${arrPtr}, %Array** ${allocaReg}`);
+    this.ctx.emit(`store %ObjectArray* ${arrPtr}, %ObjectArray** ${allocaReg}`);
   }
 
   private getDeclaredInterfaceType(stmt: VariableDeclaration): string | null {

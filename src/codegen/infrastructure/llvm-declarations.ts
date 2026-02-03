@@ -2,6 +2,7 @@ export function getLLVMDeclarations(): string {
   let ir = '';
 
   ir += '%Array = type { double*, i32, i32 }\n';
+  ir += '%ObjectArray = type { i8*, i32, i32 }\n';
   ir += '%StringArray = type { i8**, i32, i32 }\n';
   ir += '%Map = type { double*, double*, i32, i32 }\n';
   ir += '%StringMap = type { i8**, i8**, i32, i32 }\n';

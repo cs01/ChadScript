@@ -1630,6 +1630,10 @@ export class MemberAccessGenerator {
       return this.getArrayLength(expr.object, params, '%Array');
     }
 
+    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isObjectArray((expr.object as VariableNode).name)) {
+      return this.getArrayLength(expr.object, params, '%ObjectArray');
+    }
+
     if (this.isProcessArgvLength(expr)) {
       const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
       return this.getStringArrayLength(stringArrayPtr);
