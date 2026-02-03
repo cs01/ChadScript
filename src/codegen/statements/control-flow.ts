@@ -17,9 +17,9 @@ export class ControlFlowGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
   // Helper methods delegate to context
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextTemp(): string { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string): void { this.ctx.emit(instruction); }
 
   // Helper to convert a value to boolean (i1) for branching
   private convertToBool(value: string): string {
@@ -39,14 +39,19 @@ export class ControlFlowGenerator {
       const condBool = this.nextTemp();
       this.emit(`${condBool} = icmp ne ${valueType} ${value}, null`);
       return condBool;
+    } else if (valueType === 'i32') {
+      // Value is i32, use icmp ne for integer comparison
+      const condBool = this.nextTemp();
+      this.emit(`${condBool} = icmp ne i32 ${value}, 0`);
+      return condBool;
     } else {
-      // Value is i32, convert to double then use fcmp
-      // But first check if it looks like a temp register - if so, assume double
+      // Unknown type - assume double for temp registers
       if (value.startsWith('%')) {
         const condBool = this.nextTemp();
         this.emit(`${condBool} = fcmp one double ${value}, 0.0`);
         return condBool;
       }
+      // Literal i32 value - convert to double then compare
       const condDouble = this.nextTemp();
       this.emit(`${condDouble} = sitofp i32 ${value} to double`);
       const condBool = this.nextTemp();
@@ -340,14 +345,17 @@ export class ControlFlowGenerator {
     // Get pointer to the data array
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 0`);
-    const dataArray = this.nextTemp();
+    let dataArray: string;
     if (isStringArray) {
+      dataArray = this.nextTemp();
       this.emit(`${dataArray} = load i8**, i8*** ${dataPtr}`);
     } else if (isObjectArray) {
       const dataDouble = this.nextTemp();
       this.emit(`${dataDouble} = load double*, double** ${dataPtr}`);
+      dataArray = this.nextTemp();
       this.emit(`${dataArray} = bitcast double* ${dataDouble} to i8**`);
     } else {
+      dataArray = this.nextTemp();
       this.emit(`${dataArray} = load double*, double** ${dataPtr}`);
     }
 
@@ -1355,6 +1363,24 @@ export class ControlFlowGenerator {
 
   private isMapEntriesCall(expr: Expression): boolean {
     const e = expr as ExprBase;
+
+    if (e.type === 'variable') {
+      const varName = (expr as VariableNode).name;
+      return this.ctx.symbolTable.isMap(varName);
+    }
+
+    if (e.type === 'member_access') {
+      const memberExpr = expr as MemberAccessNode;
+      const memberObjBase = memberExpr.object as ExprBase;
+      if (memberObjBase.type === 'this' && this.ctx.currentClassName) {
+        const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
+          return true;
+        }
+      }
+    }
+
     if (e.type !== 'method_call') return false;
     const methodCall = expr as MethodCallNode;
     if (methodCall.method !== 'entries') return false;
@@ -1382,29 +1408,49 @@ export class ControlFlowGenerator {
 
   private getMapValueTypeInfo(iterable: Expression): { valueType: string; objectMetadata?: ObjectMetadata } | null {
     const e = iterable as ExprBase;
-    if (e.type !== 'method_call') return null;
-    const methodCall = iterable as MethodCallNode;
-    if (methodCall.method !== 'entries') return null;
 
     let valueType: string | null = null;
 
-    const methodCallObjBase = methodCall.object as ExprBase;
-    if (methodCallObjBase.type === 'variable') {
-      const varName = (methodCall.object as VariableNode).name;
+    if (e.type === 'variable') {
+      const varName = (iterable as VariableNode).name;
       const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
       if (mapMeta) {
         valueType = mapMeta.valueType;
       }
-    } else if (methodCallObjBase.type === 'member_access') {
-      const memberExpr = methodCall.object as MemberAccessNode;
-      const memberExprObjBase = memberExpr.object as ExprBase;
-      if (memberExprObjBase.type === 'this' && this.ctx.currentClassName) {
+    } else if (e.type === 'member_access') {
+      const memberExpr = iterable as MemberAccessNode;
+      const memberObjBase = memberExpr.object as ExprBase;
+      if (memberObjBase.type === 'this' && this.ctx.currentClassName) {
         const mapTypeInfo = this.ctx.typeResolver?.getClassFieldMapType(
           this.ctx.currentClassName,
           memberExpr.property
         );
         if (mapTypeInfo) {
           valueType = mapTypeInfo.valueType;
+        }
+      }
+    } else if (e.type === 'method_call') {
+      const methodCall = iterable as MethodCallNode;
+      if (methodCall.method === 'entries') {
+        const methodCallObjBase = methodCall.object as ExprBase;
+        if (methodCallObjBase.type === 'variable') {
+          const varName = (methodCall.object as VariableNode).name;
+          const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+          if (mapMeta) {
+            valueType = mapMeta.valueType;
+          }
+        } else if (methodCallObjBase.type === 'member_access') {
+          const memberExpr = methodCall.object as MemberAccessNode;
+          const memberExprObjBase = memberExpr.object as ExprBase;
+          if (memberExprObjBase.type === 'this' && this.ctx.currentClassName) {
+            const mapTypeInfo = this.ctx.typeResolver?.getClassFieldMapType(
+              this.ctx.currentClassName,
+              memberExpr.property
+            );
+            if (mapTypeInfo) {
+              valueType = mapTypeInfo.valueType;
+            }
+          }
         }
       }
     }
@@ -1430,7 +1476,34 @@ export class ControlFlowGenerator {
 
     const valueTypeInfo = this.getMapValueTypeInfo(stmt.iterable);
 
-    const iterableValue = this.ctx.generateExpression(stmt.iterable, params);
+    let iterableValue: string;
+    const iterableBase = stmt.iterable as ExprBase;
+    if (iterableBase.type === 'variable') {
+      const varName = (stmt.iterable as VariableNode).name;
+      if (this.ctx.symbolTable.isMap(varName)) {
+        const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
+        iterableValue = this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
+      } else {
+        iterableValue = this.ctx.generateExpression(stmt.iterable, params);
+      }
+    } else if (iterableBase.type === 'member_access') {
+      const memberExpr = stmt.iterable as MemberAccessNode;
+      const memberObjBase = memberExpr.object as ExprBase;
+      if (memberObjBase.type === 'this' && this.ctx.currentClassName) {
+        const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
+          const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
+          iterableValue = this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
+        } else {
+          iterableValue = this.ctx.generateExpression(stmt.iterable, params);
+        }
+      } else {
+        iterableValue = this.ctx.generateExpression(stmt.iterable, params);
+      }
+    } else {
+      iterableValue = this.ctx.generateExpression(stmt.iterable, params);
+    }
 
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 0`);
