@@ -557,6 +557,16 @@ export class TypeInference {
           }
         }
       }
+      const objectType = this.resolveTypeFromExpression(memberExpr.object);
+      if (objectType) {
+        const fieldType = this.getFieldTypeFromType(objectType, memberExpr.property);
+        if (fieldType) {
+          const baseFieldType = stripNullable(fieldType);
+          if (baseFieldType.endsWith('[]') && baseFieldType !== 'string[]' && baseFieldType !== 'number[]' && baseFieldType !== 'boolean[]') {
+            return baseFieldType.slice(0, -2);
+          }
+        }
+      }
     }
     return null;
   }
