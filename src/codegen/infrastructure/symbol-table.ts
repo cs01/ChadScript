@@ -588,6 +588,14 @@ export class SymbolTable {
     return undefined;
   }
 
+  setObjectArrayMetadata(name: string, metadata: ObjectArrayMetadata): void {
+    const symbol = this.symbols.get(name);
+    if (symbol) {
+      symbol.objectArrayMetadata = metadata;
+      symbol.kind = SymbolKind.ObjectArray;
+    }
+  }
+
   // ============================================
   // Convenience methods for backward compatibility
   // ============================================

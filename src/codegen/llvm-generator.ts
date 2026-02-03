@@ -780,6 +780,10 @@ export class LLVMGenerator extends BaseGenerator {
     return this.typeInference.getMethodCallInterfaceReturn(expr);
   }
 
+  public getMethodCallArrayReturn(expr: Expression): { elementType: string; fields: { name: string; type: string }[] } | null {
+    return this.typeInference.getMethodCallArrayReturn(expr);
+  }
+
   public getJSONParseInterface(expr: Expression): string | null {
     if (expr.type !== 'method_call') return null;
     return this.typeInference.getJSONParseInterface(expr as MethodCallNode);
