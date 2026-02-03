@@ -68,6 +68,7 @@ export interface VariableAllocatorContext {
   isArrayExpression(expr: Expression): boolean;
   isStringArrayExpression(expr: Expression): boolean;
   isObjectArrayExpression(expr: Expression): boolean;
+  getObjectArrayElementType(expr: Expression): string | null;
   isObjectExpression(expr: Expression): boolean;
   isMapExpression(expr: Expression): boolean;
   isSetExpression(expr: Expression): boolean;
@@ -854,7 +855,28 @@ export class VariableAllocator {
 
   private allocateObjectArray(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextTemp();
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local');
+
+    let elementType = this.ctx.getObjectArrayElementType(stmt.value!);
+    if (!elementType && stmt.declaredType && stmt.declaredType.endsWith('[]')) {
+      elementType = stmt.declaredType.slice(0, -2);
+    }
+
+    let metadata: VariableMetadata | undefined;
+    if (elementType) {
+      const typeInfo = this.getTypeInfoForElementType(elementType);
+      if (typeInfo) {
+        metadata = {
+          objectMetadata: {
+            keys: typeInfo.keys,
+            types: typeInfo.types,
+            tsTypes: typeInfo.tsTypes
+          },
+          interfaceType: elementType
+        };
+      }
+    }
+
+    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local', metadata);
     this.ctx.emit(`${allocaReg} = alloca i8*`);
 
     const value = this.ctx.generateExpression(stmt.value!, params);
