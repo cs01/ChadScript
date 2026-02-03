@@ -519,7 +519,7 @@ export class MethodCallGenerator {
     if (method === 'substring') {
       return this.handleSubstring(expr, params);
     }
-    if (method === 'concat') {
+    if (method === 'concat' && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object) && !this.ctx.isObjectArrayExpression(expr.object)) {
       return this.handleConcat(expr, params);
     }
     if (method === 'repeat') {
@@ -915,6 +915,37 @@ export class MethodCallGenerator {
     this.ctx.syncStateToGenerators();
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
+    const ptrType = this.ctx.getVariableType(strPtr);
+    if (ptrType && (ptrType === '%Array*' || ptrType === '%StringArray*' || ptrType === '%ObjectArray*' || ptrType.endsWith('Array*'))) {
+      const exprObjBase = expr.object as ExprBase;
+      let details = `Expression type: ${exprObjBase.type}`;
+      if (exprObjBase.type === 'member_access') {
+        const memberExpr = expr.object as MemberAccessNode;
+        const objBase = memberExpr.object as ExprBase;
+        details += `, property: ${memberExpr.property}`;
+        details += `, object base type: ${objBase.type}`;
+        if (objBase.type === 'variable') {
+          const varName = (memberExpr.object as VariableNode).name;
+          const isClass = this.ctx.symbolTable.isClass(varName);
+          const symbol = this.ctx.symbolTable.lookup(varName);
+          const symbolType = this.ctx.symbolTable.getType(varName);
+          const interfaceType = symbol?.interfaceType;
+          details += `, variable: ${varName}, isClass: ${isClass}`;
+          details += `, symbolType: ${symbolType}, interfaceType: ${interfaceType}`;
+          if (isClass) {
+            const className = this.ctx.symbolTable.getClassName(varName);
+            details += `, className: ${className}`;
+          }
+        }
+      }
+      throw new Error(
+        `concat() was dispatched to string handler but received an array type '${ptrType}'.\n` +
+        `  This indicates isArrayExpression/isStringArrayExpression/isObjectArrayExpression failed to detect the array.\n` +
+        `  ${details}\n` +
+        `  Check type tracking for this expression.`
+      );
+    }
+
     if (expr.args.length < 1) {
       throw new Error(`concat() expects at least 1 argument, got ${expr.args.length}`);
     }
@@ -1021,6 +1052,34 @@ export class MethodCallGenerator {
     this.ctx.syncStateToGenerators();
     const strPtr = this.ctx.generateExpression(expr.object, params);
 
+    const ptrType = this.ctx.getVariableType(strPtr);
+    if (ptrType && (ptrType === '%Array*' || ptrType === '%StringArray*' || ptrType === '%ObjectArray*' || ptrType.endsWith('Array*'))) {
+      throw new Error(
+        `includes() was dispatched to string handler but received an array type '${ptrType}'.\n` +
+        `  This indicates isArrayExpression/isStringArrayExpression failed to detect the array.\n` +
+        `  Expression type: ${expr.object.type}\n` +
+        `  Check type tracking for this expression.`
+      );
+    }
+
+    if (!ptrType || ptrType === 'unknown') {
+      const exprObjBase = expr.object as ExprBase;
+      let details = `Expression type: ${exprObjBase.type}`;
+      if (exprObjBase.type === 'variable') {
+        details += `, variable: ${(expr.object as VariableNode).name}`;
+      } else if (exprObjBase.type === 'method_call') {
+        const mc = expr.object as MethodCallNode;
+        details += `, method: ${mc.method}`;
+      }
+      throw new Error(
+        `includes() called on expression with unknown type.\n` +
+        `  Result register: ${strPtr}, type: ${ptrType || 'undefined'}\n` +
+        `  ${details}\n` +
+        `  If this is an array, isArrayExpression/isStringArrayExpression is not detecting it.\n` +
+        `  Fix type tracking to ensure proper dispatch.`
+      );
+    }
+
     if (expr.args.length !== 1) {
       throw new Error(`includes() expects 1 argument, got ${expr.args.length}`);
     }
@@ -1032,6 +1091,34 @@ export class MethodCallGenerator {
   private handleSlice(expr: MethodCallNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
     const strPtr = this.ctx.generateExpression(expr.object, params);
+
+    const ptrType = this.ctx.getVariableType(strPtr);
+    if (ptrType && (ptrType === '%Array*' || ptrType === '%StringArray*' || ptrType === '%ObjectArray*' || ptrType.endsWith('Array*'))) {
+      throw new Error(
+        `slice() was dispatched to string handler but received an array type '${ptrType}'.\n` +
+        `  This indicates isArrayExpression/isStringArrayExpression/isObjectArrayExpression failed to detect the array.\n` +
+        `  Expression type: ${expr.object.type}\n` +
+        `  Check type tracking for this expression.`
+      );
+    }
+
+    if (!ptrType || ptrType === 'unknown') {
+      const exprObjBase = expr.object as ExprBase;
+      let details = `Expression type: ${exprObjBase.type}`;
+      if (exprObjBase.type === 'variable') {
+        details += `, variable: ${(expr.object as VariableNode).name}`;
+      } else if (exprObjBase.type === 'method_call') {
+        const mc = expr.object as MethodCallNode;
+        details += `, method: ${mc.method}`;
+      }
+      throw new Error(
+        `slice() called on expression with unknown type.\n` +
+        `  Result register: ${strPtr}, type: ${ptrType || 'undefined'}\n` +
+        `  ${details}\n` +
+        `  If this is an array, isArrayExpression/isStringArrayExpression/isObjectArrayExpression is not detecting it.\n` +
+        `  Fix type tracking to ensure proper dispatch.`
+      );
+    }
 
     if (expr.args.length < 1 || expr.args.length > 2) {
       throw new Error(`slice() expects 1 or 2 arguments, got ${expr.args.length}`);
