@@ -131,6 +131,8 @@ export class ObjectGenerator {
     const genericPtr = this.nextTemp();
     this.emit(`${genericPtr} = bitcast ${structType}* ${objPtr} to i8*`);
 
+    this.ctx.setVariableType(genericPtr, 'i8*');
+
     return genericPtr;
   }
 
@@ -195,6 +197,8 @@ export class ObjectGenerator {
     const genericPtr = this.nextTemp();
     this.emit(`${genericPtr} = bitcast ${structType}* ${objPtr} to i8*`);
 
+    this.ctx.setVariableType(genericPtr, 'i8*');
+
     return genericPtr;
   }
 
@@ -216,6 +220,8 @@ export class ObjectGenerator {
         llvmType = '%Map*';
       } else if (prop.value.type === 'set') {
         llvmType = '%Set*';
+      } else if (prop.value.type === 'object') {
+        llvmType = 'i8*';
       } else {
         llvmType = 'double';
       }
@@ -256,6 +262,8 @@ export class ObjectGenerator {
 
     const genericPtr = this.nextTemp();
     this.emit(`${genericPtr} = bitcast ${structType}* ${objPtr} to i8*`);
+
+    this.ctx.setVariableType(genericPtr, 'i8*');
 
     return genericPtr;
   }

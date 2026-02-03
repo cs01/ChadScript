@@ -67,6 +67,7 @@ export interface VariableAllocatorContext {
   isStringExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
   isStringArrayExpression(expr: Expression): boolean;
+  isObjectArrayExpression(expr: Expression): boolean;
   isObjectExpression(expr: Expression): boolean;
   isMapExpression(expr: Expression): boolean;
   isSetExpression(expr: Expression): boolean;
@@ -137,6 +138,14 @@ export class VariableAllocator {
         this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
         this.ctx.emit(`${allocaReg} = alloca double`);
         this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
+      } else if (stmt.declaredType === 'string[]') {
+        this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
+        this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
+        this.ctx.emit(`store %StringArray* null, %StringArray** ${allocaReg}`);
+      } else if (stmt.declaredType === 'number[]' || stmt.declaredType === 'boolean[]') {
+        this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local');
+        this.ctx.emit(`${allocaReg} = alloca %Array*`);
+        this.ctx.emit(`store %Array* null, %Array** ${allocaReg}`);
       } else {
         this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
         this.ctx.emit(`${allocaReg} = alloca double`);
@@ -155,7 +164,8 @@ export class VariableAllocator {
 
     const isString = this.ctx.isStringExpression(stmt.value);
     const isStringArray = this.ctx.isStringArrayExpression(stmt.value);
-    const isArray = !isStringArray && this.ctx.isArrayExpression(stmt.value);
+    const isObjectArray = this.ctx.isObjectArrayExpression(stmt.value);
+    const isArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(stmt.value);
     const isJSONObject = this.ctx.isJSONParseExpression(stmt.value);
     const isObject = !isJSONObject && this.ctx.isObjectExpression(stmt.value);
     const isMap = this.ctx.isMapExpression(stmt.value);
@@ -199,6 +209,8 @@ export class VariableAllocator {
       this.allocateSet(stmt, params);
     } else if (isStringArray) {
       this.allocateStringArray(stmt, params);
+    } else if (isObjectArray) {
+      this.allocateObjectArray(stmt, params);
     } else if (isArray) {
       this.allocateArray(stmt, params);
     } else if (isRegex) {
@@ -776,6 +788,15 @@ export class VariableAllocator {
     this.ctx.emit(`store %Array ${loadedArray}, %Array* ${allocaReg}`);
   }
 
+  private allocateObjectArray(stmt: VariableDeclaration, params: string[]): void {
+    const allocaReg = this.ctx.nextTemp();
+    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local');
+    this.ctx.emit(`${allocaReg} = alloca i8*`);
+
+    const value = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
+  }
+
   private allocateRegex(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextTemp();
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Regex, 'local');
@@ -908,6 +929,36 @@ export class VariableAllocator {
 
     const indexExpr = expr as IndexAccessNode;
     const idxObjBase = indexExpr.object as ExprBase;
+
+    if (idxObjBase.type === 'variable') {
+      const varName = (indexExpr.object as VariableNode).name;
+      const symbol = this.ctx.symbolTable.lookup(varName);
+      if (symbol?.objectMetadata?.tsTypes) {
+        const tsTypes = symbol.objectMetadata.tsTypes as string[];
+        if (tsTypes.length > 0) {
+          const firstType = tsTypes[0];
+          if (firstType && firstType.endsWith('[]')) {
+            const elementType = firstType.slice(0, -2);
+            return this.getTypeInfoForElementType(elementType);
+          }
+          return {
+            keys: symbol.objectMetadata.keys as string[],
+            types: symbol.objectMetadata.types as string[],
+            tsTypes: tsTypes
+          };
+        }
+      }
+      const objectMeta = this.ctx.symbolTable.getObjectInfo(varName) as ObjectMetadata;
+      if (objectMeta && objectMeta.keys && objectMeta.types && objectMeta.tsTypes) {
+        return {
+          keys: objectMeta.keys as string[],
+          types: objectMeta.types as string[],
+          tsTypes: objectMeta.tsTypes as string[]
+        };
+      }
+      return null;
+    }
+
     if (idxObjBase.type !== 'member_access') return null;
 
     const memberAccess = indexExpr.object as { type: string; object: Expression; property: string };
