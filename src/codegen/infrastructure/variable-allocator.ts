@@ -176,6 +176,48 @@ export class VariableAllocator {
         const isInlineObjectType = baseType && baseType.startsWith('{');
         const isStringEnumType = baseType && this.isStringEnum(baseType);
         if (isInterfaceType || isInlineObjectType || isStringEnumType) {
+          if (isInlineObjectType) {
+            const inlineFields = this.parseInlineObjectType(baseType);
+            if (inlineFields && inlineFields.length > 0) {
+              const keys: string[] = [];
+              const types: string[] = [];
+              const tsTypes: string[] = [];
+              for (let fi = 0; fi < inlineFields.length; fi++) {
+                const field = inlineFields[fi] as { name: string; type: string };
+                keys.push(stripOptional(field.name));
+                types.push(this.tsTypeToLlvm(field.type));
+                tsTypes.push(field.type);
+              }
+              this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+                objectMetadata: { keys, types, tsTypes }
+              });
+              this.ctx.emit(`${allocaReg} = alloca i8*`);
+              this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
+              return;
+            }
+          }
+          if (isInterfaceType) {
+            const interfaceDefResult = this.getInterface(baseType);
+            if (interfaceDefResult) {
+              const interfaceDef = interfaceDefResult as InterfaceDeclaration;
+              const keys: string[] = [];
+              const types: string[] = [];
+              const tsTypes: string[] = [];
+              for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
+                const field = interfaceDef.fields[fi] as { name: string; type: string };
+                keys.push(stripOptional(field.name));
+                types.push(this.tsTypeToLlvm(field.type));
+                tsTypes.push(field.type);
+              }
+              this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+                objectMetadata: { keys, types, tsTypes },
+                interfaceType: baseType
+              });
+              this.ctx.emit(`${allocaReg} = alloca i8*`);
+              this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
+              return;
+            }
+          }
           this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local');
           this.ctx.emit(`${allocaReg} = alloca i8*`);
           this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
@@ -861,24 +903,26 @@ export class VariableAllocator {
       elementType = stmt.declaredType.slice(0, -2);
     }
 
-    let metadata: VariableMetadata | undefined;
     if (elementType) {
       const typeInfo = this.getTypeInfoForElementType(elementType);
       if (typeInfo) {
-        metadata = {
+        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local', {
           objectMetadata: {
             keys: typeInfo.keys,
             types: typeInfo.types,
             tsTypes: typeInfo.tsTypes
           },
           interfaceType: elementType
-        };
+        });
+        this.ctx.emit(`${allocaReg} = alloca i8*`);
+        const value = this.ctx.generateExpression(stmt.value!, params);
+        this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
+        return;
       }
     }
 
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local', metadata);
+    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local');
     this.ctx.emit(`${allocaReg} = alloca i8*`);
-
     const value = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
   }
@@ -921,10 +965,40 @@ export class VariableAllocator {
 
   private allocatePointer(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextTemp();
+
+    const elementType = this.getPointerExpressionElementType(stmt.value);
+    if (elementType) {
+      const typeInfo = this.getTypeInfoForElementType(elementType);
+      if (typeInfo) {
+        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local', {
+          objectMetadata: { keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes },
+          interfaceType: elementType
+        });
+        this.ctx.emit(`${allocaReg} = alloca i8*`);
+        const value = this.ctx.generateExpression(stmt.value!, params);
+        this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
+        return;
+      }
+    }
+
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local');
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const value = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
+  }
+
+  private getPointerExpressionElementType(expr: Expression | null): string | null {
+    if (!expr) return null;
+    const e = expr as ExprBase;
+    if (e.type !== 'binary') return null;
+
+    const binExpr = expr as BinaryNode;
+    if (binExpr.op !== '||') return null;
+
+    const leftBase = binExpr.left as ExprBase;
+    if (leftBase.type !== 'member_access' && leftBase.type !== 'method_call') return null;
+
+    return this.ctx.getObjectArrayElementType(binExpr.left);
   }
 
   private isNullLiteral(expr: Expression | null): boolean {
@@ -940,6 +1014,51 @@ export class VariableAllocator {
 
   private allocateNullPointer(stmt: VariableDeclaration): void {
     const allocaReg = this.ctx.nextTemp();
+
+    if (stmt.declaredType) {
+      const baseType = stmt.declaredType.replace(/ \| undefined$/, '').replace(/ \| null$/, '').replace(/undefined \| /, '').replace(/null \| /, '').trim();
+      if (baseType.startsWith('{')) {
+        const inlineFields = this.parseInlineObjectType(baseType);
+        if (inlineFields && inlineFields.length > 0) {
+          const keys: string[] = [];
+          const types: string[] = [];
+          const tsTypes: string[] = [];
+          for (let fi = 0; fi < inlineFields.length; fi++) {
+            const field = inlineFields[fi] as { name: string; type: string };
+            keys.push(stripOptional(field.name));
+            types.push(this.tsTypeToLlvm(field.type));
+            tsTypes.push(field.type);
+          }
+          this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+            objectMetadata: { keys, types, tsTypes }
+          });
+          this.ctx.emit(`${allocaReg} = alloca i8*`);
+          this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
+          return;
+        }
+      }
+      const interfaceDefResult = this.getInterface(baseType);
+      if (interfaceDefResult) {
+        const interfaceDef = interfaceDefResult as InterfaceDeclaration;
+        const keys: string[] = [];
+        const types: string[] = [];
+        const tsTypes: string[] = [];
+        for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
+          const field = interfaceDef.fields[fi] as { name: string; type: string };
+          keys.push(stripOptional(field.name));
+          types.push(this.tsTypeToLlvm(field.type));
+          tsTypes.push(field.type);
+        }
+        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+          objectMetadata: { keys, types, tsTypes },
+          interfaceType: baseType
+        });
+        this.ctx.emit(`${allocaReg} = alloca i8*`);
+        this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
+        return;
+      }
+    }
+
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
@@ -1034,6 +1153,9 @@ export class VariableAllocator {
     if (idxObjBase.type === 'variable') {
       const varName = (indexExpr.object as VariableNode).name;
       const symbol = this.ctx.symbolTable.lookup(varName);
+      if (symbol?.interfaceType) {
+        return this.getTypeInfoForElementType(symbol.interfaceType);
+      }
       if (symbol?.objectMetadata?.tsTypes) {
         const tsTypes = symbol.objectMetadata.tsTypes as string[];
         if (tsTypes.length > 0) {
@@ -1065,36 +1187,35 @@ export class VariableAllocator {
     const memberAccess = indexExpr.object as { type: string; object: Expression; property: string };
     const propertyName = memberAccess.property;
 
-    let objectMeta: ObjectMetadata | undefined;
-
     const memberObjBase = memberAccess.object as ExprBase;
     if (memberObjBase.type === 'variable') {
       const varName = (memberAccess.object as VariableNode).name;
-      objectMeta = this.ctx.symbolTable.getObjectInfo(varName) as ObjectMetadata;
-    } else if (memberObjBase.type === 'member_access' || memberObjBase.type === 'this') {
+      const objectMeta = this.ctx.symbolTable.getObjectInfo(varName) as ObjectMetadata;
+      if (!objectMeta) return null;
+
+      const propIndex = objectMeta.keys.indexOf(propertyName);
+      if (propIndex === -1) return null;
+
+      const objMetaTsTypes = objectMeta.tsTypes as string[];
+      const propTsType = objMetaTsTypes[propIndex];
+      if (!propTsType) return null;
+
+      const arrayMatch = propTsType.match(/^(.+)\[\]$/);
+      if (!arrayMatch) return null;
+
+      const elementType = arrayMatch[1];
+      return this.getTypeInfoForElementType(elementType);
+    }
+
+    if (memberObjBase.type === 'member_access' || memberObjBase.type === 'this') {
       const memberAccessTyped = memberAccess as { type: string; object: Expression; property: string };
       const elementType = this.resolveNestedMemberArrayType(memberAccessTyped as MemberAccessNode);
       if (elementType) {
         return this.getTypeInfoForElementType(elementType);
       }
-      return null;
     }
 
-    if (!objectMeta) return null;
-
-    const objMeta = objectMeta as ObjectMetadata;
-    const propIndex = objMeta.keys.indexOf(propertyName);
-    if (propIndex === -1) return null;
-
-    const objMetaTsTypes = objMeta.tsTypes as string[];
-    const propTsType = objMetaTsTypes[propIndex];
-    if (!propTsType) return null;
-
-    const arrayMatch = propTsType.match(/^(.+)\[\]$/);
-    if (!arrayMatch) return null;
-
-    const elementType = arrayMatch[1];
-    return this.getTypeInfoForElementType(elementType);
+    return null;
   }
 
   private resolveNestedMemberArrayType(memberAccess: MemberAccessNode): string | null {
