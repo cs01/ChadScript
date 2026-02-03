@@ -1229,6 +1229,10 @@ export class MemberAccessGenerator {
       if (symbol && symbol.objectMetadata) {
         return symbol.interfaceType || null;
       }
+      const paramType = this.getParameterTypeFromAST(varName);
+      if (paramType) {
+        return paramType;
+      }
       return null;
     }
     if (expr.type === 'member_access') {
@@ -1347,12 +1351,12 @@ export class MemberAccessGenerator {
       return null;
     }
     const inner = type.slice(1, type.length - 3).trim();
-    const parts = inner.split(';');
+    const parts = this.splitByTopLevelSemicolon(inner);
     const fields: { name: string; type: string }[] = [];
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i].trim();
       if (!part) continue;
-      const colonIdx = part.indexOf(':');
+      const colonIdx = this.findTopLevelColon(part);
       if (colonIdx === -1) continue;
       const name = part.slice(0, colonIdx).trim();
       const t = part.slice(colonIdx + 1).trim();
@@ -1397,6 +1401,22 @@ export class MemberAccessGenerator {
   }
 
   private getInterfaceFieldType(interfaceName: string, fieldName: string): string | null {
+    if (interfaceName.startsWith('{') && interfaceName.endsWith('}')) {
+      const inlineFields = this.parseInlineObjectTypeForAssertion(interfaceName);
+      if (inlineFields) {
+        for (let i = 0; i < inlineFields.length; i++) {
+          const f = inlineFields[i];
+          let fName = f.name;
+          if (fName.endsWith('?')) {
+            fName = fName.slice(0, -1);
+          }
+          if (fName === fieldName) {
+            return f.type;
+          }
+        }
+      }
+      return null;
+    }
     if (!this.ctx.ast || !this.ctx.ast.interfaces) {
       return null;
     }
@@ -1830,19 +1850,22 @@ export class MemberAccessGenerator {
           const inlineFields = this.parseInlineObjectTypeForAssertion(paramInterfaceType);
           if (inlineFields) {
             let propIndex = -1;
+            let propType = '';
             for (let pi = 0; pi < inlineFields.length; pi++) {
-              if (inlineFields[pi].name === expr.property) {
+              const field = inlineFields[pi] as InterfaceField;
+              if (field.name === expr.property) {
                 propIndex = pi;
+                propType = field.type;
                 break;
               }
             }
             if (propIndex !== -1) {
-              const propType = inlineFields[propIndex].type;
               const paramPtr = this.ctx.getVariableAlloca(varName);
               if (paramPtr) {
                 const structTypes: string[] = [];
                 for (let i = 0; i < inlineFields.length; i++) {
-                  structTypes.push(this.interfaceTsTypeToLlvm(inlineFields[i].type));
+                  const f = inlineFields[i] as InterfaceField;
+                  structTypes.push(this.interfaceTsTypeToLlvm(f.type));
                 }
                 const structType = `{ ${structTypes.join(', ')} }`;
                 const objPtrRaw = this.ctx.nextTemp();
