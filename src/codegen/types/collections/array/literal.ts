@@ -52,37 +52,45 @@ export function generateArrayLiteral(
   }
 
   let isPointerArray = false;
+  let firstElemValue: string | null = null;
   if (length > 0) {
-    for (let i = 0; i < arrExpr.elements.length; i++) {
-      const elem = arrExpr.elements[i];
-      const el = elem as ExprBase;
-      if (el.type === 'variable') {
-        const varExpr = elem as VariableExpr;
-        const varName = varExpr.name;
-        const varType = gen.getVariableType(varName);
-        if (varType && (varType.indexOf('%Promise') !== -1 || varType.indexOf('*') !== -1)) {
-          isPointerArray = true;
-          break;
-        }
-      }
-      if (el.type === 'method_call') {
-        const mcExpr = elem as MethodCallExpr;
-        const obj = mcExpr.object;
-        const objBase = obj as ExprBase;
-        if (obj && objBase.type === 'variable') {
-          const objVar = obj as VariableExpr;
-          if (objVar.name === 'Promise') {
+    firstElemValue = gen.generateExpression(arrExpr.elements[0], params);
+    const firstElemType = gen.getVariableType(firstElemValue);
+    if (firstElemType && firstElemType !== 'double' && firstElemType.indexOf('*') !== -1) {
+      isPointerArray = true;
+    }
+    if (!isPointerArray) {
+      for (let i = 0; i < arrExpr.elements.length; i++) {
+        const elem = arrExpr.elements[i];
+        const el = elem as ExprBase;
+        if (el.type === 'variable') {
+          const varExpr = elem as VariableExpr;
+          const varName = varExpr.name;
+          const varType = gen.getVariableType(varName);
+          if (varType && (varType.indexOf('%Promise') !== -1 || varType.indexOf('*') !== -1)) {
             isPointerArray = true;
             break;
           }
         }
-      }
-      if (el.type === 'call') {
-        const callExpr = elem as CallExpr;
-        const callName = callExpr.name;
-        if (callName === 'fetch') {
-          isPointerArray = true;
-          break;
+        if (el.type === 'method_call') {
+          const mcExpr = elem as MethodCallExpr;
+          const obj = mcExpr.object;
+          const objBase = obj as ExprBase;
+          if (obj && objBase.type === 'variable') {
+            const objVar = obj as VariableExpr;
+            if (objVar.name === 'Promise') {
+              isPointerArray = true;
+              break;
+            }
+          }
+        }
+        if (el.type === 'call') {
+          const callExpr = elem as CallExpr;
+          const callName = callExpr.name;
+          if (callName === 'fetch') {
+            isPointerArray = true;
+            break;
+          }
         }
       }
     }
@@ -157,7 +165,7 @@ export function generateArrayLiteral(
 
     // Store each pointer element
     for (let i = 0; i < arrExpr.elements.length; i++) {
-      const elemValue = gen.generateExpression(arrExpr.elements[i], params);
+      const elemValue = (i === 0 && firstElemValue) ? firstElemValue : gen.generateExpression(arrExpr.elements[i], params);
       const elemCast = gen.nextTemp();
       gen.emit(`${elemCast} = bitcast ${gen.getVariableType(elemValue) || 'i8*'} ${elemValue} to i8*`);
       const elemPtr = gen.nextTemp();
@@ -208,7 +216,7 @@ export function generateArrayLiteral(
 
     // Store each element
     for (let i = 0; i < arrExpr.elements.length; i++) {
-      const elemValue = gen.generateExpression(arrExpr.elements[i], params);
+      const elemValue = (i === 0 && firstElemValue) ? firstElemValue : gen.generateExpression(arrExpr.elements[i], params);
       const elemPtr = gen.nextTemp();
       gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
       gen.emit(`store double ${elemValue}, double* ${elemPtr}`);
