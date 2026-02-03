@@ -1184,6 +1184,19 @@ export class TypeInference {
 
   isStringArrayExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
+    if (e.type === 'binary') {
+      const binExpr = expr as BinaryNode;
+      if (binExpr.op === '||') {
+        const leftIsStringArray = this.isStringArrayExpression(binExpr.left);
+        const rightBase = binExpr.right as ExprBase;
+        if (leftIsStringArray && rightBase.type === 'array') {
+          return true;
+        }
+        if (leftIsStringArray && this.isStringArrayExpression(binExpr.right)) {
+          return true;
+        }
+      }
+    }
     if (e.type === 'type_assertion') {
       const assertion = expr as TypeAssertionNode;
       if (assertion.assertedType === 'string[]') {
@@ -1232,6 +1245,16 @@ export class TypeInference {
         if (className) {
           const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
           if (fieldType === 'string[]') {
+            return true;
+          }
+        }
+      }
+      if (objBase.type === 'variable') {
+        const varName = (memberExpr.object as VariableNode).name;
+        const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
+        if (ifaceType) {
+          const prop = this.getInterfaceProperty(ifaceType, memberExpr.property);
+          if (prop && prop.type === 'string[]') {
             return true;
           }
         }
