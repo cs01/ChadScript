@@ -1,8 +1,10 @@
-// Test argv[1] access
+// Test process.argv with no user arguments
 
-console.log("About to access argv[1]");
-const arg1 = process.argv[1];
-console.log("Got argv[1]");
-console.log(arg1);
+console.log("Checking argv.length");
+if (process.argv.length === 0) {
+  console.log("No user arguments passed (correct)");
+  process.exit(0);
+}
 
-process.exit(0);
+console.log("Unexpected: got arguments when none were passed");
+process.exit(1);

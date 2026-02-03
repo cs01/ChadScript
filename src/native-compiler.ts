@@ -175,7 +175,7 @@ function emptyAST(): AST {
 }
 
 const args = process.argv;
-if (args.length < 2) {
+if (args.length < 1) {
   console.log('Usage: native-compiler <input.ts> [output]');
   process.exit(1);
 }
