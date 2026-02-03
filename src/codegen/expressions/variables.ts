@@ -215,6 +215,12 @@ export class VariableExpressionGenerator {
   private loadRegularVariable(name: string, allocaReg: string): string {
     const temp = this.ctx.nextTemp();
     const varType = this.ctx.getVariableType(name) || 'double';
+    const isTreeSitterType = varType === '%TSNode*' || varType === '%TSTree*' || varType === '%TSParser*' || varType === '%TSLanguage*';
+    if (isTreeSitterType) {
+      this.ctx.emit(`${temp} = load double, double* ${allocaReg}`);
+      this.ctx.setVariableType(temp, varType);
+      return temp;
+    }
     const ptrToType = varType === 'ptr' ? 'ptr' : `${varType}*`;
     this.ctx.emit(`${temp} = load ${varType}, ${ptrToType} ${allocaReg}`);
     this.ctx.setVariableType(temp, varType);

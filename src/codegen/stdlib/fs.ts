@@ -202,8 +202,10 @@ export class FilesystemGenerator {
 
     // End: phi node to return 1 (exists) or 0 (doesn't exist)
     this.ctx.emit(`${endLabel}:`);
+    const phiResult = this.ctx.nextTemp();
+    this.ctx.emit(`${phiResult} = phi i32 [ 1, %${existsLabel} ], [ 0, %${notExistsLabel} ]`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi i32 [ 1, %${existsLabel} ], [ 0, %${notExistsLabel} ]`);
+    this.ctx.emit(`${result} = sitofp i32 ${phiResult} to double`);
 
     return result;
   }

@@ -26,6 +26,7 @@ export function getLLVMDeclarations(): string {
   ir += 'declare i32 @strncmp(i8*, i8*, i64)\n';
   ir += 'declare i32 @snprintf(i8*, i64, i8*, ...)\n';
   ir += 'declare i64 @strtol(i8*, i8**, i32)\n';
+  ir += 'declare double @strtod(i8*, i8**)\n';
   ir += 'declare i8* @strstr(i8*, i8*)\n';
   ir += 'declare void @llvm.memcpy.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n';
   ir += '\n';

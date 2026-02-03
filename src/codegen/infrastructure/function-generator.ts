@@ -321,6 +321,8 @@ export class FunctionGenerator {
           this.ctx.syncStateToGenerators();
           const emptyStr = this.ctx.stringGen.createStringConstant('');
           ir += `  ret i8* ${emptyStr}\n`;
+        } else if (returnType && returnType.indexOf('*') !== -1) {
+          ir += `  ret ${returnType} null\n`;
         } else {
           ir += `  ret ${returnType} 0.0\n`;
         }
