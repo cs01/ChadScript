@@ -321,14 +321,21 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
 
     if (className === 'Map' || className === 'Set') {
       ctx.skipWhitespace();
+      let keyType: string | undefined;
+      let valueType: string | undefined;
       if (ctx.code[ctx.pos] === '<') {
         ctx.pos++;
-        ctx.skipTypeAnnotation();
         ctx.skipWhitespace();
-        while (ctx.code[ctx.pos] === ',') {
+        const keyStart = ctx.pos;
+        ctx.skipTypeAnnotation();
+        keyType = ctx.code.substring(keyStart, ctx.pos).trim();
+        ctx.skipWhitespace();
+        if (ctx.code[ctx.pos] === ',') {
           ctx.pos++;
           ctx.skipWhitespace();
+          const valueStart = ctx.pos;
           ctx.skipTypeAnnotation();
+          valueType = ctx.code.substring(valueStart, ctx.pos).trim();
           ctx.skipWhitespace();
         }
         ctx.expect('>');
@@ -338,9 +345,9 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
       ctx.expect(')');
 
       if (className === 'Map') {
-        return parsePostfixExpressions(ctx, { type: 'map', entries: [] } as MapNode, parseExpression);
+        return parsePostfixExpressions(ctx, { type: 'map', entries: [], keyType, valueType } as MapNode, parseExpression);
       } else {
-        return parsePostfixExpressions(ctx, { type: 'set', values: [] } as SetNode, parseExpression);
+        return parsePostfixExpressions(ctx, { type: 'set', values: [], valueType: keyType } as SetNode, parseExpression);
       }
     }
 

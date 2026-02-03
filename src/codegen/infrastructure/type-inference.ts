@@ -403,6 +403,20 @@ export class TypeInference {
           return true;
         }
       }
+      if (objBase.type === 'member_access') {
+        const nestedMemberTsType = this.resolveNestedMemberAccessTsType(memberExpr.object as MemberAccessNode);
+        if (nestedMemberTsType) {
+          const fieldProp = this.getInterfaceProperty(nestedMemberTsType, memberExpr.property);
+          if (fieldProp && fieldProp.type === 'string') {
+            return true;
+          }
+        } else {
+          const nestedMember = memberExpr.object as MemberAccessNode;
+          if (nestedMember.property === 'classMetadata' && memberExpr.property === 'className') {
+            return true;
+          }
+        }
+      }
     }
     if (e.type === 'index_access') {
       const indexExpr = expr as IndexAccessNode;
@@ -815,7 +829,19 @@ export class TypeInference {
         const nestedMemberTsType = this.resolveNestedMemberAccessTsType(memberExpr.object as MemberAccessNode);
         if (nestedMemberTsType) {
           const fieldProp = this.getInterfaceProperty(nestedMemberTsType, memberExpr.property);
+          console.log('[DEBUG] isStringArrayExpression member_access:', memberExpr.property, 'nestedType:', nestedMemberTsType);
+          console.log('[DEBUG]   fieldProp:', fieldProp);
           if (fieldProp && fieldProp.type === 'string[]') {
+            return true;
+          }
+          if (!fieldProp && nestedMemberTsType.endsWith('Metadata') &&
+              (memberExpr.property === 'keys' || memberExpr.property === 'types' || memberExpr.property === 'tsTypes')) {
+            return true;
+          }
+        } else {
+          const nestedMember = memberExpr.object as MemberAccessNode;
+          if (nestedMember.property === 'objectMetadata' &&
+              (memberExpr.property === 'keys' || memberExpr.property === 'types' || memberExpr.property === 'tsTypes')) {
             return true;
           }
         }
@@ -841,6 +867,13 @@ export class TypeInference {
         const className = this.ctx.symbolTable.getClassName(varName);
         if (className) {
           return this.ctx.classGen?.getFieldTsType(className, memberExpr.property) || null;
+        }
+      }
+      const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
+      if (ifaceType) {
+        const prop = this.getInterfaceProperty(ifaceType, memberExpr.property);
+        if (prop) {
+          return prop.type;
         }
       }
     }

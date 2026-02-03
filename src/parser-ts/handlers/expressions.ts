@@ -24,7 +24,7 @@ import {
   BlockStatement,
   TypeAssertionNode,
 } from '../../ast/types.js';
-import { transformStatement } from './statements.js';
+import { transformStatement, extractTypeString } from './statements.js';
 
 export function transformExpression(node: ts.Expression, checker: ts.TypeChecker | undefined): Expression {
   switch (node.kind) {
@@ -390,6 +390,12 @@ function transformNewExpression(node: ts.NewExpression, checker: ts.TypeChecker 
     const className = node.expression.text;
 
     if (className === 'Map') {
+      let keyType: string | undefined;
+      let valueType: string | undefined;
+      if (node.typeArguments && node.typeArguments.length >= 2) {
+        keyType = extractTypeString(node.typeArguments[0]);
+        valueType = extractTypeString(node.typeArguments[1]);
+      }
       if (args.length > 0 && args[0].type === 'array') {
         const entries = (args[0] as ArrayNode).elements.map(elem => {
           if (elem.type === 'array' && (elem as ArrayNode).elements.length === 2) {
@@ -397,16 +403,20 @@ function transformNewExpression(node: ts.NewExpression, checker: ts.TypeChecker 
           }
           return { key: elem, value: { type: 'variable' as const, name: 'undefined' } };
         });
-        return { type: 'map', entries };
+        return { type: 'map', entries, keyType, valueType };
       }
-      return { type: 'map', entries: [] };
+      return { type: 'map', entries: [], keyType, valueType };
     }
 
     if (className === 'Set') {
-      if (args.length > 0 && args[0].type === 'array') {
-        return { type: 'set', values: (args[0] as ArrayNode).elements };
+      let valueType: string | undefined;
+      if (node.typeArguments && node.typeArguments.length >= 1) {
+        valueType = extractTypeString(node.typeArguments[0]);
       }
-      return { type: 'set', values: [] };
+      if (args.length > 0 && args[0].type === 'array') {
+        return { type: 'set', values: (args[0] as ArrayNode).elements, valueType };
+      }
+      return { type: 'set', values: [], valueType };
     }
 
     return { type: 'new', className, args };

@@ -1,4 +1,4 @@
-import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, InterfaceField, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode, CommonField, BinaryNode } from '../../ast/types.js';
+import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, InterfaceField, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode, CommonField, BinaryNode, MapNode, SetNode } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import { TypeResolver, UnionCommonFields } from './type-resolver/index.js';
@@ -640,7 +640,14 @@ export class VariableAllocator {
   }
 
   private allocateMap(stmt: VariableDeclaration, params: string[]): void {
-    const mapTypeInfoResult = this.parseMapType(stmt.declaredType);
+    let mapTypeInfoResult = this.parseMapType(stmt.declaredType);
+
+    if (!mapTypeInfoResult && stmt.value && stmt.value.type === 'map') {
+      const mapNode = stmt.value as MapNode;
+      if (mapNode.keyType && mapNode.valueType) {
+        mapTypeInfoResult = { keyType: mapNode.keyType, valueType: mapNode.valueType };
+      }
+    }
 
     if (mapTypeInfoResult) {
       const mapTypeInfo = mapTypeInfoResult as MapTypeInfo;
@@ -673,7 +680,8 @@ export class VariableAllocator {
     });
     this.ctx.emit(`${allocaReg} = alloca %StringMap`);
 
-    this.ctx.currentDeclaredMapType = stmt.declaredType;
+    const declaredMapType = stmt.declaredType || `Map<${mapTypeInfo.keyType}, ${mapTypeInfo.valueType}>`;
+    this.ctx.currentDeclaredMapType = declaredMapType;
     const value = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.currentDeclaredMapType = undefined;
 
