@@ -12,10 +12,10 @@ export class RegexGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
   // Helper methods delegate to context
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private nextString() { return this.ctx.nextString(); }
-  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextTemp(): string { return this.ctx.nextTemp(); }
+  private nextString(): string { return this.ctx.nextString(); }
+  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string): void { this.ctx.emit(instruction); }
 
   private byteToHex(b: number): string {
     const hexChars = '0123456789ABCDEF';
