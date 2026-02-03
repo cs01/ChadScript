@@ -2,13 +2,13 @@
 // This should receive one argument and verify it
 
 function testArgv(): void {
-  // Check that we have at least 2 arguments (program name + 1 arg)
-  if (process.argv.length < 2) {
+  // Check that we have at least 1 argument (user args only, no program name)
+  if (process.argv.length < 1) {
     throw new Error("not enough arguments");
   }
 
-  // Get the first actual argument (argv[1])
-  const arg = process.argv[1];
+  // Get the first actual argument (argv[0], program name is not included)
+  const arg = process.argv[0];
 
   // Verify it's the expected test value "testarg"
   if (arg !== "testarg") {

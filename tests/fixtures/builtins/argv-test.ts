@@ -1,8 +1,14 @@
 // Test process.argv and string array access
-// This should reproduce the argparse-cli issue
+// User arguments start at index 0 (program name not included)
 
-// Get first positional arg (should be empty)
-const arg = process.argv[1];
+// Check if any user args were provided
+if (process.argv.length === 0) {
+  console.log("No args provided");
+  process.exit(10);
+}
+
+// Get first positional arg
+const arg = process.argv[0];
 
 console.log("Got arg");
 

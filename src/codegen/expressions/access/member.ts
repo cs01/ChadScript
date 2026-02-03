@@ -506,17 +506,21 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${dataField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 0`);
     const argvPtr = this.ctx.nextTemp();
     this.ctx.emit(`${argvPtr} = load i8**, i8*** @__argv`);
-    this.ctx.emit(`store i8** ${argvPtr}, i8*** ${dataField}`);
+    const argvSkipFirst = this.ctx.nextTemp();
+    this.ctx.emit(`${argvSkipFirst} = getelementptr i8*, i8** ${argvPtr}, i32 1`);
+    this.ctx.emit(`store i8** ${argvSkipFirst}, i8*** ${dataField}`);
 
     const lenField = this.ctx.nextTemp();
     this.ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 1`);
     const argc = this.ctx.nextTemp();
     this.ctx.emit(`${argc} = load i32, i32* @__argc`);
-    this.ctx.emit(`store i32 ${argc}, i32* ${lenField}`);
+    const argcMinusOne = this.ctx.nextTemp();
+    this.ctx.emit(`${argcMinusOne} = sub i32 ${argc}, 1`);
+    this.ctx.emit(`store i32 ${argcMinusOne}, i32* ${lenField}`);
 
     const capField = this.ctx.nextTemp();
     this.ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 2`);
-    this.ctx.emit(`store i32 ${argc}, i32* ${capField}`);
+    this.ctx.emit(`store i32 ${argcMinusOne}, i32* ${capField}`);
 
     this.ctx.setVariableType(argvStruct, '%StringArray*');
     return argvStruct;

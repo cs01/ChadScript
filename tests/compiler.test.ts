@@ -203,7 +203,7 @@ const testCases: TestCase[] = [
     name: 'argv-simple',
     fixture: 'tests/fixtures/builtins/argv-simple.ts',
     expectedExitCode: 0,
-    description: 'Test argv[1] access'
+    description: 'Test argv with no user arguments'
   },
   {
     name: 'fs-readFileSync-simple',

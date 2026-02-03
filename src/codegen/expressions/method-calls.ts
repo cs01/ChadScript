@@ -161,6 +161,8 @@ interface ArrayGeneratorLike {
   generateArrayEvery(expr: MethodCallNode, params: string[]): string;
   generateArrayFilter(expr: MethodCallNode, params: string[]): string;
   generateArrayForEach(expr: MethodCallNode, params: string[]): string;
+  generateArraySlice(expr: MethodCallNode, params: string[]): string;
+  generateArrayConcat(expr: MethodCallNode, params: string[]): string;
 }
 
 interface ClassGeneratorLike {
@@ -774,6 +776,10 @@ export class MethodCallGenerator {
       return this.ctx.arrayGen.generateArrayFilter(expr, params);
     } else if (method === 'forEach') {
       return this.ctx.arrayGen.generateArrayForEach(expr, params);
+    } else if (method === 'slice' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object))) {
+      return this.ctx.arrayGen.generateArraySlice(expr, params);
+    } else if (method === 'concat' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object))) {
+      return this.ctx.arrayGen.generateArrayConcat(expr, params);
     }
 
     // Handle class instance methods
@@ -1692,7 +1698,7 @@ export class MethodCallGenerator {
       'charAt', 'charCodeAt', 'concat', 'padStart', 'repeat', 'split', 'startsWith', 'substring', 'substr', 'toUpperCase', 'toLowerCase'
     ];
     const arrayMethods = [
-      'push', 'map', 'join', 'find', 'some', 'every', 'filter', 'forEach'
+      'push', 'map', 'join', 'find', 'some', 'every', 'filter', 'forEach', 'slice', 'concat'
     ];
     const mapMethods = [
       'set', 'get', 'has'

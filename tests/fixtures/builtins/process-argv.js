@@ -1,6 +1,5 @@
 function test() {
-  const arg = process.argv[1];
-  console.log(arg);
+  console.log("argv.length: " + process.argv.length);
   return 0;
 }
 
