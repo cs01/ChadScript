@@ -404,6 +404,14 @@ export class TypeInference {
             return true;
           }
         }
+        const symbol = this.ctx.symbolTable.lookup(varName);
+        if (symbol?.interfaceType) {
+          const ifaceType = symbol.interfaceType as string;
+          const fieldType = this.getFieldTypeFromType(ifaceType, memberExpr.property);
+          if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
+            return true;
+          }
+        }
       }
       if (objBase.type === 'member_access') {
         const nestedMember = memberExpr.object as MemberAccessNode;
@@ -455,6 +463,13 @@ export class TypeInference {
     if (e.type === 'template_literal') {
       return true;
     }
+    if (e.type === 'type_assertion') {
+      const assertion = expr as TypeAssertionNode;
+      if (assertion.assertedType === 'string') {
+        return true;
+      }
+      return this.isStringExpression(assertion.expression);
+    }
     if (e.type === 'call') {
       const callExpr = expr as CallNode;
       if (callExpr.name === '__ts_node_type' || callExpr.name === '__ts_node_text') {
@@ -492,6 +507,13 @@ export class TypeInference {
             varType.indexOf('Map') === -1 && varType.indexOf('Set') === -1) {
           const structTypeName = varType.substring(1, varType.length - 1);
           const prop = this.getInterfaceProperty(structTypeName, memberExpr.property);
+          if (prop && isStringType(prop.type)) {
+            return true;
+          }
+        }
+        const symbol = this.ctx.symbolTable.lookup(varName);
+        if (symbol?.interfaceType) {
+          const prop = this.getInterfaceProperty(symbol.interfaceType, memberExpr.property);
           if (prop && isStringType(prop.type)) {
             return true;
           }
