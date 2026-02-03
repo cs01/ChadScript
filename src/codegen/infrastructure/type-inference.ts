@@ -1,5 +1,5 @@
 import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration, InterfaceField, BinaryNode, TypeAssertionNode } from '../../ast/types.js';
-import { SymbolTable } from './symbol-table.js';
+import { SymbolTable, SymbolKind } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { ClassGenerator } from '../types/objects/class.js';
 import type { TypeResolver } from './type-resolver/index.js';
@@ -11,6 +11,15 @@ function isStringType(t: string): boolean {
   if (t === 'string | null' || t === 'string | undefined') return true;
   if (t === 'null | string' || t === 'undefined | string') return true;
   return false;
+}
+
+function stripNullable(t: string): string {
+  let str = t.trim();
+  if (str.indexOf(' | null') !== -1) str = str.replace(' | null', '');
+  if (str.indexOf(' | undefined') !== -1) str = str.replace(' | undefined', '');
+  if (str.indexOf('null | ') !== -1) str = str.replace('null | ', '');
+  if (str.indexOf('undefined | ') !== -1) str = str.replace('undefined | ', '');
+  return str.trim();
 }
 
 export interface TypeInferenceContext {
@@ -55,6 +64,19 @@ export class TypeInference {
       }
       if (fieldName === propName) {
         return f;
+      }
+    }
+    return null;
+  }
+
+  private getInterfaceMethodReturnType(interfaceName: string, methodName: string): string | null {
+    const baseType = interfaceName.replace(/ \| null$/, '').replace(/ \| undefined$/, '').trim();
+    const iface = this.getInterface(baseType);
+    if (!iface || !iface.methods) return null;
+    for (let i = 0; i < iface.methods.length; i++) {
+      const m = iface.methods[i];
+      if (m.name === methodName) {
+        return m.returnType;
       }
     }
     return null;
@@ -144,8 +166,9 @@ export class TypeInference {
       if (!objectType) return null;
       const fieldType = this.getFieldTypeFromType(objectType, memberExpr.property);
       if (fieldType) {
-        const cls = this.getClass(fieldType);
-        if (cls) return fieldType;
+        const baseFieldType = stripNullable(fieldType);
+        const cls = this.getClass(baseFieldType);
+        if (cls) return baseFieldType;
       }
       return null;
     }
@@ -190,6 +213,34 @@ export class TypeInference {
     return null;
   }
 
+  private resolveInterfaceTypeFromExpression(expr: Expression): string | null {
+    const e = expr as ExprBase;
+    if (e.type === 'variable') {
+      const varName = (expr as VariableNode).name;
+      const varType = this.ctx.symbolTable.getType(varName);
+      if (varType && varType.startsWith('%') && varType.endsWith('*')) {
+        const typeName = varType.substring(1, varType.length - 1);
+        if (this.getInterface(typeName)) {
+          return typeName;
+        }
+      }
+      return null;
+    }
+    if (e.type === 'member_access') {
+      const memberExpr = expr as MemberAccessNode;
+      const objectType = this.resolveTypeFromExpression(memberExpr.object);
+      if (!objectType) return null;
+      const fieldType = this.getFieldTypeFromType(objectType, memberExpr.property);
+      if (fieldType) {
+        const baseFieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '').trim();
+        if (this.getInterface(baseFieldType)) {
+          return baseFieldType;
+        }
+      }
+    }
+    return null;
+  }
+
   isBooleanExpression(expr: Expression | null | undefined): boolean {
     if (expr === null || expr === undefined) return false;
     const e = expr as ExprBase;
@@ -229,7 +280,31 @@ export class TypeInference {
     }
     if (e.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
-      return methodExpr.method === 'filter' || methodExpr.method === 'map' || methodExpr.method === 'entries' || methodExpr.method === 'values';
+      if (methodExpr.method === 'filter' || methodExpr.method === 'map' || methodExpr.method === 'entries' || methodExpr.method === 'values') {
+        return true;
+      }
+      const methodObjBase = methodExpr.object as ExprBase;
+      if (methodObjBase.type === 'this') {
+        const className = this.ctx.currentClassName;
+        if (className) {
+          const method = this.getClassMethod(className, methodExpr.method);
+          if (method && method.returnType) {
+            const rt = stripNullable(method.returnType);
+            if (rt.endsWith('[]')) return true;
+          }
+        }
+      }
+      if (methodObjBase.type === 'variable' && this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)) {
+        const className = this.ctx.symbolTable.getClassName((methodExpr.object as VariableNode).name);
+        if (className) {
+          const method = this.getClassMethod(className, methodExpr.method);
+          if (method && method.returnType) {
+            const rt = stripNullable(method.returnType);
+            if (rt.endsWith('[]')) return true;
+          }
+        }
+      }
+      return false;
     }
     if (e.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
@@ -279,6 +354,44 @@ export class TypeInference {
 
   isObjectArrayExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
+    if (e.type === 'variable') {
+      const varName = (expr as VariableNode).name;
+      const varType = this.ctx.symbolTable.getType(varName);
+      if (varType === 'i8*') {
+        const symbol = this.ctx.symbolTable.lookup(varName);
+        if (symbol && symbol.kind === SymbolKind.Array) {
+          return true;
+        }
+      }
+    }
+    if (e.type === 'method_call') {
+      const methodExpr = expr as MethodCallNode;
+      const methodObjBase = methodExpr.object as ExprBase;
+      if (methodObjBase.type === 'this') {
+        const className = this.ctx.currentClassName;
+        if (className) {
+          const method = this.getClassMethod(className, methodExpr.method);
+          if (method && method.returnType) {
+            const rt = stripNullable(method.returnType);
+            if (rt.endsWith('[]') && rt !== 'string[]' && rt !== 'number[]' && rt !== 'boolean[]') {
+              return true;
+            }
+          }
+        }
+      }
+      if (methodObjBase.type === 'variable' && this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)) {
+        const className = this.ctx.symbolTable.getClassName((methodExpr.object as VariableNode).name);
+        if (className) {
+          const method = this.getClassMethod(className, methodExpr.method);
+          if (method && method.returnType) {
+            const rt = stripNullable(method.returnType);
+            if (rt.endsWith('[]') && rt !== 'string[]' && rt !== 'number[]' && rt !== 'boolean[]') {
+              return true;
+            }
+          }
+        }
+      }
+    }
     if (e.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
       const objBase = memberExpr.object as ExprBase;
@@ -538,6 +651,13 @@ export class TypeInference {
             }
           }
         }
+        const interfaceType = this.resolveInterfaceTypeFromExpression(memberAccess);
+        if (interfaceType) {
+          const methodReturnType = this.getInterfaceMethodReturnType(interfaceType, methodExpr.method);
+          if (methodReturnType && this.returnTypeIsString(methodReturnType)) {
+            return true;
+          }
+        }
       }
       if (methodExpr.method === 'get' && methodObjBase.type === 'variable' &&
           this.ctx.symbolTable.isMap((methodExpr.object as VariableNode).name)) {
@@ -674,6 +794,16 @@ export class TypeInference {
 
   getFunctionCallInterfaceReturn(expr: Expression): string | null {
     const e = expr as ExprBase;
+
+    if (e.type === 'conditional') {
+      const condExpr = expr as ConditionalExpressionNode;
+      const consequentResult = this.getFunctionCallInterfaceReturn(condExpr.consequent);
+      if (consequentResult) return consequentResult;
+      const alternateResult = this.getFunctionCallInterfaceReturn(condExpr.alternate);
+      if (alternateResult) return alternateResult;
+      return null;
+    }
+
     if (e.type !== 'call') return null;
     const callExpr = expr as CallNode;
     const func = this.getFunction(callExpr.name);
@@ -706,37 +836,75 @@ export class TypeInference {
 
   getMethodCallInterfaceReturn(expr: Expression): string | null {
     const e = expr as ExprBase;
+
+    if (e.type === 'conditional') {
+      const condExpr = expr as ConditionalExpressionNode;
+      const consequentResult = this.getMethodCallInterfaceReturn(condExpr.consequent);
+      if (consequentResult) return consequentResult;
+      const alternateResult = this.getMethodCallInterfaceReturn(condExpr.alternate);
+      if (alternateResult) return alternateResult;
+      return null;
+    }
+
     if (e.type !== 'method_call') return null;
     const methodExpr = expr as MethodCallNode;
 
     const className = this.resolveClassNameFromExpression(methodExpr.object);
 
-    if (!className) return null;
-
-    const method = this.getClassMethod(className, methodExpr.method);
-    if (!method || !method.returnType) return null;
-
-    let returnType = method.returnType;
-    if (returnType.indexOf(' | ') !== -1) {
-      const parts = returnType.split(' | ');
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i].trim();
-        if (part !== 'null' && part !== 'undefined') {
-          if (part.startsWith('{')) {
-            return part;
+    if (className) {
+      const method = this.getClassMethod(className, methodExpr.method);
+      if (method && method.returnType) {
+        let returnType = method.returnType;
+        if (returnType.indexOf(' | ') !== -1) {
+          const parts = returnType.split(' | ');
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i].trim();
+            if (part !== 'null' && part !== 'undefined') {
+              if (part.startsWith('{')) {
+                return part;
+              }
+              const iface = this.getInterface(part);
+              if (iface) return part;
+            }
           }
-          const iface = this.getInterface(part);
-          if (iface) return part;
         }
+
+        if (returnType.startsWith('{')) {
+          return returnType;
+        }
+
+        const iface = this.getInterface(returnType);
+        if (iface) return returnType;
       }
     }
 
-    if (returnType.startsWith('{')) {
-      return returnType;
-    }
+    const interfaceType = this.resolveInterfaceTypeFromExpression(methodExpr.object);
+    if (interfaceType) {
+      const methodReturnType = this.getInterfaceMethodReturnType(interfaceType, methodExpr.method);
+      if (methodReturnType) {
+        let returnType = methodReturnType;
+        if (returnType.indexOf(' | ') !== -1) {
+          const parts = returnType.split(' | ');
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i].trim();
+            if (part !== 'null' && part !== 'undefined') {
+              if (part.startsWith('{')) {
+                return part;
+              }
+              const iface = this.getInterface(part);
+              if (iface) return part;
+            }
+          }
+        }
 
-    const iface = this.getInterface(returnType);
-    if (iface) return returnType;
+        if (returnType.startsWith('{')) {
+          return returnType;
+        }
+
+        const iface = this.getInterface(returnType);
+        if (iface) return returnType;
+      }
+    }
 
     return null;
   }

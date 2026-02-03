@@ -78,6 +78,11 @@ export interface IGeneratorContext {
   isStringArrayExpression(expr: Expression): boolean;
 
   /**
+   * Check if expression evaluates to an object array (like InterfaceField[])
+   */
+  isObjectArrayExpression(expr: Expression): boolean;
+
+  /**
    * Check if expression evaluates to an object
    */
   isObjectExpression(expr: Expression): boolean;
@@ -379,6 +384,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   isStringArrayExpression(_expr: Expression): boolean {
+    return false; // Simplified mock
+  }
+
+  isObjectArrayExpression(_expr: Expression): boolean {
     return false; // Simplified mock
   }
 

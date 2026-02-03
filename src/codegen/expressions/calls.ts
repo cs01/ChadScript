@@ -73,6 +73,16 @@ export class CallExpressionGenerator {
       return this.generateParseInt(expr, params);
     }
 
+    // Handle Number(value) global function
+    if (expr.name === 'Number') {
+      return this.generateNumber(expr, params);
+    }
+
+    // Handle isNaN(value) global function
+    if (expr.name === 'isNaN') {
+      return this.generateIsNaN(expr, params);
+    }
+
     // Handle C built-in functions with proper signatures
     if (expr.name === 'malloc') {
       return this.generateMalloc(expr, params);
@@ -184,6 +194,52 @@ export class CallExpressionGenerator {
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i64 ${resultI64} to double`);
 
+    return resultDouble;
+  }
+
+  private generateNumber(expr: CallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      throw new Error('Number() requires exactly 1 argument');
+    }
+
+    this.ctx.syncStateToGenerators();
+
+    const arg = expr.args[0];
+    if (this.ctx.isStringExpression(arg)) {
+      const strValue = this.ctx.generateExpression(arg, params);
+      const nullPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
+      const resultDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${resultDouble} = call double @strtod(i8* ${strValue}, i8** ${nullPtr})`);
+      return resultDouble;
+    }
+    return this.ctx.generateExpression(arg, params);
+  }
+
+  private generateIsNaN(expr: CallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      throw new Error('isNaN() requires exactly 1 argument');
+    }
+
+    this.ctx.syncStateToGenerators();
+
+    const arg = expr.args[0];
+    let doubleValue: string;
+    if (this.ctx.isStringExpression(arg)) {
+      const strValue = this.ctx.generateExpression(arg, params);
+      const nullPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
+      doubleValue = this.ctx.nextTemp();
+      this.ctx.emit(`${doubleValue} = call double @strtod(i8* ${strValue}, i8** ${nullPtr})`);
+    } else {
+      doubleValue = this.ctx.generateExpression(arg, params);
+    }
+    const cmpResult = this.ctx.nextTemp();
+    this.ctx.emit(`${cmpResult} = fcmp uno double ${doubleValue}, ${doubleValue}`);
+    const resultI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${resultI32} = zext i1 ${cmpResult} to i32`);
+    const resultDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
     return resultDouble;
   }
 

@@ -283,9 +283,24 @@ export class ControlFlowGenerator {
     const iterableValue = this.ctx.generateExpression(forOfStmt.iterable, params);
 
     const isStringArray = this.ctx.isStringArrayExpression(forOfStmt.iterable);
-    const arrayType = isStringArray ? '%StringArray' : '%Array';
-    const elementType = isStringArray ? 'i8*' : 'double';
-    const elementKind = isStringArray ? SymbolKind.String : SymbolKind.Number;
+    const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(forOfStmt.iterable);
+    let arrayType: string;
+    let elementType: string;
+    let elementKind: SymbolKind;
+
+    if (isStringArray) {
+      arrayType = '%StringArray';
+      elementType = 'i8*';
+      elementKind = SymbolKind.String;
+    } else if (isObjectArray) {
+      arrayType = '%Array';
+      elementType = 'i8*';
+      elementKind = SymbolKind.Object;
+    } else {
+      arrayType = '%Array';
+      elementType = 'double';
+      elementKind = SymbolKind.Number;
+    }
 
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 1`);
@@ -328,6 +343,10 @@ export class ControlFlowGenerator {
     const dataArray = this.nextTemp();
     if (isStringArray) {
       this.emit(`${dataArray} = load i8**, i8*** ${dataPtr}`);
+    } else if (isObjectArray) {
+      const dataDouble = this.nextTemp();
+      this.emit(`${dataDouble} = load double*, double** ${dataPtr}`);
+      this.emit(`${dataArray} = bitcast double* ${dataDouble} to i8**`);
     } else {
       this.emit(`${dataArray} = load double*, double** ${dataPtr}`);
     }
@@ -336,7 +355,7 @@ export class ControlFlowGenerator {
     const indexI64 = this.nextTemp();
     this.emit(`${indexI64} = sext i32 ${currentIndex} to i64`);
     const elemPtr = this.nextTemp();
-    if (isStringArray) {
+    if (isStringArray || isObjectArray) {
       this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataArray}, i64 ${indexI64}`);
     } else {
       this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataArray}, i64 ${indexI64}`);

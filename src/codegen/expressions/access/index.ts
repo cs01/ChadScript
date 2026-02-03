@@ -172,6 +172,29 @@ export class IndexAccessGenerator {
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
     }
 
+    const arrayType = this.ctx.getVariableType(arrayPtr);
+    if (arrayType === 'i8*') {
+      const arrayCast = this.ctx.nextTemp();
+      this.ctx.emit(`${arrayCast} = bitcast i8* ${arrayPtr} to %Array*`);
+
+      const dataPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayCast}, i32 0, i32 0`);
+
+      const dataDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${dataDouble} = load double*, double** ${dataPtr}`);
+
+      const data = this.ctx.nextTemp();
+      this.ctx.emit(`${data} = bitcast double* ${dataDouble} to i8**`);
+
+      const elemPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${data}, i32 ${index}`);
+
+      const elem = this.ctx.nextTemp();
+      this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+      this.ctx.setVariableType(elem, 'i8*');
+      return elem;
+    }
+
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
 
