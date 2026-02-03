@@ -182,7 +182,6 @@ export class SymbolTable {
   private symbols: Map<string, Symbol> = new Map();
   private symbolKeys: string[] = [];
   private narrowedTypes: Map<string, ObjectMetadata[]> = new Map();
-  private narrowedKeys: string[] = [];
 
   /**
    * Narrow a symbol's object metadata (for type guards like `if (x.type === '...')`)

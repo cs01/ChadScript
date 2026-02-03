@@ -184,7 +184,6 @@ export class ResponseGenerator {
     parserIR += `json_error:\n`;
     for (let fieldIndex = 0; fieldIndex < interfaceDef.properties.length; fieldIndex++) {
       const prop = interfaceDef.properties[fieldIndex] as { name: string; type: string };
-      const propName = prop.name;
       const propType = prop.type;
       const fieldPtr = `%err_field_ptr_${fieldIndex}`;
       parserIR += `  ${fieldPtr} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;

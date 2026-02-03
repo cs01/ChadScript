@@ -49,7 +49,7 @@ export class UnaryExpressionGenerator {
     throw new Error(`Unknown unary operator: ${op}`);
   }
 
-  private generatePostIncDec(op: string, operand: Expression, params: string[]): string {
+  private generatePostIncDec(op: string, operand: Expression, _params: string[]): string {
     if (operand.type === 'member_access') {
       return this.generateMemberAccessIncDec(op, operand as MemberAccessNode, true);
     }
@@ -77,7 +77,7 @@ export class UnaryExpressionGenerator {
     return originalValue;
   }
 
-  private generatePreIncDec(op: string, operand: Expression, params: string[]): string {
+  private generatePreIncDec(op: string, operand: Expression, _params: string[]): string {
     if (operand.type === 'member_access') {
       return this.generateMemberAccessIncDec(op, operand as MemberAccessNode, false);
     }

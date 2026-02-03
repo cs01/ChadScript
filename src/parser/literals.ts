@@ -1,4 +1,4 @@
-import { Expression, ArrayNode, ObjectNode, MethodCallNode, VariableNode, SuperNode, BinaryNode, NumberNode, TypeAssertionNode } from '../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MethodCallNode, VariableNode, BinaryNode, NumberNode } from '../ast/types.js';
 import { ParserContext } from './declarations.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
 

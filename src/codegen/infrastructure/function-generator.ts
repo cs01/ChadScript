@@ -1,4 +1,4 @@
-import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, TopLevelItem, AssignmentStatement, CallNode, NewNode, MethodCallNode, CommonField } from '../../ast/types.js';
+import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField } from '../../ast/types.js';
 import { SymbolKind, SymbolTable } from './symbol-table.js';
 import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';

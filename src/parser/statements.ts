@@ -400,7 +400,7 @@ export function parseVariableDeclaration(ctx: ParserContext): VariableDeclaratio
 
 export function parseTryStatementTopLevel(ctx: ParserContext): void {
   ctx.expect('{');
-  const tryBlock = parseBlock(ctx);
+  parseBlock(ctx);
   ctx.expect('}');
 
   if (ctx.match('catch')) {
@@ -416,7 +416,7 @@ export function parseTryStatementTopLevel(ctx: ParserContext): void {
     }
     ctx.expect(')');
     ctx.expect('{');
-    const catchBlock = parseBlock(ctx);
+    parseBlock(ctx);
     ctx.expect('}');
   }
 }

@@ -358,12 +358,12 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.expressionTypes.set(expr, type);
   }
 
-  generateExpression(expr: Expression, params: string[]): string {
+  generateExpression(_expr: Expression, _params: string[]): string {
     // Mock implementation - returns a dummy register
     return this.nextTemp();
   }
 
-  generateBlock(block: BlockStatement, params: string[]): string | null {
+  generateBlock(_block: BlockStatement, _params: string[]): string | null {
     // Mock implementation - returns success
     return null;
   }
@@ -378,7 +378,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     return e.type === 'array';
   }
 
-  isStringArrayExpression(expr: Expression): boolean {
+  isStringArrayExpression(_expr: Expression): boolean {
     return false; // Simplified mock
   }
 

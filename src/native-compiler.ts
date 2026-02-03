@@ -1,4 +1,4 @@
-import { parseSource, TreeSitterTree } from './parser-native/index.js';
+import { parseSource } from './parser-native/index.js';
 import { transformTree } from './parser-native/transformer.js';
 import { LLVMGenerator, LLVMGeneratorOptions } from './codegen/llvm-generator.js';
 import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';

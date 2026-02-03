@@ -1,4 +1,4 @@
-import { Expression, ClassNode, ClassMethod, ClassField, BlockStatement, VariableNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, CommonField } from '../../../ast/types.js';
+import { Expression, ClassNode, ClassMethod, ClassField, VariableNode, InterfaceDeclaration, CommonField } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind } from '../../infrastructure/symbol-table.js';
 import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
@@ -10,8 +10,6 @@ import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastru
 export class ClassGenerator {
   // Track class structures: className -> field info
   private classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]> = new Map();
-  // Track instance variables: varName -> className
-  private instanceVariables: Map<string, string> = new Map();
 
   constructor(private ctx: IGeneratorContext) {}
 
@@ -54,7 +52,6 @@ export class ClassGenerator {
 
   // Helper methods delegate to context
   private nextTemp() { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
   private emit(instruction: string) { this.ctx.emit(instruction); }
 
   // Helper to get field info
@@ -299,7 +296,7 @@ export class ClassGenerator {
     this.ctx.currentFunctionReturnType = structType;
 
     // Execute constructor body
-    const bodyResult = this.ctx.generateBlock(constructor.body, constructor.params);
+    this.ctx.generateBlock(constructor.body, constructor.params);
 
     // Return the instance pointer
     if (this.ctx.output.length > 0) {

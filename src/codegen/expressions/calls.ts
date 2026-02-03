@@ -1,4 +1,4 @@
-import { Expression, CallNode, FunctionNode, VariableNode, FunctionParameter } from '../../ast/types.js';
+import { CallNode, FunctionNode, VariableNode, FunctionParameter } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
 /**

@@ -37,11 +37,6 @@ import { generateSplit as generateSplitImpl } from './string/split.js';
 export class StringGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
-  private nextString() { return this.ctx.nextString(); }
-
   // ============================================
   // String Constants & Conversions
   // ============================================

@@ -5,7 +5,6 @@ import {
   MemberAccessAssignmentNode,
   AST,
   ClassNode,
-  ClassField,
   AssignmentStatement,
 } from '../../ast/types.js';
 import type { SymbolTable } from './symbol-table.js';

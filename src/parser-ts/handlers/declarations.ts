@@ -279,19 +279,6 @@ function transformAccessorDeclaration(
   };
 }
 
-function mapToClassMethodType(typeStr: string): 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | undefined {
-  switch (typeStr) {
-    case 'string': return 'string';
-    case 'number': return 'number';
-    case 'boolean': return 'boolean';
-    case 'string[]': return 'string[]';
-    case 'number[]': return 'number[]';
-    case 'boolean[]': return 'boolean[]';
-    case 'void': return 'void';
-    default: return undefined;
-  }
-}
-
 export function transformInterfaceDeclaration(node: ts.InterfaceDeclaration): InterfaceDeclaration | null {
   const name = node.name.text;
   const fields: { name: string; type: string }[] = [];
@@ -390,9 +377,9 @@ export function transformImportDeclaration(node: ts.ImportDeclaration): ImportDe
 }
 
 export function transformExportDeclaration(
-  node: ts.ExportDeclaration,
-  ast: any,
-  checker: ts.TypeChecker | undefined
+  _node: ts.ExportDeclaration,
+  _ast: any,
+  _checker: ts.TypeChecker | undefined
 ): ExportDeclaration | null {
   return null;
 }

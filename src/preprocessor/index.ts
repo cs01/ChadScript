@@ -46,7 +46,7 @@ export function preprocess(source: string, filename: string, options: Preprocess
 }
 
 function createTypeAnnotationPreserver(): ts.TransformerFactory<ts.SourceFile> {
-  return (context: ts.TransformationContext) => {
+  return (_context: ts.TransformationContext) => {
     return (sourceFile: ts.SourceFile) => {
       return sourceFile;
     };
@@ -54,7 +54,7 @@ function createTypeAnnotationPreserver(): ts.TransformerFactory<ts.SourceFile> {
 }
 
 function createTypeAnnotationRestorer(): ts.TransformerFactory<ts.SourceFile> {
-  return (context: ts.TransformationContext) => {
+  return (_context: ts.TransformationContext) => {
     return (sourceFile: ts.SourceFile) => {
       return sourceFile;
     };

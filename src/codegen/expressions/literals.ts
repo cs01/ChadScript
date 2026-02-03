@@ -190,7 +190,7 @@ export class LiteralExpressionGenerator {
    * Generate new Promise(executor) expression
    * The executor is a function (resolve, reject) => { ... }
    */
-  generateNewPromise(args: Expression[], params: string[]): string {
+  generateNewPromise(_args: Expression[], _params: string[]): string {
     this.ctx.usesPromises = true;
     const promiseResult = this.ctx.nextTemp();
     this.ctx.emit(`${promiseResult} = call %Promise* @__Promise_new()`);

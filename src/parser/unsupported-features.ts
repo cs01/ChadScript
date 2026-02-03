@@ -354,7 +354,7 @@ ChadScript has no symbol support or runtime protocols.`,
  */
 export function formatUnsupportedFeatureError(
   feature: keyof typeof UNSUPPORTED_FEATURES,
-  sourceContext?: string
+  _sourceContext?: string
 ): string {
   const info = UNSUPPORTED_FEATURES[feature];
   if (!info) {

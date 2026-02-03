@@ -24,7 +24,7 @@ export function parseWithTSAPI(code: string, options: ParseOptions = {}): AST {
 
 export function parseFileWithTSAPI(filepath: string): AST {
   const absolutePath = path.resolve(filepath);
-  const code = fs.readFileSync(absolutePath, 'utf-8');
+  fs.readFileSync(absolutePath, 'utf-8');
 
   const compilerOptions: ts.CompilerOptions = {
     target: ts.ScriptTarget.Latest,

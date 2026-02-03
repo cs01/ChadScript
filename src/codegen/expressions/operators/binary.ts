@@ -93,14 +93,14 @@ export class BinaryExpressionGenerator {
     }
   }
 
-  private generateArithmetic(op: string, llvmOp: string, left: string, right: string): string {
+  private generateArithmetic(_op: string, llvmOp: string, left: string, right: string): string {
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = ${llvmOp} double ${left}, ${right}`);
     this.ctx.setVariableType(temp, 'double');
     return temp;
   }
 
-  private generateBitwise(op: string, llvmOp: string, left: string, right: string): string {
+  private generateBitwise(_op: string, llvmOp: string, left: string, right: string): string {
     // Bitwise operators: convert double -> i64 -> operate -> double
     const leftInt = this.ctx.nextTemp();
     const rightInt = this.ctx.nextTemp();
