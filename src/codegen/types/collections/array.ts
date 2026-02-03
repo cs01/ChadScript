@@ -1403,17 +1403,25 @@ export class ArrayGenerator {
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
 
     let isStringArray = false;
+    let isObjectArray = false;
     const exprObjBase = expr.object as ExprBase;
     if (exprObjBase.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
       isStringArray = varType === '%StringArray*';
+      isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
+    } else if (exprObjBase.type === 'member_access') {
+      const ptrType = this.ctx.getVariableType(arrayPtr);
+      isStringArray = ptrType === '%StringArray*';
+      if (!isStringArray && ptrType && ptrType.indexOf('*') !== -1 && ptrType !== '%Array*') {
+        isObjectArray = true;
+      }
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
       isStringArray = ptrType === '%StringArray*';
     }
 
-    if (isStringArray) {
+    if (isStringArray || isObjectArray) {
       return this.generateStringArraySlice(arrayPtr, expr, params);
     }
 

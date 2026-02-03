@@ -1230,6 +1230,25 @@ export class TypeInference {
       if (methodExpr.method === 'map' || methodExpr.method === 'filter') {
         return this.isStringArrayExpression(methodExpr.object);
       }
+      const objBase = methodExpr.object as ExprBase;
+      if (objBase.type === 'this') {
+        const className = this.ctx.currentClassName;
+        if (className) {
+          const method = this.getClassMethod(className, methodExpr.method);
+          if (method && method.returnType === 'string[]') {
+            return true;
+          }
+        }
+      }
+      if (objBase.type === 'variable' && this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)) {
+        const className = this.ctx.symbolTable.getClassName((methodExpr.object as VariableNode).name);
+        if (className) {
+          const method = this.getClassMethod(className, methodExpr.method);
+          if (method && method.returnType === 'string[]') {
+            return true;
+          }
+        }
+      }
       return false;
     }
     if (e.type === 'member_access') {

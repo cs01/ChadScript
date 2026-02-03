@@ -192,6 +192,7 @@ export interface MethodCallGeneratorContext {
   isStringExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
   isStringArrayExpression(expr: Expression): boolean;
+  isObjectArrayExpression(expr: Expression): boolean;
   isRegexExpression(expr: Expression): boolean;
   isPromiseExpression(expr: Expression): boolean;
   formatCodegenError(message: string, suggestion: string): string;
@@ -545,7 +546,7 @@ export class MethodCallGenerator {
     if (method === 'includes' && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object)) {
       return this.handleStringIncludes(expr, params);
     }
-    if (method === 'slice' && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object)) {
+    if (method === 'slice' && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object) && !this.ctx.isObjectArrayExpression(expr.object)) {
       return this.handleSlice(expr, params);
     }
     if (method === 'replace') {
@@ -776,9 +777,9 @@ export class MethodCallGenerator {
       return this.ctx.arrayGen.generateArrayFilter(expr, params);
     } else if (method === 'forEach') {
       return this.ctx.arrayGen.generateArrayForEach(expr, params);
-    } else if (method === 'slice' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object))) {
+    } else if (method === 'slice' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {
       return this.ctx.arrayGen.generateArraySlice(expr, params);
-    } else if (method === 'concat' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object))) {
+    } else if (method === 'concat' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {
       return this.ctx.arrayGen.generateArrayConcat(expr, params);
     }
 
