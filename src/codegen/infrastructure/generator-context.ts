@@ -316,6 +316,14 @@ export interface IGeneratorContext {
   getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null;
 
   /**
+   * Resolve an import alias to its original function name.
+   * For example, if 'tsTypeToLlvm as tsTypeToLlvmUtil' was imported,
+   * resolveImportAlias('tsTypeToLlvmUtil') returns 'tsTypeToLlvm'.
+   * Returns the input name if no alias mapping exists.
+   */
+  resolveImportAlias(localName: string): string;
+
+  /**
    * Access to class generator for field type lookups
    */
   readonly classGen: IClassGenContext;
@@ -570,6 +578,10 @@ export class MockGeneratorContext implements IGeneratorContext {
     getFieldInfo: (_className: string, _fieldName: string): { index: number; type: string; tsType?: string } | null => null,
     getClassFields: (_className: string): { name: string; fieldType: string }[] => [],
   };
+
+  resolveImportAlias(localName: string): string {
+    return localName;
+  }
 
   reset(): void {
     this.tempCount = 0;
