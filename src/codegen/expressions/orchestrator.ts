@@ -17,6 +17,8 @@ interface ExpressionOrchestratorContext {
   variableTypes: Map<string, string>;
   setVariableType(name: string, type: string): void;
   usesPromises: boolean;
+  expectedCallbackParamType: string | null;
+  expectedCallbackReturnType: string | null;
   nextTemp(): string;
   emit(instruction: string): void;
 }
@@ -147,7 +149,17 @@ export class ExpressionGenerator {
     if (exprTyped.type === 'arrow_function') {
       const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
       const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
-      return this.arrowFunctionGen.generateArrowFunction(expr as ArrowFunctionNode, params, undefined, scopeVarsTyped.names, scopeVarsTyped.types);
+      let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
+      if (this.ctx.expectedCallbackParamType || this.ctx.expectedCallbackReturnType) {
+        typeHints = {};
+        if (this.ctx.expectedCallbackParamType) {
+          typeHints.paramTypes = [this.ctx.expectedCallbackParamType];
+        }
+        if (this.ctx.expectedCallbackReturnType) {
+          typeHints.returnType = this.ctx.expectedCallbackReturnType;
+        }
+      }
+      return this.arrowFunctionGen.generateArrowFunction(expr as ArrowFunctionNode, params, typeHints, scopeVarsTyped.names, scopeVarsTyped.types);
     }
 
     // Conditional (ternary) expressions

@@ -682,9 +682,9 @@ export class SymbolTable {
    * Merge another symbol table into this one
    */
   merge(other: SymbolTable): void {
-    const otherSymbols = other.getAll();
+    const otherSymbols: Symbol[] = other.getAll();
     for (let i = 0; i < otherSymbols.length; i++) {
-      const symbol = otherSymbols[i];
+      const symbol: Symbol = otherSymbols[i];
       if (!this.symbols.has(symbol.name)) {
         this.symbols.set(symbol.name, symbol);
         this.symbolKeys.push(symbol.name);

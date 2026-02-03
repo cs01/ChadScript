@@ -79,6 +79,11 @@ export class CallExpressionGenerator {
       return this.generateNumber(expr, params);
     }
 
+    // Handle String(value) global function
+    if (expr.name === 'String') {
+      return this.generateString(expr, params);
+    }
+
     // Handle isNaN(value) global function
     if (expr.name === 'isNaN') {
       return this.generateIsNaN(expr, params);
@@ -215,6 +220,21 @@ export class CallExpressionGenerator {
       return resultDouble;
     }
     return this.ctx.generateExpression(arg, params);
+  }
+
+  private generateString(expr: CallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      throw new Error('String() requires exactly 1 argument');
+    }
+
+    this.ctx.syncStateToGenerators();
+
+    const arg = expr.args[0];
+    if (this.ctx.isStringExpression(arg)) {
+      return this.ctx.generateExpression(arg, params);
+    }
+    const numValue = this.ctx.generateExpression(arg, params);
+    return this.ctx.stringGen.convertNumberToString(numValue);
   }
 
   private generateIsNaN(expr: CallNode, params: string[]): string {

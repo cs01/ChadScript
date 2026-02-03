@@ -31,6 +31,7 @@ export class BaseGenerator {
   public currentClassName: string | null = null; // Current class name (for super resolution)
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null; // Expected array element type for context-aware generation
   public expectedCallbackParamType: string | null = null; // Expected callback parameter type for lambda generation
+  public expectedCallbackReturnType: string | null = null; // Expected callback return type for lambda generation
   public currentFunctionReturnType: string = 'double'; // Current function/method return type for return statements
 
   constructor() {}

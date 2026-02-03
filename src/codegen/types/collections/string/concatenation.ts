@@ -37,6 +37,7 @@ export function generateStringConcatDirect(ctx: IGeneratorContext, leftStr: stri
 
   const resultPtr = ctx.nextTemp();
   ctx.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 ${totalLenPlus1})`);
+  ctx.setVariableType(resultPtr, 'i8*');
 
   const copyResult1 = ctx.nextTemp();
   ctx.emit(`${copyResult1} = call i8* @strcpy(i8* ${resultPtr}, i8* ${leftStr})`);

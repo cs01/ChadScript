@@ -1315,8 +1315,10 @@ export class ArrayGenerator {
       callbackFn = (callbackArg as VariableNode).name;
     } else if (callbackArg.type === 'arrow_function') {
       this.ctx.expectedCallbackParamType = 'string';
+      this.ctx.expectedCallbackReturnType = 'string';
       callbackFn = this.ctx.generateExpression(callbackArg, params);
       this.ctx.expectedCallbackParamType = null;
+      this.ctx.expectedCallbackReturnType = null;
     } else {
       throw new Error('map() argument must be a function name or inline function');
     }

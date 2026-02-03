@@ -33,6 +33,7 @@ export interface IClassGenContext {
 
 export interface IStringGenerator {
   createStringConstant(value: string): string;
+  convertNumberToString(numValue: string): string;
   generateStringConcat(left: Expression, right: Expression, params: string[]): string;
   generateStringConcatDirect(left: string, right: string): string;
 }
@@ -212,6 +213,16 @@ export interface IGeneratorContext {
   expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
 
   /**
+   * Expected callback parameter type (for type-aware lambda generation)
+   */
+  expectedCallbackParamType: string | null;
+
+  /**
+   * Expected callback return type (for type-aware lambda generation)
+   */
+  expectedCallbackReturnType: string | null;
+
+  /**
    * Current 'this' pointer for class methods
    */
   thisPointer: string | null;
@@ -362,6 +373,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   public currentFunctionReturnType: string = 'double';
   public currentFunctionTsReturnType: string | undefined = undefined;
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null;
+  public expectedCallbackParamType: string | null = null;
+  public expectedCallbackReturnType: string | null = null;
   public thisPointer: string | null = null;
   public currentClassName: string | null = null;
   public ast?: AST;
@@ -564,6 +577,7 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   stringGen = {
     createStringConstant: (_value: string): string => '%0',
+    convertNumberToString: (_numValue: string): string => '%0',
     generateStringConcat: (_left: Expression, _right: Expression, _params: string[]): string => '%0',
     generateStringConcatDirect: (_left: string, _right: string): string => '%0',
   };

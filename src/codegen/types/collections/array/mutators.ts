@@ -47,6 +47,9 @@ export function generateArrayPush(
   }
 
   const valueType = gen.getVariableType(value);
+  if (valueType === 'i8*') {
+    return generateStringArrayPush(gen, arrayPtr, value);
+  }
   if (valueType && valueType.endsWith('*') && valueType !== 'double*') {
     return generatePointerArrayPush(gen, arrayPtr, value, valueType);
   }
