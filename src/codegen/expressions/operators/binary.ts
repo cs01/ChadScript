@@ -190,7 +190,6 @@ export class BinaryExpressionGenerator {
   }
 
   private generateNumericComparison(cond: string, left: string, right: string): string {
-    // Handle i32 values from JSON property access - convert to double
     const leftType = this.ctx.getVariableType(left);
     const rightType = this.ctx.getVariableType(right);
 
@@ -201,11 +200,23 @@ export class BinaryExpressionGenerator {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = sitofp i32 ${left} to double`);
       leftDouble = temp;
+    } else if (leftType === 'i8*' || (leftType && leftType.indexOf('*') !== -1)) {
+      const asInt = this.ctx.nextTemp();
+      this.ctx.emit(`${asInt} = ptrtoint ${leftType} ${left} to i64`);
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = sitofp i64 ${asInt} to double`);
+      leftDouble = temp;
     }
 
     if (rightType === 'i32') {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = sitofp i32 ${right} to double`);
+      rightDouble = temp;
+    } else if (rightType === 'i8*' || (rightType && rightType.indexOf('*') !== -1)) {
+      const asInt = this.ctx.nextTemp();
+      this.ctx.emit(`${asInt} = ptrtoint ${rightType} ${right} to i64`);
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = sitofp i64 ${asInt} to double`);
       rightDouble = temp;
     }
 

@@ -99,8 +99,8 @@ const testCases: TestCase[] = [
   {
     name: 'logical-operators',
     fixture: 'tests/fixtures/logical/logical-operators.js',
-    expectedExitCode: 1,
-    description: 'Logical operators: testOr(0, 5) should return 1'
+    expectedExitCode: 5,
+    description: 'Logical operators: testOr(0, 5) should return 5'
   },
   {
     name: 'imports-main',
