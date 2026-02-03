@@ -182,56 +182,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     this.envStructDefs = [];
   }
 
-  private inferParamTypesFromBody(params: string[], body: ArrowFunctionNode['body']): string[] {
-    const result: string[] = [];
-    for (let i = 0; i < params.length; i++) {
-      const paramName = params[i];
-      if (this.paramUsedAsObject(paramName, body)) {
-        result.push('string');
-      } else {
-        result.push('number');
-      }
-    }
-    const hasNonNumber = result.some(t => t !== 'number');
-    return hasNonNumber ? result : [];
-  }
-
-  private paramUsedAsObject(paramName: string, node: unknown): boolean {
-    if (!node || typeof node !== 'object') return false;
-    const n = node as { type?: string; object?: unknown; name?: string };
-    if (n.type === 'member_access') {
-      const objBase = n.object as { type?: string; name?: string };
-      if (objBase && objBase.type === 'variable' && objBase.name === paramName) {
-        return true;
-      }
-    }
-    const children = this.getAstChildren(node);
-    for (let i = 0; i < children.length; i++) {
-      const child = children[i];
-      if (this.paramUsedAsObject(paramName, child)) return true;
-    }
-    return false;
-  }
-
-  private getAstChildren(node: unknown): unknown[] {
-    if (!node || typeof node !== 'object') return [];
-    const result: unknown[] = [];
-    const n = node as Record<string, unknown>;
-    const keys = ['body', 'left', 'right', 'object', 'property', 'callee', 'arguments', 'args',
-                  'expression', 'statements', 'consequent', 'alternate', 'test', 'elements',
-                  'properties', 'value', 'init', 'update', 'condition', 'iterable'];
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
-      const val = n[key];
-      if (val === undefined || val === null) continue;
-      if (Array.isArray(val)) {
-        for (let j = 0; j < val.length; j++) {
-          result.push(val[j]);
-        }
-      } else if (typeof val === 'object') {
-        result.push(val);
-      }
-    }
-    return result;
+  private inferParamTypesFromBody(_params: string[], _body: ArrowFunctionNode['body']): string[] {
+    return [];
   }
 }
