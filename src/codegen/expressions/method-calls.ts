@@ -311,7 +311,7 @@ export class MethodCallGenerator {
     if (!funcParams) return null;
 
     for (let i = 0; i < funcParams.length; i++) {
-      const p = funcParams[i];
+      const p = funcParams[i] as { name: string; type?: string };
       if (p.name === varName && p.type) {
         const mapMatch = p.type.match(/^Map<(\w+),\s*(.+)>$/);
         if (mapMatch) {

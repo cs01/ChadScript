@@ -114,6 +114,9 @@ export class LLVMGenerator extends BaseGenerator {
   // Cache for interface struct defs (used at end of generate())
   private interfaceStructDefsCache: string = '';
 
+  // Cache for class struct defs (used at end of generate())
+  private classStructDefsCache: string = '';
+
   // Helper: Format nice compiler errors (public for context pattern access)
   public formatCodegenError(message: string, suggestion?: string): string {
     let error = `\x1b[31m\x1b[1merror:\x1b[0m ${message}\n`;
@@ -370,6 +373,9 @@ export class LLVMGenerator extends BaseGenerator {
     const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
     this.interfaceStructDefsCache = interfaceStructDefs;
 
+    const classStructDefs = this.classGen.generateStructTypeDefinitions();
+    this.classStructDefsCache = classStructDefs;
+
     ir += this.runtimeGen.generateFetchRuntime();
     ir += '\n';
 
@@ -486,6 +492,11 @@ export class LLVMGenerator extends BaseGenerator {
     // Add global string constants at the beginning
     if (this.globalStrings.length > 0) {
       ir = this.globalStrings.join('\n') + '\n\n' + ir;
+    }
+
+    // Add class struct defs before the main IR (after interface structs)
+    if (this.classStructDefsCache) {
+      ir = this.classStructDefsCache + '\n' + ir;
     }
 
     // Add interface struct defs at the very beginning

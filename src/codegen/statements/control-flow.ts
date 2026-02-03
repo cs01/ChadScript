@@ -739,7 +739,7 @@ export class ControlFlowGenerator {
       if (iface) {
         const ifaceTyped = iface as { fields: { name: string; type: string }[] };
         for (let i = 0; i < ifaceTyped.fields.length; i++) {
-          const f = ifaceTyped.fields[i];
+          const f = ifaceTyped.fields[i] as { name: string; type: string };
           const fieldName = f.name.replace('?', '');
           if (fieldName === ma.property) {
             return f.type;
