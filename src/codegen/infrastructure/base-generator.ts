@@ -154,6 +154,8 @@ export class BaseGenerator {
   emit(instruction: string) {
     if (instruction.startsWith('store ')) {
       this.validateStoreInstruction(instruction);
+    } else if (instruction.includes(' = phi ')) {
+      this.validatePhiInstruction(instruction);
     }
     this.output.push(instruction);
     if (instruction.trim().endsWith(':')) {
@@ -186,6 +188,67 @@ export class BaseGenerator {
         `  This usually means an expression returned a wrong type (e.g., ptr instead of double)`
       );
     }
+  }
+
+  private validatePhiInstruction(instruction: string): void {
+    const phiIdx = instruction.indexOf(' = phi ');
+    if (phiIdx < 0) return;
+
+    const afterPhi = instruction.substring(phiIdx + 7);
+    const typeEnd = afterPhi.indexOf(' ');
+    if (typeEnd <= 0) return;
+
+    const declaredType = afterPhi.substring(0, typeEnd);
+    const branches = afterPhi.substring(typeEnd);
+    const bracketParts = branches.split('[');
+
+    for (let i = 1; i < bracketParts.length; i++) {
+      const part = bracketParts[i];
+      const closeBracket = part.indexOf(']');
+      if (closeBracket <= 0) continue;
+
+      const content = part.substring(0, closeBracket).trim();
+      const commaPos = content.indexOf(',');
+      if (commaPos <= 0) continue;
+
+      const value = content.substring(0, commaPos).trim();
+
+      if (declaredType === 'double') {
+        if (value.startsWith('@') || (value.startsWith('%') && !this.looksLikeDouble(value))) {
+          const lookupType = this.variableTypes.get(value);
+          if (lookupType && lookupType !== 'double') {
+            throw new Error(
+              `LLVM phi type mismatch: declared type is '${declaredType}' but branch value '${value}' has type '${lookupType}'\n` +
+              `  Instruction: ${instruction}\n` +
+              `  This usually means a conditional expression has mismatched branch types`
+            );
+          }
+        }
+      } else if (declaredType.endsWith('*')) {
+        if (this.looksLikeDoubleValue(value)) {
+          throw new Error(
+            `LLVM phi type mismatch: declared type is '${declaredType}' but branch value '${value}' looks like a double\n` +
+            `  Instruction: ${instruction}\n` +
+            `  This usually means a conditional expression has mismatched branch types`
+          );
+        }
+      }
+    }
+  }
+
+  private looksLikeDouble(value: string): boolean {
+    if (!value.startsWith('%')) return false;
+    const regType = this.variableTypes.get(value);
+    return regType === 'double' || regType === undefined;
+  }
+
+  private looksLikeDoubleValue(value: string): boolean {
+    if (value === '0.0' || value === '1.0') return true;
+    if (value.includes('.') && !value.includes('%')) {
+      const num = parseFloat(value);
+      return !isNaN(num);
+    }
+    return false;
   }
 
   // Get all output
