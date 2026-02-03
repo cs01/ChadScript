@@ -1,4 +1,4 @@
-import { CallNode, FunctionNode, VariableNode, FunctionParameter } from '../../ast/types.js';
+import { CallNode, FunctionNode, VariableNode, FunctionParameter, ClassNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
 /**
@@ -30,6 +30,11 @@ export class CallExpressionGenerator {
    * @param params - Function parameter names
    */
   generate(expr: CallNode, params: string[]): string {
+    // Handle super() constructor call
+    if (expr.name === 'super') {
+      return this.generateSuperCall(expr, params);
+    }
+
     // Handle httpServe() special built-in function
     if (expr.name === 'httpServe') {
       return this.ctx.generateHttpServe(expr, params);
@@ -744,5 +749,46 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${result} = bitcast i64 ${resultI64} to double`);
     this.ctx.setVariableType(result, '%TSNode*');
     return result;
+  }
+
+  private generateSuperCall(expr: CallNode, params: string[]): string {
+    if (!this.ctx.thisPointer) {
+      throw new Error('super() called outside of class constructor');
+    }
+    if (!this.ctx.currentClassName) {
+      throw new Error('super() called outside of class context');
+    }
+    if (!this.ctx.ast?.classes) {
+      throw new Error('super() called but no classes defined');
+    }
+    let currentClass: ClassNode | null = null;
+    for (let i = 0; i < this.ctx.ast.classes.length; i++) {
+      const c = this.ctx.ast.classes[i] as ClassNode;
+      if (c.name === this.ctx.currentClassName) {
+        currentClass = c;
+        break;
+      }
+    }
+    if (!currentClass || !currentClass.extends) {
+      throw new Error(`super() called but current class ${this.ctx.currentClassName} has no parent class`);
+    }
+    const parentClassName = currentClass.extends;
+    const parentStructType = `%${parentClassName}_struct*`;
+    const thisPtr = this.ctx.thisPointer;
+    const castedThis = this.ctx.nextTemp();
+    this.ctx.emit(`${castedThis} = bitcast i8* ${thisPtr} to ${parentStructType}`);
+    const argValues: string[] = [];
+    for (let i = 0; i < expr.args.length; i++) {
+      argValues.push(this.ctx.generateExpression(expr.args[i], params));
+    }
+    const argTypesStr = argValues.map(() => 'i8*').join(', ');
+    const argsWithTypes = argValues.map(v => `i8* ${v}`).join(', ');
+    const temp = this.ctx.nextTemp();
+    if (argValues.length === 0) {
+      this.ctx.emit(`${temp} = call ${parentStructType} @${parentClassName}_constructor()`);
+    } else {
+      this.ctx.emit(`${temp} = call ${parentStructType} @${parentClassName}_constructor(${argsWithTypes})`);
+    }
+    return '0';
   }
 }
