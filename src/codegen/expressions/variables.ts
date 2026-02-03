@@ -221,7 +221,7 @@ export class VariableExpressionGenerator {
       this.ctx.setVariableType(temp, varType);
       return temp;
     }
-    const ptrToType = varType === 'ptr' ? 'ptr' : `${varType}*`;
+    const ptrToType = `${varType}*`;
     this.ctx.emit(`${temp} = load ${varType}, ${ptrToType} ${allocaReg}`);
     this.ctx.setVariableType(temp, varType);
     return temp;

@@ -148,6 +148,25 @@ export class VariableAllocator {
     return false;
   }
 
+  private isUnionOfInterfaceTypes(typeStr: string): boolean {
+    if (!typeStr) return false;
+    if (typeStr.indexOf('|') === -1) return false;
+    const parts = typeStr.split('|');
+    let hasNonPrimitive = false;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      if (part === 'undefined' || part === 'null') continue;
+      if (part === 'string' || part === 'number' || part === 'boolean') continue;
+      if (this.getInterface(part)) return true;
+      if (this.getTypeAlias(part)) return true;
+      const firstChar = part.charAt(0);
+      if (firstChar === firstChar.toUpperCase() && firstChar !== firstChar.toLowerCase()) {
+        hasNonPrimitive = true;
+      }
+    }
+    return hasNonPrimitive;
+  }
+
   allocate(stmt: VariableDeclaration, params: string[]): void {
     if (stmt.value === null) {
       const allocaReg = this.ctx.nextTemp();
@@ -218,6 +237,10 @@ export class VariableAllocator {
               return;
             }
           }
+          this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local');
+          this.ctx.emit(`${allocaReg} = alloca i8*`);
+          this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
+        } else if (this.isUnionOfInterfaceTypes(baseType)) {
           this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local');
           this.ctx.emit(`${allocaReg} = alloca i8*`);
           this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
@@ -1074,12 +1097,11 @@ export class VariableAllocator {
       this.ctx.defineVariable(stmt.name, allocaReg, valueType, SymbolKind.Object, 'local');
       this.ctx.emit(`${allocaReg} = alloca double`);
       this.ctx.emit(`store double ${value}, double* ${allocaReg}`);
-    } else if (valueType && valueType !== 'double' && (valueType === 'ptr' || valueType.indexOf('*') !== -1)) {
+    } else if (valueType && valueType !== 'double' && valueType.indexOf('*') !== -1) {
       const allocaReg = this.ctx.nextTemp();
       this.ctx.defineVariable(stmt.name, allocaReg, valueType, SymbolKind.Object, 'local');
       this.ctx.emit(`${allocaReg} = alloca ${valueType}`);
-      const ptrType = valueType === 'ptr' ? 'ptr' : `${valueType}*`;
-      this.ctx.emit(`store ${valueType} ${value}, ${ptrType} ${allocaReg}`);
+      this.ctx.emit(`store ${valueType} ${value}, ${valueType}* ${allocaReg}`);
     } else {
       const allocaReg = this.ctx.nextTemp();
       this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
