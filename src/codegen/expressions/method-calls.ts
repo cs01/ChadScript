@@ -545,7 +545,7 @@ export class MethodCallGenerator {
     if (method === 'includes' && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object)) {
       return this.handleStringIncludes(expr, params);
     }
-    if (method === 'slice') {
+    if (method === 'slice' && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object)) {
       return this.handleSlice(expr, params);
     }
     if (method === 'replace') {
