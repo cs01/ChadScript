@@ -9,7 +9,7 @@ import { TypeResolver, TypeResolverContext } from './infrastructure/type-resolve
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
 import { ObjectGenerator } from './types/objects/object.js';
-import { MapGenerator, StringMapGenerator } from './types/collections/map.js';
+import { MapGenerator, StringMapGenerator, PointerMapGenerator } from './types/collections/map.js';
 import { SetGenerator, StringSetGenerator } from './types/collections/set.js';
 import { ControlFlowGenerator } from './statements/control-flow.js';
 import { ClassGenerator } from './types/objects/class.js';
@@ -63,6 +63,7 @@ export class LLVMGenerator extends BaseGenerator {
   public objectGen: ObjectGenerator;
   public mapGen: MapGenerator;
   public stringMapGen: StringMapGenerator;
+  public pointerMapGen: PointerMapGenerator;
   public setGen: SetGenerator;
   public stringSetGen: StringSetGenerator;
   private controlFlowGen: ControlFlowGenerator;
@@ -210,6 +211,7 @@ export class LLVMGenerator extends BaseGenerator {
     this.stringGen = new StringGenerator(this);
     this.mapGen = new MapGenerator(this);
     this.stringMapGen = new StringMapGenerator(this);
+    this.pointerMapGen = new PointerMapGenerator(this);
     this.setGen = new SetGenerator(this);
     this.stringSetGen = new StringSetGenerator(this);
     this.controlFlowGen = new ControlFlowGenerator(this);
