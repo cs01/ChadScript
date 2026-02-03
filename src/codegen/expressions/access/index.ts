@@ -363,16 +363,21 @@ export class IndexAccessGenerator {
   }
 
   private generateStringArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
-    const objectExpr = expr.object as VariableNode;
-    const varName = objectExpr.name;
+    const exprBase = expr.object as { type: string };
 
-    const arrayAllocaReg = this.ctx.symbolTable.getArrayAlloca(varName);
-    if (!arrayAllocaReg) {
-      throw new Error(`Unknown string array variable: ${varName}`);
+    let arrayPtr: string;
+    if (exprBase.type === 'variable') {
+      const objectExpr = expr.object as VariableNode;
+      const varName = objectExpr.name;
+      const arrayAllocaReg = this.ctx.symbolTable.getArrayAlloca(varName);
+      if (!arrayAllocaReg) {
+        throw new Error(`Unknown string array variable: ${varName}`);
+      }
+      arrayPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${arrayPtr} = load %StringArray*, %StringArray** ${arrayAllocaReg}`);
+    } else {
+      arrayPtr = this.ctx.generateExpression(expr.object, params);
     }
-
-    const arrayPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${arrayPtr} = load %StringArray*, %StringArray** ${arrayAllocaReg}`);
 
     const dataFieldPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
@@ -394,16 +399,21 @@ export class IndexAccessGenerator {
   }
 
   private generateNumericArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
-    const objectExpr = expr.object as VariableNode;
-    const varName = objectExpr.name;
+    const exprBase = expr.object as { type: string };
 
-    const arrayAllocaReg = this.ctx.symbolTable.getArrayAlloca(varName);
-    if (!arrayAllocaReg) {
-      throw new Error(`Unknown numeric array variable: ${varName}`);
+    let arrayPtr: string;
+    if (exprBase.type === 'variable') {
+      const objectExpr = expr.object as VariableNode;
+      const varName = objectExpr.name;
+      const arrayAllocaReg = this.ctx.symbolTable.getArrayAlloca(varName);
+      if (!arrayAllocaReg) {
+        throw new Error(`Unknown numeric array variable: ${varName}`);
+      }
+      arrayPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${arrayPtr} = load %Array*, %Array** ${arrayAllocaReg}`);
+    } else {
+      arrayPtr = this.ctx.generateExpression(expr.object, params);
     }
-
-    const arrayPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${arrayPtr} = load %Array*, %Array** ${arrayAllocaReg}`);
 
     const dataFieldPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);

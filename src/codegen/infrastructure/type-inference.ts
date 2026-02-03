@@ -1212,8 +1212,6 @@ export class TypeInference {
         const nestedMemberTsType = this.resolveNestedMemberAccessTsType(memberExpr.object as MemberAccessNode);
         if (nestedMemberTsType) {
           const fieldProp = this.getInterfaceProperty(nestedMemberTsType, memberExpr.property);
-          console.log('[DEBUG] isStringArrayExpression member_access:', memberExpr.property, 'nestedType:', nestedMemberTsType);
-          console.log('[DEBUG]   fieldProp:', fieldProp);
           if (fieldProp && fieldProp.type === 'string[]') {
             return true;
           }

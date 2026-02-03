@@ -437,8 +437,9 @@ export class ControlFlowGenerator {
     if (!symbol || !symbol.objectMetadata) {
       return null;
     }
-    const tsTypes = symbol.objectMetadata.tsTypes;
-    const keys = symbol.objectMetadata.keys;
+    const objMeta = symbol.objectMetadata;
+    const tsTypes = objMeta.tsTypes;
+    const keys = objMeta.keys;
     if (!tsTypes || !keys) {
       return null;
     }
@@ -582,8 +583,9 @@ export class ControlFlowGenerator {
         }
         const symbol = this.ctx.symbolTable.lookup(varName);
         if (symbol && symbol.objectMetadata && symbol.objectMetadata.tsTypes) {
-          const keys = symbol.objectMetadata.keys;
-          const tsTypes = symbol.objectMetadata.tsTypes;
+          const objMeta = symbol.objectMetadata;
+          const keys = objMeta.keys;
+          const tsTypes = objMeta.tsTypes!;
           const idx = keys.indexOf(propName);
           if (idx !== -1) {
             const fieldType = tsTypes[idx];
@@ -685,6 +687,13 @@ export class ControlFlowGenerator {
       }
     }
 
+    if (iterable.type === 'method_call') {
+      const methodCallInfo = this.getMethodCallArrayInfo(iterable as MethodCallNode);
+      if (methodCallInfo) {
+        return methodCallInfo;
+      }
+    }
+
     if (iterable.type === 'variable') {
       const varName = (iterable as VariableNode).name;
       const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
@@ -696,44 +705,62 @@ export class ControlFlowGenerator {
     return null;
   }
 
-  private getChainedMemberAccessArrayInfo(memberAccess: MemberAccessNode): ObjectArrayMetadata | null {
-    const ma = memberAccess as { type: string; object: Expression; property: string };
-    const propName = ma.property;
-    let intermediateTypeName: string | null = null;
+  private resolveMemberAccessChainType(expr: Expression): string | null {
+    const exprBase = expr as ExprBase;
 
-    const maObjBase = ma.object as ExprBase;
-    if (maObjBase.type === 'member_access') {
-      const innerAccess = ma.object as { type: string; object: Expression; property: string };
-      const innerAccessObjBase = innerAccess.object as ExprBase;
-      if (innerAccessObjBase.type === 'this') {
-        const className = this.ctx.currentClassName;
-        if (className) {
-          const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, innerAccess.property);
-          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-          if (fieldInfoResult && fieldInfo.tsType) {
-            intermediateTypeName = fieldInfo.tsType;
-          }
-        }
-      } else if (innerAccessObjBase.type === 'variable') {
-        const varName = (innerAccess.object as VariableNode).name;
-        if (this.ctx.symbolTable.isClass(varName)) {
-          const classMeta = this.ctx.symbolTable.getClassInfo(varName);
-          if (classMeta) {
-            const fieldInfoResult = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
-            const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-            if (fieldInfoResult && fieldInfo.tsType) {
-              intermediateTypeName = fieldInfo.tsType;
-            }
+    if (exprBase.type === 'this') {
+      return this.ctx.currentClassName || null;
+    }
+
+    if (exprBase.type === 'variable') {
+      const varName = (expr as VariableNode).name;
+      if (this.ctx.symbolTable.isClass(varName)) {
+        const classMeta = this.ctx.symbolTable.getClassInfo(varName);
+        return classMeta ? classMeta.className : null;
+      }
+      const interfaceType = this.ctx.symbolTable.getInterfaceType(varName);
+      if (interfaceType) {
+        return interfaceType;
+      }
+      return null;
+    }
+
+    if (exprBase.type === 'member_access') {
+      const ma = expr as MemberAccessNode;
+      const baseType = this.resolveMemberAccessChainType(ma.object);
+      if (!baseType) return null;
+
+      const fieldInfo = this.ctx.classGen?.getFieldInfo(baseType, ma.property);
+      if (fieldInfo && fieldInfo.tsType) {
+        return fieldInfo.tsType;
+      }
+
+      const iface = this.ctx.getInterfaceFromAST(baseType);
+      if (iface) {
+        const ifaceTyped = iface as { fields: { name: string; type: string }[] };
+        for (let i = 0; i < ifaceTyped.fields.length; i++) {
+          const f = ifaceTyped.fields[i];
+          const fieldName = f.name.replace('?', '');
+          if (fieldName === ma.property) {
+            return f.type;
           }
         }
       }
     }
 
-    if (!intermediateTypeName) {
+    return null;
+  }
+
+  private getChainedMemberAccessArrayInfo(memberAccess: MemberAccessNode): ObjectArrayMetadata | null {
+    const ma = memberAccess as { type: string; object: Expression; property: string };
+    const propName = ma.property;
+
+    const baseTypeName = this.resolveMemberAccessChainType(ma.object);
+    if (!baseTypeName) {
       return null;
     }
 
-    const iface = this.ctx.getInterfaceFromAST(intermediateTypeName);
+    const iface = this.ctx.getInterfaceFromAST(baseTypeName);
     if (!iface) {
       return null;
     }
@@ -742,7 +769,8 @@ export class ControlFlowGenerator {
     let fieldDefResult: InterfaceField | null = null;
     for (let i = 0; i < ifaceTyped.fields.length; i++) {
       const f = ifaceTyped.fields[i] as { name: string; type: string };
-      if (f.name === propName) {
+      const fieldName = f.name.replace('?', '');
+      if (fieldName === propName) {
         fieldDefResult = f as { name: string; type: string };
         break;
       }
@@ -790,6 +818,11 @@ export class ControlFlowGenerator {
       }
     }
 
+    const typeAliasInfo = this.resolveTypeAliasUnion(elementTypeName);
+    if (typeAliasInfo) {
+      return typeAliasInfo;
+    }
+
     const elementIface = this.ctx.getInterfaceFromAST(elementTypeName);
     if (elementIface) {
       const elementIfaceTyped = elementIface as { name: string; fields: { name: string; type: string }[] };
@@ -818,6 +851,187 @@ export class ControlFlowGenerator {
       };
     }
 
+    return null;
+  }
+
+  private getMethodCallArrayInfo(methodCall: MethodCallNode): ObjectArrayMetadata | null {
+    const objType = this.resolveMemberAccessChainType(methodCall.object);
+    if (!objType) {
+      return null;
+    }
+
+    const returnType = this.getMethodReturnType(objType, methodCall.method);
+    if (!returnType || !returnType.endsWith('[]')) {
+      return null;
+    }
+
+    const elementTypeName = returnType.slice(0, -2).trim();
+
+    if (elementTypeName.startsWith('{')) {
+      const fields = this.parseInlineObjectType(returnType);
+      if (fields) {
+        const elementKeys: string[] = [];
+        const elementTypes: string[] = [];
+        const elementTsTypes: string[] = [];
+        for (let i = 0; i < fields.length; i++) {
+          const f = fields[i] as { name: string; type: string };
+          elementKeys.push(f.name);
+          elementTsTypes.push(f.type);
+          if (f.type === 'string') {
+            elementTypes.push('i8*');
+          } else if (f.type === 'number') {
+            elementTypes.push('double');
+          } else if (f.type === 'boolean') {
+            elementTypes.push('i32');
+          } else {
+            elementTypes.push('i8*');
+          }
+        }
+        return {
+          elementInterfaceName: '__inline',
+          elementKeys,
+          elementTypes,
+          elementTsTypes
+        };
+      }
+    }
+
+    const typeAliasInfo = this.resolveTypeAliasUnion(elementTypeName);
+    if (typeAliasInfo) {
+      return typeAliasInfo;
+    }
+
+    const elementIface = this.ctx.getInterfaceFromAST(elementTypeName);
+    if (elementIface) {
+      const elementIfaceTyped = elementIface as { name: string; fields: { name: string; type: string }[] };
+      const elementKeys: string[] = [];
+      const elementTypes: string[] = [];
+      const elementTsTypes: string[] = [];
+      for (let i = 0; i < elementIfaceTyped.fields.length; i++) {
+        const f = elementIfaceTyped.fields[i] as { name: string; type: string };
+        elementKeys.push(f.name);
+        elementTsTypes.push(f.type);
+        if (f.type === 'string') {
+          elementTypes.push('i8*');
+        } else if (f.type === 'number') {
+          elementTypes.push('double');
+        } else if (f.type === 'boolean') {
+          elementTypes.push('i32');
+        } else {
+          elementTypes.push('i8*');
+        }
+      }
+      return {
+        elementInterfaceName: elementIfaceTyped.name,
+        elementKeys,
+        elementTypes,
+        elementTsTypes
+      };
+    }
+
+    return null;
+  }
+
+  private getMethodReturnType(className: string, methodName: string): string | null {
+    const classes = this.ctx.ast?.classes || [];
+    for (let i = 0; i < classes.length; i++) {
+      const cls = classes[i];
+      if (cls.name === className) {
+        for (let j = 0; j < cls.methods.length; j++) {
+          const method = cls.methods[j];
+          if (method.name === methodName && method.returnType) {
+            return method.returnType;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private resolveTypeAliasUnion(typeName: string): ObjectArrayMetadata | null {
+    const typeAliases = this.ctx.ast?.typeAliases || [];
+    for (let i = 0; i < typeAliases.length; i++) {
+      const ta = typeAliases[i] as { name: string; unionMembers: string[] };
+      if (ta.name === typeName && ta.unionMembers && ta.unionMembers.length > 0) {
+        const memberInterfaces: { name: string; fields: { name: string; type: string }[] }[] = [];
+        for (let j = 0; j < ta.unionMembers.length; j++) {
+          const memberName = ta.unionMembers[j];
+          const iface = this.ctx.getInterfaceFromAST(memberName);
+          if (!iface) {
+            return null;
+          }
+          memberInterfaces.push(iface);
+        }
+        if (memberInterfaces.length === 0) {
+          return null;
+        }
+        const firstFields = new Map<string, string>();
+        const firstInterface = memberInterfaces[0] as { name: string; fields: { name: string; type: string }[] };
+        for (let k = 0; k < firstInterface.fields.length; k++) {
+          const f = firstInterface.fields[k] as { name: string; type: string };
+          firstFields.set(f.name, f.type);
+        }
+        const commonFields: CommonField[] = [];
+        for (const [fieldName, fieldType] of firstFields) {
+          let isCommon = true;
+          let resolvedType = fieldType;
+          for (let m = 1; m < memberInterfaces.length; m++) {
+            const otherIface = memberInterfaces[m] as { name: string; fields: { name: string; type: string }[] };
+            let otherFieldResult: InterfaceField | null = null;
+            for (let n = 0; n < otherIface.fields.length; n++) {
+              const f = otherIface.fields[n] as { name: string; type: string };
+              if (f.name === fieldName) {
+                otherFieldResult = f;
+                break;
+              }
+            }
+            const otherField = otherFieldResult as { name: string; type: string };
+            if (!otherFieldResult) {
+              isCommon = false;
+              break;
+            }
+            if (otherField.type !== fieldType) {
+              const bothAreLiteralStrings = this.isStringLiteralType(fieldType) && this.isStringLiteralType(otherField.type);
+              if (bothAreLiteralStrings) {
+                resolvedType = 'string';
+              } else {
+                isCommon = false;
+                break;
+              }
+            }
+          }
+          if (isCommon) {
+            commonFields.push({ name: fieldName, type: resolvedType });
+          }
+        }
+        if (commonFields.length === 0) {
+          return null;
+        }
+        const elementKeys: string[] = [];
+        const elementTypes: string[] = [];
+        const elementTsTypes: string[] = [];
+        for (let p = 0; p < commonFields.length; p++) {
+          const f = commonFields[p];
+          elementKeys.push(f.name);
+          elementTsTypes.push(f.type);
+          if (f.type === 'string') {
+            elementTypes.push('i8*');
+          } else if (f.type === 'number') {
+            elementTypes.push('double');
+          } else if (f.type === 'boolean') {
+            elementTypes.push('i32');
+          } else {
+            elementTypes.push('i8*');
+          }
+        }
+        return {
+          elementInterfaceName: typeName,
+          elementKeys,
+          elementTypes,
+          elementTsTypes
+        };
+      }
+    }
     return null;
   }
 
@@ -1298,6 +1512,7 @@ export class ControlFlowGenerator {
     const varName = (ma.object as VariableNode).name;
     const symbol = this.ctx.symbolTable.lookup(varName);
     if (!symbol || !symbol.objectMetadata) return null;
+    const objMeta = symbol.objectMetadata;
 
     const interfaceName = this.findInterfaceByDiscriminant(literalValue);
     if (!interfaceName) return null;
@@ -1306,7 +1521,7 @@ export class ControlFlowGenerator {
     if (!ifaceResult) return null;
     const iface = ifaceResult as { name: string; fields: { name: string; type: string }[] };
 
-    const currentKeys = symbol.objectMetadata.keys;
+    const currentKeys = objMeta.keys;
     const ifaceKeys: string[] = [];
     for (let fi = 0; fi < iface.fields.length; fi++) {
       const f = iface.fields[fi] as { name: string; type: string };

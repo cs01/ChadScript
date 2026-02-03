@@ -336,6 +336,17 @@ function extractTypeString(typeNode: ts.TypeNode): string {
   } else if (ts.isUnionTypeNode(typeNode)) {
     return typeNode.types.map(extractTypeString).join(' | ');
   } else if (ts.isTypeLiteralNode(typeNode)) {
+    const members: string[] = [];
+    for (const member of typeNode.members) {
+      if (ts.isPropertySignature(member) && member.name && ts.isIdentifier(member.name)) {
+        const propName = member.name.text;
+        const propType = member.type ? extractTypeString(member.type) : 'any';
+        members.push(`${propName}: ${propType}`);
+      }
+    }
+    if (members.length > 0) {
+      return `{ ${members.join('; ')} }`;
+    }
     return 'object';
   }
   return typeNode.getText();

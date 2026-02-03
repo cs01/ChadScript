@@ -555,6 +555,8 @@ export class LLVMGenerator extends BaseGenerator {
         // Check if this is a member access assignment (this.field = value)
         if (stmt.name.startsWith('__member_access__')) {
           this.assignmentGen.generateMemberAccessAssignment(stmtRaw as AssignmentStatement, params);
+        } else if (stmt.name === '__index_access__') {
+          this.generateExpression(stmt.value as Expression, params);
         } else {
           // Regular variable assignment
           const value = this.generateExpression(stmt.value as Expression, params);
@@ -563,7 +565,7 @@ export class LLVMGenerator extends BaseGenerator {
           const stringAllocaReg = this.symbolTable.getStringAlloca(stmt.name);
           if (stringAllocaReg) {
             this.emit(`store i8* ${value}, i8** ${stringAllocaReg}`);
-            return '';
+            continue;
           }
 
           // Check for array variable
@@ -572,7 +574,7 @@ export class LLVMGenerator extends BaseGenerator {
             const loadedArray = this.nextTemp();
             this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
             this.emit(`store %Array ${loadedArray}, %Array* ${arrayAllocaReg}`);
-            return '';
+            continue;
           }
 
           // Check for numeric variable

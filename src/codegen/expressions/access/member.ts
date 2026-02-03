@@ -994,7 +994,20 @@ export class MemberAccessGenerator {
     const interfaceDefResult = this.getInterfaceDecl(fieldInfo.tsType);
     if (!interfaceDefResult) {
       const interfaceInfoResult = this.getInterfaceFromAST(fieldInfo.tsType);
-      if (!interfaceInfoResult) return null;
+      if (!interfaceInfoResult) {
+        const nestedClassFields = this.ctx.classGen?.getClassFields(fieldInfo.tsType);
+        if (nestedClassFields !== undefined) {
+          const innerPtr = this.ctx.generateExpression(expr.object, params);
+          const nestedFieldInfo = this.ctx.classGen?.getFieldInfo(fieldInfo.tsType, expr.property);
+          if (nestedFieldInfo) {
+            const nestedFieldInfoTyped = nestedFieldInfo as { index: number; type: string; tsType?: string };
+            const fieldPtr = this.ctx.nextTemp();
+            this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${fieldInfo.tsType}_struct, %${fieldInfo.tsType}_struct* ${innerPtr}, i32 0, i32 ${nestedFieldInfoTyped.index}`);
+            return this.loadFieldValue(fieldPtr, nestedFieldInfo);
+          }
+        }
+        return null;
+      }
       const interfaceInfo = interfaceInfoResult as InterfaceInfo;
 
       let propIndex = -1;
@@ -1284,8 +1297,9 @@ export class MemberAccessGenerator {
         }
         const symbol = this.ctx.symbolTable.lookup(varName);
         if (symbol && symbol.objectMetadata && symbol.objectMetadata.tsTypes) {
-          const objKeys = symbol.objectMetadata.keys;
-          const objTsTypes = symbol.objectMetadata.tsTypes;
+          const objMeta = symbol.objectMetadata;
+          const objKeys = objMeta.keys;
+          const objTsTypes = objMeta.tsTypes!;
           const idx = objKeys.indexOf(propName);
           if (idx !== -1) {
             const fieldType = objTsTypes[idx];
@@ -1731,6 +1745,26 @@ export class MemberAccessGenerator {
       this.ctx.syncStateToGenerators();
       return this.ctx.setGen.generateSetSize(setPtr);
     }
+    if (exprObjBase.type === 'member_access') {
+      const innerAccess = expr.object as MemberAccessNode;
+      const innerObjBase = innerAccess.object as ExprBase;
+      if (innerObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
+        const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, innerAccess.property);
+        if (fieldInfo && fieldInfo.tsType) {
+          const isMap = fieldInfo.tsType.startsWith('Map<') || fieldInfo.tsType.indexOf('Map<') !== -1;
+          const isSet = fieldInfo.tsType.startsWith('Set<') || fieldInfo.tsType.indexOf('Set<') !== -1;
+          if (isMap || isSet) {
+            const ptr = this.ctx.generateExpression(expr.object, params);
+            this.ctx.syncStateToGenerators();
+            if (isSet) {
+              return this.ctx.setGen.generateSetSize(ptr);
+            } else {
+              return this.ctx.mapGen.generateMapSize(ptr);
+            }
+          }
+        }
+      }
+    }
     return null;
   }
 
@@ -1772,6 +1806,10 @@ export class MemberAccessGenerator {
         const innerExpr = expr.object as MemberAccessNode;
         const innerExprObjBase = innerExpr.object as ExprBase;
         debugInfo += `, Inner property: ${innerExpr.property}, Inner object type: ${innerExprObjBase.type}`;
+        if (innerExprObjBase.type === 'variable') {
+          const varName = (innerExpr.object as VariableNode).name;
+          debugInfo += `, Variable name: ${varName}`;
+        }
       }
       throw new Error(this.ctx.formatCodegenError(`Unknown property access: ${debugInfo}`));
     }
