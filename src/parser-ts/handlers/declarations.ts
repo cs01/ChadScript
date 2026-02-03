@@ -153,7 +153,13 @@ function transformPropertyDeclaration(node: ts.PropertyDeclaration): ClassField 
   } else if (node.initializer && ts.isNewExpression(node.initializer)) {
     const newExpr = node.initializer;
     if (newExpr.expression && ts.isIdentifier(newExpr.expression)) {
-      tsType = newExpr.expression.text;
+      const className = newExpr.expression.text;
+      if (newExpr.typeArguments && newExpr.typeArguments.length > 0) {
+        const args = newExpr.typeArguments.map(extractTypeString).join(', ');
+        tsType = `${className}<${args}>`;
+      } else {
+        tsType = className;
+      }
     }
   }
 

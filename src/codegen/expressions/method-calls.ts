@@ -582,6 +582,20 @@ export class MethodCallGenerator {
           } else {
             return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
           }
+        } else {
+          if (method === 'set') {
+            return this.ctx.mapGen.generateMapSet(expr, params);
+          } else if (method === 'get') {
+            return this.ctx.mapGen.generateMapGet(expr, params);
+          } else if (method === 'has') {
+            return this.ctx.mapGen.generateMapHas(expr, params);
+          } else if (method === 'delete') {
+            return this.ctx.mapGen.generateMapDelete(expr, params);
+          } else if (method === 'clear') {
+            return this.ctx.mapGen.generateMapClear(expr, params);
+          } else {
+            throw new Error(`Map.${method}() not supported for Map<${thisFieldMapKeyType}, *> types`);
+          }
         }
       }
     }
