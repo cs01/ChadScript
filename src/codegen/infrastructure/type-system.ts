@@ -123,6 +123,7 @@ export function tsTypeToLlvm(tsType: string): string {
   if (tsType === 'void') return 'void';
   if (tsType === 'string[]') return '%StringArray*';
   if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
+  if (tsType.endsWith('[]')) return '%ObjectArray*';
   if (tsType.startsWith("'") || tsType.startsWith('"')) return 'i8*';
   return 'i8*';
 }
