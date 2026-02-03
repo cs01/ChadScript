@@ -654,9 +654,26 @@ export class VariableAllocator {
     this.ctx.emit(`store ${llvmType} ${typedPtr}, ${llvmType}* ${allocaReg}`);
   }
 
-  private allocateMapGetArray(stmt: VariableDeclaration, params: string[], _arrayType: string): void {
+  private allocateMapGetArray(stmt: VariableDeclaration, params: string[], arrayType: string): void {
     const allocaReg = this.ctx.nextTemp();
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local');
+    const elementType = arrayType.slice(0, -2);
+    if (elementType === 'string') {
+      this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.StringArray, 'local');
+    } else if (elementType === 'number' || elementType === 'boolean') {
+      this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local');
+    } else {
+      const typeInfo = this.getTypeInfoForElementType(elementType);
+      if (typeInfo) {
+        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local', {
+          objectMetadata: { keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes },
+          interfaceType: elementType
+        });
+      } else {
+        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local', {
+          interfaceType: elementType
+        });
+      }
+    }
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
