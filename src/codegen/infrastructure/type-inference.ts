@@ -301,6 +301,7 @@ export class TypeInference {
 
   isArrayExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
+    console.log(`[DEBUG isArrayExpression] expr.type=${e.type}`);
     if (e.type === 'array') {
       return true;
     }
@@ -320,11 +321,13 @@ export class TypeInference {
     }
     if (e.type === 'variable') {
       const varExpr = expr as VariableNode;
-      if (this.ctx.symbolTable.isNumberArray(varExpr.name)) {
+      const isNumArr = this.ctx.symbolTable.isNumberArray(varExpr.name);
+      const varType = this.ctx.symbolTable.getType(varExpr.name);
+      console.log(`[DEBUG isArrayExpression] var=${varExpr.name} isNumberArray=${isNumArr} varType=${varType}`);
+      if (isNumArr) {
         return true;
       }
-      const varType = this.ctx.symbolTable.getType(varExpr.name);
-      if (varType === '%Array*') {
+      if (varType === '%Array*' || varType === '%Array') {
         return true;
       }
       return false;
@@ -333,6 +336,22 @@ export class TypeInference {
       const methodExpr = expr as MethodCallNode;
       if (methodExpr.method === 'filter' || methodExpr.method === 'map' || methodExpr.method === 'entries' || methodExpr.method === 'values') {
         return true;
+      }
+      if (methodExpr.method === 'slice' || methodExpr.method === 'concat') {
+        const objBase = methodExpr.object as ExprBase;
+        if (objBase.type === 'array') {
+          return true;
+        }
+        if (objBase.type === 'variable') {
+          const varName = (methodExpr.object as VariableNode).name;
+          if (this.ctx.symbolTable.isNumberArray(varName)) {
+            return true;
+          }
+          const varType = this.ctx.symbolTable.getType(varName);
+          if (varType === '%Array*') {
+            return true;
+          }
+        }
       }
       const methodObjBase = methodExpr.object as ExprBase;
       if (methodObjBase.type === 'this') {
@@ -425,9 +444,12 @@ export class TypeInference {
     if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
       const varType = this.ctx.symbolTable.getType(varName);
-      if (varType === 'i8*' || varType === '%Array*' || varType === '%ObjectArray*') {
+      if (varType === '%ObjectArray*') {
+        return true;
+      }
+      if (varType === 'i8*') {
         const symbol = this.ctx.symbolTable.lookup(varName);
-        if (symbol && (symbol.kind === SymbolKind.Array || symbol.kind === SymbolKind.ObjectArray)) {
+        if (symbol && symbol.kind === SymbolKind.ObjectArray) {
           return true;
         }
       }
@@ -789,10 +811,14 @@ export class TypeInference {
         return true;
       }
       if (methodExpr.method === 'substr' || methodExpr.method === 'substring' ||
-          methodExpr.method === 'concat' || methodExpr.method === 'repeat' ||
+          methodExpr.method === 'repeat' ||
           methodExpr.method === 'padStart' || methodExpr.method === 'charAt' ||
-          methodExpr.method === 'trim' || methodExpr.method === 'slice' ||
+          methodExpr.method === 'trim' ||
           methodExpr.method === 'text' || methodExpr.method === 'getVariableType') {
+        return true;
+      }
+      if ((methodExpr.method === 'slice' || methodExpr.method === 'concat') &&
+          !this.isArrayExpression(methodExpr.object) && !this.isStringArrayExpression(methodExpr.object)) {
         return true;
       }
       if (methodObjBase.type === 'variable' && this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)) {
