@@ -434,14 +434,14 @@ export function parseClass(ctx: ParserContext): void {
     ctx.expect('(');
 
     const params: string[] = [];
-    const paramTypes: ('string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void')[] = [];
+    const paramTypes: string[] = [];
     ctx.skipWhitespace();
     if (ctx.code[ctx.pos] !== ')') {
       if (ctx.match('private') || ctx.match('public') || ctx.match('protected') || ctx.match('readonly')) {
         ctx.skipWhitespace();
       }
       const paramName = ctx.parseIdentifier();
-      let paramType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
+      let paramType: string | null = null;
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] === '?') {
         ctx.pos++;
@@ -450,7 +450,9 @@ export function parseClass(ctx: ParserContext): void {
       if (ctx.code[ctx.pos] === ':') {
         ctx.pos++;
         ctx.skipWhitespace();
-        paramType = ctx.parseTypeAnnotation();
+        const typeStart = ctx.pos;
+        ctx.skipTypeAnnotation();
+        paramType = ctx.code.substring(typeStart, ctx.pos).trim();
       }
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] === '=') {
@@ -468,7 +470,7 @@ export function parseClass(ctx: ParserContext): void {
           ctx.skipWhitespace();
         }
         const nextParamName = ctx.parseIdentifier();
-        let nextParamType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
+        let nextParamType: string | null = null;
         ctx.skipWhitespace();
         if (ctx.code[ctx.pos] === '?') {
           ctx.pos++;
@@ -477,7 +479,9 @@ export function parseClass(ctx: ParserContext): void {
         if (ctx.code[ctx.pos] === ':') {
           ctx.pos++;
           ctx.skipWhitespace();
-          nextParamType = ctx.parseTypeAnnotation();
+          const nextTypeStart = ctx.pos;
+          ctx.skipTypeAnnotation();
+          nextParamType = ctx.code.substring(nextTypeStart, ctx.pos).trim();
         }
         ctx.skipWhitespace();
         if (ctx.code[ctx.pos] === '=') {
@@ -491,12 +495,13 @@ export function parseClass(ctx: ParserContext): void {
       }
     }
     ctx.expect(')');
-    let returnType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
+    let returnType: string | null = null;
     ctx.skipWhitespace();
     if (ctx.code[ctx.pos] === ':') {
       ctx.pos++;
       ctx.skipWhitespace();
-      returnType = ctx.parseTypeAnnotation();
+      const returnTypeStart = ctx.pos;
+      ctx.skipTypeAnnotation();
       ctx.skipWhitespace();
       while (ctx.code[ctx.pos] === '|' || ctx.code[ctx.pos] === '&') {
         ctx.pos++;
@@ -504,6 +509,7 @@ export function parseClass(ctx: ParserContext): void {
         ctx.skipTypeAnnotation();
         ctx.skipWhitespace();
       }
+      returnType = ctx.code.substring(returnTypeStart, ctx.pos).trim();
     }
     ctx.expect('{');
 
@@ -816,14 +822,14 @@ export function parseExport(ctx: ParserContext): void {
       ctx.expect('(');
 
       const params: string[] = [];
-      const paramTypes: ('string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void')[] = [];
+      const paramTypes: string[] = [];
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] !== ')') {
         if (ctx.match('private') || ctx.match('public') || ctx.match('protected') || ctx.match('readonly')) {
           ctx.skipWhitespace();
         }
         const paramName = ctx.parseIdentifier();
-        let paramType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
+        let paramType: string | null = null;
         ctx.skipWhitespace();
         if (ctx.code[ctx.pos] === '?') {
           ctx.pos++;
@@ -832,7 +838,9 @@ export function parseExport(ctx: ParserContext): void {
         if (ctx.code[ctx.pos] === ':') {
           ctx.pos++;
           ctx.skipWhitespace();
-          paramType = ctx.parseTypeAnnotation();
+          const typeStart = ctx.pos;
+          ctx.skipTypeAnnotation();
+          paramType = ctx.code.substring(typeStart, ctx.pos).trim();
         }
         ctx.skipWhitespace();
         if (ctx.code[ctx.pos] === '=') {
@@ -850,7 +858,7 @@ export function parseExport(ctx: ParserContext): void {
             ctx.skipWhitespace();
           }
           const nextParamName = ctx.parseIdentifier();
-          let nextParamType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
+          let nextParamType: string | null = null;
           ctx.skipWhitespace();
           if (ctx.code[ctx.pos] === '?') {
             ctx.pos++;
@@ -859,7 +867,9 @@ export function parseExport(ctx: ParserContext): void {
           if (ctx.code[ctx.pos] === ':') {
             ctx.pos++;
             ctx.skipWhitespace();
-            nextParamType = ctx.parseTypeAnnotation();
+            const nextTypeStart = ctx.pos;
+            ctx.skipTypeAnnotation();
+            nextParamType = ctx.code.substring(nextTypeStart, ctx.pos).trim();
           }
           ctx.skipWhitespace();
           if (ctx.code[ctx.pos] === '=') {
@@ -873,12 +883,13 @@ export function parseExport(ctx: ParserContext): void {
         }
       }
       ctx.expect(')');
-      let returnType: 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null = null;
+      let returnType: string | null = null;
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] === ':') {
         ctx.pos++;
         ctx.skipWhitespace();
-        returnType = ctx.parseTypeAnnotation();
+        const returnTypeStart = ctx.pos;
+        ctx.skipTypeAnnotation();
         ctx.skipWhitespace();
         while (ctx.code[ctx.pos] === '|' || ctx.code[ctx.pos] === '&') {
           ctx.pos++;
@@ -886,6 +897,7 @@ export function parseExport(ctx: ParserContext): void {
           ctx.skipTypeAnnotation();
           ctx.skipWhitespace();
         }
+        returnType = ctx.code.substring(returnTypeStart, ctx.pos).trim();
       }
       ctx.expect('{');
 
