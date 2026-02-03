@@ -69,6 +69,7 @@ export class PathGenerator {
     this.ctx.emit(`${endLabel}:`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi i8* [ ${resolvedPtr}, %${successLabel} ], [ ${pathPtr}, %${failLabel} ]`);
+    this.ctx.setVariableType(result, 'i8*');
 
     return result;
   }

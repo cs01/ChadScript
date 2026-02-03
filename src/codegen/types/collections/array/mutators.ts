@@ -199,6 +199,7 @@ function generateStringArrayPop(gen: ArrayMutatorContext, arrayPtr: string): str
   gen.emit(`${endLabel}:`);
   const result = gen.nextTemp();
   gen.emit(`${result} = phi i8* [ ${emptyStr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`);
+  gen.setVariableType(result, 'i8*');
 
   return result;
 }

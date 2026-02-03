@@ -207,6 +207,7 @@ export function generatePadStart(ctx: IGeneratorContext, strPtr: string, targetL
   ctx.emit(`${endLabel}:`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = phi i8* [ ${noPadResult}, %${noPadLabel} ], [ ${padResult}, %${skipRemainingLabel} ]`);
+  ctx.setVariableType(result, 'i8*');
 
   return result;
 }
@@ -430,6 +431,7 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   ctx.emit(`${endLabel}:`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = phi i8* [ ${emptyResult}, %${emptyLabel} ], [ ${allWSResult}, %${allWSLabel} ], [ ${trimmedResult}, %${findEndEndLabel} ]`);
+  ctx.setVariableType(result, 'i8*');
 
   return result;
 }
@@ -500,6 +502,7 @@ export function generateReplace(ctx: IGeneratorContext, strPtr: string, searchPt
   ctx.emit(`${endLabel}:`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = phi i8* [ ${originalDup}, %${notFoundLabel} ], [ ${resultPtr}, %${foundLabel} ]`);
+  ctx.setVariableType(result, 'i8*');
 
   return result;
 }
@@ -532,6 +535,7 @@ export function generateReplaceAll(ctx: IGeneratorContext, strPtr: string, searc
   ctx.emit(`${endLabel}:`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = load i8*, i8** ${resultPtr}`);
+  ctx.setVariableType(result, 'i8*');
 
   return result;
 }

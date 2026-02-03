@@ -91,6 +91,7 @@ export class ResponseGenerator {
     this.ctx.emit(`${endLabel}:`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi i8* [ ${errorPtr}, %${errorLabel} ], [ ${resultPtr}, %${successLabel} ]`);
+    this.ctx.setVariableType(result, 'i8*');
 
     return result;
   }
