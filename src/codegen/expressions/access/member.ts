@@ -848,6 +848,9 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${boolAsDouble} = sitofp i32 ${boolValue} to double`);
       this.ctx.setVariableType(boolAsDouble, 'double');
       return boolAsDouble;
+    } else if (tsType === 'string[]' || tsType === 'number[]' || tsType === 'boolean[]') {
+      this.ctx.setVariableType(fieldItem, 'i8*');
+      return fieldItem;
     }
 
     return this.extractNestedJsonFieldValue(fieldItem);

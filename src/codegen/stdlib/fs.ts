@@ -101,6 +101,7 @@ export class FilesystemGenerator {
     this.ctx.emit(`${endLabel}:`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi i8* [ ${emptyStr}, %${failLabel} ], [ ${buffer}, %${successLabel} ]`);
+    this.ctx.setVariableType(result, 'i8*');
 
     return result;
   }
