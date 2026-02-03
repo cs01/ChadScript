@@ -202,8 +202,18 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     if (bodyTyped.type === 'object') {
       return 'object';
     }
-    if (bodyTyped.type === 'string_literal' || bodyTyped.type === 'template_literal') {
+    if (bodyTyped.type === 'string' || bodyTyped.type === 'string_literal' || bodyTyped.type === 'template_literal') {
       return 'string';
+    }
+    if (bodyTyped.type === 'binary') {
+      const binExpr = body as { op: string; left: unknown; right: unknown };
+      if (binExpr.op === '+') {
+        const leftType = this.inferReturnTypeFromBody(binExpr.left as ArrowFunctionNode['body']);
+        const rightType = this.inferReturnTypeFromBody(binExpr.right as ArrowFunctionNode['body']);
+        if (leftType === 'string' || rightType === 'string') {
+          return 'string';
+        }
+      }
     }
     if (bodyTyped.type === 'array') {
       return 'array';
@@ -241,7 +251,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
             if (returnValueTyped.type === 'object') {
               return 'object';
             }
-            if (returnValueTyped.type === 'string_literal' || returnValueTyped.type === 'template_literal') {
+            if (returnValueTyped.type === 'string' || returnValueTyped.type === 'string_literal' || returnValueTyped.type === 'template_literal') {
               return 'string';
             }
           }
@@ -259,7 +269,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
                   if (innerReturnValueTyped.type === 'object') {
                     return 'object';
                   }
-                  if (innerReturnValueTyped.type === 'string_literal' || innerReturnValueTyped.type === 'template_literal') {
+                  if (innerReturnValueTyped.type === 'string' || innerReturnValueTyped.type === 'string_literal' || innerReturnValueTyped.type === 'template_literal') {
                     return 'string';
                   }
                 }
