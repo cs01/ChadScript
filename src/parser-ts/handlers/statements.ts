@@ -98,7 +98,7 @@ function transformVariableDecl(
   return { type: 'variable_declaration', kind, name, value, declaredType };
 }
 
-function extractTypeString(typeNode: ts.TypeNode): string {
+export function extractTypeString(typeNode: ts.TypeNode): string {
   if (ts.isTypeReferenceNode(typeNode)) {
     const typeName = ts.isIdentifier(typeNode.typeName)
       ? typeNode.typeName.text

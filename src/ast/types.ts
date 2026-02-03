@@ -69,11 +69,14 @@ export interface MapEntry {
 export interface MapNode {
   type: 'map';
   entries: MapEntry[];
+  keyType?: string;
+  valueType?: string;
 }
 
 export interface SetNode {
   type: 'set';
   values: Expression[];
+  valueType?: string;
 }
 
 export interface BinaryNode {
