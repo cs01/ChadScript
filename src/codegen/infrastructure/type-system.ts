@@ -4,6 +4,15 @@ export function stripOptional(name: string): string {
   return name.endsWith('?') ? name.slice(0, -1) : name;
 }
 
+export function stripNullable(t: string): string {
+  let str = t.trim();
+  if (str.indexOf(' | null') !== -1) str = str.replace(' | null', '');
+  if (str.indexOf(' | undefined') !== -1) str = str.replace(' | undefined', '');
+  if (str.indexOf('null | ') !== -1) str = str.replace('null | ', '');
+  if (str.indexOf('undefined | ') !== -1) str = str.replace('undefined | ', '');
+  return str.trim();
+}
+
 export interface TypeQualifiers {
   isNullable: boolean;
   isOptional: boolean;

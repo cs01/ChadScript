@@ -3,6 +3,7 @@ import { SymbolTable, SymbolKind } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { ClassGenerator } from '../types/objects/class.js';
 import type { TypeResolver } from './type-resolver/index.js';
+import { stripNullable } from './type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -11,15 +12,6 @@ function isStringType(t: string): boolean {
   if (t === 'string | null' || t === 'string | undefined') return true;
   if (t === 'null | string' || t === 'undefined | string') return true;
   return false;
-}
-
-function stripNullable(t: string): string {
-  let str = t.trim();
-  if (str.indexOf(' | null') !== -1) str = str.replace(' | null', '');
-  if (str.indexOf(' | undefined') !== -1) str = str.replace(' | undefined', '');
-  if (str.indexOf('null | ') !== -1) str = str.replace('null | ', '');
-  if (str.indexOf('undefined | ') !== -1) str = str.replace('undefined | ', '');
-  return str.trim();
 }
 
 export interface TypeInferenceContext {
