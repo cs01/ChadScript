@@ -220,7 +220,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
   }
 
   let mergedAST: AST = {
-    imports: [],
+    imports: ast.imports.slice(),
     functions: ast.functions.slice(),
     classes: ast.classes.slice(),
     exports: ast.exports.slice(),
@@ -257,6 +257,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
     const importPath = resolveImportPath(absPath, imp.source);
     const importedAST = compileMultiFile(importPath, compiledFiles, fileContents);
 
+    mergedAST.imports = mergedAST.imports.concat(importedAST.imports);
     mergedAST.functions = mergedAST.functions.concat(importedAST.functions);
     mergedAST.classes = mergedAST.classes.concat(importedAST.classes);
     mergedAST.interfaces = mergedAST.interfaces.concat(importedAST.interfaces);

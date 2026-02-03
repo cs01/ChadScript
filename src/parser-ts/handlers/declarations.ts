@@ -288,16 +288,23 @@ function transformAccessorDeclaration(
 export function transformInterfaceDeclaration(node: ts.InterfaceDeclaration): InterfaceDeclaration | null {
   const name = node.name.text;
   const fields: { name: string; type: string }[] = [];
+  const methods: { name: string; params: string[]; paramTypes: string[]; returnType: string }[] = [];
 
   for (const member of node.members) {
     if (ts.isPropertySignature(member) && ts.isIdentifier(member.name)) {
       const fieldName = member.name.text;
       const fieldType = member.type ? extractTypeString(member.type) : 'any';
       fields.push({ name: fieldName, type: fieldType });
+    } else if (ts.isMethodSignature(member) && ts.isIdentifier(member.name)) {
+      const methodName = member.name.text;
+      const params = member.parameters.map(p => ts.isIdentifier(p.name) ? p.name.text : '');
+      const paramTypes = member.parameters.map(p => p.type ? extractTypeString(p.type) : 'any');
+      const returnType = member.type ? extractTypeString(member.type) : 'void';
+      methods.push({ name: methodName, params, paramTypes, returnType });
     }
   }
 
-  return { name, fields };
+  return { name, fields, methods: methods.length > 0 ? methods : undefined };
 }
 
 export function transformTypeAliasDeclaration(node: ts.TypeAliasDeclaration): TypeAliasDeclaration | null {
@@ -362,24 +369,33 @@ export function transformImportDeclaration(node: ts.ImportDeclaration): ImportDe
 
   const source = node.moduleSpecifier.text;
   const specifiers: string[] = [];
+  const aliasedSpecifiers: { name: string; original?: string }[] = [];
 
   if (node.importClause) {
     if (node.importClause.name) {
       specifiers.push(node.importClause.name.text);
+      aliasedSpecifiers.push({ name: node.importClause.name.text });
     }
 
     if (node.importClause.namedBindings) {
       if (ts.isNamedImports(node.importClause.namedBindings)) {
         for (const element of node.importClause.namedBindings.elements) {
-          specifiers.push(element.name.text);
+          const localName = element.name.text;
+          specifiers.push(localName);
+          if (element.propertyName) {
+            aliasedSpecifiers.push({ name: localName, original: element.propertyName.text });
+          } else {
+            aliasedSpecifiers.push({ name: localName });
+          }
         }
       } else if (ts.isNamespaceImport(node.importClause.namedBindings)) {
         specifiers.push(`* as ${node.importClause.namedBindings.name.text}`);
+        aliasedSpecifiers.push({ name: `* as ${node.importClause.namedBindings.name.text}` });
       }
     }
   }
 
-  return { type: 'import', specifiers, source };
+  return { type: 'import', specifiers, aliasedSpecifiers, source };
 }
 
 export function transformExportDeclaration(

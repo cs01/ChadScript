@@ -57,6 +57,9 @@ export class LLVMGenerator extends BaseGenerator {
   // Global variables declared with LLVM @ prefix (accessible from any function)
   private globalVariables: Map<string, { llvmType: string; kind: SymbolKind; initialized: boolean }> = new Map();
 
+  // Import alias map: local name -> original name (for renamed imports like "x as y")
+  private importAliasMap: Map<string, string> = new Map();
+
   // Specialized generators (public for context pattern access)
   public arrayGen: ArrayGenerator;
   public stringGen: StringGenerator;
@@ -227,10 +230,32 @@ export class LLVMGenerator extends BaseGenerator {
 
     this.assignmentGen = new AssignmentGenerator(this as unknown as AssignmentGeneratorContext);
 
+    this.buildImportAliasMap();
+
     // No more delegate binding needed - all generators use context pattern! 🎯
 
     // Note: External function tracking removed for self-hosting compatibility.
     // All imported functions are compiled into the same binary, so no external declarations needed.
+  }
+
+  private buildImportAliasMap(): void {
+    if (!this.ast.imports) return;
+    for (let i = 0; i < this.ast.imports.length; i++) {
+      const imp = this.ast.imports[i];
+      if (imp.aliasedSpecifiers) {
+        for (let j = 0; j < imp.aliasedSpecifiers.length; j++) {
+          const spec = imp.aliasedSpecifiers[j];
+          if (spec.original && spec.original !== spec.name) {
+            this.importAliasMap.set(spec.name, spec.original);
+          }
+        }
+      }
+    }
+  }
+
+  resolveImportAlias(localName: string): string {
+    const original = this.importAliasMap.get(localName);
+    return original || localName;
   }
 
   // Override reset - globals are now preserved by clearLocals()

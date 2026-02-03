@@ -77,6 +77,7 @@ export interface VariableAllocatorContext {
   isResponseExpression(expr: Expression): boolean;
   isJSONParseExpression(expr: Expression): boolean;
   isAwaitExpression(expr: Expression): boolean;
+  getVariableType(name: string): string | undefined;
   currentDeclaredMapType: string | undefined;
   currentDeclaredSetType: string | undefined;
   getTypedJsonInterface(expr: Expression): string | null;
@@ -147,9 +148,22 @@ export class VariableAllocator {
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         this.ctx.emit(`store %Array* null, %Array** ${allocaReg}`);
       } else {
-        this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
-        this.ctx.emit(`${allocaReg} = alloca double`);
-        this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
+        let isInterfaceType = false;
+        if (stmt.declaredType) {
+          const baseType = stmt.declaredType.replace(/ \| undefined$/, '').replace(/ \| null$/, '').trim();
+          if (baseType && this.getInterface(baseType)) {
+            isInterfaceType = true;
+          }
+        }
+        if (isInterfaceType) {
+          this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local');
+          this.ctx.emit(`${allocaReg} = alloca i8*`);
+          this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
+        } else {
+          this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
+          this.ctx.emit(`${allocaReg} = alloca double`);
+          this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
+        }
       }
       return;
     }
@@ -164,7 +178,11 @@ export class VariableAllocator {
 
     const isString = this.ctx.isStringExpression(stmt.value);
     const isStringArray = this.ctx.isStringArrayExpression(stmt.value);
-    const isObjectArray = this.ctx.isObjectArrayExpression(stmt.value);
+    let isObjectArray = this.ctx.isObjectArrayExpression(stmt.value);
+    if (!isObjectArray && stmt.declaredType && stmt.declaredType.endsWith('[]') &&
+        stmt.declaredType !== 'string[]' && stmt.declaredType !== 'number[]' && stmt.declaredType !== 'boolean[]') {
+      isObjectArray = true;
+    }
     const isArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(stmt.value);
     const isJSONObject = this.ctx.isJSONParseExpression(stmt.value);
     const isObject = !isJSONObject && this.ctx.isObjectExpression(stmt.value);
@@ -772,8 +790,15 @@ export class VariableAllocator {
     this.ctx.emit(`${allocaReg} = alloca %StringArray`);
 
     const value = this.ctx.generateExpression(stmt.value!, params);
+    const valueType = this.ctx.getVariableType(value);
+    let pointerValue = value;
+    if (valueType === 'i32') {
+      const ptrValue = this.ctx.nextTemp();
+      this.ctx.emit(`${ptrValue} = inttoptr i32 ${value} to %StringArray*`);
+      pointerValue = ptrValue;
+    }
     const loadedStringArray = this.ctx.nextTemp();
-    this.ctx.emit(`${loadedStringArray} = load %StringArray, %StringArray* ${value}`);
+    this.ctx.emit(`${loadedStringArray} = load %StringArray, %StringArray* ${pointerValue}`);
     this.ctx.emit(`store %StringArray ${loadedStringArray}, %StringArray* ${allocaReg}`);
   }
 
@@ -865,7 +890,14 @@ export class VariableAllocator {
     this.ctx.emit(`${allocaReg} = alloca double`);
 
     const value = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.emit(`store double ${value}, double* ${allocaReg}`);
+    const valueType: string | undefined = this.ctx.getVariableType(value);
+    if (valueType === 'i32') {
+      const converted = this.ctx.nextTemp();
+      this.ctx.emit(`${converted} = sitofp i32 ${value} to double`);
+      this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
+    } else {
+      this.ctx.emit(`store double ${value}, double* ${allocaReg}`);
+    }
   }
 
   private allocateArrowFunction(stmt: VariableDeclaration, params: string[]): void {

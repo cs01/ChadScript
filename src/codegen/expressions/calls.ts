@@ -14,9 +14,10 @@ export class CallExpressionGenerator {
 
   private getFunctionFromAST(name: string): FunctionNode | null {
     if (!this.ctx.ast?.functions) return null;
+    const resolvedName = this.ctx.resolveImportAlias(name);
     for (let i = 0; i < this.ctx.ast.functions.length; i++) {
       const fn = this.ctx.ast.functions[i] as FunctionNode;
-      if (fn.name === name) {
+      if (fn.name === resolvedName) {
         return fn;
       }
     }
@@ -318,6 +319,7 @@ export class CallExpressionGenerator {
       return this.generateClosureCall(expr, params);
     }
 
+    const resolvedFuncName = this.ctx.resolveImportAlias(expr.name);
     let returnType = 'double';
     let paramTypes: string[] = [];
 
@@ -407,7 +409,7 @@ export class CallExpressionGenerator {
     }
 
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = call ${returnType} @${expr.name}(${argsList.join(', ')})`);
+    this.ctx.emit(`${temp} = call ${returnType} @${resolvedFuncName}(${argsList.join(', ')})`);
     this.ctx.setVariableType(temp, returnType);
 
     return temp;

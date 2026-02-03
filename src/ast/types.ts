@@ -286,9 +286,15 @@ export interface ClassNode {
   methods: ClassMethod[];
 }
 
+export interface ImportSpecifier {
+  name: string;       // Local name (what it's called in this file)
+  original?: string;  // Original exported name (if different from local)
+}
+
 export interface ImportDeclaration {
   type: 'import';
-  specifiers: string[];  // ['Parser', 'compile']
+  specifiers: string[];  // ['Parser', 'compile'] - legacy format (local names only)
+  aliasedSpecifiers?: ImportSpecifier[];  // New format with original/local name tracking
   source: string;        // './parser.js'
 }
 
@@ -315,9 +321,17 @@ export interface InterfaceField {
   type: string;
 }
 
+export interface InterfaceMethod {
+  name: string;
+  params: string[];
+  paramTypes: string[];
+  returnType: string;
+}
+
 export interface InterfaceDeclaration {
   name: string;
   fields: InterfaceField[];
+  methods?: InterfaceMethod[];
 }
 
 export interface TypeAliasDeclaration {
