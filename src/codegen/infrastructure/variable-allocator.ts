@@ -927,11 +927,12 @@ export class VariableAllocator {
     const value = this.ctx.generateExpression(stmt.value!, params);
     const valueType: string | undefined = this.ctx.getVariableType(value);
 
-    if (valueType && valueType !== 'double' && valueType.indexOf('*') !== -1) {
+    if (valueType && valueType !== 'double' && (valueType === 'ptr' || valueType.indexOf('*') !== -1)) {
       const allocaReg = this.ctx.nextTemp();
       this.ctx.defineVariable(stmt.name, allocaReg, valueType, SymbolKind.Object, 'local');
       this.ctx.emit(`${allocaReg} = alloca ${valueType}`);
-      this.ctx.emit(`store ${valueType} ${value}, ${valueType}* ${allocaReg}`);
+      const ptrType = valueType === 'ptr' ? 'ptr' : `${valueType}*`;
+      this.ctx.emit(`store ${valueType} ${value}, ${ptrType} ${allocaReg}`);
     } else {
       const allocaReg = this.ctx.nextTemp();
       this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');

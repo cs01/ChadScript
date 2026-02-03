@@ -201,7 +201,8 @@ export class VariableExpressionGenerator {
   private loadRegularVariable(name: string, allocaReg: string): string {
     const temp = this.ctx.nextTemp();
     const varType = this.ctx.getVariableType(name) || 'double';
-    this.ctx.emit(`${temp} = load ${varType}, ${varType}* ${allocaReg}`);
+    const ptrToType = varType === 'ptr' ? 'ptr' : `${varType}*`;
+    this.ctx.emit(`${temp} = load ${varType}, ${ptrToType} ${allocaReg}`);
     this.ctx.setVariableType(temp, varType);
     return temp;
   }
