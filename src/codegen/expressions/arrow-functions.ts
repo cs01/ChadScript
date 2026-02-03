@@ -70,6 +70,17 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       }
     }
 
+    if (!typeHints?.returnType) {
+      const inferredReturnType = this.inferReturnTypeFromBody(expr.body);
+      if (inferredReturnType) {
+        if (typeHints) {
+          typeHints.returnType = inferredReturnType;
+        } else {
+          typeHints = { returnType: inferredReturnType };
+        }
+      }
+    }
+
     let closureInfo: ClosureInfo | undefined;
     let closureCaptures: CapturedVariable[] = [];
     let closureEnvStructName: string = '';
@@ -184,5 +195,80 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
 
   private inferParamTypesFromBody(_params: string[], _body: ArrowFunctionNode['body']): string[] {
     return [];
+  }
+
+  private inferReturnTypeFromBody(body: ArrowFunctionNode['body']): string | null {
+    const bodyTyped = body as { type: string };
+    if (bodyTyped.type === 'object') {
+      return 'object';
+    }
+    if (bodyTyped.type === 'string_literal' || bodyTyped.type === 'template_literal') {
+      return 'string';
+    }
+    if (bodyTyped.type === 'array') {
+      return 'array';
+    }
+    if (bodyTyped.type === 'conditional') {
+      const condTyped = body as { consequent: unknown; alternate: unknown };
+      const consequent = condTyped.consequent;
+      const alternate = condTyped.alternate;
+      if (consequent) {
+        const consequentTyped = consequent as { type: string };
+        if (consequentTyped.type === 'object') {
+          return 'object';
+        }
+        if (consequentTyped.type === 'string_literal') {
+          return 'string';
+        }
+      }
+      if (alternate) {
+        const alternateTyped = alternate as { type: string };
+        if (alternateTyped.type === 'object') {
+          return 'object';
+        }
+      }
+    }
+    if (bodyTyped.type === 'block') {
+      const blockTyped = body as { statements: unknown[] };
+      const blockStatements = blockTyped.statements;
+      if (blockStatements) {
+        for (let i = 0; i < blockStatements.length; i++) {
+          const stmt = blockStatements[i];
+          const stmtTyped = stmt as { type: string; value: unknown };
+          if (stmtTyped.type === 'return' && stmtTyped.value) {
+            const returnValue = stmtTyped.value;
+            const returnValueTyped = returnValue as { type: string };
+            if (returnValueTyped.type === 'object') {
+              return 'object';
+            }
+            if (returnValueTyped.type === 'string_literal' || returnValueTyped.type === 'template_literal') {
+              return 'string';
+            }
+          }
+          if (stmtTyped.type === 'if') {
+            const ifStmt = stmt as { thenBlock: unknown; elseBlock: unknown };
+            const thenBlock = ifStmt.thenBlock as { statements: unknown[] };
+            const thenBlockStatements = thenBlock ? thenBlock.statements : null;
+            if (thenBlockStatements) {
+              for (let j = 0; j < thenBlockStatements.length; j++) {
+                const innerStmt = thenBlockStatements[j];
+                const innerStmtTyped = innerStmt as { type: string; value: unknown };
+                if (innerStmtTyped.type === 'return' && innerStmtTyped.value) {
+                  const innerReturnValue = innerStmtTyped.value;
+                  const innerReturnValueTyped = innerReturnValue as { type: string };
+                  if (innerReturnValueTyped.type === 'object') {
+                    return 'object';
+                  }
+                  if (innerReturnValueTyped.type === 'string_literal' || innerReturnValueTyped.type === 'template_literal') {
+                    return 'string';
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return null;
   }
 }
