@@ -19,6 +19,23 @@ import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
 
+function stripNullable(t: string): string {
+  let str = t.trim();
+  if (str.indexOf(' | null') !== -1) {
+    str = str.replace(' | null', '');
+  }
+  if (str.indexOf(' | undefined') !== -1) {
+    str = str.replace(' | undefined', '');
+  }
+  if (str.indexOf('null | ') !== -1) {
+    str = str.replace('null | ', '');
+  }
+  if (str.indexOf('undefined | ') !== -1) {
+    str = str.replace('undefined | ', '');
+  }
+  return str.trim();
+}
+
 interface ExprBase { type: string; }
 
 interface ClassGeneratorLike {
@@ -711,7 +728,8 @@ export class MemberAccessGenerator {
   }
 
   private handleNestedInterfaceField(fieldItem: string, tsType: string): string {
-    const nestedInterfaceDefResult = this.getInterfaceDecl(tsType);
+    const baseType = stripNullable(tsType);
+    const nestedInterfaceDefResult = this.getInterfaceDecl(baseType);
     const nestedInterfaceDef = nestedInterfaceDefResult as InterfaceDeclaration;
     if (nestedInterfaceDefResult) {
       const keys: string[] = [];
