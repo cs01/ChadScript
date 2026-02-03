@@ -885,18 +885,25 @@ export class VariableAllocator {
   }
 
   private allocateNumeric(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
-    this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
-    this.ctx.emit(`${allocaReg} = alloca double`);
-
     const value = this.ctx.generateExpression(stmt.value!, params);
     const valueType: string | undefined = this.ctx.getVariableType(value);
-    if (valueType === 'i32') {
-      const converted = this.ctx.nextTemp();
-      this.ctx.emit(`${converted} = sitofp i32 ${value} to double`);
-      this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
+
+    if (valueType && valueType !== 'double' && valueType.indexOf('*') !== -1) {
+      const allocaReg = this.ctx.nextTemp();
+      this.ctx.defineVariable(stmt.name, allocaReg, valueType, SymbolKind.Object, 'local');
+      this.ctx.emit(`${allocaReg} = alloca ${valueType}`);
+      this.ctx.emit(`store ${valueType} ${value}, ${valueType}* ${allocaReg}`);
     } else {
-      this.ctx.emit(`store double ${value}, double* ${allocaReg}`);
+      const allocaReg = this.ctx.nextTemp();
+      this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
+      this.ctx.emit(`${allocaReg} = alloca double`);
+      if (valueType === 'i32') {
+        const converted = this.ctx.nextTemp();
+        this.ctx.emit(`${converted} = sitofp i32 ${value} to double`);
+        this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
+      } else {
+        this.ctx.emit(`store double ${value}, double* ${allocaReg}`);
+      }
     }
   }
 

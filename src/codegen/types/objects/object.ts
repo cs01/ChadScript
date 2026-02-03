@@ -28,7 +28,7 @@ export class ObjectGenerator {
     const numFields = keys.length;
 
     if (numFields === 0) {
-      return '0';
+      return 'null';
     }
 
     const declaredInterfaceType = this.ctx.currentDeclaredInterfaceType;
@@ -209,8 +209,14 @@ export class ObjectGenerator {
       const prop = objExpr.properties[i] as ObjectProperty;
       const key = prop.key;
 
+      const valueReg = this.ctx.generateExpression(prop.value, params);
+
+      const generatedType = this.ctx.getVariableType(valueReg);
       let llvmType: string;
-      if (prop.value.type === 'string' || this.ctx.isStringExpression(prop.value)) {
+
+      if (generatedType && generatedType !== 'double') {
+        llvmType = generatedType;
+      } else if (prop.value.type === 'string' || this.ctx.isStringExpression(prop.value)) {
         llvmType = 'i8*';
       } else if (this.ctx.isStringArrayExpression(prop.value)) {
         llvmType = '%StringArray*';
@@ -225,8 +231,6 @@ export class ObjectGenerator {
       } else {
         llvmType = 'double';
       }
-
-      const valueReg = this.ctx.generateExpression(prop.value, params);
 
       let finalValue = valueReg;
       if (llvmType === 'i1') {
@@ -257,7 +261,14 @@ export class ObjectGenerator {
       const field = fieldTypes[i] as { key: string; llvmType: string; value: string };
       const fieldPtr = this.nextTemp();
       this.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${i}`);
-      this.emit(`store ${field.llvmType} ${field.value}, ${field.llvmType}* ${fieldPtr}`);
+      const valueType = this.ctx.getVariableType(field.value);
+      let storeValue = field.value;
+      if (valueType === 'i32' && field.llvmType.indexOf('*') !== -1) {
+        const ptrValue = this.nextTemp();
+        this.emit(`${ptrValue} = inttoptr i32 ${field.value} to ${field.llvmType}`);
+        storeValue = ptrValue;
+      }
+      this.emit(`store ${field.llvmType} ${storeValue}, ${field.llvmType}* ${fieldPtr}`);
     }
 
     const genericPtr = this.nextTemp();
