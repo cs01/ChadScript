@@ -679,6 +679,20 @@ export class SymbolTable {
   }
 
   /**
+   * Merge another symbol table into this one
+   */
+  merge(other: SymbolTable): void {
+    const otherSymbols = other.getAll();
+    for (let i = 0; i < otherSymbols.length; i++) {
+      const symbol = otherSymbols[i];
+      if (!this.symbols.has(symbol.name)) {
+        this.symbols.set(symbol.name, symbol);
+        this.symbolKeys.push(symbol.name);
+      }
+    }
+  }
+
+  /**
    * Get a Map of variable names to LLVM types for closure analysis.
    * This is used by the ClosureAnalyzer to know what variables are available
    * for capture and their types.
