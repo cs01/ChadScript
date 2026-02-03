@@ -813,6 +813,25 @@ export class MemberAccessGenerator {
       return this.handleNestedInterfaceField(fieldItem, tsType);
     }
 
+    if (tsType === 'string') {
+      const strValue = this.ctx.nextTemp();
+      this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${fieldItem})`);
+      this.ctx.setVariableType(strValue, 'i8*');
+      return strValue;
+    } else if (tsType === 'number') {
+      const numValue = this.ctx.nextTemp();
+      this.ctx.emit(`${numValue} = call double @cJSON_GetNumberValue(i8* ${fieldItem})`);
+      this.ctx.setVariableType(numValue, 'double');
+      return numValue;
+    } else if (tsType === 'boolean') {
+      const boolValue = this.ctx.nextTemp();
+      this.ctx.emit(`${boolValue} = call i32 @cJSON_IsTrue(i8* ${fieldItem})`);
+      const boolAsDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${boolAsDouble} = sitofp i32 ${boolValue} to double`);
+      this.ctx.setVariableType(boolAsDouble, 'double');
+      return boolAsDouble;
+    }
+
     return this.extractNestedJsonFieldValue(fieldItem);
   }
 
