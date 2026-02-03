@@ -199,6 +199,7 @@ export interface MethodCallGeneratorContext {
   setVariableType(name: string, type: string): void;
   thisPointer: string | null;
   currentClassName: string | null;
+  currentFunction?: string | null;
   ast: AST;
   typeChecker: TypeChecker | null;
   typeResolver?: TypeResolver;
@@ -272,6 +273,51 @@ export class MethodCallGenerator {
     const e = expr as ExprBase;
     if (e.type === 'variable') {
       return (expr as VariableNode).name;
+    }
+    return null;
+  }
+
+  private getParameterMapKeyType(varName: string): string | null {
+    const currentFunc = this.ctx.currentFunction;
+    if (!currentFunc) return null;
+
+    let funcParams: { name: string; type?: string }[] | null = null;
+    for (let i = 0; i < this.ctx.ast.functions.length; i++) {
+      const f = this.ctx.ast.functions[i];
+      if (f.name === currentFunc && f.parameters) {
+        funcParams = f.parameters as { name: string; type?: string }[];
+        break;
+      }
+    }
+    if (!funcParams && this.ctx.currentClassName) {
+      for (let i = 0; i < this.ctx.ast.classes.length; i++) {
+        const c = this.ctx.ast.classes[i];
+        if (c.name === this.ctx.currentClassName) {
+          for (let j = 0; j < c.methods.length; j++) {
+            const m = c.methods[j];
+            if (m.name === currentFunc && m.params) {
+              funcParams = [];
+              for (let k = 0; k < m.params.length; k++) {
+                const paramType = m.paramTypes ? m.paramTypes[k] : undefined;
+                funcParams.push({ name: m.params[k], type: paramType });
+              }
+              break;
+            }
+          }
+          break;
+        }
+      }
+    }
+    if (!funcParams) return null;
+
+    for (let i = 0; i < funcParams.length; i++) {
+      const p = funcParams[i];
+      if (p.name === varName && p.type) {
+        const mapMatch = p.type.match(/^Map<(\w+),\s*(.+)>$/);
+        if (mapMatch) {
+          return mapMatch[1];
+        }
+      }
     }
     return null;
   }
@@ -566,6 +612,51 @@ export class MethodCallGenerator {
           throw new Error(`Map.${method}() only supported for Map<string, *> types`);
         } else {
           return this.ctx.mapGen.generateMapClear(expr, params);
+        }
+      }
+
+      if (varName) {
+        const paramMapKeyType = this.getParameterMapKeyType(varName);
+        if (paramMapKeyType) {
+          this.ctx.syncStateToGenerators();
+          const mapPtr = this.ctx.generateExpression(expr.object, params);
+          if (paramMapKeyType === 'string') {
+            if (method === 'set') {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              const valueValue = this.ctx.generateExpression(expr.args[1], params);
+              return this.ctx.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue);
+            } else if (method === 'get') {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
+            } else if (method === 'has') {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.stringMapGen.generateStringMapHas(mapPtr, keyValue);
+            } else if (method === 'delete') {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.stringMapGen.generateStringMapDelete(mapPtr, keyValue);
+            } else if (method === 'clear') {
+              return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
+            } else if (method === 'entries') {
+              return this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
+            } else if (method === 'values') {
+              return this.ctx.stringMapGen.generateStringMapValues(mapPtr);
+            } else {
+              return this.ctx.stringMapGen.generateStringMapKeys(mapPtr);
+            }
+          } else {
+            if (method === 'set') {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              const valueValue = this.ctx.generateExpression(expr.args[1], params);
+              return this.ctx.pointerMapGen.generatePointerMapSet(mapPtr, keyValue, valueValue);
+            } else if (method === 'get') {
+              const keyValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, 'i8*');
+            } else if (method === 'clear') {
+              return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
+            } else {
+              throw new Error(`Map.${method}() not supported for Map<${paramMapKeyType}, *> parameter types`);
+            }
+          }
         }
       }
 

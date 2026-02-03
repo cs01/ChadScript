@@ -78,6 +78,13 @@ export function parseInterface(ctx: ParserContext): void {
     const fieldName = ctx.parseIdentifier();
     ctx.skipWhitespace();
 
+    let finalFieldName = fieldName;
+    if (ctx.code[ctx.pos] === '?') {
+      finalFieldName = fieldName + '?';
+      ctx.pos++;
+      ctx.skipWhitespace();
+    }
+
     if (ctx.code[ctx.pos] === ':') {
       ctx.pos++;
       ctx.skipWhitespace();
@@ -87,7 +94,7 @@ export function parseInterface(ctx: ParserContext): void {
       const typeEnd = ctx.pos;
       const fieldType = ctx.code.substring(typeStart, typeEnd).trim();
 
-      fields.push({ name: fieldName, type: fieldType });
+      fields.push({ name: finalFieldName, type: fieldType });
       ctx.skipWhitespace();
 
       if (ctx.code[ctx.pos] === ';') {

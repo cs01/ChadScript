@@ -150,8 +150,20 @@ export class VariableAllocator {
 
   private isUnionOfInterfaceTypes(typeStr: string): boolean {
     if (!typeStr) return false;
-    if (typeStr.indexOf('|') === -1) return false;
-    const parts = typeStr.split('|');
+    let resolvedType = typeStr;
+    const typeAlias = this.getTypeAlias(typeStr);
+    if (typeAlias && typeAlias.unionMembers && typeAlias.unionMembers.length > 0) {
+      resolvedType = typeAlias.unionMembers.join(' | ');
+    }
+    if (resolvedType.indexOf('|') === -1) {
+      if (this.getTypeAlias(resolvedType)) return true;
+      const firstChar = resolvedType.charAt(0);
+      if (firstChar === firstChar.toUpperCase() && firstChar !== firstChar.toLowerCase()) {
+        return true;
+      }
+      return false;
+    }
+    const parts = resolvedType.split('|');
     let hasNonPrimitive = false;
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i].trim();
@@ -281,6 +293,7 @@ export class VariableAllocator {
     const typedJsonInterface = this.ctx.getTypedJsonInterface(stmt.value);
     const functionInterfaceReturn = this.ctx.getFunctionCallInterfaceReturn(stmt.value);
     const methodInterfaceReturn = this.ctx.getMethodCallInterfaceReturn(stmt.value);
+    const memberAccessInterfaceType = this.getMemberAccessInterfaceType(stmt.value);
     const mapGetInterfaceType = this.getMapGetInterfaceType(stmt.value);
     const declaredInterfaceType = this.getDeclaredInterfaceType(stmt);
 
@@ -292,6 +305,8 @@ export class VariableAllocator {
       this.allocateFunctionInterfaceReturn(stmt, params, functionInterfaceReturn);
     } else if (methodInterfaceReturn) {
       this.allocateMethodInterfaceReturn(stmt, params, methodInterfaceReturn);
+    } else if (memberAccessInterfaceType) {
+      this.allocateMemberAccessInterface(stmt, params, memberAccessInterfaceType);
     } else if (isAwait) {
       this.allocateAwaitResult(stmt, params);
     } else if (isPromise) {
@@ -573,14 +588,17 @@ export class VariableAllocator {
     const allocaReg = this.ctx.nextTemp();
     const keys: string[] = [];
     const types: string[] = [];
+    const tsTypes: string[] = [];
     for (let i = 0; i < interfaceDef.fields.length; i++) {
       const field = interfaceDef.fields[i] as { name: string; type: string };
       keys.push(stripOptional(field.name));
       types.push(this.tsTypeToLlvm(field.type));
+      tsTypes.push(field.type);
     }
     const llvmType = `%${interfaceName}*`;
     this.ctx.defineVariable(stmt.name, allocaReg, llvmType, SymbolKind.Object, 'local', {
-      objectMetadata: { keys, types }
+      objectMetadata: { keys, types, tsTypes },
+      interfaceType: interfaceName
     });
     this.ctx.emit(`${allocaReg} = alloca ${llvmType}`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
@@ -592,6 +610,72 @@ export class VariableAllocator {
   private allocateMapGetArray(stmt: VariableDeclaration, params: string[], _arrayType: string): void {
     const allocaReg = this.ctx.nextTemp();
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local');
+    this.ctx.emit(`${allocaReg} = alloca i8*`);
+    const objPtr = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
+  }
+
+  private getMemberAccessInterfaceType(expr: Expression | null): string | null {
+    if (!expr) return null;
+    const exprBase = expr as ExprBase;
+    if (exprBase.type !== 'member_access') return null;
+    const memberExpr = expr as MemberAccessNode;
+    const objBase = memberExpr.object as ExprBase;
+    if (objBase.type !== 'variable') return null;
+    const varName = (memberExpr.object as VariableNode).name;
+    const symbol = this.ctx.symbolTable.lookup(varName);
+    if (!symbol) return null;
+    let objectInterfaceType: string | null = null;
+    if (symbol.interfaceType) {
+      objectInterfaceType = symbol.interfaceType;
+    } else if (symbol.objectMetadata && symbol.objectMetadata.tsTypes) {
+      const objMeta = symbol.objectMetadata;
+      const keyIdx = objMeta.keys.indexOf(memberExpr.property);
+      if (keyIdx >= 0 && objMeta.tsTypes) {
+        const propType = objMeta.tsTypes[keyIdx];
+        if (propType && !propType.endsWith('[]') && propType !== 'string' && propType !== 'number' && propType !== 'boolean') {
+          const iface = this.getInterface(propType);
+          if (iface) return propType;
+        }
+      }
+      return null;
+    }
+    if (!objectInterfaceType) return null;
+    const objectInterface = this.getInterface(objectInterfaceType);
+    if (!objectInterface) return null;
+    const objIface = objectInterface as InterfaceDeclaration;
+    for (let i = 0; i < objIface.fields.length; i++) {
+      const field = objIface.fields[i] as { name: string; type: string };
+      const fieldName = stripOptional(field.name);
+      if (fieldName === memberExpr.property) {
+        const fieldType = field.type;
+        if (fieldType && !fieldType.endsWith('[]') && fieldType !== 'string' && fieldType !== 'number' && fieldType !== 'boolean') {
+          const nestedIface = this.getInterface(fieldType);
+          if (nestedIface) return fieldType;
+        }
+        return null;
+      }
+    }
+    return null;
+  }
+
+  private allocateMemberAccessInterface(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
+    const interfaceDefResult = this.getInterface(interfaceName);
+    const interfaceDef = interfaceDefResult as InterfaceDeclaration;
+    const allocaReg = this.ctx.nextTemp();
+    const keys: string[] = [];
+    const types: string[] = [];
+    const tsTypes: string[] = [];
+    for (let i = 0; i < interfaceDef.fields.length; i++) {
+      const field = interfaceDef.fields[i] as { name: string; type: string };
+      keys.push(stripOptional(field.name));
+      types.push(this.tsTypeToLlvm(field.type));
+      tsTypes.push(field.type);
+    }
+    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+      objectMetadata: { keys, types, tsTypes },
+      interfaceType: interfaceName
+    });
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
@@ -1185,7 +1269,8 @@ export class VariableAllocator {
         return this.getTypeInfoForElementType(symbol.interfaceType);
       }
       if (symbol?.objectMetadata?.tsTypes) {
-        const tsTypes = symbol.objectMetadata.tsTypes as string[];
+        const objMeta = symbol.objectMetadata;
+        const tsTypes = objMeta.tsTypes as string[];
         if (tsTypes.length > 0) {
           const firstType = tsTypes[0];
           if (firstType && firstType.endsWith('[]')) {
@@ -1193,8 +1278,8 @@ export class VariableAllocator {
             return this.getTypeInfoForElementType(elementType);
           }
           return {
-            keys: symbol.objectMetadata.keys as string[],
-            types: symbol.objectMetadata.types as string[],
+            keys: objMeta.keys as string[],
+            types: objMeta.types as string[],
             tsTypes: tsTypes
           };
         }
@@ -1206,6 +1291,16 @@ export class VariableAllocator {
           types: objectMeta.types as string[],
           tsTypes: objectMeta.tsTypes as string[]
         };
+      }
+      return null;
+    }
+
+    if (idxObjBase.type === 'method_call') {
+      const methodCall = indexExpr.object as MethodCallNode;
+      const returnType = this.getMethodCallReturnType(methodCall);
+      if (returnType && returnType.endsWith('[]')) {
+        const elementType = returnType.slice(0, -2).trim();
+        return this.getTypeInfoForElementType(elementType);
       }
       return null;
     }
@@ -1293,6 +1388,26 @@ export class VariableAllocator {
     return null;
   }
 
+  private getMethodCallReturnType(methodCall: MethodCallNode): string | null {
+    const objectType = this.resolveMemberAccessObjectType(methodCall.object);
+    if (!objectType) return null;
+
+    const classes = this.ctx.ast.classes || [];
+    for (let i = 0; i < classes.length; i++) {
+      const cls = classes[i];
+      if (cls.name === objectType) {
+        for (let j = 0; j < cls.methods.length; j++) {
+          const method = cls.methods[j];
+          if (method.name === methodCall.method && method.returnType) {
+            return method.returnType;
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
   private getInterfaceFieldTypeByName(interfaceName: string, fieldName: string): string | null {
     const ifaceResult = this.getInterface(interfaceName);
     if (!ifaceResult) return null;
@@ -1312,6 +1427,22 @@ export class VariableAllocator {
   }
 
   private getTypeInfoForElementType(elementType: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+
+    if (elementType.startsWith('{')) {
+      const inlineFields = this.parseInlineObjectType(elementType + '[]');
+      if (inlineFields) {
+        const keys: string[] = [];
+        const types: string[] = [];
+        const tsTypes: string[] = [];
+        for (let i = 0; i < inlineFields.length; i++) {
+          const field = inlineFields[i] as { name: string; type: string };
+          keys.push(stripOptional(field.name));
+          types.push(this.tsTypeToLlvm(field.type));
+          tsTypes.push(field.type);
+        }
+        return { keys, types, tsTypes };
+      }
+    }
 
     const interfaceDefResult = this.getInterface(elementType);
     if (interfaceDefResult) {

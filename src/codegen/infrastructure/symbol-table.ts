@@ -620,12 +620,54 @@ export class SymbolTable {
   getObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined {
     const symbol = this.symbols.get(name);
     if (symbol && (symbol.kind === SymbolKind.Object || symbol.kind === SymbolKind.JSON) && symbol.objectMetadata) {
+      const objMeta = symbol.objectMetadata;
       return {
         ptr: symbol.allocaRegister,
-        keys: symbol.objectMetadata.keys,
-        types: symbol.objectMetadata.types,
-        tsTypes: symbol.objectMetadata.tsTypes
+        keys: objMeta.keys,
+        types: objMeta.types,
+        tsTypes: objMeta.tsTypes
       };
+    }
+    return undefined;
+  }
+
+  getObjectMetadataKeys(name: string): string[] | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol && symbol.objectMetadata) {
+      return symbol.objectMetadata.keys;
+    }
+    return undefined;
+  }
+
+  getObjectMetadataTypes(name: string): string[] | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol && symbol.objectMetadata) {
+      return symbol.objectMetadata.types;
+    }
+    return undefined;
+  }
+
+  getObjectMetadataTsTypes(name: string): string[] | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol && symbol.objectMetadata) {
+      return symbol.objectMetadata.tsTypes;
+    }
+    return undefined;
+  }
+
+  getClassMetadataClassName(name: string): string | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol && symbol.classMetadata) {
+      return symbol.classMetadata.className;
+    }
+    return undefined;
+  }
+
+  getArrayMetadataElementType(name: string): string | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol && symbol.arrayMetadata) {
+      const arrMeta = symbol.arrayMetadata;
+      return arrMeta.elementType;
     }
     return undefined;
   }
@@ -636,9 +678,10 @@ export class SymbolTable {
   getObjectPropertyType(varName: string, propertyName: string): string | null {
     const symbol = this.symbols.get(varName);
     if (symbol && (symbol.kind === SymbolKind.Object || symbol.kind === SymbolKind.JSON) && symbol.objectMetadata) {
-      const idx = symbol.objectMetadata.keys.indexOf(propertyName);
+      const objMeta = symbol.objectMetadata;
+      const idx = objMeta.keys.indexOf(propertyName);
       if (idx >= 0) {
-        return symbol.objectMetadata.types[idx];
+        return objMeta.types[idx];
       }
     }
     return null;
@@ -650,9 +693,10 @@ export class SymbolTable {
   getClassInfo(name: string): ClassInfo | undefined {
     const symbol = this.symbols.get(name);
     if (symbol && symbol.kind === SymbolKind.Class && symbol.classMetadata) {
+      const classMeta = symbol.classMetadata;
       return {
         ptr: symbol.allocaRegister,
-        className: symbol.classMetadata.className
+        className: classMeta.className
       };
     }
     return undefined;
@@ -664,7 +708,8 @@ export class SymbolTable {
   getClassName(name: string): string | undefined {
     const symbol = this.symbols.get(name);
     if (symbol && symbol.kind === SymbolKind.Class && symbol.classMetadata) {
-      return symbol.classMetadata.className;
+      const classMeta = symbol.classMetadata;
+      return classMeta.className;
     }
     return undefined;
   }
@@ -734,13 +779,16 @@ export class SymbolTable {
       if (symbol) {
         output += `${name}: ${symbol.kind} (${symbol.llvmType}) -> ${symbol.allocaRegister} [${symbol.scope}]\n`;
         if (symbol.objectMetadata) {
-          output += `  Object: keys=${symbol.objectMetadata.keys.join(', ')}\n`;
+          const objMeta = symbol.objectMetadata;
+          output += `  Object: keys=${objMeta.keys.join(', ')}\n`;
         }
         if (symbol.classMetadata) {
-          output += `  Class: ${symbol.classMetadata.className}\n`;
+          const classMeta = symbol.classMetadata;
+          output += `  Class: ${classMeta.className}\n`;
         }
         if (symbol.arrayMetadata) {
-          output += `  Array: elementType=${symbol.arrayMetadata.elementType}\n`;
+          const arrMeta = symbol.arrayMetadata;
+          output += `  Array: elementType=${arrMeta.elementType}\n`;
         }
       }
     }

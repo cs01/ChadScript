@@ -543,10 +543,11 @@ export class FunctionGenerator {
     topLevelObjectVariables.clear();
     for (const symbol of this.ctx.symbolTable.getAll()) {
       if (symbol.kind === SymbolKind.Object && symbol.scope === 'global' && symbol.objectMetadata) {
+        const objMeta = symbol.objectMetadata;
         topLevelObjectVariables.set(symbol.name, {
           ptr: symbol.allocaRegister,
-          keys: symbol.objectMetadata.keys,
-          types: symbol.objectMetadata.types
+          keys: objMeta.keys,
+          types: objMeta.types
         });
       }
     }

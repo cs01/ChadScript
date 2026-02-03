@@ -39,22 +39,27 @@ export class TypeResolver {
     if (symbol.interfaceType) {
       resolved = parseTypeString(symbol.interfaceType);
     } else if (symbol.mapMetadata) {
-      const keyType = parseTypeString(symbol.mapMetadata.keyType);
-      const valueType = parseTypeString(symbol.mapMetadata.valueType);
+      const mapMeta = symbol.mapMetadata;
+      const keyType = parseTypeString(mapMeta.keyType);
+      const valueType = parseTypeString(mapMeta.valueType);
       resolved = createResolvedType('Map', {}, 0, [keyType, valueType]);
     } else if (symbol.setMetadata) {
-      const valueType = parseTypeString(symbol.setMetadata.valueType);
+      const setMeta = symbol.setMetadata;
+      const valueType = parseTypeString(setMeta.valueType);
       resolved = createResolvedType('Set', {}, 0, [valueType]);
     } else if (symbol.objectArrayMetadata) {
-      resolved = createResolvedType(symbol.objectArrayMetadata.elementInterfaceName, {}, 1);
+      const objArrayMeta = symbol.objectArrayMetadata;
+      resolved = createResolvedType(objArrayMeta.elementInterfaceName, {}, 1);
     } else if (symbol.arrayMetadata) {
-      resolved = createResolvedType(symbol.arrayMetadata.elementType, {}, 1);
+      const arrMeta = symbol.arrayMetadata;
+      resolved = createResolvedType(arrMeta.elementType, {}, 1);
     } else if (symbol.kind === SymbolKind.StringArray) {
       resolved = createResolvedType('string', {}, 1);
     } else if (symbol.kind === SymbolKind.BooleanArray) {
       resolved = createResolvedType('boolean', {}, 1);
     } else if (symbol.classMetadata) {
-      resolved = createResolvedType(symbol.classMetadata.className);
+      const classMeta = symbol.classMetadata;
+      resolved = createResolvedType(classMeta.className);
     } else {
       switch (symbol.llvmType) {
         case 'double':
@@ -472,6 +477,7 @@ export class TypeResolver {
     const varName = (memberAccess.object as VariableNode).name;
     const symbol = this.ctx.symbolTable.lookup(varName);
     if (!symbol || !symbol.objectMetadata) return null;
+    const objMeta = symbol.objectMetadata;
 
     const interfaceName = this.findInterfaceByDiscriminant(literalValue);
     if (!interfaceName) return null;
@@ -479,7 +485,7 @@ export class TypeResolver {
     const metadata = this.getInterfaceMetadata(interfaceName);
     if (!metadata) return null;
 
-    const currentKeys = symbol.objectMetadata.keys;
+    const currentKeys = objMeta.keys;
     let isSubset = true;
     for (let ki = 0; ki < metadata.keys.length; ki++) {
       if (currentKeys.indexOf(metadata.keys[ki]) === -1) {
