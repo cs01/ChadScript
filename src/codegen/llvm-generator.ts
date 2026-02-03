@@ -712,6 +712,10 @@ export class LLVMGenerator extends BaseGenerator {
     return this.typeInference.isObjectArrayExpression(expr);
   }
 
+  public getObjectArrayElementType(expr: Expression): string | null {
+    return this.typeInference.getObjectArrayElementType(expr);
+  }
+
   public isObjectExpression(expr: Expression): boolean {
     return this.typeInference.isObjectExpression(expr);
   }

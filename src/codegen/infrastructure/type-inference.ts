@@ -434,8 +434,17 @@ export class TypeInference {
           }
         }
       }
-      if (methodObjBase.type === 'variable' && this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)) {
-        const className = this.ctx.symbolTable.getClassName((methodExpr.object as VariableNode).name);
+      if (methodObjBase.type === 'variable') {
+        const varName = (methodExpr.object as VariableNode).name;
+        let className: string | null = null;
+        if (this.ctx.symbolTable.isClass(varName)) {
+          className = this.ctx.symbolTable.getClassName(varName) || null;
+        } else {
+          const paramType = this.getParameterType(varName);
+          if (paramType) {
+            className = paramType;
+          }
+        }
         if (className) {
           const method = this.getClassMethod(className, methodExpr.method);
           if (method && method.returnType) {
@@ -486,6 +495,70 @@ export class TypeInference {
       }
     }
     return false;
+  }
+
+  getObjectArrayElementType(expr: Expression): string | null {
+    const e = expr as ExprBase;
+    if (e.type === 'method_call') {
+      const methodExpr = expr as MethodCallNode;
+      const methodObjBase = methodExpr.object as ExprBase;
+      if (methodObjBase.type === 'this') {
+        const className = this.ctx.currentClassName;
+        if (className) {
+          const method = this.getClassMethod(className, methodExpr.method);
+          if (method && method.returnType) {
+            const rt = stripNullable(method.returnType);
+            if (rt.endsWith('[]') && rt !== 'string[]' && rt !== 'number[]' && rt !== 'boolean[]') {
+              return rt.slice(0, -2);
+            }
+          }
+        }
+      }
+      if (methodObjBase.type === 'variable') {
+        const varName = (methodExpr.object as VariableNode).name;
+        let className: string | null = null;
+        if (this.ctx.symbolTable.isClass(varName)) {
+          className = this.ctx.symbolTable.getClassName(varName) || null;
+        } else {
+          const paramType = this.getParameterType(varName);
+          if (paramType) {
+            className = paramType;
+          }
+        }
+        if (className) {
+          const method = this.getClassMethod(className, methodExpr.method);
+          if (method && method.returnType) {
+            const rt = stripNullable(method.returnType);
+            if (rt.endsWith('[]') && rt !== 'string[]' && rt !== 'number[]' && rt !== 'boolean[]') {
+              return rt.slice(0, -2);
+            }
+          }
+        }
+      }
+    }
+    if (e.type === 'member_access') {
+      const memberExpr = expr as MemberAccessNode;
+      const objBase = memberExpr.object as ExprBase;
+      if (objBase.type === 'variable') {
+        const varName = (memberExpr.object as VariableNode).name;
+        const paramType = this.getParameterType(varName);
+        if (paramType) {
+          const fieldType = this.getFieldTypeFromType(paramType, memberExpr.property);
+          if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
+            return fieldType.slice(0, -2);
+          }
+        }
+        const symbol = this.ctx.symbolTable.lookup(varName);
+        if (symbol?.interfaceType) {
+          const ifaceType = symbol.interfaceType as string;
+          const fieldType = this.getFieldTypeFromType(ifaceType, memberExpr.property);
+          if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
+            return fieldType.slice(0, -2);
+          }
+        }
+      }
+    }
+    return null;
   }
 
   isMapExpression(expr: Expression): boolean {
@@ -634,6 +707,10 @@ export class TypeInference {
           return true;
         }
         if (varType === 'i8*') {
+          const symbol = this.ctx.symbolTable.lookup(varName);
+          if (symbol?.objectMetadata || symbol?.interfaceType) {
+            return false;
+          }
           return true;
         }
       }
