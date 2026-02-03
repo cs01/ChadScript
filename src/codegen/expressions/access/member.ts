@@ -17,24 +17,7 @@ import {
 } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
-import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
-
-function stripNullable(t: string): string {
-  let str = t.trim();
-  if (str.indexOf(' | null') !== -1) {
-    str = str.replace(' | null', '');
-  }
-  if (str.indexOf(' | undefined') !== -1) {
-    str = str.replace(' | undefined', '');
-  }
-  if (str.indexOf('null | ') !== -1) {
-    str = str.replace('null | ', '');
-  }
-  if (str.indexOf('undefined | ') !== -1) {
-    str = str.replace('undefined | ', '');
-  }
-  return str.trim();
-}
+import { stripOptional, stripNullable, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
 
 interface ExprBase { type: string; }
 
