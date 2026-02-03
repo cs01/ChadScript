@@ -68,7 +68,7 @@ export class ConditionalExpressionGenerator {
       if (trueType === falseType) {
         resultType = trueType!;
       } else {
-        resultType = 'ptr';
+        resultType = 'i8*';
       }
     } else if (trueType === 'i8*' || falseType === 'i8*') {
       resultType = 'i8*';
@@ -83,6 +83,9 @@ export class ConditionalExpressionGenerator {
     if (resultType === 'double' && trueType === 'i32') {
       trueVal = this.nextTemp();
       this.emit(`${trueVal} = sitofp i32 ${trueValue} to double`);
+    } else if (resultType === 'i8*' && trueType && trueType !== 'i8*' && trueType.indexOf('*') !== -1) {
+      trueVal = this.nextTemp();
+      this.emit(`${trueVal} = bitcast ${trueType} ${trueValue} to i8*`);
     }
     this.emit(`br label %${mergeLabel}`);
 
@@ -91,6 +94,9 @@ export class ConditionalExpressionGenerator {
     if (resultType === 'double' && falseType === 'i32') {
       falseVal = this.nextTemp();
       this.emit(`${falseVal} = sitofp i32 ${falseValue} to double`);
+    } else if (resultType === 'i8*' && falseType && falseType !== 'i8*' && falseType.indexOf('*') !== -1) {
+      falseVal = this.nextTemp();
+      this.emit(`${falseVal} = bitcast ${falseType} ${falseValue} to i8*`);
     }
     this.emit(`br label %${mergeLabel}`);
 

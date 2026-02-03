@@ -599,6 +599,7 @@ export function generateToUpperCase(ctx: IGeneratorContext, strPtr: string): str
   ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${strLen}`);
   ctx.emit(`store i8 0, i8* ${nullPtr}`);
 
+  ctx.setVariableType(resultPtr, 'i8*');
   return resultPtr;
 }
 
@@ -661,5 +662,6 @@ export function generateToLowerCase(ctx: IGeneratorContext, strPtr: string): str
   ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${strLen}`);
   ctx.emit(`store i8 0, i8* ${nullPtr}`);
 
+  ctx.setVariableType(resultPtr, 'i8*');
   return resultPtr;
 }
