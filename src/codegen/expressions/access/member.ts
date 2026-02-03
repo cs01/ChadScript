@@ -1826,6 +1826,41 @@ export class MemberAccessGenerator {
     if (params.indexOf(varName) !== -1) {
       const paramInterfaceType = this.getParameterTypeFromAST(varName);
       if (paramInterfaceType) {
+        if (paramInterfaceType.startsWith('{')) {
+          const inlineFields = this.parseInlineObjectTypeForAssertion(paramInterfaceType);
+          if (inlineFields) {
+            let propIndex = -1;
+            for (let pi = 0; pi < inlineFields.length; pi++) {
+              if (inlineFields[pi].name === expr.property) {
+                propIndex = pi;
+                break;
+              }
+            }
+            if (propIndex !== -1) {
+              const propType = inlineFields[propIndex].type;
+              const paramPtr = this.ctx.getVariableAlloca(varName);
+              if (paramPtr) {
+                const structTypes: string[] = [];
+                for (let i = 0; i < inlineFields.length; i++) {
+                  structTypes.push(this.interfaceTsTypeToLlvm(inlineFields[i].type));
+                }
+                const structType = `{ ${structTypes.join(', ')} }`;
+                const objPtrRaw = this.ctx.nextTemp();
+                this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${paramPtr}`);
+                const objPtr = this.ctx.nextTemp();
+                this.ctx.emit(`${objPtr} = bitcast i8* ${objPtrRaw} to ${structType}*`);
+                const fieldPtr = this.ctx.nextTemp();
+                this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${propIndex}`);
+                const fieldInfo: FieldInfo = {
+                  index: propIndex,
+                  type: this.interfaceTsTypeToLlvm(propType),
+                  tsType: propType
+                };
+                return this.loadFieldValue(fieldPtr, fieldInfo);
+              }
+            }
+          }
+        }
         const interfaceDefResult = this.getInterfaceFromAST(paramInterfaceType);
         if (interfaceDefResult) {
           const interfaceDef = interfaceDefResult as InterfaceInfo;
@@ -2023,17 +2058,57 @@ export class MemberAccessGenerator {
       return [];
     }
     const fields: InterfaceField[] = [];
-    const parts = inner.split(';');
+    const parts = this.splitByTopLevelSemicolon(inner);
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i].trim();
       if (!part) continue;
-      const colonIdx = part.indexOf(':');
+      const colonIdx = this.findTopLevelColon(part);
       if (colonIdx === -1) continue;
       const name = part.slice(0, colonIdx).trim();
       const fieldType = part.slice(colonIdx + 1).trim();
       fields.push({ name, type: fieldType });
     }
     return fields;
+  }
+
+  private splitByTopLevelSemicolon(str: string): string[] {
+    const parts: string[] = [];
+    let depth = 0;
+    let current = '';
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charAt(i);
+      if (char === '{' || char === '(' || char === '<' || char === '[') {
+        depth++;
+        current += char;
+      } else if (char === '}' || char === ')' || char === '>' || char === ']') {
+        depth--;
+        current += char;
+      } else if (char === ';' && depth === 0) {
+        parts.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    if (current.trim()) {
+      parts.push(current);
+    }
+    return parts;
+  }
+
+  private findTopLevelColon(str: string): number {
+    let depth = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charAt(i);
+      if (char === '{' || char === '(' || char === '<' || char === '[') {
+        depth++;
+      } else if (char === '}' || char === ')' || char === '>' || char === ']') {
+        depth--;
+      } else if (char === ':' && depth === 0) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   private accessObjectWithMetadata(varName: string, property: string, metadata: ObjectMetadata): string {
