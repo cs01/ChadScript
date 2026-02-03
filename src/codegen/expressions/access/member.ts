@@ -997,10 +997,12 @@ export class MemberAccessGenerator {
       if (!interfaceInfoResult) {
         const nestedClassFields = this.ctx.classGen?.getClassFields(fieldInfo.tsType);
         if (nestedClassFields !== undefined) {
-          const innerPtr = this.ctx.generateExpression(expr.object, params);
+          const innerPtrI8 = this.ctx.generateExpression(expr.object, params);
           const nestedFieldInfo = this.ctx.classGen?.getFieldInfo(fieldInfo.tsType, expr.property);
           if (nestedFieldInfo) {
             const nestedFieldInfoTyped = nestedFieldInfo as { index: number; type: string; tsType?: string };
+            const innerPtr = this.ctx.nextTemp();
+            this.ctx.emit(`${innerPtr} = bitcast i8* ${innerPtrI8} to %${fieldInfo.tsType}_struct*`);
             const fieldPtr = this.ctx.nextTemp();
             this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${fieldInfo.tsType}_struct, %${fieldInfo.tsType}_struct* ${innerPtr}, i32 0, i32 ${nestedFieldInfoTyped.index}`);
             return this.loadFieldValue(fieldPtr, nestedFieldInfo);

@@ -167,9 +167,9 @@ export class ClassGenerator {
     // Store field info for later lookups
     this.classFields.set(className, classNode.fields);
 
-    // Define LLVM struct type for this class
+    // Define LLVM struct type for this class (skip if already emitted via generateStructTypeDefinitions)
     // Example: %Parser_struct = type { i8*, i32, %StringArray*, %Array* } for fields [code: string, pos: number, items: string[], nums: number[]]
-    if (classNode.fields.length > 0) {
+    if (!this.structTypesEmitted && classNode.fields.length > 0) {
       const fieldTypes: string[] = [];
       for (let fi = 0; fi < classNode.fields.length; fi++) {
         const f = classNode.fields[fi] as ClassField;
@@ -725,5 +725,41 @@ export class ClassGenerator {
     if (type.startsWith("'") && type.endsWith("'")) return 'string';
     if (type.startsWith('"') && type.endsWith('"')) return 'string';
     return type;
+  }
+
+  private structTypesEmitted: boolean = false;
+
+  generateStructTypeDefinitions(): string {
+    if (!this.ctx.ast || !this.ctx.ast.classes || this.ctx.ast.classes.length === 0) {
+      return '';
+    }
+
+    let ir = '; Class struct type definitions\n';
+    let hasDefinitions = false;
+
+    for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+      const classNode = this.ctx.ast.classes[ci] as ClassNode;
+      const className = classNode.name;
+      this.classFields.set(className, classNode.fields);
+      if (classNode.fields.length > 0) {
+        hasDefinitions = true;
+        const fieldTypes: string[] = [];
+        for (let fi = 0; fi < classNode.fields.length; fi++) {
+          const f = classNode.fields[fi] as ClassField;
+          fieldTypes.push(this.fieldToLlvmType(f));
+        }
+        ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n`;
+      }
+    }
+
+    if (!hasDefinitions) return '';
+
+    this.structTypesEmitted = true;
+    ir += '\n';
+    return ir;
+  }
+
+  hasEmittedStructTypes(): boolean {
+    return this.structTypesEmitted;
   }
 }

@@ -203,11 +203,13 @@ export class SetGenerator {
   }
 
   generateSetSize(setPtr: string): string {
-    // Get size field
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 1`);
+    const sizeI32 = this.nextTemp();
+    this.emit(`${sizeI32} = load i32, i32* ${sizeFieldPtr}`);
     const size = this.nextTemp();
-    this.emit(`${size} = load i32, i32* ${sizeFieldPtr}`);
+    this.emit(`${size} = sitofp i32 ${sizeI32} to double`);
+    this.ctx.setVariableType(size, 'double');
     return size;
   }
 
