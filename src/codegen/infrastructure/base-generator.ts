@@ -30,6 +30,7 @@ export class BaseGenerator {
   public thisPointer: string | null = null; // Current 'this' pointer (i32*)
   public currentClassName: string | null = null; // Current class name (for super resolution)
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null; // Expected array element type for context-aware generation
+  public expectedCallbackParamType: string | null = null; // Expected callback parameter type for lambda generation
   public currentFunctionReturnType: string = 'double'; // Current function/method return type for return statements
 
   constructor() {}
@@ -151,11 +152,39 @@ export class BaseGenerator {
 
   // Add instruction to output
   emit(instruction: string) {
+    if (instruction.startsWith('store ')) {
+      this.validateStoreInstruction(instruction);
+    }
     this.output.push(instruction);
-    // If this is a label definition, update current label
     if (instruction.trim().endsWith(':')) {
       const label = instruction.trim().slice(0, -1);
       this.currentLabel = label;
+    }
+  }
+
+  private validateStoreInstruction(instruction: string): void {
+    const afterStore = instruction.substring(6);
+    const firstSpace = afterStore.indexOf(' ');
+    if (firstSpace <= 0) return;
+
+    const valueType = afterStore.substring(0, firstSpace);
+    const commaPos = instruction.indexOf(',');
+    if (commaPos <= 0) return;
+
+    const afterComma = instruction.substring(commaPos + 2);
+    const ptrTypeEnd = afterComma.indexOf(' ');
+    if (ptrTypeEnd <= 0) return;
+
+    const ptrType = afterComma.substring(0, ptrTypeEnd);
+    if (!ptrType.endsWith('*')) return;
+
+    const expectedType = ptrType.substring(0, ptrType.length - 1);
+    if (valueType !== expectedType) {
+      throw new Error(
+        `LLVM type mismatch in store: value type is '${valueType}' but pointer expects '${expectedType}'\n` +
+        `  Instruction: ${instruction}\n` +
+        `  This usually means an expression returned a wrong type (e.g., ptr instead of double)`
+      );
     }
   }
 
