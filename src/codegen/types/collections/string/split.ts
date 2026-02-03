@@ -173,7 +173,6 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const extractBodyLabel = ctx.nextLabel('split_extract_body');
   const extractMatchLabel = ctx.nextLabel('split_extract_match');
   const extractNoMatchLabel = ctx.nextLabel('split_extract_nomatch');
-  const extractStoreLabel = ctx.nextLabel('split_extract_store');
   const extractEndLabel = ctx.nextLabel('split_extract_end');
 
   const startPosPtr = ctx.nextTemp();

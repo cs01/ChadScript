@@ -10,8 +10,6 @@ import {
   WhileStatement,
   ForStatement,
   ForOfStatement,
-  BreakStatement,
-  ContinueStatement,
   ThrowStatement,
   TryStatement,
 } from '../../ast/types.js';

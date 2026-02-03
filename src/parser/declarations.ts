@@ -1,5 +1,4 @@
 import { FunctionNode, ClassNode, ClassMethod, ImportDeclaration, ExportDeclaration, BlockStatement, TypeAliasDeclaration, EnumDeclaration, FunctionParameter, Expression, InterfaceDeclaration, VariableDeclaration, TopLevelItem, AssignmentStatement } from '../ast/types.js';
-import { formatUnsupportedFeatureError } from './unsupported-features.js';
 
 export interface ParserContext {
   code: string;

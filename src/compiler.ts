@@ -28,7 +28,6 @@ export function setSkipSemanticAnalysis(value: boolean): void {
 // External library paths
 const BDWGC_PATH = '/data/users/cssmith/git/bdwgc';
 const MONGOOSE_PATH = '/data/users/cssmith/git/mongoose';
-const LIBUV_PATH = '/data/users/cssmith/git/libuv';
 const TREESITTER_TS_PATH = 'node_modules/tree-sitter-typescript/typescript/src';
 
 // ============================================
@@ -147,7 +146,6 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   // - libm: Math functions
   // - tree-sitter: Incremental parsing (optional, for self-hosting)
   const mongooseObj = `${MONGOOSE_PATH}/mongoose.o`;
-  const gcLib = `${BDWGC_PATH}/libgc.a`;
 
   // Build link command with all libraries
   let linkLibs = `-L${BDWGC_PATH} -lgc -lcurl -lcjson /lib64/libuv.so.1 -lm -lpthread`;

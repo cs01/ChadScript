@@ -10,7 +10,7 @@
  * - Type conversion if branches return different types
  */
 
-import { Expression, ConditionalExpressionNode } from '../../ast/types.js';
+import { ConditionalExpressionNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
 export class ConditionalExpressionGenerator {

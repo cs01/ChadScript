@@ -220,7 +220,7 @@ export class SetGenerator {
     const setPtr = this.ctx.generateExpression(expr.object, params);
 
     // Generate value
-    const valueToDelete = this.ctx.generateExpression(expr.args[0], params);
+    this.ctx.generateExpression(expr.args[0], params);
 
     // Load array and size
     const valuesFieldPtr = this.nextTemp();

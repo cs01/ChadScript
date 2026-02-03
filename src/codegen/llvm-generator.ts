@@ -57,26 +57,26 @@ export class LLVMGenerator extends BaseGenerator {
   // Global variables declared with LLVM @ prefix (accessible from any function)
   private globalVariables: Map<string, { llvmType: string; kind: SymbolKind; initialized: boolean }> = new Map();
 
-  // Specialized generators
-  private arrayGen: ArrayGenerator;
+  // Specialized generators (public for context pattern access)
+  public arrayGen: ArrayGenerator;
   public stringGen: StringGenerator;
-  private objectGen: ObjectGenerator;
-  private mapGen: MapGenerator;
-  private stringMapGen: StringMapGenerator;
-  private setGen: SetGenerator;
-  private stringSetGen: StringSetGenerator;
+  public objectGen: ObjectGenerator;
+  public mapGen: MapGenerator;
+  public stringMapGen: StringMapGenerator;
+  public setGen: SetGenerator;
+  public stringSetGen: StringSetGenerator;
   private controlFlowGen: ControlFlowGenerator;
   public classGen: ClassGenerator;
-  private regexGen: RegexGenerator;
+  public regexGen: RegexGenerator;
 
-  // Method generators (context pattern)
-  private mathGen: MathGenerator;
-  private consoleGen: ConsoleGenerator;
-  private processGen: ProcessGenerator;
-  private pathGen: PathGenerator;
-  private jsonGen: JsonGenerator;
-  private fsGen: FilesystemGenerator;
-  private responseGen: ResponseGenerator;
+  // Method generators (public for context pattern access)
+  public mathGen: MathGenerator;
+  public consoleGen: ConsoleGenerator;
+  public processGen: ProcessGenerator;
+  public pathGen: PathGenerator;
+  public jsonGen: JsonGenerator;
+  public fsGen: FilesystemGenerator;
+  public responseGen: ResponseGenerator;
   private runtimeGen: RuntimeGenerator;
   private mongooseGen: MongooseGenerator;
   private libuvGen: LibuvGenerator;
@@ -110,8 +110,8 @@ export class LLVMGenerator extends BaseGenerator {
   // Cache for interface struct defs (used at end of generate())
   private interfaceStructDefsCache: string = '';
 
-  // Helper: Format nice compiler errors
-  private formatCodegenError(message: string, suggestion?: string): string {
+  // Helper: Format nice compiler errors (public for context pattern access)
+  public formatCodegenError(message: string, suggestion?: string): string {
     let error = `\x1b[31m\x1b[1merror:\x1b[0m ${message}\n`;
 
     if (suggestion) {
@@ -138,8 +138,8 @@ export class LLVMGenerator extends BaseGenerator {
     return null;
   }
 
-  // Helper: Extract object literal metadata (keys and types)
-  private getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
+  // Helper: Extract object literal metadata (public for context pattern access)
+  public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (objExpr.type !== 'object') {
       return { keys: [], types: [] };
     }
@@ -689,11 +689,11 @@ export class LLVMGenerator extends BaseGenerator {
     return this.typeInference.isObjectExpression(expr);
   }
 
-  private isMapExpression(expr: Expression): boolean {
+  public isMapExpression(expr: Expression): boolean {
     return this.typeInference.isMapExpression(expr);
   }
 
-  private isSetExpression(expr: Expression): boolean {
+  public isSetExpression(expr: Expression): boolean {
     return this.typeInference.isSetExpression(expr);
   }
 
@@ -701,11 +701,11 @@ export class LLVMGenerator extends BaseGenerator {
     return this.typeInference.isStringExpression(expr);
   }
 
-  private isRegexExpression(expr: Expression): boolean {
+  public isRegexExpression(expr: Expression): boolean {
     return this.typeInference.isRegexExpression(expr);
   }
 
-  private isClassInstanceExpression(expr: Expression): boolean {
+  public isClassInstanceExpression(expr: Expression): boolean {
     return this.typeInference.isClassInstanceExpression(expr);
   }
 
@@ -717,38 +717,34 @@ export class LLVMGenerator extends BaseGenerator {
     return expr.type === 'await';
   }
 
-  private isResponseExpression(expr: Expression): boolean {
+  public isResponseExpression(expr: Expression): boolean {
     return this.typeInference.isResponseExpression(expr);
   }
 
-  private getTypedJsonInterface(expr: Expression): string | null {
+  public getTypedJsonInterface(expr: Expression): string | null {
     if (expr.type !== 'method_call') return null;
     return this.typeInference.getTypedJsonInterface(expr as MethodCallNode);
   }
 
-  private getFunctionCallInterfaceReturn(expr: Expression): string | null {
+  public getFunctionCallInterfaceReturn(expr: Expression): string | null {
     return this.typeInference.getFunctionCallInterfaceReturn(expr);
   }
 
-  private getMethodCallInterfaceReturn(expr: Expression): string | null {
+  public getMethodCallInterfaceReturn(expr: Expression): string | null {
     return this.typeInference.getMethodCallInterfaceReturn(expr);
   }
 
-  private getJSONParseInterface(expr: Expression): string | null {
+  public getJSONParseInterface(expr: Expression): string | null {
     if (expr.type !== 'method_call') return null;
     return this.typeInference.getJSONParseInterface(expr as MethodCallNode);
   }
 
-  private isJSONParseExpression(expr: Expression): boolean {
+  public isJSONParseExpression(expr: Expression): boolean {
     return this.typeInference.isJSONParseExpression(expr);
   }
 
   public isStringArrayExpression(expr: Expression): boolean {
     return this.typeInference.isStringArrayExpression(expr);
-  }
-
-  private isBooleanExpression(expr: Expression): boolean {
-    return this.typeInference.isBooleanExpression(expr);
   }
 
   private generateMain(): string {

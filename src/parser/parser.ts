@@ -1,7 +1,6 @@
-import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, Statement, VariableDeclaration, ClassNode, NewNode, TypeAliasDeclaration, EnumDeclaration, ImportDeclaration, ExportDeclaration, InterfaceDeclaration, TopLevelItem, AssignmentStatement, TryStatement, ForStatement, ForOfStatement, WhileStatement, IfStatement, VariableNode, MemberAccessNode, IndexAccessNode, BinaryNode } from '../ast/types.js';
-import { formatUnsupportedFeatureError } from './unsupported-features.js';
-import { parseFunction, parseClass, parseInterface, parseImport, parseExport, ParserContext, parseTypeAlias, parseEnum } from './declarations.js';
-import { parseBlock, parseStatement, parseIfStatement, parseWhileStatement, parseForStatement, parseVariableDeclaration, parseTryStatementTopLevel } from './statements.js';
+import { AST, Expression, FunctionNode, CallNode, MethodCallNode, BlockStatement, VariableDeclaration, ClassNode, NewNode, TypeAliasDeclaration, EnumDeclaration, ImportDeclaration, ExportDeclaration, InterfaceDeclaration, TopLevelItem, AssignmentStatement, TryStatement, ForStatement, ForOfStatement, WhileStatement, IfStatement, VariableNode, MemberAccessNode, IndexAccessNode, BinaryNode } from '../ast/types.js';
+import { parseFunction, parseClass, parseInterface, parseImport, parseExport, parseTypeAlias, parseEnum } from './declarations.js';
+import { parseBlock, parseIfStatement, parseWhileStatement, parseForStatement, parseVariableDeclaration } from './statements.js';
 import { parseExpression as parseExpressionFn, parsePrimary as parsePrimaryFn, ExpressionParserContext } from './expressions.js';
 
 export class Parser implements ExpressionParserContext {

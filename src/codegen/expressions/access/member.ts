@@ -14,7 +14,6 @@ import {
   IndexAccessNode,
   TypeAssertionNode,
   FunctionParameter,
-  ClassField,
 } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
@@ -679,7 +678,7 @@ export class MemberAccessGenerator {
     }
   }
 
-  private handleJsonPropertyAccess(expr: MemberAccessNode, params: string[]): string {
+  private handleJsonPropertyAccess(expr: MemberAccessNode, _params: string[]): string {
     const varName = (expr.object as VariableNode).name;
     const jsonMetaRaw = this.ctx.symbolTable.getObjectInfo(varName);
     let tsType: string | undefined;
@@ -1954,7 +1953,7 @@ export class MemberAccessGenerator {
     return value;
   }
 
-  private accessObjectProperty(objPtr: string, property: string, keys: string[], types: string[], tsTypes?: string[]): string {
+  private accessObjectProperty(objPtr: string, property: string, keys: string[], types: string[], _tsTypes?: string[]): string {
     const propIndex = keys.indexOf(property);
     if (propIndex === -1) {
       throw new Error(this.ctx.formatCodegenError(

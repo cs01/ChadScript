@@ -1,4 +1,4 @@
-import { InterfaceDeclaration, InterfaceField } from '../../ast/types.js';
+import { InterfaceDeclaration } from '../../ast/types.js';
 import { tsTypeToLlvm as tsTypeToLlvmUtil } from '../infrastructure/type-system.js';
 
 const BUILTIN_TYPES = [

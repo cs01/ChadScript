@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode } from '../../ast/types.js';
+import { MethodCallNode } from '../../ast/types.js';
 
 interface ExprBase { type: string; }
 

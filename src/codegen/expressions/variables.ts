@@ -153,7 +153,7 @@ export class VariableExpressionGenerator {
     throw new Error(`Unknown variable: ${name}`);
   }
 
-  private loadClassInstance(name: string, classMeta: ClassMeta): string {
+  private loadClassInstance(_name: string, classMeta: ClassMeta): string {
     const fields = this.ctx.classGen.getClassFields(classMeta.className);
     const ptrType = fields.length > 0 ? `%${classMeta.className}_struct*` : 'double*';
 

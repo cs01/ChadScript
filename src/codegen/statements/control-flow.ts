@@ -1,16 +1,10 @@
-import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, TypeAliasDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter } from '../../ast/types.js';
+import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata, ObjectMetadata } from '../infrastructure/symbol-table.js';
-import type { TypeResolver, UnionCommonFields } from '../infrastructure/type-resolver/index.js';
+import type { UnionCommonFields } from '../infrastructure/type-resolver/index.js';
 import { stripOptional } from '../infrastructure/type-system.js';
 
 interface ExprBase { type: string; }
-
-interface FieldInfo {
-  index: number;
-  type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean';
-  tsType?: string;
-}
 
 // ============================================
 // CONTROL FLOW GENERATOR - If/while/loops
@@ -91,7 +85,7 @@ export class ControlFlowGenerator {
       this.ctx.symbolTable.narrowType(tg.varName, tg.narrowedMetadata);
     }
 
-    const thenValue = this.ctx.generateBlock(ifStmt.thenBlock, params);
+    this.ctx.generateBlock(ifStmt.thenBlock, params);
 
     if (typeGuard) {
       const tg = typeGuard as { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } };
@@ -103,37 +97,20 @@ export class ControlFlowGenerator {
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
                               lastInstruction.startsWith('switch ');
-    let thenEndLabel = thenLabel;
-    for (let i = this.ctx.output.length - 1; i >= 0; i--) {
-      const line = this.ctx.output[i].trim();
-      if (line.match(/^[a-z_]+[0-9]+:$/)) {
-        thenEndLabel = line.slice(0, -1);
-        break;
-      }
-    }
     if (!thenHasTerminator) {
       this.emit(`br label %${mergeLabel}`);
     }
 
-    let elseValue: string | null = null;
-    let elseEndLabel = elseLabel;
     let elseHasTerminator = false;
     if (ifStmt.elseBlock) {
       this.emit(`${elseLabel}:`);
       this.ctx.currentLabel = elseLabel;
-      elseValue = this.ctx.generateBlock(ifStmt.elseBlock, params);
+      this.ctx.generateBlock(ifStmt.elseBlock, params);
       const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
       elseHasTerminator = lastInstruction.startsWith('ret ') ||
                                 lastInstruction.startsWith('br ') ||
                                 lastInstruction.startsWith('unreachable') ||
                                 lastInstruction.startsWith('switch ');
-      for (let i = this.ctx.output.length - 1; i >= 0; i--) {
-        const line = this.ctx.output[i].trim();
-        if (line.match(/^[a-z_]+[0-9]+:$/)) {
-          elseEndLabel = line.slice(0, -1);
-          break;
-        }
-      }
       if (!elseHasTerminator) {
         this.emit(`br label %${mergeLabel}`);
       }
@@ -148,28 +125,6 @@ export class ControlFlowGenerator {
     this.ctx.currentLabel = mergeLabel;
 
     return '0';
-  }
-
-  private findBranchPosition(label: string): number {
-    for (let i = this.ctx.output.length - 1; i >= 0; i--) {
-      const line = this.ctx.output[i].trim();
-      if (line.startsWith('br label %') && this.ctx.output.slice(0, i).some(l => l.trim() === `${label}:`)) {
-        let foundLabel = false;
-        for (let j = i - 1; j >= 0; j--) {
-          if (this.ctx.output[j].trim() === `${label}:`) {
-            foundLabel = true;
-            break;
-          }
-          if (this.ctx.output[j].trim().match(/^[a-z_]+[0-9]*:$/)) {
-            break;
-          }
-        }
-        if (foundLabel) {
-          return i;
-        }
-      }
-    }
-    return -1;
   }
 
   generateWhileStatement(stmt: Statement, params: string[]): string {
@@ -1003,9 +958,6 @@ export class ControlFlowGenerator {
 
     const iterableValue = this.ctx.generateExpression(forOfStmt.iterable, params);
 
-    const structTypeFields = objArrayInfo.elementTypes.join(', ');
-    const structType = `{ ${structTypeFields} }`;
-
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 1`);
     const lengthI32 = this.nextTemp();
@@ -1104,7 +1056,7 @@ export class ControlFlowGenerator {
     return '0';
   }
 
-  generateThrowStatement(stmt: Statement, params: string[]): string {
+  generateThrowStatement(stmt: Statement, _params: string[]): string {
     if (stmt.type !== 'throw') {
       throw new Error('Expected throw statement');
     }

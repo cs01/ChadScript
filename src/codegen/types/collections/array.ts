@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode, ArrowFunctionNode, VariableNode } from '../../../ast/types.js';
+import { Expression, MethodCallNode, VariableNode } from '../../../ast/types.js';
 
 interface ExprBase { type: string; }
 
@@ -443,7 +443,6 @@ export class ArrayGenerator {
     const dataPtr = arrayMeta.dataPtr;
 
     // Loop setup
-    const loopLabel = this.nextLabel('foreach_loop');
     const checkLabel = this.nextLabel('foreach_check');
     const bodyLabel = this.nextLabel('foreach_body');
     const endLabel = this.nextLabel('foreach_end');
@@ -554,7 +553,6 @@ export class ArrayGenerator {
     this.emit(`${counterPtr} = alloca i32`);
     this.emit(`store i32 0, i32* ${counterPtr}`);
 
-    const loopLabel = this.nextLabel('map_loop');
     const checkLabel = this.nextLabel('map_check');
     const bodyLabel = this.nextLabel('map_body');
     const endLabel = this.nextLabel('map_end');
@@ -784,7 +782,7 @@ export class ArrayGenerator {
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
-    const separator = this.ctx.generateExpression(expr.args[0], params);
+    this.ctx.generateExpression(expr.args[0], params);
 
     // Get array length
     const lenPtr = this.nextTemp();

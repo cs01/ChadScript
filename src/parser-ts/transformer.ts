@@ -3,13 +3,7 @@ import {
   AST,
   Expression,
   Statement,
-  FunctionNode,
-  ClassNode,
   ImportDeclaration,
-  ExportDeclaration,
-  InterfaceDeclaration,
-  TypeAliasDeclaration,
-  EnumDeclaration,
   VariableDeclaration,
   AssignmentStatement,
   CallNode,
@@ -24,9 +18,9 @@ import {
   TopLevelItem,
 } from '../ast/types.js';
 
-import { transformExpression, transformExpressionStatement } from './handlers/expressions.js';
+import { transformExpression } from './handlers/expressions.js';
 import { transformStatement } from './handlers/statements.js';
-import { transformFunctionDeclaration, transformClassDeclaration, transformInterfaceDeclaration, transformEnumDeclaration, transformTypeAliasDeclaration, transformImportDeclaration, transformExportDeclaration } from './handlers/declarations.js';
+import { transformFunctionDeclaration, transformClassDeclaration, transformInterfaceDeclaration, transformEnumDeclaration, transformTypeAliasDeclaration, transformImportDeclaration } from './handlers/declarations.js';
 
 export function transformSourceFile(sourceFile: ts.SourceFile, checker: ts.TypeChecker | undefined): AST {
   const ast: AST = {
@@ -129,7 +123,6 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
 
     case ts.SyntaxKind.VariableStatement: {
       const varStmt = node as ts.VariableStatement;
-      const isExported = varStmt.modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword);
 
       for (const decl of varStmt.declarationList.declarations) {
         const varDecl = transformVariableDeclaration(decl, varStmt.declarationList.flags, checker);

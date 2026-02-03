@@ -2,7 +2,7 @@ import { Expression, BlockStatement, CallNode, MapNode, SetNode, NewNode, ThisNo
 import { ParserContext } from './declarations.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
 import { parseBlock } from './statements.js';
-import { parseTemplateLiteral, parseRegex, parseArrayLiteral, parseObjectLiteral, parsePostfixExpressions, LiteralParserContext } from './literals.js';
+import { parseTemplateLiteral, parseRegex, parseArrayLiteral, parseObjectLiteral, parsePostfixExpressions } from './literals.js';
 
 export interface ExpressionParserContext extends ParserContext {
   parseNumber(): number;
