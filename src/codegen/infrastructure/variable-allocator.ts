@@ -128,34 +128,53 @@ export class VariableAllocator {
     return null;
   }
 
+  private isStringEnum(typeName: string): boolean {
+    if (!this.ctx.ast.enums) return false;
+    for (let i = 0; i < this.ctx.ast.enums.length; i++) {
+      const enumDecl = this.ctx.ast.enums[i] as { name: string; members: { name: string; value: string }[] };
+      if (enumDecl.name === typeName) {
+        const members = enumDecl.members;
+        if (members && members.length > 0) {
+          for (let j = 0; j < 1; j++) {
+            const member = members[j] as { name: string; value: string };
+            const valueNum = Number(member.value);
+            const isNumeric = !isNaN(valueNum);
+            return !isNumeric;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   allocate(stmt: VariableDeclaration, params: string[]): void {
     if (stmt.value === null) {
       const allocaReg = this.ctx.nextTemp();
-      if (stmt.declaredType === 'string') {
+      const baseType = stmt.declaredType ? stmt.declaredType.replace(/ \| undefined$/, '').replace(/ \| null$/, '').replace(/undefined \| /, '').replace(/null \| /, '').trim() : '';
+      if (baseType === 'string') {
         this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
         this.ctx.emit(`${allocaReg} = alloca i8*`);
         this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
-      } else if (stmt.declaredType === 'boolean') {
+      } else if (baseType === 'boolean') {
         this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
         this.ctx.emit(`${allocaReg} = alloca double`);
         this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
-      } else if (stmt.declaredType === 'string[]') {
+      } else if (baseType === 'string[]') {
         this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
         this.ctx.emit(`store %StringArray* null, %StringArray** ${allocaReg}`);
-      } else if (stmt.declaredType === 'number[]' || stmt.declaredType === 'boolean[]') {
+      } else if (baseType === 'number[]' || baseType === 'boolean[]') {
         this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local');
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         this.ctx.emit(`store %Array* null, %Array** ${allocaReg}`);
       } else {
         let isInterfaceType = false;
-        if (stmt.declaredType) {
-          const baseType = stmt.declaredType.replace(/ \| undefined$/, '').replace(/ \| null$/, '').trim();
-          if (baseType && this.getInterface(baseType)) {
-            isInterfaceType = true;
-          }
+        if (baseType && this.getInterface(baseType)) {
+          isInterfaceType = true;
         }
-        if (isInterfaceType) {
+        const isInlineObjectType = baseType && baseType.startsWith('{');
+        const isStringEnumType = baseType && this.isStringEnum(baseType);
+        if (isInterfaceType || isInlineObjectType || isStringEnumType) {
           this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local');
           this.ctx.emit(`${allocaReg} = alloca i8*`);
           this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
