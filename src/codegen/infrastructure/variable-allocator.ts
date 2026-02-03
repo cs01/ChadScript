@@ -59,6 +59,16 @@ interface SetTypeInfo {
   valueType: string;
 }
 
+interface MethodArrayFieldInfo {
+  name: string;
+  type: string;
+}
+
+interface MethodArrayReturnInfo {
+  elementType: string;
+  fields: MethodArrayFieldInfo[];
+}
+
 export interface VariableAllocatorContext {
   nextTemp(): string;
   emit(instruction: string): void;
@@ -84,6 +94,7 @@ export interface VariableAllocatorContext {
   getTypedJsonInterface(expr: Expression): string | null;
   getFunctionCallInterfaceReturn(expr: Expression): string | null;
   getMethodCallInterfaceReturn(expr: Expression): string | null;
+  getMethodCallArrayReturn(expr: Expression): { elementType: string; fields: { name: string; type: string }[] } | null;
   getJSONParseInterface(expr: Expression): string | null;
   getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] };
   formatCodegenError(message: string, suggestion?: string): string;
@@ -293,6 +304,7 @@ export class VariableAllocator {
     const typedJsonInterface = this.ctx.getTypedJsonInterface(stmt.value);
     const functionInterfaceReturn = this.ctx.getFunctionCallInterfaceReturn(stmt.value);
     const methodInterfaceReturn = this.ctx.getMethodCallInterfaceReturn(stmt.value);
+    const methodArrayReturn = this.ctx.getMethodCallArrayReturn(stmt.value);
     const memberAccessInterfaceType = this.getMemberAccessInterfaceType(stmt.value);
     const mapGetInterfaceType = this.getMapGetInterfaceType(stmt.value);
     const declaredInterfaceType = this.getDeclaredInterfaceType(stmt);
@@ -305,6 +317,8 @@ export class VariableAllocator {
       this.allocateFunctionInterfaceReturn(stmt, params, functionInterfaceReturn);
     } else if (methodInterfaceReturn) {
       this.allocateMethodInterfaceReturn(stmt, params, methodInterfaceReturn);
+    } else if (methodArrayReturn) {
+      this.allocateMethodArrayReturn(stmt, params, methodArrayReturn);
     } else if (memberAccessInterfaceType) {
       this.allocateMemberAccessInterface(stmt, params, memberAccessInterfaceType);
     } else if (isAwait) {
@@ -428,6 +442,39 @@ export class VariableAllocator {
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
+  }
+
+  private allocateMethodArrayReturn(stmt: VariableDeclaration, params: string[], arrayInfo: { elementType: string; fields: { name: string; type: string }[] }): void {
+    const allocaReg = this.ctx.nextTemp();
+    const elementKeys: string[] = [];
+    const elementTypes: string[] = [];
+    const elementTsTypes: string[] = [];
+
+    for (let i = 0; i < arrayInfo.fields.length; i++) {
+      const field = arrayInfo.fields[i] as { name: string; type: string };
+      elementKeys.push(field.name);
+      elementTsTypes.push(field.type);
+      if (field.type === 'string') {
+        elementTypes.push('i8*');
+      } else if (field.type === 'number') {
+        elementTypes.push('double');
+      } else if (field.type === 'boolean') {
+        elementTypes.push('i32');
+      } else {
+        elementTypes.push('i8*');
+      }
+    }
+
+    this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.ObjectArray, 'local');
+    this.ctx.symbolTable.setObjectArrayMetadata(stmt.name, {
+      elementInterfaceName: arrayInfo.elementType,
+      elementKeys,
+      elementTypes,
+      elementTsTypes
+    });
+    this.ctx.emit(`${allocaReg} = alloca %Array*`);
+    const arrPtr = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.emit(`store %Array* ${arrPtr}, %Array** ${allocaReg}`);
   }
 
   private getDeclaredInterfaceType(stmt: VariableDeclaration): string | null {
@@ -1267,6 +1314,14 @@ export class VariableAllocator {
       const symbol = this.ctx.symbolTable.lookup(varName);
       if (symbol?.interfaceType) {
         return this.getTypeInfoForElementType(symbol.interfaceType);
+      }
+      if (symbol?.objectArrayMetadata) {
+        const objArrayMeta = symbol.objectArrayMetadata;
+        return {
+          keys: objArrayMeta.elementKeys,
+          types: objArrayMeta.elementTypes,
+          tsTypes: objArrayMeta.elementTsTypes || []
+        };
       }
       if (symbol?.objectMetadata?.tsTypes) {
         const objMeta = symbol.objectMetadata;

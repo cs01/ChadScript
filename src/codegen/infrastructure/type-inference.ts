@@ -1104,6 +1104,35 @@ export class TypeInference {
     return null;
   }
 
+  getMethodCallArrayReturn(expr: Expression): { elementType: string; fields: { name: string; type: string }[] } | null {
+    const e = expr as ExprBase;
+    if (e.type !== 'method_call') return null;
+    const methodExpr = expr as MethodCallNode;
+
+    const className = this.resolveClassNameFromExpression(methodExpr.object);
+
+    if (className) {
+      const method = this.getClassMethod(className, methodExpr.method);
+      if (method && method.returnType && method.returnType.endsWith('[]')) {
+        const elementTypeName = method.returnType.slice(0, -2).trim();
+        if (elementTypeName === 'string' || elementTypeName === 'number' || elementTypeName === 'boolean') {
+          return null;
+        }
+        const elementIface = this.getInterface(elementTypeName);
+        if (elementIface) {
+          const fields: { name: string; type: string }[] = [];
+          for (let i = 0; i < elementIface.fields.length; i++) {
+            const f = elementIface.fields[i] as { name: string; type: string };
+            fields.push({ name: f.name.replace('?', ''), type: f.type });
+          }
+          return { elementType: elementTypeName, fields };
+        }
+      }
+    }
+
+    return null;
+  }
+
   getJSONParseInterface(expr: MethodCallNode): string | null {
     const e = expr as ExprBase;
     if (e.type === 'method_call' &&
