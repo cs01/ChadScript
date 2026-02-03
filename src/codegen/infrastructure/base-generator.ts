@@ -157,6 +157,10 @@ export class BaseGenerator {
       this.validateStoreInstruction(instruction);
     } else if (instruction.includes(' = phi ')) {
       this.validatePhiInstruction(instruction);
+    } else if (instruction.includes(' = load ')) {
+      this.validateLoadInstruction(instruction);
+    } else if (instruction.includes(' = getelementptr ')) {
+      this.validateGepInstruction(instruction);
     }
     this.output.push(instruction);
     if (instruction.trim().endsWith(':')) {
@@ -257,6 +261,64 @@ export class BaseGenerator {
     return false;
   }
 
+  private validateLoadInstruction(instruction: string): void {
+    const loadIdx = instruction.indexOf(' = load ');
+    if (loadIdx < 0) return;
+
+    const afterLoad = instruction.substring(loadIdx + 8);
+    const commaPos = afterLoad.indexOf(',');
+    if (commaPos <= 0) return;
+
+    const loadType = afterLoad.substring(0, commaPos).trim();
+    const afterComma = afterLoad.substring(commaPos + 1).trim();
+    const ptrTypeEnd = afterComma.indexOf(' ');
+    if (ptrTypeEnd <= 0) return;
+
+    const ptrType = afterComma.substring(0, ptrTypeEnd).trim();
+    if (!ptrType.endsWith('*')) return;
+
+    const expectedType = ptrType.substring(0, ptrType.length - 1);
+    if (loadType !== expectedType) {
+      throw new Error(
+        `LLVM type mismatch in load: loading type '${loadType}' but pointer has type '${ptrType}' (expects '${expectedType}')\n` +
+        `  Instruction: ${instruction}\n` +
+        `  This usually means a variable has the wrong type or a cast is missing`
+      );
+    }
+  }
+
+  private validateGepInstruction(instruction: string): void {
+    const gepIdx = instruction.indexOf(' = getelementptr ');
+    if (gepIdx < 0) return;
+
+    const afterGep = instruction.substring(gepIdx + 17);
+    const parts = afterGep.split(',');
+    if (parts.length < 2) return;
+
+    for (let i = 2; i < parts.length; i++) {
+      const part = parts[i].trim();
+      const spaceIdx = part.indexOf(' ');
+      if (spaceIdx <= 0) continue;
+
+      const indexValue = part.substring(spaceIdx + 1).trim();
+      if (indexValue.startsWith('-')) {
+        throw new Error(
+          `LLVM GEP with negative index: '${indexValue}'\n` +
+          `  Instruction: ${instruction}\n` +
+          `  Negative GEP indices usually indicate a codegen bug`
+        );
+      }
+      const numIndex = parseInt(indexValue, 10);
+      if (!isNaN(numIndex) && numIndex > 100) {
+        throw new Error(
+          `LLVM GEP with suspiciously large index: '${indexValue}'\n` +
+          `  Instruction: ${instruction}\n` +
+          `  This may indicate an incorrect field index calculation`
+        );
+      }
+    }
+  }
+
   // Get all output
   getOutput(): string[] {
     return this.output;
@@ -295,6 +357,13 @@ export class BaseGenerator {
    * Set type for a temporary register
    */
   setVariableType(name: string, type: string): void {
+    if (type === 'unknown') {
+      throw new Error(
+        `Cannot set type 'unknown' for register '${name}'.\n` +
+        `  This indicates type inference failed somewhere in the codegen pipeline.\n` +
+        `  Check the expression that produced this register and ensure type tracking is correct.`
+      );
+    }
     this.variableTypes.set(name, type);
   }
 
@@ -309,6 +378,13 @@ export class BaseGenerator {
    * Cache type for an expression
    */
   setExpressionType(expr: Expression, type: ResolvedType): void {
+    if (type.base === 'unknown') {
+      throw new Error(
+        `Cannot cache 'unknown' type for expression of type '${expr.type}'.\n` +
+        `  This indicates type resolution failed.\n` +
+        `  Ensure the expression's type can be determined at compile time.`
+      );
+    }
     this.expressionTypes.set(expr, type);
   }
 
