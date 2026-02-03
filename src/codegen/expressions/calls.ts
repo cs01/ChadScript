@@ -74,6 +74,11 @@ export class CallExpressionGenerator {
       return this.generateParseInt(expr, params);
     }
 
+    // Handle parseFloat(str) global function
+    if (expr.name === 'parseFloat') {
+      return this.generateParseFloat(expr, params);
+    }
+
     // Handle Number(value) global function
     if (expr.name === 'Number') {
       return this.generateNumber(expr, params);
@@ -201,6 +206,21 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${resultDouble} = sitofp i64 ${resultI64} to double`);
 
     return resultDouble;
+  }
+
+  private generateParseFloat(expr: CallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      throw new Error('parseFloat() requires exactly 1 argument (string)');
+    }
+
+    this.ctx.syncStateToGenerators();
+
+    const strValue = this.ctx.generateExpression(expr.args[0], params);
+    const nullPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @strtod(i8* ${strValue}, i8** ${nullPtr})`);
+    return result;
   }
 
   private generateNumber(expr: CallNode, params: string[]): string {

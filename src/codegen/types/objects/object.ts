@@ -125,7 +125,16 @@ export class ObjectGenerator {
       const field = orderedFields[i] as { key: string; llvmType: string; value: string };
       const fieldPtr = this.nextTemp();
       this.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${i}`);
-      this.emit(`store ${field.llvmType} ${field.value}, ${field.llvmType}* ${fieldPtr}`);
+      const isTreeSitterType = field.llvmType === '%TSNode*' || field.llvmType === '%TSTree*' || field.llvmType === '%TSParser*' || field.llvmType === '%TSLanguage*';
+      if (isTreeSitterType) {
+        const valI64 = this.nextTemp();
+        this.emit(`${valI64} = bitcast double ${field.value} to i64`);
+        const valPtr = this.nextTemp();
+        this.emit(`${valPtr} = inttoptr i64 ${valI64} to ${field.llvmType}`);
+        this.emit(`store ${field.llvmType} ${valPtr}, ${field.llvmType}* ${fieldPtr}`);
+      } else {
+        this.emit(`store ${field.llvmType} ${field.value}, ${field.llvmType}* ${fieldPtr}`);
+      }
     }
 
     const genericPtr = this.nextTemp();
@@ -191,7 +200,16 @@ export class ObjectGenerator {
       const field = orderedFields[i] as { key: string; llvmType: string; value: string };
       const fieldPtr = this.nextTemp();
       this.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${i}`);
-      this.emit(`store ${field.llvmType} ${field.value}, ${field.llvmType}* ${fieldPtr}`);
+      const isTreeSitterType = field.llvmType === '%TSNode*' || field.llvmType === '%TSTree*' || field.llvmType === '%TSParser*' || field.llvmType === '%TSLanguage*';
+      if (isTreeSitterType) {
+        const valI64 = this.nextTemp();
+        this.emit(`${valI64} = bitcast double ${field.value} to i64`);
+        const valPtr = this.nextTemp();
+        this.emit(`${valPtr} = inttoptr i64 ${valI64} to ${field.llvmType}`);
+        this.emit(`store ${field.llvmType} ${valPtr}, ${field.llvmType}* ${fieldPtr}`);
+      } else {
+        this.emit(`store ${field.llvmType} ${field.value}, ${field.llvmType}* ${fieldPtr}`);
+      }
     }
 
     const genericPtr = this.nextTemp();
@@ -271,7 +289,14 @@ export class ObjectGenerator {
       this.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${i}`);
       const valueType = this.ctx.getVariableType(field.value);
       let storeValue = field.value;
-      if (valueType === 'i32' && field.llvmType.indexOf('*') !== -1) {
+      const isTreeSitterType = field.llvmType === '%TSNode*' || field.llvmType === '%TSTree*' || field.llvmType === '%TSParser*' || field.llvmType === '%TSLanguage*';
+      if (isTreeSitterType) {
+        const valI64 = this.nextTemp();
+        this.emit(`${valI64} = bitcast double ${field.value} to i64`);
+        const valPtr = this.nextTemp();
+        this.emit(`${valPtr} = inttoptr i64 ${valI64} to ${field.llvmType}`);
+        storeValue = valPtr;
+      } else if (valueType === 'i32' && field.llvmType.indexOf('*') !== -1) {
         const ptrValue = this.nextTemp();
         this.emit(`${ptrValue} = inttoptr i32 ${field.value} to ${field.llvmType}`);
         storeValue = ptrValue;

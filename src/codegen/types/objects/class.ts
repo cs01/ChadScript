@@ -395,10 +395,7 @@ export class ClassGenerator {
       } else if (result !== null && result !== '' && result !== '0') {
         ir += `  ret ${returnLLVMType} ${result}\n`;
       } else {
-        // Default return value for non-void functions with no explicit return
-        if (returnLLVMType === 'i8*') {
-          ir += '  ret i8* null\n';
-        } else if (returnLLVMType === '%StringArray*' || returnLLVMType === '%Array*') {
+        if (returnLLVMType && returnLLVMType.indexOf('*') !== -1) {
           ir += `  ret ${returnLLVMType} null\n`;
         } else {
           ir += `  ret ${returnLLVMType} 0.0\n`;

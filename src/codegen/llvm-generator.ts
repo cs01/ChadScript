@@ -596,6 +596,8 @@ export class LLVMGenerator extends BaseGenerator {
             this.syncStateToGenerators();
             const emptyStr = this.stringGen.createStringConstant('');
             this.emit(`ret i8* ${emptyStr}`);
+          } else if (this.currentFunctionReturnType && this.currentFunctionReturnType.indexOf('*') !== -1) {
+            this.emit(`ret ${this.currentFunctionReturnType} null`);
           } else {
             this.emit(`ret ${this.currentFunctionReturnType} 0.0`);
           }
