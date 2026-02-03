@@ -16,9 +16,9 @@ export class MapGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
   // Helper methods delegate to context
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextTemp(): string { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string): void { this.ctx.emit(instruction); }
   private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
 
   generateMapLiteral(expr: Expression, params: string[]): string {
@@ -92,6 +92,7 @@ export class MapGenerator {
       this.emit(`store double ${valueValue}, double* ${valueElemPtr}`);
     }
 
+    this.ctx.setVariableType(mapPtr, '%Map*');
     return mapPtr;
   }
 
@@ -425,9 +426,9 @@ export class MapGenerator {
 export class StringMapGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextTemp(): string { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string): void { this.ctx.emit(instruction); }
   private getPtrSize() { return 8; }
 
   generateEmptyStringMap(): string {
@@ -477,6 +478,7 @@ export class StringMapGenerator {
     this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
     this.emit(`store i32 ${initialCapacity}, i32* ${capacityFieldPtr}`);
 
+    this.ctx.setVariableType(mapPtr, '%StringMap*');
     return mapPtr;
   }
 
@@ -923,14 +925,86 @@ export class StringMapGenerator {
 
     return arrayPtr;
   }
+
+  generateStringMapKeys(mapPtr: string): string {
+    const keysFieldPtr = this.nextTemp();
+    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    const keysPtr = this.nextTemp();
+    this.emit(`${keysPtr} = load i8**, i8*** ${keysFieldPtr}`);
+
+    const sizeFieldPtr = this.nextTemp();
+    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    const mapSize = this.nextTemp();
+    this.emit(`${mapSize} = load i32, i32* ${sizeFieldPtr}`);
+
+    const arrayMem = this.nextTemp();
+    this.emit(`${arrayMem} = call i8* @GC_malloc(i64 24)`);
+    const arrayPtr = this.nextTemp();
+    this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
+
+    const mapSizeI64 = this.nextTemp();
+    this.emit(`${mapSizeI64} = sext i32 ${mapSize} to i64`);
+    const dataSize = this.nextTemp();
+    this.emit(`${dataSize} = mul i64 ${mapSizeI64}, 8`);
+    const dataMem = this.nextTemp();
+    this.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSize})`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
+
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
+    const lenFieldPtr = this.nextTemp();
+    this.emit(`${lenFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(`store i32 ${mapSize}, i32* ${lenFieldPtr}`);
+    const capFieldPtr = this.nextTemp();
+    this.emit(`${capFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+    this.emit(`store i32 ${mapSize}, i32* ${capFieldPtr}`);
+
+    const loopLabel = this.nextLabel('strmap_keys_loop');
+    const bodyLabel = this.nextLabel('strmap_keys_body');
+    const endLabel = this.nextLabel('strmap_keys_end');
+
+    const indexReg = this.nextTemp();
+    this.emit(`${indexReg} = alloca i32`);
+    this.emit(`store i32 0, i32* ${indexReg}`);
+    this.emit(`br label %${loopLabel}`);
+
+    this.emit(`${loopLabel}:`);
+    const currentIndex = this.nextTemp();
+    this.emit(`${currentIndex} = load i32, i32* ${indexReg}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${currentIndex}, ${mapSize}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    this.emit(`${bodyLabel}:`);
+    const keyElemPtr = this.nextTemp();
+    this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentIndex}`);
+    const keyVal = this.nextTemp();
+    this.emit(`${keyVal} = load i8*, i8** ${keyElemPtr}`);
+
+    const destElemPtr = this.nextTemp();
+    this.emit(`${destElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentIndex}`);
+    this.emit(`store i8* ${keyVal}, i8** ${destElemPtr}`);
+
+    const nextIndex = this.nextTemp();
+    this.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+    this.emit(`store i32 ${nextIndex}, i32* ${indexReg}`);
+    this.emit(`br label %${loopLabel}`);
+
+    this.emit(`${endLabel}:`);
+
+    this.ctx.setVariableType(arrayPtr, '%StringArray*');
+    return arrayPtr;
+  }
 }
 
 export class PointerMapGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextTemp(): string { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string): void { this.ctx.emit(instruction); }
 
   generatePointerMapGet(mapPtr: string, keyToFind: string, valueType: string): string {
     const keysFieldPtr = this.nextTemp();

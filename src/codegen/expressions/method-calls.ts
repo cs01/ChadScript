@@ -121,6 +121,7 @@ interface StringMapGeneratorLike {
   generateStringMapDelete(mapAlloca: string, key: string): string;
   generateStringMapEntries(mapAlloca: string): string;
   generateStringMapValues(mapAlloca: string): string;
+  generateStringMapKeys(mapAlloca: string): string;
 }
 
 interface StringSetGeneratorLike {
@@ -262,7 +263,7 @@ export class MethodCallGenerator {
     return null;
   }
 
-  private isVariableWithName(expr: Expression, name: string): expr is VariableNode {
+  private isVariableWithName(expr: Expression, name: string): boolean {
     const e = expr as ExprBase;
     return e.type === 'variable' && (expr as VariableNode).name === name;
   }
@@ -519,7 +520,7 @@ export class MethodCallGenerator {
     }
 
     // Handle Map methods
-    if (method === 'set' || method === 'get' || method === 'has' || method === 'clear' || method === 'delete' || method === 'entries' || method === 'values') {
+    if (method === 'set' || method === 'get' || method === 'has' || method === 'clear' || method === 'delete' || method === 'entries' || method === 'values' || method === 'keys') {
       const varName = this.getVariableName(expr.object);
       if (varName && this.ctx.symbolTable.isMap(varName)) {
         this.ctx.syncStateToGenerators();
@@ -545,6 +546,8 @@ export class MethodCallGenerator {
               return this.ctx.stringMapGen.generateStringMapEntries(mapAlloca);
             } else if (method === 'values') {
               return this.ctx.stringMapGen.generateStringMapValues(mapAlloca);
+            } else if (method === 'keys') {
+              return this.ctx.stringMapGen.generateStringMapKeys(mapAlloca);
             } else {
               return this.ctx.stringMapGen.generateStringMapClear(mapAlloca);
             }
@@ -559,7 +562,7 @@ export class MethodCallGenerator {
           return this.ctx.mapGen.generateMapHas(expr, params);
         } else if (method === 'delete') {
           return this.ctx.mapGen.generateMapDelete(expr, params);
-        } else if (method === 'entries' || method === 'values') {
+        } else if (method === 'entries' || method === 'values' || method === 'keys') {
           throw new Error(`Map.${method}() only supported for Map<string, *> types`);
         } else {
           return this.ctx.mapGen.generateMapClear(expr, params);

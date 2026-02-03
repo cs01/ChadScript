@@ -1,6 +1,10 @@
-import { Expression, MemberAccessNode } from '../../../ast/types.js';
+import { Expression, MemberAccessNode, VariableNode } from '../../../ast/types.js';
 
 interface ExprBase { type: string; }
+
+interface StringGenLike {
+  createStringConstant(value: string): string;
+}
 
 interface ClassGeneratorLike {
   getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
@@ -17,6 +21,7 @@ interface UnaryExpressionContext {
   thisPointer?: string | null;
   currentClassName?: string | null;
   classGen?: ClassGeneratorLike;
+  stringGen?: StringGenLike;
   generateExpression(expr: Expression, params: string[]): string;
 }
 
@@ -44,6 +49,10 @@ export class UnaryExpressionGenerator {
 
     if (op === '+') {
       return operandValue;
+    }
+
+    if (op === 'typeof') {
+      return this.generateTypeof(operand, operandValue);
     }
 
     throw new Error(`Unknown unary operator: ${op}`);
@@ -172,5 +181,42 @@ export class UnaryExpressionGenerator {
     this.ctx.emit(`store double ${newValue}, double* ${fieldPtr}`);
 
     return isPost ? originalValue : newValue;
+  }
+
+  private generateTypeof(operand: Expression, operandValue: string): string {
+    const operandType = this.ctx.getVariableType(operandValue);
+    let typeString: string;
+
+    if (operand.type === 'string') {
+      typeString = 'string';
+    } else if (operand.type === 'number') {
+      typeString = 'number';
+    } else if (operand.type === 'boolean') {
+      typeString = 'boolean';
+    } else if (operand.type === 'arrow_function') {
+      typeString = 'function';
+    } else if (operand.type === 'variable') {
+      const varName = (operand as VariableNode).name;
+      if (varName === 'undefined') {
+        typeString = 'undefined';
+      } else if (operandType === 'i8*' || (operandType && operandType.indexOf('*') !== -1)) {
+        typeString = 'object';
+      } else if (operandType === 'double') {
+        typeString = 'number';
+      } else {
+        typeString = 'object';
+      }
+    } else if (operandType === 'i8*' || (operandType && operandType.indexOf('*') !== -1)) {
+      typeString = 'object';
+    } else {
+      typeString = 'object';
+    }
+
+    if (!this.ctx.stringGen) {
+      throw new Error('typeof requires stringGen in context');
+    }
+    const strPtr = this.ctx.stringGen.createStringConstant(typeString);
+    this.ctx.setVariableType(strPtr, 'i8*');
+    return strPtr;
   }
 }

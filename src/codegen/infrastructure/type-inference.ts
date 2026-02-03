@@ -185,6 +185,10 @@ export class TypeInference {
       if (this.ctx.symbolTable.isClass(varName)) {
         return this.ctx.symbolTable.getClassName(varName) || null;
       }
+      const symbol = this.ctx.symbolTable.lookup(varName);
+      if (symbol?.interfaceType) {
+        return symbol.interfaceType;
+      }
       return null;
     }
     if (e.type === 'member_access') {
@@ -391,6 +395,14 @@ export class TypeInference {
             return true;
           }
         }
+        const symbol = this.ctx.symbolTable.lookup(varName);
+        if (symbol?.interfaceType) {
+          const ifaceType = symbol.interfaceType as string;
+          const fieldType = this.getFieldTypeFromType(ifaceType, memberExpr.property);
+          if (fieldType && fieldType.endsWith('[]')) {
+            return true;
+          }
+        }
       }
     }
     return false;
@@ -409,12 +421,21 @@ export class TypeInference {
 
   isObjectArrayExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
+    if (e.type === 'binary') {
+      const binExpr = expr as BinaryNode;
+      if (binExpr.op === '||') {
+        const rightBase = binExpr.right as ExprBase;
+        if (rightBase.type === 'array') {
+          return this.isObjectArrayExpression(binExpr.left);
+        }
+      }
+    }
     if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
       const varType = this.ctx.symbolTable.getType(varName);
       if (varType === 'i8*') {
         const symbol = this.ctx.symbolTable.lookup(varName);
-        if (symbol && symbol.kind === SymbolKind.Array) {
+        if (symbol && (symbol.kind === SymbolKind.Array || symbol.kind === SymbolKind.ObjectArray)) {
           return true;
         }
       }

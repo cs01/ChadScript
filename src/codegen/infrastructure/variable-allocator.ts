@@ -906,7 +906,7 @@ export class VariableAllocator {
     if (elementType) {
       const typeInfo = this.getTypeInfoForElementType(elementType);
       if (typeInfo) {
-        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local', {
+        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local', {
           objectMetadata: {
             keys: typeInfo.keys,
             types: typeInfo.types,
@@ -921,7 +921,7 @@ export class VariableAllocator {
       }
     }
 
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local');
+    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local');
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const value = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
@@ -970,7 +970,7 @@ export class VariableAllocator {
     if (elementType) {
       const typeInfo = this.getTypeInfoForElementType(elementType);
       if (typeInfo) {
-        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Array, 'local', {
+        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local', {
           objectMetadata: { keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes },
           interfaceType: elementType
         });

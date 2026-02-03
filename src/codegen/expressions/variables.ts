@@ -77,12 +77,26 @@ export class VariableExpressionGenerator {
 
     // Check if it's a map variable
     if (this.ctx.symbolTable.isMap(name)) {
-      return this.ctx.getVariableAlloca(name)!;
+      const allocaReg = this.ctx.getVariableAlloca(name)!;
+      const mapMeta = this.ctx.symbolTable.getMapMetadata(name);
+      if (mapMeta && mapMeta.keyType === 'string') {
+        this.ctx.setVariableType(allocaReg, '%StringMap*');
+      } else {
+        this.ctx.setVariableType(allocaReg, '%Map*');
+      }
+      return allocaReg;
     }
 
     // Check if it's a set variable
     if (this.ctx.symbolTable.isSet(name)) {
-      return this.ctx.getVariableAlloca(name)!;
+      const allocaReg = this.ctx.getVariableAlloca(name)!;
+      const setMeta = this.ctx.symbolTable.getSetMetadata(name);
+      if (setMeta && setMeta.valueType === 'string') {
+        this.ctx.setVariableType(allocaReg, '%StringSet*');
+      } else {
+        this.ctx.setVariableType(allocaReg, '%Set*');
+      }
+      return allocaReg;
     }
 
     // Check if it's an array variable (number or boolean array)

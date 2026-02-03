@@ -1,6 +1,8 @@
 import { Expression, IndexAccessNode, IndexAccessAssignmentNode, MemberAccessNode, VariableNode } from '../../../ast/types.js';
 
 interface ExprBase { type: string; }
+interface ObjectMeta { keys: string[]; types: string[]; }
+interface StringGenLike { createStringConstant(value: string): string; }
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 
 export interface IndexAccessGeneratorContext {
@@ -16,6 +18,8 @@ export interface IndexAccessGeneratorContext {
   isObjectArrayExpression(expr: Expression): boolean;
   getVariableAlloca(name: string): string | undefined;
   generateExpression(expr: Expression, params: string[]): string;
+  isStringExpression(expr: Expression): boolean;
+  stringGen: StringGenLike;
 }
 
 /**
@@ -36,7 +40,6 @@ export class IndexAccessGenerator {
    * @param params - Function parameter names
    */
   generate(expr: IndexAccessNode, params: string[]): string {
-    // Check if it's process.argv[i]
     const exprObjBase = expr.object as ExprBase;
     if (exprObjBase.type === 'member_access') {
       const memberAccess = expr.object as MemberAccessNode;
@@ -64,10 +67,21 @@ export class IndexAccessGenerator {
       return this.generateObjectArrayIndex(expr, params);
     } else if (isNumericArray) {
       return this.generateNumericArrayIndex(expr, params);
-    } else {
-      // Handle string[index] - returns character code as i32, then convert to double
-      return this.generateStringCharIndex(expr, params);
     }
+
+    // Check if it's an object variable with dynamic property access
+    if (exprObjBase.type === 'variable') {
+      const varName = (expr.object as VariableNode).name;
+      if (this.ctx.symbolTable.isObject(varName)) {
+        const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
+        if (objMeta && objMeta.keys.length > 0) {
+          return this.generateDynamicObjectAccess(expr, params, objMeta);
+        }
+      }
+    }
+
+    // Handle string[index] - returns character code as i32, then convert to double
+    return this.generateStringCharIndex(expr, params);
   }
 
   private generateProcessArgvIndex(expr: IndexAccessNode, params: string[]): string {
@@ -220,9 +234,11 @@ export class IndexAccessGenerator {
     // Convert double index to i32 (assume double if not explicitly i32)
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType !== 'i32') {
+    if (indexType === 'double' || !indexType) {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    } else if (indexType !== 'i32' && indexType !== 'i64') {
+      throw new Error(`String character index must be a number, got type: ${indexType}. Dynamic object property access with string keys is not yet supported.`);
     }
 
     const indexI64 = this.ctx.nextTemp();
@@ -406,5 +422,82 @@ export class IndexAccessGenerator {
     this.ctx.emit(`store double ${value}, double* ${elementPtr}`);
 
     return value;
+  }
+
+  private generateDynamicObjectAccess(expr: IndexAccessNode, params: string[], objMeta: ObjectMeta): string {
+    const varName = (expr.object as VariableNode).name;
+
+    const keyValue = this.ctx.generateExpression(expr.index, params);
+    const keyType = this.ctx.getVariableType(keyValue);
+    if (keyType !== 'i8*' && !this.ctx.isStringExpression(expr.index)) {
+      throw new Error(`Dynamic object property access requires a string key, got: ${keyType}`);
+    }
+
+    const objAlloca = this.ctx.getVariableAlloca(varName);
+    if (!objAlloca) {
+      throw new Error(`Cannot find alloca for object '${varName}'`);
+    }
+    const objPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${objPtr} = load i8*, i8** ${objAlloca}`);
+
+    const structType = this.buildStructType(objMeta.types);
+
+    const resultAlloca = this.ctx.nextTemp();
+    this.ctx.emit(`${resultAlloca} = alloca i8*`);
+    this.ctx.emit(`store i8* null, i8** ${resultAlloca}`);
+
+    const endLabel = this.ctx.nextLabel('obj_access_end');
+
+    for (let i = 0; i < objMeta.keys.length; i++) {
+      const key = objMeta.keys[i]!;
+      const fieldType = objMeta.types[i]!;
+      const keyStr = this.ctx.stringGen.createStringConstant(key);
+      const cmpResult = this.ctx.nextTemp();
+      this.ctx.emit(`${cmpResult} = call i32 @strcmp(i8* ${keyValue}, i8* ${keyStr})`);
+      const isMatch = this.ctx.nextTemp();
+      this.ctx.emit(`${isMatch} = icmp eq i32 ${cmpResult}, 0`);
+
+      const matchLabel = this.ctx.nextLabel('obj_key_match');
+      const nextLabel = this.ctx.nextLabel('obj_key_next');
+      this.ctx.emit(`br i1 ${isMatch}, label %${matchLabel}, label %${nextLabel}`);
+
+      this.ctx.emit(`${matchLabel}:`);
+      const typedPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
+      const fieldPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
+
+      let fieldValue: string;
+      if (fieldType === 'i8*') {
+        fieldValue = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldValue} = load i8*, i8** ${fieldPtr}`);
+      } else if (fieldType === 'double') {
+        const doubleVal = this.ctx.nextTemp();
+        this.ctx.emit(`${doubleVal} = load double, double* ${fieldPtr}`);
+        fieldValue = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldValue} = call i8* @__double_to_string(double ${doubleVal})`);
+      } else {
+        fieldValue = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldValue} = load i8*, i8** ${fieldPtr}`);
+      }
+
+      this.ctx.emit(`store i8* ${fieldValue}, i8** ${resultAlloca}`);
+      this.ctx.emit(`br label %${endLabel}`);
+
+      this.ctx.emit(`${nextLabel}:`);
+    }
+
+    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emit(`${endLabel}:`);
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = load i8*, i8** ${resultAlloca}`);
+    this.ctx.setVariableType(result, 'i8*');
+
+    return result;
+  }
+
+  private buildStructType(types: string[]): string {
+    return '{ ' + types.join(', ') + ' }';
   }
 }

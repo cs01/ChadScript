@@ -11,8 +11,8 @@ interface ObjectGeneratorContext extends IGeneratorContext {
 export class ObjectGenerator {
   constructor(private ctx: ObjectGeneratorContext) {}
 
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextTemp(): string { return this.ctx.nextTemp(); }
+  private emit(instruction: string): void { this.ctx.emit(instruction); }
 
   generateObjectLiteral(expr: Expression, params: string[]): string {
     if (expr.type !== 'object') {
@@ -214,7 +214,15 @@ export class ObjectGenerator {
       const generatedType = this.ctx.getVariableType(valueReg);
       let llvmType: string;
 
-      if (generatedType && generatedType !== 'double') {
+      if (generatedType === '%StringMap' || generatedType === '%StringMap*') {
+        llvmType = '%StringMap*';
+      } else if (generatedType === '%Map' || generatedType === '%Map*') {
+        llvmType = '%Map*';
+      } else if (generatedType === '%StringSet' || generatedType === '%StringSet*') {
+        llvmType = '%StringSet*';
+      } else if (generatedType === '%Set' || generatedType === '%Set*') {
+        llvmType = '%Set*';
+      } else if (generatedType && generatedType !== 'double') {
         llvmType = generatedType;
       } else if (prop.value.type === 'string' || this.ctx.isStringExpression(prop.value)) {
         llvmType = 'i8*';

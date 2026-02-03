@@ -289,11 +289,16 @@ export class ControlFlowGenerator {
 
     const isStringArray = this.ctx.isStringArrayExpression(forOfStmt.iterable);
     const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(forOfStmt.iterable);
+    const isStringSet = this.isStringSetExpression(forOfStmt.iterable);
     let arrayType: string;
     let elementType: string;
     let elementKind: SymbolKind;
 
-    if (isStringArray) {
+    if (isStringSet) {
+      arrayType = '%StringSet';
+      elementType = 'i8*';
+      elementKind = SymbolKind.String;
+    } else if (isStringArray) {
       arrayType = '%StringArray';
       elementType = 'i8*';
       elementKind = SymbolKind.String;
@@ -346,7 +351,7 @@ export class ControlFlowGenerator {
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 0`);
     let dataArray: string;
-    if (isStringArray) {
+    if (isStringSet || isStringArray) {
       dataArray = this.nextTemp();
       this.emit(`${dataArray} = load i8**, i8*** ${dataPtr}`);
     } else if (isObjectArray) {
@@ -363,7 +368,7 @@ export class ControlFlowGenerator {
     const indexI64 = this.nextTemp();
     this.emit(`${indexI64} = sext i32 ${currentIndex} to i64`);
     const elemPtr = this.nextTemp();
-    if (isStringArray || isObjectArray) {
+    if (isStringSet || isStringArray || isObjectArray) {
       this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataArray}, i64 ${indexI64}`);
     } else {
       this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataArray}, i64 ${indexI64}`);
@@ -1164,6 +1169,13 @@ export class ControlFlowGenerator {
       this.emit(`${coerced} = inttoptr i64 0 to ${toType}`);
       return coerced;
     }
+    if (toType.indexOf('*') !== -1 && fromType === 'i32') {
+      const extended = this.nextTemp();
+      this.emit(`${extended} = sext i32 ${value} to i64`);
+      const coerced = this.nextTemp();
+      this.emit(`${coerced} = inttoptr i64 ${extended} to ${toType}`);
+      return coerced;
+    }
     return value;
   }
 
@@ -1359,6 +1371,33 @@ export class ControlFlowGenerator {
       }
     }
     return null;
+  }
+
+  private isStringSetExpression(expr: Expression): boolean {
+    const e = expr as ExprBase;
+
+    if (e.type === 'variable') {
+      const varName = (expr as VariableNode).name;
+      if (this.ctx.symbolTable.isSet(varName)) {
+        const setMeta = this.ctx.symbolTable.getSetMetadata(varName);
+        return !setMeta || setMeta.valueType === 'string';
+      }
+      return false;
+    }
+
+    if (e.type === 'member_access') {
+      const memberExpr = expr as MemberAccessNode;
+      const memberObjBase = memberExpr.object as ExprBase;
+      if (memberObjBase.type === 'this' && this.ctx.currentClassName) {
+        const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Set<string>')) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   private isMapEntriesCall(expr: Expression): boolean {

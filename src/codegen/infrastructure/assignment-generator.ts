@@ -213,6 +213,11 @@ export class AssignmentGenerator {
         isAlreadyPointer = true;
       }
 
+      const valueType = this.ctx.getVariableType(value);
+      if (valueType === 'i8*' || (valueType && valueType.indexOf('*') !== -1)) {
+        isAlreadyPointer = true;
+      }
+
       if (isAlreadyPointer) {
         this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
       } else {

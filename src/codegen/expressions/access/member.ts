@@ -697,6 +697,19 @@ export class MemberAccessGenerator {
 
   private handleJsonPropertyAccess(expr: MemberAccessNode, _params: string[]): string {
     const varName = (expr.object as VariableNode).name;
+
+    if (expr.property === 'length') {
+      const jsonObjPtrPtr = this.ctx.getVariableAlloca(varName)!;
+      const jsonObjPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
+      const arraySize = this.ctx.nextTemp();
+      this.ctx.emit(`${arraySize} = call i32 @cJSON_GetArraySize(i8* ${jsonObjPtr})`);
+      const sizeDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
+      this.ctx.setVariableType(sizeDouble, 'double');
+      return sizeDouble;
+    }
+
     const jsonMetaRaw = this.ctx.symbolTable.getObjectInfo(varName);
     let tsType: string | undefined;
     if (jsonMetaRaw) {
@@ -722,6 +735,28 @@ export class MemberAccessGenerator {
 
     if (tsType && ['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'].indexOf(tsType) === -1) {
       return this.handleNestedInterfaceField(fieldItem, tsType);
+    }
+
+    if (tsType === 'string') {
+      const strValue = this.ctx.nextTemp();
+      this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${fieldItem})`);
+      this.ctx.setVariableType(strValue, 'i8*');
+      return strValue;
+    } else if (tsType === 'number') {
+      const numValue = this.ctx.nextTemp();
+      this.ctx.emit(`${numValue} = call double @cJSON_GetNumberValue(i8* ${fieldItem})`);
+      this.ctx.setVariableType(numValue, 'double');
+      return numValue;
+    } else if (tsType === 'boolean') {
+      const boolValue = this.ctx.nextTemp();
+      this.ctx.emit(`${boolValue} = call i32 @cJSON_IsTrue(i8* ${fieldItem})`);
+      const boolAsDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${boolAsDouble} = sitofp i32 ${boolValue} to double`);
+      this.ctx.setVariableType(boolAsDouble, 'double');
+      return boolAsDouble;
+    } else if (tsType === 'string[]' || tsType === 'number[]' || tsType === 'boolean[]') {
+      this.ctx.setVariableType(fieldItem, 'i8*');
+      return fieldItem;
     }
 
     return this.extractJsonFieldValue(fieldItem);
@@ -786,15 +821,15 @@ export class MemberAccessGenerator {
     this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
 
     this.ctx.emit(`${numberLabel}:`);
-    const numValue = this.ctx.nextTemp();
-    this.ctx.emit(`${numValue} = call i32 @cJSON_GetNumberValueAsInt(i8* ${fieldItem})`);
+    const numValueDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${numValueDouble} = call double @cJSON_GetNumberValue(i8* ${fieldItem})`);
+    const numAsStr = this.ctx.nextTemp();
+    this.ctx.emit(`${numAsStr} = call i8* @__double_to_string(double ${numValueDouble})`);
     this.ctx.emit(`br label %${fieldEndLabel}`);
 
     this.ctx.emit(`${stringLabel}:`);
     const strValue = this.ctx.nextTemp();
     this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${fieldItem})`);
-    const strAsInt = this.ctx.nextTemp();
-    this.ctx.emit(`${strAsInt} = ptrtoint i8* ${strValue} to i32`);
     this.ctx.emit(`br label %${fieldEndLabel}`);
 
     this.ctx.emit(`${noFieldLabel}:`);
@@ -802,9 +837,9 @@ export class MemberAccessGenerator {
 
     this.ctx.emit(`${fieldEndLabel}:`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi i32 [ ${numValue}, %${numberLabel} ], [ ${strAsInt}, %${stringLabel} ], [ 0, %${noFieldLabel} ]`);
+    this.ctx.emit(`${result} = phi i8* [ ${numAsStr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ], [ null, %${noFieldLabel} ]`);
 
-    this.ctx.setVariableType(result, 'i32');
+    this.ctx.setVariableType(result, 'i8*');
     return result;
   }
 
@@ -1380,22 +1415,22 @@ export class MemberAccessGenerator {
     this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
 
     this.ctx.emit(`${numberLabel}:`);
-    const numValue = this.ctx.nextTemp();
-    this.ctx.emit(`${numValue} = call i32 @cJSON_GetNumberValueAsInt(i8* ${fieldItem})`);
+    const numValueDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${numValueDouble} = call double @cJSON_GetNumberValue(i8* ${fieldItem})`);
+    const numAsStr = this.ctx.nextTemp();
+    this.ctx.emit(`${numAsStr} = call i8* @__double_to_string(double ${numValueDouble})`);
     this.ctx.emit(`br label %${fieldEndLabel}`);
 
     this.ctx.emit(`${stringLabel}:`);
     const strValue = this.ctx.nextTemp();
     this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${fieldItem})`);
-    const strAsInt = this.ctx.nextTemp();
-    this.ctx.emit(`${strAsInt} = ptrtoint i8* ${strValue} to i32`);
     this.ctx.emit(`br label %${fieldEndLabel}`);
 
     this.ctx.emit(`${fieldEndLabel}:`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi i32 [ ${numValue}, %${numberLabel} ], [ ${strAsInt}, %${stringLabel} ]`);
+    this.ctx.emit(`${result} = phi i8* [ ${numAsStr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ]`);
 
-    this.ctx.setVariableType(result, 'i32');
+    this.ctx.setVariableType(result, 'i8*');
     return result;
   }
 

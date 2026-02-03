@@ -15,9 +15,9 @@ export class SetGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
   // Helper methods delegate to context
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextTemp(): string { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string): void { this.ctx.emit(instruction); }
   private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
 
   generateSetLiteral(expr: Expression, params: string[]): string {
@@ -86,6 +86,7 @@ export class SetGenerator {
       this.emit(`store i32 ${actualIndex}, i32* ${sizeFieldPtr}`);
     }
 
+    this.ctx.setVariableType(setPtr, '%Set*');
     return setPtr;
   }
 
@@ -251,9 +252,9 @@ export class SetGenerator {
 export class StringSetGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextTemp(): string { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string): void { this.ctx.emit(instruction); }
   private getPtrSize() { return 8; }
 
   generateEmptyStringSet(): string {
@@ -284,6 +285,7 @@ export class StringSetGenerator {
     this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 2`);
     this.emit(`store i32 ${initialCapacity}, i32* ${capacityFieldPtr}`);
 
+    this.ctx.setVariableType(setPtr, '%StringSet*');
     return setPtr;
   }
 
