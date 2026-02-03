@@ -136,6 +136,12 @@ interface MapGeneratorLike {
   generateMapDelete(expr: MethodCallNode, params: string[]): string;
 }
 
+interface PointerMapGeneratorLike {
+  generatePointerMapGet(mapPtr: string, keyToFind: string, valueType: string): string;
+  generatePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
+  generatePointerMapClear(mapPtr: string): string;
+}
+
 interface SetGeneratorLike {
   generateSetAdd(expr: MethodCallNode, params: string[]): string;
   generateSetHas(expr: MethodCallNode, params: string[]): string;
@@ -207,6 +213,7 @@ export interface MethodCallGeneratorContext {
   stringMapGen: StringMapGeneratorLike;
   stringSetGen: StringSetGeneratorLike;
   mapGen: MapGeneratorLike;
+  pointerMapGen: PointerMapGeneratorLike;
   setGen: SetGeneratorLike;
   arrayGen: ArrayGeneratorLike;
   classGen: ClassGeneratorLike;
@@ -583,16 +590,16 @@ export class MethodCallGenerator {
             return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
           }
         } else {
+          const mapPtr = this.ctx.generateExpression(expr.object, params);
           if (method === 'set') {
-            return this.ctx.mapGen.generateMapSet(expr, params);
+            const keyValue = this.ctx.generateExpression(expr.args[0], params);
+            const valueValue = this.ctx.generateExpression(expr.args[1], params);
+            return this.ctx.pointerMapGen.generatePointerMapSet(mapPtr, keyValue, valueValue);
           } else if (method === 'get') {
-            return this.ctx.mapGen.generateMapGet(expr, params);
-          } else if (method === 'has') {
-            return this.ctx.mapGen.generateMapHas(expr, params);
-          } else if (method === 'delete') {
-            return this.ctx.mapGen.generateMapDelete(expr, params);
+            const keyValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, 'i8*');
           } else if (method === 'clear') {
-            return this.ctx.mapGen.generateMapClear(expr, params);
+            return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
           } else {
             throw new Error(`Map.${method}() not supported for Map<${thisFieldMapKeyType}, *> types`);
           }
