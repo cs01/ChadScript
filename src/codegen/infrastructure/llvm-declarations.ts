@@ -123,6 +123,22 @@ export function getSafeStringHelper(): string {
   return ir;
 }
 
+export function getDoubleToStringHelper(): string {
+  let ir = '';
+  ir += '; Convert a double to its string representation\n';
+  ir += '@.double_fmt = private unnamed_addr constant [3 x i8] c"%g\\00", align 1\n';
+  ir += '\n';
+  ir += 'define i8* @__double_to_string(double %val) {\n';
+  ir += 'entry:\n';
+  ir += '  %buffer = call i8* @GC_malloc_atomic(i64 32)\n';
+  ir += '  %fmt = getelementptr inbounds [3 x i8], [3 x i8]* @.double_fmt, i64 0, i64 0\n';
+  ir += '  call i32 (i8*, i64, i8*, ...) @snprintf(i8* %buffer, i64 32, i8* %fmt, double %val)\n';
+  ir += '  ret i8* %buffer\n';
+  ir += '}\n';
+  ir += '\n';
+  return ir;
+}
+
 export function getGlobalVariables(): string {
   let ir = '';
   ir += '@__argc = global i32 0\n';
