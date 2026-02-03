@@ -153,6 +153,7 @@ interface ArrayGeneratorLike {
   generateArrayPop(expr: MethodCallNode, params: string[]): string;
   generateArrayIncludes(expr: MethodCallNode, params: string[]): string;
   generateArrayMap(expr: MethodCallNode, params: string[]): string;
+  generateStringArrayMap(expr: MethodCallNode, params: string[]): string;
   generateArrayJoin(expr: MethodCallNode, params: string[]): string;
   generateArrayFind(expr: MethodCallNode, params: string[]): string;
   generateArraySome(expr: MethodCallNode, params: string[]): string;
@@ -320,8 +321,8 @@ export class MethodCallGenerator {
   }
 
   // Helper methods delegate to context
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextTemp(): string { return this.ctx.nextTemp(); }
+  private emit(instruction: string): void { this.ctx.emit(instruction); }
   private convertToI32(value: string): string {
     const temp = this.nextTemp();
     this.emit(`${temp} = fptosi double ${value} to i32`);
@@ -663,6 +664,9 @@ export class MethodCallGenerator {
     } else if (method === 'includes' && this.ctx.isArrayExpression(expr.object)) {
       return this.ctx.arrayGen.generateArrayIncludes(expr, params);
     } else if (method === 'map') {
+      if (this.ctx.isStringArrayExpression(expr.object)) {
+        return this.ctx.arrayGen.generateStringArrayMap(expr, params);
+      }
       return this.ctx.arrayGen.generateArrayMap(expr, params);
     } else if (method === 'join') {
       return this.ctx.arrayGen.generateArrayJoin(expr, params);

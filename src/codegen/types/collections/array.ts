@@ -9,9 +9,9 @@ import { generateArrayPush, generateArrayPop } from './array/mutators.js';
 export class ArrayGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  private nextTemp() { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string) { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string) { this.ctx.emit(instruction); }
+  private nextTemp(): string { return this.ctx.nextTemp(); }
+  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
+  private emit(instruction: string): void { this.ctx.emit(instruction); }
 
   private loadArrayMeta(arrayPtr: string): { length: string; dataPtr: string } {
     const lenPtr = this.nextTemp();
@@ -807,9 +807,101 @@ export class ArrayGenerator {
     this.emit(`${nullByte} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 0`);
     this.emit(`store i8 0, i8* ${nullByte}`);
 
-    // For now, return a simple implementation that concatenates numbers
-    // A complete implementation would need sprintf or similar to convert i32 to string
-    // This is a simplified placeholder
+    this.ctx.setVariableType(resultBuffer, 'i8*');
     return resultBuffer;
+  }
+
+  generateStringArrayMap(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      throw new Error('map() requires exactly 1 argument (callback function)');
+    }
+
+    const callbackArg = expr.args[0] as { type: string; name: string };
+    let callbackFn: string;
+
+    if (callbackArg.type === 'variable') {
+      callbackFn = callbackArg.name;
+    } else if (callbackArg.type === 'arrow_function') {
+      callbackFn = this.ctx.generateExpression(expr.args[0], params);
+    } else {
+      throw new Error('map() argument must be a function name or inline function');
+    }
+
+    const arrayPtr = this.ctx.generateExpression(expr.object, params);
+
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.nextTemp();
+    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+
+    const resultArrayPtr = this.nextTemp();
+    this.emit(`${resultArrayPtr} = alloca %StringArray`);
+
+    const pointerSize = 8;
+    const lengthI64 = this.nextTemp();
+    this.emit(`${lengthI64} = zext i32 ${length} to i64`);
+    const resultSizeI64 = this.nextTemp();
+    this.emit(`${resultSizeI64} = mul i64 ${lengthI64}, ${pointerSize}`);
+    const resultMem = this.nextTemp();
+    this.emit(`${resultMem} = call i8* @GC_malloc(i64 ${resultSizeI64})`);
+    const resultDataPtr = this.nextTemp();
+    this.emit(`${resultDataPtr} = bitcast i8* ${resultMem} to i8**`);
+
+    const resultDataPtrField = this.nextTemp();
+    this.emit(`${resultDataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 0`);
+    this.emit(`store i8** ${resultDataPtr}, i8*** ${resultDataPtrField}`);
+
+    const resultLenField = this.nextTemp();
+    this.emit(`${resultLenField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 1`);
+    this.emit(`store i32 ${length}, i32* ${resultLenField}`);
+
+    const resultCapField = this.nextTemp();
+    this.emit(`${resultCapField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 2`);
+    this.emit(`store i32 ${length}, i32* ${resultCapField}`);
+
+    const counterPtr = this.nextTemp();
+    this.emit(`${counterPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${counterPtr}`);
+
+    const checkLabel = this.nextLabel('strmap_check');
+    const bodyLabel = this.nextLabel('strmap_body');
+    const endLabel = this.nextLabel('strmap_end');
+
+    this.emit(`br label %${checkLabel}`);
+
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    this.emit(`${bodyLabel}:`);
+
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+
+    const result = this.nextTemp();
+    this.emit(`${result} = call i8* @${callbackFn}(i8* ${elem})`);
+
+    const resultElemPtr = this.nextTemp();
+    this.emit(`${resultElemPtr} = getelementptr inbounds i8*, i8** ${resultDataPtr}, i32 ${counter}`);
+    this.emit(`store i8* ${result}, i8** ${resultElemPtr}`);
+
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
+    this.emit(`${endLabel}:`);
+    this.ctx.setVariableType(resultArrayPtr, '%StringArray*');
+    return resultArrayPtr;
   }
 }

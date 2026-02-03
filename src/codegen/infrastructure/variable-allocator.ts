@@ -377,15 +377,35 @@ export class VariableAllocator {
       return [];
     }
     const fields: InterfaceField[] = [];
-    const parts = inner.split(';');
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i].trim();
-      if (!part) continue;
-      const colonIdx = part.indexOf(':');
-      if (colonIdx === -1) continue;
-      const name = part.slice(0, colonIdx).trim();
-      const fieldType = part.slice(colonIdx + 1).trim();
-      fields.push({ name, type: fieldType });
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i];
+      if (ch === '{' || ch === '(' || ch === '[' || ch === '<') {
+        depth++;
+      } else if (ch === '}' || ch === ')' || ch === ']' || ch === '>') {
+        depth--;
+      } else if (ch === ';' && depth === 0) {
+        const part = inner.slice(start, i).trim();
+        if (part) {
+          const colonIdx = part.indexOf(':');
+          if (colonIdx !== -1) {
+            const name = part.slice(0, colonIdx).trim();
+            const fieldType = part.slice(colonIdx + 1).trim();
+            fields.push({ name, type: fieldType });
+          }
+        }
+        start = i + 1;
+      }
+    }
+    const lastPart = inner.slice(start).trim();
+    if (lastPart) {
+      const colonIdx = lastPart.indexOf(':');
+      if (colonIdx !== -1) {
+        const name = lastPart.slice(0, colonIdx).trim();
+        const fieldType = lastPart.slice(colonIdx + 1).trim();
+        fields.push({ name, type: fieldType });
+      }
     }
     return fields;
   }
