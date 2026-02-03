@@ -433,7 +433,7 @@ export class TypeInference {
     if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
       const varType = this.ctx.symbolTable.getType(varName);
-      if (varType === 'i8*') {
+      if (varType === 'i8*' || varType === '%Array*' || varType === '%ObjectArray*') {
         const symbol = this.ctx.symbolTable.lookup(varName);
         if (symbol && (symbol.kind === SymbolKind.Array || symbol.kind === SymbolKind.ObjectArray)) {
           return true;
