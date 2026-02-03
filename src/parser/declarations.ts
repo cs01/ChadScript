@@ -286,6 +286,16 @@ function parseParameter(ctx: ParserContext): FunctionParameter {
   };
 }
 
+function inferTypeFromNewExpression(expr: string): string | null {
+  const match = expr.match(/^new\s+(Map|Set)\s*<([^>]+)>\s*\(\s*\)$/);
+  if (match) {
+    const className = match[1];
+    const typeParams = match[2];
+    return `${className}<${typeParams}>`;
+  }
+  return null;
+}
+
 export function parseClass(ctx: ParserContext): void {
   const className = ctx.parseIdentifier();
 
@@ -325,12 +335,20 @@ export function parseClass(ctx: ParserContext): void {
     if (ctx.code[ctx.pos] === '=' && ctx.code[ctx.pos + 1] !== '>') {
       ctx.pos++;
       ctx.skipWhitespace();
+      const initStart = ctx.pos;
       ctx.parseExpression();
+      const initEnd = ctx.pos;
+      const initExpr = ctx.code.substring(initStart, initEnd).trim();
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] === ';') {
         ctx.pos++;
       }
-      fields.push({ name: identifier, fieldType: 'double' });
+      const inferredType = inferTypeFromNewExpression(initExpr);
+      if (inferredType) {
+        fields.push({ name: identifier, fieldType: 'double', tsType: inferredType });
+      } else {
+        fields.push({ name: identifier, fieldType: 'double' });
+      }
       continue;
     }
 
@@ -705,12 +723,20 @@ export function parseExport(ctx: ParserContext): void {
       if (ctx.code[ctx.pos] === '=' && ctx.code[ctx.pos + 1] !== '>') {
         ctx.pos++;
         ctx.skipWhitespace();
+        const initStart = ctx.pos;
         ctx.parseExpression();
+        const initEnd = ctx.pos;
+        const initExpr = ctx.code.substring(initStart, initEnd).trim();
         ctx.skipWhitespace();
         if (ctx.code[ctx.pos] === ';') {
           ctx.pos++;
         }
-        fields.push({ name: identifier, fieldType: 'double' });
+        const inferredType = inferTypeFromNewExpression(initExpr);
+        if (inferredType) {
+          fields.push({ name: identifier, fieldType: 'double', tsType: inferredType });
+        } else {
+          fields.push({ name: identifier, fieldType: 'double' });
+        }
         ctx.skipWhitespace();
         continue;
       }
