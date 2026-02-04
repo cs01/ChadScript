@@ -4,21 +4,28 @@ package-lock.json
 
 # Build outputs
 dist/
+build/
 .build/
 *.o
-src-js
+src-js/
 
-# Test artifacts at root
-test-*
+# Compiled binaries and LLVM IR (except intentional examples)
+*.ll
+!examples/hello.ll
+native-compiler2
+
+# Test artifacts at root level
+test-*.ts
+test-*.sh
 
 # TypeScript
 *.tsbuildinfo
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 
-# IDE
+# IDE / Editor
 .vscode/
 .idea/
 *.swp
@@ -26,15 +33,31 @@ Thumbs.db
 *~
 .claude/
 
-# Logs
+# Logs and process output
 *.log
+nohup.out
 npm-debug.log*
 .crush
+sentinel.log
 
-# Agent state (generated)
+# Agent state and notes (generated/private)
 agent-state/
 logs/
+AGENT_*.md
+CLAUDE.md
+LEARNINGS.md
+todo.md
 
-# Accidental files
+# Accidental/temporary files
 -o.ll
 vendor/
+
+# Scripts that are local/private
+ralph.sh
+
+# Compiled test binaries (no extension = likely binary)
+examples/hello
+tests/fixtures/**/string-trim
+tests/fixtures/**/string-methods
+tests/fixtures/**/string-trim-simple
+tests/fixtures/**/string-length-check
