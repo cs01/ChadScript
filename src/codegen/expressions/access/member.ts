@@ -2074,9 +2074,31 @@ export class MemberAccessGenerator {
           }
           if (propIndex !== -1) {
             const propField = interfaceDef.properties[propIndex] as InterfaceProperty;
-            const propType = propField.type;
+            let propType = propField.type;
             const paramPtr = this.ctx.getVariableAlloca(varName);
             if (paramPtr) {
+              const implementingClass = this.findClassImplementingInterface(paramInterfaceType);
+              if (implementingClass && this.ctx.classGen) {
+                const classFieldInfo = this.ctx.classGen.getFieldInfo(implementingClass, expr.property);
+                if (classFieldInfo) {
+                  const classFieldInfoTyped = classFieldInfo as { index: number; type: string; tsType?: string };
+                  const objPtrRaw = this.ctx.nextTemp();
+                  this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${paramPtr}`);
+                  const objPtr = this.ctx.nextTemp();
+                  this.ctx.emit(`${objPtr} = bitcast i8* ${objPtrRaw} to %${implementingClass}_struct*`);
+                  const fieldPtr = this.ctx.nextTemp();
+                  this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${implementingClass}_struct, %${implementingClass}_struct* ${objPtr}, i32 0, i32 ${classFieldInfoTyped.index}`);
+                  if (classFieldInfoTyped.tsType) {
+                    propType = classFieldInfoTyped.tsType;
+                  }
+                  const fieldInfo: FieldInfo = {
+                    index: classFieldInfoTyped.index,
+                    type: classFieldInfoTyped.type,
+                    tsType: propType
+                  };
+                  return this.loadFieldValue(fieldPtr, fieldInfo);
+                }
+              }
               const structTypes: string[] = [];
               for (let i = 0; i < interfaceDef.properties.length; i++) {
                 const prop = interfaceDef.properties[i] as InterfaceProperty;
