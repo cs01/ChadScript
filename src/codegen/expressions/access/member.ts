@@ -985,6 +985,17 @@ export class MemberAccessGenerator {
           }
         }
       }
+      if (expr.property === 'type') {
+        const structType = '{ i8* }';
+        const typedPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${typedPtr} = bitcast i8* ${innerPtr} to ${structType}*`);
+        const fieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 0`);
+        const value = this.ctx.nextTemp();
+        this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+        this.ctx.setVariableType(value, 'i8*');
+        return value;
+      }
       return null;
     }
 

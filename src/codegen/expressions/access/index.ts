@@ -1,7 +1,7 @@
 import { Expression, IndexAccessNode, IndexAccessAssignmentNode, MemberAccessNode, VariableNode } from '../../../ast/types.js';
 
 interface ExprBase { type: string; }
-interface ObjectMeta { keys: string[]; types: string[]; }
+interface ObjectMetaBasic { keys: string[]; types: string[]; }
 interface StringGenLike { createStringConstant(value: string): string; }
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 
@@ -453,7 +453,7 @@ export class IndexAccessGenerator {
     return value;
   }
 
-  private generateDynamicObjectAccess(expr: IndexAccessNode, params: string[], objMeta: ObjectMeta): string {
+  private generateDynamicObjectAccess(expr: IndexAccessNode, params: string[], objMeta: ObjectMetaBasic): string {
     const varName = (expr.object as VariableNode).name;
 
     const keyValue = this.ctx.generateExpression(expr.index, params);
