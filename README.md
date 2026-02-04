@@ -26,34 +26,39 @@ Batteries included: links against battle-tested C libraries (libcurl, libcjson, 
 ### Prerequisites
 
 - **LLVM** (`llc`) - Compiler backend
-- **C Compiler** - Clang or GCC
-- **libcurl** - For `fetch()` support
-- **libcjson** - For `JSON.parse<T>()`
+- **Clang or GCC** - Linker
+- **libcurl, libcjson, libuv** - Runtime libraries
+- **libgc** - [Boehm GC](https://github.com/ivmai/bdwgc)
+- **mongoose** - [Embedded HTTP server](https://github.com/cesanta/mongoose) (compile `mongoose.c` to `mongoose.o`)
 
 ```bash
 # macOS
-brew install llvm cjson
+brew install llvm cjson libuv
 export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 
 # Ubuntu/Debian
-sudo apt-get install llvm clang libcurl4-openssl-dev libcjson-dev
+sudo apt-get install llvm clang libcurl4-openssl-dev libcjson-dev libuv1-dev libgc-dev
 
 # RHEL/Fedora
-sudo dnf install llvm clang libcurl-devel cjson-devel
+sudo dnf install llvm clang libcurl-devel cjson-devel libuv-devel gc-devel
 ```
 
 ### Install & Use
 
 ```bash
-npm install -g chadscript
-chadscript hello.ts
+git clone https://github.com/chadsmith/chadscript
+cd chadscript
+npm install
+npx tsx src/index.ts examples/hello.ts ./hello
 ./hello
 ```
+
+**Note:** Library paths are currently hardcoded in `src/compiler.ts`. You'll need to build [bdwgc](https://github.com/ivmai/bdwgc) and [mongoose](https://github.com/cesanta/mongoose) from source and update the paths.
 
 ### Compiler Options
 
 ```bash
-chadscript [options] <input.ts> [output]
+npx tsx src/index.ts [options] <input.ts> [output]
 
   -v, --verbose    Show compilation steps
   --debug          Show internal debugging information

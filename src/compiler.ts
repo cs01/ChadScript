@@ -25,9 +25,9 @@ export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
 }
 
-// External library paths
-const BDWGC_PATH = '/data/users/cssmith/git/bdwgc';
-const MONGOOSE_PATH = '/data/users/cssmith/git/mongoose';
+// External library paths - check env vars, then fallback to relative paths
+const BDWGC_PATH = process.env.CHADSCRIPT_BDWGC_PATH || process.env.BDWGC_PATH || './vendor/bdwgc';
+const MONGOOSE_PATH = process.env.CHADSCRIPT_MONGOOSE_PATH || process.env.MONGOOSE_PATH || './vendor/mongoose';
 const TREESITTER_TS_PATH = 'node_modules/tree-sitter-typescript/typescript/src';
 
 // ============================================
