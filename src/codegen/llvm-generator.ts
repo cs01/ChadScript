@@ -402,11 +402,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           kind = SymbolKind.Boolean;
           defaultValue = '0.0';
         } else if (isJSONParse) {
-          llvmType = 'i8*';
-          kind = SymbolKind.JSON;
-          defaultValue = 'null';
           const interfaceName = this.typeInference.getJSONParseInterface(stmt.value as MethodCallNode);
-          if (interfaceName) {
+          if (interfaceName === 'number[]') {
+            llvmType = '%Array*';
+            kind = SymbolKind.Array;
+            defaultValue = 'null';
+            ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
+            this.globalVariables.set(name, { llvmType, kind, initialized: false });
+            this.defineVariable(name, `@${name}`, llvmType, kind, 'global');
+            continue;
+          } else if (interfaceName) {
             let interfaceDef: InterfaceDeclaration | null = null;
             for (let i = 0; i < this.ast.interfaces.length; i++) {
               if (this.ast.interfaces[i].name === interfaceName) {
@@ -415,6 +420,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               }
             }
             if (interfaceDef) {
+              llvmType = `%${interfaceName}*`;
+              kind = SymbolKind.JSON;
+              defaultValue = 'null';
               const keys: string[] = [];
               const tsTypes: string[] = [];
               const types: string[] = [];
@@ -433,6 +441,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               continue;
             }
           }
+          llvmType = 'i8*';
+          kind = SymbolKind.JSON;
+          defaultValue = 'null';
         } else {
           llvmType = 'double';
           kind = SymbolKind.Number;
