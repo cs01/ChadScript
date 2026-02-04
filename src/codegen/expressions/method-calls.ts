@@ -168,6 +168,8 @@ interface ArrayGeneratorLike {
 interface ClassGeneratorLike {
   generateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
   getFieldInfo(className: string, fieldName: string): { index: number; type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string } | null;
+  thisPointer?: string | null;
+  currentClassName?: string | null;
 }
 
 interface ArrowFunctionGeneratorLike {
@@ -268,8 +270,21 @@ export class MethodCallGenerator {
   }
 
   private isVariableWithName(expr: Expression, name: string): boolean {
+    console.log('isVariableWithName: start');
     const e = expr as ExprBase;
-    return e.type === 'variable' && (expr as VariableNode).name === name;
+    console.log('isVariableWithName: got ExprBase');
+    const eType = e.type;
+    console.log('isVariableWithName: e.type = ' + eType);
+    if (eType !== 'variable') {
+      console.log('isVariableWithName: not a variable, returning false');
+      return false;
+    }
+    console.log('isVariableWithName: is variable, checking name');
+    const varExpr = expr as VariableNode;
+    console.log('isVariableWithName: got VariableNode');
+    const varName = varExpr.name;
+    console.log('isVariableWithName: varName = ' + varName);
+    return varName === name;
   }
 
   private getVariableName(expr: Expression): string | null {
@@ -278,6 +293,59 @@ export class MethodCallGenerator {
       return (expr as VariableNode).name;
     }
     return null;
+  }
+
+  private generateConsoleCallInline(expr: MethodCallNode, params: string[]): string {
+    console.log('generateConsoleCallInline: start');
+    if (expr.args.length === 0) {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([2 x i8], [2 x i8]* @.str.newline, i32 0, i32 0))`);
+      return temp;
+    }
+
+    const arg = expr.args[0];
+    const argTyped = arg as { type: string; value: string | number };
+
+    if (argTyped.type === 'string') {
+      const strValue = argTyped.value as string;
+      const escaped = strValue.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\0A').replace(/\t/g, '\\09');
+      const strLen = strValue.length + 2;
+      const strConstName = `@.str.console.${this.ctx.nextTemp().replace('%', '')}`;
+
+      const formatStr = this.ctx.nextTemp();
+      this.ctx.emit(`${formatStr} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.strfmt, i32 0, i32 0), i8* getelementptr([${strLen} x i8], [${strLen} x i8]* ${strConstName}, i32 0, i32 0))`);
+      return formatStr;
+    } else if (argTyped.type === 'number') {
+      const numValue = argTyped.value as number;
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${numValue})`);
+      return temp;
+    } else {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([2 x i8], [2 x i8]* @.str.newline, i32 0, i32 0))`);
+      return temp;
+    }
+  }
+
+  private generateProcessExitInline(expr: MethodCallNode, params: string[]): string {
+    console.log('generateProcessExitInline: start');
+    if (expr.args.length > 0) {
+      const arg = expr.args[0];
+      const argTyped = arg as { type: string; value: number };
+      if (argTyped.type === 'number') {
+        const numValue = argTyped.value;
+        const intValue = Math.floor(numValue);
+        this.ctx.emit(`call void @exit(i32 ${intValue})`);
+      } else {
+        const exprResult = this.ctx.generateExpression(arg as import('../../ast/types.js').Expression, params);
+        const intTemp = this.ctx.nextTemp();
+        this.ctx.emit(`${intTemp} = fptosi double ${exprResult} to i32`);
+        this.ctx.emit(`call void @exit(i32 ${intTemp})`);
+      }
+    } else {
+      this.ctx.emit(`call void @exit(i32 0)`);
+    }
+    return '0';
   }
 
   private getParameterMapKeyType(varName: string): string | null {
@@ -387,7 +455,14 @@ export class MethodCallGenerator {
    * Output: result register with method call result
    */
   generate(expr: MethodCallNode, params: string[]): string {
+    console.log('MethodCallGenerator.generate: start');
+    console.log('MethodCallGenerator.generate: expr.type = ' + expr.type);
+    const objBase = expr.object as { type: string };
+    console.log('MethodCallGenerator.generate: object.type = ' + objBase.type);
     const method = expr.method;
+    console.log('MethodCallGenerator.generate: method = ' + method);
+    console.log('MethodCallGenerator.generate: args.length = ' + expr.args.length);
+    console.log('MethodCallGenerator.generate: about to check Promise');
 
     // Handle Promise static methods (Promise.resolve, Promise.reject, Promise.all)
     if (this.isVariableWithName(expr.object, 'Promise')) {
@@ -410,14 +485,28 @@ export class MethodCallGenerator {
       }
     }
 
-    // Handle console.log and console.error (delegated to ConsoleGenerator)
-    if (this.ctx.consoleGen.canHandle(expr)) {
-      return this.ctx.consoleGen.generateConsoleCall(expr.method, expr.args, params);
+    console.log('MethodCallGenerator.generate: about to check console');
+    // Handle console.log and console.error - inline check to avoid cross-class property access
+    const objBase2 = expr.object as ExprBase;
+    if (objBase2.type === 'variable') {
+      const varNode = expr.object as VariableNode;
+      if (varNode.name === 'console') {
+        const method2 = expr.method;
+        if (method2 === 'log' || method2 === 'error' || method2 === 'warn' || method2 === 'debug') {
+          console.log('MethodCallGenerator.generate: handling console inline');
+          return this.generateConsoleCallInline(expr, params);
+        }
+      }
     }
+    console.log('MethodCallGenerator.generate: not console');
 
-    // Handle process.exit() (delegated to ProcessGenerator)
-    if (this.ctx.processGen.canHandle(expr)) {
-      return this.ctx.processGen.generateProcessExit(expr, params);
+    // Handle process.exit() - inline check
+    if (objBase2.type === 'variable') {
+      const varNode = expr.object as VariableNode;
+      if (varNode.name === 'process' && expr.method === 'exit') {
+        console.log('MethodCallGenerator.generate: handling process.exit inline');
+        return this.generateProcessExitInline(expr, params);
+      }
     }
 
     // Handle fs.* methods (delegated to FilesystemGenerator)

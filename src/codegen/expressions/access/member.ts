@@ -17,6 +17,7 @@ import {
 } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
+import type { InterfaceStructGenerator } from '../../types/interface-struct-generator.js';
 import { stripOptional, stripNullable, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
 
 interface ExprBase { type: string; }
@@ -84,6 +85,7 @@ export interface MemberAccessGeneratorContext {
   currentClassName?: string | null;
   currentFunction?: string | null;
   jsonObjectMetadata?: Map<string, JsonObjectMeta>;
+  interfaceStructGen?: InterfaceStructGenerator;
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   getVariableAlloca(name: string): string | undefined;
@@ -116,21 +118,31 @@ export class MemberAccessGenerator {
   private getInterfaceFromAST(name: string): InterfaceInfo | null {
     const baseName = this.extractBaseTypeName(name);
     if (!this.ctx.ast?.interfaces) return null;
+
+    const properties: InterfaceProperty[] = [];
+    const seenProps = new Set<string>();
+
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
       const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
       if (iface.name === baseName) {
-        const properties: InterfaceProperty[] = [];
         for (let j = 0; j < iface.fields.length; j++) {
           const field = iface.fields[j] as { name: string; type: string };
           let fieldName = field.name;
           if (fieldName.endsWith('?')) {
             fieldName = fieldName.slice(0, -1);
           }
-          properties.push({ name: fieldName, type: field.type });
+          if (!seenProps.has(fieldName)) {
+            seenProps.add(fieldName);
+            properties.push({ name: fieldName, type: field.type });
+          }
         }
-        return { properties };
       }
     }
+
+    if (properties.length > 0) {
+      return { properties };
+    }
+
     const typeAliasResult = this.getTypeAliasCommonProperties(baseName);
     if (typeAliasResult) return typeAliasResult;
     return null;
@@ -655,10 +667,21 @@ export class MemberAccessGenerator {
       return value;
     } else {
       const value = this.ctx.nextTemp();
-      this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
-      this.ctx.setVariableType(value, 'i8*');
-      if (fieldInfo.tsType) {
-        this.storeInterfaceMetadata(value, fieldInfo.tsType);
+      const classNode = this.ctx.classGen.getClassFields(fieldInfo.tsType || '');
+      if (classNode.length > 0) {
+        const structType = `%${fieldInfo.tsType}_struct*`;
+        this.ctx.emit(`${value} = load ${structType}, ${structType}* ${fieldPtr}`);
+        this.ctx.setVariableType(value, structType);
+      } else if (fieldInfo.tsType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(fieldInfo.tsType)) {
+        const structType = `%${fieldInfo.tsType}*`;
+        this.ctx.emit(`${value} = load ${structType}, ${structType}* ${fieldPtr}`);
+        this.ctx.setVariableType(value, structType);
+      } else {
+        this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+        this.ctx.setVariableType(value, 'i8*');
+        if (fieldInfo.tsType) {
+          this.storeInterfaceMetadata(value, fieldInfo.tsType);
+        }
       }
       return value;
     }
@@ -904,26 +927,51 @@ export class MemberAccessGenerator {
     let innerInterfaceName = innerType.substring(1, innerType.length - 1);
 
     const innerInterfaceDefResult = this.getInterfaceFromAST(innerInterfaceName);
-    if (!innerInterfaceDefResult) {
-      return null;
-    }
-    const innerInterfaceDef = innerInterfaceDefResult as InterfaceInfo;
 
     let propIndex = -1;
-    for (let i = 0; i < innerInterfaceDef.properties.length; i++) {
-      const p = innerInterfaceDef.properties[i] as InterfaceProperty;
-      if (p.name === expr.property) {
-        propIndex = i;
-        break;
+    let propType = '';
+    let fieldPtr = '';
+
+    if (innerInterfaceDefResult) {
+      const innerInterfaceDef = innerInterfaceDefResult as InterfaceInfo;
+
+      for (let i = 0; i < innerInterfaceDef.properties.length; i++) {
+        const p = innerInterfaceDef.properties[i] as InterfaceProperty;
+        if (p.name === expr.property) {
+          propIndex = i;
+          break;
+        }
       }
+      if (propIndex === -1) return null;
+
+      const innerPropField = innerInterfaceDef.properties[propIndex] as InterfaceProperty;
+      propType = innerPropField.type;
+
+      fieldPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${innerInterfaceName}, %${innerInterfaceName}* ${innerPtr}, i32 0, i32 ${propIndex}`);
+    } else if (innerInterfaceName.endsWith('_struct') && this.ctx.classGen) {
+      const className = innerInterfaceName.slice(0, -7);
+      const fieldInfo = this.ctx.classGen.getFieldInfo(className, expr.property);
+      if (!fieldInfo) {
+        return null;
+      }
+
+      propIndex = fieldInfo.index;
+      if (fieldInfo.tsType) {
+        propType = fieldInfo.tsType;
+      } else if (fieldInfo.type === 'double') {
+        propType = 'number';
+      } else if (fieldInfo.type === 'boolean') {
+        propType = 'boolean';
+      } else {
+        propType = fieldInfo.type;
+      }
+
+      fieldPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${innerInterfaceName}, %${innerInterfaceName}* ${innerPtr}, i32 0, i32 ${propIndex}`);
+    } else {
+      return null;
     }
-    if (propIndex === -1) return null;
-
-    const innerPropField = innerInterfaceDef.properties[propIndex] as InterfaceProperty;
-    const propType = innerPropField.type;
-
-    const fieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${innerInterfaceName}, %${innerInterfaceName}* ${innerPtr}, i32 0, i32 ${propIndex}`);
 
     if (propType === 'string') {
       const value = this.ctx.nextTemp();
@@ -947,10 +995,38 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
       this.ctx.setVariableType(value, '%StringArray*');
       return value;
+    } else if (propType === 'number[]' || propType === 'boolean[]') {
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
+      this.ctx.setVariableType(value, '%Array*');
+      return value;
+    } else if (propType.endsWith('[]')) {
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load %ObjectArray*, %ObjectArray** ${fieldPtr}`);
+      this.ctx.setVariableType(value, '%ObjectArray*');
+      return value;
     } else {
       let nestedTypeName = propType;
       if (nestedTypeName.endsWith('?')) {
         nestedTypeName = nestedTypeName.slice(0, -1);
+      }
+      if (nestedTypeName.indexOf(' | null') !== -1) {
+        nestedTypeName = nestedTypeName.replace(' | null', '');
+      }
+      if (nestedTypeName.indexOf(' | undefined') !== -1) {
+        nestedTypeName = nestedTypeName.replace(' | undefined', '');
+      }
+      if (nestedTypeName === 'string') {
+        const value = this.ctx.nextTemp();
+        this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+        this.ctx.setVariableType(value, 'i8*');
+        return value;
+      }
+      if (nestedTypeName === 'number') {
+        const value = this.ctx.nextTemp();
+        this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
+        this.ctx.setVariableType(value, 'double');
+        return value;
       }
       const nestedInterfaceDefResult = this.getInterfaceFromAST(nestedTypeName);
       if (nestedInterfaceDefResult) {
@@ -959,7 +1035,19 @@ export class MemberAccessGenerator {
         this.ctx.setVariableType(value, `%${nestedTypeName}*`);
         return value;
       }
-      return null;
+      if (this.ctx.classGen) {
+        const classFields = this.ctx.classGen.getClassFields(nestedTypeName);
+        if (classFields && classFields.length > 0) {
+          const value = this.ctx.nextTemp();
+          this.ctx.emit(`${value} = load %${nestedTypeName}_struct*, %${nestedTypeName}_struct** ${fieldPtr}`);
+          this.ctx.setVariableType(value, `%${nestedTypeName}_struct*`);
+          return value;
+        }
+      }
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+      this.ctx.setVariableType(value, 'i8*');
+      return value;
     }
   }
 
@@ -1038,29 +1126,19 @@ export class MemberAccessGenerator {
     if (propIndex === -1) return null;
 
     const innerPtr = this.ctx.generateExpression(expr.object, params);
+    const llvmType = this.tsTypeToLlvm(propTsType || 'i8*');
 
-    this.ctx.syncStateToGenerators();
-    const fieldNameStr = this.ctx.stringGen.createStringConstant(expr.property);
-    const fieldItem = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldItem} = call i8* @cJSON_GetObjectItem(i8* ${innerPtr}, i8* ${fieldNameStr})`);
+    const fieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${fieldInfo.tsType}, %${fieldInfo.tsType}* ${innerPtr}, i32 0, i32 ${propIndex}`);
 
-    if (propTsType === 'string') {
-      const strValue = this.ctx.nextTemp();
-      this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${fieldItem})`);
-      this.ctx.setVariableType(strValue, 'i8*');
-      return strValue;
-    } else if (propTsType === 'number' || propTsType === 'boolean') {
-      const numValue = this.ctx.nextTemp();
-      this.ctx.emit(`${numValue} = call double @cJSON_GetNumberValue(i8* ${fieldItem})`);
-      this.ctx.setVariableType(numValue, 'double');
-      return numValue;
-    } else {
-      this.ctx.setVariableType(fieldItem, 'i8*');
-      if (propTsType) {
-        this.storeInterfaceMetadata(fieldItem, propTsType);
-      }
-      return fieldItem;
+    const value = this.ctx.nextTemp();
+    this.ctx.emit(`${value} = load ${llvmType}, ${llvmType}* ${fieldPtr}`);
+    this.ctx.setVariableType(value, llvmType);
+
+    if (propTsType && propTsType !== 'string' && propTsType !== 'number' && propTsType !== 'boolean') {
+      this.storeInterfaceMetadata(value, propTsType);
     }
+    return value;
   }
 
   private handleIndexAccessPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
@@ -1732,6 +1810,16 @@ export class MemberAccessGenerator {
           return this.getArrayLengthFromPtr(arrayPtr, '%Array');
         }
       }
+    } else if (innerAccessObjBase.type === 'member_access') {
+      const arrayPtr = this.ctx.generateExpression(expr.object, params);
+      const arrayType = this.ctx.getVariableType(arrayPtr);
+      if (arrayType === '%StringArray*') {
+        return this.getStringArrayLength(arrayPtr);
+      } else if (arrayType === '%Array*') {
+        return this.getArrayLengthFromPtr(arrayPtr, '%Array');
+      } else if (arrayType === '%ObjectArray*') {
+        return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
+      }
     }
     return null;
   }
@@ -1966,7 +2054,7 @@ export class MemberAccessGenerator {
         `Use \x1b[36m.ts\x1b[0m files instead of \x1b[36m.js\x1b[0m to enable type-aware compilation.`;
 
       throw new Error(this.ctx.formatCodegenError(
-        `Cannot access property '${expr.property}' on function parameter '${varName}'.`,
+        `Cannot access property '${expr.property}' on function parameter '${varName}' in function '${this.ctx.currentFunction}'.`,
         suggestion
       ));
     }

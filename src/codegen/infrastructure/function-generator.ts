@@ -32,10 +32,25 @@ export interface FunctionGeneratorContext {
   tempCounter: number;
   symbolTable: SymbolTable;
   controlFlowGen: ControlFlowGenerator;
+  topLevelStatementsCount: number;
+  topLevelExpressionsCount: number;
+  topLevelItemsCount: number;
+  getTopLevelItemsCount(): number;
+  getTopLevelStatementsCount(): number;
+  getTopLevelExpressionsCount(): number;
+  getTopLevelItem(index: number): Expression;
+  getTopLevelStatement(index: number): VariableDeclaration;
+  getTopLevelExpression(index: number): Expression;
+  getOutputAsString(): string;
+  processTopLevelItem(index: number): void;
 }
 
 export class FunctionGenerator {
-  constructor(private ctx: FunctionGeneratorContext) {}
+  private ctx: FunctionGeneratorContext;
+
+  constructor(ctx: FunctionGeneratorContext) {
+    this.ctx = ctx;
+  }
 
   generate(func: FunctionNode): string {
     this.ctx.reset();
@@ -493,9 +508,11 @@ export class FunctionGenerator {
   }
 
   generateMain(topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>): string {
+    console.log('generateMain: start');
     let ir = 'define i32 @main(i32 %argc, i8** %argv) {\n';
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
+    console.log('generateMain: setCurrentLabel done');
 
     ir += '  ; Initialize garbage collector\n';
     ir += '  call void @GC_init()\n';
@@ -504,61 +521,47 @@ export class FunctionGenerator {
     ir += '  store i32 %argc, i32* @__argc\n';
     ir += '  store i8** %argv, i8*** @__argv\n';
 
-    this.ctx.tempCounter = 0;
-    this.ctx.output = [];
+    console.log('generateMain: about to call reset');
+    this.ctx.reset();
+    console.log('generateMain: reset done');
 
-    for (const item of this.ctx.ast.topLevelItems || []) {
-      if (item.type === 'variable_declaration') {
-        this.ctx.allocateVariable(item as VariableDeclaration, []);
-      } else if (item.type === 'if') {
-        this.ctx.syncStateToGenerators();
-        this.ctx.controlFlowGen.generateIfStatement(item as IfStatement, []);
-      } else if (item.type === 'while') {
-        this.ctx.syncStateToGenerators();
-        this.ctx.controlFlowGen.generateWhileStatement(item as WhileStatement, []);
-      } else if (item.type === 'for') {
-        this.ctx.syncStateToGenerators();
-        this.ctx.controlFlowGen.generateForStatement(item as ForStatement, []);
-      } else if (item.type === 'for_of') {
-        this.ctx.syncStateToGenerators();
-        this.ctx.controlFlowGen.generateForOfStatement(item as ForOfStatement, []);
-      } else if (item.type === 'assignment') {
-        this.ctx.generateBlock({ type: 'block', statements: [item as AssignmentStatement] }, []);
-      } else {
-        this.ctx.generateExpression(item as Expression, []);
+    console.log('generateMain: getting counts');
+    const topLevelItemsCount = this.ctx.getTopLevelItemsCount();
+    const topLevelStatementsCount = this.ctx.getTopLevelStatementsCount();
+    const topLevelExpressionsCount = this.ctx.getTopLevelExpressionsCount();
+    console.log('generateMain: itemsCount=' + topLevelItemsCount + ', stmtsCount=' + topLevelStatementsCount + ', exprsCount=' + topLevelExpressionsCount);
+
+    if (topLevelItemsCount > 0) {
+      console.log('generateMain: processing top level items');
+      for (let itemIdx = 0; itemIdx < topLevelItemsCount; itemIdx++) {
+        console.log('generateMain: processing item ' + itemIdx);
+        this.ctx.processTopLevelItem(itemIdx);
+      }
+    } else {
+      console.log('generateMain: processing stmts and exprs');
+      for (let i = 0; i < topLevelStatementsCount; i++) {
+        console.log('generateMain: processing stmt ' + i);
+        const stmt = this.ctx.getTopLevelStatement(i);
+        this.ctx.allocateVariable(stmt as VariableDeclaration, []);
+      }
+      for (let i = 0; i < topLevelExpressionsCount; i++) {
+        console.log('generateMain: processing expr ' + i);
+        const expr = this.ctx.getTopLevelExpression(i);
+        this.ctx.generateExpression(expr as Expression, []);
       }
     }
 
-    if (!this.ctx.ast.topLevelItems || this.ctx.ast.topLevelItems.length === 0) {
-      for (let i = 0; i < this.ctx.ast.topLevelStatements.length; i++) {
-        const stmt = this.ctx.ast.topLevelStatements[i] as VariableDeclaration;
-        this.ctx.allocateVariable(stmt, []);
-      }
-      for (let i = 0; i < this.ctx.ast.topLevelExpressions.length; i++) {
-        const expr = this.ctx.ast.topLevelExpressions[i] as Expression;
-        this.ctx.generateExpression(expr, []);
-      }
-    }
-
-    topLevelObjectVariables.clear();
-    for (const symbol of this.ctx.symbolTable.getAll()) {
-      if (symbol.kind === SymbolKind.Object && symbol.scope === 'global' && symbol.objectMetadata) {
-        const objMeta = symbol.objectMetadata;
-        topLevelObjectVariables.set(symbol.name, {
-          ptr: symbol.allocaRegister,
-          keys: objMeta.keys,
-          types: objMeta.types
-        });
-      }
-    }
-
-    if (this.ctx.output.length > 0) {
-      ir += this.ctx.output.map((line: string) => '  ' + line).join('\n') + '\n';
+    console.log('generateMain: getting output');
+    const outputStr = this.ctx.getOutputAsString();
+    console.log('generateMain: output length = ' + outputStr.length);
+    if (outputStr.length > 0) {
+      ir += outputStr;
     }
 
     ir += '  ret i32 0\n';
     ir += '}\n';
 
+    console.log('generateMain: done');
     return ir;
   }
 }

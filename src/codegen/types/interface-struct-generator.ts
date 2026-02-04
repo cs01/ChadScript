@@ -19,9 +19,19 @@ export interface InterfaceStructInfo {
 
 export class InterfaceStructGenerator {
   private interfaceStructs: Map<string, InterfaceStructInfo> = new Map();
+  private interfaceCount: number = 0;
+  private interfaces: InterfaceDeclaration[] = [];
 
-  constructor(private interfaces: InterfaceDeclaration[]) {
-    this.buildInterfaceStructs();
+  constructor(interfaces: InterfaceDeclaration[], interfaceCount: number) {
+    console.log('InterfaceStructGenerator: constructor called');
+    console.log('InterfaceStructGenerator: interfaceCount = ' + interfaceCount);
+    this.interfaceCount = interfaceCount;
+    if (interfaceCount > 0) {
+      this.interfaces = interfaces;
+      console.log('InterfaceStructGenerator: calling buildInterfaceStructs');
+      this.buildInterfaceStructs();
+    }
+    console.log('InterfaceStructGenerator: constructor done');
   }
 
   private buildInterfaceStructs(): void {
@@ -119,13 +129,13 @@ export class InterfaceStructGenerator {
   }
 
   generateStructTypeDefinitions(): string {
-    if (this.interfaces.length === 0) return '';
+    if (this.interfaceCount === 0) return '';
 
     let ir = '; Interface struct type definitions\n';
     let hasNonConflicting = false;
     const emittedNames: string[] = [];
 
-    for (let idx = 0; idx < this.interfaces.length; idx++) {
+    for (let idx = 0; idx < this.interfaceCount; idx++) {
       const ifaceName = this.getInterfaceName(idx);
       if (isBuiltinType(ifaceName)) continue;
       if (emittedNames.indexOf(ifaceName) !== -1) continue;

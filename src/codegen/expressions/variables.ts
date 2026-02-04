@@ -2,6 +2,8 @@ import type { SymbolTable } from '../infrastructure/symbol-table.js';
 
 interface ClassGeneratorLike {
   getClassFields(className: string): { name: string; fieldType: string }[];
+  thisPointer?: string | null;
+  currentClassName?: string | null;
 }
 
 export interface VariableExpressionContext {

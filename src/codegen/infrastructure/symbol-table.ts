@@ -179,9 +179,16 @@ export interface Symbol {
  * }
  */
 export class SymbolTable {
-  private symbols: Map<string, Symbol> = new Map();
-  private symbolKeys: string[] = [];
-  private narrowedTypes: Map<string, ObjectMetadata[]> = new Map();
+  private symbols: Map<string, Symbol>;
+  private symbolKeys: string[];
+  private symbolKeysCount: number = 0;
+  private narrowedTypes: Map<string, ObjectMetadata[]>;
+
+  constructor() {
+    this.symbols = new Map();
+    this.symbolKeys = [];
+    this.narrowedTypes = new Map();
+  }
 
   /**
    * Narrow a symbol's object metadata (for type guards like `if (x.type === '...')`)
@@ -235,6 +242,7 @@ export class SymbolTable {
     };
     if (!this.symbols.has(name)) {
       this.symbolKeys.push(name);
+      this.symbolKeysCount++;
     }
     this.symbols.set(name, symbol);
   }
@@ -358,17 +366,24 @@ export class SymbolTable {
    * Clear only local symbols (preserve globals)
    */
   clearLocals(): void {
-    const newKeys: string[] = [];
-    for (let i = 0; i < this.symbolKeys.length; i++) {
-      const name = this.symbolKeys[i];
+    if (this.symbolKeysCount === 0) {
+      return;
+    }
+    let writeIdx = 0;
+    const count = this.symbolKeysCount;
+    for (let readIdx = 0; readIdx < count; readIdx++) {
+      const name = this.symbolKeys[readIdx];
       const symbol = this.symbols.get(name);
       if (symbol && symbol.scope === 'local') {
         this.symbols.delete(name);
       } else {
-        newKeys.push(name);
+        if (writeIdx !== readIdx) {
+          this.symbolKeys[writeIdx] = name;
+        }
+        writeIdx++;
       }
     }
-    this.symbolKeys = newKeys;
+    this.symbolKeysCount = writeIdx;
   }
 
   /**

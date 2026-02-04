@@ -643,6 +643,12 @@ export class TypeInference {
     if (e.type === 'set') {
       return true;
     }
+    if (e.type === 'new') {
+      const newExpr = expr as NewNode;
+      if (newExpr.className === 'Set') {
+        return true;
+      }
+    }
     if (e.type === 'variable') {
       return this.ctx.symbolTable.isSet((expr as VariableNode).name);
     }
@@ -1238,10 +1244,32 @@ export class TypeInference {
       if (elements.length === 0 && this.ctx.expectedArrayElementType === 'string') {
         return true;
       }
-      return elements.length > 0 && elements.every((elem: Expression) => {
+      if (elements.length === 0) {
+        return false;
+      }
+      for (let i = 0; i < elements.length; i++) {
+        const elem = elements[i];
         const elemBase = elem as ExprBase;
-        return elemBase.type === 'string';
-      });
+        if (elemBase.type === 'string') {
+          continue;
+        }
+        if (elemBase.type === 'variable') {
+          const varName = (elem as VariableNode).name;
+          if (this.ctx.symbolTable.isString(varName)) {
+            continue;
+          }
+          const varType = this.ctx.symbolTable.getType(varName);
+          if (varType === 'i8*') {
+            continue;
+          }
+          return false;
+        }
+        if (this.isStringExpression(elem)) {
+          continue;
+        }
+        return false;
+      }
+      return true;
     }
     if (e.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;

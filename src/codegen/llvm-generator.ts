@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, Statement, AssignmentStatement } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
@@ -41,7 +41,7 @@ export interface LLVMGeneratorOptions {
 export class LLVMGenerator extends BaseGenerator {
   public ast: AST;
   public typeChecker: TypeChecker | null;
-  private externalFunctions: Set<string> = new Set();
+  private externalFunctions: Set<string>;
   public currentFunction: string = '';
   public currentDeclaredInterfaceType: string | undefined;
   public currentDeclaredMapType: string | undefined;
@@ -52,13 +52,13 @@ export class LLVMGenerator extends BaseGenerator {
   public asyncResultPromise: string = '';
 
   // Top-level variables (accessible from all functions)
-  private topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }> = new Map();
+  private topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>;
 
   // Global variables declared with LLVM @ prefix (accessible from any function)
-  private globalVariables: Map<string, { llvmType: string; kind: SymbolKind; initialized: boolean }> = new Map();
+  private globalVariables: Map<string, { llvmType: string; kind: SymbolKind; initialized: boolean }>;
 
   // Import alias map: local name -> original name (for renamed imports like "x as y")
-  private importAliasMap: Map<string, string> = new Map();
+  private importAliasMap: Map<string, string>;
 
   // Specialized generators (public for context pattern access)
   public arrayGen: ArrayGenerator;
@@ -86,7 +86,7 @@ export class LLVMGenerator extends BaseGenerator {
   private libuvGen: LibuvGenerator;
   private promiseGen: PromiseGenerator;
   private treesitterGen: TreeSitterGenerator;
-  private httpHandlers: string[] = [];
+  private httpHandlers: string[];
   public usesTimers: boolean = false;
   public usesPromises: boolean = false;
 
@@ -145,6 +145,10 @@ export class LLVMGenerator extends BaseGenerator {
     return null;
   }
 
+  public getClassesCount(): number {
+    return this.classesCount;
+  }
+
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (objExpr.type !== 'object') {
@@ -180,15 +184,44 @@ export class LLVMGenerator extends BaseGenerator {
     return { keys, types };
   }
 
+  // Cached counts for empty array protection (public for FunctionGeneratorContext)
+  topLevelStatementsCount: number = 0;
+  topLevelExpressionsCount: number = 0;
+  topLevelItemsCount: number = 0;
+  private functionsCount: number = 0;
+  public classesCount: number = 0;
+
   private linkTreeSitter: boolean = false;
 
   constructor(ast: AST, typeChecker: TypeChecker | null, options: LLVMGeneratorOptions) {
     super();
+    console.log('LLVMGenerator: constructor start');
+
+    // Initialize complex fields in constructor (field initializers don't work in native code)
+    this.externalFunctions = new Set();
+    this.topLevelObjectVariables = new Map();
+    this.globalVariables = new Map();
+    this.importAliasMap = new Map();
+    this.httpHandlers = [];
+
     this.ast = ast;
+    console.log('LLVMGenerator: ast assigned');
+
+    // Cache all counts BEFORE storing - empty arrays become garbage after assignment
+    this.topLevelStatementsCount = ast.topLevelStatements.length;
+    this.topLevelExpressionsCount = ast.topLevelExpressions.length;
+    this.topLevelItemsCount = ast.topLevelItems ? ast.topLevelItems.length : 0;
+    this.functionsCount = ast.functions.length;
+    this.classesCount = ast.classes.length;
+    console.log('LLVMGenerator: cached counts - stmts=' + this.topLevelStatementsCount + ', exprs=' + this.topLevelExpressionsCount + ', items=' + this.topLevelItemsCount + ', funcs=' + this.functionsCount + ', classes=' + this.classesCount);
+
+    const ifaceCount = ast.interfaces.length;
+    console.log('LLVMGenerator: ast.interfaces.length = ' + ifaceCount);
     this.typeChecker = typeChecker;
     this.linkTreeSitter = options.linkTreeSitter;
 
-    this.interfaceStructGen = new InterfaceStructGenerator(ast.interfaces || []);
+    console.log('LLVMGenerator: about to create InterfaceStructGenerator');
+    this.interfaceStructGen = new InterfaceStructGenerator(ast.interfaces, ifaceCount);
 
     // Initialize specialized generators with context (NEW pattern for RegexGenerator + ObjectGenerator)
     // These generators use explicit context instead of callback binding
@@ -233,7 +266,12 @@ export class LLVMGenerator extends BaseGenerator {
 
     this.assignmentGen = new AssignmentGenerator(this as unknown as AssignmentGeneratorContext);
 
-    this.buildImportAliasMap();
+    const importsCount = ast.imports.length;
+    console.log('LLVMGenerator: importsCount = ' + importsCount);
+    if (importsCount > 0) {
+      this.buildImportAliasMap(ast.imports, importsCount);
+    }
+    console.log('LLVMGenerator: constructor done');
 
     // No more delegate binding needed - all generators use context pattern! 🎯
 
@@ -241,19 +279,21 @@ export class LLVMGenerator extends BaseGenerator {
     // All imported functions are compiled into the same binary, so no external declarations needed.
   }
 
-  private buildImportAliasMap(): void {
-    if (!this.ast.imports) return;
-    for (let i = 0; i < this.ast.imports.length; i++) {
-      const imp = this.ast.imports[i];
+  private buildImportAliasMap(imports: ImportDeclaration[], importCount: number): void {
+    console.log('buildImportAliasMap: start with importCount = ' + importCount);
+    for (let i = 0; i < importCount; i++) {
+      const imp = imports[i] as ImportDeclaration;
       if (imp.aliasedSpecifiers) {
-        for (let j = 0; j < imp.aliasedSpecifiers.length; j++) {
-          const spec = imp.aliasedSpecifiers[j];
+        const specCount = imp.aliasedSpecifiers.length;
+        for (let j = 0; j < specCount; j++) {
+          const spec = imp.aliasedSpecifiers[j] as ImportSpecifier;
           if (spec.original && spec.original !== spec.name) {
             this.importAliasMap.set(spec.name, spec.original);
           }
         }
       }
     }
+    console.log('buildImportAliasMap: done');
   }
 
   resolveImportAlias(localName: string): string {
@@ -261,15 +301,37 @@ export class LLVMGenerator extends BaseGenerator {
     return original || localName;
   }
 
-  // Override reset - globals are now preserved by clearLocals()
-  reset() {
-    super.reset();
+  reset(): void {
+    console.log('LLVMGenerator.reset: entered');
+    this.tempCounter = 0;
+    console.log('LLVMGenerator.reset: tempCounter set');
+    this.labelCounter = 0;
+    this.currentLabel = 'entry';
+    console.log('LLVMGenerator.reset: about to set output.length');
+    this.output.length = 0;
+    console.log('LLVMGenerator.reset: output.length done');
+    this.outputCount = 0;
+    this.thisPointer = null;
+    this.currentClassName = null;
+    this.currentFunctionReturnType = 'double';
+    console.log('LLVMGenerator.reset: about to call symbolTable.clearLocals');
+    this.symbolTable.clearLocals();
+    console.log('LLVMGenerator.reset: symbolTable done');
+    this.variableTypes.clear();
+    this.expressionTypes.clear();
+    console.log('LLVMGenerator.reset: exiting');
   }
 
   private generateGlobalVariableDeclarations(): string {
+    console.log('generateGlobalVariableDeclarations: start');
     let ir = '';
-    const stmts = this.ast.topLevelStatements || [];
-    for (let stmtIdx = 0; stmtIdx < stmts.length; stmtIdx++) {
+    console.log('generateGlobalVariableDeclarations: checking stmtCount = ' + this.topLevelStatementsCount);
+    if (this.topLevelStatementsCount === 0) {
+      console.log('generateGlobalVariableDeclarations: no statements');
+      return ir;
+    }
+    const stmts = this.ast.topLevelStatements;
+    for (let stmtIdx = 0; stmtIdx < this.topLevelStatementsCount; stmtIdx++) {
       const stmt = stmts[stmtIdx] as { type: string; name: string; value: Expression | null; kind: string };
       if (stmt.type === 'variable_declaration' && stmt.value !== null) {
         const name = stmt.name;
@@ -366,32 +428,42 @@ export class LLVMGenerator extends BaseGenerator {
    * @returns Complete LLVM IR module as string (struct types + extern declarations + functions + main)
    */
   generate(): string {
+    console.log('generate: start');
     let ir = '';
 
+    console.log('generate: getLLVMDeclarations');
     ir += getLLVMDeclarations();
 
+    console.log('generate: generateStructTypeDefinitions');
     const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
     this.interfaceStructDefsCache = interfaceStructDefs;
 
-    const classStructDefs = this.classGen.generateStructTypeDefinitions();
+    console.log('generate: classGen.generateStructTypeDefinitions');
+    const classStructDefs = this.classGen.generateStructTypeDefinitions(this.classesCount);
     this.classStructDefsCache = classStructDefs;
 
+    console.log('generate: generateFetchRuntime');
     ir += this.runtimeGen.generateFetchRuntime();
     ir += '\n';
 
+    console.log('generate: generateJSONRuntime');
     ir += this.runtimeGen.generateJSONRuntime();
     ir += '\n';
 
+    console.log('generate: generateDeclarations (mongoose)');
     ir += this.mongooseGen.generateDeclarations();
     ir += '\n';
 
+    console.log('generate: generateDeclarations (libuv)');
     ir += this.libuvGen.generateDeclarations();
     ir += '\n';
 
+    console.log('generate: generateDeclarations (promise)');
     ir += this.promiseGen.generateDeclarations();
     ir += '\n';
 
     if (this.linkTreeSitter) {
+      console.log('generate: treesitter declarations');
       ir += this.treesitterGen.generateDeclarations();
       ir += '\n';
 
@@ -416,31 +488,39 @@ export class LLVMGenerator extends BaseGenerator {
 
     ir += getGlobalVariables();
 
+    console.log('generate: generateGlobalVariableDeclarations');
     // Generate global variable declarations for top-level let/const
     ir += this.generateGlobalVariableDeclarations();
 
+    console.log('generate: external function declarations (skipped for bootstrap)');
     // Generate external function declarations for imports
-    for (const funcName of this.externalFunctions) {
-      ir += `declare i32 @${funcName}(...)\n`;
-    }
-    if (this.externalFunctions.size > 0) {
-      ir += '\n';
-    }
+    // TODO: for-of on Set crashes in native code, skip for now
+    // if (this.externalFunctions.size > 0) {
+    //   for (const funcName of this.externalFunctions) {
+    //     ir += `declare i32 @${funcName}(...)\n`;
+    //   }
+    //   ir += '\n';
+    // }
 
+    console.log('generate: class definitions (' + this.classesCount + ')');
     // Generate class definitions
-    for (const classNode of this.ast.classes) {
+    for (let classIdx = 0; classIdx < this.classesCount; classIdx++) {
+      const classNode = this.ast.classes[classIdx];
       this.syncStateToGenerators();
       ir += this.classGen.generateClass(classNode);
       ir += '\n';
     }
 
+    console.log('generate: user function definitions (' + this.functionsCount + ')');
     // Generate user function definitions (this may discover lifted functions)
     let userFunctionsIr = '';
-    for (const func of this.ast.functions) {
+    for (let funcIdx = 0; funcIdx < this.functionsCount; funcIdx++) {
+      const func = this.ast.functions[funcIdx];
       userFunctionsIr += this.generateFunction(func);
       userFunctionsIr += '\n';
     }
 
+    console.log('generate: main function');
     // Generate main function (this may also discover lifted functions)
     const mainIr = this.generateMain();
 
@@ -717,6 +797,7 @@ export class LLVMGenerator extends BaseGenerator {
    */
   public generateExpression(expr: Expression, params: string[]): string {
     // Delegate all expression types to ExpressionGenerator
+    console.log('LLVMGenerator.generateExpression: entering');
     return this.exprGen.generate(expr, params);
   }
 
@@ -798,7 +879,82 @@ export class LLVMGenerator extends BaseGenerator {
     return this.typeInference.isStringArrayExpression(expr);
   }
 
+  public getTopLevelItemsCount(): number {
+    return this.topLevelItemsCount;
+  }
+
+  public getTopLevelStatementsCount(): number {
+    return this.topLevelStatementsCount;
+  }
+
+  public getTopLevelExpressionsCount(): number {
+    return this.topLevelExpressionsCount;
+  }
+
+  public getTopLevelItem(index: number): Expression {
+    return this.ast.topLevelItems![index] as Expression;
+  }
+
+  public getTopLevelStatement(index: number): VariableDeclaration {
+    return this.ast.topLevelStatements[index] as VariableDeclaration;
+  }
+
+  public getTopLevelExpression(index: number): CallNode | NewNode | MethodCallNode | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement {
+    return this.ast.topLevelExpressions[index];
+  }
+
+  public getOutputAsString(): string {
+    if (this.output.length === 0) {
+      return '';
+    }
+    let result = '';
+    for (let i = 0; i < this.output.length; i++) {
+      result += '  ' + this.output[i] + '\n';
+    }
+    return result;
+  }
+
+  public processTopLevelItem(index: number): void {
+    console.log('processTopLevelItem: index = ' + index);
+    const items = this.ast.topLevelItems;
+    console.log('processTopLevelItem: got items');
+    if (!items) {
+      console.log('processTopLevelItem: items is null');
+      return;
+    }
+    console.log('processTopLevelItem: accessing item');
+    const item = items[index];
+    console.log('processTopLevelItem: got item');
+    if (!item) {
+      console.log('processTopLevelItem: item is null');
+      return;
+    }
+    console.log('processTopLevelItem: item.type = ' + (item as Expression).type);
+    if (item.type === 'variable_declaration') {
+      this.allocateVariable(item as VariableDeclaration, []);
+    } else if (item.type === 'if') {
+      this.syncStateToGenerators();
+      this.controlFlowGen.generateIfStatement(item as IfStatement, []);
+    } else if (item.type === 'while') {
+      this.syncStateToGenerators();
+      this.controlFlowGen.generateWhileStatement(item as WhileStatement, []);
+    } else if (item.type === 'for') {
+      this.syncStateToGenerators();
+      this.controlFlowGen.generateForStatement(item as ForStatement, []);
+    } else if (item.type === 'for_of') {
+      this.syncStateToGenerators();
+      this.controlFlowGen.generateForOfStatement(item as ForOfStatement, []);
+    } else if (item.type === 'assignment') {
+      this.generateBlock({ type: 'block', statements: [item as AssignmentStatement] }, []);
+    } else {
+      console.log('processTopLevelItem: about to call generateExpression');
+      this.generateExpression(item as Expression, []);
+      console.log('processTopLevelItem: generateExpression done');
+    }
+  }
+
   private generateMain(): string {
+    console.log('LLVMGenerator.generateMain: about to call funcGen.generateMain');
     return this.funcGen.generateMain(this.topLevelObjectVariables);
   }
 

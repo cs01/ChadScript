@@ -23,12 +23,15 @@ import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
 import type { ResolvedType } from './type-system.js';
+import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
 
 interface ExprBase { type: string; }
 
 export interface IClassGenContext {
   getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
   getClassFields(className: string): { name: string; fieldType: string }[];
+  thisPointer?: string | null;
+  currentClassName?: string | null;
 }
 
 export interface IStringGenerator {
@@ -280,6 +283,21 @@ export interface IGeneratorContext {
    */
   readonly ast?: AST;
 
+  /**
+   * Get the cached count of classes in the AST
+   */
+  getClassesCount(): number;
+
+  /**
+   * Cached count of classes in the AST (for safe access without method call)
+   */
+  readonly classesCount?: number;
+
+  /**
+   * Access to interface struct generator (for interface type lookups)
+   */
+  readonly interfaceStructGen?: InterfaceStructGenerator;
+
   // ============================================
   // Extended Context (for sub-generators)
   // ============================================
@@ -378,12 +396,18 @@ export class MockGeneratorContext implements IGeneratorContext {
   public thisPointer: string | null = null;
   public currentClassName: string | null = null;
   public ast?: AST;
+  public interfaceStructGen?: InterfaceStructGenerator;
   public currentLabel: string = 'entry';
   public typeChecker: TypeChecker | null = null;
   public typeResolver?: TypeResolver;
   public usesPromises = false;
   public usesTimers = false;
   public currentFunction: string | null = null;
+
+  getClassesCount(): number {
+    if (!this.ast || !this.ast.classes) return 0;
+    return this.ast.classes.length;
+  }
 
   getExpressionType(expr: Expression): ResolvedType | undefined {
     return this.expressionTypes.get(expr);

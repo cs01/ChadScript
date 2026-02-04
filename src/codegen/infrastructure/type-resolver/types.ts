@@ -49,4 +49,6 @@ export interface ThisFieldSetInfo {
 
 export interface ClassGeneratorLike {
   getFieldInfo(className: string, fieldName: string): FieldInfo | null;
+  thisPointer?: string | null;
+  currentClassName?: string | null;
 }

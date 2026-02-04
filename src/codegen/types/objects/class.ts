@@ -8,10 +8,38 @@ import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastru
 // ============================================
 
 export class ClassGenerator {
-  // Track class structures: className -> field info
+  // Track class structures: className -> ALL fields (including inherited)
   private classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]> = new Map();
 
   constructor(private ctx: IGeneratorContext) {}
+
+  private findClassNode(className: string): ClassNode | null {
+    if (!this.ctx.ast || !this.ctx.ast.classes) return null;
+    for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+      const c = this.ctx.ast.classes[ci] as ClassNode;
+      if (c.name === className) {
+        return c;
+      }
+    }
+    return null;
+  }
+
+  private getAllFieldsIncludingInherited(classNode: ClassNode): ClassField[] {
+    const allFields: ClassField[] = [];
+    if (classNode.extends) {
+      const parentClass = this.findClassNode(classNode.extends);
+      if (parentClass) {
+        const parentFields = this.getAllFieldsIncludingInherited(parentClass);
+        for (let i = 0; i < parentFields.length; i++) {
+          allFields.push(parentFields[i]);
+        }
+      }
+    }
+    for (let i = 0; i < classNode.fields.length; i++) {
+      allFields.push(classNode.fields[i]);
+    }
+    return allFields;
+  }
 
   private fieldToLlvmType(f: ClassField): string {
     if (f.fieldType === 'string') {
@@ -34,6 +62,16 @@ export class ClassGenerator {
       } else if (f.tsType === 'number' || f.tsType === 'boolean') {
         return 'double';
       } else {
+        const classNode = this.findClassNode(f.tsType);
+        if (classNode) {
+          const allFields = this.getAllFieldsIncludingInherited(classNode);
+          if (allFields.length > 0) {
+            return `%${f.tsType}_struct*`;
+          }
+        }
+        if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(f.tsType)) {
+          return `%${f.tsType}*`;
+        }
         return 'i8*';
       }
     }
@@ -59,19 +97,10 @@ export class ClassGenerator {
     let fields = this.classFields.get(className);
 
     if (!fields) {
-      let classNodeResult: ClassNode | null = null;
-      if (this.ctx.ast && this.ctx.ast.classes) {
-        for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
-          const c = this.ctx.ast.classes[ci] as { name: string };
-          if (c.name === className) {
-            classNodeResult = this.ctx.ast.classes[ci] as ClassNode;
-            break;
-          }
-        }
-      }
-      const classNodeInner = classNodeResult as ClassNode;
-      if (classNodeResult) {
-        fields = classNodeInner.fields;
+      const classNode = this.findClassNode(className);
+      if (classNode) {
+        fields = this.getAllFieldsIncludingInherited(classNode);
+        this.classFields.set(className, fields);
       }
     }
 
@@ -88,21 +117,6 @@ export class ClassGenerator {
         const foundField = fields[index] as { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType: string };
         return { index, type: foundField.fieldType, tsType: foundField.tsType };
       }
-    }
-
-    let classNodeResult2: ClassNode | null = null;
-    if (this.ctx.ast && this.ctx.ast.classes) {
-      for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
-        const c = this.ctx.ast.classes[ci] as { name: string };
-        if (c.name === className) {
-          classNodeResult2 = this.ctx.ast.classes[ci] as ClassNode;
-          break;
-        }
-      }
-    }
-    const classNodeOuter = classNodeResult2 as ClassNode;
-    if (classNodeResult2 && classNodeOuter.extends) {
-      return this.getFieldInfo(classNodeOuter.extends as string, fieldName);
     }
 
     return null;
@@ -164,15 +178,14 @@ export class ClassGenerator {
     let ir = '';
     const className = classNode.name;
 
-    // Store field info for later lookups
-    this.classFields.set(className, classNode.fields);
+    const allFields = this.getAllFieldsIncludingInherited(classNode);
 
-    // Define LLVM struct type for this class (skip if already emitted via generateStructTypeDefinitions)
-    // Example: %Parser_struct = type { i8*, i32, %StringArray*, %Array* } for fields [code: string, pos: number, items: string[], nums: number[]]
-    if (!this.structTypesEmitted && classNode.fields.length > 0) {
+    this.classFields.set(className, allFields);
+
+    if (!this.structTypesEmitted && allFields.length > 0) {
       const fieldTypes: string[] = [];
-      for (let fi = 0; fi < classNode.fields.length; fi++) {
-        const f = classNode.fields[fi] as ClassField;
+      for (let fi = 0; fi < allFields.length; fi++) {
+        const f = allFields[fi] as ClassField;
         fieldTypes.push(this.fieldToLlvmType(f));
       }
       ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
@@ -190,22 +203,18 @@ export class ClassGenerator {
     }
     const constructor = constructorResult as ClassMethod;
 
-    // Generate constructor function (returns pointer to struct)
     if (constructorResult) {
-      // Clear output by removing all elements (preserving reference)
       this.ctx.output.length = 0;
-      ir += this.generateConstructor(className, constructor, classNode.fields);
+      ir += this.generateConstructor(className, constructor, allFields);
       ir += '\n';
     } else {
-      ir += this.generateDefaultConstructor(className, classNode.fields);
+      ir += this.generateDefaultConstructor(className, allFields);
       ir += '\n';
     }
 
-    // Generate regular methods
     for (const method of regularMethods) {
-      // Clear output by removing all elements (preserving reference)
       this.ctx.output.length = 0;
-      ir += this.generateMethod(className, method, classNode.fields);
+      ir += this.generateMethod(className, method, allFields);
       ir += '\n';
     }
 
@@ -663,7 +672,8 @@ export class ClassGenerator {
         tsTypes.push(f.type);
       }
       this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
-        objectMetadata: { keys, types, tsTypes }
+        objectMetadata: { keys, types, tsTypes },
+        interfaceType: tsType
       });
       return;
     }
@@ -789,23 +799,28 @@ export class ClassGenerator {
 
   private structTypesEmitted: boolean = false;
 
-  generateStructTypeDefinitions(): string {
-    if (!this.ctx.ast || !this.ctx.ast.classes || this.ctx.ast.classes.length === 0) {
+  generateStructTypeDefinitions(classCount: number): string {
+    if (classCount === 0) {
+      return '';
+    }
+    if (!this.ctx.ast || !this.ctx.ast.classes) {
       return '';
     }
 
     let ir = '; Class struct type definitions\n';
     let hasDefinitions = false;
+    const classes = this.ctx.ast.classes;
 
-    for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
-      const classNode = this.ctx.ast.classes[ci] as ClassNode;
+    for (let ci = 0; ci < classCount; ci++) {
+      const classNode = classes[ci] as ClassNode;
       const className = classNode.name;
-      this.classFields.set(className, classNode.fields);
-      if (classNode.fields.length > 0) {
+      const allFields = this.getAllFieldsIncludingInherited(classNode);
+      this.classFields.set(className, allFields);
+      if (allFields.length > 0) {
         hasDefinitions = true;
         const fieldTypes: string[] = [];
-        for (let fi = 0; fi < classNode.fields.length; fi++) {
-          const f = classNode.fields[fi] as ClassField;
+        for (let fi = 0; fi < allFields.length; fi++) {
+          const f = allFields[fi] as ClassField;
           fieldTypes.push(this.fieldToLlvmType(f));
         }
         ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n`;

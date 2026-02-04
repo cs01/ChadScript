@@ -12,6 +12,8 @@ import type { SymbolTable } from './symbol-table.js';
 interface ClassGeneratorLike {
   getFieldInfo(className: string, property: string): FieldInfo | null;
   getClassFields(className: string): { name: string; llvmType: string }[];
+  thisPointer?: string | null;
+  currentClassName?: string | null;
 }
 
 interface FieldInfo {

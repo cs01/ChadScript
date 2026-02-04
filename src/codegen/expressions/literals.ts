@@ -164,6 +164,10 @@ export class LiteralExpressionGenerator {
   generateSet(expr: SetNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
 
+    if (expr.valueType === 'string') {
+      return this.ctx.stringSetGen.generateEmptyStringSet();
+    }
+
     const declaredType = this.ctx.currentDeclaredSetType;
     if (declaredType) {
       const match = declaredType.match(/^Set<\s*(\w+)\s*>$/);
@@ -178,9 +182,15 @@ export class LiteralExpressionGenerator {
   /**
    * Generate new expression (delegates to ClassGenerator or built-in types)
    */
-  generateNew(className: string, args: Expression[], params: string[]): string {
+  generateNew(className: string, args: Expression[], params: string[], typeArgs?: string[]): string {
     if (className === 'Promise') {
       return this.generateNewPromise(args, params);
+    }
+    if (className === 'Set') {
+      if (typeArgs && typeArgs.length > 0 && typeArgs[0] === 'string') {
+        return this.ctx.stringSetGen.generateEmptyStringSet();
+      }
+      return this.ctx.setGen.generateSetLiteral({ type: 'set', values: [] }, params);
     }
     this.ctx.syncStateToGenerators();
     return this.ctx.classGen.generateNewExpression(className, args, params);
