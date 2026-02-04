@@ -346,7 +346,7 @@ export class TypeInference {
             return true;
           }
           const varType = this.ctx.symbolTable.getType(varName);
-          if (varType === '%Array*') {
+          if (varType === '%Array*' || varType === '%Array') {
             return true;
           }
         }
@@ -570,6 +570,12 @@ export class TypeInference {
 
   getObjectArrayElementType(expr: Expression): string | null {
     const e = expr as ExprBase;
+    if (e.type === 'binary') {
+      const binExpr = expr as BinaryNode;
+      if (binExpr.op === '||') {
+        return this.getObjectArrayElementType(binExpr.left);
+      }
+    }
     if (e.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
       const methodObjBase = methodExpr.object as ExprBase;
@@ -1293,7 +1299,7 @@ export class TypeInference {
       if (methodExpr.method === 'split' || methodExpr.method === 'match') {
         return true;
       }
-      if (methodExpr.method === 'map' || methodExpr.method === 'filter') {
+      if (methodExpr.method === 'map' || methodExpr.method === 'filter' || methodExpr.method === 'slice' || methodExpr.method === 'concat') {
         return this.isStringArrayExpression(methodExpr.object);
       }
       const objBase = methodExpr.object as ExprBase;
