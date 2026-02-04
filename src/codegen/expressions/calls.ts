@@ -388,7 +388,9 @@ export class CallExpressionGenerator {
     } else if (funcResult && func.paramTypes && func.paramTypes.length > 0) {
       if (func.returnType === 'string') {
         returnType = 'i8*';
-      } else if (func.returnType && func.returnType !== 'number' && func.returnType !== 'boolean' && func.returnType !== 'void') {
+      } else if (func.returnType === 'void') {
+        returnType = 'void';
+      } else if (func.returnType && func.returnType !== 'number' && func.returnType !== 'boolean') {
         returnType = 'i8*';
       }
       for (let i = 0; i < func.paramTypes.length; i++) {
@@ -410,7 +412,9 @@ export class CallExpressionGenerator {
       if (funcNode) {
         if (funcNode.returnType === 'string') {
           returnType = 'i8*';
-        } else if (funcNode.returnType && funcNode.returnType !== 'number' && funcNode.returnType !== 'boolean' && funcNode.returnType !== 'void') {
+        } else if (funcNode.returnType === 'void') {
+          returnType = 'void';
+        } else if (funcNode.returnType && funcNode.returnType !== 'number' && funcNode.returnType !== 'boolean') {
           returnType = 'i8*';
         }
         if (funcNode.parameters) {
@@ -451,6 +455,11 @@ export class CallExpressionGenerator {
         const defaultVal = paramType === 'double' ? '0.0' : 'null';
         argsList.push(`${paramType} ${defaultVal}`);
       }
+    }
+
+    if (returnType === 'void') {
+      this.ctx.emit(`call void @${resolvedFuncName}(${argsList.join(', ')})`);
+      return '0';
     }
 
     const temp = this.ctx.nextTemp();

@@ -270,12 +270,23 @@ export class BaseGenerator {
     return false;
   }
 
+  private findTopLevelComma(str: string): number {
+    let depth = 0;
+    for (let i = 0; i < str.length; i++) {
+      const ch = str.charAt(i);
+      if (ch === '{') depth++;
+      else if (ch === '}') depth--;
+      else if (ch === ',' && depth === 0) return i;
+    }
+    return -1;
+  }
+
   private validateLoadInstruction(instruction: string): void {
     const loadIdx = instruction.indexOf(' = load ');
     if (loadIdx < 0) return;
 
     const afterLoad = instruction.substring(loadIdx + 8);
-    const commaPos = afterLoad.indexOf(',');
+    const commaPos = this.findTopLevelComma(afterLoad);
     if (commaPos <= 0) return;
 
     const loadType = afterLoad.substring(0, commaPos).trim();
