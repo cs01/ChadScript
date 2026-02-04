@@ -1663,6 +1663,12 @@ export class MemberAccessGenerator {
       const varName = (expr.object as VariableNode).name;
       const symbol = this.ctx.symbolTable.lookup(varName);
       if (symbol?.interfaceType) {
+        if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(symbol.interfaceType)) {
+          const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
+          const objPtrRaw = this.ctx.nextTemp();
+          this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${objPtrPtr}`);
+          return this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, symbol.interfaceType);
+        }
         const implementingClass = this.findClassImplementingInterface(symbol.interfaceType);
         if (implementingClass && this.ctx.classGen) {
           const classFieldInfo = this.ctx.classGen.getFieldInfo(implementingClass, expr.property);
@@ -2130,6 +2136,11 @@ export class MemberAccessGenerator {
             let propType = propField.type;
             const paramPtr = this.ctx.getVariableAlloca(varName);
             if (paramPtr) {
+              if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(paramInterfaceType)) {
+                const objPtrRaw = this.ctx.nextTemp();
+                this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${paramPtr}`);
+                return this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, paramInterfaceType);
+              }
               const implementingClass = this.findClassImplementingInterface(paramInterfaceType);
               if (implementingClass && this.ctx.classGen) {
                 const classFieldInfo = this.ctx.classGen.getFieldInfo(implementingClass, expr.property);
@@ -2151,11 +2162,6 @@ export class MemberAccessGenerator {
                   };
                   return this.loadFieldValue(fieldPtr, fieldInfo);
                 }
-              }
-              if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(paramInterfaceType)) {
-                const objPtrRaw = this.ctx.nextTemp();
-                this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${paramPtr}`);
-                return this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, paramInterfaceType);
               }
               const structTypes: string[] = [];
               for (let i = 0; i < interfaceDef.properties.length; i++) {
