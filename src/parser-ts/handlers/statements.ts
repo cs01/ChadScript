@@ -390,6 +390,7 @@ function transformSwitchToIfElse(node: ts.SwitchStatement, checker: ts.TypeCheck
   const clauses = node.caseBlock.clauses;
   let result: IfStatement | null = null;
   let current: IfStatement | null = null;
+  let pendingConditions: Expression[] = [];
 
   for (const clause of clauses) {
     if (ts.isCaseClause(clause)) {
@@ -408,19 +409,34 @@ function transformSwitchToIfElse(node: ts.SwitchStatement, checker: ts.TypeCheck
         if (transformed) statements.push(transformed);
       }
 
-      const ifStmt: IfStatement = {
-        type: 'if',
-        condition,
-        thenBlock: { type: 'block', statements },
-        elseBlock: null,
-      };
+      if (statements.length === 0) {
+        pendingConditions.push(condition);
+      } else {
+        let finalCondition: Expression = condition;
+        for (let k = pendingConditions.length - 1; k >= 0; k--) {
+          finalCondition = {
+            type: 'binary',
+            op: '||',
+            left: pendingConditions[k],
+            right: finalCondition,
+          };
+        }
+        pendingConditions = [];
 
-      if (!result) {
-        result = ifStmt;
-        current = ifStmt;
-      } else if (current) {
-        current.elseBlock = { type: 'block', statements: [ifStmt] };
-        current = ifStmt;
+        const ifStmt: IfStatement = {
+          type: 'if',
+          condition: finalCondition,
+          thenBlock: { type: 'block', statements },
+          elseBlock: null,
+        };
+
+        if (!result) {
+          result = ifStmt;
+          current = ifStmt;
+        } else if (current) {
+          current.elseBlock = { type: 'block', statements: [ifStmt] };
+          current = ifStmt;
+        }
       }
     } else if (ts.isDefaultClause(clause)) {
       const statements: Statement[] = [];
