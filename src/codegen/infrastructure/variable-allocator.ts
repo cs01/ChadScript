@@ -45,6 +45,7 @@ type VariableMetadata = {
   mapMetadata?: MapMetadata;
   setMetadata?: SetMetadata;
   interfaceType?: string;
+  isPointerAlloca?: boolean;
 };
 
 interface ObjectMetadataResult {
@@ -248,11 +249,11 @@ export class VariableAllocator {
         this.ctx.emit(`${allocaReg} = alloca double`);
         this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
       } else if (baseType === 'string[]') {
-        this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
+        this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', { isPointerAlloca: true });
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
         this.ctx.emit(`store %StringArray* null, %StringArray** ${allocaReg}`);
       } else if (baseType === 'number[]' || baseType === 'boolean[]') {
-        this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local');
+        this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local', { isPointerAlloca: true });
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         this.ctx.emit(`store %Array* null, %Array** ${allocaReg}`);
       } else {
@@ -1296,13 +1297,13 @@ export class VariableAllocator {
         return;
       }
       if (baseType === 'string[]') {
-        this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
+        this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', { isPointerAlloca: true });
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
         this.ctx.emit(`store %StringArray* null, %StringArray** ${allocaReg}`);
         return;
       }
       if (baseType === 'number[]' || baseType === 'boolean[]') {
-        this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local');
+        this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local', { isPointerAlloca: true });
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         this.ctx.emit(`store %Array* null, %Array** ${allocaReg}`);
         return;

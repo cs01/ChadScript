@@ -11,7 +11,6 @@ src-js/
 
 # Compiled binaries and LLVM IR (except intentional examples)
 *.ll
-!examples/hello.ll
 native-compiler2
 
 # Test artifacts at root level
