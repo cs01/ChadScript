@@ -490,7 +490,7 @@ export class VariableAllocator {
       }
     }
     if (!stmt.declaredType) return null;
-    if (stmt.value?.type !== 'variable') return null;
+    if (stmt.value?.type !== 'variable' && stmt.value?.type !== 'object') return null;
     const interfaceDefResult2 = this.getInterface(stmt.declaredType);
     if (!interfaceDefResult2) return null;
     return stmt.declaredType;
@@ -892,15 +892,18 @@ export class VariableAllocator {
 
     let keys: string[];
     let types: string[];
+    let tsTypes: string[] | undefined;
 
     if (interfaceDefResult) {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
       keys = [];
       types = [];
+      tsTypes = [];
       for (let i = 0; i < interfaceDef.fields.length; i++) {
         const field = interfaceDef.fields[i] as { name: string; type: string };
         keys.push(stripOptional(field.name));
         types.push(this.tsTypeToLlvm(field.type));
+        tsTypes.push(field.type);
       }
     } else {
       const metadataResult = this.ctx.getObjectMetadata(stmt.value as ObjectNode);
@@ -909,9 +912,10 @@ export class VariableAllocator {
       types = metadata.types;
     }
 
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
-      objectMetadata: { keys, types }
-    });
+    const varMetadata: VariableMetadata = interfaceDefResult && stmt.declaredType
+      ? { objectMetadata: { keys, types, tsTypes }, interfaceType: stmt.declaredType }
+      : { objectMetadata: { keys, types, tsTypes } };
+    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', varMetadata);
     this.ctx.emit(`${allocaReg} = alloca i8*`);
 
     if (interfaceDefResult) {
