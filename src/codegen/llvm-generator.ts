@@ -339,18 +339,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   private generateGlobalVariableDeclarations(): string {
     let ir = '';
-    console.log(`[genGlobalVarDecl] topLevelStatementsCount = ${this.topLevelStatementsCount}`);
     if (this.topLevelStatementsCount === 0) {
       return ir;
     }
     const stmts = this.ast.topLevelStatements;
-    console.log(`[genGlobalVarDecl] stmts.length = ${stmts.length}`);
     for (let stmtIdx = 0; stmtIdx < this.topLevelStatementsCount; stmtIdx++) {
-      console.log(`[genGlobalVarDecl] Processing stmt index ${stmtIdx}`);
       const stmt = stmts[stmtIdx] as { type: string; kind: string; name: string; value: Expression | null; declaredType?: string };
-      console.log(`[genGlobalVarDecl] stmt.type = ${stmt.type}`);
       if (stmt.type === 'variable_declaration' && stmt.value !== null) {
-        console.log(`[genGlobalVarDecl] About to call isStringExpression`);
         const name = stmt.name;
         const isString = this.isStringExpression(stmt.value);
         const isStringArray = this.isStringArrayExpression(stmt.value);
