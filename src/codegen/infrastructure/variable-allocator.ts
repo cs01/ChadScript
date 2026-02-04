@@ -193,6 +193,19 @@ export class VariableAllocator {
   }
 
   allocate(stmt: VariableDeclaration, params: string[]): void {
+    const existingSymbol = this.ctx.symbolTable.lookup(stmt.name);
+    if (existingSymbol && existingSymbol.scope === 'global' && stmt.value !== null) {
+      const value = this.ctx.generateExpression(stmt.value, params);
+      const globalPtr = existingSymbol.allocaRegister;
+      const llvmType = existingSymbol.llvmType;
+      if (llvmType.indexOf('*') !== -1) {
+        this.ctx.emit(`store ${llvmType} ${value}, ${llvmType}* ${globalPtr}`);
+      } else {
+        this.ctx.emit(`store ${llvmType} ${value}, ${llvmType}* ${globalPtr}`);
+      }
+      return;
+    }
+
     if (stmt.value === null) {
       const allocaReg = this.ctx.nextTemp();
       const baseType = stmt.declaredType ? stmt.declaredType.replace(/ \| undefined$/, '').replace(/ \| null$/, '').replace(/undefined \| /, '').replace(/null \| /, '').trim() : '';
