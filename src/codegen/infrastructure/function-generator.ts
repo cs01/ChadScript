@@ -296,7 +296,17 @@ export class FunctionGenerator {
 
     const deferredAllocas = this.ctx.allocaInstructions;
     if (deferredAllocas.length > 0) {
-      this.ctx.output.unshift(...deferredAllocas);
+      const newOutput: string[] = [];
+      for (let i = 0; i < deferredAllocas.length; i++) {
+        newOutput.push(deferredAllocas[i]);
+      }
+      for (let i = 0; i < this.ctx.output.length; i++) {
+        newOutput.push(this.ctx.output[i]);
+      }
+      this.ctx.output.length = 0;
+      for (let i = 0; i < newOutput.length; i++) {
+        this.ctx.output.push(newOutput[i]);
+      }
       deferredAllocas.length = 0;
     }
 
@@ -559,6 +569,22 @@ export class FunctionGenerator {
         const expr = this.ctx.getTopLevelExpression(i);
         this.ctx.generateExpression(expr as Expression, []);
       }
+    }
+
+    const deferredAllocas = this.ctx.allocaInstructions;
+    if (deferredAllocas.length > 0) {
+      const newOutput: string[] = [];
+      for (let i = 0; i < deferredAllocas.length; i++) {
+        newOutput.push(deferredAllocas[i]);
+      }
+      for (let i = 0; i < this.ctx.output.length; i++) {
+        newOutput.push(this.ctx.output[i]);
+      }
+      this.ctx.output.length = 0;
+      for (let i = 0; i < newOutput.length; i++) {
+        this.ctx.output.push(newOutput[i]);
+      }
+      deferredAllocas.length = 0;
     }
 
     const outputStr = this.ctx.getOutputAsString();

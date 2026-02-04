@@ -405,6 +405,22 @@ export class ClassGenerator {
     // Execute constructor body
     this.ctx.generateBlock(constructor.body, constructor.params);
 
+    const deferredAllocas = this.ctx.allocaInstructions;
+    if (deferredAllocas.length > 0) {
+      const newOutput: string[] = [];
+      for (let i = 0; i < deferredAllocas.length; i++) {
+        newOutput.push(deferredAllocas[i]);
+      }
+      for (let i = 0; i < this.ctx.output.length; i++) {
+        newOutput.push(this.ctx.output[i]);
+      }
+      this.ctx.output.length = 0;
+      for (let i = 0; i < newOutput.length; i++) {
+        this.ctx.output.push(newOutput[i]);
+      }
+      deferredAllocas.length = 0;
+    }
+
     // Return the instance pointer
     if (this.ctx.output.length > 0) {
       ir += this.ctx.output.map(line => '  ' + line).join('\n') + '\n';
@@ -525,6 +541,22 @@ export class ClassGenerator {
 
     // Generate body
     const result = this.ctx.generateBlock(method.body, method.params);
+
+    const deferredAllocas = this.ctx.allocaInstructions;
+    if (deferredAllocas.length > 0) {
+      const newOutput: string[] = [];
+      for (let i = 0; i < deferredAllocas.length; i++) {
+        newOutput.push(deferredAllocas[i]);
+      }
+      for (let i = 0; i < this.ctx.output.length; i++) {
+        newOutput.push(this.ctx.output[i]);
+      }
+      this.ctx.output.length = 0;
+      for (let i = 0; i < newOutput.length; i++) {
+        this.ctx.output.push(newOutput[i]);
+      }
+      deferredAllocas.length = 0;
+    }
 
     // Check for and fix incomplete return statements
     for (let i = 0; i < this.ctx.output.length; i++) {
