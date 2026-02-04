@@ -224,13 +224,9 @@ export class ClosureAnalyzer {
       }
 
       case 'call': {
-        const e = expr as { type: string; callee: Expression; args: Expression[] };
-        const calleeTyped = e.callee as { type: string; name: string };
-        if (calleeTyped.type === 'variable') {
-          this.referencedVars.add(calleeTyped.name);
-        } else {
-          this.walkExpression(e.callee);
-        }
+        const e = expr as { type: string; name: string; args: Expression[] };
+        // For direct function calls, the name is a string, not an expression
+        this.referencedVars.add(e.name);
         for (const arg of e.args) {
           this.walkExpression(arg);
         }
