@@ -775,7 +775,7 @@ export class TypeInference {
       if (idxObjBase.type === 'variable') {
         const varName = (indexExpr.object as VariableNode).name;
         const varType = this.ctx.symbolTable.getType(varName);
-        if (varType === '%StringArray*') {
+        if (varType === '%StringArray*' || varType === '%StringArray') {
           return true;
         }
         if (varType === 'i8*') {
