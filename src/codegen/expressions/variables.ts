@@ -135,7 +135,7 @@ export class VariableExpressionGenerator {
 
     // Check if it's a string variable
     if (this.ctx.symbolTable.isString(name)) {
-      const allocaReg = this.ctx.symbolTable.getAlloca(name)!;;
+      const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
       return this.loadString(allocaReg);
     }
 

@@ -85,6 +85,38 @@ export function parseInterface(ctx: ParserContext): void {
       ctx.skipWhitespace();
     }
 
+    if (ctx.code[ctx.pos] === '<') {
+      let depth = 1;
+      ctx.pos++;
+      while (ctx.pos < ctx.code.length && depth > 0) {
+        if (ctx.code[ctx.pos] === '<') depth++;
+        else if (ctx.code[ctx.pos] === '>') depth--;
+        ctx.pos++;
+      }
+      ctx.skipWhitespace();
+    }
+
+    if (ctx.code[ctx.pos] === '(') {
+      ctx.pos++;
+      let depth = 1;
+      while (ctx.pos < ctx.code.length && depth > 0) {
+        if (ctx.code[ctx.pos] === '(') depth++;
+        else if (ctx.code[ctx.pos] === ')') depth--;
+        ctx.pos++;
+      }
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === ':') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+        ctx.skipTypeAnnotation();
+      }
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] === ';') {
+        ctx.pos++;
+      }
+      continue;
+    }
+
     if (ctx.code[ctx.pos] === ':') {
       ctx.pos++;
       ctx.skipWhitespace();
@@ -114,8 +146,35 @@ export function parseInterface(ctx: ParserContext): void {
 export function parseTypeAlias(ctx: ParserContext): void {
   const name = ctx.parseIdentifier();
   ctx.skipWhitespace();
+
+  if (ctx.code[ctx.pos] === '<') {
+    ctx.pos++;
+    ctx.skipTypeAnnotation();
+    while (ctx.match(',')) {
+      ctx.skipTypeAnnotation();
+    }
+    ctx.expect('>');
+  }
+
+  ctx.skipWhitespace();
   ctx.expect('=');
   ctx.skipWhitespace();
+
+  if (ctx.code[ctx.pos] === '{') {
+    ctx.pos++;
+    let depth = 1;
+    while (ctx.pos < ctx.code.length && depth > 0) {
+      if (ctx.code[ctx.pos] === '{') depth++;
+      else if (ctx.code[ctx.pos] === '}') depth--;
+      ctx.pos++;
+    }
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === ';') {
+      ctx.pos++;
+    }
+    ctx.typeAliases.push({ name, unionMembers: [] });
+    return;
+  }
 
   const unionMembers: string[] = [];
   const firstMember = ctx.parseIdentifier();
@@ -158,17 +217,22 @@ export function parseEnum(ctx: ParserContext): void {
     if (ctx.code[ctx.pos] === '=') {
       ctx.pos++;
       ctx.skipWhitespace();
-      let numStr = '';
-      const isNegative = ctx.code[ctx.pos] === '-';
-      if (isNegative) {
-        numStr += '-';
-        ctx.pos++;
+      if (ctx.code[ctx.pos] === '\'' || ctx.code[ctx.pos] === '"') {
+        ctx.parseString();
+        memberValue = autoValue++;
+      } else {
+        let numStr = '';
+        const isNegative = ctx.code[ctx.pos] === '-';
+        if (isNegative) {
+          numStr += '-';
+          ctx.pos++;
+        }
+        while (ctx.pos < ctx.code.length && /[0-9]/.test(ctx.code[ctx.pos])) {
+          numStr += ctx.code[ctx.pos++];
+        }
+        memberValue = parseInt(numStr, 10);
+        autoValue = memberValue + 1;
       }
-      while (ctx.pos < ctx.code.length && /[0-9]/.test(ctx.code[ctx.pos])) {
-        numStr += ctx.code[ctx.pos++];
-      }
-      memberValue = parseInt(numStr, 10);
-      autoValue = memberValue + 1;
     } else {
       memberValue = autoValue++;
     }
@@ -339,6 +403,11 @@ export function parseClass(ctx: ParserContext): void {
     const savedPos = ctx.pos;
     const identifier = ctx.parseIdentifier();
     ctx.skipWhitespace();
+
+    if (ctx.code[ctx.pos] === '?') {
+      ctx.pos++;
+      ctx.skipWhitespace();
+    }
 
     if (ctx.code[ctx.pos] === '=' && ctx.code[ctx.pos + 1] !== '>') {
       ctx.pos++;
@@ -551,7 +620,9 @@ export function parseClass(ctx: ParserContext): void {
 export function parseImport(ctx: ParserContext): void {
   ctx.skipWhitespace();
 
+  let isTypeOnly = false;
   if (ctx.match('type')) {
+    isTypeOnly = true;
     ctx.skipWhitespace();
   }
 
@@ -567,7 +638,9 @@ export function parseImport(ctx: ParserContext): void {
     if (ctx.code[ctx.pos] === ';') {
       ctx.pos++;
     }
-    ctx.imports.push({ type: 'import', specifiers: [namespaceName], source });
+    if (!isTypeOnly) {
+      ctx.imports.push({ type: 'import', specifiers: [namespaceName], source });
+    }
   } else if (ctx.code[ctx.pos] === '{') {
     ctx.pos++;
     const specifiers: string[] = [];
@@ -596,19 +669,76 @@ export function parseImport(ctx: ParserContext): void {
     if (ctx.code[ctx.pos] === ';') {
       ctx.pos++;
     }
-    ctx.imports.push({ type: 'import', specifiers, source });
+    if (!isTypeOnly) {
+      ctx.imports.push({ type: 'import', specifiers, source });
+    }
   } else {
     throw new Error(`Unexpected import syntax at position ${ctx.pos}`);
   }
 }
 
 export function parseExport(ctx: ParserContext): void {
+  ctx.skipWhitespace();
+  if (ctx.code[ctx.pos] === '{') {
+    ctx.pos++;
+    ctx.skipWhitespace();
+    while (ctx.code[ctx.pos] !== '}') {
+      ctx.parseIdentifier();
+      ctx.skipWhitespace();
+      if (ctx.match('as')) {
+        ctx.parseIdentifier();
+        ctx.skipWhitespace();
+      }
+      if (ctx.code[ctx.pos] === ',') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+      }
+    }
+    ctx.expect('}');
+    ctx.skipWhitespace();
+    if (ctx.match('from')) {
+      ctx.parseString();
+      ctx.skipWhitespace();
+    }
+    if (ctx.code[ctx.pos] === ';') {
+      ctx.pos++;
+    }
+    return;
+  }
+
   if (ctx.match('interface')) {
     parseInterface(ctx);
     return;
   }
 
   if (ctx.match('type')) {
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === '{') {
+      ctx.pos++;
+      ctx.skipWhitespace();
+      while (ctx.code[ctx.pos] !== '}') {
+        ctx.parseIdentifier();
+        ctx.skipWhitespace();
+        if (ctx.match('as')) {
+          ctx.parseIdentifier();
+          ctx.skipWhitespace();
+        }
+        if (ctx.code[ctx.pos] === ',') {
+          ctx.pos++;
+          ctx.skipWhitespace();
+        }
+      }
+      ctx.expect('}');
+      ctx.skipWhitespace();
+      if (ctx.match('from')) {
+        ctx.parseString();
+        ctx.skipWhitespace();
+      }
+      if (ctx.code[ctx.pos] === ';') {
+        ctx.pos++;
+      }
+      return;
+    }
     ctx.parseIdentifier();
     ctx.skipWhitespace();
     if (ctx.code[ctx.pos] === '<') {
@@ -750,6 +880,11 @@ export function parseExport(ctx: ParserContext): void {
       const savedPos = ctx.pos;
       const identifier = ctx.parseIdentifier();
       ctx.skipWhitespace();
+
+      if (ctx.code[ctx.pos] === '?') {
+        ctx.pos++;
+        ctx.skipWhitespace();
+      }
 
       if (ctx.code[ctx.pos] === '=' && ctx.code[ctx.pos + 1] !== '>') {
         ctx.pos++;

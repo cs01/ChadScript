@@ -370,16 +370,46 @@ export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Express
             if (ctx.code[ctx.pos] === '}') braceDepth--;
             assertedType += ctx.code[ctx.pos++];
           }
+          if (ctx.code[ctx.pos] === '[' && ctx.code[ctx.pos + 1] === ']') {
+            assertedType += '[]';
+            ctx.pos += 2;
+          }
         } else {
-          while (ctx.pos < ctx.code.length && /[a-zA-Z0-9_<>\[\],\|]/.test(ctx.code[ctx.pos])) {
-            if (ctx.code[ctx.pos] === '<') angleBracketDepth++;
-            if (ctx.code[ctx.pos] === '>') angleBracketDepth--;
-            assertedType += ctx.code[ctx.pos++];
-            if (angleBracketDepth === 0) {
-              const peekAhead = ctx.code[ctx.pos];
-              if (peekAhead === ';' || peekAhead === ')' || peekAhead === ',' || peekAhead === '}' || peekAhead === ']' || /\s/.test(peekAhead)) {
-                break;
+          let bracketDepth = 0;
+          while (ctx.pos < ctx.code.length) {
+            const ch = ctx.code[ctx.pos];
+            if (bracketDepth > 0 && (ch === "'" || ch === '"')) {
+              const quote = ch;
+              assertedType += ctx.code[ctx.pos++];
+              while (ctx.pos < ctx.code.length && ctx.code[ctx.pos] !== quote) {
+                if (ctx.code[ctx.pos] === '\\') {
+                  assertedType += ctx.code[ctx.pos++];
+                }
+                assertedType += ctx.code[ctx.pos++];
               }
+              if (ctx.code[ctx.pos] === quote) {
+                assertedType += ctx.code[ctx.pos++];
+              }
+            } else if (/[a-zA-Z0-9_<>\[\],\| ]/.test(ch)) {
+              if (ch === '<') angleBracketDepth++;
+              if (ch === '>') angleBracketDepth--;
+              if (ch === '[') bracketDepth++;
+              if (ch === ']') bracketDepth--;
+              assertedType += ctx.code[ctx.pos++];
+              if (angleBracketDepth === 0 && bracketDepth === 0) {
+                const peekAhead = ctx.code[ctx.pos];
+                if (peekAhead === ';' || peekAhead === ')' || peekAhead === ',' || peekAhead === '}' || peekAhead === ']') {
+                  break;
+                }
+                if (/\s/.test(peekAhead)) {
+                  const restOfLine = ctx.code.slice(ctx.pos).trim();
+                  if (restOfLine.startsWith(';') || restOfLine.startsWith(')') || restOfLine.startsWith(',') || restOfLine.startsWith('}')) {
+                    break;
+                  }
+                }
+              }
+            } else {
+              break;
             }
           }
         }

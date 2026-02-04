@@ -1654,7 +1654,7 @@ function transformClassField(node: TreeSitterNode): ClassField | null {
   if (!nameNode) return null;
 
   const name = (nameNode as NodeBase).text;
-  let fieldType: ClassField['fieldType'] = 'double';
+  let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' = 'double';
   let tsType: string | undefined;
 
   if (typeNode) {
@@ -1685,7 +1685,7 @@ function transformClassMethod(node: TreeSitterNode): ClassMethod | null {
   const params = paramsNode ? extractFunctionParams(paramsNode) : [];
   const body = bodyNode ? transformStatementBlock(bodyNode) : { type: 'block' as const, statements: [] };
 
-  let returnType: ClassMethod['returnType'];
+  let returnType: string | undefined;
   if (returnTypeNode) {
     const typeStr = extractTypeString(returnTypeNode);
     returnType = mapToClassMethodType(typeStr);
@@ -1719,8 +1719,8 @@ function mapToClassMethodType(typeStr: string): 'string' | 'number' | 'boolean' 
   }
 }
 
-function extractClassParamTypes(paramsNode: TreeSitterNode): ClassMethod['paramTypes'] {
-  const types: ClassMethod['paramTypes'] = [];
+function extractClassParamTypes(paramsNode: TreeSitterNode): string[] | undefined {
+  const types: string[] = [];
   let hasTypes = false;
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
