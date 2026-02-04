@@ -34,7 +34,6 @@ interface StringSetGeneratorLike {
 
 interface ClassGeneratorLike {
   generateNewExpression(className: string, args: Expression[], params: string[]): string;
-  thisPointer?: string | null;
 }
 
 export interface LiteralGeneratorContext {
@@ -213,7 +212,7 @@ export class LiteralExpressionGenerator {
    * Returns the current this pointer from class context
    */
   generateThis(): string {
-    const thisPtr = this.ctx.thisPointer || this.ctx.classGen.thisPointer;
+    const thisPtr = this.ctx.thisPointer;
     if (!thisPtr) {
       throw new Error('this keyword used outside of class method or constructor');
     }
