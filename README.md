@@ -9,6 +9,9 @@ Hello from ChadScript!
 This is native code - no Node.js runtime!
 
 real	0m0.008s
+
+$ file /tmp/hello
+/tmp/hello: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, for GNU/Linux 3.2.0, not stripped
 ```
 
 ## Why ChadScript?
@@ -49,11 +52,24 @@ sudo dnf install llvm clang libcurl-devel cjson-devel libuv-devel gc-devel
 git clone https://github.com/chadsmith/chadscript
 cd chadscript
 npm install
+
+# Build dependencies into vendor/
+git clone https://github.com/ivmai/bdwgc vendor/bdwgc
+cd vendor/bdwgc && ./autogen.sh && ./configure && make && cd ../..
+
+git clone https://github.com/cesanta/mongoose vendor/mongoose
+cc -c vendor/mongoose/mongoose.c -o vendor/mongoose/mongoose.o
+
+# Compile and run
 npx tsx src/index.ts examples/hello.ts ./hello
 ./hello
 ```
 
-**Note:** Library paths are currently hardcoded in `src/compiler.ts`. You'll need to build [bdwgc](https://github.com/ivmai/bdwgc) and [mongoose](https://github.com/cesanta/mongoose) from source and update the paths.
+Or set environment variables to point to existing builds:
+```bash
+export CHADSCRIPT_BDWGC_PATH=/path/to/bdwgc
+export CHADSCRIPT_MONGOOSE_PATH=/path/to/mongoose
+```
 
 ### Compiler Options
 
