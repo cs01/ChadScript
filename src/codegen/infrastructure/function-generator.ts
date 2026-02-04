@@ -81,10 +81,14 @@ export class FunctionGenerator {
       paramTypesLen = func.paramTypes!.length;
       console.log('[FuncGen] paramTypesLen = ' + paramTypesLen);
     }
-    if (func.async) {
+    console.log('[FuncGen] After hasParamTypes check, about to check func.async');
+    const funcIsAsync = func.async ? true : false;
+    console.log('[FuncGen] funcIsAsync = ' + (funcIsAsync ? 'true' : 'false'));
+    if (funcIsAsync) {
       returnType = '%Promise*';
       this.ctx.currentFunctionReturnType = '%Promise*';
     } else if (func.paramTypes && func.paramTypes.length > 0) {
+      console.log('[FuncGen] In paramTypes branch');
       console.log('[FuncGen] func.paramTypes exists with length ' + func.paramTypes.length);
       console.log('[FuncGen] func.params.length = ' + func.params.length);
       for (let i = 0; i < func.params.length; i++) {
@@ -109,6 +113,7 @@ export class FunctionGenerator {
         }
       }
     } else if (func.parameters && func.parameters.length > 0) {
+      console.log('[FuncGen] In parameters branch');
       for (let i = 0; i < func.params.length; i++) {
         const param = func.parameters[i] as { name: string; type: string };
         const paramType = param?.type || 'number';
@@ -130,6 +135,7 @@ export class FunctionGenerator {
       }
     }
 
+    console.log('[FuncGen] About to check returnType');
     if (!func.async) {
       if (func.returnType === 'string') {
         returnType = 'i8*';
