@@ -74,6 +74,7 @@ interface MethodArrayReturnInfo {
 export interface VariableAllocatorContext {
   nextTemp(): string;
   nextAllocaReg(varName: string): string;
+  nextLabel(prefix: string): string;
   emit(instruction: string): void;
   defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata?: VariableMetadata): void;
   generateExpression(expr: Expression, params: string[]): string;
@@ -1116,9 +1117,31 @@ export class VariableAllocator {
       this.ctx.emit(`${ptrValue} = inttoptr i32 ${value} to %StringArray*`);
       pointerValue = ptrValue;
     }
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq i8* ${pointerValue}, null`);
+    const notNullLabel = this.ctx.nextLabel('stringarray_notnull');
+    const nullLabel = this.ctx.nextLabel('stringarray_null');
+    const mergeLabel = this.ctx.nextLabel('stringarray_merge');
+    this.ctx.emit(`br i1 ${isNull}, label %${nullLabel}, label %${notNullLabel}`);
+    this.ctx.emit(`${notNullLabel}:`);
+    const typedPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${typedPtr} = bitcast i8* ${pointerValue} to %StringArray*`);
     const loadedStringArray = this.ctx.nextTemp();
-    this.ctx.emit(`${loadedStringArray} = load %StringArray, %StringArray* ${pointerValue}`);
+    this.ctx.emit(`${loadedStringArray} = load %StringArray, %StringArray* ${typedPtr}`);
     this.ctx.emit(`store %StringArray ${loadedStringArray}, %StringArray* ${allocaReg}`);
+    this.ctx.emit(`br label %${mergeLabel}`);
+    this.ctx.emit(`${nullLabel}:`);
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = getelementptr inbounds %StringArray, %StringArray* ${allocaReg}, i32 0, i32 0`);
+    this.ctx.emit(`store i8** null, i8*** ${dataPtr}`);
+    const lenPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${allocaReg}, i32 0, i32 1`);
+    this.ctx.emit(`store i32 0, i32* ${lenPtr}`);
+    const capPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${allocaReg}, i32 0, i32 2`);
+    this.ctx.emit(`store i32 0, i32* ${capPtr}`);
+    this.ctx.emit(`br label %${mergeLabel}`);
+    this.ctx.emit(`${mergeLabel}:`);
   }
 
   private allocateArray(stmt: VariableDeclaration, params: string[]): void {

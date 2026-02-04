@@ -13,6 +13,149 @@
 
 import type { Expression, BlockStatement, Statement, ObjectProperty } from '../../ast/types.js';
 
+interface TypedNode {
+  type: string;
+}
+
+interface VarDeclNode {
+  type: string;
+  name: string;
+  value: Expression | null;
+}
+
+interface AssignmentNode {
+  type: string;
+  target: Expression;
+  value: Expression;
+}
+
+interface ExprStmtNode {
+  type: string;
+  expression: Expression;
+}
+
+interface ReturnNode {
+  type: string;
+  value: Expression | null;
+}
+
+interface IfNode {
+  type: string;
+  condition: Expression;
+  consequent: BlockStatement;
+  alternate: Statement | BlockStatement | null;
+}
+
+interface WhileNode {
+  type: string;
+  condition: Expression;
+  body: BlockStatement;
+}
+
+interface ForNode {
+  type: string;
+  init: Statement | null;
+  condition: Expression | null;
+  update: Statement | Expression | null;
+  body: BlockStatement;
+}
+
+interface ForOfNode {
+  type: string;
+  variable: string;
+  iterable: Expression;
+  body: BlockStatement;
+}
+
+interface CatchHandler {
+  param: string | null;
+  body: BlockStatement;
+}
+
+interface TryNode {
+  type: string;
+  body: BlockStatement;
+  handler: CatchHandler | null;
+  finalizer: BlockStatement | null;
+}
+
+interface VariableExpr {
+  type: string;
+  name: string;
+}
+
+interface BinaryExpr {
+  type: string;
+  left: Expression;
+  right: Expression;
+}
+
+interface UnaryExpr {
+  type: string;
+  operand: Expression;
+}
+
+interface CallExpr {
+  type: string;
+  name: string;
+  args: Expression[];
+}
+
+interface MethodCallExpr {
+  type: string;
+  object: Expression;
+  args: Expression[];
+}
+
+interface MemberAccessExpr {
+  type: string;
+  object: Expression;
+}
+
+interface IndexAccessExpr {
+  type: string;
+  object: Expression;
+  index: Expression;
+}
+
+interface ArrayExpr {
+  type: string;
+  elements: Expression[];
+}
+
+interface ObjectExpr {
+  type: string;
+  properties: ObjectProperty[];
+}
+
+interface TemplateLiteralExpr {
+  type: string;
+  parts: (string | Expression)[];
+}
+
+interface ArrowFunctionExpr {
+  type: string;
+  params: string[];
+  body: Expression | BlockStatement;
+}
+
+interface ConditionalExpr {
+  type: string;
+  condition: Expression;
+  consequent: Expression;
+  alternate: Expression;
+}
+
+interface AwaitExpr {
+  type: string;
+  argument: Expression;
+}
+
+interface NewExpr {
+  type: string;
+  args: Expression[];
+}
+
 export interface CapturedVariable {
   name: string;
   llvmType: string;
@@ -59,7 +202,7 @@ export class ClosureAnalyzer {
       this.declaredVars.add(param);
     }
 
-    const bodyTyped = body as { type: string };
+    const bodyTyped = body as TypedNode;
     if (bodyTyped.type === 'block') {
       this.walkBlock(body as BlockStatement);
     } else {
@@ -102,11 +245,11 @@ export class ClosureAnalyzer {
   }
 
   private walkStatement(stmt: Statement): void {
-    const stmtTyped = stmt as { type: string };
+    const stmtTyped = stmt as TypedNode;
 
     switch (stmtTyped.type) {
       case 'variable_declaration': {
-        const s = stmt as { type: string; name: string; value: Expression | null };
+        const s = stmt as VarDeclNode;
         this.declaredVars.add(s.name);
         if (s.value) {
           this.walkExpression(s.value);
@@ -115,7 +258,7 @@ export class ClosureAnalyzer {
       }
 
       case 'assignment': {
-        const s = stmt as { type: string; target: Expression; value: Expression };
+        const s = stmt as AssignmentNode;
         this.walkExpression(s.target);
         this.walkExpression(s.value);
         break;
