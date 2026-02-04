@@ -104,7 +104,7 @@ export interface VariableAllocatorContext {
   classGen: ClassGeneratorLike;
   symbolTable: SymbolTable;
   exprGen: ExpressionGeneratorLike;
-  expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
+  expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
   currentDeclaredInterfaceType: string | undefined;
   currentClassName: string | null;
   typeChecker?: TypeChecker | null;
@@ -300,6 +300,8 @@ export class VariableAllocator {
         this.ctx.expectedArrayElementType = 'string';
       } else if (stmt.declaredType === 'number[]' || stmt.declaredType === 'boolean[]') {
         this.ctx.expectedArrayElementType = 'number';
+      } else if (stmt.declaredType.endsWith('[]')) {
+        this.ctx.expectedArrayElementType = 'pointer';
       }
     }
 

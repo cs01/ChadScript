@@ -1692,12 +1692,14 @@ function transformClassMethod(node: TreeSitterNode): ClassMethod | null {
   }
 
   const paramTypes = paramsNode ? extractClassParamTypes(paramsNode) : undefined;
+  const parameterProperties = isConstructor && paramsNode ? extractParameterProperties(paramsNode) : undefined;
 
   return {
     type: 'method',
     name,
     params,
     paramTypes,
+    parameterProperties,
     returnType,
     body,
     isConstructor,
@@ -1739,6 +1741,40 @@ function extractClassParamTypes(paramsNode: TreeSitterNode): ClassMethod['paramT
   }
 
   return hasTypes ? types : undefined;
+}
+
+function extractParameterProperties(paramsNode: TreeSitterNode): string[] | undefined {
+  const properties: string[] = [];
+
+  for (let i = 0; i < paramsNode.namedChildCount; i++) {
+    const param = getNamedChild(paramsNode, i);
+    if (!param) continue;
+    const p = param as NodeBase;
+    if (p.type === 'required_parameter' || p.type === 'optional_parameter') {
+      let hasAccessibility = false;
+      for (let j = 0; j < p.childCount; j++) {
+        const child = getChild(param, j);
+        if (child) {
+          const c = child as NodeBase;
+          if (c.type === 'accessibility_modifier') {
+            hasAccessibility = true;
+            break;
+          }
+        }
+      }
+      if (hasAccessibility) {
+        const patternNode = getChildByFieldName(param, 'pattern');
+        if (patternNode) {
+          const pn = patternNode as NodeBase;
+          if (pn.type === 'identifier') {
+            properties.push(pn.text);
+          }
+        }
+      }
+    }
+  }
+
+  return properties.length > 0 ? properties : undefined;
 }
 
 function transformInterfaceDeclaration(node: TreeSitterNode): InterfaceDeclaration | null {

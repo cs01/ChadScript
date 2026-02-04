@@ -213,7 +213,7 @@ export interface IGeneratorContext {
   /**
    * Expected array element type (for type-aware array generation)
    */
-  expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
+  expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
 
   /**
    * Expected callback parameter type (for type-aware lambda generation)

@@ -435,12 +435,20 @@ export function parseClass(ctx: ParserContext): void {
 
     const params: string[] = [];
     const paramTypes: string[] = [];
+    const parameterProperties: string[] = [];
     ctx.skipWhitespace();
     if (ctx.code[ctx.pos] !== ')') {
-      if (ctx.match('private') || ctx.match('public') || ctx.match('protected') || ctx.match('readonly')) {
+      let hasAccessibility = ctx.match('private') || ctx.match('public') || ctx.match('protected');
+      if (hasAccessibility) {
+        ctx.skipWhitespace();
+      }
+      if (ctx.match('readonly')) {
         ctx.skipWhitespace();
       }
       const paramName = ctx.parseIdentifier();
+      if (hasAccessibility) {
+        parameterProperties.push(paramName);
+      }
       let paramType: string | null = null;
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] === '?') {
@@ -466,10 +474,17 @@ export function parseClass(ctx: ParserContext): void {
 
       while (ctx.match(',')) {
         ctx.skipWhitespace();
-        if (ctx.match('private') || ctx.match('public') || ctx.match('protected') || ctx.match('readonly')) {
+        hasAccessibility = ctx.match('private') || ctx.match('public') || ctx.match('protected');
+        if (hasAccessibility) {
+          ctx.skipWhitespace();
+        }
+        if (ctx.match('readonly')) {
           ctx.skipWhitespace();
         }
         const nextParamName = ctx.parseIdentifier();
+        if (hasAccessibility) {
+          parameterProperties.push(nextParamName);
+        }
         let nextParamType: string | null = null;
         ctx.skipWhitespace();
         if (ctx.code[ctx.pos] === '?') {
@@ -521,6 +536,7 @@ export function parseClass(ctx: ParserContext): void {
       name: methodName,
       params,
       paramTypes: paramTypes.length > 0 ? paramTypes : undefined,
+      parameterProperties: parameterProperties.length > 0 ? parameterProperties : undefined,
       returnType: returnType || undefined,
       body,
       isConstructor
@@ -823,12 +839,20 @@ export function parseExport(ctx: ParserContext): void {
 
       const params: string[] = [];
       const paramTypes: string[] = [];
+      const parameterProperties: string[] = [];
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] !== ')') {
-        if (ctx.match('private') || ctx.match('public') || ctx.match('protected') || ctx.match('readonly')) {
+        let hasAccessibility = ctx.match('private') || ctx.match('public') || ctx.match('protected');
+        if (hasAccessibility) {
+          ctx.skipWhitespace();
+        }
+        if (ctx.match('readonly')) {
           ctx.skipWhitespace();
         }
         const paramName = ctx.parseIdentifier();
+        if (hasAccessibility) {
+          parameterProperties.push(paramName);
+        }
         let paramType: string | null = null;
         ctx.skipWhitespace();
         if (ctx.code[ctx.pos] === '?') {
@@ -854,10 +878,17 @@ export function parseExport(ctx: ParserContext): void {
 
         while (ctx.match(',')) {
           ctx.skipWhitespace();
-          if (ctx.match('private') || ctx.match('public') || ctx.match('protected') || ctx.match('readonly')) {
+          hasAccessibility = ctx.match('private') || ctx.match('public') || ctx.match('protected');
+          if (hasAccessibility) {
+            ctx.skipWhitespace();
+          }
+          if (ctx.match('readonly')) {
             ctx.skipWhitespace();
           }
           const nextParamName = ctx.parseIdentifier();
+          if (hasAccessibility) {
+            parameterProperties.push(nextParamName);
+          }
           let nextParamType: string | null = null;
           ctx.skipWhitespace();
           if (ctx.code[ctx.pos] === '?') {
@@ -904,7 +935,7 @@ export function parseExport(ctx: ParserContext): void {
       const body = ctx.parseBlock();
       ctx.expect('}');
 
-      methods.push({ type: 'method', name: methodName, params, paramTypes: paramTypes.length > 0 ? paramTypes : undefined, returnType: returnType || undefined, body, isConstructor });
+      methods.push({ type: 'method', name: methodName, params, paramTypes: paramTypes.length > 0 ? paramTypes : undefined, parameterProperties: parameterProperties.length > 0 ? parameterProperties : undefined, returnType: returnType || undefined, body, isConstructor });
       ctx.skipWhitespace();
     }
     ctx.expect('}');

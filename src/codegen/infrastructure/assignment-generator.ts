@@ -32,7 +32,7 @@ export interface AssignmentGeneratorContext {
   classGen: ClassGeneratorLike;
   thisPointer: string | null;
   ast: AST;
-  expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
+  expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
   currentDeclaredMapType: string | undefined;
   currentClassName: string | null;
 }

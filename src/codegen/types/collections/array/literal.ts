@@ -52,6 +52,9 @@ export function generateArrayLiteral(
   }
 
   let isPointerArray = false;
+  if (length === 0 && gen.expectedArrayElementType === 'pointer') {
+    isPointerArray = true;
+  }
   let firstElemValue: string | null = null;
   if (length > 0 && !isStringArray) {
     firstElemValue = gen.generateExpression(arrExpr.elements[0], params);
@@ -146,15 +149,15 @@ export function generateArrayLiteral(
     gen.setVariableType(arrayPtr, '%StringArray*');
     return arrayPtr;
   } else if (isPointerArray) {
-    // Generate pointer array (for Promise[], any[], etc.) - uses %Array with i8** data
+    // Generate pointer array (for Expression[], Promise[], etc.) - uses %StringArray with i8** data
     const sizePtr = gen.nextTemp();
-    gen.emit(`${sizePtr} = getelementptr %Array, %Array* null, i32 1`);
+    gen.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
     const structSize = gen.nextTemp();
-    gen.emit(`${structSize} = ptrtoint %Array* ${sizePtr} to i64`);
+    gen.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
     const arrayMem = gen.nextTemp();
     gen.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
     const arrayPtr = gen.nextTemp();
-    gen.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %Array*`);
+    gen.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
 
     // Allocate data array on heap (i8** for pointers)
     const dataCount = length === 0 ? 1 : length;
@@ -175,24 +178,22 @@ export function generateArrayLiteral(
       gen.emit(`store i8* ${elemCast}, i8** ${elemPtr}`);
     }
 
-    // Store data pointer in array struct (field 0) - cast i8** to double*
-    const dataPtrCast = gen.nextTemp();
-    gen.emit(`${dataPtrCast} = bitcast i8** ${dataPtr} to double*`);
+    // Store data pointer in array struct (field 0)
     const dataPtrField = gen.nextTemp();
-    gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-    gen.emit(`store double* ${dataPtrCast}, double** ${dataPtrField}`);
+    gen.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    gen.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
 
     // Store length in array struct (field 1)
     const lenField = gen.nextTemp();
-    gen.emit(`${lenField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    gen.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
     gen.emit(`store i32 ${length}, i32* ${lenField}`);
 
     // Store capacity in array struct (field 2)
     const capField = gen.nextTemp();
-    gen.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
+    gen.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
     gen.emit(`store i32 ${length}, i32* ${capField}`);
 
-    gen.setVariableType(arrayPtr, '%Array*');
+    gen.setVariableType(arrayPtr, '%StringArray*');
     return arrayPtr;
   } else {
     // Generate numeric array - allocate on HEAP, not stack
