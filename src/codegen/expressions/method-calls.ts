@@ -270,20 +270,13 @@ export class MethodCallGenerator {
   }
 
   private isVariableWithName(expr: Expression, name: string): boolean {
-    console.log('isVariableWithName: start');
     const e = expr as ExprBase;
-    console.log('isVariableWithName: got ExprBase');
     const eType = e.type;
-    console.log('isVariableWithName: e.type = ' + eType);
     if (eType !== 'variable') {
-      console.log('isVariableWithName: not a variable, returning false');
       return false;
     }
-    console.log('isVariableWithName: is variable, checking name');
     const varExpr = expr as VariableNode;
-    console.log('isVariableWithName: got VariableNode');
     const varName = varExpr.name;
-    console.log('isVariableWithName: varName = ' + varName);
     return varName === name;
   }
 
@@ -296,7 +289,6 @@ export class MethodCallGenerator {
   }
 
   private generateConsoleCallInline(expr: MethodCallNode, params: string[]): string {
-    console.log('generateConsoleCallInline: start');
     if (expr.args.length === 0) {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([2 x i8], [2 x i8]* @.str.newline, i32 0, i32 0))`);
@@ -314,7 +306,7 @@ export class MethodCallGenerator {
       return temp;
     } else if (argTyped.type === 'number') {
       const numValue = argTyped.value as number;
-      const numStr = Number.isInteger(numValue) ? numValue + '.0' : String(numValue);
+      const numStr = (numValue % 1 === 0) ? numValue + '.0' : String(numValue);
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${numStr})`);
       return temp;
@@ -332,7 +324,6 @@ export class MethodCallGenerator {
   }
 
   private generateProcessExitInline(expr: MethodCallNode, params: string[]): string {
-    console.log('generateProcessExitInline: start');
     if (expr.args.length > 0) {
       const arg = expr.args[0];
       const argTyped = arg as { type: string; value: number };
@@ -459,14 +450,8 @@ export class MethodCallGenerator {
    * Output: result register with method call result
    */
   generate(expr: MethodCallNode, params: string[]): string {
-    console.log('MethodCallGenerator.generate: start');
-    console.log('MethodCallGenerator.generate: expr.type = ' + expr.type);
     const objBase = expr.object as { type: string };
-    console.log('MethodCallGenerator.generate: object.type = ' + objBase.type);
     const method = expr.method;
-    console.log('MethodCallGenerator.generate: method = ' + method);
-    console.log('MethodCallGenerator.generate: args.length = ' + expr.args.length);
-    console.log('MethodCallGenerator.generate: about to check Promise');
 
     // Handle Promise static methods (Promise.resolve, Promise.reject, Promise.all)
     if (this.isVariableWithName(expr.object, 'Promise')) {
@@ -489,7 +474,6 @@ export class MethodCallGenerator {
       }
     }
 
-    console.log('MethodCallGenerator.generate: about to check console');
     // Handle console.log and console.error - inline check to avoid cross-class property access
     const objBase2 = expr.object as ExprBase;
     if (objBase2.type === 'variable') {
@@ -497,18 +481,15 @@ export class MethodCallGenerator {
       if (varNode.name === 'console') {
         const method2 = expr.method;
         if (method2 === 'log' || method2 === 'error' || method2 === 'warn' || method2 === 'debug') {
-          console.log('MethodCallGenerator.generate: handling console inline');
           return this.generateConsoleCallInline(expr, params);
         }
       }
     }
-    console.log('MethodCallGenerator.generate: not console');
 
     // Handle process.exit() - inline check
     if (objBase2.type === 'variable') {
       const varNode = expr.object as VariableNode;
       if (varNode.name === 'process' && expr.method === 'exit') {
-        console.log('MethodCallGenerator.generate: handling process.exit inline');
         return this.generateProcessExitInline(expr, params);
       }
     }
@@ -1865,53 +1846,85 @@ export class MethodCallGenerator {
     return result;
   }
 
-  private throwUnsupportedMethodError(method: string, objectType?: string, expr?: Expression): never {
+  private throwUnsupportedMethodError(method: string, _objectType?: string, expr?: Expression): never {
+    let objectDescription = '';
     if (expr) {
       const e = expr as ExprBase;
       if (e.type === 'member_access') {
         const memberExpr = expr as MemberAccessNode;
         const memberObjBase = memberExpr.object as ExprBase;
-        console.log('[DEBUG] throwUnsupportedMethodError - member access property:', memberExpr.property, 'object.type:', memberObjBase.type);
+        if (memberObjBase.type === 'variable') {
+          objectDescription = `${(memberExpr.object as VariableNode).name}.${memberExpr.property}`;
+        } else {
+          objectDescription = memberExpr.property;
+        }
+      } else if (e.type === 'variable') {
+        objectDescription = (expr as VariableNode).name;
       }
     }
-    console.log('[DEBUG] throwUnsupportedMethodError method:', method, 'objectType:', objectType);
-    const stringMethods = [
-      'charAt', 'charCodeAt', 'concat', 'padStart', 'repeat', 'split', 'startsWith', 'substring', 'substr', 'toUpperCase', 'toLowerCase'
-    ];
-    const arrayMethods = [
-      'push', 'map', 'join', 'find', 'some', 'every', 'filter', 'forEach', 'slice', 'concat'
-    ];
-    const mapMethods = [
-      'set', 'get', 'has'
-    ];
-    const setMethods = [
-      'add', 'has', 'delete'
-    ];
-    const otherMethods = [
-      'console.log', 'console.error',
-      'process.exit', 'process.argv',
-      'fs.readFileSync', 'fs.writeFileSync', 'fs.existsSync', 'fs.unlinkSync',
-      'path.resolve', 'path.dirname',
-      'child_process.execSync',
-      'JSON.parse', 'JSON.stringify',
-      'regex.test'
-    ];
 
-    const suggestion =
-      `\x1b[33mSupported methods:\x1b[0m\n\n` +
-      `\x1b[36mString methods:\x1b[0m\n  ${stringMethods.join(', ')}\n\n` +
-      `\x1b[36mArray methods:\x1b[0m\n  ${arrayMethods.join(', ')}\n\n` +
-      `\x1b[36mMap methods:\x1b[0m\n  ${mapMethods.join(', ')}\n\n` +
-      `\x1b[36mSet methods:\x1b[0m\n  ${setMethods.join(', ')}\n\n` +
-      `\x1b[36mOther built-in methods:\x1b[0m\n  ${otherMethods.join(', ')}\n\n` +
-      `\x1b[33mIf you need '${method}', consider:\x1b[0m\n` +
-      `  • Using a similar method from the list above\n` +
-      `  • Implementing it using supported operations\n` +
-      `  • Opening an issue: https://github.com/your-repo/issues`;
+    const methodsByType: Record<string, string[]> = {
+      'Number': ['toFixed', 'toString'],
+      'String': ['charAt', 'charCodeAt', 'concat', 'padStart', 'repeat', 'split', 'startsWith', 'substring', 'substr', 'toUpperCase', 'toLowerCase'],
+      'Array': ['push', 'map', 'join', 'find', 'some', 'every', 'filter', 'forEach', 'slice', 'concat'],
+      'Map': ['set', 'get', 'has'],
+      'Set': ['add', 'has', 'delete'],
+      'Promise': ['then', 'catch'],
+      'console': ['log', 'error'],
+      'process': ['exit'],
+      'fs': ['readFileSync', 'writeFileSync', 'existsSync', 'unlinkSync'],
+      'path': ['resolve', 'dirname'],
+      'JSON': ['parse', 'stringify'],
+      'RegExp': ['test']
+    };
 
-    throw new Error(this.ctx.formatCodegenError(
-      `Method '${method}' is not supported yet.`,
-      suggestion
-    ));
+    let inferredType: string | null = null;
+    const numberMethods = ['isInteger', 'isNaN', 'isFinite', 'parseFloat', 'parseInt', 'toFixed', 'toPrecision', 'toExponential'];
+    const stringMethods = ['charAt', 'charCodeAt', 'indexOf', 'lastIndexOf', 'slice', 'substring', 'substr', 'toLowerCase', 'toUpperCase', 'trim', 'trimStart', 'trimEnd', 'padStart', 'padEnd', 'repeat', 'replace', 'replaceAll', 'split', 'startsWith', 'endsWith', 'includes', 'match', 'search', 'normalize'];
+    const arrayMethods = ['push', 'pop', 'shift', 'unshift', 'splice', 'slice', 'concat', 'join', 'reverse', 'sort', 'indexOf', 'lastIndexOf', 'find', 'findIndex', 'filter', 'map', 'reduce', 'reduceRight', 'every', 'some', 'forEach', 'includes', 'flat', 'flatMap', 'fill', 'copyWithin', 'entries', 'keys', 'values'];
+
+    if (numberMethods.indexOf(method) !== -1) {
+      inferredType = 'Number';
+    } else if (stringMethods.indexOf(method) !== -1) {
+      inferredType = 'String';
+    } else if (arrayMethods.indexOf(method) !== -1) {
+      inferredType = 'Array';
+    }
+
+    let suggestion = '';
+
+    if (inferredType && methodsByType[inferredType]) {
+      const supportedForType = methodsByType[inferredType];
+      suggestion = `\x1b[33mSupported ${inferredType} methods:\x1b[0m\n  ${supportedForType.join(', ')}\n\n`;
+      if (supportedForType.length === 0 || (inferredType === 'Number' && supportedForType.length < 3)) {
+        suggestion += `\x1b[90mNote: ${inferredType} has limited method support. Consider using manual operations instead.\x1b[0m\n\n`;
+      }
+    } else {
+      suggestion = `\x1b[33mSupported methods:\x1b[0m\n\n`;
+      suggestion += `\x1b[36mString:\x1b[0m ${methodsByType['String'].join(', ')}\n`;
+      suggestion += `\x1b[36mArray:\x1b[0m ${methodsByType['Array'].join(', ')}\n`;
+      suggestion += `\x1b[36mMap:\x1b[0m ${methodsByType['Map'].join(', ')}\n`;
+      suggestion += `\x1b[36mSet:\x1b[0m ${methodsByType['Set'].join(', ')}\n\n`;
+    }
+
+    if (method === 'isInteger') {
+      suggestion += `\x1b[33mAlternative for 'isInteger':\x1b[0m\n`;
+      suggestion += `  Use: \x1b[32m(value % 1 === 0)\x1b[0m to check if a number is an integer\n`;
+    } else if (method === 'isNaN') {
+      suggestion += `\x1b[33mAlternative for 'isNaN':\x1b[0m\n`;
+      suggestion += `  Use: \x1b[32m(value !== value)\x1b[0m to check for NaN\n`;
+    } else if (method === 'includes' && inferredType === 'String') {
+      suggestion += `\x1b[33mAlternative for 'includes':\x1b[0m\n`;
+      suggestion += `  Use: \x1b[32mstr.indexOf(substr) !== -1\x1b[0m\n`;
+    } else if (method === 'includes' && inferredType === 'Array') {
+      suggestion += `\x1b[33mAlternative for 'includes':\x1b[0m\n`;
+      suggestion += `  Use: \x1b[32marr.some(x => x === value)\x1b[0m\n`;
+    }
+
+    const errorMsg = objectDescription
+      ? `Method '${method}' on '${objectDescription}' is not supported yet.`
+      : `Method '${method}' is not supported yet.`;
+
+    throw new Error(this.ctx.formatCodegenError(errorMsg, suggestion));
   }
 }
