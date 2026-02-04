@@ -13,7 +13,9 @@ real	0m0.008s
 
 ## Why ChadScript?
 
-Build CLI tools in TypeScript that run as **fast as C/Rust** with **instant startup** and **tiny binaries** (15-30KB). No Node.js runtime, no V8, no garbage collector. TypeScript compiles directly to native machine code via LLVM.
+Build CLI tools in TypeScript that run as **fast as C/Rust** with **instant startup** and **tiny binaries**. No Node.js runtime, no V8. TypeScript compiles directly to native machine code via LLVM.
+
+Batteries included: links against battle-tested C libraries (libcurl, libcjson, libuv, mongoose) for production-grade HTTP client/server, JSON parsing, and async.
 
 - 0ms startup (vs 50-200ms for Node.js)
 - 15-30KB binaries (vs 50MB+ for bundled Node apps)
@@ -62,7 +64,7 @@ chadscript [options] <input.ts> [output]
 
 **Core Language:** Functions, variables (`const`/`let`), operators, control flow (`if`/`while`/`for`), try/catch, ternary, classes with inheritance
 
-**TypeScript:** Interfaces → native structs, type annotations, import/export modules
+**TypeScript:** Interfaces → native structs, type annotations, import/export modules, npm packages (with TS source)
 
 **Data Structures:** Arrays, Strings, Maps, Sets, Regex (with standard methods)
 
@@ -72,7 +74,6 @@ See `/examples/` for working code: CLI tools, HTTP servers, argument parsing, an
 
 ## Limitations
 
-- **No npm packages yet** - Only local imports supported; `node_modules` resolution not implemented
 - **No dynamic features** - No `eval`, `typeof`, `Object.keys()`, destructuring, spread, optional chaining
 - **No reflection** - No `instanceof`, `for..in`, runtime type inspection
 - **Nested if returns** - Deep nesting with early returns can generate invalid IR (extract to functions)
@@ -80,14 +81,20 @@ See `/examples/` for working code: CLI tools, HTTP servers, argument parsing, an
 ## Architecture
 
 ```
-TypeScript → AST (with types) → LLVM IR → native binary (llc + clang)
+TypeScript → AST (with types) → LLVM IR → native binary
 ```
+
+Linked against: libgc (GC), libcurl (fetch), libcjson (JSON), libuv (async), mongoose (HTTP server)
 
 ## Roadmap
 
-**Phase 2 Complete:** Interfaces, networking, classes, try/catch, async/await, HTTP server
+**Self-hosting:** Compile ChadScript with itself:
+```bash
+npx tsx src/index.ts src/native-compiler.ts /tmp/native-compiler
+/tmp/native-compiler src/native-compiler.ts /tmp/self-hosted
+```
 
-**Phase 3 (Current):** Self-hosting (compile ChadScript with ChadScript)
+**Native tsc:** Compile the TypeScript compiler to a native binary for instant type-checking.
 
 ## License
 
