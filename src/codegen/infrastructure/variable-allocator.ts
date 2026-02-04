@@ -1226,6 +1226,36 @@ export class VariableAllocator {
 
     if (stmt.declaredType) {
       const baseType = stmt.declaredType.replace(/ \| undefined$/, '').replace(/ \| null$/, '').replace(/undefined \| /, '').replace(/null \| /, '').trim();
+      if (baseType === 'number') {
+        this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
+        this.ctx.emit(`${allocaReg} = alloca double`);
+        this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
+        return;
+      }
+      if (baseType === 'boolean') {
+        this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
+        this.ctx.emit(`${allocaReg} = alloca double`);
+        this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
+        return;
+      }
+      if (baseType === 'string') {
+        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
+        this.ctx.emit(`${allocaReg} = alloca i8*`);
+        this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
+        return;
+      }
+      if (baseType === 'string[]') {
+        this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
+        this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
+        this.ctx.emit(`store %StringArray* null, %StringArray** ${allocaReg}`);
+        return;
+      }
+      if (baseType === 'number[]' || baseType === 'boolean[]') {
+        this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local');
+        this.ctx.emit(`${allocaReg} = alloca %Array*`);
+        this.ctx.emit(`store %Array* null, %Array** ${allocaReg}`);
+        return;
+      }
       if (baseType.startsWith('{')) {
         const inlineFields = this.parseInlineObjectType(baseType);
         if (inlineFields && inlineFields.length > 0) {
