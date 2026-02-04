@@ -701,6 +701,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           const inlineType = this.extractInlineInterfaceType(this.currentFunctionTsReturnType);
           if (inlineType) {
             this.currentDeclaredInterfaceType = inlineType;
+          } else {
+            let returnTypeName = this.currentFunctionTsReturnType;
+            if (returnTypeName.indexOf(' | ') !== -1) {
+              const parts = returnTypeName.split(' | ');
+              for (let i = 0; i < parts.length; i++) {
+                const part = parts[i].trim();
+                if (part !== 'null' && part !== 'undefined') {
+                  returnTypeName = part;
+                  break;
+                }
+              }
+            }
+            if (this.interfaceStructGen && this.interfaceStructGen.hasInterface(returnTypeName)) {
+              this.currentDeclaredInterfaceType = returnTypeName;
+            }
           }
         }
         lastValue = this.generateExpression(stmt.value as Expression, params);

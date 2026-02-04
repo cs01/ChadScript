@@ -156,6 +156,8 @@ export class Parser implements ExpressionParserContext {
         const tryStmt = this.parseTryStatement();
         this.topLevelExpressions.push(tryStmt);
         this.topLevelItems.push(tryStmt);
+      } else if (this.match('declare')) {
+        this.skipDeclareStatement();
       } else {
         const savedPos = this.pos;
         try {
@@ -279,6 +281,58 @@ export class Parser implements ExpressionParserContext {
   private skipComment(): void {
     while (this.pos < this.code.length && this.code[this.pos] !== '\n') {
       this.pos++;
+    }
+  }
+
+  private skipDeclareStatement(): void {
+    this.skipWhitespace();
+    if (this.match('function')) {
+      while (this.pos < this.code.length && this.code[this.pos] !== ';') {
+        this.pos++;
+      }
+      if (this.code[this.pos] === ';') {
+        this.pos++;
+      }
+    } else if (this.match('const') || this.match('let') || this.match('var') || this.match('class')) {
+      this.skipWhitespace();
+      this.parseIdentifier();
+      this.skipWhitespace();
+      if (this.code[this.pos] === ':') {
+        this.pos++;
+        this.skipWhitespace();
+        let braceDepth = 0;
+        while (this.pos < this.code.length) {
+          const ch = this.code[this.pos];
+          if (ch === '{') {
+            braceDepth++;
+            this.pos++;
+          } else if (ch === '}') {
+            braceDepth--;
+            this.pos++;
+            if (braceDepth === 0) {
+              this.skipWhitespace();
+              if (this.code[this.pos] === ';') {
+                this.pos++;
+              }
+              break;
+            }
+          } else if (ch === ';' && braceDepth === 0) {
+            this.pos++;
+            break;
+          } else {
+            this.pos++;
+          }
+        }
+      } else if (this.code[this.pos] === ';') {
+        this.pos++;
+      }
+    } else {
+      while (this.pos < this.code.length && this.code[this.pos] !== ';') {
+        this.pos++;
+      }
+      if (this.code[this.pos] === ';') {
+        this.pos++;
+      }
     }
   }
 

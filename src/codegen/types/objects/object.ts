@@ -177,10 +177,22 @@ export class ObjectGenerator {
       } else {
         const valueReg = this.ctx.generateExpression(valueExpr, params);
         finalValue = valueReg;
+        const valueType = this.ctx.getVariableType(valueReg) || 'double';
         if (field.llvmType === 'i1') {
           const i1Value = this.nextTemp();
           this.emit(`${i1Value} = fcmp one double ${valueReg}, 0.0`);
           finalValue = i1Value;
+        } else if (field.llvmType === 'double' && valueType.indexOf('*') !== -1) {
+          const isTreeSitterType = valueType === '%TSNode*' || valueType === '%TSTree*' || valueType === '%TSParser*' || valueType === '%TSLanguage*';
+          if (!isTreeSitterType) {
+            const cmpNull = this.nextTemp();
+            this.emit(`${cmpNull} = icmp ne ${valueType} ${valueReg}, null`);
+            const zext = this.nextTemp();
+            this.emit(`${zext} = zext i1 ${cmpNull} to i32`);
+            const asDouble = this.nextTemp();
+            this.emit(`${asDouble} = sitofp i32 ${zext} to double`);
+            finalValue = asDouble;
+          }
         }
       }
 
