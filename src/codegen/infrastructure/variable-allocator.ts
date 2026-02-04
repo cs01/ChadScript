@@ -220,6 +220,10 @@ export class VariableAllocator {
       const llvmType = existingSymbol.llvmType;
       if (llvmType.indexOf('*') !== -1) {
         this.ctx.emit(`store ${llvmType} ${value}, ${llvmType}* ${globalPtr}`);
+      } else if (llvmType === '%Array' || llvmType === '%StringArray' || llvmType === '%Map' || llvmType === '%Set') {
+        const loadedValue = this.ctx.nextTemp();
+        this.ctx.emit(`${loadedValue} = load ${llvmType}, ${llvmType}* ${value}`);
+        this.ctx.emit(`store ${llvmType} ${loadedValue}, ${llvmType}* ${globalPtr}`);
       } else {
         this.ctx.emit(`store ${llvmType} ${value}, ${llvmType}* ${globalPtr}`);
       }
