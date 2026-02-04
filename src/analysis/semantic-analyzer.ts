@@ -1,6 +1,6 @@
 import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode, VariableNode } from '../ast/types.js';
 
-type SymbolType = 'number' | 'string' | 'boolean' | 'array<number>' | 'array<string>' | 'object' | 'class' | 'unknown';
+type SymbolType = 'number' | 'string' | 'boolean' | 'null' | 'undefined' | 'array<number>' | 'array<string>' | 'object' | 'class' | 'unknown';
 
 interface ExpressionBase {
   type: string;
@@ -234,6 +234,24 @@ export class SemanticAnalyzer {
         name: '',
         type: 'boolean',
         llvmType: 'double',
+      };
+    }
+
+    // Null literal
+    if (e.type === 'null') {
+      return {
+        name: '',
+        type: 'null',
+        llvmType: 'i8*',
+      };
+    }
+
+    // Undefined literal
+    if (e.type === 'undefined') {
+      return {
+        name: '',
+        type: 'undefined',
+        llvmType: 'i8*',
       };
     }
 

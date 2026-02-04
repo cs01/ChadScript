@@ -576,11 +576,11 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
   }
 
   if (ctx.match('null')) {
-    return { type: 'number', value: 0 };
+    return { type: 'variable', name: 'null' };
   }
 
   if (ctx.match('undefined')) {
-    return { type: 'number', value: 0 };
+    return { type: 'variable', name: 'undefined' };
   }
 
   if (ctx.code[ctx.pos] === '-') {

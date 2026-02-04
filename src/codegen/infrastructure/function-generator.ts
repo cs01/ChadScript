@@ -28,6 +28,7 @@ export interface FunctionGeneratorContext {
   ast: AST;
   typeChecker: TypeChecker | null;
   output: string[];
+  allocaInstructions: string[];
   stringGen: StringGenerator;
   tempCounter: number;
   symbolTable: SymbolTable;

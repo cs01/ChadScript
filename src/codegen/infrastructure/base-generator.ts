@@ -11,10 +11,12 @@ export { SymbolTable, SymbolKind };
 
 export class BaseGenerator {
   public tempCounter: number = 0;
+  public allocaCounter: number = 0;
   public labelCounter: number = 0;
   public stringCounter: number = 0;
   public output: string[];
   public outputCount: number = 0;
+  public allocaInstructions: string[]; // Collected allocas to hoist to entry block
   public globalStrings: string[];
   public globalStringsCount: number = 0;
   public currentLabel: string = 'entry'; // Track current basic block label
@@ -42,6 +44,7 @@ export class BaseGenerator {
 
   constructor() {
     this.output = [];
+    this.allocaInstructions = [];
     this.globalStrings = [];
     this.symbolTable = new SymbolTable();
     this.variableTypes = new Map();
@@ -52,10 +55,12 @@ export class BaseGenerator {
   // Reset state for new function generation
   reset(): void {
     this.tempCounter = 0;
+    this.allocaCounter = 0;
     this.labelCounter = 0;
     this.currentLabel = 'entry';
     this.output.length = 0;
     this.outputCount = 0;
+    this.allocaInstructions.length = 0;
     this.thisPointer = null;
     this.currentClassName = null;
     this.currentFunctionReturnType = 'double';
@@ -68,6 +73,15 @@ export class BaseGenerator {
   // Helper to get next temp register (can be overridden)
   nextTemp(): string {
     return `%${this.tempCounter++}`;
+  }
+
+  // Helper to get a named alloca register for a variable
+  // Named registers don't need to be in order like numbered ones
+  // Include counter to handle same-name variables in different scopes
+  nextAllocaReg(varName: string): string {
+    const safeName = varName.replace(/[^a-zA-Z0-9_]/g, '_');
+    const counter = this.allocaCounter++;
+    return `%${safeName}.addr.${counter}`;
   }
 
   // Helper to get next label (can be overridden)
@@ -342,6 +356,11 @@ export class BaseGenerator {
   // Get all output
   getOutput(): string[] {
     return this.output;
+  }
+
+  // Get collected alloca instructions (hoisted to entry block)
+  getAllocaInstructions(): string[] {
+    return this.allocaInstructions;
   }
 
   // Get global strings

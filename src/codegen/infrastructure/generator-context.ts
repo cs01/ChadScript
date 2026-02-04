@@ -106,6 +106,13 @@ export interface IGeneratorContext {
   nextTemp(): string;
 
   /**
+   * Allocate a named register for a variable alloca
+   * Returns: %varname.addr.0, %varname.addr.1, etc.
+   * Named allocas don't need to follow sequential ordering
+   */
+  nextAllocaReg(varName: string): string;
+
+  /**
    * Allocate a new label
    * Returns: prefix0, prefix1, prefix2, etc.
    */
@@ -278,6 +285,12 @@ export interface IGeneratorContext {
   readonly output: string[];
 
   /**
+   * Collected alloca instructions to be hoisted to entry block
+   * Allocas inside loops cause stack overflow - they must be at function start
+   */
+  readonly allocaInstructions: string[];
+
+  /**
    * Current label for tracking control flow position
    * Accessed via getCurrentLabel/setCurrentLabel methods
    */
@@ -393,6 +406,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   private labelCount = 0;
   private stringCount = 0;
   public output: string[] = [];
+  public allocaInstructions: string[] = [];
   public symbolTable = new SymbolTable();
   public variableTypes: Map<string, string> = new Map();
   public actualClassTypes: Map<string, string> = new Map();
@@ -470,6 +484,11 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   nextTemp(): string {
     return `%${this.tempCount++}`;
+  }
+
+  nextAllocaReg(varName: string): string {
+    const safeName = varName.replace(/[^a-zA-Z0-9_]/g, '_');
+    return `%${safeName}.addr.${this.tempCount++}`;
   }
 
   nextLabel(prefix: string): string {
