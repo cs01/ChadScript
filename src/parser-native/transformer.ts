@@ -46,6 +46,10 @@ import {
 interface ExprBase { type: string; }
 interface NodeBase { nodePtr: number; source: string; type: string; text: string; startIndex: number; endIndex: number; childCount: number; namedChildCount: number; isNamed: boolean; isNull: boolean; }
 
+function getExprType(expr: Expression): string {
+  return (expr as ExprBase).type;
+}
+
 export function transformTree(tree: TreeSitterTree): AST {
   return transformProgram(tree.rootNode);
 }
@@ -643,11 +647,11 @@ function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNo
 
   if (className === 'Map') {
     if (args.length > 0) {
-      const firstArg = args[0] as ExprBase;
-      if (firstArg.type === 'array') {
+      const firstArgType = getExprType(args[0]);
+      if (firstArgType === 'array') {
         const entries = (args[0] as ArrayNode).elements.map(elem => {
-          const elemBase = elem as ExprBase;
-          if (elemBase.type === 'array' && (elem as ArrayNode).elements.length === 2) {
+          const elemType = getExprType(elem);
+          if (elemType === 'array' && (elem as ArrayNode).elements.length === 2) {
             return { key: (elem as ArrayNode).elements[0], value: (elem as ArrayNode).elements[1] };
           }
           return { key: elem, value: { type: 'variable' as const, name: 'undefined' } };
@@ -660,8 +664,8 @@ function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNo
 
   if (className === 'Set') {
     if (args.length > 0) {
-      const firstArg = args[0] as ExprBase;
-      if (firstArg.type === 'array') {
+      const firstArgType = getExprType(args[0]);
+      if (firstArgType === 'array') {
         return { type: 'set', values: (args[0] as ArrayNode).elements };
       }
     }

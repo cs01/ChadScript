@@ -508,11 +508,9 @@ export class FunctionGenerator {
   }
 
   generateMain(topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>): string {
-    console.log('generateMain: start');
     let ir = 'define i32 @main(i32 %argc, i8** %argv) {\n';
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
-    console.log('generateMain: setCurrentLabel done');
 
     ir += '  ; Initialize garbage collector\n';
     ir += '  call void @GC_init()\n';
@@ -521,39 +519,28 @@ export class FunctionGenerator {
     ir += '  store i32 %argc, i32* @__argc\n';
     ir += '  store i8** %argv, i8*** @__argv\n';
 
-    console.log('generateMain: about to call reset');
     this.ctx.reset();
-    console.log('generateMain: reset done');
 
-    console.log('generateMain: getting counts');
     const topLevelItemsCount = this.ctx.getTopLevelItemsCount();
     const topLevelStatementsCount = this.ctx.getTopLevelStatementsCount();
     const topLevelExpressionsCount = this.ctx.getTopLevelExpressionsCount();
-    console.log('generateMain: itemsCount=' + topLevelItemsCount + ', stmtsCount=' + topLevelStatementsCount + ', exprsCount=' + topLevelExpressionsCount);
 
     if (topLevelItemsCount > 0) {
-      console.log('generateMain: processing top level items');
       for (let itemIdx = 0; itemIdx < topLevelItemsCount; itemIdx++) {
-        console.log('generateMain: processing item ' + itemIdx);
         this.ctx.processTopLevelItem(itemIdx);
       }
     } else {
-      console.log('generateMain: processing stmts and exprs');
       for (let i = 0; i < topLevelStatementsCount; i++) {
-        console.log('generateMain: processing stmt ' + i);
         const stmt = this.ctx.getTopLevelStatement(i);
         this.ctx.allocateVariable(stmt as VariableDeclaration, []);
       }
       for (let i = 0; i < topLevelExpressionsCount; i++) {
-        console.log('generateMain: processing expr ' + i);
         const expr = this.ctx.getTopLevelExpression(i);
         this.ctx.generateExpression(expr as Expression, []);
       }
     }
 
-    console.log('generateMain: getting output');
     const outputStr = this.ctx.getOutputAsString();
-    console.log('generateMain: output length = ' + outputStr.length);
     if (outputStr.length > 0) {
       ir += outputStr;
     }
@@ -561,7 +548,6 @@ export class FunctionGenerator {
     ir += '  ret i32 0\n';
     ir += '}\n';
 
-    console.log('generateMain: done');
     return ir;
   }
 }

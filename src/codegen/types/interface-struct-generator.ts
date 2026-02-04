@@ -23,15 +23,11 @@ export class InterfaceStructGenerator {
   private interfaces: InterfaceDeclaration[] = [];
 
   constructor(interfaces: InterfaceDeclaration[], interfaceCount: number) {
-    console.log('InterfaceStructGenerator: constructor called');
-    console.log('InterfaceStructGenerator: interfaceCount = ' + interfaceCount);
     this.interfaceCount = interfaceCount;
     if (interfaceCount > 0) {
       this.interfaces = interfaces;
-      console.log('InterfaceStructGenerator: calling buildInterfaceStructs');
       this.buildInterfaceStructs();
     }
-    console.log('InterfaceStructGenerator: constructor done');
   }
 
   private buildInterfaceStructs(): void {

@@ -27,29 +27,18 @@ export class ConsoleGenerator {
    * Check if this method call is a console.* method
    */
   canHandle(expr: MethodCallNode): boolean {
-    console.log('ConsoleGenerator.canHandle: start');
     const exprObjBase = expr.object as ExprBase;
-    console.log('ConsoleGenerator.canHandle: got exprObjBase');
     const objType = exprObjBase.type;
-    console.log('ConsoleGenerator.canHandle: objType = ' + objType);
     if (objType !== 'variable') {
-      console.log('ConsoleGenerator.canHandle: not a variable');
       return false;
     }
-    console.log('ConsoleGenerator.canHandle: checking name');
     const varNode = expr.object as VariableNode;
-    console.log('ConsoleGenerator.canHandle: got varNode');
     const name = varNode.name;
-    console.log('ConsoleGenerator.canHandle: name = ' + name);
     if (name !== 'console') {
-      console.log('ConsoleGenerator.canHandle: not console');
       return false;
     }
-    console.log('ConsoleGenerator.canHandle: checking method');
     const method = expr.method;
-    console.log('ConsoleGenerator.canHandle: method = ' + method);
     const result = method === 'log' || method === 'error' || method === 'warn' || method === 'debug';
-    console.log('ConsoleGenerator.canHandle: result = ' + result);
     return result;
   }
 

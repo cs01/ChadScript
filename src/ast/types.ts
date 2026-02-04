@@ -98,6 +98,7 @@ export interface MethodCallNode {
   method: string;
   args: Expression[];
   typeParameter?: string; // Generic type parameter like <JsonTestResponse>
+  pos?: number; // Source position for error reporting
 }
 
 export interface NewNode {

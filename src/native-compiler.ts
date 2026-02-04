@@ -52,7 +52,11 @@ export function compileNative(inputFile: string, outputFile: string): void {
   // console.log('Semantic analysis passed');
 
   console.log('About to create LLVMGenerator...');
-  const generatorOptions: LLVMGeneratorOptions = { linkTreeSitter: true };
+  const generatorOptions: LLVMGeneratorOptions = {
+    linkTreeSitter: true,
+    sourceCode: code,
+    filename: inputFile
+  };
   console.log('Created options');
   const generator = new LLVMGenerator(mergedAST, null, generatorOptions);
   console.log('LLVMGenerator created, calling generate()...');

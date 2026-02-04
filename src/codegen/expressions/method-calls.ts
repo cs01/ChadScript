@@ -197,7 +197,7 @@ export interface MethodCallGeneratorContext {
   isObjectArrayExpression(expr: Expression): boolean;
   isRegexExpression(expr: Expression): boolean;
   isPromiseExpression(expr: Expression): boolean;
-  formatCodegenError(message: string, suggestion: string): string;
+  formatCodegenError(message: string, suggestion: string, pos?: number): string;
   symbolTable: SymbolTable;
   variableTypes: Map<string, string>;
   getVariableType(name: string): string | undefined;
@@ -871,7 +871,7 @@ export class MethodCallGenerator {
 
     // Build a helpful error message with supported methods
     const exprObjBase = expr.object as ExprBase;
-    this.throwUnsupportedMethodError(method, exprObjBase.type, expr.object);
+    this.throwUnsupportedMethodError(method, exprObjBase.type, expr);
   }
 
   private handleExecSync(expr: MethodCallNode, params: string[]): string {
@@ -1846,9 +1846,13 @@ export class MethodCallGenerator {
     return result;
   }
 
-  private throwUnsupportedMethodError(method: string, _objectType?: string, expr?: Expression): never {
+  private throwUnsupportedMethodError(method: string, _objectType?: string, methodCallExpr?: MethodCallNode): never {
     let objectDescription = '';
-    if (expr) {
+    let pos: number | undefined = undefined;
+
+    if (methodCallExpr) {
+      pos = methodCallExpr.pos;
+      const expr = methodCallExpr.object;
       const e = expr as ExprBase;
       if (e.type === 'member_access') {
         const memberExpr = expr as MemberAccessNode;
@@ -1863,68 +1867,20 @@ export class MethodCallGenerator {
       }
     }
 
-    const methodsByType: Record<string, string[]> = {
-      'Number': ['toFixed', 'toString'],
-      'String': ['charAt', 'charCodeAt', 'concat', 'padStart', 'repeat', 'split', 'startsWith', 'substring', 'substr', 'toUpperCase', 'toLowerCase'],
-      'Array': ['push', 'map', 'join', 'find', 'some', 'every', 'filter', 'forEach', 'slice', 'concat'],
-      'Map': ['set', 'get', 'has'],
-      'Set': ['add', 'has', 'delete'],
-      'Promise': ['then', 'catch'],
-      'console': ['log', 'error'],
-      'process': ['exit'],
-      'fs': ['readFileSync', 'writeFileSync', 'existsSync', 'unlinkSync'],
-      'path': ['resolve', 'dirname'],
-      'JSON': ['parse', 'stringify'],
-      'RegExp': ['test']
-    };
-
-    let inferredType: string | null = null;
-    const numberMethods = ['isInteger', 'isNaN', 'isFinite', 'parseFloat', 'parseInt', 'toFixed', 'toPrecision', 'toExponential'];
-    const stringMethods = ['charAt', 'charCodeAt', 'indexOf', 'lastIndexOf', 'slice', 'substring', 'substr', 'toLowerCase', 'toUpperCase', 'trim', 'trimStart', 'trimEnd', 'padStart', 'padEnd', 'repeat', 'replace', 'replaceAll', 'split', 'startsWith', 'endsWith', 'includes', 'match', 'search', 'normalize'];
-    const arrayMethods = ['push', 'pop', 'shift', 'unshift', 'splice', 'slice', 'concat', 'join', 'reverse', 'sort', 'indexOf', 'lastIndexOf', 'find', 'findIndex', 'filter', 'map', 'reduce', 'reduceRight', 'every', 'some', 'forEach', 'includes', 'flat', 'flatMap', 'fill', 'copyWithin', 'entries', 'keys', 'values'];
-
-    if (numberMethods.indexOf(method) !== -1) {
-      inferredType = 'Number';
-    } else if (stringMethods.indexOf(method) !== -1) {
-      inferredType = 'String';
-    } else if (arrayMethods.indexOf(method) !== -1) {
-      inferredType = 'Array';
-    }
-
-    let suggestion = '';
-
-    if (inferredType && methodsByType[inferredType]) {
-      const supportedForType = methodsByType[inferredType];
-      suggestion = `\x1b[33mSupported ${inferredType} methods:\x1b[0m\n  ${supportedForType.join(', ')}\n\n`;
-      if (supportedForType.length === 0 || (inferredType === 'Number' && supportedForType.length < 3)) {
-        suggestion += `\x1b[90mNote: ${inferredType} has limited method support. Consider using manual operations instead.\x1b[0m\n\n`;
-      }
-    } else {
-      suggestion = `\x1b[33mSupported methods:\x1b[0m\n\n`;
-      suggestion += `\x1b[36mString:\x1b[0m ${methodsByType['String'].join(', ')}\n`;
-      suggestion += `\x1b[36mArray:\x1b[0m ${methodsByType['Array'].join(', ')}\n`;
-      suggestion += `\x1b[36mMap:\x1b[0m ${methodsByType['Map'].join(', ')}\n`;
-      suggestion += `\x1b[36mSet:\x1b[0m ${methodsByType['Set'].join(', ')}\n\n`;
-    }
-
+    // Simple one-line suggestions for common unsupported methods
+    let suggestion: string | undefined = undefined;
     if (method === 'isInteger') {
-      suggestion += `\x1b[33mAlternative for 'isInteger':\x1b[0m\n`;
-      suggestion += `  Use: \x1b[32m(value % 1 === 0)\x1b[0m to check if a number is an integer\n`;
+      suggestion = `Use (value % 1 === 0) instead`;
     } else if (method === 'isNaN') {
-      suggestion += `\x1b[33mAlternative for 'isNaN':\x1b[0m\n`;
-      suggestion += `  Use: \x1b[32m(value !== value)\x1b[0m to check for NaN\n`;
-    } else if (method === 'includes' && inferredType === 'String') {
-      suggestion += `\x1b[33mAlternative for 'includes':\x1b[0m\n`;
-      suggestion += `  Use: \x1b[32mstr.indexOf(substr) !== -1\x1b[0m\n`;
-    } else if (method === 'includes' && inferredType === 'Array') {
-      suggestion += `\x1b[33mAlternative for 'includes':\x1b[0m\n`;
-      suggestion += `  Use: \x1b[32marr.some(x => x === value)\x1b[0m\n`;
+      suggestion = `Use (value !== value) instead`;
+    } else if (method === 'includes') {
+      suggestion = `Use indexOf(...) !== -1 instead`;
     }
 
     const errorMsg = objectDescription
-      ? `Method '${method}' on '${objectDescription}' is not supported yet.`
-      : `Method '${method}' is not supported yet.`;
+      ? `Method '${method}' on '${objectDescription}' is not supported.`
+      : `Method '${method}' is not supported.`;
 
-    throw new Error(this.ctx.formatCodegenError(errorMsg, suggestion));
+    throw new Error(this.ctx.formatCodegenError(errorMsg, suggestion || '', pos));
   }
 }
