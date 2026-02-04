@@ -31,7 +31,8 @@ export enum SymbolKind {
   Regex = 'regex',             // i8* (compiled regex)
   JSON = 'json',               // i8* (cJSON object)
   ProcessArgv = 'process_argv', // i8** (process.argv)
-  Closure = 'closure'          // Function with captured environment
+  Closure = 'closure',         // Function with captured environment
+  Pointer = 'pointer'          // Raw pointer (i8*) for FFI
 }
 
 /**

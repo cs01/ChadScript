@@ -92,7 +92,7 @@ export class InterfaceStructGenerator {
           result.push({
             name: fieldName,
             tsType: f.type,
-            llvmType: this.tsTypeToLlvm(f.type)
+            llvmType: this.tsTypeToLlvmForField(fieldName, f.type)
           });
         }
       }
@@ -117,10 +117,17 @@ export class InterfaceStructGenerator {
       result.push({
         name: fieldName,
         tsType: f.type,
-        llvmType: this.tsTypeToLlvm(f.type)
+        llvmType: this.tsTypeToLlvmForField(fieldName, f.type)
       });
     }
     return result;
+  }
+
+  private tsTypeToLlvmForField(fieldName: string, tsType: string): string {
+    if (fieldName === 'nodePtr' || fieldName === 'treePtr') {
+      return 'i8*';
+    }
+    return this.tsTypeToLlvm(tsType);
   }
 
   private tsTypeToLlvm(tsType: string): string {

@@ -395,7 +395,10 @@ export class CallExpressionGenerator {
       }
       for (let i = 0; i < func.paramTypes.length; i++) {
         const p = func.paramTypes[i] as string;
-        if (p === 'string') {
+        const paramName = func.params[i];
+        if (paramName === 'nodePtr' || paramName === 'treePtr') {
+          paramTypes.push('i8*');
+        } else if (p === 'string') {
           paramTypes.push('i8*');
         } else if (p === 'string[]') {
           paramTypes.push('%StringArray*');
@@ -420,7 +423,9 @@ export class CallExpressionGenerator {
         if (funcNode.parameters) {
           for (let i = 0; i < funcNode.parameters.length; i++) {
             const p = funcNode.parameters[i] as FunctionParameter;
-            if (p.type === 'string') paramTypes.push('i8*');
+            if (p.name === 'nodePtr' || p.name === 'treePtr') {
+              paramTypes.push('i8*');
+            } else if (p.type === 'string') paramTypes.push('i8*');
             else if (p.type === 'string[]') paramTypes.push('%StringArray*');
             else if (p.type === 'number[]' || p.type === 'boolean[]') paramTypes.push('%Array*');
             else if (p.type && p.type !== 'number' && p.type !== 'boolean') paramTypes.push('i8*');
@@ -429,7 +434,10 @@ export class CallExpressionGenerator {
         } else if (funcNode.paramTypes) {
           for (let i = 0; i < funcNode.paramTypes.length; i++) {
             const t = funcNode.paramTypes[i];
-            if (t === 'string') paramTypes.push('i8*');
+            const paramName = funcNode.params[i];
+            if (paramName === 'nodePtr' || paramName === 'treePtr') {
+              paramTypes.push('i8*');
+            } else if (t === 'string') paramTypes.push('i8*');
             else if (t === 'string[]') paramTypes.push('%StringArray*');
             else if (t === 'number[]' || t === 'boolean[]') paramTypes.push('%Array*');
             else if (t !== 'number' && t !== 'boolean') paramTypes.push('i8*');
@@ -575,36 +583,28 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${lengthI32} = fptosi double ${lengthDouble} to i32`);
     const resultPtr = this.ctx.nextTemp();
     this.ctx.emit(`${resultPtr} = call %TSTree* @__ts_parse_source(i8* ${sourceValue}, i32 ${lengthI32})`);
-    const resultI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI64} = ptrtoint %TSTree* ${resultPtr} to i64`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = bitcast i64 ${resultI64} to double`);
-    this.ctx.setVariableType(result, '%TSTree*');
+    this.ctx.emit(`${result} = bitcast %TSTree* ${resultPtr} to i8*`);
+    this.ctx.setVariableType(result, 'i8*');
     return result;
   }
 
   private generateTsGetRootNode(expr: CallNode, params: string[]): string {
     const treeValue = this.ctx.generateExpression(expr.args[0], params);
-    const treeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${treeI64} = bitcast double ${treeValue} to i64`);
     const treePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${treePtr} = inttoptr i64 ${treeI64} to %TSTree*`);
+    this.ctx.emit(`${treePtr} = bitcast i8* ${treeValue} to %TSTree*`);
     const resultPtr = this.ctx.nextTemp();
     this.ctx.emit(`${resultPtr} = call %TSNode* @__ts_get_root_node(%TSTree* ${treePtr})`);
-    const resultI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI64} = ptrtoint %TSNode* ${resultPtr} to i64`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = bitcast i64 ${resultI64} to double`);
-    this.ctx.setVariableType(result, '%TSNode*');
+    this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
+    this.ctx.setVariableType(result, 'i8*');
     return result;
   }
 
   private generateTsNodeType(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
+    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__ts_node_type(%TSNode* ${nodePtr})`);
     this.ctx.setVariableType(result, 'i8*');
@@ -613,10 +613,8 @@ export class CallExpressionGenerator {
 
   private generateTsNodeChildCount(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
+    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const resultI32 = this.ctx.nextTemp();
     this.ctx.emit(`${resultI32} = call i32 @__ts_node_child_count(%TSNode* ${nodePtr})`);
     const resultDouble = this.ctx.nextTemp();
@@ -626,10 +624,8 @@ export class CallExpressionGenerator {
 
   private generateTsNodeNamedChildCount(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
+    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const resultI32 = this.ctx.nextTemp();
     this.ctx.emit(`${resultI32} = call i32 @__ts_node_named_child_count(%TSNode* ${nodePtr})`);
     const resultDouble = this.ctx.nextTemp();
@@ -639,48 +635,38 @@ export class CallExpressionGenerator {
 
   private generateTsNodeChild(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
+    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const indexDouble = this.ctx.generateExpression(expr.args[1], params);
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(`${indexI32} = fptosi double ${indexDouble} to i32`);
     const resultPtr = this.ctx.nextTemp();
     this.ctx.emit(`${resultPtr} = call %TSNode* @__ts_node_child(%TSNode* ${nodePtr}, i32 ${indexI32})`);
-    const resultI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI64} = ptrtoint %TSNode* ${resultPtr} to i64`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = bitcast i64 ${resultI64} to double`);
-    this.ctx.setVariableType(result, '%TSNode*');
+    this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
+    this.ctx.setVariableType(result, 'i8*');
     return result;
   }
 
   private generateTsNodeNamedChild(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
+    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const indexDouble = this.ctx.generateExpression(expr.args[1], params);
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(`${indexI32} = fptosi double ${indexDouble} to i32`);
     const resultPtr = this.ctx.nextTemp();
     this.ctx.emit(`${resultPtr} = call %TSNode* @__ts_node_named_child(%TSNode* ${nodePtr}, i32 ${indexI32})`);
-    const resultI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI64} = ptrtoint %TSNode* ${resultPtr} to i64`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = bitcast i64 ${resultI64} to double`);
-    this.ctx.setVariableType(result, '%TSNode*');
+    this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
+    this.ctx.setVariableType(result, 'i8*');
     return result;
   }
 
   private generateTsNodeText(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
+    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const sourceValue = this.ctx.generateExpression(expr.args[1], params);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__ts_node_text(%TSNode* ${nodePtr}, i8* ${sourceValue})`);
@@ -690,10 +676,8 @@ export class CallExpressionGenerator {
 
   private generateTsNodeIsNull(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
+    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const resultI1 = this.ctx.nextTemp();
     this.ctx.emit(`${resultI1} = call i1 @__ts_node_is_null(%TSNode* ${nodePtr})`);
     const resultDouble = this.ctx.nextTemp();
@@ -703,10 +687,8 @@ export class CallExpressionGenerator {
 
   private generateTsNodeIsNamed(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
+    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const resultI1 = this.ctx.nextTemp();
     this.ctx.emit(`${resultI1} = call i1 @__ts_node_is_named(%TSNode* ${nodePtr})`);
     const resultDouble = this.ctx.nextTemp();
@@ -716,10 +698,8 @@ export class CallExpressionGenerator {
 
   private generateTsNodeStartByte(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
+    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const resultI32 = this.ctx.nextTemp();
     this.ctx.emit(`${resultI32} = call i32 @__ts_node_start_byte(%TSNode* ${nodePtr})`);
     const resultDouble = this.ctx.nextTemp();
@@ -729,10 +709,8 @@ export class CallExpressionGenerator {
 
   private generateTsNodeEndByte(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
+    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const resultI32 = this.ctx.nextTemp();
     this.ctx.emit(`${resultI32} = call i32 @__ts_node_end_byte(%TSNode* ${nodePtr})`);
     const resultDouble = this.ctx.nextTemp();
@@ -742,21 +720,17 @@ export class CallExpressionGenerator {
 
   private generateTsNodeChildByFieldName(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodeI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${nodeI64} = bitcast double ${nodeValue} to i64`);
     const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = inttoptr i64 ${nodeI64} to %TSNode*`);
+    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const fieldValue = this.ctx.generateExpression(expr.args[1], params);
     const fieldLenDouble = this.ctx.generateExpression(expr.args[2], params);
     const fieldLenI32 = this.ctx.nextTemp();
     this.ctx.emit(`${fieldLenI32} = fptosi double ${fieldLenDouble} to i32`);
     const resultPtr = this.ctx.nextTemp();
     this.ctx.emit(`${resultPtr} = call %TSNode* @__ts_node_child_by_field_name(%TSNode* ${nodePtr}, i8* ${fieldValue}, i32 ${fieldLenI32})`);
-    const resultI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI64} = ptrtoint %TSNode* ${resultPtr} to i64`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = bitcast i64 ${resultI64} to double`);
-    this.ctx.setVariableType(result, '%TSNode*');
+    this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
+    this.ctx.setVariableType(result, 'i8*');
     return result;
   }
 
