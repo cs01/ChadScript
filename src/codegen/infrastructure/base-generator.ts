@@ -29,6 +29,10 @@ export class BaseGenerator {
   // Expression type cache - maps expressions to their resolved types
   public expressionTypes: Map<Expression, ResolvedType>;
 
+  // Actual class type tracking - when an interface-typed variable holds a class instance,
+  // this maps the variable/register to its actual concrete class name for correct struct access
+  public actualClassTypes: Map<string, string>;
+
   public thisPointer: string | null = null; // Current 'this' pointer (i32*)
   public currentClassName: string | null = null; // Current class name (for super resolution)
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null = null; // Expected array element type for context-aware generation
@@ -42,6 +46,7 @@ export class BaseGenerator {
     this.symbolTable = new SymbolTable();
     this.variableTypes = new Map();
     this.expressionTypes = new Map();
+    this.actualClassTypes = new Map();
   }
 
   // Reset state for new function generation
@@ -57,6 +62,7 @@ export class BaseGenerator {
     this.symbolTable.clearLocals();
     this.variableTypes.clear();
     this.expressionTypes.clear();
+    this.actualClassTypes.clear();
   }
 
   // Helper to get next temp register (can be overridden)
@@ -368,6 +374,14 @@ export class BaseGenerator {
       );
     }
     this.variableTypes.set(name, type);
+  }
+
+  setActualClassType(name: string, className: string): void {
+    this.actualClassTypes.set(name, className);
+  }
+
+  getActualClassType(name: string): string | undefined {
+    return this.actualClassTypes.get(name);
   }
 
   /**

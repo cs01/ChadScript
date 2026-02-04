@@ -115,6 +115,46 @@ export interface MemberAccessGeneratorContext {
 export class MemberAccessGenerator {
   constructor(private ctx: MemberAccessGeneratorContext) {}
 
+  private findClassImplementingInterface(interfaceName: string): string | null {
+    if (!this.ctx.ast?.classes) return null;
+    const classes = this.ctx.ast.classes;
+    let implementingClass: string | null = null;
+    for (let i = 0; i < classes.length; i++) {
+      const cls = classes[i] as { name: string; implements?: string[] };
+      if (cls.implements) {
+        for (let j = 0; j < cls.implements.length; j++) {
+          if (cls.implements[j] === interfaceName) {
+            if (cls.name.indexOf('Mock') !== -1 || cls.name.indexOf('Test') !== -1) {
+              continue;
+            }
+            if (implementingClass !== null) {
+              return null;
+            }
+            implementingClass = cls.name;
+          }
+        }
+      }
+    }
+    if (implementingClass) {
+      return implementingClass;
+    }
+    if (interfaceName.endsWith('Context') || interfaceName.endsWith('Like')) {
+      for (let i = 0; i < classes.length; i++) {
+        const cls = classes[i] as { name: string; implements?: string[] };
+        if (cls.implements) {
+          for (let j = 0; j < cls.implements.length; j++) {
+            if (cls.implements[j] === 'IGeneratorContext') {
+              if (cls.name.indexOf('Mock') === -1 && cls.name.indexOf('Test') === -1) {
+                return cls.name;
+              }
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   private getInterfaceFromAST(name: string): InterfaceInfo | null {
     const baseName = this.extractBaseTypeName(name);
     if (!this.ctx.ast?.interfaces) return null;
@@ -1085,6 +1125,21 @@ export class MemberAccessGenerator {
         }
         return null;
       }
+
+      const implementingClass = this.findClassImplementingInterface(fieldInfo.tsType);
+      if (implementingClass) {
+        const classFieldInfo = this.ctx.classGen?.getFieldInfo(implementingClass, expr.property);
+        if (classFieldInfo) {
+          const classFieldInfoTyped = classFieldInfo as { index: number; type: string; tsType?: string };
+          const innerPtr = this.ctx.generateExpression(expr.object, params);
+          const castPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${castPtr} = bitcast %${fieldInfo.tsType}* ${innerPtr} to %${implementingClass}_struct*`);
+          const fieldPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${implementingClass}_struct, %${implementingClass}_struct* ${castPtr}, i32 0, i32 ${classFieldInfoTyped.index}`);
+          return this.loadFieldValue(fieldPtr, classFieldInfo);
+        }
+      }
+
       const interfaceInfo = interfaceInfoResult as InterfaceInfo;
 
       let propIndex = -1;
@@ -1109,6 +1164,20 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load ${llvmType}, ${llvmType}* ${fieldPtr}`);
       this.ctx.setVariableType(value, llvmType);
       return value;
+    }
+
+    const implementingClass2 = this.findClassImplementingInterface(fieldInfo.tsType);
+    if (implementingClass2) {
+      const classFieldInfo = this.ctx.classGen?.getFieldInfo(implementingClass2, expr.property);
+      if (classFieldInfo) {
+        const classFieldInfoTyped = classFieldInfo as { index: number; type: string; tsType?: string };
+        const innerPtr = this.ctx.generateExpression(expr.object, params);
+        const castPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${castPtr} = bitcast %${fieldInfo.tsType}* ${innerPtr} to %${implementingClass2}_struct*`);
+        const fieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${implementingClass2}_struct, %${implementingClass2}_struct* ${castPtr}, i32 0, i32 ${classFieldInfoTyped.index}`);
+        return this.loadFieldValue(fieldPtr, classFieldInfo);
+      }
     }
 
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;

@@ -246,6 +246,11 @@ export interface IGeneratorContext {
   readonly variableTypes: Map<string, string>;
 
   /**
+   * Actual class type tracking - maps interface-typed variables to their concrete class type
+   */
+  readonly actualClassTypes: Map<string, string>;
+
+  /**
    * Expression type cache - maps expressions to their resolved types
    * Caches type inference results to avoid repeated computation
    */
@@ -261,6 +266,10 @@ export interface IGeneratorContext {
    * Cache an expression's type for future lookups
    */
   setExpressionType(expr: Expression, type: ResolvedType): void;
+
+  setActualClassType(name: string, className: string): void;
+
+  getActualClassType(name: string): string | undefined;
 
   /**
    * LLVM IR output buffer
@@ -386,6 +395,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public output: string[] = [];
   public symbolTable = new SymbolTable();
   public variableTypes: Map<string, string> = new Map();
+  public actualClassTypes: Map<string, string> = new Map();
   public expressionTypes: Map<Expression, ResolvedType> = new Map();
   public globalStrings: string[] = [];
   public currentFunctionReturnType: string = 'double';
@@ -415,6 +425,14 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   setExpressionType(expr: Expression, type: ResolvedType): void {
     this.expressionTypes.set(expr, type);
+  }
+
+  setActualClassType(name: string, className: string): void {
+    this.actualClassTypes.set(name, className);
+  }
+
+  getActualClassType(name: string): string | undefined {
+    return this.actualClassTypes.get(name);
   }
 
   generateExpression(_expr: Expression, _params: string[]): string {

@@ -1618,7 +1618,7 @@ export class MethodCallGenerator {
 
   private findPrimaryImplementingClass(methodName: string): string | null {
     for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
-      const cls = this.ctx.ast.classes[ci];
+      const cls = this.ctx.ast.classes[ci] as { name: string; implements?: string[] };
       if (cls.implements && cls.implements.length > 0) {
         const hasMethod = this.findClassWithMethod(cls.name, methodName);
         if (hasMethod) {
@@ -1627,7 +1627,7 @@ export class MethodCallGenerator {
       }
     }
     for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
-      const cls = this.ctx.ast.classes[ci];
+      const cls = this.ctx.ast.classes[ci] as { name: string };
       const hasMethod = this.findClassWithMethod(cls.name, methodName);
       if (hasMethod) {
         return hasMethod;
@@ -1647,7 +1647,7 @@ export class MethodCallGenerator {
 
   private classImplementsInterface(className: string, interfaceName: string): boolean {
     for (let i = 0; i < this.ctx.ast.classes.length; i++) {
-      const cls = this.ctx.ast.classes[i];
+      const cls = this.ctx.ast.classes[i] as { name: string; implements?: string[]; extends?: string };
       if (cls.name === className) {
         if (cls.implements) {
           for (let j = 0; j < cls.implements.length; j++) {
