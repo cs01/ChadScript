@@ -22,6 +22,7 @@ declare const path: {
 
 const BDWGC_PATH = '/data/users/cssmith/git/bdwgc';
 const MONGOOSE_PATH = '/data/users/cssmith/git/mongoose';
+const CHADSCRIPT_PATH = '/data/users/cssmith/git/ChadScript';
 
 export function compileNative(inputFile: string, outputFile: string): void {
   console.log('ChadScript native compiler v0.1.0');
@@ -72,8 +73,9 @@ export function compileNative(inputFile: string, outputFile: string): void {
   child_process.execSync(llcCmd);
 
   const mongooseObj = MONGOOSE_PATH + '/mongoose.o';
+  const treeSitterTs = CHADSCRIPT_PATH + '/build/tree-sitter-typescript-parser.o ' + CHADSCRIPT_PATH + '/build/tree-sitter-typescript-scanner.o';
   const linkLibs = '-L' + BDWGC_PATH + ' -lgc -lcurl -lcjson /lib64/libuv.so.1 -lm -lpthread /usr/lib64/libtree-sitter.so.0';
-  const linkCmd = 'clang ' + objFile + ' ' + mongooseObj + ' -o ' + outputFile + ' -no-pie ' + linkLibs;
+  const linkCmd = 'clang ' + objFile + ' ' + mongooseObj + ' ' + treeSitterTs + ' -o ' + outputFile + ' -no-pie ' + linkLibs;
   console.log('Running: ' + linkCmd);
   child_process.execSync(linkCmd);
 
