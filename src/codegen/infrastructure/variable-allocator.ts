@@ -128,6 +128,26 @@ export class VariableAllocator {
     return null;
   }
 
+  private getAllInterfaceFields(iface: InterfaceDeclaration): InterfaceField[] {
+    const result: InterfaceField[] = [];
+    if (iface.extends && iface.extends.length > 0) {
+      for (let i = 0; i < iface.extends.length; i++) {
+        const parentName = iface.extends[i];
+        const parent = this.getInterface(parentName);
+        if (parent) {
+          const parentFields = this.getAllInterfaceFields(parent);
+          for (let j = 0; j < parentFields.length; j++) {
+            result.push(parentFields[j]);
+          }
+        }
+      }
+    }
+    for (let i = 0; i < iface.fields.length; i++) {
+      result.push(iface.fields[i]);
+    }
+    return result;
+  }
+
   private getTypeAlias(name: string): TypeAliasDeclaration | null {
     if (this.ctx.typeResolver) {
       return this.ctx.typeResolver.getTypeAlias(name);
@@ -578,8 +598,9 @@ export class VariableAllocator {
     } else {
       const interfaceDefResult = this.getInterface(interfaceName);
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-      for (let i = 0; i < interfaceDef.fields.length; i++) {
-        const field = interfaceDef.fields[i] as { name: string; type: string };
+      const allFields = this.getAllInterfaceFields(interfaceDef);
+      for (let i = 0; i < allFields.length; i++) {
+        const field = allFields[i] as { name: string; type: string };
         keys.push(stripOptional(field.name));
         types.push(this.tsTypeToLlvm(field.type));
         tsTypes.push(field.type);

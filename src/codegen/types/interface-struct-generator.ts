@@ -60,9 +60,54 @@ export class InterfaceStructGenerator {
     return iface.fields;
   }
 
-  private buildFields(idx: number): { name: string; tsType: string; llvmType: string }[] {
-    const fields = this.getInterfaceFields(idx);
+  private getInterfaceByName(name: string): InterfaceDeclaration | undefined {
+    for (let i = 0; i < this.interfaces.length; i++) {
+      const iface = this.interfaces[i] as InterfaceDeclaration;
+      if (iface.name === name) {
+        return iface;
+      }
+    }
+    return undefined;
+  }
+
+  private getInheritedFields(iface: InterfaceDeclaration): { name: string; tsType: string; llvmType: string }[] {
     const result: { name: string; tsType: string; llvmType: string }[] = [];
+    if (!iface.extends || iface.extends.length === 0) {
+      return result;
+    }
+    for (let i = 0; i < iface.extends.length; i++) {
+      const parentName = iface.extends[i];
+      const parent = this.getInterfaceByName(parentName);
+      if (parent) {
+        const parentInherited = this.getInheritedFields(parent);
+        for (let j = 0; j < parentInherited.length; j++) {
+          result.push(parentInherited[j]);
+        }
+        for (let j = 0; j < parent.fields.length; j++) {
+          const f = parent.fields[j] as { name: string; type: string };
+          let fieldName = f.name;
+          if (fieldName.endsWith('?')) {
+            fieldName = fieldName.slice(0, -1);
+          }
+          result.push({
+            name: fieldName,
+            tsType: f.type,
+            llvmType: this.tsTypeToLlvm(f.type)
+          });
+        }
+      }
+    }
+    return result;
+  }
+
+  private buildFields(idx: number): { name: string; tsType: string; llvmType: string }[] {
+    const iface = this.interfaces[idx] as InterfaceDeclaration;
+    const result: { name: string; tsType: string; llvmType: string }[] = [];
+    const inheritedFields = this.getInheritedFields(iface);
+    for (let i = 0; i < inheritedFields.length; i++) {
+      result.push(inheritedFields[i]);
+    }
+    const fields = this.getInterfaceFields(idx);
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i] as { name: string; type: string };
       let fieldName = f.name;
