@@ -1377,8 +1377,12 @@ export class ControlFlowGenerator {
   private coerceToTypeNoPhi(value: string, fromType: string, toType: string): string {
     if (fromType === toType) return value;
     if (toType.indexOf('*') !== -1 && fromType === 'double') {
+      const cmp = this.nextTemp();
+      this.emit(`${cmp} = fcmp one double ${value}, 0.0`);
+      const zext = this.nextTemp();
+      this.emit(`${zext} = zext i1 ${cmp} to i64`);
       const coerced = this.nextTemp();
-      this.emit(`${coerced} = inttoptr i64 0 to ${toType}`);
+      this.emit(`${coerced} = inttoptr i64 ${zext} to ${toType}`);
       return coerced;
     }
     if (toType.indexOf('*') !== -1 && fromType === 'i32') {
