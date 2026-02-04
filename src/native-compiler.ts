@@ -200,10 +200,13 @@ function emptyAST(): AST {
 }
 
 function printUsage(): void {
-  console.log('Usage: native-compiler <input.ts> [output]');
+  console.log('Usage: native-compiler [options] <input.ts> [output]');
   console.log('');
   console.log('Options:');
-  console.log('  --help    Show this help message');
+  console.log('  --use-ts-parser           (ignored, tree-sitter always used)');
+  console.log('  --link-tree-sitter        (ignored, always linked)');
+  console.log('  --skip-semantic-analysis  Skip semantic analysis');
+  console.log('  --help                    Show this help message');
 }
 
 const args = process.argv;
@@ -213,25 +216,50 @@ if (args.length < 1) {
   process.exit(1);
 }
 
-const firstArg = args[0];
-if (firstArg === '--help' || firstArg === '-h') {
-  printUsage();
-  process.exit(0);
+let inputFile: string | null = null;
+let outputFile: string | null = null;
+let argIdx = 0;
+while (argIdx < args.length) {
+  const arg = args[argIdx];
+  if (arg === '--help' || arg === '-h') {
+    printUsage();
+    process.exit(0);
+  } else if (arg === '--use-ts-parser') {
+    argIdx = argIdx + 1;
+  } else if (arg === '--link-tree-sitter') {
+    argIdx = argIdx + 1;
+  } else if (arg === '--skip-semantic-analysis') {
+    argIdx = argIdx + 1;
+  } else if (arg.substr(0, 1) === '-') {
+    console.log('Unknown option: ' + arg);
+    printUsage();
+    process.exit(1);
+  } else if (inputFile === null) {
+    inputFile = arg;
+    argIdx = argIdx + 1;
+  } else if (outputFile === null) {
+    outputFile = arg;
+    argIdx = argIdx + 1;
+  } else {
+    argIdx = argIdx + 1;
+  }
 }
 
-if (firstArg.substr(0, 1) === '-') {
-  console.log('Unknown option: ' + firstArg);
+if (inputFile === null) {
+  console.log('Error: No input file specified');
   printUsage();
   process.exit(1);
+  throw new Error('unreachable');
 }
 
-const inputFile = firstArg;
+const theInputFile: string = inputFile;
 
-if (!fs.existsSync(inputFile)) {
-  console.log('Error: File not found: ' + inputFile);
+if (!fs.existsSync(theInputFile)) {
+  console.log('Error: File not found: ' + theInputFile);
   process.exit(1);
+  throw new Error('unreachable');
 }
 
-const outputFile = args.length > 1 ? args[1] : inputFile.substr(0, inputFile.length - 3);
+const theOutputFile: string = outputFile !== null ? outputFile : theInputFile.substr(0, theInputFile.length - 3);
 
-compileNative(inputFile, outputFile);
+compileNative(theInputFile, theOutputFile);
