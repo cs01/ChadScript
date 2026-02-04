@@ -1241,7 +1241,7 @@ export class VariableAllocator {
   private isNullLiteral(expr: Expression | null): boolean {
     if (!expr) return false;
     const e = expr as ExprBase;
-    if (e.type === 'null') return true;
+    if (e.type === 'null' || e.type === 'undefined') return true;
     if (e.type === 'variable') {
       const v = expr as VariableNode;
       return v.name === 'null' || v.name === 'undefined';

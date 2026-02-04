@@ -85,6 +85,11 @@ export class ExpressionGenerator {
       return this.literalGen.generateString(exprTyped.value as string);
     }
 
+    if (exprTyped.type === 'null' || exprTyped.type === 'undefined') {
+      this.ctx.setVariableType('null', 'i8*');
+      return 'null';
+    }
+
     if (exprTyped.type === 'regex') {
       const regexExpr = expr as RegexNode;
       return this.literalGen.generateRegex(regexExpr.pattern, regexExpr.flags);
@@ -199,7 +204,7 @@ export class ExpressionGenerator {
       return this.indexAccessGen.generateAssignment(expr as IndexAccessAssignmentNode, params);
     }
 
-    throw new Error(`Unknown expression type: ${exprTyped.type}`);
+    throw new Error(`Unknown expression type: ${exprTyped.type}, expr: ${JSON.stringify(expr).slice(0, 200)}`);
   }
 
   /**
