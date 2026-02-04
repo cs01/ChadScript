@@ -1,5 +1,5 @@
 import { Expression } from '../../../ast/types.js';
-import { IGeneratorContext } from '../../infrastructure/generator-context.js';
+import { IGeneratorContext, IStringGenerator } from '../../infrastructure/generator-context.js';
 
 import {
   createStringConstant as createStringConstantImpl,
@@ -34,7 +34,7 @@ import { generateSplit as generateSplitImpl } from './string/split.js';
 // STRING GENERATOR - String operations
 // ============================================
 
-export class StringGenerator {
+export class StringGenerator implements IStringGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
   // ============================================

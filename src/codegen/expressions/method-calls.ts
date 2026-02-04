@@ -1541,7 +1541,108 @@ export class MethodCallGenerator {
         }
       }
     }
+    const structuralMatch = this.findClassStructurallyMatchingInterface(interfaceName, methodName);
+    if (structuralMatch) {
+      return structuralMatch;
+    }
     return null;
+  }
+
+  private findClassStructurallyMatchingInterface(interfaceName: string, methodName: string): string | null {
+    const allMethods = this.getAllInterfaceMethods(interfaceName);
+    if (allMethods.length === 0) {
+      const primaryClass = this.findPrimaryImplementingClass(methodName);
+      if (primaryClass) {
+        return primaryClass;
+      }
+      return null;
+    }
+    for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+      const cls = this.ctx.ast.classes[ci];
+      if (this.classHasAllMethods(cls.name, allMethods)) {
+        const hasTargetMethod = this.findClassWithMethod(cls.name, methodName);
+        if (hasTargetMethod) {
+          return cls.name;
+        }
+      }
+    }
+    return null;
+  }
+
+  private getAllInterfaceMethods(interfaceName: string): string[] {
+    const visited: string[] = [];
+    const methods: string[] = [];
+    this.collectInterfaceMethods(interfaceName, methods, visited);
+    return methods;
+  }
+
+  private collectInterfaceMethods(interfaceName: string, methods: string[], visited: string[]): void {
+    for (let v = 0; v < visited.length; v++) {
+      if (visited[v] === interfaceName) return;
+    }
+    visited.push(interfaceName);
+
+    let bestInterface: { name: string; extends?: string[]; methods?: { name: string }[] } | null = null;
+    let maxMethods = 0;
+    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
+      const iface = this.ctx.ast.interfaces[i];
+      if (iface.name === interfaceName) {
+        const methodCount = iface.methods?.length || 0;
+        if (methodCount > maxMethods || !bestInterface) {
+          maxMethods = methodCount;
+          bestInterface = iface;
+        }
+      }
+    }
+    if (!bestInterface) return;
+
+    if (bestInterface.methods) {
+      for (let i = 0; i < bestInterface.methods.length; i++) {
+        const methodName = bestInterface.methods[i].name;
+        let alreadyHas = false;
+        for (let m = 0; m < methods.length; m++) {
+          if (methods[m] === methodName) { alreadyHas = true; break; }
+        }
+        if (!alreadyHas) {
+          methods.push(methodName);
+        }
+      }
+    }
+
+    if (bestInterface.extends) {
+      for (let i = 0; i < bestInterface.extends.length; i++) {
+        this.collectInterfaceMethods(bestInterface.extends[i], methods, visited);
+      }
+    }
+  }
+
+  private findPrimaryImplementingClass(methodName: string): string | null {
+    for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+      const cls = this.ctx.ast.classes[ci];
+      if (cls.implements && cls.implements.length > 0) {
+        const hasMethod = this.findClassWithMethod(cls.name, methodName);
+        if (hasMethod) {
+          return hasMethod;
+        }
+      }
+    }
+    for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
+      const cls = this.ctx.ast.classes[ci];
+      const hasMethod = this.findClassWithMethod(cls.name, methodName);
+      if (hasMethod) {
+        return hasMethod;
+      }
+    }
+    return null;
+  }
+
+  private classHasAllMethods(className: string, methods: string[]): boolean {
+    for (let i = 0; i < methods.length; i++) {
+      if (!this.findClassWithMethod(className, methods[i])) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private classImplementsInterface(className: string, interfaceName: string): boolean {

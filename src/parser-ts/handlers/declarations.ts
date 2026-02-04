@@ -298,6 +298,19 @@ export function transformInterfaceDeclaration(node: ts.InterfaceDeclaration): In
   const name = node.name.text;
   const fields: { name: string; type: string }[] = [];
   const methods: { name: string; params: string[]; paramTypes: string[]; returnType: string }[] = [];
+  const extendsClause: string[] = [];
+
+  if (node.heritageClauses) {
+    for (const clause of node.heritageClauses) {
+      if (clause.token === ts.SyntaxKind.ExtendsKeyword) {
+        for (const type of clause.types) {
+          if (ts.isIdentifier(type.expression)) {
+            extendsClause.push(type.expression.text);
+          }
+        }
+      }
+    }
+  }
 
   for (const member of node.members) {
     if (ts.isPropertySignature(member) && ts.isIdentifier(member.name)) {
@@ -313,7 +326,12 @@ export function transformInterfaceDeclaration(node: ts.InterfaceDeclaration): In
     }
   }
 
-  return { name, fields, methods: methods.length > 0 ? methods : undefined };
+  return {
+    name,
+    extends: extendsClause.length > 0 ? extendsClause : undefined,
+    fields,
+    methods: methods.length > 0 ? methods : undefined
+  };
 }
 
 export function transformTypeAliasDeclaration(node: ts.TypeAliasDeclaration): TypeAliasDeclaration | null {
