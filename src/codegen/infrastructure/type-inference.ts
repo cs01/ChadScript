@@ -665,6 +665,7 @@ export class TypeInference {
 
   isStringExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
+    console.log(`[isStringExpression] e.type = ${e.type}`);
     if (e.type === 'string') {
       return true;
     }
