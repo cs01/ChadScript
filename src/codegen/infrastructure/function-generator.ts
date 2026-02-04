@@ -294,6 +294,12 @@ export class FunctionGenerator {
 
     const result = this.ctx.generateBlock(func.body, func.params);
 
+    const deferredAllocas = this.ctx.allocaInstructions;
+    if (deferredAllocas.length > 0) {
+      this.ctx.output.unshift(...deferredAllocas);
+      deferredAllocas.length = 0;
+    }
+
     // Check for and fix incomplete return statements
     for (let i = 0; i < this.ctx.output.length; i++) {
       const line = this.ctx.output[i].trim();

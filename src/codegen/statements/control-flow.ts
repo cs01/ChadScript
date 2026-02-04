@@ -191,7 +191,7 @@ export class ControlFlowGenerator {
           throw new Error('Variable declaration in for loop must have an initializer');
         }
         const value = this.ctx.generateExpression(initTyped.value, params);
-        const allocaReg = this.nextTemp();
+        const allocaReg = this.ctx.nextAllocaReg(initTyped.name);
         // Register the variable in the variables map
         this.ctx.defineVariable(initTyped.name, allocaReg, 'double', SymbolKind.Number, 'local');
         this.emit(`${allocaReg} = alloca double`);
@@ -317,11 +317,11 @@ export class ControlFlowGenerator {
     const lengthI32 = this.nextTemp();
     this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
 
-    const indexAlloca = this.nextTemp();
+    const indexAlloca = this.ctx.nextAllocaReg('__forof_idx');
     this.emit(`${indexAlloca} = alloca i32`);
     this.emit(`store i32 0, i32* ${indexAlloca}`);
 
-    const elemAlloca = this.nextTemp();
+    const elemAlloca = this.ctx.nextAllocaReg(forOfStmt.variableName);
     this.emit(`${elemAlloca} = alloca ${elementType}`);
 
     this.ctx.defineVariable(forOfStmt.variableName, elemAlloca, elementType, elementKind, 'local');
@@ -1209,11 +1209,11 @@ export class ControlFlowGenerator {
     const lengthI32 = this.nextTemp();
     this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
 
-    const indexAlloca = this.nextTemp();
+    const indexAlloca = this.ctx.nextAllocaReg('__forof_idx');
     this.emit(`${indexAlloca} = alloca i32`);
     this.emit(`store i32 0, i32* ${indexAlloca}`);
 
-    const elemAlloca = this.nextTemp();
+    const elemAlloca = this.ctx.nextAllocaReg(forOfStmt.variableName);
     this.emit(`${elemAlloca} = alloca i8*`);
 
     this.ctx.defineVariable(forOfStmt.variableName, elemAlloca, 'i8*', SymbolKind.Object, 'local', {
@@ -1766,13 +1766,13 @@ export class ControlFlowGenerator {
     const lengthI32 = this.nextTemp();
     this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
 
-    const indexAlloca = this.nextTemp();
+    const indexAlloca = this.ctx.nextAllocaReg('__forof_idx');
     this.emit(`${indexAlloca} = alloca i32`);
     this.emit(`store i32 0, i32* ${indexAlloca}`);
 
-    const keyAlloca = this.nextTemp();
+    const keyAlloca = this.ctx.nextAllocaReg(keyName);
     this.emit(`${keyAlloca} = alloca i8*`);
-    const valueAlloca = this.nextTemp();
+    const valueAlloca = this.ctx.nextAllocaReg(valueName);
     this.emit(`${valueAlloca} = alloca i8*`);
 
     this.ctx.defineVariable(keyName, keyAlloca, 'i8*', SymbolKind.String, 'local');
