@@ -20,9 +20,9 @@ declare const path: {
   dirname(p: string): string;
 };
 
-const BDWGC_PATH = '/data/users/cssmith/git/bdwgc';
-const MONGOOSE_PATH = '/data/users/cssmith/git/mongoose';
-const CHADSCRIPT_PATH = '/data/users/cssmith/git/ChadScript';
+const BDWGC_PATH = process.env.CHADSCRIPT_BDWGC_PATH || './vendor/bdwgc';
+const MONGOOSE_PATH = process.env.CHADSCRIPT_MONGOOSE_PATH || './vendor/mongoose';
+const CHADSCRIPT_PATH = process.env.CHADSCRIPT_PATH || '.';
 
 export function compileNative(inputFile: string, outputFile: string): void {
   console.log('ChadScript native compiler v0.1.0');

@@ -37,3 +37,4 @@ logs/
 
 # Accidental files
 -o.ll
+vendor/

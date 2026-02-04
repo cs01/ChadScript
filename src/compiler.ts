@@ -25,9 +25,9 @@ export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
 }
 
-// External library paths - check env vars, then fallback to relative paths
-const BDWGC_PATH = process.env.CHADSCRIPT_BDWGC_PATH || process.env.BDWGC_PATH || './vendor/bdwgc';
-const MONGOOSE_PATH = process.env.CHADSCRIPT_MONGOOSE_PATH || process.env.MONGOOSE_PATH || './vendor/mongoose';
+// External library paths - check env vars, then use vendor/
+const BDWGC_PATH = process.env.CHADSCRIPT_BDWGC_PATH || './vendor/bdwgc';
+const MONGOOSE_PATH = process.env.CHADSCRIPT_MONGOOSE_PATH || './vendor/mongoose';
 const TREESITTER_TS_PATH = 'node_modules/tree-sitter-typescript/typescript/src';
 
 // ============================================
@@ -156,7 +156,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const mongooseObj = `${MONGOOSE_PATH}/mongoose.o`;
 
   // Build link command with all libraries
-  let linkLibs = `-L${BDWGC_PATH} -lgc -lcurl -lcjson /lib64/libuv.so.1 -lm -lpthread`;
+  let linkLibs = `-L${BDWGC_PATH} -lgc -lcurl -lcjson -l:libuv.so.1 -lm -lpthread`;
   let extraObjs = '';
 
   if (linkTreeSitter) {
