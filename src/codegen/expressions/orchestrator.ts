@@ -71,9 +71,7 @@ export class ExpressionGenerator {
    * Delegates to appropriate sub-generator based on expression type
    */
   generate(expr: Expression, params: string[]): string {
-    console.log('ExpressionGenerator.generate: start');
     const exprTyped = expr as { type: string; value: number | string | boolean; name: string; op: string; operand: Expression; left: Expression; right: Expression };
-    console.log('ExpressionGenerator.generate: type = ' + exprTyped.type);
     // Literals
     if (exprTyped.type === 'number') {
       return this.literalGen.generateNumber(exprTyped.value as number);
@@ -176,7 +174,6 @@ export class ExpressionGenerator {
 
     // Method calls
     if (exprTyped.type === 'method_call') {
-      console.log('ExpressionGenerator.generate: about to call methodCallGen.generate');
       return this.methodCallGen.generate(expr as MethodCallNode, params);
     }
 

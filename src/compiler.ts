@@ -125,7 +125,12 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   }
 
   // Generate LLVM IR
-  const generatorOptions: LLVMGeneratorOptions = { linkTreeSitter: linkTreeSitter };
+  const entryFileCode = fileContents.get(inputFile) || '';
+  const generatorOptions: LLVMGeneratorOptions = {
+    linkTreeSitter: linkTreeSitter,
+    sourceCode: entryFileCode,
+    filename: inputFile
+  };
   const generator = new LLVMGenerator(mergedAST, typeChecker, generatorOptions);
   const llvmIR = generator.generate();
 

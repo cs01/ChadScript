@@ -2054,27 +2054,12 @@ export class MemberAccessGenerator {
         `Use \x1b[36m.ts\x1b[0m files instead of \x1b[36m.js\x1b[0m to enable type-aware compilation.`;
 
       throw new Error(this.ctx.formatCodegenError(
-        `Cannot access property '${expr.property}' on function parameter '${varName}' in function '${this.ctx.currentFunction}'.`,
-        suggestion
+        `Cannot access property '${expr.property}' on function parameter '${varName}'. Use TypeScript files (.ts) for typed parameters.`
       ));
     }
 
-    const suggestion =
-      `\x1b[33mThis variable exists but ChadScript doesn't know its type.\x1b[0m\n\n` +
-      `ChadScript tracks these types automatically:\n` +
-      `  • Objects: \x1b[32mconst obj = { x: 5, y: 10 }; obj.x\x1b[0m ✅\n` +
-      `  • Arrays: \x1b[32mconst arr = [1,2,3]; arr[0]\x1b[0m ✅\n` +
-      `  • Classes: \x1b[32mconst p = new Point(1, 2); p.x\x1b[0m ✅\n` +
-      `  • Maps/Sets: \x1b[32mconst m = new Map(); m.set(...)\x1b[0m ✅\n\n` +
-      `Common issues:\n` +
-      `  • Variable assigned from function return? Return type might be unclear.\n` +
-      `  • Variable assigned conditionally? Type tracking might lose it.\n` +
-      `  • Imported from another file? Cross-file tracking not implemented yet.\n\n` +
-      `\x1b[33mDebug tip:\x1b[0m Where is '${varName}' assigned? Does it come from an object literal?`;
-
     throw new Error(this.ctx.formatCodegenError(
-      `Cannot access property '${expr.property}' on variable '${varName}'.`,
-      suggestion
+      `Cannot access property '${expr.property}' on variable '${varName}'. Variable type is unknown.`
     ));
   }
 

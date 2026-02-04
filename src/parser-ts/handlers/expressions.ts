@@ -280,6 +280,7 @@ function transformCallExpression(node: ts.CallExpression, checker: ts.TypeChecke
       method,
       args,
       typeParameter,
+      pos: node.getStart(),
     };
   } else if (ts.isIdentifier(node.expression)) {
     return {
@@ -294,6 +295,7 @@ function transformCallExpression(node: ts.CallExpression, checker: ts.TypeChecke
       object: callee,
       method: '',
       args,
+      pos: node.getStart(),
     };
   } else if (node.expression.kind === ts.SyntaxKind.SuperKeyword) {
     return {
