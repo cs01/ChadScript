@@ -822,9 +822,11 @@ export class TypeInference {
       if (funcExpr.name === 'String') {
         return true;
       }
-      const func = this.getFunction(funcExpr.name);
-      if (func && func.returnType === 'string') {
-        return true;
+      if (funcExpr.name) {
+        const func = this.getFunction(funcExpr.name);
+        if (func && func.returnType === 'string') {
+          return true;
+        }
       }
     }
     if (e.type === 'method_call') {

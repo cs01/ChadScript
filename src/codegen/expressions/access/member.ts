@@ -583,9 +583,11 @@ export class MemberAccessGenerator {
 
     const exprObjBase = expr.object as ExprBase;
     if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isClass((expr.object as VariableNode).name)) {
-      const classMeta = this.ctx.symbolTable.getClassInfo((expr.object as VariableNode).name)!;
-      className = classMeta.className;
-      instancePtr = this.ctx.generateExpression(expr.object, params);
+      const classMeta = this.ctx.symbolTable.getClassInfo((expr.object as VariableNode).name);
+      if (classMeta) {
+        className = classMeta.className;
+        instancePtr = this.ctx.generateExpression(expr.object, params);
+      }
     } else if (exprObjBase.type === 'new') {
       const newExpr = expr.object as NewNode;
       className = newExpr.className;
@@ -1906,18 +1908,20 @@ export class MemberAccessGenerator {
 
     const innerAccessObjBase = innerAccess.object as ExprBase;
     if (innerAccessObjBase.type === 'variable' && this.ctx.symbolTable.isClass((innerAccess.object as VariableNode).name)) {
-      const classMeta = this.ctx.symbolTable.getClassInfo((innerAccess.object as VariableNode).name)!;
-      const fieldInfoResult = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
-      const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-      if (fieldInfoResult && fieldInfo.type === 'string[]') {
-        const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-        return this.getStringArrayLength(stringArrayPtr);
-      } else if (fieldInfoResult && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
-        const arrayPtr = this.ctx.generateExpression(expr.object, params);
-        return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-      } else if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.endsWith('[]')) {
-        const arrayPtr = this.ctx.generateExpression(expr.object, params);
-        return this.getArrayLengthFromPtr(arrayPtr, '%Array');
+      const classMeta = this.ctx.symbolTable.getClassInfo((innerAccess.object as VariableNode).name);
+      if (classMeta) {
+        const fieldInfoResult = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
+        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        if (fieldInfoResult && fieldInfo.type === 'string[]') {
+          const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
+          return this.getStringArrayLength(stringArrayPtr);
+        } else if (fieldInfoResult && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
+          const arrayPtr = this.ctx.generateExpression(expr.object, params);
+          return this.getArrayLengthFromPtr(arrayPtr, '%Array');
+        } else if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.endsWith('[]')) {
+          const arrayPtr = this.ctx.generateExpression(expr.object, params);
+          return this.getArrayLengthFromPtr(arrayPtr, '%Array');
+        }
       }
     } else if (innerAccessObjBase.type === 'variable') {
       const varName = (innerAccess.object as VariableNode).name;
@@ -2270,6 +2274,10 @@ export class MemberAccessGenerator {
       }
       fields = inlineFields;
     } else {
+      if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(assertedType)) {
+        const objPtr = this.ctx.generateExpression(assertion.expression, params);
+        return this.accessObjectPropertyWithNamedInterface(objPtr, property, assertedType);
+      }
       let interfaceDefResult: InterfaceDeclaration | null = null;
       if (this.ctx.ast?.interfaces) {
         for (let ii = 0; ii < this.ctx.ast.interfaces.length; ii++) {
