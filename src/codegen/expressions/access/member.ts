@@ -1661,6 +1661,23 @@ export class MemberAccessGenerator {
       return null;  // Already handled in handleJsonPropertyAccess
     } else if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isObject((expr.object as VariableNode).name)) {
       const varName = (expr.object as VariableNode).name;
+      const symbol = this.ctx.symbolTable.lookup(varName);
+      if (symbol?.interfaceType) {
+        const implementingClass = this.findClassImplementingInterface(symbol.interfaceType);
+        if (implementingClass && this.ctx.classGen) {
+          const classFieldInfo = this.ctx.classGen.getFieldInfo(implementingClass, expr.property);
+          if (classFieldInfo) {
+            const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
+            const objPtrRaw = this.ctx.nextTemp();
+            this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${objPtrPtr}`);
+            const castPtr = this.ctx.nextTemp();
+            this.ctx.emit(`${castPtr} = bitcast i8* ${objPtrRaw} to %${implementingClass}_struct*`);
+            const fieldPtr = this.ctx.nextTemp();
+            this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${implementingClass}_struct, %${implementingClass}_struct* ${castPtr}, i32 0, i32 ${classFieldInfo.index}`);
+            return this.loadFieldValue(fieldPtr, classFieldInfo);
+          }
+        }
+      }
       const objMetaRaw = this.ctx.symbolTable.getObjectInfo(varName);
       if (!objMetaRaw) return null;
       const objMeta = objMetaRaw as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] | undefined };
