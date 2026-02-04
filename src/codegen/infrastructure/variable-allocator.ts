@@ -1107,8 +1107,8 @@ export class VariableAllocator {
 
   private allocateStringArray(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
-    this.ctx.emit(`${allocaReg} = alloca %StringArray`);
+    this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', { isPointerAlloca: true });
+    this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
 
     const value = this.ctx.generateExpression(stmt.value!, params);
     const valueType = this.ctx.getVariableType(value);
@@ -1117,43 +1117,28 @@ export class VariableAllocator {
       const ptrValue = this.ctx.nextTemp();
       this.ctx.emit(`${ptrValue} = inttoptr i32 ${value} to %StringArray*`);
       pointerValue = ptrValue;
+    } else if (valueType !== '%StringArray*') {
+      const typedPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${typedPtr} = bitcast i8* ${pointerValue} to %StringArray*`);
+      pointerValue = typedPtr;
     }
-    const isNull = this.ctx.nextTemp();
-    this.ctx.emit(`${isNull} = icmp eq i8* ${pointerValue}, null`);
-    const notNullLabel = this.ctx.nextLabel('stringarray_notnull');
-    const nullLabel = this.ctx.nextLabel('stringarray_null');
-    const mergeLabel = this.ctx.nextLabel('stringarray_merge');
-    this.ctx.emit(`br i1 ${isNull}, label %${nullLabel}, label %${notNullLabel}`);
-    this.ctx.emit(`${notNullLabel}:`);
-    const typedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${typedPtr} = bitcast i8* ${pointerValue} to %StringArray*`);
-    const loadedStringArray = this.ctx.nextTemp();
-    this.ctx.emit(`${loadedStringArray} = load %StringArray, %StringArray* ${typedPtr}`);
-    this.ctx.emit(`store %StringArray ${loadedStringArray}, %StringArray* ${allocaReg}`);
-    this.ctx.emit(`br label %${mergeLabel}`);
-    this.ctx.emit(`${nullLabel}:`);
-    const dataPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataPtr} = getelementptr inbounds %StringArray, %StringArray* ${allocaReg}, i32 0, i32 0`);
-    this.ctx.emit(`store i8** null, i8*** ${dataPtr}`);
-    const lenPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${allocaReg}, i32 0, i32 1`);
-    this.ctx.emit(`store i32 0, i32* ${lenPtr}`);
-    const capPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${allocaReg}, i32 0, i32 2`);
-    this.ctx.emit(`store i32 0, i32* ${capPtr}`);
-    this.ctx.emit(`br label %${mergeLabel}`);
-    this.ctx.emit(`${mergeLabel}:`);
+    this.ctx.emit(`store %StringArray* ${pointerValue}, %StringArray** ${allocaReg}`);
   }
 
   private allocateArray(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local');
-    this.ctx.emit(`${allocaReg} = alloca %Array`);
+    this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local', { isPointerAlloca: true });
+    this.ctx.emit(`${allocaReg} = alloca %Array*`);
 
     const value = this.ctx.generateExpression(stmt.value!, params);
-    const loadedArray = this.ctx.nextTemp();
-    this.ctx.emit(`${loadedArray} = load %Array, %Array* ${value}`);
-    this.ctx.emit(`store %Array ${loadedArray}, %Array* ${allocaReg}`);
+    const valueType = this.ctx.getVariableType(value);
+    let pointerValue = value;
+    if (valueType !== '%Array*') {
+      const typedPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${typedPtr} = bitcast i8* ${pointerValue} to %Array*`);
+      pointerValue = typedPtr;
+    }
+    this.ctx.emit(`store %Array* ${pointerValue}, %Array** ${allocaReg}`);
   }
 
   private allocateObjectArray(stmt: VariableDeclaration, params: string[]): void {
