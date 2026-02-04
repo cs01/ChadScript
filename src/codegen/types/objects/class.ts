@@ -307,6 +307,30 @@ export class ClassGenerator {
     // Set return type for return statements in constructor body (update main generator)
     this.ctx.currentFunctionReturnType = structType;
 
+    // Assign parameter properties (e.g., constructor(private ctx: Foo) creates this.ctx = ctx)
+    if (constructor.parameterProperties) {
+      for (let i = 0; i < constructor.parameterProperties.length; i++) {
+        const propName = constructor.parameterProperties[i];
+        const paramIndex = constructor.params.indexOf(propName);
+        if (paramIndex !== -1) {
+          const fieldInfo = this.getFieldInfo(className, propName);
+          if (fieldInfo) {
+            const fieldInfoTyped = fieldInfo as { index: number; type: string };
+            const fieldIndex = fieldInfoTyped.index;
+            const paramAlloca = this.ctx.getVariableAlloca(propName);
+            if (paramAlloca) {
+              const llvmType = paramLLVMTypes[paramIndex];
+              const loadedValue = this.nextTemp();
+              this.emit(`${loadedValue} = load ${llvmType}, ${llvmType}* ${paramAlloca}`);
+              const fieldPtr = this.nextTemp();
+              this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${objPtr}, i32 0, i32 ${fieldIndex}`);
+              this.emit(`store ${llvmType} ${loadedValue}, ${llvmType}* ${fieldPtr}`);
+            }
+          }
+        }
+      }
+    }
+
     // Execute constructor body
     this.ctx.generateBlock(constructor.body, constructor.params);
 

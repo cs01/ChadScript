@@ -16,7 +16,7 @@ function isStringType(t: string): boolean {
 
 export interface TypeInferenceContext {
   symbolTable: SymbolTable;
-  expectedArrayElementType: 'string' | 'number' | 'boolean' | null;
+  expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
   currentClassName: string | null;
   currentFunction: string;
   ast: AST;

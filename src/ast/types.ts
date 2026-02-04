@@ -270,6 +270,7 @@ export interface ClassMethod {
   name: string;
   params: string[];
   paramTypes?: string[];
+  parameterProperties?: string[];
   returnType?: string;
   body: BlockStatement;
   isConstructor: boolean;
