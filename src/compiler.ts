@@ -255,10 +255,23 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
         continue;
       }
 
+      const npmPath = resolveNodeModule(absPath, imp.source);
+      if (npmPath) {
+        const importedAST = compileMultiFile(npmPath, compiledFiles, fileContents);
+        mergedAST.imports = mergedAST.imports.concat(importedAST.imports);
+        mergedAST.functions = mergedAST.functions.concat(importedAST.functions);
+        mergedAST.classes = mergedAST.classes.concat(importedAST.classes);
+        mergedAST.interfaces = mergedAST.interfaces.concat(importedAST.interfaces);
+        mergedAST.typeAliases = mergedAST.typeAliases.concat(importedAST.typeAliases || []);
+        mergedAST.enums = mergedAST.enums.concat(importedAST.enums || []);
+        mergedAST.topLevelStatements = mergedAST.topLevelStatements.concat(importedAST.topLevelStatements);
+        i = i + 1;
+        continue;
+      }
+
       throw new Error(
-        `Cannot compile npm package '${imp.source}' imported in ${absPath}\n` +
-        `ChadScript only supports compiling local files (use relative imports like './file.js')\n` +
-        `npm packages are designed for Node.js runtime and cannot be AOT compiled to native code.`
+        `Cannot resolve npm package '${imp.source}' imported in ${absPath}\n` +
+        `Package not found in node_modules or missing TypeScript source.`
       );
     }
 
@@ -291,4 +304,44 @@ function resolveImportPath(fromFile: string, importSource: string): string {
   }
 
   return resolved;
+}
+
+function resolveNodeModule(fromFile: string, packageName: string): string | null {
+  let dir = path.dirname(fromFile);
+
+  while (dir !== path.dirname(dir)) {
+    const nodeModulesPath = path.join(dir, 'node_modules', packageName);
+
+    if (fs.existsSync(nodeModulesPath)) {
+      const pkgJsonPath = path.join(nodeModulesPath, 'package.json');
+      if (fs.existsSync(pkgJsonPath)) {
+        const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
+        const entryPoints = [
+          pkgJson.main?.replace(/\.js$/, '.ts'),
+          pkgJson.main?.replace(/\.js$/, ''),
+          'index.ts',
+          'src/index.ts'
+        ].filter(Boolean);
+
+        for (const entry of entryPoints) {
+          const entryPath = path.join(nodeModulesPath, entry);
+          if (fs.existsSync(entryPath)) {
+            return entryPath;
+          }
+          if (fs.existsSync(entryPath + '.ts')) {
+            return entryPath + '.ts';
+          }
+        }
+      }
+
+      const indexTs = path.join(nodeModulesPath, 'index.ts');
+      if (fs.existsSync(indexTs)) {
+        return indexTs;
+      }
+    }
+
+    dir = path.dirname(dir);
+  }
+
+  return null;
 }
