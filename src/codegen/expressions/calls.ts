@@ -453,7 +453,8 @@ export class CallExpressionGenerator {
       argsList.push(`i32 ${expr.args.length}`);
     }
 
-    for (let i = 0; i < (func?.params?.length || expr.args.length); i++) {
+    const loopLimit = (func !== null && func.params !== null && func.params.length > 0) ? func.params.length : expr.args.length;
+    for (let i = 0; i < loopLimit; i++) {
       if (i < expr.args.length) {
         const result = this.ctx.generateExpression(expr.args[i], params);
         const paramType = paramTypes[i] || 'double';
