@@ -2152,6 +2152,11 @@ export class MemberAccessGenerator {
                   return this.loadFieldValue(fieldPtr, fieldInfo);
                 }
               }
+              if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(paramInterfaceType)) {
+                const objPtrRaw = this.ctx.nextTemp();
+                this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${paramPtr}`);
+                return this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, paramInterfaceType);
+              }
               const structTypes: string[] = [];
               for (let i = 0; i < interfaceDef.properties.length; i++) {
                 const prop = interfaceDef.properties[i] as InterfaceProperty;
