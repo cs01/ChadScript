@@ -46,7 +46,8 @@ import {
 interface ExprBase { type: string; }
 interface NodeBase { nodePtr: number; source: string; type: string; text: string; startIndex: number; endIndex: number; childCount: number; namedChildCount: number; isNamed: boolean; isNull: boolean; }
 
-function getExprType(expr: Expression): string {
+function getExprType(expr: Expression | null | undefined): string {
+  if (!expr) return '';
   return (expr as ExprBase).type;
 }
 

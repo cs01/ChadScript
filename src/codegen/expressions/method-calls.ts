@@ -1853,17 +1853,19 @@ export class MethodCallGenerator {
     if (methodCallExpr) {
       pos = methodCallExpr.pos;
       const expr = methodCallExpr.object;
-      const e = expr as ExprBase;
-      if (e.type === 'member_access') {
-        const memberExpr = expr as MemberAccessNode;
-        const memberObjBase = memberExpr.object as ExprBase;
-        if (memberObjBase.type === 'variable') {
-          objectDescription = `${(memberExpr.object as VariableNode).name}.${memberExpr.property}`;
-        } else {
-          objectDescription = memberExpr.property;
+      if (expr) {
+        const e = expr as ExprBase;
+        if (e.type === 'member_access') {
+          const memberExpr = expr as MemberAccessNode;
+          const memberObjBase = memberExpr.object as ExprBase;
+          if (memberObjBase && memberObjBase.type === 'variable') {
+            objectDescription = `${(memberExpr.object as VariableNode).name}.${memberExpr.property}`;
+          } else {
+            objectDescription = memberExpr.property;
+          }
+        } else if (e.type === 'variable') {
+          objectDescription = (expr as VariableNode).name;
         }
-      } else if (e.type === 'variable') {
-        objectDescription = (expr as VariableNode).name;
       }
     }
 
