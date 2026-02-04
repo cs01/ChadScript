@@ -703,6 +703,11 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
       this.ctx.setVariableType(value, 'double');
       return value;
+    } else if (fieldInfo.tsType?.endsWith('[]')) {
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
+      this.ctx.setVariableType(value, '%Array*');
+      return value;
     } else {
       const value = this.ctx.nextTemp();
       const classNode = this.ctx.classGen.getClassFields(fieldInfo.tsType || '');
@@ -1851,6 +1856,9 @@ export class MemberAccessGenerator {
       } else if (fieldInfoResult && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
         const arrayPtr = this.ctx.generateExpression(expr.object, params);
         return this.getArrayLengthFromPtr(arrayPtr, '%Array');
+      } else if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.endsWith('[]')) {
+        const arrayPtr = this.ctx.generateExpression(expr.object, params);
+        return this.getArrayLengthFromPtr(arrayPtr, '%Array');
       }
     } else if (innerAccessObjBase.type === 'variable') {
       const varName = (innerAccess.object as VariableNode).name;
@@ -1891,6 +1899,9 @@ export class MemberAccessGenerator {
           const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
           return this.getStringArrayLength(stringArrayPtr);
         } else if (fieldInfoResult && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
+          const arrayPtr = this.ctx.generateExpression(expr.object, params);
+          return this.getArrayLengthFromPtr(arrayPtr, '%Array');
+        } else if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.endsWith('[]')) {
           const arrayPtr = this.ctx.generateExpression(expr.object, params);
           return this.getArrayLengthFromPtr(arrayPtr, '%Array');
         }

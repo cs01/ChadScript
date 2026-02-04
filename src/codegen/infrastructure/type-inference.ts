@@ -504,6 +504,10 @@ export class TypeInference {
           if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
             return true;
           }
+          const tsType = this.ctx.classGen?.getFieldTsType(className, memberExpr.property);
+          if (tsType && tsType.endsWith('[]') && tsType !== 'string[]' && tsType !== 'number[]' && tsType !== 'boolean[]') {
+            return true;
+          }
         }
       }
       if (objBase.type === 'this') {
@@ -511,6 +515,10 @@ export class TypeInference {
         if (className) {
           const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
           if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
+            return true;
+          }
+          const tsType = this.ctx.classGen?.getFieldTsType(className, memberExpr.property);
+          if (tsType && tsType.endsWith('[]') && tsType !== 'string[]' && tsType !== 'number[]' && tsType !== 'boolean[]') {
             return true;
           }
         }

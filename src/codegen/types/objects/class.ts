@@ -61,6 +61,8 @@ export class ClassGenerator {
         return '%Set*';
       } else if (f.tsType === 'number' || f.tsType === 'boolean') {
         return 'double';
+      } else if (f.tsType.endsWith('[]')) {
+        return '%Array*';
       } else {
         const classNode = this.findClassNode(f.tsType);
         if (classNode) {
@@ -616,16 +618,25 @@ export class ClassGenerator {
     const fields = this.classFields.get(className) || [];
     const thisType = fields.length > 0 ? `%${className}_struct*` : 'double*';
 
+    let actualInstancePtr = instancePtr;
+    const instancePtrType = this.ctx.getVariableType(instancePtr);
+    if (instancePtrType && instancePtrType !== thisType && thisType !== 'double*') {
+      const castPtr = this.nextTemp();
+      this.emit(`${castPtr} = bitcast ${instancePtrType} ${instancePtr} to ${thisType}`);
+      this.ctx.setVariableType(castPtr, thisType);
+      actualInstancePtr = castPtr;
+    }
+
     // Call the method with instance as first argument
     const argList = argValues ? `, ${argValues}` : '';
 
     if (returnLLVMType === 'void') {
       // Void methods don't return a value
-      this.emit(`call void @${methodOwnerClass}_${methodName}(${thisType} ${instancePtr}${argList})`);
+      this.emit(`call void @${methodOwnerClass}_${methodName}(${thisType} ${actualInstancePtr}${argList})`);
       return '0'; // Return dummy value for void calls
     } else {
       const result = this.nextTemp();
-      this.emit(`${result} = call ${returnLLVMType} @${methodOwnerClass}_${methodName}(${thisType} ${instancePtr}${argList})`);
+      this.emit(`${result} = call ${returnLLVMType} @${methodOwnerClass}_${methodName}(${thisType} ${actualInstancePtr}${argList})`);
       this.ctx.setVariableType(result, returnLLVMType);
       return result;
     }
