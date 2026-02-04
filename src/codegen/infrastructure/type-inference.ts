@@ -301,7 +301,6 @@ export class TypeInference {
 
   isArrayExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
-    console.log(`[DEBUG isArrayExpression] expr.type=${e.type}`);
     if (e.type === 'array') {
       return true;
     }
@@ -323,7 +322,6 @@ export class TypeInference {
       const varExpr = expr as VariableNode;
       const isNumArr = this.ctx.symbolTable.isNumberArray(varExpr.name);
       const varType = this.ctx.symbolTable.getType(varExpr.name);
-      console.log(`[DEBUG isArrayExpression] var=${varExpr.name} isNumberArray=${isNumArr} varType=${varType}`);
       if (isNumArr) {
         return true;
       }
@@ -490,10 +488,33 @@ export class TypeInference {
           }
         }
       }
+      if (methodExpr.method === 'slice' || methodExpr.method === 'concat' || methodExpr.method === 'filter') {
+        if (this.isObjectArrayExpression(methodExpr.object)) {
+          return true;
+        }
+      }
     }
     if (e.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
       const objBase = memberExpr.object as ExprBase;
+      if (objBase.type === 'variable' && this.ctx.symbolTable.isClass((memberExpr.object as VariableNode).name)) {
+        const className = this.ctx.symbolTable.getClassName((memberExpr.object as VariableNode).name);
+        if (className) {
+          const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
+          if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
+            return true;
+          }
+        }
+      }
+      if (objBase.type === 'this') {
+        const className = this.ctx.currentClassName;
+        if (className) {
+          const fieldType = this.ctx.classGen?.getFieldType(className, memberExpr.property);
+          if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
+            return true;
+          }
+        }
+      }
       if (objBase.type === 'variable') {
         const varName = (memberExpr.object as VariableNode).name;
         const paramType = this.getParameterType(varName);

@@ -1701,8 +1701,21 @@ export class MemberAccessGenerator {
               return this.getStringArrayLength(stringArrayPtr);
             } else if (fieldType.endsWith('[]')) {
               const arrayPtr = this.ctx.generateExpression(expr.object, params);
-              return this.getArrayLengthFromPtr(arrayPtr, '%Array');
+              return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
             }
+          }
+        }
+      }
+      const symbol = this.ctx.symbolTable.lookup(varName);
+      if (symbol?.interfaceType) {
+        const fieldType = this.getInterfaceFieldType(symbol.interfaceType, innerAccess.property);
+        if (fieldType) {
+          if (fieldType === 'string[]') {
+            const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
+            return this.getStringArrayLength(stringArrayPtr);
+          } else if (fieldType.endsWith('[]')) {
+            const arrayPtr = this.ctx.generateExpression(expr.object, params);
+            return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
           }
         }
       }
