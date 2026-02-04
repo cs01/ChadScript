@@ -217,6 +217,10 @@ export class VariableAllocator {
         this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
         this.ctx.emit(`${allocaReg} = alloca double`);
         this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
+      } else if (baseType === 'number') {
+        this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
+        this.ctx.emit(`${allocaReg} = alloca double`);
+        this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
       } else if (baseType === 'string[]') {
         this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
