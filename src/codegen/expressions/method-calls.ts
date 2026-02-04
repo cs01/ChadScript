@@ -270,6 +270,9 @@ export class MethodCallGenerator {
   }
 
   private isVariableWithName(expr: Expression, name: string): boolean {
+    if (!expr) {
+      return false;
+    }
     const e = expr as ExprBase;
     const eType = e.type;
     if (eType !== 'variable') {

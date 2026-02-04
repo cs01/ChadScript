@@ -705,11 +705,41 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             let returnTypeName = this.currentFunctionTsReturnType;
             if (returnTypeName.indexOf(' | ') !== -1) {
               const parts = returnTypeName.split(' | ');
-              for (let i = 0; i < parts.length; i++) {
-                const part = parts[i].trim();
-                if (part !== 'null' && part !== 'undefined') {
-                  returnTypeName = part;
-                  break;
+              const objLit = stmt.value as ObjectNode;
+              let discriminantValue: string | null = null;
+              if (objLit.properties && objLit.properties.length > 0) {
+                const firstProp = objLit.properties[0];
+                if (firstProp.key === 'type' && firstProp.value) {
+                  const propValue = firstProp.value as { type: string; value?: string };
+                  if (propValue.type === 'string' && propValue.value) {
+                    discriminantValue = propValue.value;
+                  }
+                }
+              }
+              if (discriminantValue && this.interfaceStructGen) {
+                for (let i = 0; i < parts.length; i++) {
+                  const part = parts[i].trim();
+                  if (part === 'null' || part === 'undefined') continue;
+                  const ifaceInfo = this.interfaceStructGen.getInterfaceStruct(part);
+                  if (ifaceInfo && ifaceInfo.fields) {
+                    const firstField = ifaceInfo.fields[0] as { name: string; tsType: string };
+                    if (firstField && firstField.name === 'type') {
+                      const expectedType = firstField.tsType.replace(/['"]/g, '');
+                      if (expectedType === discriminantValue) {
+                        returnTypeName = part;
+                        break;
+                      }
+                    }
+                  }
+                }
+              }
+              if (returnTypeName === this.currentFunctionTsReturnType) {
+                for (let i = 0; i < parts.length; i++) {
+                  const part = parts[i].trim();
+                  if (part !== 'null' && part !== 'undefined') {
+                    returnTypeName = part;
+                    break;
+                  }
                 }
               }
             }

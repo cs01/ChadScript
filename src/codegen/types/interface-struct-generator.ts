@@ -124,9 +124,6 @@ export class InterfaceStructGenerator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
-    if (tsType.endsWith('[]') && tsType !== 'string[]' && tsType !== 'number[]' && tsType !== 'boolean[]') {
-      return '%Array*';
-    }
     if (this.interfaceStructs.has(tsType)) {
       return `%${tsType}*`;
     }

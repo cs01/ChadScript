@@ -61,8 +61,10 @@ export class ClassGenerator {
         return '%Set*';
       } else if (f.tsType === 'number' || f.tsType === 'boolean') {
         return 'double';
-      } else if (f.tsType.endsWith('[]')) {
+      } else if (f.tsType === 'number[]' || f.tsType === 'boolean[]') {
         return '%Array*';
+      } else if (f.tsType.endsWith('[]')) {
+        return '%ObjectArray*';
       } else {
         const classNode = this.findClassNode(f.tsType);
         if (classNode) {
@@ -123,6 +125,25 @@ export class ClassGenerator {
       this.emit(`${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
       this.emit(`store i32 0, i32* ${capPtr}`);
       this.emit(`store %StringArray* ${arrayPtr}, %StringArray** ${fieldPtr}`);
+    } else if (llvmType === '%ObjectArray*') {
+      const sizePtr = this.nextTemp();
+      this.emit(`${sizePtr} = getelementptr %ObjectArray, %ObjectArray* null, i32 1`);
+      const structSize = this.nextTemp();
+      this.emit(`${structSize} = ptrtoint %ObjectArray* ${sizePtr} to i64`);
+      const arrayMem = this.nextTemp();
+      this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+      const arrayPtr = this.nextTemp();
+      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %ObjectArray*`);
+      const dataPtr = this.nextTemp();
+      this.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+      this.emit(`store i8* null, i8** ${dataPtr}`);
+      const lenPtr = this.nextTemp();
+      this.emit(`${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`);
+      this.emit(`store i32 0, i32* ${lenPtr}`);
+      const capPtr = this.nextTemp();
+      this.emit(`${capPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`);
+      this.emit(`store i32 0, i32* ${capPtr}`);
+      this.emit(`store %ObjectArray* ${arrayPtr}, %ObjectArray** ${fieldPtr}`);
     } else {
       this.emit(`store ${llvmType} null, ${llvmType}* ${fieldPtr}`);
     }
