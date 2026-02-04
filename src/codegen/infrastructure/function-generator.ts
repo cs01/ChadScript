@@ -73,8 +73,11 @@ export class FunctionGenerator {
     } else if (func.paramTypes && func.paramTypes.length > 0) {
       for (let i = 0; i < func.params.length; i++) {
         const paramType = func.paramTypes[i] || 'number';
+        const paramName = func.params[i];
         paramTypes.push(paramType);
-        if (paramType === 'string') {
+        if (paramName === 'nodePtr' || paramName === 'treePtr') {
+          paramLLVMTypes.push('i8*');
+        } else if (paramType === 'string') {
           paramLLVMTypes.push('i8*');
         } else if (paramType === 'string[]') {
           paramLLVMTypes.push('%StringArray*');
@@ -90,8 +93,11 @@ export class FunctionGenerator {
       for (let i = 0; i < func.params.length; i++) {
         const param = func.parameters[i] as { name: string; type: string };
         const paramType = param?.type || 'number';
+        const paramName = func.params[i];
         paramTypes.push(paramType);
-        if (paramType === 'string') {
+        if (paramName === 'nodePtr' || paramName === 'treePtr') {
+          paramLLVMTypes.push('i8*');
+        } else if (paramType === 'string') {
           paramLLVMTypes.push('i8*');
         } else if (paramType === 'string[]') {
           paramLLVMTypes.push('%StringArray*');
@@ -172,6 +178,8 @@ export class FunctionGenerator {
       if (llvmType === 'i8*') {
         if (paramTypes[i] === 'string') {
           this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
+        } else if (paramName === 'nodePtr' || paramName === 'treePtr') {
+          this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Pointer, 'local');
         } else {
           let classDefResult: { name: string } | null = null;
           const classes = this.ctx.ast.classes || [];
@@ -213,8 +221,9 @@ export class FunctionGenerator {
             const types: string[] = [];
             for (let j = 0; j < interfaceDef.fields.length; j++) {
               const field = interfaceDef.fields[j] as { name: string; type: string };
-              keys.push(stripOptional(field.name));
-              types.push(this.tsTypeToLlvm(field.type));
+              const fieldName = stripOptional(field.name);
+              keys.push(fieldName);
+              types.push(this.tsTypeToLlvmForField(fieldName, field.type));
             }
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
               objectMetadata: { keys, types },
@@ -403,6 +412,13 @@ export class FunctionGenerator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
+    return tsTypeToLlvmUtil(tsType);
+  }
+
+  private tsTypeToLlvmForField(fieldName: string, tsType: string): string {
+    if (fieldName === 'nodePtr' || fieldName === 'treePtr') {
+      return 'i8*';
+    }
     return tsTypeToLlvmUtil(tsType);
   }
 
