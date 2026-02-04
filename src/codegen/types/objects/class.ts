@@ -85,6 +85,44 @@ export class ClassGenerator {
       this.emit(`store i1 false, i1* ${fieldPtr}`);
     } else if (llvmType === 'double') {
       this.emit(`store double 0.0, double* ${fieldPtr}`);
+    } else if (llvmType === '%Array*') {
+      const sizePtr = this.nextTemp();
+      this.emit(`${sizePtr} = getelementptr %Array, %Array* null, i32 1`);
+      const structSize = this.nextTemp();
+      this.emit(`${structSize} = ptrtoint %Array* ${sizePtr} to i64`);
+      const arrayMem = this.nextTemp();
+      this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+      const arrayPtr = this.nextTemp();
+      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %Array*`);
+      const dataPtr = this.nextTemp();
+      this.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+      this.emit(`store double* null, double** ${dataPtr}`);
+      const lenPtr = this.nextTemp();
+      this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+      this.emit(`store i32 0, i32* ${lenPtr}`);
+      const capPtr = this.nextTemp();
+      this.emit(`${capPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
+      this.emit(`store i32 0, i32* ${capPtr}`);
+      this.emit(`store %Array* ${arrayPtr}, %Array** ${fieldPtr}`);
+    } else if (llvmType === '%StringArray*') {
+      const sizePtr = this.nextTemp();
+      this.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
+      const structSize = this.nextTemp();
+      this.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+      const arrayMem = this.nextTemp();
+      this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+      const arrayPtr = this.nextTemp();
+      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
+      const dataPtr = this.nextTemp();
+      this.emit(`${dataPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+      this.emit(`store i8** null, i8*** ${dataPtr}`);
+      const lenPtr = this.nextTemp();
+      this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+      this.emit(`store i32 0, i32* ${lenPtr}`);
+      const capPtr = this.nextTemp();
+      this.emit(`${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+      this.emit(`store i32 0, i32* ${capPtr}`);
+      this.emit(`store %StringArray* ${arrayPtr}, %StringArray** ${fieldPtr}`);
     } else {
       this.emit(`store ${llvmType} null, ${llvmType}* ${fieldPtr}`);
     }
