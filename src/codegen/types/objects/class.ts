@@ -68,10 +68,7 @@ export class ClassGenerator {
       } else {
         const classNode = this.findClassNode(f.tsType);
         if (classNode) {
-          const allFields = this.getAllFieldsIncludingInherited(classNode);
-          if (allFields.length > 0) {
-            return `%${f.tsType}_struct*`;
-          }
+          return `%${f.tsType}_struct*`;
         }
         if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(f.tsType)) {
           return `%${f.tsType}*`;
@@ -243,13 +240,17 @@ export class ClassGenerator {
 
     this.classFields.set(className, allFields);
 
-    if (!this.structTypesEmitted && allFields.length > 0) {
-      const fieldTypes: string[] = [];
-      for (let fi = 0; fi < allFields.length; fi++) {
-        const f = allFields[fi] as ClassField;
-        fieldTypes.push(this.fieldToLlvmType(f));
+    if (!this.structTypesEmitted) {
+      if (allFields.length > 0) {
+        const fieldTypes: string[] = [];
+        for (let fi = 0; fi < allFields.length; fi++) {
+          const f = allFields[fi] as ClassField;
+          fieldTypes.push(this.fieldToLlvmType(f));
+        }
+        ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
+      } else {
+        ir += `%${className}_struct = type { }\n\n`;
       }
-      ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n\n`;
     }
 
     let constructorResult: ClassMethod | null = null;
@@ -283,7 +284,7 @@ export class ClassGenerator {
   }
 
   private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]): string {
-    const structType = fields.length > 0 ? `%${className}_struct*` : 'double*';
+    const structType = `%${className}_struct*`;
     let ir = `define ${structType} @${className}_constructor(`;
 
     const paramLLVMTypes: string[] = [];
@@ -338,25 +339,15 @@ export class ClassGenerator {
         this.emitFieldInit(fieldPtr, llvmType);
       }
     } else {
-      // Backward compatibility: no fields, use old array approach with double*
-      const numFields = 10;
-      // Compute size of double dynamically
-      const doubleSizePtr = this.nextTemp();
-      this.emit(`${doubleSizePtr} = getelementptr double, double* null, i32 1`);
-      const doubleSize = this.nextTemp();
-      this.emit(`${doubleSize} = ptrtoint double* ${doubleSizePtr} to i64`);
-      const objSize = this.nextTemp();
-      this.emit(`${objSize} = mul i64 ${numFields}, ${doubleSize}`);
+      // Empty struct (no fields) - allocate minimal memory for the struct type
+      const sizeofReg = this.nextTemp();
+      this.emit(`${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`);
+      const sizeReg = this.nextTemp();
+      this.emit(`${sizeReg} = ptrtoint %${className}_struct* ${sizeofReg} to i64`);
       const objMem = this.nextTemp();
-      this.emit(`${objMem} = call i8* @GC_malloc_atomic(i64 ${objSize})`);
+      this.emit(`${objMem} = call i8* @GC_malloc(i64 ${sizeReg})`);
       objPtr = this.nextTemp();
-      this.emit(`${objPtr} = bitcast i8* ${objMem} to double*`);
-
-      for (let i = 0; i < numFields; i++) {
-        const fieldPtr = this.nextTemp();
-        this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${objPtr}, i32 ${i}`);
-        this.emit(`store double 0.0, double* ${fieldPtr}`);
-      }
+      this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
     }
 
     // Set 'this' pointer so constructor body can use it
@@ -432,7 +423,7 @@ export class ClassGenerator {
   }
 
   private generateDefaultConstructor(className: string, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]): string {
-    const structType = fields.length > 0 ? `%${className}_struct*` : 'double*';
+    const structType = `%${className}_struct*`;
     let ir = `define ${structType} @${className}_constructor() {\n`;
     ir += 'entry:\n';
 
@@ -460,23 +451,15 @@ export class ClassGenerator {
         this.emitFieldInit(fieldPtr, llvmType);
       }
     } else {
-      const numFields = 10;
-      const doubleSizePtr = this.nextTemp();
-      this.emit(`${doubleSizePtr} = getelementptr double, double* null, i32 1`);
-      const doubleSize = this.nextTemp();
-      this.emit(`${doubleSize} = ptrtoint double* ${doubleSizePtr} to i64`);
-      const objSize = this.nextTemp();
-      this.emit(`${objSize} = mul i64 ${numFields}, ${doubleSize}`);
+      // Empty struct (no fields) - allocate minimal memory for the struct type
+      const sizeofReg = this.nextTemp();
+      this.emit(`${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`);
+      const sizeReg = this.nextTemp();
+      this.emit(`${sizeReg} = ptrtoint %${className}_struct* ${sizeofReg} to i64`);
       const objMem = this.nextTemp();
-      this.emit(`${objMem} = call i8* @GC_malloc_atomic(i64 ${objSize})`);
+      this.emit(`${objMem} = call i8* @GC_malloc(i64 ${sizeReg})`);
       objPtr = this.nextTemp();
-      this.emit(`${objPtr} = bitcast i8* ${objMem} to double*`);
-
-      for (let i = 0; i < numFields; i++) {
-        const fieldPtr = this.nextTemp();
-        this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${objPtr}, i32 ${i}`);
-        this.emit(`store double 0.0, double* ${fieldPtr}`);
-      }
+      this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
     }
 
     if (this.ctx.output.length > 0) {
@@ -494,7 +477,7 @@ export class ClassGenerator {
       returnLLVMType = this.tsTypeToLlvm(method.returnType);
     }
 
-    const thisType = fields.length > 0 ? `%${className}_struct*` : 'double*';
+    const thisType = `%${className}_struct*`;
     let ir = `define ${returnLLVMType} @${className}_${method.name}(${thisType} %this`;
 
     const paramLLVMTypes: string[] = [];
@@ -645,7 +628,7 @@ export class ClassGenerator {
     const argValues = argParts.join(', ');
 
     const fields = this.classFields.get(className) || [];
-    const returnType = fields.length > 0 ? `%${className}_struct*` : 'double*';
+    const returnType = `%${className}_struct*`;
 
     const instance = this.nextTemp();
     this.emit(`${instance} = call ${returnType} @${className}_constructor(${argValues})`);
@@ -707,11 +690,11 @@ export class ClassGenerator {
     }
 
     const fields = this.classFields.get(className) || [];
-    const thisType = fields.length > 0 ? `%${className}_struct*` : 'double*';
+    const thisType = `%${className}_struct*`;
 
     let actualInstancePtr = instancePtr;
     const instancePtrType = this.ctx.getVariableType(instancePtr);
-    if (instancePtrType && instancePtrType !== thisType && thisType !== 'double*') {
+    if (instancePtrType && instancePtrType !== thisType) {
       const castPtr = this.nextTemp();
       this.emit(`${castPtr} = bitcast ${instancePtrType} ${instancePtr} to ${thisType}`);
       this.ctx.setVariableType(castPtr, thisType);
@@ -952,14 +935,16 @@ export class ClassGenerator {
       const className = classNode.name;
       const allFields = this.getAllFieldsIncludingInherited(classNode);
       this.classFields.set(className, allFields);
+      hasDefinitions = true;
       if (allFields.length > 0) {
-        hasDefinitions = true;
         const fieldTypes: string[] = [];
         for (let fi = 0; fi < allFields.length; fi++) {
           const f = allFields[fi] as ClassField;
           fieldTypes.push(this.fieldToLlvmType(f));
         }
         ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n`;
+      } else {
+        ir += `%${className}_struct = type { }\n`;
       }
     }
 
