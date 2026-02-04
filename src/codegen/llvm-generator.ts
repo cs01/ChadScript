@@ -511,9 +511,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     // Generate user function definitions (this may discover lifted functions)
+    console.log('[DEBUG] Generating user functions, count=' + this.functionsCount);
     let userFunctionsIr = '';
     for (let funcIdx = 0; funcIdx < this.functionsCount; funcIdx++) {
+      console.log('[DEBUG] Processing function index ' + funcIdx);
       const func = this.ast.functions[funcIdx];
+      console.log('[DEBUG] Got func from AST, name=' + func.name);
       userFunctionsIr += this.generateFunction(func);
       userFunctionsIr += '\n';
     }
