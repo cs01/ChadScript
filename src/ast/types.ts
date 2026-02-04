@@ -17,6 +17,14 @@ export interface BooleanNode {
   value: boolean;
 }
 
+export interface NullNode {
+  type: 'null';
+}
+
+export interface UndefinedNode {
+  type: 'undefined';
+}
+
 export interface RegexNode {
   type: 'regex';
   pattern: string;
@@ -167,7 +175,7 @@ export interface TypeAssertionNode {
   assertedType: string;
 }
 
-export type Expression = NumberNode | StringNode | BooleanNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode | AwaitExpressionNode | MemberAccessAssignmentNode | IndexAccessAssignmentNode | TypeAssertionNode;
+export type Expression = NumberNode | StringNode | BooleanNode | NullNode | UndefinedNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode | AwaitExpressionNode | MemberAccessAssignmentNode | IndexAccessAssignmentNode | TypeAssertionNode;
 
 export interface VariableDeclaration {
   type: 'variable_declaration';

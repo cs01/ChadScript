@@ -73,6 +73,7 @@ interface MethodArrayReturnInfo {
 
 export interface VariableAllocatorContext {
   nextTemp(): string;
+  nextAllocaReg(varName: string): string;
   emit(instruction: string): void;
   defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata?: VariableMetadata): void;
   generateExpression(expr: Expression, params: string[]): string;
@@ -231,7 +232,7 @@ export class VariableAllocator {
     }
 
     if (stmt.value === null) {
-      const allocaReg = this.ctx.nextTemp();
+      const allocaReg = this.ctx.nextAllocaReg(stmt.name);
       const baseType = stmt.declaredType ? stmt.declaredType.replace(/ \| undefined$/, '').replace(/ \| null$/, '').replace(/undefined \| /, '').replace(/null \| /, '').trim() : '';
       if (baseType === 'string') {
         this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
@@ -418,7 +419,7 @@ export class VariableAllocator {
   }
 
   private allocateFunctionInterfaceReturn(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
@@ -454,7 +455,7 @@ export class VariableAllocator {
   }
 
   private allocateMethodInterfaceReturn(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
@@ -490,7 +491,7 @@ export class VariableAllocator {
   }
 
   private allocateMethodArrayReturn(stmt: VariableDeclaration, params: string[], arrayInfo: { elementType: string; fields: { name: string; type: string }[] }): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const elementKeys: string[] = [];
     const elementTypes: string[] = [];
     const elementTsTypes: string[] = [];
@@ -584,7 +585,7 @@ export class VariableAllocator {
   }
 
   private allocateDeclaredInterface(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
@@ -678,7 +679,7 @@ export class VariableAllocator {
     }
     const interfaceDefResult = this.getInterface(interfaceName);
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
@@ -701,7 +702,7 @@ export class VariableAllocator {
   }
 
   private allocateMapGetArray(stmt: VariableDeclaration, params: string[], arrayType: string): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const elementType = arrayType.slice(0, -2);
     if (elementType === 'string') {
       this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.StringArray, 'local');
@@ -772,7 +773,7 @@ export class VariableAllocator {
   private allocateMemberAccessInterface(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
     const interfaceDefResult = this.getInterface(interfaceName);
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
@@ -792,7 +793,7 @@ export class VariableAllocator {
   }
 
   private allocateClassInstance(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     let className: string;
 
     const valueBase = stmt.value as ExprBase;
@@ -853,7 +854,7 @@ export class VariableAllocator {
   }
 
   private allocatePromise(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, '%Promise*', SymbolKind.Object, 'local');
     this.ctx.emit(`${allocaReg} = alloca %Promise*`);
 
@@ -862,7 +863,7 @@ export class VariableAllocator {
   }
 
   private allocateAwaitResult(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
     this.ctx.emit(`${allocaReg} = alloca i8*`);
 
@@ -871,7 +872,7 @@ export class VariableAllocator {
   }
 
   private allocateTypedJsonInterface(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const structType = `%${interfaceName}*`;
     this.ctx.defineVariable(stmt.name, allocaReg, structType, SymbolKind.Object, 'local');
     this.ctx.emit(`${allocaReg} = alloca ${structType}`);
@@ -881,7 +882,7 @@ export class VariableAllocator {
   }
 
   private allocateResponse(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, '%Response*', SymbolKind.Object, 'local');
     this.ctx.emit(`${allocaReg} = alloca %Response*`);
 
@@ -890,7 +891,7 @@ export class VariableAllocator {
   }
 
   private allocateJSONObject(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const interfaceName = this.ctx.getJSONParseInterface(stmt.value!);
     if (!interfaceName) {
       throw new Error(
@@ -931,7 +932,7 @@ export class VariableAllocator {
   }
 
   private allocateObject(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const interfaceDefResult = stmt.declaredType
       ? this.getInterface(stmt.declaredType)
       : null;
@@ -989,7 +990,7 @@ export class VariableAllocator {
         return;
       }
     }
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, '%Map*', SymbolKind.Map, 'local');
     this.ctx.emit(`${allocaReg} = alloca %Map`);
 
@@ -1000,7 +1001,7 @@ export class VariableAllocator {
   }
 
   private allocateStringMap(stmt: VariableDeclaration, params: string[], mapTypeInfo: MapTypeInfo): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const llvmValueType = this.tsTypeToLlvm(mapTypeInfo.valueType);
 
     this.ctx.defineVariable(stmt.name, allocaReg, '%StringMap*', SymbolKind.Map, 'local', {
@@ -1071,7 +1072,7 @@ export class VariableAllocator {
         return;
       }
     }
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, '%Set*', SymbolKind.Set, 'local');
     this.ctx.emit(`${allocaReg} = alloca %Set`);
 
@@ -1082,7 +1083,7 @@ export class VariableAllocator {
   }
 
   private allocateStringSet(stmt: VariableDeclaration, params: string[], setTypeInfo: SetTypeInfo): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const llvmValueType = this.tsTypeToLlvm(setTypeInfo.valueType);
 
     this.ctx.defineVariable(stmt.name, allocaReg, '%StringSet*', SymbolKind.Set, 'local', {
@@ -1103,7 +1104,7 @@ export class VariableAllocator {
   }
 
   private allocateStringArray(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local');
     this.ctx.emit(`${allocaReg} = alloca %StringArray`);
 
@@ -1121,7 +1122,7 @@ export class VariableAllocator {
   }
 
   private allocateArray(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local');
     this.ctx.emit(`${allocaReg} = alloca %Array`);
 
@@ -1132,7 +1133,7 @@ export class VariableAllocator {
   }
 
   private allocateObjectArray(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
 
     let elementType = this.ctx.getObjectArrayElementType(stmt.value!);
     if (!elementType && stmt.declaredType && stmt.declaredType.endsWith('[]')) {
@@ -1164,7 +1165,7 @@ export class VariableAllocator {
   }
 
   private allocateRegex(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Regex, 'local');
     this.ctx.emit(`${allocaReg} = alloca i8*`);
 
@@ -1173,7 +1174,7 @@ export class VariableAllocator {
   }
 
   private allocateString(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
     this.ctx.emit(`${allocaReg} = alloca i8*`);
 
@@ -1200,7 +1201,7 @@ export class VariableAllocator {
   }
 
   private allocatePointer(stmt: VariableDeclaration, params: string[]): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
 
     const elementType = this.getPointerExpressionElementType(stmt.value);
     if (elementType) {
@@ -1249,7 +1250,7 @@ export class VariableAllocator {
   }
 
   private allocateNullPointer(stmt: VariableDeclaration): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
 
     if (stmt.declaredType) {
       const baseType = stmt.declaredType.replace(/ \| undefined$/, '').replace(/ \| null$/, '').replace(/undefined \| /, '').replace(/null \| /, '').trim();
@@ -1336,17 +1337,17 @@ export class VariableAllocator {
 
     const isTreeSitterType = valueType === '%TSNode*' || valueType === '%TSTree*' || valueType === '%TSParser*' || valueType === '%TSLanguage*';
     if (isTreeSitterType) {
-      const allocaReg = this.ctx.nextTemp();
+      const allocaReg = this.ctx.nextAllocaReg(stmt.name);
       this.ctx.defineVariable(stmt.name, allocaReg, valueType, SymbolKind.Object, 'local');
       this.ctx.emit(`${allocaReg} = alloca double`);
       this.ctx.emit(`store double ${value}, double* ${allocaReg}`);
     } else if (valueType && valueType !== 'double' && valueType.indexOf('*') !== -1) {
-      const allocaReg = this.ctx.nextTemp();
+      const allocaReg = this.ctx.nextAllocaReg(stmt.name);
       this.ctx.defineVariable(stmt.name, allocaReg, valueType, SymbolKind.Object, 'local');
       this.ctx.emit(`${allocaReg} = alloca ${valueType}`);
       this.ctx.emit(`store ${valueType} ${value}, ${valueType}* ${allocaReg}`);
     } else {
-      const allocaReg = this.ctx.nextTemp();
+      const allocaReg = this.ctx.nextAllocaReg(stmt.name);
       this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
       this.ctx.emit(`${allocaReg} = alloca double`);
       if (valueType === 'i32') {
@@ -1401,7 +1402,7 @@ export class VariableAllocator {
         }
       });
     } else {
-      const allocaReg = this.ctx.nextTemp();
+      const allocaReg = this.ctx.nextAllocaReg(stmt.name);
       this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Closure, 'local', {
         closureMetadata: {
           lambdaName,
@@ -1718,7 +1719,7 @@ export class VariableAllocator {
   }
 
   private allocateIndexedObjectArray(stmt: VariableDeclaration, params: string[], typeInfo: UnionCommonFields): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
       objectMetadata: { keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }
     });
@@ -1747,7 +1748,7 @@ export class VariableAllocator {
   }
 
   private allocateArrayMethodReturn(stmt: VariableDeclaration, params: string[], typeInfo: UnionCommonFields): void {
-    const allocaReg = this.ctx.nextTemp();
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', {
       objectMetadata: { keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }
     });

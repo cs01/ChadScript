@@ -41,7 +41,7 @@ export function transformExpression(node: ts.Expression, checker: ts.TypeChecker
       return { type: 'boolean', value: false };
 
     case ts.SyntaxKind.NullKeyword:
-      return { type: 'variable', name: 'null' };
+      return { type: 'null' };
 
     case ts.SyntaxKind.Identifier:
       return transformIdentifier(node as ts.Identifier);
@@ -130,7 +130,10 @@ function transformStringLiteral(node: ts.StringLiteral): StringNode {
   return { type: 'string', value: node.text };
 }
 
-function transformIdentifier(node: ts.Identifier): VariableNode {
+function transformIdentifier(node: ts.Identifier): Expression {
+  if (node.text === 'undefined') {
+    return { type: 'undefined' };
+  }
   return { type: 'variable', name: node.text };
 }
 

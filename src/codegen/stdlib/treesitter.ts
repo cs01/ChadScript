@@ -103,7 +103,7 @@ export class TreeSitterGenerator {
     ir += 'define %TSNode* @__ts_get_root_node(%TSTree* %tree) {\n';
     ir += 'entry:\n';
     ir += '  ; Allocate TSNode on GC heap (32 bytes)\n';
-    ir += '  %node_mem = call i8* @GC_malloc(i64 32)\n';
+    ir += '  %node_mem = call i8* @GC_malloc_uncollectable(i64 32)\n';
     ir += '  %node = bitcast i8* %node_mem to %TSNode*\n';
     ir += '\n';
     ir += '  ; Call ts_tree_root_node with sret\n';
@@ -142,7 +142,7 @@ export class TreeSitterGenerator {
     ir += 'define %TSNode* @__ts_node_child(%TSNode* %node, i32 %index) {\n';
     ir += 'entry:\n';
     ir += '  ; Allocate result node on GC heap\n';
-    ir += '  %child_mem = call i8* @GC_malloc(i64 32)\n';
+    ir += '  %child_mem = call i8* @GC_malloc_uncollectable(i64 32)\n';
     ir += '  %child = bitcast i8* %child_mem to %TSNode*\n';
     ir += '\n';
     ir += '  ; Call ts_node_child with sret and byval\n';
@@ -230,7 +230,7 @@ export class TreeSitterGenerator {
     let ir = '; __ts_node_named_child(node: %TSNode*, index: i32) -> %TSNode*\n';
     ir += 'define %TSNode* @__ts_node_named_child(%TSNode* %node, i32 %index) {\n';
     ir += 'entry:\n';
-    ir += '  %child_mem = call i8* @GC_malloc(i64 32)\n';
+    ir += '  %child_mem = call i8* @GC_malloc_uncollectable(i64 32)\n';
     ir += '  %child = bitcast i8* %child_mem to %TSNode*\n';
     ir += '  call void @ts_node_named_child(%TSNode* sret(%TSNode) %child, %TSNode* byval(%TSNode) %node, i32 %index)\n';
     ir += '  ret %TSNode* %child\n';
@@ -252,7 +252,7 @@ export class TreeSitterGenerator {
     let ir = '; __ts_node_child_by_field_name(node: %TSNode*, field: i8*, field_len: i32) -> %TSNode*\n';
     ir += 'define %TSNode* @__ts_node_child_by_field_name(%TSNode* %node, i8* %field, i32 %field_len) {\n';
     ir += 'entry:\n';
-    ir += '  %child_mem = call i8* @GC_malloc(i64 32)\n';
+    ir += '  %child_mem = call i8* @GC_malloc_uncollectable(i64 32)\n';
     ir += '  %child = bitcast i8* %child_mem to %TSNode*\n';
     ir += '  call void @ts_node_child_by_field_name(%TSNode* sret(%TSNode) %child, %TSNode* byval(%TSNode) %node, i8* %field, i32 %field_len)\n';
     ir += '  ret %TSNode* %child\n';
