@@ -1265,38 +1265,117 @@ export class ArrayGenerator {
   }
 
   generateArrayJoin(expr: MethodCallNode, params: string[]): string {
-    // arr.join(separator) - returns a string (i8*)
-    // For simplicity, we'll implement join with a string separator
     if (expr.args.length !== 1) {
       throw new Error('join() requires exactly 1 argument (separator)');
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
-    this.ctx.generateExpression(expr.args[0], params);
+    const separator = this.ctx.generateExpression(expr.args[0], params);
 
-    // Get array length
+    let isStringArray = false;
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === 'variable') {
+      const varName = (expr.object as VariableNode).name;
+      const varType = this.ctx.getVariableType(varName);
+      isStringArray = varType === '%StringArray*';
+    } else if (exprObjBase.type === 'member_access') {
+      const ptrType = this.ctx.getVariableType(arrayPtr);
+      isStringArray = ptrType === '%StringArray*';
+    } else {
+      const ptrType = this.ctx.getVariableType(arrayPtr);
+      isStringArray = ptrType === '%StringArray*';
+    }
+
+    if (isStringArray) {
+      return this.generateStringArrayJoin(arrayPtr, separator);
+    }
+
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
-    // Get data pointer
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
-    // For simplicity, we'll allocate a fixed-size buffer for the result
-    // In a real implementation, we'd calculate the exact size needed
-    const bufferSize = 1024; // Fixed size for demo
+    const bufferSize = 8192;
     const resultBuffer = this.nextTemp();
     this.emit(`${resultBuffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
 
-    // Initialize buffer with empty string
     const nullByte = this.nextTemp();
     this.emit(`${nullByte} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 0`);
     this.emit(`store i8 0, i8* ${nullByte}`);
 
+    this.ctx.setVariableType(resultBuffer, 'i8*');
+    return resultBuffer;
+  }
+
+  private generateStringArrayJoin(arrayPtr: string, separator: string): string {
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.nextTemp();
+    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+
+    const bufferSize = 65536;
+    const resultBuffer = this.nextTemp();
+    this.emit(`${resultBuffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
+
+    const nullByte = this.nextTemp();
+    this.emit(`${nullByte} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 0`);
+    this.emit(`store i8 0, i8* ${nullByte}`);
+
+    const checkLabel = this.nextLabel('join_check');
+    const bodyLabel = this.nextLabel('join_body');
+    const endLabel = this.nextLabel('join_end');
+
+    const counterPtr = this.ctx.nextAllocaReg('join_idx');
+    this.emit(`${counterPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${counterPtr}`);
+
+    this.emit(`br label %${checkLabel}`);
+
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    this.emit(`${bodyLabel}:`);
+
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+
+    const isNotFirst = this.nextTemp();
+    this.emit(`${isNotFirst} = icmp sgt i32 ${counter}, 0`);
+    const addSepLabel = this.nextLabel('join_add_sep');
+    const afterSepLabel = this.nextLabel('join_after_sep');
+    this.emit(`br i1 ${isNotFirst}, label %${addSepLabel}, label %${afterSepLabel}`);
+
+    this.emit(`${addSepLabel}:`);
+    const strcat1 = this.nextTemp();
+    this.emit(`${strcat1} = call i8* @strcat(i8* ${resultBuffer}, i8* ${separator})`);
+    this.emit(`br label %${afterSepLabel}`);
+
+    this.emit(`${afterSepLabel}:`);
+    const strcat2 = this.nextTemp();
+    this.emit(`${strcat2} = call i8* @strcat(i8* ${resultBuffer}, i8* ${elem})`);
+
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
+    this.emit(`${endLabel}:`);
     this.ctx.setVariableType(resultBuffer, 'i8*');
     return resultBuffer;
   }
