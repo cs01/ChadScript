@@ -344,6 +344,12 @@ const testCases: TestCase[] = [
     description: 'Array .forEach() should call function for each element'
   },
   {
+    name: 'array-slice',
+    fixture: 'tests/fixtures/arrays/array-slice.ts',
+    expectTestPassed: true,
+    description: 'Array .slice() should return a new array with selected elements'
+  },
+  {
     name: 'object-literal',
     fixture: 'tests/fixtures/objects/object-literal.js',
     expectedExitCode: 30,
