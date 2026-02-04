@@ -3,6 +3,7 @@ import {
   NewNode,
   VariableNode,
   MemberAccessAssignmentNode,
+  MemberAccessNode,
   AST,
   ClassNode,
   AssignmentStatement,
@@ -91,6 +92,9 @@ export class AssignmentGenerator {
           className = classWithField.name;
         }
       }
+    } else if (objectTyped.type === 'member_access' && property === 'length') {
+      this.handleArrayLengthAssignment(object as MemberAccessNode, memberAccessValue, params);
+      return;
     }
 
     if (className) {
@@ -248,5 +252,34 @@ export class AssignmentGenerator {
     } else {
       this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
     }
+  }
+
+  private handleArrayLengthAssignment(
+    arrayExpr: MemberAccessNode,
+    memberAccessValue: MemberAccessAssignmentNode,
+    params: string[]
+  ): void {
+    const arrayPtr = this.ctx.generateExpression(arrayExpr, params);
+    const value = this.ctx.generateExpression(memberAccessValue.value, params);
+
+    const valueI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${valueI32} = fptosi double ${value} to i32`);
+
+    let arrayType = '%StringArray';
+    if (arrayExpr.object.type === 'this' && this.ctx.currentClassName) {
+      const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, arrayExpr.property);
+      if (fieldInfo) {
+        const fi = fieldInfo as { type: string };
+        if (fi.type === 'string[]') {
+          arrayType = '%StringArray';
+        } else if (fi.type.endsWith('[]')) {
+          arrayType = '%Array';
+        }
+      }
+    }
+
+    const lengthPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${lengthPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`);
+    this.ctx.emit(`store i32 ${valueI32}, i32* ${lengthPtr}`);
   }
 }
