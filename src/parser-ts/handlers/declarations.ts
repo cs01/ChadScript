@@ -80,12 +80,19 @@ export function transformClassDeclaration(
   const name = node.name.text;
 
   let extendsClause: string | undefined;
+  const implementsClause: string[] = [];
   if (node.heritageClauses) {
     for (const clause of node.heritageClauses) {
       if (clause.token === ts.SyntaxKind.ExtendsKeyword && clause.types.length > 0) {
         const type = clause.types[0];
         if (ts.isIdentifier(type.expression)) {
           extendsClause = type.expression.text;
+        }
+      } else if (clause.token === ts.SyntaxKind.ImplementsKeyword) {
+        for (const type of clause.types) {
+          if (ts.isIdentifier(type.expression)) {
+            implementsClause.push(type.expression.text);
+          }
         }
       }
     }
@@ -127,6 +134,7 @@ export function transformClassDeclaration(
   return {
     name,
     extends: extendsClause,
+    implements: implementsClause.length > 0 ? implementsClause : undefined,
     fields,
     methods,
   };

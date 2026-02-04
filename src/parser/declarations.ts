@@ -307,6 +307,7 @@ export function parseClass(ctx: ParserContext): void {
   const className = ctx.parseIdentifier();
 
   let extendsClass: string | undefined;
+  const implementsList: string[] = [];
   ctx.skipWhitespace();
   if (ctx.match('extends')) {
     extendsClass = ctx.parseIdentifier();
@@ -314,9 +315,9 @@ export function parseClass(ctx: ParserContext): void {
 
   ctx.skipWhitespace();
   if (ctx.match('implements')) {
-    ctx.parseIdentifier();
+    implementsList.push(ctx.parseIdentifier());
     while (ctx.match(',')) {
-      ctx.parseIdentifier();
+      implementsList.push(ctx.parseIdentifier());
     }
   }
 
@@ -544,7 +545,7 @@ export function parseClass(ctx: ParserContext): void {
   }
 
   ctx.expect('}');
-  ctx.classes.push({ name: className, extends: extendsClass, fields, methods });
+  ctx.classes.push({ name: className, extends: extendsClass, implements: implementsList.length > 0 ? implementsList : undefined, fields, methods });
 }
 
 export function parseImport(ctx: ParserContext): void {
@@ -722,6 +723,7 @@ export function parseExport(ctx: ParserContext): void {
     const name = ctx.parseIdentifier();
 
     let extendsClass: string | undefined;
+    const implementsList: string[] = [];
     ctx.skipWhitespace();
     if (ctx.match('extends')) {
       extendsClass = ctx.parseIdentifier();
@@ -729,9 +731,9 @@ export function parseExport(ctx: ParserContext): void {
 
     ctx.skipWhitespace();
     if (ctx.match('implements')) {
-      ctx.parseIdentifier();
+      implementsList.push(ctx.parseIdentifier());
       while (ctx.match(',')) {
-        ctx.parseIdentifier();
+        implementsList.push(ctx.parseIdentifier());
       }
     }
 
@@ -940,8 +942,9 @@ export function parseExport(ctx: ParserContext): void {
     }
     ctx.expect('}');
 
-    ctx.exports.push({ type: 'export', declaration: { name, extends: extendsClass, fields, methods } });
-    ctx.classes.push({ name, extends: extendsClass, fields, methods });
+    const implementsArray = implementsList.length > 0 ? implementsList : undefined;
+    ctx.exports.push({ type: 'export', declaration: { name, extends: extendsClass, implements: implementsArray, fields, methods } });
+    ctx.classes.push({ name, extends: extendsClass, implements: implementsArray, fields, methods });
   } else {
     throw new Error(`Expected 'function' or 'class' after 'export' at position ${ctx.pos}`);
   }

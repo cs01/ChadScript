@@ -1520,9 +1520,12 @@ export class MethodCallGenerator {
     return null;
   }
 
-  private findClassImplementingInterfaceMethod(_interfaceName: string, methodName: string): string | null {
+  private findClassImplementingInterfaceMethod(interfaceName: string, methodName: string): string | null {
     for (let i = 0; i < this.ctx.ast.classes.length; i++) {
       const cls = this.ctx.ast.classes[i];
+      if (!this.classImplementsInterface(cls.name, interfaceName)) {
+        continue;
+      }
       let hasMethod = false;
       for (let mi = 0; mi < cls.methods.length; mi++) {
         const m = cls.methods[mi] as { name: string; isConstructor: boolean };
@@ -1539,6 +1542,26 @@ export class MethodCallGenerator {
       }
     }
     return null;
+  }
+
+  private classImplementsInterface(className: string, interfaceName: string): boolean {
+    for (let i = 0; i < this.ctx.ast.classes.length; i++) {
+      const cls = this.ctx.ast.classes[i];
+      if (cls.name === className) {
+        if (cls.implements) {
+          for (let j = 0; j < cls.implements.length; j++) {
+            if (cls.implements[j] === interfaceName) {
+              return true;
+            }
+          }
+        }
+        if (cls.extends) {
+          return this.classImplementsInterface(cls.extends, interfaceName);
+        }
+        return false;
+      }
+    }
+    return false;
   }
 
   private resolveNestedMemberAccessType(expr: Expression): string | null {
