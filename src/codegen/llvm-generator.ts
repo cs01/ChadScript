@@ -6,6 +6,7 @@ import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/fu
 import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructure/assignment-generator.js';
 import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
 import { TypeResolver, TypeResolverContext } from './infrastructure/type-resolver/index.js';
+import { IGeneratorContext } from './infrastructure/generator-context.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
 import { ObjectGenerator } from './types/objects/object.js';
@@ -40,7 +41,7 @@ export interface LLVMGeneratorOptions {
 // LLVM IR CODE GENERATOR - Main Orchestrator
 // ============================================
 
-export class LLVMGenerator extends BaseGenerator {
+export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public ast: AST;
   public typeChecker: TypeChecker | null;
   private externalFunctions: Set<string>;

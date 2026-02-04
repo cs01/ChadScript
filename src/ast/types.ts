@@ -334,6 +334,7 @@ export interface InterfaceMethod {
 
 export interface InterfaceDeclaration {
   name: string;
+  extends?: string[];
   fields: InterfaceField[];
   methods?: InterfaceMethod[];
 }
