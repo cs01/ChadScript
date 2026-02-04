@@ -285,6 +285,7 @@ export interface ClassField {
 export interface ClassNode {
   name: string;
   extends?: string;
+  implements?: string[];
   fields: ClassField[];  // Explicit field declarations
   methods: ClassMethod[];
 }
