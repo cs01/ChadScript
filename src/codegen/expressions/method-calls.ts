@@ -308,21 +308,25 @@ export class MethodCallGenerator {
 
     if (argTyped.type === 'string') {
       const strValue = argTyped.value as string;
-      const escaped = strValue.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\0A').replace(/\t/g, '\\09');
-      const strLen = strValue.length + 2;
-      const strConstName = `@.str.console.${this.ctx.nextTemp().replace('%', '')}`;
-
-      const formatStr = this.ctx.nextTemp();
-      this.ctx.emit(`${formatStr} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.strfmt, i32 0, i32 0), i8* getelementptr([${strLen} x i8], [${strLen} x i8]* ${strConstName}, i32 0, i32 0))`);
-      return formatStr;
+      const strConstPtr = this.ctx.stringGen.createStringConstant(strValue + '\n');
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${strConstPtr})`);
+      return temp;
     } else if (argTyped.type === 'number') {
       const numValue = argTyped.value as number;
+      const numStr = Number.isInteger(numValue) ? numValue + '.0' : String(numValue);
       const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${numValue})`);
+      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${numStr})`);
       return temp;
     } else {
+      const argValue = this.ctx.generateExpression(arg as import('../../ast/types.js').Expression, params);
+      const isString = this.ctx.isStringExpression(arg as import('../../ast/types.js').Expression);
       const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([2 x i8], [2 x i8]* @.str.newline, i32 0, i32 0))`);
+      if (isString) {
+        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.strfmt, i32 0, i32 0), i8* ${argValue})`);
+      } else {
+        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+      }
       return temp;
     }
   }
