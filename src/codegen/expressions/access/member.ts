@@ -60,6 +60,7 @@ interface JsonObjectMeta {
   keys: string[];
   types: string[];
   tsTypes?: string[];
+  interfaceType?: string;
 }
 
 interface InterfaceProperty {
@@ -731,6 +732,24 @@ export class MemberAccessGenerator {
   }
 
   private storeInterfaceMetadata(register: string, tsType: string): void {
+    if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(tsType)) {
+      const interfaceInfo = this.ctx.interfaceStructGen.getInterfaceStruct(tsType);
+      if (interfaceInfo) {
+        const keys: string[] = [];
+        const tsTypes: string[] = [];
+        const types: string[] = [];
+        const fields = interfaceInfo.fields as { name: string; tsType: string; llvmType: string }[];
+        for (let i = 0; i < fields.length; i++) {
+          const f = fields[i] as { name: string; tsType: string; llvmType: string };
+          keys.push(f.name);
+          tsTypes.push(f.tsType);
+          types.push(f.llvmType);
+        }
+        this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
+        this.ctx.jsonObjectMetadata.set(register, { keys, types, tsTypes, interfaceType: tsType });
+        return;
+      }
+    }
     const interfaceDefResult = this.getInterfaceDecl(tsType);
     if (interfaceDefResult) {
       const interfaceDef = interfaceDefResult as InterfaceDeclaration;
@@ -745,6 +764,9 @@ export class MemberAccessGenerator {
       }
       this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
       this.ctx.jsonObjectMetadata.set(register, { keys, types, tsTypes });
+    } else if (tsType === 'Expression' || tsType === 'Statement') {
+      this.ctx.jsonObjectMetadata = this.ctx.jsonObjectMetadata || new Map();
+      this.ctx.jsonObjectMetadata.set(register, { keys: ['type'], types: ['i8*'], tsTypes: ['string'] });
     }
   }
 
@@ -952,7 +974,10 @@ export class MemberAccessGenerator {
       if (!this.ctx.jsonObjectMetadata) return null;
       const metadataRaw = this.ctx.jsonObjectMetadata.get(innerPtr);
       if (metadataRaw) {
-        const metadata = metadataRaw as { keys: string[]; types: string[]; tsTypes: string[] | undefined };
+        const metadata = metadataRaw as { keys: string[]; types: string[]; tsTypes: string[] | undefined; interfaceType?: string };
+        if (metadata.interfaceType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(metadata.interfaceType)) {
+          return this.accessObjectPropertyWithNamedInterface(innerPtr, expr.property, metadata.interfaceType);
+        }
         if (metadata.keys && metadata.types) {
           const propIndex = metadata.keys.indexOf(expr.property);
           if (propIndex !== -1) {
@@ -2357,6 +2382,112 @@ export class MemberAccessGenerator {
     const value = this.ctx.nextTemp();
     this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
     this.ctx.setVariableType(value, propType);
+
+    return value;
+  }
+
+  private accessInterfacePropertyWithNamedStruct(varName: string, property: string, interfaceType: string): string {
+    const interfaceInfo = this.ctx.interfaceStructGen!.getInterfaceStruct(interfaceType);
+    if (!interfaceInfo) {
+      throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
+    }
+
+    let propIndex = -1;
+    let propLlvmType = '';
+    let propTsType = '';
+    const fields = interfaceInfo.fields as { name: string; tsType: string; llvmType: string }[];
+    for (let i = 0; i < fields.length; i++) {
+      const field = fields[i] as { name: string; tsType: string; llvmType: string };
+      if (field.name === property) {
+        propIndex = i;
+        propLlvmType = field.llvmType;
+        propTsType = field.tsType;
+        break;
+      }
+    }
+
+    if (propIndex === -1) {
+      const fieldNames: string[] = [];
+      for (let i = 0; i < fields.length; i++) {
+        const f = fields[i] as { name: string; tsType: string; llvmType: string };
+        fieldNames.push(f.name);
+      }
+      throw new Error(this.ctx.formatCodegenError(
+        `Property '${property}' not found on interface '${interfaceType}'. Available properties: ${fieldNames.join(', ')}`
+      ));
+    }
+
+    const structType = `%${interfaceType}`;
+    const varPtr = this.ctx.getVariableAlloca(varName);
+    if (!varPtr) {
+      throw new Error(`Variable ${varName} not found in symbol table`);
+    }
+
+    const objPtrRaw = this.ctx.nextTemp();
+    this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${varPtr}`);
+
+    const objPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${objPtr} = bitcast i8* ${objPtrRaw} to ${structType}*`);
+
+    const fieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${propIndex}`);
+
+    const value = this.ctx.nextTemp();
+    this.ctx.emit(`${value} = load ${propLlvmType}, ${propLlvmType}* ${fieldPtr}`);
+    this.ctx.setVariableType(value, propLlvmType);
+
+    if (propTsType && ['string', 'number', 'boolean'].indexOf(propTsType) === -1 && !propTsType.endsWith('[]')) {
+      this.storeInterfaceMetadata(value, propTsType);
+    }
+
+    return value;
+  }
+
+  private accessObjectPropertyWithNamedInterface(objPtr: string, property: string, interfaceType: string): string {
+    const interfaceInfo = this.ctx.interfaceStructGen!.getInterfaceStruct(interfaceType);
+    if (!interfaceInfo) {
+      throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
+    }
+
+    let propIndex = -1;
+    let propLlvmType = '';
+    let propTsType = '';
+    const fields = interfaceInfo.fields as { name: string; tsType: string; llvmType: string }[];
+    for (let i = 0; i < fields.length; i++) {
+      const field = fields[i] as { name: string; tsType: string; llvmType: string };
+      if (field.name === property) {
+        propIndex = i;
+        propLlvmType = field.llvmType;
+        propTsType = field.tsType;
+        break;
+      }
+    }
+
+    if (propIndex === -1) {
+      const fieldNames: string[] = [];
+      for (let i = 0; i < fields.length; i++) {
+        const f = fields[i] as { name: string; tsType: string; llvmType: string };
+        fieldNames.push(f.name);
+      }
+      throw new Error(this.ctx.formatCodegenError(
+        `Property '${property}' not found on interface '${interfaceType}'. Available properties: ${fieldNames.join(', ')}`
+      ));
+    }
+
+    const structType = `%${interfaceType}`;
+    const typedPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
+
+    const fieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${propIndex}`);
+
+    const value = this.ctx.nextTemp();
+    this.ctx.emit(`${value} = load ${propLlvmType}, ${propLlvmType}* ${fieldPtr}`);
+    this.ctx.setVariableType(value, propLlvmType);
+
+    if (propTsType && ['string', 'number', 'boolean'].indexOf(propTsType) === -1 && !propTsType.endsWith('[]')) {
+      this.storeInterfaceMetadata(value, propTsType);
+    }
 
     return value;
   }
