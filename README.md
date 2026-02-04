@@ -64,27 +64,15 @@ chadscript [options] <input.ts> [output]
 
 **TypeScript:** Interfaces → native structs, type annotations, import/export modules
 
-**Data Structures:**
-- **Arrays:** `push`, `pop`, `map`, `filter`, `find`, `some`, `forEach`, `slice`, `concat`, `indexOf`, `join`, `reduce`
-- **Strings:** `concat`, `substr`, `substring`, `repeat`, `padStart`, `charAt`, `split`, `indexOf`, `toUpperCase`, `toLowerCase`
-- **Maps/Sets:** `set`, `get`, `has`, `delete`, `add`
-- **Regex:** `test()`, `exec()`
+**Data Structures:** Arrays, Strings, Maps, Sets, Regex (with standard methods)
 
-**Built-in APIs:**
-- `console.log()`, `process.exit()`, `process.argv`
-- `fs.readFileSync()`, `fs.writeFileSync()`, `fs.unlinkSync()`
-- `path.resolve()`, `path.dirname()`
-- `fetch()` - HTTP GET/POST
-- `httpServe(port, handler)` - HTTP server
-- `JSON.parse<T>()` - typed JSON parsing
-- `async/await`, `Promise.all()`, `setTimeout`, `setInterval`
-- POSIX sockets: `socket()`, `bind()`, `listen()`, `accept()`, `connect()`, `read()`, `write()`, `close()`
+**Built-in APIs:** `console`, `process`, `fs`, `path`, `fetch`, `JSON.parse<T>`, `httpServe`, `async/await`, `Promise.all`, `setTimeout/setInterval`, POSIX sockets, `Math`
 
 See `/examples/` for working code: CLI tools, HTTP servers, argument parsing, and more.
 
 ## Limitations
 
-- **No npm packages** - Can't use Node modules (they depend on V8)
+- **No npm packages yet** - Only local imports supported; `node_modules` resolution not implemented
 - **No dynamic features** - No `eval`, `typeof`, `Object.keys()`, destructuring, spread, optional chaining
 - **No reflection** - No `instanceof`, `for..in`, runtime type inspection
 - **Nested if returns** - Deep nesting with early returns can generate invalid IR (extract to functions)
