@@ -254,6 +254,7 @@ function transformConstructorDeclaration(
       name: 'constructor',
       params,
       paramTypes,
+      parameterProperties: parameterProperties.length > 0 ? parameterProperties.map(p => p.name) : undefined,
       returnType: undefined,
       body,
       isConstructor: true,

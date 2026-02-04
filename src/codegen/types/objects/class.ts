@@ -315,16 +315,26 @@ export class ClassGenerator {
         if (paramIndex !== -1) {
           const fieldInfo = this.getFieldInfo(className, propName);
           if (fieldInfo) {
-            const fieldInfoTyped = fieldInfo as { index: number; type: string };
+            const fieldInfoTyped = fieldInfo as { index: number; type: string; tsType?: string };
             const fieldIndex = fieldInfoTyped.index;
             const paramAlloca = this.ctx.getVariableAlloca(propName);
             if (paramAlloca) {
-              const llvmType = paramLLVMTypes[paramIndex];
+              const paramLlvmType = paramLLVMTypes[paramIndex];
               const loadedValue = this.nextTemp();
-              this.emit(`${loadedValue} = load ${llvmType}, ${llvmType}* ${paramAlloca}`);
+              this.emit(`${loadedValue} = load ${paramLlvmType}, ${paramLlvmType}* ${paramAlloca}`);
+
+              const fieldLlvmType = this.fieldToLlvmType(fields[fieldIndex]);
+
+              let valueToStore = loadedValue;
+              if (paramLlvmType !== fieldLlvmType && paramLlvmType === 'i8*') {
+                const castValue = this.nextTemp();
+                this.emit(`${castValue} = bitcast i8* ${loadedValue} to ${fieldLlvmType}`);
+                valueToStore = castValue;
+              }
+
               const fieldPtr = this.nextTemp();
               this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${objPtr}, i32 0, i32 ${fieldIndex}`);
-              this.emit(`store ${llvmType} ${loadedValue}, ${llvmType}* ${fieldPtr}`);
+              this.emit(`store ${fieldLlvmType} ${valueToStore}, ${fieldLlvmType}* ${fieldPtr}`);
             }
           }
         }
