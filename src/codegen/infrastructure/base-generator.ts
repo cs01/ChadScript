@@ -184,8 +184,20 @@ export class BaseGenerator {
     } else if (instruction.includes(' = getelementptr ')) {
       this.validateGepInstruction(instruction);
     }
-    this.output.push(instruction);
-    this.outputCount++;
+    const allocaIdx = instruction.indexOf(' = alloca ');
+    if (allocaIdx > 0) {
+      const regName = instruction.substring(0, allocaIdx).trim();
+      const isNamedReg = regName.length > 1 && regName.charAt(1) >= 'A';
+      if (isNamedReg) {
+        this.allocaInstructions.push(instruction);
+      } else {
+        this.output.push(instruction);
+        this.outputCount++;
+      }
+    } else {
+      this.output.push(instruction);
+      this.outputCount++;
+    }
     if (instruction.trim().endsWith(':')) {
       const label = instruction.trim().slice(0, -1);
       this.currentLabel = label;
