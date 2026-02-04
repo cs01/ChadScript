@@ -13,19 +13,21 @@ export class BaseGenerator {
   public tempCounter: number = 0;
   public labelCounter: number = 0;
   public stringCounter: number = 0;
-  public output: string[] = [];
-  public globalStrings: string[] = [];
+  public output: string[];
+  public outputCount: number = 0;
+  public globalStrings: string[];
+  public globalStringsCount: number = 0;
   public currentLabel: string = 'entry'; // Track current basic block label
 
   // Unified symbol table for named variables
-  public symbolTable: SymbolTable = new SymbolTable();
+  public symbolTable: SymbolTable;
 
   // Temporary register type tracking (for LLVM registers like %0, %1, etc)
   // Named variables use SymbolTable instead
-  public variableTypes: Map<string, string> = new Map();
+  public variableTypes: Map<string, string>;
 
   // Expression type cache - maps expressions to their resolved types
-  public expressionTypes: Map<Expression, ResolvedType> = new Map();
+  public expressionTypes: Map<Expression, ResolvedType>;
 
   public thisPointer: string | null = null; // Current 'this' pointer (i32*)
   public currentClassName: string | null = null; // Current class name (for super resolution)
@@ -34,27 +36,27 @@ export class BaseGenerator {
   public expectedCallbackReturnType: string | null = null; // Expected callback return type for lambda generation
   public currentFunctionReturnType: string = 'double'; // Current function/method return type for return statements
 
-  constructor() {}
+  constructor() {
+    this.output = [];
+    this.globalStrings = [];
+    this.symbolTable = new SymbolTable();
+    this.variableTypes = new Map();
+    this.expressionTypes = new Map();
+  }
 
   // Reset state for new function generation
-  reset() {
+  reset(): void {
     this.tempCounter = 0;
     this.labelCounter = 0;
     this.currentLabel = 'entry';
-    this.output = [];
-
-    // Clear unified symbol table (preserve globals)
-    this.symbolTable.clearLocals();
-
-    // Clear temporary register types
-    this.variableTypes.clear();
-
-    // Clear expression type cache
-    this.expressionTypes.clear();
-
+    this.output.length = 0;
+    this.outputCount = 0;
     this.thisPointer = null;
     this.currentClassName = null;
     this.currentFunctionReturnType = 'double';
+    this.symbolTable.clearLocals();
+    this.variableTypes.clear();
+    this.expressionTypes.clear();
   }
 
   // Helper to get next temp register (can be overridden)
@@ -74,7 +76,7 @@ export class BaseGenerator {
   }
 
   // Set the current label (call when emitting a new label)
-  setCurrentLabel(label: string) {
+  setCurrentLabel(label: string): void {
     this.currentLabel = label;
   }
 
@@ -163,6 +165,7 @@ export class BaseGenerator {
       this.validateGepInstruction(instruction);
     }
     this.output.push(instruction);
+    this.outputCount++;
     if (instruction.trim().endsWith(':')) {
       const label = instruction.trim().slice(0, -1);
       this.currentLabel = label;

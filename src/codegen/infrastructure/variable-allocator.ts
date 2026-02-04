@@ -9,6 +9,8 @@ interface ExprBase { type: string; }
 interface ClassGeneratorLike {
   getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[];
   getFieldInfo(className: string, fieldName: string): FieldInfo | null;
+  thisPointer?: string | null;
+  currentClassName?: string | null;
 }
 
 interface FieldInfo {
@@ -1001,7 +1003,22 @@ export class VariableAllocator {
   }
 
   private allocateSet(stmt: VariableDeclaration, params: string[]): void {
-    const setTypeInfoResult = this.parseSetType(stmt.declaredType);
+    let setTypeInfoResult = this.parseSetType(stmt.declaredType);
+
+    if (!setTypeInfoResult && stmt.value) {
+      const valueBase = stmt.value as { type: string };
+      if (valueBase.type === 'new') {
+        const newExpr = stmt.value as { className: string; typeArgs?: string[] };
+        if (newExpr.className === 'Set' && newExpr.typeArgs && newExpr.typeArgs.length > 0) {
+          setTypeInfoResult = { valueType: newExpr.typeArgs[0] };
+        }
+      } else if (valueBase.type === 'set') {
+        const setExpr = stmt.value as { valueType?: string };
+        if (setExpr.valueType) {
+          setTypeInfoResult = { valueType: setExpr.valueType };
+        }
+      }
+    }
 
     if (setTypeInfoResult) {
       const setTypeInfo = setTypeInfoResult as SetTypeInfo;

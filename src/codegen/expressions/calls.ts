@@ -775,20 +775,56 @@ export class CallExpressionGenerator {
     const parentClassName = currentClass.extends;
     const parentStructType = `%${parentClassName}_struct*`;
     const thisPtr = this.ctx.thisPointer;
-    const castedThis = this.ctx.nextTemp();
-    this.ctx.emit(`${castedThis} = bitcast i8* ${thisPtr} to ${parentStructType}`);
+
     const argValues: string[] = [];
     for (let i = 0; i < expr.args.length; i++) {
       argValues.push(this.ctx.generateExpression(expr.args[i], params));
     }
-    const argTypesStr = argValues.map(() => 'i8*').join(', ');
     const argsWithTypes = argValues.map(v => `i8* ${v}`).join(', ');
-    const temp = this.ctx.nextTemp();
+    const parentObj = this.ctx.nextTemp();
     if (argValues.length === 0) {
-      this.ctx.emit(`${temp} = call ${parentStructType} @${parentClassName}_constructor()`);
+      this.ctx.emit(`${parentObj} = call ${parentStructType} @${parentClassName}_constructor()`);
     } else {
-      this.ctx.emit(`${temp} = call ${parentStructType} @${parentClassName}_constructor(${argsWithTypes})`);
+      this.ctx.emit(`${parentObj} = call ${parentStructType} @${parentClassName}_constructor(${argsWithTypes})`);
+    }
+
+    const parentFields = this.ctx.classGen.getClassFields(parentClassName);
+    if (parentFields.length > 0) {
+      const currentClassName = this.ctx.currentClassName;
+      const childStructType = `%${currentClassName}_struct*`;
+      const castedThis = this.ctx.nextTemp();
+      this.ctx.emit(`${castedThis} = bitcast i8* ${thisPtr} to ${childStructType}`);
+
+      for (let i = 0; i < parentFields.length; i++) {
+        const parentFieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${parentFieldPtr} = getelementptr inbounds ${parentStructType.slice(0, -1)}, ${parentStructType} ${parentObj}, i32 0, i32 ${i}`);
+        const thisFieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${thisFieldPtr} = getelementptr inbounds ${childStructType.slice(0, -1)}, ${childStructType} ${castedThis}, i32 0, i32 ${i}`);
+        const fieldLlvmType = this.getFieldLlvmType(parentFields[i]);
+        const fieldValue = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldValue} = load ${fieldLlvmType}, ${fieldLlvmType}* ${parentFieldPtr}`);
+        this.ctx.emit(`store ${fieldLlvmType} ${fieldValue}, ${fieldLlvmType}* ${thisFieldPtr}`);
+      }
     }
     return '0';
+  }
+
+  private getFieldLlvmType(field: { name: string; fieldType: string; tsType?: string }): string {
+    if (field.fieldType === 'string') return 'i8*';
+    if (field.fieldType === 'string[]') return '%StringArray*';
+    if (field.fieldType.endsWith('[]')) return '%Array*';
+    if (field.fieldType === 'boolean') return 'i1';
+    if (field.tsType) {
+      if (field.tsType.startsWith('Map<string,')) return '%StringMap*';
+      if (field.tsType.startsWith('Map<')) return '%Map*';
+      if (field.tsType === 'Set<string>') return '%StringSet*';
+      if (field.tsType.startsWith('Set<')) return '%Set*';
+      if (field.tsType === 'number' || field.tsType === 'boolean') return 'double';
+      const classFields = this.ctx.classGen.getClassFields(field.tsType);
+      if (classFields.length > 0) {
+        return `%${field.tsType}_struct*`;
+      }
+    }
+    return 'i8*';
   }
 }

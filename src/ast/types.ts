@@ -104,6 +104,7 @@ export interface NewNode {
   type: 'new';
   className: string;
   args: Expression[];
+  typeArgs?: string[];
 }
 
 export interface ThisNode {

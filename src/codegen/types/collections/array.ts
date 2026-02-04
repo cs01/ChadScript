@@ -1422,7 +1422,7 @@ export class ArrayGenerator {
     }
 
     if (isStringArray || isObjectArray) {
-      return this.generateStringArraySlice(arrayPtr, expr, params);
+      return this.generateStringArraySlice(arrayPtr, expr, params, isObjectArray);
     }
 
     const lenPtr = this.nextTemp();
@@ -1494,16 +1494,25 @@ export class ArrayGenerator {
     return newArrayPtr;
   }
 
-  private generateStringArraySlice(arrayPtr: string, expr: MethodCallNode, params: string[]): string {
+  private generateStringArraySlice(arrayPtr: string, expr: MethodCallNode, params: string[], isObjectArray: boolean = false): string {
+    const arrType = isObjectArray ? '%ObjectArray' : '%StringArray';
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(`${lenPtr} = getelementptr inbounds ${arrType}, ${arrType}* ${arrayPtr}, i32 0, i32 1`);
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
-    const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+    this.emit(`${dataPtrField} = getelementptr inbounds ${arrType}, ${arrType}* ${arrayPtr}, i32 0, i32 0`);
+    let dataPtr: string;
+    if (isObjectArray) {
+      const rawDataPtr = this.nextTemp();
+      this.emit(`${rawDataPtr} = load i8*, i8** ${dataPtrField}`);
+      dataPtr = this.nextTemp();
+      this.emit(`${dataPtr} = bitcast i8* ${rawDataPtr} to i8**`);
+    } else {
+      dataPtr = this.nextTemp();
+      this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+    }
 
     let startI32 = '0';
     if (expr.args.length >= 1) {
@@ -1523,13 +1532,13 @@ export class ArrayGenerator {
     this.emit(`${sliceLen} = sub i32 ${endI32}, ${startI32}`);
 
     const sizePtr = this.nextTemp();
-    this.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
+    this.emit(`${sizePtr} = getelementptr ${arrType}, ${arrType}* null, i32 1`);
     const structSize = this.nextTemp();
-    this.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+    this.emit(`${structSize} = ptrtoint ${arrType}* ${sizePtr} to i64`);
     const arrayMem = this.nextTemp();
     this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
     const newArrayPtr = this.nextTemp();
-    this.emit(`${newArrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
+    this.emit(`${newArrayPtr} = bitcast i8* ${arrayMem} to ${arrType}*`);
 
     const sliceLenI64 = this.nextTemp();
     this.emit(`${sliceLenI64} = zext i32 ${sliceLen} to i64`);
@@ -1549,18 +1558,24 @@ export class ArrayGenerator {
     this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dstCast}, i8* ${srcCast}, i64 ${dataSize}, i1 false)`);
 
     const newDataField = this.nextTemp();
-    this.emit(`${newDataField} = getelementptr inbounds %StringArray, %StringArray* ${newArrayPtr}, i32 0, i32 0`);
-    this.emit(`store i8** ${newDataPtr}, i8*** ${newDataField}`);
+    this.emit(`${newDataField} = getelementptr inbounds ${arrType}, ${arrType}* ${newArrayPtr}, i32 0, i32 0`);
+    if (isObjectArray) {
+      const dataAsi8 = this.nextTemp();
+      this.emit(`${dataAsi8} = bitcast i8** ${newDataPtr} to i8*`);
+      this.emit(`store i8* ${dataAsi8}, i8** ${newDataField}`);
+    } else {
+      this.emit(`store i8** ${newDataPtr}, i8*** ${newDataField}`);
+    }
 
     const newLenField = this.nextTemp();
-    this.emit(`${newLenField} = getelementptr inbounds %StringArray, %StringArray* ${newArrayPtr}, i32 0, i32 1`);
+    this.emit(`${newLenField} = getelementptr inbounds ${arrType}, ${arrType}* ${newArrayPtr}, i32 0, i32 1`);
     this.emit(`store i32 ${sliceLen}, i32* ${newLenField}`);
 
     const newCapField = this.nextTemp();
-    this.emit(`${newCapField} = getelementptr inbounds %StringArray, %StringArray* ${newArrayPtr}, i32 0, i32 2`);
+    this.emit(`${newCapField} = getelementptr inbounds ${arrType}, ${arrType}* ${newArrayPtr}, i32 0, i32 2`);
     this.emit(`store i32 ${sliceLen}, i32* ${newCapField}`);
 
-    this.ctx.setVariableType(newArrayPtr, '%StringArray*');
+    this.ctx.setVariableType(newArrayPtr, `${arrType}*`);
     return newArrayPtr;
   }
 

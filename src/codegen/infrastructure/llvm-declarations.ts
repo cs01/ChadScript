@@ -55,6 +55,13 @@ export function getLLVMDeclarations(): string {
   ir += '@stdout = external global i8*\n';
   ir += '\n';
 
+  ir += '; Console format strings for inline console.log\n';
+  ir += '@.str.newline = private unnamed_addr constant [2 x i8] c"\\0A\\00", align 1\n';
+  ir += '@.str.strfmt = private unnamed_addr constant [4 x i8] c"%s\\0A\\00", align 1\n';
+  ir += '@.str.numfmt = private unnamed_addr constant [4 x i8] c"%g\\0A\\00", align 1\n';
+  ir += '@.str.hello = private unnamed_addr constant [7 x i8] c"Hello\\0A\\00", align 1\n';
+  ir += '\n';
+
   ir += 'declare i8* @fopen(i8*, i8*)\n';
   ir += 'declare i32 @fclose(i8*)\n';
   ir += 'declare i64 @fread(i8*, i64, i64, i8*)\n';

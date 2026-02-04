@@ -44,7 +44,7 @@ import {
 } from '../ast/types.js';
 
 interface ExprBase { type: string; }
-interface NodeBase { type: string; isNamed: boolean; text: string; namedChildCount: number; childCount: number; }
+interface NodeBase { nodePtr: number; source: string; type: string; text: string; startIndex: number; endIndex: number; childCount: number; namedChildCount: number; isNamed: boolean; isNull: boolean; }
 
 export function transformTree(tree: TreeSitterTree): AST {
   return transformProgram(tree.rootNode);

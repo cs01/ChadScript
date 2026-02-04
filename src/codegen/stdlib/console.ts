@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode } from '../../ast/types.js';
+import { Expression, MethodCallNode, VariableNode } from '../../ast/types.js';
 
 interface ExprBase { type: string; }
 
@@ -27,10 +27,30 @@ export class ConsoleGenerator {
    * Check if this method call is a console.* method
    */
   canHandle(expr: MethodCallNode): boolean {
+    console.log('ConsoleGenerator.canHandle: start');
     const exprObjBase = expr.object as ExprBase;
-    return exprObjBase.type === 'variable' &&
-           (expr.object as any).name === 'console' &&
-           (expr.method === 'log' || expr.method === 'error' || expr.method === 'warn' || expr.method === 'debug');
+    console.log('ConsoleGenerator.canHandle: got exprObjBase');
+    const objType = exprObjBase.type;
+    console.log('ConsoleGenerator.canHandle: objType = ' + objType);
+    if (objType !== 'variable') {
+      console.log('ConsoleGenerator.canHandle: not a variable');
+      return false;
+    }
+    console.log('ConsoleGenerator.canHandle: checking name');
+    const varNode = expr.object as VariableNode;
+    console.log('ConsoleGenerator.canHandle: got varNode');
+    const name = varNode.name;
+    console.log('ConsoleGenerator.canHandle: name = ' + name);
+    if (name !== 'console') {
+      console.log('ConsoleGenerator.canHandle: not console');
+      return false;
+    }
+    console.log('ConsoleGenerator.canHandle: checking method');
+    const method = expr.method;
+    console.log('ConsoleGenerator.canHandle: method = ' + method);
+    const result = method === 'log' || method === 'error' || method === 'warn' || method === 'debug';
+    console.log('ConsoleGenerator.canHandle: result = ' + result);
+    return result;
   }
 
   /**
@@ -85,6 +105,8 @@ export class ConsoleGenerator {
     } else {
       // printf("\n")
       this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr})`);
+      const flushTemp = this.ctx.nextTemp();
+      this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* null)`);
       return temp;
     }
   }
@@ -105,6 +127,8 @@ export class ConsoleGenerator {
     } else {
       // printf("%s\n", value)
       this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, i8* ${argValue})`);
+      const flushTemp = this.ctx.nextTemp();
+      this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* null)`);
       return temp;
     }
   }
@@ -125,6 +149,8 @@ export class ConsoleGenerator {
     } else {
       // printf("%g\n", value)
       this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, double ${argValue})`);
+      const flushTemp = this.ctx.nextTemp();
+      this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* null)`);
       return temp;
     }
   }

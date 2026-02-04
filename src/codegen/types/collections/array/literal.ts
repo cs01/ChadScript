@@ -53,13 +53,15 @@ export function generateArrayLiteral(
 
   let isPointerArray = false;
   let firstElemValue: string | null = null;
-  if (length > 0) {
+  if (length > 0 && !isStringArray) {
     firstElemValue = gen.generateExpression(arrExpr.elements[0], params);
     const firstElemType = gen.getVariableType(firstElemValue);
-    if (firstElemType && firstElemType !== 'double' && firstElemType.indexOf('*') !== -1) {
+    if (firstElemType === 'i8*') {
+      isStringArray = true;
+    } else if (firstElemType && firstElemType !== 'double' && firstElemType.indexOf('*') !== -1) {
       isPointerArray = true;
     }
-    if (!isPointerArray) {
+    if (!isPointerArray && !isStringArray) {
       for (let i = 0; i < arrExpr.elements.length; i++) {
         const elem = arrExpr.elements[i];
         const el = elem as ExprBase;

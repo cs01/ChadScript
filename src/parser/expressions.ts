@@ -352,17 +352,30 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
     }
 
     ctx.skipWhitespace();
+    const typeArgs: string[] = [];
     if (ctx.code[ctx.pos] === '<') {
       ctx.pos++;
-      ctx.skipTypeAnnotation();
       ctx.skipWhitespace();
-      while (ctx.code[ctx.pos] === ',') {
-        ctx.pos++;
-        ctx.skipWhitespace();
-        ctx.skipTypeAnnotation();
-        ctx.skipWhitespace();
+      const startPos = ctx.pos;
+      let depth = 1;
+      while (ctx.pos < ctx.code.length && depth > 0) {
+        if (ctx.code[ctx.pos] === '<') depth++;
+        else if (ctx.code[ctx.pos] === '>') depth--;
+        else if (ctx.code[ctx.pos] === ',' && depth === 1) {
+          typeArgs.push(ctx.code.slice(startPos, ctx.pos).trim());
+          ctx.pos++;
+          ctx.skipWhitespace();
+        }
+        if (depth > 0) ctx.pos++;
       }
-      ctx.expect('>');
+      const lastTypeArg = ctx.code.slice(startPos, ctx.pos - 1).trim();
+      if (lastTypeArg) {
+        const parts = lastTypeArg.split(',');
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i].trim();
+          if (part) typeArgs.push(part);
+        }
+      }
     }
     ctx.expect('(');
     const args: Expression[] = [];
@@ -374,7 +387,11 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
       }
     }
     ctx.expect(')');
-    return parsePostfixExpressions(ctx, { type: 'new', className, args } as NewNode, parseExpression);
+    const node: NewNode = { type: 'new', className, args };
+    if (typeArgs.length > 0) {
+      node.typeArgs = typeArgs;
+    }
+    return parsePostfixExpressions(ctx, node, parseExpression);
   }
 
   if (ctx.match('this')) {

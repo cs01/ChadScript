@@ -9,6 +9,8 @@ interface StringGenLike {
 interface ClassGeneratorLike {
   getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
   getClassFields(className: string): { name: string; fieldType: string }[];
+  thisPointer?: string | null;
+  currentClassName?: string | null;
 }
 
 interface UnaryExpressionContext {

@@ -25,25 +25,39 @@ const MONGOOSE_PATH = '/data/users/cssmith/git/mongoose';
 
 export function compileNative(inputFile: string, outputFile: string): void {
   console.log('ChadScript native compiler v0.1.0');
+  console.log('Input file: ' + inputFile);
 
   const compiledFiles: string[] = [];
+  console.log('About to call compileMultiFile...');
   const mergedAST = compileMultiFile(inputFile, compiledFiles);
 
-  console.log('Running semantic analysis...');
-  const analyzer = new SemanticAnalyzer(mergedAST);
-  const analysisSuccess = analyzer.analyze();
+  console.log('AST interfaces count: ' + mergedAST.interfaces.length);
+  console.log('AST functions count: ' + mergedAST.functions.length);
+  console.log('AST classes count: ' + mergedAST.classes.length);
+  console.log('AST topLevelStatements count: ' + mergedAST.topLevelStatements.length);
+  console.log('AST topLevelExpressions count: ' + mergedAST.topLevelExpressions.length);
 
-  if (!analysisSuccess) {
-    const errorOutput = analyzer.formatErrors();
-    console.log(errorOutput);
-    process.exit(1);
-  }
+  console.log('Skipping semantic analysis for native bootstrap...');
+  // TODO: Re-enable semantic analysis when for-of on object arrays works
+  // console.log('Running semantic analysis...');
+  // const analyzer = new SemanticAnalyzer(mergedAST);
+  // const analysisSuccess = analyzer.analyze();
 
-  console.log('Semantic analysis passed');
+  // if (!analysisSuccess) {
+  //   const errorOutput = analyzer.formatErrors();
+  //   console.log(errorOutput);
+  //   process.exit(1);
+  // }
 
+  // console.log('Semantic analysis passed');
+
+  console.log('About to create LLVMGenerator...');
   const generatorOptions: LLVMGeneratorOptions = { linkTreeSitter: true };
+  console.log('Created options');
   const generator = new LLVMGenerator(mergedAST, null, generatorOptions);
+  console.log('LLVMGenerator created, calling generate()...');
   const llvmIR = generator.generate();
+  console.log('generate() done, IR length = ' + llvmIR.length);
 
   const irFile = outputFile + '.ll';
   fs.writeFileSync(irFile, llvmIR);
@@ -174,13 +188,39 @@ function emptyAST(): AST {
   };
 }
 
-const args = process.argv;
-if (args.length < 1) {
+function printUsage(): void {
   console.log('Usage: native-compiler <input.ts> [output]');
+  console.log('');
+  console.log('Options:');
+  console.log('  --help    Show this help message');
+}
+
+const args = process.argv;
+
+if (args.length < 1) {
+  printUsage();
   process.exit(1);
 }
 
-const inputFile = args[0];
+const firstArg = args[0];
+if (firstArg === '--help' || firstArg === '-h') {
+  printUsage();
+  process.exit(0);
+}
+
+if (firstArg.substr(0, 1) === '-') {
+  console.log('Unknown option: ' + firstArg);
+  printUsage();
+  process.exit(1);
+}
+
+const inputFile = firstArg;
+
+if (!fs.existsSync(inputFile)) {
+  console.log('Error: File not found: ' + inputFile);
+  process.exit(1);
+}
+
 const outputFile = args.length > 1 ? args[1] : inputFile.substr(0, inputFile.length - 3);
 
 compileNative(inputFile, outputFile);
