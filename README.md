@@ -4,6 +4,7 @@
 
 ```bash
 $ npx tsx src/index.ts examples/hello.ts /tmp/hello
+
 $ time /tmp/hello
 Hello from ChadScript!
 This is native code - no Node.js runtime!
@@ -20,9 +21,9 @@ Build CLI tools in TypeScript that run as **fast as C/Rust** with **instant star
 
 Batteries included: links against battle-tested C libraries (libcurl, libcjson, libuv, mongoose) for production-grade HTTP client/server, JSON parsing, and async.
 
-- 0ms startup (vs 50-200ms for Node.js)
-- 15-30KB binaries (vs 50MB+ for bundled Node apps)
-- Direct syscalls, no runtime overhead
+- ~10ms startup (vs 50-200ms for Node.js)
+- ~300KB binaries (vs 50MB+ for bundled Node apps)
+- Native code, no interpreter overhead
 
 ## Quick Start
 
@@ -49,10 +50,6 @@ sudo dnf install llvm clang libcurl-devel cjson-devel libuv-devel gc-devel
 ### Install & Use
 
 ```bash
-git clone https://github.com/chadsmith/chadscript
-cd chadscript
-npm install
-
 # Build dependencies into vendor/
 git clone https://github.com/ivmai/bdwgc vendor/bdwgc
 cd vendor/bdwgc && ./autogen.sh && ./configure && make && cd ../..
@@ -67,8 +64,8 @@ npx tsx src/index.ts examples/hello.ts ./hello
 
 Or set environment variables to point to existing builds:
 ```bash
-export CHADSCRIPT_BDWGC_PATH=/path/to/bdwgc
-export CHADSCRIPT_MONGOOSE_PATH=/path/to/mongoose
+export CHADSCRIPT_BDWGC_PATH=/path/to/bdwgc    # Directory containing libgc.a or libgc.so
+export CHADSCRIPT_MONGOOSE_PATH=/path/to/mongoose  # Directory containing mongoose.o
 ```
 
 ### Compiler Options
