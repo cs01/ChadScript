@@ -6,6 +6,7 @@ import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/fu
 import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructure/assignment-generator.js';
 import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
 import { TypeResolver, TypeResolverContext } from './infrastructure/type-resolver/index.js';
+import { stripOptional, tsTypeToLlvmJson } from './infrastructure/type-system.js';
 import { IGeneratorContext } from './infrastructure/generator-context.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
@@ -356,6 +357,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const isRegex = this.typeInference.isRegexExpression(stmt.value);
         const isClassInstance = this.typeInference.isClassInstanceExpression(stmt.value);
         const isBoolean = this.typeInference.isBooleanExpression(stmt.value);
+        const isJSONParse = this.typeInference.isJSONParseExpression(stmt.value);
 
         let llvmType: string;
         let kind: SymbolKind;
@@ -399,6 +401,38 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           llvmType = 'double';
           kind = SymbolKind.Boolean;
           defaultValue = '0.0';
+        } else if (isJSONParse) {
+          llvmType = 'i8*';
+          kind = SymbolKind.JSON;
+          defaultValue = 'null';
+          const interfaceName = this.typeInference.getJSONParseInterface(stmt.value as MethodCallNode);
+          if (interfaceName) {
+            let interfaceDef: InterfaceDeclaration | null = null;
+            for (let i = 0; i < this.ast.interfaces.length; i++) {
+              if (this.ast.interfaces[i].name === interfaceName) {
+                interfaceDef = this.ast.interfaces[i] as InterfaceDeclaration;
+                break;
+              }
+            }
+            if (interfaceDef) {
+              const keys: string[] = [];
+              const tsTypes: string[] = [];
+              const types: string[] = [];
+              for (let i = 0; i < interfaceDef.fields.length; i++) {
+                const field = interfaceDef.fields[i] as { name: string; type: string };
+                keys.push(stripOptional(field.name));
+                tsTypes.push(field.type);
+                types.push(tsTypeToLlvmJson(field.type));
+              }
+              ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
+              this.globalVariables.set(name, { llvmType, kind, initialized: false });
+              this.defineVariable(name, `@${name}`, llvmType, kind, 'global', {
+                objectMetadata: { keys, types, tsTypes },
+                interfaceType: interfaceName
+              });
+              continue;
+            }
+          }
         } else {
           llvmType = 'double';
           kind = SymbolKind.Number;

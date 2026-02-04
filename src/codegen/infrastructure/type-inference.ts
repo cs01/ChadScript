@@ -556,6 +556,13 @@ export class TypeInference {
             }
           }
         }
+        const nestedType = this.resolveNestedMemberAccessTsType(nestedMember);
+        if (nestedType) {
+          const fieldType = this.getFieldTypeFromType(nestedType, memberExpr.property);
+          if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
+            return true;
+          }
+        }
       }
     }
     return false;
@@ -1243,7 +1250,7 @@ export class TypeInference {
     }
     if (e.type === 'variable') {
       const varType = this.ctx.symbolTable.getType((expr as VariableNode).name);
-      if (varType === '%StringArray*') {
+      if (varType === '%StringArray*' || varType === '%StringArray') {
         return true;
       }
       return false;

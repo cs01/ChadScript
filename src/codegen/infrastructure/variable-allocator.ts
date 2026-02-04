@@ -924,7 +924,8 @@ export class VariableAllocator {
       }
 
       this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local', {
-        objectMetadata: { keys, types, tsTypes }
+        objectMetadata: { keys, types, tsTypes },
+        interfaceType: interfaceName
       });
 
       this.ctx.emit(`${allocaReg} = alloca i8*`);
