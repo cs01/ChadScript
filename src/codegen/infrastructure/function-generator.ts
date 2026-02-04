@@ -54,11 +54,15 @@ export class FunctionGenerator {
   }
 
   generate(func: FunctionNode): string {
+    console.log('[FuncGen] Starting generate for: ' + func.name);
     this.ctx.reset();
+    console.log('[FuncGen] After reset');
     this.ctx.syncStateToGenerators();
+    console.log('[FuncGen] After syncState');
     this.ctx.currentFunction = func.name;
     this.ctx.isAsyncFunction = func.async || false;
     this.ctx.asyncResultPromise = '';
+    console.log('[FuncGen] Basic setup done');
 
     const paramTypes: string[] = [];
     const paramLLVMTypes: string[] = [];
@@ -67,13 +71,28 @@ export class FunctionGenerator {
     let returnTypeIsVoid = false;
     this.ctx.currentFunctionReturnType = 'double';
 
+    console.log('[FuncGen] Checking func.async: ' + (func.async ? 'true' : 'false'));
+    console.log('[FuncGen] About to check func.paramTypes');
+    const hasParamTypes = func.paramTypes ? true : false;
+    console.log('[FuncGen] hasParamTypes = ' + (hasParamTypes ? 'true' : 'false'));
+    let paramTypesLen = 0;
+    if (hasParamTypes) {
+      console.log('[FuncGen] About to access func.paramTypes.length');
+      paramTypesLen = func.paramTypes!.length;
+      console.log('[FuncGen] paramTypesLen = ' + paramTypesLen);
+    }
     if (func.async) {
       returnType = '%Promise*';
       this.ctx.currentFunctionReturnType = '%Promise*';
     } else if (func.paramTypes && func.paramTypes.length > 0) {
+      console.log('[FuncGen] func.paramTypes exists with length ' + func.paramTypes.length);
+      console.log('[FuncGen] func.params.length = ' + func.params.length);
       for (let i = 0; i < func.params.length; i++) {
+        console.log('[FuncGen] Processing param index ' + i);
         const paramType = func.paramTypes[i] || 'number';
+        console.log('[FuncGen] paramType=' + paramType);
         const paramName = func.params[i];
+        console.log('[FuncGen] paramName=' + paramName);
         paramTypes.push(paramType);
         if (paramName === 'nodePtr' || paramName === 'treePtr') {
           paramLLVMTypes.push('i8*');
