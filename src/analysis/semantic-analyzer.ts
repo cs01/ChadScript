@@ -379,6 +379,14 @@ export class SemanticAnalyzer {
       }
     }
 
+    if (e.type === 'template_literal') {
+      return {
+        name: '',
+        type: 'string',
+        llvmType: 'i8*',
+      };
+    }
+
     if (e.type === 'binary') {
       const binExpr = expr as BinaryNode;
 
