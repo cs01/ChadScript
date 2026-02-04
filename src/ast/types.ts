@@ -243,7 +243,18 @@ export interface TryStatement {
   finallyBlock: BlockStatement | null;
 }
 
-export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | ForOfStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | Expression;
+export interface SwitchCase {
+  test: Expression | null;
+  consequent: Statement[];
+}
+
+export interface SwitchStatement {
+  type: 'switch';
+  discriminant: Expression;
+  cases: SwitchCase[];
+}
+
+export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | ForOfStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | SwitchStatement | Expression;
 
 export type TopLevelItem = VariableDeclaration | AssignmentStatement | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | CallNode | NewNode | MethodCallNode;
 

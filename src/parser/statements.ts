@@ -1,4 +1,4 @@
-import { Expression, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, IfStatement, WhileStatement, ForStatement, ForOfStatement, BinaryNode, MemberAccessNode, MemberAccessAssignmentNode, IndexAccessNode, IndexAccessAssignmentNode } from '../ast/types.js';
+import { Expression, BlockStatement, Statement, VariableDeclaration, AssignmentStatement, IfStatement, WhileStatement, ForStatement, ForOfStatement, BinaryNode, MemberAccessNode, MemberAccessAssignmentNode, IndexAccessNode, IndexAccessAssignmentNode, SwitchStatement, SwitchCase } from '../ast/types.js';
 import { ParserContext } from './declarations.js';
 
 export function parseBlock(ctx: ParserContext): BlockStatement {
@@ -97,6 +97,10 @@ export function parseStatement(ctx: ParserContext): Statement {
     }
 
     return { type: 'try', tryBlock, catchClause, finallyBlock };
+  }
+
+  if (ctx.match('switch')) {
+    return parseSwitchStatement(ctx);
   }
 
   const savedPos = ctx.pos;
@@ -226,6 +230,38 @@ export function parseForStatement(ctx: ParserContext): ForStatement | ForOfState
 
   if (kind) {
     ctx.skipWhitespace();
+
+    if (ctx.code[ctx.pos] === '[') {
+      ctx.pos++;
+      const destructuredVars: string[] = [];
+      ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] !== ']') {
+        destructuredVars.push(ctx.parseIdentifier());
+        while (ctx.match(',')) {
+          destructuredVars.push(ctx.parseIdentifier());
+        }
+      }
+      ctx.expect(']');
+      ctx.skipWhitespace();
+      if (ctx.match('of')) {
+        ctx.skipWhitespace();
+        const iterable = ctx.parseExpression();
+        ctx.expect(')');
+        ctx.expect('{');
+        const body = parseBlock(ctx);
+        ctx.expect('}');
+        return {
+          type: 'for_of',
+          variableKind: kind,
+          variableName: destructuredVars[0] || '__unused__',
+          destructuredNames: destructuredVars,
+          iterable,
+          body
+        };
+      }
+      ctx.pos = savedPos;
+    }
+
     const varName = ctx.parseIdentifier();
     ctx.skipWhitespace();
 
@@ -419,4 +455,66 @@ export function parseTryStatementTopLevel(ctx: ParserContext): void {
     parseBlock(ctx);
     ctx.expect('}');
   }
+}
+
+function parseSwitchStatement(ctx: ParserContext): SwitchStatement {
+  ctx.expect('(');
+  ctx.skipWhitespace();
+  const discriminant = ctx.parseExpression();
+  ctx.expect(')');
+  ctx.expect('{');
+
+  const cases: SwitchCase[] = [];
+
+  while (true) {
+    ctx.skipWhitespace();
+    if (ctx.code[ctx.pos] === '}') {
+      break;
+    }
+
+    if (ctx.match('case')) {
+      ctx.skipWhitespace();
+      const test = ctx.parseExpression();
+      ctx.expect(':');
+      const consequent: Statement[] = [];
+
+      while (true) {
+        ctx.skipWhitespace();
+        if (ctx.code[ctx.pos] === '}') break;
+        if (ctx.match('case')) {
+          ctx.pos -= 4;
+          break;
+        }
+        if (ctx.match('default')) {
+          ctx.pos -= 7;
+          break;
+        }
+        const stmt = parseStatement(ctx);
+        consequent.push(stmt);
+      }
+
+      cases.push({ test, consequent });
+    } else if (ctx.match('default')) {
+      ctx.expect(':');
+      const consequent: Statement[] = [];
+
+      while (true) {
+        ctx.skipWhitespace();
+        if (ctx.code[ctx.pos] === '}') break;
+        if (ctx.match('case')) {
+          ctx.pos -= 4;
+          break;
+        }
+        const stmt = parseStatement(ctx);
+        consequent.push(stmt);
+      }
+
+      cases.push({ test: null, consequent });
+    } else {
+      throw new Error(`Unexpected token in switch statement at position ${ctx.pos}`);
+    }
+  }
+
+  ctx.expect('}');
+  return { type: 'switch', discriminant, cases };
 }

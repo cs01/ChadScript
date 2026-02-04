@@ -322,8 +322,12 @@ export class FunctionGenerator {
                           lastInstruction.startsWith('br ') ||
                           lastInstruction === 'unreachable';
 
+    const isLabel = lastInstruction.endsWith(':');
+
     if (!hasTerminator) {
-      if (func.async) {
+      if (isLabel) {
+        ir += '  unreachable\n';
+      } else if (func.async) {
         this.ctx.emit(`call void @__Promise_resolve(%Promise* ${this.ctx.asyncResultPromise}, i8* null)`);
         ir += this.ctx.output.slice(-1).map(line => '  ' + line).join('\n') + '\n';
         ir += `  ret %Promise* ${this.ctx.asyncResultPromise}\n`;

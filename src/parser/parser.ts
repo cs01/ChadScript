@@ -393,6 +393,14 @@ export class Parser implements ExpressionParserContext {
   parseNumber(): number {
     this.skipWhitespace();
     let num = '';
+    if (this.code[this.pos] === '0' && (this.code[this.pos + 1] === 'x' || this.code[this.pos + 1] === 'X')) {
+      num += this.code[this.pos++];
+      num += this.code[this.pos++];
+      while (this.pos < this.code.length && /[0-9a-fA-F]/.test(this.code[this.pos])) {
+        num += this.code[this.pos++];
+      }
+      return parseInt(num, 16);
+    }
     while (this.pos < this.code.length && /[0-9.]/.test(this.code[this.pos])) {
       num += this.code[this.pos++];
     }
@@ -503,6 +511,20 @@ export class Parser implements ExpressionParserContext {
       while (this.code[this.pos] === '[') {
         this.pos++;
         this.skipWhitespace();
+        if (this.code[this.pos] === "'" || this.code[this.pos] === '"') {
+          const quote = this.code[this.pos];
+          this.pos++;
+          while (this.pos < this.code.length && this.code[this.pos] !== quote) {
+            if (this.code[this.pos] === '\\') {
+              this.pos++;
+            }
+            this.pos++;
+          }
+          if (this.code[this.pos] === quote) {
+            this.pos++;
+          }
+          this.skipWhitespace();
+        }
         if (this.code[this.pos] === ']') {
           this.pos++;
         }
@@ -583,6 +605,20 @@ export class Parser implements ExpressionParserContext {
       while (this.code[this.pos] === '[') {
         this.pos++;
         this.skipWhitespace();
+        if (this.code[this.pos] === "'" || this.code[this.pos] === '"') {
+          const quote = this.code[this.pos];
+          this.pos++;
+          while (this.pos < this.code.length && this.code[this.pos] !== quote) {
+            if (this.code[this.pos] === '\\') {
+              this.pos++;
+            }
+            this.pos++;
+          }
+          if (this.code[this.pos] === quote) {
+            this.pos++;
+          }
+          this.skipWhitespace();
+        }
         if (this.code[this.pos] === ']') {
           this.pos++;
         }
@@ -620,6 +656,20 @@ export class Parser implements ExpressionParserContext {
       while (this.code[this.pos] === '[') {
         this.pos++;
         this.skipWhitespace();
+        if (this.code[this.pos] === "'" || this.code[this.pos] === '"') {
+          const quote = this.code[this.pos];
+          this.pos++;
+          while (this.pos < this.code.length && this.code[this.pos] !== quote) {
+            if (this.code[this.pos] === '\\') {
+              this.pos++;
+            }
+            this.pos++;
+          }
+          if (this.code[this.pos] === quote) {
+            this.pos++;
+          }
+          this.skipWhitespace();
+        }
         if (this.code[this.pos] === ']') {
           this.pos++;
         }

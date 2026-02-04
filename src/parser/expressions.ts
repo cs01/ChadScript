@@ -342,6 +342,10 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
       }
       ctx.expect('(');
       ctx.skipWhitespace();
+      if (ctx.code[ctx.pos] !== ')') {
+        parseExpression(ctx);
+        ctx.skipWhitespace();
+      }
       ctx.expect(')');
 
       if (className === 'Map') {
@@ -472,6 +476,12 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
         if (ctx.code[ctx.pos] === ')') {
           ctx.pos++;
           ctx.skipWhitespace();
+          if (ctx.code[ctx.pos] === ':') {
+            ctx.pos++;
+            ctx.skipWhitespace();
+            ctx.skipTypeAnnotation();
+            ctx.skipWhitespace();
+          }
           if (ctx.code[ctx.pos] === '=' && ctx.code[ctx.pos + 1] === '>') {
             isArrowFunction = true;
           }
@@ -582,7 +592,7 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
   }
 
   if (/[0-9]/.test(ctx.code[ctx.pos])) {
-    return { type: 'number', value: ctx.parseNumber() };
+    return parsePostfixExpressions(ctx, { type: 'number', value: ctx.parseNumber() }, parseExpression);
   }
 
   const name = ctx.parseIdentifier();

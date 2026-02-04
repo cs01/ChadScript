@@ -805,6 +805,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       } else if (stmt.type === 'try') {
         this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateTryStatement(stmtRaw as Statement, params);
+      } else if (stmt.type === 'switch') {
+        this.syncStateToGenerators();
+        lastValue = this.controlFlowGen.generateSwitchStatement(stmtRaw as Statement, params);
       } else {
         // Expression statement
         lastValue = this.generateExpression(stmtRaw as Expression, params);

@@ -1,4 +1,4 @@
-import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter } from '../../ast/types.js';
+import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter, SwitchStatement, SwitchCase } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata, ObjectMetadata } from '../infrastructure/symbol-table.js';
 import type { UnionCommonFields } from '../infrastructure/type-resolver/index.js';
@@ -1857,6 +1857,101 @@ export class ControlFlowGenerator {
     this.emit(`store i32 ${nextIndex}, i32* ${indexAlloca}`);
     this.emit(`br label %${condLabel}`);
 
+    this.emit(`${endLabel}:`);
+
+    return '0';
+  }
+
+  generateSwitchStatement(stmt: Statement, params: string[]): string {
+    if (stmt.type !== 'switch') {
+      throw new Error('Expected switch statement');
+    }
+
+    const switchStmt = stmt as SwitchStatement;
+    const endLabel = this.nextLabel('switch_end');
+
+    const discriminantValue = this.ctx.generateExpression(switchStmt.discriminant, params);
+    const discriminantType = this.ctx.getVariableType(discriminantValue);
+    const isString = discriminantType === 'i8*';
+
+    this.loopStack.push({ continueLabel: '', breakLabel: endLabel });
+
+    const caseLabels: string[] = [];
+    let defaultLabelIndex = -1;
+
+    for (let i = 0; i < switchStmt.cases.length; i++) {
+      const caseItem = switchStmt.cases[i];
+      if (caseItem.test === null) {
+        defaultLabelIndex = i;
+        caseLabels.push(this.nextLabel('case_default'));
+      } else {
+        caseLabels.push(this.nextLabel('case'));
+      }
+    }
+
+    const defaultLabel = defaultLabelIndex >= 0 ? caseLabels[defaultLabelIndex] : endLabel;
+
+    let checkLabels: string[] = [];
+    let testCaseCount = 0;
+    for (let i = 0; i < switchStmt.cases.length; i++) {
+      if (switchStmt.cases[i].test !== null) {
+        testCaseCount++;
+      }
+    }
+
+    for (let i = 0; i < testCaseCount; i++) {
+      checkLabels.push(this.nextLabel('check'));
+    }
+
+    let checkIndex = 0;
+    for (let i = 0; i < switchStmt.cases.length; i++) {
+      const caseItem = switchStmt.cases[i];
+      if (caseItem.test !== null) {
+        if (checkIndex > 0) {
+          this.emit(`${checkLabels[checkIndex - 1]}:`);
+        }
+
+        const testValue = this.ctx.generateExpression(caseItem.test, params);
+        const cmpResult = this.nextTemp();
+
+        if (isString) {
+          const strCmp = this.nextTemp();
+          this.emit(`${strCmp} = call i32 @strcmp(i8* ${discriminantValue}, i8* ${testValue})`);
+          this.emit(`${cmpResult} = icmp eq i32 ${strCmp}, 0`);
+        } else {
+          this.emit(`${cmpResult} = fcmp oeq double ${discriminantValue}, ${testValue}`);
+        }
+
+        const nextLabel = (checkIndex < testCaseCount - 1) ? checkLabels[checkIndex] : defaultLabel;
+        this.emit(`br i1 ${cmpResult}, label %${caseLabels[i]}, label %${nextLabel}`);
+        checkIndex++;
+      }
+    }
+
+    for (let i = 0; i < switchStmt.cases.length; i++) {
+      const caseItem = switchStmt.cases[i];
+      this.emit(`${caseLabels[i]}:`);
+      this.ctx.currentLabel = caseLabels[i];
+
+      for (let j = 0; j < caseItem.consequent.length; j++) {
+        const consequentStmt = caseItem.consequent[j];
+        if (consequentStmt.type === 'break') {
+          this.emit(`br label %${endLabel}`);
+        } else if (consequentStmt.type === 'variable_declaration' || consequentStmt.type === 'return' || consequentStmt.type === 'if') {
+          this.ctx.generateBlock({ type: 'block', statements: [consequentStmt] }, params);
+        } else {
+          this.ctx.generateExpression(consequentStmt as Expression, params);
+        }
+      }
+
+      const lastStmt = caseItem.consequent[caseItem.consequent.length - 1];
+      if (!lastStmt || (lastStmt.type !== 'break' && lastStmt.type !== 'return')) {
+        const nextCaseLabel = (i < switchStmt.cases.length - 1) ? caseLabels[i + 1] : endLabel;
+        this.emit(`br label %${nextCaseLabel}`);
+      }
+    }
+
+    this.loopStack.pop();
     this.emit(`${endLabel}:`);
 
     return '0';
