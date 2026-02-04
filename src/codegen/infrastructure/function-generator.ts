@@ -1,4 +1,4 @@
-import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField } from '../../ast/types.js';
+import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField, SwitchStatement } from '../../ast/types.js';
 import { SymbolKind, SymbolTable } from './symbol-table.js';
 import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
@@ -370,6 +370,16 @@ export class FunctionGenerator {
       if (stmt.type === 'for') {
         const forStmt = block.statements[i] as ForStatement;
         if (forStmt.body && this.hasReturnStatement(forStmt.body)) return true;
+      }
+      if (stmt.type === 'switch') {
+        const switchStmt = block.statements[i] as SwitchStatement;
+        for (let j = 0; j < switchStmt.cases.length; j++) {
+          const caseItem = switchStmt.cases[j];
+          for (let k = 0; k < caseItem.consequent.length; k++) {
+            const consequentStmt = caseItem.consequent[k] as { type: string };
+            if (consequentStmt.type === 'return') return true;
+          }
+        }
       }
     }
     return false;

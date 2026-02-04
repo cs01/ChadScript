@@ -1912,18 +1912,20 @@ export class ControlFlowGenerator {
         }
 
         const testValue = this.ctx.generateExpression(caseItem.test, params);
-        const cmpResult = this.nextTemp();
 
         if (isString) {
           const strCmp = this.nextTemp();
           this.emit(`${strCmp} = call i32 @strcmp(i8* ${discriminantValue}, i8* ${testValue})`);
+          const cmpResult = this.nextTemp();
           this.emit(`${cmpResult} = icmp eq i32 ${strCmp}, 0`);
+          const nextLabel = (checkIndex < testCaseCount - 1) ? checkLabels[checkIndex] : defaultLabel;
+          this.emit(`br i1 ${cmpResult}, label %${caseLabels[i]}, label %${nextLabel}`);
         } else {
+          const cmpResult = this.nextTemp();
           this.emit(`${cmpResult} = fcmp oeq double ${discriminantValue}, ${testValue}`);
+          const nextLabel = (checkIndex < testCaseCount - 1) ? checkLabels[checkIndex] : defaultLabel;
+          this.emit(`br i1 ${cmpResult}, label %${caseLabels[i]}, label %${nextLabel}`);
         }
-
-        const nextLabel = (checkIndex < testCaseCount - 1) ? checkLabels[checkIndex] : defaultLabel;
-        this.emit(`br i1 ${cmpResult}, label %${caseLabels[i]}, label %${nextLabel}`);
         checkIndex++;
       }
     }
