@@ -27,9 +27,15 @@ export class MapGenerator {
       throw new Error('Expected map literal');
     }
 
-    // Allocate Map struct on stack
+    // Allocate Map struct on heap (not stack!)
+    const sizeofPtr = this.nextTemp();
+    this.emit(`${sizeofPtr} = getelementptr %Map, %Map* null, i32 1`);
+    const structSize = this.nextTemp();
+    this.emit(`${structSize} = ptrtoint %Map* ${sizeofPtr} to i64`);
+    const mapMem = this.nextTemp();
+    this.emit(`${mapMem} = call i8* @GC_malloc(i64 ${structSize})`);
     const mapPtr = this.nextTemp();
-    this.emit(`${mapPtr} = alloca %Map`);
+    this.emit(`${mapPtr} = bitcast i8* ${mapMem} to %Map*`);
 
     // Initialize with empty arrays
     const initialCapacity = mapExpr.entries.length > 4 ? mapExpr.entries.length : 4;
