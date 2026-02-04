@@ -25,8 +25,6 @@ interface ExprBase { type: string; }
 interface ClassGeneratorLike {
   getFieldInfo(className: string, fieldName: string): FieldInfo | null;
   getClassFields(className: string): FieldInfo[];
-  thisPointer?: string | null;
-  currentClassName?: string | null;
 }
 
 interface FieldInfo {
@@ -592,12 +590,12 @@ export class MemberAccessGenerator {
       className = newExpr.className;
       instancePtr = this.ctx.generateExpression(expr.object, params);
     } else if (exprObjBase.type === 'this') {
-      const thisPtr = this.ctx.thisPointer || this.ctx.classGen.thisPointer;
+      const thisPtr = this.ctx.thisPointer;
       if (!thisPtr) {
         throw new Error('this.field accessed outside of class method or constructor');
       }
       instancePtr = thisPtr;
-      className = this.ctx.currentClassName || this.ctx.classGen.currentClassName || null;
+      className = this.ctx.currentClassName || null;
       if (!className) {
         const fieldName = expr.property;
         let classWithFieldResult: ClassNode | null = null;
@@ -1115,7 +1113,7 @@ export class MemberAccessGenerator {
 
     if (innerObjBase.type !== 'this') return null;
 
-    const className = this.ctx.currentClassName || this.ctx.classGen?.currentClassName;
+    const className = this.ctx.currentClassName;
     if (!className) return null;
 
     const fieldName = innerExpr.property;
@@ -1372,7 +1370,7 @@ export class MemberAccessGenerator {
 
   private resolveExpressionType(expr: Expression): string | null {
     if (expr.type === 'this') {
-      const className = this.ctx.currentClassName || this.ctx.classGen.currentClassName;
+      const className = this.ctx.currentClassName;
       return className || null;
     }
     if (expr.type === 'variable') {
@@ -1391,7 +1389,7 @@ export class MemberAccessGenerator {
       const memberAccess = expr as MemberAccessNode;
       const memberAccessObjBase = memberAccess.object as ExprBase;
       if (memberAccessObjBase.type === 'this') {
-        const className = this.ctx.currentClassName || this.ctx.classGen.currentClassName;
+        const className = this.ctx.currentClassName;
         if (className) {
           const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, memberAccess.property);
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
@@ -1721,9 +1719,9 @@ export class MemberAccessGenerator {
     const memberExpr = methodCall.object as MemberAccessNode;
     const memberExprObjBase = memberExpr.object as ExprBase;
     if (memberExprObjBase.type !== 'this') return null;
-    if (!this.ctx.classGen?.currentClassName) return null;
+    if (!this.ctx.currentClassName) return null;
 
-    const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.classGen.currentClassName, memberExpr.property);
+    const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
@@ -1885,7 +1883,7 @@ export class MemberAccessGenerator {
         }
       }
     } else if (innerAccessObjBase.type === 'this') {
-      const className = this.ctx.currentClassName || this.ctx.classGen.currentClassName;
+      const className = this.ctx.currentClassName;
       if (className) {
         const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, innerAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
