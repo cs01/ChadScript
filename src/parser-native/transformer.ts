@@ -972,8 +972,6 @@ function transformTypeofExpression(node: TreeSitterNode): UnaryNode {
 }
 
 function transformStatement(node: TreeSitterNode): Statement | null {
-  const nodeTyped = node as NodeBase;
-  console.error('[transformStatement] node.type=' + nodeTyped.type);
   switch (node.type) {
     case 'lexical_declaration':
     case 'variable_declaration':
@@ -1441,22 +1439,16 @@ function transformSwitchStatement(node: TreeSitterNode): IfStatement {
 }
 
 function transformStatementBlock(node: TreeSitterNode): BlockStatement {
-  console.error('[transformStatementBlock] enter');
   const statements: Statement[] = [];
-  console.error('[transformStatementBlock] namedChildCount=' + node.namedChildCount);
   for (let i = 0; i < node.namedChildCount; i++) {
-    console.error('[transformStatementBlock] getting child ' + i);
     const child = getNamedChild(node, i);
     if (child) {
-      console.error('[transformStatementBlock] about to transform child');
       const stmt = transformStatement(child);
-      console.error('[transformStatementBlock] transformed');
       if (stmt) {
         statements.push(stmt);
       }
     }
   }
-  console.error('[transformStatementBlock] returning');
   return { type: 'block', statements };
 }
 
@@ -1535,37 +1527,26 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
 }
 
 function extractFunctionParams(paramsNode: TreeSitterNode): string[] {
-  console.error('[extractFunctionParams] enter');
   const params: string[] = [];
   const namedChildCount = paramsNode.namedChildCount;
-  console.error('[extractFunctionParams] paramsNode.namedChildCount=' + namedChildCount);
   for (let i = 0; i < namedChildCount; i++) {
-    console.error('[extractFunctionParams] getting child ' + i);
     const param = getNamedChild(paramsNode, i);
     if (!param) {
-      console.error('[extractFunctionParams] param is null');
       continue;
     }
     const p = param as NodeBase;
-    console.error('[extractFunctionParams] p.type=' + p.type);
     if (p.type === 'required_parameter' || p.type === 'optional_parameter') {
       const patternNode = getChildByFieldName(param, 'pattern');
       if (patternNode) {
         const pn = patternNode as NodeBase;
-        console.error('[extractFunctionParams] patternNode.type=' + pn.type);
         if (pn.type === 'identifier') {
-          console.error('[extractFunctionParams] pushing text=' + pn.text);
           params.push(pn.text);
         }
-      } else {
-        console.error('[extractFunctionParams] no patternNode');
       }
     } else if (p.type === 'identifier') {
-      console.error('[extractFunctionParams] pushing identifier=' + p.text);
       params.push(p.text);
     }
   }
-  console.error('[extractFunctionParams] returning params.length=' + params.length);
   return params;
 }
 
