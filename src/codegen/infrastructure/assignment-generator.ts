@@ -42,6 +42,8 @@ export interface AssignmentGeneratorContext {
   symbolTableGetClassInfo(name: string): ClassInfo | undefined;
   symbolTableGetObjectInfo(name: string): ObjectInfo | undefined;
   classGen: ClassGeneratorLike;
+  classGenGetFieldInfo(className: string, fieldName: string): FieldInfo | null;
+  classGenGetClassFields(className: string): { name: string; llvmType: string }[];
   thisPointer: string | null;
   ast: AST;
   getAst(): AST | undefined;
@@ -173,7 +175,7 @@ export class AssignmentGenerator {
     memberAccessValue: MemberAccessAssignmentNode,
     params: string[]
   ): void {
-    const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, property);
+    const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, property);
 
     let fieldIndex = -1;
     let fieldType = '';
@@ -220,7 +222,7 @@ export class AssignmentGenerator {
       throw new Error(`Cannot determine class instance for field assignment on ${objType}`);
     }
 
-    const fields = this.ctx.classGen.getClassFields(className);
+    const fields = this.ctx.classGenGetClassFields(className);
 
     if (fieldInfoResult) {
       const fieldPtr = this.ctx.nextTemp();
@@ -378,7 +380,7 @@ export class AssignmentGenerator {
 
     let arrayType = '%StringArray';
     if (arrayExpr.object.type === 'this' && this.ctx.currentClassName) {
-      const fieldInfo = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, arrayExpr.property);
+      const fieldInfo = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, arrayExpr.property);
       if (fieldInfo) {
         const fi = fieldInfo as { type: string };
         if (fi.type === 'string[]') {

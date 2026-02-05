@@ -440,6 +440,9 @@ export interface IGeneratorContext {
    */
   classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
+  classGenGetFieldType(className: string, fieldName: string): string | null;
+  classGenGetFieldTsType(className: string, fieldName: string): string | null;
+  classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string;
   classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
 
   /**
@@ -779,11 +782,20 @@ export class MockGeneratorContext implements IGeneratorContext {
     getFieldInfo: (_className: string, _fieldName: string): { index: number; type: string; tsType?: string } | null => null,
     getClassFields: (_className: string): { name: string; fieldType: string }[] => [],
   };
-  classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null {
-    return this.classGen.getFieldInfo(className, fieldName);
+  classGenGetFieldInfo(_className: string, _fieldName: string): { index: number; type: string; tsType?: string } | null {
+    return null;
   }
-  classGenGetClassFields(className: string): { name: string; fieldType: string }[] {
-    return this.classGen.getClassFields(className);
+  classGenGetClassFields(_className: string): { name: string; fieldType: string }[] {
+    return [];
+  }
+  classGenGetFieldType(_className: string, _fieldName: string): string | null {
+    return null;
+  }
+  classGenGetFieldTsType(_className: string, _fieldName: string): string | null {
+    return null;
+  }
+  classGenGenerateNewExpression(_className: string, _args: Expression[], _params: string[]): string {
+    return '%mock_new_result';
   }
   classGenGenerateMethodCall(_instancePtr: string, _className: string, _method: string, _args: Expression[], _params: string[]): string {
     return '%mock_method_result';

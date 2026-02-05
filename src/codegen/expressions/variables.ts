@@ -11,6 +11,7 @@ export interface VariableExpressionContext {
   variableTypes: Map<string, string>;
   setVariableType(name: string, type: string): void;
   classGen: ClassGeneratorLike;
+  classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   nextTemp(): string;
   emit(instruction: string): void;
   getVariableAlloca(name: string): string | undefined;
@@ -185,7 +186,7 @@ export class VariableExpressionGenerator {
   }
 
   private loadClassInstance(_name: string, classMeta: ClassMeta): string {
-    const fields = this.ctx.classGen.getClassFields(classMeta.className);
+    const fields = this.ctx.classGenGetClassFields(classMeta.className);
     const ptrType = fields.length > 0 ? `%${classMeta.className}_struct*` : 'double*';
 
     const temp = this.ctx.nextTemp();

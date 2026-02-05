@@ -755,7 +755,7 @@ export class ControlFlowGenerator {
       const baseType = this.resolveMemberAccessChainType(ma.object);
       if (!baseType) return null;
 
-      const fieldInfo = this.ctx.classGen?.getFieldInfo(baseType, ma.property);
+      const fieldInfo = this.ctx.classGenGetFieldInfo(baseType, ma.property);
       if (fieldInfo && fieldInfo.tsType) {
         return fieldInfo.tsType;
       }
@@ -1693,7 +1693,7 @@ export class ControlFlowGenerator {
       const memberExpr = expr as MemberAccessNode;
       const memberObjBase = memberExpr.object as ExprBase;
       if (memberObjBase.type === 'this' && this.ctx.currentClassName) {
-        const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+        const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Set<string>')) {
           return true;
@@ -1716,7 +1716,7 @@ export class ControlFlowGenerator {
       const memberExpr = expr as MemberAccessNode;
       const memberObjBase = memberExpr.object as ExprBase;
       if (memberObjBase.type === 'this' && this.ctx.currentClassName) {
-        const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+        const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
           return true;
@@ -1738,7 +1738,7 @@ export class ControlFlowGenerator {
       const memberExpr = methodCall.object as MemberAccessNode;
       const memberObjBase = memberExpr.object as ExprBase;
       if (memberObjBase.type === 'this' && this.ctx.currentClassName) {
-        const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+        const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
           return true;
@@ -1833,7 +1833,7 @@ export class ControlFlowGenerator {
       const memberExpr = stmt.iterable as MemberAccessNode;
       const memberObjBase = memberExpr.object as ExprBase;
       if (memberObjBase.type === 'this' && this.ctx.currentClassName) {
-        const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+        const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
           const mapPtr = this.ctx.generateExpression(stmt.iterable, params);

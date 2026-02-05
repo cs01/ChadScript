@@ -819,7 +819,7 @@ export class CallExpressionGenerator {
       this.ctx.emit(`${parentObj} = call ${parentStructType} @${parentClassName}_constructor(${argsWithTypes})`);
     }
 
-    const parentFields = this.ctx.classGen.getClassFields(parentClassName);
+    const parentFields = this.ctx.classGenGetClassFields(parentClassName);
     if (parentFields.length > 0) {
       const currentClassName = this.ctx.currentClassName;
       const childStructType = `%${currentClassName}_struct*`;
@@ -851,7 +851,7 @@ export class CallExpressionGenerator {
       if (field.tsType === 'Set<string>') return '%StringSet*';
       if (field.tsType.startsWith('Set<')) return '%Set*';
       if (field.tsType === 'number' || field.tsType === 'boolean') return 'double';
-      const classFields = this.ctx.classGen.getClassFields(field.tsType);
+      const classFields = this.ctx.classGenGetClassFields(field.tsType);
       if (classFields.length > 0) {
         return `%${field.tsType}_struct*`;
       }

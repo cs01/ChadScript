@@ -23,6 +23,9 @@ export interface TypeInferenceContext {
   getAst(): AST | undefined;
   typeChecker: TypeChecker | null;
   classGen: ClassGenerator | null;
+  classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
+  classGenGetFieldType(className: string, fieldName: string): string | null;
+  classGenGetFieldTsType(className: string, fieldName: string): string | null;
   typeResolver?: TypeResolver;
   symbolTableIsClass(name: string): boolean;
   symbolTableIsMap(name: string): boolean;
@@ -217,7 +220,7 @@ export class TypeInference {
   private getFieldTypeFromType(typeName: string, fieldName: string): string | null {
     const cls = this.getClass(typeName);
     if (cls) {
-      const fieldTsType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldTsType(typeName, fieldName) : null;
+      const fieldTsType = this.ctx.classGenGetFieldTsType(typeName, fieldName);
       if (fieldTsType) return fieldTsType;
     }
     const iface = this.getInterface(typeName);
@@ -408,7 +411,7 @@ export class TypeInference {
       if (objBase.type === 'variable' && this.ctx.symbolTableIsClass((memberExpr.object as VariableNode).name)) {
         const className = this.ctx.symbolTableGetClassName((memberExpr.object as VariableNode).name);
         if (className) {
-          const fieldType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldType(className, memberExpr.property) : null;
+          const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (fieldType === 'number[]' || fieldType === 'boolean[]') {
             return true;
           }
@@ -417,7 +420,7 @@ export class TypeInference {
       if (objBase.type === 'this') {
         const className = this.ctx.currentClassName;
         if (className) {
-          const fieldType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldType(className, memberExpr.property) : null;
+          const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (fieldType === 'number[]' || fieldType === 'boolean[]') {
             return true;
           }
@@ -534,11 +537,11 @@ export class TypeInference {
       if (objBase.type === 'variable' && this.ctx.symbolTableIsClass((memberExpr.object as VariableNode).name)) {
         const className = this.ctx.symbolTableGetClassName((memberExpr.object as VariableNode).name);
         if (className) {
-          const fieldType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldType(className, memberExpr.property) : null;
+          const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
             return true;
           }
-          const tsType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldTsType(className, memberExpr.property) : null;
+          const tsType = this.ctx.classGenGetFieldTsType(className, memberExpr.property);
           if (tsType && tsType.endsWith('[]') && tsType !== 'string[]' && tsType !== 'number[]' && tsType !== 'boolean[]') {
             return true;
           }
@@ -547,11 +550,11 @@ export class TypeInference {
       if (objBase.type === 'this') {
         const className = this.ctx.currentClassName;
         if (className) {
-          const fieldType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldType(className, memberExpr.property) : null;
+          const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
             return true;
           }
-          const tsType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldTsType(className, memberExpr.property) : null;
+          const tsType = this.ctx.classGenGetFieldTsType(className, memberExpr.property);
           if (tsType && tsType.endsWith('[]') && tsType !== 'string[]' && tsType !== 'number[]' && tsType !== 'boolean[]') {
             return true;
           }
@@ -581,7 +584,7 @@ export class TypeInference {
         if (nestedObjBase.type === 'this') {
           const className = this.ctx.currentClassName;
           if (className) {
-            const fieldTsType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldTsType(className, nestedMember.property) : null;
+            const fieldTsType = this.ctx.classGenGetFieldTsType(className, nestedMember.property);
             if (fieldTsType) {
               const fieldType = this.getFieldTypeFromType(fieldTsType, memberExpr.property);
               if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
@@ -794,7 +797,7 @@ export class TypeInference {
         if (this.ctx.symbolTableIsClass(varName)) {
           const className = this.ctx.symbolTableGetClassName(varName);
           if (className) {
-            const fieldType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldType(className, memberExpr.property) : null;
+            const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
             if (fieldType === 'string') {
               return true;
             }
@@ -804,7 +807,7 @@ export class TypeInference {
       if (objBase.type === 'this') {
         const className = this.ctx.currentClassName;
         if (className) {
-          const fieldType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldType(className, memberExpr.property) : null;
+          const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (fieldType === 'string') {
             return true;
           }
@@ -865,7 +868,7 @@ export class TypeInference {
         if (memberObjBase.type === 'this') {
           const className = this.ctx.currentClassName;
           if (className) {
-            const fieldType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldType(className, memberAccess.property) : null;
+            const fieldType = this.ctx.classGenGetFieldType(className, memberAccess.property);
             if (fieldType === 'string[]') {
               return true;
             }
@@ -874,7 +877,7 @@ export class TypeInference {
         if (memberObjBase.type === 'variable' && this.ctx.symbolTableIsClass((memberAccess.object as VariableNode).name)) {
           const className = this.ctx.symbolTableGetClassName((memberAccess.object as VariableNode).name);
           if (className) {
-            const fieldType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldType(className, memberAccess.property) : null;
+            const fieldType = this.ctx.classGenGetFieldType(className, memberAccess.property);
             if (fieldType === 'string[]') {
               return true;
             }
@@ -975,7 +978,7 @@ export class TypeInference {
         const memberAccess = methodExpr.object as MemberAccessNode;
         const memberAccessObjBase = memberAccess.object as ExprBase;
         if (memberAccessObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
-          const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberAccess.property);
+          const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberAccess.property);
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
             const mapMatch = fieldInfo.tsType.match(/^Map<string,\s*string>$/);
@@ -1032,7 +1035,7 @@ export class TypeInference {
           const memberExpr = methodExpr.object as MemberAccessNode;
           const memberExprObjBase = memberExpr.object as ExprBase;
           if (memberExprObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
-            const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+            const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
             const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
             if (fieldInfoResult && fieldInfo.tsType) {
               const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
@@ -1441,7 +1444,7 @@ export class TypeInference {
       if (objBase.type === 'variable' && this.ctx.symbolTableIsClass((memberExpr.object as VariableNode).name)) {
         const className = this.ctx.symbolTableGetClassName((memberExpr.object as VariableNode).name);
         if (className) {
-          const fieldType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldType(className, memberExpr.property) : null;
+          const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (fieldType === 'string[]') {
             return true;
           }
@@ -1470,7 +1473,7 @@ export class TypeInference {
       if (objBase.type === 'this') {
         const className = this.ctx.currentClassName;
         if (className) {
-          const fieldType = this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldType(className, memberExpr.property) : null;
+          const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
           if (fieldType === 'string[]') {
             return true;
           }
@@ -1530,7 +1533,7 @@ export class TypeInference {
       if (this.ctx.symbolTableIsClass(varName)) {
         const className = this.ctx.symbolTableGetClassName(varName);
         if (className) {
-          return this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldTsType(className, memberExpr.property) : null;
+          return this.ctx.classGenGetFieldTsType(className, memberExpr.property);
         }
       }
       const ifaceType = this.ctx.symbolTableGetInterfaceType(varName);
@@ -1544,7 +1547,7 @@ export class TypeInference {
     if (objBase.type === 'this') {
       const className = this.ctx.currentClassName;
       if (className) {
-        return this.ctx.classGen !== null && this.ctx.classGen !== undefined ? this.ctx.classGen.getFieldTsType(className, memberExpr.property) : null;
+        return this.ctx.classGenGetFieldTsType(className, memberExpr.property);
       }
     }
     if (objBase.type === 'member_access') {
