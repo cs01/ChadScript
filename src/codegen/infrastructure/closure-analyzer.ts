@@ -11,7 +11,7 @@
  * to the lifted lambda function.
  */
 
-import type { Expression, BlockStatement, Statement, ObjectProperty } from '../../ast/types.js';
+import type { Expression, BlockStatement, Statement, ObjectProperty, TryStatement } from '../../ast/types.js';
 
 interface TypedNode {
   type: string;
@@ -74,9 +74,9 @@ interface CatchHandler {
 
 interface TryNode {
   type: string;
-  body: BlockStatement;
-  handler: CatchHandler | null;
-  finalizer: BlockStatement | null;
+  tryBlock: BlockStatement;
+  catchClause: CatchHandler | null;
+  finallyBlock: BlockStatement | null;
 }
 
 interface VariableExpr {
@@ -303,16 +303,10 @@ export class ClosureAnalyzer {
       this.walkExpression(s.iterable);
       this.walkBlock(s.body);
     } else if (stmtType === 'try') {
-      const s = stmt as { type: string; body: BlockStatement; handler: { param: string | null; body: BlockStatement } | null; finalizer: BlockStatement | null };
-      this.walkBlock(s.body);
-      if (s.handler) {
-        if (s.handler.param) {
-          this.declaredVars.add(s.handler.param);
-        }
-        this.walkBlock(s.handler.body);
-      }
-      if (s.finalizer) {
-        this.walkBlock(s.finalizer);
+      const tryStmt = stmt as { tryBlock: BlockStatement; finallyBlock: BlockStatement | null };
+      this.walkBlock(tryStmt.tryBlock);
+      if (tryStmt.finallyBlock !== null) {
+        this.walkBlock(tryStmt.finallyBlock);
       }
     }
   }
