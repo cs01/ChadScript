@@ -117,6 +117,7 @@ export function createFloatType(): ResolvedType {
 }
 
 export function tsTypeToLlvm(tsType: string): string {
+  if (tsType === null || tsType === undefined || tsType === '') return 'i8*';
   if (tsType === 'string') return 'i8*';
   if (tsType === 'number') return 'double';
   if (tsType === 'boolean') return 'double';

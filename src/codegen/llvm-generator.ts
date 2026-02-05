@@ -583,7 +583,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     ir += getGlobalVariables();
 
-    // Generate global variable declarations for top-level let/const
     ir += this.generateGlobalVariableDeclarations();
 
     // Generate external function declarations for imports
@@ -724,12 +723,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     let lastValue: string | null = null;
     let hasTerminator = false;
 
-    // thisPointer is now shared via context - no sync needed!
-
     for (let stmtIdx = 0; stmtIdx < block.statements.length; stmtIdx++) {
       const stmtRaw = block.statements[stmtIdx];
       const stmtBase = stmtRaw as { type: string };
-      // Stop processing if we've already generated a terminator
       if (hasTerminator) {
         break;
       }

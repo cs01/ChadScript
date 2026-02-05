@@ -304,7 +304,8 @@ export class ClassGenerator {
       ir += '\n';
     }
 
-    for (const method of regularMethods) {
+    for (let methodIdx = 0; methodIdx < regularMethods.length; methodIdx++) {
+      const method = regularMethods[methodIdx] as ClassMethod;
       this.ctx.output.length = 0;
       ir += this.generateMethod(className, method, allFields);
       ir += '\n';
@@ -313,14 +314,17 @@ export class ClassGenerator {
     return ir;
   }
 
-  private generateConstructor(className: string, constructor: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]): string {
+  private generateConstructor(className: string, constructor: ClassMethod, _fieldsIgnored: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]): string {
+    const fieldsFromMap = this.classFields.get(className);
+    const fields = fieldsFromMap || [];
     const structType = `%${className}_struct*`;
     let ir = `define ${structType} @${className}_constructor(`;
 
     const paramLLVMTypes: string[] = [];
     const paramTsTypes: string[] = constructor.paramTypes || [];
     if (constructor.paramTypes && constructor.paramTypes.length > 0) {
-      for (const pType of constructor.paramTypes) {
+      for (let ptIdx = 0; ptIdx < constructor.paramTypes.length; ptIdx++) {
+        const pType = constructor.paramTypes[ptIdx];
         paramLLVMTypes.push(this.tsTypeToLlvm(pType));
       }
     } else {
@@ -329,7 +333,11 @@ export class ClassGenerator {
       }
     }
 
-    ir += paramLLVMTypes.map((t, i) => `${t} %arg${i}`).join(', ');
+    const paramParts: string[] = [];
+    for (let argIdx = 0; argIdx < paramLLVMTypes.length; argIdx++) {
+      paramParts.push(paramLLVMTypes[argIdx] + ' %arg' + argIdx);
+    }
+    ir += paramParts.join(', ');
     ir += ') {\n';
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
@@ -348,19 +356,16 @@ export class ClassGenerator {
     let objPtr: string;
 
     if (fields.length > 0) {
-      // Calculate size of struct
       const sizeofReg = this.nextTemp();
       this.emit(`${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`);
       const sizeReg = this.nextTemp();
       this.emit(`${sizeReg} = ptrtoint %${className}_struct* ${sizeofReg} to i64`);
 
-      // Allocate memory
       const objMem = this.nextTemp();
       this.emit(`${objMem} = call i8* @GC_malloc(i64 ${sizeReg})`);
       objPtr = this.nextTemp();
       this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
 
-      // Initialize all fields to 0/null
       for (let i = 0; i < fields.length; i++) {
         const fieldPtr = this.nextTemp();
         const classField = fields[i];
@@ -369,7 +374,6 @@ export class ClassGenerator {
         this.emitFieldInit(fieldPtr, llvmType);
       }
     } else {
-      // Empty struct (no fields) - allocate minimal memory for the struct type
       const sizeofReg = this.nextTemp();
       this.emit(`${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`);
       const sizeReg = this.nextTemp();
@@ -380,20 +384,21 @@ export class ClassGenerator {
       this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
     }
 
-    // Set 'this' pointer so constructor body can use it
     this.ctx.thisPointer = objPtr;
-    // Set current class name for super resolution
     this.ctx.currentClassName = className;
-    // Set current function name for TypeChecker lookups
     this.ctx.currentFunction = 'constructor';
-    // Set return type for return statements in constructor body (update main generator)
     this.ctx.currentFunctionReturnType = structType;
 
-    // Assign parameter properties (e.g., constructor(private ctx: Foo) creates this.ctx = ctx)
     if (constructor.parameterProperties) {
       for (let i = 0; i < constructor.parameterProperties.length; i++) {
         const propName = constructor.parameterProperties[i];
-        const paramIndex = constructor.params.indexOf(propName);
+        let paramIndex = -1;
+        for (let pi = 0; pi < constructor.params.length; pi++) {
+          if (constructor.params[pi] === propName) {
+            paramIndex = pi;
+            break;
+          }
+        }
         if (paramIndex !== -1) {
           const fieldInfo = this.getFieldInfo(className, propName);
           if (fieldInfo) {
@@ -423,7 +428,6 @@ export class ClassGenerator {
       }
     }
 
-    // Execute constructor body
     this.ctx.generateBlock(constructor.body, constructor.params);
 
     const deferredAllocas = this.ctx.allocaInstructions;
@@ -442,9 +446,12 @@ export class ClassGenerator {
       deferredAllocas.length = 0;
     }
 
-    // Return the instance pointer
     if (this.ctx.output.length > 0) {
-      ir += this.ctx.output.map(line => '  ' + line).join('\n') + '\n';
+      const indentedLines: string[] = [];
+      for (let lineIdx = 0; lineIdx < this.ctx.output.length; lineIdx++) {
+        indentedLines.push('  ' + this.ctx.output[lineIdx]);
+      }
+      ir += indentedLines.join('\n') + '\n';
     }
     ir += `  ret ${structType} ${objPtr}\n`;
     ir += '}\n';
@@ -452,7 +459,8 @@ export class ClassGenerator {
     return ir;
   }
 
-  private generateDefaultConstructor(className: string, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]): string {
+  private generateDefaultConstructor(className: string, _fieldsIgnored: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]): string {
+    const fields = this.classFields.get(className) || [];
     const structType = `%${className}_struct*`;
     let ir = `define ${structType} @${className}_constructor() {\n`;
     ir += 'entry:\n';
@@ -501,7 +509,8 @@ export class ClassGenerator {
     return ir;
   }
 
-  private generateMethod(className: string, method: ClassMethod, fields: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[]): string {
+  private generateMethod(className: string, method: ClassMethod, _fieldsIgnored: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[]): string {
+    const fields = this.classFields.get(className) || [];
     let returnLLVMType = 'double';
     if (method.returnType) {
       returnLLVMType = this.tsTypeToLlvm(method.returnType);
