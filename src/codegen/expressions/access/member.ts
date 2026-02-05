@@ -102,6 +102,7 @@ export interface MemberAccessGeneratorContext {
   getAst(): AST | undefined;
   typeChecker?: TypeChecker | null;
   thisPointer?: string | null;
+  getThisPointer(): string | null;
   currentClassName?: string | null;
   getCurrentClassName(): string | null;
   currentFunction?: string | null;
@@ -670,7 +671,7 @@ export class MemberAccessGenerator {
       className = newExpr.className;
       instancePtr = this.ctx.generateExpression(expr.object, params);
     } else if (exprObjType === 'this') {
-      const thisPtr = this.ctx.thisPointer;
+      const thisPtr = this.ctx.getThisPointer();
       if (!thisPtr) {
         throw new Error('this.field accessed outside of class method or constructor');
       }
