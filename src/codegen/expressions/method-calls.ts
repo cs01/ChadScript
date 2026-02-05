@@ -583,8 +583,6 @@ export class MethodCallGenerator {
           return this.ctx.responseGen.generateJson(responsePtr);
         }
       } catch (e) {
-        // Log error and rethrow so we can see what's happening
-        console.error('[Response method error]:', e);
         throw e;
       }
     }
