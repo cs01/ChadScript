@@ -9,6 +9,12 @@ interface ExprBase { type: string; }
 export interface TypeResolverContext {
   ast?: AST;
   getAst(): AST | undefined;
+  getAstInterfacesLength(): number;
+  getAstInterfaceAt(index: number): InterfaceDeclaration | null;
+  getAstFunctionsLength(): number;
+  getAstFunctionAt(index: number): FunctionNode | null;
+  getAstClassesLength(): number;
+  getAstClassAt(index: number): ClassNode | null;
   symbolTable: SymbolTable;
   typeChecker?: TypeChecker | null;
   currentClassName?: string | null;
@@ -300,13 +306,13 @@ export class TypeResolver {
       this.interfaceCache.set(name, ifaceDecl);
       return ifaceDecl;
     }
-    const ast = this.ctx.getAst();
-    if (!ast?.interfaces) {
+    const interfacesLen = this.ctx.getAstInterfacesLength();
+    if (interfacesLen === 0) {
       this.interfaceCache.set(name, null);
       return null;
     }
-    for (let i = 0; i < ast.interfaces.length; i++) {
-      const iface = ast.interfaces[i] as InterfaceDeclaration;
+    for (let i = 0; i < interfacesLen; i++) {
+      const iface = this.ctx.getAstInterfaceAt(i);
       if (!iface || !iface.name) {
         continue;
       }
@@ -437,10 +443,9 @@ export class TypeResolver {
 
   getFunction(name: string): FunctionNode | null {
     if (!name) return null;
-    const ast = this.ctx.getAst();
-    if (!ast?.functions) return null;
-    for (let i = 0; i < ast.functions.length; i++) {
-      const fn = ast.functions[i] as FunctionNode;
+    const functionsLen = this.ctx.getAstFunctionsLength();
+    for (let i = 0; i < functionsLen; i++) {
+      const fn = this.ctx.getAstFunctionAt(i);
       if (!fn || !fn.name) {
         continue;
       }
@@ -481,13 +486,13 @@ export class TypeResolver {
     if (this.classCache.has(name)) {
       return this.classCache.get(name) || null;
     }
-    const ast = this.ctx.getAst();
-    if (!ast?.classes) {
+    const classesLen = this.ctx.getAstClassesLength();
+    if (classesLen === 0) {
       this.classCache.set(name, null);
       return null;
     }
-    for (let i = 0; i < ast.classes.length; i++) {
-      const cls = ast.classes[i] as ClassNode;
+    for (let i = 0; i < classesLen; i++) {
+      const cls = this.ctx.getAstClassAt(i);
       if (!cls || !cls.name) {
         continue;
       }
@@ -744,11 +749,10 @@ export class TypeResolver {
       }
     }
 
-    const ast = this.ctx.getAst();
-    if (!ast?.interfaces) return null;
-
-    for (let i = 0; i < ast.interfaces.length; i++) {
-      const iface = ast.interfaces[i] as InterfaceDeclaration;
+    const interfacesLen = this.ctx.getAstInterfacesLength();
+    for (let i = 0; i < interfacesLen; i++) {
+      const iface = this.ctx.getAstInterfaceAt(i);
+      if (!iface) continue;
       const match = this.checkInterfaceForDiscriminant(
         iface.name,
         iface.fields,
