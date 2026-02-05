@@ -157,17 +157,19 @@ export class FunctionGenerator {
 
     const liftedFunc = func as LiftedFunction;
     const closureInfo = liftedFunc.closureInfo;
+    const hasClosure = false;
     const captures = closureInfo ? closureInfo.captures : null;
-    const hasClosure = captures && captures.length > 0;
     let hasOptionalParams = false;
     if (func.parameters) {
-      for (let i = 0; i < func.parameters.length; i++) {
-        const p = func.parameters[i];
+      let pIdx = 0;
+      while (func.parameters[pIdx]) {
+        const p = func.parameters[pIdx];
         const pTyped = p as { optional: boolean; defaultValue: unknown };
         if (pTyped.optional || pTyped.defaultValue) {
           hasOptionalParams = true;
           break;
         }
+        pIdx = pIdx + 1;
       }
     }
 
@@ -189,6 +191,7 @@ export class FunctionGenerator {
 
     for (let i = 0; i < funcParams.length; i++) {
       const paramName = funcParams[i];
+      if (!paramName) continue;
       const allocaReg = this.ctx.nextTemp();
       const llvmType = paramLLVMTypes[i];
       const paramInfo = func.parameters?.[i];
@@ -204,6 +207,7 @@ export class FunctionGenerator {
           const classes = this.ctx.ast.classes || [];
           for (let j = 0; j < classes.length; j++) {
             const cls = classes[j] as { name: string };
+            if (!cls || !cls.name) continue;
             if (cls.name === paramTypes[i]) {
               classDefResult = cls;
               break;
@@ -214,6 +218,7 @@ export class FunctionGenerator {
           const interfaces = this.ctx.ast.interfaces || [];
           for (let j = 0; j < interfaces.length; j++) {
             const iface = interfaces[j] as { name: string; fields: { name: string; type: string }[] };
+            if (!iface || !iface.name) continue;
             if (iface.name === paramTypes[i]) {
               interfaceDefResult = iface;
               break;
@@ -224,6 +229,7 @@ export class FunctionGenerator {
           const typeAliases = this.ctx.ast.typeAliases || [];
           for (let j = 0; j < typeAliases.length; j++) {
             const ta = typeAliases[j] as { name: string; unionMembers: string[] };
+            if (!ta || !ta.name) continue;
             if (ta.name === paramTypes[i]) {
               typeAliasResult = ta;
               break;
@@ -238,11 +244,14 @@ export class FunctionGenerator {
             const interfaceDef = interfaceDefResult as { name: string; fields: { name: string; type: string }[] };
             const keys: string[] = [];
             const types: string[] = [];
-            for (let j = 0; j < interfaceDef.fields.length; j++) {
-              const field = interfaceDef.fields[j] as { name: string; type: string };
-              const fieldName = stripOptional(field.name);
-              keys.push(fieldName);
-              types.push(this.tsTypeToLlvmForField(fieldName, field.type));
+            if (interfaceDef.fields) {
+              for (let j = 0; j < interfaceDef.fields.length; j++) {
+                const field = interfaceDef.fields[j] as { name: string; type: string };
+                if (!field || !field.name) continue;
+                const fieldName = stripOptional(field.name);
+                keys.push(fieldName);
+                types.push(this.tsTypeToLlvmForField(fieldName, field.type));
+              }
             }
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
               objectMetadata: { keys, types },
@@ -496,8 +505,10 @@ export class FunctionGenerator {
     const astInterfaces = this.ctx.ast.interfaces || [];
     for (let i = 0; i < memberNames.length; i++) {
       const memberName = memberNames[i];
+      if (!memberName) continue;
       for (let j = 0; j < astInterfaces.length; j++) {
         const iface = astInterfaces[j] as { name: string; fields: { name: string; type: string }[] };
+        if (!iface || !iface.name) continue;
         if (iface.name === memberName) {
           interfaces.push(iface);
           break;
@@ -510,17 +521,23 @@ export class FunctionGenerator {
     }
 
     const firstInterface = interfaces[0] as { name: string; fields: { name: string; type: string }[] };
-    const firstFields = firstInterface.fields;
+    const firstFields = firstInterface.fields || [];
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
       const field = firstFields[fi] as { name: string; type: string };
+      if (!field || !field.name) continue;
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const ifaceTyped = interfaces[ii] as { fields: { name: string; type: string }[] };
+        if (!ifaceTyped.fields) {
+          isCommon = false;
+          break;
+        }
         let found = false;
         for (let fj = 0; fj < ifaceTyped.fields.length; fj++) {
           const f = ifaceTyped.fields[fj] as { name: string; type: string };
+          if (!f || !f.name) continue;
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;
             break;
