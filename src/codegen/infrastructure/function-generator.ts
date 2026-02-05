@@ -156,7 +156,9 @@ export class FunctionGenerator {
     }
 
     const liftedFunc = func as LiftedFunction;
-    const hasClosure = liftedFunc.closureInfo && liftedFunc.closureInfo.captures.length > 0;
+    const closureInfo = liftedFunc.closureInfo;
+    const captures = closureInfo ? closureInfo.captures : null;
+    const hasClosure = captures && captures.length > 0;
     let hasOptionalParams = false;
     if (func.parameters) {
       for (let i = 0; i < func.parameters.length; i++) {
