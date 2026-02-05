@@ -67,8 +67,8 @@ function getBuiltinAstTypeByDiscriminant(discriminant: string): BuiltinAstType |
       fields: [
         { name: 'type', type: "'if'" },
         { name: 'condition', type: 'Expression' },
-        { name: 'consequent', type: 'BlockStatement' },
-        { name: 'alternate', type: 'BlockStatement | IfStatement | null' }
+        { name: 'thenBlock', type: 'BlockStatement' },
+        { name: 'elseBlock', type: 'BlockStatement | null' }
       ]
     };
   }
@@ -88,7 +88,7 @@ function getBuiltinAstTypeByDiscriminant(discriminant: string): BuiltinAstType |
       fields: [
         { name: 'type', type: "'for'" },
         { name: 'init', type: 'VariableDeclaration | AssignmentStatement | null' },
-        { name: 'test', type: 'Expression | null' },
+        { name: 'condition', type: 'Expression | null' },
         { name: 'update', type: 'AssignmentStatement | null' },
         { name: 'body', type: 'BlockStatement' }
       ]
@@ -99,7 +99,8 @@ function getBuiltinAstTypeByDiscriminant(discriminant: string): BuiltinAstType |
       name: 'ForOfStatement',
       fields: [
         { name: 'type', type: "'for_of'" },
-        { name: 'variable', type: 'string' },
+        { name: 'variableKind', type: "'let' | 'const' | 'var'" },
+        { name: 'variableName', type: 'string' },
         { name: 'iterable', type: 'Expression' },
         { name: 'body', type: 'BlockStatement' }
       ]
