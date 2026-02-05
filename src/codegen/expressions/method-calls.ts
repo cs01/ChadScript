@@ -310,6 +310,14 @@ export interface MethodCallGeneratorContext {
   mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
+  fsGenCanHandle(expr: MethodCallNode): boolean;
+  fsGenReadFileSync(expr: MethodCallNode, params: string[]): string;
+  fsGenWriteFileSync(expr: MethodCallNode, params: string[]): string;
+  fsGenExistsSync(expr: MethodCallNode, params: string[]): string;
+  fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string;
+  jsonGenCanHandle(expr: MethodCallNode): boolean;
+  jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string;
+  jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string;
   exprGen: ExpressionGeneratorLike;
 }
 
@@ -650,16 +658,16 @@ export class MethodCallGenerator {
     }
 
     // Handle fs.* methods (delegated to FilesystemGenerator)
-    if (this.ctx.fsGen.canHandle(expr)) {
+    if (this.ctx.fsGenCanHandle(expr)) {
       switch (expr.method) {
         case 'readFileSync':
-          return this.ctx.fsGen.generateReadFileSync(expr, params);
+          return this.ctx.fsGenReadFileSync(expr, params);
         case 'writeFileSync':
-          return this.ctx.fsGen.generateWriteFileSync(expr, params);
+          return this.ctx.fsGenWriteFileSync(expr, params);
         case 'existsSync':
-          return this.ctx.fsGen.generateExistsSync(expr, params);
+          return this.ctx.fsGenExistsSync(expr, params);
         case 'unlinkSync':
-          return this.ctx.fsGen.generateUnlinkSync(expr, params);
+          return this.ctx.fsGenUnlinkSync(expr, params);
         default:
           throw new Error('Unsupported fs method: ' + expr.method);
       }
@@ -682,11 +690,11 @@ export class MethodCallGenerator {
     }
 
     // Handle JSON.parse() and JSON.stringify() (delegated to JsonGenerator)
-    if (this.ctx.jsonGen.canHandle(expr)) {
+    if (this.ctx.jsonGenCanHandle(expr)) {
       if (method === 'parse') {
-        return this.ctx.jsonGen.generateParse(expr, params);
+        return this.ctx.jsonGenGenerateParse(expr, params);
       } else if (method === 'stringify') {
-        return this.ctx.jsonGen.generateStringify(expr, params);
+        return this.ctx.jsonGenGenerateStringify(expr, params);
       }
     }
 

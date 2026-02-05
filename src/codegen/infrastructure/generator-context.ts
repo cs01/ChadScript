@@ -629,6 +629,22 @@ export interface IGeneratorContext {
    */
   pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
+
+  /**
+   * FsGen delegate methods (avoid struct layout mismatch)
+   */
+  fsGenCanHandle(expr: MethodCallNode): boolean;
+  fsGenReadFileSync(expr: MethodCallNode, params: string[]): string;
+  fsGenWriteFileSync(expr: MethodCallNode, params: string[]): string;
+  fsGenExistsSync(expr: MethodCallNode, params: string[]): string;
+  fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string;
+
+  /**
+   * JsonGen delegate methods (avoid struct layout mismatch)
+   */
+  jsonGenCanHandle(expr: MethodCallNode): boolean;
+  jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string;
+  jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string;
 }
 
 /**
@@ -1127,6 +1143,16 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   pathGenGenerateResolve(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_resolve'; }
   pathGenGenerateDirname(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_dirname'; }
+
+  fsGenCanHandle(_expr: MethodCallNode): boolean { return false; }
+  fsGenReadFileSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_readFileSync'; }
+  fsGenWriteFileSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_writeFileSync'; }
+  fsGenExistsSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_existsSync'; }
+  fsGenUnlinkSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_unlinkSync'; }
+
+  jsonGenCanHandle(_expr: MethodCallNode): boolean { return false; }
+  jsonGenGenerateParse(_expr: MethodCallNode, _params: string[]): string { return '%mock_json_parse'; }
+  jsonGenGenerateStringify(_expr: MethodCallNode, _params: string[]): string { return '%mock_json_stringify'; }
 
   resolveImportAlias(localName: string): string {
     return localName;

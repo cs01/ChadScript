@@ -431,6 +431,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateResolve(expr, params); }
   public pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateDirname(expr, params); }
 
+  public fsGenCanHandle(expr: MethodCallNode): boolean { return this.fsGen.canHandle(expr); }
+  public fsGenReadFileSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateReadFileSync(expr, params); }
+  public fsGenWriteFileSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateWriteFileSync(expr, params); }
+  public fsGenExistsSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateExistsSync(expr, params); }
+  public fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateUnlinkSync(expr, params); }
+
+  public jsonGenCanHandle(expr: MethodCallNode): boolean { return this.jsonGen.canHandle(expr); }
+  public jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.jsonGen.generateParse(expr, params); }
+  public jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.jsonGen.generateStringify(expr, params); }
+
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (!objExpr || objExpr.type !== 'object') {
