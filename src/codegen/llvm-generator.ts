@@ -333,6 +333,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public stringGenGenerateReplace(strPtr: string, search: string, replace: string): string { this.syncStateToGenerators(); return this.stringGen.generateReplace(strPtr, search, replace); }
   public stringGenGenerateReplaceAll(strPtr: string, search: string, replace: string): string { this.syncStateToGenerators(); return this.stringGen.generateReplaceAll(strPtr, search, replace); }
   public stringGenGenerateGlobalString(value: string): string { this.syncStateToGenerators(); return this.stringGen.generateGlobalString(value); }
+  public stringGenGenerateStringConcat(left: Expression, right: Expression, params: string[]): string { this.syncStateToGenerators(); return this.stringGen.generateStringConcat(left, right, params); }
+  public stringGenConvertNumberToString(numValue: string): string { this.syncStateToGenerators(); return this.stringGen.convertNumberToString(numValue); }
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {

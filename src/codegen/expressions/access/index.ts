@@ -24,6 +24,7 @@ export interface IndexAccessGeneratorContext {
   generateExpression(expr: Expression, params: string[]): string;
   isStringExpression(expr: Expression): boolean;
   stringGen: StringGenLike;
+  stringGenCreateStringConstant(value: string): string;
 }
 
 /**
@@ -567,7 +568,7 @@ export class IndexAccessGenerator {
     for (let i = 0; i < objMeta.keys.length; i++) {
       const key = objMeta.keys[i]!;
       const fieldType = objMeta.types[i]!;
-      const keyStr = this.ctx.stringGen.createStringConstant(key);
+      const keyStr = this.ctx.stringGenCreateStringConstant(key);
       const cmpResult = this.ctx.nextTemp();
       this.ctx.emit(`${cmpResult} = call i32 @strcmp(i8* ${keyValue}, i8* ${keyStr})`);
       const isMatch = this.ctx.nextTemp();
