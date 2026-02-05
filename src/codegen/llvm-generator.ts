@@ -47,7 +47,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public ast: AST;
   public typeChecker: TypeChecker | null;
   private externalFunctions: Set<string>;
-  public currentFunction: string = '';
+  public currentFunction: string | null = null;
   public currentDeclaredInterfaceType: string | undefined;
   public currentDeclaredMapType: string | undefined;
   public currentDeclaredSetType: string | undefined;
@@ -294,9 +294,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string { return this.classGen.generateNewExpression(className, args, params); }
   public classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string { return this.classGen.generateMethodCall(instancePtr, className, method, args, params); }
 
-  public setCurrentFunction(name: string): void { this.currentFunction = name; }
+  public setCurrentFunction(name: string | null): void { this.currentFunction = name; }
+  public getCurrentFunction(): string | null { return this.currentFunction; }
   public setCurrentFunctionReturnType(type: string): void { this.currentFunctionReturnType = type; }
+  public getCurrentFunctionReturnType(): string { return this.currentFunctionReturnType; }
   public setCurrentFunctionTsReturnType(type: string | undefined): void { this.currentFunctionTsReturnType = type; }
+  public getCurrentFunctionTsReturnType(): string | undefined { return this.currentFunctionTsReturnType; }
+  public setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void { this.expectedArrayElementType = type; }
+  public getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null { return this.expectedArrayElementType; }
+  public setCurrentDeclaredMapType(type: string | undefined): void { this.currentDeclaredMapType = type; }
+  public getCurrentDeclaredMapType(): string | undefined { return this.currentDeclaredMapType; }
   public setIsAsyncFunction(value: boolean): void { this.isAsyncFunction = value; }
   public setAsyncResultPromise(value: string): void { this.asyncResultPromise = value; }
   public getAsyncResultPromise(): string { return this.asyncResultPromise; }
@@ -305,6 +312,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getOutput(): string[] { return this.output; }
   public clearOutput(): void { this.output.length = 0; }
   public pushOutput(line: string): void { this.output.push(line); }
+  public getOutputLength(): number { return this.output.length; }
+  public getOutputLine(index: number): string { return this.output[index] || ''; }
+  public getOutputAsIndentedString(indent: string): string {
+    const lines: string[] = [];
+    for (let i = 0; i < this.output.length; i++) {
+      lines.push(indent + this.output[i]);
+    }
+    return lines.join('\n');
+  }
   public createEmptyStringConstant(): string { this.syncStateToGenerators(); return this.stringGen.createStringConstant(''); }
 
   public typeResolverGetInterface(name: string): InterfaceDeclaration | null { return this.typeResolver ? this.typeResolver.getInterface(name) : null; }
@@ -392,6 +408,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public pointerMapGenGeneratePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string { this.syncStateToGenerators(); return this.pointerMapGen.generatePointerMapSet(mapPtr, keyValue, valueValue); }
   public pointerMapGenGeneratePointerMapGet(mapPtr: string, keyValue: string, valueType: string): string { this.syncStateToGenerators(); return this.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, valueType); }
   public pointerMapGenGeneratePointerMapClear(mapPtr: string): string { this.syncStateToGenerators(); return this.pointerMapGen.generatePointerMapClear(mapPtr); }
+
+  public responseGenGenerateText(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateText(responsePtr); }
+  public responseGenGenerateJson(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateJson(responsePtr); }
+  public responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string { this.syncStateToGenerators(); return this.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef); }
+  public responseGenGenerateStatus(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateStatus(responsePtr); }
+  public responseGenGenerateOk(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateOk(responsePtr); }
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
@@ -957,6 +979,46 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.varAllocator.allocate(stmt, params);
   }
 
+  private handleSimpleAssignment(stmt: AssignmentStatement, params: string[]): void {
+    const stmtName = stmt.name;
+    const stmtValue = stmt.value;
+    const value = this.generateExpression(stmtValue as Expression, params);
+
+    const stringAllocaReg = this.symbolTable.getStringAlloca(stmtName);
+    if (stringAllocaReg) {
+      this.emit(`store i8* ${value}, i8** ${stringAllocaReg}`);
+      return;
+    }
+
+    const arrayAllocaReg = this.symbolTable.getArrayAlloca(stmtName);
+    if (arrayAllocaReg) {
+      if (this.symbolTable.isPointerAlloca(stmtName)) {
+        const isStringArr = this.symbolTable.isStringArray(stmtName);
+        const arrayType = isStringArr ? '%StringArray' : '%Array';
+        let pointerValue = value;
+        const valueType = this.getVariableType(value);
+        if (valueType !== `${arrayType}*`) {
+          const typedPtr = this.nextTemp();
+          this.emit(`${typedPtr} = bitcast i8* ${value} to ${arrayType}*`);
+          pointerValue = typedPtr;
+        }
+        this.emit(`store ${arrayType}* ${pointerValue}, ${arrayType}** ${arrayAllocaReg}`);
+      } else {
+        const loadedArray = this.nextTemp();
+        this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
+        this.emit(`store %Array ${loadedArray}, %Array* ${arrayAllocaReg}`);
+      }
+      return;
+    }
+
+    const allocaReg = this.getVariableAlloca(stmtName);
+    if (!allocaReg) {
+      throw new Error(`Unknown variable: ${stmtName}`);
+    }
+    const varType = this.getVariableType(stmtName) || 'double';
+    this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
+  }
+
   public generateBlock(block: BlockStatement, params: string[]): string | null {
     const stmts = block.statements;
     let lastValue: string | null = null;
@@ -979,7 +1041,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (stmtType === 'variable_declaration') {
         this.allocateVariable(stmtRaw as VariableDeclaration, params);
       } else if (stmtType === 'assignment') {
-        const stmt = stmtRaw as { type: string; name: string; value: Expression };
+        const stmt = stmtRaw as AssignmentStatement;
         if (!stmt.name) {
           continue;
         }
@@ -989,49 +1051,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         } else if (stmt.name === '__index_access__') {
           this.generateExpression(stmt.value as Expression, params);
         } else {
-          // Regular variable assignment
-          const value = this.generateExpression(stmt.value as Expression, params);
-
-          // Check for string variable
-          const stringAllocaReg = this.symbolTable.getStringAlloca(stmt.name);
-          if (stringAllocaReg) {
-            this.emit(`store i8* ${value}, i8** ${stringAllocaReg}`);
-            continue;
-          }
-
-          // Check for array variable
-          const arrayAllocaReg = this.symbolTable.getArrayAlloca(stmt.name);
-          if (arrayAllocaReg) {
-            if (this.symbolTable.isPointerAlloca(stmt.name)) {
-              const isStringArr = this.symbolTable.isStringArray(stmt.name);
-              const arrayType = isStringArr ? '%StringArray' : '%Array';
-              let pointerValue = value;
-              const valueType = this.getVariableType(value);
-              if (valueType !== `${arrayType}*`) {
-                const typedPtr = this.nextTemp();
-                this.emit(`${typedPtr} = bitcast i8* ${value} to ${arrayType}*`);
-                pointerValue = typedPtr;
-              }
-              this.emit(`store ${arrayType}* ${pointerValue}, ${arrayType}** ${arrayAllocaReg}`);
-            } else {
-              const loadedArray = this.nextTemp();
-              this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
-              this.emit(`store %Array ${loadedArray}, %Array* ${arrayAllocaReg}`);
-            }
-            continue;
-          }
-
-          // Check for numeric variable
-          if (!stmt.name) {
-            throw new Error(`Assignment statement has no name property. Statement: ${JSON.stringify(stmt, null, 2)}`);
-          }
-          const allocaReg = this.getVariableAlloca(stmt.name);
-          if (!allocaReg) {
-            throw new Error(`Unknown variable: ${stmt.name}`);
-          }
-          // All numeric variables are double now
-          const varType = this.getVariableType(stmt.name) || 'double';
-          this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
+          this.handleSimpleAssignment(stmt, params);
         }
       } else if (stmtType === 'return') {
         const stmt = stmtRaw as { type: string; value: Expression | null };
