@@ -425,6 +425,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public objectGenGenerateObjectLiteral(expr: Expression, params: string[]): string { this.syncStateToGenerators(); return this.objectGen.generateObjectLiteral(expr, params); }
 
+  public mathGenCanHandle(expr: MethodCallNode): boolean { return this.mathGen.canHandle(expr); }
+  public mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mathGen.generateMathMethod(expr, params); }
+
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (!objExpr || objExpr.type !== 'object') {
@@ -1032,10 +1035,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private handleSimpleAssignmentWithFields(stmtName: string, stmtValue: Expression, params: string[]): void {
-    const stmtValueBase = stmtValue as { type: string };
-    console.log('handleSimpleAssignmentWithFields: stmtValue.type = ' + stmtValueBase.type);
     const value = this.generateExpression(stmtValue, params);
-    console.log('handleSimpleAssignmentWithFields: generated value = ' + value);
 
     const stringAllocaReg = this.symbolTable.getStringAlloca(stmtName);
     if (stringAllocaReg) {
@@ -1084,13 +1084,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public generateBlock(block: BlockStatement, params: string[]): string | null {
-    console.log('generateBlock: starting with ' + block.statements.length + ' statements');
     const stmts = block.statements;
     let lastValue: string | null = null;
     let hasTerminator = false;
 
     for (let stmtIdx = 0; stmtIdx < block.statements.length; stmtIdx++) {
-      console.log('generateBlock: processing statement ' + stmtIdx);
       const stmtRaw = block.statements[stmtIdx];
       if (!stmtRaw) {
         continue;
@@ -1100,7 +1098,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         break;
       }
       const stmtType = stmtBase.type;
-      console.log('generateBlock: statement type = ' + stmtType);
       if (!stmtType) {
         continue;
       }
@@ -1109,19 +1106,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const stmt = stmtRaw as VariableDeclaration;
         this.allocateVariable(stmt, params);
       } else if (stmtType === 'assignment') {
-        console.log('generateBlock: handling assignment');
         const stmt = stmtRaw as AssignmentStatement;
         const stmtName = stmt.name;
         const stmtValue = stmt.value;
         if (!stmtName) {
           continue;
         }
-        console.log('generateBlock: assignment name = ' + stmtName);
         const isMemberAccess = stmtName.startsWith('__member_access__');
         if (isMemberAccess) {
-          console.log('generateBlock: calling generateMemberAccessAssignment');
           this.assignmentGen.generateMemberAccessAssignment(stmtRaw as AssignmentStatement, params);
-          console.log('generateBlock: generateMemberAccessAssignment done');
         } else if (stmtName === '__index_access__') {
           this.generateExpression(stmtValue as Expression, params);
         } else {
