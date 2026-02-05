@@ -551,13 +551,7 @@ describe('ChadScript Compiler', () => {
           // Compile the fixture (no console.log to avoid parallel output issues)
           await execAsync(`node dist/index.js ${fixturePath}`);
 
-          // Verify LLVM IR was generated
-          assert.ok(
-            fsSync.existsSync(llFile),
-            `LLVM IR file should exist at ${llFile}`
-          );
-
-          // Verify executable was generated
+          // Verify executable was generated (intermediate files are cleaned up by default)
           assert.ok(
             fsSync.existsSync(exeFile),
             `Executable should exist at ${exeFile}`
@@ -629,8 +623,8 @@ describe('ChadScript Compiler', () => {
       }
 
       try {
-        // Compile
-        await execAsync(`node dist/index.js ${fixturePath}`);
+        // Compile with --keep-temps to preserve .ll file for inspection
+        await execAsync(`node dist/index.js --keep-temps ${fixturePath}`);
 
         // Read and verify LLVM IR
         const llContent = await fs.readFile(llFile, 'utf-8');

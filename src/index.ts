@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { compile, setUseTSParser, setLinkTreeSitter, setSkipSemanticAnalysis } from './compiler.js';
+import { compile, setUseTSParser, setLinkTreeSitter, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly } from './compiler.js';
 import { LogLevel, logger } from './utils/logger.js';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -28,6 +28,10 @@ for (const arg of args) {
     setLinkTreeSitter(true);
   } else if (arg === '--skip-semantic-analysis') {
     setSkipSemanticAnalysis(true);
+  } else if (arg === '--keep-temps' || arg === '-save-temps') {
+    setKeepTemps(true);
+  } else if (arg === '--emit-llvm' || arg === '-S') {
+    setEmitLLVMOnly(true);
   } else if (arg === '-h' || arg === '--help') {
     console.log('ChadScript - TypeScript to Native AOT Compiler');
     console.log('');
@@ -40,6 +44,8 @@ for (const arg of args) {
     console.log('  --use-ts-parser  Use TypeScript compiler API for parsing');
     console.log('  --link-tree-sitter  Link with tree-sitter for native parsing');
     console.log('  --skip-semantic-analysis  Skip semantic analysis (for self-hosting)');
+    console.log('  --emit-llvm, -S  Output LLVM IR only (no binary)');
+    console.log('  --keep-temps     Keep intermediate files (.ll, .o)');
     console.log('  -h, --help       Show this help message');
     console.log('');
     console.log('Examples:');

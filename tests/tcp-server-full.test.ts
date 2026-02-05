@@ -58,7 +58,6 @@ testBind();
       try {
         await fs.unlink(testFile);
         await fs.unlink('.build/tests/fixtures/tcp-bind-test');
-        await fs.unlink('.build/tests/fixtures/tcp-bind-test.ll');
       } catch (e) {
         // Ignore cleanup errors
       }
@@ -143,7 +142,6 @@ testAllSyscalls();
       try {
         await fs.unlink(testFile);
         await fs.unlink('.build/tests/fixtures/tcp-syscalls-test');
-        await fs.unlink('.build/tests/fixtures/tcp-syscalls-test.ll');
       } catch (e) {
         // Ignore
       }
@@ -245,7 +243,6 @@ testHttpHandler();
       try {
         await fs.unlink(testFile);
         await fs.unlink('.build/tests/fixtures/http-handler-test');
-        await fs.unlink('.build/tests/fixtures/http-handler-test.ll');
       } catch (e) {
         // Ignore
       }
