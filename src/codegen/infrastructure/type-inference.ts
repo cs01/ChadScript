@@ -43,6 +43,9 @@ export class TypeInference {
   }
 
   private getInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null {
+    if (!interfaceName || !propName) {
+      return null;
+    }
     if (this.ctx.typeResolver) {
       return this.ctx.typeResolver.getInterfaceProperty(interfaceName, propName);
     }
