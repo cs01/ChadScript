@@ -105,6 +105,7 @@ export interface MemberAccessGeneratorContext {
   currentClassName?: string | null;
   getCurrentClassName(): string | null;
   currentFunction?: string | null;
+  getCurrentFunction(): string | null;
   jsonObjectMetadata?: Map<string, JsonObjectMeta>;
   interfaceStructGen?: InterfaceStructGenerator;
   getVariableType(name: string): string | undefined;
@@ -1683,12 +1684,13 @@ export class MemberAccessGenerator {
 
   private getParameterTypeFromAST(paramName: string): string | null {
     const ast = this.ctx.getAst();
-    if (!ast || !this.ctx.currentFunction) {
+    const currentFunc = this.ctx.getCurrentFunction();
+    if (!ast || !currentFunc) {
       return null;
     }
     for (let i = 0; i < ast.functions.length; i++) {
       const fn = ast.functions[i];
-      if (fn.name === this.ctx.currentFunction) {
+      if (fn.name === currentFunc) {
         if (fn.parameters) {
           for (let j = 0; j < fn.parameters.length; j++) {
             const p = fn.parameters[j] as FunctionParameter;
@@ -1703,7 +1705,7 @@ export class MemberAccessGenerator {
       const cls = ast.classes[i];
       for (let j = 0; j < cls.methods.length; j++) {
         const method = cls.methods[j];
-        if (method.name === this.ctx.currentFunction) {
+        if (method.name === currentFunc) {
           if (method.paramTypes) {
             for (let k = 0; k < method.params.length; k++) {
               if (method.params[k] === paramName && method.paramTypes[k]) {

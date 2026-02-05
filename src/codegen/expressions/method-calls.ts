@@ -208,6 +208,7 @@ export interface MethodCallGeneratorContext {
   currentClassName: string | null;
   getCurrentClassName(): string | null;
   currentFunction?: string | null;
+  getCurrentFunction(): string | null;
   ast: AST;
   getAst(): AST | undefined;
   typeChecker: TypeChecker | null;
@@ -506,7 +507,7 @@ export class MethodCallGenerator {
   }
 
   private getParameterMapKeyType(varName: string): string | null {
-    const currentFunc = this.ctx.currentFunction;
+    const currentFunc = this.ctx.getCurrentFunction();
     if (!currentFunc) return null;
 
     const ast = this.ctx.getAst();
