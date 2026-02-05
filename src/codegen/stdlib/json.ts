@@ -47,11 +47,16 @@ export class JsonGenerator {
       throw new Error(`JSON.parse<${typeParam}>: Interface '${typeParam}' not found in AST`);
     }
 
+    const mappedFields: { name: string; type: string }[] = [];
+    for (let mfi = 0; mfi < interfaceDefResult.fields.length; mfi++) {
+      const rawField = interfaceDefResult.fields[mfi] as { name: string; type: string };
+      mappedFields.push({
+        name: rawField.name.replace(/\?$/, ''),
+        type: rawField.type
+      });
+    }
     const interfaceDef: JsonInterfaceDef = {
-      fields: interfaceDefResult.fields.map((f: any) => ({
-        name: f.name.replace(/\?$/, ''),
-        type: f.type
-      }))
+      fields: mappedFields
     };
 
     this.generateJsonStruct(typeParam, interfaceDef);
@@ -238,11 +243,16 @@ export class JsonGenerator {
       if (fieldType !== 'string' && fieldType !== 'number' && fieldType !== 'boolean') {
         const nestedInterface = this.ctx.getInterfaceFromAST(fieldType);
         if (nestedInterface) {
+          const nestedMappedFields: { name: string; type: string }[] = [];
+          for (let nfi = 0; nfi < nestedInterface.fields.length; nfi++) {
+            const nf = nestedInterface.fields[nfi] as { name: string; type: string };
+            nestedMappedFields.push({
+              name: nf.name.replace(/\?$/, ''),
+              type: nf.type
+            });
+          }
           const nestedDef: JsonInterfaceDef = {
-            fields: nestedInterface.fields.map((f: any) => ({
-              name: f.name.replace(/\?$/, ''),
-              type: f.type
-            }))
+            fields: nestedMappedFields
           };
           this.generateJsonStruct(fieldType, nestedDef);
           this.generateJsonParser(fieldType, nestedDef);
@@ -264,9 +274,9 @@ export class JsonGenerator {
 
     parserIR += `json_ok:\n`;
     for (let fieldIndex = 0; fieldIndex < interfaceDef.fields.length; fieldIndex++) {
-      const field = interfaceDef.fields[fieldIndex];
-      const fieldName = field.name;
-      const fieldType = field.type;
+      const fieldEntry = interfaceDef.fields[fieldIndex] as { name: string; type: string };
+      const fieldName = fieldEntry.name;
+      const fieldType = fieldEntry.type;
       const fieldNameConst = this.ctx.nextString();
       this.ctx.globalStrings.push(`${fieldNameConst} = private unnamed_addr constant [${fieldName.length + 1} x i8] c"${fieldName}\\00", align 1`);
 

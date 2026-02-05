@@ -619,7 +619,9 @@ export class VariableAllocator {
       interfaceType: interfaceName
     });
     this.ctx.emit(`${allocaReg} = alloca i8*`);
+    this.ctx.currentDeclaredInterfaceType = interfaceName;
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.currentDeclaredInterfaceType = undefined;
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
   }
 
@@ -902,6 +904,14 @@ export class VariableAllocator {
           'Use: JSON.parse<InterfaceName>(jsonString)'
         )
       );
+    }
+
+    if (interfaceName === 'number[]') {
+      this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local');
+      this.ctx.emit(`${allocaReg} = alloca %Array*`);
+      const arrPtr = this.ctx.generateExpression(stmt.value!, params);
+      this.ctx.emit(`store %Array* ${arrPtr}, %Array** ${allocaReg}`);
+      return;
     }
 
     const interfaceDefResult = this.getInterface(interfaceName);
