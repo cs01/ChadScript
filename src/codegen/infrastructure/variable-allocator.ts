@@ -107,7 +107,16 @@ export interface VariableAllocatorContext {
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableSetObjectArrayMetadata(name: string, metadata: ObjectArrayMetadata): void;
   exprGen: ExpressionGeneratorLike;
-  expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
+  arrowFunctionGenGenerate(
+    expr: Expression,
+    params: string[],
+    typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
+    scopeVarNames: string[] | undefined,
+    scopeVarTypes: string[] | undefined
+  ): string;
+  arrowFunctionGenGetClosureInfo(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null;
+  setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void;
+  getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null;
   currentDeclaredInterfaceType: string | undefined;
   currentClassName: string | null;
   typeChecker?: TypeChecker | null;
@@ -350,11 +359,11 @@ export class VariableAllocator {
 
     if (stmt.declaredType) {
       if (stmt.declaredType === 'string[]') {
-        this.ctx.expectedArrayElementType = 'string';
+        this.ctx.setExpectedArrayElementType('string');
       } else if (stmt.declaredType === 'number[]' || stmt.declaredType === 'boolean[]') {
-        this.ctx.expectedArrayElementType = 'number';
+        this.ctx.setExpectedArrayElementType('number');
       } else if (stmt.declaredType.endsWith('[]')) {
-        this.ctx.expectedArrayElementType = 'pointer';
+        this.ctx.setExpectedArrayElementType('pointer');
       }
     }
 
@@ -447,7 +456,7 @@ export class VariableAllocator {
       }
     }
 
-    this.ctx.expectedArrayElementType = null;
+    this.ctx.setExpectedArrayElementType(null);
   }
 
   private allocateFunctionInterfaceReturn(stmt: VariableDeclaration, params: string[], interfaceName: string): void {
@@ -1376,11 +1385,12 @@ export class VariableAllocator {
   }
 
   private allocateArrowFunction(stmt: VariableDeclaration, params: string[]): void {
+    if (!stmt.value) return;
     const scopeVarsResult = this.ctx.symbolTableGetScopeVarsArraysForClosure();
     const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
-    const lambdaName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(stmt.value, params, undefined, scopeVarsTyped.names, scopeVarsTyped.types);
+    const lambdaName = this.ctx.arrowFunctionGenGenerate(stmt.value, params, undefined, scopeVarsTyped.names, scopeVarsTyped.types);
 
-    const closureInfoResult = this.ctx.exprGen.arrowFunctionGen.getClosureInfoForLambda(lambdaName);
+    const closureInfoResult = this.ctx.arrowFunctionGenGetClosureInfo(lambdaName);
     const closureInfo = closureInfoResult as ClosureInfoResult;
 
     if (closureInfoResult && closureInfo.captures.length > 0) {
