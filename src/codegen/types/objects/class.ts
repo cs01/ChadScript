@@ -598,18 +598,30 @@ export class ClassGenerator {
     for (let i = 0; i < outputLen2; i++) {
       let line = this.ctx.getOutputLine(i);
       const trimmedLine = line.trim();
-      const retMatch = trimmedLine.match(/^ret (i8\*|double|%\w+\*?)$/);
-      if (retMatch) {
-        const retType = retMatch[1];
-        let defaultValue: string;
-        if (retType === 'double') {
-          defaultValue = '0.0';
-        } else if (retType === 'i8*') {
-          defaultValue = 'null';
-        } else {
-          defaultValue = 'null';
+      // Stage0-safe: avoid regex due to GC interference with libc malloc
+      if (trimmedLine.startsWith('ret ')) {
+        const rest = trimmedLine.substring(4);
+        let isRetTypeOnly = false;
+        let retType = '';
+        if (rest === 'i8*') {
+          isRetTypeOnly = true;
+          retType = 'i8*';
+        } else if (rest === 'double') {
+          isRetTypeOnly = true;
+          retType = 'double';
+        } else if (rest.startsWith('%') && rest.indexOf(' ') === -1) {
+          isRetTypeOnly = true;
+          retType = rest;
         }
-        line = `ret ${retType} ${defaultValue}`;
+        if (isRetTypeOnly) {
+          let defaultValue: string;
+          if (retType === 'double') {
+            defaultValue = '0.0';
+          } else {
+            defaultValue = 'null';
+          }
+          line = `ret ${retType} ${defaultValue}`;
+        }
       }
       fixedOutput.push(line);
     }

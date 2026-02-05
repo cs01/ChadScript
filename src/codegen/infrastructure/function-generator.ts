@@ -390,18 +390,35 @@ export class FunctionGenerator {
     for (let i = 0; i < output2Len; i++) {
       const line: string = output2[i].trim();
       // Match 'ret <type>' without a value (e.g., 'ret i8*' or 'ret double')
-      const retMatch = line.match(/^ret (i8\*|double|%\w+\*?)$/);
-      if (retMatch) {
-        const retType = retMatch[1];
-        let defaultValue: string;
-        if (retType === 'double') {
-          defaultValue = '0.0';
-        } else if (retType === 'i8*') {
-          defaultValue = this.ctx.createEmptyStringConstant();
-        } else {
-          defaultValue = 'null';
+      // Stage0-safe: avoid regex due to GC interference with libc malloc
+      if (line.startsWith('ret ')) {
+        const rest = line.substring(4);
+        let isRetTypeOnly = false;
+        let retType = '';
+        if (rest === 'i8*') {
+          isRetTypeOnly = true;
+          retType = 'i8*';
+        } else if (rest === 'double') {
+          isRetTypeOnly = true;
+          retType = 'double';
+        } else if (rest.startsWith('%') && (rest.endsWith('*') || rest.indexOf(' ') === -1)) {
+          const hasSpace = rest.indexOf(' ') !== -1;
+          if (!hasSpace) {
+            isRetTypeOnly = true;
+            retType = rest;
+          }
         }
-        output2[i] = `ret ${retType} ${defaultValue}`;
+        if (isRetTypeOnly) {
+          let defaultValue: string;
+          if (retType === 'double') {
+            defaultValue = '0.0';
+          } else if (retType === 'i8*') {
+            defaultValue = this.ctx.createEmptyStringConstant();
+          } else {
+            defaultValue = 'null';
+          }
+          output2[i] = `ret ${retType} ${defaultValue}`;
+        }
       }
     }
 
