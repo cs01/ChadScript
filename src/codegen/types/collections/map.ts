@@ -616,6 +616,11 @@ export class StringMapGenerator {
     this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentIndex}`);
     const keyValue = this.nextTemp();
     this.emit(`${keyValue} = load i8*, i8** ${keyElemPtr}`);
+    const keyIsNull = this.nextTemp();
+    this.emit(`${keyIsNull} = icmp eq i8* ${keyValue}, null`);
+    this.emit(`br i1 ${keyIsNull}, label %${loopLabel}_next, label %${bodyLabel}_cmp`);
+
+    this.emit(`${bodyLabel}_cmp:`);
     const cmpResult = this.nextTemp();
     this.emit(`${cmpResult} = call i32 @strcmp(i8* ${keyValue}, i8* ${keyToFind})`);
     const keyMatch = this.nextTemp();
@@ -681,6 +686,11 @@ export class StringMapGenerator {
     this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentIndex}`);
     const keyValue = this.nextTemp();
     this.emit(`${keyValue} = load i8*, i8** ${keyElemPtr}`);
+    const keyIsNull = this.nextTemp();
+    this.emit(`${keyIsNull} = icmp eq i8* ${keyValue}, null`);
+    this.emit(`br i1 ${keyIsNull}, label %${loopLabel}_next, label %${bodyLabel}_cmp`);
+
+    this.emit(`${bodyLabel}_cmp:`);
     const cmpResult = this.nextTemp();
     this.emit(`${cmpResult} = call i32 @strcmp(i8* ${keyValue}, i8* ${keyToFind})`);
     const keyMatch = this.nextTemp();
@@ -763,6 +773,11 @@ export class StringMapGenerator {
     this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentIndex}`);
     const keyValue = this.nextTemp();
     this.emit(`${keyValue} = load i8*, i8** ${keyElemPtr}`);
+    const keyIsNull = this.nextTemp();
+    this.emit(`${keyIsNull} = icmp eq i8* ${keyValue}, null`);
+    this.emit(`br i1 ${keyIsNull}, label %${loopLabel}_next, label %${bodyLabel}_cmp`);
+
+    this.emit(`${bodyLabel}_cmp:`);
     const cmpResult = this.nextTemp();
     this.emit(`${cmpResult} = call i32 @strcmp(i8* ${keyValue}, i8* ${keyToFind})`);
     const keyMatch = this.nextTemp();
