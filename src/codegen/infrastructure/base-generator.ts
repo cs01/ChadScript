@@ -100,6 +100,22 @@ export class BaseGenerator {
     this.currentLabel = label;
   }
 
+  getThisPointer(): string | null {
+    return this.thisPointer;
+  }
+
+  setThisPointer(ptr: string | null): void {
+    this.thisPointer = ptr;
+  }
+
+  getCurrentClassName(): string | null {
+    return this.currentClassName;
+  }
+
+  setCurrentClassName(name: string | null): void {
+    this.currentClassName = name;
+  }
+
   // Helper to get next string constant number (can be overridden)
   nextString(): string {
     return `@.str.${this.stringCounter++}`;

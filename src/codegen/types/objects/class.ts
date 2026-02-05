@@ -292,7 +292,9 @@ export class ClassGenerator {
     const regularMethods: ClassMethod[] = [];
     for (let mi = 0; mi < classNode.methods.length; mi++) {
       const m = classNode.methods[mi] as ClassMethod;
-      console.log('[generateClass] method[' + mi + '].name=' + m.name + ', isConstructor=' + m.isConstructor);
+      const methodName = m.name ? m.name : 'null';
+      const isCons = m.isConstructor ? 1 : 0;
+      console.log('[generateClass] method[' + mi + '].name=' + methodName + ', isConstructor=' + isCons);
       if (m.isConstructor) {
         constructorResult = m;
       } else {
@@ -430,13 +432,24 @@ export class ClassGenerator {
       this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
     }
 
-    this.ctx.thisPointer = objPtr;
-    this.ctx.currentClassName = className;
+    console.log('[generateConstructor] about to call setThisPointer');
+    this.ctx.setThisPointer(objPtr);
+    console.log('[generateConstructor] setThisPointer done');
+    this.ctx.setCurrentClassName(className);
+    console.log('[generateConstructor] setCurrentClassName done');
+    console.log('[generateConstructor] about to set currentFunction');
     this.ctx.currentFunction = 'constructor';
+    console.log('[generateConstructor] about to set currentFunctionReturnType');
     this.ctx.currentFunctionReturnType = structType;
+    console.log('[generateConstructor] state setup complete');
 
-    if (constructor.parameterProperties) {
-      for (let i = 0; i < constructor.parameterProperties.length; i++) {
+    console.log('[generateConstructor] about to check parameterProperties');
+    const hasParamProps = constructor.parameterProperties;
+    console.log('[generateConstructor] hasParamProps=' + (hasParamProps ? 'yes' : 'no'));
+    if (hasParamProps) {
+      const paramPropsLen = constructor.parameterProperties.length;
+      console.log('[generateConstructor] parameterProperties.length=' + paramPropsLen);
+      for (let i = 0; i < paramPropsLen; i++) {
         const propName = constructor.parameterProperties[i];
         let paramIndex = -1;
         for (let pi = 0; pi < constructor.params.length; pi++) {
@@ -474,7 +487,11 @@ export class ClassGenerator {
       }
     }
 
+    console.log('[generateConstructor] about to call generateBlock');
+    console.log('[generateConstructor] constructor.body=' + (constructor.body ? 'exists' : 'null'));
+    console.log('[generateConstructor] constructor.params=' + (constructor.params ? 'exists' : 'null'));
     this.ctx.generateBlock(constructor.body, constructor.params);
+    console.log('[generateConstructor] generateBlock done');
 
     const deferredAllocas = this.ctx.allocaInstructions;
     if (deferredAllocas.length > 0) {
@@ -590,8 +607,8 @@ export class ClassGenerator {
     this.emit(`store ${thisType} %this, ${thisType}* ${thisAlloca}`);
     const thisLoaded = this.nextTemp();
     this.emit(`${thisLoaded} = load ${thisType}, ${thisType}* ${thisAlloca}`);
-    this.ctx.thisPointer = thisLoaded;
-    this.ctx.currentClassName = className;
+    this.ctx.setThisPointer(thisLoaded);
+    this.ctx.setCurrentClassName(className);
     this.ctx.currentFunction = method.name;
     this.ctx.currentFunctionReturnType = returnLLVMType;
     this.ctx.currentFunctionTsReturnType = method.returnType;

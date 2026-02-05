@@ -242,6 +242,11 @@ export interface IGeneratorContext {
    */
   currentClassName: string | null;
 
+  getThisPointer(): string | null;
+  setThisPointer(ptr: string | null): void;
+  getCurrentClassName(): string | null;
+  setCurrentClassName(name: string | null): void;
+
   // ============================================
   // Variable Type Tracking
   // ============================================
@@ -447,6 +452,22 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   getActualClassType(name: string): string | undefined {
     return this.actualClassTypes.get(name);
+  }
+
+  getThisPointer(): string | null {
+    return this.thisPointer;
+  }
+
+  setThisPointer(ptr: string | null): void {
+    this.thisPointer = ptr;
+  }
+
+  getCurrentClassName(): string | null {
+    return this.currentClassName;
+  }
+
+  setCurrentClassName(name: string | null): void {
+    this.currentClassName = name;
   }
 
   generateExpression(_expr: Expression, _params: string[]): string {
