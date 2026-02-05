@@ -182,7 +182,8 @@ export class FunctionGenerator {
       paramStrings.push('i32 %__argc');
     }
     for (let i = 0; i < funcParams.length; i++) {
-      paramStrings.push(`${paramLLVMTypes[i]} %arg${i}`);
+      const llvmType = paramLLVMTypes[i] || 'double';
+      paramStrings.push(`${llvmType} %arg${i}`);
     }
     ir += paramStrings.join(', ');
     ir += ') {\n';

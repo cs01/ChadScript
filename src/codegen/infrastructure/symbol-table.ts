@@ -233,14 +233,26 @@ export class SymbolTable {
     scope: 'local' | 'global' = 'local',
     metadata?: SymbolMetadata
   ): void {
+    if (!name) return;
     const symbol: Symbol = {
       name,
       kind,
       llvmType,
       allocaRegister,
-      scope,
-      ...metadata
+      scope
     };
+    if (metadata) {
+      if (metadata.objectMetadata) symbol.objectMetadata = metadata.objectMetadata;
+      if (metadata.classMetadata) symbol.classMetadata = metadata.classMetadata;
+      if (metadata.arrayMetadata) symbol.arrayMetadata = metadata.arrayMetadata;
+      if (metadata.objectArrayMetadata) symbol.objectArrayMetadata = metadata.objectArrayMetadata;
+      if (metadata.closureMetadata) symbol.closureMetadata = metadata.closureMetadata;
+      if (metadata.mapMetadata) symbol.mapMetadata = metadata.mapMetadata;
+      if (metadata.setMetadata) symbol.setMetadata = metadata.setMetadata;
+      if (metadata.isPointerAlloca !== undefined) symbol.isPointerAlloca = metadata.isPointerAlloca;
+      if (metadata.interfaceType) symbol.interfaceType = metadata.interfaceType;
+      if (metadata.resolvedType) symbol.resolvedType = metadata.resolvedType;
+    }
     if (!this.symbols.has(name)) {
       this.symbolKeys.push(name);
       this.symbolKeysCount++;
@@ -252,6 +264,7 @@ export class SymbolTable {
    * Look up a symbol by name
    */
   lookup(name: string): Symbol | undefined {
+    if (!name) return undefined;
     return this.symbols.get(name);
   }
 
@@ -259,6 +272,7 @@ export class SymbolTable {
    * Check if a symbol exists
    */
   has(name: string): boolean {
+    if (!name) return false;
     return this.symbols.has(name);
   }
 
@@ -266,6 +280,7 @@ export class SymbolTable {
    * Get LLVM type for a variable
    */
   getType(name: string): string | undefined {
+    if (!name) return undefined;
     const symbol = this.symbols.get(name);
     if (symbol) {
       return symbol.llvmType;
@@ -277,6 +292,7 @@ export class SymbolTable {
    * Get alloca register for a variable
    */
   getAlloca(name: string): string | undefined {
+    if (!name) return undefined;
     const symbol = this.symbols.get(name);
     if (symbol) {
       return symbol.allocaRegister;
@@ -288,6 +304,7 @@ export class SymbolTable {
    * Get symbol kind for a variable
    */
   getKind(name: string): SymbolKind | undefined {
+    if (!name) return undefined;
     const symbol = this.symbols.get(name);
     if (symbol) {
       return symbol.kind;
@@ -299,6 +316,7 @@ export class SymbolTable {
    * Get interface type for a variable (if it's an interface-typed object)
    */
   getInterfaceType(name: string): string | undefined {
+    if (!name) return undefined;
     const symbol = this.symbols.get(name);
     if (symbol) {
       return symbol.interfaceType;
@@ -310,6 +328,7 @@ export class SymbolTable {
    * Get resolved type for a variable (cached ResolvedType)
    */
   getResolvedType(name: string): ResolvedType | undefined {
+    if (!name) return undefined;
     const symbol = this.symbols.get(name);
     if (symbol) {
       return symbol.resolvedType;
@@ -321,6 +340,7 @@ export class SymbolTable {
    * Set resolved type for a variable (cache ResolvedType)
    */
   setResolvedType(name: string, resolvedType: ResolvedType): void {
+    if (!name) return;
     const symbol = this.symbols.get(name);
     if (symbol) {
       symbol.resolvedType = resolvedType;
