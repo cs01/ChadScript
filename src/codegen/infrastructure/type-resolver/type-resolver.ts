@@ -327,6 +327,9 @@ export class TypeResolver {
   }
 
   tsTypeToLlvm(tsType: string): string {
+    if (this.isEnumType(tsType)) {
+      return 'double';
+    }
     return tsTypeToLlvmUtil(tsType);
   }
 
@@ -545,6 +548,27 @@ export class TypeResolver {
     if (typeStr.startsWith("'") && typeStr.endsWith("'")) return 'string';
     if (typeStr.startsWith('"') && typeStr.endsWith('"')) return 'string';
     return typeStr;
+  }
+
+  isEnumType(typeName: string): boolean {
+    if (!this.ctx.ast || !this.ctx.ast.enums) return false;
+    let checkType = typeName;
+    if (checkType.indexOf(' | ') !== -1) {
+      const parts = checkType.split(' | ');
+      for (let j = 0; j < parts.length; j++) {
+        const part = parts[j].trim();
+        if (part !== 'undefined' && part !== 'null') {
+          checkType = part;
+          break;
+        }
+      }
+    }
+    for (let i = 0; i < this.ctx.ast.enums.length; i++) {
+      if (this.ctx.ast.enums[i].name === checkType) {
+        return true;
+      }
+    }
+    return false;
   }
 
   getThisFieldMapType(expr: Expression): ThisFieldMapInfo | null {

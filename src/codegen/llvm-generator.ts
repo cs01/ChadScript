@@ -436,7 +436,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                 const field = interfaceDef.fields[i] as { name: string; type: string };
                 keys.push(stripOptional(field.name));
                 tsTypes.push(field.type);
-                types.push(tsTypeToLlvmJson(field.type));
+                types.push(this.tsTypeToLlvmJsonWithEnums(field.type));
               }
               ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
@@ -878,6 +878,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               const converted = this.nextTemp();
               this.emit(`${converted} = sitofp i32 ${lastValue} to double`);
               lastValue = converted;
+            } else if (valueType === 'i8*' || lastValue === 'null') {
+              lastValue = '0.0';
             }
           }
 
@@ -1036,6 +1038,34 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public getTopLevelItemsCount(): number {
     return this.topLevelItemsCount;
+  }
+
+  private isEnumType(typeName: string): boolean {
+    if (!this.ast.enums) return false;
+    let checkType = typeName;
+    if (checkType.indexOf(' | ') !== -1) {
+      const parts = checkType.split(' | ');
+      for (let j = 0; j < parts.length; j++) {
+        const part = parts[j].trim();
+        if (part !== 'undefined' && part !== 'null') {
+          checkType = part;
+          break;
+        }
+      }
+    }
+    for (let i = 0; i < this.ast.enums.length; i++) {
+      if (this.ast.enums[i].name === checkType) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private tsTypeToLlvmJsonWithEnums(tsType: string): string {
+    if (this.isEnumType(tsType)) {
+      return 'double';
+    }
+    return tsTypeToLlvmJson(tsType);
   }
 
   public getTopLevelStatementsCount(): number {

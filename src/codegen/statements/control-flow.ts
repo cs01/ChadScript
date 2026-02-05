@@ -1481,7 +1481,29 @@ export class ControlFlowGenerator {
     if (fieldType === 'number') return 'double';
     if (fieldType === 'boolean') return 'double';
     if (fieldType.startsWith("'") || fieldType.startsWith('"')) return 'i8*';
+    if (this.isEnumType(fieldType)) return 'double';
     return 'i8*';
+  }
+
+  private isEnumType(typeName: string): boolean {
+    if (!this.ctx.ast || !this.ctx.ast.enums) return false;
+    let checkType = typeName;
+    if (checkType.indexOf(' | ') !== -1) {
+      const parts = checkType.split(' | ');
+      for (let j = 0; j < parts.length; j++) {
+        const part = parts[j].trim();
+        if (part !== 'undefined' && part !== 'null') {
+          checkType = part;
+          break;
+        }
+      }
+    }
+    for (let i = 0; i < this.ctx.ast.enums.length; i++) {
+      if (this.ctx.ast.enums[i].name === checkType) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private detectTypeGuard(condition: Expression): { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } } | null {

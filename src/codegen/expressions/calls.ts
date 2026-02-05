@@ -12,6 +12,27 @@ import { IGeneratorContext } from '../infrastructure/generator-context.js';
 export class CallExpressionGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
+  private isEnumType(typeName: string): boolean {
+    if (!this.ctx.ast || !this.ctx.ast.enums) return false;
+    let checkType = typeName;
+    if (checkType.indexOf(' | ') !== -1) {
+      const parts = checkType.split(' | ');
+      for (let j = 0; j < parts.length; j++) {
+        const part = parts[j].trim();
+        if (part !== 'undefined' && part !== 'null') {
+          checkType = part;
+          break;
+        }
+      }
+    }
+    for (let i = 0; i < this.ctx.ast.enums.length; i++) {
+      if (this.ctx.ast.enums[i].name === checkType) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private getFunctionFromAST(name: string): FunctionNode | null {
     if (!this.ctx.ast?.functions) return null;
     const resolvedName = this.ctx.resolveImportAlias(name);
@@ -396,7 +417,7 @@ export class CallExpressionGenerator {
         returnType = '%Array*';
       } else if (func.returnType && func.returnType.endsWith('[]')) {
         returnType = '%ObjectArray*';
-      } else if (func.returnType && func.returnType !== '' && func.returnType !== 'number' && func.returnType !== 'boolean') {
+      } else if (func.returnType && func.returnType !== '' && func.returnType !== 'number' && func.returnType !== 'boolean' && !this.isEnumType(func.returnType)) {
         returnType = 'i8*';
       }
       for (let i = 0; i < func.paramTypes.length; i++) {
@@ -410,7 +431,7 @@ export class CallExpressionGenerator {
           paramTypes.push('%StringArray*');
         } else if (p === 'number[]' || p === 'boolean[]') {
           paramTypes.push('%Array*');
-        } else if (p !== 'number' && p !== 'boolean') {
+        } else if (p !== 'number' && p !== 'boolean' && !this.isEnumType(p)) {
           paramTypes.push('i8*');
         } else {
           paramTypes.push('double');
@@ -429,7 +450,7 @@ export class CallExpressionGenerator {
           returnType = '%Array*';
         } else if (funcNode.returnType && funcNode.returnType.endsWith('[]')) {
           returnType = '%ObjectArray*';
-        } else if (funcNode.returnType && funcNode.returnType !== '' && funcNode.returnType !== 'number' && funcNode.returnType !== 'boolean') {
+        } else if (funcNode.returnType && funcNode.returnType !== '' && funcNode.returnType !== 'number' && funcNode.returnType !== 'boolean' && !this.isEnumType(funcNode.returnType)) {
           returnType = 'i8*';
         }
         if (funcNode.parameters) {
@@ -440,7 +461,7 @@ export class CallExpressionGenerator {
             } else if (p.type === 'string') paramTypes.push('i8*');
             else if (p.type === 'string[]') paramTypes.push('%StringArray*');
             else if (p.type === 'number[]' || p.type === 'boolean[]') paramTypes.push('%Array*');
-            else if (p.type && p.type !== 'number' && p.type !== 'boolean') paramTypes.push('i8*');
+            else if (p.type && p.type !== 'number' && p.type !== 'boolean' && !this.isEnumType(p.type)) paramTypes.push('i8*');
             else paramTypes.push('double');
           }
         } else if (funcNode.paramTypes) {
@@ -452,7 +473,7 @@ export class CallExpressionGenerator {
             } else if (t === 'string') paramTypes.push('i8*');
             else if (t === 'string[]') paramTypes.push('%StringArray*');
             else if (t === 'number[]' || t === 'boolean[]') paramTypes.push('%Array*');
-            else if (t !== 'number' && t !== 'boolean') paramTypes.push('i8*');
+            else if (t !== 'number' && t !== 'boolean' && !this.isEnumType(t)) paramTypes.push('i8*');
             else paramTypes.push('double');
           }
         }
