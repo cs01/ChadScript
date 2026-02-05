@@ -352,7 +352,10 @@ export class ClassGenerator {
       const paramName = constructor.params[i];
       const allocaReg = this.nextTemp();
       const llvmType = paramLLVMTypes[i];
-      const tsType = paramTsTypes[i];
+      let tsType: string | undefined;
+      if (i < paramTsTypes.length) {
+        tsType = paramTsTypes[i];
+      }
 
       this.defineParameterWithType(paramName, allocaReg, llvmType, tsType);
       this.emit(`${allocaReg} = alloca ${llvmType}`);
@@ -563,7 +566,10 @@ export class ClassGenerator {
       const paramName = method.params[i];
       const allocaReg = this.nextTemp();
       const llvmType = paramLLVMTypes[i];
-      const tsType = paramTsTypes[i];
+      let tsType: string | undefined;
+      if (i < paramTsTypes.length) {
+        tsType = paramTsTypes[i];
+      }
 
       this.defineParameterWithType(paramName, allocaReg, llvmType, tsType);
       this.emit(`${allocaReg} = alloca ${llvmType}`);

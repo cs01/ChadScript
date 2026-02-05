@@ -1704,7 +1704,7 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
     }
   }
 
-  return { name, extends: extendsClause, fields, methods };
+  return { name, extends: extendsClause, implements: [], fields, methods };
 }
 
 function transformClassField(node: TreeSitterNode): ClassField | null {
