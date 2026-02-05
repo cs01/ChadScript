@@ -1544,7 +1544,7 @@ export class MethodCallGenerator {
       }
 
       this.ctx.syncStateToGenerators();
-      return this.ctx.classGen.generateMethodCall(instancePtr, resolvedClass, method, expr.args, params);
+      return this.ctx.classGen.generateMethodCall(instancePtr, className, method, expr.args, params);
     }
 
     return null;
