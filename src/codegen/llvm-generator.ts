@@ -389,6 +389,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public stringSetGenGenerateStringSetAdd(setAlloca: string, valueValue: string): string { this.syncStateToGenerators(); return this.stringSetGen.generateStringSetAdd(setAlloca, valueValue); }
   public stringSetGenGenerateStringSetHas(setAlloca: string, valueValue: string): string { this.syncStateToGenerators(); return this.stringSetGen.generateStringSetHas(setAlloca, valueValue); }
 
+  public pointerMapGenGeneratePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string { this.syncStateToGenerators(); return this.pointerMapGen.generatePointerMapSet(mapPtr, keyValue, valueValue); }
+  public pointerMapGenGeneratePointerMapGet(mapPtr: string, keyValue: string, valueType: string): string { this.syncStateToGenerators(); return this.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, valueType); }
+  public pointerMapGenGeneratePointerMapClear(mapPtr: string): string { this.syncStateToGenerators(); return this.pointerMapGen.generatePointerMapClear(mapPtr); }
+
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (!objExpr || objExpr.type !== 'object') {
