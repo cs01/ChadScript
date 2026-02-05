@@ -183,6 +183,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.ast;
   }
 
+  public getLastInstruction(): string {
+    if (this.output.length === 0) return '';
+    const last = this.output[this.output.length - 1];
+    return last ? last.trim() : '';
+  }
+
   // SymbolTable wrapper methods (avoid method chaining issues in native code)
   public symbolTableLookup(name: string): SymbolEntry | undefined { return this.symbolTable.lookup(name); }
   public symbolTableIsClass(name: string): boolean { return this.symbolTable.isClass(name); }
@@ -293,7 +299,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public setIsAsyncFunction(value: boolean): void { this.isAsyncFunction = value; }
   public setAsyncResultPromise(value: string): void { this.asyncResultPromise = value; }
   public getAsyncResultPromise(): string { return this.asyncResultPromise; }
-  public interfaceStructGenHasInterface(name: string): boolean { return this.interfaceStructGen ? this.interfaceStructGen.hasInterface(name) : false; }
   public getAllocaInstructions(): string[] { return this.allocaInstructions; }
   public clearAllocaInstructions(): void { this.allocaInstructions.length = 0; }
   public getOutput(): string[] { return this.output; }
@@ -335,6 +340,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public stringGenGenerateGlobalString(value: string): string { this.syncStateToGenerators(); return this.stringGen.generateGlobalString(value); }
   public stringGenGenerateStringConcat(left: Expression, right: Expression, params: string[]): string { this.syncStateToGenerators(); return this.stringGen.generateStringConcat(left, right, params); }
   public stringGenConvertNumberToString(numValue: string): string { this.syncStateToGenerators(); return this.stringGen.convertNumberToString(numValue); }
+
+  public interfaceStructGenHasInterface(name: string): boolean { return this.interfaceStructGen ? this.interfaceStructGen.hasInterface(name) : false; }
+  public interfaceStructGenGetInterfaceStruct(name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined { return this.interfaceStructGen ? this.interfaceStructGen.getInterfaceStruct(name) : undefined; }
+  public interfaceStructGenGetStructSize(interfaceName: string): number { return this.interfaceStructGen ? this.interfaceStructGen.getStructSize(interfaceName) : 0; }
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {

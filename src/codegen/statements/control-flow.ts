@@ -103,7 +103,7 @@ export class ControlFlowGenerator {
       this.ctx.symbolTableRestoreType(tg.varName);
     }
 
-    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.getLastInstruction();
     const thenHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
@@ -117,7 +117,7 @@ export class ControlFlowGenerator {
       this.emit(`${elseLabel}:`);
       this.ctx.currentLabel = elseLabel;
       this.ctx.generateBlock(ifStmt.elseBlock, params);
-      const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
+      const lastInstruction = this.ctx.getLastInstruction();
       elseHasTerminator = lastInstruction.startsWith('ret ') ||
                                 lastInstruction.startsWith('br ') ||
                                 lastInstruction.startsWith('unreachable') ||
@@ -165,8 +165,7 @@ export class ControlFlowGenerator {
     this.loopStack.push({ continueLabel: condLabel, breakLabel: endLabel });
     this.ctx.generateBlock(whileStmt.body, params);
     this.loopStack.pop();
-    // Check if the LAST instruction is a terminator
-    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.getLastInstruction();
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
@@ -241,7 +240,7 @@ export class ControlFlowGenerator {
     this.ctx.generateBlock(forStmt.body, params);
     this.loopStack.pop();
     // Check if the LAST instruction is a terminator
-    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.getLastInstruction();
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
@@ -396,7 +395,7 @@ export class ControlFlowGenerator {
     this.loopStack.pop();
 
     // Check if body has terminator
-    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.getLastInstruction();
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
@@ -1308,7 +1307,7 @@ export class ControlFlowGenerator {
     this.ctx.generateBlock(forOfStmt.body, params);
     this.loopStack.pop();
 
-    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.getLastInstruction();
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||
@@ -1932,7 +1931,7 @@ export class ControlFlowGenerator {
     this.ctx.generateBlock(stmt.body, params);
     this.loopStack.pop();
 
-    const lastInstruction = this.ctx.output[this.ctx.output.length - 1]?.trim() || '';
+    const lastInstruction = this.ctx.getLastInstruction();
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
                               lastInstruction.startsWith('unreachable') ||

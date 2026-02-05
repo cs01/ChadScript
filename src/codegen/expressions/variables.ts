@@ -34,6 +34,7 @@ export interface VariableExpressionContext {
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetInterfaceType(name: string): string | undefined;
   interfaceStructGen?: InterfaceStructGenerator;
+  interfaceStructGenHasInterface(name: string): boolean;
 }
 
 interface ClassMeta {
@@ -267,7 +268,7 @@ export class VariableExpressionGenerator {
         if (structName === 'Promise' || structName === 'PromiseCallback') return true;
         if (structName === 'Response' || structName === 'FetchBuffer') return true;
         if (structName.startsWith('struct.')) return true;
-        if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(structName)) {
+        if (this.ctx.interfaceStructGenHasInterface(structName)) {
           return true;
         }
       }

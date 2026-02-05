@@ -25,6 +25,7 @@ interface ResponseGeneratorContext {
   variableTypes: Map<string, string>;
   setVariableType(name: string, type: string): void;
   interfaceStructGen?: InterfaceStructGenerator;
+  interfaceStructGenHasInterface(name: string): boolean;
 }
 
 export class ResponseGenerator {
@@ -109,7 +110,7 @@ export class ResponseGenerator {
     typeName: string,
     interfaceDef: InterfaceDefInfo
   ): string {
-    const alreadyDefined = this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(typeName);
+    const alreadyDefined = this.ctx.interfaceStructGenHasInterface(typeName);
 
     if (!this.generatedStructs.has(typeName) && !alreadyDefined) {
       this.generateJsonStruct(typeName, interfaceDef);

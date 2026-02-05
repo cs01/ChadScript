@@ -121,6 +121,8 @@ export interface MemberAccessGeneratorContext {
   responseGen: ResponseGeneratorLike;
   generateExpression(expr: Expression, params: string[]): string;
   stringGenCreateStringConstant(value: string): string;
+  interfaceStructGenHasInterface(name: string): boolean;
+  interfaceStructGenGetInterfaceStruct(name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined;
 }
 
 /**
@@ -817,8 +819,8 @@ export class MemberAccessGenerator {
   }
 
   private storeInterfaceMetadata(register: string, tsType: string): void {
-    if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(tsType)) {
-      const interfaceInfo = this.ctx.interfaceStructGen.getInterfaceStruct(tsType);
+    if (this.ctx.interfaceStructGenHasInterface(tsType)) {
+      const interfaceInfo = this.ctx.interfaceStructGenGetInterfaceStruct(tsType);
       if (interfaceInfo) {
         const keys: string[] = [];
         const tsTypes: string[] = [];
@@ -1070,7 +1072,7 @@ export class MemberAccessGenerator {
       const metadataRaw = this.ctx.jsonObjectMetadata.get(innerPtr);
       if (metadataRaw) {
         const metadata = metadataRaw as { keys: string[]; types: string[]; tsTypes: string[] | undefined; interfaceType?: string };
-        if (metadata.interfaceType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(metadata.interfaceType)) {
+        if (metadata.interfaceType && this.ctx.interfaceStructGenHasInterface(metadata.interfaceType)) {
           return this.accessObjectPropertyWithNamedInterface(innerPtr, expr.property, metadata.interfaceType);
         }
         if (metadata.keys && metadata.types) {
@@ -1823,7 +1825,7 @@ export class MemberAccessGenerator {
               return this.loadFieldValue(fieldPtr, classFieldInfo);
             }
           }
-          if (this.ctx.interfaceStructGen && ifaceType && ifaceType.length > 0 && this.ctx.interfaceStructGen.hasInterface(ifaceType)) {
+          if (ifaceType && ifaceType.length > 0 && this.ctx.interfaceStructGenHasInterface(ifaceType)) {
             const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
             const objPtrRaw = this.ctx.nextTemp();
             this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${objPtrPtr}`);
@@ -2301,7 +2303,7 @@ export class MemberAccessGenerator {
             const metadataRaw = this.ctx.jsonObjectMetadata.get(innerPtr);
             if (metadataRaw) {
               const metadata = metadataRaw as { keys: string[]; types: string[]; tsTypes: string[] | undefined; interfaceType?: string };
-              if (metadata.interfaceType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(metadata.interfaceType)) {
+              if (metadata.interfaceType && this.ctx.interfaceStructGenHasInterface(metadata.interfaceType)) {
                 return this.accessObjectPropertyWithNamedInterface(innerPtr, expr.property, metadata.interfaceType);
               }
               if (metadata.keys && metadata.types) {
@@ -2391,7 +2393,7 @@ export class MemberAccessGenerator {
         const objPtrRaw = this.ctx.nextTemp();
         this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${varAlloca}`);
         const ifaceType = symbol.interfaceType;
-        if (this.ctx.interfaceStructGen && ifaceType && this.ctx.interfaceStructGen.hasInterface(ifaceType)) {
+        if (ifaceType && this.ctx.interfaceStructGenHasInterface(ifaceType)) {
           return this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, ifaceType);
         }
         const interfaceDef = this.getInterfaceFromAST(ifaceType);
@@ -2555,7 +2557,7 @@ export class MemberAccessGenerator {
                   return this.loadFieldValue(fieldPtr, fieldInfo);
                 }
               }
-              if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(paramInterfaceType)) {
+              if (this.ctx.interfaceStructGenHasInterface(paramInterfaceType)) {
                 const objPtrRaw = this.ctx.nextTemp();
                 this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${paramPtr}`);
                 return this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, paramInterfaceType);
@@ -2660,7 +2662,7 @@ export class MemberAccessGenerator {
       }
       fields = inlineFields;
     } else {
-      if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(assertedType)) {
+      if (this.ctx.interfaceStructGenHasInterface(assertedType)) {
         const objPtr = this.ctx.generateExpression(assertion.expression, params);
         return this.accessObjectPropertyWithNamedInterface(objPtr, property, assertedType);
       }
@@ -2821,7 +2823,7 @@ export class MemberAccessGenerator {
   }
 
   private accessInterfacePropertyWithNamedStruct(varName: string, property: string, interfaceType: string): string {
-    const interfaceInfo = this.ctx.interfaceStructGen!.getInterfaceStruct(interfaceType);
+    const interfaceInfo = this.ctx.interfaceStructGenGetInterfaceStruct(interfaceType);
     if (!interfaceInfo) {
       throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
     }
@@ -2878,7 +2880,7 @@ export class MemberAccessGenerator {
   }
 
   private accessObjectPropertyWithNamedInterface(objPtr: string, property: string, interfaceType: string): string {
-    const interfaceInfo = this.ctx.interfaceStructGen!.getInterfaceStruct(interfaceType);
+    const interfaceInfo = this.ctx.interfaceStructGenGetInterfaceStruct(interfaceType);
     if (!interfaceInfo) {
       throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
     }

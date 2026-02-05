@@ -333,6 +333,12 @@ export interface IGeneratorContext {
   readonly output: string[];
 
   /**
+   * Get the last instruction in the output buffer
+   * Safe method access that avoids interface struct layout issues
+   */
+  getLastInstruction(): string;
+
+  /**
    * Collected alloca instructions to be hoisted to entry block
    * Allocas inside loops cause stack overflow - they must be at function start
    */
@@ -483,6 +489,13 @@ export interface IGeneratorContext {
   stringGenConvertNumberToString(numValue: string): string;
 
   /**
+   * InterfaceStructGen delegate methods (avoid struct layout mismatch)
+   */
+  interfaceStructGenHasInterface(name: string): boolean;
+  interfaceStructGenGetInterfaceStruct(name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined;
+  interfaceStructGenGetStructSize(interfaceName: string): number;
+
+  /**
    * Access to string map generator for Map<string, *> operations
    */
   readonly stringMapGen: IStringMapGenerator;
@@ -534,6 +547,12 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   getAst(): AST | undefined {
     return this.ast;
+  }
+
+  getLastInstruction(): string {
+    if (this.output.length === 0) return '';
+    const last = this.output[this.output.length - 1];
+    return last ? last.trim() : '';
   }
 
   getExpressionType(expr: Expression): ResolvedType | undefined {
@@ -821,6 +840,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   stringGenGenerateGlobalString(_value: string): string { return '%0'; }
   stringGenGenerateStringConcat(_left: Expression, _right: Expression, _params: string[]): string { return '%0'; }
   stringGenConvertNumberToString(_numValue: string): string { return '%0'; }
+
+  interfaceStructGenHasInterface(_name: string): boolean { return false; }
+  interfaceStructGenGetInterfaceStruct(_name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined { return undefined; }
+  interfaceStructGenGetStructSize(_interfaceName: string): number { return 0; }
 
   generateHttpServe(_expr: CallNode, _params: string[]): string {
     return this.nextTemp();
