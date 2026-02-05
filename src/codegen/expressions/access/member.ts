@@ -489,6 +489,7 @@ export class MemberAccessGenerator {
 
     const propField = interfaceDef.properties[propIndex] as InterfaceProperty;
     const propType = propField.type;
+    const propName = propField.name;
     const varPtr = this.ctx.getVariableAlloca((expr.object as VariableNode).name);
     const structPtr = this.ctx.nextTemp();
     this.ctx.emit(`${structPtr} = load %${structTypeName}*, %${structTypeName}** ${varPtr}`);
@@ -496,7 +497,12 @@ export class MemberAccessGenerator {
     const fieldPtr = this.ctx.nextTemp();
     this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${structTypeName}, %${structTypeName}* ${structPtr}, i32 0, i32 ${propIndex}`);
 
-    if (propType === 'string') {
+    if (propName === 'nodePtr' || propName === 'treePtr') {
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+      this.ctx.setVariableType(value, 'i8*');
+      return value;
+    } else if (propType === 'string') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
       this.ctx.setVariableType(value, 'i8*');
@@ -1118,7 +1124,12 @@ export class MemberAccessGenerator {
       return null;
     }
 
-    if (propType === 'string') {
+    if (expr.property === 'nodePtr' || expr.property === 'treePtr') {
+      const value = this.ctx.nextTemp();
+      this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+      this.ctx.setVariableType(value, 'i8*');
+      return value;
+    } else if (propType === 'string') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
       this.ctx.setVariableType(value, 'i8*');
@@ -2302,7 +2313,12 @@ export class MemberAccessGenerator {
               const fieldPtr = this.ctx.nextTemp();
               this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${objPtr}, i32 0, i32 ${propIndex}`);
               const llvmFieldType = this.interfaceTsTypeToLlvm(propType);
-              if (propType === 'string') {
+              if (expr.property === 'nodePtr' || expr.property === 'treePtr') {
+                const value = this.ctx.nextTemp();
+                this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+                this.ctx.setVariableType(value, 'i8*');
+                return value;
+              } else if (propType === 'string') {
                 const value = this.ctx.nextTemp();
                 this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
                 this.ctx.setVariableType(value, 'i8*');
