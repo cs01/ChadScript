@@ -458,9 +458,20 @@ export class FunctionGenerator {
   private isEnumType(typeName: string): boolean {
     const enums = this.ctx.ast.enums;
     if (!enums) return false;
+    let checkType = typeName;
+    if (checkType.indexOf(' | ') !== -1) {
+      const parts = checkType.split(' | ');
+      for (let j = 0; j < parts.length; j++) {
+        const part = parts[j].trim();
+        if (part !== 'undefined' && part !== 'null') {
+          checkType = part;
+          break;
+        }
+      }
+    }
     for (let i = 0; i < enums.length; i++) {
       const enumDecl = enums[i];
-      if (enumDecl.name === typeName) {
+      if (enumDecl.name === checkType) {
         return true;
       }
     }
@@ -468,12 +479,18 @@ export class FunctionGenerator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
+    if (this.isEnumType(tsType)) {
+      return 'double';
+    }
     return tsTypeToLlvmUtil(tsType);
   }
 
   private tsTypeToLlvmForField(fieldName: string, tsType: string): string {
     if (fieldName === 'nodePtr' || fieldName === 'treePtr') {
       return 'i8*';
+    }
+    if (this.isEnumType(tsType)) {
+      return 'double';
     }
     return tsTypeToLlvmUtil(tsType);
   }
