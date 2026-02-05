@@ -31,6 +31,7 @@ export interface VariableExpressionContext {
   symbolTableGetAlloca(name: string): string | undefined;
   symbolTableGetType(name: string): string | undefined;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
+  symbolTableGetInterfaceType(name: string): string | undefined;
 }
 
 interface ClassMeta {
@@ -159,7 +160,8 @@ export class VariableExpressionGenerator {
     if (this.ctx.symbolTableIsObject(name)) {
       const objectMeta = this.ctx.symbolTableGetObjectInfo(name);
       if (objectMeta) {
-        return this.loadObject(objectMeta);
+        const interfaceType = this.ctx.symbolTableGetInterfaceType(name);
+        return this.loadObject(objectMeta, interfaceType);
       }
       // Fall through to regular variable handling if no metadata
     }
@@ -216,10 +218,16 @@ export class VariableExpressionGenerator {
     return temp;
   }
 
-  private loadObject(objectMeta: ObjectMeta): string {
+  private loadObject(objectMeta: ObjectMeta, interfaceType?: string): string {
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = load i8*, i8** ${objectMeta.ptr}`);
-    this.ctx.setVariableType(temp, 'i8*');
+    if (interfaceType) {
+      const ptrType = `%${interfaceType}*`;
+      this.ctx.emit(`${temp} = load ${ptrType}, ${ptrType}* ${objectMeta.ptr}`);
+      this.ctx.setVariableType(temp, ptrType);
+    } else {
+      this.ctx.emit(`${temp} = load i8*, i8** ${objectMeta.ptr}`);
+      this.ctx.setVariableType(temp, 'i8*');
+    }
     return temp;
   }
 

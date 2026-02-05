@@ -71,7 +71,8 @@ export class ClassGenerator {
         if (classNode) {
           return `%${f.tsType}_struct*`;
         }
-        if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(f.tsType)) {
+        const hasIface = this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(f.tsType);
+        if (hasIface) {
           return `%${f.tsType}*`;
         }
         return 'i8*';
@@ -780,7 +781,8 @@ export class ClassGenerator {
     if (this.isEnumType(tsType)) {
       return 'double';
     }
-    if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(tsType)) {
+    const hasIface = this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(tsType);
+    if (hasIface) {
       return `%${tsType}*`;
     }
     return tsTypeToLlvmUtil(tsType);
