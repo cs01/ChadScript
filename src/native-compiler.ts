@@ -260,6 +260,11 @@ if (!fs.existsSync(theInputFile)) {
   throw new Error('unreachable');
 }
 
-const theOutputFile: string = outputFile !== null ? outputFile : theInputFile.substr(0, theInputFile.length - 3);
+let theOutputFile: string = theInputFile;
+if (outputFile !== null) {
+  theOutputFile = outputFile;
+} else if (theInputFile.substr(theInputFile.length - 3) === '.ts') {
+  theOutputFile = theInputFile.substr(0, theInputFile.length - 3);
+}
 
 compileNative(theInputFile, theOutputFile);

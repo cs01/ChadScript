@@ -338,6 +338,14 @@ export interface IGeneratorContext {
    */
   getLastInstruction(): string;
 
+  getOutput(): string[];
+  clearOutput(): void;
+  pushOutput(line: string): void;
+  getOutputLength(): number;
+  getOutputLine(index: number): string;
+  setOutputLine(index: number, line: string): void;
+  getOutputAsIndentedString(indent: string): string;
+
   /**
    * Collected alloca instructions to be hoisted to entry block
    * Allocas inside loops cause stack overflow - they must be at function start
@@ -564,6 +572,15 @@ export interface IGeneratorContext {
   pointerMapGenGeneratePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
   pointerMapGenGeneratePointerMapGet(mapPtr: string, keyValue: string, valueType: string): string;
   pointerMapGenGeneratePointerMapClear(mapPtr: string): string;
+
+  /**
+   * ResponseGen delegate methods (avoid struct layout mismatch)
+   */
+  responseGenGenerateText(responsePtr: string): string;
+  responseGenGenerateJson(responsePtr: string): string;
+  responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string;
+  responseGenGenerateStatus(responsePtr: string): string;
+  responseGenGenerateOk(responsePtr: string): string;
 }
 
 /**
@@ -865,6 +882,38 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.output.push(instruction);
   }
 
+  getOutput(): string[] {
+    return this.output;
+  }
+
+  clearOutput(): void {
+    this.output = [];
+  }
+
+  pushOutput(line: string): void {
+    this.output.push(line);
+  }
+
+  getOutputLength(): number {
+    return this.output.length;
+  }
+
+  getOutputLine(index: number): string {
+    return this.output[index] ?? '';
+  }
+
+  setOutputLine(index: number, line: string): void {
+    this.output[index] = line;
+  }
+
+  getOutputAsIndentedString(indent: string): string {
+    let result = '';
+    for (let i = 0; i < this.output.length; i++) {
+      result += indent + this.output[i] + '\n';
+    }
+    return result;
+  }
+
 
   getCurrentLabel(): string {
     return this.currentLabel;
@@ -998,6 +1047,12 @@ export class MockGeneratorContext implements IGeneratorContext {
   pointerMapGenGeneratePointerMapSet(_mapPtr: string, _keyValue: string, _valueValue: string): string { return '%mock_pointer_map_set'; }
   pointerMapGenGeneratePointerMapGet(_mapPtr: string, _keyValue: string, _valueType: string): string { return '%mock_pointer_map_get'; }
   pointerMapGenGeneratePointerMapClear(_mapPtr: string): string { return '%mock_pointer_map_clear'; }
+
+  responseGenGenerateText(_responsePtr: string): string { return '%mock_response_text'; }
+  responseGenGenerateJson(_responsePtr: string): string { return '%mock_response_json'; }
+  responseGenGenerateTypedJson(_responsePtr: string, _typeName: string, _interfaceDef: { properties: { name: string; type: string }[] }): string { return '%mock_response_typed_json'; }
+  responseGenGenerateStatus(_responsePtr: string): string { return '%mock_response_status'; }
+  responseGenGenerateOk(_responsePtr: string): string { return '%mock_response_ok'; }
 
   resolveImportAlias(localName: string): string {
     return localName;
