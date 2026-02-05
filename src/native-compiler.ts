@@ -203,6 +203,7 @@ function printUsage(): void {
   console.log('Usage: native-compiler [options] <input.ts> [output]');
   console.log('');
   console.log('Options:');
+  console.log('  -o <output>               Specify output file');
   console.log('  --use-ts-parser           (ignored, tree-sitter always used)');
   console.log('  --link-tree-sitter        (ignored, always linked)');
   console.log('  --skip-semantic-analysis  Skip semantic analysis');
@@ -230,6 +231,12 @@ while (argIdx < args.length) {
     argIdx = argIdx + 1;
   } else if (arg === '--skip-semantic-analysis') {
     argIdx = argIdx + 1;
+  } else if (arg === '-o') {
+    argIdx = argIdx + 1;
+    if (argIdx < args.length) {
+      outputFile = args[argIdx];
+      argIdx = argIdx + 1;
+    }
   } else if (arg.substr(0, 1) === '-') {
     console.log('Unknown option: ' + arg);
     printUsage();
