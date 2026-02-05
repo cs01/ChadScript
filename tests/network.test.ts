@@ -98,10 +98,13 @@ testTcpClient();
 
       assert.ok(!stdout.includes('Socket failed'), 'Socket creation should work');
 
-      // Cleanup
-      await fs.unlink(clientFile);
-      await fs.unlink('.build/tests/fixtures/tcp-client');
-      await fs.unlink('.build/tests/fixtures/tcp-client.ll');
+      // Cleanup (intermediate files are now auto-deleted)
+      try {
+        await fs.unlink(clientFile);
+        await fs.unlink('.build/tests/fixtures/tcp-client');
+      } catch (e) {
+        // Ignore cleanup errors
+      }
     } finally {
       server.close();
     }
@@ -202,7 +205,6 @@ httpServe(9997, handleRequest);
       try {
         await fs.unlink(testFile);
         await fs.unlink('.build/tests/fixtures/network/http-server-test');
-        await fs.unlink('.build/tests/fixtures/network/http-server-test.ll');
       } catch (e) {
         // Ignore cleanup errors
       }

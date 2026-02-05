@@ -12,6 +12,8 @@ import { LogLevel, logger } from './utils/logger.js';
 let useTSParser = false;
 let linkTreeSitter = false;
 let skipSemanticAnalysis = false;
+let keepTemps = false;
+let emitLLVMOnly = false;
 
 export function setUseTSParser(value: boolean): void {
   useTSParser = value;
@@ -23,6 +25,14 @@ export function setLinkTreeSitter(value: boolean): void {
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
+}
+
+export function setKeepTemps(value: boolean): void {
+  keepTemps = value;
+}
+
+export function setEmitLLVMOnly(value: boolean): void {
+  emitLLVMOnly = value;
 }
 
 // External library paths - check env vars, then use vendor/
@@ -139,6 +149,12 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const irFile = outputFile + '.ll';
   fs.writeFileSync(irFile, llvmIR);
 
+  // If --emit-llvm is set, stop here (don't compile or link)
+  if (emitLLVMOnly) {
+    logger.info(`LLVM IR written to ${irFile}`);
+    return;
+  }
+
   // Compile IR to object file
   const objFile = outputFile + '.o';
   const llcCmd = `llc -filetype=obj ${irFile} -o ${objFile}`;
@@ -195,11 +211,18 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });
 
-  // Clean up intermediate files
-  try {
-    fs.unlinkSync(objFile);
-  } catch (e) {
-    // File may already be deleted, ignore
+  // Clean up intermediate files (unless --keep-temps is set)
+  if (!keepTemps) {
+    try {
+      fs.unlinkSync(objFile);
+    } catch (e) {
+      // File may already be deleted, ignore
+    }
+    try {
+      fs.unlinkSync(irFile);
+    } catch (e) {
+      // File may already be deleted, ignore
+    }
   }
 
   // Silent on success (like clang)

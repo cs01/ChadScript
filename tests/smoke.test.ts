@@ -129,7 +129,7 @@ describe('Smoke Tests', { concurrency: 8 }, () => {
       try {
         await execAsync(`node dist/index.js ${fixturePath}`);
 
-        assert.ok(fsSync.existsSync(llFile), `LLVM IR should exist at ${llFile}`);
+        // Verify executable was generated (intermediate files are cleaned up by default)
         assert.ok(fsSync.existsSync(exeFile), `Executable should exist at ${exeFile}`);
 
         const args = testCase.args ? testCase.args.join(' ') : '';
