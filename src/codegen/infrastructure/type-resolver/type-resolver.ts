@@ -112,6 +112,9 @@ export class TypeResolver {
 
 
   getInterface(name: string): InterfaceDeclaration | null {
+    if (!name) {
+      return null;
+    }
     if (this.interfaceCache.has(name)) {
       return this.interfaceCache.get(name) || null;
     }
@@ -121,6 +124,9 @@ export class TypeResolver {
     }
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
       const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+      if (!iface || !iface.name) {
+        continue;
+      }
       if (iface.name === name) {
         this.interfaceCache.set(name, iface);
         return iface;
@@ -146,10 +152,16 @@ export class TypeResolver {
   }
 
   getInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null {
+    if (!interfaceName || !propName) {
+      return null;
+    }
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
     for (let i = 0; i < iface.fields.length; i++) {
       const f = iface.fields[i] as { name: string; type: string };
+      if (!f || !f.name) {
+        continue;
+      }
       if (f.name === propName) {
         return f;
       }
@@ -211,9 +223,13 @@ export class TypeResolver {
   }
 
   getTypeAlias(name: string): TypeAliasDeclaration | null {
+    if (!name) return null;
     if (!this.ctx.ast?.typeAliases) return null;
     for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
       const ta = this.ctx.ast.typeAliases[i] as TypeAliasDeclaration;
+      if (!ta || !ta.name) {
+        continue;
+      }
       if (ta.name === name) {
         return ta;
       }
@@ -222,9 +238,13 @@ export class TypeResolver {
   }
 
   getFunction(name: string): FunctionNode | null {
+    if (!name) return null;
     if (!this.ctx.ast?.functions) return null;
     for (let i = 0; i < this.ctx.ast.functions.length; i++) {
       const fn = this.ctx.ast.functions[i] as FunctionNode;
+      if (!fn || !fn.name) {
+        continue;
+      }
       if (fn.name === name) {
         return fn;
       }
@@ -256,6 +276,9 @@ export class TypeResolver {
   }
 
   getClass(name: string): ClassNode | null {
+    if (!name) {
+      return null;
+    }
     if (this.classCache.has(name)) {
       return this.classCache.get(name) || null;
     }
@@ -265,6 +288,9 @@ export class TypeResolver {
     }
     for (let i = 0; i < this.ctx.ast.classes.length; i++) {
       const cls = this.ctx.ast.classes[i] as ClassNode;
+      if (!cls || !cls.name) {
+        continue;
+      }
       if (cls.name === name) {
         this.classCache.set(name, cls);
         return cls;
