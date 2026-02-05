@@ -267,11 +267,18 @@ if (!fs.existsSync(theInputFile)) {
   throw new Error('unreachable');
 }
 
-let theOutputFile: string = theInputFile;
+let theOutputFile: string = '.build/' + theInputFile;
 if (outputFile !== null) {
   theOutputFile = outputFile;
 } else if (theInputFile.substr(theInputFile.length - 3) === '.ts') {
-  theOutputFile = theInputFile.substr(0, theInputFile.length - 3);
+  theOutputFile = '.build/' + theInputFile.substr(0, theInputFile.length - 3);
+} else if (theInputFile.substr(theInputFile.length - 3) === '.js') {
+  theOutputFile = '.build/' + theInputFile.substr(0, theInputFile.length - 3);
+}
+
+const outputDir = path.dirname(theOutputFile);
+if (!fs.existsSync(outputDir)) {
+  child_process.execSync('mkdir -p ' + outputDir);
 }
 
 compileNative(theInputFile, theOutputFile);
