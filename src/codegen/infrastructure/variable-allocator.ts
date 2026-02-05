@@ -1163,7 +1163,7 @@ export class VariableAllocator {
     if (elementType) {
       const typeInfo = this.getTypeInfoForElementType(elementType);
       if (typeInfo) {
-        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local', {
+        this.ctx.defineVariable(stmt.name, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local', {
           objectMetadata: {
             keys: typeInfo.keys,
             types: typeInfo.types,
@@ -1171,17 +1171,17 @@ export class VariableAllocator {
           },
           interfaceType: elementType
         });
-        this.ctx.emit(`${allocaReg} = alloca i8*`);
+        this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
         const value = this.ctx.generateExpression(stmt.value!, params);
-        this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
+        this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
         return;
       }
     }
 
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local');
-    this.ctx.emit(`${allocaReg} = alloca i8*`);
+    this.ctx.defineVariable(stmt.name, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local');
+    this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
     const value = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
+    this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);
   }
 
   private allocateRegex(stmt: VariableDeclaration, params: string[]): void {

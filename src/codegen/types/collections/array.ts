@@ -1662,14 +1662,17 @@ export class ArrayGenerator {
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
 
     let isStringArray = false;
+    let isObjectArray = false;
     const exprObjBase = expr.object as ExprBase;
     if (exprObjBase.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
       isStringArray = varType === '%StringArray*';
+      isObjectArray = varType === '%ObjectArray*';
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
       isStringArray = ptrType === '%StringArray*';
+      isObjectArray = ptrType === '%ObjectArray*';
     }
 
     if (expr.args.length !== 1) {
@@ -1680,6 +1683,10 @@ export class ArrayGenerator {
 
     if (isStringArray) {
       return this.generateStringArrayConcat(arrayPtr, otherArrayPtr);
+    }
+
+    if (isObjectArray) {
+      return this.generateObjectArrayConcat(arrayPtr, otherArrayPtr);
     }
 
     const lenPtr1 = this.nextTemp();
@@ -1838,6 +1845,92 @@ export class ArrayGenerator {
     this.emit(`store i32 ${totalLen}, i32* ${newCapField}`);
 
     this.ctx.setVariableType(newArrayPtr, '%StringArray*');
+    return newArrayPtr;
+  }
+
+  private generateObjectArrayConcat(arrayPtr: string, otherArrayPtr: string): string {
+    const lenPtr1 = this.nextTemp();
+    this.emit(`${lenPtr1} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`);
+    const len1 = this.nextTemp();
+    this.emit(`${len1} = load i32, i32* ${lenPtr1}`);
+
+    const lenPtr2 = this.nextTemp();
+    this.emit(`${lenPtr2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${otherArrayPtr}, i32 0, i32 1`);
+    const len2 = this.nextTemp();
+    this.emit(`${len2} = load i32, i32* ${lenPtr2}`);
+
+    const totalLen = this.nextTemp();
+    this.emit(`${totalLen} = add i32 ${len1}, ${len2}`);
+
+    const sizePtr = this.nextTemp();
+    this.emit(`${sizePtr} = getelementptr %ObjectArray, %ObjectArray* null, i32 1`);
+    const structSize = this.nextTemp();
+    this.emit(`${structSize} = ptrtoint %ObjectArray* ${sizePtr} to i64`);
+    const arrayMem = this.nextTemp();
+    this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+    const newArrayPtr = this.nextTemp();
+    this.emit(`${newArrayPtr} = bitcast i8* ${arrayMem} to %ObjectArray*`);
+
+    const totalLenI64 = this.nextTemp();
+    this.emit(`${totalLenI64} = zext i32 ${totalLen} to i64`);
+    const dataSize = this.nextTemp();
+    this.emit(`${dataSize} = mul i64 ${totalLenI64}, 8`);
+    const dataMem = this.nextTemp();
+    this.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSize})`);
+    const newDataPtr = this.nextTemp();
+    this.emit(`${newDataPtr} = bitcast i8* ${dataMem} to i8**`);
+
+    const dataPtrField1 = this.nextTemp();
+    this.emit(`${dataPtrField1} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+    const dataI8_1 = this.nextTemp();
+    this.emit(`${dataI8_1} = load i8*, i8** ${dataPtrField1}`);
+    const dataPtr1 = this.nextTemp();
+    this.emit(`${dataPtr1} = bitcast i8* ${dataI8_1} to i8**`);
+
+    const len1I64 = this.nextTemp();
+    this.emit(`${len1I64} = zext i32 ${len1} to i64`);
+    const size1 = this.nextTemp();
+    this.emit(`${size1} = mul i64 ${len1I64}, 8`);
+    const src1 = this.nextTemp();
+    this.emit(`${src1} = bitcast i8** ${dataPtr1} to i8*`);
+    const dst1 = this.nextTemp();
+    this.emit(`${dst1} = bitcast i8** ${newDataPtr} to i8*`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst1}, i8* ${src1}, i64 ${size1}, i1 false)`);
+
+    const dataPtrField2 = this.nextTemp();
+    this.emit(`${dataPtrField2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${otherArrayPtr}, i32 0, i32 0`);
+    const dataI8_2 = this.nextTemp();
+    this.emit(`${dataI8_2} = load i8*, i8** ${dataPtrField2}`);
+    const dataPtr2 = this.nextTemp();
+    this.emit(`${dataPtr2} = bitcast i8* ${dataI8_2} to i8**`);
+
+    const len2I64 = this.nextTemp();
+    this.emit(`${len2I64} = zext i32 ${len2} to i64`);
+    const size2 = this.nextTemp();
+    this.emit(`${size2} = mul i64 ${len2I64}, 8`);
+    const src2 = this.nextTemp();
+    this.emit(`${src2} = bitcast i8** ${dataPtr2} to i8*`);
+    const dstOffset = this.nextTemp();
+    this.emit(`${dstOffset} = getelementptr inbounds i8*, i8** ${newDataPtr}, i32 ${len1}`);
+    const dst2 = this.nextTemp();
+    this.emit(`${dst2} = bitcast i8** ${dstOffset} to i8*`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst2}, i8* ${src2}, i64 ${size2}, i1 false)`);
+
+    const newDataField = this.nextTemp();
+    this.emit(`${newDataField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${newArrayPtr}, i32 0, i32 0`);
+    const newDataI8 = this.nextTemp();
+    this.emit(`${newDataI8} = bitcast i8** ${newDataPtr} to i8*`);
+    this.emit(`store i8* ${newDataI8}, i8** ${newDataField}`);
+
+    const newLenField = this.nextTemp();
+    this.emit(`${newLenField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${newArrayPtr}, i32 0, i32 1`);
+    this.emit(`store i32 ${totalLen}, i32* ${newLenField}`);
+
+    const newCapField = this.nextTemp();
+    this.emit(`${newCapField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${newArrayPtr}, i32 0, i32 2`);
+    this.emit(`store i32 ${totalLen}, i32* ${newCapField}`);
+
+    this.ctx.setVariableType(newArrayPtr, '%ObjectArray*');
     return newArrayPtr;
   }
 }

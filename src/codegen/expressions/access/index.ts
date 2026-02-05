@@ -208,19 +208,19 @@ export class IndexAccessGenerator {
 
     if (arrayType === 'i8*') {
       const arrayCast = this.ctx.nextTemp();
-      this.ctx.emit(`${arrayCast} = bitcast i8* ${arrayPtr} to %Array*`);
+      this.ctx.emit(`${arrayCast} = bitcast i8* ${arrayPtr} to %ObjectArray*`);
 
       const dataPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayCast}, i32 0, i32 0`);
-
-      const dataDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${dataDouble} = load double*, double** ${dataPtr}`);
+      this.ctx.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayCast}, i32 0, i32 0`);
 
       const data = this.ctx.nextTemp();
-      this.ctx.emit(`${data} = bitcast double* ${dataDouble} to i8**`);
+      this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
+
+      const dataAsPtrs = this.ctx.nextTemp();
+      this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${data} to i8**`);
 
       const elemPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${data}, i32 ${index}`);
+      this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
 
       const elem = this.ctx.nextTemp();
       this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
@@ -229,16 +229,16 @@ export class IndexAccessGenerator {
     }
 
     const dataPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-
-    const dataDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${dataDouble} = load double*, double** ${dataPtr}`);
+    this.ctx.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
 
     const data = this.ctx.nextTemp();
-    this.ctx.emit(`${data} = bitcast double* ${dataDouble} to i8**`);
+    this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
+
+    const dataAsPtrs = this.ctx.nextTemp();
+    this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${data} to i8**`);
 
     const elemPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${data}, i32 ${index}`);
+    this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
 
     const elem = this.ctx.nextTemp();
     this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);

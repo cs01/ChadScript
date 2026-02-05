@@ -6,6 +6,7 @@ import { tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-syst
 interface ObjectGeneratorContext extends IGeneratorContext {
   currentDeclaredInterfaceType?: string;
   interfaceStructGen?: InterfaceStructGenerator;
+  expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
 }
 
 export class ObjectGenerator {
@@ -100,7 +101,15 @@ export class ObjectGenerator {
           finalValue = 'null';
         }
       } else {
+        const savedExpectedType = this.ctx.expectedArrayElementType;
+        const tsType = field.type;
+        if (tsType && tsType.endsWith('[]') && tsType !== 'string[]' && tsType !== 'number[]' && tsType !== 'boolean[]') {
+          this.ctx.expectedArrayElementType = 'pointer';
+        } else if (tsType === 'string[]') {
+          this.ctx.expectedArrayElementType = 'string';
+        }
         finalValue = this.ctx.generateExpression(valueExpr, params);
+        this.ctx.expectedArrayElementType = savedExpectedType;
       }
 
       orderedFields.push({ key: field.name, llvmType, value: finalValue });
@@ -175,7 +184,15 @@ export class ObjectGenerator {
           finalValue = 'null';
         }
       } else {
+        const savedExpectedType = this.ctx.expectedArrayElementType;
+        const tsType = field.tsType;
+        if (tsType && tsType.endsWith('[]') && tsType !== 'string[]' && tsType !== 'number[]' && tsType !== 'boolean[]') {
+          this.ctx.expectedArrayElementType = 'pointer';
+        } else if (tsType === 'string[]') {
+          this.ctx.expectedArrayElementType = 'string';
+        }
         const valueReg = this.ctx.generateExpression(valueExpr, params);
+        this.ctx.expectedArrayElementType = savedExpectedType;
         finalValue = valueReg;
         const valueType = this.ctx.getVariableType(valueReg) || 'double';
         if (field.llvmType === 'i1') {

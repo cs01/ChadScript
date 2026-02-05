@@ -669,9 +669,16 @@ export class MemberAccessGenerator {
       this.ctx.setVariableType(value, '%StringArray*');
       return value;
     } else if (fieldInfo.type.endsWith('[]')) {
+      const tsType = fieldInfo.tsType || fieldInfo.type;
+      const isObjectArray = tsType.endsWith('[]') && tsType !== 'number[]' && tsType !== 'string[]' && tsType !== 'boolean[]';
       const value = this.ctx.nextTemp();
-      this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
-      this.ctx.setVariableType(value, '%Array*');
+      if (isObjectArray) {
+        this.ctx.emit(`${value} = load %ObjectArray*, %ObjectArray** ${fieldPtr}`);
+        this.ctx.setVariableType(value, '%ObjectArray*');
+      } else {
+        this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
+        this.ctx.setVariableType(value, '%Array*');
+      }
       return value;
     } else if (fieldInfo.type === 'boolean') {
       const boolValue = this.ctx.nextTemp();
@@ -707,9 +714,16 @@ export class MemberAccessGenerator {
       this.ctx.setVariableType(value, 'double');
       return value;
     } else if (fieldInfo.tsType?.endsWith('[]')) {
+      const tsType = fieldInfo.tsType;
+      const isObjectArray = tsType !== 'number[]' && tsType !== 'string[]' && tsType !== 'boolean[]';
       const value = this.ctx.nextTemp();
-      this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
-      this.ctx.setVariableType(value, '%Array*');
+      if (isObjectArray) {
+        this.ctx.emit(`${value} = load %ObjectArray*, %ObjectArray** ${fieldPtr}`);
+        this.ctx.setVariableType(value, '%ObjectArray*');
+      } else {
+        this.ctx.emit(`${value} = load %Array*, %Array** ${fieldPtr}`);
+        this.ctx.setVariableType(value, '%Array*');
+      }
       return value;
     } else {
       const value = this.ctx.nextTemp();

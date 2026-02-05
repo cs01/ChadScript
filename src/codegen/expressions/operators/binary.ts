@@ -119,6 +119,14 @@ export class BinaryExpressionGenerator {
   }
 
   private generateComparison(op: string, cond: string, leftValue: string, rightValue: string, leftExpr: Expression, rightExpr: Expression): string {
+    const leftExprTyped = leftExpr as { type: string };
+    const rightExprTyped = rightExpr as { type: string };
+    const leftIsNullish = leftExprTyped.type === 'null' || leftExprTyped.type === 'undefined';
+    const rightIsNullish = rightExprTyped.type === 'null' || rightExprTyped.type === 'undefined';
+    if (leftIsNullish || rightIsNullish) {
+      return this.generatePointerNullComparison(op, leftValue, rightValue);
+    }
+
     const leftIsString = this.ctx.isStringExpression(leftExpr);
     const rightIsString = this.ctx.isStringExpression(rightExpr);
 
@@ -272,6 +280,51 @@ export class BinaryExpressionGenerator {
     this.ctx.emit(`${cmpResult} = fcmp ${cond} double ${leftDouble}, ${rightDouble}`);
 
     // Convert boolean result to double (JavaScript semantics: comparisons return numbers)
+    const i32Result = this.ctx.nextTemp();
+    this.ctx.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
+    const doubleResult = this.ctx.nextTemp();
+    this.ctx.emit(`${doubleResult} = sitofp i32 ${i32Result} to double`);
+    this.ctx.setVariableType(doubleResult, 'double');
+    return doubleResult;
+  }
+
+  private generatePointerNullComparison(op: string, left: string, right: string): string {
+    const leftType = this.ctx.getVariableType(left) || 'i8*';
+    const rightType = this.ctx.getVariableType(right) || 'i8*';
+    let leftPtr = left;
+    let rightPtr = right;
+    if (leftType !== 'i8*' && leftType.indexOf('*') !== -1) {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = bitcast ${leftType} ${left} to i8*`);
+      leftPtr = temp;
+    } else if (leftType === 'double') {
+      const asInt = this.ctx.nextTemp();
+      this.ctx.emit(`${asInt} = bitcast double ${left} to i64`);
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = inttoptr i64 ${asInt} to i8*`);
+      leftPtr = temp;
+    }
+    if (rightType !== 'i8*' && rightType.indexOf('*') !== -1) {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = bitcast ${rightType} ${right} to i8*`);
+      rightPtr = temp;
+    } else if (rightType === 'double') {
+      const asInt = this.ctx.nextTemp();
+      this.ctx.emit(`${asInt} = bitcast double ${right} to i64`);
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = inttoptr i64 ${asInt} to i8*`);
+      rightPtr = temp;
+    }
+    let cond = '';
+    if (op === '==' || op === '===') {
+      cond = 'eq';
+    } else if (op === '!=' || op === '!==') {
+      cond = 'ne';
+    } else {
+      cond = 'eq';
+    }
+    const cmpResult = this.ctx.nextTemp();
+    this.ctx.emit(`${cmpResult} = icmp ${cond} i8* ${leftPtr}, ${rightPtr}`);
     const i32Result = this.ctx.nextTemp();
     this.ctx.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
     const doubleResult = this.ctx.nextTemp();

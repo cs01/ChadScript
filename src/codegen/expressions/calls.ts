@@ -390,6 +390,12 @@ export class CallExpressionGenerator {
         returnType = 'i8*';
       } else if (func.returnType === 'void') {
         returnType = 'void';
+      } else if (func.returnType === 'string[]') {
+        returnType = '%StringArray*';
+      } else if (func.returnType === 'number[]' || func.returnType === 'boolean[]') {
+        returnType = '%Array*';
+      } else if (func.returnType && func.returnType.endsWith('[]')) {
+        returnType = '%ObjectArray*';
       } else if (func.returnType && func.returnType !== '' && func.returnType !== 'number' && func.returnType !== 'boolean') {
         returnType = 'i8*';
       }
@@ -417,6 +423,12 @@ export class CallExpressionGenerator {
           returnType = 'i8*';
         } else if (funcNode.returnType === 'void') {
           returnType = 'void';
+        } else if (funcNode.returnType === 'string[]') {
+          returnType = '%StringArray*';
+        } else if (funcNode.returnType === 'number[]' || funcNode.returnType === 'boolean[]') {
+          returnType = '%Array*';
+        } else if (funcNode.returnType && funcNode.returnType.endsWith('[]')) {
+          returnType = '%ObjectArray*';
         } else if (funcNode.returnType && funcNode.returnType !== '' && funcNode.returnType !== 'number' && funcNode.returnType !== 'boolean') {
           returnType = 'i8*';
         }
