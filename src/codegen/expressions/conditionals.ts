@@ -56,19 +56,19 @@ export class ConditionalExpressionGenerator {
     this.emit(`br label %${trueConvLabel}`);
 
     this.emit(`${falseLabel}:`);
-    const savedExpectedType = this.ctx.expectedArrayElementType;
+    const savedExpectedType = this.ctx.getExpectedArrayElementType();
     const falseExprTyped = expr.alternate as { type: string; elements?: Expression[] };
     if (falseExprTyped.type === 'array' && (!falseExprTyped.elements || falseExprTyped.elements.length === 0)) {
       if (savedExpectedType === null) {
         if (trueType === '%StringArray*') {
-          this.ctx.expectedArrayElementType = 'string';
+          this.ctx.setExpectedArrayElementType('string');
         } else if (trueType === '%ObjectArray*') {
-          this.ctx.expectedArrayElementType = 'pointer';
+          this.ctx.setExpectedArrayElementType('pointer');
         }
       }
     }
     const falseValue = this.ctx.generateExpression(expr.alternate, params);
-    this.ctx.expectedArrayElementType = savedExpectedType;
+    this.ctx.setExpectedArrayElementType(savedExpectedType);
     const falseType = this.ctx.getVariableType(falseValue);
     this.emit(`br label %${falseConvLabel}`);
 
