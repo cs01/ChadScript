@@ -409,7 +409,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             defaultValue = 'null';
             ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
-            this.defineVariable(name, `@${name}`, llvmType, kind, 'global');
+            this.defineVariable(name, `@${name}`, llvmType, kind, 'global', { isPointerAlloca: true });
             continue;
           } else if (interfaceName) {
             let interfaceDef: InterfaceDeclaration | null = null;

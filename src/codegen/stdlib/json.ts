@@ -233,9 +233,10 @@ export class JsonGenerator {
     this.generatedParsers.add(typeName);
 
     for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-      const field = interfaceDef.fields[fi];
-      if (field.type !== 'string' && field.type !== 'number' && field.type !== 'boolean') {
-        const nestedInterface = this.ctx.getInterfaceFromAST(field.type);
+      const fieldItem = interfaceDef.fields[fi] as { name: string; type: string };
+      const fieldType = fieldItem.type;
+      if (fieldType !== 'string' && fieldType !== 'number' && fieldType !== 'boolean') {
+        const nestedInterface = this.ctx.getInterfaceFromAST(fieldType);
         if (nestedInterface) {
           const nestedDef: JsonInterfaceDef = {
             fields: nestedInterface.fields.map((f: any) => ({
@@ -243,8 +244,8 @@ export class JsonGenerator {
               type: f.type
             }))
           };
-          this.generateJsonStruct(field.type, nestedDef);
-          this.generateJsonParser(field.type, nestedDef);
+          this.generateJsonStruct(fieldType, nestedDef);
+          this.generateJsonParser(fieldType, nestedDef);
         }
       }
     }
