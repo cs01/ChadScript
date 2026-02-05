@@ -1921,6 +1921,22 @@ export class MemberAccessGenerator {
     if (exprObjType === 'member_access') {
       const result = this.handleMemberAccessLength(expr, params);
       if (result !== null) return result;
+      const arrayPtr = this.ctx.generateExpression(expr.object, params);
+      return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
+    }
+
+    if (exprObjType === 'variable') {
+      const objPtr = this.ctx.generateExpression(expr.object, params);
+      const ptrType = this.ctx.getVariableType(objPtr);
+      if (ptrType === '%StringArray*') {
+        return this.getStringArrayLengthFromPtr(objPtr);
+      }
+      if (ptrType === '%Array*') {
+        return this.getArrayLengthFromPtr(objPtr, '%Array');
+      }
+      if (ptrType === '%ObjectArray*') {
+        return this.getArrayLengthFromPtr(objPtr, '%ObjectArray');
+      }
     }
 
     return this.getStringLength(expr.object, params);
@@ -1959,6 +1975,16 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
     this.ctx.setVariableType(len, 'double');
     return len;
+  }
+
+  private getStringArrayLengthFromPtr(ptr: string): string {
+    const ptrType = this.ctx.getVariableType(ptr);
+    let typedPtr = ptr;
+    if (ptrType !== '%StringArray*') {
+      typedPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${typedPtr} = bitcast i8* ${ptr} to %StringArray*`);
+    }
+    return this.getStringArrayLength(typedPtr);
   }
 
   private handleMemberAccessLength(expr: MemberAccessNode, params: string[]): string | null {

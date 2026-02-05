@@ -61,7 +61,7 @@ export class FunctionGenerator {
     this.ctx.isAsyncFunction = func.async || false;
     this.ctx.asyncResultPromise = '';
 
-    const funcParams = func.params || [];
+    const funcParams: string[] = func.params || [];
     const paramTypes: string[] = [];
     const paramLLVMTypes: string[] = [];
     let returnType = 'double';
@@ -78,9 +78,9 @@ export class FunctionGenerator {
     if (funcIsAsync) {
       returnType = '%Promise*';
       this.ctx.currentFunctionReturnType = '%Promise*';
-    } else if (func.paramTypes && func.paramTypes.length > 0) {
+    } else if (hasParamTypes && paramTypesLen > 0) {
       for (let i = 0; i < funcParams.length; i++) {
-        const paramType = func.paramTypes[i] || 'number';
+        const paramType = func.paramTypes![i] || 'number';
         const paramName = funcParams[i] || '';
         paramTypes.push(paramType);
         if (paramName === 'nodePtr' || paramName === 'treePtr') {
@@ -99,26 +99,40 @@ export class FunctionGenerator {
           paramLLVMTypes.push('double');
         }
       }
-    } else if (func.parameters && func.parameters.length > 0) {
-      for (let i = 0; i < funcParams.length; i++) {
-        const param = func.parameters[i] as { name: string; type: string };
-        const paramType = param?.type || 'number';
-        const paramName = funcParams[i];
-        paramTypes.push(paramType);
-        if (paramName === 'nodePtr' || paramName === 'treePtr') {
-          paramLLVMTypes.push('i8*');
-        } else if (paramType === 'string') {
-          paramLLVMTypes.push('i8*');
-        } else if (paramType === 'string[]') {
-          paramLLVMTypes.push('%StringArray*');
-        } else if (paramType === 'number[]' || paramType === 'boolean[]') {
-          paramLLVMTypes.push('%Array*');
-        } else if (this.isEnumType(paramType)) {
-          paramLLVMTypes.push('double');
-        } else if (paramType !== 'number' && paramType !== 'boolean') {
-          paramLLVMTypes.push('i8*');
-        } else {
-          paramLLVMTypes.push('double');
+    } else {
+      const hasParameters = func.parameters ? true : false;
+      if (hasParameters) {
+        let paramCount = 0;
+        const paramsArr = func.parameters;
+        if (paramsArr) {
+          let idx = 0;
+          while (paramsArr[idx]) {
+            paramCount = paramCount + 1;
+            idx = idx + 1;
+          }
+        }
+        if (paramCount > 0) {
+          for (let i = 0; i < funcParams.length; i++) {
+            const param = func.parameters![i] as { name: string; type: string };
+            const paramType = param?.type || 'number';
+            const paramName = funcParams[i];
+            paramTypes.push(paramType);
+            if (paramName === 'nodePtr' || paramName === 'treePtr') {
+              paramLLVMTypes.push('i8*');
+            } else if (paramType === 'string') {
+              paramLLVMTypes.push('i8*');
+            } else if (paramType === 'string[]') {
+              paramLLVMTypes.push('%StringArray*');
+            } else if (paramType === 'number[]' || paramType === 'boolean[]') {
+              paramLLVMTypes.push('%Array*');
+            } else if (this.isEnumType(paramType)) {
+              paramLLVMTypes.push('double');
+            } else if (paramType !== 'number' && paramType !== 'boolean') {
+              paramLLVMTypes.push('i8*');
+            } else {
+              paramLLVMTypes.push('double');
+            }
+          }
         }
       }
     }
@@ -330,7 +344,9 @@ export class FunctionGenerator {
       this.ctx.emit(`${resultPromise} = call %Promise* @__Promise_new()`);
     }
 
+    console.error('[FunctionGenerator.generate] before generateBlock');
     const result = this.ctx.generateBlock(funcBody, funcParams);
+    console.error('[FunctionGenerator.generate] after generateBlock');
 
     const deferredAllocas = this.ctx.allocaInstructions;
     if (deferredAllocas.length > 0) {
@@ -338,8 +354,10 @@ export class FunctionGenerator {
       for (let i = 0; i < deferredAllocas.length; i++) {
         newOutput.push(deferredAllocas[i]);
       }
-      for (let i = 0; i < this.ctx.output.length; i++) {
-        newOutput.push(this.ctx.output[i]);
+      const outputArr: string[] = this.ctx.output;
+      const outputArrLen = outputArr.length;
+      for (let i = 0; i < outputArrLen; i++) {
+        newOutput.push(outputArr[i]);
       }
       this.ctx.output.length = 0;
       for (let i = 0; i < newOutput.length; i++) {
@@ -348,9 +366,14 @@ export class FunctionGenerator {
       deferredAllocas.length = 0;
     }
 
-    // Check for and fix incomplete return statements
-    for (let i = 0; i < this.ctx.output.length; i++) {
-      const line = this.ctx.output[i].trim();
+    console.error('[FunctionGenerator.generate] before output2 loop');
+    const output2: string[] = this.ctx.output;
+    console.error('[FunctionGenerator.generate] output2 assigned');
+    const output2Len = output2.length;
+    console.error('[FunctionGenerator.generate] output2Len=' + String(output2Len));
+    for (let i = 0; i < output2Len; i++) {
+      console.error('[FunctionGenerator.generate] loop iter=' + String(i));
+      const line: string = output2[i].trim();
       // Match 'ret <type>' without a value (e.g., 'ret i8*' or 'ret double')
       const retMatch = line.match(/^ret (i8\*|double|%\w+\*?)$/);
       if (retMatch) {
@@ -364,14 +387,18 @@ export class FunctionGenerator {
         } else {
           defaultValue = 'null';
         }
-        this.ctx.output[i] = `ret ${retType} ${defaultValue}`;
+        output2[i] = `ret ${retType} ${defaultValue}`;
       }
     }
 
-    if (this.ctx.output.length > 0) {
+    const ctxOutput: string[] = this.ctx.output;
+    console.error('[FunctionGenerator.generate] ctxOutput assigned');
+    const outputLen = ctxOutput.length;
+    console.error('[FunctionGenerator.generate] outputLen=' + String(outputLen));
+    if (outputLen > 0) {
       let indentedLines = '';
-      for (let idx = 0; idx < this.ctx.output.length; idx++) {
-        const line = this.ctx.output[idx];
+      for (let idx = 0; idx < outputLen; idx++) {
+        const line: string = ctxOutput[idx];
         if (line) {
           if (indentedLines.length > 0) {
             indentedLines = indentedLines + '\n';
@@ -384,7 +411,7 @@ export class FunctionGenerator {
       }
     }
 
-    const lastInstruction = this.ctx.output.length > 0 ? this.ctx.output[this.ctx.output.length - 1].trim() : '';
+    const lastInstruction: string = outputLen > 0 ? ctxOutput[outputLen - 1].trim() : '';
     const hasTerminator = lastInstruction.startsWith('ret ') ||
                           lastInstruction.startsWith('br ') ||
                           lastInstruction === 'unreachable';
@@ -392,7 +419,9 @@ export class FunctionGenerator {
     if (!hasTerminator) {
       if (func.async) {
         this.ctx.emit(`call void @__Promise_resolve(%Promise* ${this.ctx.asyncResultPromise}, i8* null)`);
-        const lastLine = this.ctx.output.length > 0 ? this.ctx.output[this.ctx.output.length - 1] : '';
+        const asyncOutput: string[] = this.ctx.output;
+        const asyncOutputLen = asyncOutput.length;
+        const lastLine: string = asyncOutputLen > 0 ? asyncOutput[asyncOutputLen - 1] : '';
         if (lastLine) {
           ir += '  ' + lastLine + '\n';
         }
@@ -670,8 +699,10 @@ export class FunctionGenerator {
       for (let i = 0; i < deferredAllocas.length; i++) {
         newOutput.push(deferredAllocas[i]);
       }
-      for (let i = 0; i < this.ctx.output.length; i++) {
-        newOutput.push(this.ctx.output[i]);
+      const methodOutputArr: string[] = this.ctx.output;
+      const methodOutputLen = methodOutputArr.length;
+      for (let i = 0; i < methodOutputLen; i++) {
+        newOutput.push(methodOutputArr[i]);
       }
       this.ctx.output.length = 0;
       for (let i = 0; i < newOutput.length; i++) {

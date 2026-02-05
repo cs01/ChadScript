@@ -1,5 +1,6 @@
 import { CallNode, FunctionNode, VariableNode, FunctionParameter, ClassNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
+import { stripNullable } from '../infrastructure/type-system.js';
 
 /**
  * CallExpressionGenerator
@@ -407,17 +408,18 @@ export class CallExpressionGenerator {
       returnType = '%Promise*';
       this.ctx.usesPromises = true;
     } else if (funcResult && func.paramTypes && func.paramTypes.length > 0) {
-      if (func.returnType === 'string') {
+      const normalizedReturnType = func.returnType ? stripNullable(func.returnType) : '';
+      if (normalizedReturnType === 'string') {
         returnType = 'i8*';
-      } else if (func.returnType === 'void') {
+      } else if (normalizedReturnType === 'void') {
         returnType = 'void';
-      } else if (func.returnType === 'string[]') {
+      } else if (normalizedReturnType === 'string[]') {
         returnType = '%StringArray*';
-      } else if (func.returnType === 'number[]' || func.returnType === 'boolean[]') {
+      } else if (normalizedReturnType === 'number[]' || normalizedReturnType === 'boolean[]') {
         returnType = '%Array*';
-      } else if (func.returnType && func.returnType.endsWith('[]')) {
+      } else if (normalizedReturnType && normalizedReturnType.endsWith('[]')) {
         returnType = '%ObjectArray*';
-      } else if (func.returnType && func.returnType !== '' && func.returnType !== 'number' && func.returnType !== 'boolean' && !this.isEnumType(func.returnType)) {
+      } else if (normalizedReturnType && normalizedReturnType !== '' && normalizedReturnType !== 'number' && normalizedReturnType !== 'boolean' && !this.isEnumType(normalizedReturnType)) {
         returnType = 'i8*';
       }
       for (let i = 0; i < func.paramTypes.length; i++) {
@@ -440,17 +442,18 @@ export class CallExpressionGenerator {
     } else {
       const funcNode = this.getFunctionFromAST(expr.name);
       if (funcNode) {
-        if (funcNode.returnType === 'string') {
+        const normalizedRetType = funcNode.returnType ? stripNullable(funcNode.returnType) : '';
+        if (normalizedRetType === 'string') {
           returnType = 'i8*';
-        } else if (funcNode.returnType === 'void') {
+        } else if (normalizedRetType === 'void') {
           returnType = 'void';
-        } else if (funcNode.returnType === 'string[]') {
+        } else if (normalizedRetType === 'string[]') {
           returnType = '%StringArray*';
-        } else if (funcNode.returnType === 'number[]' || funcNode.returnType === 'boolean[]') {
+        } else if (normalizedRetType === 'number[]' || normalizedRetType === 'boolean[]') {
           returnType = '%Array*';
-        } else if (funcNode.returnType && funcNode.returnType.endsWith('[]')) {
+        } else if (normalizedRetType && normalizedRetType.endsWith('[]')) {
           returnType = '%ObjectArray*';
-        } else if (funcNode.returnType && funcNode.returnType !== '' && funcNode.returnType !== 'number' && funcNode.returnType !== 'boolean' && !this.isEnumType(funcNode.returnType)) {
+        } else if (normalizedRetType && normalizedRetType !== '' && normalizedRetType !== 'number' && normalizedRetType !== 'boolean' && !this.isEnumType(normalizedRetType)) {
           returnType = 'i8*';
         }
         if (funcNode.parameters) {
