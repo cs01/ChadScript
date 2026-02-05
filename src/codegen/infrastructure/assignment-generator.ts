@@ -9,6 +9,7 @@ import {
   AssignmentStatement,
 } from '../../ast/types.js';
 import type { SymbolTable, ClassInfo } from './symbol-table.js';
+import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
 
 interface ClassGeneratorLike {
   getFieldInfo(className: string, property: string): FieldInfo | null;
@@ -52,6 +53,7 @@ export interface AssignmentGeneratorContext {
   currentClassName: string | null;
   getThisPointer(): string | null;
   getCurrentClassName(): string | null;
+  interfaceStructGen?: InterfaceStructGenerator;
 }
 
 export class AssignmentGenerator {
@@ -296,6 +298,8 @@ export class AssignmentGenerator {
       this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Set<')) {
       this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
+    } else if (hasTsType && fiTsType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(fiTsType)) {
+      this.ctx.emit(`store %${fiTsType}* ${value}, %${fiTsType}** ${fieldPtr}`);
     } else if (hasTsType && fiTsType !== 'number' && fiTsType !== 'boolean') {
       this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
     } else {
@@ -360,6 +364,8 @@ export class AssignmentGenerator {
       this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Set<')) {
       this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
+    } else if (hasTsType && fiTsType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(fiTsType)) {
+      this.ctx.emit(`store %${fiTsType}* ${value}, %${fiTsType}** ${fieldPtr}`);
     } else if (hasTsType && fiTsType !== 'number' && fiTsType !== 'boolean') {
       this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
     } else {
