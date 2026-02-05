@@ -1231,9 +1231,9 @@ export class MethodCallGenerator {
     this.ctx.emit(`br i1 ${cond}, label %${bodyLabel}, label %${notfoundLabel}`);
 
     this.ctx.emit(`${bodyLabel}:`);
-    const elemPtr = this.ctx.nextTemp();
     const counter64 = this.ctx.nextTemp();
     this.ctx.emit(`${counter64} = sext i32 ${counter} to i64`);
+    const elemPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elemPtr} = getelementptr i8*, i8** ${dataPtr}, i64 ${counter64}`);
     const elem = this.ctx.nextTemp();
     this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
