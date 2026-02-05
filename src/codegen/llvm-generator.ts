@@ -179,31 +179,39 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
-    if (objExpr.type !== 'object') {
+    if (!objExpr || objExpr.type !== 'object') {
       return { keys: [], types: [] };
     }
 
     const keys: string[] = [];
     const types: string[] = [];
 
-    for (let i = 0; i < objExpr.properties.length; i++) {
+    const propsLen = objExpr.properties ? objExpr.properties.length : 0;
+    for (let i = 0; i < propsLen; i++) {
       const prop = objExpr.properties[i] as ObjectProperty;
+      if (!prop) continue;
       keys.push(prop.key);
 
       let llvmType: string;
 
-      if (prop.value.type === 'string' || this.isStringExpression(prop.value)) {
-        llvmType = 'i8*';
-      } else if (prop.value.type === 'array' || this.isStringArrayExpression(prop.value)) {
-        llvmType = this.isStringArrayExpression(prop.value) ? '%StringArray*' : '%Array*';
-      } else if (this.isArrayExpression(prop.value)) {
-        llvmType = '%Array*';
-      } else if (prop.value.type === 'map') {
-        llvmType = '%Map*';
-      } else if (prop.value.type === 'set') {
-        llvmType = '%Set*';
-      } else {
+      const propValue = prop.value;
+      if (!propValue) {
         llvmType = 'double';
+      } else {
+        const propValueType = propValue.type;
+        if (propValueType === 'string' || this.isStringExpression(propValue)) {
+          llvmType = 'i8*';
+        } else if (propValueType === 'array' || this.isStringArrayExpression(propValue)) {
+          llvmType = this.isStringArrayExpression(propValue) ? '%StringArray*' : '%Array*';
+        } else if (this.isArrayExpression(propValue)) {
+          llvmType = '%Array*';
+        } else if (propValueType === 'map') {
+          llvmType = '%Map*';
+        } else if (propValueType === 'set') {
+          llvmType = '%Set*';
+        } else {
+          llvmType = 'double';
+        }
       }
 
       types.push(llvmType);
