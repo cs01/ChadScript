@@ -103,19 +103,14 @@ export class MapGenerator {
   }
 
   generateMapSet(expr: MethodCallNode, params: string[]): string {
-    // map.set(key, value)
     if (expr.args.length !== 2) {
       throw new Error('Map.set() requires exactly 2 arguments');
     }
 
-    // Get map pointer
     const mapPtr = this.ctx.generateExpression(expr.object, params);
-
-    // Generate key and value
     const keyValue = this.ctx.generateExpression(expr.args[0], params);
     const valueValue = this.ctx.generateExpression(expr.args[1], params);
 
-    // Load current arrays and size
     const keysFieldPtr = this.nextTemp();
     this.emit(`${keysFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 0`);
     const keysPtr = this.nextTemp();
@@ -131,23 +126,67 @@ export class MapGenerator {
     const currentSize = this.nextTemp();
     this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
 
-    // For simplicity, assume we're adding a new entry (not updating)
-    // Store key at index = currentSize
+    const searchLoopLabel = this.nextLabel('map_set_search');
+    const searchBodyLabel = this.nextLabel('map_set_body');
+    const foundLabel = this.nextLabel('map_set_found');
+    const notFoundLabel = this.nextLabel('map_set_notfound');
+    const insertLabel = this.nextLabel('map_set_insert');
+    const endLabel = this.nextLabel('map_set_end');
+
+    const indexReg = this.nextTemp();
+    this.emit(`${indexReg} = alloca i32`);
+    this.emit(`store i32 0, i32* ${indexReg}`);
+    this.emit(`br label %${searchLoopLabel}`);
+
+    this.emit(`${searchLoopLabel}:`);
+    const currentIndex = this.nextTemp();
+    this.emit(`${currentIndex} = load i32, i32* ${indexReg}`);
+    const searchCond = this.nextTemp();
+    this.emit(`${searchCond} = icmp slt i32 ${currentIndex}, ${currentSize}`);
+    this.emit(`br i1 ${searchCond}, label %${searchBodyLabel}, label %${notFoundLabel}`);
+
+    this.emit(`${searchBodyLabel}:`);
+    const keyElemPtrSearch = this.nextTemp();
+    this.emit(`${keyElemPtrSearch} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
+    const keyAtIndex = this.nextTemp();
+    this.emit(`${keyAtIndex} = load double, double* ${keyElemPtrSearch}`);
+    const keyMatch = this.nextTemp();
+    this.emit(`${keyMatch} = fcmp oeq double ${keyAtIndex}, ${keyValue}`);
+    this.emit(`br i1 ${keyMatch}, label %${foundLabel}, label %${searchLoopLabel}_next`);
+
+    this.emit(`${searchLoopLabel}_next:`);
+    const nextIndex = this.nextTemp();
+    this.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+    this.emit(`store i32 ${nextIndex}, i32* ${indexReg}`);
+    this.emit(`br label %${searchLoopLabel}`);
+
+    this.emit(`${foundLabel}:`);
+    const foundIdx = this.nextTemp();
+    this.emit(`${foundIdx} = load i32, i32* ${indexReg}`);
+    const valueElemPtrFound = this.nextTemp();
+    this.emit(`${valueElemPtrFound} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${foundIdx}`);
+    this.emit(`store double ${valueValue}, double* ${valueElemPtrFound}`);
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${notFoundLabel}:`);
+    this.emit(`br label %${insertLabel}`);
+
+    this.emit(`${insertLabel}:`);
     const keyElemPtr = this.nextTemp();
     this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentSize}`);
     this.emit(`store double ${keyValue}, double* ${keyElemPtr}`);
 
-    // Store value at index = currentSize
     const valueElemPtr = this.nextTemp();
     this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentSize}`);
     this.emit(`store double ${valueValue}, double* ${valueElemPtr}`);
 
-    // Increment size
     const newSize = this.nextTemp();
     this.emit(`${newSize} = add i32 ${currentSize}, 1`);
     this.emit(`store i32 ${newSize}, i32* ${sizeFieldPtr}`);
+    this.emit(`br label %${endLabel}`);
 
-    // Return the map (for chaining)
+    this.emit(`${endLabel}:`);
+
     return mapPtr;
   }
 
@@ -1215,6 +1254,52 @@ export class PointerMapGenerator {
     const currentSize = this.nextTemp();
     this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
 
+    const searchLoopLabel = this.nextLabel('ptrmap_set_search');
+    const searchBodyLabel = this.nextLabel('ptrmap_set_body');
+    const foundLabel = this.nextLabel('ptrmap_set_found');
+    const notFoundLabel = this.nextLabel('ptrmap_set_notfound');
+    const insertLabel = this.nextLabel('ptrmap_set_insert');
+    const endLabel = this.nextLabel('ptrmap_set_end');
+
+    const indexReg = this.nextTemp();
+    this.emit(`${indexReg} = alloca i32`);
+    this.emit(`store i32 0, i32* ${indexReg}`);
+    this.emit(`br label %${searchLoopLabel}`);
+
+    this.emit(`${searchLoopLabel}:`);
+    const currentIndex = this.nextTemp();
+    this.emit(`${currentIndex} = load i32, i32* ${indexReg}`);
+    const searchCond = this.nextTemp();
+    this.emit(`${searchCond} = icmp slt i32 ${currentIndex}, ${currentSize}`);
+    this.emit(`br i1 ${searchCond}, label %${searchBodyLabel}, label %${notFoundLabel}`);
+
+    this.emit(`${searchBodyLabel}:`);
+    const keyElemPtrSearch = this.nextTemp();
+    this.emit(`${keyElemPtrSearch} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentIndex}`);
+    const keyAtIndex = this.nextTemp();
+    this.emit(`${keyAtIndex} = load i8*, i8** ${keyElemPtrSearch}`);
+    const keyMatch = this.nextTemp();
+    this.emit(`${keyMatch} = icmp eq i8* ${keyAtIndex}, ${keyValue}`);
+    this.emit(`br i1 ${keyMatch}, label %${foundLabel}, label %${searchLoopLabel}_next`);
+
+    this.emit(`${searchLoopLabel}_next:`);
+    const nextIndex = this.nextTemp();
+    this.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+    this.emit(`store i32 ${nextIndex}, i32* ${indexReg}`);
+    this.emit(`br label %${searchLoopLabel}`);
+
+    this.emit(`${foundLabel}:`);
+    const foundIdx = this.nextTemp();
+    this.emit(`${foundIdx} = load i32, i32* ${indexReg}`);
+    const valueElemPtrFound = this.nextTemp();
+    this.emit(`${valueElemPtrFound} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${foundIdx}`);
+    this.emit(`store i8* ${valueValue}, i8** ${valueElemPtrFound}`);
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${notFoundLabel}:`);
+    this.emit(`br label %${insertLabel}`);
+
+    this.emit(`${insertLabel}:`);
     const keyElemPtr = this.nextTemp();
     this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentSize}`);
     this.emit(`store i8* ${keyValue}, i8** ${keyElemPtr}`);
@@ -1226,6 +1311,9 @@ export class PointerMapGenerator {
     const newSize = this.nextTemp();
     this.emit(`${newSize} = add i32 ${currentSize}, 1`);
     this.emit(`store i32 ${newSize}, i32* ${sizeFieldPtr}`);
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${endLabel}:`);
 
     return mapPtr;
   }
