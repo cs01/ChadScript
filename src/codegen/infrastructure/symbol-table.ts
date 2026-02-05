@@ -374,6 +374,9 @@ export class SymbolTable {
     const count = this.symbolKeysCount;
     for (let readIdx = 0; readIdx < count; readIdx++) {
       const name = this.symbolKeys[readIdx];
+      if (!name) {
+        continue;
+      }
       const symbol = this.symbols.get(name);
       if (symbol && symbol.scope === 'local') {
         this.symbols.delete(name);
@@ -394,6 +397,9 @@ export class SymbolTable {
     const result: Symbol[] = [];
     for (let i = 0; i < this.symbolKeys.length; i++) {
       const name = this.symbolKeys[i];
+      if (!name) {
+        continue;
+      }
       const symbol = this.symbols.get(name);
       if (symbol) {
         result.push(symbol);
@@ -409,6 +415,9 @@ export class SymbolTable {
     const result: Symbol[] = [];
     for (let i = 0; i < this.symbolKeys.length; i++) {
       const name = this.symbolKeys[i];
+      if (!name) {
+        continue;
+      }
       const s = this.symbols.get(name);
       if (s && s.kind === kind) {
         result.push(s);
@@ -424,6 +433,9 @@ export class SymbolTable {
     const result: Symbol[] = [];
     for (let i = 0; i < this.symbolKeys.length; i++) {
       const name = this.symbolKeys[i];
+      if (!name) {
+        continue;
+      }
       const s = this.symbols.get(name);
       if (s && s.scope === 'local') {
         result.push(s);
@@ -439,6 +451,9 @@ export class SymbolTable {
     const result: Symbol[] = [];
     for (let i = 0; i < this.symbolKeys.length; i++) {
       const name = this.symbolKeys[i];
+      if (!name) {
+        continue;
+      }
       const s = this.symbols.get(name);
       if (s && s.scope === 'global') {
         result.push(s);
@@ -770,6 +785,9 @@ export class SymbolTable {
     const scopeVars = new Map<string, string>();
     for (let i = 0; i < this.symbolKeys.length; i++) {
       const name = this.symbolKeys[i];
+      if (!name) {
+        continue;
+      }
       const symbol = this.symbols.get(name);
       if (symbol) {
         scopeVars.set(name, symbol.llvmType);
@@ -783,6 +801,9 @@ export class SymbolTable {
     const types: string[] = [];
     for (let i = 0; i < this.symbolKeys.length; i++) {
       const name = this.symbolKeys[i];
+      if (!name) {
+        continue;
+      }
       const symbol = this.symbols.get(name);
       if (symbol) {
         names.push(name);
@@ -799,6 +820,9 @@ export class SymbolTable {
     let output = '=== Symbol Table ===\n';
     for (let i = 0; i < this.symbolKeys.length; i++) {
       const name = this.symbolKeys[i];
+      if (!name) {
+        continue;
+      }
       const symbol = this.symbols.get(name);
       if (symbol) {
         output += `${name}: ${symbol.kind} (${symbol.llvmType}) -> ${symbol.allocaRegister} [${symbol.scope}]\n`;
