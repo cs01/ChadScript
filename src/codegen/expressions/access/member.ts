@@ -310,16 +310,13 @@ export class MemberAccessGenerator {
     const enumResult = this.handleEnumMemberAccess(expr);
     if (enumResult !== null) return enumResult;
 
-    // Try typed JSON struct access first
     const typedJsonResult = this.handleTypedJsonStructAccess(expr);
     if (typedJsonResult !== null) return typedJsonResult;
 
-    // Handle process.argv special case
     if (this.isProcessArgv(expr)) {
       return this.handleProcessArgv();
     }
 
-    // Handle class instance property access
     const classResult = this.handleClassPropertyAccess(expr, params);
     if (classResult !== null) return classResult;
 
@@ -329,7 +326,6 @@ export class MemberAccessGenerator {
       return '0.0';
     }
 
-    // Handle JSON object property access
     if (exprObjType === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
       return this.handleJsonPropertyAccess(expr, params);
     }
@@ -367,7 +363,9 @@ export class MemberAccessGenerator {
     }
 
     // Handle regular object property access
+    console.log('[MemberAccessGenerator.generate] trying handleObjectPropertyAccess');
     const objResult = this.handleObjectPropertyAccess(expr, params);
+    console.log('[MemberAccessGenerator.generate] after handleObjectPropertyAccess, objResult=' + objResult);
     if (objResult !== null) return objResult;
 
     // Handle .length property
