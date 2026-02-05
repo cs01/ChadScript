@@ -56,10 +56,11 @@ export class FunctionGenerator {
   generate(func: FunctionNode): string {
     this.ctx.reset();
     this.ctx.syncStateToGenerators();
-    this.ctx.currentFunction = func.name;
+    this.ctx.currentFunction = func.name || '';
     this.ctx.isAsyncFunction = func.async || false;
     this.ctx.asyncResultPromise = '';
 
+    const funcParams = func.params || [];
     const paramTypes: string[] = [];
     const paramLLVMTypes: string[] = [];
     let returnType = 'double';
@@ -77,9 +78,9 @@ export class FunctionGenerator {
       returnType = '%Promise*';
       this.ctx.currentFunctionReturnType = '%Promise*';
     } else if (func.paramTypes && func.paramTypes.length > 0) {
-      for (let i = 0; i < func.params.length; i++) {
+      for (let i = 0; i < funcParams.length; i++) {
         const paramType = func.paramTypes[i] || 'number';
-        const paramName = func.params[i];
+        const paramName = funcParams[i] || '';
         paramTypes.push(paramType);
         if (paramName === 'nodePtr' || paramName === 'treePtr') {
           paramLLVMTypes.push('i8*');
@@ -98,10 +99,10 @@ export class FunctionGenerator {
         }
       }
     } else if (func.parameters && func.parameters.length > 0) {
-      for (let i = 0; i < func.params.length; i++) {
+      for (let i = 0; i < funcParams.length; i++) {
         const param = func.parameters[i] as { name: string; type: string };
         const paramType = param?.type || 'number';
-        const paramName = func.params[i];
+        const paramName = funcParams[i];
         paramTypes.push(paramType);
         if (paramName === 'nodePtr' || paramName === 'treePtr') {
           paramLLVMTypes.push('i8*');
@@ -147,7 +148,7 @@ export class FunctionGenerator {
       this.ctx.currentFunctionReturnType = 'void';
     }
 
-    while (paramLLVMTypes.length < func.params.length) {
+    while (paramLLVMTypes.length < funcParams.length) {
       paramTypes.push('number');
       paramLLVMTypes.push('double');
     }
@@ -174,7 +175,7 @@ export class FunctionGenerator {
     if (hasOptionalParams) {
       paramStrings.push('i32 %__argc');
     }
-    for (let i = 0; i < func.params.length; i++) {
+    for (let i = 0; i < funcParams.length; i++) {
       paramStrings.push(`${paramLLVMTypes[i]} %arg${i}`);
     }
     ir += paramStrings.join(', ');
@@ -182,8 +183,8 @@ export class FunctionGenerator {
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
 
-    for (let i = 0; i < func.params.length; i++) {
-      const paramName = func.params[i];
+    for (let i = 0; i < funcParams.length; i++) {
+      const paramName = funcParams[i];
       const allocaReg = this.ctx.nextTemp();
       const llvmType = paramLLVMTypes[i];
       const paramInfo = func.parameters?.[i];
@@ -256,7 +257,7 @@ export class FunctionGenerator {
         }
         this.ctx.emit(`${allocaReg} = alloca i8*`);
         if (isOptional && hasOptionalParams) {
-          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, func.params);
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
         } else {
           this.ctx.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
         }
@@ -264,7 +265,7 @@ export class FunctionGenerator {
         this.ctx.defineVariable(paramName, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', { isPointerAlloca: true });
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
         if (isOptional && hasOptionalParams) {
-          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, func.params);
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
         } else {
           this.ctx.emit(`store %StringArray* %arg${i}, %StringArray** ${allocaReg}`);
         }
@@ -272,7 +273,7 @@ export class FunctionGenerator {
         this.ctx.defineVariable(paramName, allocaReg, '%Array*', SymbolKind.Array, 'local', { isPointerAlloca: true });
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         if (isOptional && hasOptionalParams) {
-          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, func.params);
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
         } else {
           this.ctx.emit(`store %Array* %arg${i}, %Array** ${allocaReg}`);
         }
@@ -280,7 +281,7 @@ export class FunctionGenerator {
         this.ctx.defineVariable(paramName, allocaReg, 'double', SymbolKind.Number, 'local');
         this.ctx.emit(`${allocaReg} = alloca double`);
         if (isOptional && hasOptionalParams) {
-          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, func.params);
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
         } else {
           this.ctx.emit(`store double %arg${i}, double* ${allocaReg}`);
         }
@@ -315,7 +316,7 @@ export class FunctionGenerator {
       this.ctx.emit(`${resultPromise} = call %Promise* @__Promise_new()`);
     }
 
-    const result = this.ctx.generateBlock(func.body, func.params);
+    const result = this.ctx.generateBlock(func.body, funcParams);
 
     const deferredAllocas = this.ctx.allocaInstructions;
     if (deferredAllocas.length > 0) {
