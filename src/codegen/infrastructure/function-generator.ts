@@ -54,15 +54,11 @@ export class FunctionGenerator {
   }
 
   generate(func: FunctionNode): string {
-    console.log('[FuncGen] Starting generate for: ' + func.name);
     this.ctx.reset();
-    console.log('[FuncGen] After reset');
     this.ctx.syncStateToGenerators();
-    console.log('[FuncGen] After syncState');
     this.ctx.currentFunction = func.name;
     this.ctx.isAsyncFunction = func.async || false;
     this.ctx.asyncResultPromise = '';
-    console.log('[FuncGen] Basic setup done');
 
     const paramTypes: string[] = [];
     const paramLLVMTypes: string[] = [];
@@ -71,32 +67,19 @@ export class FunctionGenerator {
     let returnTypeIsVoid = false;
     this.ctx.currentFunctionReturnType = 'double';
 
-    console.log('[FuncGen] Checking func.async: ' + (func.async ? 'true' : 'false'));
-    console.log('[FuncGen] About to check func.paramTypes');
     const hasParamTypes = func.paramTypes ? true : false;
-    console.log('[FuncGen] hasParamTypes = ' + (hasParamTypes ? 'true' : 'false'));
     let paramTypesLen = 0;
     if (hasParamTypes) {
-      console.log('[FuncGen] About to access func.paramTypes.length');
       paramTypesLen = func.paramTypes!.length;
-      console.log('[FuncGen] paramTypesLen = ' + paramTypesLen);
     }
-    console.log('[FuncGen] After hasParamTypes check, about to check func.async');
     const funcIsAsync = func.async ? true : false;
-    console.log('[FuncGen] funcIsAsync = ' + (funcIsAsync ? 'true' : 'false'));
     if (funcIsAsync) {
       returnType = '%Promise*';
       this.ctx.currentFunctionReturnType = '%Promise*';
     } else if (func.paramTypes && func.paramTypes.length > 0) {
-      console.log('[FuncGen] In paramTypes branch');
-      console.log('[FuncGen] func.paramTypes exists with length ' + func.paramTypes.length);
-      console.log('[FuncGen] func.params.length = ' + func.params.length);
       for (let i = 0; i < func.params.length; i++) {
-        console.log('[FuncGen] Processing param index ' + i);
         const paramType = func.paramTypes[i] || 'number';
-        console.log('[FuncGen] paramType=' + paramType);
         const paramName = func.params[i];
-        console.log('[FuncGen] paramName=' + paramName);
         paramTypes.push(paramType);
         if (paramName === 'nodePtr' || paramName === 'treePtr') {
           paramLLVMTypes.push('i8*');
@@ -115,7 +98,6 @@ export class FunctionGenerator {
         }
       }
     } else if (func.parameters && func.parameters.length > 0) {
-      console.log('[FuncGen] In parameters branch');
       for (let i = 0; i < func.params.length; i++) {
         const param = func.parameters[i] as { name: string; type: string };
         const paramType = param?.type || 'number';
@@ -139,7 +121,6 @@ export class FunctionGenerator {
       }
     }
 
-    console.log('[FuncGen] About to check returnType');
     if (!func.async) {
       const theReturnType = func.returnType;
       if (theReturnType === 'string') {

@@ -36,16 +36,21 @@ export interface AssignmentGeneratorContext {
   expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
   currentDeclaredMapType: string | undefined;
   currentClassName: string | null;
+  getThisPointer(): string | null;
+  getCurrentClassName(): string | null;
 }
 
 export class AssignmentGenerator {
   constructor(private ctx: AssignmentGeneratorContext) {}
 
   generateMemberAccessAssignment(stmt: AssignmentStatement, params: string[]): void {
-    if (stmt.value.type !== 'member_access_assignment') {
+    const stmtValue = stmt.value;
+    const stmtValueTyped = stmtValue as { type: string };
+    const valueType = stmtValueTyped.type;
+    if (valueType !== 'member_access_assignment') {
       throw new Error('Invalid member access assignment format');
     }
-    const memberAccessValue = stmt.value as MemberAccessAssignmentNode;
+    const memberAccessValue = stmtValue as MemberAccessAssignmentNode;
 
     const object = memberAccessValue.object;
     const objectTyped = object as { type: string };
@@ -66,10 +71,11 @@ export class AssignmentGenerator {
       const newExpr = object as NewNode;
       className = newExpr.className;
     } else if (objectTyped.type === 'this') {
-      if (!this.ctx.thisPointer) {
+      const thisPtr = this.ctx.getThisPointer();
+      if (!thisPtr) {
         throw new Error('this.field = value used outside of class method or constructor');
       }
-      className = this.ctx.currentClassName;
+      className = this.ctx.getCurrentClassName();
       if (!className) {
         let classWithFieldResult: ClassNode | null = null;
         for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
@@ -146,19 +152,30 @@ export class AssignmentGenerator {
     memberAccessValue: MemberAccessAssignmentNode,
     params: string[]
   ): void {
-    let fieldInfoResult = this.ctx.classGen.getFieldInfo(className, property);
-    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+    const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, property);
 
-    if (fieldInfoResult && fieldInfo.type === 'string[]') {
+    let fieldIndex = -1;
+    let fieldType = '';
+    let fieldTsType: string | null = null;
+    if (fieldInfoResult) {
+      const fi = fieldInfoResult as { index: number; type: string; tsType?: string };
+      fieldIndex = fi.index;
+      fieldType = fi.type;
+      if (fi.tsType !== null && fi.tsType !== undefined) {
+        fieldTsType = fi.tsType;
+      }
+    }
+
+    if (fieldInfoResult && fieldType === 'string[]') {
       this.ctx.expectedArrayElementType = 'string';
-    } else if (fieldInfoResult && fieldInfo.type === 'number[]') {
+    } else if (fieldInfoResult && fieldType === 'number[]') {
       this.ctx.expectedArrayElementType = 'number';
-    } else if (fieldInfoResult && fieldInfo.type === 'boolean[]') {
+    } else if (fieldInfoResult && fieldType === 'boolean[]') {
       this.ctx.expectedArrayElementType = 'boolean';
     }
 
-    if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<string,')) {
-      this.ctx.currentDeclaredMapType = fieldInfo.tsType;
+    if (fieldTsType && fieldTsType.startsWith('Map<string,')) {
+      this.ctx.currentDeclaredMapType = fieldTsType;
     }
 
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
@@ -166,31 +183,31 @@ export class AssignmentGenerator {
     this.ctx.currentDeclaredMapType = undefined;
 
     let instancePtr: string | null = null;
-    if (object.type === 'variable') {
+    const objType = object.type;
+    if (objType === 'variable') {
       const varName = (object as VariableNode).name;
       if (this.ctx.symbolTable.isClass(varName)) {
         instancePtr = this.ctx.generateExpression(object, params);
       }
-    } else if (object.type === 'new') {
+    } else if (objType === 'new') {
       instancePtr = this.ctx.generateExpression(object, params);
-    } else if (object.type === 'this') {
-      instancePtr = this.ctx.thisPointer;
+    } else if (objType === 'this') {
+      instancePtr = this.ctx.getThisPointer();
     }
 
     if (!instancePtr) {
-      throw new Error(`Cannot determine class instance for field assignment on ${object.type}`);
+      throw new Error(`Cannot determine class instance for field assignment on ${objType}`);
     }
 
     const fields = this.ctx.classGen.getClassFields(className);
 
-    if (fieldInfo) {
-      const fi = fieldInfo as { index: number; type: string };
+    if (fieldInfoResult) {
       const fieldPtr = this.ctx.nextTemp();
       if (fields.length > 0) {
-        this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${instancePtr}, i32 0, i32 ${fi.index}`);
-        this.storeFieldValue(fieldInfo, fieldPtr, value, memberAccessValue);
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${instancePtr}, i32 0, i32 ${fieldIndex}`);
+        this.storeFieldValueDirect(fieldType, fieldTsType, fieldPtr, value, memberAccessValue);
       } else {
-        this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 ${fi.index}`);
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 ${fieldIndex}`);
         this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
       }
     } else if (fields.length === 0) {
@@ -202,20 +219,25 @@ export class AssignmentGenerator {
     }
   }
 
-  private storeFieldValue(
-    fieldInfo: FieldInfo,
+  private storeFieldValueDirect(
+    fiType: string,
+    fiTsType: string | null,
     fieldPtr: string,
     value: string,
     memberAccessValue: MemberAccessAssignmentNode
   ): void {
-    if (fieldInfo.type === 'string') {
+
+    const hasTsType = fiTsType !== null;
+
+    if (fiType === 'string') {
       let isAlreadyPointer = false;
-      if (memberAccessValue.value.type === 'variable') {
+      const valueNodeType = memberAccessValue.value.type;
+      if (valueNodeType === 'variable') {
         const varType = this.ctx.getVariableType((memberAccessValue.value as VariableNode).name);
         if (varType === 'i8*' || (varType && varType.indexOf('*') !== -1)) {
           isAlreadyPointer = true;
         }
-      } else if (memberAccessValue.value.type === 'string') {
+      } else if (valueNodeType === 'string') {
         isAlreadyPointer = true;
       }
 
@@ -231,23 +253,82 @@ export class AssignmentGenerator {
         this.ctx.emit(`${strPtr} = inttoptr i32 ${value} to i8*`);
         this.ctx.emit(`store i8* ${strPtr}, i8** ${fieldPtr}`);
       }
-    } else if (fieldInfo.type === 'string[]') {
+    } else if (fiType === 'string[]') {
       this.ctx.emit(`store %StringArray* ${value}, %StringArray** ${fieldPtr}`);
-    } else if (fieldInfo.type.endsWith('[]')) {
+    } else if (fiType.endsWith('[]')) {
       this.ctx.emit(`store %Array* ${value}, %Array** ${fieldPtr}`);
-    } else if (fieldInfo.type === 'boolean') {
+    } else if (fiType === 'boolean') {
       const boolValue = this.ctx.nextTemp();
       this.ctx.emit(`${boolValue} = fcmp one double ${value}, 0.0`);
       this.ctx.emit(`store i1 ${boolValue}, i1* ${fieldPtr}`);
-    } else if (fieldInfo.tsType?.startsWith('Map<string,')) {
+    } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<string,')) {
       this.ctx.emit(`store %StringMap* ${value}, %StringMap** ${fieldPtr}`);
-    } else if (fieldInfo.tsType?.startsWith('Map<')) {
+    } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<')) {
       this.ctx.emit(`store %Map* ${value}, %Map** ${fieldPtr}`);
-    } else if (fieldInfo.tsType === 'Set<string>') {
+    } else if (hasTsType && fiTsType === 'Set<string>') {
       this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
-    } else if (fieldInfo.tsType?.startsWith('Set<')) {
+    } else if (hasTsType && fiTsType && fiTsType.startsWith('Set<')) {
       this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
-    } else if (fieldInfo.tsType && fieldInfo.tsType !== 'number' && fieldInfo.tsType !== 'boolean') {
+    } else if (hasTsType && fiTsType !== 'number' && fiTsType !== 'boolean') {
+      this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
+    } else {
+      this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
+    }
+  }
+
+  private storeFieldValue(
+    fieldInfo: FieldInfo,
+    fieldPtr: string,
+    value: string,
+    memberAccessValue: MemberAccessAssignmentNode
+  ): void {
+    const fi = fieldInfo as { type: string; tsType?: string };
+    const fiType = fi.type;
+
+    const fiTsType = fi.tsType;
+    const hasTsType = fiTsType !== null && fiTsType !== undefined;
+
+    if (fiType === 'string') {
+      let isAlreadyPointer = false;
+      const valueNodeType = memberAccessValue.value.type;
+      if (valueNodeType === 'variable') {
+        const varType = this.ctx.getVariableType((memberAccessValue.value as VariableNode).name);
+        if (varType === 'i8*' || (varType && varType.indexOf('*') !== -1)) {
+          isAlreadyPointer = true;
+        }
+      } else if (valueNodeType === 'string') {
+        isAlreadyPointer = true;
+      }
+
+      const valueType = this.ctx.getVariableType(value);
+      if (valueType === 'i8*' || (valueType && valueType.indexOf('*') !== -1)) {
+        isAlreadyPointer = true;
+      }
+
+      if (isAlreadyPointer) {
+        this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
+      } else {
+        const strPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${strPtr} = inttoptr i32 ${value} to i8*`);
+        this.ctx.emit(`store i8* ${strPtr}, i8** ${fieldPtr}`);
+      }
+    } else if (fiType === 'string[]') {
+      this.ctx.emit(`store %StringArray* ${value}, %StringArray** ${fieldPtr}`);
+    } else if (fiType.endsWith('[]')) {
+      this.ctx.emit(`store %Array* ${value}, %Array** ${fieldPtr}`);
+    } else if (fiType === 'boolean') {
+      const boolValue = this.ctx.nextTemp();
+      this.ctx.emit(`${boolValue} = fcmp one double ${value}, 0.0`);
+      this.ctx.emit(`store i1 ${boolValue}, i1* ${fieldPtr}`);
+    } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<string,')) {
+      this.ctx.emit(`store %StringMap* ${value}, %StringMap** ${fieldPtr}`);
+    } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<')) {
+      this.ctx.emit(`store %Map* ${value}, %Map** ${fieldPtr}`);
+    } else if (hasTsType && fiTsType === 'Set<string>') {
+      this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
+    } else if (hasTsType && fiTsType && fiTsType.startsWith('Set<')) {
+      this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
+    } else if (hasTsType && fiTsType !== 'number' && fiTsType !== 'boolean') {
       this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
     } else {
       this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
