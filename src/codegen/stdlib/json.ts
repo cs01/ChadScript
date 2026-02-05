@@ -4,7 +4,7 @@ interface ExprBase { type: string; }
 
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
-interface InterfaceDefInfo {
+interface JsonInterfaceDef {
   fields: { name: string; type: string }[];
 }
 
@@ -47,7 +47,7 @@ export class JsonGenerator {
       throw new Error(`JSON.parse<${typeParam}>: Interface '${typeParam}' not found in AST`);
     }
 
-    const interfaceDef: InterfaceDefInfo = {
+    const interfaceDef: JsonInterfaceDef = {
       fields: interfaceDefResult.fields.map((f: any) => ({
         name: f.name.replace(/\?$/, ''),
         type: f.type
@@ -93,19 +93,6 @@ export class JsonGenerator {
     const size = this.ctx.nextTemp();
     this.ctx.emit(`${size} = sitofp i32 ${sizeI32} to double`);
 
-    const arrPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${arrPtr} = call i8* @GC_malloc(i64 24)`);
-    const arr = this.ctx.nextTemp();
-    this.ctx.emit(`${arr} = bitcast i8* ${arrPtr} to %Array*`);
-
-    const lenFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${lenFieldPtr} = getelementptr %Array, %Array* ${arr}, i32 0, i32 0`);
-    this.ctx.emit(`store double ${size}, double* ${lenFieldPtr}`);
-
-    const capFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${capFieldPtr} = getelementptr %Array, %Array* ${arr}, i32 0, i32 1`);
-    this.ctx.emit(`store double ${size}, double* ${capFieldPtr}`);
-
     const sizeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${sizeI64} = fptosi double ${size} to i64`);
     const dataSize = this.ctx.nextTemp();
@@ -115,9 +102,22 @@ export class JsonGenerator {
     const data = this.ctx.nextTemp();
     this.ctx.emit(`${data} = bitcast i8* ${dataPtr} to double*`);
 
+    const arrPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${arrPtr} = call i8* @GC_malloc(i64 24)`);
+    const arr = this.ctx.nextTemp();
+    this.ctx.emit(`${arr} = bitcast i8* ${arrPtr} to %Array*`);
+
     const dataFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataFieldPtr} = getelementptr %Array, %Array* ${arr}, i32 0, i32 2`);
+    this.ctx.emit(`${dataFieldPtr} = getelementptr %Array, %Array* ${arr}, i32 0, i32 0`);
     this.ctx.emit(`store double* ${data}, double** ${dataFieldPtr}`);
+
+    const lenFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${lenFieldPtr} = getelementptr %Array, %Array* ${arr}, i32 0, i32 1`);
+    this.ctx.emit(`store i32 ${sizeI32}, i32* ${lenFieldPtr}`);
+
+    const capFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${capFieldPtr} = getelementptr %Array, %Array* ${arr}, i32 0, i32 2`);
+    this.ctx.emit(`store i32 ${sizeI32}, i32* ${capFieldPtr}`);
 
     const loopInit = this.ctx.nextLabel('json_arr_loop_init');
     const loopCond = this.ctx.nextLabel('json_arr_loop_cond');
@@ -148,7 +148,13 @@ export class JsonGenerator {
     this.ctx.emit(`${iInc} = add i32 ${i}, 1`);
     this.ctx.emit(`br label %${loopCond}`);
 
-    const phiIdx = this.ctx.output.findIndex((line: string) => line.includes(phiPlaceholder));
+    let phiIdx = -1;
+    for (let phiSearchIdx = 0; phiSearchIdx < this.ctx.output.length; phiSearchIdx++) {
+      if (this.ctx.output[phiSearchIdx].includes(phiPlaceholder)) {
+        phiIdx = phiSearchIdx;
+        break;
+      }
+    }
     if (phiIdx !== -1) {
       this.ctx.output[phiIdx] = this.ctx.output[phiIdx].replace(phiPlaceholder, iInc);
     }
@@ -174,7 +180,7 @@ export class JsonGenerator {
     return false;
   }
 
-  private generateJsonStruct(typeName: string, interfaceDef: InterfaceDefInfo): void {
+  private generateJsonStruct(typeName: string, interfaceDef: JsonInterfaceDef): void {
     if (this.generatedStructs.has(typeName)) {
       return;
     }
@@ -189,17 +195,20 @@ export class JsonGenerator {
     }
 
     const fieldTypes: string[] = [];
-    for (const field of interfaceDef.fields) {
-      if (field.type === 'string') {
+    for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
+      const fieldItem = interfaceDef.fields[fi] as { name: string; type: string };
+      const fieldType = fieldItem.type;
+      const fieldName = fieldItem.name;
+      if (fieldType === 'string') {
         fieldTypes.push('i8*');
-      } else if (field.type === 'number') {
+      } else if (fieldType === 'number') {
         fieldTypes.push('double');
-      } else if (field.type === 'boolean') {
+      } else if (fieldType === 'boolean') {
         fieldTypes.push('i1');
       } else {
-        const nestedInterface = this.ctx.getInterfaceFromAST(field.type);
+        const nestedInterface = this.ctx.getInterfaceFromAST(fieldType);
         if (nestedInterface) {
-          fieldTypes.push(`%${field.type}*`);
+          fieldTypes.push(`%${fieldType}*`);
         } else {
           fieldTypes.push('i8*');
         }
@@ -217,17 +226,18 @@ export class JsonGenerator {
     }
   }
 
-  private generateJsonParser(typeName: string, interfaceDef: InterfaceDefInfo): void {
+  private generateJsonParser(typeName: string, interfaceDef: JsonInterfaceDef): void {
     if (this.generatedParsers.has(typeName)) {
       return;
     }
     this.generatedParsers.add(typeName);
 
-    for (const field of interfaceDef.fields) {
+    for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
+      const field = interfaceDef.fields[fi];
       if (field.type !== 'string' && field.type !== 'number' && field.type !== 'boolean') {
         const nestedInterface = this.ctx.getInterfaceFromAST(field.type);
         if (nestedInterface) {
-          const nestedDef: InterfaceDefInfo = {
+          const nestedDef: JsonInterfaceDef = {
             fields: nestedInterface.fields.map((f: any) => ({
               name: f.name.replace(/\?$/, ''),
               type: f.type
@@ -259,7 +269,7 @@ export class JsonGenerator {
       const fieldNameConst = this.ctx.nextString();
       this.ctx.globalStrings.push(`${fieldNameConst} = private unnamed_addr constant [${fieldName.length + 1} x i8] c"${fieldName}\\00", align 1`);
 
-      parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItemCaseSensitive(i8* %json_root, i8* getelementptr inbounds ([${fieldName.length + 1} x i8], [${fieldName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
+      parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${fieldName.length + 1} x i8], [${fieldName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
 
       if (fieldType === 'string') {
         parserIR += `  %temp_str_${fieldIndex} = call i8* @cJSON_GetStringValue(i8* %item_${fieldIndex})\n`;
