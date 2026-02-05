@@ -120,6 +120,7 @@ export interface MemberAccessGeneratorContext {
   setGen: SetGeneratorLike;
   responseGen: ResponseGeneratorLike;
   generateExpression(expr: Expression, params: string[]): string;
+  stringGenCreateStringConstant(value: string): string;
 }
 
 /**
@@ -889,7 +890,7 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
 
     this.ctx.syncStateToGenerators();
-    const fieldNameStr = this.ctx.stringGen.createStringConstant(expr.property);
+    const fieldNameStr = this.ctx.stringGenCreateStringConstant(expr.property);
 
     const fieldItem = this.ctx.nextTemp();
     this.ctx.emit(`${fieldItem} = call i8* @cJSON_GetObjectItem(i8* ${jsonObjPtr}, i8* ${fieldNameStr})`);
@@ -1020,7 +1021,7 @@ export class MemberAccessGenerator {
     const nestedMeta = nestedMetaRaw as { keys: string[]; types: string[]; tsTypes: string[] | undefined };
 
     this.ctx.syncStateToGenerators();
-    const fieldNameStr = this.ctx.stringGen.createStringConstant(expr.property);
+    const fieldNameStr = this.ctx.stringGenCreateStringConstant(expr.property);
     const fieldItem = this.ctx.nextTemp();
     this.ctx.emit(`${fieldItem} = call i8* @cJSON_GetObjectItem(i8* ${innerResult}, i8* ${fieldNameStr})`);
 
@@ -1902,7 +1903,7 @@ export class MemberAccessGenerator {
 
     this.ctx.syncStateToGenerators();
     const jsonObjPtr = this.ctx.generateExpression(expr.object, params);
-    const fieldNameStr = this.ctx.stringGen.createStringConstant(expr.property);
+    const fieldNameStr = this.ctx.stringGenCreateStringConstant(expr.property);
 
     const fieldItem = this.ctx.nextTemp();
     this.ctx.emit(`${fieldItem} = call i8* @cJSON_GetObjectItem(i8* ${jsonObjPtr}, i8* ${fieldNameStr})`);

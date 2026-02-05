@@ -57,6 +57,7 @@ export interface LiteralGeneratorContext {
   stringSetGen: StringSetGeneratorLike;
   classGen: ClassGeneratorLike;
   classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string;
+  stringGenCreateStringConstant(value: string): string;
 }
 
 /**
@@ -114,7 +115,7 @@ export class LiteralExpressionGenerator {
    */
   generateString(value: string): string {
     this.ctx.syncStateToGenerators();
-    return this.ctx.stringGen.createStringConstant(value);
+    return this.ctx.stringGenCreateStringConstant(value);
   }
 
   /**

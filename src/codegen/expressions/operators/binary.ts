@@ -21,6 +21,7 @@ export interface BinaryExpressionGeneratorContext {
   controlFlowGen: ControlFlowGeneratorLike;
   stringGen: StringGeneratorLike;
   generateExpression(expr: Expression, params: string[]): string;
+  stringGenGenerateStringConcat(left: Expression, right: Expression, params: string[]): string;
 }
 
 /**
@@ -48,7 +49,7 @@ export class BinaryExpressionGenerator {
     // Check for string concatenation (+ with at least one string operand)
     if (op === '+' && (this.ctx.isStringExpression(left) || this.ctx.isStringExpression(right))) {
       this.ctx.syncStateToGenerators();
-      return this.ctx.stringGen.generateStringConcat(left, right, params);
+      return this.ctx.stringGenGenerateStringConcat(left, right, params);
     }
 
     const leftValue = this.ctx.generateExpression(left, params);

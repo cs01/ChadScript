@@ -458,6 +458,31 @@ export interface IGeneratorContext {
   typeResolverGetThisFieldSetValueType(expr: Expression): string | null;
 
   /**
+   * StringGen delegate methods (avoid struct layout mismatch)
+   */
+  stringGenCreateStringConstant(value: string): string;
+  stringGenGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string;
+  stringGenGenerateStringConcatDirect(left: string, right: string): string;
+  stringGenGenerateRepeat(strPtr: string, count: string): string;
+  stringGenGeneratePadStart(strPtr: string, targetLength: string, padString: string): string;
+  stringGenGenerateSplit(strPtr: string, delimiter: string): string;
+  stringGenGenerateStartsWith(strPtr: string, prefix: string): string;
+  stringGenGenerateEndsWith(strPtr: string, suffix: string): string;
+  stringGenGenerateTrim(strPtr: string): string;
+  stringGenGenerateToUpperCase(strPtr: string): string;
+  stringGenGenerateToLowerCase(strPtr: string): string;
+  stringGenGenerateIndexOf(strPtr: string, substring: string): string;
+  stringGenGenerateIncludes(strPtr: string, substring: string): string;
+  stringGenGenerateSlice(strPtr: string, start: string, end: string | null): string;
+  stringGenGenerateCharAt(strPtr: string, index: string): string;
+  stringGenGenerateCharCodeAt(strPtr: string, index: string): string;
+  stringGenGenerateReplace(strPtr: string, search: string, replace: string): string;
+  stringGenGenerateReplaceAll(strPtr: string, search: string, replace: string): string;
+  stringGenGenerateGlobalString(value: string): string;
+  stringGenGenerateStringConcat(left: Expression, right: Expression, params: string[]): string;
+  stringGenConvertNumberToString(numValue: string): string;
+
+  /**
    * Access to string map generator for Map<string, *> operations
    */
   readonly stringMapGen: IStringMapGenerator;
@@ -774,6 +799,28 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateStringConcat: (_left: Expression, _right: Expression, _params: string[]): string => '%0',
     generateStringConcatDirect: (_left: string, _right: string): string => '%0',
   };
+
+  stringGenCreateStringConstant(_value: string): string { return '%0'; }
+  stringGenGenerateSubstr(_strPtr: string, _startIndex: string, _length: string | null): string { return '%0'; }
+  stringGenGenerateStringConcatDirect(_left: string, _right: string): string { return '%0'; }
+  stringGenGenerateRepeat(_strPtr: string, _count: string): string { return '%0'; }
+  stringGenGeneratePadStart(_strPtr: string, _targetLength: string, _padString: string): string { return '%0'; }
+  stringGenGenerateSplit(_strPtr: string, _delimiter: string): string { return '%0'; }
+  stringGenGenerateStartsWith(_strPtr: string, _prefix: string): string { return '%0'; }
+  stringGenGenerateEndsWith(_strPtr: string, _suffix: string): string { return '%0'; }
+  stringGenGenerateTrim(_strPtr: string): string { return '%0'; }
+  stringGenGenerateToUpperCase(_strPtr: string): string { return '%0'; }
+  stringGenGenerateToLowerCase(_strPtr: string): string { return '%0'; }
+  stringGenGenerateIndexOf(_strPtr: string, _substring: string): string { return '%0'; }
+  stringGenGenerateIncludes(_strPtr: string, _substring: string): string { return '%0'; }
+  stringGenGenerateSlice(_strPtr: string, _start: string, _end: string | null): string { return '%0'; }
+  stringGenGenerateCharAt(_strPtr: string, _index: string): string { return '%0'; }
+  stringGenGenerateCharCodeAt(_strPtr: string, _index: string): string { return '%0'; }
+  stringGenGenerateReplace(_strPtr: string, _search: string, _replace: string): string { return '%0'; }
+  stringGenGenerateReplaceAll(_strPtr: string, _search: string, _replace: string): string { return '%0'; }
+  stringGenGenerateGlobalString(_value: string): string { return '%0'; }
+  stringGenGenerateStringConcat(_left: Expression, _right: Expression, _params: string[]): string { return '%0'; }
+  stringGenConvertNumberToString(_numValue: string): string { return '%0'; }
 
   generateHttpServe(_expr: CallNode, _params: string[]): string {
     return this.nextTemp();

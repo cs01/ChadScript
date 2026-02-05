@@ -34,7 +34,7 @@ export class TemplateLiteralGenerator {
     if (expr.parts.length === 0) {
       // Empty template literal
       this.ctx.syncStateToGenerators();
-      return this.ctx.stringGen.createStringConstant('');
+      return this.ctx.stringGenCreateStringConstant('');
     }
 
     if (expr.parts.length === 1) {
@@ -42,7 +42,7 @@ export class TemplateLiteralGenerator {
       if (!firstPart.type) {
         // Simple string with no interpolation (no type property means it's a string)
         this.ctx.syncStateToGenerators();
-        return this.ctx.stringGen.createStringConstant(expr.parts[0] as string);
+        return this.ctx.stringGenCreateStringConstant(expr.parts[0] as string);
       }
     }
 
@@ -56,7 +56,7 @@ export class TemplateLiteralGenerator {
       const partAsObj = part as { type: string };
       if (!partAsObj.type) {
         // String literal part (no type property means it's a string)
-        partValue = this.ctx.stringGen.createStringConstant(part as string);
+        partValue = this.ctx.stringGenCreateStringConstant(part as string);
       } else {
         const exprPart = part as Expression;
         const exprValue = this.ctx.generateExpression(exprPart, params);
@@ -71,7 +71,7 @@ export class TemplateLiteralGenerator {
         result = partValue;
       } else {
         // Concatenate with previous result
-        result = this.ctx.stringGen.generateStringConcatDirect(result, partValue);
+        result = this.ctx.stringGenGenerateStringConcatDirect(result, partValue);
       }
     }
 

@@ -26,6 +26,7 @@ interface UnaryExpressionContext {
   classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
   stringGen?: StringGenLike;
   generateExpression(expr: Expression, params: string[]): string;
+  stringGenCreateStringConstant(value: string): string;
 }
 
 export class UnaryExpressionGenerator {
@@ -218,7 +219,7 @@ export class UnaryExpressionGenerator {
     if (!this.ctx.stringGen) {
       throw new Error('typeof requires stringGen in context');
     }
-    const strPtr = this.ctx.stringGen.createStringConstant(typeString);
+    const strPtr = this.ctx.stringGenCreateStringConstant(typeString);
     this.ctx.setVariableType(strPtr, 'i8*');
     return strPtr;
   }
