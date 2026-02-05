@@ -62,11 +62,9 @@ export class AssignmentGenerator {
   constructor(private ctx: AssignmentGeneratorContext) {}
 
   generateMemberAccessAssignment(stmt: AssignmentStatement, params: string[]): void {
-    console.log('generateMemberAccessAssignment: start');
     const stmtValue = stmt.value;
     const stmtValueTyped = stmtValue as { type: string };
     const valueType = stmtValueTyped.type;
-    console.log('generateMemberAccessAssignment: valueType = ' + valueType);
     if (valueType === null || valueType === undefined) {
       return;
     }
@@ -78,17 +76,14 @@ export class AssignmentGenerator {
     const object = memberAccessValue.object;
     const objectTyped = object as { type: string };
     const objType = objectTyped.type;
-    console.log('generateMemberAccessAssignment: objType = ' + objType);
     if (objType === null || objType === undefined) {
       return;
     }
     const property = memberAccessValue.property;
-    console.log('generateMemberAccessAssignment: property = ' + property);
 
     let className: string | null = null;
 
     if (objType === 'variable') {
-      console.log('generateMemberAccessAssignment: variable branch');
       const varName = (object as VariableNode).name;
       if (this.ctx.symbolTableIsClass(varName)) {
         const classMeta = this.ctx.symbolTableGetClassInfo(varName)!;
@@ -98,18 +93,14 @@ export class AssignmentGenerator {
         return;
       }
     } else if (objType === 'new') {
-      console.log('generateMemberAccessAssignment: new branch');
       const newExpr = object as NewNode;
       className = newExpr.className;
     } else if (objType === 'this') {
-      console.log('generateMemberAccessAssignment: this branch');
       const thisPtr = this.ctx.getThisPointer();
-      console.log('generateMemberAccessAssignment: thisPtr = ' + thisPtr);
       if (!thisPtr) {
         throw new Error('this.field = value used outside of class method or constructor');
       }
       className = this.ctx.getCurrentClassName();
-      console.log('generateMemberAccessAssignment: className = ' + className);
       if (!className) {
         const ast = this.ctx.getAst();
         const classes = ast?.classes || [];
@@ -140,9 +131,7 @@ export class AssignmentGenerator {
     }
 
     if (className) {
-      console.log('generateMemberAccessAssignment: calling handleClassFieldAssignment');
       this.handleClassFieldAssignment(object, className, property, memberAccessValue, params);
-      console.log('generateMemberAccessAssignment: handleClassFieldAssignment done');
     }
   }
 
@@ -190,11 +179,7 @@ export class AssignmentGenerator {
     memberAccessValue: MemberAccessAssignmentNode,
     params: string[]
   ): void {
-    console.log('handleClassFieldAssignment: entered');
-    console.log('handleClassFieldAssignment: className=' + className + ', property=' + property);
-    console.log('handleClassFieldAssignment: calling classGenGetFieldInfo');
     const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, property);
-    console.log('handleClassFieldAssignment: got fieldInfoResult');
 
     let fieldIndex = -1;
     let fieldType = '';
@@ -220,13 +205,10 @@ export class AssignmentGenerator {
       this.ctx.setCurrentDeclaredMapType(fieldTsType);
     }
 
-    console.log('handleClassFieldAssignment: calling generateExpression for value');
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
-    console.log('handleClassFieldAssignment: got value=' + value);
     this.ctx.setExpectedArrayElementType(null);
     this.ctx.setCurrentDeclaredMapType(undefined);
 
-    console.log('handleClassFieldAssignment: getting instancePtr');
     let instancePtr: string | null = null;
     const objType = object.type;
     if (objType === 'variable') {
