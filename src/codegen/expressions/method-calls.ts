@@ -314,8 +314,8 @@ export class MethodCallGenerator {
       this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${numStr})`);
       return temp;
     } else {
-      const argValue = this.ctx.generateExpression(arg as import('../../ast/types.js').Expression, params);
-      const isString = this.ctx.isStringExpression(arg as import('../../ast/types.js').Expression);
+      const argValue = this.ctx.generateExpression(arg as Expression, params);
+      const isString = this.ctx.isStringExpression(arg as Expression);
       const temp = this.ctx.nextTemp();
       if (isString) {
         this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.strfmt, i32 0, i32 0), i8* ${argValue})`);
@@ -335,7 +335,7 @@ export class MethodCallGenerator {
         const intValue = Math.floor(numValue);
         this.ctx.emit(`call void @exit(i32 ${intValue})`);
       } else {
-        const exprResult = this.ctx.generateExpression(arg as import('../../ast/types.js').Expression, params);
+        const exprResult = this.ctx.generateExpression(arg as Expression, params);
         const intTemp = this.ctx.nextTemp();
         this.ctx.emit(`${intTemp} = fptosi double ${exprResult} to i32`);
         this.ctx.emit(`call void @exit(i32 ${intTemp})`);

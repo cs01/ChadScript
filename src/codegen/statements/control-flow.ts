@@ -251,13 +251,18 @@ export class ControlFlowGenerator {
     this.emit(`${updateLabel}:`);
     if (forStmt.update) {
       const updateTyped = forStmt.update as { type: string; name: string; value: Expression };
-      if (updateTyped.type === 'assignment') {
-        const value = this.ctx.generateExpression(updateTyped.value, params);
-        const allocaReg = this.ctx.getVariableAlloca(updateTyped.name);
-        if (!allocaReg) {
-          throw new Error(`Variable ${updateTyped.name} not found in update`);
+      const updateType = updateTyped.type;
+      if (updateType === 'assignment') {
+        const updateName = updateTyped.name;
+        if (!updateName) {
+          throw new Error('Assignment update has no name');
         }
-        const varType = this.ctx.getVariableType(updateTyped.name) || 'double';
+        const value = this.ctx.generateExpression(updateTyped.value, params);
+        const allocaReg = this.ctx.getVariableAlloca(updateName);
+        if (!allocaReg) {
+          throw new Error(`Variable ${updateName} not found in update`);
+        }
+        const varType = this.ctx.getVariableType(updateName) || 'double';
         this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
       } else {
         // It's an expression (like i++)

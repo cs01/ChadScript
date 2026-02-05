@@ -361,21 +361,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private generateGlobalVariableDeclarations(): string {
-    console.log('[generateGlobalVariableDeclarations] start');
     let ir = '';
-    console.log('[generateGlobalVariableDeclarations] topLevelStatementsCount=' + this.topLevelStatementsCount);
     if (this.topLevelStatementsCount === 0) {
       return ir;
     }
     const stmts = this.ast.topLevelStatements;
-    console.log('[generateGlobalVariableDeclarations] stmts.length=' + stmts.length);
     for (let stmtIdx = 0; stmtIdx < this.topLevelStatementsCount; stmtIdx++) {
-      console.log('[generateGlobalVariableDeclarations] processing stmtIdx=' + stmtIdx);
       const stmt = stmts[stmtIdx] as { type: string; kind: string; name: string; value: Expression | null; declaredType?: string };
-      console.log('[generateGlobalVariableDeclarations] stmt.type=' + stmt.type);
       if (stmt.type === 'variable_declaration' && stmt.value !== null) {
         const name = stmt.name;
-        console.log('[generateGlobalVariableDeclarations] name=' + name);
         const isString = this.isStringExpression(stmt.value);
         const isStringArray = this.isStringArrayExpression(stmt.value);
         const isArray = !isStringArray && this.isArrayExpression(stmt.value);
@@ -555,15 +549,19 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
    * @returns Complete LLVM IR module as string (struct types + extern declarations + functions + main)
    */
   generate(): string {
+    console.log('[generate] starting');
     let ir = '';
 
     ir += getLLVMDeclarations();
+    console.log('[generate] got declarations');
 
     const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
     this.interfaceStructDefsCache = interfaceStructDefs;
+    console.log('[generate] generated interface structs');
 
     const classStructDefs = this.classGen.generateStructTypeDefinitions(this.classesCount);
     this.classStructDefsCache = classStructDefs;
+    console.log('[generate] generated class structs');
 
     ir += this.runtimeGen.generateFetchRuntime();
     ir += '\n';
@@ -606,29 +604,30 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     ir += getGlobalVariables();
 
     ir += this.generateGlobalVariableDeclarations();
+    console.log('[generate] done with globals, starting classes count=' + this.classesCount);
 
     // Generate class definitions
     for (let classIdx = 0; classIdx < this.classesCount; classIdx++) {
       const classNode = this.ast.classes[classIdx];
+      const classNameSafe = classNode && classNode.name ? classNode.name : 'NULL';
+      console.log('[generate] class ' + classIdx + ': ' + classNameSafe);
       this.syncStateToGenerators();
       ir += this.classGen.generateClass(classNode);
       ir += '\n';
     }
+    console.log('[generate] done with classes, starting functions count=' + this.functionsCount);
 
     // Generate user function definitions (this may discover lifted functions)
     let userFunctionsIr = '';
-    console.error('[LLVMGenerator] About to loop over functions, count=' + this.functionsCount);
     for (let funcIdx = 0; funcIdx < this.functionsCount; funcIdx++) {
-      console.error('[LLVMGenerator] Accessing function at index ' + funcIdx);
       const func = this.ast.functions[funcIdx];
-      console.error('[LLVMGenerator] Got function object');
       const funcTyped = func as { name: string };
-      console.error('[LLVMGenerator] About to access func.name');
       const theName = funcTyped.name;
-      console.error('[LLVMGenerator] func.name = ' + theName);
+      console.log('[generate] function ' + funcIdx + ': ' + theName);
       userFunctionsIr += this.generateFunction(func);
       userFunctionsIr += '\n';
     }
+    console.log('[generate] done with functions, starting main');
 
     // Generate main function (this may also discover lifted functions)
     const mainIr = this.generateMain();
@@ -761,7 +760,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         if (!stmt.name) {
           continue;
         }
-        if (stmt.name.startsWith('__member_access__')) {
+        const isMemberAccess = stmt.name.startsWith('__member_access__');
+        if (isMemberAccess) {
           this.assignmentGen.generateMemberAccessAssignment(stmtRaw as AssignmentStatement, params);
         } else if (stmt.name === '__index_access__') {
           this.generateExpression(stmt.value as Expression, params);
@@ -976,6 +976,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
    * @returns LLVM register name containing the expression result (e.g., '%3')
    */
   public generateExpression(expr: Expression, params: string[]): string {
+    const exprBase = expr as { type: string };
     // Delegate all expression types to ExpressionGenerator
     return this.exprGen.generate(expr, params);
   }
@@ -1130,18 +1131,19 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (!item) {
       return;
     }
-    if (item.type === 'variable_declaration') {
+    const itemType = (item as { type: string }).type;
+    if (itemType === 'variable_declaration') {
       this.allocateVariable(item as VariableDeclaration, []);
-    } else if (item.type === 'if') {
+    } else if (itemType === 'if') {
       this.syncStateToGenerators();
       this.controlFlowGen.generateIfStatement(item as IfStatement, []);
-    } else if (item.type === 'while') {
+    } else if (itemType === 'while') {
       this.syncStateToGenerators();
       this.controlFlowGen.generateWhileStatement(item as WhileStatement, []);
-    } else if (item.type === 'for') {
+    } else if (itemType === 'for') {
       this.syncStateToGenerators();
       this.controlFlowGen.generateForStatement(item as ForStatement, []);
-    } else if (item.type === 'for_of') {
+    } else if (itemType === 'for_of') {
       this.syncStateToGenerators();
       this.controlFlowGen.generateForOfStatement(item as ForOfStatement, []);
     } else if (item.type === 'assignment') {
