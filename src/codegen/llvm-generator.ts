@@ -314,6 +314,26 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public typeResolverGetThisFieldMapKeyType(expr: Expression): string | null { return this.typeResolver ? this.typeResolver.getThisFieldMapKeyType(expr) : null; }
   public typeResolverGetThisFieldSetValueType(expr: Expression): string | null { return this.typeResolver ? this.typeResolver.getThisFieldSetValueType(expr) : null; }
 
+  public stringGenCreateStringConstant(value: string): string { this.syncStateToGenerators(); return this.stringGen.createStringConstant(value); }
+  public stringGenGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string { this.syncStateToGenerators(); return this.stringGen.generateSubstr(strPtr, startIndex, length); }
+  public stringGenGenerateStringConcatDirect(left: string, right: string): string { this.syncStateToGenerators(); return this.stringGen.generateStringConcatDirect(left, right); }
+  public stringGenGenerateRepeat(strPtr: string, count: string): string { this.syncStateToGenerators(); return this.stringGen.generateRepeat(strPtr, count); }
+  public stringGenGeneratePadStart(strPtr: string, targetLength: string, padString: string): string { this.syncStateToGenerators(); return this.stringGen.generatePadStart(strPtr, targetLength, padString); }
+  public stringGenGenerateSplit(strPtr: string, delimiter: string): string { this.syncStateToGenerators(); return this.stringGen.generateSplit(strPtr, delimiter); }
+  public stringGenGenerateStartsWith(strPtr: string, prefix: string): string { this.syncStateToGenerators(); return this.stringGen.generateStartsWith(strPtr, prefix); }
+  public stringGenGenerateEndsWith(strPtr: string, suffix: string): string { this.syncStateToGenerators(); return this.stringGen.generateEndsWith(strPtr, suffix); }
+  public stringGenGenerateTrim(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.generateTrim(strPtr); }
+  public stringGenGenerateToUpperCase(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.generateToUpperCase(strPtr); }
+  public stringGenGenerateToLowerCase(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.generateToLowerCase(strPtr); }
+  public stringGenGenerateIndexOf(strPtr: string, substring: string): string { this.syncStateToGenerators(); return this.stringGen.generateIndexOf(strPtr, substring); }
+  public stringGenGenerateIncludes(strPtr: string, substring: string): string { this.syncStateToGenerators(); return this.stringGen.generateIncludes(strPtr, substring); }
+  public stringGenGenerateSlice(strPtr: string, start: string, end: string | null): string { this.syncStateToGenerators(); return this.stringGen.generateSlice(strPtr, start, end); }
+  public stringGenGenerateCharAt(strPtr: string, index: string): string { this.syncStateToGenerators(); return this.stringGen.generateCharAt(strPtr, index); }
+  public stringGenGenerateCharCodeAt(strPtr: string, index: string): string { this.syncStateToGenerators(); return this.stringGen.generateCharCodeAt(strPtr, index); }
+  public stringGenGenerateReplace(strPtr: string, search: string, replace: string): string { this.syncStateToGenerators(); return this.stringGen.generateReplace(strPtr, search, replace); }
+  public stringGenGenerateReplaceAll(strPtr: string, search: string, replace: string): string { this.syncStateToGenerators(); return this.stringGen.generateReplaceAll(strPtr, search, replace); }
+  public stringGenGenerateGlobalString(value: string): string { this.syncStateToGenerators(); return this.stringGen.generateGlobalString(value); }
+
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (!objExpr || objExpr.type !== 'object') {
