@@ -56,21 +56,24 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     const funcName = `__lambda_${this.anonFuncCounter++}`;
 
     let funcParams = expr.params;
-    if (typeHints?.paramTypes && typeHints.paramTypes.length > funcParams.length) {
+    const hasTypeHints = typeHints !== undefined && typeHints !== null;
+    const hasParamTypes = hasTypeHints && typeHints!.paramTypes !== undefined && typeHints!.paramTypes !== null;
+    if (hasParamTypes && typeHints!.paramTypes!.length > funcParams.length) {
       funcParams = funcParams.slice(0);
-      for (let i = funcParams.length; i < typeHints.paramTypes.length; i++) {
+      for (let i = funcParams.length; i < typeHints!.paramTypes!.length; i++) {
         funcParams.push(`__unused_${i}`);
       }
     }
 
-    if (!typeHints?.paramTypes && funcParams.length > 0) {
+    if (!hasParamTypes && funcParams.length > 0) {
       const inferredTypes = this.inferParamTypesFromBody(funcParams, expr.body);
       if (inferredTypes.length > 0) {
         typeHints = { paramTypes: inferredTypes };
       }
     }
 
-    if (!typeHints?.returnType) {
+    const hasReturnType = typeHints !== undefined && typeHints !== null && typeHints.returnType !== undefined && typeHints.returnType !== null;
+    if (!hasReturnType) {
       const inferredReturnType = this.inferReturnTypeFromBody(expr.body);
       if (inferredReturnType) {
         if (typeHints) {
