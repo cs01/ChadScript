@@ -280,7 +280,10 @@ export class VariableAllocator {
               const types: string[] = [];
               const tsTypes: string[] = [];
               for (let fi = 0; fi < inlineFields.length; fi++) {
-                const field = inlineFields[fi] as { name: string; type: string };
+                const fieldRaw = inlineFields[fi];
+                if (!fieldRaw) continue;
+                const field = fieldRaw as { name: string; type: string };
+                if (!field.name || !field.type) continue;
                 keys.push(stripOptional(field.name));
                 types.push(this.tsTypeToLlvm(field.type));
                 tsTypes.push(field.type);
@@ -301,7 +304,10 @@ export class VariableAllocator {
               const types: string[] = [];
               const tsTypes: string[] = [];
               for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-                const field = interfaceDef.fields[fi] as { name: string; type: string };
+                const fieldRaw = interfaceDef.fields[fi];
+                if (!fieldRaw) continue;
+                const field = fieldRaw as { name: string; type: string };
+                if (!field.name || !field.type) continue;
                 keys.push(stripOptional(field.name));
                 types.push(this.tsTypeToLlvm(field.type));
                 tsTypes.push(field.type);
