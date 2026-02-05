@@ -154,7 +154,7 @@ export interface IGeneratorContext {
     name: string,
     allocaReg: string,
     llvmType: string,
-    kind: import('./symbol-table.js').SymbolKind,
+    kind: SymbolKind,
     scope?: 'local' | 'global',
     metadata?: SymbolMetadata
   ): void;
