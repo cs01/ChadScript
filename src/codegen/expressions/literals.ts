@@ -58,6 +58,7 @@ export interface LiteralGeneratorContext {
   classGen: ClassGeneratorLike;
   classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string;
   stringGenCreateStringConstant(value: string): string;
+  stringMapGenGenerateEmptyStringMap(): string;
 }
 
 /**
@@ -152,7 +153,7 @@ export class LiteralExpressionGenerator {
     if (declaredType) {
       const match = declaredType.match(/^Map<\s*(\w+)\s*,\s*(.+)\s*>$/);
       if (match && match[1] === 'string') {
-        return this.ctx.stringMapGen.generateEmptyStringMap();
+        return this.ctx.stringMapGenGenerateEmptyStringMap();
       }
     }
 
