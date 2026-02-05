@@ -9,19 +9,19 @@ interface Flags {
 }
 
 function parseArgs(): Flags {
-  const flags: Flags = {
+  const opts: Flags = {
     verbose: false,
     output: "output.txt",
     count: 1,
     help: false
   };
 
-  let i = 1;  // Skip program name
+  let i = 0;
   while (i < process.argv.length) {
     const arg = process.argv[i];
 
     if (arg === "-v" || arg === "--verbose") {
-      flags.verbose = true;
+      opts.verbose = true;
       i = i + 1;
     } else if (arg === "-o" || arg === "--output") {
       i = i + 1;
@@ -29,7 +29,7 @@ function parseArgs(): Flags {
         console.log("Error: -o/--output requires a value");
         process.exit(1);
       }
-      flags.output = process.argv[i];
+      opts.output = process.argv[i];
       i = i + 1;
     } else if (arg === "-c" || arg === "--count") {
       i = i + 1;
@@ -37,11 +37,10 @@ function parseArgs(): Flags {
         console.log("Error: -c/--count requires a number");
         process.exit(1);
       }
-      // TODO: Add parseInt once available
-      flags.count = 5;  // Placeholder
+      opts.count = 5;
       i = i + 1;
     } else if (arg === "-h" || arg === "--help") {
-      flags.help = true;
+      opts.help = true;
       i = i + 1;
     } else {
       console.log("Unknown option: " + arg);
@@ -50,7 +49,7 @@ function parseArgs(): Flags {
     }
   }
 
-  return flags;
+  return opts;
 }
 
 function printHelp(): void {
