@@ -612,6 +612,11 @@ export interface IGeneratorContext {
    * ControlFlowGen delegate methods (avoid struct layout mismatch)
    */
   controlFlowGenGenerateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string;
+
+  /**
+   * ObjectGen delegate methods (avoid struct layout mismatch)
+   */
+  objectGenGenerateObjectLiteral(expr: Expression, params: string[]): string;
 }
 
 /**
@@ -1102,6 +1107,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   regexGenGenerateRegexMatch(_regexPtr: string, _testStr: string, _numGroups: number): string { return '%mock_regex_match'; }
 
   controlFlowGenGenerateLogicalOp(_op: string, _left: Expression, _right: Expression, _params: string[]): string { return '%mock_logical_op'; }
+
+  objectGenGenerateObjectLiteral(_expr: Expression, _params: string[]): string { return '%mock_object_literal'; }
 
   resolveImportAlias(localName: string): string {
     return localName;
