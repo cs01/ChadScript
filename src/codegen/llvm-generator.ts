@@ -1154,7 +1154,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     } else if (itemType === 'for_of') {
       this.syncStateToGenerators();
       this.controlFlowGen.generateForOfStatement(item as ForOfStatement, []);
-    } else if (item.type === 'assignment') {
+    } else if (itemType === 'assignment') {
       this.generateBlock({ type: 'block', statements: [item as AssignmentStatement] }, []);
     } else {
       this.generateExpression(item as Expression, []);

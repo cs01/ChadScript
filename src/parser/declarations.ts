@@ -682,13 +682,15 @@ export function parseExport(ctx: ParserContext): void {
   if (ctx.code[ctx.pos] === '{') {
     ctx.pos++;
     ctx.skipWhitespace();
+    const specifiers: string[] = [];
     while (ctx.code[ctx.pos] !== '}') {
-      ctx.parseIdentifier();
+      const name = ctx.parseIdentifier();
       ctx.skipWhitespace();
       if (ctx.match('as')) {
         ctx.parseIdentifier();
         ctx.skipWhitespace();
       }
+      specifiers.push(name);
       if (ctx.code[ctx.pos] === ',') {
         ctx.pos++;
         ctx.skipWhitespace();
@@ -697,8 +699,11 @@ export function parseExport(ctx: ParserContext): void {
     ctx.expect('}');
     ctx.skipWhitespace();
     if (ctx.match('from')) {
-      ctx.parseString();
+      const source = ctx.parseString();
       ctx.skipWhitespace();
+      if (specifiers.length > 0) {
+        ctx.imports.push({ type: 'import', specifiers, source });
+      }
     }
     if (ctx.code[ctx.pos] === ';') {
       ctx.pos++;
@@ -739,24 +744,7 @@ export function parseExport(ctx: ParserContext): void {
       }
       return;
     }
-    ctx.parseIdentifier();
-    ctx.skipWhitespace();
-    if (ctx.code[ctx.pos] === '<') {
-      ctx.pos++;
-      ctx.skipTypeAnnotation();
-      while (ctx.match(',')) {
-        ctx.skipTypeAnnotation();
-      }
-      ctx.expect('>');
-    }
-    ctx.skipWhitespace();
-    ctx.expect('=');
-    ctx.skipWhitespace();
-    ctx.skipTypeAnnotation();
-    ctx.skipWhitespace();
-    if (ctx.code[ctx.pos] === ';') {
-      ctx.pos++;
-    }
+    parseTypeAlias(ctx);
     return;
   }
 

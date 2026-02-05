@@ -217,6 +217,12 @@ function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
 }
 
 function handleExportStatement(node: TreeSitterNode, ast: AST): void {
+  const nodeText = (node as NodeBase).text;
+  const isTypeOnly = nodeText.startsWith('export type ') || nodeText.startsWith('export type{');
+
+  let exportClause: TreeSitterNode | null = null;
+  let sourceString: TreeSitterNode | null = null;
+
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = getNamedChild(node, i);
     if (!child) continue;
@@ -240,6 +246,36 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
         ast.topLevelStatements.push(varDecl);
         ast.topLevelItems!.push(varDecl);
       }
+    } else if (c.type === 'export_clause') {
+      exportClause = child;
+    } else if (c.type === 'string') {
+      sourceString = child;
+    }
+  }
+
+  if (exportClause && sourceString && !isTypeOnly) {
+    let source = (sourceString as NodeBase).text;
+    if ((source.startsWith('"') && source.endsWith('"')) ||
+        (source.startsWith("'") && source.endsWith("'"))) {
+      source = source.slice(1, -1);
+    }
+
+    const specifiers: string[] = [];
+    const ec = exportClause as NodeBase;
+    for (let i = 0; i < ec.namedChildCount; i++) {
+      const spec = getNamedChild(exportClause, i);
+      if (!spec) continue;
+      const sp = spec as NodeBase;
+      if (sp.type === 'export_specifier') {
+        const nameNode = getNamedChild(spec, 0);
+        if (nameNode) {
+          specifiers.push((nameNode as NodeBase).text);
+        }
+      }
+    }
+
+    if (specifiers.length > 0) {
+      ast.imports.push({ type: 'import', specifiers, source });
     }
   }
 }
