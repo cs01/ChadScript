@@ -146,7 +146,7 @@ export class FunctionGenerator {
         returnType = 'void';
         returnTypeIsVoid = true;
         this.ctx.currentFunctionReturnType = 'void';
-      } else if (theReturnType && theReturnType !== 'number' && theReturnType !== 'boolean') {
+      } else if (theReturnType && theReturnType !== '' && theReturnType !== 'number' && theReturnType !== 'boolean') {
         returnType = 'i8*';
         this.ctx.currentFunctionReturnType = 'i8*';
       }
