@@ -23,6 +23,9 @@ interface ResponseGeneratorContext {
   emit(instruction: string): void;
   globalStrings: string[];
   pushGlobalString(str: string): void;
+  getGlobalStringsLength(): number;
+  getGlobalStringAt(index: number): string;
+  clearGlobalStrings(): void;
   variableTypes: Map<string, string>;
   setVariableType(name: string, type: string): void;
   interfaceStructGen?: InterfaceStructGenerator;
@@ -158,10 +161,10 @@ export class ResponseGenerator {
     const structDef = `%${typeName} = type { ${fieldTypes.join(', ')} }\n`;
     // Manual unshift: add structDef at the beginning of globalStrings
     const newGlobalStrings: string[] = [structDef];
-    for (let i = 0; i < this.ctx.globalStrings.length; i++) {
-      newGlobalStrings.push(this.ctx.globalStrings[i]);
+    for (let i = 0; i < this.ctx.getGlobalStringsLength(); i++) {
+      newGlobalStrings.push(this.ctx.getGlobalStringAt(i));
     }
-    this.ctx.globalStrings.length = 0;
+    this.ctx.clearGlobalStrings();
     for (let i = 0; i < newGlobalStrings.length; i++) {
       this.ctx.pushGlobalString(newGlobalStrings[i]);
     }

@@ -361,6 +361,10 @@ export interface IGeneratorContext {
   pushOutput(line: string): void;
   getOutputLength(): number;
   getOutputLine(index: number): string;
+  setOutputLine(index: number, line: string): void;
+  getGlobalStringsLength(): number;
+  getGlobalStringAt(index: number): string;
+  clearGlobalStrings(): void;
   getOutputAsIndentedString(indent: string): string;
 
   /**
@@ -998,6 +1002,22 @@ export class MockGeneratorContext implements IGeneratorContext {
     const line = this.output[index];
     if (line === undefined) return '';
     return line;
+  }
+
+  setOutputLine(index: number, line: string): void {
+    this.output[index] = line;
+  }
+
+  getGlobalStringsLength(): number {
+    return this.globalStrings.length;
+  }
+
+  getGlobalStringAt(index: number): string {
+    return this.globalStrings[index] || '';
+  }
+
+  clearGlobalStrings(): void {
+    this.globalStrings.length = 0;
   }
 
   getOutputAsIndentedString(indent: string): string {

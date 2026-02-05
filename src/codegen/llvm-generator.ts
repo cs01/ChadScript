@@ -314,6 +314,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public pushOutput(line: string): void { this.output.push(line); }
   public getOutputLength(): number { return this.output.length; }
   public getOutputLine(index: number): string { return this.output[index] || ''; }
+  public setOutputLine(index: number, line: string): void { this.output[index] = line; }
+  public getGlobalStringsLength(): number { return this.globalStrings.length; }
+  public getGlobalStringAt(index: number): string { return this.globalStrings[index] || ''; }
+  public clearGlobalStrings(): void { this.globalStrings.length = 0; }
   public getOutputAsIndentedString(indent: string): string {
     const lines: string[] = [];
     for (let i = 0; i < this.output.length; i++) {
