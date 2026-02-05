@@ -89,7 +89,7 @@ export class ControlFlowGenerator {
     }
 
     this.emit(`${thenLabel}:`);
-    this.ctx.currentLabel = thenLabel;
+    this.ctx.setCurrentLabel(thenLabel);
 
     if (typeGuard) {
       const tg = typeGuard as { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } };
@@ -115,7 +115,7 @@ export class ControlFlowGenerator {
     let elseHasTerminator = false;
     if (ifStmt.elseBlock) {
       this.emit(`${elseLabel}:`);
-      this.ctx.currentLabel = elseLabel;
+      this.ctx.setCurrentLabel(elseLabel);
       this.ctx.generateBlock(ifStmt.elseBlock, params);
       const lastInstruction = this.ctx.getLastInstruction();
       elseHasTerminator = lastInstruction.startsWith('ret ') ||
@@ -133,7 +133,7 @@ export class ControlFlowGenerator {
 
     // Merge point
     this.emit(`${mergeLabel}:`);
-    this.ctx.currentLabel = mergeLabel;
+    this.ctx.setCurrentLabel(mergeLabel);
 
     return '0';
   }
@@ -161,7 +161,7 @@ export class ControlFlowGenerator {
 
     // Body block - push loop context for break/continue
     this.emit(`${bodyLabel}:`);
-    this.ctx.currentLabel = bodyLabel;
+    this.ctx.setCurrentLabel(bodyLabel);
     this.loopStack.push({ continueLabel: condLabel, breakLabel: endLabel });
     this.ctx.generateBlock(whileStmt.body, params);
     this.loopStack.pop();
@@ -235,7 +235,7 @@ export class ControlFlowGenerator {
 
     // Body block - push loop context for break/continue
     this.emit(`${bodyLabel}:`);
-    this.ctx.currentLabel = bodyLabel;
+    this.ctx.setCurrentLabel(bodyLabel);
     this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
     this.ctx.generateBlock(forStmt.body, params);
     this.loopStack.pop();
@@ -354,7 +354,7 @@ export class ControlFlowGenerator {
 
     // Body block
     this.emit(`${bodyLabel}:`);
-    this.ctx.currentLabel = bodyLabel;
+    this.ctx.setCurrentLabel(bodyLabel);
 
     // Load current element from array
     // Get pointer to the data array
@@ -1284,7 +1284,7 @@ export class ControlFlowGenerator {
     this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
 
     this.emit(`${bodyLabel}:`);
-    this.ctx.currentLabel = bodyLabel;
+    this.ctx.setCurrentLabel(bodyLabel);
 
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 0`);
@@ -1902,7 +1902,7 @@ export class ControlFlowGenerator {
     this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
 
     this.emit(`${bodyLabel}:`);
-    this.ctx.currentLabel = bodyLabel;
+    this.ctx.setCurrentLabel(bodyLabel);
 
     const dataFieldPtr = this.nextTemp();
     this.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 2`);
@@ -2030,7 +2030,7 @@ export class ControlFlowGenerator {
     for (let i = 0; i < switchStmt.cases.length; i++) {
       const caseItem = switchStmt.cases[i];
       this.emit(`${caseLabels[i]}:`);
-      this.ctx.currentLabel = caseLabels[i];
+      this.ctx.setCurrentLabel(caseLabels[i]);
 
       for (let j = 0; j < caseItem.consequent.length; j++) {
         const consequentStmt = caseItem.consequent[j];
