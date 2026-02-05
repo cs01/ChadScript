@@ -47,6 +47,9 @@ export class AssignmentGenerator {
     const stmtValue = stmt.value;
     const stmtValueTyped = stmtValue as { type: string };
     const valueType = stmtValueTyped.type;
+    if (valueType === null || valueType === undefined) {
+      return;
+    }
     if (valueType !== 'member_access_assignment') {
       throw new Error('Invalid member access assignment format');
     }
@@ -54,11 +57,15 @@ export class AssignmentGenerator {
 
     const object = memberAccessValue.object;
     const objectTyped = object as { type: string };
+    const objType = objectTyped.type;
+    if (objType === null || objType === undefined) {
+      return;
+    }
     const property = memberAccessValue.property;
 
     let className: string | null = null;
 
-    if (objectTyped.type === 'variable') {
+    if (objType === 'variable') {
       const varName = (object as VariableNode).name;
       if (this.ctx.symbolTable.isClass(varName)) {
         const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
@@ -67,10 +74,10 @@ export class AssignmentGenerator {
         this.handleObjectPropertyAssignment(object as VariableNode, property, memberAccessValue, params);
         return;
       }
-    } else if (objectTyped.type === 'new') {
+    } else if (objType === 'new') {
       const newExpr = object as NewNode;
       className = newExpr.className;
-    } else if (objectTyped.type === 'this') {
+    } else if (objType === 'this') {
       const thisPtr = this.ctx.getThisPointer();
       if (!thisPtr) {
         throw new Error('this.field = value used outside of class method or constructor');
@@ -98,7 +105,7 @@ export class AssignmentGenerator {
           className = classWithField.name;
         }
       }
-    } else if (objectTyped.type === 'member_access' && property === 'length') {
+    } else if (objType === 'member_access' && property === 'length') {
       this.handleArrayLengthAssignment(object as MemberAccessNode, memberAccessValue, params);
       return;
     }
