@@ -124,6 +124,8 @@ export interface MemberAccessGeneratorContext {
   mapGen: MapGeneratorLike;
   setGen: SetGeneratorLike;
   responseGen: ResponseGeneratorLike;
+  responseGenGenerateStatus(responsePtr: string): string;
+  responseGenGenerateOk(responsePtr: string): string;
   generateExpression(expr: Expression, params: string[]): string;
   stringGenCreateStringConstant(value: string): string;
   interfaceStructGenHasInterface(name: string): boolean;
@@ -2270,9 +2272,9 @@ export class MemberAccessGenerator {
 
     this.ctx.syncStateToGenerators();
     if (expr.property === 'status') {
-      return this.ctx.responseGen.generateStatus(responsePtr);
+      return this.ctx.responseGenGenerateStatus(responsePtr);
     } else {
-      return this.ctx.responseGen.generateOk(responsePtr);
+      return this.ctx.responseGenGenerateOk(responsePtr);
     }
   }
 
