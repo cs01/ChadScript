@@ -1,5 +1,6 @@
 import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
+import { ClassInfo, MapMetadata, SetMetadata, ObjectArrayMetadata, ClosureMetadata, Symbol as SymbolEntry } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
 import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/function-generator.js';
@@ -180,6 +181,34 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getAst(): AST | undefined {
     return this.ast;
   }
+
+  // SymbolTable wrapper methods (avoid method chaining issues in native code)
+  public symbolTableLookup(name: string): SymbolEntry | undefined { return this.symbolTable.lookup(name); }
+  public symbolTableIsClass(name: string): boolean { return this.symbolTable.isClass(name); }
+  public symbolTableIsJSON(name: string): boolean { return this.symbolTable.isJSON(name); }
+  public symbolTableIsObject(name: string): boolean { return this.symbolTable.isObject(name); }
+  public symbolTableIsMap(name: string): boolean { return this.symbolTable.isMap(name); }
+  public symbolTableIsSet(name: string): boolean { return this.symbolTable.isSet(name); }
+  public symbolTableIsNumberArray(name: string): boolean { return this.symbolTable.isNumberArray(name); }
+  public symbolTableIsStringArray(name: string): boolean { return this.symbolTable.isStringArray(name); }
+  public symbolTableIsObjectArray(name: string): boolean { return this.symbolTable.isObjectArray(name); }
+  public symbolTableIsString(name: string): boolean { return this.symbolTable.isString(name); }
+  public symbolTableIsRegex(name: string): boolean { return this.symbolTable.isRegex(name); }
+  public symbolTableGetType(name: string): string | undefined { return this.symbolTable.getType(name); }
+  public symbolTableGetClassName(name: string): string | undefined { return this.symbolTable.getClassName(name); }
+  public symbolTableGetClassInfo(name: string): ClassInfo | undefined { return this.symbolTable.getClassInfo(name); }
+  public symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined { return this.symbolTable.getObjectInfo(name); }
+  public symbolTableGetMapMetadata(name: string): MapMetadata | undefined { return this.symbolTable.getMapMetadata(name); }
+  public symbolTableGetSetMetadata(name: string): SetMetadata | undefined { return this.symbolTable.getSetMetadata(name); }
+  public symbolTableGetInterfaceType(name: string): string | undefined { return this.symbolTable.getInterfaceType(name); }
+  public symbolTableGetAlloca(name: string): string | undefined { return this.symbolTable.getAlloca(name); }
+  public symbolTableGetObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined { return this.symbolTable.getObjectArrayMetadata(name); }
+  public symbolTableIsPointerAlloca(name: string): boolean { return this.symbolTable.isPointerAlloca(name); }
+  public symbolTableNarrowType(name: string, narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] }): void { this.symbolTable.narrowType(name, narrowedMetadata); }
+  public symbolTableRestoreType(name: string): void { this.symbolTable.restoreType(name); }
+  public symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] } { return this.symbolTable.getScopeVarsArraysForClosure(); }
+  public symbolTableIsClosure(name: string): boolean { return this.symbolTable.isClosure(name); }
+  public symbolTableGetClosureMetadata(name: string): ClosureMetadata | undefined { return this.symbolTable.getClosureMetadata(name); }
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {

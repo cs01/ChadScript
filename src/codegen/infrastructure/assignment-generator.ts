@@ -8,7 +8,7 @@ import {
   ClassNode,
   AssignmentStatement,
 } from '../../ast/types.js';
-import type { SymbolTable } from './symbol-table.js';
+import type { SymbolTable, ClassInfo } from './symbol-table.js';
 
 interface ClassGeneratorLike {
   getFieldInfo(className: string, property: string): FieldInfo | null;
@@ -23,6 +23,13 @@ interface FieldInfo {
   tsType?: string;
 }
 
+interface ObjectInfo {
+  ptr: string;
+  keys: string[];
+  types: string[];
+  tsTypes?: string[];
+}
+
 export interface AssignmentGeneratorContext {
   nextTemp(): string;
   emit(instruction: string): void;
@@ -30,6 +37,10 @@ export interface AssignmentGeneratorContext {
   getVariableAlloca(name: string): string | null;
   getVariableType(name: string): string | null;
   symbolTable: SymbolTable;
+  symbolTableIsClass(name: string): boolean;
+  symbolTableIsObject(name: string): boolean;
+  symbolTableGetClassInfo(name: string): ClassInfo | undefined;
+  symbolTableGetObjectInfo(name: string): ObjectInfo | undefined;
   classGen: ClassGeneratorLike;
   thisPointer: string | null;
   ast: AST;
@@ -68,10 +79,10 @@ export class AssignmentGenerator {
 
     if (objType === 'variable') {
       const varName = (object as VariableNode).name;
-      if (this.ctx.symbolTable.isClass(varName)) {
-        const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
+      if (this.ctx.symbolTableIsClass(varName)) {
+        const classMeta = this.ctx.symbolTableGetClassInfo(varName)!;
         className = classMeta.className;
-      } else if (this.ctx.symbolTable.isObject(varName)) {
+      } else if (this.ctx.symbolTableIsObject(varName)) {
         this.handleObjectPropertyAssignment(object as VariableNode, property, memberAccessValue, params);
         return;
       }
@@ -124,7 +135,7 @@ export class AssignmentGenerator {
     memberAccessValue: MemberAccessAssignmentNode,
     params: string[]
   ): void {
-    const objMetaResult = this.ctx.symbolTable.getObjectInfo(object.name);
+    const objMetaResult = this.ctx.symbolTableGetObjectInfo(object.name);
     if (!objMetaResult) return;
     const objMeta = objMetaResult as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] };
 
@@ -196,7 +207,7 @@ export class AssignmentGenerator {
     const objType = object.type;
     if (objType === 'variable') {
       const varName = (object as VariableNode).name;
-      if (this.ctx.symbolTable.isClass(varName)) {
+      if (this.ctx.symbolTableIsClass(varName)) {
         instancePtr = this.ctx.generateExpression(object, params);
       }
     } else if (objType === 'new') {
