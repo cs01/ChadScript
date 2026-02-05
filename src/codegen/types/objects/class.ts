@@ -297,7 +297,7 @@ export class ClassGenerator {
     const constructor = constructorResult as ClassMethod;
 
     if (constructorResult) {
-      this.ctx.output.length = 0;
+      this.ctx.clearOutput();
       ir += this.generateConstructor(className, constructor, allFields);
       ir += '\n';
     } else {
@@ -307,7 +307,7 @@ export class ClassGenerator {
 
     for (let methodIdx = 0; methodIdx < regularMethods.length; methodIdx++) {
       const method = regularMethods[methodIdx] as ClassMethod;
-      this.ctx.output.length = 0;
+      this.ctx.clearOutput();
       ir += this.generateMethod(className, method, allFields);
       ir += '\n';
     }
@@ -394,8 +394,8 @@ export class ClassGenerator {
 
     this.ctx.setThisPointer(objPtr);
     this.ctx.setCurrentClassName(className);
-    this.ctx.currentFunction = 'constructor';
-    this.ctx.currentFunctionReturnType = structType;
+    this.ctx.setCurrentFunction('constructor');
+    this.ctx.setCurrentFunctionReturnType(structType);
 
     const hasParamProps = constructor.parameterProperties;
     if (hasParamProps) {
@@ -441,28 +441,25 @@ export class ClassGenerator {
 
     this.ctx.generateBlock(constructor.body, constructor.params);
 
-    const deferredAllocas = this.ctx.allocaInstructions;
+    const deferredAllocas = this.ctx.getAllocaInstructions();
     if (deferredAllocas.length > 0) {
       const newOutput: string[] = [];
       for (let i = 0; i < deferredAllocas.length; i++) {
         newOutput.push(deferredAllocas[i]);
       }
-      for (let i = 0; i < this.ctx.output.length; i++) {
-        newOutput.push(this.ctx.output[i]);
+      const outputLen = this.ctx.getOutputLength();
+      for (let i = 0; i < outputLen; i++) {
+        newOutput.push(this.ctx.getOutputLine(i));
       }
-      this.ctx.output.length = 0;
+      this.ctx.clearOutput();
       for (let i = 0; i < newOutput.length; i++) {
-        this.ctx.output.push(newOutput[i]);
+        this.ctx.pushOutput(newOutput[i]);
       }
-      deferredAllocas.length = 0;
+      this.ctx.clearAllocaInstructions();
     }
 
-    if (this.ctx.output.length > 0) {
-      const indentedLines: string[] = [];
-      for (let lineIdx = 0; lineIdx < this.ctx.output.length; lineIdx++) {
-        indentedLines.push('  ' + this.ctx.output[lineIdx]);
-      }
-      ir += indentedLines.join('\n') + '\n';
+    if (this.ctx.getOutputLength() > 0) {
+      ir += this.ctx.getOutputAsIndentedString('  ') + '\n';
     }
     ir += `  ret ${structType} ${objPtr}\n`;
     ir += '}\n';
@@ -476,7 +473,7 @@ export class ClassGenerator {
     let ir = `define ${structType} @${className}_constructor() {\n`;
     ir += 'entry:\n';
 
-    this.ctx.output.length = 0;
+    this.ctx.clearOutput();
     this.ctx.setCurrentLabel('entry');
 
     let objPtr: string;
@@ -511,8 +508,8 @@ export class ClassGenerator {
       this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
     }
 
-    if (this.ctx.output.length > 0) {
-      ir += this.ctx.output.map(line => '  ' + line).join('\n') + '\n';
+    if (this.ctx.getOutputLength() > 0) {
+      ir += this.ctx.getOutputAsIndentedString('  ') + '\n';
     }
     ir += `  ret ${structType} ${objPtr}\n`;
     ir += '}\n';
@@ -557,9 +554,9 @@ export class ClassGenerator {
     this.emit(`${thisLoaded} = load ${thisType}, ${thisType}* ${thisAlloca}`);
     this.ctx.setThisPointer(thisLoaded);
     this.ctx.setCurrentClassName(className);
-    this.ctx.currentFunction = method.name;
-    this.ctx.currentFunctionReturnType = returnLLVMType;
-    this.ctx.currentFunctionTsReturnType = method.returnType;
+    this.ctx.setCurrentFunction(method.name);
+    this.ctx.setCurrentFunctionReturnType(returnLLVMType);
+    this.ctx.setCurrentFunctionTsReturnType(method.returnType);
 
     for (let i = 0; i < method.params.length; i++) {
       const paramName = method.params[i];
@@ -578,26 +575,30 @@ export class ClassGenerator {
     // Generate body
     const result = this.ctx.generateBlock(method.body, method.params);
 
-    const deferredAllocas = this.ctx.allocaInstructions;
+    const deferredAllocas = this.ctx.getAllocaInstructions();
     if (deferredAllocas.length > 0) {
       const newOutput: string[] = [];
       for (let i = 0; i < deferredAllocas.length; i++) {
         newOutput.push(deferredAllocas[i]);
       }
-      for (let i = 0; i < this.ctx.output.length; i++) {
-        newOutput.push(this.ctx.output[i]);
+      const outputLen = this.ctx.getOutputLength();
+      for (let i = 0; i < outputLen; i++) {
+        newOutput.push(this.ctx.getOutputLine(i));
       }
-      this.ctx.output.length = 0;
+      this.ctx.clearOutput();
       for (let i = 0; i < newOutput.length; i++) {
-        this.ctx.output.push(newOutput[i]);
+        this.ctx.pushOutput(newOutput[i]);
       }
-      deferredAllocas.length = 0;
+      this.ctx.clearAllocaInstructions();
     }
 
     // Check for and fix incomplete return statements
-    for (let i = 0; i < this.ctx.output.length; i++) {
-      const line = this.ctx.output[i].trim();
-      const retMatch = line.match(/^ret (i8\*|double|%\w+\*?)$/);
+    const outputLen2 = this.ctx.getOutputLength();
+    const fixedOutput: string[] = [];
+    for (let i = 0; i < outputLen2; i++) {
+      let line = this.ctx.getOutputLine(i);
+      const trimmedLine = line.trim();
+      const retMatch = trimmedLine.match(/^ret (i8\*|double|%\w+\*?)$/);
       if (retMatch) {
         const retType = retMatch[1];
         let defaultValue: string;
@@ -608,17 +609,22 @@ export class ClassGenerator {
         } else {
           defaultValue = 'null';
         }
-        this.ctx.output[i] = `ret ${retType} ${defaultValue}`;
+        line = `ret ${retType} ${defaultValue}`;
       }
+      fixedOutput.push(line);
+    }
+    this.ctx.clearOutput();
+    for (let i = 0; i < fixedOutput.length; i++) {
+      this.ctx.pushOutput(fixedOutput[i]);
     }
 
     // Add generated instructions
-    if (this.ctx.output.length > 0) {
-      ir += this.ctx.output.map(line => '  ' + line).join('\n') + '\n';
+    if (this.ctx.getOutputLength() > 0) {
+      ir += this.ctx.getOutputAsIndentedString('  ') + '\n';
     }
 
     // Return value based on declared return type
-    const lastInstruction = this.ctx.output.length > 0 ? this.ctx.output[this.ctx.output.length - 1].trim() : '';
+    const lastInstruction = this.ctx.getOutputLength() > 0 ? this.ctx.getOutputLine(this.ctx.getOutputLength() - 1).trim() : '';
     const hasTerminator = lastInstruction.startsWith('ret ') || lastInstruction.startsWith('br ') || lastInstruction === 'unreachable';
 
     if (!hasTerminator) {

@@ -300,6 +300,9 @@ export interface MethodCallGeneratorContext {
   pointerMapGenGeneratePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
   pointerMapGenGeneratePointerMapGet(mapPtr: string, keyValue: string, valueType: string): string;
   pointerMapGenGeneratePointerMapClear(mapPtr: string): string;
+  responseGenGenerateText(responsePtr: string): string;
+  responseGenGenerateJson(responsePtr: string): string;
+  responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: InterfaceDefInfo): string;
   exprGen: ExpressionGeneratorLike;
 }
 

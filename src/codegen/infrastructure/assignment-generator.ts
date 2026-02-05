@@ -49,7 +49,9 @@ export interface AssignmentGeneratorContext {
   ast: AST;
   getAst(): AST | undefined;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
+  setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void;
   currentDeclaredMapType: string | undefined;
+  setCurrentDeclaredMapType(type: string | undefined): void;
   currentClassName: string | null;
   getThisPointer(): string | null;
   getCurrentClassName(): string | null;
@@ -192,20 +194,20 @@ export class AssignmentGenerator {
     }
 
     if (fieldInfoResult && fieldType === 'string[]') {
-      this.ctx.expectedArrayElementType = 'string';
+      this.ctx.setExpectedArrayElementType('string');
     } else if (fieldInfoResult && fieldType === 'number[]') {
-      this.ctx.expectedArrayElementType = 'number';
+      this.ctx.setExpectedArrayElementType('number');
     } else if (fieldInfoResult && fieldType === 'boolean[]') {
-      this.ctx.expectedArrayElementType = 'boolean';
+      this.ctx.setExpectedArrayElementType('boolean');
     }
 
     if (fieldTsType && fieldTsType.startsWith('Map<string,')) {
-      this.ctx.currentDeclaredMapType = fieldTsType;
+      this.ctx.setCurrentDeclaredMapType(fieldTsType);
     }
 
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
-    this.ctx.expectedArrayElementType = null;
-    this.ctx.currentDeclaredMapType = undefined;
+    this.ctx.setExpectedArrayElementType(null);
+    this.ctx.setCurrentDeclaredMapType(undefined);
 
     let instancePtr: string | null = null;
     const objType = object.type;
@@ -381,8 +383,9 @@ export class AssignmentGenerator {
     this.ctx.emit(`${valueI32} = fptosi double ${value} to i32`);
 
     let arrayType = '%StringArray';
-    if (arrayExpr.object.type === 'this' && this.ctx.currentClassName) {
-      const fieldInfo = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, arrayExpr.property);
+    const currentClass = this.ctx.getCurrentClassName();
+    if (arrayExpr.object.type === 'this' && currentClass) {
+      const fieldInfo = this.ctx.classGenGetFieldInfo(currentClass, arrayExpr.property);
       if (fieldInfo) {
         const fi = fieldInfo as { type: string };
         if (fi.type === 'string[]') {
