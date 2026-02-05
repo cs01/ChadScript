@@ -657,7 +657,7 @@ function transformObjectExpression(node: TreeSitterNode): ObjectNode {
 
       const key = nameNode ? (nameNode as NodeBase).text : '';
       const params = paramsNode ? extractFunctionParams(paramsNode) : [];
-      const body = bodyNode ? transformStatementBlock(bodyNode) : { type: 'block' as const, statements: [] };
+      const body = bodyNode ? transformStatementBlock(bodyNode) : createEmptyBlock();
 
       const arrowFn: ArrowFunctionNode = {
         type: 'arrow_function',
@@ -782,7 +782,7 @@ function transformArrowFunction(node: TreeSitterNode): ArrowFunctionNode {
       body = transformExpression(bodyNode);
     }
   } else {
-    body = { type: 'block', statements: [] };
+    body = createEmptyBlock();
   }
 
   let isAsync = false;
@@ -810,7 +810,7 @@ function transformFunctionExpression(node: TreeSitterNode): ArrowFunctionNode {
   const bodyNode = getChildByFieldName(node, 'body');
 
   const params = paramsNode ? extractFunctionParams(paramsNode) : [];
-  const body = bodyNode ? transformStatementBlock(bodyNode) : { type: 'block' as const, statements: [] };
+  const body = bodyNode ? transformStatementBlock(bodyNode) : createEmptyBlock();
 
   let isAsync = false;
   for (let i = 0; i < node.childCount; i++) {
@@ -1141,21 +1141,23 @@ function transformIfStatement(node: TreeSitterNode): IfStatement {
     condition = { type: 'boolean', value: false };
   }
 
-  const thenBlock = consNode ? wrapInBlock(consNode) : { type: 'block' as const, statements: [] };
+  const thenBlock = consNode ? wrapInBlock(consNode) : createEmptyBlock();
 
   let elseBlock: BlockStatement | null = null;
   if (altNode) {
     const an = altNode as NodeBase;
     if (an.type === 'if_statement') {
       const nestedIf = transformIfStatement(altNode);
-      elseBlock = { type: 'block', statements: [nestedIf] };
+      const stmts: Statement[] = [nestedIf];
+      elseBlock = { type: 'block', statements: stmts };
     } else if (an.type === 'else_clause') {
       const elseBody = getNamedChild(altNode, 0);
       if (elseBody) {
         const eb = elseBody as NodeBase;
         if (eb.type === 'if_statement') {
           const nestedIf = transformIfStatement(elseBody);
-          elseBlock = { type: 'block', statements: [nestedIf] };
+          const stmts: Statement[] = [nestedIf];
+          elseBlock = { type: 'block', statements: stmts };
         } else {
           elseBlock = wrapInBlock(elseBody);
         }
@@ -1185,7 +1187,7 @@ function transformWhileStatement(node: TreeSitterNode): WhileStatement {
     condition = { type: 'boolean', value: true };
   }
 
-  const body = bodyNode ? wrapInBlock(bodyNode) : { type: 'block' as const, statements: [] };
+  const body = bodyNode ? wrapInBlock(bodyNode) : createEmptyBlock();
 
   return { type: 'while', condition, body };
 }
@@ -1247,7 +1249,7 @@ function transformForStatement(node: TreeSitterNode): ForStatement {
     }
   }
 
-  const body = bodyNode ? wrapInBlock(bodyNode) : { type: 'block' as const, statements: [] };
+  const body = bodyNode ? wrapInBlock(bodyNode) : createEmptyBlock();
 
   return { type: 'for', init, condition, update, body };
 }
@@ -1313,7 +1315,7 @@ function transformForInStatement(node: TreeSitterNode): ForOfStatement {
     };
   }
 
-  const body = bodyNode ? wrapInBlock(bodyNode) : { type: 'block' as const, statements: [] };
+  const body = bodyNode ? wrapInBlock(bodyNode) : createEmptyBlock();
 
   return { type: 'for_of', variableKind, variableName, destructuredNames, iterable, body };
 }
@@ -1329,7 +1331,7 @@ function transformTryStatement(node: TreeSitterNode): TryStatement {
   const handlerNode = getChildByFieldName(node, 'handler');
   const finalizerNode = getChildByFieldName(node, 'finalizer');
 
-  const tryBlock = bodyNode ? transformStatementBlock(bodyNode) : { type: 'block' as const, statements: [] };
+  const tryBlock = bodyNode ? transformStatementBlock(bodyNode) : createEmptyBlock();
 
   let catchClause: { param: string; body: BlockStatement } | null = null;
   if (handlerNode) {
@@ -1337,7 +1339,7 @@ function transformTryStatement(node: TreeSitterNode): TryStatement {
     const catchBodyNode = getChildByFieldName(handlerNode, 'body');
 
     const param = paramNode ? (paramNode as NodeBase).text : 'e';
-    const body = catchBodyNode ? transformStatementBlock(catchBodyNode) : { type: 'block' as const, statements: [] };
+    const body = catchBodyNode ? transformStatementBlock(catchBodyNode) : createEmptyBlock();
     catchClause = { param, body };
   }
 
@@ -1443,9 +1445,14 @@ function transformSwitchStatement(node: TreeSitterNode): IfStatement {
   return result || {
     type: 'if',
     condition: { type: 'boolean', value: false },
-    thenBlock: { type: 'block', statements: [] },
+    thenBlock: createEmptyBlock(),
     elseBlock: null,
   };
+}
+
+function createEmptyBlock(): BlockStatement {
+  const statements: Statement[] = [];
+  return { type: 'block', statements };
 }
 
 function transformStatementBlock(node: TreeSitterNode): BlockStatement {
@@ -1468,7 +1475,11 @@ function wrapInBlock(node: TreeSitterNode): BlockStatement {
     return transformStatementBlock(node);
   }
   const stmt = transformStatement(node);
-  return { type: 'block', statements: stmt ? [stmt] : [] };
+  if (stmt) {
+    const statements: Statement[] = [stmt];
+    return { type: 'block', statements };
+  }
+  return createEmptyBlock();
 }
 
 function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null {
@@ -1483,7 +1494,7 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
   const nn = nameNode as NodeBase;
   const name = nn.text;
   const params = paramsNode ? extractFunctionParams(paramsNode) : [];
-  const body = bodyNode ? transformStatementBlock(bodyNode) : { type: 'block' as const, statements: [] };
+  const body = bodyNode ? transformStatementBlock(bodyNode) : createEmptyBlock();
 
   let returnType: string | undefined = '';
   if (returnTypeNode) {
@@ -1753,7 +1764,7 @@ function transformClassMethod(node: TreeSitterNode): ClassMethod | null {
   const isConstructor = name === 'constructor';
 
   const params = paramsNode ? extractFunctionParams(paramsNode) : [];
-  const body = bodyNode ? transformStatementBlock(bodyNode) : { type: 'block' as const, statements: [] };
+  const body = bodyNode ? transformStatementBlock(bodyNode) : createEmptyBlock();
 
   let returnType: string | undefined;
   if (returnTypeNode) {

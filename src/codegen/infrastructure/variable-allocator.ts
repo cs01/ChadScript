@@ -104,6 +104,7 @@ export interface VariableAllocatorContext {
   getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] };
   formatCodegenError(message: string, suggestion?: string): string;
   ast: AST;
+  getAst(): AST | undefined;
   classGen: ClassGeneratorLike;
   symbolTable: SymbolTable;
   exprGen: ExpressionGeneratorLike;
@@ -122,9 +123,10 @@ export class VariableAllocator {
     if (this.ctx.typeResolver) {
       return this.ctx.typeResolver.getInterface(name);
     }
-    if (!this.ctx.ast.interfaces) return null;
-    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.interfaces) return null;
+    for (let i = 0; i < ast.interfaces.length; i++) {
+      const iface = ast.interfaces[i] as InterfaceDeclaration;
       if (!iface || !iface.name) continue;
       if (iface.name === name) {
         return iface;
@@ -158,9 +160,10 @@ export class VariableAllocator {
     if (this.ctx.typeResolver) {
       return this.ctx.typeResolver.getTypeAlias(name);
     }
-    if (!this.ctx.ast.typeAliases) return null;
-    for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
-      const ta = this.ctx.ast.typeAliases[i] as TypeAliasDeclaration;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.typeAliases) return null;
+    for (let i = 0; i < ast.typeAliases.length; i++) {
+      const ta = ast.typeAliases[i] as TypeAliasDeclaration;
       if (!ta || !ta.name) continue;
       if (ta.name === name) {
         return ta;
@@ -174,7 +177,8 @@ export class VariableAllocator {
   }
 
   private isEnumType(typeName: string): boolean {
-    if (!this.ctx.ast.enums) return false;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.enums) return false;
     let checkType = typeName;
     if (checkType.indexOf(' | ') !== -1) {
       const parts = checkType.split(' | ');
@@ -186,8 +190,8 @@ export class VariableAllocator {
         }
       }
     }
-    for (let i = 0; i < this.ctx.ast.enums.length; i++) {
-      if (this.ctx.ast.enums[i].name === checkType) {
+    for (let i = 0; i < ast.enums.length; i++) {
+      if (ast.enums[i].name === checkType) {
         return true;
       }
     }
@@ -1607,7 +1611,8 @@ export class VariableAllocator {
     const objectType = this.resolveMemberAccessObjectType(methodCall.object);
     if (!objectType) return null;
 
-    const classes = this.ctx.ast.classes || [];
+    const ast = this.ctx.getAst();
+    const classes = ast?.classes || [];
     for (let i = 0; i < classes.length; i++) {
       const cls = classes[i];
       if (cls.name === objectType) {

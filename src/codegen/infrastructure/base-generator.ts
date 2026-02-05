@@ -396,6 +396,11 @@ export class BaseGenerator {
     return this.globalStrings;
   }
 
+  // Push a global string constant
+  pushGlobalString(str: string): void {
+    this.globalStrings.push(str);
+  }
+
   // ============================================
   // Symbol table convenience methods
   // ============================================

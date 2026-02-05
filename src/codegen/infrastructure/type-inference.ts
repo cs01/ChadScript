@@ -20,6 +20,7 @@ export interface TypeInferenceContext {
   currentClassName: string | null;
   currentFunction: string;
   ast: AST;
+  getAst(): AST | undefined;
   typeChecker: TypeChecker | null;
   classGen: ClassGenerator | null;
   typeResolver?: TypeResolver;
@@ -32,9 +33,10 @@ export class TypeInference {
     if (this.ctx.typeResolver) {
       return this.ctx.typeResolver.getInterface(name);
     }
-    if (!this.ctx.ast.interfaces) return null;
-    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.interfaces) return null;
+    for (let i = 0; i < ast.interfaces.length; i++) {
+      const iface = ast.interfaces[i] as InterfaceDeclaration;
       if (iface.name === name) {
         return iface;
       }
@@ -78,9 +80,10 @@ export class TypeInference {
   }
 
   private getFunction(name: string): FunctionNode | null {
-    if (!this.ctx.ast.functions) return null;
-    for (let i = 0; i < this.ctx.ast.functions.length; i++) {
-      const func = this.ctx.ast.functions[i];
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.functions) return null;
+    for (let i = 0; i < ast.functions.length; i++) {
+      const func = ast.functions[i];
       if (func.name === name) {
         return func;
       }
@@ -89,9 +92,10 @@ export class TypeInference {
   }
 
   private getClass(name: string): ClassNode | null {
-    if (!this.ctx.ast.classes) return null;
-    for (let i = 0; i < this.ctx.ast.classes.length; i++) {
-      const cls = this.ctx.ast.classes[i];
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) return null;
+    for (let i = 0; i < ast.classes.length; i++) {
+      const cls = ast.classes[i];
       if (cls.name === name) {
         return cls;
       }
@@ -379,7 +383,13 @@ export class TypeInference {
     }
     if (e.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
+      if (!memberExpr.object) {
+        return false;
+      }
       const objBase = memberExpr.object as ExprBase;
+      if (!objBase.type) {
+        return false;
+      }
       if (objBase.type === 'variable' && this.ctx.symbolTable.isClass((memberExpr.object as VariableNode).name)) {
         const className = this.ctx.symbolTable.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
@@ -499,7 +509,13 @@ export class TypeInference {
     }
     if (e.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
+      if (!memberExpr.object) {
+        return false;
+      }
       const objBase = memberExpr.object as ExprBase;
+      if (!objBase.type) {
+        return false;
+      }
       if (objBase.type === 'variable' && this.ctx.symbolTable.isClass((memberExpr.object as VariableNode).name)) {
         const className = this.ctx.symbolTable.getClassName((memberExpr.object as VariableNode).name);
         if (className) {
@@ -618,7 +634,13 @@ export class TypeInference {
     }
     if (e.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
+      if (!memberExpr.object) {
+        return null;
+      }
       const objBase = memberExpr.object as ExprBase;
+      if (!objBase.type) {
+        return null;
+      }
       if (objBase.type === 'variable') {
         const varName = (memberExpr.object as VariableNode).name;
         const paramType = this.getParameterType(varName);
@@ -680,7 +702,13 @@ export class TypeInference {
   }
 
   isStringExpression(expr: Expression): boolean {
+    if (!expr) {
+      return false;
+    }
     const e = expr as ExprBase;
+    if (!e.type) {
+      return false;
+    }
     if (e.type === 'string') {
       return true;
     }
@@ -718,7 +746,13 @@ export class TypeInference {
     }
     if (e.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
+      if (!memberExpr.object) {
+        return false;
+      }
       const objBase = memberExpr.object as ExprBase;
+      if (!objBase.type) {
+        return false;
+      }
       if (objBase.type === 'variable') {
         const varName = (memberExpr.object as VariableNode).name;
         const propType = this.ctx.symbolTable.getObjectPropertyType(varName, memberExpr.property);
@@ -1377,7 +1411,13 @@ export class TypeInference {
     }
     if (e.type === 'member_access') {
       const memberExpr = expr as MemberAccessNode;
+      if (!memberExpr.object) {
+        return false;
+      }
       const objBase = memberExpr.object as ExprBase;
+      if (!objBase.type) {
+        return false;
+      }
       if (objBase.type === 'variable' &&
           (memberExpr.object as VariableNode).name === 'process' &&
           memberExpr.property === 'argv') {

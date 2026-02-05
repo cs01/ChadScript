@@ -59,7 +59,7 @@ export function generateArrayPush(
     return generateStringArrayPush(gen, arrayPtr, value);
   }
   if (valueType && valueType.endsWith('*') && valueType !== 'double*') {
-    return generatePointerArrayPush(gen, arrayPtr, value, valueType);
+    return generateObjectArrayPush(gen, arrayPtr, value, valueType);
   }
 
   return generateIntArrayPush(gen, arrayPtr, value);
