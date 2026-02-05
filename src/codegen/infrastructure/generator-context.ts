@@ -18,7 +18,7 @@
  * ```
  */
 
-import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode } from '../../ast/types.js';
+import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode, InterfaceDeclaration } from '../../ast/types.js';
 import { SymbolTable, SymbolKind, SymbolMetadata, ClosureMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
@@ -486,6 +486,9 @@ export interface IGeneratorContext {
   typeResolverFindInterfaceByDiscriminant(discriminantValue: string): string | null;
   typeResolverGetThisFieldMapKeyType(expr: Expression): string | null;
   typeResolverGetThisFieldSetValueType(expr: Expression): string | null;
+  typeResolverGetClassFieldMapType(className: string, fieldName: string): { keyType: string; valueType: string } | null;
+  typeResolverGetInterfaceMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | null;
+  typeResolverGetInterface(name: string): InterfaceDeclaration | null;
 
   /**
    * StringGen delegate methods (avoid struct layout mismatch)
@@ -597,6 +600,13 @@ export interface IGeneratorContext {
   responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string;
   responseGenGenerateStatus(responsePtr: string): string;
   responseGenGenerateOk(responsePtr: string): string;
+
+  /**
+   * RegexGen delegate methods (avoid struct layout mismatch)
+   */
+  regexGenGenerateRegexCompile(pattern: string, flags: string): string;
+  regexGenGenerateRegexTest(regexPtr: string, testStr: string): string;
+  regexGenGenerateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string;
 }
 
 /**
@@ -617,7 +627,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   private stringCount = 0;
   public output: string[] = [];
   public allocaInstructions: string[] = [];
-  public symbolTable = new SymbolTable();
+  public symbolTable: SymbolTable = new SymbolTable();
   public variableTypes: Map<string, string> = new Map();
   public actualClassTypes: Map<string, string> = new Map();
   public expressionTypes: Map<Expression, ResolvedType> = new Map();
@@ -1082,6 +1092,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   responseGenGenerateStatus(_responsePtr: string): string { return '%mock_response_status'; }
   responseGenGenerateOk(_responsePtr: string): string { return '%mock_response_ok'; }
 
+  regexGenGenerateRegexCompile(_pattern: string, _flags: string): string { return '%mock_regex_compile'; }
+  regexGenGenerateRegexTest(_regexPtr: string, _testStr: string): string { return '%mock_regex_test'; }
+  regexGenGenerateRegexMatch(_regexPtr: string, _testStr: string, _numGroups: number): string { return '%mock_regex_match'; }
+
   resolveImportAlias(localName: string): string {
     return localName;
   }
@@ -1105,6 +1119,15 @@ export class MockGeneratorContext implements IGeneratorContext {
     return null;
   }
   typeResolverGetThisFieldSetValueType(_expr: Expression): string | null {
+    return null;
+  }
+  typeResolverGetClassFieldMapType(_className: string, _fieldName: string): { keyType: string; valueType: string } | null {
+    return null;
+  }
+  typeResolverGetInterfaceMetadata(_name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | null {
+    return null;
+  }
+  typeResolverGetInterface(_name: string): InterfaceDeclaration | null {
     return null;
   }
 

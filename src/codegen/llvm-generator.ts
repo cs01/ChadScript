@@ -335,6 +335,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public typeResolverFindInterfaceByDiscriminant(discriminantValue: string): string | null { return this.typeResolver ? this.typeResolver.findInterfaceByDiscriminant(discriminantValue) : null; }
   public typeResolverGetThisFieldMapKeyType(expr: Expression): string | null { return this.typeResolver ? this.typeResolver.getThisFieldMapKeyType(expr) : null; }
   public typeResolverGetThisFieldSetValueType(expr: Expression): string | null { return this.typeResolver ? this.typeResolver.getThisFieldSetValueType(expr) : null; }
+  public typeResolverGetClassFieldMapType(className: string, fieldName: string): { keyType: string; valueType: string } | null { return this.typeResolver ? this.typeResolver.getClassFieldMapType(className, fieldName) : null; }
+  public typeResolverGetInterfaceMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | null { return this.typeResolver ? this.typeResolver.getInterfaceMetadata(name) : null; }
 
   public stringGenCreateStringConstant(value: string): string { this.syncStateToGenerators(); return this.stringGen.createStringConstant(value); }
   public stringGenGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string { this.syncStateToGenerators(); return this.stringGen.generateSubstr(strPtr, startIndex, length); }
@@ -414,6 +416,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string { this.syncStateToGenerators(); return this.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef); }
   public responseGenGenerateStatus(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateStatus(responsePtr); }
   public responseGenGenerateOk(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateOk(responsePtr); }
+
+  public regexGenGenerateRegexCompile(pattern: string, flags: string): string { this.syncStateToGenerators(); return this.regexGen.generateRegexCompile(pattern, flags); }
+  public regexGenGenerateRegexTest(regexPtr: string, testStr: string): string { this.syncStateToGenerators(); return this.regexGen.generateRegexTest(regexPtr, testStr); }
+  public regexGenGenerateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string { this.syncStateToGenerators(); return this.regexGen.generateRegexMatch(regexPtr, testStr, numGroups); }
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
@@ -848,9 +854,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     // Generate class definitions
     for (let classIdx = 0; classIdx < this.classesCount; classIdx++) {
+      console.log('Generating class ' + classIdx);
       const classNode = this.ast.classes[classIdx];
       this.syncStateToGenerators();
       ir += this.classGen.generateClass(classNode);
+      console.log('Class ' + classIdx + ' done');
       ir += '\n';
     }
 
@@ -1019,12 +1027,66 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
   }
 
+  private handleSimpleAssignmentWithFields(stmtName: string, stmtValue: Expression, params: string[]): void {
+    const stmtValueBase = stmtValue as { type: string };
+    console.log('handleSimpleAssignmentWithFields: stmtValue.type = ' + stmtValueBase.type);
+    const value = this.generateExpression(stmtValue, params);
+    console.log('handleSimpleAssignmentWithFields: generated value = ' + value);
+
+    const stringAllocaReg = this.symbolTable.getStringAlloca(stmtName);
+    if (stringAllocaReg) {
+      this.emit(`store i8* ${value}, i8** ${stringAllocaReg}`);
+      return;
+    }
+
+    const arrayAllocaReg = this.symbolTable.getArrayAlloca(stmtName);
+    if (arrayAllocaReg) {
+      if (this.symbolTable.isPointerAlloca(stmtName)) {
+        const isStringArr = this.symbolTable.isStringArray(stmtName);
+        const arrayType = isStringArr ? '%StringArray' : '%Array';
+        let pointerValue = value;
+        const valueType = this.getVariableType(value);
+        if (valueType !== `${arrayType}*`) {
+          const typedPtr = this.nextTemp();
+          this.emit(`${typedPtr} = bitcast i8* ${value} to ${arrayType}*`);
+          pointerValue = typedPtr;
+        }
+        this.emit(`store ${arrayType}* ${pointerValue}, ${arrayType}** ${arrayAllocaReg}`);
+      } else {
+        const loadedArray = this.nextTemp();
+        this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
+        this.emit(`store %Array ${loadedArray}, %Array* ${arrayAllocaReg}`);
+      }
+      return;
+    }
+
+    const allocaReg = this.getVariableAlloca(stmtName);
+    if (!allocaReg) {
+      throw new Error(`Unknown variable: ${stmtName}`);
+    }
+    const varType = this.getVariableType(stmtName) || 'double';
+    this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
+  }
+
+  private allocateVariableWithFields(stmtName: string, stmtValue: Expression | null, stmtKind: string, stmtDeclaredType: string | undefined, params: string[]): void {
+    const stmt: VariableDeclaration = {
+      type: 'variable_declaration',
+      kind: stmtKind as 'let' | 'const',
+      name: stmtName,
+      value: stmtValue,
+      declaredType: stmtDeclaredType
+    };
+    this.varAllocator.allocate(stmt, params);
+  }
+
   public generateBlock(block: BlockStatement, params: string[]): string | null {
+    console.log('generateBlock: starting with ' + block.statements.length + ' statements');
     const stmts = block.statements;
     let lastValue: string | null = null;
     let hasTerminator = false;
 
     for (let stmtIdx = 0; stmtIdx < block.statements.length; stmtIdx++) {
+      console.log('generateBlock: processing statement ' + stmtIdx);
       const stmtRaw = block.statements[stmtIdx];
       if (!stmtRaw) {
         continue;
@@ -1034,24 +1096,32 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         break;
       }
       const stmtType = stmtBase.type;
+      console.log('generateBlock: statement type = ' + stmtType);
       if (!stmtType) {
         continue;
       }
 
       if (stmtType === 'variable_declaration') {
-        this.allocateVariable(stmtRaw as VariableDeclaration, params);
+        const stmt = stmtRaw as VariableDeclaration;
+        this.allocateVariable(stmt, params);
       } else if (stmtType === 'assignment') {
+        console.log('generateBlock: handling assignment');
         const stmt = stmtRaw as AssignmentStatement;
-        if (!stmt.name) {
+        const stmtName = stmt.name;
+        const stmtValue = stmt.value;
+        if (!stmtName) {
           continue;
         }
-        const isMemberAccess = stmt.name.startsWith('__member_access__');
+        console.log('generateBlock: assignment name = ' + stmtName);
+        const isMemberAccess = stmtName.startsWith('__member_access__');
         if (isMemberAccess) {
+          console.log('generateBlock: calling generateMemberAccessAssignment');
           this.assignmentGen.generateMemberAccessAssignment(stmtRaw as AssignmentStatement, params);
-        } else if (stmt.name === '__index_access__') {
-          this.generateExpression(stmt.value as Expression, params);
+          console.log('generateBlock: generateMemberAccessAssignment done');
+        } else if (stmtName === '__index_access__') {
+          this.generateExpression(stmtValue as Expression, params);
         } else {
-          this.handleSimpleAssignment(stmt, params);
+          this.handleSimpleAssignmentWithFields(stmtName, stmtValue as Expression, params);
         }
       } else if (stmtType === 'return') {
         const stmt = stmtRaw as { type: string; value: Expression | null };
