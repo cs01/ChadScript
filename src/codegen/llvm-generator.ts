@@ -345,15 +345,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private generateGlobalVariableDeclarations(): string {
+    console.log('[generateGlobalVariableDeclarations] start');
     let ir = '';
+    console.log('[generateGlobalVariableDeclarations] topLevelStatementsCount=' + this.topLevelStatementsCount);
     if (this.topLevelStatementsCount === 0) {
       return ir;
     }
     const stmts = this.ast.topLevelStatements;
+    console.log('[generateGlobalVariableDeclarations] stmts.length=' + stmts.length);
     for (let stmtIdx = 0; stmtIdx < this.topLevelStatementsCount; stmtIdx++) {
+      console.log('[generateGlobalVariableDeclarations] processing stmtIdx=' + stmtIdx);
       const stmt = stmts[stmtIdx] as { type: string; kind: string; name: string; value: Expression | null; declaredType?: string };
+      console.log('[generateGlobalVariableDeclarations] stmt.type=' + stmt.type);
       if (stmt.type === 'variable_declaration' && stmt.value !== null) {
         const name = stmt.name;
+        console.log('[generateGlobalVariableDeclarations] name=' + name);
         const isString = this.isStringExpression(stmt.value);
         const isStringArray = this.isStringArrayExpression(stmt.value);
         const isArray = !isStringArray && this.isArrayExpression(stmt.value);
@@ -533,21 +539,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
    * @returns Complete LLVM IR module as string (struct types + extern declarations + functions + main)
    */
   generate(): string {
-    console.log('[LLVMGenerator.generate] Starting...');
     let ir = '';
 
-    console.log('[LLVMGenerator.generate] Getting LLVM declarations...');
     ir += getLLVMDeclarations();
 
-    console.log('[LLVMGenerator.generate] Generating interface struct defs...');
     const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
     this.interfaceStructDefsCache = interfaceStructDefs;
 
-    console.log('[LLVMGenerator.generate] Generating class struct defs, classesCount=' + this.classesCount);
     const classStructDefs = this.classGen.generateStructTypeDefinitions(this.classesCount);
     this.classStructDefsCache = classStructDefs;
-
-    console.log('[LLVMGenerator.generate] Generating runtimes...');
 
     ir += this.runtimeGen.generateFetchRuntime();
     ir += '\n';
@@ -591,24 +591,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     ir += this.generateGlobalVariableDeclarations();
 
-    console.log('[LLVMGenerator.generate] About to generate ' + this.classesCount + ' classes');
+    // Generate class definitions
     for (let classIdx = 0; classIdx < this.classesCount; classIdx++) {
-      console.log('[LLVMGenerator.generate] Processing class ' + classIdx);
       const classNode = this.ast.classes[classIdx];
-      console.log('[LLVMGenerator.generate] classNode.name=' + classNode.name);
       this.syncStateToGenerators();
       ir += this.classGen.generateClass(classNode);
       ir += '\n';
     }
-    console.log('[LLVMGenerator.generate] Done with classes');
 
     // Generate user function definitions (this may discover lifted functions)
-    console.log('[DEBUG] Generating user functions, count=' + this.functionsCount);
     let userFunctionsIr = '';
     for (let funcIdx = 0; funcIdx < this.functionsCount; funcIdx++) {
-      console.log('[DEBUG] Processing function index ' + funcIdx);
       const func = this.ast.functions[funcIdx];
-      console.log('[DEBUG] Got func from AST, name=' + func.name);
       userFunctionsIr += this.generateFunction(func);
       userFunctionsIr += '\n';
     }
