@@ -3,7 +3,7 @@ import { Expression, IndexAccessNode, IndexAccessAssignmentNode, MemberAccessNod
 interface ExprBase { type: string; }
 interface ObjectMetaBasic { keys: string[]; types: string[]; }
 interface StringGenLike { createStringConstant(value: string): string; }
-import type { SymbolTable } from '../../infrastructure/symbol-table.js';
+import type { Symbol as SymbolEntry } from '../../infrastructure/symbol-table.js';
 
 export interface IndexAccessGeneratorContext {
   nextTemp(): string;
@@ -12,7 +12,11 @@ export interface IndexAccessGeneratorContext {
   variableTypes: Map<string, string>;
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
-  symbolTable: SymbolTable;
+  symbolTableLookup(name: string): SymbolEntry | undefined;
+  symbolTableIsJSON(name: string): boolean;
+  symbolTableIsObject(name: string): boolean;
+  symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
+  symbolTableGetArrayAlloca(name: string): string | undefined;
   isStringArrayExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
   isObjectArrayExpression(expr: Expression): boolean;
@@ -51,7 +55,7 @@ export class IndexAccessGenerator {
       }
       if (memberAccessObjBase.type === 'variable') {
         const baseVarName = (memberAccess.object as VariableNode).name;
-        const symbol = this.ctx.symbolTable.lookup(baseVarName);
+        const symbol = this.ctx.symbolTableLookup(baseVarName);
         if (symbol?.interfaceType) {
           const isStringArray = this.ctx.isStringArrayExpression(expr.object);
           const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
@@ -61,14 +65,14 @@ export class IndexAccessGenerator {
             return this.generateObjectArrayIndex(expr, params);
           }
         }
-        if (this.ctx.symbolTable.isJSON(baseVarName) || this.ctx.symbolTable.isObject(baseVarName)) {
+        if (this.ctx.symbolTableIsJSON(baseVarName) || this.ctx.symbolTableIsObject(baseVarName)) {
           return this.generateJSONMemberArrayIndex(expr, params);
         }
       }
     }
 
     // Check if it's a JSON array (from JSON.parse<number[]> or similar)
-    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
+    if (exprObjBase.type === 'variable' && this.ctx.symbolTableIsJSON((expr.object as VariableNode).name)) {
       return this.generateJSONArrayIndex(expr, params);
     }
 
@@ -88,8 +92,8 @@ export class IndexAccessGenerator {
     // Check if it's an object variable with dynamic property access
     if (exprObjBase.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
-      if (this.ctx.symbolTable.isObject(varName)) {
-        const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
+      if (this.ctx.symbolTableIsObject(varName)) {
+        const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
         if (objMeta && objMeta.keys.length > 0) {
           return this.generateDynamicObjectAccess(expr, params, objMeta);
         }
@@ -471,7 +475,7 @@ export class IndexAccessGenerator {
     if (exprBase.type === 'variable') {
       const objectExpr = expr.object as VariableNode;
       const varName = objectExpr.name;
-      const arrayAllocaReg = this.ctx.symbolTable.getArrayAlloca(varName);
+      const arrayAllocaReg = this.ctx.symbolTableGetArrayAlloca(varName);
       if (!arrayAllocaReg) {
         throw new Error(`Unknown string array variable: ${varName}`);
       }
@@ -507,7 +511,7 @@ export class IndexAccessGenerator {
     if (exprBase.type === 'variable') {
       const objectExpr = expr.object as VariableNode;
       const varName = objectExpr.name;
-      const arrayAllocaReg = this.ctx.symbolTable.getArrayAlloca(varName);
+      const arrayAllocaReg = this.ctx.symbolTableGetArrayAlloca(varName);
       if (!arrayAllocaReg) {
         throw new Error(`Unknown numeric array variable: ${varName}`);
       }
