@@ -303,7 +303,7 @@ export class ControlFlowGenerator {
       elementType = 'i8*';
       elementKind = SymbolKind.String;
     } else if (isObjectArray) {
-      arrayType = '%Array';
+      arrayType = '%ObjectArray';
       elementType = 'i8*';
       elementKind = SymbolKind.Object;
     } else {
@@ -355,10 +355,10 @@ export class ControlFlowGenerator {
       dataArray = this.nextTemp();
       this.emit(`${dataArray} = load i8**, i8*** ${dataPtr}`);
     } else if (isObjectArray) {
-      const dataDouble = this.nextTemp();
-      this.emit(`${dataDouble} = load double*, double** ${dataPtr}`);
+      const dataI8 = this.nextTemp();
+      this.emit(`${dataI8} = load i8*, i8** ${dataPtr}`);
       dataArray = this.nextTemp();
-      this.emit(`${dataArray} = bitcast double* ${dataDouble} to i8**`);
+      this.emit(`${dataArray} = bitcast i8* ${dataI8} to i8**`);
     } else {
       dataArray = this.nextTemp();
       this.emit(`${dataArray} = load double*, double** ${dataPtr}`);

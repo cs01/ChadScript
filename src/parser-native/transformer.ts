@@ -1837,7 +1837,7 @@ function transformInterfaceDeclaration(node: TreeSitterNode): InterfaceDeclarati
     }
   }
 
-  return { name, extends: extendsArr, fields };
+  return { name, extends: extendsArr, fields, methods: [] };
 }
 
 function transformTypeAliasDeclaration(node: TreeSitterNode): TypeAliasDeclaration | null {

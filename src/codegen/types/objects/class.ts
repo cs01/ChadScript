@@ -141,6 +141,36 @@ export class ClassGenerator {
       this.emit(`${capPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`);
       this.emit(`store i32 0, i32* ${capPtr}`);
       this.emit(`store %ObjectArray* ${arrayPtr}, %ObjectArray** ${fieldPtr}`);
+    } else if (llvmType === '%StringMap*') {
+      const sizePtr = this.nextTemp();
+      this.emit(`${sizePtr} = getelementptr %StringMap, %StringMap* null, i32 1`);
+      const structSize = this.nextTemp();
+      this.emit(`${structSize} = ptrtoint %StringMap* ${sizePtr} to i64`);
+      const mapMem = this.nextTemp();
+      this.emit(`${mapMem} = call i8* @GC_malloc(i64 ${structSize})`);
+      const mapPtr = this.nextTemp();
+      this.emit(`${mapPtr} = bitcast i8* ${mapMem} to %StringMap*`);
+      const keysDataMem = this.nextTemp();
+      this.emit(`${keysDataMem} = call i8* @GC_malloc(i64 16)`);
+      const keysData = this.nextTemp();
+      this.emit(`${keysData} = bitcast i8* ${keysDataMem} to i8**`);
+      const valuesDataMem = this.nextTemp();
+      this.emit(`${valuesDataMem} = call i8* @GC_malloc(i64 16)`);
+      const valuesData = this.nextTemp();
+      this.emit(`${valuesData} = bitcast i8* ${valuesDataMem} to i8**`);
+      const keysPtr = this.nextTemp();
+      this.emit(`${keysPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+      this.emit(`store i8** ${keysData}, i8*** ${keysPtr}`);
+      const valuesPtr = this.nextTemp();
+      this.emit(`${valuesPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`);
+      this.emit(`store i8** ${valuesData}, i8*** ${valuesPtr}`);
+      const lenPtr = this.nextTemp();
+      this.emit(`${lenPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+      this.emit(`store i32 0, i32* ${lenPtr}`);
+      const capPtr = this.nextTemp();
+      this.emit(`${capPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+      this.emit(`store i32 2, i32* ${capPtr}`);
+      this.emit(`store %StringMap* ${mapPtr}, %StringMap** ${fieldPtr}`);
     } else {
       this.emit(`store ${llvmType} null, ${llvmType}* ${fieldPtr}`);
     }
@@ -724,6 +754,9 @@ export class ClassGenerator {
     if (returnType === 'string') return 'i8*';
     if (returnType === 'string[]') return '%StringArray*';
     if (returnType === 'number[]' || returnType === 'boolean[]') return '%Array*';
+    if (returnType.endsWith('[]') && returnType !== 'string[]' && returnType !== 'number[]' && returnType !== 'boolean[]') {
+      return '%ObjectArray*';
+    }
     if (returnType === 'void') return 'void';
     if (returnType === 'number' || returnType === 'boolean') return 'double';
     if (returnType.indexOf(' | ') !== -1) {
@@ -733,6 +766,9 @@ export class ClassGenerator {
         if (part === 'string') return 'i8*';
         if (part === 'string[]') return '%StringArray*';
         if (part === 'number[]' || part === 'boolean[]') return '%Array*';
+        if (part.endsWith('[]') && part !== 'string[]' && part !== 'number[]' && part !== 'boolean[]') {
+          return '%ObjectArray*';
+        }
       }
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i].trim();

@@ -491,25 +491,80 @@ export class StringMapGenerator {
   generateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string {
     const keysFieldPtr = this.nextTemp();
     this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
-    const keysPtr = this.nextTemp();
-    this.emit(`${keysPtr} = load i8**, i8*** ${keysFieldPtr}`);
-
     const valuesFieldPtr = this.nextTemp();
     this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`);
-    const valuesPtr = this.nextTemp();
-    this.emit(`${valuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
-
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    const capacityFieldPtr = this.nextTemp();
+    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+
     const currentSize = this.nextTemp();
     this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
+    const currentCapacity = this.nextTemp();
+    this.emit(`${currentCapacity} = load i32, i32* ${capacityFieldPtr}`);
 
+    const needsResize = this.nextTemp();
+    this.emit(`${needsResize} = icmp sge i32 ${currentSize}, ${currentCapacity}`);
+
+    const resizeLabel = this.nextLabel('strmap_resize');
+    const continueLabel = this.nextLabel('strmap_continue');
+    const insertLabel = this.nextLabel('strmap_insert');
+
+    this.emit(`br i1 ${needsResize}, label %${resizeLabel}, label %${continueLabel}`);
+
+    this.emit(`${resizeLabel}:`);
+    const newCapacity = this.nextTemp();
+    this.emit(`${newCapacity} = shl i32 ${currentCapacity}, 1`);
+    const newCapacityI64 = this.nextTemp();
+    this.emit(`${newCapacityI64} = sext i32 ${newCapacity} to i64`);
+    const newKeysSize = this.nextTemp();
+    this.emit(`${newKeysSize} = mul i64 ${newCapacityI64}, 8`);
+    const newKeysMem = this.nextTemp();
+    this.emit(`${newKeysMem} = call i8* @GC_malloc(i64 ${newKeysSize})`);
+    const newKeysPtr = this.nextTemp();
+    this.emit(`${newKeysPtr} = bitcast i8* ${newKeysMem} to i8**`);
+    const newValuesMem = this.nextTemp();
+    this.emit(`${newValuesMem} = call i8* @GC_malloc(i64 ${newKeysSize})`);
+    const newValuesPtr = this.nextTemp();
+    this.emit(`${newValuesPtr} = bitcast i8* ${newValuesMem} to i8**`);
+
+    const oldKeysPtr = this.nextTemp();
+    this.emit(`${oldKeysPtr} = load i8**, i8*** ${keysFieldPtr}`);
+    const oldValuesPtr = this.nextTemp();
+    this.emit(`${oldValuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
+    const currentSizeI64 = this.nextTemp();
+    this.emit(`${currentSizeI64} = sext i32 ${currentSize} to i64`);
+    const copySize = this.nextTemp();
+    this.emit(`${copySize} = mul i64 ${currentSizeI64}, 8`);
+    const oldKeysCast = this.nextTemp();
+    this.emit(`${oldKeysCast} = bitcast i8** ${oldKeysPtr} to i8*`);
+    const newKeysCast = this.nextTemp();
+    this.emit(`${newKeysCast} = bitcast i8** ${newKeysPtr} to i8*`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newKeysCast}, i8* ${oldKeysCast}, i64 ${copySize}, i1 false)`);
+    const oldValuesCast = this.nextTemp();
+    this.emit(`${oldValuesCast} = bitcast i8** ${oldValuesPtr} to i8*`);
+    const newValuesCast = this.nextTemp();
+    this.emit(`${newValuesCast} = bitcast i8** ${newValuesPtr} to i8*`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newValuesCast}, i8* ${oldValuesCast}, i64 ${copySize}, i1 false)`);
+
+    this.emit(`store i8** ${newKeysPtr}, i8*** ${keysFieldPtr}`);
+    this.emit(`store i8** ${newValuesPtr}, i8*** ${valuesFieldPtr}`);
+    this.emit(`store i32 ${newCapacity}, i32* ${capacityFieldPtr}`);
+    this.emit(`br label %${insertLabel}`);
+
+    this.emit(`${continueLabel}:`);
+    this.emit(`br label %${insertLabel}`);
+
+    this.emit(`${insertLabel}:`);
+    const finalKeysPtr = this.nextTemp();
+    this.emit(`${finalKeysPtr} = load i8**, i8*** ${keysFieldPtr}`);
+    const finalValuesPtr = this.nextTemp();
+    this.emit(`${finalValuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentSize}`);
+    this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${finalKeysPtr}, i32 ${currentSize}`);
     this.emit(`store i8* ${keyValue}, i8** ${keyElemPtr}`);
-
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${currentSize}`);
+    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${finalValuesPtr}, i32 ${currentSize}`);
     this.emit(`store i8* ${valueValue}, i8** ${valueElemPtr}`);
 
     const newSize = this.nextTemp();
