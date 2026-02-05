@@ -11,10 +11,13 @@ export interface TypeResolverContext {
   getAst(): AST | undefined;
   getAstInterfacesLength(): number;
   getAstInterfaceAt(index: number): InterfaceDeclaration | null;
+  getAstInterfaceNameAt(index: number): string | null;
   getAstFunctionsLength(): number;
   getAstFunctionAt(index: number): FunctionNode | null;
+  getAstFunctionNameAt(index: number): string | null;
   getAstClassesLength(): number;
   getAstClassAt(index: number): ClassNode | null;
+  getAstClassNameAt(index: number): string | null;
   symbolTable: SymbolTable;
   typeChecker?: TypeChecker | null;
   currentClassName?: string | null;
@@ -312,11 +315,12 @@ export class TypeResolver {
       return null;
     }
     for (let i = 0; i < interfacesLen; i++) {
-      const iface = this.ctx.getAstInterfaceAt(i);
-      if (!iface || !iface.name) {
+      const ifaceName = this.ctx.getAstInterfaceNameAt(i);
+      if (!ifaceName) {
         continue;
       }
-      if (iface.name === name) {
+      if (ifaceName === name) {
+        const iface = this.ctx.getAstInterfaceAt(i);
         this.interfaceCache.set(name, iface);
         return iface;
       }
@@ -751,10 +755,12 @@ export class TypeResolver {
 
     const interfacesLen = this.ctx.getAstInterfacesLength();
     for (let i = 0; i < interfacesLen; i++) {
+      const ifaceName = this.ctx.getAstInterfaceNameAt(i);
+      if (!ifaceName) continue;
       const iface = this.ctx.getAstInterfaceAt(i);
       if (!iface) continue;
       const match = this.checkInterfaceForDiscriminant(
-        iface.name,
+        ifaceName,
         iface.fields,
         value,
         field

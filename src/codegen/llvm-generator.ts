@@ -198,6 +198,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.ast.interfaces[index];
   }
 
+  public getAstInterfaceNameAt(index: number): string | null {
+    if (!this.ast || !this.ast.interfaces) return null;
+    if (index < 0 || index >= this.ast.interfaces.length) return null;
+    const iface = this.ast.interfaces[index];
+    if (!iface || !iface.name) return null;
+    return iface.name;
+  }
+
   public getAstFunctionsLength(): number {
     if (!this.ast || !this.ast.functions) return 0;
     return this.ast.functions.length;
@@ -209,6 +217,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.ast.functions[index];
   }
 
+  public getAstFunctionNameAt(index: number): string | null {
+    if (!this.ast || !this.ast.functions) return null;
+    if (index < 0 || index >= this.ast.functions.length) return null;
+    const func = this.ast.functions[index];
+    if (!func || !func.name) return null;
+    return func.name;
+  }
+
   public getAstClassesLength(): number {
     if (!this.ast || !this.ast.classes) return 0;
     return this.ast.classes.length;
@@ -218,6 +234,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (!this.ast || !this.ast.classes) return null;
     if (index < 0 || index >= this.ast.classes.length) return null;
     return this.ast.classes[index];
+  }
+
+  public getAstClassNameAt(index: number): string | null {
+    if (!this.ast || !this.ast.classes) return null;
+    if (index < 0 || index >= this.ast.classes.length) return null;
+    const cls = this.ast.classes[index];
+    if (!cls || !cls.name) return null;
+    return cls.name;
   }
 
   public getLastInstruction(): string {

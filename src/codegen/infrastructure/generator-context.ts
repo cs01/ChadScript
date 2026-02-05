@@ -397,10 +397,13 @@ export interface IGeneratorContext {
 
   getAstInterfacesLength(): number;
   getAstInterfaceAt(index: number): InterfaceDeclaration | null;
+  getAstInterfaceNameAt(index: number): string | null;
   getAstFunctionsLength(): number;
   getAstFunctionAt(index: number): FunctionNode | null;
+  getAstFunctionNameAt(index: number): string | null;
   getAstClassesLength(): number;
   getAstClassAt(index: number): ClassNode | null;
+  getAstClassNameAt(index: number): string | null;
 
   /**
    * Get the cached count of classes in the AST
@@ -1273,6 +1276,13 @@ export class MockGeneratorContext implements IGeneratorContext {
     return this.ast.interfaces[index];
   }
 
+  getAstInterfaceNameAt(index: number): string | null {
+    if (!this.ast || !this.ast.interfaces || index < 0 || index >= this.ast.interfaces.length) return null;
+    const iface = this.ast.interfaces[index];
+    if (!iface || !iface.name) return null;
+    return iface.name;
+  }
+
   getAstFunctionsLength(): number {
     if (!this.ast || !this.ast.functions) return 0;
     return this.ast.functions.length;
@@ -1283,6 +1293,13 @@ export class MockGeneratorContext implements IGeneratorContext {
     return this.ast.functions[index];
   }
 
+  getAstFunctionNameAt(index: number): string | null {
+    if (!this.ast || !this.ast.functions || index < 0 || index >= this.ast.functions.length) return null;
+    const func = this.ast.functions[index];
+    if (!func || !func.name) return null;
+    return func.name;
+  }
+
   getAstClassesLength(): number {
     if (!this.ast || !this.ast.classes) return 0;
     return this.ast.classes.length;
@@ -1291,5 +1308,12 @@ export class MockGeneratorContext implements IGeneratorContext {
   getAstClassAt(index: number): ClassNode | null {
     if (!this.ast || !this.ast.classes || index < 0 || index >= this.ast.classes.length) return null;
     return this.ast.classes[index];
+  }
+
+  getAstClassNameAt(index: number): string | null {
+    if (!this.ast || !this.ast.classes || index < 0 || index >= this.ast.classes.length) return null;
+    const cls = this.ast.classes[index];
+    if (!cls || !cls.name) return null;
+    return cls.name;
   }
 }
