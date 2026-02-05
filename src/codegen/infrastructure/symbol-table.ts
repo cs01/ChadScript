@@ -735,9 +735,12 @@ export class SymbolTable {
    * Get the LLVM type of a property on an object variable (for ChadScript compatibility)
    */
   getObjectPropertyType(varName: string, propertyName: string): string | null {
+    if (!varName) return null;
+    if (!propertyName) return null;
     const symbol = this.symbols.get(varName);
     if (symbol && (symbol.kind === SymbolKind.Object || symbol.kind === SymbolKind.JSON) && symbol.objectMetadata) {
       const objMeta = symbol.objectMetadata;
+      if (!objMeta.keys) return null;
       const idx = objMeta.keys.indexOf(propertyName);
       if (idx >= 0) {
         return objMeta.types[idx];

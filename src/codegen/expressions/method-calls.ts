@@ -188,6 +188,7 @@ interface ExpressionGeneratorLike {
 
 export interface MethodCallGeneratorContext {
   nextTemp(): string;
+  nextLabel(prefix: string): string;
   emit(instruction: string): void;
   generateExpression(expr: Expression, params: string[]): string;
   syncStateToGenerators(): void;
@@ -680,6 +681,9 @@ export class MethodCallGenerator {
       return this.handleTrim(expr, params);
     }
     if (method === 'indexOf') {
+      if (this.ctx.isStringArrayExpression(expr.object)) {
+        return this.handleStringArrayIndexOf(expr, params);
+      }
       return this.handleIndexOf(expr, params);
     }
     if (method === 'includes' && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object)) {
@@ -1185,6 +1189,83 @@ export class MethodCallGenerator {
 
     const substring = this.ctx.generateExpression(expr.args[0], params);
     return this.ctx.stringGen.generateIndexOf(strPtr, substring);
+  }
+
+  private handleStringArrayIndexOf(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+    const arrayPtr = this.ctx.generateExpression(expr.object, params);
+
+    if (expr.args.length !== 1) {
+      throw new Error(`indexOf() expects 1 argument, got ${expr.args.length}`);
+    }
+
+    const searchValue = this.ctx.generateExpression(expr.args[0], params);
+
+    const lenPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.ctx.nextTemp();
+    this.ctx.emit(`${length} = load i32, i32* ${lenPtr}`);
+
+    const dataPtrField = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+
+    const checkLabel = this.ctx.nextLabel('indexof_check');
+    const bodyLabel = this.ctx.nextLabel('indexof_body');
+    const foundLabel = this.ctx.nextLabel('indexof_found');
+    const notfoundLabel = this.ctx.nextLabel('indexof_notfound');
+    const endLabel = this.ctx.nextLabel('indexof_end');
+
+    const counterPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${counterPtr} = alloca i32`);
+    this.ctx.emit(`store i32 0, i32* ${counterPtr}`);
+
+    this.ctx.emit(`br label %${checkLabel}`);
+
+    this.ctx.emit(`${checkLabel}:`);
+    const counter = this.ctx.nextTemp();
+    this.ctx.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.ctx.nextTemp();
+    this.ctx.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.ctx.emit(`br i1 ${cond}, label %${bodyLabel}, label %${notfoundLabel}`);
+
+    this.ctx.emit(`${bodyLabel}:`);
+    const elemPtr = this.ctx.nextTemp();
+    const counter64 = this.ctx.nextTemp();
+    this.ctx.emit(`${counter64} = sext i32 ${counter} to i64`);
+    this.ctx.emit(`${elemPtr} = getelementptr i8*, i8** ${dataPtr}, i64 ${counter64}`);
+    const elem = this.ctx.nextTemp();
+    this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+
+    const cmpResult = this.ctx.nextTemp();
+    this.ctx.emit(`${cmpResult} = call i32 @strcmp(i8* ${elem}, i8* ${searchValue})`);
+    const isMatch = this.ctx.nextTemp();
+    this.ctx.emit(`${isMatch} = icmp eq i32 ${cmpResult}, 0`);
+    this.ctx.emit(`br i1 ${isMatch}, label %${foundLabel}, label %${checkLabel}_next`);
+
+    this.ctx.emit(`${checkLabel}_next:`);
+    const nextCounter = this.ctx.nextTemp();
+    this.ctx.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.ctx.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.ctx.emit(`br label %${checkLabel}`);
+
+    this.ctx.emit(`${foundLabel}:`);
+    const foundIndex = this.ctx.nextTemp();
+    this.ctx.emit(`${foundIndex} = load i32, i32* ${counterPtr}`);
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${notfoundLabel}:`);
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${endLabel}:`);
+    const resultI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${resultI32} = phi i32 [ ${foundIndex}, %${foundLabel} ], [ -1, %${notfoundLabel} ]`);
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+    this.ctx.setVariableType(result, 'double');
+    return result;
   }
 
   private handleStringIncludes(expr: MethodCallNode, params: string[]): string {

@@ -27,6 +27,7 @@ export interface FunctionGeneratorContext {
   isAsyncFunction: boolean;
   asyncResultPromise: string;
   ast: AST;
+  getAst(): AST | undefined;
   typeChecker: TypeChecker | null;
   output: string[];
   allocaInstructions: string[];
@@ -233,8 +234,9 @@ export class FunctionGenerator {
         } else if (paramName === 'nodePtr' || paramName === 'treePtr') {
           this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Pointer, 'local');
         } else {
+          const ast = this.ctx.getAst();
           let classDefResult: { name: string } | null = null;
-          const classes = this.ctx.ast.classes || [];
+          const classes = ast?.classes || [];
           for (let j = 0; j < classes.length; j++) {
             const cls = classes[j] as { name: string };
             if (!cls || !cls.name) continue;
@@ -245,7 +247,7 @@ export class FunctionGenerator {
           }
 
           let interfaceDefResult: { name: string; fields: { name: string; type: string }[] } | null = null;
-          const interfaces = this.ctx.ast.interfaces || [];
+          const interfaces = ast?.interfaces || [];
           for (let j = 0; j < interfaces.length; j++) {
             const iface = interfaces[j] as { name: string; fields: { name: string; type: string }[] };
             if (!iface || !iface.name) continue;
@@ -256,7 +258,7 @@ export class FunctionGenerator {
           }
 
           let typeAliasResult: { name: string; unionMembers: string[] } | null = null;
-          const typeAliases = this.ctx.ast.typeAliases || [];
+          const typeAliases = ast?.typeAliases || [];
           for (let j = 0; j < typeAliases.length; j++) {
             const ta = typeAliases[j] as { name: string; unionMembers: string[] };
             if (!ta || !ta.name) continue;
@@ -500,7 +502,8 @@ export class FunctionGenerator {
   }
 
   private isEnumType(typeName: string): boolean {
-    const enums = this.ctx.ast.enums;
+    const ast = this.ctx.getAst();
+    const enums = ast?.enums;
     if (!enums) return false;
     let checkType = typeName;
     if (checkType.indexOf(' | ') !== -1) {
@@ -551,7 +554,8 @@ export class FunctionGenerator {
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
     const interfaces: { name: string; fields: { name: string; type: string }[] }[] = [];
-    const astInterfaces = this.ctx.ast.interfaces || [];
+    const ast = this.ctx.getAst();
+    const astInterfaces = ast?.interfaces || [];
     for (let i = 0; i < memberNames.length; i++) {
       const memberName = memberNames[i];
       if (!memberName) continue;

@@ -33,6 +33,7 @@ export interface AssignmentGeneratorContext {
   classGen: ClassGeneratorLike;
   thisPointer: string | null;
   ast: AST;
+  getAst(): AST | undefined;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
   currentDeclaredMapType: string | undefined;
   currentClassName: string | null;
@@ -84,9 +85,11 @@ export class AssignmentGenerator {
       }
       className = this.ctx.getCurrentClassName();
       if (!className) {
+        const ast = this.ctx.getAst();
+        const classes = ast?.classes || [];
         let classWithFieldResult: ClassNode | null = null;
-        for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
-          const c = this.ctx.ast.classes[ci] as ClassNode;
+        for (let ci = 0; ci < classes.length; ci++) {
+          const c = classes[ci] as ClassNode;
           let hasField = false;
           for (let fi = 0; fi < c.fields.length; fi++) {
             const f = c.fields[fi] as { name: string };

@@ -61,7 +61,7 @@ export function createStringConstant(ctx: IGeneratorContext, value: string): str
   const length = byteCount + 1;
   const globalName = ctx.nextString();
 
-  ctx.globalStrings.push(
+  ctx.pushGlobalString(
     `${globalName} = private unnamed_addr constant [${length} x i8] c"${escaped}\\00", align 1`
   );
 

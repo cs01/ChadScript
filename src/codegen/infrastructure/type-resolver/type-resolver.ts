@@ -8,6 +8,7 @@ interface ExprBase { type: string; }
 
 export interface TypeResolverContext {
   ast?: AST;
+  getAst(): AST | undefined;
   symbolTable: SymbolTable;
   typeChecker?: TypeChecker | null;
   currentClassName?: string | null;
@@ -118,12 +119,13 @@ export class TypeResolver {
     if (this.interfaceCache.has(name)) {
       return this.interfaceCache.get(name) || null;
     }
-    if (!this.ctx.ast?.interfaces) {
+    const ast = this.ctx.getAst();
+    if (!ast?.interfaces) {
       this.interfaceCache.set(name, null);
       return null;
     }
-    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+    for (let i = 0; i < ast.interfaces.length; i++) {
+      const iface = ast.interfaces[i] as InterfaceDeclaration;
       if (!iface || !iface.name) {
         continue;
       }
@@ -224,9 +226,10 @@ export class TypeResolver {
 
   getTypeAlias(name: string): TypeAliasDeclaration | null {
     if (!name) return null;
-    if (!this.ctx.ast?.typeAliases) return null;
-    for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
-      const ta = this.ctx.ast.typeAliases[i] as TypeAliasDeclaration;
+    const ast = this.ctx.getAst();
+    if (!ast?.typeAliases) return null;
+    for (let i = 0; i < ast.typeAliases.length; i++) {
+      const ta = ast.typeAliases[i] as TypeAliasDeclaration;
       if (!ta || !ta.name) {
         continue;
       }
@@ -239,9 +242,10 @@ export class TypeResolver {
 
   getFunction(name: string): FunctionNode | null {
     if (!name) return null;
-    if (!this.ctx.ast?.functions) return null;
-    for (let i = 0; i < this.ctx.ast.functions.length; i++) {
-      const fn = this.ctx.ast.functions[i] as FunctionNode;
+    const ast = this.ctx.getAst();
+    if (!ast?.functions) return null;
+    for (let i = 0; i < ast.functions.length; i++) {
+      const fn = ast.functions[i] as FunctionNode;
       if (!fn || !fn.name) {
         continue;
       }
@@ -282,12 +286,13 @@ export class TypeResolver {
     if (this.classCache.has(name)) {
       return this.classCache.get(name) || null;
     }
-    if (!this.ctx.ast?.classes) {
+    const ast = this.ctx.getAst();
+    if (!ast?.classes) {
       this.classCache.set(name, null);
       return null;
     }
-    for (let i = 0; i < this.ctx.ast.classes.length; i++) {
-      const cls = this.ctx.ast.classes[i] as ClassNode;
+    for (let i = 0; i < ast.classes.length; i++) {
+      const cls = ast.classes[i] as ClassNode;
       if (!cls || !cls.name) {
         continue;
       }
@@ -537,10 +542,11 @@ export class TypeResolver {
   }
 
   findInterfaceByDiscriminant(value: string, field: string = 'type'): string | null {
-    if (!this.ctx.ast?.interfaces) return null;
+    const ast = this.ctx.getAst();
+    if (!ast?.interfaces) return null;
 
-    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+    for (let i = 0; i < ast.interfaces.length; i++) {
+      const iface = ast.interfaces[i] as InterfaceDeclaration;
       const match = this.checkInterfaceForDiscriminant(
         iface.name,
         iface.fields,
@@ -583,7 +589,8 @@ export class TypeResolver {
   }
 
   isEnumType(typeName: string): boolean {
-    if (!this.ctx.ast || !this.ctx.ast.enums) return false;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.enums) return false;
     let checkType = typeName;
     if (checkType.indexOf(' | ') !== -1) {
       const parts = checkType.split(' | ');
@@ -595,8 +602,8 @@ export class TypeResolver {
         }
       }
     }
-    for (let i = 0; i < this.ctx.ast.enums.length; i++) {
-      if (this.ctx.ast.enums[i].name === checkType) {
+    for (let i = 0; i < ast.enums.length; i++) {
+      if (ast.enums[i].name === checkType) {
         return true;
       }
     }
