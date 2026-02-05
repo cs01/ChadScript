@@ -555,6 +555,7 @@ function transformCallExpression(node: TreeSitterNode): CallNode | MethodCallNod
       method,
       args,
       typeParameter,
+      pos: 0,
     };
   } else if (fn.type === 'identifier') {
     return { type: 'call', name: fn.text, args };
@@ -567,6 +568,8 @@ function transformCallExpression(node: TreeSitterNode): CallNode | MethodCallNod
       object: callee,
       method: '',
       args,
+      typeParameter: undefined,
+      pos: 0,
     };
   }
 }
@@ -579,6 +582,7 @@ function transformMemberExpression(node: TreeSitterNode): MemberAccessNode {
     type: 'member_access',
     object: objNode ? transformExpression(objNode) : { type: 'variable', name: 'undefined' },
     property: propNode ? (propNode as NodeBase).text : '',
+    optional: false,
   };
 }
 
@@ -659,6 +663,8 @@ function transformObjectExpression(node: TreeSitterNode): ObjectNode {
         type: 'arrow_function',
         params,
         body,
+        async: undefined,
+        captures: undefined,
       };
       properties.push({ key, value: arrowFn });
     }
@@ -695,23 +701,23 @@ function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNo
           }
           return { key: elem, value: { type: 'variable' as const, name: 'undefined' } };
         });
-        return { type: 'map', entries };
+        return { type: 'map', entries, keyType: undefined, valueType: undefined };
       }
     }
-    return { type: 'map', entries: [] };
+    return { type: 'map', entries: [], keyType: undefined, valueType: undefined };
   }
 
   if (className === 'Set') {
     if (args.length > 0) {
       const firstArgType = getExprType(args[0]);
       if (firstArgType === 'array') {
-        return { type: 'set', values: (args[0] as ArrayNode).elements };
+        return { type: 'set', values: (args[0] as ArrayNode).elements, valueType: undefined };
       }
     }
-    return { type: 'set', values: [] };
+    return { type: 'set', values: [], valueType: undefined };
   }
 
-  return { type: 'new', className, args };
+  return { type: 'new', className, args, typeArgs: undefined };
 }
 
 function transformTemplateString(node: TreeSitterNode): TemplateLiteralNode | StringNode {
@@ -795,6 +801,7 @@ function transformArrowFunction(node: TreeSitterNode): ArrowFunctionNode {
     params,
     body,
     async: isAsync || undefined,
+    captures: undefined,
   };
 }
 
@@ -821,6 +828,7 @@ function transformFunctionExpression(node: TreeSitterNode): ArrowFunctionNode {
     params,
     body,
     async: isAsync || undefined,
+    captures: undefined,
   };
 }
 
@@ -1300,6 +1308,8 @@ function transformForInStatement(node: TreeSitterNode): ForOfStatement {
       object: { type: 'variable', name: 'Object' },
       method: 'keys',
       args: [iterable],
+      typeParameter: undefined,
+      pos: 0,
     };
   }
 
