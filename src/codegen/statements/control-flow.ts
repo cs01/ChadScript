@@ -12,9 +12,12 @@ interface ExprBase { type: string; }
 
 export class ControlFlowGenerator {
   // Loop context stack for break/continue
-  private loopStack: Array<{ continueLabel: string; breakLabel: string }> = [];
+  private loopStack: Array<{ continueLabel: string; breakLabel: string }>;
 
-  constructor(private ctx: IGeneratorContext) {}
+  constructor(private ctx: IGeneratorContext) {
+    // Initialize loopStack in constructor - field initializers don't work in native code
+    this.loopStack = [];
+  }
 
   // Helper methods delegate to context
   private nextTemp(): string { return this.ctx.nextTemp(); }
@@ -1519,6 +1522,8 @@ export class ControlFlowGenerator {
   }
 
   private detectTypeGuard(condition: Expression): { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } } | null {
+    if (!condition) return null;
+
     if (this.ctx.typeResolver) {
       return this.ctx.typeResolver.detectTypeGuard(condition);
     }
@@ -1527,14 +1532,19 @@ export class ControlFlowGenerator {
 
     const binary = condition as BinaryNode;
     if (binary.op !== '===' && binary.op !== '==' && binary.op !== '!==' && binary.op !== '!=') return null;
+    if (!binary.left || !binary.right) return null;
+
+    const leftBase = binary.left as ExprBase;
+    const rightBase = binary.right as ExprBase;
+    if (!leftBase.type || !rightBase.type) return null;
 
     let memberAccess: MemberAccessNode | null = null;
     let literalValue: string | null = null;
 
-    if (binary.left.type === 'member_access' && binary.right.type === 'string') {
+    if (leftBase.type === 'member_access' && rightBase.type === 'string') {
       memberAccess = binary.left as MemberAccessNode;
       literalValue = (binary.right as { type: 'string'; value: string }).value;
-    } else if (binary.right.type === 'member_access' && binary.left.type === 'string') {
+    } else if (rightBase.type === 'member_access' && leftBase.type === 'string') {
       memberAccess = binary.right as MemberAccessNode;
       literalValue = (binary.left as { type: 'string'; value: string }).value;
     }
