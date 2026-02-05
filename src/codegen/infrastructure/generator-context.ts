@@ -233,6 +233,11 @@ export interface IGeneratorContext {
   symbolTableIsClosure(name: string): boolean;
   symbolTableGetClosureMetadata(name: string): ClosureMetadata | undefined;
   symbolTableGetObjectPropertyType(varName: string, propertyName: string): string | null;
+  symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
+  symbolTableGetArrayAlloca(name: string): string | undefined;
+  symbolTableSetObjectArrayMetadata(name: string, metadata: { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] }): void;
+  symbolTableGetResolvedType(name: string): { category: string } | undefined;
+  symbolTableSetResolvedType(name: string, resolvedType: { category: string }): void;
 
   /**
    * Access to global string constants
@@ -527,6 +532,12 @@ export class MockGeneratorContext implements IGeneratorContext {
   symbolTableGetScopeVarsArraysForClosure() { return this.symbolTable.getScopeVarsArraysForClosure(); }
   symbolTableIsClosure(name: string) { return this.symbolTable.isClosure(name); }
   symbolTableGetClosureMetadata(name: string) { return this.symbolTable.getClosureMetadata(name); }
+  symbolTableGetObjectPropertyType(varName: string, propertyName: string) { return this.symbolTable.getObjectPropertyType(varName, propertyName); }
+  symbolTableGetObjectMetadata(name: string) { return this.symbolTable.getObjectMetadata(name); }
+  symbolTableGetArrayAlloca(name: string) { return this.symbolTable.getArrayAlloca(name); }
+  symbolTableSetObjectArrayMetadata(name: string, metadata: { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] }) { this.symbolTable.setObjectArrayMetadata(name, metadata); }
+  symbolTableGetResolvedType(name: string) { return this.symbolTable.getResolvedType(name); }
+  symbolTableSetResolvedType(name: string, resolvedType: { category: string }) { this.symbolTable.setResolvedType(name, resolvedType); }
 
   getThisPointer(): string | null {
     return this.thisPointer;

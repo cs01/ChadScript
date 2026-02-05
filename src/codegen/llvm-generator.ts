@@ -209,6 +209,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] } { return this.symbolTable.getScopeVarsArraysForClosure(); }
   public symbolTableIsClosure(name: string): boolean { return this.symbolTable.isClosure(name); }
   public symbolTableGetClosureMetadata(name: string): ClosureMetadata | undefined { return this.symbolTable.getClosureMetadata(name); }
+  public symbolTableGetObjectPropertyType(varName: string, propertyName: string): string | null { return this.symbolTable.getObjectPropertyType(varName, propertyName); }
+  public symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined { return this.symbolTable.getObjectMetadata(name); }
+  public symbolTableGetArrayAlloca(name: string): string | undefined { return this.symbolTable.getArrayAlloca(name); }
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
