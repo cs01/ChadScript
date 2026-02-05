@@ -503,14 +503,65 @@ export class StringMapGenerator {
     const currentCapacity = this.nextTemp();
     this.emit(`${currentCapacity} = load i32, i32* ${capacityFieldPtr}`);
 
+    const keysPtr = this.nextTemp();
+    this.emit(`${keysPtr} = load i8**, i8*** ${keysFieldPtr}`);
+    const valuesPtr = this.nextTemp();
+    this.emit(`${valuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
+
+    const searchLoopLabel = this.nextLabel('strmap_set_search');
+    const searchBodyLabel = this.nextLabel('strmap_set_body');
+    const foundLabel = this.nextLabel('strmap_set_found');
+    const notFoundLabel = this.nextLabel('strmap_set_notfound');
+    const resizeLabel = this.nextLabel('strmap_set_resize');
+    const insertLabel = this.nextLabel('strmap_set_insert');
+    const endLabel = this.nextLabel('strmap_set_end');
+
+    const indexReg = this.nextTemp();
+    this.emit(`${indexReg} = alloca i32`);
+    this.emit(`store i32 0, i32* ${indexReg}`);
+    this.emit(`br label %${searchLoopLabel}`);
+
+    this.emit(`${searchLoopLabel}:`);
+    const currentIndex = this.nextTemp();
+    this.emit(`${currentIndex} = load i32, i32* ${indexReg}`);
+    const searchCond = this.nextTemp();
+    this.emit(`${searchCond} = icmp slt i32 ${currentIndex}, ${currentSize}`);
+    this.emit(`br i1 ${searchCond}, label %${searchBodyLabel}, label %${notFoundLabel}`);
+
+    this.emit(`${searchBodyLabel}:`);
+    const keyElemPtrSearch = this.nextTemp();
+    this.emit(`${keyElemPtrSearch} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentIndex}`);
+    const keyAtIndex = this.nextTemp();
+    this.emit(`${keyAtIndex} = load i8*, i8** ${keyElemPtrSearch}`);
+    const keyIsNull = this.nextTemp();
+    this.emit(`${keyIsNull} = icmp eq i8* ${keyAtIndex}, null`);
+    this.emit(`br i1 ${keyIsNull}, label %${searchLoopLabel}_next, label %${searchBodyLabel}_cmp`);
+
+    this.emit(`${searchBodyLabel}_cmp:`);
+    const cmpResult = this.nextTemp();
+    this.emit(`${cmpResult} = call i32 @strcmp(i8* ${keyAtIndex}, i8* ${keyValue})`);
+    const keyMatch = this.nextTemp();
+    this.emit(`${keyMatch} = icmp eq i32 ${cmpResult}, 0`);
+    this.emit(`br i1 ${keyMatch}, label %${foundLabel}, label %${searchLoopLabel}_next`);
+
+    this.emit(`${searchLoopLabel}_next:`);
+    const nextIndex = this.nextTemp();
+    this.emit(`${nextIndex} = add i32 ${currentIndex}, 1`);
+    this.emit(`store i32 ${nextIndex}, i32* ${indexReg}`);
+    this.emit(`br label %${searchLoopLabel}`);
+
+    this.emit(`${foundLabel}:`);
+    const foundIdx = this.nextTemp();
+    this.emit(`${foundIdx} = load i32, i32* ${indexReg}`);
+    const valueElemPtrFound = this.nextTemp();
+    this.emit(`${valueElemPtrFound} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${foundIdx}`);
+    this.emit(`store i8* ${valueValue}, i8** ${valueElemPtrFound}`);
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${notFoundLabel}:`);
     const needsResize = this.nextTemp();
     this.emit(`${needsResize} = icmp sge i32 ${currentSize}, ${currentCapacity}`);
-
-    const resizeLabel = this.nextLabel('strmap_resize');
-    const continueLabel = this.nextLabel('strmap_continue');
-    const insertLabel = this.nextLabel('strmap_insert');
-
-    this.emit(`br i1 ${needsResize}, label %${resizeLabel}, label %${continueLabel}`);
+    this.emit(`br i1 ${needsResize}, label %${resizeLabel}, label %${insertLabel}`);
 
     this.emit(`${resizeLabel}:`);
     const newCapacity = this.nextTemp();
@@ -528,21 +579,17 @@ export class StringMapGenerator {
     const newValuesPtr = this.nextTemp();
     this.emit(`${newValuesPtr} = bitcast i8* ${newValuesMem} to i8**`);
 
-    const oldKeysPtr = this.nextTemp();
-    this.emit(`${oldKeysPtr} = load i8**, i8*** ${keysFieldPtr}`);
-    const oldValuesPtr = this.nextTemp();
-    this.emit(`${oldValuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
     const currentSizeI64 = this.nextTemp();
     this.emit(`${currentSizeI64} = sext i32 ${currentSize} to i64`);
     const copySize = this.nextTemp();
     this.emit(`${copySize} = mul i64 ${currentSizeI64}, 8`);
     const oldKeysCast = this.nextTemp();
-    this.emit(`${oldKeysCast} = bitcast i8** ${oldKeysPtr} to i8*`);
+    this.emit(`${oldKeysCast} = bitcast i8** ${keysPtr} to i8*`);
     const newKeysCast = this.nextTemp();
     this.emit(`${newKeysCast} = bitcast i8** ${newKeysPtr} to i8*`);
     this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newKeysCast}, i8* ${oldKeysCast}, i64 ${copySize}, i1 false)`);
     const oldValuesCast = this.nextTemp();
-    this.emit(`${oldValuesCast} = bitcast i8** ${oldValuesPtr} to i8*`);
+    this.emit(`${oldValuesCast} = bitcast i8** ${valuesPtr} to i8*`);
     const newValuesCast = this.nextTemp();
     this.emit(`${newValuesCast} = bitcast i8** ${newValuesPtr} to i8*`);
     this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newValuesCast}, i8* ${oldValuesCast}, i64 ${copySize}, i1 false)`);
@@ -552,24 +599,26 @@ export class StringMapGenerator {
     this.emit(`store i32 ${newCapacity}, i32* ${capacityFieldPtr}`);
     this.emit(`br label %${insertLabel}`);
 
-    this.emit(`${continueLabel}:`);
-    this.emit(`br label %${insertLabel}`);
-
     this.emit(`${insertLabel}:`);
     const finalKeysPtr = this.nextTemp();
     this.emit(`${finalKeysPtr} = load i8**, i8*** ${keysFieldPtr}`);
     const finalValuesPtr = this.nextTemp();
     this.emit(`${finalValuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
+    const finalSize = this.nextTemp();
+    this.emit(`${finalSize} = load i32, i32* ${sizeFieldPtr}`);
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${finalKeysPtr}, i32 ${currentSize}`);
+    this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${finalKeysPtr}, i32 ${finalSize}`);
     this.emit(`store i8* ${keyValue}, i8** ${keyElemPtr}`);
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${finalValuesPtr}, i32 ${currentSize}`);
+    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${finalValuesPtr}, i32 ${finalSize}`);
     this.emit(`store i8* ${valueValue}, i8** ${valueElemPtr}`);
 
     const newSize = this.nextTemp();
-    this.emit(`${newSize} = add i32 ${currentSize}, 1`);
+    this.emit(`${newSize} = add i32 ${finalSize}, 1`);
     this.emit(`store i32 ${newSize}, i32* ${sizeFieldPtr}`);
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${endLabel}:`);
 
     return mapPtr;
   }

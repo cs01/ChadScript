@@ -47,6 +47,19 @@ export interface FunctionGeneratorContext {
   getTopLevelExpression(index: number): Expression;
   getOutputAsString(): string;
   processTopLevelItem(index: number): void;
+  setCurrentFunction(name: string): void;
+  setCurrentFunctionReturnType(type: string): void;
+  setCurrentFunctionTsReturnType(type: string | undefined): void;
+  setIsAsyncFunction(value: boolean): void;
+  setAsyncResultPromise(value: string): void;
+  getAsyncResultPromise(): string;
+  interfaceStructGenHasInterface(name: string): boolean;
+  getAllocaInstructions(): string[];
+  clearAllocaInstructions(): void;
+  getOutput(): string[];
+  clearOutput(): void;
+  pushOutput(line: string): void;
+  createEmptyStringConstant(): string;
 }
 
 export class FunctionGenerator {
@@ -60,9 +73,9 @@ export class FunctionGenerator {
     this.ctx.reset();
     this.ctx.syncStateToGenerators();
     const funcName = func.name || '';
-    this.ctx.currentFunction = funcName;
-    this.ctx.isAsyncFunction = func.async || false;
-    this.ctx.asyncResultPromise = '';
+    this.ctx.setCurrentFunction(funcName);
+    this.ctx.setIsAsyncFunction(func.async || false);
+    this.ctx.setAsyncResultPromise('');
 
     const funcParams: string[] = func.params || [];
     const paramTypes: string[] = [];
@@ -70,7 +83,7 @@ export class FunctionGenerator {
     let returnType = 'double';
     let returnTypeIsString = false;
     let returnTypeIsVoid = false;
-    this.ctx.currentFunctionReturnType = 'double';
+    this.ctx.setCurrentFunctionReturnType('double');
 
     const hasParamTypes = func.paramTypes ? true : false;
     let paramTypesLen = 0;
@@ -80,7 +93,7 @@ export class FunctionGenerator {
     const funcIsAsync = func.async ? true : false;
     if (funcIsAsync) {
       returnType = '%Promise*';
-      this.ctx.currentFunctionReturnType = '%Promise*';
+      this.ctx.setCurrentFunctionReturnType('%Promise*');
     } else if (hasParamTypes && paramTypesLen > 0) {
       for (let i = 0; i < funcParams.length; i++) {
         const paramType = func.paramTypes![i] || 'number';
@@ -97,7 +110,7 @@ export class FunctionGenerator {
         } else if (this.isEnumType(paramType)) {
           paramLLVMTypes.push('double');
         } else if (paramType !== 'number' && paramType !== 'boolean') {
-          if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(paramType)) {
+          if (this.ctx.interfaceStructGenHasInterface(paramType)) {
             paramLLVMTypes.push(`%${paramType}*`);
           } else {
             paramLLVMTypes.push('i8*');
@@ -135,7 +148,7 @@ export class FunctionGenerator {
             } else if (this.isEnumType(paramType)) {
               paramLLVMTypes.push('double');
             } else if (paramType !== 'number' && paramType !== 'boolean') {
-              if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(paramType)) {
+              if (this.ctx.interfaceStructGenHasInterface(paramType)) {
                 paramLLVMTypes.push(`%${paramType}*`);
               } else {
                 paramLLVMTypes.push('i8*');
@@ -153,31 +166,31 @@ export class FunctionGenerator {
       if (theReturnType === 'string') {
         returnType = 'i8*';
         returnTypeIsString = true;
-        this.ctx.currentFunctionReturnType = 'i8*';
+        this.ctx.setCurrentFunctionReturnType('i8*');
       } else if (theReturnType === 'void') {
         returnType = 'void';
         returnTypeIsVoid = true;
-        this.ctx.currentFunctionReturnType = 'void';
+        this.ctx.setCurrentFunctionReturnType('void');
       } else if (theReturnType && this.isEnumType(theReturnType)) {
         returnType = 'double';
-        this.ctx.currentFunctionReturnType = 'double';
+        this.ctx.setCurrentFunctionReturnType('double');
       } else if (theReturnType && theReturnType !== '' && theReturnType !== 'number' && theReturnType !== 'boolean') {
-        if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(theReturnType)) {
+        if (this.ctx.interfaceStructGenHasInterface(theReturnType)) {
           returnType = `%${theReturnType}*`;
-          this.ctx.currentFunctionReturnType = `%${theReturnType}*`;
+          this.ctx.setCurrentFunctionReturnType(`%${theReturnType}*`);
         } else {
           returnType = 'i8*';
-          this.ctx.currentFunctionReturnType = 'i8*';
+          this.ctx.setCurrentFunctionReturnType('i8*');
         }
       }
-      this.ctx.currentFunctionTsReturnType = theReturnType;
+      this.ctx.setCurrentFunctionTsReturnType(theReturnType);
     }
 
     const funcBody = func.body || { statements: [] };
     if (!returnTypeIsString && !returnTypeIsVoid && !this.hasReturnStatement(funcBody)) {
       returnType = 'void';
       returnTypeIsVoid = true;
-      this.ctx.currentFunctionReturnType = 'void';
+      this.ctx.setCurrentFunctionReturnType('void');
     }
 
     while (paramLLVMTypes.length < funcParams.length) {
@@ -357,31 +370,31 @@ export class FunctionGenerator {
 
     if (func.async) {
       const resultPromise = this.ctx.nextTemp();
-      this.ctx.asyncResultPromise = resultPromise;
+      this.ctx.setAsyncResultPromise(resultPromise);
       this.ctx.emit(`${resultPromise} = call %Promise* @__Promise_new()`);
     }
 
     const result = this.ctx.generateBlock(funcBody, funcParams);
 
-    const deferredAllocas = this.ctx.allocaInstructions;
+    const deferredAllocas = this.ctx.getAllocaInstructions();
     if (deferredAllocas.length > 0) {
       const newOutput: string[] = [];
       for (let i = 0; i < deferredAllocas.length; i++) {
         newOutput.push(deferredAllocas[i]);
       }
-      const outputArr: string[] = this.ctx.output;
+      const outputArr: string[] = this.ctx.getOutput();
       const outputArrLen = outputArr.length;
       for (let i = 0; i < outputArrLen; i++) {
         newOutput.push(outputArr[i]);
       }
-      this.ctx.output.length = 0;
+      this.ctx.clearOutput();
       for (let i = 0; i < newOutput.length; i++) {
-        this.ctx.output.push(newOutput[i]);
+        this.ctx.pushOutput(newOutput[i]);
       }
-      deferredAllocas.length = 0;
+      this.ctx.clearAllocaInstructions();
     }
 
-    const output2: string[] = this.ctx.output;
+    const output2: string[] = this.ctx.getOutput();
     const output2Len = output2.length;
     for (let i = 0; i < output2Len; i++) {
       const line: string = output2[i].trim();
@@ -393,8 +406,7 @@ export class FunctionGenerator {
         if (retType === 'double') {
           defaultValue = '0.0';
         } else if (retType === 'i8*') {
-          this.ctx.syncStateToGenerators();
-          defaultValue = this.ctx.stringGen.createStringConstant('');
+          defaultValue = this.ctx.createEmptyStringConstant();
         } else {
           defaultValue = 'null';
         }
@@ -427,22 +439,22 @@ export class FunctionGenerator {
 
     if (!hasTerminator) {
       if (func.async) {
-        this.ctx.emit(`call void @__Promise_resolve(%Promise* ${this.ctx.asyncResultPromise}, i8* null)`);
-        const asyncOutput: string[] = this.ctx.output;
+        const asyncPromise = this.ctx.getAsyncResultPromise();
+        this.ctx.emit(`call void @__Promise_resolve(%Promise* ${asyncPromise}, i8* null)`);
+        const asyncOutput: string[] = this.ctx.getOutput();
         const asyncOutputLen = asyncOutput.length;
         const lastLine: string = asyncOutputLen > 0 ? asyncOutput[asyncOutputLen - 1] : '';
         if (lastLine) {
           ir += '  ' + lastLine + '\n';
         }
-        ir += `  ret %Promise* ${this.ctx.asyncResultPromise}\n`;
+        ir += `  ret %Promise* ${asyncPromise}\n`;
       } else if (returnTypeIsVoid) {
         ir += '  ret void\n';
       } else if (result !== null && result !== '' && result !== '0') {
         ir += `  ret ${returnType} ${result}\n`;
       } else {
         if (returnTypeIsString) {
-          this.ctx.syncStateToGenerators();
-          const emptyStr = this.ctx.stringGen.createStringConstant('');
+          const emptyStr = this.ctx.createEmptyStringConstant();
           ir += `  ret i8* ${emptyStr}\n`;
         } else if (returnType && returnType.indexOf('*') !== -1) {
           ir += `  ret ${returnType} null\n`;
@@ -704,22 +716,22 @@ export class FunctionGenerator {
       }
     }
 
-    const deferredAllocas = this.ctx.allocaInstructions;
+    const deferredAllocas = this.ctx.getAllocaInstructions();
     if (deferredAllocas.length > 0) {
       const newOutput: string[] = [];
       for (let i = 0; i < deferredAllocas.length; i++) {
         newOutput.push(deferredAllocas[i]);
       }
-      const methodOutputArr: string[] = this.ctx.output;
+      const methodOutputArr: string[] = this.ctx.getOutput();
       const methodOutputLen = methodOutputArr.length;
       for (let i = 0; i < methodOutputLen; i++) {
         newOutput.push(methodOutputArr[i]);
       }
-      this.ctx.output.length = 0;
+      this.ctx.clearOutput();
       for (let i = 0; i < newOutput.length; i++) {
-        this.ctx.output.push(newOutput[i]);
+        this.ctx.pushOutput(newOutput[i]);
       }
-      deferredAllocas.length = 0;
+      this.ctx.clearAllocaInstructions();
     }
 
     const outputStr = this.ctx.getOutputAsString();

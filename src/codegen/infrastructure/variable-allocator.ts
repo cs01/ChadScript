@@ -112,6 +112,13 @@ export interface VariableAllocatorContext {
   currentClassName: string | null;
   typeChecker?: TypeChecker | null;
   typeResolver?: TypeResolver;
+  typeResolverGetInterface(name: string): InterfaceDeclaration | null;
+  typeResolverGetTypeAlias(name: string): TypeAliasDeclaration | null;
+  typeResolverGetMapGetInterfaceType(expr: Expression): string | null;
+  typeResolverGetUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] };
+  typeResolverAreTypesCompatible(type1: string, type2: string): boolean;
+  typeResolverNormalizeType(type: string): string;
+  typeResolverResolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null;
 }
 
 export class VariableAllocator {
@@ -119,8 +126,9 @@ export class VariableAllocator {
 
   private getInterface(name: string): InterfaceDeclaration | null {
     if (!name) return null;
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.getInterface(name);
+    const result = this.ctx.typeResolverGetInterface(name);
+    if (result) {
+      return result;
     }
     const ast = this.ctx.getAst();
     if (!ast || !ast.interfaces) return null;
@@ -156,8 +164,9 @@ export class VariableAllocator {
 
   private getTypeAlias(name: string): TypeAliasDeclaration | null {
     if (!name) return null;
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.getTypeAlias(name);
+    const result = this.ctx.typeResolverGetTypeAlias(name);
+    if (result) {
+      return result;
     }
     const ast = this.ctx.getAst();
     if (!ast || !ast.typeAliases) return null;
@@ -638,8 +647,9 @@ export class VariableAllocator {
   }
 
   private getMapGetInterfaceType(expr: Expression): string | null {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.getMapGetInterfaceType(expr);
+    const result = this.ctx.typeResolverGetMapGetInterfaceType(expr);
+    if (result) {
+      return result;
     }
     if (expr?.type !== 'method_call') return null;
     const methodExpr = expr as MethodCallNode;
@@ -1645,8 +1655,9 @@ export class VariableAllocator {
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[]; tsTypes: string[] } {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.getUnionCommonFields(memberNames);
+    const result = this.ctx.typeResolverGetUnionCommonFields(memberNames);
+    if (result.keys.length > 0) {
+      return { keys: result.keys, types: result.types, tsTypes: result.types };
     }
     const interfaces: InterfaceDeclaration[] = [];
     for (let i = 0; i < memberNames.length; i++) {
@@ -1702,8 +1713,9 @@ export class VariableAllocator {
   }
 
   private areTypesCompatible(type1: string, type2: string): boolean {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.areTypesCompatible(type1, type2);
+    const result = this.ctx.typeResolverAreTypesCompatible(type1, type2);
+    if (result) {
+      return result;
     }
     if (type1 === type2) return true;
     const norm1 = this.normalizeType(type1);
@@ -1712,8 +1724,9 @@ export class VariableAllocator {
   }
 
   private normalizeType(type: string): string {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.normalizeType(type);
+    const result = this.ctx.typeResolverNormalizeType(type);
+    if (result && result !== type) {
+      return result;
     }
     if (type.startsWith("'") && type.endsWith("'")) return 'string';
     if (type.startsWith('"') && type.endsWith('"')) return 'string';
@@ -1741,11 +1754,9 @@ export class VariableAllocator {
 
   private getArrayMethodReturnType(expr: Expression | null): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     if (!expr) return null;
-    if (this.ctx.typeResolver) {
-      const result = this.ctx.typeResolver.resolveArrayMethodReturnType(expr);
-      if (result) {
-        return { keys: result.keys, types: result.types, tsTypes: result.tsTypes || [] };
-      }
+    const result = this.ctx.typeResolverResolveArrayMethodReturnType(expr);
+    if (result) {
+      return { keys: result.keys, types: result.types, tsTypes: result.tsTypes || result.types };
     }
     return null;
   }

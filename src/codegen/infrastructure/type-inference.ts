@@ -27,6 +27,8 @@ export interface TypeInferenceContext {
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
   typeResolver?: TypeResolver;
+  typeResolverGetInterface(name: string): InterfaceDeclaration | null;
+  typeResolverGetInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null;
   symbolTableIsClass(name: string): boolean;
   symbolTableIsMap(name: string): boolean;
   symbolTableIsSet(name: string): boolean;
@@ -48,8 +50,9 @@ export class TypeInference {
   constructor(private ctx: TypeInferenceContext) {}
 
   private getInterface(name: string): InterfaceDeclaration | null {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.getInterface(name);
+    const result = this.ctx.typeResolverGetInterface(name);
+    if (result) {
+      return result;
     }
     const ast = this.ctx.getAst();
     if (!ast || !ast.interfaces) return null;
@@ -66,8 +69,9 @@ export class TypeInference {
     if (!interfaceName || !propName) {
       return null;
     }
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.getInterfaceProperty(interfaceName, propName);
+    const result = this.ctx.typeResolverGetInterfaceProperty(interfaceName, propName);
+    if (result) {
+      return result;
     }
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;

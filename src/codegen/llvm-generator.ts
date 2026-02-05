@@ -1,12 +1,12 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
-import { ClassInfo, MapMetadata, SetMetadata, ObjectArrayMetadata, ClosureMetadata, Symbol as SymbolEntry, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata } from './infrastructure/symbol-table.js';
+import { ClassInfo, MapMetadata, SetMetadata, ObjectArrayMetadata, ClosureMetadata, Symbol as SymbolEntry, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, ObjectMetadata } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
 import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/function-generator.js';
 import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructure/assignment-generator.js';
 import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
-import { TypeResolver, TypeResolverContext } from './infrastructure/type-resolver/index.js';
+import { TypeResolver, TypeResolverContext, TypeGuardInfo } from './infrastructure/type-resolver/index.js';
 import { stripOptional, tsTypeToLlvmJson, ResolvedType } from './infrastructure/type-system.js';
 import { IGeneratorContext } from './infrastructure/generator-context.js';
 import { ArrayGenerator } from './types/collections/array.js';
@@ -286,6 +286,33 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string { return this.classGen.generateNewExpression(className, args, params); }
   public classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string { return this.classGen.generateMethodCall(instancePtr, className, method, args, params); }
+
+  public setCurrentFunction(name: string): void { this.currentFunction = name; }
+  public setCurrentFunctionReturnType(type: string): void { this.currentFunctionReturnType = type; }
+  public setCurrentFunctionTsReturnType(type: string | undefined): void { this.currentFunctionTsReturnType = type; }
+  public setIsAsyncFunction(value: boolean): void { this.isAsyncFunction = value; }
+  public setAsyncResultPromise(value: string): void { this.asyncResultPromise = value; }
+  public getAsyncResultPromise(): string { return this.asyncResultPromise; }
+  public interfaceStructGenHasInterface(name: string): boolean { return this.interfaceStructGen ? this.interfaceStructGen.hasInterface(name) : false; }
+  public getAllocaInstructions(): string[] { return this.allocaInstructions; }
+  public clearAllocaInstructions(): void { this.allocaInstructions.length = 0; }
+  public getOutput(): string[] { return this.output; }
+  public clearOutput(): void { this.output.length = 0; }
+  public pushOutput(line: string): void { this.output.push(line); }
+  public createEmptyStringConstant(): string { this.syncStateToGenerators(); return this.stringGen.createStringConstant(''); }
+
+  public typeResolverGetInterface(name: string): InterfaceDeclaration | null { return this.typeResolver ? this.typeResolver.getInterface(name) : null; }
+  public typeResolverGetInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null { return this.typeResolver ? this.typeResolver.getInterfaceProperty(interfaceName, propName) : null; }
+  public typeResolverGetTypeAlias(name: string): TypeAliasDeclaration | null { return this.typeResolver ? this.typeResolver.getTypeAlias(name) : null; }
+  public typeResolverGetMapGetInterfaceType(expr: Expression): string | null { return this.typeResolver ? this.typeResolver.getMapGetInterfaceType(expr) : null; }
+  public typeResolverGetUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } { return this.typeResolver ? this.typeResolver.getUnionCommonFields(memberNames) : { keys: [], types: [] }; }
+  public typeResolverAreTypesCompatible(type1: string, type2: string): boolean { return this.typeResolver ? this.typeResolver.areTypesCompatible(type1, type2) : false; }
+  public typeResolverNormalizeType(type: string): string { return this.typeResolver ? this.typeResolver.normalizeType(type) : type; }
+  public typeResolverResolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null { return this.typeResolver ? this.typeResolver.resolveArrayMethodReturnType(expr) : null; }
+  public typeResolverDetectTypeGuard(condition: Expression): TypeGuardInfo | null { return this.typeResolver ? this.typeResolver.detectTypeGuard(condition) : null; }
+  public typeResolverFindInterfaceByDiscriminant(discriminantValue: string): string | null { return this.typeResolver ? this.typeResolver.findInterfaceByDiscriminant(discriminantValue) : null; }
+  public typeResolverGetThisFieldMapKeyType(expr: Expression): string | null { return this.typeResolver ? this.typeResolver.getThisFieldMapKeyType(expr) : null; }
+  public typeResolverGetThisFieldSetValueType(expr: Expression): string | null { return this.typeResolver ? this.typeResolver.getThisFieldSetValueType(expr) : null; }
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {

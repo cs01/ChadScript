@@ -1454,8 +1454,9 @@ export class ControlFlowGenerator {
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[]; tsTypes: string[] } {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.getUnionCommonFields(memberNames);
+    const result = this.ctx.typeResolverGetUnionCommonFields(memberNames);
+    if (result.keys.length > 0) {
+      return { keys: result.keys, types: result.types, tsTypes: result.types };
     }
 
     const foundInterfaces: InterfaceDeclaration[] = [];
@@ -1514,8 +1515,9 @@ export class ControlFlowGenerator {
   }
 
   private areTypesCompatible(type1: string, type2: string): boolean {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.areTypesCompatible(type1, type2);
+    const result = this.ctx.typeResolverAreTypesCompatible(type1, type2);
+    if (result) {
+      return result;
     }
 
     if (type1 === type2) return true;
@@ -1525,8 +1527,9 @@ export class ControlFlowGenerator {
   }
 
   private normalizeType(type: string): string {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.normalizeType(type);
+    const result = this.ctx.typeResolverNormalizeType(type);
+    if (result && result !== type) {
+      return result;
     }
 
     if (type.startsWith("'") && type.endsWith("'")) return 'string';
@@ -1568,8 +1571,9 @@ export class ControlFlowGenerator {
   private detectTypeGuard(condition: Expression): { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } } | null {
     if (!condition) return null;
 
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.detectTypeGuard(condition);
+    const result = this.ctx.typeResolverDetectTypeGuard(condition);
+    if (result) {
+      return { varName: result.varName, narrowedMetadata: { keys: result.narrowedMetadata.keys, types: result.narrowedMetadata.types, tsTypes: result.narrowedMetadata.tsTypes } };
     }
 
     if (condition.type !== 'binary') return null;
@@ -1647,8 +1651,9 @@ export class ControlFlowGenerator {
   }
 
   private findInterfaceByDiscriminant(discriminantValue: string): string | null {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.findInterfaceByDiscriminant(discriminantValue);
+    const result = this.ctx.typeResolverFindInterfaceByDiscriminant(discriminantValue);
+    if (result) {
+      return result;
     }
 
     const ast = this.ctx.getAst();

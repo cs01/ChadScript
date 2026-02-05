@@ -24,6 +24,7 @@ import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
 import type { ResolvedType } from './type-system.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
+import type { TypeGuardInfo } from './type-resolver/types.js';
 
 interface ExprBase { type: string; }
 
@@ -446,6 +447,17 @@ export interface IGeneratorContext {
   classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
 
   /**
+   * TypeResolver delegate methods (avoid chained field access in native code)
+   */
+  typeResolverGetUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] };
+  typeResolverAreTypesCompatible(type1: string, type2: string): boolean;
+  typeResolverNormalizeType(type: string): string;
+  typeResolverDetectTypeGuard(condition: Expression): TypeGuardInfo | null;
+  typeResolverFindInterfaceByDiscriminant(discriminantValue: string): string | null;
+  typeResolverGetThisFieldMapKeyType(expr: Expression): string | null;
+  typeResolverGetThisFieldSetValueType(expr: Expression): string | null;
+
+  /**
    * Access to string map generator for Map<string, *> operations
    */
   readonly stringMapGen: IStringMapGenerator;
@@ -807,6 +819,28 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   resolveImportAlias(localName: string): string {
     return localName;
+  }
+
+  typeResolverGetUnionCommonFields(_memberNames: string[]): { keys: string[]; types: string[] } {
+    return { keys: [], types: [] };
+  }
+  typeResolverAreTypesCompatible(_type1: string, _type2: string): boolean {
+    return false;
+  }
+  typeResolverNormalizeType(type: string): string {
+    return type;
+  }
+  typeResolverDetectTypeGuard(_condition: Expression): TypeGuardInfo | null {
+    return null;
+  }
+  typeResolverFindInterfaceByDiscriminant(_discriminantValue: string): string | null {
+    return null;
+  }
+  typeResolverGetThisFieldMapKeyType(_expr: Expression): string | null {
+    return null;
+  }
+  typeResolverGetThisFieldSetValueType(_expr: Expression): string | null {
+    return null;
   }
 
   reset(): void {
