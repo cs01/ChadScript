@@ -1486,12 +1486,6 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
   const paramTypes = paramsNode ? extractParamTypes(paramsNode) : undefined;
   const parameters = paramsNode ? extractFunctionParameters(paramsNode) : undefined;
 
-  if (paramTypes) {
-    for (let i = 0; i < paramTypes.length; i++) {
-    }
-  } else {
-  }
-
   return {
     name,
     params,

@@ -1438,6 +1438,21 @@ export class TypeInference {
         }
       }
     }
+    if (e.type === 'call') {
+      const funcExpr = expr as CallNode;
+      if (funcExpr.name) {
+        const func = this.getFunction(funcExpr.name);
+        if (func && func.returnType) {
+          let normalizedRetType = func.returnType;
+          if (normalizedRetType.indexOf(' | ') !== -1) {
+            normalizedRetType = normalizedRetType.replace(' | undefined', '').replace(' | null', '').trim();
+          }
+          if (normalizedRetType === 'string[]') {
+            return true;
+          }
+        }
+      }
+    }
     return false;
   }
 
