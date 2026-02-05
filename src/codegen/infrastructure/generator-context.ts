@@ -18,7 +18,7 @@
  * ```
  */
 
-import { Expression, BlockStatement, AST, CallNode } from '../../ast/types.js';
+import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode } from '../../ast/types.js';
 import { SymbolTable, SymbolKind, SymbolMetadata, ClosureMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
@@ -512,6 +512,24 @@ export interface IGeneratorContext {
   stringMapGenGenerateStringMapEntries(mapPtr: string): string;
   stringMapGenGenerateStringMapValues(mapPtr: string): string;
   stringMapGenGenerateStringMapKeys(mapPtr: string): string;
+
+  /**
+   * ArrayGen delegate methods (avoid struct layout mismatch)
+   */
+  arrayGenGenerateArrayLiteral(expr: ArrayNode, params: string[]): string;
+  arrayGenGenerateArrayPush(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayPop(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayIncludes(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayMap(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateStringArrayMap(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayJoin(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayFind(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArraySome(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayEvery(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayFilter(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayForEach(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArraySlice(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayConcat(expr: MethodCallNode, params: string[]): string;
 }
 
 /**
@@ -909,6 +927,21 @@ export class MockGeneratorContext implements IGeneratorContext {
   stringMapGenGenerateStringMapEntries(_mapPtr: string): string { return '%mock_entries'; }
   stringMapGenGenerateStringMapValues(_mapPtr: string): string { return '%mock_values'; }
   stringMapGenGenerateStringMapKeys(_mapPtr: string): string { return '%mock_keys'; }
+
+  arrayGenGenerateArrayLiteral(_expr: ArrayNode, _params: string[]): string { return '%mock_array_literal'; }
+  arrayGenGenerateArrayPush(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_push'; }
+  arrayGenGenerateArrayPop(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_pop'; }
+  arrayGenGenerateArrayIncludes(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_includes'; }
+  arrayGenGenerateArrayMap(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_map'; }
+  arrayGenGenerateStringArrayMap(_expr: MethodCallNode, _params: string[]): string { return '%mock_string_array_map'; }
+  arrayGenGenerateArrayJoin(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_join'; }
+  arrayGenGenerateArrayFind(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_find'; }
+  arrayGenGenerateArraySome(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_some'; }
+  arrayGenGenerateArrayEvery(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_every'; }
+  arrayGenGenerateArrayFilter(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_filter'; }
+  arrayGenGenerateArrayForEach(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_foreach'; }
+  arrayGenGenerateArraySlice(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_slice'; }
+  arrayGenGenerateArrayConcat(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_concat'; }
 
   resolveImportAlias(localName: string): string {
     return localName;

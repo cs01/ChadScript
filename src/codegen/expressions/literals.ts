@@ -59,6 +59,7 @@ export interface LiteralGeneratorContext {
   classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string;
   stringGenCreateStringConstant(value: string): string;
   stringMapGenGenerateEmptyStringMap(): string;
+  arrayGenGenerateArrayLiteral(expr: ArrayNode, params: string[]): string;
 }
 
 /**
@@ -132,7 +133,7 @@ export class LiteralExpressionGenerator {
    * ArrayGenerator uses context pattern - no sync needed! 🎯
    */
   generateArray(expr: ArrayNode, params: string[]): string {
-    return this.ctx.arrayGen.generateArrayLiteral(expr, params);
+    return this.ctx.arrayGenGenerateArrayLiteral(expr, params);
   }
 
   /**
