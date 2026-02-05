@@ -623,6 +623,12 @@ export interface IGeneratorContext {
    */
   mathGenCanHandle(expr: MethodCallNode): boolean;
   mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string;
+
+  /**
+   * PathGen delegate methods (avoid struct layout mismatch)
+   */
+  pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
+  pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
 }
 
 /**
@@ -1118,6 +1124,9 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   mathGenCanHandle(_expr: MethodCallNode): boolean { return false; }
   mathGenGenerateMathMethod(_expr: MethodCallNode, _params: string[]): string { return '%mock_math_method'; }
+
+  pathGenGenerateResolve(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_resolve'; }
+  pathGenGenerateDirname(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_dirname'; }
 
   resolveImportAlias(localName: string): string {
     return localName;

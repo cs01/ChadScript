@@ -308,6 +308,8 @@ export interface MethodCallGeneratorContext {
   regexGenGenerateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string;
   mathGenCanHandle(expr: MethodCallNode): boolean;
   mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string;
+  pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
+  pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
   exprGen: ExpressionGeneratorLike;
 }
 
@@ -665,10 +667,10 @@ export class MethodCallGenerator {
 
     // Handle path.resolve() and path.dirname() (delegated to PathGenerator)
     if (method === 'resolve' && this.isVariableWithName(expr.object, 'path')) {
-      return this.ctx.pathGen.generateResolve(expr, params);
+      return this.ctx.pathGenGenerateResolve(expr, params);
     }
     if (method === 'dirname' && this.isVariableWithName(expr.object, 'path')) {
-      return this.ctx.pathGen.generateDirname(expr, params);
+      return this.ctx.pathGenGenerateDirname(expr, params);
     }
 
     // Handle execSync() from child_process
