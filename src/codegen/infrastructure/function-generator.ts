@@ -56,7 +56,8 @@ export class FunctionGenerator {
   generate(func: FunctionNode): string {
     this.ctx.reset();
     this.ctx.syncStateToGenerators();
-    this.ctx.currentFunction = func.name || '';
+    const funcName = func.name || '';
+    this.ctx.currentFunction = funcName;
     this.ctx.isAsyncFunction = func.async || false;
     this.ctx.asyncResultPromise = '';
 
@@ -167,7 +168,7 @@ export class FunctionGenerator {
       }
     }
 
-    let ir = `define ${returnType} @${func.name}(`;
+    let ir = `define ${returnType} @${funcName}(`;
     const paramStrings: string[] = [];
     if (hasClosure) {
       paramStrings.push('i8* %__env');
