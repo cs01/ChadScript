@@ -285,6 +285,11 @@ export interface MethodCallGeneratorContext {
   arrayGenGenerateArrayForEach(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArraySlice(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArrayConcat(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapSet(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapGet(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapHas(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapDelete(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapClear(expr: MethodCallNode, params: string[]): string;
   exprGen: ExpressionGeneratorLike;
 }
 
@@ -807,17 +812,17 @@ export class MethodCallGenerator {
         }
 
         if (method === 'set') {
-          return this.ctx.mapGen.generateMapSet(expr, params);
+          return this.ctx.mapGenGenerateMapSet(expr, params);
         } else if (method === 'get') {
-          return this.ctx.mapGen.generateMapGet(expr, params);
+          return this.ctx.mapGenGenerateMapGet(expr, params);
         } else if (method === 'has') {
-          return this.ctx.mapGen.generateMapHas(expr, params);
+          return this.ctx.mapGenGenerateMapHas(expr, params);
         } else if (method === 'delete') {
-          return this.ctx.mapGen.generateMapDelete(expr, params);
+          return this.ctx.mapGenGenerateMapDelete(expr, params);
         } else if (method === 'entries' || method === 'values' || method === 'keys') {
           throw new Error(`Map.${method}() only supported for Map<string, *> types`);
         } else {
-          return this.ctx.mapGen.generateMapClear(expr, params);
+          return this.ctx.mapGenGenerateMapClear(expr, params);
         }
       }
 

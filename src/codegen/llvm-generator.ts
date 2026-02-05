@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { ClassInfo, MapMetadata, SetMetadata, ObjectArrayMetadata, ClosureMetadata, Symbol as SymbolEntry, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, ObjectMetadata } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
@@ -370,6 +370,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public arrayGenGenerateArrayForEach(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayForEach(expr, params); }
   public arrayGenGenerateArraySlice(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArraySlice(expr, params); }
   public arrayGenGenerateArrayConcat(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayConcat(expr, params); }
+
+  public mapGenGenerateMapLiteral(expr: MapNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapLiteral(expr, params); }
+  public mapGenGenerateMapSet(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapSet(expr, params); }
+  public mapGenGenerateMapGet(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapGet(expr, params); }
+  public mapGenGenerateMapHas(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapHas(expr, params); }
+  public mapGenGenerateMapDelete(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapDelete(expr, params); }
+  public mapGenGenerateMapClear(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapClear(expr, params); }
+  public mapGenGenerateMapSize(mapPtr: string): string { this.syncStateToGenerators(); return this.mapGen.generateMapSize(mapPtr); }
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
