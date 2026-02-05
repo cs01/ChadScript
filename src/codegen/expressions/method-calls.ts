@@ -1527,6 +1527,7 @@ export class MethodCallGenerator {
 
     if (className && instancePtr) {
       let resolvedClass = this.findClassWithMethod(className, method);
+      let isInterfaceClass = false;
       if (!resolvedClass) {
         let interfaceExists = false;
         if (this.ctx.ast.interfaces) {
@@ -1536,6 +1537,7 @@ export class MethodCallGenerator {
           }
         }
         if (interfaceExists) {
+          isInterfaceClass = true;
           resolvedClass = this.findClassImplementingInterfaceMethod(className, method);
         }
       }
@@ -1544,7 +1546,8 @@ export class MethodCallGenerator {
       }
 
       this.ctx.syncStateToGenerators();
-      return this.ctx.classGen.generateMethodCall(instancePtr, className, method, expr.args, params);
+      const instanceClass = isInterfaceClass ? resolvedClass : className;
+      return this.ctx.classGen.generateMethodCall(instancePtr, instanceClass, method, expr.args, params);
     }
 
     return null;
