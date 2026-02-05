@@ -1,6 +1,6 @@
 import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter, SwitchStatement, SwitchCase } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
-import { SymbolKind, ObjectArrayMetadata, ObjectMetadata } from '../infrastructure/symbol-table.js';
+import { SymbolKind, ObjectArrayMetadata, ObjectMetadata, SymbolMetadata } from '../infrastructure/symbol-table.js';
 import type { UnionCommonFields } from '../infrastructure/type-resolver/index.js';
 import { stripOptional } from '../infrastructure/type-system.js';
 
@@ -523,7 +523,8 @@ export class ControlFlowGenerator {
     }
 
     let typeAlias: { name: string; unionMembers: string[] } | null = null;
-    const typeAliases = this.ctx.ast?.typeAliases || [];
+    const ast = this.ctx.getAst();
+    const typeAliases = ast?.typeAliases || [];
     for (let i = 0; i < typeAliases.length; i++) {
       const ta = typeAliases[i] as { name: string; unionMembers: string[] };
       if (ta.name === elementInterface) {
@@ -567,9 +568,10 @@ export class ControlFlowGenerator {
   }
 
   private getInterfaceDecl(name: string): InterfaceDeclaration | null {
-    if (!this.ctx.ast?.interfaces) return null;
-    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+    const ast = this.ctx.getAst();
+    if (!ast?.interfaces) return null;
+    for (let i = 0; i < ast.interfaces.length; i++) {
+      const iface = ast.interfaces[i] as InterfaceDeclaration;
       if (iface.name === name) {
         return iface;
       }
@@ -968,7 +970,8 @@ export class ControlFlowGenerator {
   }
 
   private getMethodReturnType(className: string, methodName: string): string | null {
-    const classes = this.ctx.ast?.classes || [];
+    const ast = this.ctx.getAst();
+    const classes = ast?.classes || [];
     for (let i = 0; i < classes.length; i++) {
       const cls = classes[i];
       if (cls.name === className) {
@@ -984,7 +987,8 @@ export class ControlFlowGenerator {
   }
 
   private resolveTypeAliasUnion(typeName: string): ObjectArrayMetadata | null {
-    const typeAliases = this.ctx.ast?.typeAliases || [];
+    const ast = this.ctx.getAst();
+    const typeAliases = ast?.typeAliases || [];
     for (let i = 0; i < typeAliases.length; i++) {
       const ta = typeAliases[i] as { name: string; unionMembers: string[] };
       if (ta.name === typeName && ta.unionMembers && ta.unionMembers.length > 0) {
@@ -1196,11 +1200,12 @@ export class ControlFlowGenerator {
   }
 
   private getParameterTypeFromAST(paramName: string): string | null {
-    if (!this.ctx.ast || !this.ctx.currentFunction) {
+    const ast = this.ctx.getAst();
+    if (!ast || !this.ctx.currentFunction) {
       return null;
     }
-    for (let i = 0; i < this.ctx.ast.functions.length; i++) {
-      const fn = this.ctx.ast.functions[i];
+    for (let i = 0; i < ast.functions.length; i++) {
+      const fn = ast.functions[i];
       if (fn.name === this.ctx.currentFunction) {
         if (fn.parameters) {
           for (let j = 0; j < fn.parameters.length; j++) {
@@ -1212,8 +1217,8 @@ export class ControlFlowGenerator {
         }
       }
     }
-    for (let i = 0; i < this.ctx.ast.classes.length; i++) {
-      const cls = this.ctx.ast.classes[i];
+    for (let i = 0; i < ast.classes.length; i++) {
+      const cls = ast.classes[i];
       for (let j = 0; j < cls.methods.length; j++) {
         const method = cls.methods[j];
         if (method.name === this.ctx.currentFunction) {
@@ -1251,13 +1256,17 @@ export class ControlFlowGenerator {
     const elemAlloca = this.ctx.nextAllocaReg(forOfStmt.variableName);
     this.emit(`${elemAlloca} = alloca i8*`);
 
-    this.ctx.defineVariable(forOfStmt.variableName, elemAlloca, 'i8*', SymbolKind.Object, 'local', {
+    const metadata: SymbolMetadata = {
       objectMetadata: {
         keys: objArrayInfo.elementKeys,
         types: objArrayInfo.elementTypes,
         tsTypes: objArrayInfo.elementTsTypes
       }
-    });
+    };
+    if (objArrayInfo.elementInterfaceName && objArrayInfo.elementInterfaceName !== '__inline') {
+      metadata.interfaceType = objArrayInfo.elementInterfaceName;
+    }
+    this.ctx.defineVariable(forOfStmt.variableName, elemAlloca, 'i8*', SymbolKind.Object, 'local', metadata);
 
     const condLabel = this.nextLabel('forof_cond');
     const bodyLabel = this.nextLabel('forof_body');
@@ -1533,7 +1542,8 @@ export class ControlFlowGenerator {
   }
 
   private isEnumType(typeName: string): boolean {
-    if (!this.ctx.ast || !this.ctx.ast.enums) return false;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.enums) return false;
     let checkType = typeName;
     if (checkType.indexOf(' | ') !== -1) {
       const parts = checkType.split(' | ');
@@ -1545,8 +1555,8 @@ export class ControlFlowGenerator {
         }
       }
     }
-    for (let i = 0; i < this.ctx.ast.enums.length; i++) {
-      if (this.ctx.ast.enums[i].name === checkType) {
+    for (let i = 0; i < ast.enums.length; i++) {
+      if (ast.enums[i].name === checkType) {
         return true;
       }
     }
@@ -1639,10 +1649,11 @@ export class ControlFlowGenerator {
       return this.ctx.typeResolver.findInterfaceByDiscriminant(discriminantValue);
     }
 
-    if (!this.ctx.ast?.interfaces) return null;
+    const ast = this.ctx.getAst();
+    if (!ast?.interfaces) return null;
 
-    for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
-      const iface = this.ctx.ast.interfaces[i] as { name: string; fields: { name: string; type: string }[] };
+    for (let i = 0; i < ast.interfaces.length; i++) {
+      const iface = ast.interfaces[i] as { name: string; fields: { name: string; type: string }[] };
       const match = this.checkDiscriminant(
         iface.name,
         iface.fields,

@@ -14,9 +14,10 @@ export class ClassGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
   private findClassNode(className: string): ClassNode | null {
-    if (!this.ctx.ast || !this.ctx.ast.classes) return null;
-    for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
-      const c = this.ctx.ast.classes[ci] as ClassNode;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) return null;
+    for (let ci = 0; ci < ast.classes.length; ci++) {
+      const c = ast.classes[ci] as ClassNode;
       if (c.name === className) {
         return c;
       }
@@ -232,11 +233,12 @@ export class ClassGenerator {
 
   getMethodInfo(className: string, methodName: string): { method: ClassMethod; ownerClass: string } | null {
     let classNodeResult: ClassNode | null = null;
-    if (this.ctx.ast && this.ctx.ast.classes) {
-      for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
-        const c = this.ctx.ast.classes[ci] as { name: string };
+    const ast = this.ctx.getAst();
+    if (ast && ast.classes) {
+      for (let ci = 0; ci < ast.classes.length; ci++) {
+        const c = ast.classes[ci] as { name: string };
         if (c.name === className) {
-          classNodeResult = this.ctx.ast.classes[ci] as ClassNode;
+          classNodeResult = ast.classes[ci] as ClassNode;
           break;
         }
       }
@@ -246,9 +248,9 @@ export class ClassGenerator {
     }
     const classNode = classNodeResult as ClassNode;
     for (let mi = 0; mi < classNode.methods.length; mi++) {
-      const m = classNode.methods[mi] as { name: string; isConstructor: boolean };
+      const m = classNode.methods[mi];
       if (m.name === methodName && !m.isConstructor) {
-        return { method: classNode.methods[mi] as ClassMethod, ownerClass: className };
+        return { method: m, ownerClass: className };
       }
     }
     if (classNode.extends) {
@@ -642,11 +644,12 @@ export class ClassGenerator {
 
   generateNewExpression(className: string, args: Expression[], params: string[]): string {
     let classNodeResult: ClassNode | null = null;
-    if (this.ctx.ast && this.ctx.ast.classes) {
-      for (let ci = 0; ci < this.ctx.ast.classes.length; ci++) {
-        const c = this.ctx.ast.classes[ci] as { name: string };
+    const ast = this.ctx.getAst();
+    if (ast && ast.classes) {
+      for (let ci = 0; ci < ast.classes.length; ci++) {
+        const c = ast.classes[ci] as { name: string };
         if (c.name === className) {
-          classNodeResult = this.ctx.ast.classes[ci] as ClassNode;
+          classNodeResult = ast.classes[ci] as ClassNode;
           break;
         }
       }
@@ -657,14 +660,14 @@ export class ClassGenerator {
     }
     let constructorResult2: ClassMethod | null = null;
     for (let mi = 0; mi < classNode.methods.length; mi++) {
-      const m = classNode.methods[mi] as { name: string; isConstructor: boolean };
+      const m = classNode.methods[mi];
       if (m.isConstructor) {
-        constructorResult2 = classNode.methods[mi] as ClassMethod;
+        constructorResult2 = m;
         break;
       }
     }
     const constructor2 = constructorResult2 as ClassMethod;
-    const paramTypes = constructor2 ? (constructor2 as { paramTypes: string[] }).paramTypes || [] : [];
+    const paramTypes = constructor2 ? constructor2.paramTypes || [] : [];
     const paramLLVMTypes: string[] = [];
     for (let pi = 0; pi < paramTypes.length; pi++) {
       const pType = paramTypes[pi];
@@ -696,11 +699,11 @@ export class ClassGenerator {
       throw new Error(`Method ${methodName} not found in class ${className}`);
     }
     const methodInfo = methodInfoResult as { method: ClassMethod; ownerClass: string };
-    const method = methodInfo.method;
+    const method = methodInfo.method as ClassMethod;
     const methodOwnerClass = methodInfo.ownerClass;
 
     // Determine parameter types
-    const paramTypes = (method as { paramTypes: string[] }).paramTypes || [];
+    const paramTypes = (method as ClassMethod).paramTypes || [];
     const paramLLVMTypes: string[] = [];
     for (let pi = 0; pi < paramTypes.length; pi++) {
       const pType = paramTypes[pi];
@@ -738,9 +741,9 @@ export class ClassGenerator {
 
     // Determine return type
     let returnLLVMType = 'double'; // default for JavaScript semantics
-    const methodTyped = method as { returnType: string };
-    if (methodTyped.returnType) {
-      returnLLVMType = this.methodReturnTypeToLlvm(methodTyped.returnType);
+    const methodCast = method as ClassMethod;
+    if (methodCast.returnType) {
+      returnLLVMType = this.methodReturnTypeToLlvm(methodCast.returnType);
     }
 
     const fields = this.classFields.get(className) || [];
@@ -785,8 +788,9 @@ export class ClassGenerator {
 
   private isEnumType(typeName: string): boolean {
     if (!typeName) return false;
-    if (!this.ctx.ast) return false;
-    const enums = this.ctx.ast.enums;
+    const ast = this.ctx.getAst();
+    if (!ast) return false;
+    const enums = ast.enums;
     if (!enums) return false;
     let checkType = typeName;
     if (checkType.indexOf(' | ') !== -1) {
@@ -865,9 +869,10 @@ export class ClassGenerator {
     }
 
     let interfaceDefResult: InterfaceDeclaration | null = null;
-    if (this.ctx.ast?.interfaces) {
-      for (let ii = 0; ii < this.ctx.ast.interfaces.length; ii++) {
-        const iface = this.ctx.ast.interfaces[ii] as InterfaceDeclaration;
+    const ast = this.ctx.getAst();
+    if (ast?.interfaces) {
+      for (let ii = 0; ii < ast.interfaces.length; ii++) {
+        const iface = ast.interfaces[ii] as InterfaceDeclaration;
         if (iface.name === tsType) {
           interfaceDefResult = iface;
           break;
@@ -896,7 +901,8 @@ export class ClassGenerator {
     }
 
     let typeAlias: { name: string; unionMembers: string[] } | null = null;
-    const typeAliases = this.ctx.ast?.typeAliases || [];
+    const ast2 = this.ctx.getAst();
+    const typeAliases = ast2?.typeAliases || [];
     for (let i = 0; i < typeAliases.length; i++) {
       const ta = typeAliases[i] as { name: string; unionMembers: string[] };
       if (ta.name === tsType) {
@@ -916,7 +922,8 @@ export class ClassGenerator {
     }
 
     let classDef: { name: string } | null = null;
-    const classes = this.ctx.ast?.classes || [];
+    const ast3 = this.ctx.getAst();
+    const classes = ast3?.classes || [];
     for (let i = 0; i < classes.length; i++) {
       const cls = classes[i] as { name: string };
       if (cls.name === tsType) {
@@ -944,7 +951,8 @@ export class ClassGenerator {
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
     const interfaces: { name: string; fields: { name: string; type: string }[] }[] = [];
-    const astInterfaces = this.ctx.ast?.interfaces || [];
+    const ast = this.ctx.getAst();
+    const astInterfaces = ast?.interfaces || [];
     for (let i = 0; i < memberNames.length; i++) {
       const memberName = memberNames[i];
       for (let j = 0; j < astInterfaces.length; j++) {
@@ -1020,13 +1028,14 @@ export class ClassGenerator {
     if (classCount === 0) {
       return '';
     }
-    if (!this.ctx.ast || !this.ctx.ast.classes) {
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) {
       return '';
     }
 
     let ir = '; Class struct type definitions\n';
     let hasDefinitions = false;
-    const classes = this.ctx.ast.classes;
+    const classes = ast.classes;
 
     for (let ci = 0; ci < classCount; ci++) {
       const classNode = classes[ci] as ClassNode;

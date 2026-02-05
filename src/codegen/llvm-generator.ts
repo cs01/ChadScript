@@ -177,6 +177,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.classesCount;
   }
 
+  public getAst(): AST | undefined {
+    return this.ast;
+  }
+
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (!objExpr || objExpr.type !== 'object') {
@@ -428,6 +432,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           llvmType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
           kind = SymbolKind.Class;
           defaultValue = 'null';
+          ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
+          this.globalVariables.set(name, { llvmType, kind, initialized: false });
+          this.defineVariable(name, `@${name}`, llvmType, kind, 'global', {
+            classMetadata: { className }
+          });
+          continue;
         } else if (isBoolean) {
           llvmType = 'double';
           kind = SymbolKind.Boolean;
@@ -744,6 +754,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public generateBlock(block: BlockStatement, params: string[]): string | null {
+    const stmts = block.statements;
     let lastValue: string | null = null;
     let hasTerminator = false;
 
