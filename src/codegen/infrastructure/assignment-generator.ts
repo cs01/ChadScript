@@ -226,6 +226,10 @@ export class AssignmentGenerator {
     value: string,
     memberAccessValue: MemberAccessAssignmentNode
   ): void {
+    if (fiType === null || fiType === undefined) {
+      this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
+      return;
+    }
 
     const hasTsType = fiTsType !== null;
 
@@ -284,6 +288,11 @@ export class AssignmentGenerator {
   ): void {
     const fi = fieldInfo as { type: string; tsType?: string };
     const fiType = fi.type;
+
+    if (fiType === null || fiType === undefined) {
+      this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
+      return;
+    }
 
     const fiTsType = fi.tsType;
     const hasTsType = fiTsType !== null && fiTsType !== undefined;
