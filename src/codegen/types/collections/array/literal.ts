@@ -12,7 +12,7 @@ interface ArrayLiteralContext {
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   generateExpression(expr: Expression, params: string[]): string;
-  expectedArrayElementType: string | null;
+  getExpectedArrayElementType(): string | null;
 }
 
 /**
@@ -47,12 +47,12 @@ export function generateArrayLiteral(
     }
     isStringArray = allStrings;
   }
-  if (length === 0 && gen.expectedArrayElementType === 'string') {
+  if (length === 0 && gen.getExpectedArrayElementType() === 'string') {
     isStringArray = true;
   }
 
   let isPointerArray = false;
-  if (length === 0 && gen.expectedArrayElementType === 'pointer') {
+  if (length === 0 && gen.getExpectedArrayElementType() === 'pointer') {
     isPointerArray = true;
   }
   let firstElemValue: string | null = null;

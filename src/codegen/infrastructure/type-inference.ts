@@ -16,7 +16,7 @@ function isStringType(t: string): boolean {
 
 export interface TypeInferenceContext {
   symbolTable: SymbolTable;
-  expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
+  getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null;
   currentClassName: string | null;
   currentFunction: string;
   ast: AST;
@@ -1372,7 +1372,7 @@ export class TypeInference {
     if (e.type === 'array') {
       const arrayExpr = expr as ArrayNode;
       const elements = arrayExpr.elements || [];
-      if (elements.length === 0 && this.ctx.expectedArrayElementType === 'string') {
+      if (elements.length === 0 && this.ctx.getExpectedArrayElementType() === 'string') {
         return true;
       }
       if (elements.length === 0) {
