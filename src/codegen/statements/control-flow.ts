@@ -467,7 +467,10 @@ export class ControlFlowGenerator {
         const elementTypes: string[] = [];
         const elementTsTypes: string[] = [];
         for (let i = 0; i < fields.length; i++) {
-          const f = fields[i] as { name: string; type: string };
+          const fRaw = fields[i];
+          if (!fRaw) continue;
+          const f = fRaw as { name: string; type: string };
+          if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
           if (f.type === 'string') {
@@ -495,7 +498,10 @@ export class ControlFlowGenerator {
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
       for (let i = 0; i < ifaceTyped.fields.length; i++) {
-        const f = ifaceTyped.fields[i] as { name: string; type: string };
+        const fRaw = ifaceTyped.fields[i];
+        if (!fRaw) continue;
+        const f = fRaw as { name: string; type: string };
+        if (!f.name || !f.type) continue;
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
         if (f.type === 'string') {
@@ -549,7 +555,10 @@ export class ControlFlowGenerator {
     if (!iface) return null;
     const ifaceTyped = iface as { name: string; fields: { name: string; type: string }[] };
     for (let i = 0; i < ifaceTyped.fields.length; i++) {
-      const f = ifaceTyped.fields[i] as { name: string; type: string };
+      const fRaw = ifaceTyped.fields[i];
+      if (!fRaw) continue;
+      const f = fRaw as { name: string; type: string };
+      if (!f.name) continue;
       if (f.name === fieldName) {
         return f.type;
       }
@@ -604,7 +613,10 @@ export class ControlFlowGenerator {
                 const elementTypes: string[] = [];
                 const elementTsTypes: string[] = [];
                 for (let i = 0; i < fields.length; i++) {
-                  const f = fields[i] as { name: string; type: string };
+                  const fRaw = fields[i];
+                  if (!fRaw) continue;
+                  const f = fRaw as { name: string; type: string };
+                  if (!f.name || !f.type) continue;
                   elementKeys.push(f.name);
                   elementTsTypes.push(f.type);
                   if (f.type === 'string') {
@@ -665,7 +677,10 @@ export class ControlFlowGenerator {
               const elementTypes: string[] = [];
               const elementTsTypes: string[] = [];
               for (let i = 0; i < elemIfaceTyped.fields.length; i++) {
-                const f = elemIfaceTyped.fields[i] as { name: string; type: string };
+                const fRaw = elemIfaceTyped.fields[i];
+                if (!fRaw) continue;
+                const f = fRaw as { name: string; type: string };
+                if (!f.name || !f.type) continue;
                 elementKeys.push(f.name);
                 elementTsTypes.push(f.type);
                 if (f.type === 'string') {
@@ -747,7 +762,10 @@ export class ControlFlowGenerator {
       if (iface) {
         const ifaceTyped = iface as { fields: { name: string; type: string }[] };
         for (let i = 0; i < ifaceTyped.fields.length; i++) {
-          const f = ifaceTyped.fields[i] as { name: string; type: string };
+          const fRaw = ifaceTyped.fields[i];
+          if (!fRaw) continue;
+          const f = fRaw as { name: string; type: string };
+          if (!f.name) continue;
           const fieldName = f.name.replace('?', '');
           if (fieldName === ma.property) {
             return f.type;
@@ -776,7 +794,10 @@ export class ControlFlowGenerator {
 
     let fieldDefResult: InterfaceField | null = null;
     for (let i = 0; i < ifaceTyped.fields.length; i++) {
-      const f = ifaceTyped.fields[i] as { name: string; type: string };
+      const fRaw = ifaceTyped.fields[i];
+      if (!fRaw) continue;
+      const f = fRaw as { name: string; type: string };
+      if (!f.name) continue;
       const fieldName = f.name.replace('?', '');
       if (fieldName === propName) {
         fieldDefResult = f as { name: string; type: string };
@@ -797,7 +818,10 @@ export class ControlFlowGenerator {
         const elementTypes: string[] = [];
         const elementTsTypes: string[] = [];
         for (let i = 0; i < fields.length; i++) {
-          const f = fields[i] as { name: string; type: string };
+          const fRaw = fields[i];
+          if (!fRaw) continue;
+          const f = fRaw as { name: string; type: string };
+          if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
           if (f.type === 'string') {
@@ -882,7 +906,10 @@ export class ControlFlowGenerator {
         const elementTypes: string[] = [];
         const elementTsTypes: string[] = [];
         for (let i = 0; i < fields.length; i++) {
-          const f = fields[i] as { name: string; type: string };
+          const fRaw = fields[i];
+          if (!fRaw) continue;
+          const f = fRaw as { name: string; type: string };
+          if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
           if (f.type === 'string') {
