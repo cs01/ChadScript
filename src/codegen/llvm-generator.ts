@@ -428,6 +428,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public mathGenCanHandle(expr: MethodCallNode): boolean { return this.mathGen.canHandle(expr); }
   public mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mathGen.generateMathMethod(expr, params); }
 
+  public pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateResolve(expr, params); }
+  public pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateDirname(expr, params); }
+
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (!objExpr || objExpr.type !== 'object') {
