@@ -243,6 +243,8 @@ export interface MethodCallGeneratorContext {
   classGen: ClassGeneratorLike;
   classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
   classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
+  typeResolverGetThisFieldMapKeyType(expr: Expression): string | null;
+  typeResolverGetThisFieldSetValueType(expr: Expression): string | null;
   exprGen: ExpressionGeneratorLike;
 }
 
@@ -473,8 +475,9 @@ export class MethodCallGenerator {
   }
 
   private getThisFieldMapKeyType(expr: Expression): string | null {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.getThisFieldMapKeyType(expr);
+    const result = this.ctx.typeResolverGetThisFieldMapKeyType(expr);
+    if (result) {
+      return result;
     }
 
     const e2 = expr as ExprBase;
@@ -497,8 +500,9 @@ export class MethodCallGenerator {
   }
 
   private getThisFieldSetValueType(expr: Expression): string | null {
-    if (this.ctx.typeResolver) {
-      return this.ctx.typeResolver.getThisFieldSetValueType(expr);
+    const result = this.ctx.typeResolverGetThisFieldSetValueType(expr);
+    if (result) {
+      return result;
     }
 
     const e = expr as ExprBase;
