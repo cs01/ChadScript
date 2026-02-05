@@ -264,11 +264,9 @@ export class ClassGenerator {
 
   generateClass(classNode: ClassNode): string {
     const className = classNode.name;
-    console.log('[ClassGen.generateClass] className=' + className);
     let ir = '';
 
     const allFields = this.getAllFieldsIncludingInherited(classNode);
-    console.log('[ClassGen.generateClass] allFields.length=' + allFields.length);
 
     this.classFields.set(className, allFields);
 
@@ -300,61 +298,36 @@ export class ClassGenerator {
     const constructor = constructorResult as ClassMethod;
 
     if (constructorResult) {
-      console.log('[ClassGen.generateClass] has constructor, calling generateConstructor');
       this.ctx.output.length = 0;
       ir += this.generateConstructor(className, constructor, allFields);
       ir += '\n';
-      console.log('[ClassGen.generateClass] constructor done');
     } else {
-      console.log('[ClassGen.generateClass] no constructor, calling generateDefaultConstructor');
       ir += this.generateDefaultConstructor(className, allFields);
       ir += '\n';
     }
 
-    console.log('[ClassGen.generateClass] generating ' + regularMethods.length + ' methods');
     for (let methodIdx = 0; methodIdx < regularMethods.length; methodIdx++) {
       const method = regularMethods[methodIdx] as ClassMethod;
-      const methodNameSafe = method && method.name ? method.name : 'NULL';
-      console.log('[ClassGen.generateClass] method ' + methodIdx + ': ' + methodNameSafe);
       this.ctx.output.length = 0;
       ir += this.generateMethod(className, method, allFields);
       ir += '\n';
     }
-    console.log('[ClassGen.generateClass] done with className=' + className);
 
     return ir;
   }
 
   private generateConstructor(className: string, constructor: ClassMethod, _fieldsIgnored: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]): string {
-    console.log('[generateConstructor] enter className=' + className);
-    const classNameSafe = className ? className : 'NULL';
     const fieldsFromMap = this.classFields.get(className);
     const fields = fieldsFromMap || [];
-    console.log('[generateConstructor] fields.length=' + fields.length);
     const structType = `%${className}_struct*`;
     let ir = `define ${structType} @${className}_constructor(`;
-    console.log('[generateConstructor] constructor.params.length=' + constructor.params.length);
-    console.log('[generateConstructor] about to iterate params (skip for now)');
-    // Disabled: may contain garbage
-    // for (let pIdx = 0; pIdx < constructor.params.length; pIdx++) {
-    // }
-    if (constructor.paramTypes) {
-      console.log('[generateConstructor] constructor.paramTypes.length=' + constructor.paramTypes.length);
-      for (let pIdx = 0; pIdx < constructor.paramTypes.length; pIdx++) {
-      }
-    } else {
-      console.log('[generateConstructor] no paramTypes');
-    }
-    console.log('[generateConstructor] POINT A');
     const paramLLVMTypes: string[] = [];
-    console.log('[generateConstructor] POINT B');
     let paramTsTypes: string[];
     if (constructor.paramTypes) {
       paramTsTypes = constructor.paramTypes;
     } else {
       paramTsTypes = [];
     }
-    console.log('[generateConstructor] POINT C');
     if (constructor.paramTypes && constructor.paramTypes.length > 0) {
       for (let ptIdx = 0; ptIdx < constructor.paramTypes.length; ptIdx++) {
         const pType = constructor.paramTypes[ptIdx];
@@ -365,7 +338,6 @@ export class ClassGenerator {
         paramLLVMTypes.push('double');
       }
     }
-    console.log('[generateConstructor] paramLLVMTypes.length=' + paramLLVMTypes.length);
 
     const paramParts: string[] = [];
     for (let argIdx = 0; argIdx < paramLLVMTypes.length; argIdx++) {
@@ -374,12 +346,8 @@ export class ClassGenerator {
     ir += paramParts.join(', ');
     ir += ') {\n';
     ir += 'entry:\n';
-    console.log('[generateConstructor] setting current label');
     this.ctx.setCurrentLabel('entry');
-    console.log('[generateConstructor] current label set');
-    const paramLLVMTypesLen = paramLLVMTypes.length;
 
-    console.log('[generateConstructor] setting up param allocas');
     for (let i = 0; i < constructor.params.length; i++) {
       const paramName = constructor.params[i];
       const allocaReg = this.nextTemp();
@@ -390,11 +358,9 @@ export class ClassGenerator {
       this.emit(`${allocaReg} = alloca ${llvmType}`);
       this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
     }
-    console.log('[generateConstructor] allocas done');
 
     let objPtr: string;
 
-    console.log('[generateConstructor] allocating object with ' + fields.length + ' fields');
     if (fields.length > 0) {
       const sizeofReg = this.nextTemp();
       this.emit(`${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`);
