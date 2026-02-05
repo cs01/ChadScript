@@ -272,6 +272,19 @@ export interface MethodCallGeneratorContext {
   stringMapGenGenerateStringMapEntries(mapPtr: string): string;
   stringMapGenGenerateStringMapValues(mapPtr: string): string;
   stringMapGenGenerateStringMapKeys(mapPtr: string): string;
+  arrayGenGenerateArrayPush(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayPop(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayIncludes(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayMap(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateStringArrayMap(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayJoin(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayFind(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArraySome(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayEvery(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayFilter(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayForEach(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArraySlice(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayConcat(expr: MethodCallNode, params: string[]): string;
   exprGen: ExpressionGeneratorLike;
 }
 
@@ -945,32 +958,32 @@ export class MethodCallGenerator {
 
     // Handle array methods (arrayGen uses context pattern - no sync needed! 🎯)
     if (method === 'push') {
-      return this.ctx.arrayGen.generateArrayPush(expr, params);
+      return this.ctx.arrayGenGenerateArrayPush(expr, params);
     } else if (method === 'pop') {
-      return this.ctx.arrayGen.generateArrayPop(expr, params);
+      return this.ctx.arrayGenGenerateArrayPop(expr, params);
     } else if (method === 'includes' && this.ctx.isArrayExpression(expr.object)) {
-      return this.ctx.arrayGen.generateArrayIncludes(expr, params);
+      return this.ctx.arrayGenGenerateArrayIncludes(expr, params);
     } else if (method === 'map') {
       if (this.ctx.isStringArrayExpression(expr.object)) {
-        return this.ctx.arrayGen.generateStringArrayMap(expr, params);
+        return this.ctx.arrayGenGenerateStringArrayMap(expr, params);
       }
-      return this.ctx.arrayGen.generateArrayMap(expr, params);
+      return this.ctx.arrayGenGenerateArrayMap(expr, params);
     } else if (method === 'join') {
-      return this.ctx.arrayGen.generateArrayJoin(expr, params);
+      return this.ctx.arrayGenGenerateArrayJoin(expr, params);
     } else if (method === 'find') {
-      return this.ctx.arrayGen.generateArrayFind(expr, params);
+      return this.ctx.arrayGenGenerateArrayFind(expr, params);
     } else if (method === 'some') {
-      return this.ctx.arrayGen.generateArraySome(expr, params);
+      return this.ctx.arrayGenGenerateArraySome(expr, params);
     } else if (method === 'every') {
-      return this.ctx.arrayGen.generateArrayEvery(expr, params);
+      return this.ctx.arrayGenGenerateArrayEvery(expr, params);
     } else if (method === 'filter') {
-      return this.ctx.arrayGen.generateArrayFilter(expr, params);
+      return this.ctx.arrayGenGenerateArrayFilter(expr, params);
     } else if (method === 'forEach') {
-      return this.ctx.arrayGen.generateArrayForEach(expr, params);
+      return this.ctx.arrayGenGenerateArrayForEach(expr, params);
     } else if (method === 'slice' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {
-      return this.ctx.arrayGen.generateArraySlice(expr, params);
+      return this.ctx.arrayGenGenerateArraySlice(expr, params);
     } else if (method === 'concat' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {
-      return this.ctx.arrayGen.generateArrayConcat(expr, params);
+      return this.ctx.arrayGenGenerateArrayConcat(expr, params);
     }
 
     // Handle class instance methods
