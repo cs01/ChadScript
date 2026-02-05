@@ -23,7 +23,7 @@ interface UnaryExpressionContext {
   thisPointer?: string | null;
   currentClassName?: string | null;
   classGen?: ClassGeneratorLike;
-  classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   stringGen?: StringGenLike;
   generateExpression(expr: Expression, params: string[]): string;
   stringGenCreateStringConstant(value: string): string;

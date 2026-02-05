@@ -103,6 +103,7 @@ export interface MemberAccessGeneratorContext {
   typeChecker?: TypeChecker | null;
   thisPointer?: string | null;
   currentClassName?: string | null;
+  getCurrentClassName(): string | null;
   currentFunction?: string | null;
   jsonObjectMetadata?: Map<string, JsonObjectMeta>;
   interfaceStructGen?: InterfaceStructGenerator;
@@ -113,7 +114,7 @@ export interface MemberAccessGeneratorContext {
   formatCodegenError(message: string, suggestion?: string): string;
   getObjectMetadata(obj: ObjectNode): ObjectMetadata;
   classGen: ClassGeneratorLike;
-  classGenGetFieldInfo(className: string, fieldName: string): FieldInfo | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): FieldInfo[];
   stringGen: StringGeneratorLike;
   mapGen: MapGeneratorLike;
@@ -124,6 +125,7 @@ export interface MemberAccessGeneratorContext {
   interfaceStructGenHasInterface(name: string): boolean;
   interfaceStructGenGetInterfaceStruct(name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined;
   mapGenGenerateMapSize(mapPtr: string): string;
+  setGenGenerateSetSize(setPtr: string): string;
 }
 
 /**
@@ -671,7 +673,7 @@ export class MemberAccessGenerator {
         throw new Error('this.field accessed outside of class method or constructor');
       }
       instancePtr = thisPtr;
-      className = this.ctx.currentClassName || null;
+      className = this.ctx.getCurrentClassName() || null;
       if (!className) {
         const fieldName = expr.property;
         let classWithFieldResult: ClassNode | null = null;
@@ -1262,7 +1264,7 @@ export class MemberAccessGenerator {
 
     if (innerObjBase.type !== 'this') return null;
 
-    const className = this.ctx.currentClassName;
+    const className = this.ctx.getCurrentClassName();
     if (!className) return null;
 
     const fieldName = innerExpr.property;
@@ -1534,7 +1536,7 @@ export class MemberAccessGenerator {
 
   private resolveExpressionType(expr: Expression): string | null {
     if (expr.type === 'this') {
-      const className = this.ctx.currentClassName;
+      const className = this.ctx.getCurrentClassName();
       return className || null;
     }
     if (expr.type === 'variable') {
@@ -1553,7 +1555,7 @@ export class MemberAccessGenerator {
       const memberAccess = expr as MemberAccessNode;
       const memberAccessObjBase = memberAccess.object as ExprBase;
       if (memberAccessObjBase.type === 'this') {
-        const className = this.ctx.currentClassName;
+        const className = this.ctx.getCurrentClassName();
         if (className) {
           const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, memberAccess.property);
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
@@ -1924,9 +1926,10 @@ export class MemberAccessGenerator {
     const memberExpr = methodCall.object as MemberAccessNode;
     const memberExprObjBase = memberExpr.object as ExprBase;
     if (memberExprObjBase.type !== 'this') return null;
-    if (!this.ctx.currentClassName) return null;
+    const classNameForLookup = this.ctx.getCurrentClassName();
+    if (!classNameForLookup) return null;
 
-    const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
+    const fieldInfoResult = this.ctx.classGenGetFieldInfo(classNameForLookup, memberExpr.property);
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
@@ -2153,7 +2156,7 @@ export class MemberAccessGenerator {
         return sizeDouble;
       }
     } else if (innerAccessObjBase.type === 'this') {
-      const className = this.ctx.currentClassName;
+      const className = this.ctx.getCurrentClassName();
       if (className) {
         const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, innerAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
@@ -2219,13 +2222,14 @@ export class MemberAccessGenerator {
     if (exprObjType === 'variable' && this.ctx.symbolTableIsSet((expr.object as VariableNode).name)) {
       const setPtr = this.ctx.generateExpression(expr.object, params);
       this.ctx.syncStateToGenerators();
-      return this.ctx.setGen.generateSetSize(setPtr);
+      return this.ctx.setGenGenerateSetSize(setPtr);
     }
     if (exprObjType === 'member_access') {
       const innerAccess = expr.object as MemberAccessNode;
       const innerObjBase = innerAccess.object as ExprBase;
-      if (innerObjBase.type === 'this' && this.ctx.currentClassName) {
-        const fieldInfo = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, innerAccess.property);
+      const classNameForLookup = this.ctx.getCurrentClassName();
+      if (innerObjBase.type === 'this' && classNameForLookup) {
+        const fieldInfo = this.ctx.classGenGetFieldInfo(classNameForLookup, innerAccess.property);
         if (fieldInfo && fieldInfo.tsType) {
           const isMap = fieldInfo.tsType.startsWith('Map<') || fieldInfo.tsType.indexOf('Map<') !== -1;
           const isSet = fieldInfo.tsType.startsWith('Set<') || fieldInfo.tsType.indexOf('Set<') !== -1;
@@ -2233,7 +2237,7 @@ export class MemberAccessGenerator {
             const ptr = this.ctx.generateExpression(expr.object, params);
             this.ctx.syncStateToGenerators();
             if (isSet) {
-              return this.ctx.setGen.generateSetSize(ptr);
+              return this.ctx.setGenGenerateSetSize(ptr);
             } else {
               return this.ctx.mapGenGenerateMapSize(ptr);
             }

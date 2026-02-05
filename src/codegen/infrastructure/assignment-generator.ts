@@ -43,7 +43,7 @@ export interface AssignmentGeneratorContext {
   symbolTableGetClassInfo(name: string): ClassInfo | undefined;
   symbolTableGetObjectInfo(name: string): ObjectInfo | undefined;
   classGen: ClassGeneratorLike;
-  classGenGetFieldInfo(className: string, fieldName: string): FieldInfo | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; llvmType: string }[];
   thisPointer: string | null;
   ast: AST;
