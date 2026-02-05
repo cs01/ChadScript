@@ -166,6 +166,11 @@ export interface IGeneratorContext {
   getVariableType(name: string): string | undefined;
 
   /**
+   * Check if a variable type exists
+   */
+  hasVariableType(name: string): boolean;
+
+  /**
    * Lookup variable alloca (checks SymbolTable first, falls back to legacy)
    */
   getVariableAlloca(name: string): string | undefined;
@@ -920,6 +925,10 @@ export class MockGeneratorContext implements IGeneratorContext {
 
     // Fall back to temporary register types
     return this.variableTypes.get(name);
+  }
+
+  hasVariableType(name: string): boolean {
+    return this.getVariableType(name) !== undefined;
   }
 
   setVariableType(name: string, type: string): void {
