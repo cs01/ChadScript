@@ -1,6 +1,6 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
-import { ClassInfo, MapMetadata, SetMetadata, ObjectArrayMetadata, ClosureMetadata, Symbol as SymbolEntry } from './infrastructure/symbol-table.js';
+import { ClassInfo, MapMetadata, SetMetadata, ObjectArrayMetadata, ClosureMetadata, Symbol as SymbolEntry, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
 import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/function-generator.js';
@@ -217,7 +217,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public symbolTableGetResolvedType(name: string): ResolvedType | undefined { return this.symbolTable.getResolvedType(name); }
   public symbolTableSetResolvedType(name: string, resolvedType: ResolvedType): void { this.symbolTable.setResolvedType(name, resolvedType); }
   public classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null {
-    const fields = this.classGenClassFields.get(className);
+    let fields = this.classGenClassFields.get(className);
+    if (!fields) {
+      const classNode = this.findClassNodeForFields(className);
+      if (classNode) {
+        fields = this.getAllFieldsForClass(classNode);
+        this.classGenClassFields.set(className, fields);
+      }
+    }
     if (!fields) {
       return null;
     }
@@ -228,6 +235,37 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       }
     }
     return null;
+  }
+
+  private findClassNodeForFields(className: string): ClassNode | null {
+    const ast = this.ast;
+    if (!ast || !ast.classes) return null;
+    for (let ci = 0; ci < ast.classes.length; ci++) {
+      const c = ast.classes[ci] as ClassNode;
+      if (c.name === className) {
+        return c;
+      }
+    }
+    return null;
+  }
+
+  private getAllFieldsForClass(classNode: ClassNode): { name: string; fieldType: string; tsType?: string }[] {
+    const allFields: { name: string; fieldType: string; tsType?: string }[] = [];
+    if (classNode.extends) {
+      const parentClass = this.findClassNodeForFields(classNode.extends);
+      if (parentClass) {
+        const parentFields = this.getAllFieldsForClass(parentClass);
+        for (let i = 0; i < parentFields.length; i++) {
+          allFields.push(parentFields[i]);
+        }
+      }
+    }
+    for (let i = 0; i < classNode.fields.length; i++) {
+      const field = classNode.fields[i] as { name: string; fieldType?: string; tsType?: string };
+      const fieldType = field.fieldType || 'double';
+      allFields.push({ name: field.name, fieldType: fieldType, tsType: field.tsType });
+    }
+    return allFields;
   }
   public classGenGetClassFields(className: string): { name: string; fieldType: string }[] {
     return this.classGenClassFields.get(className) || [];
@@ -503,9 +541,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           defaultValue = 'null';
           ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
           this.globalVariables.set(name, { llvmType, kind, initialized: false });
-          this.defineVariable(name, `@${name}`, llvmType, kind, 'global', {
-            classMetadata: { className }
-          });
+          this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createClassMetadata({ className }));
           continue;
         } else if (isBoolean) {
           llvmType = 'double';
@@ -519,7 +555,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             defaultValue = 'null';
             ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
-            this.defineVariable(name, `@${name}`, llvmType, kind, 'global', { isPointerAlloca: true });
+            this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createPointerAllocaMetadata());
             continue;
           } else if (interfaceName) {
             let interfaceDef: InterfaceDeclaration | null = null;
@@ -544,10 +580,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               }
               ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariable(name, `@${name}`, llvmType, kind, 'global', {
-                objectMetadata: { keys, types, tsTypes },
-                interfaceType: interfaceName
-              });
+              this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
               continue;
             }
           }
@@ -574,9 +607,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               defaultValue = 'null';
               ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariable(name, `@${name}`, llvmType, kind, 'global', {
-                interfaceType: stmtTyped.declaredType
-              });
+              this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(stmtTyped.declaredType));
               continue;
             } else {
               llvmType = 'double';
@@ -591,9 +622,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               defaultValue = 'null';
               ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariable(name, `@${name}`, llvmType, kind, 'global', {
-                interfaceType: funcReturnInterface
-              });
+              this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(funcReturnInterface));
               continue;
             }
             llvmType = 'double';

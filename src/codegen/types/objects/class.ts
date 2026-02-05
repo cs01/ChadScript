@@ -1,6 +1,6 @@
 import { Expression, ClassNode, ClassMethod, ClassField, VariableNode, InterfaceDeclaration, CommonField } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
-import { SymbolKind } from '../../infrastructure/symbol-table.js';
+import { SymbolKind, createObjectMetadata, createObjectMetadataWithInterfaceAndPointerAlloca, createClassMetadata } from '../../infrastructure/symbol-table.js';
 import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
 
 // ============================================
@@ -892,11 +892,8 @@ export class ClassGenerator {
       }
       const isInterfaceStruct = this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(tsType);
       const varType = isInterfaceStruct ? `%${tsType}*` : 'i8*';
-      this.ctx.defineVariable(paramName, allocaReg, varType, SymbolKind.Object, 'local', {
-        objectMetadata: { keys, types, tsTypes },
-        interfaceType: tsType,
-        isPointerAlloca: isInterfaceStruct
-      });
+      this.ctx.defineVariable(paramName, allocaReg, varType, SymbolKind.Object, 'local',
+        createObjectMetadataWithInterfaceAndPointerAlloca({ keys, types, tsTypes }, tsType, !!isInterfaceStruct));
       return;
     }
 
@@ -914,9 +911,8 @@ export class ClassGenerator {
       const typeAliasTyped = typeAlias as { name: string; unionMembers: string[] };
       if (typeAliasTyped.unionMembers) {
         const commonFields = this.getUnionCommonFields(typeAliasTyped.unionMembers);
-        this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
-          objectMetadata: commonFields
-        });
+        this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local',
+          createObjectMetadata(commonFields));
         return;
       }
     }
@@ -932,9 +928,8 @@ export class ClassGenerator {
       }
     }
     if (classDef) {
-      this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Class, 'local', {
-        classMetadata: { className: classDef.name }
-      });
+      this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Class, 'local',
+        createClassMetadata({ className: classDef.name }));
       return;
     }
 

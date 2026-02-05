@@ -1,6 +1,6 @@
 import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter, SwitchStatement, SwitchCase } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
-import { SymbolKind, ObjectArrayMetadata, ObjectMetadata, SymbolMetadata } from '../infrastructure/symbol-table.js';
+import { SymbolKind, ObjectArrayMetadata, ObjectMetadata, createObjectMetadata, createObjectMetadataWithInterface } from '../infrastructure/symbol-table.js';
 import type { UnionCommonFields } from '../infrastructure/type-resolver/index.js';
 import { stripOptional } from '../infrastructure/type-system.js';
 
@@ -1256,16 +1256,15 @@ export class ControlFlowGenerator {
     const elemAlloca = this.ctx.nextAllocaReg(forOfStmt.variableName);
     this.emit(`${elemAlloca} = alloca i8*`);
 
-    const metadata: SymbolMetadata = {
-      objectMetadata: {
-        keys: objArrayInfo.elementKeys,
-        types: objArrayInfo.elementTypes,
-        tsTypes: objArrayInfo.elementTsTypes
-      }
+    const objectMetadata = {
+      keys: objArrayInfo.elementKeys,
+      types: objArrayInfo.elementTypes,
+      tsTypes: objArrayInfo.elementTsTypes
     };
-    if (objArrayInfo.elementInterfaceName && objArrayInfo.elementInterfaceName !== '__inline') {
-      metadata.interfaceType = objArrayInfo.elementInterfaceName;
-    }
+    const hasInterfaceName = objArrayInfo.elementInterfaceName && objArrayInfo.elementInterfaceName !== '__inline';
+    const metadata = hasInterfaceName
+      ? createObjectMetadataWithInterface(objectMetadata, objArrayInfo.elementInterfaceName)
+      : createObjectMetadata(objectMetadata);
     this.ctx.defineVariable(forOfStmt.variableName, elemAlloca, 'i8*', SymbolKind.Object, 'local', metadata);
 
     const condLabel = this.nextLabel('forof_cond');
@@ -1867,9 +1866,7 @@ export class ControlFlowGenerator {
     if (valueTypeInfo) {
       const vti = valueTypeInfo as { valueType: string; objectMetadata: ObjectMetadata | undefined };
       if (vti.objectMetadata) {
-        this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.Object, 'local', {
-          objectMetadata: vti.objectMetadata
-        });
+        this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.Object, 'local', createObjectMetadata(vti.objectMetadata));
       } else {
         this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.String, 'local');
       }
