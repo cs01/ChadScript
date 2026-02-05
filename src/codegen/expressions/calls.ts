@@ -14,7 +14,8 @@ export class CallExpressionGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
   private isEnumType(typeName: string): boolean {
-    if (!this.ctx.ast || !this.ctx.ast.enums) return false;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.enums) return false;
     let checkType = typeName;
     if (checkType.indexOf(' | ') !== -1) {
       const parts = checkType.split(' | ');
@@ -26,8 +27,8 @@ export class CallExpressionGenerator {
         }
       }
     }
-    for (let i = 0; i < this.ctx.ast.enums.length; i++) {
-      if (this.ctx.ast.enums[i].name === checkType) {
+    for (let i = 0; i < ast.enums.length; i++) {
+      if (ast.enums[i].name === checkType) {
         return true;
       }
     }
@@ -35,10 +36,11 @@ export class CallExpressionGenerator {
   }
 
   private getFunctionFromAST(name: string): FunctionNode | null {
-    if (!this.ctx.ast?.functions) return null;
+    const ast = this.ctx.getAst();
+    if (!ast?.functions) return null;
     const resolvedName = this.ctx.resolveImportAlias(name);
-    for (let i = 0; i < this.ctx.ast.functions.length; i++) {
-      const fn = this.ctx.ast.functions[i] as FunctionNode;
+    for (let i = 0; i < ast.functions.length; i++) {
+      const fn = ast.functions[i] as FunctionNode;
       if (fn.name === resolvedName) {
         return fn;
       }
@@ -786,12 +788,13 @@ export class CallExpressionGenerator {
     if (!this.ctx.currentClassName) {
       throw new Error('super() called outside of class context');
     }
-    if (!this.ctx.ast?.classes) {
+    const ast = this.ctx.getAst();
+    if (!ast?.classes) {
       throw new Error('super() called but no classes defined');
     }
     let currentClass: ClassNode | null = null;
-    for (let i = 0; i < this.ctx.ast.classes.length; i++) {
-      const c = this.ctx.ast.classes[i] as ClassNode;
+    for (let i = 0; i < ast.classes.length; i++) {
+      const c = ast.classes[i] as ClassNode;
       if (c.name === this.ctx.currentClassName) {
         currentClass = c;
         break;

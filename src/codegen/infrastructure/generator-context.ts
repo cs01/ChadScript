@@ -208,6 +208,11 @@ export interface IGeneratorContext {
   readonly globalStrings: string[];
 
   /**
+   * Push a global string constant to the output
+   */
+  pushGlobalString(str: string): void;
+
+  /**
    * Current function return type (for return statement generation)
    */
   currentFunctionReturnType: string;
@@ -309,6 +314,11 @@ export interface IGeneratorContext {
    * Access to full AST (needed for class/function lookups)
    */
   readonly ast?: AST;
+
+  /**
+   * Get AST safely via method call (avoids interface struct layout issues)
+   */
+  getAst(): AST | undefined;
 
   /**
    * Get the cached count of classes in the AST
@@ -438,6 +448,10 @@ export class MockGeneratorContext implements IGeneratorContext {
     return this.ast.classes.length;
   }
 
+  getAst(): AST | undefined {
+    return this.ast;
+  }
+
   getExpressionType(expr: Expression): ResolvedType | undefined {
     return this.expressionTypes.get(expr);
   }
@@ -518,6 +532,10 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   nextString(): string {
     return `@.str.${this.stringCount++}`;
+  }
+
+  pushGlobalString(str: string): void {
+    this.globalStrings.push(str);
   }
 
   getDoubleSize(): string {
