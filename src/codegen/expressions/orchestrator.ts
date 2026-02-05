@@ -1,4 +1,4 @@
-import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, NewNode, RegexNode, ArrowFunctionNode, ConditionalExpressionNode, TemplateLiteralNode, MethodCallNode, AwaitExpressionNode, TypeAssertionNode, IndexAccessAssignmentNode, CallNode, IndexAccessNode, MemberAccessNode } from '../../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, NewNode, RegexNode, ArrowFunctionNode, ConditionalExpressionNode, TemplateLiteralNode, MethodCallNode, AwaitExpressionNode, TypeAssertionNode, IndexAccessAssignmentNode, CallNode, IndexAccessNode, MemberAccessNode, VariableNode, BinaryNode, UnaryNode, NumberNode, StringNode, BooleanNode } from '../../ast/types.js';
 import { LiteralExpressionGenerator } from './literals.js';
 import { VariableExpressionGenerator } from './variables.js';
 import { BinaryExpressionGenerator } from './operators/binary.js';
@@ -72,18 +72,21 @@ export class ExpressionGenerator {
    * Delegates to appropriate sub-generator based on expression type
    */
   generate(expr: Expression, params: string[]): string {
-    const exprTyped = expr as { type: string; value: number | string | boolean; name: string; op: string; operand: Expression; left: Expression; right: Expression };
+    const exprTyped = expr as { type: string };
     // Literals
     if (exprTyped.type === 'number') {
-      return this.literalGen.generateNumber(exprTyped.value as number);
+      const numExpr = expr as NumberNode;
+      return this.literalGen.generateNumber(numExpr.value);
     }
 
     if (exprTyped.type === 'boolean') {
-      return this.literalGen.generateBoolean(exprTyped.value as boolean);
+      const boolExpr = expr as BooleanNode;
+      return this.literalGen.generateBoolean(boolExpr.value);
     }
 
     if (exprTyped.type === 'string') {
-      return this.literalGen.generateString(exprTyped.value as string);
+      const strExpr = expr as StringNode;
+      return this.literalGen.generateString(strExpr.value);
     }
 
     if (exprTyped.type === 'null' || exprTyped.type === 'undefined') {
@@ -123,17 +126,20 @@ export class ExpressionGenerator {
 
     // Variables
     if (exprTyped.type === 'variable') {
-      return this.variableGen.generate(exprTyped.name);
+      const varExpr = expr as VariableNode;
+      return this.variableGen.generate(varExpr.name);
     }
 
     // Unary operators
     if (exprTyped.type === 'unary') {
-      return this.unaryGen.generate(exprTyped.op, exprTyped.operand, params);
+      const unaryExpr = expr as UnaryNode;
+      return this.unaryGen.generate(unaryExpr.op, unaryExpr.operand, params);
     }
 
     // Binary operators
     if (exprTyped.type === 'binary') {
-      return this.binaryGen.generate(exprTyped.op, exprTyped.left, exprTyped.right, params);
+      const binExpr = expr as BinaryNode;
+      return this.binaryGen.generate(binExpr.op, binExpr.left, binExpr.right, params);
     }
 
     // Call expressions
