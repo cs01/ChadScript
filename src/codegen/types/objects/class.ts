@@ -304,7 +304,10 @@ export class ClassGenerator {
 
     if (constructorResult) {
       console.log('[generateClass] calling generateConstructor...');
+      console.log('[generateClass] about to reset output, ctx=' + (this.ctx ? 'exists' : 'null'));
+      console.log('[generateClass] ctx.output=' + (this.ctx.output ? 'exists' : 'null'));
       this.ctx.output.length = 0;
+      console.log('[generateClass] output reset, calling generateConstructor now');
       ir += this.generateConstructor(className, constructor, allFields);
       console.log('[generateClass] generateConstructor done');
       ir += '\n';
@@ -324,11 +327,23 @@ export class ClassGenerator {
   }
 
   private generateConstructor(className: string, constructor: ClassMethod, _fieldsIgnored: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]): string {
+    console.log('[generateConstructor] start');
+    console.log('[generateConstructor] className=' + className);
     const fieldsFromMap = this.classFields.get(className);
     const fields = fieldsFromMap || [];
     const structType = `%${className}_struct*`;
     let ir = `define ${structType} @${className}_constructor(`;
-
+    console.log('[generateConstructor] constructor.params.length=' + constructor.params.length);
+    for (let pIdx = 0; pIdx < constructor.params.length; pIdx++) {
+      console.log('[generateConstructor] params[' + pIdx + ']=' + constructor.params[pIdx]);
+    }
+    console.log('[generateConstructor] constructor.paramTypes.length=' + (constructor.paramTypes ? constructor.paramTypes.length : 0));
+    if (constructor.paramTypes) {
+      for (let pIdx = 0; pIdx < constructor.paramTypes.length; pIdx++) {
+        console.log('[generateConstructor] paramTypes[' + pIdx + ']=' + constructor.paramTypes[pIdx]);
+      }
+    }
+    console.log('[generateConstructor] fields.length=' + fields.length);
     const paramLLVMTypes: string[] = [];
     const paramTsTypes: string[] = constructor.paramTypes || [];
     if (constructor.paramTypes && constructor.paramTypes.length > 0) {
@@ -341,6 +356,8 @@ export class ClassGenerator {
         paramLLVMTypes.push('double');
       }
     }
+    console.log('[generateConstructor] about to build structType');
+    console.log('[generateConstructor] structType=' + structType);
 
     const paramParts: string[] = [];
     for (let argIdx = 0; argIdx < paramLLVMTypes.length; argIdx++) {
@@ -350,23 +367,37 @@ export class ClassGenerator {
     ir += ') {\n';
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
+    console.log('[generateConstructor] ir prefix built');
+    console.log('[generateConstructor] about to check paramTypes');
+    const paramLLVMTypesLen = paramLLVMTypes.length;
+    console.log('[generateConstructor] paramLLVMTypes.length=' + paramLLVMTypesLen);
 
     for (let i = 0; i < constructor.params.length; i++) {
+      console.log('[generateConstructor] processing param i=' + i);
       const paramName = constructor.params[i];
+      console.log('[generateConstructor] paramName=' + paramName);
       const allocaReg = this.nextTemp();
+      console.log('[generateConstructor] allocaReg=' + allocaReg);
       const llvmType = paramLLVMTypes[i];
+      console.log('[generateConstructor] llvmType=' + llvmType);
       const tsType = paramTsTypes[i];
+      console.log('[generateConstructor] tsType=' + tsType);
 
       this.defineParameterWithType(paramName, allocaReg, llvmType, tsType);
       this.emit(`${allocaReg} = alloca ${llvmType}`);
       this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
     }
+    console.log('[generateConstructor] done with params loop');
+    console.log('[generateConstructor] about to check fields.length');
 
     let objPtr: string;
 
     if (fields.length > 0) {
+      console.log('[generateConstructor] fields.length > 0 branch');
       const sizeofReg = this.nextTemp();
+      console.log('[generateConstructor] sizeofReg=' + sizeofReg);
       this.emit(`${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`);
+      console.log('[generateConstructor] emitted getelementptr');
       const sizeReg = this.nextTemp();
       this.emit(`${sizeReg} = ptrtoint %${className}_struct* ${sizeofReg} to i64`);
 
@@ -374,14 +405,20 @@ export class ClassGenerator {
       this.emit(`${objMem} = call i8* @GC_malloc(i64 ${sizeReg})`);
       objPtr = this.nextTemp();
       this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
+      console.log('[generateConstructor] objPtr=' + objPtr);
 
+      console.log('[generateConstructor] about to init fields');
       for (let i = 0; i < fields.length; i++) {
+        console.log('[generateConstructor] field[' + i + ']');
         const fieldPtr = this.nextTemp();
         const classField = fields[i];
+        console.log('[generateConstructor] classField=' + (classField ? 'exists' : 'null'));
         const llvmType = this.fieldToLlvmType(classField);
+        console.log('[generateConstructor] llvmType=' + llvmType);
         this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${objPtr}, i32 0, i32 ${i}`);
         this.emitFieldInit(fieldPtr, llvmType);
       }
+      console.log('[generateConstructor] done with field init loop');
     } else {
       const sizeofReg = this.nextTemp();
       this.emit(`${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`);
