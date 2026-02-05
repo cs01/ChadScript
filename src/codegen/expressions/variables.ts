@@ -1,4 +1,5 @@
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
+import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
 
 interface ClassGeneratorLike {
   getClassFields(className: string): { name: string; fieldType: string }[];
@@ -32,6 +33,7 @@ export interface VariableExpressionContext {
   symbolTableGetType(name: string): string | undefined;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetInterfaceType(name: string): string | undefined;
+  interfaceStructGen?: InterfaceStructGenerator;
 }
 
 interface ClassMeta {
@@ -220,7 +222,7 @@ export class VariableExpressionGenerator {
 
   private loadObject(objectMeta: ObjectMeta, interfaceType?: string): string {
     const temp = this.ctx.nextTemp();
-    if (interfaceType) {
+    if (interfaceType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(interfaceType)) {
       const ptrType = `%${interfaceType}*`;
       this.ctx.emit(`${temp} = load ${ptrType}, ${ptrType}* ${objectMeta.ptr}`);
       this.ctx.setVariableType(temp, ptrType);
@@ -233,16 +235,49 @@ export class VariableExpressionGenerator {
 
   private loadRegularVariable(name: string, allocaReg: string): string {
     const temp = this.ctx.nextTemp();
-    const varType = this.ctx.getVariableType(name) || 'double';
+    let varType = this.ctx.getVariableType(name) || 'double';
     const isTreeSitterType = varType === '%TSNode*' || varType === '%TSTree*' || varType === '%TSParser*' || varType === '%TSLanguage*';
     if (isTreeSitterType) {
       this.ctx.emit(`${temp} = load double, double* ${allocaReg}`);
       this.ctx.setVariableType(temp, varType);
       return temp;
     }
+    if (!this.isValidLlvmType(varType)) {
+      varType = 'i8*';
+    }
     const ptrToType = `${varType}*`;
     this.ctx.emit(`${temp} = load ${varType}, ${ptrToType} ${allocaReg}`);
     this.ctx.setVariableType(temp, varType);
     return temp;
+  }
+
+  private isValidLlvmType(typeStr: string): boolean {
+    if (!typeStr) return false;
+    if (typeStr.startsWith('%{') || typeStr.includes('|') || typeStr.includes(':')) {
+      return false;
+    }
+    if (typeStr === 'double' || typeStr === 'i1' || typeStr === 'i8' || typeStr === 'i32' || typeStr === 'i64' || typeStr === 'void') {
+      return true;
+    }
+    if (typeStr === 'i8*' || typeStr === 'i32*' || typeStr === 'i64*' || typeStr === 'double*') {
+      return true;
+    }
+    if (typeStr.endsWith('*')) {
+      const baseName = typeStr.slice(0, -1);
+      if (baseName.startsWith('%')) {
+        const structName = baseName.slice(1);
+        if (structName.endsWith('_struct')) return true;
+        if (structName === 'Array' || structName === 'StringArray' || structName === 'ObjectArray') return true;
+        if (structName === 'Map' || structName === 'StringMap' || structName === 'PointerMap') return true;
+        if (structName === 'Set' || structName === 'StringSet') return true;
+        if (structName === 'Promise' || structName === 'PromiseCallback') return true;
+        if (structName === 'Response' || structName === 'FetchBuffer') return true;
+        if (structName.startsWith('struct.')) return true;
+        if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(structName)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 }
