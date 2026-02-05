@@ -1,5 +1,5 @@
 import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode, CommonField, FunctionParameter, MethodCallNode, StringNode } from '../../../ast/types.js';
-import { SymbolTable, ObjectMetadata, SymbolKind } from '../symbol-table.js';
+import { SymbolTable, ObjectMetadata, SymbolKind, Symbol as SymbolEntry, MapMetadata, ObjectArrayMetadata } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo, ClassGeneratorLike } from './types.js';
 import { ResolvedType, createResolvedType, parseTypeString, stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil, tsTypeToLlvmJson as tsTypeToLlvmJsonUtil } from '../type-system.js';
@@ -14,6 +14,13 @@ export interface TypeResolverContext {
   currentClassName?: string | null;
   currentFunction?: string | null;
   classGen?: ClassGeneratorLike;
+  symbolTableLookup(name: string): SymbolEntry | undefined;
+  symbolTableIsMap(name: string): boolean;
+  symbolTableGetMapMetadata(name: string): MapMetadata | undefined;
+  symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
+  symbolTableGetObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined;
+  symbolTableGetResolvedType(name: string): ResolvedType | undefined;
+  symbolTableSetResolvedType(name: string, resolvedType: ResolvedType): void;
 }
 
 export class TypeResolver {
@@ -29,10 +36,10 @@ export class TypeResolver {
 
   getCompleteType(name: string): ResolvedType | null {
     // Check if we have a cached resolved type
-    const cached = this.ctx.symbolTable.getResolvedType(name);
+    const cached = this.ctx.symbolTableGetResolvedType(name);
     if (cached) return cached;
 
-    const symbol = this.ctx.symbolTable.lookup(name);
+    const symbol = this.ctx.symbolTableLookup(name);
     if (!symbol) return null;
 
     let resolved: ResolvedType | null = null;
@@ -105,7 +112,7 @@ export class TypeResolver {
 
     // Cache the resolved type for future lookups
     if (resolved) {
-      this.ctx.symbolTable.setResolvedType(name, resolved);
+      this.ctx.symbolTableSetResolvedType(name, resolved);
     }
 
     return resolved;
@@ -417,9 +424,9 @@ export class TypeResolver {
 
     if (methodCall.object?.type === 'variable') {
       const mapName = (methodCall.object as VariableNode).name;
-      if (!this.ctx.symbolTable.isMap(mapName)) return null;
+      if (!this.ctx.symbolTableIsMap(mapName)) return null;
 
-      const mapMeta = this.ctx.symbolTable.getMapMetadata(mapName);
+      const mapMeta = this.ctx.symbolTableGetMapMetadata(mapName);
       if (!mapMeta) return null;
       if (mapMeta.keyType !== 'string') return null;
 
@@ -462,7 +469,7 @@ export class TypeResolver {
     const memberAccessObjBase = memberAccess.object as ExprBase;
     if (memberAccessObjBase.type === 'variable') {
       const varName = (memberAccess.object as VariableNode).name;
-      objectMeta = this.ctx.symbolTable.getObjectInfo(varName);
+      objectMeta = this.ctx.symbolTableGetObjectInfo(varName);
     }
 
     if (!objectMeta) return null;
@@ -515,7 +522,7 @@ export class TypeResolver {
     if (memberAccessObjBase2.type !== 'variable') return null;
 
     const varName = (memberAccess.object as VariableNode).name;
-    const symbol = this.ctx.symbolTable.lookup(varName);
+    const symbol = this.ctx.symbolTableLookup(varName);
     if (!symbol || !symbol.objectMetadata) return null;
     const objMeta = symbol.objectMetadata;
 
@@ -867,7 +874,7 @@ export class TypeResolver {
       const memberObj = memberAccess.object as { type: string };
       if (memberObj.type === 'variable') {
         const varName = (memberObj as VariableNode).name;
-        objectMeta = this.ctx.symbolTable.getObjectInfo(varName);
+        objectMeta = this.ctx.symbolTableGetObjectInfo(varName);
       } else if (memberObj.type === 'member_access' || memberObj.type === 'this') {
         const arrayType = this.resolveMemberAccessArrayType(memberAccess);
         if (arrayType) {
@@ -896,7 +903,7 @@ export class TypeResolver {
     if (arrayExpr.type === 'variable') {
       const varExpr = arrayExpr as VariableNode;
       const varName = varExpr.name;
-      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
+      const objArrayMeta = this.ctx.symbolTableGetObjectArrayMetadata(varName);
       if (objArrayMeta) {
         return {
           keys: objArrayMeta.elementKeys,
