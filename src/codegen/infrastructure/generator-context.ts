@@ -1005,7 +1005,18 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   setOutputLine(index: number, line: string): void {
-    this.output[index] = line;
+    const newOutput: string[] = [];
+    for (let i = 0; i < this.output.length; i++) {
+      if (i === index) {
+        newOutput.push(line);
+      } else {
+        newOutput.push(this.output[i]);
+      }
+    }
+    this.output.length = 0;
+    for (let i = 0; i < newOutput.length; i++) {
+      this.output.push(newOutput[i]);
+    }
   }
 
   getGlobalStringsLength(): number {
