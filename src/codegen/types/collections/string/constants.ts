@@ -4,9 +4,8 @@ import { IGeneratorContext } from '../../../infrastructure/generator-context.js'
 // STRING CONSTANTS - String constant creation and number conversion
 // ============================================
 
-const HEX_CHARS = '0123456789ABCDEF';
-
 function byteToHex(b: number): string {
+  const HEX_CHARS = '0123456789ABCDEF';
   const hi = HEX_CHARS.charAt((b >> 4) & 0xF);
   const lo = HEX_CHARS.charAt(b & 0xF);
   return hi + lo;
