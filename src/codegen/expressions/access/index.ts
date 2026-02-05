@@ -51,6 +51,16 @@ export class IndexAccessGenerator {
       }
       if (memberAccessObjBase.type === 'variable') {
         const baseVarName = (memberAccess.object as VariableNode).name;
+        const symbol = this.ctx.symbolTable.lookup(baseVarName);
+        if (symbol?.interfaceType) {
+          const isStringArray = this.ctx.isStringArrayExpression(expr.object);
+          const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
+          if (isStringArray) {
+            return this.generateStringArrayIndex(expr, params);
+          } else if (isObjectArray) {
+            return this.generateObjectArrayIndex(expr, params);
+          }
+        }
         if (this.ctx.symbolTable.isJSON(baseVarName) || this.ctx.symbolTable.isObject(baseVarName)) {
           return this.generateJSONMemberArrayIndex(expr, params);
         }

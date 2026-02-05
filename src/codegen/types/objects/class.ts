@@ -771,6 +771,9 @@ export class ClassGenerator {
     if (this.isEnumType(tsType)) {
       return 'double';
     }
+    if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(tsType)) {
+      return `%${tsType}*`;
+    }
     return tsTypeToLlvmUtil(tsType);
   }
 
@@ -876,9 +879,12 @@ export class ClassGenerator {
         types.push(this.fieldTypeToLlvm(f.type));
         tsTypes.push(f.type);
       }
-      this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', {
+      const isInterfaceStruct = this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(tsType);
+      const varType = isInterfaceStruct ? `%${tsType}*` : 'i8*';
+      this.ctx.defineVariable(paramName, allocaReg, varType, SymbolKind.Object, 'local', {
         objectMetadata: { keys, types, tsTypes },
-        interfaceType: tsType
+        interfaceType: tsType,
+        isPointerAlloca: isInterfaceStruct
       });
       return;
     }
