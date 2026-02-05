@@ -119,6 +119,229 @@ export interface SymbolMetadata {
   isPointerAlloca?: boolean;
   interfaceType?: string;
   resolvedType?: ResolvedType;
+  unionType?: string;
+  unionMembers?: string[];
+}
+
+export function createPointerAllocaMetadata(): SymbolMetadata {
+  return {
+    objectMetadata: undefined,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: undefined,
+    mapMetadata: undefined,
+    setMetadata: undefined,
+    isPointerAlloca: true,
+    interfaceType: undefined,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createInterfacePointerAllocaMetadata(interfaceType: string): SymbolMetadata {
+  return {
+    objectMetadata: undefined,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: undefined,
+    mapMetadata: undefined,
+    setMetadata: undefined,
+    isPointerAlloca: true,
+    interfaceType: interfaceType,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createInterfaceMetadata(interfaceType: string): SymbolMetadata {
+  return {
+    objectMetadata: undefined,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: undefined,
+    mapMetadata: undefined,
+    setMetadata: undefined,
+    isPointerAlloca: undefined,
+    interfaceType: interfaceType,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createObjectMetadata(objectMetadata: ObjectMetadata): SymbolMetadata {
+  return {
+    objectMetadata: objectMetadata,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: undefined,
+    mapMetadata: undefined,
+    setMetadata: undefined,
+    isPointerAlloca: undefined,
+    interfaceType: undefined,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createObjectMetadataWithInterface(objectMetadata: ObjectMetadata, interfaceType: string): SymbolMetadata {
+  return {
+    objectMetadata: objectMetadata,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: undefined,
+    mapMetadata: undefined,
+    setMetadata: undefined,
+    isPointerAlloca: undefined,
+    interfaceType: interfaceType,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createObjectMetadataWithPointerAlloca(objectMetadata: ObjectMetadata, isPointerAlloca: boolean): SymbolMetadata {
+  return {
+    objectMetadata: objectMetadata,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: undefined,
+    mapMetadata: undefined,
+    setMetadata: undefined,
+    isPointerAlloca: isPointerAlloca,
+    interfaceType: undefined,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createObjectMetadataWithInterfaceAndPointerAlloca(objectMetadata: ObjectMetadata, interfaceType: string, isPointerAlloca: boolean): SymbolMetadata {
+  return {
+    objectMetadata: objectMetadata,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: undefined,
+    mapMetadata: undefined,
+    setMetadata: undefined,
+    isPointerAlloca: isPointerAlloca,
+    interfaceType: interfaceType,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createClassMetadata(classMetadata: ClassMetadata): SymbolMetadata {
+  return {
+    objectMetadata: undefined,
+    classMetadata: classMetadata,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: undefined,
+    mapMetadata: undefined,
+    setMetadata: undefined,
+    isPointerAlloca: undefined,
+    interfaceType: undefined,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createClosureMetadataSymbol(closureMetadata: ClosureMetadata): SymbolMetadata {
+  return {
+    objectMetadata: undefined,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: closureMetadata,
+    mapMetadata: undefined,
+    setMetadata: undefined,
+    isPointerAlloca: undefined,
+    interfaceType: undefined,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createMapMetadataSymbol(mapMetadata: MapMetadata): SymbolMetadata {
+  return {
+    objectMetadata: undefined,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: undefined,
+    mapMetadata: mapMetadata,
+    setMetadata: undefined,
+    isPointerAlloca: undefined,
+    interfaceType: undefined,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createSetMetadataSymbol(setMetadata: SetMetadata): SymbolMetadata {
+  return {
+    objectMetadata: undefined,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: undefined,
+    mapMetadata: undefined,
+    setMetadata: setMetadata,
+    isPointerAlloca: undefined,
+    interfaceType: undefined,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createObjectArrayMetadataSymbol(objectArrayMetadata: ObjectArrayMetadata): SymbolMetadata {
+  return {
+    objectMetadata: undefined,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: objectArrayMetadata,
+    closureMetadata: undefined,
+    mapMetadata: undefined,
+    setMetadata: undefined,
+    isPointerAlloca: undefined,
+    interfaceType: undefined,
+    resolvedType: undefined,
+    unionType: undefined,
+    unionMembers: undefined
+  };
+}
+
+export function createUnionMetadata(objectMetadata: ObjectMetadata, unionType: string, unionMembers: string[]): SymbolMetadata {
+  return {
+    objectMetadata: objectMetadata,
+    classMetadata: undefined,
+    arrayMetadata: undefined,
+    objectArrayMetadata: undefined,
+    closureMetadata: undefined,
+    mapMetadata: undefined,
+    setMetadata: undefined,
+    isPointerAlloca: undefined,
+    interfaceType: undefined,
+    resolvedType: undefined,
+    unionType: unionType,
+    unionMembers: unionMembers
+  };
 }
 
 /**
