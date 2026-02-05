@@ -324,14 +324,18 @@ export class MemberAccessGenerator {
     if (classResult !== null) return classResult;
 
     const exprObjBase = expr.object as ExprBase;
+    const exprObjType = exprObjBase.type;
+    if (exprObjType === null || exprObjType === undefined) {
+      return '0.0';
+    }
 
     // Handle JSON object property access
-    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
+    if (exprObjType === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
       return this.handleJsonPropertyAccess(expr, params);
     }
 
     // Handle nested JSON object access
-    if (exprObjBase.type === 'member_access') {
+    if (exprObjType === 'member_access') {
       const nestedResult = this.handleNestedJsonAccess(expr, params);
       if (nestedResult !== null) return nestedResult;
 
@@ -345,19 +349,19 @@ export class MemberAccessGenerator {
     }
 
     // Handle indexed access to object array elements (e.g., arr[i].property)
-    if (exprObjBase.type === 'index_access') {
+    if (exprObjType === 'index_access') {
       const indexResult = this.handleIndexAccessPropertyAccess(expr, params);
       if (indexResult !== null) return indexResult;
     }
 
     // Handle type assertion property access (e.g., (expr as Type).property)
-    if (exprObjBase.type === 'type_assertion') {
+    if (exprObjType === 'type_assertion') {
       const assertResult = this.handleTypeAssertionPropertyAccess(expr, params);
       if (assertResult !== null) return assertResult;
     }
 
     // Handle method call result property access (e.g., map.get(key)?.property)
-    if (exprObjBase.type === 'method_call') {
+    if (exprObjType === 'method_call') {
       const methodResult = this.handleMethodCallResultPropertyAccess(expr, params);
       if (methodResult !== null) return methodResult;
     }
@@ -571,17 +575,21 @@ export class MemberAccessGenerator {
     let instancePtr: string | null = null;
 
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isClass((expr.object as VariableNode).name)) {
+    const exprObjType = exprObjBase.type;
+    if (exprObjType === null || exprObjType === undefined) {
+      return null;
+    }
+    if (exprObjType === 'variable' && this.ctx.symbolTable.isClass((expr.object as VariableNode).name)) {
       const classMeta = this.ctx.symbolTable.getClassInfo((expr.object as VariableNode).name);
       if (classMeta) {
         className = classMeta.className;
         instancePtr = this.ctx.generateExpression(expr.object, params);
       }
-    } else if (exprObjBase.type === 'new') {
+    } else if (exprObjType === 'new') {
       const newExpr = expr.object as NewNode;
       className = newExpr.className;
       instancePtr = this.ctx.generateExpression(expr.object, params);
-    } else if (exprObjBase.type === 'this') {
+    } else if (exprObjType === 'this') {
       const thisPtr = this.ctx.thisPointer;
       if (!thisPtr) {
         throw new Error('this.field accessed outside of class method or constructor');
@@ -1673,9 +1681,13 @@ export class MemberAccessGenerator {
     let tsTypes: string[] | undefined = undefined;
 
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
+    const exprObjType = exprObjBase.type;
+    if (exprObjType === null || exprObjType === undefined) {
+      return null;
+    }
+    if (exprObjType === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
       return null;  // Already handled in handleJsonPropertyAccess
-    } else if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isObject((expr.object as VariableNode).name)) {
+    } else if (exprObjType === 'variable' && this.ctx.symbolTable.isObject((expr.object as VariableNode).name)) {
       const varName = (expr.object as VariableNode).name;
       const symbol = this.ctx.symbolTable.lookup(varName);
       if (symbol?.interfaceType) {
@@ -1709,13 +1721,13 @@ export class MemberAccessGenerator {
       const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
       objPtr = this.ctx.nextTemp();
       this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
-    } else if (exprObjBase.type === 'object') {
+    } else if (exprObjType === 'object') {
       const metadataResult = this.ctx.getObjectMetadata(expr.object as ObjectNode);
       const metadata = metadataResult as ObjectMetadata;
       keys = metadata.keys;
       types = metadata.types;
       objPtr = this.ctx.generateExpression(expr.object, params);
-    } else if (exprObjBase.type === 'method_call') {
+    } else if (exprObjType === 'method_call') {
       const result = this.handleMethodCallPropertyAccess(expr, params);
       if (result !== null) return result;
       return null;
@@ -1727,7 +1739,7 @@ export class MemberAccessGenerator {
 
     const propIndex = keys.indexOf(expr.property);
     if (propIndex === -1) {
-      const objDesc = exprObjBase.type === 'variable' ? (expr.object as VariableNode).name : 'literal';
+      const objDesc = exprObjType === 'variable' ? (expr.object as VariableNode).name : 'literal';
       throw new Error(`Unknown property: ${expr.property} on object ${objDesc}. Available properties: ${keys.join(', ')}`);
     }
 
@@ -1845,11 +1857,15 @@ export class MemberAccessGenerator {
 
   private handleLengthProperty(expr: MemberAccessNode, params: string[]): string {
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isNumberArray((expr.object as VariableNode).name)) {
+    const exprObjType = exprObjBase.type;
+    if (exprObjType === null || exprObjType === undefined) {
+      return '0.0';
+    }
+    if (exprObjType === 'variable' && this.ctx.symbolTable.isNumberArray((expr.object as VariableNode).name)) {
       return this.getArrayLength(expr.object, params, '%Array');
     }
 
-    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isObjectArray((expr.object as VariableNode).name)) {
+    if (exprObjType === 'variable' && this.ctx.symbolTable.isObjectArray((expr.object as VariableNode).name)) {
       return this.getArrayLength(expr.object, params, '%ObjectArray');
     }
 
@@ -1858,12 +1874,12 @@ export class MemberAccessGenerator {
       return this.getStringArrayLength(stringArrayPtr);
     }
 
-    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isStringArray((expr.object as VariableNode).name)) {
+    if (exprObjType === 'variable' && this.ctx.symbolTable.isStringArray((expr.object as VariableNode).name)) {
       const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
       return this.getStringArrayLength(stringArrayPtr);
     }
 
-    if (exprObjBase.type === 'member_access') {
+    if (exprObjType === 'member_access') {
       const result = this.handleMemberAccessLength(expr, params);
       if (result !== null) return result;
     }
@@ -1873,7 +1889,9 @@ export class MemberAccessGenerator {
 
   private isProcessArgvLength(expr: MemberAccessNode): boolean {
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'member_access') return false;
+    const exprObjType = exprObjBase.type;
+    if (exprObjType === null || exprObjType === undefined) return false;
+    if (exprObjType !== 'member_access') return false;
     const innerAccess = expr.object as MemberAccessNode;
     const innerAccessObjBase = innerAccess.object as ExprBase;
     return innerAccessObjBase.type === 'variable' &&
@@ -2011,17 +2029,21 @@ export class MemberAccessGenerator {
 
   private handleSizeProperty(expr: MemberAccessNode, params: string[]): string | null {
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isMap((expr.object as VariableNode).name)) {
+    const exprObjType = exprObjBase.type;
+    if (exprObjType === null || exprObjType === undefined) {
+      return null;
+    }
+    if (exprObjType === 'variable' && this.ctx.symbolTable.isMap((expr.object as VariableNode).name)) {
       const mapPtr = this.ctx.generateExpression(expr.object, params);
       this.ctx.syncStateToGenerators();
       return this.ctx.mapGen.generateMapSize(mapPtr);
     }
-    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isSet((expr.object as VariableNode).name)) {
+    if (exprObjType === 'variable' && this.ctx.symbolTable.isSet((expr.object as VariableNode).name)) {
       const setPtr = this.ctx.generateExpression(expr.object, params);
       this.ctx.syncStateToGenerators();
       return this.ctx.setGen.generateSetSize(setPtr);
     }
-    if (exprObjBase.type === 'member_access') {
+    if (exprObjType === 'member_access') {
       const innerAccess = expr.object as MemberAccessNode;
       const innerObjBase = innerAccess.object as ExprBase;
       if (innerObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
@@ -2047,7 +2069,9 @@ export class MemberAccessGenerator {
   private handleResponseProperty(expr: MemberAccessNode): string | null {
     if (expr.property !== 'status' && expr.property !== 'ok') return null;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') return null;
+    const exprObjType = exprObjBase.type;
+    if (exprObjType === null || exprObjType === undefined) return null;
+    if (exprObjType !== 'variable') return null;
 
     const varName = (expr.object as VariableNode).name;
     const varType = this.ctx.getVariableType(varName);
@@ -2076,9 +2100,13 @@ export class MemberAccessGenerator {
 
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') {
-      let debugInfo = `Property: ${expr.property}, Object type: ${exprObjBase.type}`;
-      if (exprObjBase.type === 'member_access') {
+    const exprObjType = exprObjBase.type;
+    if (exprObjType === null || exprObjType === undefined) {
+      return '0.0';
+    }
+    if (exprObjType !== 'variable') {
+      let debugInfo = `Property: ${expr.property}, Object type: ${exprObjType}`;
+      if (exprObjType === 'member_access') {
         const innerExpr = expr.object as MemberAccessNode;
         const innerExprObjBase = innerExpr.object as ExprBase;
         debugInfo += `, Inner property: ${innerExpr.property}, Inner object type: ${innerExprObjBase.type}`;
