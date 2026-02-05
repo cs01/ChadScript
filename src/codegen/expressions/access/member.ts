@@ -324,7 +324,7 @@ export class MemberAccessGenerator {
     if (classResult !== null) return classResult;
 
     const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase.type;
+    const exprObjType = exprObjBase ? exprObjBase.type : null;
     if (exprObjType === null || exprObjType === undefined) {
       return '0.0';
     }
@@ -397,24 +397,37 @@ export class MemberAccessGenerator {
   }
 
   private handleEnumMemberAccess(expr: MemberAccessNode): string | null {
+    if (!expr.object) {
+      return null;
+    }
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') return null;
+    if (!exprObjBase) {
+      return null;
+    }
+    const exprObjType = exprObjBase.type;
+    if (exprObjType !== 'variable') return null;
 
-    const enumName = (expr.object as VariableNode).name;
+    const exprObjVar = expr.object as VariableNode;
+    const enumName = exprObjVar.name;
     const memberName = expr.property;
-    const enums = this.ctx.ast?.enums;
+    if (!this.ctx.ast) {
+      return null;
+    }
+    const enums = this.ctx.ast.enums;
     if (!enums) return null;
 
     let enumDeclResult: EnumDeclaration | null = null;
     for (let ei = 0; ei < enums.length; ei++) {
       const e = enums[ei] as EnumDeclaration;
-      if (e.name === enumName) {
+      if (e && e.name === enumName) {
         enumDeclResult = e;
         break;
       }
     }
     const enumDecl = enumDeclResult as EnumDeclaration;
-    if (!enumDeclResult) return null;
+    if (!enumDeclResult) {
+      return null;
+    }
 
     let memberResult: EnumMember | null = null;
     for (let mi = 0; mi < enumDecl.members.length; mi++) {
@@ -439,12 +452,23 @@ export class MemberAccessGenerator {
   }
 
   private handleTypedJsonStructAccess(expr: MemberAccessNode): string | null {
+    if (!expr.object) {
+      return null;
+    }
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') return null;
+    const exprObjType = exprObjBase ? exprObjBase.type : null;
+    if (exprObjType !== 'variable') return null;
 
     const varName = (expr.object as VariableNode).name;
     const varType = this.ctx.getVariableType(varName);
-    if (!varType || !varType.startsWith('%') || !varType.endsWith('*')) return null;
+    if (!varType) {
+      return null;
+    }
+    const startsWithPercent = varType.charAt(0) === '%';
+    const endsWithStar = varType.charAt(varType.length - 1) === '*';
+    if (!startsWithPercent || !endsWithStar) {
+      return null;
+    }
     if (varType === '%Response*' || varType.indexOf('Array') !== -1 || varType.indexOf('Map') !== -1 || varType.indexOf('Set') !== -1) {
       return null;
     }
@@ -574,16 +598,23 @@ export class MemberAccessGenerator {
     let className: string | null = null;
     let instancePtr: string | null = null;
 
+    if (!expr.object) {
+      return null;
+    }
     const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase.type;
+    const exprObjType = exprObjBase ? exprObjBase.type : null;
     if (exprObjType === null || exprObjType === undefined) {
       return null;
     }
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isClass((expr.object as VariableNode).name)) {
-      const classMeta = this.ctx.symbolTable.getClassInfo((expr.object as VariableNode).name);
-      if (classMeta) {
-        className = classMeta.className;
-        instancePtr = this.ctx.generateExpression(expr.object, params);
+    if (exprObjType === 'variable') {
+      const varName = (expr.object as VariableNode).name;
+      const isClass = this.ctx.symbolTable.isClass(varName);
+      if (isClass) {
+        const classMeta = this.ctx.symbolTable.getClassInfo((expr.object as VariableNode).name);
+        if (classMeta) {
+          className = classMeta.className;
+          instancePtr = this.ctx.generateExpression(expr.object, params);
+        }
       }
     } else if (exprObjType === 'new') {
       const newExpr = expr.object as NewNode;
@@ -623,7 +654,9 @@ export class MemberAccessGenerator {
       }
     }
 
-    if (!className || !instancePtr) return null;
+    if (!className || !instancePtr) {
+      return null;
+    }
 
     const fieldInfoResult = this.ctx.classGen.getFieldInfo(className, expr.property);
     const fields = this.ctx.classGen.getClassFields(className);
@@ -1680,16 +1713,23 @@ export class MemberAccessGenerator {
     let types: string[] = [];
     let tsTypes: string[] | undefined = undefined;
 
+    if (!expr.object) {
+      return null;
+    }
     const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase.type;
+    const exprObjType = exprObjBase ? exprObjBase.type : null;
     if (exprObjType === null || exprObjType === undefined) {
       return null;
     }
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
-      return null;  // Already handled in handleJsonPropertyAccess
-    } else if (exprObjType === 'variable' && this.ctx.symbolTable.isObject((expr.object as VariableNode).name)) {
+    if (exprObjType === 'variable') {
       const varName = (expr.object as VariableNode).name;
-      const symbol = this.ctx.symbolTable.lookup(varName);
+      const isJSON = this.ctx.symbolTable.isJSON(varName);
+      if (isJSON) {
+        return null;  // Already handled in handleJsonPropertyAccess
+      }
+      const isObject = this.ctx.symbolTable.isObject(varName);
+      if (isObject) {
+        const symbol = this.ctx.symbolTable.lookup(varName);
       if (symbol?.interfaceType) {
         const implementingClass = this.findClassImplementingInterface(symbol.interfaceType);
         if (implementingClass && this.ctx.classGen) {
@@ -1721,6 +1761,7 @@ export class MemberAccessGenerator {
       const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
       objPtr = this.ctx.nextTemp();
       this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
+      }
     } else if (exprObjType === 'object') {
       const metadataResult = this.ctx.getObjectMetadata(expr.object as ObjectNode);
       const metadata = metadataResult as ObjectMetadata;

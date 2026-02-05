@@ -558,19 +558,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
    * @returns Complete LLVM IR module as string (struct types + extern declarations + functions + main)
    */
   generate(): string {
-    console.log('[generate] starting');
     let ir = '';
 
     ir += getLLVMDeclarations();
-    console.log('[generate] got declarations');
 
     const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
     this.interfaceStructDefsCache = interfaceStructDefs;
-    console.log('[generate] generated interface structs');
 
     const classStructDefs = this.classGen.generateStructTypeDefinitions(this.classesCount);
     this.classStructDefsCache = classStructDefs;
-    console.log('[generate] generated class structs');
 
     ir += this.runtimeGen.generateFetchRuntime();
     ir += '\n';
@@ -613,30 +609,22 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     ir += getGlobalVariables();
 
     ir += this.generateGlobalVariableDeclarations();
-    console.log('[generate] done with globals, starting classes count=' + this.classesCount);
 
     // Generate class definitions
     for (let classIdx = 0; classIdx < this.classesCount; classIdx++) {
       const classNode = this.ast.classes[classIdx];
-      const classNameSafe = classNode && classNode.name ? classNode.name : 'NULL';
-      console.log('[generate] class ' + classIdx + ': ' + classNameSafe);
       this.syncStateToGenerators();
       ir += this.classGen.generateClass(classNode);
       ir += '\n';
     }
-    console.log('[generate] done with classes, starting functions count=' + this.functionsCount);
 
     // Generate user function definitions (this may discover lifted functions)
     let userFunctionsIr = '';
     for (let funcIdx = 0; funcIdx < this.functionsCount; funcIdx++) {
       const func = this.ast.functions[funcIdx];
-      const funcTyped = func as { name: string };
-      const theName = funcTyped.name;
-      console.log('[generate] function ' + funcIdx + ': ' + theName);
       userFunctionsIr += this.generateFunction(func);
       userFunctionsIr += '\n';
     }
-    console.log('[generate] done with functions, starting main');
 
     // Generate main function (this may also discover lifted functions)
     const mainIr = this.generateMain();
