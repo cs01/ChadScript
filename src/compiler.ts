@@ -117,9 +117,10 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
         typeChecker = new TypeChecker(files);
       }
     } catch (error) {
-      logger.warn('Warning: Could not load TypeScript types: ' + error);
-      if (error instanceof Error) {
-        logger.warn('Stack trace: ' + error.stack);
+      const errorObj = error as { message?: string; stack?: string };
+      logger.warn('Warning: Could not load TypeScript types: ' + (errorObj.message || String(error)));
+      if (errorObj.stack) {
+        logger.warn('Stack trace: ' + errorObj.stack);
       }
     }
   }
