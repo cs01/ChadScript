@@ -21,9 +21,15 @@ export class InterfaceStructGenerator {
   private interfaceStructs: Map<string, InterfaceStructInfo> = new Map();
   private interfaceCount: number = 0;
   private interfaces: InterfaceDeclaration[] = [];
+  private enumNames: Set<string> = new Set();
 
-  constructor(interfaces: InterfaceDeclaration[], interfaceCount: number) {
+  constructor(interfaces: InterfaceDeclaration[], interfaceCount: number, enumNames?: string[]) {
     this.interfaceCount = interfaceCount;
+    if (enumNames) {
+      for (let i = 0; i < enumNames.length; i++) {
+        this.enumNames.add(enumNames[i]);
+      }
+    }
     if (interfaceCount > 0) {
       this.interfaces = interfaces;
       this.buildInterfaceStructs();
@@ -140,6 +146,9 @@ export class InterfaceStructGenerator {
   private tsTypeToLlvm(tsType: string): string {
     if (this.interfaceStructs.has(tsType)) {
       return `%${tsType}*`;
+    }
+    if (this.enumNames.has(tsType)) {
+      return 'double';
     }
     return tsTypeToLlvmUtil(tsType);
   }

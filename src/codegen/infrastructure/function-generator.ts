@@ -106,6 +106,8 @@ export class FunctionGenerator {
           paramLLVMTypes.push('%StringArray*');
         } else if (paramType === 'number[]' || paramType === 'boolean[]') {
           paramLLVMTypes.push('%Array*');
+        } else if (this.isEnumType(paramType)) {
+          paramLLVMTypes.push('double');
         } else if (paramType !== 'number' && paramType !== 'boolean') {
           paramLLVMTypes.push('i8*');
         } else {
@@ -127,6 +129,8 @@ export class FunctionGenerator {
           paramLLVMTypes.push('%StringArray*');
         } else if (paramType === 'number[]' || paramType === 'boolean[]') {
           paramLLVMTypes.push('%Array*');
+        } else if (this.isEnumType(paramType)) {
+          paramLLVMTypes.push('double');
         } else if (paramType !== 'number' && paramType !== 'boolean') {
           paramLLVMTypes.push('i8*');
         } else {
@@ -146,6 +150,9 @@ export class FunctionGenerator {
         returnType = 'void';
         returnTypeIsVoid = true;
         this.ctx.currentFunctionReturnType = 'void';
+      } else if (theReturnType && this.isEnumType(theReturnType)) {
+        returnType = 'double';
+        this.ctx.currentFunctionReturnType = 'double';
       } else if (theReturnType && theReturnType !== '' && theReturnType !== 'number' && theReturnType !== 'boolean') {
         returnType = 'i8*';
         this.ctx.currentFunctionReturnType = 'i8*';
@@ -443,6 +450,18 @@ export class FunctionGenerator {
             if (consequentStmt.type === 'return') return true;
           }
         }
+      }
+    }
+    return false;
+  }
+
+  private isEnumType(typeName: string): boolean {
+    const enums = this.ctx.ast.enums;
+    if (!enums) return false;
+    for (let i = 0; i < enums.length; i++) {
+      const enumDecl = enums[i];
+      if (enumDecl.name === typeName) {
+        return true;
       }
     }
     return false;

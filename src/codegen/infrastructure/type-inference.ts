@@ -1501,18 +1501,6 @@ export class TypeInference {
   }
 
   private isStringEnum(typeName: string): boolean {
-    if (!this.ctx.ast.enums) return false;
-    for (let i = 0; i < this.ctx.ast.enums.length; i++) {
-      const enumDecl = this.ctx.ast.enums[i];
-      if (enumDecl.name === typeName) {
-        if (enumDecl.members && enumDecl.members.length > 0) {
-          const firstMember = enumDecl.members[0];
-          const valueNum = Number(firstMember.value);
-          const isNumeric = !isNaN(valueNum);
-          return !isNumeric;
-        }
-      }
-    }
     return false;
   }
 }

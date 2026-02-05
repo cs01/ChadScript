@@ -367,14 +367,15 @@ export function transformEnumDeclaration(node: ts.EnumDeclaration): EnumDeclarat
   for (const member of node.members) {
     if (ts.isIdentifier(member.name)) {
       const memberName = member.name.text;
-      let value: number | string = currentValue;
+      let value: number = currentValue;
 
       if (member.initializer) {
         if (ts.isNumericLiteral(member.initializer)) {
           value = parseInt(member.initializer.text, 10);
           currentValue = value + 1;
         } else if (ts.isStringLiteral(member.initializer)) {
-          value = member.initializer.text;
+          value = currentValue;
+          currentValue = currentValue + 1;
         }
       } else {
         currentValue = currentValue + 1;

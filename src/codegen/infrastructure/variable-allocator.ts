@@ -166,19 +166,14 @@ export class VariableAllocator {
   }
 
   private isStringEnum(typeName: string): boolean {
+    return false;
+  }
+
+  private isEnumType(typeName: string): boolean {
     if (!this.ctx.ast.enums) return false;
     for (let i = 0; i < this.ctx.ast.enums.length; i++) {
-      const enumDecl = this.ctx.ast.enums[i] as { name: string; members: { name: string; value: string }[] };
-      if (enumDecl.name === typeName) {
-        const members = enumDecl.members;
-        if (members && members.length > 0) {
-          for (let j = 0; j < 1; j++) {
-            const member = members[j] as { name: string; value: string };
-            const valueNum = Number(member.value);
-            const isNumeric = !isNaN(valueNum);
-            return !isNumeric;
-          }
-        }
+      if (this.ctx.ast.enums[i].name === typeName) {
+        return true;
       }
     }
     return false;
@@ -186,6 +181,7 @@ export class VariableAllocator {
 
   private isUnionOfInterfaceTypes(typeStr: string): boolean {
     if (!typeStr) return false;
+    if (this.isEnumType(typeStr)) return false;
     let resolvedType = typeStr;
     const typeAlias = this.getTypeAlias(typeStr);
     if (typeAlias && typeAlias.unionMembers && typeAlias.unionMembers.length > 0) {
@@ -195,6 +191,7 @@ export class VariableAllocator {
       if (this.getTypeAlias(resolvedType)) return true;
       const firstChar = resolvedType.charAt(0);
       if (firstChar === firstChar.toUpperCase() && firstChar !== firstChar.toLowerCase()) {
+        if (this.isEnumType(resolvedType)) return false;
         return true;
       }
       return false;
@@ -205,6 +202,7 @@ export class VariableAllocator {
       const part = parts[i].trim();
       if (part === 'undefined' || part === 'null') continue;
       if (part === 'string' || part === 'number' || part === 'boolean') continue;
+      if (this.isEnumType(part)) continue;
       if (this.getInterface(part)) return true;
       if (this.getTypeAlias(part)) return true;
       const firstChar = part.charAt(0);
