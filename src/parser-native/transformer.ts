@@ -1437,9 +1437,12 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
   const params = paramsNode ? extractFunctionParams(paramsNode) : [];
   const body = bodyNode ? transformStatementBlock(bodyNode) : { type: 'block' as const, statements: [] };
 
-  let returnType: string | undefined;
+  let returnType: string | undefined = '';
   if (returnTypeNode) {
-    returnType = extractTypeString(returnTypeNode);
+    const rtn = returnTypeNode as NodeBase;
+    if (!rtn.isNull) {
+      returnType = extractTypeString(returnTypeNode);
+    }
   }
 
   let typeParameters: string[] | undefined;

@@ -137,19 +137,20 @@ export class FunctionGenerator {
 
     console.log('[FuncGen] About to check returnType');
     if (!func.async) {
-      if (func.returnType === 'string') {
+      const theReturnType = func.returnType;
+      if (theReturnType === 'string') {
         returnType = 'i8*';
         returnTypeIsString = true;
         this.ctx.currentFunctionReturnType = 'i8*';
-      } else if (func.returnType === 'void') {
+      } else if (theReturnType === 'void') {
         returnType = 'void';
         returnTypeIsVoid = true;
         this.ctx.currentFunctionReturnType = 'void';
-      } else if (func.returnType && func.returnType !== 'number' && func.returnType !== 'boolean') {
+      } else if (theReturnType && theReturnType !== 'number' && theReturnType !== 'boolean') {
         returnType = 'i8*';
         this.ctx.currentFunctionReturnType = 'i8*';
       }
-      this.ctx.currentFunctionTsReturnType = func.returnType;
+      this.ctx.currentFunctionTsReturnType = theReturnType;
     }
 
     if (!returnTypeIsString && !returnTypeIsVoid && !this.hasReturnStatement(func.body)) {
@@ -365,7 +366,19 @@ export class FunctionGenerator {
     }
 
     if (this.ctx.output.length > 0) {
-      ir += this.ctx.output.map(line => '  ' + line).join('\n') + '\n';
+      let indentedLines = '';
+      for (let idx = 0; idx < this.ctx.output.length; idx++) {
+        const line = this.ctx.output[idx];
+        if (line) {
+          if (indentedLines.length > 0) {
+            indentedLines = indentedLines + '\n';
+          }
+          indentedLines = indentedLines + '  ' + line;
+        }
+      }
+      if (indentedLines.length > 0) {
+        ir += indentedLines + '\n';
+      }
     }
 
     const lastInstruction = this.ctx.output.length > 0 ? this.ctx.output[this.ctx.output.length - 1].trim() : '';
@@ -376,7 +389,10 @@ export class FunctionGenerator {
     if (!hasTerminator) {
       if (func.async) {
         this.ctx.emit(`call void @__Promise_resolve(%Promise* ${this.ctx.asyncResultPromise}, i8* null)`);
-        ir += this.ctx.output.slice(-1).map(line => '  ' + line).join('\n') + '\n';
+        const lastLine = this.ctx.output.length > 0 ? this.ctx.output[this.ctx.output.length - 1] : '';
+        if (lastLine) {
+          ir += '  ' + lastLine + '\n';
+        }
         ir += `  ret %Promise* ${this.ctx.asyncResultPromise}\n`;
       } else if (returnTypeIsVoid) {
         ir += '  ret void\n';

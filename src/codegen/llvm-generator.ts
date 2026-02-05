@@ -751,9 +751,22 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           // Check for array variable
           const arrayAllocaReg = this.symbolTable.getArrayAlloca(stmt.name);
           if (arrayAllocaReg) {
-            const loadedArray = this.nextTemp();
-            this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
-            this.emit(`store %Array ${loadedArray}, %Array* ${arrayAllocaReg}`);
+            if (this.symbolTable.isPointerAlloca(stmt.name)) {
+              const isStringArr = this.symbolTable.isStringArray(stmt.name);
+              const arrayType = isStringArr ? '%StringArray' : '%Array';
+              let pointerValue = value;
+              const valueType = this.getVariableType(value);
+              if (valueType !== `${arrayType}*`) {
+                const typedPtr = this.nextTemp();
+                this.emit(`${typedPtr} = bitcast i8* ${value} to ${arrayType}*`);
+                pointerValue = typedPtr;
+              }
+              this.emit(`store ${arrayType}* ${pointerValue}, ${arrayType}** ${arrayAllocaReg}`);
+            } else {
+              const loadedArray = this.nextTemp();
+              this.emit(`${loadedArray} = load %Array, %Array* ${value}`);
+              this.emit(`store %Array ${loadedArray}, %Array* ${arrayAllocaReg}`);
+            }
             continue;
           }
 
