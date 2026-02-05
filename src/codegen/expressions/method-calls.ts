@@ -205,6 +205,7 @@ export interface MethodCallGeneratorContext {
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   thisPointer: string | null;
+  getThisPointer(): string | null;
   currentClassName: string | null;
   getCurrentClassName(): string | null;
   currentFunction?: string | null;
@@ -1582,10 +1583,11 @@ export class MethodCallGenerator {
       className = newExpr.className;
       instancePtr = this.ctx.generateExpression(expr.object, params);
     } else if (exprObjBase.type === 'this') {
-      if (!this.ctx.thisPointer) {
+      const thisPtr = this.ctx.getThisPointer();
+      if (!thisPtr) {
         throw new Error(`this.${method}() called outside of class method`);
       }
-      instancePtr = this.ctx.thisPointer;
+      instancePtr = thisPtr;
       if (this.ctx.getCurrentClassName()) {
         className = this.ctx.getCurrentClassName();
       } else {
@@ -1692,7 +1694,8 @@ export class MethodCallGenerator {
         }
       }
     } else if (exprObjBase.type === 'super') {
-      if (!this.ctx.thisPointer) {
+      const thisPtr = this.ctx.getThisPointer();
+      if (!thisPtr) {
         throw new Error('super.method() called outside of class method');
       }
       if (!this.ctx.getCurrentClassName()) {
@@ -1713,7 +1716,7 @@ export class MethodCallGenerator {
       if (!currentClassResult || !currentClass.extends) {
         throw new Error(`super.method() called but current class ${this.ctx.getCurrentClassName()} has no parent class`);
       }
-      instancePtr = this.ctx.thisPointer;
+      instancePtr = thisPtr;
       className = currentClass.extends;
 
       if (method === '') {
