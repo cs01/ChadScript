@@ -304,6 +304,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null { return this.expectedArrayElementType; }
   public setCurrentDeclaredMapType(type: string | undefined): void { this.currentDeclaredMapType = type; }
   public getCurrentDeclaredMapType(): string | undefined { return this.currentDeclaredMapType; }
+  public setCurrentDeclaredSetType(type: string | undefined): void { this.currentDeclaredSetType = type; }
+  public getCurrentDeclaredSetType(): string | undefined { return this.currentDeclaredSetType; }
   public setIsAsyncFunction(value: boolean): void { this.isAsyncFunction = value; }
   public setAsyncResultPromise(value: string): void { this.asyncResultPromise = value; }
   public getAsyncResultPromise(): string { return this.asyncResultPromise; }

@@ -85,7 +85,11 @@ export interface VariableAllocatorContext {
   isAwaitExpression(expr: Expression): boolean;
   getVariableType(name: string): string | undefined;
   currentDeclaredMapType: string | undefined;
+  setCurrentDeclaredMapType(type: string | undefined): void;
+  getCurrentDeclaredMapType(): string | undefined;
   currentDeclaredSetType: string | undefined;
+  setCurrentDeclaredSetType(type: string | undefined): void;
+  getCurrentDeclaredSetType(): string | undefined;
   getTypedJsonInterface(expr: Expression): string | null;
   getFunctionCallInterfaceReturn(expr: Expression): string | null;
   getMethodCallInterfaceReturn(expr: Expression): string | null;
@@ -1045,9 +1049,9 @@ export class VariableAllocator {
     this.ctx.emit(`${allocaReg} = alloca %StringMap`);
 
     const declaredMapType = stmt.declaredType || `Map<${mapTypeInfo.keyType}, ${mapTypeInfo.valueType}>`;
-    this.ctx.currentDeclaredMapType = declaredMapType;
+    this.ctx.setCurrentDeclaredMapType(declaredMapType);
     const value = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.currentDeclaredMapType = undefined;
+    this.ctx.setCurrentDeclaredMapType(undefined);
 
     const loadedMap = this.ctx.nextTemp();
     this.ctx.emit(`${loadedMap} = load %StringMap, %StringMap* ${value}`);
@@ -1122,9 +1126,9 @@ export class VariableAllocator {
     }));
     this.ctx.emit(`${allocaReg} = alloca %StringSet`);
 
-    this.ctx.currentDeclaredSetType = stmt.declaredType;
+    this.ctx.setCurrentDeclaredSetType(stmt.declaredType);
     const value = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.currentDeclaredSetType = undefined;
+    this.ctx.setCurrentDeclaredSetType(undefined);
 
     const loadedSet = this.ctx.nextTemp();
     this.ctx.emit(`${loadedSet} = load %StringSet, %StringSet* ${value}`);

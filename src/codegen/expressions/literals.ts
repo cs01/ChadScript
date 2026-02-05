@@ -46,7 +46,9 @@ export interface LiteralGeneratorContext {
   usesPromises: boolean;
   thisPointer: string | null;
   currentDeclaredMapType?: string;
+  getCurrentDeclaredMapType(): string | undefined;
   currentDeclaredSetType?: string;
+  getCurrentDeclaredSetType(): string | undefined;
   stringGen: StringGeneratorLike;
   regexGen: RegexGeneratorLike;
   arrayGen: ArrayGeneratorLike;
@@ -155,7 +157,7 @@ export class LiteralExpressionGenerator {
   generateMap(expr: MapNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
 
-    const declaredType = this.ctx.currentDeclaredMapType;
+    const declaredType = this.ctx.getCurrentDeclaredMapType();
     if (declaredType) {
       const match = declaredType.match(/^Map<\s*(\w+)\s*,\s*(.+)\s*>$/);
       if (match && match[1] === 'string') {
@@ -176,7 +178,7 @@ export class LiteralExpressionGenerator {
       return this.ctx.stringSetGenGenerateEmptyStringSet();
     }
 
-    const declaredType = this.ctx.currentDeclaredSetType;
+    const declaredType = this.ctx.getCurrentDeclaredSetType();
     if (declaredType) {
       const match = declaredType.match(/^Set<\s*(\w+)\s*>$/);
       if (match && match[1] === 'string') {
