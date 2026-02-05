@@ -977,8 +977,8 @@ export class VariableAllocator {
     } else {
       const metadataResult = this.ctx.getObjectMetadata(stmt.value as ObjectNode);
       const metadata = metadataResult as ObjectMetadataResult;
-      keys = metadata.keys;
-      types = metadata.types;
+      keys = metadata ? metadata.keys : [];
+      types = metadata ? metadata.types : [];
     }
 
     const varMetadata: VariableMetadata = interfaceDefResult && stmt.declaredType
