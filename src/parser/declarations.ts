@@ -614,6 +614,39 @@ export function parseClass(ctx: ParserContext): void {
   }
 
   ctx.expect('}');
+
+  for (let mi = 0; mi < methods.length; mi++) {
+    const m = methods[mi] as ClassMethod;
+    if (m.isConstructor && m.parameterProperties && m.paramTypes) {
+      for (let pi = 0; pi < m.parameterProperties.length; pi++) {
+        const propName = m.parameterProperties[pi];
+        let paramIdx = -1;
+        for (let pj = 0; pj < m.params.length; pj++) {
+          if (m.params[pj] === propName) {
+            paramIdx = pj;
+            break;
+          }
+        }
+        if (paramIdx !== -1 && m.paramTypes[paramIdx]) {
+          const tsType = m.paramTypes[paramIdx];
+          let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' = 'double';
+          if (tsType === 'string') {
+            fieldType = 'string';
+          } else if (tsType === 'string[]') {
+            fieldType = 'string[]';
+          } else if (tsType === 'number[]') {
+            fieldType = 'number[]';
+          } else if (tsType === 'boolean[]') {
+            fieldType = 'boolean[]';
+          } else if (tsType === 'boolean') {
+            fieldType = 'boolean';
+          }
+          fields.push({ name: propName, fieldType, tsType });
+        }
+      }
+    }
+  }
+
   ctx.classes.push({ name: className, extends: extendsClass, implements: implementsList.length > 0 ? implementsList : undefined, fields, methods });
 }
 
@@ -1064,6 +1097,38 @@ export function parseExport(ctx: ParserContext): void {
       ctx.skipWhitespace();
     }
     ctx.expect('}');
+
+    for (let mi = 0; mi < methods.length; mi++) {
+      const m = methods[mi] as ClassMethod;
+      if (m.isConstructor && m.parameterProperties && m.paramTypes) {
+        for (let pi = 0; pi < m.parameterProperties.length; pi++) {
+          const propName = m.parameterProperties[pi];
+          let paramIdx = -1;
+          for (let pj = 0; pj < m.params.length; pj++) {
+            if (m.params[pj] === propName) {
+              paramIdx = pj;
+              break;
+            }
+          }
+          if (paramIdx !== -1 && m.paramTypes[paramIdx]) {
+            const tsType = m.paramTypes[paramIdx];
+            let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' = 'double';
+            if (tsType === 'string') {
+              fieldType = 'string';
+            } else if (tsType === 'string[]') {
+              fieldType = 'string[]';
+            } else if (tsType === 'number[]') {
+              fieldType = 'number[]';
+            } else if (tsType === 'boolean[]') {
+              fieldType = 'boolean[]';
+            } else if (tsType === 'boolean') {
+              fieldType = 'boolean';
+            }
+            fields.push({ name: propName, fieldType, tsType });
+          }
+        }
+      }
+    }
 
     const implementsArray = implementsList.length > 0 ? implementsList : undefined;
     ctx.exports.push({ type: 'export', declaration: { name, extends: extendsClass, implements: implementsArray, fields, methods } });

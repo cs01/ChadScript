@@ -2011,6 +2011,15 @@ export class MemberAccessGenerator {
       }
     } else if (innerAccessObjBase.type === 'variable') {
       const varName = (innerAccess.object as VariableNode).name;
+      if (this.ctx.symbolTable.isJSON(varName) || this.ctx.symbolTable.isObject(varName)) {
+        const arrayPtr = this.ctx.generateExpression(expr.object, params);
+        const arraySize = this.ctx.nextTemp();
+        this.ctx.emit(`${arraySize} = call i32 @cJSON_GetArraySize(i8* ${arrayPtr})`);
+        const sizeDouble = this.ctx.nextTemp();
+        this.ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
+        this.ctx.setVariableType(sizeDouble, 'double');
+        return sizeDouble;
+      }
       if (params.indexOf(varName) !== -1) {
         const paramInterfaceType = this.getParameterTypeFromAST(varName);
         if (paramInterfaceType) {

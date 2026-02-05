@@ -391,19 +391,23 @@ export class FunctionGenerator {
       }
     }
 
-    const ctxOutput: string[] = this.ctx.output;
+    const ctxOutput: string[] = output2;
     console.error('[FunctionGenerator.generate] ctxOutput assigned');
     const outputLen = ctxOutput.length;
     console.error('[FunctionGenerator.generate] outputLen=' + String(outputLen));
     if (outputLen > 0) {
       let indentedLines = '';
       for (let idx = 0; idx < outputLen; idx++) {
+        console.error('[FunctionGenerator.generate] ctxOutput loop idx=' + String(idx));
         const line: string = ctxOutput[idx];
+        console.error('[FunctionGenerator.generate] got line');
         if (line) {
+          console.error('[FunctionGenerator.generate] line is truthy');
           if (indentedLines.length > 0) {
             indentedLines = indentedLines + '\n';
           }
           indentedLines = indentedLines + '  ' + line;
+          console.error('[FunctionGenerator.generate] indented done');
         }
       }
       if (indentedLines.length > 0) {
@@ -411,7 +415,9 @@ export class FunctionGenerator {
       }
     }
 
+    console.error('[FunctionGenerator.generate] about to get lastInstruction');
     const lastInstruction: string = outputLen > 0 ? ctxOutput[outputLen - 1].trim() : '';
+    console.error('[FunctionGenerator.generate] lastInstruction done');
     const hasTerminator = lastInstruction.startsWith('ret ') ||
                           lastInstruction.startsWith('br ') ||
                           lastInstruction === 'unreachable';
