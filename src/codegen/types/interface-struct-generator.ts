@@ -149,7 +149,7 @@ export class InterfaceStructGenerator {
       return 'i8*';
     }
     if (this.interfaceStructs.has(tsType)) {
-      return `%${tsType}*`;
+      return 'i8*';
     }
     if (this.enumNames !== null && this.enumNames !== undefined && this.enumNames.has(tsType)) {
       return 'double';
