@@ -25,6 +25,7 @@ export class InterfaceStructGenerator {
 
   constructor(interfaces: InterfaceDeclaration[], interfaceCount: number, enumNames?: string[]) {
     this.interfaceCount = interfaceCount;
+    this.enumNames = new Set();
     if (enumNames) {
       for (let i = 0; i < enumNames.length; i++) {
         this.enumNames.add(enumNames[i]);
@@ -144,10 +145,13 @@ export class InterfaceStructGenerator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
+    if (tsType === null || tsType === undefined || tsType === '') {
+      return 'i8*';
+    }
     if (this.interfaceStructs.has(tsType)) {
       return `%${tsType}*`;
     }
-    if (this.enumNames.has(tsType)) {
+    if (this.enumNames !== null && this.enumNames !== undefined && this.enumNames.has(tsType)) {
       return 'double';
     }
     return tsTypeToLlvmUtil(tsType);
