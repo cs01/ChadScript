@@ -1831,7 +1831,7 @@ export class ControlFlowGenerator {
       const varName = (stmt.iterable as VariableNode).name;
       if (this.ctx.symbolTableIsMap(varName)) {
         const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
-        iterableValue = this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
+        iterableValue = this.ctx.stringMapGenGenerateStringMapEntries(mapPtr);
       } else {
         iterableValue = this.ctx.generateExpression(stmt.iterable, params);
       }
@@ -1843,7 +1843,7 @@ export class ControlFlowGenerator {
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
           const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
-          iterableValue = this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
+          iterableValue = this.ctx.stringMapGenGenerateStringMapEntries(mapPtr);
         } else {
           iterableValue = this.ctx.generateExpression(stmt.iterable, params);
         }

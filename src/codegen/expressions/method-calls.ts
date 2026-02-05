@@ -264,6 +264,14 @@ export interface MethodCallGeneratorContext {
   stringGenGenerateReplace(strPtr: string, search: string, replace: string): string;
   stringGenGenerateReplaceAll(strPtr: string, search: string, replace: string): string;
   stringGenGenerateGlobalString(value: string): string;
+  stringMapGenGenerateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
+  stringMapGenGenerateStringMapGet(mapPtr: string, keyToFind: string): string;
+  stringMapGenGenerateStringMapHas(mapPtr: string, keyToFind: string): string;
+  stringMapGenGenerateStringMapClear(mapPtr: string): string;
+  stringMapGenGenerateStringMapDelete(mapPtr: string, keyToFind: string): string;
+  stringMapGenGenerateStringMapEntries(mapPtr: string): string;
+  stringMapGenGenerateStringMapValues(mapPtr: string): string;
+  stringMapGenGenerateStringMapKeys(mapPtr: string): string;
   exprGen: ExpressionGeneratorLike;
 }
 
@@ -763,24 +771,24 @@ export class MethodCallGenerator {
             if (method === 'set') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const valueValue = this.ctx.generateExpression(expr.args[1], params);
-              return this.ctx.stringMapGen.generateStringMapSet(mapAlloca, keyValue, valueValue);
+              return this.ctx.stringMapGenGenerateStringMapSet(mapAlloca, keyValue, valueValue);
             } else if (method === 'get') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapGet(mapAlloca, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapGet(mapAlloca, keyValue);
             } else if (method === 'has') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapHas(mapAlloca, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapHas(mapAlloca, keyValue);
             } else if (method === 'delete') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapDelete(mapAlloca, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapDelete(mapAlloca, keyValue);
             } else if (method === 'entries') {
-              return this.ctx.stringMapGen.generateStringMapEntries(mapAlloca);
+              return this.ctx.stringMapGenGenerateStringMapEntries(mapAlloca);
             } else if (method === 'values') {
-              return this.ctx.stringMapGen.generateStringMapValues(mapAlloca);
+              return this.ctx.stringMapGenGenerateStringMapValues(mapAlloca);
             } else if (method === 'keys') {
-              return this.ctx.stringMapGen.generateStringMapKeys(mapAlloca);
+              return this.ctx.stringMapGenGenerateStringMapKeys(mapAlloca);
             } else {
-              return this.ctx.stringMapGen.generateStringMapClear(mapAlloca);
+              return this.ctx.stringMapGenGenerateStringMapClear(mapAlloca);
             }
           }
         }
@@ -809,24 +817,24 @@ export class MethodCallGenerator {
             if (method === 'set') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const valueValue = this.ctx.generateExpression(expr.args[1], params);
-              return this.ctx.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue);
+              return this.ctx.stringMapGenGenerateStringMapSet(mapPtr, keyValue, valueValue);
             } else if (method === 'get') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapGet(mapPtr, keyValue);
             } else if (method === 'has') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapHas(mapPtr, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapHas(mapPtr, keyValue);
             } else if (method === 'delete') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapDelete(mapPtr, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapDelete(mapPtr, keyValue);
             } else if (method === 'clear') {
-              return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
+              return this.ctx.stringMapGenGenerateStringMapClear(mapPtr);
             } else if (method === 'entries') {
-              return this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
+              return this.ctx.stringMapGenGenerateStringMapEntries(mapPtr);
             } else if (method === 'values') {
-              return this.ctx.stringMapGen.generateStringMapValues(mapPtr);
+              return this.ctx.stringMapGenGenerateStringMapValues(mapPtr);
             } else {
-              return this.ctx.stringMapGen.generateStringMapKeys(mapPtr);
+              return this.ctx.stringMapGenGenerateStringMapKeys(mapPtr);
             }
           } else {
             if (method === 'set') {
@@ -852,22 +860,22 @@ export class MethodCallGenerator {
           if (method === 'set') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
             const valueValue = this.ctx.generateExpression(expr.args[1], params);
-            return this.ctx.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue);
+            return this.ctx.stringMapGenGenerateStringMapSet(mapPtr, keyValue, valueValue);
           } else if (method === 'get') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
+            return this.ctx.stringMapGenGenerateStringMapGet(mapPtr, keyValue);
           } else if (method === 'has') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringMapGen.generateStringMapHas(mapPtr, keyValue);
+            return this.ctx.stringMapGenGenerateStringMapHas(mapPtr, keyValue);
           } else if (method === 'delete') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringMapGen.generateStringMapDelete(mapPtr, keyValue);
+            return this.ctx.stringMapGenGenerateStringMapDelete(mapPtr, keyValue);
           } else if (method === 'entries') {
-            return this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
+            return this.ctx.stringMapGenGenerateStringMapEntries(mapPtr);
           } else if (method === 'values') {
-            return this.ctx.stringMapGen.generateStringMapValues(mapPtr);
+            return this.ctx.stringMapGenGenerateStringMapValues(mapPtr);
           } else {
-            return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
+            return this.ctx.stringMapGenGenerateStringMapClear(mapPtr);
           }
         } else {
           const mapPtr = this.ctx.generateExpression(expr.object, params);

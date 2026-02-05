@@ -345,6 +345,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public interfaceStructGenGetInterfaceStruct(name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined { return this.interfaceStructGen ? this.interfaceStructGen.getInterfaceStruct(name) : undefined; }
   public interfaceStructGenGetStructSize(interfaceName: string): number { return this.interfaceStructGen ? this.interfaceStructGen.getStructSize(interfaceName) : 0; }
 
+  public stringMapGenGenerateEmptyStringMap(): string { this.syncStateToGenerators(); return this.stringMapGen.generateEmptyStringMap(); }
+  public stringMapGenGenerateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue); }
+  public stringMapGenGenerateStringMapGet(mapPtr: string, keyToFind: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapGet(mapPtr, keyToFind); }
+  public stringMapGenGenerateStringMapHas(mapPtr: string, keyToFind: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapHas(mapPtr, keyToFind); }
+  public stringMapGenGenerateStringMapClear(mapPtr: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapClear(mapPtr); }
+  public stringMapGenGenerateStringMapDelete(mapPtr: string, keyToFind: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapDelete(mapPtr, keyToFind); }
+  public stringMapGenGenerateStringMapEntries(mapPtr: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapEntries(mapPtr); }
+  public stringMapGenGenerateStringMapValues(mapPtr: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapValues(mapPtr); }
+  public stringMapGenGenerateStringMapKeys(mapPtr: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapKeys(mapPtr); }
+
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (!objExpr || objExpr.type !== 'object') {

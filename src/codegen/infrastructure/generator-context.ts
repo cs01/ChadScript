@@ -499,6 +499,19 @@ export interface IGeneratorContext {
    * Access to string map generator for Map<string, *> operations
    */
   readonly stringMapGen: IStringMapGenerator;
+
+  /**
+   * StringMapGen delegate methods (avoid struct layout mismatch)
+   */
+  stringMapGenGenerateEmptyStringMap(): string;
+  stringMapGenGenerateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
+  stringMapGenGenerateStringMapGet(mapPtr: string, keyToFind: string): string;
+  stringMapGenGenerateStringMapHas(mapPtr: string, keyToFind: string): string;
+  stringMapGenGenerateStringMapClear(mapPtr: string): string;
+  stringMapGenGenerateStringMapDelete(mapPtr: string, keyToFind: string): string;
+  stringMapGenGenerateStringMapEntries(mapPtr: string): string;
+  stringMapGenGenerateStringMapValues(mapPtr: string): string;
+  stringMapGenGenerateStringMapKeys(mapPtr: string): string;
 }
 
 /**
@@ -886,6 +899,16 @@ export class MockGeneratorContext implements IGeneratorContext {
   stringMapGen = {
     generateStringMapEntries: (_mapPtr: string): string => '%mock_entries',
   };
+
+  stringMapGenGenerateEmptyStringMap(): string { return '%mock_empty_map'; }
+  stringMapGenGenerateStringMapSet(_mapPtr: string, _keyValue: string, _valueValue: string): string { return '%mock_set_result'; }
+  stringMapGenGenerateStringMapGet(_mapPtr: string, _keyToFind: string): string { return '%mock_get_result'; }
+  stringMapGenGenerateStringMapHas(_mapPtr: string, _keyToFind: string): string { return '%mock_has_result'; }
+  stringMapGenGenerateStringMapClear(_mapPtr: string): string { return '%mock_clear_result'; }
+  stringMapGenGenerateStringMapDelete(_mapPtr: string, _keyToFind: string): string { return '%mock_delete_result'; }
+  stringMapGenGenerateStringMapEntries(_mapPtr: string): string { return '%mock_entries'; }
+  stringMapGenGenerateStringMapValues(_mapPtr: string): string { return '%mock_values'; }
+  stringMapGenGenerateStringMapKeys(_mapPtr: string): string { return '%mock_keys'; }
 
   resolveImportAlias(localName: string): string {
     return localName;
