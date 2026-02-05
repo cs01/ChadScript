@@ -194,17 +194,10 @@ export class VariableExpressionGenerator {
   }
 
   private loadArray(allocaReg: string, arrayType: string, isPointerAlloca: boolean): string {
-    if (isPointerAlloca) {
-      // Function parameter: alloca contains a pointer, need to load it
-      const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = load ${arrayType}, ${arrayType}* ${allocaReg}`);
-      this.ctx.setVariableType(temp, arrayType);
-      return temp;
-    } else {
-      // Local variable: alloca IS the pointer to the array struct
-      this.ctx.setVariableType(allocaReg, arrayType);
-      return allocaReg;
-    }
+    const temp = this.ctx.nextTemp();
+    this.ctx.emit(`${temp} = load ${arrayType}, ${arrayType}* ${allocaReg}`);
+    this.ctx.setVariableType(temp, arrayType);
+    return temp;
   }
 
   private loadObject(objectMeta: ObjectMeta): string {
