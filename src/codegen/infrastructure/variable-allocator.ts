@@ -106,6 +106,8 @@ export interface VariableAllocatorContext {
   ast: AST;
   getAst(): AST | undefined;
   classGen: ClassGeneratorLike;
+  classGenGetFieldInfo(className: string, fieldName: string): FieldInfo | null;
+  classGenGetClassFields(className: string): { name: string; llvmType: string }[];
   symbolTable: SymbolTable;
   symbolTableLookup(name: string): SymbolEntry | undefined;
   symbolTableIsMap(name: string): boolean;
@@ -685,7 +687,7 @@ export class VariableAllocator {
       if (memberExprObjBase.type !== 'this') return null;
       if (!this.ctx.currentClassName) return null;
 
-      const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+      const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
       if (!fieldInfoResult) return null;
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfo.tsType) return null;
@@ -849,7 +851,7 @@ export class VariableAllocator {
       throw new Error(`Cannot allocate class instance for expression type: ${valueBase.type}`);
     }
 
-    const fields = this.ctx.classGen.getClassFields(className);
+    const fields = this.ctx.classGenGetClassFields(className);
     const ptrType = fields.length > 0 ? `%${className}_struct*` : 'i8*';
 
     this.ctx.defineVariable(stmt.name, allocaReg, ptrType, SymbolKind.Class, 'local', {
@@ -882,7 +884,7 @@ export class VariableAllocator {
       const memberExpr = methodExpr.object as MemberAccessNode;
       const memberExprObjBase = memberExpr.object as ExprBase;
       if (memberExprObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
-        const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+        const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
           const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
@@ -1650,7 +1652,7 @@ export class VariableAllocator {
 
   private getThisFieldInfo(fieldName: string): { tsType?: string } | null {
     if (!this.ctx.currentClassName) return null;
-    return this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
+    return this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, fieldName);
   }
 
   private getTypeInfoForElementType(elementType: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {

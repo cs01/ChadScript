@@ -23,6 +23,7 @@ interface UnaryExpressionContext {
   thisPointer?: string | null;
   currentClassName?: string | null;
   classGen?: ClassGeneratorLike;
+  classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
   stringGen?: StringGenLike;
   generateExpression(expr: Expression, params: string[]): string;
 }
@@ -161,7 +162,7 @@ export class UnaryExpressionGenerator {
     }
 
     const fieldName = memberExpr.property;
-    const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, fieldName);
+    const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, fieldName);
     if (!fieldInfoResult) {
       throw new Error(`Cannot find field '${fieldName}' in class ${this.ctx.currentClassName}`);
     }

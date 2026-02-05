@@ -56,6 +56,7 @@ export interface LiteralGeneratorContext {
   stringMapGen: StringMapGeneratorLike;
   stringSetGen: StringSetGeneratorLike;
   classGen: ClassGeneratorLike;
+  classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string;
 }
 
 /**
@@ -192,7 +193,7 @@ export class LiteralExpressionGenerator {
       return this.ctx.setGen.generateSetLiteral({ type: 'set', values: [] }, params);
     }
     this.ctx.syncStateToGenerators();
-    return this.ctx.classGen.generateNewExpression(className, args, params);
+    return this.ctx.classGenGenerateNewExpression(className, args, params);
   }
 
   /**

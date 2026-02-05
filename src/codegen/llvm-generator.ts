@@ -76,6 +76,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public stringSetGen: StringSetGenerator;
   private controlFlowGen: ControlFlowGenerator;
   public classGen: ClassGenerator;
+  public classGenClassFields: Map<string, { name: string; fieldType: string; tsType?: string }[]>;
   public regexGen: RegexGenerator;
 
   // Method generators (public for context pattern access)
@@ -215,8 +216,37 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public symbolTableSetObjectArrayMetadata(name: string, metadata: ObjectArrayMetadata): void { this.symbolTable.setObjectArrayMetadata(name, metadata); }
   public symbolTableGetResolvedType(name: string): ResolvedType | undefined { return this.symbolTable.getResolvedType(name); }
   public symbolTableSetResolvedType(name: string, resolvedType: ResolvedType): void { this.symbolTable.setResolvedType(name, resolvedType); }
-  public classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null { return this.classGen.getFieldInfo(className, fieldName); }
-  public classGenGetClassFields(className: string): { name: string; fieldType: string }[] { return this.classGen.getClassFields(className); }
+  public classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null {
+    const fields = this.classGenClassFields.get(className);
+    if (!fields) {
+      return null;
+    }
+    for (let i = 0; i < fields.length; i++) {
+      const f = fields[i];
+      if (f.name === fieldName) {
+        return { index: i, type: f.fieldType, tsType: f.tsType };
+      }
+    }
+    return null;
+  }
+  public classGenGetClassFields(className: string): { name: string; fieldType: string }[] {
+    return this.classGenClassFields.get(className) || [];
+  }
+  public classGenGetFieldType(className: string, fieldName: string): string | null {
+    const info = this.classGenGetFieldInfo(className, fieldName);
+    if (info) {
+      return info.type;
+    }
+    return null;
+  }
+  public classGenGetFieldTsType(className: string, fieldName: string): string | null {
+    const info = this.classGenGetFieldInfo(className, fieldName);
+    if (info) {
+      return info.tsType || null;
+    }
+    return null;
+  }
+  public classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string { return this.classGen.generateNewExpression(className, args, params); }
   public classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string { return this.classGen.generateMethodCall(instancePtr, className, method, args, params); }
 
   // Helper: Extract object literal metadata (public for context pattern access)
@@ -339,6 +369,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.stringSetGen = new StringSetGenerator(this);
     this.controlFlowGen = new ControlFlowGenerator(this);
     this.classGen = new ClassGenerator(this);
+    this.classGenClassFields = this.classGen.classFields;
 
     this.typeInference = new TypeInference(this as unknown as TypeInferenceContext);
 

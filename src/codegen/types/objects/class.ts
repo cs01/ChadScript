@@ -9,7 +9,7 @@ import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastru
 
 export class ClassGenerator {
   // Track class structures: className -> ALL fields (including inherited)
-  private classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]> = new Map();
+  public classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]> = new Map();
 
   constructor(private ctx: IGeneratorContext) {}
 
