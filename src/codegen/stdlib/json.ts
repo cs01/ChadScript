@@ -195,7 +195,7 @@ export class JsonGenerator {
       return;
     }
 
-    if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(typeName)) {
+    if (this.ctx.interfaceStructGenHasInterface(typeName)) {
       return;
     }
 
