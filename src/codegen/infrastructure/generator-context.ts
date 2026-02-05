@@ -18,7 +18,7 @@
  * ```
  */
 
-import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode } from '../../ast/types.js';
+import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode } from '../../ast/types.js';
 import { SymbolTable, SymbolKind, SymbolMetadata, ClosureMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
@@ -530,6 +530,17 @@ export interface IGeneratorContext {
   arrayGenGenerateArrayForEach(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArraySlice(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArrayConcat(expr: MethodCallNode, params: string[]): string;
+
+  /**
+   * MapGen delegate methods (avoid struct layout mismatch)
+   */
+  mapGenGenerateMapLiteral(expr: MapNode, params: string[]): string;
+  mapGenGenerateMapSet(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapGet(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapHas(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapDelete(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapClear(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapSize(mapPtr: string): string;
 }
 
 /**
@@ -942,6 +953,14 @@ export class MockGeneratorContext implements IGeneratorContext {
   arrayGenGenerateArrayForEach(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_foreach'; }
   arrayGenGenerateArraySlice(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_slice'; }
   arrayGenGenerateArrayConcat(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_concat'; }
+
+  mapGenGenerateMapLiteral(_expr: MapNode, _params: string[]): string { return '%mock_map_literal'; }
+  mapGenGenerateMapSet(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_set'; }
+  mapGenGenerateMapGet(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_get'; }
+  mapGenGenerateMapHas(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_has'; }
+  mapGenGenerateMapDelete(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_delete'; }
+  mapGenGenerateMapClear(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_clear'; }
+  mapGenGenerateMapSize(_mapPtr: string): string { return '%mock_map_size'; }
 
   resolveImportAlias(localName: string): string {
     return localName;

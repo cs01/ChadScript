@@ -123,6 +123,7 @@ export interface MemberAccessGeneratorContext {
   stringGenCreateStringConstant(value: string): string;
   interfaceStructGenHasInterface(name: string): boolean;
   interfaceStructGenGetInterfaceStruct(name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined;
+  mapGenGenerateMapSize(mapPtr: string): string;
 }
 
 /**
@@ -2213,7 +2214,7 @@ export class MemberAccessGenerator {
     if (exprObjType === 'variable' && this.ctx.symbolTableIsMap((expr.object as VariableNode).name)) {
       const mapPtr = this.ctx.generateExpression(expr.object, params);
       this.ctx.syncStateToGenerators();
-      return this.ctx.mapGen.generateMapSize(mapPtr);
+      return this.ctx.mapGenGenerateMapSize(mapPtr);
     }
     if (exprObjType === 'variable' && this.ctx.symbolTableIsSet((expr.object as VariableNode).name)) {
       const setPtr = this.ctx.generateExpression(expr.object, params);
@@ -2234,7 +2235,7 @@ export class MemberAccessGenerator {
             if (isSet) {
               return this.ctx.setGen.generateSetSize(ptr);
             } else {
-              return this.ctx.mapGen.generateMapSize(ptr);
+              return this.ctx.mapGenGenerateMapSize(ptr);
             }
           }
         }

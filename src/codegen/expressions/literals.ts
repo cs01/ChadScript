@@ -60,6 +60,7 @@ export interface LiteralGeneratorContext {
   stringGenCreateStringConstant(value: string): string;
   stringMapGenGenerateEmptyStringMap(): string;
   arrayGenGenerateArrayLiteral(expr: ArrayNode, params: string[]): string;
+  mapGenGenerateMapLiteral(expr: MapNode, params: string[]): string;
 }
 
 /**
@@ -158,7 +159,7 @@ export class LiteralExpressionGenerator {
       }
     }
 
-    return this.ctx.mapGen.generateMapLiteral(expr, params);
+    return this.ctx.mapGenGenerateMapLiteral(expr, params);
   }
 
   /**
