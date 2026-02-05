@@ -2135,8 +2135,16 @@ export class MemberAccessGenerator {
           }
         }
       }
+      const arrayPtr = this.ctx.generateExpression(expr.object, params);
+      const arrayType = this.ctx.getVariableType(arrayPtr);
+      if (arrayType === '%StringArray*') {
+        return this.getStringArrayLength(arrayPtr);
+      } else if (arrayType === '%Array*') {
+        return this.getArrayLengthFromPtr(arrayPtr, '%Array');
+      } else if (arrayType === '%ObjectArray*') {
+        return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
+      }
       if (this.ctx.symbolTableIsJSON(varName) || this.ctx.symbolTableIsObject(varName)) {
-        const arrayPtr = this.ctx.generateExpression(expr.object, params);
         const arraySize = this.ctx.nextTemp();
         this.ctx.emit(`${arraySize} = call i32 @cJSON_GetArraySize(i8* ${arrayPtr})`);
         const sizeDouble = this.ctx.nextTemp();

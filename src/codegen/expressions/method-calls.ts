@@ -241,6 +241,8 @@ export interface MethodCallGeneratorContext {
   setGen: SetGeneratorLike;
   arrayGen: ArrayGeneratorLike;
   classGen: ClassGeneratorLike;
+  classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
+  classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
   exprGen: ExpressionGeneratorLike;
 }
 
@@ -482,7 +484,7 @@ export class MethodCallGenerator {
     const objBase = memberExpr.object as ExprBase;
     if (objBase.type === 'this') {
       if (!this.ctx.currentClassName) return null;
-      const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+      const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
@@ -506,7 +508,7 @@ export class MethodCallGenerator {
     if (objBase.type !== 'this') return null;
 
     if (!this.ctx.currentClassName) return null;
-    const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberExpr.property);
+    const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
@@ -1523,7 +1525,7 @@ export class MethodCallGenerator {
       const memberAccess = expr.object as MemberAccessNode;
       const memberAccessObjBase = memberAccess.object as ExprBase;
       if (memberAccessObjBase.type === 'this' && this.ctx.currentClassName) {
-        const fieldInfoResult = this.ctx.classGen.getFieldInfo(this.ctx.currentClassName, memberAccess.property);
+        const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
           const fieldClassName = fieldInfo.tsType;
@@ -1560,7 +1562,7 @@ export class MethodCallGenerator {
         if (this.ctx.symbolTableIsClass(varName)) {
           const classMeta = this.ctx.symbolTableGetClassInfo(varName)!;
           const outerClassName = classMeta.className;
-          const fieldInfoResult = this.ctx.classGen.getFieldInfo(outerClassName, memberAccess.property);
+          const fieldInfoResult = this.ctx.classGenGetFieldInfo(outerClassName, memberAccess.property);
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
             const fieldClassName = fieldInfo.tsType;
@@ -1665,7 +1667,7 @@ export class MethodCallGenerator {
 
       this.ctx.syncStateToGenerators();
       const instanceClass = isInterfaceClass ? resolvedClass : className;
-      return this.ctx.classGen.generateMethodCall(instancePtr, instanceClass, method, expr.args, params);
+      return this.ctx.classGenGenerateMethodCall(instancePtr, instanceClass, method, expr.args, params);
     }
 
     return null;
@@ -1888,7 +1890,7 @@ export class MethodCallGenerator {
         }
       }
       if (classExists) {
-        const fieldInfoResult = this.ctx.classGen.getFieldInfo(parentType, memberAccess.property);
+        const fieldInfoResult = this.ctx.classGenGetFieldInfo(parentType, memberAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
           let fieldClassExists = false;

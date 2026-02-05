@@ -440,6 +440,7 @@ export interface IGeneratorContext {
    */
   classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
+  classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
 
   /**
    * Access to string map generator for Map<string, *> operations
@@ -783,6 +784,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   classGenGetClassFields(className: string): { name: string; fieldType: string }[] {
     return this.classGen.getClassFields(className);
+  }
+  classGenGenerateMethodCall(_instancePtr: string, _className: string, _method: string, _args: Expression[], _params: string[]): string {
+    return '%mock_method_result';
   }
 
   stringMapGen = {
