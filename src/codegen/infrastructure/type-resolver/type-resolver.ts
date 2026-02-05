@@ -14,7 +14,7 @@ export interface TypeResolverContext {
   currentClassName?: string | null;
   currentFunction?: string | null;
   classGen?: ClassGeneratorLike;
-  classGenGetFieldInfo(className: string, fieldName: string): FieldInfo | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   symbolTableLookup(name: string): SymbolEntry | undefined;
   symbolTableIsMap(name: string): boolean;
   symbolTableGetMapMetadata(name: string): MapMetadata | undefined;

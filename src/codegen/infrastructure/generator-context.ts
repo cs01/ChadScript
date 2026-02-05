@@ -18,7 +18,7 @@
  * ```
  */
 
-import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode } from '../../ast/types.js';
+import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode } from '../../ast/types.js';
 import { SymbolTable, SymbolKind, SymbolMetadata, ClosureMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
@@ -445,7 +445,7 @@ export interface IGeneratorContext {
   /**
    * ClassGen delegate methods (avoid struct layout mismatch)
    */
-  classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
@@ -541,6 +541,22 @@ export interface IGeneratorContext {
   mapGenGenerateMapDelete(expr: MethodCallNode, params: string[]): string;
   mapGenGenerateMapClear(expr: MethodCallNode, params: string[]): string;
   mapGenGenerateMapSize(mapPtr: string): string;
+
+  /**
+   * SetGen delegate methods (avoid struct layout mismatch)
+   */
+  setGenGenerateSetLiteral(expr: SetNode, params: string[]): string;
+  setGenGenerateSetAdd(expr: MethodCallNode, params: string[]): string;
+  setGenGenerateSetHas(expr: MethodCallNode, params: string[]): string;
+  setGenGenerateSetDelete(expr: MethodCallNode, params: string[]): string;
+  setGenGenerateSetSize(setPtr: string): string;
+
+  /**
+   * StringSetGen delegate methods (avoid struct layout mismatch)
+   */
+  stringSetGenGenerateEmptyStringSet(): string;
+  stringSetGenGenerateStringSetAdd(setAlloca: string, valueValue: string): string;
+  stringSetGenGenerateStringSetHas(setAlloca: string, valueValue: string): string;
 }
 
 /**
@@ -961,6 +977,16 @@ export class MockGeneratorContext implements IGeneratorContext {
   mapGenGenerateMapDelete(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_delete'; }
   mapGenGenerateMapClear(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_clear'; }
   mapGenGenerateMapSize(_mapPtr: string): string { return '%mock_map_size'; }
+
+  setGenGenerateSetLiteral(_expr: SetNode, _params: string[]): string { return '%mock_set_literal'; }
+  setGenGenerateSetAdd(_expr: MethodCallNode, _params: string[]): string { return '%mock_set_add'; }
+  setGenGenerateSetHas(_expr: MethodCallNode, _params: string[]): string { return '%mock_set_has'; }
+  setGenGenerateSetDelete(_expr: MethodCallNode, _params: string[]): string { return '%mock_set_delete'; }
+  setGenGenerateSetSize(_setPtr: string): string { return '%mock_set_size'; }
+
+  stringSetGenGenerateEmptyStringSet(): string { return '%mock_empty_string_set'; }
+  stringSetGenGenerateStringSetAdd(_setAlloca: string, _valueValue: string): string { return '%mock_string_set_add'; }
+  stringSetGenGenerateStringSetHas(_setAlloca: string, _valueValue: string): string { return '%mock_string_set_has'; }
 
   resolveImportAlias(localName: string): string {
     return localName;

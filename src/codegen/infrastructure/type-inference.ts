@@ -23,7 +23,7 @@ export interface TypeInferenceContext {
   getAst(): AST | undefined;
   typeChecker: TypeChecker | null;
   classGen: ClassGenerator | null;
-  classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
   typeResolver?: TypeResolver;

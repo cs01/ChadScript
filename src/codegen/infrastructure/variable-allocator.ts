@@ -96,7 +96,7 @@ export interface VariableAllocatorContext {
   ast: AST;
   getAst(): AST | undefined;
   classGen: ClassGeneratorLike;
-  classGenGetFieldInfo(className: string, fieldName: string): FieldInfo | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; llvmType: string }[];
   symbolTable: SymbolTable;
   symbolTableLookup(name: string): SymbolEntry | undefined;

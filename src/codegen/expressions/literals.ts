@@ -61,6 +61,8 @@ export interface LiteralGeneratorContext {
   stringMapGenGenerateEmptyStringMap(): string;
   arrayGenGenerateArrayLiteral(expr: ArrayNode, params: string[]): string;
   mapGenGenerateMapLiteral(expr: MapNode, params: string[]): string;
+  setGenGenerateSetLiteral(expr: SetNode, params: string[]): string;
+  stringSetGenGenerateEmptyStringSet(): string;
 }
 
 /**
@@ -169,18 +171,18 @@ export class LiteralExpressionGenerator {
     this.ctx.syncStateToGenerators();
 
     if (expr.valueType === 'string') {
-      return this.ctx.stringSetGen.generateEmptyStringSet();
+      return this.ctx.stringSetGenGenerateEmptyStringSet();
     }
 
     const declaredType = this.ctx.currentDeclaredSetType;
     if (declaredType) {
       const match = declaredType.match(/^Set<\s*(\w+)\s*>$/);
       if (match && match[1] === 'string') {
-        return this.ctx.stringSetGen.generateEmptyStringSet();
+        return this.ctx.stringSetGenGenerateEmptyStringSet();
       }
     }
 
-    return this.ctx.setGen.generateSetLiteral(expr, params);
+    return this.ctx.setGenGenerateSetLiteral(expr, params);
   }
 
   /**
@@ -192,9 +194,9 @@ export class LiteralExpressionGenerator {
     }
     if (className === 'Set') {
       if (typeArgs && typeArgs.length > 0 && typeArgs[0] === 'string') {
-        return this.ctx.stringSetGen.generateEmptyStringSet();
+        return this.ctx.stringSetGenGenerateEmptyStringSet();
       }
-      return this.ctx.setGen.generateSetLiteral({ type: 'set', values: [] }, params);
+      return this.ctx.setGenGenerateSetLiteral({ type: 'set', values: [] }, params);
     }
     this.ctx.syncStateToGenerators();
     return this.ctx.classGenGenerateNewExpression(className, args, params);

@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { ClassInfo, MapMetadata, SetMetadata, ObjectArrayMetadata, ClosureMetadata, Symbol as SymbolEntry, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, ObjectMetadata } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
@@ -222,7 +222,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public symbolTableSetObjectArrayMetadata(name: string, metadata: ObjectArrayMetadata): void { this.symbolTable.setObjectArrayMetadata(name, metadata); }
   public symbolTableGetResolvedType(name: string): ResolvedType | undefined { return this.symbolTable.getResolvedType(name); }
   public symbolTableSetResolvedType(name: string, resolvedType: ResolvedType): void { this.symbolTable.setResolvedType(name, resolvedType); }
-  public classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null {
+  public classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null {
     if (!className || !fieldName) return null;
     let fields = this.classGenClassFields.get(className);
     if (!fields) {
@@ -378,6 +378,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public mapGenGenerateMapDelete(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapDelete(expr, params); }
   public mapGenGenerateMapClear(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapClear(expr, params); }
   public mapGenGenerateMapSize(mapPtr: string): string { this.syncStateToGenerators(); return this.mapGen.generateMapSize(mapPtr); }
+
+  public setGenGenerateSetLiteral(expr: SetNode, params: string[]): string { this.syncStateToGenerators(); return this.setGen.generateSetLiteral(expr, params); }
+  public setGenGenerateSetAdd(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.setGen.generateSetAdd(expr, params); }
+  public setGenGenerateSetHas(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.setGen.generateSetHas(expr, params); }
+  public setGenGenerateSetDelete(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.setGen.generateSetDelete(expr, params); }
+  public setGenGenerateSetSize(setPtr: string): string { this.syncStateToGenerators(); return this.setGen.generateSetSize(setPtr); }
+
+  public stringSetGenGenerateEmptyStringSet(): string { this.syncStateToGenerators(); return this.stringSetGen.generateEmptyStringSet(); }
+  public stringSetGenGenerateStringSetAdd(setAlloca: string, valueValue: string): string { this.syncStateToGenerators(); return this.stringSetGen.generateStringSetAdd(setAlloca, valueValue); }
+  public stringSetGenGenerateStringSetHas(setAlloca: string, valueValue: string): string { this.syncStateToGenerators(); return this.stringSetGen.generateStringSetHas(setAlloca, valueValue); }
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
