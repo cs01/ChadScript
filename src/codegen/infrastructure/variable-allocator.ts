@@ -118,12 +118,14 @@ export class VariableAllocator {
   constructor(private ctx: VariableAllocatorContext) {}
 
   private getInterface(name: string): InterfaceDeclaration | null {
+    if (!name) return null;
     if (this.ctx.typeResolver) {
       return this.ctx.typeResolver.getInterface(name);
     }
     if (!this.ctx.ast.interfaces) return null;
     for (let i = 0; i < this.ctx.ast.interfaces.length; i++) {
       const iface = this.ctx.ast.interfaces[i] as InterfaceDeclaration;
+      if (!iface || !iface.name) continue;
       if (iface.name === name) {
         return iface;
       }
@@ -152,12 +154,14 @@ export class VariableAllocator {
   }
 
   private getTypeAlias(name: string): TypeAliasDeclaration | null {
+    if (!name) return null;
     if (this.ctx.typeResolver) {
       return this.ctx.typeResolver.getTypeAlias(name);
     }
     if (!this.ctx.ast.typeAliases) return null;
     for (let i = 0; i < this.ctx.ast.typeAliases.length; i++) {
       const ta = this.ctx.ast.typeAliases[i] as TypeAliasDeclaration;
+      if (!ta || !ta.name) continue;
       if (ta.name === name) {
         return ta;
       }
@@ -753,6 +757,7 @@ export class VariableAllocator {
     const objBase = memberExpr.object as ExprBase;
     if (objBase.type !== 'variable') return null;
     const varName = (memberExpr.object as VariableNode).name;
+    if (!varName) return null;
     const symbol = this.ctx.symbolTable.lookup(varName);
     if (!symbol) return null;
     let objectInterfaceType: string | null = null;
@@ -760,6 +765,7 @@ export class VariableAllocator {
       objectInterfaceType = symbol.interfaceType;
     } else if (symbol.objectMetadata && symbol.objectMetadata.tsTypes) {
       const objMeta = symbol.objectMetadata;
+      if (!objMeta.keys || !memberExpr.property) return null;
       const keyIdx = objMeta.keys.indexOf(memberExpr.property);
       if (keyIdx >= 0 && objMeta.tsTypes) {
         const propType = objMeta.tsTypes[keyIdx];
@@ -774,8 +780,10 @@ export class VariableAllocator {
     const objectInterface = this.getInterface(objectInterfaceType);
     if (!objectInterface) return null;
     const objIface = objectInterface as InterfaceDeclaration;
+    if (!objIface.fields) return null;
     for (let i = 0; i < objIface.fields.length; i++) {
       const field = objIface.fields[i] as { name: string; type: string };
+      if (!field || !field.name) continue;
       const fieldName = stripOptional(field.name);
       if (fieldName === memberExpr.property) {
         const fieldType = field.type;
@@ -989,7 +997,7 @@ export class VariableAllocator {
 
     const varMetadata: VariableMetadata = interfaceDefResult && stmt.declaredType
       ? { objectMetadata: { keys, types, tsTypes }, interfaceType: stmt.declaredType }
-      : { objectMetadata: { keys, types, tsTypes } };
+      : { objectMetadata: { keys, types, tsTypes }, interfaceType: undefined };
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', varMetadata);
     this.ctx.emit(`${allocaReg} = alloca i8*`);
 
