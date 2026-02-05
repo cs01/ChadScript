@@ -96,7 +96,11 @@ export class FunctionGenerator {
         } else if (this.isEnumType(paramType)) {
           paramLLVMTypes.push('double');
         } else if (paramType !== 'number' && paramType !== 'boolean') {
-          paramLLVMTypes.push('i8*');
+          if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(paramType)) {
+            paramLLVMTypes.push(`%${paramType}*`);
+          } else {
+            paramLLVMTypes.push('i8*');
+          }
         } else {
           paramLLVMTypes.push('double');
         }
@@ -130,7 +134,11 @@ export class FunctionGenerator {
             } else if (this.isEnumType(paramType)) {
               paramLLVMTypes.push('double');
             } else if (paramType !== 'number' && paramType !== 'boolean') {
-              paramLLVMTypes.push('i8*');
+              if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(paramType)) {
+                paramLLVMTypes.push(`%${paramType}*`);
+              } else {
+                paramLLVMTypes.push('i8*');
+              }
             } else {
               paramLLVMTypes.push('double');
             }
@@ -311,6 +319,18 @@ export class FunctionGenerator {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
         } else {
           this.ctx.emit(`store %Array* %arg${i}, %Array** ${allocaReg}`);
+        }
+      } else if (llvmType.startsWith('%') && llvmType.endsWith('*') && llvmType !== '%Response*') {
+        const interfaceName = llvmType.slice(1, -1);
+        this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind.Object, 'local', {
+          interfaceType: interfaceName,
+          isPointerAlloca: true
+        });
+        this.ctx.emit(`${allocaReg} = alloca ${llvmType}`);
+        if (isOptional && hasOptionalParams) {
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
+        } else {
+          this.ctx.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
         }
       } else {
         this.ctx.defineVariable(paramName, allocaReg, 'double', SymbolKind.Number, 'local');
