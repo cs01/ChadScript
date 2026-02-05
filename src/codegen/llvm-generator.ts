@@ -32,6 +32,7 @@ import { TreeSitterGenerator } from './stdlib/treesitter.js';
 import { ExpressionGenerator } from './expressions/orchestrator.js';
 import type { TypeChecker } from '../typescript/type-checker.js';
 import { InterfaceStructGenerator } from './types/interface-struct-generator.js';
+import { JsonObjectMeta } from './expressions/access/member.js';
 
 export interface LLVMGeneratorOptions {
   linkTreeSitter: boolean;
@@ -122,6 +123,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   // Cache for class struct defs (used at end of generate())
   private classStructDefsCache: string = '';
+
+  // JSON object metadata for tracking parsed JSON structures
+  public jsonObjectMetadata: Map<string, JsonObjectMeta> = new Map();
 
   // Helper: Format nice compiler errors (public for context pattern access)
   public formatCodegenError(message: string, suggestion?: string, pos?: number): string {
@@ -622,15 +626,23 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         for (let j = 0; j < specCount; j++) {
           const spec = imp.aliasedSpecifiers[j] as ImportSpecifier;
           if (spec.original && spec.original !== spec.name) {
-            this.importAliasMap.set(spec.name, spec.original);
+            this.setImportAlias(spec.name, spec.original);
           }
         }
       }
     }
   }
 
+  setImportAlias(name: string, original: string): void {
+    this.importAliasMap.set(name, original);
+  }
+
+  getImportAlias(name: string): string | undefined {
+    return this.importAliasMap.get(name);
+  }
+
   resolveImportAlias(localName: string): string {
-    const original = this.importAliasMap.get(localName);
+    const original = this.getImportAlias(localName);
     return original || localName;
   }
 
@@ -662,6 +674,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   setCurrentClassName(name: string | null): void {
     this.currentClassName = name;
+  }
+
+  setJsonObjectMetadata(key: string, value: JsonObjectMeta): void {
+    this.jsonObjectMetadata.set(key, value);
+  }
+
+  getJsonObjectMetadata(key: string): JsonObjectMeta | undefined {
+    return this.jsonObjectMetadata.get(key);
   }
 
   private generateGlobalVariableDeclarations(): string {
