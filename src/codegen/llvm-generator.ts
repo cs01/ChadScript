@@ -533,15 +533,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
    * @returns Complete LLVM IR module as string (struct types + extern declarations + functions + main)
    */
   generate(): string {
+    console.log('[LLVMGenerator.generate] Starting...');
     let ir = '';
 
+    console.log('[LLVMGenerator.generate] Getting LLVM declarations...');
     ir += getLLVMDeclarations();
 
+    console.log('[LLVMGenerator.generate] Generating interface struct defs...');
     const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
     this.interfaceStructDefsCache = interfaceStructDefs;
 
+    console.log('[LLVMGenerator.generate] Generating class struct defs, classesCount=' + this.classesCount);
     const classStructDefs = this.classGen.generateStructTypeDefinitions(this.classesCount);
     this.classStructDefsCache = classStructDefs;
+
+    console.log('[LLVMGenerator.generate] Generating runtimes...');
 
     ir += this.runtimeGen.generateFetchRuntime();
     ir += '\n';
@@ -585,22 +591,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     ir += this.generateGlobalVariableDeclarations();
 
-    // Generate external function declarations for imports
-    // TODO: for-of on Set crashes in native code, skip for now
-    // if (this.externalFunctions.size > 0) {
-    //   for (const funcName of this.externalFunctions) {
-    //     ir += `declare i32 @${funcName}(...)\n`;
-    //   }
-    //   ir += '\n';
-    // }
-
-    // Generate class definitions
+    console.log('[LLVMGenerator.generate] About to generate ' + this.classesCount + ' classes');
     for (let classIdx = 0; classIdx < this.classesCount; classIdx++) {
+      console.log('[LLVMGenerator.generate] Processing class ' + classIdx);
       const classNode = this.ast.classes[classIdx];
+      console.log('[LLVMGenerator.generate] classNode.name=' + classNode.name);
       this.syncStateToGenerators();
       ir += this.classGen.generateClass(classNode);
       ir += '\n';
     }
+    console.log('[LLVMGenerator.generate] Done with classes');
 
     // Generate user function definitions (this may discover lifted functions)
     console.log('[DEBUG] Generating user functions, count=' + this.functionsCount);
