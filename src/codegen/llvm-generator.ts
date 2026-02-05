@@ -187,6 +187,39 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.ast;
   }
 
+  public getAstInterfacesLength(): number {
+    if (!this.ast || !this.ast.interfaces) return 0;
+    return this.ast.interfaces.length;
+  }
+
+  public getAstInterfaceAt(index: number): InterfaceDeclaration | null {
+    if (!this.ast || !this.ast.interfaces) return null;
+    if (index < 0 || index >= this.ast.interfaces.length) return null;
+    return this.ast.interfaces[index];
+  }
+
+  public getAstFunctionsLength(): number {
+    if (!this.ast || !this.ast.functions) return 0;
+    return this.ast.functions.length;
+  }
+
+  public getAstFunctionAt(index: number): FunctionNode | null {
+    if (!this.ast || !this.ast.functions) return null;
+    if (index < 0 || index >= this.ast.functions.length) return null;
+    return this.ast.functions[index];
+  }
+
+  public getAstClassesLength(): number {
+    if (!this.ast || !this.ast.classes) return 0;
+    return this.ast.classes.length;
+  }
+
+  public getAstClassAt(index: number): ClassNode | null {
+    if (!this.ast || !this.ast.classes) return null;
+    if (index < 0 || index >= this.ast.classes.length) return null;
+    return this.ast.classes[index];
+  }
+
   public getLastInstruction(): string {
     if (this.output.length === 0) return '';
     const last = this.output[this.output.length - 1];

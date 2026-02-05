@@ -18,7 +18,7 @@
  * ```
  */
 
-import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode, InterfaceDeclaration } from '../../ast/types.js';
+import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode, InterfaceDeclaration, FunctionNode, ClassNode } from '../../ast/types.js';
 import { SymbolTable, SymbolKind, SymbolMetadata, ClosureMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
@@ -394,6 +394,13 @@ export interface IGeneratorContext {
    * Get AST safely via method call (avoids interface struct layout issues)
    */
   getAst(): AST | undefined;
+
+  getAstInterfacesLength(): number;
+  getAstInterfaceAt(index: number): InterfaceDeclaration | null;
+  getAstFunctionsLength(): number;
+  getAstFunctionAt(index: number): FunctionNode | null;
+  getAstClassesLength(): number;
+  getAstClassAt(index: number): ClassNode | null;
 
   /**
    * Get the cached count of classes in the AST
@@ -1254,5 +1261,35 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.output = [];
     this.variableTypes.clear();
     this.currentLabel = 'entry';
+  }
+
+  getAstInterfacesLength(): number {
+    if (!this.ast || !this.ast.interfaces) return 0;
+    return this.ast.interfaces.length;
+  }
+
+  getAstInterfaceAt(index: number): InterfaceDeclaration | null {
+    if (!this.ast || !this.ast.interfaces || index < 0 || index >= this.ast.interfaces.length) return null;
+    return this.ast.interfaces[index];
+  }
+
+  getAstFunctionsLength(): number {
+    if (!this.ast || !this.ast.functions) return 0;
+    return this.ast.functions.length;
+  }
+
+  getAstFunctionAt(index: number): FunctionNode | null {
+    if (!this.ast || !this.ast.functions || index < 0 || index >= this.ast.functions.length) return null;
+    return this.ast.functions[index];
+  }
+
+  getAstClassesLength(): number {
+    if (!this.ast || !this.ast.classes) return 0;
+    return this.ast.classes.length;
+  }
+
+  getAstClassAt(index: number): ClassNode | null {
+    if (!this.ast || !this.ast.classes || index < 0 || index >= this.ast.classes.length) return null;
+    return this.ast.classes[index];
   }
 }
