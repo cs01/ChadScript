@@ -902,11 +902,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     // Generate class definitions
     for (let classIdx = 0; classIdx < this.classesCount; classIdx++) {
-      console.log('Generating class ' + classIdx);
       const classNode = this.ast.classes[classIdx];
       this.syncStateToGenerators();
       ir += this.classGen.generateClass(classNode);
-      console.log('Class ' + classIdx + ' done');
       ir += '\n';
     }
 
