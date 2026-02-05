@@ -215,6 +215,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public symbolTableSetObjectArrayMetadata(name: string, metadata: ObjectArrayMetadata): void { this.symbolTable.setObjectArrayMetadata(name, metadata); }
   public symbolTableGetResolvedType(name: string): ResolvedType | undefined { return this.symbolTable.getResolvedType(name); }
   public symbolTableSetResolvedType(name: string, resolvedType: ResolvedType): void { this.symbolTable.setResolvedType(name, resolvedType); }
+  public classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null { return this.classGen.getFieldInfo(className, fieldName); }
+  public classGenGetClassFields(className: string): { name: string; fieldType: string }[] { return this.classGen.getClassFields(className); }
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
