@@ -254,16 +254,29 @@ export interface IGeneratorContext {
    * Current function return type (for return statement generation)
    */
   currentFunctionReturnType: string;
+  setCurrentFunctionReturnType(type: string): void;
+  getCurrentFunctionReturnType(): string;
 
   /**
    * Current function TypeScript return type (for inline interface object generation)
    */
   currentFunctionTsReturnType: string | undefined;
+  setCurrentFunctionTsReturnType(type: string | undefined): void;
+  getCurrentFunctionTsReturnType(): string | undefined;
 
   /**
    * Expected array element type (for type-aware array generation)
    */
   expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
+  setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void;
+  getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null;
+
+  /**
+   * Current declared map type (for type-aware map generation)
+   */
+  currentDeclaredMapType: string | undefined;
+  setCurrentDeclaredMapType(type: string | undefined): void;
+  getCurrentDeclaredMapType(): string | undefined;
 
   /**
    * Expected callback parameter type (for type-aware lambda generation)
@@ -343,7 +356,6 @@ export interface IGeneratorContext {
   pushOutput(line: string): void;
   getOutputLength(): number;
   getOutputLine(index: number): string;
-  setOutputLine(index: number, line: string): void;
   getOutputAsIndentedString(indent: string): string;
 
   /**
@@ -351,6 +363,8 @@ export interface IGeneratorContext {
    * Allocas inside loops cause stack overflow - they must be at function start
    */
   readonly allocaInstructions: string[];
+  getAllocaInstructions(): string[];
+  clearAllocaInstructions(): void;
 
   /**
    * Current label for tracking control flow position
@@ -415,6 +429,8 @@ export interface IGeneratorContext {
    * Current function name for type resolution
    */
   currentFunction: string | null;
+  setCurrentFunction(name: string | null): void;
+  getCurrentFunction(): string | null;
 
   /**
    * Sync state from parent generator to all sub-generators.
@@ -609,6 +625,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public currentFunctionReturnType: string = 'double';
   public currentFunctionTsReturnType: string | undefined = undefined;
   public expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null = null;
+  public currentDeclaredMapType: string | undefined = undefined;
   public expectedCallbackParamType: string | null = null;
   public expectedCallbackReturnType: string | null = null;
   public thisPointer: string | null = null;
@@ -652,6 +669,19 @@ export class MockGeneratorContext implements IGeneratorContext {
   getActualClassType(name: string): string | undefined {
     return this.actualClassTypes.get(name);
   }
+
+  setCurrentFunction(name: string | null): void { this.currentFunction = name; }
+  getCurrentFunction(): string | null { return this.currentFunction; }
+  setCurrentFunctionReturnType(type: string): void { this.currentFunctionReturnType = type; }
+  getCurrentFunctionReturnType(): string { return this.currentFunctionReturnType; }
+  setCurrentFunctionTsReturnType(type: string | undefined): void { this.currentFunctionTsReturnType = type; }
+  getCurrentFunctionTsReturnType(): string | undefined { return this.currentFunctionTsReturnType; }
+  setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void { this.expectedArrayElementType = type; }
+  getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null { return this.expectedArrayElementType; }
+  setCurrentDeclaredMapType(type: string | undefined): void { this.currentDeclaredMapType = type; }
+  getCurrentDeclaredMapType(): string | undefined { return this.currentDeclaredMapType; }
+  getAllocaInstructions(): string[] { return this.allocaInstructions; }
+  clearAllocaInstructions(): void { this.allocaInstructions.length = 0; }
 
   // SymbolTable wrapper methods (mock implementations)
   symbolTableLookup(name: string) { return this.symbolTable.lookup(name); }
@@ -899,11 +929,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   getOutputLine(index: number): string {
-    return this.output[index] ?? '';
-  }
-
-  setOutputLine(index: number, line: string): void {
-    this.output[index] = line;
+    const line = this.output[index];
+    if (line === undefined) return '';
+    return line;
   }
 
   getOutputAsIndentedString(indent: string): string {
