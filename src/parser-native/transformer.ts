@@ -1892,6 +1892,12 @@ function transformImportStatement(node: TreeSitterNode): ImportDeclaration | nul
   const sourceNode = getChildByFieldName(node, 'source');
   if (!sourceNode) return null;
 
+  const nodeText = (node as NodeBase).text;
+  const isTypeOnly = nodeText.startsWith('import type ') || nodeText.startsWith('import type{');
+  if (isTypeOnly) {
+    return null;
+  }
+
   let source = (sourceNode as NodeBase).text;
   if ((source.startsWith('"') && source.endsWith('"')) ||
       (source.startsWith("'") && source.endsWith("'"))) {
