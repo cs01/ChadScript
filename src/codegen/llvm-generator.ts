@@ -1047,6 +1047,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
   }
 
+  private getAssignmentName(stmt: AssignmentStatement): string {
+    return stmt.name;
+  }
+
+  private getAssignmentValue(stmt: AssignmentStatement): Expression {
+    return stmt.value;
+  }
+
   private handleSimpleAssignmentWithFields(stmtName: string, stmtValue: Expression, params: string[]): void {
     const value = this.generateExpression(stmtValue, params);
 
@@ -1120,8 +1128,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         this.allocateVariable(stmt, params);
       } else if (stmtType === 'assignment') {
         const stmt = stmtRaw as AssignmentStatement;
-        const stmtName = stmt.name;
-        const stmtValue = stmt.value;
+        const stmtName = this.getAssignmentName(stmt);
+        const stmtValue = this.getAssignmentValue(stmt);
         if (!stmtName) {
           continue;
         }
