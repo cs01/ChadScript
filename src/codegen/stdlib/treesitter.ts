@@ -3,17 +3,8 @@ export class TreeSitterGenerator {
     let ir = '; Tree-sitter library declarations\n';
     ir += '; Incremental parsing library for source code\n\n';
 
-    ir += '; Opaque types (pointers to opaque structs)\n';
-    ir += '%TSParser = type opaque\n';
-    ir += '%TSTree = type opaque\n';
-    ir += '%TSLanguage = type opaque\n\n';
-
-    ir += '; TSNode struct (32 bytes on x86_64)\n';
-    ir += '; Contains: context[4] (16 bytes) + id ptr (8 bytes) + tree ptr (8 bytes)\n';
-    ir += '%TSNode = type { [4 x i32], i8*, %TSTree* }\n\n';
-
-    ir += '; TSPoint struct (8 bytes)\n';
-    ir += '%TSPoint = type { i32, i32 }\n\n';
+    ir += '; Type definitions are prepended at IR generation start\n';
+    ir += '; See llvm-generator.ts generate() for type definitions\n\n';
 
     ir += '; Parser lifecycle functions\n';
     ir += 'declare %TSParser* @ts_parser_new()\n';

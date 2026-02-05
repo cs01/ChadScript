@@ -194,11 +194,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
       let llvmType: string;
 
-      const propValue = prop.value;
+      const propValue = prop.value as Expression;
       if (!propValue) {
         llvmType = 'double';
       } else {
-        const propValueType = propValue.type;
+        const propValueTyped = propValue as { type: string };
+        const propValueType = propValueTyped.type;
         if (propValueType === 'string' || this.isStringExpression(propValue)) {
           llvmType = 'i8*';
         } else if (propValueType === 'array' || this.isStringArrayExpression(propValue)) {
@@ -699,6 +700,17 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     // Add interface struct defs at the very beginning
     if (this.interfaceStructDefsCache) {
       ir = this.interfaceStructDefsCache + '\n' + ir;
+    }
+
+    // Add tree-sitter type definitions at the very beginning (if enabled)
+    if (this.linkTreeSitter) {
+      let treeSitterTypes = '; Tree-sitter type definitions\n';
+      treeSitterTypes += '%TSParser = type opaque\n';
+      treeSitterTypes += '%TSTree = type opaque\n';
+      treeSitterTypes += '%TSLanguage = type opaque\n';
+      treeSitterTypes += '%TSNode = type { [4 x i32], i8*, %TSTree* }\n';
+      treeSitterTypes += '%TSPoint = type { i32, i32 }\n\n';
+      ir = treeSitterTypes + ir;
     }
 
     return ir;
