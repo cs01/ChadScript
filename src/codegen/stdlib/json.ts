@@ -154,14 +154,14 @@ export class JsonGenerator {
     this.ctx.emit(`br label %${loopCond}`);
 
     let phiIdx = -1;
-    for (let phiSearchIdx = 0; phiSearchIdx < this.ctx.output.length; phiSearchIdx++) {
-      if (this.ctx.output[phiSearchIdx].includes(phiPlaceholder)) {
+    for (let phiSearchIdx = 0; phiSearchIdx < this.ctx.getOutputLength(); phiSearchIdx++) {
+      if (this.ctx.getOutputLine(phiSearchIdx).includes(phiPlaceholder)) {
         phiIdx = phiSearchIdx;
         break;
       }
     }
     if (phiIdx !== -1) {
-      this.ctx.output[phiIdx] = this.ctx.output[phiIdx].replace(phiPlaceholder, iInc);
+      this.ctx.setOutputLine(phiIdx, this.ctx.getOutputLine(phiIdx).replace(phiPlaceholder, iInc));
     }
 
     this.ctx.emit(`${loopEnd}:`);
@@ -177,8 +177,8 @@ export class JsonGenerator {
 
   private hasStructInGlobalStrings(typeName: string): boolean {
     const pattern = `%${typeName} = type`;
-    for (let i = 0; i < this.ctx.globalStrings.length; i++) {
-      if (this.ctx.globalStrings[i].includes(pattern)) {
+    for (let i = 0; i < this.ctx.getGlobalStringsLength(); i++) {
+      if (this.ctx.getGlobalStringAt(i).includes(pattern)) {
         return true;
       }
     }
@@ -222,10 +222,10 @@ export class JsonGenerator {
 
     const structDef = `%${typeName} = type { ${fieldTypes.join(', ')} }\n`;
     const newGlobalStrings: string[] = [structDef];
-    for (let i = 0; i < this.ctx.globalStrings.length; i++) {
-      newGlobalStrings.push(this.ctx.globalStrings[i]);
+    for (let i = 0; i < this.ctx.getGlobalStringsLength(); i++) {
+      newGlobalStrings.push(this.ctx.getGlobalStringAt(i));
     }
-    this.ctx.globalStrings.length = 0;
+    this.ctx.clearGlobalStrings();
     for (let i = 0; i < newGlobalStrings.length; i++) {
       this.ctx.pushGlobalString(newGlobalStrings[i]);
     }
