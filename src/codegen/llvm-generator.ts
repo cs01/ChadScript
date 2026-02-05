@@ -250,6 +250,29 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return last ? last.trim() : '';
   }
 
+  public getBlockStatementsLength(block: BlockStatement): number {
+    if (!block) return 0;
+    const stmts = block.statements;
+    if (!stmts) return 0;
+    return stmts.length;
+  }
+
+  public getBlockStatementAt(block: BlockStatement, index: number): Statement | null {
+    if (!block) return null;
+    const stmts = block.statements;
+    if (!stmts) return null;
+    if (index < 0 || index >= stmts.length) return null;
+    const stmt = stmts[index];
+    return stmt || null;
+  }
+
+  public getStatementType(stmt: Statement | null): string {
+    if (!stmt) return '';
+    const stmtTyped = stmt as { type: string };
+    const theType = stmtTyped.type;
+    return theType || '';
+  }
+
   // SymbolTable wrapper methods (avoid method chaining issues in native code)
   public symbolTableLookup(name: string): SymbolEntry | undefined { return this.symbolTable.lookup(name); }
   public symbolTableIsClass(name: string): boolean { return this.symbolTable.isClass(name); }
@@ -1210,20 +1233,19 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public generateBlock(block: BlockStatement, params: string[]): string | null {
-    const stmts = block.statements;
     let lastValue: string | null = null;
     let hasTerminator = false;
+    const blockLen = this.getBlockStatementsLength(block);
 
-    for (let stmtIdx = 0; stmtIdx < block.statements.length; stmtIdx++) {
-      const stmtRaw = block.statements[stmtIdx];
+    for (let stmtIdx = 0; stmtIdx < blockLen; stmtIdx++) {
+      const stmtRaw = this.getBlockStatementAt(block, stmtIdx);
       if (!stmtRaw) {
         continue;
       }
-      const stmtBase = stmtRaw as { type: string };
       if (hasTerminator) {
         break;
       }
-      const stmtType = stmtBase.type;
+      const stmtType = this.getStatementType(stmtRaw);
       if (!stmtType) {
         continue;
       }
@@ -1539,6 +1561,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.ast.topLevelItems![index] as Expression;
   }
 
+  public getTopLevelItemType(index: number): string {
+    const item = this.ast.topLevelItems![index];
+    if (!item) return '';
+    return item.type;
+  }
+
   public getTopLevelStatement(index: number): VariableDeclaration {
     return this.ast.topLevelStatements[index] as VariableDeclaration;
   }
@@ -1567,7 +1595,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (!item) {
       return;
     }
-    const itemType = (item as { type: string }).type;
+    const itemType = this.getTopLevelItemType(index);
     if (itemType === 'variable_declaration') {
       this.allocateVariable(item as VariableDeclaration, []);
     } else if (itemType === 'if') {
