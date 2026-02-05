@@ -275,7 +275,7 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
     }
 
     if (specifiers.length > 0) {
-      ast.imports.push({ type: 'import', specifiers, source });
+      ast.imports.push({ type: 'import', specifiers, aliasedSpecifiers: [], source });
     }
   }
 }
@@ -1997,5 +1997,5 @@ function transformImportStatement(node: TreeSitterNode): ImportDeclaration | nul
     }
   }
 
-  return { type: 'import', specifiers, source };
+  return { type: 'import', specifiers, aliasedSpecifiers: [], source };
 }
