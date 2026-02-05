@@ -47,10 +47,12 @@ CLAUDE.md
 LEARNINGS.md
 todo.md
 
-# td (task daemon) databases
-.td.db
-.td-session
-.td-cache/
+# td (task daemon) files
+.td*
+td
+
+# LLM rules (local only)
+.llms/
 
 # Accidental/temporary files
 -o.ll
