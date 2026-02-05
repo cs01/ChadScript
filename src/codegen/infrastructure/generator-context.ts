@@ -236,8 +236,8 @@ export interface IGeneratorContext {
   symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetArrayAlloca(name: string): string | undefined;
   symbolTableSetObjectArrayMetadata(name: string, metadata: { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] }): void;
-  symbolTableGetResolvedType(name: string): { category: string } | undefined;
-  symbolTableSetResolvedType(name: string, resolvedType: { category: string }): void;
+  symbolTableGetResolvedType(name: string): ResolvedType | undefined;
+  symbolTableSetResolvedType(name: string, resolvedType: ResolvedType): void;
 
   /**
    * Access to global string constants
@@ -536,8 +536,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   symbolTableGetObjectMetadata(name: string) { return this.symbolTable.getObjectMetadata(name); }
   symbolTableGetArrayAlloca(name: string) { return this.symbolTable.getArrayAlloca(name); }
   symbolTableSetObjectArrayMetadata(name: string, metadata: { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] }) { this.symbolTable.setObjectArrayMetadata(name, metadata); }
-  symbolTableGetResolvedType(name: string) { return this.symbolTable.getResolvedType(name); }
-  symbolTableSetResolvedType(name: string, resolvedType: { category: string }) { this.symbolTable.setResolvedType(name, resolvedType); }
+  symbolTableGetResolvedType(name: string): ResolvedType | undefined { return this.symbolTable.getResolvedType(name); }
+  symbolTableSetResolvedType(name: string, resolvedType: ResolvedType) { this.symbolTable.setResolvedType(name, resolvedType); }
 
   getThisPointer(): string | null {
     return this.thisPointer;

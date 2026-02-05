@@ -15,6 +15,21 @@ export interface VariableExpressionContext {
   emit(instruction: string): void;
   getVariableAlloca(name: string): string | undefined;
   getVariableType(name: string): string | undefined;
+  symbolTableIsClass(name: string): boolean;
+  symbolTableIsRegex(name: string): boolean;
+  symbolTableIsMap(name: string): boolean;
+  symbolTableIsSet(name: string): boolean;
+  symbolTableIsNumberArray(name: string): boolean;
+  symbolTableIsStringArray(name: string): boolean;
+  symbolTableIsString(name: string): boolean;
+  symbolTableIsObject(name: string): boolean;
+  symbolTableIsPointerAlloca(name: string): boolean;
+  symbolTableGetClassInfo(name: string): { ptr: string; className: string } | undefined;
+  symbolTableGetMapMetadata(name: string): { keyType: string; valueType: string } | undefined;
+  symbolTableGetSetMetadata(name: string): { valueType: string } | undefined;
+  symbolTableGetAlloca(name: string): string | undefined;
+  symbolTableGetType(name: string): string | undefined;
+  symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
 }
 
 interface ClassMeta {
@@ -66,21 +81,21 @@ export class VariableExpressionGenerator {
     }
 
     // Check if it's a class instance variable
-    if (this.ctx.symbolTable.isClass(name)) {
-      const classMeta = this.ctx.symbolTable.getClassInfo(name)!;
+    if (this.ctx.symbolTableIsClass(name)) {
+      const classMeta = this.ctx.symbolTableGetClassInfo(name)!;
       return this.loadClassInstance(name, classMeta);
     }
 
     // Check if it's a regex variable
-    if (this.ctx.symbolTable.isRegex(name)) {
+    if (this.ctx.symbolTableIsRegex(name)) {
       const allocaReg = this.ctx.getVariableAlloca(name)!;
       return this.loadRegex(allocaReg);
     }
 
     // Check if it's a map variable
-    if (this.ctx.symbolTable.isMap(name)) {
+    if (this.ctx.symbolTableIsMap(name)) {
       const allocaReg = this.ctx.getVariableAlloca(name)!;
-      const mapMeta = this.ctx.symbolTable.getMapMetadata(name);
+      const mapMeta = this.ctx.symbolTableGetMapMetadata(name);
       if (mapMeta && mapMeta.keyType === 'string') {
         this.ctx.setVariableType(allocaReg, '%StringMap*');
       } else {
@@ -90,9 +105,9 @@ export class VariableExpressionGenerator {
     }
 
     // Check if it's a set variable
-    if (this.ctx.symbolTable.isSet(name)) {
+    if (this.ctx.symbolTableIsSet(name)) {
       const allocaReg = this.ctx.getVariableAlloca(name)!;
-      const setMeta = this.ctx.symbolTable.getSetMetadata(name);
+      const setMeta = this.ctx.symbolTableGetSetMetadata(name);
       if (setMeta && setMeta.valueType === 'string') {
         this.ctx.setVariableType(allocaReg, '%StringSet*');
       } else {
@@ -102,11 +117,11 @@ export class VariableExpressionGenerator {
     }
 
     // Check if it's an array variable (number or boolean array)
-    if (this.ctx.symbolTable.isNumberArray(name)) {
-      const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
-      const llvmType = this.ctx.symbolTable.getType(name);
+    if (this.ctx.symbolTableIsNumberArray(name)) {
+      const allocaReg = this.ctx.symbolTableGetAlloca(name)!;
+      const llvmType = this.ctx.symbolTableGetType(name);
       if (llvmType === '%Array*') {
-        const isPointerAlloca = this.ctx.symbolTable.isPointerAlloca(name);
+        const isPointerAlloca = this.ctx.symbolTableIsPointerAlloca(name);
         return this.loadArray(allocaReg, '%Array*', isPointerAlloca);
       } else if (llvmType === 'i8*') {
         const temp = this.ctx.nextTemp();
@@ -118,11 +133,11 @@ export class VariableExpressionGenerator {
     }
 
     // Check if it's a string array variable
-    if (this.ctx.symbolTable.isStringArray(name)) {
-      const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
-      const llvmType = this.ctx.symbolTable.getType(name);
+    if (this.ctx.symbolTableIsStringArray(name)) {
+      const allocaReg = this.ctx.symbolTableGetAlloca(name)!;
+      const llvmType = this.ctx.symbolTableGetType(name);
       if (llvmType === '%StringArray*') {
-        const isPointerAlloca = this.ctx.symbolTable.isPointerAlloca(name);
+        const isPointerAlloca = this.ctx.symbolTableIsPointerAlloca(name);
         return this.loadArray(allocaReg, '%StringArray*', isPointerAlloca);
       } else if (llvmType === 'i8*') {
         const temp = this.ctx.nextTemp();
@@ -134,14 +149,14 @@ export class VariableExpressionGenerator {
     }
 
     // Check if it's a string variable
-    if (this.ctx.symbolTable.isString(name)) {
-      const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
+    if (this.ctx.symbolTableIsString(name)) {
+      const allocaReg = this.ctx.symbolTableGetAlloca(name)!;
       return this.loadString(allocaReg);
     }
 
     // Check if it's an object variable
-    if (this.ctx.symbolTable.isObject(name)) {
-      const objectMeta = this.ctx.symbolTable.getObjectInfo(name);
+    if (this.ctx.symbolTableIsObject(name)) {
+      const objectMeta = this.ctx.symbolTableGetObjectInfo(name);
       if (objectMeta) {
         return this.loadObject(objectMeta);
       }

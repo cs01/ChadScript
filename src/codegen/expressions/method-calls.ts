@@ -211,6 +211,20 @@ export interface MethodCallGeneratorContext {
   typeChecker: TypeChecker | null;
   typeResolver?: TypeResolver;
   usesPromises: boolean;
+  symbolTableIsClass(name: string): boolean;
+  symbolTableIsMap(name: string): boolean;
+  symbolTableIsSet(name: string): boolean;
+  symbolTableIsObject(name: string): boolean;
+  symbolTableLookup(name: string): { kind?: string; type?: string; interfaceType?: string } | undefined;
+  symbolTableGetType(name: string): string | undefined;
+  symbolTableGetClassName(name: string): string | undefined;
+  symbolTableGetClassInfo(name: string): { ptr: string; className: string } | undefined;
+  symbolTableGetMapMetadata(name: string): { keyType: string; valueType: string } | undefined;
+  symbolTableGetSetMetadata(name: string): { valueType: string } | undefined;
+  symbolTableGetAlloca(name: string): string | undefined;
+  symbolTableGetInterfaceType(name: string): string | undefined;
+  symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
+  symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] };
   consoleGen: ConsoleGeneratorLike;
   processGen: ProcessGeneratorLike;
   fsGen: FilesystemGeneratorLike;
@@ -714,12 +728,12 @@ export class MethodCallGenerator {
     // Handle Map methods
     if (method === 'set' || method === 'get' || method === 'has' || method === 'clear' || method === 'delete' || method === 'entries' || method === 'values' || method === 'keys') {
       const varName = this.getVariableName(expr.object);
-      if (varName && this.ctx.symbolTable.isMap(varName)) {
+      if (varName && this.ctx.symbolTableIsMap(varName)) {
         this.ctx.syncStateToGenerators();
-        const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+        const mapMeta = this.ctx.symbolTableGetMapMetadata(varName);
 
         if (mapMeta && mapMeta.keyType === 'string') {
-          const mapAlloca = this.ctx.symbolTable.getAlloca(varName);
+          const mapAlloca = this.ctx.symbolTableGetAlloca(varName);
           if (mapAlloca) {
             if (method === 'set') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
@@ -851,12 +865,12 @@ export class MethodCallGenerator {
     // Handle Set methods
     if (method === 'add' || method === 'has' || method === 'delete') {
       const varName = this.getVariableName(expr.object);
-      if (varName && this.ctx.symbolTable.isSet(varName)) {
+      if (varName && this.ctx.symbolTableIsSet(varName)) {
         this.ctx.syncStateToGenerators();
-        const setMeta = this.ctx.symbolTable.getSetMetadata(varName);
+        const setMeta = this.ctx.symbolTableGetSetMetadata(varName);
 
         if (setMeta && setMeta.valueType === 'string') {
-          const setAlloca = this.ctx.symbolTable.getAlloca(varName);
+          const setAlloca = this.ctx.symbolTableGetAlloca(varName);
           if (setAlloca) {
             if (method === 'add') {
               const valueValue = this.ctx.generateExpression(expr.args[0], params);
@@ -1069,14 +1083,14 @@ export class MethodCallGenerator {
         details += `, object base type: ${objBase.type}`;
         if (objBase.type === 'variable') {
           const varName = (memberExpr.object as VariableNode).name;
-          const isClass = this.ctx.symbolTable.isClass(varName);
-          const symbol = this.ctx.symbolTable.lookup(varName);
-          const symbolType = this.ctx.symbolTable.getType(varName);
+          const isClass = this.ctx.symbolTableIsClass(varName);
+          const symbol = this.ctx.symbolTableLookup(varName);
+          const symbolType = this.ctx.symbolTableGetType(varName);
           const interfaceType = symbol?.interfaceType;
           details += `, variable: ${varName}, isClass: ${isClass}`;
           details += `, symbolType: ${symbolType}, interfaceType: ${interfaceType}`;
           if (isClass) {
-            const className = this.ctx.symbolTable.getClassName(varName);
+            const className = this.ctx.symbolTableGetClassName(varName);
             details += `, className: ${className}`;
           }
         }
@@ -1459,12 +1473,12 @@ export class MethodCallGenerator {
     const exprObjBase = expr.object as ExprBase;
     if (exprObjBase.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
-      if (this.ctx.symbolTable.isClass(varName)) {
-        const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
+      if (this.ctx.symbolTableIsClass(varName)) {
+        const classMeta = this.ctx.symbolTableGetClassInfo(varName)!;
         className = classMeta.className;
         instancePtr = this.ctx.generateExpression(expr.object, params);
       } else {
-        const interfaceType = this.ctx.symbolTable.getInterfaceType(varName);
+        const interfaceType = this.ctx.symbolTableGetInterfaceType(varName);
         if (interfaceType) {
           const implClass = this.findClassImplementingInterfaceMethod(interfaceType, method);
           if (implClass) {
@@ -1543,8 +1557,8 @@ export class MethodCallGenerator {
         }
       } else if (memberAccessObjBase.type === 'variable') {
         const varName = (memberAccess.object as VariableNode).name;
-        if (this.ctx.symbolTable.isClass(varName)) {
-          const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
+        if (this.ctx.symbolTableIsClass(varName)) {
+          const classMeta = this.ctx.symbolTableGetClassInfo(varName)!;
           const outerClassName = classMeta.className;
           const fieldInfoResult = this.ctx.classGen.getFieldInfo(outerClassName, memberAccess.property);
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
@@ -1620,8 +1634,8 @@ export class MethodCallGenerator {
       const innerExprBase = innerExpr as ExprBase;
       if (innerExprBase.type === 'variable') {
         const varName = (innerExpr as VariableNode).name;
-        if (this.ctx.symbolTable.isClass(varName)) {
-          const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
+        if (this.ctx.symbolTableIsClass(varName)) {
+          const classMeta = this.ctx.symbolTableGetClassInfo(varName)!;
           className = classMeta.className;
           instancePtr = this.ctx.generateExpression(innerExpr, params);
         }
@@ -1849,8 +1863,8 @@ export class MethodCallGenerator {
 
     if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
-      if (this.ctx.symbolTable.isClass(varName)) {
-        const classMeta = this.ctx.symbolTable.getClassInfo(varName);
+      if (this.ctx.symbolTableIsClass(varName)) {
+        const classMeta = this.ctx.symbolTableGetClassInfo(varName);
         return classMeta?.className || null;
       }
       return null;
@@ -1956,8 +1970,8 @@ export class MethodCallGenerator {
     const exprObjBase = expr.object as ExprBase;
     if (exprObjBase.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
-      if (this.ctx.symbolTable.isObject(varName)) {
-        const objMetaRaw = this.ctx.symbolTable.getObjectInfo(varName);
+      if (this.ctx.symbolTableIsObject(varName)) {
+        const objMetaRaw = this.ctx.symbolTableGetObjectInfo(varName);
         if (!objMetaRaw) {
           return null;
         }
@@ -2106,7 +2120,7 @@ export class MethodCallGenerator {
     let onRejected = 'null';
 
     const promiseCallbackTypes = { paramTypes: ['string', 'any'], returnType: 'void' };
-    const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
+    const scopeVarsResult = this.ctx.symbolTableGetScopeVarsArraysForClosure();
     const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
 
     if (isCatch) {
