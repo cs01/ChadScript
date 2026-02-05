@@ -420,7 +420,11 @@ export class CallExpressionGenerator {
       } else if (normalizedReturnType && normalizedReturnType.endsWith('[]')) {
         returnType = '%ObjectArray*';
       } else if (normalizedReturnType && normalizedReturnType !== '' && normalizedReturnType !== 'number' && normalizedReturnType !== 'boolean' && !this.isEnumType(normalizedReturnType)) {
-        returnType = 'i8*';
+        if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(normalizedReturnType)) {
+          returnType = `%${normalizedReturnType}*`;
+        } else {
+          returnType = 'i8*';
+        }
       }
       for (let i = 0; i < func.paramTypes.length; i++) {
         const p = func.paramTypes[i] as string;
@@ -454,7 +458,11 @@ export class CallExpressionGenerator {
         } else if (normalizedRetType && normalizedRetType.endsWith('[]')) {
           returnType = '%ObjectArray*';
         } else if (normalizedRetType && normalizedRetType !== '' && normalizedRetType !== 'number' && normalizedRetType !== 'boolean' && !this.isEnumType(normalizedRetType)) {
-          returnType = 'i8*';
+          if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(normalizedRetType)) {
+            returnType = `%${normalizedRetType}*`;
+          } else {
+            returnType = 'i8*';
+          }
         }
         if (funcNode.parameters) {
           for (let i = 0; i < funcNode.parameters.length; i++) {

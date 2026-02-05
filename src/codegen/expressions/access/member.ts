@@ -962,6 +962,12 @@ export class MemberAccessGenerator {
 
   private handleNestedJsonAccess(expr: MemberAccessNode, params: string[]): string | null {
     const innerResult = this.ctx.generateExpression(expr.object, params);
+
+    const innerType = this.ctx.getVariableType(innerResult);
+    if (innerType && innerType.startsWith('%') && innerType.endsWith('*') && innerType !== '%Response*' && innerType.indexOf('Array') === -1 && innerType.indexOf('Map') === -1 && innerType.indexOf('Set') === -1) {
+      return null;
+    }
+
     if (!this.ctx.jsonObjectMetadata) return null;
     const nestedMetaRaw = this.ctx.jsonObjectMetadata.get(innerResult);
     if (!nestedMetaRaw) return null;
@@ -2011,15 +2017,6 @@ export class MemberAccessGenerator {
       }
     } else if (innerAccessObjBase.type === 'variable') {
       const varName = (innerAccess.object as VariableNode).name;
-      if (this.ctx.symbolTable.isJSON(varName) || this.ctx.symbolTable.isObject(varName)) {
-        const arrayPtr = this.ctx.generateExpression(expr.object, params);
-        const arraySize = this.ctx.nextTemp();
-        this.ctx.emit(`${arraySize} = call i32 @cJSON_GetArraySize(i8* ${arrayPtr})`);
-        const sizeDouble = this.ctx.nextTemp();
-        this.ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
-        this.ctx.setVariableType(sizeDouble, 'double');
-        return sizeDouble;
-      }
       if (params.indexOf(varName) !== -1) {
         const paramInterfaceType = this.getParameterTypeFromAST(varName);
         if (paramInterfaceType) {
@@ -2047,6 +2044,15 @@ export class MemberAccessGenerator {
             return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
           }
         }
+      }
+      if (this.ctx.symbolTable.isJSON(varName) || this.ctx.symbolTable.isObject(varName)) {
+        const arrayPtr = this.ctx.generateExpression(expr.object, params);
+        const arraySize = this.ctx.nextTemp();
+        this.ctx.emit(`${arraySize} = call i32 @cJSON_GetArraySize(i8* ${arrayPtr})`);
+        const sizeDouble = this.ctx.nextTemp();
+        this.ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
+        this.ctx.setVariableType(sizeDouble, 'double');
+        return sizeDouble;
       }
     } else if (innerAccessObjBase.type === 'this') {
       const className = this.ctx.currentClassName;

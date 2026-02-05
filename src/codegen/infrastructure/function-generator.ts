@@ -4,6 +4,7 @@ import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { StringGenerator } from '../types/collections/string.js';
 import type { ControlFlowGenerator } from '../statements/control-flow.js';
+import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
 import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from './type-system.js';
 
 interface LiftedFunction extends FunctionNode {
@@ -33,6 +34,7 @@ export interface FunctionGeneratorContext {
   tempCounter: number;
   symbolTable: SymbolTable;
   controlFlowGen: ControlFlowGenerator;
+  interfaceStructGen?: InterfaceStructGenerator;
   topLevelStatementsCount: number;
   topLevelExpressionsCount: number;
   topLevelItemsCount: number;
@@ -151,8 +153,13 @@ export class FunctionGenerator {
         returnType = 'double';
         this.ctx.currentFunctionReturnType = 'double';
       } else if (theReturnType && theReturnType !== '' && theReturnType !== 'number' && theReturnType !== 'boolean') {
-        returnType = 'i8*';
-        this.ctx.currentFunctionReturnType = 'i8*';
+        if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(theReturnType)) {
+          returnType = `%${theReturnType}*`;
+          this.ctx.currentFunctionReturnType = `%${theReturnType}*`;
+        } else {
+          returnType = 'i8*';
+          this.ctx.currentFunctionReturnType = 'i8*';
+        }
       }
       this.ctx.currentFunctionTsReturnType = theReturnType;
     }
