@@ -246,231 +246,156 @@ export class ClosureAnalyzer {
 
   private walkStatement(stmt: Statement): void {
     const stmtTyped = stmt as TypedNode;
+    const stmtType = stmtTyped.type;
 
-    switch (stmtTyped.type) {
-      case 'variable_declaration': {
-        const s = stmt as VarDeclNode;
-        this.declaredVars.add(s.name);
-        if (s.value) {
-          this.walkExpression(s.value);
-        }
-        break;
-      }
-
-      case 'assignment': {
-        const s = stmt as AssignmentNode;
-        this.walkExpression(s.target);
+    if (stmtType === 'variable_declaration') {
+      const s = stmt as VarDeclNode;
+      this.declaredVars.add(s.name);
+      if (s.value) {
         this.walkExpression(s.value);
-        break;
       }
-
-      case 'expression_statement': {
-        const s = stmt as { type: string; expression: Expression };
-        this.walkExpression(s.expression);
-        break;
+    } else if (stmtType === 'assignment') {
+      const s = stmt as AssignmentNode;
+      this.walkExpression(s.target);
+      this.walkExpression(s.value);
+    } else if (stmtType === 'expression_statement') {
+      const s = stmt as { type: string; expression: Expression };
+      this.walkExpression(s.expression);
+    } else if (stmtType === 'return') {
+      const s = stmt as { type: string; value: Expression | null };
+      if (s.value) {
+        this.walkExpression(s.value);
       }
-
-      case 'return': {
-        const s = stmt as { type: string; value: Expression | null };
-        if (s.value) {
-          this.walkExpression(s.value);
+    } else if (stmtType === 'if') {
+      const s = stmt as { type: string; condition: Expression; consequent: BlockStatement; alternate: Statement | BlockStatement | null };
+      this.walkExpression(s.condition);
+      if (s.consequent) {
+        this.walkBlock(s.consequent);
+      }
+      if (s.alternate) {
+        const alt = s.alternate as { type: string };
+        if (alt.type === 'if') {
+          this.walkStatement(s.alternate as Statement);
+        } else {
+          this.walkBlock(s.alternate as BlockStatement);
         }
-        break;
       }
-
-      case 'if': {
-        const s = stmt as { type: string; condition: Expression; consequent: BlockStatement; alternate: Statement | BlockStatement | null };
-        this.walkExpression(s.condition);
-        if (s.consequent) {
-          this.walkBlock(s.consequent);
+    } else if (stmtType === 'while') {
+      const s = stmt as { type: string; condition: Expression; body: BlockStatement };
+      this.walkExpression(s.condition);
+      this.walkBlock(s.body);
+    } else if (stmtType === 'for') {
+      const s = stmt as { type: string; init: Statement | null; condition: Expression | null; update: Statement | Expression | null; body: BlockStatement };
+      if (s.init) this.walkStatement(s.init);
+      if (s.condition) this.walkExpression(s.condition);
+      if (s.update) {
+        const upd = s.update as { type: string };
+        if (upd.type) {
+          this.walkStatement(s.update as Statement);
+        } else {
+          this.walkExpression(s.update as Expression);
         }
-        if (s.alternate) {
-          const alt = s.alternate as { type: string };
-          if (alt.type === 'if') {
-            this.walkStatement(s.alternate as Statement);
-          } else {
-            this.walkBlock(s.alternate as BlockStatement);
-          }
-        }
-        break;
       }
-
-      case 'while': {
-        const s = stmt as { type: string; condition: Expression; body: BlockStatement };
-        this.walkExpression(s.condition);
-        this.walkBlock(s.body);
-        break;
-      }
-
-      case 'for': {
-        const s = stmt as { type: string; init: Statement | null; condition: Expression | null; update: Statement | Expression | null; body: BlockStatement };
-        if (s.init) this.walkStatement(s.init);
-        if (s.condition) this.walkExpression(s.condition);
-        if (s.update) {
-          const upd = s.update as { type: string };
-          if (upd.type) {
-            this.walkStatement(s.update as Statement);
-          } else {
-            this.walkExpression(s.update as Expression);
-          }
+      this.walkBlock(s.body);
+    } else if (stmtType === 'for_of') {
+      const s = stmt as { type: string; variable: string; iterable: Expression; body: BlockStatement };
+      this.declaredVars.add(s.variable);
+      this.walkExpression(s.iterable);
+      this.walkBlock(s.body);
+    } else if (stmtType === 'try') {
+      const s = stmt as { type: string; body: BlockStatement; handler: { param: string | null; body: BlockStatement } | null; finalizer: BlockStatement | null };
+      this.walkBlock(s.body);
+      if (s.handler) {
+        if (s.handler.param) {
+          this.declaredVars.add(s.handler.param);
         }
-        this.walkBlock(s.body);
-        break;
+        this.walkBlock(s.handler.body);
       }
-
-      case 'for_of': {
-        const s = stmt as { type: string; variable: string; iterable: Expression; body: BlockStatement };
-        this.declaredVars.add(s.variable);
-        this.walkExpression(s.iterable);
-        this.walkBlock(s.body);
-        break;
-      }
-
-      case 'try': {
-        const s = stmt as { type: string; body: BlockStatement; handler: { param: string | null; body: BlockStatement } | null; finalizer: BlockStatement | null };
-        this.walkBlock(s.body);
-        if (s.handler) {
-          if (s.handler.param) {
-            this.declaredVars.add(s.handler.param);
-          }
-          this.walkBlock(s.handler.body);
-        }
-        if (s.finalizer) {
-          this.walkBlock(s.finalizer);
-        }
-        break;
+      if (s.finalizer) {
+        this.walkBlock(s.finalizer);
       }
     }
   }
 
   private walkExpression(expr: Expression): void {
     const exprTyped = expr as { type: string };
+    const exprType = exprTyped.type;
 
-    switch (exprTyped.type) {
-      case 'variable': {
-        const e = expr as { type: string; name: string };
-        this.referencedVars.add(e.name);
-        break;
+    if (exprType === 'variable') {
+      const e = expr as { type: string; name: string };
+      this.referencedVars.add(e.name);
+    } else if (exprType === 'binary') {
+      const e = expr as { type: string; left: Expression; right: Expression };
+      this.walkExpression(e.left);
+      this.walkExpression(e.right);
+    } else if (exprType === 'unary') {
+      const e = expr as { type: string; operand: Expression };
+      this.walkExpression(e.operand);
+    } else if (exprType === 'call') {
+      const e = expr as { type: string; name: string; args: Expression[] };
+      this.referencedVars.add(e.name);
+      for (const arg of e.args) {
+        this.walkExpression(arg);
       }
-
-      case 'binary': {
-        const e = expr as { type: string; left: Expression; right: Expression };
-        this.walkExpression(e.left);
-        this.walkExpression(e.right);
-        break;
+    } else if (exprType === 'method_call') {
+      const e = expr as { type: string; object: Expression; args: Expression[] };
+      this.walkExpression(e.object);
+      for (const arg of e.args) {
+        this.walkExpression(arg);
       }
-
-      case 'unary': {
-        const e = expr as { type: string; operand: Expression };
-        this.walkExpression(e.operand);
-        break;
+    } else if (exprType === 'member_access') {
+      const e = expr as { type: string; object: Expression };
+      this.walkExpression(e.object);
+    } else if (exprType === 'index_access') {
+      const e = expr as { type: string; object: Expression; index: Expression };
+      this.walkExpression(e.object);
+      this.walkExpression(e.index);
+    } else if (exprType === 'array') {
+      const e = expr as { type: string; elements: Expression[] };
+      for (const el of e.elements) {
+        this.walkExpression(el);
       }
-
-      case 'call': {
-        const e = expr as { type: string; name: string; args: Expression[] };
-        // For direct function calls, the name is a string, not an expression
-        this.referencedVars.add(e.name);
-        for (const arg of e.args) {
-          this.walkExpression(arg);
+    } else if (exprType === 'object') {
+      const e = expr as { type: string; properties: ObjectProperty[] };
+      for (let i = 0; i < e.properties.length; i++) {
+        const prop = e.properties[i] as ObjectProperty;
+        this.walkExpression(prop.value);
+      }
+    } else if (exprType === 'template_literal') {
+      const e = expr as { type: string; parts: (string | Expression)[] };
+      for (const part of e.parts) {
+        const partAsObj = part as { type: string };
+        if (partAsObj.type) {
+          this.walkExpression(part as Expression);
         }
-        break;
       }
-
-      case 'method_call': {
-        const e = expr as { type: string; object: Expression; args: Expression[] };
-        this.walkExpression(e.object);
-        for (const arg of e.args) {
-          this.walkExpression(arg);
-        }
-        break;
+    } else if (exprType === 'arrow_function') {
+      const e = expr as { type: string; params: string[]; body: Expression | BlockStatement };
+      const nestedDeclared = new Set(this.declaredVars);
+      for (const p of e.params) {
+        this.declaredVars.add(p);
       }
-
-      case 'member_access': {
-        const e = expr as { type: string; object: Expression };
-        this.walkExpression(e.object);
-        break;
+      const bodyTyped = e.body as { type: string };
+      if (bodyTyped.type === 'block') {
+        this.walkBlock(e.body as BlockStatement);
+      } else {
+        this.walkExpression(e.body as Expression);
       }
-
-      case 'index_access': {
-        const e = expr as { type: string; object: Expression; index: Expression };
-        this.walkExpression(e.object);
-        this.walkExpression(e.index);
-        break;
+      this.declaredVars = nestedDeclared;
+    } else if (exprType === 'conditional') {
+      const e = expr as { type: string; condition: Expression; consequent: Expression; alternate: Expression };
+      this.walkExpression(e.condition);
+      this.walkExpression(e.consequent);
+      this.walkExpression(e.alternate);
+    } else if (exprType === 'await') {
+      const e = expr as { type: string; argument: Expression };
+      this.walkExpression(e.argument);
+    } else if (exprType === 'new') {
+      const e = expr as { type: string; args: Expression[] };
+      for (const arg of e.args) {
+        this.walkExpression(arg);
       }
-
-      case 'array': {
-        const e = expr as { type: string; elements: Expression[] };
-        for (const el of e.elements) {
-          this.walkExpression(el);
-        }
-        break;
-      }
-
-      case 'object': {
-        const e = expr as { type: string; properties: ObjectProperty[] };
-        for (let i = 0; i < e.properties.length; i++) {
-          const prop = e.properties[i] as ObjectProperty;
-          this.walkExpression(prop.value);
-        }
-        break;
-      }
-
-      case 'template_literal': {
-        const e = expr as { type: string; parts: (string | Expression)[] };
-        for (const part of e.parts) {
-          const partAsObj = part as { type: string };
-          if (partAsObj.type) {
-            this.walkExpression(part as Expression);
-          }
-        }
-        break;
-      }
-
-      case 'arrow_function': {
-        const e = expr as { type: string; params: string[]; body: Expression | BlockStatement };
-        const nestedDeclared = new Set(this.declaredVars);
-        for (const p of e.params) {
-          this.declaredVars.add(p);
-        }
-        const bodyTyped = e.body as { type: string };
-        if (bodyTyped.type === 'block') {
-          this.walkBlock(e.body as BlockStatement);
-        } else {
-          this.walkExpression(e.body as Expression);
-        }
-        this.declaredVars = nestedDeclared;
-        break;
-      }
-
-      case 'conditional': {
-        const e = expr as { type: string; condition: Expression; consequent: Expression; alternate: Expression };
-        this.walkExpression(e.condition);
-        this.walkExpression(e.consequent);
-        this.walkExpression(e.alternate);
-        break;
-      }
-
-      case 'await': {
-        const e = expr as { type: string; argument: Expression };
-        this.walkExpression(e.argument);
-        break;
-      }
-
-      case 'new': {
-        const e = expr as { type: string; args: Expression[] };
-        for (const arg of e.args) {
-          this.walkExpression(arg);
-        }
-        break;
-      }
-
-      case 'this':
-      case 'super':
-      case 'number':
-      case 'string':
-      case 'boolean':
-      case 'regex':
-        break;
     }
+    // 'this', 'super', 'number', 'string', 'boolean', 'regex' - no action needed
   }
 }
