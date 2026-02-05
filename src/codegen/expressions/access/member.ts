@@ -107,6 +107,8 @@ export interface MemberAccessGeneratorContext {
   currentFunction?: string | null;
   getCurrentFunction(): string | null;
   jsonObjectMetadata?: Map<string, JsonObjectMeta>;
+  setJsonObjectMetadata(key: string, value: JsonObjectMeta): void;
+  getJsonObjectMetadata(key: string): JsonObjectMeta | undefined;
   interfaceStructGen?: InterfaceStructGenerator;
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;

@@ -12,6 +12,7 @@ export interface TypeResolverContext {
   symbolTable: SymbolTable;
   typeChecker?: TypeChecker | null;
   currentClassName?: string | null;
+  getCurrentClassName(): string | null;
   currentFunction?: string | null;
   classGen?: ClassGeneratorLike;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
@@ -392,14 +393,14 @@ export class TypeResolver {
   private resolveMemberAccessObjectType(expr: Expression): string | null {
     const exprBase = expr as ExprBase;
     if (exprBase.type === 'this') {
-      return this.ctx.currentClassName || null;
+      return this.ctx.getCurrentClassName() || null;
     }
     if (exprBase.type === 'member_access') {
       const member = expr as MemberAccessNode;
       const memberObjBase = member.object as ExprBase;
       if (memberObjBase.type === 'this') {
-        if (this.ctx.currentClassName && this.ctx.classGen) {
-          const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, member.property);
+        if (this.ctx.getCurrentClassName() && this.ctx.classGen) {
+          const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), member.property);
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
             return fieldInfo.tsType;
@@ -621,9 +622,10 @@ export class TypeResolver {
       const memberExpr = methodCall.object as MemberAccessNode;
       const memberExprObjBase = memberExpr.object as ExprBase;
       if (memberExprObjBase.type !== 'this') return null;
-      if (!this.ctx.currentClassName) return null;
+      const className = this.ctx.getCurrentClassName();
+      if (!className) return null;
 
-      const mapType = this.getClassFieldMapType(this.ctx.currentClassName, memberExpr.property);
+      const mapType = this.getClassFieldMapType(className, memberExpr.property);
       if (!mapType) return null;
       if (mapType.keyType !== 'string') return null;
 
@@ -818,9 +820,10 @@ export class TypeResolver {
     const memberExprObjBase = memberExpr.object as ExprBase;
     if (memberExprObjBase.type === 'this') {
       const fieldName = memberExpr.property;
-      if (!this.ctx.currentClassName) return null;
+      const currentCls = this.ctx.getCurrentClassName();
+      if (!currentCls) return null;
 
-      const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, fieldName);
+      const fieldInfoResult = this.getClassFieldInfo(currentCls, fieldName);
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
@@ -882,7 +885,7 @@ export class TypeResolver {
 
   private resolveNestedMemberType(expr: Expression): string | null {
     if (expr.type === 'this') {
-      return this.ctx.currentClassName || null;
+      return this.ctx.getCurrentClassName() || null;
     }
 
     if (expr.type !== 'member_access') return null;
@@ -952,9 +955,10 @@ export class TypeResolver {
     if (memberExprObjBaseSet.type !== 'this') return null;
 
     const fieldName = memberExpr.property;
-    if (!this.ctx.currentClassName) return null;
+    const currentClsSet = this.ctx.getCurrentClassName();
+    if (!currentClsSet) return null;
 
-    const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, fieldName);
+    const fieldInfoResult = this.getClassFieldInfo(currentClsSet, fieldName);
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
@@ -971,8 +975,9 @@ export class TypeResolver {
 
     const memberExprObjBaseKey = memberExpr.object as ExprBase;
     if (memberExprObjBaseKey.type === 'this') {
-      if (!this.ctx.currentClassName) return null;
-      const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, memberExpr.property);
+      const currentClsKey = this.ctx.getCurrentClassName();
+      if (!currentClsKey) return null;
+      const fieldInfoResult = this.getClassFieldInfo(currentClsKey, memberExpr.property);
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
@@ -1038,8 +1043,9 @@ export class TypeResolver {
     const memberExprObjBaseSetVal = memberExpr.object as ExprBase;
     if (memberExprObjBaseSetVal.type !== 'this') return null;
 
-    if (!this.ctx.currentClassName) return null;
-    const fieldInfoResult = this.getClassFieldInfo(this.ctx.currentClassName, memberExpr.property);
+    const currentClsSetVal = this.ctx.getCurrentClassName();
+    if (!currentClsSetVal) return null;
+    const fieldInfoResult = this.getClassFieldInfo(currentClsSetVal, memberExpr.property);
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 

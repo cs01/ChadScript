@@ -2041,7 +2041,7 @@ export class ControlFlowGenerator {
         const consequentStmt = caseItem.consequent[j];
         if (consequentStmt.type === 'break') {
           this.emit(`br label %${endLabel}`);
-        } else if (consequentStmt.type === 'variable_declaration' || consequentStmt.type === 'return' || consequentStmt.type === 'if' || consequentStmt.type === 'assignment') {
+        } else if (consequentStmt.type === 'variable_declaration' || consequentStmt.type === 'return' || consequentStmt.type === 'if' || consequentStmt.type === 'assignment' || consequentStmt.type === 'throw' || consequentStmt.type === 'while' || consequentStmt.type === 'for' || consequentStmt.type === 'for_of' || consequentStmt.type === 'continue' || consequentStmt.type === 'try' || consequentStmt.type === 'switch') {
           this.ctx.generateBlock({ type: 'block', statements: [consequentStmt] }, params);
         } else {
           this.ctx.generateExpression(consequentStmt as Expression, params);
