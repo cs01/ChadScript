@@ -737,13 +737,13 @@ export class ClassGenerator {
         argType = paramLLVMTypes[ai];
       } else {
         // Fallback inference for variadic or untyped params
-        if (this.ctx.variableTypes.has(val)) {
+        if (this.ctx.hasVariableType(val)) {
           argType = this.ctx.getVariableType(val)!;
         } else if (val.startsWith('@.str')) {
           argType = 'i8*';
         } else if (argTyped.type === 'variable') {
           const varName = (arg as VariableNode).name;
-          if (this.ctx.variableTypes.has(`%${varName}`)) {
+          if (this.ctx.hasVariableType(`%${varName}`)) {
             argType = this.ctx.getVariableType(`%${varName}`)!;
           }
         }

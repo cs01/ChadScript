@@ -426,6 +426,13 @@ export class BaseGenerator {
   }
 
   /**
+   * Check if a variable type exists
+   */
+  hasVariableType(name: string): boolean {
+    return this.getVariableType(name) !== undefined;
+  }
+
+  /**
    * Set type for a temporary register
    */
   setVariableType(name: string, type: string): void {
