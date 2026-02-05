@@ -423,6 +423,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public controlFlowGenGenerateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string { this.syncStateToGenerators(); return this.controlFlowGen.generateLogicalOp(op, left, right, params); }
 
+  public objectGenGenerateObjectLiteral(expr: Expression, params: string[]): string { this.syncStateToGenerators(); return this.objectGen.generateObjectLiteral(expr, params); }
+
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (!objExpr || objExpr.type !== 'object') {
