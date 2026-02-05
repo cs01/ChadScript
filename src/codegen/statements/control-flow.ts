@@ -39,8 +39,11 @@ export class ControlFlowGenerator {
       return condBool;
     } else if (valueType && valueType.indexOf('*') !== -1) {
       // Value is a pointer type, check if non-null
+      // Use i8* for complex types that aren't valid LLVM types
+      const isValidLlvmType = !valueType.startsWith('%{') && !valueType.includes('|') && !valueType.includes(':');
+      const llvmType = isValidLlvmType ? valueType : 'i8*';
       const condBool = this.nextTemp();
-      this.emit(`${condBool} = icmp ne ${valueType} ${value}, null`);
+      this.emit(`${condBool} = icmp ne ${llvmType} ${value}, null`);
       return condBool;
     } else if (valueType === 'i32') {
       // Value is i32, use icmp ne for integer comparison
