@@ -22,6 +22,7 @@ interface ResponseGeneratorContext {
   nextString(): string;
   emit(instruction: string): void;
   globalStrings: string[];
+  pushGlobalString(str: string): void;
   variableTypes: Map<string, string>;
   setVariableType(name: string, type: string): void;
   interfaceStructGen?: InterfaceStructGenerator;
@@ -162,7 +163,7 @@ export class ResponseGenerator {
     }
     this.ctx.globalStrings.length = 0;
     for (let i = 0; i < newGlobalStrings.length; i++) {
-      this.ctx.globalStrings.push(newGlobalStrings[i]);
+      this.ctx.pushGlobalString(newGlobalStrings[i]);
     }
   }
 
@@ -205,7 +206,7 @@ export class ResponseGenerator {
       const propName = prop.name;
       const propType = prop.type;
       const fieldNameConst = this.ctx.nextString();
-      this.ctx.globalStrings.push(`${fieldNameConst} = private unnamed_addr constant [${propName.length + 1} x i8] c"${propName}\\00", align 1`);
+      this.ctx.pushGlobalString(`${fieldNameConst} = private unnamed_addr constant [${propName.length + 1} x i8] c"${propName}\\00", align 1`);
 
       parserIR += `  ; Extract field "${propName}"\n`;
       parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${propName.length + 1} x i8], [${propName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
@@ -238,7 +239,7 @@ export class ResponseGenerator {
     parserIR += `  ret %${typeName}* %struct_ptr\n`;
     parserIR += `}\n\n`;
 
-    this.ctx.globalStrings.push(parserIR);
+    this.ctx.pushGlobalString(parserIR);
   }
 
   /**
