@@ -1804,6 +1804,21 @@ function transformInterfaceDeclaration(node: TreeSitterNode): InterfaceDeclarati
 
   const name = (nameNode as NodeBase).text;
   const fields: { name: string; type: string }[] = [];
+  const extendsArr: string[] = [];
+
+  for (let i = 0; i < node.namedChildCount; i++) {
+    const child = getNamedChild(node, i);
+    if (!child) continue;
+    const c = child as NodeBase;
+    if (c.type === 'extends_type_clause') {
+      for (let j = 0; j < c.namedChildCount; j++) {
+        const typeNode = getNamedChild(child, j);
+        if (typeNode) {
+          extendsArr.push(extractTypeString(typeNode));
+        }
+      }
+    }
+  }
 
   if (bodyNode) {
     const bn = bodyNode as NodeBase;
@@ -1822,7 +1837,7 @@ function transformInterfaceDeclaration(node: TreeSitterNode): InterfaceDeclarati
     }
   }
 
-  return { name, fields };
+  return { name, extends: extendsArr, fields };
 }
 
 function transformTypeAliasDeclaration(node: TreeSitterNode): TypeAliasDeclaration | null {

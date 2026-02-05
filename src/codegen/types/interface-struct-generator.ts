@@ -72,28 +72,35 @@ export class InterfaceStructGenerator {
 
   private getInheritedFields(iface: InterfaceDeclaration): { name: string; tsType: string; llvmType: string }[] {
     const result: { name: string; tsType: string; llvmType: string }[] = [];
-    if (!iface.extends || iface.extends.length === 0) {
+    const extArr = iface.extends;
+    const hasExtends = extArr !== undefined && extArr !== null && extArr.length > 0;
+    if (!hasExtends) {
       return result;
     }
-    for (let i = 0; i < iface.extends.length; i++) {
-      const parentName = iface.extends[i];
+    for (let i = 0; i < extArr!.length; i++) {
+      const parentName = extArr![i];
       const parent = this.getInterfaceByName(parentName);
-      if (parent) {
-        const parentInherited = this.getInheritedFields(parent);
+      const hasParent = parent !== undefined && parent !== null;
+      if (hasParent) {
+        const parentInherited = this.getInheritedFields(parent!);
         for (let j = 0; j < parentInherited.length; j++) {
           result.push(parentInherited[j]);
         }
-        for (let j = 0; j < parent.fields.length; j++) {
-          const f = parent.fields[j] as { name: string; type: string };
-          let fieldName = f.name;
-          if (fieldName.endsWith('?')) {
-            fieldName = fieldName.slice(0, -1);
+        const pFields = parent!.fields;
+        const hasFields = pFields !== undefined && pFields !== null && pFields.length > 0;
+        if (hasFields) {
+          for (let j = 0; j < pFields!.length; j++) {
+            const f = pFields![j] as { name: string; type: string };
+            let fieldName = f.name;
+            if (fieldName.endsWith('?')) {
+              fieldName = fieldName.slice(0, -1);
+            }
+            result.push({
+              name: fieldName,
+              tsType: f.type,
+              llvmType: this.tsTypeToLlvmForField(fieldName, f.type)
+            });
           }
-          result.push({
-            name: fieldName,
-            tsType: f.type,
-            llvmType: this.tsTypeToLlvmForField(fieldName, f.type)
-          });
         }
       }
     }
