@@ -650,6 +650,15 @@ export interface IGeneratorContext {
   jsonGenCanHandle(expr: MethodCallNode): boolean;
   jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string;
   jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string;
+
+  arrowFunctionGenGenerate(
+    expr: Expression,
+    params: string[],
+    typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
+    scopeVarNames: string[] | undefined,
+    scopeVarTypes: string[] | undefined
+  ): string;
+  arrowFunctionGenGetClosureInfo(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null;
 }
 
 /**
@@ -1162,6 +1171,15 @@ export class MockGeneratorContext implements IGeneratorContext {
   jsonGenCanHandle(_expr: MethodCallNode): boolean { return false; }
   jsonGenGenerateParse(_expr: MethodCallNode, _params: string[]): string { return '%mock_json_parse'; }
   jsonGenGenerateStringify(_expr: MethodCallNode, _params: string[]): string { return '%mock_json_stringify'; }
+
+  arrowFunctionGenGenerate(
+    _expr: Expression,
+    _params: string[],
+    _typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
+    _scopeVarNames: string[] | undefined,
+    _scopeVarTypes: string[] | undefined
+  ): string { return '__mock_lambda'; }
+  arrowFunctionGenGetClosureInfo(_lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null { return null; }
 
   resolveImportAlias(localName: string): string {
     return localName;

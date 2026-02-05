@@ -318,6 +318,14 @@ export interface MethodCallGeneratorContext {
   jsonGenCanHandle(expr: MethodCallNode): boolean;
   jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string;
   jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string;
+  arrowFunctionGenGenerate(
+    expr: Expression,
+    params: string[],
+    typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
+    scopeVarNames: string[] | undefined,
+    scopeVarTypes: string[] | undefined
+  ): string;
+  arrowFunctionGenGetClosureInfo(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null;
   exprGen: ExpressionGeneratorLike;
 }
 
@@ -2210,7 +2218,7 @@ export class MethodCallGenerator {
         const callback = expr.args[0] as Expression;
         const callbackBase = callback as ExprBase;
         if (callbackBase.type === 'arrow_function') {
-          const callbackName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+          const callbackName = this.ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
           onRejected = `@${callbackName}`;
         } else if (callbackBase.type === 'variable') {
           onRejected = `@${(callback as VariableNode).name}`;
@@ -2221,7 +2229,7 @@ export class MethodCallGenerator {
         const callback = expr.args[0] as Expression;
         const callbackBase = callback as ExprBase;
         if (callbackBase.type === 'arrow_function') {
-          const callbackName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+          const callbackName = this.ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
           onFulfilled = `@${callbackName}`;
         } else if (callbackBase.type === 'variable') {
           onFulfilled = `@${(callback as VariableNode).name}`;
@@ -2231,7 +2239,7 @@ export class MethodCallGenerator {
         const callback = expr.args[1] as Expression;
         const callbackBase = callback as ExprBase;
         if (callbackBase.type === 'arrow_function') {
-          const callbackName = this.ctx.exprGen.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+          const callbackName = this.ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
           onRejected = `@${callbackName}`;
         } else if (callbackBase.type === 'variable') {
           onRejected = `@${(callback as VariableNode).name}`;
