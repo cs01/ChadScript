@@ -344,9 +344,7 @@ export class FunctionGenerator {
       this.ctx.emit(`${resultPromise} = call %Promise* @__Promise_new()`);
     }
 
-    console.error('[FunctionGenerator.generate] before generateBlock');
     const result = this.ctx.generateBlock(funcBody, funcParams);
-    console.error('[FunctionGenerator.generate] after generateBlock');
 
     const deferredAllocas = this.ctx.allocaInstructions;
     if (deferredAllocas.length > 0) {
@@ -366,13 +364,9 @@ export class FunctionGenerator {
       deferredAllocas.length = 0;
     }
 
-    console.error('[FunctionGenerator.generate] before output2 loop');
     const output2: string[] = this.ctx.output;
-    console.error('[FunctionGenerator.generate] output2 assigned');
     const output2Len = output2.length;
-    console.error('[FunctionGenerator.generate] output2Len=' + String(output2Len));
     for (let i = 0; i < output2Len; i++) {
-      console.error('[FunctionGenerator.generate] loop iter=' + String(i));
       const line: string = output2[i].trim();
       // Match 'ret <type>' without a value (e.g., 'ret i8*' or 'ret double')
       const retMatch = line.match(/^ret (i8\*|double|%\w+\*?)$/);
@@ -392,22 +386,16 @@ export class FunctionGenerator {
     }
 
     const ctxOutput: string[] = output2;
-    console.error('[FunctionGenerator.generate] ctxOutput assigned');
     const outputLen = ctxOutput.length;
-    console.error('[FunctionGenerator.generate] outputLen=' + String(outputLen));
     if (outputLen > 0) {
       let indentedLines = '';
       for (let idx = 0; idx < outputLen; idx++) {
-        console.error('[FunctionGenerator.generate] ctxOutput loop idx=' + String(idx));
         const line: string = ctxOutput[idx];
-        console.error('[FunctionGenerator.generate] got line');
         if (line) {
-          console.error('[FunctionGenerator.generate] line is truthy');
           if (indentedLines.length > 0) {
             indentedLines = indentedLines + '\n';
           }
           indentedLines = indentedLines + '  ' + line;
-          console.error('[FunctionGenerator.generate] indented done');
         }
       }
       if (indentedLines.length > 0) {
@@ -415,9 +403,7 @@ export class FunctionGenerator {
       }
     }
 
-    console.error('[FunctionGenerator.generate] about to get lastInstruction');
     const lastInstruction: string = outputLen > 0 ? ctxOutput[outputLen - 1].trim() : '';
-    console.error('[FunctionGenerator.generate] lastInstruction done');
     const hasTerminator = lastInstruction.startsWith('ret ') ||
                           lastInstruction.startsWith('br ') ||
                           lastInstruction === 'unreachable';
