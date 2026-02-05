@@ -49,6 +49,12 @@ export class IndexAccessGenerator {
           memberAccess.property === 'argv') {
         return this.generateProcessArgvIndex(expr, params);
       }
+      if (memberAccessObjBase.type === 'variable') {
+        const baseVarName = (memberAccess.object as VariableNode).name;
+        if (this.ctx.symbolTable.isJSON(baseVarName) || this.ctx.symbolTable.isObject(baseVarName)) {
+          return this.generateJSONMemberArrayIndex(expr, params);
+        }
+      }
     }
 
     // Check if it's a JSON array (from JSON.parse<number[]> or similar)
@@ -359,6 +365,73 @@ export class IndexAccessGenerator {
     this.ctx.emit(`br label %${objEndLabel}`);
 
     // Final merge
+    this.ctx.emit(`${objEndLabel}:`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = phi i8* [ ${itemPtr}, %${objectLabel} ], [ ${primResult}, %${primEndLabel} ]`);
+    this.ctx.setVariableType(result, 'i8*');
+
+    return result;
+  }
+
+  private generateJSONMemberArrayIndex(expr: IndexAccessNode, params: string[]): string {
+    const jsonPtr = this.ctx.generateExpression(expr.object, params);
+
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
+    const indexType = this.ctx.getVariableType(indexDouble);
+    let index = indexDouble;
+    if (indexType === 'double' || indexType === undefined) {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    }
+
+    const itemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${itemPtr} = call i8* @cJSON_GetArrayItem(i8* ${jsonPtr}, i32 ${index})`);
+
+    const isObject = this.ctx.nextTemp();
+    this.ctx.emit(`${isObject} = call i32 @cJSON_IsObject(i8* ${itemPtr})`);
+    const isObjBool = this.ctx.nextTemp();
+    this.ctx.emit(`${isObjBool} = icmp ne i32 ${isObject}, 0`);
+
+    const objectLabel = this.ctx.nextLabel('json_marr_object');
+    const primitiveLabel = this.ctx.nextLabel('json_marr_primitive');
+    const objEndLabel = this.ctx.nextLabel('json_marr_obj_end');
+
+    this.ctx.emit(`br i1 ${isObjBool}, label %${objectLabel}, label %${primitiveLabel}`);
+
+    this.ctx.emit(`${objectLabel}:`);
+    this.ctx.emit(`br label %${objEndLabel}`);
+
+    this.ctx.emit(`${primitiveLabel}:`);
+    const isNumber = this.ctx.nextTemp();
+    this.ctx.emit(`${isNumber} = call i32 @cJSON_IsNumber(i8* ${itemPtr})`);
+    const isNumBool = this.ctx.nextTemp();
+    this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
+
+    const numberLabel = this.ctx.nextLabel('json_marr_number');
+    const stringLabel = this.ctx.nextLabel('json_marr_string');
+    const primEndLabel = this.ctx.nextLabel('json_marr_prim_end');
+
+    this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
+
+    this.ctx.emit(`${numberLabel}:`);
+    const numValue = this.ctx.nextTemp();
+    this.ctx.emit(`${numValue} = call double @cJSON_GetNumberValue(i8* ${itemPtr})`);
+    const numAsPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${numAsPtr} = fptosi double ${numValue} to i64`);
+    const numPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${numPtr} = inttoptr i64 ${numAsPtr} to i8*`);
+    this.ctx.emit(`br label %${primEndLabel}`);
+
+    this.ctx.emit(`${stringLabel}:`);
+    const strValue = this.ctx.nextTemp();
+    this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${itemPtr})`);
+    this.ctx.emit(`br label %${primEndLabel}`);
+
+    this.ctx.emit(`${primEndLabel}:`);
+    const primResult = this.ctx.nextTemp();
+    this.ctx.emit(`${primResult} = phi i8* [ ${numPtr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ]`);
+    this.ctx.emit(`br label %${objEndLabel}`);
+
     this.ctx.emit(`${objEndLabel}:`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi i8* [ ${itemPtr}, %${objectLabel} ], [ ${primResult}, %${primEndLabel} ]`);

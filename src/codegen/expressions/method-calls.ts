@@ -292,10 +292,23 @@ export class MethodCallGenerator {
   }
 
   private generateConsoleCallInline(expr: MethodCallNode, params: string[]): string {
+    const method = expr.method;
+    const useStderr = method === 'error' || method === 'warn';
+
     if (expr.args.length === 0) {
-      const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([2 x i8], [2 x i8]* @.str.newline, i32 0, i32 0))`);
-      return temp;
+      if (useStderr) {
+        const stderrPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([2 x i8], [2 x i8]* @.str.newline, i32 0, i32 0))`);
+        const flushTemp = this.ctx.nextTemp();
+        this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
+        return temp;
+      } else {
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([2 x i8], [2 x i8]* @.str.newline, i32 0, i32 0))`);
+        return temp;
+      }
     }
 
     const arg = expr.args[0];
@@ -304,25 +317,67 @@ export class MethodCallGenerator {
     if (argTyped.type === 'string') {
       const strValue = argTyped.value as string;
       const strConstPtr = this.ctx.stringGen.createStringConstant(strValue + '\n');
-      const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${strConstPtr})`);
-      return temp;
+      if (useStderr) {
+        const stderrPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* ${strConstPtr})`);
+        const flushTemp = this.ctx.nextTemp();
+        this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
+        return temp;
+      } else {
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${strConstPtr})`);
+        return temp;
+      }
     } else if (argTyped.type === 'number') {
       const numValue = argTyped.value as number;
       const numStr = (numValue % 1 === 0) ? numValue + '.0' : String(numValue);
-      const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${numStr})`);
-      return temp;
+      if (useStderr) {
+        const stderrPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${numStr})`);
+        const flushTemp = this.ctx.nextTemp();
+        this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
+        return temp;
+      } else {
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${numStr})`);
+        return temp;
+      }
     } else {
       const argValue = this.ctx.generateExpression(arg as Expression, params);
       const isString = this.ctx.isStringExpression(arg as Expression);
-      const temp = this.ctx.nextTemp();
       if (isString) {
-        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.strfmt, i32 0, i32 0), i8* ${argValue})`);
+        if (useStderr) {
+          const stderrPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+          const temp = this.ctx.nextTemp();
+          this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([4 x i8], [4 x i8]* @.str.strfmt, i32 0, i32 0), i8* ${argValue})`);
+          const flushTemp = this.ctx.nextTemp();
+          this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
+          return temp;
+        } else {
+          const temp = this.ctx.nextTemp();
+          this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.strfmt, i32 0, i32 0), i8* ${argValue})`);
+          return temp;
+        }
       } else {
-        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+        if (useStderr) {
+          const stderrPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+          const temp = this.ctx.nextTemp();
+          this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+          const flushTemp = this.ctx.nextTemp();
+          this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
+          return temp;
+        } else {
+          const temp = this.ctx.nextTemp();
+          this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+          return temp;
+        }
       }
-      return temp;
     }
   }
 

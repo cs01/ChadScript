@@ -351,14 +351,15 @@ export class VariableAllocator {
       }
     }
 
+    const stmtDeclaredType: string = stmt.declaredType || '';
     const isString = this.ctx.isStringExpression(stmt.value);
     let isStringArray = this.ctx.isStringArrayExpression(stmt.value);
-    if (!isStringArray && stmt.declaredType === 'string[]') {
+    if (!isStringArray && stmtDeclaredType === 'string[]') {
       isStringArray = true;
     }
     let isObjectArray = this.ctx.isObjectArrayExpression(stmt.value);
-    if (!isObjectArray && stmt.declaredType && stmt.declaredType.endsWith('[]') &&
-        stmt.declaredType !== 'string[]' && stmt.declaredType !== 'number[]' && stmt.declaredType !== 'boolean[]') {
+    if (!isObjectArray && stmtDeclaredType && stmtDeclaredType.endsWith('[]') &&
+        stmtDeclaredType !== 'string[]' && stmtDeclaredType !== 'number[]' && stmtDeclaredType !== 'boolean[]') {
       isObjectArray = true;
     }
     const isArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(stmt.value);
