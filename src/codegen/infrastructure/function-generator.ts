@@ -124,7 +124,7 @@ export class FunctionGenerator {
     }
 
     if (!func.async) {
-      const theReturnType = func.returnType;
+      const theReturnType = func.returnType || '';
       if (theReturnType === 'string') {
         returnType = 'i8*';
         returnTypeIsString = true;
@@ -143,7 +143,8 @@ export class FunctionGenerator {
       this.ctx.currentFunctionTsReturnType = theReturnType;
     }
 
-    if (!returnTypeIsString && !returnTypeIsVoid && !this.hasReturnStatement(func.body)) {
+    const funcBody = func.body || { statements: [] };
+    if (!returnTypeIsString && !returnTypeIsVoid && !this.hasReturnStatement(funcBody)) {
       returnType = 'void';
       returnTypeIsVoid = true;
       this.ctx.currentFunctionReturnType = 'void';
@@ -317,7 +318,7 @@ export class FunctionGenerator {
       this.ctx.emit(`${resultPromise} = call %Promise* @__Promise_new()`);
     }
 
-    const result = this.ctx.generateBlock(func.body, funcParams);
+    const result = this.ctx.generateBlock(funcBody, funcParams);
 
     const deferredAllocas = this.ctx.allocaInstructions;
     if (deferredAllocas.length > 0) {
