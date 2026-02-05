@@ -18,7 +18,9 @@ export interface TypeInferenceContext {
   symbolTable: SymbolTable;
   getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null;
   currentClassName: string | null;
+  getCurrentClassName(): string | null;
   currentFunction: string;
+  getCurrentFunction(): string | null;
   ast: AST;
   getAst(): AST | undefined;
   typeChecker: TypeChecker | null;
@@ -144,7 +146,7 @@ export class TypeInference {
   }
 
   private getParameterType(paramName: string): string | null {
-    const currentFunc = this.ctx.currentFunction;
+    const currentFunc = this.ctx.getCurrentFunction();
     if (!currentFunc) return null;
     const func = this.getFunction(currentFunc);
     if (func && func.parameters) {
@@ -155,7 +157,7 @@ export class TypeInference {
         }
       }
     }
-    const className = this.ctx.currentClassName;
+    const className = this.ctx.getCurrentClassName();
     if (className) {
       const method = this.getClassMethod(className, currentFunc);
       if (method && method.paramTypes) {
