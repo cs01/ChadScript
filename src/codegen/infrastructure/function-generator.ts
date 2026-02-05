@@ -110,11 +110,7 @@ export class FunctionGenerator {
         } else if (this.isEnumType(paramType)) {
           paramLLVMTypes.push('double');
         } else if (paramType !== 'number' && paramType !== 'boolean') {
-          if (this.ctx.interfaceStructGenHasInterface(paramType)) {
-            paramLLVMTypes.push(`%${paramType}*`);
-          } else {
-            paramLLVMTypes.push('i8*');
-          }
+          paramLLVMTypes.push('i8*');
         } else {
           paramLLVMTypes.push('double');
         }
@@ -175,13 +171,8 @@ export class FunctionGenerator {
         returnType = 'double';
         this.ctx.setCurrentFunctionReturnType('double');
       } else if (theReturnType && theReturnType !== '' && theReturnType !== 'number' && theReturnType !== 'boolean') {
-        if (this.ctx.interfaceStructGenHasInterface(theReturnType)) {
-          returnType = `%${theReturnType}*`;
-          this.ctx.setCurrentFunctionReturnType(`%${theReturnType}*`);
-        } else {
-          returnType = 'i8*';
-          this.ctx.setCurrentFunctionReturnType('i8*');
-        }
+        returnType = 'i8*';
+        this.ctx.setCurrentFunctionReturnType('i8*');
       }
       this.ctx.setCurrentFunctionTsReturnType(theReturnType);
     }

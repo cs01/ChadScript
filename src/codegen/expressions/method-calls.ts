@@ -245,6 +245,25 @@ export interface MethodCallGeneratorContext {
   classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
   typeResolverGetThisFieldMapKeyType(expr: Expression): string | null;
   typeResolverGetThisFieldSetValueType(expr: Expression): string | null;
+  stringGenCreateStringConstant(value: string): string;
+  stringGenGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string;
+  stringGenGenerateStringConcatDirect(left: string, right: string): string;
+  stringGenGenerateRepeat(strPtr: string, count: string): string;
+  stringGenGeneratePadStart(strPtr: string, targetLength: string, padString: string): string;
+  stringGenGenerateSplit(strPtr: string, delimiter: string): string;
+  stringGenGenerateStartsWith(strPtr: string, prefix: string): string;
+  stringGenGenerateEndsWith(strPtr: string, suffix: string): string;
+  stringGenGenerateTrim(strPtr: string): string;
+  stringGenGenerateToUpperCase(strPtr: string): string;
+  stringGenGenerateToLowerCase(strPtr: string): string;
+  stringGenGenerateIndexOf(strPtr: string, substring: string): string;
+  stringGenGenerateIncludes(strPtr: string, substring: string): string;
+  stringGenGenerateSlice(strPtr: string, start: string, end: string | null): string;
+  stringGenGenerateCharAt(strPtr: string, index: string): string;
+  stringGenGenerateCharCodeAt(strPtr: string, index: string): string;
+  stringGenGenerateReplace(strPtr: string, search: string, replace: string): string;
+  stringGenGenerateReplaceAll(strPtr: string, search: string, replace: string): string;
+  stringGenGenerateGlobalString(value: string): string;
   exprGen: ExpressionGeneratorLike;
 }
 
@@ -339,7 +358,7 @@ export class MethodCallGenerator {
 
     if (argTyped.type === 'string') {
       const strValue = argTyped.value as string;
-      const strConstPtr = this.ctx.stringGen.createStringConstant(strValue + '\n');
+      const strConstPtr = this.ctx.stringGenCreateStringConstant(strValue + '\n');
       if (useStderr) {
         const stderrPtr = this.ctx.nextTemp();
         this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
@@ -1003,7 +1022,7 @@ export class MethodCallGenerator {
       this.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
 
       // Create format string: "\"%s\""
-      const formatStr = this.ctx.stringGen.createStringConstant('"%s"');
+      const formatStr = this.ctx.stringGenCreateStringConstant('"%s"');
       const sprintfResult = this.nextTemp();
       this.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, i8* ${strPtr})`);
 
@@ -1017,7 +1036,7 @@ export class MethodCallGenerator {
       this.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 30)`);
 
       // Create format string: "%f"
-      const formatStr = this.ctx.stringGen.createStringConstant('%f');
+      const formatStr = this.ctx.stringGenCreateStringConstant('%f');
       const sprintfResult = this.nextTemp();
       this.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${numValue})`);
 
@@ -1049,7 +1068,7 @@ export class MethodCallGenerator {
     const startIndex = this.convertToI32(startIndexDouble);
     const length = expr.args.length === 2 ? this.convertToI32(this.ctx.generateExpression(expr.args[1], params)) : null;
 
-    return this.ctx.stringGen.generateSubstr(strPtr, startIndex, length);
+    return this.ctx.stringGenGenerateSubstr(strPtr, startIndex, length);
   }
 
   private handleSubstring(expr: MethodCallNode, params: string[]): string {
@@ -1071,7 +1090,7 @@ export class MethodCallGenerator {
       this.emit(`${length} = sub i32 ${endIndex}, ${startIndex}`);
     }
 
-    return this.ctx.stringGen.generateSubstr(strPtr, startIndex, length);
+    return this.ctx.stringGenGenerateSubstr(strPtr, startIndex, length);
   }
 
   private handleConcat(expr: MethodCallNode, params: string[]): string {
@@ -1116,7 +1135,7 @@ export class MethodCallGenerator {
     let result = strPtr;
     for (const arg of expr.args) {
       const argStr = this.ctx.generateExpression(arg, params);
-      result = this.ctx.stringGen.generateStringConcatDirect(result, argStr);
+      result = this.ctx.stringGenGenerateStringConcatDirect(result, argStr);
     }
 
     return result;
@@ -1132,7 +1151,7 @@ export class MethodCallGenerator {
 
     const countDouble = this.ctx.generateExpression(expr.args[0], params);
     const count = this.convertToI32(countDouble);
-    return this.ctx.stringGen.generateRepeat(strPtr, count);
+    return this.ctx.stringGenGenerateRepeat(strPtr, count);
   }
 
   private handlePadStart(expr: MethodCallNode, params: string[]): string {
@@ -1147,9 +1166,9 @@ export class MethodCallGenerator {
     const targetLength = this.convertToI32(targetLengthDouble);
     const padString = expr.args.length === 2
       ? this.ctx.generateExpression(expr.args[1], params)
-      : this.ctx.stringGen.createStringConstant(' ');
+      : this.ctx.stringGenCreateStringConstant(' ');
 
-    return this.ctx.stringGen.generatePadStart(strPtr, targetLength, padString);
+    return this.ctx.stringGenGeneratePadStart(strPtr, targetLength, padString);
   }
 
   private handleSplit(expr: MethodCallNode, params: string[]): string {
@@ -1161,7 +1180,7 @@ export class MethodCallGenerator {
     }
 
     const delimiter = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGen.generateSplit(strPtr, delimiter);
+    return this.ctx.stringGenGenerateSplit(strPtr, delimiter);
   }
 
   private handleStartsWith(expr: MethodCallNode, params: string[]): string {
@@ -1173,7 +1192,7 @@ export class MethodCallGenerator {
     }
 
     const prefix = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGen.generateStartsWith(strPtr, prefix);
+    return this.ctx.stringGenGenerateStartsWith(strPtr, prefix);
   }
 
   private handleEndsWith(expr: MethodCallNode, params: string[]): string {
@@ -1185,7 +1204,7 @@ export class MethodCallGenerator {
     }
 
     const suffix = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGen.generateEndsWith(strPtr, suffix);
+    return this.ctx.stringGenGenerateEndsWith(strPtr, suffix);
   }
 
   private handleTrim(expr: MethodCallNode, params: string[]): string {
@@ -1196,7 +1215,7 @@ export class MethodCallGenerator {
       throw new Error(`trim() expects 0 arguments, got ${expr.args.length}`);
     }
 
-    return this.ctx.stringGen.generateTrim(strPtr);
+    return this.ctx.stringGenGenerateTrim(strPtr);
   }
 
   private handleIndexOf(expr: MethodCallNode, params: string[]): string {
@@ -1208,7 +1227,7 @@ export class MethodCallGenerator {
     }
 
     const substring = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGen.generateIndexOf(strPtr, substring);
+    return this.ctx.stringGenGenerateIndexOf(strPtr, substring);
   }
 
   private handleStringArrayIndexOf(expr: MethodCallNode, params: string[]): string {
@@ -1325,7 +1344,7 @@ export class MethodCallGenerator {
     }
 
     const substring = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGen.generateIncludes(strPtr, substring);
+    return this.ctx.stringGenGenerateIncludes(strPtr, substring);
   }
 
   private handleSlice(expr: MethodCallNode, params: string[]): string {
@@ -1375,7 +1394,7 @@ export class MethodCallGenerator {
       this.emit(`${endI32} = fptosi double ${endDouble} to i32`);
     }
 
-    return this.ctx.stringGen.generateSlice(strPtr, startI32, endI32);
+    return this.ctx.stringGenGenerateSlice(strPtr, startI32, endI32);
   }
 
   private handleReplace(expr: MethodCallNode, params: string[]): string {
@@ -1392,18 +1411,18 @@ export class MethodCallGenerator {
     if (searchArg.type === 'regex') {
       const regexNode = searchArg as { pattern: string; flags: string };
       const isGlobal = regexNode.flags.indexOf('g') !== -1;
-      const searchStr = this.ctx.stringGen.generateGlobalString(regexNode.pattern);
+      const searchStr = this.ctx.stringGenGenerateGlobalString(regexNode.pattern);
       const replaceStr = this.ctx.generateExpression(replaceArg, params);
       if (isGlobal) {
-        return this.ctx.stringGen.generateReplaceAll(strPtr, searchStr, replaceStr);
+        return this.ctx.stringGenGenerateReplaceAll(strPtr, searchStr, replaceStr);
       } else {
-        return this.ctx.stringGen.generateReplace(strPtr, searchStr, replaceStr);
+        return this.ctx.stringGenGenerateReplace(strPtr, searchStr, replaceStr);
       }
     }
 
     const searchStr = this.ctx.generateExpression(searchArg, params);
     const replaceStr = this.ctx.generateExpression(replaceArg, params);
-    return this.ctx.stringGen.generateReplace(strPtr, searchStr, replaceStr);
+    return this.ctx.stringGenGenerateReplace(strPtr, searchStr, replaceStr);
   }
 
   private handleCharAt(expr: MethodCallNode, params: string[]): string {
@@ -1417,7 +1436,7 @@ export class MethodCallGenerator {
     const indexDouble = this.ctx.generateExpression(expr.args[0], params);
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(indexI32 + ' = fptosi double ' + indexDouble + ' to i32');
-    return this.ctx.stringGen.generateCharAt(strPtr, indexI32);
+    return this.ctx.stringGenGenerateCharAt(strPtr, indexI32);
   }
 
   private handleCharCodeAt(expr: MethodCallNode, params: string[]): string {
@@ -1431,19 +1450,19 @@ export class MethodCallGenerator {
     const indexDouble = this.ctx.generateExpression(expr.args[0], params);
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(indexI32 + ' = fptosi double ' + indexDouble + ' to i32');
-    return this.ctx.stringGen.generateCharCodeAt(strPtr, indexI32);
+    return this.ctx.stringGenGenerateCharCodeAt(strPtr, indexI32);
   }
 
   private handleToUpperCase(expr: MethodCallNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
     const strPtr = this.ctx.generateExpression(expr.object, params);
-    return this.ctx.stringGen.generateToUpperCase(strPtr);
+    return this.ctx.stringGenGenerateToUpperCase(strPtr);
   }
 
   private handleToLowerCase(expr: MethodCallNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
     const strPtr = this.ctx.generateExpression(expr.object, params);
-    return this.ctx.stringGen.generateToLowerCase(strPtr);
+    return this.ctx.stringGenGenerateToLowerCase(strPtr);
   }
 
   private handleMatch(expr: MethodCallNode, params: string[]): string {

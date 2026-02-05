@@ -220,16 +220,10 @@ export class VariableExpressionGenerator {
     return temp;
   }
 
-  private loadObject(objectMeta: ObjectMeta, interfaceType?: string): string {
+  private loadObject(objectMeta: ObjectMeta, _interfaceType?: string): string {
     const temp = this.ctx.nextTemp();
-    if (interfaceType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(interfaceType)) {
-      const ptrType = `%${interfaceType}*`;
-      this.ctx.emit(`${temp} = load ${ptrType}, ${ptrType}* ${objectMeta.ptr}`);
-      this.ctx.setVariableType(temp, ptrType);
-    } else {
-      this.ctx.emit(`${temp} = load i8*, i8** ${objectMeta.ptr}`);
-      this.ctx.setVariableType(temp, 'i8*');
-    }
+    this.ctx.emit(`${temp} = load i8*, i8** ${objectMeta.ptr}`);
+    this.ctx.setVariableType(temp, 'i8*');
     return temp;
   }
 

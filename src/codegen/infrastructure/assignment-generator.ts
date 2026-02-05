@@ -298,8 +298,6 @@ export class AssignmentGenerator {
       this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Set<')) {
       this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
-    } else if (hasTsType && fiTsType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(fiTsType)) {
-      this.ctx.emit(`store %${fiTsType}* ${value}, %${fiTsType}** ${fieldPtr}`);
     } else if (hasTsType && fiTsType !== 'number' && fiTsType !== 'boolean') {
       this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
     } else {
@@ -364,8 +362,6 @@ export class AssignmentGenerator {
       this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Set<')) {
       this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
-    } else if (hasTsType && fiTsType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(fiTsType)) {
-      this.ctx.emit(`store %${fiTsType}* ${value}, %${fiTsType}** ${fieldPtr}`);
     } else if (hasTsType && fiTsType !== 'number' && fiTsType !== 'boolean') {
       this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
     } else {

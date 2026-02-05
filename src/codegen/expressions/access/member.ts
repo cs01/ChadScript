@@ -804,10 +804,6 @@ export class MemberAccessGenerator {
         const structType = `%${fieldInfo.tsType}_struct*`;
         this.ctx.emit(`${value} = load ${structType}, ${structType}* ${fieldPtr}`);
         this.ctx.setVariableType(value, structType);
-      } else if (fieldInfo.tsType && this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(fieldInfo.tsType)) {
-        const structType = `%${fieldInfo.tsType}*`;
-        this.ctx.emit(`${value} = load ${structType}, ${structType}* ${fieldPtr}`);
-        this.ctx.setVariableType(value, structType);
       } else {
         this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
         this.ctx.setVariableType(value, 'i8*');
