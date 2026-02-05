@@ -617,6 +617,12 @@ export interface IGeneratorContext {
    * ObjectGen delegate methods (avoid struct layout mismatch)
    */
   objectGenGenerateObjectLiteral(expr: Expression, params: string[]): string;
+
+  /**
+   * MathGen delegate methods (avoid struct layout mismatch)
+   */
+  mathGenCanHandle(expr: MethodCallNode): boolean;
+  mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string;
 }
 
 /**
@@ -1109,6 +1115,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   controlFlowGenGenerateLogicalOp(_op: string, _left: Expression, _right: Expression, _params: string[]): string { return '%mock_logical_op'; }
 
   objectGenGenerateObjectLiteral(_expr: Expression, _params: string[]): string { return '%mock_object_literal'; }
+
+  mathGenCanHandle(_expr: MethodCallNode): boolean { return false; }
+  mathGenGenerateMathMethod(_expr: MethodCallNode, _params: string[]): string { return '%mock_math_method'; }
 
   resolveImportAlias(localName: string): string {
     return localName;
