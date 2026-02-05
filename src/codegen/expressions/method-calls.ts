@@ -297,6 +297,9 @@ export interface MethodCallGeneratorContext {
   setGenGenerateSetDelete(expr: MethodCallNode, params: string[]): string;
   stringSetGenGenerateStringSetAdd(setAlloca: string, valueValue: string): string;
   stringSetGenGenerateStringSetHas(setAlloca: string, valueValue: string): string;
+  pointerMapGenGeneratePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
+  pointerMapGenGeneratePointerMapGet(mapPtr: string, keyValue: string, valueType: string): string;
+  pointerMapGenGeneratePointerMapClear(mapPtr: string): string;
   exprGen: ExpressionGeneratorLike;
 }
 
@@ -867,12 +870,12 @@ export class MethodCallGenerator {
             if (method === 'set') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const valueValue = this.ctx.generateExpression(expr.args[1], params);
-              return this.ctx.pointerMapGen.generatePointerMapSet(mapPtr, keyValue, valueValue);
+              return this.ctx.pointerMapGenGeneratePointerMapSet(mapPtr, keyValue, valueValue);
             } else if (method === 'get') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, 'i8*');
+              return this.ctx.pointerMapGenGeneratePointerMapGet(mapPtr, keyValue, 'i8*');
             } else if (method === 'clear') {
-              return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
+              return this.ctx.pointerMapGenGeneratePointerMapClear(mapPtr);
             } else {
               throw new Error(`Map.${method}() not supported for Map<${paramMapKeyType}, *> parameter types`);
             }
@@ -909,12 +912,12 @@ export class MethodCallGenerator {
           if (method === 'set') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
             const valueValue = this.ctx.generateExpression(expr.args[1], params);
-            return this.ctx.pointerMapGen.generatePointerMapSet(mapPtr, keyValue, valueValue);
+            return this.ctx.pointerMapGenGeneratePointerMapSet(mapPtr, keyValue, valueValue);
           } else if (method === 'get') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, 'i8*');
+            return this.ctx.pointerMapGenGeneratePointerMapGet(mapPtr, keyValue, 'i8*');
           } else if (method === 'clear') {
-            return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
+            return this.ctx.pointerMapGenGeneratePointerMapClear(mapPtr);
           } else {
             throw new Error(`Map.${method}() not supported for Map<${thisFieldMapKeyType}, *> types`);
           }

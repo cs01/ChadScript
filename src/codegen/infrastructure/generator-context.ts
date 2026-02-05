@@ -557,6 +557,13 @@ export interface IGeneratorContext {
   stringSetGenGenerateEmptyStringSet(): string;
   stringSetGenGenerateStringSetAdd(setAlloca: string, valueValue: string): string;
   stringSetGenGenerateStringSetHas(setAlloca: string, valueValue: string): string;
+
+  /**
+   * PointerMapGen delegate methods (avoid struct layout mismatch)
+   */
+  pointerMapGenGeneratePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
+  pointerMapGenGeneratePointerMapGet(mapPtr: string, keyValue: string, valueType: string): string;
+  pointerMapGenGeneratePointerMapClear(mapPtr: string): string;
 }
 
 /**
@@ -987,6 +994,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   stringSetGenGenerateEmptyStringSet(): string { return '%mock_empty_string_set'; }
   stringSetGenGenerateStringSetAdd(_setAlloca: string, _valueValue: string): string { return '%mock_string_set_add'; }
   stringSetGenGenerateStringSetHas(_setAlloca: string, _valueValue: string): string { return '%mock_string_set_has'; }
+
+  pointerMapGenGeneratePointerMapSet(_mapPtr: string, _keyValue: string, _valueValue: string): string { return '%mock_pointer_map_set'; }
+  pointerMapGenGeneratePointerMapGet(_mapPtr: string, _keyValue: string, _valueType: string): string { return '%mock_pointer_map_get'; }
+  pointerMapGenGeneratePointerMapClear(_mapPtr: string): string { return '%mock_pointer_map_clear'; }
 
   resolveImportAlias(localName: string): string {
     return localName;
