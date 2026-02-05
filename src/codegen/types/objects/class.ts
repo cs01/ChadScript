@@ -747,7 +747,23 @@ export class ClassGenerator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
+    if (this.isEnumType(tsType)) {
+      return 'double';
+    }
     return tsTypeToLlvmUtil(tsType);
+  }
+
+  private isEnumType(typeName: string): boolean {
+    if (!this.ctx.ast) return false;
+    const enums = this.ctx.ast.enums;
+    if (!enums) return false;
+    for (let i = 0; i < enums.length; i++) {
+      const enumDecl = enums[i];
+      if (enumDecl.name === typeName) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private methodReturnTypeToLlvm(returnType: string): string {
@@ -759,6 +775,7 @@ export class ClassGenerator {
     }
     if (returnType === 'void') return 'void';
     if (returnType === 'number' || returnType === 'boolean') return 'double';
+    if (this.isEnumType(returnType)) return 'double';
     if (returnType.indexOf(' | ') !== -1) {
       const parts = returnType.split(' | ');
       for (let i = 0; i < parts.length; i++) {

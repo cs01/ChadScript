@@ -426,23 +426,12 @@ export class MemberAccessGenerator {
     }
 
     const value = member.value;
-    const valueNum = Number(value);
-    const isNumeric = !isNaN(valueNum);
-    if (!isNumeric) {
-      const strValue = String(value);
-      const strId = this.ctx.stringGen.createStringConstant(strValue);
-      const result = this.ctx.nextTemp();
-      this.ctx.emit(`${result} = getelementptr inbounds [${strValue.length + 1} x i8], [${strValue.length + 1} x i8]* ${strId}, i32 0, i32 0`);
-      this.ctx.setVariableType(result, 'i8*');
-      return result;
-    } else {
-      const result = this.ctx.nextTemp();
-      const valueStr = String(value);
-      const formattedValue = valueStr.indexOf('.') === -1 ? valueStr + '.0' : valueStr;
-      this.ctx.emit(`${result} = fadd double ${formattedValue}, 0.0`);
-      this.ctx.setVariableType(result, 'double');
-      return result;
-    }
+    const result = this.ctx.nextTemp();
+    const valueStr = String(value);
+    const formattedValue = valueStr.indexOf('.') === -1 ? valueStr + '.0' : valueStr;
+    this.ctx.emit(`${result} = fadd double ${formattedValue}, 0.0`);
+    this.ctx.setVariableType(result, 'double');
+    return result;
   }
 
   private handleTypedJsonStructAccess(expr: MemberAccessNode): string | null {

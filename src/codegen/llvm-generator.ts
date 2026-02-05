@@ -248,7 +248,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.sourceCode = options.sourceCode || '';
     this.filename = options.filename || '';
 
-    this.interfaceStructGen = new InterfaceStructGenerator(ast.interfaces, ifaceCount);
+    const enumNames: string[] = [];
+    if (ast.enums) {
+      for (let i = 0; i < ast.enums.length; i++) {
+        enumNames.push(ast.enums[i].name);
+      }
+    }
+    this.interfaceStructGen = new InterfaceStructGenerator(ast.interfaces, ifaceCount, enumNames);
 
     // Initialize specialized generators with context (NEW pattern for RegexGenerator + ObjectGenerator)
     // These generators use explicit context instead of callback binding

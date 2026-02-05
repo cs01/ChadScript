@@ -365,7 +365,7 @@ export interface TypeAliasDeclaration {
 
 export interface EnumMember {
   name: string;
-  value: number | string;
+  value: number;
 }
 
 export interface EnumDeclaration {
