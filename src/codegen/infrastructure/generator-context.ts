@@ -436,6 +436,12 @@ export interface IGeneratorContext {
   readonly classGen: IClassGenContext;
 
   /**
+   * ClassGen delegate methods (avoid struct layout mismatch)
+   */
+  classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
+  classGenGetClassFields(className: string): { name: string; fieldType: string }[];
+
+  /**
    * Access to string map generator for Map<string, *> operations
    */
   readonly stringMapGen: IStringMapGenerator;
@@ -772,6 +778,12 @@ export class MockGeneratorContext implements IGeneratorContext {
     getFieldInfo: (_className: string, _fieldName: string): { index: number; type: string; tsType?: string } | null => null,
     getClassFields: (_className: string): { name: string; fieldType: string }[] => [],
   };
+  classGenGetFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null {
+    return this.classGen.getFieldInfo(className, fieldName);
+  }
+  classGenGetClassFields(className: string): { name: string; fieldType: string }[] {
+    return this.classGen.getClassFields(className);
+  }
 
   stringMapGen = {
     generateStringMapEntries: (_mapPtr: string): string => '%mock_entries',
