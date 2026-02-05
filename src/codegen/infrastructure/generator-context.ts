@@ -414,7 +414,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public globalStrings: string[] = [];
   public currentFunctionReturnType: string = 'double';
   public currentFunctionTsReturnType: string | undefined = undefined;
-  public expectedArrayElementType: 'string' | 'number' | 'boolean' | null = null;
+  public expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null = null;
   public expectedCallbackParamType: string | null = null;
   public expectedCallbackReturnType: string | null = null;
   public thisPointer: string | null = null;

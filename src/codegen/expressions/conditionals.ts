@@ -9,7 +9,7 @@
  * - Phi node to merge results
  */
 
-import { ConditionalExpressionNode } from '../../ast/types.js';
+import { ConditionalExpressionNode, Expression } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
 export class ConditionalExpressionGenerator {
@@ -56,7 +56,19 @@ export class ConditionalExpressionGenerator {
     this.emit(`br label %${trueConvLabel}`);
 
     this.emit(`${falseLabel}:`);
+    const savedExpectedType = this.ctx.expectedArrayElementType;
+    const falseExprTyped = expr.alternate as { type: string; elements?: Expression[] };
+    if (falseExprTyped.type === 'array' && (!falseExprTyped.elements || falseExprTyped.elements.length === 0)) {
+      if (savedExpectedType === null) {
+        if (trueType === '%StringArray*') {
+          this.ctx.expectedArrayElementType = 'string';
+        } else if (trueType === '%ObjectArray*') {
+          this.ctx.expectedArrayElementType = 'pointer';
+        }
+      }
+    }
     const falseValue = this.ctx.generateExpression(expr.alternate, params);
+    this.ctx.expectedArrayElementType = savedExpectedType;
     const falseType = this.ctx.getVariableType(falseValue);
     this.emit(`br label %${falseConvLabel}`);
 

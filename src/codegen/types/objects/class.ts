@@ -265,8 +265,12 @@ export class ClassGenerator {
   generateClass(classNode: ClassNode): string {
     let ir = '';
     const className = classNode.name;
+    console.log('[generateClass] className=' + className);
 
+    console.log('[generateClass] methods.length=' + classNode.methods.length);
+    console.log('[generateClass] getting all fields...');
     const allFields = this.getAllFieldsIncludingInherited(classNode);
+    console.log('[generateClass] allFields.length=' + allFields.length);
 
     this.classFields.set(className, allFields);
 
@@ -283,21 +287,26 @@ export class ClassGenerator {
       }
     }
 
+    console.log('[generateClass] finding constructor...');
     let constructorResult: ClassMethod | null = null;
     const regularMethods: ClassMethod[] = [];
     for (let mi = 0; mi < classNode.methods.length; mi++) {
-      const m = classNode.methods[mi] as { isConstructor: boolean };
+      const m = classNode.methods[mi] as ClassMethod;
+      console.log('[generateClass] method[' + mi + '].name=' + m.name + ', isConstructor=' + m.isConstructor);
       if (m.isConstructor) {
-        constructorResult = classNode.methods[mi] as ClassMethod;
+        constructorResult = m;
       } else {
-        regularMethods.push(classNode.methods[mi] as ClassMethod);
+        regularMethods.push(m);
       }
     }
+    console.log('[generateClass] constructorResult=' + (constructorResult ? 'found' : 'null'));
     const constructor = constructorResult as ClassMethod;
 
     if (constructorResult) {
+      console.log('[generateClass] calling generateConstructor...');
       this.ctx.output.length = 0;
       ir += this.generateConstructor(className, constructor, allFields);
+      console.log('[generateClass] generateConstructor done');
       ir += '\n';
     } else {
       ir += this.generateDefaultConstructor(className, allFields);
@@ -756,6 +765,9 @@ export class ClassGenerator {
   }
 
   private tsTypeToLlvm(tsType: string): string {
+    if (!tsType) {
+      return 'double';
+    }
     if (this.isEnumType(tsType)) {
       return 'double';
     }
@@ -763,6 +775,7 @@ export class ClassGenerator {
   }
 
   private isEnumType(typeName: string): boolean {
+    if (!typeName) return false;
     if (!this.ctx.ast) return false;
     const enums = this.ctx.ast.enums;
     if (!enums) return false;

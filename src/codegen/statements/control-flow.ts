@@ -1348,7 +1348,19 @@ export class ControlFlowGenerator {
     }
 
     this.emit(`${evalRightLabel}:`);
+    const savedExpectedType = this.ctx.expectedArrayElementType;
+    const rightTyped = right as { type: string; elements?: Expression[] };
+    if (rightTyped.type === 'array' && (!rightTyped.elements || rightTyped.elements.length === 0)) {
+      if (savedExpectedType === null) {
+        if (leftType === '%StringArray*') {
+          this.ctx.expectedArrayElementType = 'string';
+        } else if (leftType === '%ObjectArray*') {
+          this.ctx.expectedArrayElementType = 'pointer';
+        }
+      }
+    }
     const rightValue = this.ctx.generateExpression(right, params);
+    this.ctx.expectedArrayElementType = savedExpectedType;
     const rightType = this.ctx.getVariableType(rightValue) || 'double';
     const resultType = this.getPhiType(leftType, rightType);
     const rightForPhi = this.coerceToTypeNoPhi(rightValue, rightType, resultType);
