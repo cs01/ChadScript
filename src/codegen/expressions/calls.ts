@@ -774,10 +774,12 @@ export class CallExpressionGenerator {
   }
 
   private generateSuperCall(expr: CallNode, params: string[]): string {
-    if (!this.ctx.thisPointer) {
+    const thisPtr = this.ctx.getThisPointer();
+    if (!thisPtr) {
       throw new Error('super() called outside of class constructor');
     }
-    if (!this.ctx.currentClassName) {
+    const currentClassName = this.ctx.getCurrentClassName();
+    if (!currentClassName) {
       throw new Error('super() called outside of class context');
     }
     const ast = this.ctx.getAst();
@@ -787,17 +789,16 @@ export class CallExpressionGenerator {
     let currentClass: ClassNode | null = null;
     for (let i = 0; i < ast.classes.length; i++) {
       const c = ast.classes[i] as ClassNode;
-      if (c.name === this.ctx.currentClassName) {
+      if (c.name === currentClassName) {
         currentClass = c;
         break;
       }
     }
     if (!currentClass || !currentClass.extends) {
-      throw new Error(`super() called but current class ${this.ctx.currentClassName} has no parent class`);
+      throw new Error(`super() called but current class ${currentClassName} has no parent class`);
     }
     const parentClassName = currentClass.extends;
     const parentStructType = `%${parentClassName}_struct*`;
-    const thisPtr = this.ctx.thisPointer;
 
     const argValues: string[] = [];
     for (let i = 0; i < expr.args.length; i++) {

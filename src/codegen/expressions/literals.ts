@@ -45,6 +45,7 @@ export interface LiteralGeneratorContext {
   setVariableType(name: string, type: string): void;
   usesPromises: boolean;
   thisPointer: string | null;
+  getThisPointer(): string | null;
   currentDeclaredMapType?: string;
   getCurrentDeclaredMapType(): string | undefined;
   currentDeclaredSetType?: string;
@@ -223,7 +224,7 @@ export class LiteralExpressionGenerator {
    * Returns the current this pointer from class context
    */
   generateThis(): string {
-    const thisPtr = this.ctx.thisPointer;
+    const thisPtr = this.ctx.getThisPointer();
     if (!thisPtr) {
       throw new Error('this keyword used outside of class method or constructor');
     }

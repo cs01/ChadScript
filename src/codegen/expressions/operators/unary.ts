@@ -21,7 +21,9 @@ interface UnaryExpressionContext {
   setVariableType(name: string, type: string): void;
   getVariableAlloca(name: string): string | undefined;
   thisPointer?: string | null;
+  getThisPointer(): string | null;
   currentClassName?: string | null;
+  getCurrentClassName(): string | null;
   classGen?: ClassGeneratorLike;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   stringGen?: StringGenLike;
@@ -158,19 +160,21 @@ export class UnaryExpressionGenerator {
       throw new Error(`Increment/decrement on member access only supported for 'this' fields`);
     }
 
-    if (!this.ctx.thisPointer || !this.ctx.currentClassName || !this.ctx.classGen) {
+    const thisPtr = this.ctx.getThisPointer();
+    const className = this.ctx.getCurrentClassName();
+    if (!thisPtr || !className || !this.ctx.classGen) {
       throw new Error(`this.field increment/decrement used outside of class method`);
     }
 
     const fieldName = memberExpr.property;
-    const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, fieldName);
+    const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, fieldName);
     if (!fieldInfoResult) {
-      throw new Error(`Cannot find field '${fieldName}' in class ${this.ctx.currentClassName}`);
+      throw new Error(`Cannot find field '${fieldName}' in class ${className}`);
     }
     const fieldInfo = fieldInfoResult as { index: number; type: string };
 
     const fieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${this.ctx.currentClassName}_struct, %${this.ctx.currentClassName}_struct* ${this.ctx.thisPointer}, i32 0, i32 ${fieldInfo.index}`);
+    this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${thisPtr}, i32 0, i32 ${fieldInfo.index}`);
 
     const originalValue = this.ctx.nextTemp();
     this.ctx.emit(`${originalValue} = load double, double* ${fieldPtr}`);
