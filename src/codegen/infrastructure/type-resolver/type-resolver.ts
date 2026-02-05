@@ -452,19 +452,25 @@ export class TypeResolver {
   }
 
   detectTypeGuard(condition: Expression): TypeGuardInfo | null {
+    if (!condition) return null;
     if (condition.type !== 'binary') return null;
 
     const binary = condition as BinaryNode;
     if (binary.op !== '===' && binary.op !== '==') return null;
+    if (!binary.left || !binary.right) return null;
+
+    const leftBase = binary.left as ExprBase;
+    const rightBase = binary.right as ExprBase;
+    if (!leftBase.type || !rightBase.type) return null;
 
     let memberAccessVar: MemberAccessNode | null = null;
     let literalValueVar: string | null = null;
 
-    if (binary.left.type === 'member_access' && binary.right.type === 'string') {
+    if (leftBase.type === 'member_access' && rightBase.type === 'string') {
       memberAccessVar = binary.left as MemberAccessNode;
       const stringNode = binary.right as StringNode;
       literalValueVar = stringNode.value;
-    } else if (binary.right.type === 'member_access' && binary.left.type === 'string') {
+    } else if (rightBase.type === 'member_access' && leftBase.type === 'string') {
       memberAccessVar = binary.right as MemberAccessNode;
       const stringNode = binary.left as StringNode;
       literalValueVar = stringNode.value;
