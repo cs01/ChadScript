@@ -24,6 +24,162 @@ export interface TypeResolverContext {
   symbolTableSetResolvedType(name: string, resolvedType: ResolvedType): void;
 }
 
+interface BuiltinAstType {
+  name: string;
+  fields: { name: string; type: string }[];
+}
+
+function getBuiltinAstTypeByDiscriminant(discriminant: string): BuiltinAstType | null {
+  if (discriminant === 'assignment') {
+    return {
+      name: 'AssignmentStatement',
+      fields: [
+        { name: 'type', type: "'assignment'" },
+        { name: 'name', type: 'string' },
+        { name: 'value', type: 'Expression' }
+      ]
+    };
+  }
+  if (discriminant === 'variable_declaration') {
+    return {
+      name: 'VariableDeclaration',
+      fields: [
+        { name: 'type', type: "'variable_declaration'" },
+        { name: 'kind', type: "'let' | 'const'" },
+        { name: 'name', type: 'string' },
+        { name: 'value', type: 'Expression | null' },
+        { name: 'declaredType', type: 'string' }
+      ]
+    };
+  }
+  if (discriminant === 'return') {
+    return {
+      name: 'ReturnStatement',
+      fields: [
+        { name: 'type', type: "'return'" },
+        { name: 'value', type: 'Expression' }
+      ]
+    };
+  }
+  if (discriminant === 'if') {
+    return {
+      name: 'IfStatement',
+      fields: [
+        { name: 'type', type: "'if'" },
+        { name: 'condition', type: 'Expression' },
+        { name: 'consequent', type: 'BlockStatement' },
+        { name: 'alternate', type: 'BlockStatement | IfStatement | null' }
+      ]
+    };
+  }
+  if (discriminant === 'while') {
+    return {
+      name: 'WhileStatement',
+      fields: [
+        { name: 'type', type: "'while'" },
+        { name: 'condition', type: 'Expression' },
+        { name: 'body', type: 'BlockStatement' }
+      ]
+    };
+  }
+  if (discriminant === 'for') {
+    return {
+      name: 'ForStatement',
+      fields: [
+        { name: 'type', type: "'for'" },
+        { name: 'init', type: 'VariableDeclaration | AssignmentStatement | null' },
+        { name: 'test', type: 'Expression | null' },
+        { name: 'update', type: 'AssignmentStatement | null' },
+        { name: 'body', type: 'BlockStatement' }
+      ]
+    };
+  }
+  if (discriminant === 'for_of') {
+    return {
+      name: 'ForOfStatement',
+      fields: [
+        { name: 'type', type: "'for_of'" },
+        { name: 'variable', type: 'string' },
+        { name: 'iterable', type: 'Expression' },
+        { name: 'body', type: 'BlockStatement' }
+      ]
+    };
+  }
+  if (discriminant === 'block') {
+    return {
+      name: 'BlockStatement',
+      fields: [
+        { name: 'type', type: "'block'" },
+        { name: 'statements', type: 'Statement[]' }
+      ]
+    };
+  }
+  if (discriminant === 'throw') {
+    return {
+      name: 'ThrowStatement',
+      fields: [
+        { name: 'type', type: "'throw'" },
+        { name: 'argument', type: 'Expression' }
+      ]
+    };
+  }
+  if (discriminant === 'try') {
+    return {
+      name: 'TryStatement',
+      fields: [
+        { name: 'type', type: "'try'" },
+        { name: 'block', type: 'BlockStatement' },
+        { name: 'handler', type: 'CatchClause | null' },
+        { name: 'finalizer', type: 'BlockStatement | null' }
+      ]
+    };
+  }
+  if (discriminant === 'switch') {
+    return {
+      name: 'SwitchStatement',
+      fields: [
+        { name: 'type', type: "'switch'" },
+        { name: 'discriminant', type: 'Expression' },
+        { name: 'cases', type: 'SwitchCase[]' }
+      ]
+    };
+  }
+  if (discriminant === 'break') {
+    return {
+      name: 'BreakStatement',
+      fields: [
+        { name: 'type', type: "'break'" }
+      ]
+    };
+  }
+  if (discriminant === 'continue') {
+    return {
+      name: 'ContinueStatement',
+      fields: [
+        { name: 'type', type: "'continue'" }
+      ]
+    };
+  }
+  return null;
+}
+
+function getBuiltinAstTypeByName(name: string): BuiltinAstType | null {
+  if (name === 'AssignmentStatement') return getBuiltinAstTypeByDiscriminant('assignment');
+  if (name === 'VariableDeclaration') return getBuiltinAstTypeByDiscriminant('variable_declaration');
+  if (name === 'ReturnStatement') return getBuiltinAstTypeByDiscriminant('return');
+  if (name === 'IfStatement') return getBuiltinAstTypeByDiscriminant('if');
+  if (name === 'WhileStatement') return getBuiltinAstTypeByDiscriminant('while');
+  if (name === 'ForStatement') return getBuiltinAstTypeByDiscriminant('for');
+  if (name === 'ForOfStatement') return getBuiltinAstTypeByDiscriminant('for_of');
+  if (name === 'BlockStatement') return getBuiltinAstTypeByDiscriminant('block');
+  if (name === 'ThrowStatement') return getBuiltinAstTypeByDiscriminant('throw');
+  if (name === 'TryStatement') return getBuiltinAstTypeByDiscriminant('try');
+  if (name === 'SwitchStatement') return getBuiltinAstTypeByDiscriminant('switch');
+  if (name === 'BreakStatement') return getBuiltinAstTypeByDiscriminant('break');
+  if (name === 'ContinueStatement') return getBuiltinAstTypeByDiscriminant('continue');
+  return null;
+}
+
 export class TypeResolver {
   private interfaceCache = new Map<string, InterfaceDeclaration | null>();
   private classCache = new Map<string, ClassNode | null>();
@@ -127,6 +283,21 @@ export class TypeResolver {
     if (this.interfaceCache.has(name)) {
       return this.interfaceCache.get(name) || null;
     }
+    const builtinType = getBuiltinAstTypeByName(name);
+    if (builtinType) {
+      const fields: InterfaceField[] = [];
+      for (let i = 0; i < builtinType.fields.length; i++) {
+        const f = builtinType.fields[i];
+        fields.push({ name: f.name, type: f.type });
+      }
+      const ifaceDecl: InterfaceDeclaration = {
+        name: builtinType.name,
+        fields: fields,
+        extends: []
+      };
+      this.interfaceCache.set(name, ifaceDecl);
+      return ifaceDecl;
+    }
     const ast = this.ctx.getAst();
     if (!ast?.interfaces) {
       this.interfaceCache.set(name, null);
@@ -147,6 +318,20 @@ export class TypeResolver {
   }
 
   getInterfaceMetadata(name: string): ObjectMetadata | null {
+    const builtinType = getBuiltinAstTypeByName(name);
+    if (builtinType) {
+      const keys: string[] = [];
+      const types: string[] = [];
+      const tsTypes: string[] = [];
+      for (let i = 0; i < builtinType.fields.length; i++) {
+        const f = builtinType.fields[i];
+        keys.push(stripOptional(f.name));
+        types.push(this.tsTypeToLlvm(f.type));
+        tsTypes.push(f.type);
+      }
+      return { keys, types, tsTypes };
+    }
+
     const iface = this.getInterface(name);
     if (!iface) return null;
     const keys: string[] = [];
@@ -549,6 +734,13 @@ export class TypeResolver {
   }
 
   findInterfaceByDiscriminant(value: string, field: string = 'type'): string | null {
+    if (field === 'type') {
+      const builtinType = getBuiltinAstTypeByDiscriminant(value);
+      if (builtinType) {
+        return builtinType.name;
+      }
+    }
+
     const ast = this.ctx.getAst();
     if (!ast?.interfaces) return null;
 

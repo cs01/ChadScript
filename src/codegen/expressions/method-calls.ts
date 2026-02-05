@@ -303,6 +303,9 @@ export interface MethodCallGeneratorContext {
   responseGenGenerateText(responsePtr: string): string;
   responseGenGenerateJson(responsePtr: string): string;
   responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: InterfaceDefInfo): string;
+  regexGenGenerateRegexCompile(pattern: string, flags: string): string;
+  regexGenGenerateRegexTest(regexPtr: string, testStr: string): string;
+  regexGenGenerateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string;
   exprGen: ExpressionGeneratorLike;
 }
 
@@ -1094,7 +1097,7 @@ export class MethodCallGenerator {
     }
 
     const testStr = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.regexGen.generateRegexTest(regexPtr, testStr);
+    return this.ctx.regexGenGenerateRegexTest(regexPtr, testStr);
   }
 
   private handleSubstr(expr: MethodCallNode, params: string[]): string {
@@ -1525,8 +1528,8 @@ export class MethodCallGenerator {
 
     const numGroups = (pattern.match(/\(/g) || []).length;
 
-    const regexPtr = this.ctx.regexGen.generateRegexCompile(pattern, flags);
-    const result = this.ctx.regexGen.generateRegexMatch(regexPtr, strPtr, numGroups);
+    const regexPtr = this.ctx.regexGenGenerateRegexCompile(pattern, flags);
+    const result = this.ctx.regexGenGenerateRegexMatch(regexPtr, strPtr, numGroups);
 
     return result;
   }
@@ -1537,6 +1540,7 @@ export class MethodCallGenerator {
     let instancePtr: string | null = null;
 
     const exprObjBase = expr.object as ExprBase;
+    console.log('handleClassMethods: method=' + method + ', objType=' + exprObjBase.type);
     if (exprObjBase.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
       if (this.ctx.symbolTableIsClass(varName)) {
@@ -1589,9 +1593,11 @@ export class MethodCallGenerator {
       const memberAccess = expr.object as MemberAccessNode;
       const memberAccessObjBase = memberAccess.object as ExprBase;
       const classNameForField = this.ctx.getCurrentClassName();
+      console.log('handleClassMethods: member_access, property=' + memberAccess.property + ', innerObjType=' + memberAccessObjBase.type + ', classNameForField=' + classNameForField);
       if (memberAccessObjBase.type === 'this' && classNameForField) {
         const fieldInfoResult = this.ctx.classGenGetFieldInfo(classNameForField, memberAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+        console.log('handleClassMethods: fieldInfoResult=' + (fieldInfoResult ? 'found' : 'null') + ', tsType=' + (fieldInfo ? fieldInfo.tsType : 'N/A'));
         if (fieldInfoResult && fieldInfo.tsType) {
           const fieldClassName = fieldInfo.tsType;
           const ast = this.ctx.getAst();
@@ -1602,6 +1608,7 @@ export class MethodCallGenerator {
               if (c.name === fieldClassName) { classExists = true; break; }
             }
           }
+          console.log('handleClassMethods: fieldClassName=' + fieldClassName + ', classExists=' + classExists);
           if (classExists) {
             instancePtr = this.ctx.generateExpression(expr.object, params);
             className = fieldClassName;

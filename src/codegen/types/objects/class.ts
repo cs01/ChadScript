@@ -262,12 +262,15 @@ export class ClassGenerator {
   }
 
   generateClass(classNode: ClassNode): string {
+    console.log('generateClass: start');
     const className = classNode.name;
     let ir = '';
 
     const allFields = this.getAllFieldsIncludingInherited(classNode);
+    console.log('generateClass: got fields');
 
     this.classFields.set(className, allFields);
+    console.log('generateClass: set class fields');
 
     if (!this.structTypesEmitted) {
       if (allFields.length > 0) {
@@ -281,6 +284,7 @@ export class ClassGenerator {
         ir += `%${className}_struct = type { }\n\n`;
       }
     }
+    console.log('generateClass: struct type emitted');
 
     let constructorResult: ClassMethod | null = null;
     const regularMethods: ClassMethod[] = [];
@@ -295,13 +299,18 @@ export class ClassGenerator {
       }
     }
     const constructor = constructorResult as ClassMethod;
+    console.log('generateClass: found constructor');
 
     if (constructorResult) {
+      console.log('generateClass: generating custom constructor');
       this.ctx.clearOutput();
       ir += this.generateConstructor(className, constructor, allFields);
+      console.log('generateClass: constructor done');
       ir += '\n';
     } else {
+      console.log('generateClass: generating default constructor');
       ir += this.generateDefaultConstructor(className, allFields);
+      console.log('generateClass: default constructor done');
       ir += '\n';
     }
 
@@ -439,7 +448,9 @@ export class ClassGenerator {
       }
     }
 
+    console.log('generateConstructor: about to call generateBlock');
     this.ctx.generateBlock(constructor.body, constructor.params);
+    console.log('generateConstructor: generateBlock done');
 
     const deferredAllocas = this.ctx.getAllocaInstructions();
     if (deferredAllocas.length > 0) {

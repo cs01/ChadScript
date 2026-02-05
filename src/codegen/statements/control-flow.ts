@@ -570,6 +570,10 @@ export class ControlFlowGenerator {
   }
 
   private getInterfaceDecl(name: string): InterfaceDeclaration | null {
+    const result = this.ctx.typeResolverGetInterface(name);
+    if (result) {
+      return result;
+    }
     const ast = this.ctx.getAst();
     if (!ast?.interfaces) return null;
     for (let i = 0; i < ast.interfaces.length; i++) {
@@ -1620,14 +1624,14 @@ export class ControlFlowGenerator {
       const f = iface.fields[fi] as { name: string; type: string };
       ifaceKeys.push(f.name);
     }
-    let isSubset = true;
-    for (let ki = 0; ki < ifaceKeys.length; ki++) {
-      if (currentKeys.indexOf(ifaceKeys[ki]) === -1) {
-        isSubset = false;
+    let isCompatible = true;
+    for (let ki = 0; ki < currentKeys.length; ki++) {
+      if (ifaceKeys.indexOf(currentKeys[ki]) === -1) {
+        isCompatible = false;
         break;
       }
     }
-    if (!isSubset) return null;
+    if (!isCompatible) return null;
 
     const keys: string[] = [];
     const types: string[] = [];
@@ -1774,7 +1778,7 @@ export class ControlFlowGenerator {
       const memberObjBase = memberExpr.object as ExprBase;
       const className = this.ctx.getCurrentClassName();
       if (memberObjBase.type === 'this' && className) {
-        const mapTypeInfo = this.ctx.typeResolver?.getClassFieldMapType(
+        const mapTypeInfo = this.ctx.typeResolverGetClassFieldMapType(
           className,
           memberExpr.property
         );
@@ -1797,7 +1801,7 @@ export class ControlFlowGenerator {
           const memberExprObjBase = memberExpr.object as ExprBase;
           const className2 = this.ctx.getCurrentClassName();
           if (memberExprObjBase.type === 'this' && className2) {
-            const mapTypeInfo = this.ctx.typeResolver?.getClassFieldMapType(
+            const mapTypeInfo = this.ctx.typeResolverGetClassFieldMapType(
               className2,
               memberExpr.property
             );
@@ -1815,7 +1819,7 @@ export class ControlFlowGenerator {
       return { valueType };
     }
 
-    const metadata = this.ctx.typeResolver?.getInterfaceMetadata(valueType);
+    const metadata = this.ctx.typeResolverGetInterfaceMetadata(valueType);
     if (metadata) {
       return { valueType, objectMetadata: metadata };
     }
@@ -2036,7 +2040,7 @@ export class ControlFlowGenerator {
         const consequentStmt = caseItem.consequent[j];
         if (consequentStmt.type === 'break') {
           this.emit(`br label %${endLabel}`);
-        } else if (consequentStmt.type === 'variable_declaration' || consequentStmt.type === 'return' || consequentStmt.type === 'if') {
+        } else if (consequentStmt.type === 'variable_declaration' || consequentStmt.type === 'return' || consequentStmt.type === 'if' || consequentStmt.type === 'assignment') {
           this.ctx.generateBlock({ type: 'block', statements: [consequentStmt] }, params);
         } else {
           this.ctx.generateExpression(consequentStmt as Expression, params);

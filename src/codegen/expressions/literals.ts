@@ -63,6 +63,7 @@ export interface LiteralGeneratorContext {
   mapGenGenerateMapLiteral(expr: MapNode, params: string[]): string;
   setGenGenerateSetLiteral(expr: SetNode, params: string[]): string;
   stringSetGenGenerateEmptyStringSet(): string;
+  regexGenGenerateRegexCompile(pattern: string, flags: string): string;
 }
 
 /**
@@ -128,7 +129,7 @@ export class LiteralExpressionGenerator {
    */
   generateRegex(pattern: string, flags: string): string {
     this.ctx.syncStateToGenerators();
-    return this.ctx.regexGen.generateRegexCompile(pattern, flags);
+    return this.ctx.regexGenGenerateRegexCompile(pattern, flags);
   }
 
   /**
