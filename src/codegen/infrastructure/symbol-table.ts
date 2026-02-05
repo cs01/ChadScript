@@ -239,7 +239,17 @@ export class SymbolTable {
       kind,
       llvmType,
       allocaRegister,
-      scope
+      scope,
+      isPointerAlloca: false,
+      resolvedType: undefined,
+      objectMetadata: undefined,
+      classMetadata: undefined,
+      arrayMetadata: undefined,
+      objectArrayMetadata: undefined,
+      closureMetadata: undefined,
+      mapMetadata: undefined,
+      setMetadata: undefined,
+      interfaceType: undefined
     };
     if (metadata) {
       if (metadata.objectMetadata) symbol.objectMetadata = metadata.objectMetadata;
