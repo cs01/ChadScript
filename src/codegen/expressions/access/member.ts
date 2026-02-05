@@ -363,9 +363,7 @@ export class MemberAccessGenerator {
     }
 
     // Handle regular object property access
-    console.log('[MemberAccessGenerator.generate] trying handleObjectPropertyAccess');
     const objResult = this.handleObjectPropertyAccess(expr, params);
-    console.log('[MemberAccessGenerator.generate] after handleObjectPropertyAccess, objResult=' + objResult);
     if (objResult !== null) return objResult;
 
     // Handle .length property
@@ -1723,42 +1721,44 @@ export class MemberAccessGenerator {
       const varName = (expr.object as VariableNode).name;
       const isJSON = this.ctx.symbolTable.isJSON(varName);
       if (isJSON) {
-        return null;  // Already handled in handleJsonPropertyAccess
+        return null;
       }
       const isObject = this.ctx.symbolTable.isObject(varName);
       if (isObject) {
         const symbol = this.ctx.symbolTable.lookup(varName);
-      if (symbol?.interfaceType) {
-        const implementingClass = this.findClassImplementingInterface(symbol.interfaceType);
-        if (implementingClass && this.ctx.classGen) {
-          const classFieldInfo = this.ctx.classGen.getFieldInfo(implementingClass, expr.property);
-          if (classFieldInfo) {
+        if (symbol?.interfaceType) {
+          const implementingClass = this.findClassImplementingInterface(symbol.interfaceType);
+          if (implementingClass && this.ctx.classGen) {
+            const classFieldInfo = this.ctx.classGen.getFieldInfo(implementingClass, expr.property);
+            if (classFieldInfo) {
+              const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
+              const objPtrRaw = this.ctx.nextTemp();
+              this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${objPtrPtr}`);
+              const castPtr = this.ctx.nextTemp();
+              this.ctx.emit(`${castPtr} = bitcast i8* ${objPtrRaw} to %${implementingClass}_struct*`);
+              const fieldPtr = this.ctx.nextTemp();
+              this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${implementingClass}_struct, %${implementingClass}_struct* ${castPtr}, i32 0, i32 ${classFieldInfo.index}`);
+              return this.loadFieldValue(fieldPtr, classFieldInfo);
+            }
+          }
+          if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(symbol.interfaceType)) {
             const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
             const objPtrRaw = this.ctx.nextTemp();
             this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${objPtrPtr}`);
-            const castPtr = this.ctx.nextTemp();
-            this.ctx.emit(`${castPtr} = bitcast i8* ${objPtrRaw} to %${implementingClass}_struct*`);
-            const fieldPtr = this.ctx.nextTemp();
-            this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${implementingClass}_struct, %${implementingClass}_struct* ${castPtr}, i32 0, i32 ${classFieldInfo.index}`);
-            return this.loadFieldValue(fieldPtr, classFieldInfo);
+            return this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, symbol.interfaceType);
           }
         }
-        if (this.ctx.interfaceStructGen && this.ctx.interfaceStructGen.hasInterface(symbol.interfaceType)) {
-          const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
-          const objPtrRaw = this.ctx.nextTemp();
-          this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${objPtrPtr}`);
-          return this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, symbol.interfaceType);
-        }
       }
+      // Try getObjectInfo regardless of isObject result - handles inline object literals
       const objMetaRaw = this.ctx.symbolTable.getObjectInfo(varName);
-      if (!objMetaRaw) return null;
-      const objMeta = objMetaRaw as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] | undefined };
-      keys = objMeta.keys;
-      types = objMeta.types;
-      tsTypes = objMeta.tsTypes;
-      const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
-      objPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
+      if (objMetaRaw) {
+        const objMeta = objMetaRaw as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] | undefined };
+        keys = objMeta.keys;
+        types = objMeta.types;
+        tsTypes = objMeta.tsTypes;
+        const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
+        objPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
       }
     } else if (exprObjType === 'object') {
       const metadataResult = this.ctx.getObjectMetadata(expr.object as ObjectNode);
