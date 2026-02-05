@@ -14,6 +14,7 @@ import type { SymbolTable } from '../infrastructure/symbol-table.js';
 
 interface ExpressionOrchestratorContext {
   symbolTable: SymbolTable;
+  symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] };
   variableTypes: Map<string, string>;
   setVariableType(name: string, type: string): void;
   usesPromises: boolean;
@@ -152,7 +153,7 @@ export class ExpressionGenerator {
 
     // Arrow functions
     if (exprTyped.type === 'arrow_function') {
-      const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
+      const scopeVarsResult = this.ctx.symbolTableGetScopeVarsArraysForClosure();
       const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
       let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
       if (this.ctx.expectedCallbackParamType || this.ctx.expectedCallbackReturnType) {

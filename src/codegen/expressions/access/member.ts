@@ -15,7 +15,7 @@ import {
   TypeAssertionNode,
   FunctionParameter,
 } from '../../../ast/types.js';
-import type { SymbolTable } from '../../infrastructure/symbol-table.js';
+import type { SymbolTable, Symbol as SymbolEntry } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import type { InterfaceStructGenerator } from '../../types/interface-struct-generator.js';
 import { stripOptional, stripNullable, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
@@ -77,6 +77,26 @@ export interface MemberAccessGeneratorContext {
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
   symbolTable: SymbolTable;
+  symbolTableLookup(name: string): SymbolEntry | undefined;
+  symbolTableIsClass(name: string): boolean;
+  symbolTableIsJSON(name: string): boolean;
+  symbolTableIsObject(name: string): boolean;
+  symbolTableIsMap(name: string): boolean;
+  symbolTableIsSet(name: string): boolean;
+  symbolTableIsNumberArray(name: string): boolean;
+  symbolTableIsStringArray(name: string): boolean;
+  symbolTableIsObjectArray(name: string): boolean;
+  symbolTableIsString(name: string): boolean;
+  symbolTableIsRegex(name: string): boolean;
+  symbolTableGetType(name: string): string | undefined;
+  symbolTableGetClassName(name: string): string | undefined;
+  symbolTableGetClassInfo(name: string): { ptr: string; className: string } | undefined;
+  symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
+  symbolTableGetMapMetadata(name: string): { keyType: string; valueType: string } | undefined;
+  symbolTableGetSetMetadata(name: string): { valueType: string } | undefined;
+  symbolTableGetInterfaceType(name: string): string | undefined;
+  symbolTableGetAlloca(name: string): string | undefined;
+  symbolTableGetObjectArrayMetadata(name: string): { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] } | undefined;
   variableTypes: Map<string, string>;
   ast?: AST;
   getAst(): AST | undefined;
@@ -343,7 +363,7 @@ export class MemberAccessGenerator {
       return '0.0';
     }
 
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
+    if (exprObjType === 'variable' && this.ctx.symbolTableIsJSON((expr.object as VariableNode).name)) {
       return this.handleJsonPropertyAccess(expr, params);
     }
 
@@ -627,9 +647,9 @@ export class MemberAccessGenerator {
     }
     if (exprObjType === 'variable') {
       const varName = (expr.object as VariableNode).name;
-      const isClass = this.ctx.symbolTable.isClass(varName);
+      const isClass = this.ctx.symbolTableIsClass(varName);
       if (isClass) {
-        const classMeta = this.ctx.symbolTable.getClassInfo((expr.object as VariableNode).name);
+        const classMeta = this.ctx.symbolTableGetClassInfo((expr.object as VariableNode).name);
         if (classMeta) {
           className = classMeta.className;
           instancePtr = this.ctx.generateExpression(expr.object, params);
@@ -853,7 +873,7 @@ export class MemberAccessGenerator {
       return sizeDouble;
     }
 
-    const jsonMetaRaw = this.ctx.symbolTable.getObjectInfo(varName);
+    const jsonMetaRaw = this.ctx.symbolTableGetObjectInfo(varName);
     let tsType: string | undefined;
     if (jsonMetaRaw) {
       const jsonMeta = jsonMetaRaw as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] | undefined };
@@ -1519,7 +1539,7 @@ export class MemberAccessGenerator {
     }
     if (expr.type === 'variable') {
       const varName = (expr as VariableNode).name;
-      const symbol = this.ctx.symbolTable.lookup(varName);
+      const symbol = this.ctx.symbolTableLookup(varName);
       if (symbol && symbol.objectMetadata) {
         return symbol.interfaceType || null;
       }
@@ -1595,7 +1615,7 @@ export class MemberAccessGenerator {
             }
           }
         }
-        const symbol = this.ctx.symbolTable.lookup(varName);
+        const symbol = this.ctx.symbolTableLookup(varName);
         if (symbol && symbol.objectMetadata && symbol.objectMetadata.tsTypes) {
           const objMeta = symbol.objectMetadata;
           const objKeys = objMeta.keys;
@@ -1632,7 +1652,7 @@ export class MemberAccessGenerator {
     }
     if (arrayExpr.type === 'variable') {
       const varName = (arrayExpr as VariableNode).name;
-      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
+      const objArrayMeta = this.ctx.symbolTableGetObjectArrayMetadata(varName);
       if (objArrayMeta) {
         return { keys: objArrayMeta.elementKeys, types: objArrayMeta.elementTypes, tsTypes: objArrayMeta.elementTsTypes || [] };
       }
@@ -1783,13 +1803,13 @@ export class MemberAccessGenerator {
     }
     if (exprObjType === 'variable') {
       const varName = (expr.object as VariableNode).name;
-      const isJSON = this.ctx.symbolTable.isJSON(varName);
+      const isJSON = this.ctx.symbolTableIsJSON(varName);
       if (isJSON) {
         return null;
       }
-      const isObject = this.ctx.symbolTable.isObject(varName);
+      const isObject = this.ctx.symbolTableIsObject(varName);
       if (isObject) {
-        const symbol = this.ctx.symbolTable.lookup(varName);
+        const symbol = this.ctx.symbolTableLookup(varName);
         if (symbol?.interfaceType) {
           const ifaceType = symbol.interfaceType;
           const implementingClass = this.findClassImplementingInterface(ifaceType);
@@ -1815,7 +1835,7 @@ export class MemberAccessGenerator {
         }
       }
       // Try getObjectInfo regardless of isObject result - handles inline object literals
-      const objMetaRaw = this.ctx.symbolTable.getObjectInfo(varName);
+      const objMetaRaw = this.ctx.symbolTableGetObjectInfo(varName);
       if (objMetaRaw) {
         const objMeta = objMetaRaw as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] | undefined };
         keys = objMeta.keys;
@@ -1966,11 +1986,11 @@ export class MemberAccessGenerator {
     if (exprObjType === null || exprObjType === undefined) {
       return '0.0';
     }
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isNumberArray((expr.object as VariableNode).name)) {
+    if (exprObjType === 'variable' && this.ctx.symbolTableIsNumberArray((expr.object as VariableNode).name)) {
       return this.getArrayLength(expr.object, params, '%Array');
     }
 
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isObjectArray((expr.object as VariableNode).name)) {
+    if (exprObjType === 'variable' && this.ctx.symbolTableIsObjectArray((expr.object as VariableNode).name)) {
       return this.getArrayLength(expr.object, params, '%ObjectArray');
     }
 
@@ -1979,7 +1999,7 @@ export class MemberAccessGenerator {
       return this.getStringArrayLength(stringArrayPtr);
     }
 
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isStringArray((expr.object as VariableNode).name)) {
+    if (exprObjType === 'variable' && this.ctx.symbolTableIsStringArray((expr.object as VariableNode).name)) {
       const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
       return this.getStringArrayLength(stringArrayPtr);
     }
@@ -2069,8 +2089,8 @@ export class MemberAccessGenerator {
     const innerAccess = expr.object as MemberAccessNode;
 
     const innerAccessObjBase = innerAccess.object as ExprBase;
-    if (innerAccessObjBase.type === 'variable' && this.ctx.symbolTable.isClass((innerAccess.object as VariableNode).name)) {
-      const classMeta = this.ctx.symbolTable.getClassInfo((innerAccess.object as VariableNode).name);
+    if (innerAccessObjBase.type === 'variable' && this.ctx.symbolTableIsClass((innerAccess.object as VariableNode).name)) {
+      const classMeta = this.ctx.symbolTableGetClassInfo((innerAccess.object as VariableNode).name);
       if (classMeta) {
         const fieldInfoResult = this.ctx.classGen.getFieldInfo(classMeta.className, innerAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
@@ -2102,7 +2122,7 @@ export class MemberAccessGenerator {
           }
         }
       }
-      const symbol = this.ctx.symbolTable.lookup(varName);
+      const symbol = this.ctx.symbolTableLookup(varName);
       if (symbol?.interfaceType) {
         const fieldType = this.getInterfaceFieldType(symbol.interfaceType, innerAccess.property);
         if (fieldType) {
@@ -2115,7 +2135,7 @@ export class MemberAccessGenerator {
           }
         }
       }
-      if (this.ctx.symbolTable.isJSON(varName) || this.ctx.symbolTable.isObject(varName)) {
+      if (this.ctx.symbolTableIsJSON(varName) || this.ctx.symbolTableIsObject(varName)) {
         const arrayPtr = this.ctx.generateExpression(expr.object, params);
         const arraySize = this.ctx.nextTemp();
         this.ctx.emit(`${arraySize} = call i32 @cJSON_GetArraySize(i8* ${arrayPtr})`);
@@ -2183,12 +2203,12 @@ export class MemberAccessGenerator {
     if (exprObjType === null || exprObjType === undefined) {
       return null;
     }
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isMap((expr.object as VariableNode).name)) {
+    if (exprObjType === 'variable' && this.ctx.symbolTableIsMap((expr.object as VariableNode).name)) {
       const mapPtr = this.ctx.generateExpression(expr.object, params);
       this.ctx.syncStateToGenerators();
       return this.ctx.mapGen.generateMapSize(mapPtr);
     }
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isSet((expr.object as VariableNode).name)) {
+    if (exprObjType === 'variable' && this.ctx.symbolTableIsSet((expr.object as VariableNode).name)) {
       const setPtr = this.ctx.generateExpression(expr.object, params);
       this.ctx.syncStateToGenerators();
       return this.ctx.setGen.generateSetSize(setPtr);
@@ -2355,7 +2375,7 @@ export class MemberAccessGenerator {
 
     const varName = (expr.object as VariableNode).name;
 
-    const symbol = this.ctx.symbolTable.lookup(varName);
+    const symbol = this.ctx.symbolTableLookup(varName);
     if (symbol && symbol.kind === 'object' && symbol.objectMetadata) {
       return this.accessObjectWithMetadata(varName, expr.property, symbol.objectMetadata);
     }
