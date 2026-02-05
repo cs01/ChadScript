@@ -22,6 +22,7 @@ export interface BinaryExpressionGeneratorContext {
   stringGen: StringGeneratorLike;
   generateExpression(expr: Expression, params: string[]): string;
   stringGenGenerateStringConcat(left: Expression, right: Expression, params: string[]): string;
+  controlFlowGenGenerateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string;
 }
 
 /**
@@ -43,7 +44,7 @@ export class BinaryExpressionGenerator {
     // Logical operators need short-circuit evaluation
     if (op === '&&' || op === '||') {
       this.ctx.syncStateToGenerators();
-      return this.ctx.controlFlowGen.generateLogicalOp(op, left, right, params);
+      return this.ctx.controlFlowGenGenerateLogicalOp(op, left, right, params);
     }
 
     // Check for string concatenation (+ with at least one string operand)

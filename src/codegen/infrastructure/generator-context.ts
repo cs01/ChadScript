@@ -607,6 +607,11 @@ export interface IGeneratorContext {
   regexGenGenerateRegexCompile(pattern: string, flags: string): string;
   regexGenGenerateRegexTest(regexPtr: string, testStr: string): string;
   regexGenGenerateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string;
+
+  /**
+   * ControlFlowGen delegate methods (avoid struct layout mismatch)
+   */
+  controlFlowGenGenerateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string;
 }
 
 /**
@@ -1095,6 +1100,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   regexGenGenerateRegexCompile(_pattern: string, _flags: string): string { return '%mock_regex_compile'; }
   regexGenGenerateRegexTest(_regexPtr: string, _testStr: string): string { return '%mock_regex_test'; }
   regexGenGenerateRegexMatch(_regexPtr: string, _testStr: string, _numGroups: number): string { return '%mock_regex_match'; }
+
+  controlFlowGenGenerateLogicalOp(_op: string, _left: Expression, _right: Expression, _params: string[]): string { return '%mock_logical_op'; }
 
   resolveImportAlias(localName: string): string {
     return localName;

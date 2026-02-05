@@ -421,6 +421,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public regexGenGenerateRegexTest(regexPtr: string, testStr: string): string { this.syncStateToGenerators(); return this.regexGen.generateRegexTest(regexPtr, testStr); }
   public regexGenGenerateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string { this.syncStateToGenerators(); return this.regexGen.generateRegexMatch(regexPtr, testStr, numGroups); }
 
+  public controlFlowGenGenerateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string { this.syncStateToGenerators(); return this.controlFlowGen.generateLogicalOp(op, left, right, params); }
+
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (!objExpr || objExpr.type !== 'object') {
