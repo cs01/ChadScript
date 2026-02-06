@@ -45,7 +45,7 @@ export class RegexGenerator {
         escaped += '\\09';
         byteCount += 1;
       } else if (ch === '"') {
-        escaped += '\\"';
+        escaped += '\\22';
         byteCount += 1;
       } else if (code < 32 || code > 126) {
         if (code < 128) {

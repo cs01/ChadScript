@@ -37,8 +37,10 @@ export class ObjectGenerator {
       return this.generateInlineInterfaceObject(objExpr, params, declaredInterfaceType);
     }
 
-    if (declaredInterfaceType && this.ctx.interfaceStructGenHasInterface(declaredInterfaceType)) {
-      return this.generateInterfaceObject(objExpr, params, declaredInterfaceType);
+    if (declaredInterfaceType) {
+      if (this.ctx.interfaceStructGenHasInterface(declaredInterfaceType)) {
+        return this.generateInterfaceObject(objExpr, params, declaredInterfaceType);
+      }
     }
 
     return this.generateInlineObject(objExpr, params);

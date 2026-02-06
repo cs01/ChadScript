@@ -117,6 +117,7 @@ export class TypeInference {
   }
 
   private getClass(name: string): ClassNode | null {
+    if (!name) return null;
     const ast = this.ctx.getAst();
     if (!ast || !ast.classes) return null;
     for (let i = 0; i < ast.classes.length; i++) {

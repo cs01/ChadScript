@@ -672,26 +672,39 @@ export function parseImport(ctx: ParserContext): void {
       ctx.pos++;
     }
     if (!isTypeOnly) {
-      ctx.imports.push({ type: 'import', specifiers: [namespaceName], source });
+      ctx.imports.push({ type: 'import', specifiers: [namespaceName], aliasedSpecifiers: [{ name: namespaceName }], source });
     }
   } else if (ctx.code[ctx.pos] === '{') {
     ctx.pos++;
     const specifiers: string[] = [];
+    const aliasedSpecifiers: { name: string; original?: string }[] = [];
     ctx.skipWhitespace();
     if (ctx.code[ctx.pos] !== '}') {
-      let name = ctx.parseIdentifier();
+      let originalName = ctx.parseIdentifier();
       ctx.skipWhitespace();
+      let localName = originalName;
       if (ctx.match('as')) {
-        name = ctx.parseIdentifier();
+        localName = ctx.parseIdentifier();
       }
-      specifiers.push(name);
+      specifiers.push(localName);
+      if (localName !== originalName) {
+        aliasedSpecifiers.push({ name: localName, original: originalName });
+      } else {
+        aliasedSpecifiers.push({ name: localName });
+      }
       while (ctx.match(',')) {
-        let nextName = ctx.parseIdentifier();
+        let nextOriginal = ctx.parseIdentifier();
         ctx.skipWhitespace();
+        let nextLocal = nextOriginal;
         if (ctx.match('as')) {
-          nextName = ctx.parseIdentifier();
+          nextLocal = ctx.parseIdentifier();
         }
-        specifiers.push(nextName);
+        specifiers.push(nextLocal);
+        if (nextLocal !== nextOriginal) {
+          aliasedSpecifiers.push({ name: nextLocal, original: nextOriginal });
+        } else {
+          aliasedSpecifiers.push({ name: nextLocal });
+        }
       }
     }
     ctx.expect('}');
@@ -703,7 +716,7 @@ export function parseImport(ctx: ParserContext): void {
       ctx.pos++;
     }
     if (!isTypeOnly) {
-      ctx.imports.push({ type: 'import', specifiers, source });
+      ctx.imports.push({ type: 'import', specifiers, aliasedSpecifiers, source });
     }
   } else {
     throw new Error(`Unexpected import syntax at position ${ctx.pos}`);
