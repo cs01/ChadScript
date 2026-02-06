@@ -25,6 +25,7 @@ export interface TypeInferenceContext {
   getAst(): AST | undefined;
   typeChecker: TypeChecker | null;
   classGen: ClassGenerator | null;
+  hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
@@ -983,7 +984,7 @@ export class TypeInference {
       if (methodExpr.method === 'get' && methodObjBase.type === 'member_access') {
         const memberAccess = methodExpr.object as MemberAccessNode;
         const memberAccessObjBase = memberAccess.object as ExprBase;
-        if (memberAccessObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
+        if (memberAccessObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.hasClassGen()) {
           const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberAccess.property);
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
@@ -1040,7 +1041,7 @@ export class TypeInference {
         } else if (methodObjBase.type === 'member_access') {
           const memberExpr = methodExpr.object as MemberAccessNode;
           const memberExprObjBase = memberExpr.object as ExprBase;
-          if (memberExprObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
+          if (memberExprObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.hasClassGen()) {
             const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
             const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
             if (fieldInfoResult && fieldInfo.tsType) {

@@ -377,6 +377,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string { return this.classGen.generateNewExpression(className, args, params); }
   public classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string { return this.classGen.generateMethodCall(instancePtr, className, method, args, params); }
+  public hasClassGen(): boolean { return this.classGen !== null && this.classGen !== undefined; }
 
   public setCurrentFunction(name: string | null): void { this.currentFunction = name; }
   public getCurrentFunction(): string | null { return this.currentFunction; }
