@@ -61,6 +61,7 @@ export function getLLVMDeclarations(): string {
   ir += '@.str.strfmt = private unnamed_addr constant [4 x i8] c"%s\\0A\\00", align 1\n';
   ir += '@.str.numfmt = private unnamed_addr constant [4 x i8] c"%g\\0A\\00", align 1\n';
   ir += '@.str.hello = private unnamed_addr constant [7 x i8] c"Hello\\0A\\00", align 1\n';
+  ir += '@.str.throw_fmt = private constant [11 x i8] c"Error: %s\\0A\\00"\n';
   ir += '\n';
 
   ir += 'declare i8* @fopen(i8*, i8*)\n';

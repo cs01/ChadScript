@@ -264,7 +264,7 @@ export interface SwitchStatement {
 
 export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | ForOfStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | SwitchStatement | Expression;
 
-export type TopLevelItem = VariableDeclaration | AssignmentStatement | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | CallNode | NewNode | MethodCallNode;
+export type TopLevelItem = VariableDeclaration | AssignmentStatement | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | ThrowStatement | CallNode | NewNode | MethodCallNode;
 
 export interface FunctionParameter {
   name: string;
