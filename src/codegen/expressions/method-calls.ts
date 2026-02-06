@@ -740,17 +740,17 @@ export class MethodCallGenerator {
         }
 
         if (method === 'text') {
-          return this.ctx.responseGen.generateText(responsePtr);
+          return this.ctx.responseGenGenerateText(responsePtr);
         } else if (method === 'json') {
           if (expr.typeParameter) {
             const typeName = expr.typeParameter;
             const interfaceDefResult = this.getInterfaceFromAST(typeName);
             if (interfaceDefResult) {
               const interfaceDef = interfaceDefResult as InterfaceDefInfo;
-              return this.ctx.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef);
+              return this.ctx.responseGenGenerateTypedJson(responsePtr, typeName, interfaceDef);
             }
           }
-          return this.ctx.responseGen.generateJson(responsePtr);
+          return this.ctx.responseGenGenerateJson(responsePtr);
         }
       } catch (e) {
         throw e;
