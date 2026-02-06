@@ -25,6 +25,7 @@ interface UnaryExpressionContext {
   currentClassName?: string | null;
   getCurrentClassName(): string | null;
   classGen?: ClassGeneratorLike;
+  hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   stringGen?: StringGenLike;
   generateExpression(expr: Expression, params: string[]): string;
@@ -162,7 +163,7 @@ export class UnaryExpressionGenerator {
 
     const thisPtr = this.ctx.getThisPointer();
     const className = this.ctx.getCurrentClassName();
-    if (!thisPtr || !className || !this.ctx.classGen) {
+    if (!thisPtr || !className || !this.ctx.hasClassGen()) {
       throw new Error(`this.field increment/decrement used outside of class method`);
     }
 

@@ -24,6 +24,7 @@ export interface TypeResolverContext {
   getCurrentClassName(): string | null;
   currentFunction?: string | null;
   classGen?: ClassGeneratorLike;
+  hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   symbolTableLookup(name: string): SymbolEntry | undefined;
   symbolTableIsMap(name: string): boolean;
@@ -409,7 +410,7 @@ export class TypeResolver {
       const member = expr as MemberAccessNode;
       const memberObjBase = member.object as ExprBase;
       if (memberObjBase.type === 'this') {
-        if (this.ctx.getCurrentClassName() && this.ctx.classGen) {
+        if (this.ctx.getCurrentClassName() && this.ctx.hasClassGen()) {
           const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), member.property);
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {

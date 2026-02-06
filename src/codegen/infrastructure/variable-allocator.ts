@@ -100,6 +100,7 @@ export interface VariableAllocatorContext {
   ast: AST;
   getAst(): AST | undefined;
   classGen: ClassGeneratorLike;
+  hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; llvmType: string }[];
   symbolTable: SymbolTable;
@@ -869,7 +870,7 @@ export class VariableAllocator {
     } else if (methodObjBase.type === 'member_access') {
       const memberExpr = methodExpr.object as MemberAccessNode;
       const memberExprObjBase = memberExpr.object as ExprBase;
-      if (memberExprObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.classGen) {
+      if (memberExprObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.hasClassGen()) {
         const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
