@@ -28,12 +28,12 @@ function countStats(content: string): void {
 }
 
 // Main
-if (process.argv.length < 2) {
+if (process.argv.length < 1) {
   console.log("Usage: word-count <filename>");
   process.exit(1);
 }
 
-const filename = process.argv[1];
+const filename = process.argv[0];
 const content = fs.readFileSync(filename);
 countStats(content);
 process.exit(0);
