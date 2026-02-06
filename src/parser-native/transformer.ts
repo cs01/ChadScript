@@ -1051,10 +1051,37 @@ function transformExpressionStatementNode(node: TreeSitterNode): Statement | nul
     if (leftNode) {
       const ln = leftNode as NodeBase;
       if (ln.type === 'identifier') {
+        let valueToAssign: Expression;
+        if (en.type === 'augmented_assignment_expression') {
+          let op = '';
+          for (let opIdx = 0; opIdx < exprNode.childCount; opIdx++) {
+            const opChild = getChild(exprNode, opIdx);
+            if (!opChild) continue;
+            const opC = opChild as NodeBase;
+            if (!opC.isNamed) {
+              const opT = opC.type;
+              if (opT === '+=') { op = '+'; break; }
+              if (opT === '-=') { op = '-'; break; }
+              if (opT === '*=') { op = '*'; break; }
+              if (opT === '/=') { op = '/'; break; }
+              if (opT === '%=') { op = '%'; break; }
+              if (opT === '|=') { op = '|'; break; }
+              if (opT === '&=') { op = '&'; break; }
+              if (opT === '^=') { op = '^'; break; }
+              if (opT === '<<=') { op = '<<'; break; }
+              if (opT === '>>=') { op = '>>'; break; }
+            }
+          }
+          const leftExpr: Expression = { type: 'variable', name: ln.text };
+          const rightExpr = rightNode ? transformExpression(rightNode) : { type: 'number' as const, value: 0 };
+          valueToAssign = { type: 'binary', op, left: leftExpr, right: rightExpr };
+        } else {
+          valueToAssign = rightNode ? transformExpression(rightNode) : { type: 'number', value: 0 };
+        }
         return {
           type: 'assignment',
           name: ln.text,
-          value: rightNode ? transformExpression(rightNode) : { type: 'number', value: 0 },
+          value: valueToAssign,
         };
       } else if (ln.type === 'member_expression') {
         return {
@@ -1245,10 +1272,37 @@ function transformForStatement(node: TreeSitterNode): ForStatement {
       if (leftNode) {
         const ln = leftNode as NodeBase;
         if (ln.type === 'identifier') {
+          let valueToAssign: Expression;
+          if (incn.type === 'augmented_assignment_expression') {
+            let op = '';
+            for (let opIdx = 0; opIdx < incrNode.childCount; opIdx++) {
+              const opChild = getChild(incrNode, opIdx);
+              if (!opChild) continue;
+              const opC = opChild as NodeBase;
+              if (!opC.isNamed) {
+                const opT = opC.type;
+                if (opT === '+=') { op = '+'; break; }
+                if (opT === '-=') { op = '-'; break; }
+                if (opT === '*=') { op = '*'; break; }
+                if (opT === '/=') { op = '/'; break; }
+                if (opT === '%=') { op = '%'; break; }
+                if (opT === '|=') { op = '|'; break; }
+                if (opT === '&=') { op = '&'; break; }
+                if (opT === '^=') { op = '^'; break; }
+                if (opT === '<<=') { op = '<<'; break; }
+                if (opT === '>>=') { op = '>>'; break; }
+              }
+            }
+            const leftExpr: Expression = { type: 'variable', name: ln.text };
+            const rightExpr = rightNode ? transformExpression(rightNode) : { type: 'number' as const, value: 0 };
+            valueToAssign = { type: 'binary', op, left: leftExpr, right: rightExpr };
+          } else {
+            valueToAssign = rightNode ? transformExpression(rightNode) : { type: 'number', value: 0 };
+          }
           update = {
             type: 'assignment',
             name: ln.text,
-            value: rightNode ? transformExpression(rightNode) : { type: 'number', value: 0 },
+            value: valueToAssign,
           };
         } else {
           update = transformExpression(incrNode);
