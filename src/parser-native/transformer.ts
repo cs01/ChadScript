@@ -8,6 +8,7 @@ import {
   ClassMethod,
   ClassField,
   ImportDeclaration,
+  ImportSpecifier,
   InterfaceDeclaration,
   TypeAliasDeclaration,
   EnumDeclaration,
@@ -1104,16 +1105,24 @@ function transformLexicalDeclaration(node: TreeSitterNode): VariableDeclaration[
 }
 
 function transformVariableDeclarator(node: TreeSitterNode, kind: 'let' | 'const'): VariableDeclaration | null {
-  const nameNode = getChildByFieldName(node, 'name');
-  const valueNode = getChildByFieldName(node, 'value');
-  const typeNode = getChildByFieldName(node, 'type');
-
+  const nameNode = getNamedChild(node, 0);
   const name = nameNode ? (nameNode as NodeBase).text : '';
-  const value = valueNode ? transformExpression(valueNode) : null;
 
   let declaredType: string | undefined;
-  if (typeNode) {
-    declaredType = extractTypeString(typeNode);
+  let value: Expression | null = null;
+
+  const child1 = getNamedChild(node, 1);
+  if (child1) {
+    const c1 = child1 as NodeBase;
+    if (c1.type === 'type_annotation') {
+      declaredType = extractTypeString(child1);
+      const child2 = getNamedChild(node, 2);
+      if (child2) {
+        value = transformExpression(child2);
+      }
+    } else {
+      value = transformExpression(child1);
+    }
   }
 
   return { type: 'variable_declaration', kind, name, value, declaredType };
@@ -1985,6 +1994,7 @@ function transformImportStatement(node: TreeSitterNode): ImportDeclaration | nul
   }
 
   const specifiers: string[] = [];
+  const aliasedSpecifiers: ImportSpecifier[] = [];
 
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = getNamedChild(node, i);
@@ -1999,6 +2009,7 @@ function transformImportStatement(node: TreeSitterNode): ImportDeclaration | nul
 
         if (cl.type === 'identifier') {
           specifiers.push(cl.text);
+          aliasedSpecifiers.push({ name: cl.text });
         } else if (cl.type === 'named_imports') {
           for (let k = 0; k < cl.namedChildCount; k++) {
             const spec = getNamedChild(clause, k);
@@ -2006,20 +2017,31 @@ function transformImportStatement(node: TreeSitterNode): ImportDeclaration | nul
             const sp = spec as NodeBase;
             if (sp.type === 'import_specifier') {
               const nameNode = getChildByFieldName(spec, 'name');
+              const aliasNode = getChildByFieldName(spec, 'alias');
               if (nameNode) {
-                specifiers.push((nameNode as NodeBase).text);
+                const originalName = (nameNode as NodeBase).text;
+                if (aliasNode) {
+                  const localName = (aliasNode as NodeBase).text;
+                  specifiers.push(localName);
+                  aliasedSpecifiers.push({ name: localName, original: originalName });
+                } else {
+                  specifiers.push(originalName);
+                  aliasedSpecifiers.push({ name: originalName });
+                }
               }
             }
           }
         } else if (cl.type === 'namespace_import') {
           const nameNode = getNamedChild(clause, 0);
           if (nameNode) {
-            specifiers.push(`* as ${(nameNode as NodeBase).text}`);
+            const nsName = `* as ${(nameNode as NodeBase).text}`;
+            specifiers.push(nsName);
+            aliasedSpecifiers.push({ name: nsName });
           }
         }
       }
     }
   }
 
-  return { type: 'import', specifiers, aliasedSpecifiers: [], source };
+  return { type: 'import', specifiers, aliasedSpecifiers, source };
 }
