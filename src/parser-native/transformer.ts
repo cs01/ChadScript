@@ -175,6 +175,13 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       }
       break;
 
+    case 'throw_statement':
+      const throwStmt = transformThrowStatement(node);
+      if (throwStmt) {
+        ast.topLevelItems!.push(throwStmt as TopLevelItem);
+      }
+      break;
+
     case 'export_statement':
       handleExportStatement(node, ast);
       break;
@@ -423,8 +430,8 @@ function transformStringNode(node: TreeSitterNode): StringNode {
 }
 
 function transformBinaryExpression(node: TreeSitterNode): BinaryNode {
-  const left = getChildByFieldName(node, 'left');
-  const right = getChildByFieldName(node, 'right');
+  const left = getNamedChild(node, 0);
+  const right = getNamedChild(node, 1);
 
   let op = '';
   for (let i = 0; i < node.childCount; i++) {
@@ -868,8 +875,8 @@ function transformRegexNode(node: TreeSitterNode): RegexNode {
 }
 
 function transformAssignmentExpression(node: TreeSitterNode): Expression {
-  const leftNode = getChildByFieldName(node, 'left');
-  const rightNode = getChildByFieldName(node, 'right');
+  const leftNode = getNamedChild(node, 0);
+  const rightNode = getNamedChild(node, 1);
 
   const right = rightNode ? transformExpression(rightNode) : { type: 'variable' as const, name: 'undefined' };
 
@@ -913,8 +920,8 @@ function transformAssignmentExpression(node: TreeSitterNode): Expression {
 }
 
 function transformAugmentedAssignmentExpression(node: TreeSitterNode): Expression {
-  const leftNode = getChildByFieldName(node, 'left');
-  const rightNode = getChildByFieldName(node, 'right');
+  const leftNode = getNamedChild(node, 0);
+  const rightNode = getNamedChild(node, 1);
 
   let op = '';
   for (let i = 0; i < node.childCount; i++) {
@@ -1038,15 +1045,20 @@ function transformExpressionStatementNode(node: TreeSitterNode): Statement | nul
   const expr = transformExpression(exprNode);
 
   if (en.type === 'assignment_expression' || en.type === 'augmented_assignment_expression') {
-    const leftNode = getChildByFieldName(exprNode, 'left');
-    const rightNode = getChildByFieldName(exprNode, 'right');
+    const leftNode = getNamedChild(exprNode, 0);
     if (leftNode) {
       const ln = leftNode as NodeBase;
       if (ln.type === 'identifier') {
+        const exprBase = expr as ExprBase;
+        const exprTyped = expr as { type: string; op: string; left: Expression; right: Expression };
+        let valueToAssign = expr;
+        if (exprBase.type === 'binary' && exprTyped.op === '=') {
+          valueToAssign = exprTyped.right;
+        }
         return {
           type: 'assignment',
           name: ln.text,
-          value: rightNode ? transformExpression(rightNode) : { type: 'number', value: 0 },
+          value: valueToAssign,
         };
       } else if (ln.type === 'member_expression') {
         return {
@@ -1200,8 +1212,8 @@ function transformForStatement(node: TreeSitterNode): ForStatement {
       const decls = transformLexicalDeclaration(initNode);
       init = decls.length > 0 ? decls[0] : null;
     } else if (inn.type === 'assignment_expression') {
-      const leftNode = getChildByFieldName(initNode, 'left');
-      const rightNode = getChildByFieldName(initNode, 'right');
+      const leftNode = getNamedChild(initNode, 0);
+      const rightNode = getNamedChild(initNode, 1);
       if (leftNode) {
         const ln = leftNode as NodeBase;
         if (ln.type === 'identifier') {
@@ -1224,15 +1236,21 @@ function transformForStatement(node: TreeSitterNode): ForStatement {
   if (incrNode) {
     const incn = incrNode as NodeBase;
     if (incn.type === 'assignment_expression' || incn.type === 'augmented_assignment_expression') {
-      const leftNode = getChildByFieldName(incrNode, 'left');
-      const rightNode = getChildByFieldName(incrNode, 'right');
+      const leftNode = getNamedChild(incrNode, 0);
       if (leftNode) {
         const ln = leftNode as NodeBase;
         if (ln.type === 'identifier') {
+          const incrExpr = transformExpression(incrNode);
+          const incrBase = incrExpr as ExprBase;
+          const incrTyped = incrExpr as { type: string; op: string; left: Expression; right: Expression };
+          let valueToAssign = incrExpr;
+          if (incrBase.type === 'binary' && incrTyped.op === '=') {
+            valueToAssign = incrTyped.right;
+          }
           update = {
             type: 'assignment',
             name: ln.text,
-            value: rightNode ? transformExpression(rightNode) : { type: 'number', value: 0 },
+            value: valueToAssign,
           };
         } else {
           update = transformExpression(incrNode);
@@ -1271,9 +1289,9 @@ function transformForInStatement(node: TreeSitterNode): ForOfStatement {
     }
   }
 
-  const leftNode = getChildByFieldName(node, 'left');
-  const rightNode = getChildByFieldName(node, 'right');
-  const bodyNode = getChildByFieldName(node, 'body');
+  const leftNode = getNamedChild(node, 0);
+  const rightNode = getNamedChild(node, 1);
+  const bodyNode = getNamedChild(node, 2);
 
   if (leftNode) {
     const ln = leftNode as NodeBase;
