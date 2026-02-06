@@ -1046,19 +1046,14 @@ function transformExpressionStatementNode(node: TreeSitterNode): Statement | nul
 
   if (en.type === 'assignment_expression' || en.type === 'augmented_assignment_expression') {
     const leftNode = getNamedChild(exprNode, 0);
+    const rightNode = getNamedChild(exprNode, 1);
     if (leftNode) {
       const ln = leftNode as NodeBase;
       if (ln.type === 'identifier') {
-        const exprBase = expr as ExprBase;
-        const exprTyped = expr as { type: string; op: string; left: Expression; right: Expression };
-        let valueToAssign = expr;
-        if (exprBase.type === 'binary' && exprTyped.op === '=') {
-          valueToAssign = exprTyped.right;
-        }
         return {
           type: 'assignment',
           name: ln.text,
-          value: valueToAssign,
+          value: rightNode ? transformExpression(rightNode) : { type: 'number', value: 0 },
         };
       } else if (ln.type === 'member_expression') {
         return {
@@ -1237,20 +1232,14 @@ function transformForStatement(node: TreeSitterNode): ForStatement {
     const incn = incrNode as NodeBase;
     if (incn.type === 'assignment_expression' || incn.type === 'augmented_assignment_expression') {
       const leftNode = getNamedChild(incrNode, 0);
+      const rightNode = getNamedChild(incrNode, 1);
       if (leftNode) {
         const ln = leftNode as NodeBase;
         if (ln.type === 'identifier') {
-          const incrExpr = transformExpression(incrNode);
-          const incrBase = incrExpr as ExprBase;
-          const incrTyped = incrExpr as { type: string; op: string; left: Expression; right: Expression };
-          let valueToAssign = incrExpr;
-          if (incrBase.type === 'binary' && incrTyped.op === '=') {
-            valueToAssign = incrTyped.right;
-          }
           update = {
             type: 'assignment',
             name: ln.text,
-            value: valueToAssign,
+            value: rightNode ? transformExpression(rightNode) : { type: 'number', value: 0 },
           };
         } else {
           update = transformExpression(incrNode);
