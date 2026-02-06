@@ -154,8 +154,8 @@ export class ObjectGenerator {
   }
 
   private generateInterfaceObject(objExpr: ObjectNode, params: string[], interfaceName: string): string {
-    const ifaceInfo = this.ctx.interfaceStructGenGetInterfaceStruct(interfaceName);
-    if (!ifaceInfo) {
+    const fieldCount = this.ctx.interfaceStructGenGetFieldCount(interfaceName);
+    if (fieldCount === 0) {
       return this.generateInlineObject(objExpr, params);
     }
 
@@ -167,24 +167,26 @@ export class ObjectGenerator {
 
     const orderedFields: { key: string; llvmType: string; value: string }[] = [];
 
-    for (let fieldIdx = 0; fieldIdx < ifaceInfo.fields.length; fieldIdx++) {
-      const field = ifaceInfo.fields[fieldIdx] as { name: string; tsType: string; llvmType: string };
-      const valueExpr = propMap.get(field.name);
+    for (let fieldIdx = 0; fieldIdx < fieldCount; fieldIdx++) {
+      const fieldName = this.ctx.interfaceStructGenGetFieldName(interfaceName, fieldIdx);
+      const fieldTsType = this.ctx.interfaceStructGenGetFieldTsType(interfaceName, fieldIdx);
+      const fieldLlvmType = this.ctx.interfaceStructGenGetFieldLlvmType(interfaceName, fieldIdx);
+      const valueExpr = propMap.get(fieldName);
       let finalValue: string;
 
       if (!valueExpr) {
-        if (field.llvmType === 'double') {
+        if (fieldLlvmType === 'double') {
           finalValue = '0.0';
-        } else if (field.llvmType === 'i8*') {
+        } else if (fieldLlvmType === 'i8*') {
           finalValue = 'null';
-        } else if (field.llvmType === 'i1') {
+        } else if (fieldLlvmType === 'i1') {
           finalValue = 'false';
         } else {
           finalValue = 'null';
         }
       } else {
         const savedExpectedType = this.ctx.getExpectedArrayElementType();
-        const tsType = field.tsType;
+        const tsType = fieldTsType;
         if (tsType && tsType.endsWith('[]') && tsType !== 'string[]' && tsType !== 'number[]' && tsType !== 'boolean[]') {
           this.ctx.setExpectedArrayElementType('pointer');
         } else if (tsType === 'string[]') {
@@ -194,11 +196,11 @@ export class ObjectGenerator {
         this.ctx.setExpectedArrayElementType(savedExpectedType);
         finalValue = valueReg;
         const valueType = this.ctx.getVariableType(valueReg) || 'double';
-        if (field.llvmType === 'i1') {
+        if (fieldLlvmType === 'i1') {
           const i1Value = this.nextTemp();
           this.emit(`${i1Value} = fcmp one double ${valueReg}, 0.0`);
           finalValue = i1Value;
-        } else if (field.llvmType === 'double' && valueType.indexOf('*') !== -1) {
+        } else if (fieldLlvmType === 'double' && valueType.indexOf('*') !== -1) {
           const isTreeSitterType = valueType === '%TSNode*' || valueType === '%TSTree*' || valueType === '%TSParser*' || valueType === '%TSLanguage*';
           if (!isTreeSitterType) {
             const cmpNull = this.nextTemp();
@@ -212,7 +214,7 @@ export class ObjectGenerator {
         }
       }
 
-      orderedFields.push({ key: field.name, llvmType: field.llvmType, value: finalValue });
+      orderedFields.push({ key: fieldName, llvmType: fieldLlvmType, value: finalValue });
     }
 
     const structType = `%${interfaceName}`;
