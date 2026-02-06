@@ -18,6 +18,7 @@ declare const fs: {
 declare const path: {
   resolve(p: string): string;
   dirname(p: string): string;
+  basename(p: string): string;
 };
 
 declare const process: {
@@ -267,13 +268,15 @@ if (!fs.existsSync(theInputFile)) {
   throw new Error('unreachable');
 }
 
-let theOutputFile: string = '.build/' + theInputFile;
+let theOutputFile: string = '.build/' + path.basename(theInputFile);
 if (outputFile !== null) {
   theOutputFile = outputFile;
 } else if (theInputFile.substr(theInputFile.length - 3) === '.ts') {
-  theOutputFile = '.build/' + theInputFile.substr(0, theInputFile.length - 3);
+  const base = path.basename(theInputFile);
+  theOutputFile = '.build/' + base.substr(0, base.length - 3);
 } else if (theInputFile.substr(theInputFile.length - 3) === '.js') {
-  theOutputFile = '.build/' + theInputFile.substr(0, theInputFile.length - 3);
+  const base = path.basename(theInputFile);
+  theOutputFile = '.build/' + base.substr(0, base.length - 3);
 }
 
 const outputDir = path.dirname(theOutputFile);
