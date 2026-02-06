@@ -228,6 +228,11 @@ export interface IGeneratorContext {
   symbolTableGetClassName(name: string): string | undefined;
   symbolTableGetClassInfo(name: string): { ptr: string; className: string } | undefined;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
+  symbolTableHasObjectInfo(name: string): boolean;
+  symbolTableGetObjectInfoPtr(name: string): string | undefined;
+  symbolTableGetObjectInfoKeys(name: string): string[] | undefined;
+  symbolTableGetObjectInfoTypes(name: string): string[] | undefined;
+  symbolTableGetObjectInfoTsTypes(name: string): string[] | undefined;
   symbolTableGetMapMetadata(name: string): { keyType: string; valueType: string } | undefined;
   symbolTableGetSetMetadata(name: string): { valueType: string } | undefined;
   symbolTableGetInterfaceType(name: string): string | undefined;
@@ -348,6 +353,11 @@ export interface IGeneratorContext {
   readonly jsonObjectMetadata: Map<string, JsonObjectMeta>;
   setJsonObjectMetadata(key: string, value: JsonObjectMeta): void;
   getJsonObjectMetadata(key: string): JsonObjectMeta | undefined;
+  hasJsonObjectMetadata(key: string): boolean;
+  getJsonObjectMetadataKeys(key: string): string[] | undefined;
+  getJsonObjectMetadataTypes(key: string): string[] | undefined;
+  getJsonObjectMetadataTsTypes(key: string): string[] | undefined;
+  getJsonObjectMetadataInterfaceType(key: string): string | undefined;
 
   /**
    * LLVM IR output buffer
@@ -545,6 +555,10 @@ export interface IGeneratorContext {
   interfaceStructGenHasInterface(name: string): boolean;
   interfaceStructGenGetInterfaceStruct(name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined;
   interfaceStructGenGetStructSize(interfaceName: string): number;
+  interfaceStructGenGetFieldCount(interfaceName: string): number;
+  interfaceStructGenGetFieldName(interfaceName: string, fieldIndex: number): string;
+  interfaceStructGenGetFieldTsType(interfaceName: string, fieldIndex: number): string;
+  interfaceStructGenGetFieldLlvmType(interfaceName: string, fieldIndex: number): string;
 
   /**
    * Access to string map generator for Map<string, *> operations
@@ -760,6 +774,34 @@ export class MockGeneratorContext implements IGeneratorContext {
     return this.jsonObjectMetadata.get(key);
   }
 
+  hasJsonObjectMetadata(key: string): boolean {
+    return this.jsonObjectMetadata.has(key);
+  }
+
+  getJsonObjectMetadataKeys(key: string): string[] | undefined {
+    const meta = this.jsonObjectMetadata.get(key);
+    if (!meta) return undefined;
+    return meta.keys;
+  }
+
+  getJsonObjectMetadataTypes(key: string): string[] | undefined {
+    const meta = this.jsonObjectMetadata.get(key);
+    if (!meta) return undefined;
+    return meta.types;
+  }
+
+  getJsonObjectMetadataTsTypes(key: string): string[] | undefined {
+    const meta = this.jsonObjectMetadata.get(key);
+    if (!meta) return undefined;
+    return meta.tsTypes;
+  }
+
+  getJsonObjectMetadataInterfaceType(key: string): string | undefined {
+    const meta = this.jsonObjectMetadata.get(key);
+    if (!meta) return undefined;
+    return meta.interfaceType;
+  }
+
   setCurrentFunction(name: string | null): void { this.currentFunction = name; }
   getCurrentFunction(): string | null { return this.currentFunction; }
   setCurrentFunctionReturnType(type: string): void { this.currentFunctionReturnType = type; }
@@ -789,6 +831,22 @@ export class MockGeneratorContext implements IGeneratorContext {
   symbolTableGetClassName(name: string) { return this.symbolTable.getClassName(name); }
   symbolTableGetClassInfo(name: string) { return this.symbolTable.getClassInfo(name); }
   symbolTableGetObjectInfo(name: string) { return this.symbolTable.getObjectInfo(name); }
+  symbolTableHasObjectInfo(name: string): boolean {
+    if (!this.symbolTable.isObject(name) && !this.symbolTable.isJSON(name)) return false;
+    return this.symbolTable.getObjectMetadataKeys(name) !== undefined;
+  }
+  symbolTableGetObjectInfoPtr(name: string): string | undefined {
+    return this.symbolTable.getAlloca(name);
+  }
+  symbolTableGetObjectInfoKeys(name: string): string[] | undefined {
+    return this.symbolTable.getObjectMetadataKeys(name);
+  }
+  symbolTableGetObjectInfoTypes(name: string): string[] | undefined {
+    return this.symbolTable.getObjectMetadataTypes(name);
+  }
+  symbolTableGetObjectInfoTsTypes(name: string): string[] | undefined {
+    return this.symbolTable.getObjectMetadataTsTypes(name);
+  }
   symbolTableGetMapMetadata(name: string) { return this.symbolTable.getMapMetadata(name); }
   symbolTableGetSetMetadata(name: string) { return this.symbolTable.getSetMetadata(name); }
   symbolTableGetInterfaceType(name: string) { return this.symbolTable.getInterfaceType(name); }
@@ -1107,6 +1165,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   interfaceStructGenHasInterface(_name: string): boolean { return false; }
   interfaceStructGenGetInterfaceStruct(_name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined { return undefined; }
   interfaceStructGenGetStructSize(_interfaceName: string): number { return 0; }
+  interfaceStructGenGetFieldCount(_interfaceName: string): number { return 0; }
+  interfaceStructGenGetFieldName(_interfaceName: string, _fieldIndex: number): string { return ''; }
+  interfaceStructGenGetFieldTsType(_interfaceName: string, _fieldIndex: number): string { return ''; }
+  interfaceStructGenGetFieldLlvmType(_interfaceName: string, _fieldIndex: number): string { return ''; }
 
   generateHttpServe(_expr: CallNode, _params: string[]): string {
     return this.nextTemp();
