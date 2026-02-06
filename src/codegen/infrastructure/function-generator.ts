@@ -195,9 +195,14 @@ export class FunctionGenerator {
     const captures = closureInfo ? closureInfo.captures : null;
     let hasOptionalParams = false;
     if (func.parameters) {
+      const paramLen = func.parameters.length;
       let pIdx = 0;
-      while (func.parameters[pIdx]) {
+      while (pIdx < paramLen) {
         const p = func.parameters[pIdx];
+        if (!p) {
+          pIdx = pIdx + 1;
+          continue;
+        }
         const pTyped = p as { optional: boolean; defaultValue: unknown };
         if (pTyped.optional || pTyped.defaultValue) {
           hasOptionalParams = true;

@@ -10,10 +10,16 @@ function isBuiltinType(name: string): boolean {
   return BUILTIN_TYPES.indexOf(name) !== -1;
 }
 
+export interface InterfaceFieldInfo {
+  name: string;
+  tsType: string;
+  llvmType: string;
+}
+
 export interface InterfaceStructInfo {
   name: string;
   llvmType: string;
-  fields: { name: string; tsType: string; llvmType: string }[];
+  fields: InterfaceFieldInfo[];
   isBuiltinConflict: boolean;
 }
 

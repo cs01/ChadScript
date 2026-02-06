@@ -1149,6 +1149,26 @@ export class TypeInference {
     return null;
   }
 
+  getIndexAccessElementType(expr: Expression): string | null {
+    const e = expr as ExprBase;
+    if (e.type !== 'index_access') return null;
+    const indexExpr = expr as IndexAccessNode;
+    const objBase = indexExpr.object as ExprBase;
+    if (objBase.type === 'variable') {
+      const varName = (indexExpr.object as VariableNode).name;
+      const symbol = this.ctx.symbolTableLookup(varName);
+      if (symbol && symbol.objectMetadata && symbol.objectMetadata.tsTypes) {
+        return null;
+      }
+      if (symbol && symbol.interfaceType) {
+        const baseType = symbol.interfaceType.replace('[]', '');
+        const iface = this.getInterface(baseType);
+        if (iface) return baseType;
+      }
+    }
+    return null;
+  }
+
   getMethodCallInterfaceReturn(expr: Expression): string | null {
     const e = expr as ExprBase;
 

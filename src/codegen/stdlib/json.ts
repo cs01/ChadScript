@@ -338,6 +338,7 @@ export class JsonGenerator {
     const sprintfResult = this.ctx.nextTemp();
     this.ctx.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, i8* ${strPtr})`);
 
+    this.ctx.setVariableType(buffer, 'i8*');
     return buffer;
   }
 
@@ -351,6 +352,7 @@ export class JsonGenerator {
     const sprintfResult = this.ctx.nextTemp();
     this.ctx.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${numValue})`);
 
+    this.ctx.setVariableType(buffer, 'i8*');
     return buffer;
   }
 }
