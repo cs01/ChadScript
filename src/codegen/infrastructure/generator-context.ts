@@ -25,6 +25,7 @@ import type { TypeResolver } from './type-resolver/index.js';
 import type { ResolvedType } from './type-system.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
 import type { TypeGuardInfo } from './type-resolver/types.js';
+import type { JsonObjectMeta } from '../expressions/access/member.js';
 
 interface ExprBase { type: string; }
 
@@ -343,6 +344,10 @@ export interface IGeneratorContext {
   setActualClassType(name: string, className: string): void;
 
   getActualClassType(name: string): string | undefined;
+
+  readonly jsonObjectMetadata: Map<string, JsonObjectMeta>;
+  setJsonObjectMetadata(key: string, value: JsonObjectMeta): void;
+  getJsonObjectMetadata(key: string): JsonObjectMeta | undefined;
 
   /**
    * LLVM IR output buffer
@@ -696,6 +701,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public symbolTable: SymbolTable = new SymbolTable();
   public variableTypes: Map<string, string> = new Map();
   public actualClassTypes: Map<string, string> = new Map();
+  public jsonObjectMetadata: Map<string, JsonObjectMeta> = new Map();
   public expressionTypes: Map<Expression, ResolvedType> = new Map();
   public globalStrings: string[] = [];
   public currentFunctionReturnType: string = 'double';
@@ -744,6 +750,14 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   getActualClassType(name: string): string | undefined {
     return this.actualClassTypes.get(name);
+  }
+
+  setJsonObjectMetadata(key: string, value: JsonObjectMeta): void {
+    this.jsonObjectMetadata.set(key, value);
+  }
+
+  getJsonObjectMetadata(key: string): JsonObjectMeta | undefined {
+    return this.jsonObjectMetadata.get(key);
   }
 
   setCurrentFunction(name: string | null): void { this.currentFunction = name; }
@@ -886,7 +900,7 @@ export class MockGeneratorContext implements IGeneratorContext {
       const ch = value[i];
       const code = value.charCodeAt(i);
       if (ch === '\\') {
-        escaped += '\\\\';
+        escaped += '\\5C';
         byteCount += 1;
       } else if (ch === '\n') {
         escaped += '\\0A';
@@ -898,7 +912,7 @@ export class MockGeneratorContext implements IGeneratorContext {
         escaped += '\\09';
         byteCount += 1;
       } else if (ch === '"') {
-        escaped += '\\"';
+        escaped += '\\22';
         byteCount += 1;
       } else if (code < 32 || code > 126) {
         if (code < 128) {
