@@ -358,6 +358,10 @@ export class MemberAccessGenerator {
   }
 
   generate(expr: MemberAccessNode, params: string[]): string {
+    if (!expr.property || expr.property === '') {
+      return this.ctx.generateExpression(expr.object, params);
+    }
+
     const enumResult = this.handleEnumMemberAccess(expr);
     if (enumResult !== null) return enumResult;
 
@@ -1472,7 +1476,124 @@ export class MemberAccessGenerator {
     return null;
   }
 
+  private getBuiltinAstTypeFields(name: string): { name: string; type: string }[] | null {
+    if (name === 'AssignmentStatement') {
+      return [
+        { name: 'type', type: "'assignment'" },
+        { name: 'name', type: 'string' },
+        { name: 'value', type: 'Expression' }
+      ];
+    }
+    if (name === 'VariableDeclaration') {
+      return [
+        { name: 'type', type: "'variable_declaration'" },
+        { name: 'kind', type: "'let' | 'const'" },
+        { name: 'name', type: 'string' },
+        { name: 'value', type: 'Expression | null' },
+        { name: 'declaredType', type: 'string' }
+      ];
+    }
+    if (name === 'ReturnStatement') {
+      return [
+        { name: 'type', type: "'return'" },
+        { name: 'value', type: 'Expression' }
+      ];
+    }
+    if (name === 'IfStatement') {
+      return [
+        { name: 'type', type: "'if'" },
+        { name: 'condition', type: 'Expression' },
+        { name: 'thenBlock', type: 'BlockStatement' },
+        { name: 'elseBlock', type: 'BlockStatement | null' }
+      ];
+    }
+    if (name === 'WhileStatement') {
+      return [
+        { name: 'type', type: "'while'" },
+        { name: 'condition', type: 'Expression' },
+        { name: 'body', type: 'BlockStatement' }
+      ];
+    }
+    if (name === 'ForStatement') {
+      return [
+        { name: 'type', type: "'for'" },
+        { name: 'init', type: 'VariableDeclaration | AssignmentStatement | null' },
+        { name: 'condition', type: 'Expression | null' },
+        { name: 'update', type: 'AssignmentStatement | null' },
+        { name: 'body', type: 'BlockStatement' }
+      ];
+    }
+    if (name === 'ForOfStatement') {
+      return [
+        { name: 'type', type: "'for_of'" },
+        { name: 'variableKind', type: "'let' | 'const' | 'var'" },
+        { name: 'variableName', type: 'string' },
+        { name: 'iterable', type: 'Expression' },
+        { name: 'body', type: 'BlockStatement' }
+      ];
+    }
+    if (name === 'BlockStatement') {
+      return [
+        { name: 'type', type: "'block'" },
+        { name: 'statements', type: 'Statement[]' }
+      ];
+    }
+    if (name === 'ThrowStatement') {
+      return [
+        { name: 'type', type: "'throw'" },
+        { name: 'argument', type: 'Expression' }
+      ];
+    }
+    if (name === 'TryStatement') {
+      return [
+        { name: 'type', type: "'try'" },
+        { name: 'block', type: 'BlockStatement' },
+        { name: 'handler', type: 'CatchClause | null' },
+        { name: 'finalizer', type: 'BlockStatement | null' }
+      ];
+    }
+    if (name === 'SwitchStatement') {
+      return [
+        { name: 'type', type: "'switch'" },
+        { name: 'discriminant', type: 'Expression' },
+        { name: 'cases', type: 'SwitchCase[]' }
+      ];
+    }
+    if (name === 'BreakStatement') {
+      return [
+        { name: 'type', type: "'break'" }
+      ];
+    }
+    if (name === 'ContinueStatement') {
+      return [
+        { name: 'type', type: "'continue'" }
+      ];
+    }
+    return null;
+  }
+
   private getInterfaceInfo(interfaceName: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+    const builtinFields = this.getBuiltinAstTypeFields(interfaceName);
+    if (builtinFields) {
+      const keys: string[] = [];
+      const types: string[] = [];
+      const tsTypes: string[] = [];
+      for (let j = 0; j < builtinFields.length; j++) {
+        const f = builtinFields[j] as { name: string; type: string };
+        keys.push(stripOptional(f.name));
+        tsTypes.push(f.type);
+        if (f.type === 'string') {
+          types.push('i8*');
+        } else if (f.type === 'number') {
+          types.push('double');
+        } else if (f.type === 'boolean') {
+          types.push('double');
+        } else {
+          types.push('i8*');
+        }
+      }
+      return { keys, types, tsTypes };
+    }
     const ast = this.ctx.getAst();
     if (!ast || !ast.interfaces) {
       return null;
@@ -2667,27 +2788,32 @@ export class MemberAccessGenerator {
         const objPtr = this.ctx.generateExpression(assertion.expression, params);
         return this.accessObjectPropertyWithNamedInterface(objPtr, property, assertedType);
       }
-      let interfaceDefResult: InterfaceDeclaration | null = null;
-      const ast = this.ctx.getAst();
-      if (ast?.interfaces) {
-        for (let ii = 0; ii < ast.interfaces.length; ii++) {
-          const iface = ast.interfaces[ii] as InterfaceDeclaration;
-          if (iface.name === assertedType) {
-            interfaceDefResult = iface;
-            break;
+      const builtinFields = this.getBuiltinAstTypeFields(assertedType);
+      if (builtinFields) {
+        fields = builtinFields.map(f => ({ name: f.name, type: f.type }));
+      } else {
+        let interfaceDefResult: InterfaceDeclaration | null = null;
+        const ast = this.ctx.getAst();
+        if (ast?.interfaces) {
+          for (let ii = 0; ii < ast.interfaces.length; ii++) {
+            const iface = ast.interfaces[ii] as InterfaceDeclaration;
+            if (iface.name === assertedType) {
+              interfaceDefResult = iface;
+              break;
+            }
           }
         }
+        if (!interfaceDefResult) {
+          const syntheticExpr: MemberAccessNode = {
+            type: 'member_access',
+            object: assertion.expression,
+            property: property
+          };
+          return this.generate(syntheticExpr, params);
+        }
+        const interfaceDef = interfaceDefResult as InterfaceDeclaration;
+        fields = interfaceDef.fields;
       }
-      if (!interfaceDefResult) {
-        const syntheticExpr: MemberAccessNode = {
-          type: 'member_access',
-          object: assertion.expression,
-          property: property
-        };
-        return this.generate(syntheticExpr, params);
-      }
-      const interfaceDef = interfaceDefResult as InterfaceDeclaration;
-      fields = interfaceDef.fields;
     }
 
     let fieldIndex = -1;
