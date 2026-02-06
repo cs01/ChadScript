@@ -164,16 +164,19 @@ export class InterfaceStructGenerator {
   }
 
   getInterfaceStruct(name: string): InterfaceStructInfo | undefined {
+    if (!name) return undefined;
     return this.interfaceStructs.get(name);
   }
 
   hasInterface(name: string): boolean {
+    if (!name) return false;
     const info = this.interfaceStructs.get(name);
     if (!info) return false;
     return !info.isBuiltinConflict;
   }
 
   getFieldIndex(interfaceName: string, fieldName: string): number {
+    if (!interfaceName) return -1;
     const iface = this.interfaceStructs.get(interfaceName);
     if (!iface) return -1;
     const ifaceTyped = iface as InterfaceStructInfo;
@@ -187,6 +190,7 @@ export class InterfaceStructGenerator {
   }
 
   getFieldType(interfaceName: string, fieldName: string): string | undefined {
+    if (!interfaceName) return undefined;
     const iface = this.interfaceStructs.get(interfaceName);
     if (!iface) return undefined;
     const ifaceTyped = iface as InterfaceStructInfo;
@@ -233,6 +237,7 @@ export class InterfaceStructGenerator {
   }
 
   getInlineStructType(interfaceName: string): string {
+    if (!interfaceName) return '';
     const info = this.interfaceStructs.get(interfaceName);
     if (!info) return '';
     const fieldTypes = this.getFieldTypesString(info);
@@ -240,6 +245,7 @@ export class InterfaceStructGenerator {
   }
 
   getStructSize(interfaceName: string): number {
+    if (!interfaceName) return 0;
     const info = this.interfaceStructs.get(interfaceName);
     if (!info) return 0;
     let size = 0;

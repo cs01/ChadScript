@@ -1086,8 +1086,10 @@ export class MemberAccessGenerator {
     if (innerType === 'i8*') {
       if (this.ctx.hasJsonObjectMetadata(innerPtr)) {
         const interfaceType = this.ctx.getJsonObjectMetadataInterfaceType(innerPtr);
-        if (interfaceType && this.ctx.interfaceStructGenHasInterface(interfaceType)) {
-          return this.accessObjectPropertyWithNamedInterface(innerPtr, expr.property, interfaceType);
+        if (interfaceType) {
+          if (this.ctx.interfaceStructGenHasInterface(interfaceType)) {
+            return this.accessObjectPropertyWithNamedInterface(innerPtr, expr.property, interfaceType);
+          }
         }
         const metaKeys = this.ctx.getJsonObjectMetadataKeys(innerPtr);
         const metaTypes = this.ctx.getJsonObjectMetadataTypes(innerPtr);
@@ -1174,7 +1176,6 @@ export class MemberAccessGenerator {
         return null;
       }
 
-      propIndex = fieldInfo.index;
       if (fieldInfo.tsType) {
         propType = fieldInfo.tsType;
       } else if (fieldInfo.type === 'double') {
@@ -1186,7 +1187,7 @@ export class MemberAccessGenerator {
       }
 
       fieldPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${innerInterfaceName}, %${innerInterfaceName}* ${innerPtr}, i32 0, i32 ${propIndex}`);
+      this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${innerInterfaceName}, %${innerInterfaceName}* ${innerPtr}, i32 0, i32 ${fieldInfo.index}`);
     } else {
       return null;
     }
@@ -1821,6 +1822,7 @@ export class MemberAccessGenerator {
   }
 
   private getParameterTypeFromAST(paramName: string): string | null {
+    if (!paramName) return null;
     const ast = this.ctx.getAst();
     const currentFunc = this.ctx.getCurrentFunction();
     if (!ast || !currentFunc) {
@@ -1828,10 +1830,12 @@ export class MemberAccessGenerator {
     }
     for (let i = 0; i < ast.functions.length; i++) {
       const fn = ast.functions[i];
+      if (!fn.name) continue;
       if (fn.name === currentFunc) {
         if (fn.parameters) {
           for (let j = 0; j < fn.parameters.length; j++) {
             const p = fn.parameters[j] as FunctionParameter;
+            if (!p.name) continue;
             if (p.name === paramName && p.type) {
               return p.type;
             }
@@ -1843,10 +1847,13 @@ export class MemberAccessGenerator {
       const cls = ast.classes[i];
       for (let j = 0; j < cls.methods.length; j++) {
         const method = cls.methods[j];
+        if (!method.name) continue;
         if (method.name === currentFunc) {
           if (method.paramTypes) {
             for (let k = 0; k < method.params.length; k++) {
-              if (method.params[k] === paramName && method.paramTypes[k]) {
+              const methodParam = method.params[k];
+              if (!methodParam) continue;
+              if (methodParam === paramName && method.paramTypes[k]) {
                 return method.paramTypes[k];
               }
             }
@@ -2448,8 +2455,10 @@ export class MemberAccessGenerator {
         if (innerType === 'i8*') {
           if (this.ctx.hasJsonObjectMetadata(innerPtr)) {
             const interfaceType = this.ctx.getJsonObjectMetadataInterfaceType(innerPtr);
-            if (interfaceType && this.ctx.interfaceStructGenHasInterface(interfaceType)) {
-              return this.accessObjectPropertyWithNamedInterface(innerPtr, expr.property, interfaceType);
+            if (interfaceType) {
+              if (this.ctx.interfaceStructGenHasInterface(interfaceType)) {
+                return this.accessObjectPropertyWithNamedInterface(innerPtr, expr.property, interfaceType);
+              }
             }
             const metaKeys = this.ctx.getJsonObjectMetadataKeys(innerPtr);
             const metaTypes = this.ctx.getJsonObjectMetadataTypes(innerPtr);
@@ -2541,8 +2550,10 @@ export class MemberAccessGenerator {
         const objPtrRaw = this.ctx.nextTemp();
         this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${varAlloca}`);
         const ifaceType = symbolInterfaceType;
-        if (ifaceType && this.ctx.interfaceStructGenHasInterface(ifaceType)) {
-          return this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, ifaceType);
+        if (ifaceType) {
+          if (this.ctx.interfaceStructGenHasInterface(ifaceType)) {
+            return this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, ifaceType);
+          }
         }
         const interfaceDef = this.getInterfaceFromAST(ifaceType);
         if (interfaceDef) {

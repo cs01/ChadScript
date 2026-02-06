@@ -14,8 +14,15 @@ const args = process.argv.slice(2);
 // Parse flags
 let logLevel = LogLevel.Normal;
 const fileArgs: string[] = [];
+let skipNextArg = false;
+let outputArg: string | null = null;
 
-for (const arg of args) {
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+  if (skipNextArg) {
+    skipNextArg = false;
+    continue;
+  }
   if (arg === '-v' || arg === '--verbose') {
     logLevel = LogLevel.Verbose;
   } else if (arg === '--debug') {
@@ -32,6 +39,11 @@ for (const arg of args) {
     setKeepTemps(true);
   } else if (arg === '--emit-llvm' || arg === '-S') {
     setEmitLLVMOnly(true);
+  } else if (arg === '-o') {
+    if (i + 1 < args.length) {
+      outputArg = args[i + 1];
+      skipNextArg = true;
+    }
   } else if (arg === '-h' || arg === '--help') {
     console.log('ChadScript - TypeScript to Native AOT Compiler');
     console.log('');
@@ -71,7 +83,7 @@ const inputFile = fileArgs[0];
 // Example: examples/hello.ts -> .build/examples/hello
 //          tests/fixtures/foo.js -> .build/tests/fixtures/foo
 const defaultOutput = path.join('.build', inputFile.replace(/\.(js|ts)$/, ''));
-const outputFile = fileArgs[1] || defaultOutput;
+const outputFile = outputArg || fileArgs[1] || defaultOutput;
 
 // Ensure .build directory structure exists
 const outputDir = path.dirname(outputFile);
