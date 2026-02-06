@@ -189,19 +189,18 @@ export class ControlFlowGenerator {
 
     // Generate init if present
     if (forStmt.init) {
-      const initTyped = forStmt.init as { type: string; name: string; value: Expression | null };
-      if (initTyped.type === 'variable_declaration') {
-        // Handle variable declaration - allocate and store
-        if (!initTyped.value) {
+      const initBase = forStmt.init as { type: string };
+      if (initBase.type === 'variable_declaration') {
+        const initVarDecl = forStmt.init as { type: string; kind: string; name: string; value: Expression | null; declaredType?: string };
+        if (!initVarDecl.value) {
           throw new Error('Variable declaration in for loop must have an initializer');
         }
-        const value = this.ctx.generateExpression(initTyped.value, params);
-        const allocaReg = this.ctx.nextAllocaReg(initTyped.name);
-        // Register the variable in the variables map
-        this.ctx.defineVariable(initTyped.name, allocaReg, 'double', SymbolKind.Number, 'local');
+        const value = this.ctx.generateExpression(initVarDecl.value, params);
+        const allocaReg = this.ctx.nextAllocaReg(initVarDecl.name);
+        this.ctx.defineVariable(initVarDecl.name, allocaReg, 'double', SymbolKind.Number, 'local');
         this.emit(`${allocaReg} = alloca double`);
         this.emit(`store double ${value}, double* ${allocaReg}`);
-      } else if (initTyped.type === 'assignment') {
+      } else if (initBase.type === 'assignment') {
         const initAssign = forStmt.init as { type: string; name: string; value: Expression };
         const value = this.ctx.generateExpression(initAssign.value, params);
         const allocaReg = this.ctx.getVariableAlloca(initAssign.name);
@@ -1352,13 +1351,24 @@ export class ControlFlowGenerator {
     return '0';
   }
 
-  generateThrowStatement(stmt: Statement, _params: string[]): string {
+  generateThrowStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== 'throw') {
       throw new Error('Expected throw statement');
     }
 
-    // For now, we'll implement throw by calling exit(1)
-    // In a full implementation, we'd need exception handling support
+    const throwStmt = stmt as { type: string; argument: Expression };
+    if (throwStmt.argument) {
+      const argTyped = throwStmt.argument as { type: string; className?: string; args?: Expression[] };
+      if (argTyped.type === 'new' && argTyped.className === 'Error' && argTyped.args && argTyped.args.length > 0) {
+        const msgArg = argTyped.args[0];
+        const msgVal = this.ctx.generateExpression(msgArg, params);
+        const stderrPtr = this.ctx.nextTemp();
+        this.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+        const fprintfResult = this.ctx.nextTemp();
+        this.emit(`${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([11 x i8], [11 x i8]* @.str.throw_fmt, i32 0, i32 0), i8* ${msgVal})`);
+      }
+    }
+
     this.emit(`call void @exit(i32 1)`);
     this.emit(`unreachable`);
     return '0';
