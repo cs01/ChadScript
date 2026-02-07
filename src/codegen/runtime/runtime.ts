@@ -29,7 +29,7 @@ export class RuntimeGenerator {
     let ir = '; fetch() API implementation using libcurl\n';
 
     ir += '%FetchBuffer = type { i8*, i64, i64 }\n';
-    ir += '%Response = type { i8*, i32, i8* }\n\n';
+    ir += '%__FetchResponse = type { i8*, i32, i8* }\n\n';
 
     ir += 'define i64 @fetch_write_callback(i8* %data, i64 %size, i64 %nmemb, i8* %userdata) {\n';
     ir += 'entry:\n';
@@ -51,7 +51,7 @@ export class RuntimeGenerator {
     ir += '  ret i64 %total_size\n';
     ir += '}\n\n';
 
-    ir += 'define %Response* @fetch(i8* %url) {\n';
+    ir += 'define %__FetchResponse* @fetch(i8* %url) {\n';
     ir += 'entry:\n';
     ir += '  %curl = call i8* @curl_easy_init()\n';
     ir += '  %curl_null = icmp eq i8* %curl, null\n';
@@ -96,14 +96,14 @@ export class RuntimeGenerator {
 
     ir += 'create_response:\n';
     ir += '  %resp_mem = call i8* @GC_malloc(i64 24)\n';
-    ir += '  %resp = bitcast i8* %resp_mem to %Response*\n';
-    ir += '  %raw_field = getelementptr %Response, %Response* %resp, i32 0, i32 0\n';
+    ir += '  %resp = bitcast i8* %resp_mem to %__FetchResponse*\n';
+    ir += '  %raw_field = getelementptr %__FetchResponse, %__FetchResponse* %resp, i32 0, i32 0\n';
     ir += '  store i8* %response_data, i8** %raw_field\n';
-    ir += '  %status_field = getelementptr %Response, %Response* %resp, i32 0, i32 1\n';
+    ir += '  %status_field = getelementptr %__FetchResponse, %__FetchResponse* %resp, i32 0, i32 1\n';
     ir += '  store i32 %status_code, i32* %status_field\n';
-    ir += '  %body_field = getelementptr %Response, %Response* %resp, i32 0, i32 2\n';
+    ir += '  %body_field = getelementptr %__FetchResponse, %__FetchResponse* %resp, i32 0, i32 2\n';
     ir += '  store i8* %response_data, i8** %body_field\n';
-    ir += '  ret %Response* %resp\n\n';
+    ir += '  ret %__FetchResponse* %resp\n\n';
 
     ir += 'fetch_error:\n';
     ir += '  %err_str = call i8* @curl_easy_strerror(i32 %perform_result)\n';
@@ -114,15 +114,15 @@ export class RuntimeGenerator {
 
     ir += 'error:\n';
     ir += '  %err_resp_mem = call i8* @GC_malloc(i64 24)\n';
-    ir += '  %err_resp = bitcast i8* %err_resp_mem to %Response*\n';
+    ir += '  %err_resp = bitcast i8* %err_resp_mem to %__FetchResponse*\n';
     ir += '  %empty = getelementptr [1 x i8], [1 x i8]* @.str.empty, i32 0, i32 0\n';
-    ir += '  %err_raw_field = getelementptr %Response, %Response* %err_resp, i32 0, i32 0\n';
+    ir += '  %err_raw_field = getelementptr %__FetchResponse, %__FetchResponse* %err_resp, i32 0, i32 0\n';
     ir += '  store i8* %empty, i8** %err_raw_field\n';
-    ir += '  %err_status_field = getelementptr %Response, %Response* %err_resp, i32 0, i32 1\n';
+    ir += '  %err_status_field = getelementptr %__FetchResponse, %__FetchResponse* %err_resp, i32 0, i32 1\n';
     ir += '  store i32 0, i32* %err_status_field\n';
-    ir += '  %err_body_field = getelementptr %Response, %Response* %err_resp, i32 0, i32 2\n';
+    ir += '  %err_body_field = getelementptr %__FetchResponse, %__FetchResponse* %err_resp, i32 0, i32 2\n';
     ir += '  store i8* %empty, i8** %err_body_field\n';
-    ir += '  ret %Response* %err_resp\n';
+    ir += '  ret %__FetchResponse* %err_resp\n';
     ir += '}\n\n';
 
     ir += '@.str.fetch_error = private constant [17 x i8] c"fetch error: %s\\0A\\00"\n';
@@ -141,8 +141,8 @@ export class RuntimeGenerator {
     ir += '; This enables await fetch(url) syntax\n';
     ir += 'define %Promise* @fetch_async(i8* %url) {\n';
     ir += 'entry:\n';
-    ir += '  %response = call %Response* @fetch(i8* %url)\n';
-    ir += '  %response_i8 = bitcast %Response* %response to i8*\n';
+    ir += '  %response = call %__FetchResponse* @fetch(i8* %url)\n';
+    ir += '  %response_i8 = bitcast %__FetchResponse* %response to i8*\n';
     ir += '  %promise = call %Promise* @__Promise_resolve_static(i8* %response_i8)\n';
     ir += '  ret %Promise* %promise\n';
     ir += '}\n\n';

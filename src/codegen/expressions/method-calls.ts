@@ -312,6 +312,7 @@ export interface MethodCallGeneratorContext {
   mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
+  pathGenGenerateBasename(expr: MethodCallNode, params: string[]): string;
   fsGenCanHandle(expr: MethodCallNode): boolean;
   fsGenReadFileSync(expr: MethodCallNode, params: string[]): string;
   fsGenWriteFileSync(expr: MethodCallNode, params: string[]): string;
@@ -690,6 +691,9 @@ export class MethodCallGenerator {
     if (method === 'dirname' && this.isVariableWithName(expr.object, 'path')) {
       return this.ctx.pathGenGenerateDirname(expr, params);
     }
+    if (method === 'basename' && this.isVariableWithName(expr.object, 'path')) {
+      return this.ctx.pathGenGenerateBasename(expr, params);
+    }
 
     // Handle execSync() from child_process
     if (method === 'execSync') {
@@ -735,7 +739,7 @@ export class MethodCallGenerator {
         const objType = this.ctx.getVariableType(responsePtr);
         if (objType === 'i8*') {
           const castPtr = this.ctx.nextTemp();
-          this.ctx.emit(`${castPtr} = bitcast i8* ${responsePtr} to %Response*`);
+          this.ctx.emit(`${castPtr} = bitcast i8* ${responsePtr} to %__FetchResponse*`);
           responsePtr = castPtr;
         }
 

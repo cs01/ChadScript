@@ -86,6 +86,7 @@ export function getLLVMDeclarations(): string {
 
   ir += 'declare i8* @realpath(i8*, i8*)\n';
   ir += 'declare i8* @dirname(i8*)\n';
+  ir += 'declare i8* @basename(i8*)\n';
   ir += '\n';
 
   ir += 'declare i32 @system(i8*)\n';

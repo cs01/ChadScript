@@ -47,7 +47,7 @@ export class ResponseGenerator {
   generateText(responsePtr: string): string {
     // Get pointer to body field (field 2)
     const bodyFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${bodyFieldPtr} = getelementptr %Response, %Response* ${responsePtr}, i32 0, i32 2`);
+    this.ctx.emit(`${bodyFieldPtr} = getelementptr %__FetchResponse, %__FetchResponse* ${responsePtr}, i32 0, i32 2`);
 
     // Load the i8* body pointer from the struct
     const temp = this.ctx.nextTemp();
@@ -254,7 +254,7 @@ export class ResponseGenerator {
   generateStatus(responsePtr: string): string {
     // Get pointer to status_code field (field 1)
     const statusFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${statusFieldPtr} = getelementptr %Response, %Response* ${responsePtr}, i32 0, i32 1`);
+    this.ctx.emit(`${statusFieldPtr} = getelementptr %__FetchResponse, %__FetchResponse* ${responsePtr}, i32 0, i32 1`);
 
     // Load the i32 status code
     const statusI32 = this.ctx.nextTemp();
@@ -277,7 +277,7 @@ export class ResponseGenerator {
   generateOk(responsePtr: string): string {
     // Get pointer to status_code field (field 1)
     const statusFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${statusFieldPtr} = getelementptr %Response, %Response* ${responsePtr}, i32 0, i32 1`);
+    this.ctx.emit(`${statusFieldPtr} = getelementptr %__FetchResponse, %__FetchResponse* ${responsePtr}, i32 0, i32 1`);
 
     // Load the i32 status code
     const statusI32 = this.ctx.nextTemp();

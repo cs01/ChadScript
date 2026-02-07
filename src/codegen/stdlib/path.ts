@@ -23,7 +23,7 @@ export class PathGenerator {
     const exprObjBase = expr.object as ExprBase;
     return exprObjBase.type === 'variable' &&
            (expr.object as any).name === 'path' &&
-           (expr.method === 'resolve' || expr.method === 'dirname');
+           (expr.method === 'resolve' || expr.method === 'dirname' || expr.method === 'basename');
   }
 
   /**
@@ -98,6 +98,38 @@ export class PathGenerator {
     // Call dirname: dirname(pathCopy)
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @dirname(i8* ${pathCopy})`);
+
+    return result;
+  }
+
+  generateBasename(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      throw new Error('path.basename() requires 1 argument');
+    }
+
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    const pathLen = this.ctx.nextTemp();
+    this.ctx.emit(`${pathLen} = call i64 @strlen(i8* ${pathPtr})`);
+    const copySize = this.ctx.nextTemp();
+    this.ctx.emit(`${copySize} = add i64 ${pathLen}, 1`);
+    const pathCopy = this.ctx.nextTemp();
+    this.ctx.emit(`${pathCopy} = call i8* @GC_malloc_atomic(i64 ${copySize})`);
+    const copyResult = this.ctx.nextTemp();
+    this.ctx.emit(`${copyResult} = call i8* @strcpy(i8* ${pathCopy}, i8* ${pathPtr})`);
+
+    const basenamePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${basenamePtr} = call i8* @basename(i8* ${pathCopy})`);
+
+    const resultLen = this.ctx.nextTemp();
+    this.ctx.emit(`${resultLen} = call i64 @strlen(i8* ${basenamePtr})`);
+    const resultSize = this.ctx.nextTemp();
+    this.ctx.emit(`${resultSize} = add i64 ${resultLen}, 1`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @GC_malloc_atomic(i64 ${resultSize})`);
+    const strdupResult = this.ctx.nextTemp();
+    this.ctx.emit(`${strdupResult} = call i8* @strcpy(i8* ${result}, i8* ${basenamePtr})`);
+    this.ctx.setVariableType(result, 'i8*');
 
     return result;
   }

@@ -211,7 +211,7 @@ export class ExpressionGenerator {
       return this.indexAccessGen.generateAssignment(expr as IndexAccessAssignmentNode, params);
     }
 
-    throw new Error(`Unknown expression type: ${exprTyped.type}, expr: ${JSON.stringify(expr).slice(0, 200)}`);
+    throw new Error(`Unknown expression type: ${exprTyped.type}`);
   }
 
   /**

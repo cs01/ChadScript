@@ -77,5 +77,26 @@ function handleRequest(req: Request): Response {
 // --- Start Server ---
 
 const port = 3000;
-console.log("ChadScript server starting on port " + port);
+console.log("ChadScript HTTP Server starting on port " + port);
+console.log("");
+console.log("Available routes:");
+console.log("  GET  /              - Home page");
+console.log("  GET  /json          - JSON response");
+console.log("  GET  /echo?msg=...  - Echo query parameter");
+console.log("  GET  /status/:code  - Status code demo");
+console.log("  GET  /content-type  - Show request content type");
+console.log("  GET  /error         - 500 error response");
+console.log("  GET  /created       - 201 created response");
+console.log("  POST /echo          - Echo request body");
+console.log("");
+console.log("Try it out:");
+console.log("  curl http://localhost:" + port + "/");
+console.log("  curl http://localhost:" + port + "/json");
+console.log("  curl http://localhost:" + port + "/echo?msg=hello");
+console.log("  curl http://localhost:" + port + "/status/418");
+console.log("  curl http://localhost:" + port + "/content-type");
+console.log("  curl http://localhost:" + port + "/error");
+console.log("  curl http://localhost:" + port + "/created");
+console.log("  curl -X POST -d 'hello world' http://localhost:" + port + "/echo");
+console.log("");
 httpServe(port, handleRequest);
