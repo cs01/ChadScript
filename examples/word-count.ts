@@ -1,13 +1,12 @@
 // Word Count CLI - Count lines, words, and characters in a file
 // Usage: ./word-count <filename>
-// Note: Simplified for stage 0 compiler compatibility
 
-function countChars(content: string): number {
-  return content.length;
-}
-
-function countLines(content: string): number {
+function countStats(content: string): void {
   let lines = 0;
+  let words = 0;
+  let chars = content.length;
+
+  // Count lines
   let i = 0;
   while (i < content.length) {
     if (content.charAt(i) === "\n") {
@@ -15,28 +14,26 @@ function countLines(content: string): number {
     }
     i = i + 1;
   }
-  return lines;
-}
 
-function countWords(content: string): number {
+  // Count words (split by spaces)
   const wordArray = content.split(" ");
-  return wordArray.length;
-}
+  words = wordArray.length;
 
-function printStats(chars: number, lines: number, words: number): void {
-  console.log("Chars: ");
-  console.log(chars);
   console.log("Lines: ");
   console.log(lines);
   console.log("Words: ");
   console.log(words);
+  console.log("Chars: ");
+  console.log(chars);
 }
 
-console.log("Word count starting...");
-const testContent = "hello world test";
-const chars = countChars(testContent);
-const lines = countLines(testContent);
-const words = countWords(testContent);
-printStats(chars, lines, words);
-console.log("TEST_PASSED");
+// Main
+if (process.argv.length < 1) {
+  console.log("Usage: word-count <filename>");
+  process.exit(1);
+}
+
+const filename = process.argv[0];
+const content = fs.readFileSync(filename);
+countStats(content);
 process.exit(0);

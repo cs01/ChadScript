@@ -110,7 +110,11 @@ export class FunctionGenerator {
         } else if (this.isEnumType(paramType)) {
           paramLLVMTypes.push('double');
         } else if (paramType !== 'number' && paramType !== 'boolean') {
-          paramLLVMTypes.push('i8*');
+          if (this.ctx.interfaceStructGenHasInterface(paramType)) {
+            paramLLVMTypes.push(`%${paramType}*`);
+          } else {
+            paramLLVMTypes.push('i8*');
+          }
         } else {
           paramLLVMTypes.push('double');
         }
@@ -322,7 +326,7 @@ export class FunctionGenerator {
         } else {
           this.ctx.emit(`store %Array* %arg${i}, %Array** ${allocaReg}`);
         }
-      } else if (llvmType.startsWith('%') && llvmType.endsWith('*') && llvmType !== '%Response*') {
+      } else if (llvmType.startsWith('%') && llvmType.endsWith('*') && llvmType !== '%__FetchResponse*') {
         const interfaceName = llvmType.slice(1, -1);
         this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind.Object, 'local', createInterfacePointerAllocaMetadata(interfaceName));
         this.ctx.emit(`${allocaReg} = alloca ${llvmType}`);
