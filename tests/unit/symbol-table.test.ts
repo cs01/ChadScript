@@ -234,7 +234,7 @@ describe('SymbolTable', () => {
   describe('metadata handling', () => {
     it('should store and retrieve object metadata', () => {
       const table = new SymbolTable();
-      table.define('user', SymbolKind.Object, '%User*', '%1', 'local', {
+      table.defineWithMetadata('user', SymbolKind.Object, '%User*', '%1', 'local', {
         objectMetadata: {
           keys: ['name', 'age'],
           types: ['i8*', 'double']
@@ -250,7 +250,7 @@ describe('SymbolTable', () => {
 
     it('should store and retrieve class metadata', () => {
       const table = new SymbolTable();
-      table.define('instance', SymbolKind.Class, 'i32*', '%1', 'local', {
+      table.defineWithMetadata('instance', SymbolKind.Class, 'i32*', '%1', 'local', {
         classMetadata: {
           className: 'Person',
           fields: ['name', 'age']
@@ -264,7 +264,7 @@ describe('SymbolTable', () => {
 
     it('should store and retrieve array metadata', () => {
       const table = new SymbolTable();
-      table.define('arr', SymbolKind.StringArray, '%StringArray*', '%1', 'local', {
+      table.defineWithMetadata('arr', SymbolKind.StringArray, '%StringArray*', '%1', 'local', {
         arrayMetadata: {
           elementType: 'string'
         }
@@ -327,7 +327,7 @@ describe('SymbolTable', () => {
 
     it('should get object info (legacy objectVariables.get())', () => {
       const table = new SymbolTable();
-      table.define('user', SymbolKind.Object, '%User*', '%obj_ptr', 'local', {
+      table.defineWithMetadata('user', SymbolKind.Object, '%User*', '%obj_ptr', 'local', {
         objectMetadata: {
           keys: ['name', 'age'],
           types: ['i8*', 'double']
@@ -342,7 +342,7 @@ describe('SymbolTable', () => {
 
     it('should get class info (legacy classInstanceVariables.get())', () => {
       const table = new SymbolTable();
-      table.define('instance', SymbolKind.Class, 'i32*', '%class_ptr', 'local', {
+      table.defineWithMetadata('instance', SymbolKind.Class, 'i32*', '%class_ptr', 'local', {
         classMetadata: {
           className: 'Person'
         }
@@ -393,13 +393,13 @@ describe('SymbolTable', () => {
 
       const output = table.dump();
       assert.match(output, /=== Symbol Table ===/);
-      assert.match(output, /x: number \(double\) -> %1 \[local\]/);
-      assert.match(output, /name: string \(i8\*\) -> %2 \[local\]/);
+      assert.match(output, /x: 0 \(double\) -> %1 \[local\]/);
+      assert.match(output, /name: 1 \(i8\*\) -> %2 \[local\]/);
     });
 
     it('should dump object metadata', () => {
       const table = new SymbolTable();
-      table.define('user', SymbolKind.Object, '%User*', '%1', 'local', {
+      table.defineWithMetadata('user', SymbolKind.Object, '%User*', '%1', 'local', {
         objectMetadata: {
           keys: ['name', 'age'],
           types: ['i8*', 'double']
@@ -412,7 +412,7 @@ describe('SymbolTable', () => {
 
     it('should dump class metadata', () => {
       const table = new SymbolTable();
-      table.define('instance', SymbolKind.Class, 'i32*', '%1', 'local', {
+      table.defineWithMetadata('instance', SymbolKind.Class, 'i32*', '%1', 'local', {
         classMetadata: {
           className: 'Person'
         }

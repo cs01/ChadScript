@@ -67,7 +67,8 @@ export interface VariableAllocatorContext {
   nextAllocaReg(varName: string): string;
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
-  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata?: SymbolMetadata): void;
+  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global'): void;
+  defineVariableWithMetadata(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata: SymbolMetadata): void;
   generateExpression(expr: Expression, params: string[]): string;
   isStringExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
@@ -109,6 +110,12 @@ export interface VariableAllocatorContext {
   symbolTableGetMapMetadata(name: string): MapMetadata | undefined;
   symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] };
   symbolTableGetAlloca(name: string): string | undefined;
+  symbolTableGetScope(name: string): string | undefined;
+  symbolTableGetType(name: string): string | undefined;
+  symbolTableGetInterfaceType(name: string): string | undefined;
+  symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
+  symbolTableGetObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined;
+  symbolTableHasObjectInfo(name: string): boolean;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableSetObjectArrayMetadata(name: string, metadata: ObjectArrayMetadata): void;
   exprGen: ExpressionGeneratorLike;
@@ -255,11 +262,11 @@ export class VariableAllocator {
   }
 
   allocate(stmt: VariableDeclaration, params: string[]): void {
-    const existingSymbol = this.ctx.symbolTableLookup(stmt.name);
-    if (existingSymbol && existingSymbol.scope === 'global' && stmt.value !== null) {
+    const existingScope = this.ctx.symbolTableGetScope(stmt.name);
+    if (existingScope === 'global' && stmt.value !== null) {
       const value = this.ctx.generateExpression(stmt.value, params);
-      const globalPtr = existingSymbol.allocaRegister;
-      const llvmType = existingSymbol.llvmType;
+      const globalPtr = this.ctx.symbolTableGetAlloca(stmt.name) || '';
+      const llvmType = this.ctx.symbolTableGetType(stmt.name) || 'i8*';
       if (llvmType.indexOf('*') !== -1) {
         this.ctx.emit(`store ${llvmType} ${value}, ${llvmType}* ${globalPtr}`);
       } else if (llvmType === '%Array' || llvmType === '%StringArray' || llvmType === '%Map' || llvmType === '%Set') {
@@ -288,11 +295,11 @@ export class VariableAllocator {
         this.ctx.emit(`${allocaReg} = alloca double`);
         this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
       } else if (baseType === 'string[]') {
-        this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', createPointerAllocaMetadata());
+        this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', createPointerAllocaMetadata());
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
         this.ctx.emit(`store %StringArray* null, %StringArray** ${allocaReg}`);
       } else if (baseType === 'number[]' || baseType === 'boolean[]') {
-        this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local', createPointerAllocaMetadata());
+        this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local', createPointerAllocaMetadata());
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         this.ctx.emit(`store %Array* null, %Array** ${allocaReg}`);
       } else {
@@ -318,7 +325,7 @@ export class VariableAllocator {
                 types.push(this.tsTypeToLlvm(field.type));
                 tsTypes.push(field.type);
               }
-              this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadata({ keys, types, tsTypes }));
+              this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadata({ keys, types, tsTypes }));
               this.ctx.emit(`${allocaReg} = alloca i8*`);
               this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
               return;
@@ -340,7 +347,7 @@ export class VariableAllocator {
                 types.push(this.tsTypeToLlvm(field.type));
                 tsTypes.push(field.type);
               }
-              this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, baseType));
+              this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, baseType));
               this.ctx.emit(`${allocaReg} = alloca i8*`);
               this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
               return;
@@ -491,7 +498,7 @@ export class VariableAllocator {
       }
     }
 
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
@@ -524,7 +531,7 @@ export class VariableAllocator {
       }
     }
 
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
@@ -652,7 +659,7 @@ export class VariableAllocator {
       }
     }
 
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     this.ctx.currentDeclaredInterfaceType = interfaceName;
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
@@ -730,7 +737,7 @@ export class VariableAllocator {
       tsTypes.push(field.type);
     }
     const llvmType = `%${interfaceName}*`;
-    this.ctx.defineVariable(stmt.name, allocaReg, llvmType, SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, llvmType, SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
     this.ctx.emit(`${allocaReg} = alloca ${llvmType}`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
     const typedPtr = this.ctx.nextTemp();
@@ -748,9 +755,9 @@ export class VariableAllocator {
     } else {
       const typeInfo = this.getTypeInfoForElementType(elementType);
       if (typeInfo) {
-        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local', createObjectMetadataWithInterface({ keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }, elementType));
+        this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local', createObjectMetadataWithInterface({ keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }, elementType));
       } else {
-        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local', createInterfacePointerAllocaMetadata(elementType));
+        this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local', createInterfacePointerAllocaMetadata(elementType));
       }
     }
     this.ctx.emit(`${allocaReg} = alloca i8*`);
@@ -767,23 +774,24 @@ export class VariableAllocator {
     if (objBase.type !== 'variable') return null;
     const varName = (memberExpr.object as VariableNode).name;
     if (!varName) return null;
-    const symbol = this.ctx.symbolTableLookup(varName);
-    if (!symbol) return null;
     let objectInterfaceType: string | null = null;
-    if (symbol.interfaceType) {
-      objectInterfaceType = symbol.interfaceType;
-    } else if (symbol.objectMetadata && symbol.objectMetadata.tsTypes) {
-      const objMeta = symbol.objectMetadata;
-      if (!objMeta.keys || !memberExpr.property) return null;
-      const keyIdx = objMeta.keys.indexOf(memberExpr.property);
-      if (keyIdx >= 0 && objMeta.tsTypes) {
-        const propType = objMeta.tsTypes[keyIdx];
-        if (propType && !propType.endsWith('[]') && propType !== 'string' && propType !== 'number' && propType !== 'boolean') {
-          const iface = this.getInterface(propType);
-          if (iface) return propType;
+    const ifaceType = this.ctx.symbolTableGetInterfaceType(varName);
+    if (ifaceType) {
+      objectInterfaceType = ifaceType;
+    } else {
+      const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+      if (objMeta && objMeta.tsTypes) {
+        if (!objMeta.keys || !memberExpr.property) return null;
+        const keyIdx = objMeta.keys.indexOf(memberExpr.property);
+        if (keyIdx >= 0 && objMeta.tsTypes) {
+          const propType = objMeta.tsTypes[keyIdx];
+          if (propType && !propType.endsWith('[]') && propType !== 'string' && propType !== 'number' && propType !== 'boolean') {
+            const iface = this.getInterface(propType);
+            if (iface) return propType;
+          }
         }
+        return null;
       }
-      return null;
     }
     if (!objectInterfaceType) return null;
     const objectInterface = this.getInterface(objectInterfaceType);
@@ -819,7 +827,7 @@ export class VariableAllocator {
       types.push(this.tsTypeToLlvm(field.type));
       tsTypes.push(field.type);
     }
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
@@ -843,7 +851,7 @@ export class VariableAllocator {
     const fields = this.ctx.classGenGetClassFields(className);
     const ptrType = fields.length > 0 ? `%${className}_struct*` : 'i8*';
 
-    this.ctx.defineVariable(stmt.name, allocaReg, ptrType, SymbolKind.Class, 'local', createClassMetadata({ className }));
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, ptrType, SymbolKind.Class, 'local', createClassMetadata({ className }));
     this.ctx.emit(`${allocaReg} = alloca ${ptrType}`);
 
     const instancePtr = this.ctx.generateExpression(stmt.value!, params);
@@ -960,7 +968,7 @@ export class VariableAllocator {
         types.push(this.tsTypeToLlvmJson(field.type));
       }
 
-      this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
+      this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
 
       this.ctx.emit(`${allocaReg} = alloca i8*`);
       const jsonPtr = this.ctx.generateExpression(stmt.value!, params);
@@ -999,7 +1007,7 @@ export class VariableAllocator {
     const varMetadata: SymbolMetadata = interfaceDefResult && stmt.declaredType
       ? createObjectMetadataWithInterface({ keys, types, tsTypes }, stmt.declaredType)
       : createObjectMetadata({ keys, types, tsTypes });
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', varMetadata);
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', varMetadata);
     this.ctx.emit(`${allocaReg} = alloca i8*`);
 
     if (interfaceDefResult) {
@@ -1041,7 +1049,7 @@ export class VariableAllocator {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const llvmValueType = this.tsTypeToLlvm(mapTypeInfo.valueType);
 
-    this.ctx.defineVariable(stmt.name, allocaReg, '%StringMap*', SymbolKind.Map, 'local', createMapMetadataSymbol({
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, '%StringMap*', SymbolKind.Map, 'local', createMapMetadataSymbol({
       keyType: 'string',
       valueType: mapTypeInfo.valueType,
       llvmKeyType: 'i8*',
@@ -1121,7 +1129,7 @@ export class VariableAllocator {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const llvmValueType = this.tsTypeToLlvm(setTypeInfo.valueType);
 
-    this.ctx.defineVariable(stmt.name, allocaReg, '%StringSet*', SymbolKind.Set, 'local', createSetMetadataSymbol({
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, '%StringSet*', SymbolKind.Set, 'local', createSetMetadataSymbol({
       valueType: 'string',
       llvmValueType
     }));
@@ -1138,7 +1146,7 @@ export class VariableAllocator {
 
   private allocateStringArray(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', createPointerAllocaMetadata());
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', createPointerAllocaMetadata());
     this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
 
     const value = this.ctx.generateExpression(stmt.value!, params);
@@ -1158,7 +1166,7 @@ export class VariableAllocator {
 
   private allocateArray(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local', createPointerAllocaMetadata());
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local', createPointerAllocaMetadata());
     this.ctx.emit(`${allocaReg} = alloca %Array*`);
 
     const value = this.ctx.generateExpression(stmt.value!, params);
@@ -1183,7 +1191,7 @@ export class VariableAllocator {
     if (elementType) {
       const typeInfo = this.getTypeInfoForElementType(elementType);
       if (typeInfo) {
-        this.ctx.defineVariable(stmt.name, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local', createObjectMetadataWithInterface({
+        this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local', createObjectMetadataWithInterface({
           keys: typeInfo.keys,
           types: typeInfo.types,
           tsTypes: typeInfo.tsTypes
@@ -1244,7 +1252,7 @@ export class VariableAllocator {
     if (elementType) {
       const typeInfo = this.getTypeInfoForElementType(elementType);
       if (typeInfo) {
-        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local', createObjectMetadataWithInterface({ keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }, elementType));
+        this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.ObjectArray, 'local', createObjectMetadataWithInterface({ keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }, elementType));
         this.ctx.emit(`${allocaReg} = alloca i8*`);
         const value = this.ctx.generateExpression(stmt.value!, params);
         this.ctx.emit(`store i8* ${value}, i8** ${allocaReg}`);
@@ -1307,13 +1315,13 @@ export class VariableAllocator {
         return;
       }
       if (baseType === 'string[]') {
-        this.ctx.defineVariable(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', createPointerAllocaMetadata());
+        this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', createPointerAllocaMetadata());
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
         this.ctx.emit(`store %StringArray* null, %StringArray** ${allocaReg}`);
         return;
       }
       if (baseType === 'number[]' || baseType === 'boolean[]') {
-        this.ctx.defineVariable(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local', createPointerAllocaMetadata());
+        this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local', createPointerAllocaMetadata());
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         this.ctx.emit(`store %Array* null, %Array** ${allocaReg}`);
         return;
@@ -1330,7 +1338,7 @@ export class VariableAllocator {
             types.push(this.tsTypeToLlvm(field.type));
             tsTypes.push(field.type);
           }
-          this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadata({ keys, types, tsTypes }));
+          this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadata({ keys, types, tsTypes }));
           this.ctx.emit(`${allocaReg} = alloca i8*`);
           this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
           return;
@@ -1348,7 +1356,7 @@ export class VariableAllocator {
           types.push(this.tsTypeToLlvm(field.type));
           tsTypes.push(field.type);
         }
-        this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, baseType));
+        this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, baseType));
         this.ctx.emit(`${allocaReg} = alloca i8*`);
         this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
         return;
@@ -1423,7 +1431,7 @@ export class VariableAllocator {
         this.ctx.emit(`store ${captureItem.llvmType} ${valueReg}, ${captureItem.llvmType}* ${fieldPtr}`);
       }
 
-      this.ctx.defineVariable(stmt.name, envTypedReg, 'i8*', SymbolKind.Closure, 'local', createClosureMetadataSymbol({
+      this.ctx.defineVariableWithMetadata(stmt.name, envTypedReg, 'i8*', SymbolKind.Closure, 'local', createClosureMetadataSymbol({
         lambdaName,
         envStructName: closureInfo.envStructName,
         envPtrRegister: envMemReg,
@@ -1431,7 +1439,7 @@ export class VariableAllocator {
       }));
     } else {
       const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-      this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Closure, 'local', createClosureMetadataSymbol({
+      this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Closure, 'local', createClosureMetadataSymbol({
         lambdaName,
         envStructName: '',
         envPtrRegister: 'null',
@@ -1446,24 +1454,27 @@ export class VariableAllocator {
     if (e.type !== 'index_access') return null;
 
     const indexExpr = expr as IndexAccessNode;
+    if (!indexExpr.object) return null;
     const idxObjBase = indexExpr.object as ExprBase;
+    if (!idxObjBase || !idxObjBase.type) return null;
 
     if (idxObjBase.type === 'variable') {
       const varName = (indexExpr.object as VariableNode).name;
-      const symbol = this.ctx.symbolTableLookup(varName);
-      if (symbol?.interfaceType) {
-        return this.getTypeInfoForElementType(symbol.interfaceType);
+      if (!varName) return null;
+      const ifaceType = this.ctx.symbolTableGetInterfaceType(varName);
+      if (ifaceType) {
+        return this.getTypeInfoForElementType(ifaceType);
       }
-      if (symbol?.objectArrayMetadata) {
-        const objArrayMeta = symbol.objectArrayMetadata;
+      const objArrayMeta = this.ctx.symbolTableGetObjectArrayMetadata(varName);
+      if (objArrayMeta) {
         return {
           keys: objArrayMeta.elementKeys,
           types: objArrayMeta.elementTypes,
           tsTypes: objArrayMeta.elementTsTypes || []
         };
       }
-      if (symbol?.objectMetadata?.tsTypes) {
-        const objMeta = symbol.objectMetadata;
+      const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+      if (objMeta && objMeta.tsTypes) {
         const tsTypes = objMeta.tsTypes as string[];
         if (tsTypes.length > 0) {
           const firstType = tsTypes[0];
@@ -1478,12 +1489,12 @@ export class VariableAllocator {
           };
         }
       }
-      const objectMeta = this.ctx.symbolTableGetObjectInfo(varName) as ObjectMetadata;
-      if (objectMeta && objectMeta.keys && objectMeta.types && objectMeta.tsTypes) {
+      const objectMeta2 = this.ctx.symbolTableGetObjectMetadata(varName);
+      if (objectMeta2 && objectMeta2.keys && objectMeta2.types && objectMeta2.tsTypes) {
         return {
-          keys: objectMeta.keys as string[],
-          types: objectMeta.types as string[],
-          tsTypes: objectMeta.tsTypes as string[]
+          keys: objectMeta2.keys as string[],
+          types: objectMeta2.types as string[],
+          tsTypes: objectMeta2.tsTypes as string[]
         };
       }
       return null;
@@ -1502,18 +1513,23 @@ export class VariableAllocator {
     if (idxObjBase.type !== 'member_access') return null;
 
     const memberAccess = indexExpr.object as { type: string; object: Expression; property: string };
+    if (!memberAccess || !memberAccess.object || !memberAccess.property) return null;
     const propertyName = memberAccess.property;
 
     const memberObjBase = memberAccess.object as ExprBase;
+    if (!memberObjBase || !memberObjBase.type) return null;
     if (memberObjBase.type === 'variable') {
       const varName = (memberAccess.object as VariableNode).name;
-      const objectMeta = this.ctx.symbolTableGetObjectInfo(varName) as ObjectMetadata;
-      if (!objectMeta) return null;
+      if (!varName) return null;
+      const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+      if (!objMeta) return null;
+      if (!objMeta.keys) return null;
 
-      const propIndex = objectMeta.keys.indexOf(propertyName);
+      const propIndex = objMeta.keys.indexOf(propertyName);
       if (propIndex === -1) return null;
 
-      const objMetaTsTypes = objectMeta.tsTypes as string[];
+      const objMetaTsTypes = objMeta.tsTypes as string[];
+      if (!objMetaTsTypes) return null;
       const propTsType = objMetaTsTypes[propIndex];
       if (!propTsType) return null;
 
@@ -1550,21 +1566,25 @@ export class VariableAllocator {
   }
 
   private resolveMemberAccessObjectType(expr: Expression): string | null {
+    if (!expr) return null;
     const e = expr as ExprBase;
+    if (!e.type) return null;
     if (e.type === 'this') {
       return this.ctx.currentClassName || null;
     }
     if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
-      const symbol = this.ctx.symbolTableLookup(varName);
-      if (symbol?.objectMetadata?.tsTypes) {
-        return symbol.llvmType;
+      const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+      if (objMeta && objMeta.tsTypes) {
+        return this.ctx.symbolTableGetType(varName) || null;
       }
       return null;
     }
     if (e.type === 'member_access') {
       const member = expr as MemberAccessNode;
+      if (!member || !member.object || !member.property) return null;
       const memberObjBase = member.object as ExprBase;
+      if (!memberObjBase || !memberObjBase.type) return null;
       if (memberObjBase.type === 'this') {
         const fieldInfoResult = this.getThisFieldInfo(member.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
@@ -1750,7 +1770,7 @@ export class VariableAllocator {
 
   private allocateIndexedObjectArray(stmt: VariableDeclaration, params: string[], typeInfo: UnionCommonFields): void {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadata({ keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }));
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadata({ keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }));
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
@@ -1778,7 +1798,7 @@ export class VariableAllocator {
 
   private allocateArrayMethodReturn(stmt: VariableDeclaration, params: string[], typeInfo: UnionCommonFields): void {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadata({ keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }));
+    this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadata({ keys: typeInfo.keys, types: typeInfo.types, tsTypes: typeInfo.tsTypes }));
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);

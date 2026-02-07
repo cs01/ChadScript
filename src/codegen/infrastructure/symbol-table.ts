@@ -17,22 +17,22 @@ import type { ResolvedType } from './type-system.js';
  * Symbol kind for different variable types
  */
 export enum SymbolKind {
-  Number = 'number',           // double
-  String = 'string',           // i8*
-  Boolean = 'boolean',         // i1 (stored as double)
-  Array = 'array',             // %Array*
-  StringArray = 'string_array', // %StringArray*
-  BooleanArray = 'boolean_array', // %BooleanArray*
-  ObjectArray = 'object_array', // Array of typed objects (e.g., ObjectProperty[])
-  Object = 'object',           // Struct with fields
-  Map = 'map',                 // %Map*
-  Set = 'set',                 // %Set*
-  Class = 'class',             // Class instance (i32*)
-  Regex = 'regex',             // i8* (compiled regex)
-  JSON = 'json',               // i8* (cJSON object)
-  ProcessArgv = 'process_argv', // i8** (process.argv)
-  Closure = 'closure',         // Function with captured environment
-  Pointer = 'pointer'          // Raw pointer (i8*) for FFI
+  Number,
+  String,
+  Boolean,
+  Array,
+  StringArray,
+  BooleanArray,
+  ObjectArray,
+  Object,
+  Map,
+  Set,
+  Class,
+  Regex,
+  JSON,
+  ProcessArgv,
+  Closure,
+  Pointer
 }
 
 /**
@@ -407,11 +407,13 @@ export class SymbolTable {
   private symbolKeys: string[];
   private symbolKeysCount: number = 0;
   private narrowedTypes: Map<string, ObjectMetadata[]>;
+  private interfaceTypes: Map<string, string>;
 
   constructor() {
     this.symbols = new Map();
     this.symbolKeys = [];
     this.narrowedTypes = new Map();
+    this.interfaceTypes = new Map();
   }
 
   /**
@@ -453,8 +455,7 @@ export class SymbolTable {
     kind: SymbolKind,
     llvmType: string,
     allocaRegister: string,
-    scope: 'local' | 'global' = 'local',
-    metadata?: SymbolMetadata
+    scope: 'local' | 'global' = 'local'
   ): void {
     if (!name) return;
     const symbol: Symbol = {
@@ -474,18 +475,52 @@ export class SymbolTable {
       setMetadata: undefined,
       interfaceType: undefined
     };
-    if (metadata) {
-      if (metadata.objectMetadata) symbol.objectMetadata = metadata.objectMetadata;
-      if (metadata.classMetadata) symbol.classMetadata = metadata.classMetadata;
-      if (metadata.arrayMetadata) symbol.arrayMetadata = metadata.arrayMetadata;
-      if (metadata.objectArrayMetadata) symbol.objectArrayMetadata = metadata.objectArrayMetadata;
-      if (metadata.closureMetadata) symbol.closureMetadata = metadata.closureMetadata;
-      if (metadata.mapMetadata) symbol.mapMetadata = metadata.mapMetadata;
-      if (metadata.setMetadata) symbol.setMetadata = metadata.setMetadata;
-      if (metadata.isPointerAlloca !== undefined) symbol.isPointerAlloca = metadata.isPointerAlloca;
-      if (metadata.interfaceType) symbol.interfaceType = metadata.interfaceType;
-      if (metadata.resolvedType) symbol.resolvedType = metadata.resolvedType;
+    if (!this.symbols.has(name)) {
+      this.symbolKeys.push(name);
+      this.symbolKeysCount++;
     }
+    this.symbols.set(name, symbol);
+  }
+
+  defineWithMetadata(
+    name: string,
+    kind: SymbolKind,
+    llvmType: string,
+    allocaRegister: string,
+    scope: 'local' | 'global',
+    metadata: SymbolMetadata
+  ): void {
+    if (!name) return;
+    const symbol: Symbol = {
+      name,
+      kind,
+      llvmType,
+      allocaRegister,
+      scope,
+      isPointerAlloca: false,
+      resolvedType: undefined,
+      objectMetadata: undefined,
+      classMetadata: undefined,
+      arrayMetadata: undefined,
+      objectArrayMetadata: undefined,
+      closureMetadata: undefined,
+      mapMetadata: undefined,
+      setMetadata: undefined,
+      interfaceType: undefined
+    };
+    if (metadata.objectMetadata) symbol.objectMetadata = metadata.objectMetadata;
+    if (metadata.classMetadata) symbol.classMetadata = metadata.classMetadata;
+    if (metadata.arrayMetadata) symbol.arrayMetadata = metadata.arrayMetadata;
+    if (metadata.objectArrayMetadata) symbol.objectArrayMetadata = metadata.objectArrayMetadata;
+    if (metadata.closureMetadata) symbol.closureMetadata = metadata.closureMetadata;
+    if (metadata.mapMetadata) symbol.mapMetadata = metadata.mapMetadata;
+    if (metadata.setMetadata) symbol.setMetadata = metadata.setMetadata;
+    if (metadata.isPointerAlloca !== undefined) symbol.isPointerAlloca = metadata.isPointerAlloca;
+    if (metadata.interfaceType) {
+      symbol.interfaceType = metadata.interfaceType;
+      this.interfaceTypes.set(name, metadata.interfaceType);
+    }
+    if (metadata.resolvedType) symbol.resolvedType = metadata.resolvedType;
     if (!this.symbols.has(name)) {
       this.symbolKeys.push(name);
       this.symbolKeysCount++;
@@ -521,6 +556,15 @@ export class SymbolTable {
     return undefined;
   }
 
+  getScope(name: string): string | undefined {
+    if (!name) return undefined;
+    const symbol = this.symbols.get(name);
+    if (symbol) {
+      return symbol.scope;
+    }
+    return undefined;
+  }
+
   /**
    * Get alloca register for a variable
    */
@@ -550,11 +594,15 @@ export class SymbolTable {
    */
   getInterfaceType(name: string): string | undefined {
     if (!name) return undefined;
+    if (name.length === 0) return undefined;
     const symbol = this.symbols.get(name);
     if (symbol) {
-      return symbol.interfaceType;
+      const k = symbol.kind;
+      if (k === SymbolKind.Array || k === SymbolKind.StringArray || k === SymbolKind.BooleanArray || k === SymbolKind.ObjectArray) {
+        return undefined;
+      }
     }
-    return undefined;
+    return this.interfaceTypes.get(name);
   }
 
   /**
@@ -606,6 +654,7 @@ export class SymbolTable {
    */
   remove(name: string): void {
     this.symbols.delete(name);
+    this.interfaceTypes.delete(name);
   }
 
   /**
@@ -614,6 +663,7 @@ export class SymbolTable {
   clear(): void {
     this.symbols.clear();
     this.symbolKeys = [];
+    this.interfaceTypes.clear();
   }
 
   /**
@@ -633,6 +683,7 @@ export class SymbolTable {
       const symbol = this.symbols.get(name);
       if (symbol && symbol.scope === 'local') {
         this.symbols.delete(name);
+        this.interfaceTypes.delete(name);
       } else {
         if (writeIdx !== readIdx) {
           this.symbolKeys[writeIdx] = name;
@@ -860,6 +911,14 @@ export class SymbolTable {
     const symbol = this.symbols.get(name);
     if (symbol && symbol.kind === SymbolKind.Set) {
       return symbol.setMetadata;
+    }
+    return undefined;
+  }
+
+  getSetValueType(name: string): string | undefined {
+    const symbol = this.symbols.get(name);
+    if (symbol && symbol.kind === SymbolKind.Set && symbol.setMetadata) {
+      return symbol.setMetadata.valueType;
     }
     return undefined;
   }

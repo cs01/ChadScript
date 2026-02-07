@@ -313,7 +313,7 @@ export class AssignmentGenerator {
     value: string,
     memberAccessValue: MemberAccessAssignmentNode
   ): void {
-    const fi = fieldInfo as { type: string; tsType?: string };
+    const fi = fieldInfo as { index: number; type: string; tsType?: string };
     const fiType = fi.type;
 
     if (fiType === null || fiType === undefined) {
@@ -387,7 +387,7 @@ export class AssignmentGenerator {
     if (arrayExpr.object.type === 'this' && currentClass) {
       const fieldInfo = this.ctx.classGenGetFieldInfo(currentClass, arrayExpr.property);
       if (fieldInfo) {
-        const fi = fieldInfo as { type: string };
+        const fi = fieldInfo as { index: number; type: string; tsType: string };
         if (fi.type === 'string[]') {
           arrayType = '%StringArray';
         } else if (fi.type.endsWith('[]')) {

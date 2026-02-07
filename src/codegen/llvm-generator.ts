@@ -483,8 +483,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return false;
   }
 
-  public getEnumMemberValue(enumName: string, memberName: string): number | string | null {
-    if (!this.ast || !this.ast.enums) return null;
+  public getEnumMemberValue(enumName: string, memberName: string): number {
+    if (!this.ast || !this.ast.enums) return -1;
     for (let i = 0; i < this.ast.enums.length; i++) {
       const e = this.ast.enums[i];
       if (!e) continue;
@@ -498,7 +498,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         }
       }
     }
-    return null;
+    return -1;
   }
 
   public getLastInstruction(): string {
@@ -539,6 +539,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public symbolTableIsSet(name: string): boolean { return this.symbolTable.isSet(name); }
   public symbolTableIsNumberArray(name: string): boolean { return this.symbolTable.isNumberArray(name); }
   public symbolTableIsStringArray(name: string): boolean { return this.symbolTable.isStringArray(name); }
+  public symbolTableIsBooleanArray(name: string): boolean { return this.symbolTable.isBooleanArray(name); }
   public symbolTableIsObjectArray(name: string): boolean { return this.symbolTable.isObjectArray(name); }
   public symbolTableIsString(name: string): boolean { return this.symbolTable.isString(name); }
   public symbolTableIsRegex(name: string): boolean { return this.symbolTable.isRegex(name); }
@@ -563,9 +564,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.symbolTable.getObjectMetadataTsTypes(name);
   }
   public symbolTableGetMapMetadata(name: string): MapMetadata | undefined { return this.symbolTable.getMapMetadata(name); }
-  public symbolTableGetSetMetadata(name: string): SetMetadata | undefined { return this.symbolTable.getSetMetadata(name); }
+  public symbolTableGetSetMetadata(name: string): string | undefined { return this.symbolTable.getSetValueType(name); }
+  public symbolTableGetKind(name: string): SymbolKind | undefined { return this.symbolTable.getKind(name); }
+  public symbolTableGetClassMetadata(name: string) { return this.symbolTable.getClassMetadata(name); }
+  public symbolTableGetArrayMetadata(name: string): string | undefined { return this.symbolTable.getArrayMetadataElementType(name); }
   public symbolTableGetInterfaceType(name: string): string | undefined { return this.symbolTable.getInterfaceType(name); }
   public symbolTableGetAlloca(name: string): string | undefined { return this.symbolTable.getAlloca(name); }
+  public symbolTableGetScope(name: string): string | undefined { return this.symbolTable.getScope(name); }
   public symbolTableGetObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined { return this.symbolTable.getObjectArrayMetadata(name); }
   public symbolTableIsPointerAlloca(name: string): boolean { return this.symbolTable.isPointerAlloca(name); }
   public symbolTableNarrowType(name: string, narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] }): void { this.symbolTable.narrowType(name, narrowedMetadata); }
@@ -591,6 +596,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (!ast || !ast.classes) return null;
     for (let ci = 0; ci < ast.classes.length; ci++) {
       const c = ast.classes[ci] as ClassNode;
+      if (!c) continue;
+      if (!c.name) continue;
       if (c.name === className) {
         return c;
       }
@@ -680,7 +687,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getOutputAsIndentedString(indent: string): string {
     const lines: string[] = [];
     for (let i = 0; i < this.output.length; i++) {
-      lines.push(indent + this.output[i]);
+      const line = this.output[i];
+      if (line) {
+        lines.push(indent + line);
+      } else {
+        lines.push(indent);
+      }
     }
     return lines.join('\n');
   }
@@ -1130,7 +1142,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
           this.globalVariables.set(name, { llvmType, kind, initialized: false });
           if (elementType) {
-            this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(elementType));
+            this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(elementType));
           } else {
             this.defineVariable(name, `@${name}`, llvmType, kind, 'global');
           }
@@ -1163,7 +1175,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           defaultValue = 'null';
           ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
           this.globalVariables.set(name, { llvmType, kind, initialized: false });
-          this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createClassMetadata({ className }));
+          this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createClassMetadata({ className }));
           continue;
         } else if (isBoolean) {
           llvmType = 'double';
@@ -1177,11 +1189,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             defaultValue = 'null';
             ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
-            this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createPointerAllocaMetadata());
+            this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createPointerAllocaMetadata());
             continue;
           } else if (interfaceName) {
             let interfaceDef: InterfaceDeclaration | null = null;
             for (let i = 0; i < this.ast.interfaces.length; i++) {
+              if (!this.ast.interfaces[i]) continue;
+              if (!this.ast.interfaces[i].name) continue;
               if (this.ast.interfaces[i].name === interfaceName) {
                 interfaceDef = this.ast.interfaces[i] as InterfaceDeclaration;
                 break;
@@ -1202,7 +1216,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               }
               ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
+              this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
               continue;
             }
           }
@@ -1218,6 +1232,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           } else if (stmtTyped.declaredType) {
             let foundInterface = false;
             for (let i = 0; i < this.ast.interfaces.length; i++) {
+              if (!this.ast.interfaces[i]) continue;
+              if (!this.ast.interfaces[i].name) continue;
               if (this.ast.interfaces[i].name === stmtTyped.declaredType) {
                 foundInterface = true;
                 break;
@@ -1229,7 +1245,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               defaultValue = 'null';
               ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(stmtTyped.declaredType));
+              this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(stmtTyped.declaredType));
               continue;
             } else {
               llvmType = 'double';
@@ -1244,7 +1260,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               defaultValue = 'null';
               ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(funcReturnInterface));
+              this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(funcReturnInterface));
               continue;
             }
             const indexAccessInterface = this.typeInference.getIndexAccessElementType(stmt.value);
@@ -1254,7 +1270,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               defaultValue = 'null';
               ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariable(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(indexAccessInterface));
+              this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(indexAccessInterface));
               continue;
             }
             llvmType = 'double';
@@ -1298,9 +1314,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
    * @returns Complete LLVM IR module as string (struct types + extern declarations + functions + main)
    */
   generate(): string {
-    let ir = '';
+    const irParts: string[] = [];
 
-    ir += getLLVMDeclarations();
+    irParts.push(getLLVMDeclarations());
 
     const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
     this.interfaceStructDefsCache = interfaceStructDefs;
@@ -1308,62 +1324,84 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     const classStructDefs = this.classGen.generateStructTypeDefinitions(this.classesCount);
     this.classStructDefsCache = classStructDefs;
 
-    ir += this.runtimeGen.generateFetchRuntime();
-    ir += '\n';
+    const fetchRuntime = this.runtimeGen.generateFetchRuntime();
+    if (fetchRuntime) { irParts.push(fetchRuntime); }
+    irParts.push('\n');
 
-    ir += this.runtimeGen.generateJSONRuntime();
-    ir += '\n';
+    const jsonRuntime = this.runtimeGen.generateJSONRuntime();
+    if (jsonRuntime) { irParts.push(jsonRuntime); }
+    irParts.push('\n');
 
-    ir += this.mongooseGen.generateDeclarations();
-    ir += '\n';
+    const mongooseDecls = this.mongooseGen.generateDeclarations();
+    if (mongooseDecls) { irParts.push(mongooseDecls); }
+    irParts.push('\n');
 
-    ir += this.libuvGen.generateDeclarations();
-    ir += '\n';
+    const libuvDecls = this.libuvGen.generateDeclarations();
+    if (libuvDecls) { irParts.push(libuvDecls); }
+    irParts.push('\n');
 
-    ir += this.promiseGen.generateDeclarations();
-    ir += '\n';
+    const promiseDecls = this.promiseGen.generateDeclarations();
+    if (promiseDecls) { irParts.push(promiseDecls); }
+    irParts.push('\n');
 
     if (this.linkTreeSitter) {
-      ir += this.treesitterGen.generateDeclarations();
-      ir += '\n';
+      const tsDecls = this.treesitterGen.generateDeclarations();
+      if (tsDecls) { irParts.push(tsDecls); }
+      irParts.push('\n');
 
-      ir += this.treesitterGen.generateParseSourceHelper();
-      ir += this.treesitterGen.generateGetRootNodeHelper();
-      ir += this.treesitterGen.generateNodeTypeHelper();
-      ir += this.treesitterGen.generateNodeChildCountHelper();
-      ir += this.treesitterGen.generateNodeChildHelper();
-      ir += this.treesitterGen.generateNodeStartByteHelper();
-      ir += this.treesitterGen.generateNodeEndByteHelper();
-      ir += this.treesitterGen.generateNodeTextHelper();
-      ir += this.treesitterGen.generateNodeIsNullHelper();
-      ir += this.treesitterGen.generateNodeIsNamedHelper();
-      ir += this.treesitterGen.generateNamedChildHelper();
-      ir += this.treesitterGen.generateNamedChildCountHelper();
-      ir += this.treesitterGen.generateChildByFieldNameHelper();
-      ir += '\n';
+      const tsHelpers: string[] = [];
+      tsHelpers.push(this.treesitterGen.generateParseSourceHelper());
+      tsHelpers.push(this.treesitterGen.generateGetRootNodeHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeTypeHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeChildCountHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeChildHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeStartByteHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeEndByteHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeTextHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeIsNullHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeIsNamedHelper());
+      tsHelpers.push(this.treesitterGen.generateNamedChildHelper());
+      tsHelpers.push(this.treesitterGen.generateNamedChildCountHelper());
+      tsHelpers.push(this.treesitterGen.generateChildByFieldNameHelper());
+      for (let thi = 0; thi < tsHelpers.length; thi++) {
+        if (tsHelpers[thi]) { irParts.push(tsHelpers[thi]); }
+      }
+      irParts.push('\n');
     }
 
-    ir += getSafeStringHelper();
-    ir += getDoubleToStringHelper();
+    const safeStr = getSafeStringHelper();
+    if (safeStr) { irParts.push(safeStr); }
+    const dblToStr = getDoubleToStringHelper();
+    if (dblToStr) { irParts.push(dblToStr); }
 
-    ir += getGlobalVariables();
+    const globalVars = getGlobalVariables();
+    if (globalVars) { irParts.push(globalVars); }
 
-    ir += this.generateGlobalVariableDeclarations();
+    const globalVarDecls = this.generateGlobalVariableDeclarations();
+    if (globalVarDecls) { irParts.push(globalVarDecls); }
 
     // Generate class definitions
     for (let classIdx = 0; classIdx < this.classesCount; classIdx++) {
       const classNode = this.ast.classes[classIdx];
+      if (!classNode) continue;
+      if (!classNode.name) continue;
       this.syncStateToGenerators();
-      ir += this.classGen.generateClass(classNode);
-      ir += '\n';
+      const classIr = this.classGen.generateClass(classNode);
+      if (classIr) {
+        irParts.push(classIr);
+        irParts.push('\n');
+      }
     }
 
     // Generate user function definitions (this may discover lifted functions)
-    let userFunctionsIr = '';
+    const userFuncParts: string[] = [];
     for (let funcIdx = 0; funcIdx < this.functionsCount; funcIdx++) {
       const func = this.ast.functions[funcIdx];
-      userFunctionsIr += this.generateFunction(func);
-      userFunctionsIr += '\n';
+      const funcIr = this.generateFunction(func);
+      if (funcIr) {
+        userFuncParts.push(funcIr);
+        userFuncParts.push('\n');
+      }
     }
 
     // Generate main function (this may also discover lifted functions)
@@ -1372,48 +1410,65 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     // Generate environment struct type definitions for closures
     const envStructDefs = this.exprGen.arrowFunctionGen.getEnvStructDefinitions();
     if (envStructDefs) {
-      ir += envStructDefs;
-      ir += '\n';
+      irParts.push(envStructDefs);
+      irParts.push('\n');
     }
 
     // Generate lifted functions (discovered during user function and main generation)
     // These need to be placed BEFORE user functions so they can be called
     const liftedFunctions = this.exprGen.arrowFunctionGen.getLiftedFunctions();
-    for (const func of liftedFunctions) {
-      ir += this.generateFunction(func);
-      ir += '\n';
+    for (let _lfi = 0; _lfi < liftedFunctions.length; _lfi++) {
+      const func = liftedFunctions[_lfi];
+      const liftedIr = this.generateFunction(func);
+      if (liftedIr) {
+        irParts.push(liftedIr);
+        irParts.push('\n');
+      }
     }
 
     // Append user functions after lifted functions
-    ir += userFunctionsIr;
+    for (let ufi = 0; ufi < userFuncParts.length; ufi++) {
+      irParts.push(userFuncParts[ufi]);
+    }
 
     // Append main function after all other functions
-    ir += mainIr;
+    if (mainIr) { irParts.push(mainIr); }
 
     // Generate mongoose HTTP server runtime if httpServe was used
     if (this.httpHandlers.length > 0) {
-      ir += '\n';
-      ir += this.mongooseGen.generateHttpServeFunction();
-      ir += '\n';
-      ir += this.mongooseGen.generateEventHandler(this.httpHandlers[0]);
+      irParts.push('\n');
+      const httpServe = this.mongooseGen.generateHttpServeFunction();
+      if (httpServe) { irParts.push(httpServe); }
+      irParts.push('\n');
+      const eventHandler = this.mongooseGen.generateEventHandler(this.httpHandlers[0]);
+      if (eventHandler) { irParts.push(eventHandler); }
     }
 
     // Generate libuv timer runtime if setTimeout/setInterval was used
     if (this.usesTimers) {
-      ir += '\n';
-      ir += this.libuvGen.generateTimerCallbackWrapper();
-      ir += this.libuvGen.generateSetTimeout();
-      ir += this.libuvGen.generateSetInterval();
-      ir += this.libuvGen.generateClearTimer();
-      ir += this.libuvGen.generateRunEventLoop();
+      irParts.push('\n');
+      const timerCb = this.libuvGen.generateTimerCallbackWrapper();
+      if (timerCb) { irParts.push(timerCb); }
+      const setTimeout = this.libuvGen.generateSetTimeout();
+      if (setTimeout) { irParts.push(setTimeout); }
+      const setInterval = this.libuvGen.generateSetInterval();
+      if (setInterval) { irParts.push(setInterval); }
+      const clearTimer = this.libuvGen.generateClearTimer();
+      if (clearTimer) { irParts.push(clearTimer); }
+      const runLoop = this.libuvGen.generateRunEventLoop();
+      if (runLoop) { irParts.push(runLoop); }
     }
 
     // Generate Promise runtime if Promise is used
     if (this.usesPromises) {
-      ir += '\n';
-      ir += this.promiseGen.generateAll();
-      ir += this.runtimeGen.generateFetchAsyncWrapper();
+      irParts.push('\n');
+      const promiseAll = this.promiseGen.generateAll();
+      if (promiseAll) { irParts.push(promiseAll); }
+      const fetchAsync = this.runtimeGen.generateFetchAsyncWrapper();
+      if (fetchAsync) { irParts.push(fetchAsync); }
     }
+
+    let ir = irParts.join('');
 
     // Add global string constants at the beginning
     if (this.globalStrings.length > 0) {
@@ -1905,11 +1960,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (this.output.length === 0) {
       return '';
     }
-    let result = '';
+    const lines: string[] = [];
     for (let i = 0; i < this.output.length; i++) {
-      result += '  ' + this.output[i] + '\n';
+      const line = this.output[i];
+      if (line) {
+        lines.push('  ' + line);
+      } else {
+        lines.push('  ');
+      }
     }
-    return result;
+    return lines.join('\n') + '\n';
   }
 
   public processTopLevelItem(index: number): void {
@@ -1981,6 +2041,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null {
     for (let i = 0; i < this.ast.interfaces.length; i++) {
       const iface = this.ast.interfaces[i] as InterfaceDeclaration;
+      if (!iface) continue;
+      if (!iface.name) continue;
       if (iface.name === name) {
         return this.ast.interfaces[i];
       }

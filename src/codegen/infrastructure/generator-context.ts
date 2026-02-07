@@ -23,7 +23,7 @@ import { SymbolTable, SymbolKind, SymbolMetadata, ClosureMetadata } from './symb
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
 import type { ResolvedType } from './type-system.js';
-import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
+import type { InterfaceStructGenerator, InterfaceStructInfo, InterfaceFieldInfo } from '../types/interface-struct-generator.js';
 import type { TypeGuardInfo } from './type-resolver/types.js';
 import type { JsonObjectMeta } from '../expressions/access/member.js';
 
@@ -158,7 +158,15 @@ export interface IGeneratorContext {
     llvmType: string,
     kind: SymbolKind,
     scope?: 'local' | 'global',
-    metadata?: SymbolMetadata
+  ): void;
+
+  defineVariableWithMetadata(
+    name: string,
+    allocaReg: string,
+    llvmType: string,
+    kind: SymbolKind,
+    scope: 'local' | 'global',
+    metadata: SymbolMetadata
   ): void;
 
   /**
@@ -221,6 +229,7 @@ export interface IGeneratorContext {
   symbolTableIsSet(name: string): boolean;
   symbolTableIsNumberArray(name: string): boolean;
   symbolTableIsStringArray(name: string): boolean;
+  symbolTableIsBooleanArray(name: string): boolean;
   symbolTableIsObjectArray(name: string): boolean;
   symbolTableIsString(name: string): boolean;
   symbolTableIsRegex(name: string): boolean;
@@ -234,9 +243,13 @@ export interface IGeneratorContext {
   symbolTableGetObjectInfoTypes(name: string): string[] | undefined;
   symbolTableGetObjectInfoTsTypes(name: string): string[] | undefined;
   symbolTableGetMapMetadata(name: string): { keyType: string; valueType: string } | undefined;
-  symbolTableGetSetMetadata(name: string): { valueType: string } | undefined;
+  symbolTableGetSetMetadata(name: string): string | undefined;
+  symbolTableGetKind(name: string): SymbolKind | undefined;
+  symbolTableGetClassMetadata(name: string): { className: string; fields?: string[] } | undefined;
+  symbolTableGetArrayMetadata(name: string): string | undefined;
   symbolTableGetInterfaceType(name: string): string | undefined;
   symbolTableGetAlloca(name: string): string | undefined;
+  symbolTableGetScope(name: string): string | undefined;
   symbolTableGetObjectArrayMetadata(name: string): { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] } | undefined;
   symbolTableIsPointerAlloca(name: string): boolean;
   symbolTableNarrowType(name: string, narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] }): void;
@@ -367,7 +380,7 @@ export interface IGeneratorContext {
   getInterfaceFieldType(interfaceName: string, fieldName: string): string | null;
   getMethodReturnType(className: string, methodName: string): string | null;
   isEnumType(name: string): boolean;
-  getEnumMemberValue(enumName: string, memberName: string): number | string | null;
+  getEnumMemberValue(enumName: string, memberName: string): number;
 
   /**
    * LLVM IR output buffer
@@ -563,7 +576,7 @@ export interface IGeneratorContext {
    * InterfaceStructGen delegate methods (avoid struct layout mismatch)
    */
   interfaceStructGenHasInterface(name: string): boolean;
-  interfaceStructGenGetInterfaceStruct(name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined;
+  interfaceStructGenGetInterfaceStruct(name: string): InterfaceStructInfo | undefined;
   interfaceStructGenGetStructSize(interfaceName: string): number;
   interfaceStructGenGetFieldCount(interfaceName: string): number;
   interfaceStructGenGetFieldName(interfaceName: string, fieldIndex: number): string;
@@ -822,7 +835,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   getInterfaceFieldType(_interfaceName: string, _fieldName: string): string | null { return null; }
   getMethodReturnType(_className: string, _methodName: string): string | null { return null; }
   isEnumType(_name: string): boolean { return false; }
-  getEnumMemberValue(_enumName: string, _memberName: string): number | string | null { return null; }
+  getEnumMemberValue(_enumName: string, _memberName: string): number { return -1; }
 
   setCurrentFunction(name: string | null): void { this.currentFunction = name; }
   getCurrentFunction(): string | null { return this.currentFunction; }
@@ -846,6 +859,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   symbolTableIsSet(name: string): boolean { return this.symbolTable.isSet(name); }
   symbolTableIsNumberArray(name: string): boolean { return this.symbolTable.isNumberArray(name); }
   symbolTableIsStringArray(name: string): boolean { return this.symbolTable.isStringArray(name); }
+  symbolTableIsBooleanArray(name: string): boolean { return this.symbolTable.isBooleanArray(name); }
   symbolTableIsObjectArray(name: string): boolean { return this.symbolTable.isObjectArray(name); }
   symbolTableIsString(name: string): boolean { return this.symbolTable.isString(name); }
   symbolTableIsRegex(name: string): boolean { return this.symbolTable.isRegex(name); }
@@ -870,9 +884,13 @@ export class MockGeneratorContext implements IGeneratorContext {
     return this.symbolTable.getObjectMetadataTsTypes(name);
   }
   symbolTableGetMapMetadata(name: string) { return this.symbolTable.getMapMetadata(name); }
-  symbolTableGetSetMetadata(name: string) { return this.symbolTable.getSetMetadata(name); }
+  symbolTableGetSetMetadata(name: string) { return this.symbolTable.getSetValueType(name); }
+  symbolTableGetKind(name: string) { return this.symbolTable.getKind(name); }
+  symbolTableGetClassMetadata(name: string) { return this.symbolTable.getClassMetadata(name); }
+  symbolTableGetArrayMetadata(name: string): string | undefined { return this.symbolTable.getArrayMetadataElementType(name); }
   symbolTableGetInterfaceType(name: string) { return this.symbolTable.getInterfaceType(name); }
   symbolTableGetAlloca(name: string) { return this.symbolTable.getAlloca(name); }
+  symbolTableGetScope(name: string) { return this.symbolTable.getScope(name); }
   symbolTableGetObjectArrayMetadata(name: string) { return this.symbolTable.getObjectArrayMetadata(name); }
   symbolTableIsPointerAlloca(name: string) { return this.symbolTable.isPointerAlloca(name); }
   symbolTableNarrowType(name: string, narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] }) { this.symbolTable.narrowType(name, narrowedMetadata); }
@@ -1033,9 +1051,19 @@ export class MockGeneratorContext implements IGeneratorContext {
     llvmType: string,
     kind: SymbolKind,
     scope: 'local' | 'global' = 'local',
-    metadata?: SymbolMetadata
   ): void {
-    this.symbolTable.define(name, kind, llvmType, allocaReg, scope, metadata);
+    this.symbolTable.define(name, kind, llvmType, allocaReg, scope);
+  }
+
+  defineVariableWithMetadata(
+    name: string,
+    allocaReg: string,
+    llvmType: string,
+    kind: SymbolKind,
+    scope: 'local' | 'global',
+    metadata: SymbolMetadata
+  ): void {
+    this.symbolTable.defineWithMetadata(name, kind, llvmType, allocaReg, scope, metadata);
   }
 
   getVariableType(name: string): string | undefined {

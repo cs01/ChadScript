@@ -134,7 +134,7 @@ export function transformClassDeclaration(
   return {
     name,
     extends: extendsClause,
-    implements: implementsClause.length > 0 ? implementsClause : undefined,
+    implements: implementsClause,
     fields,
     methods,
   };
@@ -328,9 +328,9 @@ export function transformInterfaceDeclaration(node: ts.InterfaceDeclaration): In
 
   return {
     name,
-    extends: extendsClause.length > 0 ? extendsClause : undefined,
+    extends: extendsClause,
     fields,
-    methods: methods.length > 0 ? methods : undefined
+    methods
   };
 }
 

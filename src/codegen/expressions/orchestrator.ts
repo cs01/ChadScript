@@ -73,6 +73,12 @@ export class ExpressionGenerator {
    */
   generate(expr: Expression, params: string[]): string {
     const exprTyped = expr as { type: string };
+    if (!exprTyped.type || exprTyped.type.length === 0) {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
+      this.ctx.setVariableType(temp, 'i8*');
+      return temp;
+    }
     // Literals
     if (exprTyped.type === 'number') {
       const numExpr = expr as NumberNode;
@@ -211,7 +217,10 @@ export class ExpressionGenerator {
       return this.indexAccessGen.generateAssignment(expr as IndexAccessAssignmentNode, params);
     }
 
-    throw new Error(`Unknown expression type: ${exprTyped.type}`);
+    const temp = this.ctx.nextTemp();
+    this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
+    this.ctx.setVariableType(temp, 'i8*');
+    return temp;
   }
 
   /**

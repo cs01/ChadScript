@@ -38,11 +38,10 @@ export class TemplateLiteralGenerator {
     }
 
     if (expr.parts.length === 1) {
-      const firstPart = expr.parts[0] as { type: string };
-      if (!firstPart.type) {
-        // Simple string with no interpolation (no type property means it's a string)
+      const firstPart = expr.parts[0] as { type: string; value?: string };
+      if (firstPart.type === 'string') {
         this.ctx.syncStateToGenerators();
-        return this.ctx.stringGenCreateStringConstant(expr.parts[0] as string);
+        return this.ctx.stringGenCreateStringConstant(firstPart.value || '');
       }
     }
 
@@ -50,13 +49,13 @@ export class TemplateLiteralGenerator {
     this.ctx.syncStateToGenerators();
     let result: string | null = null;
 
-    for (const part of expr.parts) {
+    for (let _tpi = 0; _tpi < expr.parts.length; _tpi++) {
+      const part = expr.parts[_tpi];
       let partValue: string;
 
-      const partAsObj = part as { type: string };
-      if (!partAsObj.type) {
-        // String literal part (no type property means it's a string)
-        partValue = this.ctx.stringGenCreateStringConstant(part as string);
+      const partAsObj = part as { type: string; value?: string };
+      if (partAsObj.type === 'string') {
+        partValue = this.ctx.stringGenCreateStringConstant(partAsObj.value || '');
       } else {
         const exprPart = part as Expression;
         const exprValue = this.ctx.generateExpression(exprPart, params);
@@ -70,7 +69,6 @@ export class TemplateLiteralGenerator {
       if (result === null) {
         result = partValue;
       } else {
-        // Concatenate with previous result
         result = this.ctx.stringGenGenerateStringConcatDirect(result, partValue);
       }
     }

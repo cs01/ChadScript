@@ -35,12 +35,12 @@ describe('Bootstrap Tests', { timeout: 180000 }, () => {
     assert.ok(fsSync.existsSync(stage1Binary), 'Stage 1 binary must exist');
 
     const testFile = '/tmp/bootstrap_hello.ts';
+    const outputBinary = '/tmp/bootstrap_hello';
     fsSync.writeFileSync(testFile, 'console.log("hello from stage 1");\n');
 
     try {
-      await execAsync(`${stage1Binary} ${testFile}`, { timeout: 30000 });
+      await execAsync(`${stage1Binary} ${testFile} -o ${outputBinary}`, { timeout: 30000 });
 
-      const outputBinary = '/tmp/bootstrap_hello';
       assert.ok(fsSync.existsSync(outputBinary), 'Stage 1 should produce output binary');
 
       const { stdout } = await execAsync(outputBinary);

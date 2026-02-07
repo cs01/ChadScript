@@ -212,6 +212,15 @@ export interface MethodCallGeneratorContext {
   getCurrentFunction(): string | null;
   ast: AST;
   getAst(): AST | undefined;
+  getAstInterfacesLength(): number;
+  getAstInterfaceNameAt(index: number): string | null;
+  getAstInterfaceAt(index: number): InterfaceDeclaration | null;
+  getAstClassesLength(): number;
+  getAstClassNameAt(index: number): string | null;
+  getAstClassAt(index: number): ClassNode | null;
+  getAstFunctionsLength(): number;
+  getAstFunctionAt(index: number): FunctionNode | null;
+  getAstFunctionNameAt(index: number): string | null;
   typeChecker: TypeChecker | null;
   typeResolver?: TypeResolver;
   usesPromises: boolean;
@@ -224,7 +233,7 @@ export interface MethodCallGeneratorContext {
   symbolTableGetClassName(name: string): string | undefined;
   symbolTableGetClassInfo(name: string): { ptr: string; className: string } | undefined;
   symbolTableGetMapMetadata(name: string): { keyType: string; valueType: string } | undefined;
-  symbolTableGetSetMetadata(name: string): { valueType: string } | undefined;
+  symbolTableGetSetMetadata(name: string): string | undefined;
   symbolTableGetAlloca(name: string): string | undefined;
   symbolTableGetInterfaceType(name: string): string | undefined;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
@@ -336,11 +345,12 @@ export class MethodCallGenerator {
   constructor(private ctx: MethodCallGeneratorContext) {}
 
   private getInterfaceFromAST(name: string): InterfaceDefInfo | null {
-    const ast = this.ctx.getAst();
-    if (!ast?.interfaces) return null;
-    for (let i = 0; i < ast.interfaces.length; i++) {
-      const ifaceItem = ast.interfaces[i] as InterfaceDeclaration;
-      if (ifaceItem.name === name) {
+    const len = this.ctx.getAstInterfacesLength();
+    for (let i = 0; i < len; i++) {
+      const ifaceName = this.ctx.getAstInterfaceNameAt(i);
+      if (ifaceName === name) {
+        const ifaceItem = this.ctx.getAstInterfaceAt(i);
+        if (!ifaceItem) continue;
         const properties: { name: string; type: string }[] = [];
         for (let j = 0; j < ifaceItem.fields.length; j++) {
           const field = ifaceItem.fields[j] as { name: string; type: string };
@@ -353,24 +363,22 @@ export class MethodCallGenerator {
   }
 
   private getInterfaceDecl(name: string): InterfaceDeclaration | null {
-    const ast = this.ctx.getAst();
-    if (!ast?.interfaces) return null;
-    for (let i = 0; i < ast.interfaces.length; i++) {
-      const iface = ast.interfaces[i] as InterfaceDeclaration;
-      if (iface.name === name) {
-        return iface;
+    const len = this.ctx.getAstInterfacesLength();
+    for (let i = 0; i < len; i++) {
+      const ifaceName = this.ctx.getAstInterfaceNameAt(i);
+      if (ifaceName === name) {
+        return this.ctx.getAstInterfaceAt(i);
       }
     }
     return null;
   }
 
   private getFunctionFromAST(name: string): FunctionNode | null {
-    const ast = this.ctx.getAst();
-    if (!ast?.functions) return null;
-    for (let i = 0; i < ast.functions.length; i++) {
-      const func = ast.functions[i] as FunctionNode;
-      if (func.name === name) {
-        return func;
+    const len = this.ctx.getAstFunctionsLength();
+    for (let i = 0; i < len; i++) {
+      const funcName = this.ctx.getAstFunctionNameAt(i);
+      if (funcName === name) {
+        return this.ctx.getAstFunctionAt(i);
       }
     }
     return null;
@@ -512,23 +520,25 @@ export class MethodCallGenerator {
     const currentFunc = this.ctx.getCurrentFunction();
     if (!currentFunc) return null;
 
-    const ast = this.ctx.getAst();
-    if (!ast) return null;
-
     let funcParams: { name: string; type?: string }[] | null = null;
-    if (ast.functions) {
-      for (let i = 0; i < ast.functions.length; i++) {
-        const f = ast.functions[i];
-        if (f.name === currentFunc && f.parameters) {
+    const funcLen = this.ctx.getAstFunctionsLength();
+    for (let i = 0; i < funcLen; i++) {
+      const fName = this.ctx.getAstFunctionNameAt(i);
+      if (fName === currentFunc) {
+        const f = this.ctx.getAstFunctionAt(i);
+        if (f && f.parameters) {
           funcParams = f.parameters as { name: string; type?: string }[];
-          break;
         }
+        break;
       }
     }
-    if (!funcParams && this.ctx.getCurrentClassName() && ast.classes) {
-      for (let i = 0; i < ast.classes.length; i++) {
-        const c = ast.classes[i];
-        if (c.name === this.ctx.getCurrentClassName()) {
+    if (!funcParams && this.ctx.getCurrentClassName()) {
+      const classLen = this.ctx.getAstClassesLength();
+      for (let i = 0; i < classLen; i++) {
+        const cName = this.ctx.getAstClassNameAt(i);
+        if (cName === this.ctx.getCurrentClassName()) {
+          const c = this.ctx.getAstClassAt(i);
+          if (!c) break;
           for (let j = 0; j < c.methods.length; j++) {
             const m = c.methods[j];
             if (m.name === currentFunc && m.params) {
@@ -962,9 +972,9 @@ export class MethodCallGenerator {
       const varName = this.getVariableName(expr.object);
       if (varName && this.ctx.symbolTableIsSet(varName)) {
         this.ctx.syncStateToGenerators();
-        const setMeta = this.ctx.symbolTableGetSetMetadata(varName);
+        const setValueType = this.ctx.symbolTableGetSetMetadata(varName);
 
-        if (setMeta && setMeta.valueType === 'string') {
+        if (setValueType && setValueType === 'string') {
           const setAlloca = this.ctx.symbolTableGetAlloca(varName);
           if (setAlloca) {
             if (method === 'add') {
@@ -1179,9 +1189,8 @@ export class MethodCallGenerator {
         if (objBase.type === 'variable') {
           const varName = (memberExpr.object as VariableNode).name;
           const isClass = this.ctx.symbolTableIsClass(varName);
-          const symbol = this.ctx.symbolTableLookup(varName);
           const symbolType = this.ctx.symbolTableGetType(varName);
-          const interfaceType = symbol?.interfaceType;
+          const interfaceType = this.ctx.symbolTableGetInterfaceType(varName);
           details += `, variable: ${varName}, isClass: ${isClass}`;
           details += `, symbolType: ${symbolType}, interfaceType: ${interfaceType}`;
           if (isClass) {
@@ -1203,7 +1212,8 @@ export class MethodCallGenerator {
     }
 
     let result = strPtr;
-    for (const arg of expr.args) {
+    for (let _mci = 0; _mci < expr.args.length; _mci++) {
+      const arg = expr.args[_mci];
       const argStr = this.ctx.generateExpression(arg, params);
       result = this.ctx.stringGenGenerateStringConcatDirect(result, argStr);
     }
@@ -1310,6 +1320,17 @@ export class MethodCallGenerator {
 
     const searchValue = this.ctx.generateExpression(expr.args[0], params);
 
+    const checkLabel = this.ctx.nextLabel('indexof_check');
+    const bodyLabel = this.ctx.nextLabel('indexof_body');
+    const foundLabel = this.ctx.nextLabel('indexof_found');
+    const notfoundLabel = this.ctx.nextLabel('indexof_notfound');
+    const endLabel = this.ctx.nextLabel('indexof_end');
+
+    const arrIsNull = this.ctx.nextTemp();
+    this.ctx.emit(`${arrIsNull} = icmp eq %StringArray* ${arrayPtr}, null`);
+    this.ctx.emit(`br i1 ${arrIsNull}, label %${notfoundLabel}, label %${checkLabel}_arrvalid`);
+
+    this.ctx.emit(`${checkLabel}_arrvalid:`);
     const lenPtr = this.ctx.nextTemp();
     this.ctx.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
     const length = this.ctx.nextTemp();
@@ -1320,12 +1341,11 @@ export class MethodCallGenerator {
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
-    const checkLabel = this.ctx.nextLabel('indexof_check');
-    const bodyLabel = this.ctx.nextLabel('indexof_body');
-    const foundLabel = this.ctx.nextLabel('indexof_found');
-    const notfoundLabel = this.ctx.nextLabel('indexof_notfound');
-    const endLabel = this.ctx.nextLabel('indexof_end');
+    const dataPtrIsNull = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtrIsNull} = icmp eq i8** ${dataPtr}, null`);
+    this.ctx.emit(`br i1 ${dataPtrIsNull}, label %${notfoundLabel}, label %${checkLabel}_start`);
 
+    this.ctx.emit(`${checkLabel}_start:`);
     const counterPtr = this.ctx.nextTemp();
     this.ctx.emit(`${counterPtr} = alloca i32`);
     this.ctx.emit(`store i32 0, i32* ${counterPtr}`);
@@ -1347,6 +1367,11 @@ export class MethodCallGenerator {
     const elem = this.ctx.nextTemp();
     this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
+    const elemIsNull = this.ctx.nextTemp();
+    this.ctx.emit(`${elemIsNull} = icmp eq i8* ${elem}, null`);
+    this.ctx.emit(`br i1 ${elemIsNull}, label %${checkLabel}_next, label %${checkLabel}_cmp`);
+
+    this.ctx.emit(`${checkLabel}_cmp:`);
     const cmpResult = this.ctx.nextTemp();
     this.ctx.emit(`${cmpResult} = call i32 @strcmp(i8* ${elem}, i8* ${searchValue})`);
     const isMatch = this.ctx.nextTemp();
@@ -1595,13 +1620,14 @@ export class MethodCallGenerator {
       if (this.ctx.getCurrentClassName()) {
         className = this.ctx.getCurrentClassName();
       } else {
-        const ast = this.ctx.getAst();
-        if (!ast || !ast.classes) {
+        const classesLen5 = this.ctx.getAstClassesLength();
+        if (classesLen5 === 0) {
           throw new Error(`Method ${method} not found in any class - no AST`);
         }
         let classWithMethodResult: ClassNode | null = null;
-        for (let ci = 0; ci < ast.classes.length; ci++) {
-          const c = ast.classes[ci];
+        for (let ci = 0; ci < classesLen5; ci++) {
+          const c = this.ctx.getAstClassAt(ci);
+          if (!c) continue;
           let hasMethod = false;
           for (let mi = 0; mi < c.methods.length; mi++) {
             const m = c.methods[mi];
@@ -1624,31 +1650,30 @@ export class MethodCallGenerator {
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
           const fieldClassName = fieldInfo.tsType;
-          const ast = this.ctx.getAst();
           let classExists = false;
-          if (ast && ast.classes) {
-            for (let ci = 0; ci < ast.classes.length; ci++) {
-              const c = ast.classes[ci] as { name: string };
-              if (c.name === fieldClassName) { classExists = true; break; }
-            }
+          const classesLen = this.ctx.getAstClassesLength();
+          for (let ci = 0; ci < classesLen; ci++) {
+            const cName = this.ctx.getAstClassNameAt(ci);
+            if (cName === fieldClassName) { classExists = true; break; }
           }
           if (classExists) {
             instancePtr = this.ctx.generateExpression(expr.object, params);
             className = fieldClassName;
           } else {
             let interfaceExists = false;
-            if (ast && ast.interfaces) {
-              for (let ii = 0; ii < ast.interfaces.length; ii++) {
-                const iface = ast.interfaces[ii] as { name: string };
-                if (iface.name === fieldClassName) { interfaceExists = true; break; }
-              }
+            const interfacesLen = this.ctx.getAstInterfacesLength();
+            for (let ii = 0; ii < interfacesLen; ii++) {
+              const ifaceName = this.ctx.getAstInterfaceNameAt(ii);
+              if (ifaceName === fieldClassName) { interfaceExists = true; break; }
             }
             if (interfaceExists) {
               const implClass = this.findClassImplementingInterfaceMethod(fieldClassName, method);
               if (implClass) {
                 instancePtr = this.ctx.generateExpression(expr.object, params);
                 className = implClass;
+              } else {
               }
+            } else {
             }
           }
         }
@@ -1661,24 +1686,21 @@ export class MethodCallGenerator {
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
             const fieldClassName = fieldInfo.tsType;
-            const ast2 = this.ctx.getAst();
             let classExists = false;
-            if (ast2 && ast2.classes) {
-              for (let ci = 0; ci < ast2.classes.length; ci++) {
-                const c = ast2.classes[ci] as { name: string };
-                if (c.name === fieldClassName) { classExists = true; break; }
-              }
+            const classesLen2 = this.ctx.getAstClassesLength();
+            for (let ci = 0; ci < classesLen2; ci++) {
+              const cName = this.ctx.getAstClassNameAt(ci);
+              if (cName === fieldClassName) { classExists = true; break; }
             }
             if (classExists) {
               instancePtr = this.ctx.generateExpression(expr.object, params);
               className = fieldClassName;
             } else {
               let interfaceExists = false;
-              if (ast2 && ast2.interfaces) {
-                for (let ii = 0; ii < ast2.interfaces.length; ii++) {
-                  const iface = ast2.interfaces[ii] as { name: string };
-                  if (iface.name === fieldClassName) { interfaceExists = true; break; }
-                }
+              const interfacesLen2 = this.ctx.getAstInterfacesLength();
+              for (let ii = 0; ii < interfacesLen2; ii++) {
+                const ifaceName = this.ctx.getAstInterfaceNameAt(ii);
+                if (ifaceName === fieldClassName) { interfaceExists = true; break; }
               }
               if (interfaceExists) {
                 const implClass = this.findClassImplementingInterfaceMethod(fieldClassName, method);
@@ -1705,15 +1727,13 @@ export class MethodCallGenerator {
       if (!this.ctx.getCurrentClassName()) {
         throw new Error('super.method() called outside of class context');
       }
-      const ast = this.ctx.getAst();
       let currentClassResult: ClassNode | null = null;
-      if (ast && ast.classes) {
-        for (let ci = 0; ci < ast.classes.length; ci++) {
-          const c = ast.classes[ci] as ClassNode;
-          if (c.name === this.ctx.getCurrentClassName()) {
-            currentClassResult = c;
-            break;
-          }
+      const classesLen6 = this.ctx.getAstClassesLength();
+      for (let ci = 0; ci < classesLen6; ci++) {
+        const cName = this.ctx.getAstClassNameAt(ci);
+        if (cName === this.ctx.getCurrentClassName()) {
+          currentClassResult = this.ctx.getAstClassAt(ci);
+          break;
         }
       }
       const currentClass = currentClassResult as ClassNode;
@@ -1745,12 +1765,10 @@ export class MethodCallGenerator {
       let isInterfaceClass = false;
       if (!resolvedClass) {
         let interfaceExists = false;
-        const ast3 = this.ctx.getAst();
-        if (ast3 && ast3.interfaces) {
-          for (let ii = 0; ii < ast3.interfaces.length; ii++) {
-            const iface = ast3.interfaces[ii] as { name: string };
-            if (iface.name === className) { interfaceExists = true; break; }
-          }
+        const interfacesLen5 = this.ctx.getAstInterfacesLength();
+        for (let ii = 0; ii < interfacesLen5; ii++) {
+          const ifaceName = this.ctx.getAstInterfaceNameAt(ii);
+          if (ifaceName === className) { interfaceExists = true; break; }
         }
         if (interfaceExists) {
           isInterfaceClass = true;
@@ -1770,13 +1788,12 @@ export class MethodCallGenerator {
   }
 
   private findClassWithMethod(className: string, methodName: string): string | null {
-    const ast = this.ctx.getAst();
-    if (!ast || !ast.classes) return null;
     let classNodeResult: ClassNode | null = null;
-    for (let ci = 0; ci < ast.classes.length; ci++) {
-      const c = ast.classes[ci] as ClassNode;
-      if (c.name === className) {
-        classNodeResult = c;
+    const classesLen7 = this.ctx.getAstClassesLength();
+    for (let ci = 0; ci < classesLen7; ci++) {
+      const cName = this.ctx.getAstClassNameAt(ci);
+      if (cName === className) {
+        classNodeResult = this.ctx.getAstClassAt(ci);
         break;
       }
     }
@@ -1798,10 +1815,10 @@ export class MethodCallGenerator {
   }
 
   private findClassImplementingInterfaceMethod(interfaceName: string, methodName: string): string | null {
-    const ast = this.ctx.getAst();
-    if (!ast || !ast.classes) return null;
-    for (let i = 0; i < ast.classes.length; i++) {
-      const cls = ast.classes[i];
+    const classesLen8 = this.ctx.getAstClassesLength();
+    for (let i = 0; i < classesLen8; i++) {
+      const cls = this.ctx.getAstClassAt(i);
+      if (!cls) continue;
       if (!this.classImplementsInterface(cls.name, interfaceName)) {
         continue;
       }
@@ -1836,14 +1853,14 @@ export class MethodCallGenerator {
       }
       return null;
     }
-    const ast = this.ctx.getAst();
-    if (!ast || !ast.classes) return null;
-    for (let ci = 0; ci < ast.classes.length; ci++) {
-      const cls = ast.classes[ci];
-      if (this.classHasAllMethods(cls.name, allMethods)) {
-        const hasTargetMethod = this.findClassWithMethod(cls.name, methodName);
+    const classesLen9 = this.ctx.getAstClassesLength();
+    for (let ci = 0; ci < classesLen9; ci++) {
+      const clsName = this.ctx.getAstClassNameAt(ci);
+      if (!clsName) continue;
+      if (this.classHasAllMethods(clsName, allMethods)) {
+        const hasTargetMethod = this.findClassWithMethod(clsName, methodName);
         if (hasTargetMethod) {
-          return cls.name;
+          return clsName;
         }
       }
     }
@@ -1863,15 +1880,15 @@ export class MethodCallGenerator {
     }
     visited.push(interfaceName);
 
-    const ast = this.ctx.getAst();
-    if (!ast || !ast.interfaces) return;
-
-    let bestInterface: { name: string; extends?: string[]; methods?: { name: string }[] } | null = null;
+    let bestInterface: { name: string; extends?: string[]; fields: { name: string; type: string }[]; methods?: { name: string }[] } | null = null;
     let maxMethods = 0;
-    for (let i = 0; i < ast.interfaces.length; i++) {
-      const iface = ast.interfaces[i];
-      if (iface.name === interfaceName) {
-        const methodCount = iface.methods?.length || 0;
+    const interfacesLen4 = this.ctx.getAstInterfacesLength();
+    for (let i = 0; i < interfacesLen4; i++) {
+      const ifaceName = this.ctx.getAstInterfaceNameAt(i);
+      if (ifaceName === interfaceName) {
+        const iface = this.ctx.getAstInterfaceAt(i);
+        if (!iface) continue;
+        const methodCount = iface.methods ? iface.methods.length : 0;
         if (methodCount > maxMethods || !bestInterface) {
           maxMethods = methodCount;
           bestInterface = iface;
@@ -1901,10 +1918,10 @@ export class MethodCallGenerator {
   }
 
   private findPrimaryImplementingClass(methodName: string): string | null {
-    const ast = this.ctx.getAst();
-    if (!ast || !ast.classes) return null;
-    for (let ci = 0; ci < ast.classes.length; ci++) {
-      const cls = ast.classes[ci] as { name: string; implements?: string[] };
+    const classesLen10 = this.ctx.getAstClassesLength();
+    for (let ci = 0; ci < classesLen10; ci++) {
+      const cls = this.ctx.getAstClassAt(ci);
+      if (!cls) continue;
       if (cls.implements && cls.implements.length > 0) {
         const hasMethod = this.findClassWithMethod(cls.name, methodName);
         if (hasMethod) {
@@ -1912,9 +1929,10 @@ export class MethodCallGenerator {
         }
       }
     }
-    for (let ci = 0; ci < ast.classes.length; ci++) {
-      const cls = ast.classes[ci] as { name: string };
-      const hasMethod = this.findClassWithMethod(cls.name, methodName);
+    for (let ci = 0; ci < classesLen10; ci++) {
+      const clsName = this.ctx.getAstClassNameAt(ci);
+      if (!clsName) continue;
+      const hasMethod = this.findClassWithMethod(clsName, methodName);
       if (hasMethod) {
         return hasMethod;
       }
@@ -1932,11 +1950,12 @@ export class MethodCallGenerator {
   }
 
   private classImplementsInterface(className: string, interfaceName: string): boolean {
-    const ast = this.ctx.getAst();
-    if (!ast || !ast.classes) return false;
-    for (let i = 0; i < ast.classes.length; i++) {
-      const cls = ast.classes[i] as { name: string; implements?: string[]; extends?: string };
-      if (cls.name === className) {
+    const classesLen11 = this.ctx.getAstClassesLength();
+    for (let i = 0; i < classesLen11; i++) {
+      const cName = this.ctx.getAstClassNameAt(i);
+      if (cName === className) {
+        const cls = this.ctx.getAstClassAt(i);
+        if (!cls) return false;
         if (cls.implements) {
           for (let j = 0; j < cls.implements.length; j++) {
             if (cls.implements[j] === interfaceName) {
@@ -1975,36 +1994,30 @@ export class MethodCallGenerator {
         return null;
       }
 
-      const ast = this.ctx.getAst();
-      if (!ast) return null;
-
       let classExists = false;
-      if (ast.classes) {
-        for (let ci = 0; ci < ast.classes.length; ci++) {
-          const c = ast.classes[ci] as { name: string };
-          if (c.name === parentType) { classExists = true; break; }
-        }
+      const classesLen3 = this.ctx.getAstClassesLength();
+      for (let ci = 0; ci < classesLen3; ci++) {
+        const cName = this.ctx.getAstClassNameAt(ci);
+        if (cName === parentType) { classExists = true; break; }
       }
       if (classExists) {
         const fieldInfoResult = this.ctx.classGenGetFieldInfo(parentType, memberAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
           let fieldClassExists = false;
-          if (ast.classes) {
-            for (let ci = 0; ci < ast.classes.length; ci++) {
-              const c = ast.classes[ci] as { name: string };
-              if (c.name === fieldInfo.tsType) { fieldClassExists = true; break; }
-            }
+          const classesLen4 = this.ctx.getAstClassesLength();
+          for (let ci = 0; ci < classesLen4; ci++) {
+            const cName = this.ctx.getAstClassNameAt(ci);
+            if (cName === fieldInfo.tsType) { fieldClassExists = true; break; }
           }
           if (fieldClassExists) {
             return fieldInfo.tsType;
           }
           let fieldInterfaceExists = false;
-          if (ast.interfaces) {
-            for (let ii = 0; ii < ast.interfaces.length; ii++) {
-              const iface = ast.interfaces[ii] as { name: string };
-              if (iface.name === fieldInfo.tsType) { fieldInterfaceExists = true; break; }
-            }
+          const interfacesLen3 = this.ctx.getAstInterfacesLength();
+          for (let ii = 0; ii < interfacesLen3; ii++) {
+            const ifaceName = this.ctx.getAstInterfaceNameAt(ii);
+            if (ifaceName === fieldInfo.tsType) { fieldInterfaceExists = true; break; }
           }
           if (fieldInterfaceExists) {
             return fieldInfo.tsType;
@@ -2030,23 +2043,20 @@ export class MethodCallGenerator {
           if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
             fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
           }
-          const ast2 = this.ctx.getAst();
           let fieldClassExists = false;
-          if (ast2 && ast2.classes) {
-            for (let ci = 0; ci < ast2.classes.length; ci++) {
-              const c = ast2.classes[ci] as { name: string };
-              if (c.name === fieldType) { fieldClassExists = true; break; }
-            }
+          const classesLen12 = this.ctx.getAstClassesLength();
+          for (let ci = 0; ci < classesLen12; ci++) {
+            const cName = this.ctx.getAstClassNameAt(ci);
+            if (cName === fieldType) { fieldClassExists = true; break; }
           }
           if (fieldClassExists) {
             return fieldType;
           }
           let fieldInterfaceExists = false;
-          if (ast2 && ast2.interfaces) {
-            for (let ii = 0; ii < ast2.interfaces.length; ii++) {
-              const iface = ast2.interfaces[ii] as { name: string };
-              if (iface.name === fieldType) { fieldInterfaceExists = true; break; }
-            }
+          const interfacesLen6 = this.ctx.getAstInterfacesLength();
+          for (let ii = 0; ii < interfacesLen6; ii++) {
+            const ifaceName = this.ctx.getAstInterfaceNameAt(ii);
+            if (ifaceName === fieldType) { fieldInterfaceExists = true; break; }
           }
           if (fieldInterfaceExists) {
             return fieldType;
@@ -2088,15 +2098,13 @@ export class MethodCallGenerator {
       return null;
     }
 
-    const ast = this.ctx.getAst();
     let funcExists = false;
-    if (ast && ast.functions) {
-      for (let i = 0; i < ast.functions.length; i++) {
-        const f = ast.functions[i] as FunctionNode;
-        if (f.name === method) {
-          funcExists = true;
-          break;
-        }
+    const funcLen2 = this.ctx.getAstFunctionsLength();
+    for (let i = 0; i < funcLen2; i++) {
+      const fName = this.ctx.getAstFunctionNameAt(i);
+      if (fName === method) {
+        funcExists = true;
+        break;
       }
     }
     if (!funcExists) {
