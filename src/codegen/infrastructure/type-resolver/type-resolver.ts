@@ -28,7 +28,16 @@ export interface TypeResolverContext {
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   symbolTableLookup(name: string): SymbolEntry | undefined;
   symbolTableIsMap(name: string): boolean;
+  symbolTableIsStringArray(name: string): boolean;
+  symbolTableIsBooleanArray(name: string): boolean;
   symbolTableGetMapMetadata(name: string): MapMetadata | undefined;
+  symbolTableGetSetMetadata(name: string): string | undefined;
+  symbolTableGetKind(name: string): SymbolKind | undefined;
+  symbolTableGetClassName(name: string): string | undefined;
+  symbolTableGetArrayMetadata(name: string): string | undefined;
+  symbolTableGetInterfaceType(name: string): string | undefined;
+  symbolTableGetType(name: string): string | undefined;
+  symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined;
   symbolTableGetResolvedType(name: string): ResolvedType | undefined;
@@ -193,93 +202,106 @@ function getBuiltinAstTypeByName(name: string): BuiltinAstType | null {
 }
 
 export class TypeResolver {
-  private interfaceCache = new Map<string, InterfaceDeclaration | null>();
-  private classCache = new Map<string, ClassNode | null>();
 
   constructor(private ctx: TypeResolverContext) {}
 
   clearCaches(): void {
-    this.interfaceCache.clear();
-    this.classCache.clear();
   }
 
   getCompleteType(name: string): ResolvedType | null {
-    // Check if we have a cached resolved type
     const cached = this.ctx.symbolTableGetResolvedType(name);
     if (cached) return cached;
 
-    const symbol = this.ctx.symbolTableLookup(name);
-    if (!symbol) return null;
-
     let resolved: ResolvedType | null = null;
 
-    if (symbol.interfaceType) {
-      resolved = parseTypeString(symbol.interfaceType);
-    } else if (symbol.mapMetadata) {
-      const mapMeta = symbol.mapMetadata;
-      const keyType = parseTypeString(mapMeta.keyType);
-      const valueType = parseTypeString(mapMeta.valueType);
-      resolved = createResolvedType('Map', {}, 0, [keyType, valueType]);
-    } else if (symbol.setMetadata) {
-      const setMeta = symbol.setMetadata;
-      const valueType = parseTypeString(setMeta.valueType);
-      resolved = createResolvedType('Set', {}, 0, [valueType]);
-    } else if (symbol.objectArrayMetadata) {
-      const objArrayMeta = symbol.objectArrayMetadata;
-      resolved = createResolvedType(objArrayMeta.elementInterfaceName, {}, 1);
-    } else if (symbol.arrayMetadata) {
-      const arrMeta = symbol.arrayMetadata;
-      resolved = createResolvedType(arrMeta.elementType, {}, 1);
-    } else if (symbol.kind === SymbolKind.StringArray) {
+    const ifaceType = this.ctx.symbolTableGetInterfaceType(name);
+    if (ifaceType) {
+      resolved = parseTypeString(ifaceType);
+    }
+    if (!resolved) {
+      const mapMeta = this.ctx.symbolTableGetMapMetadata(name);
+      if (mapMeta) {
+        const keyType = parseTypeString(mapMeta.keyType);
+        const valueType = parseTypeString(mapMeta.valueType);
+        resolved = createResolvedType('Map', {}, 0, [keyType, valueType]);
+      }
+    }
+    if (!resolved) {
+      const setValueType = this.ctx.symbolTableGetSetMetadata(name);
+      if (setValueType) {
+        const valueType = parseTypeString(setValueType);
+        resolved = createResolvedType('Set', {}, 0, [valueType]);
+      }
+    }
+    if (!resolved) {
+      const objArrayMeta = this.ctx.symbolTableGetObjectArrayMetadata(name);
+      if (objArrayMeta) {
+        resolved = createResolvedType(objArrayMeta.elementInterfaceName, {}, 1);
+      }
+    }
+    if (!resolved) {
+      const arrMetaElementType = this.ctx.symbolTableGetArrayMetadata(name);
+      if (arrMetaElementType) {
+        resolved = createResolvedType(arrMetaElementType, {}, 1);
+      }
+    }
+    if (!resolved && this.ctx.symbolTableIsStringArray(name)) {
       resolved = createResolvedType('string', {}, 1);
-    } else if (symbol.kind === SymbolKind.BooleanArray) {
+    }
+    if (!resolved && this.ctx.symbolTableIsBooleanArray(name)) {
       resolved = createResolvedType('boolean', {}, 1);
-    } else if (symbol.classMetadata) {
-      const classMeta = symbol.classMetadata;
-      resolved = createResolvedType(classMeta.className);
-    } else {
-      switch (symbol.llvmType) {
-        case 'double':
-          resolved = createResolvedType('number');
-          break;
-        case 'i8*':
-          resolved = createResolvedType('string');
-          break;
-        case 'i1':
-          resolved = createResolvedType('boolean');
-          break;
-        case '%Array*':
-          resolved = createResolvedType('number', {}, 1);
-          break;
-        case '%StringArray*':
-          resolved = createResolvedType('string', {}, 1);
-          break;
-        case '%Map*':
-          resolved = createResolvedType('Map');
-          break;
-        case '%StringMap*':
-          resolved = createResolvedType('Map', {}, 0, [createResolvedType('string'), createResolvedType('unknown')]);
-          break;
-        case '%Set*':
-          resolved = createResolvedType('Set');
-          break;
-        case '%StringSet*':
-          resolved = createResolvedType('Set', {}, 0, [createResolvedType('string')]);
-          break;
-        default:
-          if (symbol.llvmType.startsWith('%') && symbol.llvmType.endsWith('*')) {
-            const typeName = symbol.llvmType.slice(1, -1);
-            if (typeName.endsWith('_struct')) {
-              resolved = createResolvedType(typeName.slice(0, -7));
-            } else {
-              resolved = createResolvedType(typeName);
+    }
+    if (!resolved) {
+      const className = this.ctx.symbolTableGetClassName(name);
+      if (className) {
+        resolved = createResolvedType(className);
+      }
+    }
+    if (!resolved) {
+      const llvmType = this.ctx.symbolTableGetType(name);
+      if (llvmType) {
+        switch (llvmType) {
+          case 'double':
+            resolved = createResolvedType('number');
+            break;
+          case 'i8*':
+            resolved = createResolvedType('string');
+            break;
+          case 'i1':
+            resolved = createResolvedType('boolean');
+            break;
+          case '%Array*':
+            resolved = createResolvedType('number', {}, 1);
+            break;
+          case '%StringArray*':
+            resolved = createResolvedType('string', {}, 1);
+            break;
+          case '%Map*':
+            resolved = createResolvedType('Map');
+            break;
+          case '%StringMap*':
+            resolved = createResolvedType('Map', {}, 0, [createResolvedType('string'), createResolvedType('unknown')]);
+            break;
+          case '%Set*':
+            resolved = createResolvedType('Set');
+            break;
+          case '%StringSet*':
+            resolved = createResolvedType('Set', {}, 0, [createResolvedType('string')]);
+            break;
+          default:
+            if (llvmType.startsWith('%') && llvmType.endsWith('*')) {
+              const typeName = llvmType.slice(1, -1);
+              if (typeName.endsWith('_struct')) {
+                resolved = createResolvedType(typeName.slice(0, -7));
+              } else {
+                resolved = createResolvedType(typeName);
+              }
             }
-          }
-          break;
+            break;
+        }
       }
     }
 
-    // Cache the resolved type for future lookups
     if (resolved) {
       this.ctx.symbolTableSetResolvedType(name, resolved);
     }
@@ -291,9 +313,6 @@ export class TypeResolver {
   getInterface(name: string): InterfaceDeclaration | null {
     if (!name) {
       return null;
-    }
-    if (this.interfaceCache.has(name)) {
-      return this.interfaceCache.get(name) || null;
     }
     const builtinType = getBuiltinAstTypeByName(name);
     if (builtinType) {
@@ -307,12 +326,10 @@ export class TypeResolver {
         fields: fields,
         extends: []
       };
-      this.interfaceCache.set(name, ifaceDecl);
       return ifaceDecl;
     }
     const interfacesLen = this.ctx.getAstInterfacesLength();
     if (interfacesLen === 0) {
-      this.interfaceCache.set(name, null);
       return null;
     }
     for (let i = 0; i < interfacesLen; i++) {
@@ -322,11 +339,9 @@ export class TypeResolver {
       }
       if (ifaceName === name) {
         const iface = this.ctx.getAstInterfaceAt(i);
-        this.interfaceCache.set(name, iface);
         return iface;
       }
     }
-    this.interfaceCache.set(name, null);
     return null;
   }
 
@@ -488,12 +503,8 @@ export class TypeResolver {
     if (!name) {
       return null;
     }
-    if (this.classCache.has(name)) {
-      return this.classCache.get(name) || null;
-    }
     const classesLen = this.ctx.getAstClassesLength();
     if (classesLen === 0) {
-      this.classCache.set(name, null);
       return null;
     }
     for (let i = 0; i < classesLen; i++) {
@@ -502,11 +513,9 @@ export class TypeResolver {
         continue;
       }
       if (cls.name === name) {
-        this.classCache.set(name, cls);
         return cls;
       }
     }
-    this.classCache.set(name, null);
     return null;
   }
 
@@ -662,21 +671,20 @@ export class TypeResolver {
     const memberAccess = expr.object as MemberAccessNode;
     const propertyName = memberAccess.property;
 
-    let objectMeta: ObjectMetadata | undefined;
+    let objectInfo: { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
 
     const memberAccessObjBase = memberAccess.object as ExprBase;
     if (memberAccessObjBase.type === 'variable') {
       const varName = (memberAccess.object as VariableNode).name;
-      objectMeta = this.ctx.symbolTableGetObjectInfo(varName);
+      objectInfo = this.ctx.symbolTableGetObjectInfo(varName);
     }
 
-    if (!objectMeta) return null;
-    const objMeta = objectMeta as ObjectMetadata;
+    if (!objectInfo) return null;
 
-    const propIndex = objMeta.keys.indexOf(propertyName);
+    const propIndex = objectInfo.keys.indexOf(propertyName);
     if (propIndex === -1) return null;
 
-    const tsTypesArr = objMeta.tsTypes as string[];
+    const tsTypesArr = objectInfo.tsTypes as string[];
     const propTsType = tsTypesArr[propIndex];
     if (!propTsType) return null;
 
@@ -720,9 +728,8 @@ export class TypeResolver {
     if (memberAccessObjBase2.type !== 'variable') return null;
 
     const varName = (memberAccess.object as VariableNode).name;
-    const symbol = this.ctx.symbolTableLookup(varName);
-    if (!symbol || !symbol.objectMetadata) return null;
-    const objMeta = symbol.objectMetadata;
+    const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+    if (!objMeta) return null;
 
     const interfaceName = this.findInterfaceByDiscriminant(literalValue);
     if (!interfaceName) return null;
@@ -1079,12 +1086,12 @@ export class TypeResolver {
       const memberAccess = arrayExpr as MemberAccessNode;
       const propertyName = memberAccess.property;
 
-      let objectMeta: ObjectMetadata | undefined;
+      let objectInfo: { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
 
       const memberObj = memberAccess.object as { type: string };
       if (memberObj.type === 'variable') {
         const varName = (memberObj as VariableNode).name;
-        objectMeta = this.ctx.symbolTableGetObjectInfo(varName);
+        objectInfo = this.ctx.symbolTableGetObjectInfo(varName);
       } else if (memberObj.type === 'member_access' || memberObj.type === 'this') {
         const arrayType = this.resolveMemberAccessArrayType(memberAccess);
         if (arrayType) {
@@ -1093,13 +1100,12 @@ export class TypeResolver {
         return null;
       }
 
-      if (!objectMeta) return null;
-      const objMeta = objectMeta as ObjectMetadata;
+      if (!objectInfo) return null;
 
-      const propIndex = objMeta.keys.indexOf(propertyName);
+      const propIndex = objectInfo.keys.indexOf(propertyName);
       if (propIndex === -1) return null;
 
-      const tsTypesArr = objMeta.tsTypes as string[];
+      const tsTypesArr = objectInfo.tsTypes as string[];
       const propTsType = tsTypesArr[propIndex];
       if (!propTsType) return null;
 

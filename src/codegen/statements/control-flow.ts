@@ -11,12 +11,12 @@ interface ExprBase { type: string; }
 // ============================================
 
 export class ControlFlowGenerator {
-  // Loop context stack for break/continue
-  private loopStack: Array<{ continueLabel: string; breakLabel: string }>;
+  private loopContinueLabels: string[];
+  private loopBreakLabels: string[];
 
   constructor(private ctx: IGeneratorContext) {
-    // Initialize loopStack in constructor - field initializers don't work in native code
-    this.loopStack = [];
+    this.loopContinueLabels = [];
+    this.loopBreakLabels = [];
   }
 
   // Helper methods delegate to context
@@ -162,9 +162,11 @@ export class ControlFlowGenerator {
     // Body block - push loop context for break/continue
     this.emit(`${bodyLabel}:`);
     this.ctx.setCurrentLabel(bodyLabel);
-    this.loopStack.push({ continueLabel: condLabel, breakLabel: endLabel });
+    this.loopContinueLabels.push(condLabel);
+    this.loopBreakLabels.push(endLabel);
     this.ctx.generateBlock(whileStmt.body, params);
-    this.loopStack.pop();
+    this.loopContinueLabels.pop();
+    this.loopBreakLabels.pop();
     const lastInstruction = this.ctx.getLastInstruction();
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
                               lastInstruction.startsWith('br ') ||
@@ -235,9 +237,11 @@ export class ControlFlowGenerator {
     // Body block - push loop context for break/continue
     this.emit(`${bodyLabel}:`);
     this.ctx.setCurrentLabel(bodyLabel);
-    this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
+    this.loopContinueLabels.push(updateLabel);
+    this.loopBreakLabels.push(endLabel);
     this.ctx.generateBlock(forStmt.body, params);
-    this.loopStack.pop();
+    this.loopContinueLabels.pop();
+    this.loopBreakLabels.pop();
     // Check if the LAST instruction is a terminator
     const lastInstruction = this.ctx.getLastInstruction();
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
@@ -389,9 +393,11 @@ export class ControlFlowGenerator {
     this.emit(`store ${elementType} ${elemValue}, ${elementType}* ${elemAlloca}`);
 
     // Execute the loop body
-    this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
+    this.loopContinueLabels.push(updateLabel);
+    this.loopBreakLabels.push(endLabel);
     this.ctx.generateBlock(forOfStmt.body, params);
-    this.loopStack.pop();
+    this.loopContinueLabels.pop();
+    this.loopBreakLabels.pop();
 
     // Check if body has terminator
     const lastInstruction = this.ctx.getLastInstruction();
@@ -442,11 +448,10 @@ export class ControlFlowGenerator {
   }
 
   private getObjectArrayInfoFromAST(varName: string, propName: string): ObjectArrayMetadata | null {
-    const symbol = this.ctx.symbolTableLookup(varName);
-    if (!symbol || !symbol.objectMetadata) {
+    const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+    if (!objMeta) {
       return null;
     }
-    const objMeta = symbol.objectMetadata;
     const tsTypes = objMeta.tsTypes;
     const keys = objMeta.keys;
     if (!tsTypes || !keys) {
@@ -579,6 +584,9 @@ export class ControlFlowGenerator {
   }
 
   private getObjectArrayInfo(iterable: Expression): ObjectArrayMetadata | null {
+    if (!iterable || !iterable.type) {
+      return null;
+    }
     if (iterable.type === 'binary') {
       const binaryExpr = iterable as BinaryNode;
       if (binaryExpr.op === '||') {
@@ -599,11 +607,10 @@ export class ControlFlowGenerator {
         if (fromAST) {
           return fromAST;
         }
-        const symbol = this.ctx.symbolTableLookup(varName);
-        if (symbol && symbol.objectMetadata && symbol.objectMetadata.tsTypes) {
-          const objMeta = symbol.objectMetadata;
+        const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+        if (objMeta && objMeta.tsTypes) {
           const keys = objMeta.keys;
-          const tsTypes = objMeta.tsTypes!;
+          const tsTypes = objMeta.tsTypes;
           const idx = keys.indexOf(propName);
           if (idx !== -1) {
             const fieldType = tsTypes[idx];
@@ -1011,7 +1018,11 @@ export class ControlFlowGenerator {
 
   private parseUnionTypeCommonProperties(unionType: string): ObjectArrayMetadata | null {
     const inner = unionType.slice(1, -1).trim();
-    const members = inner.split('|').map(m => m.trim());
+    const rawMembers = inner.split('|');
+    const members: string[] = [];
+    for (let mi = 0; mi < rawMembers.length; mi++) {
+      members.push(rawMembers[mi].trim());
+    }
     if (members.length === 0) {
       return null;
     }
@@ -1038,7 +1049,10 @@ export class ControlFlowGenerator {
     }
 
     const commonFields: CommonField[] = [];
-    for (const [fieldName, fieldType] of firstFields) {
+    for (let _ffi = 0; _ffi < firstInterface.fields.length; _ffi++) {
+      const firstField = firstInterface.fields[_ffi] as { name: string; type: string };
+      const fieldName = firstField.name;
+      const fieldType = firstField.type;
       let isCommon = true;
       let resolvedType = fieldType;
       for (let i = 1; i < memberInterfaces.length; i++) {
@@ -1168,7 +1182,7 @@ export class ControlFlowGenerator {
     const metadata = hasInterfaceName
       ? createObjectMetadataWithInterface(objectMetadata, objArrayInfo.elementInterfaceName)
       : createObjectMetadata(objectMetadata);
-    this.ctx.defineVariable(forOfStmt.variableName, elemAlloca, 'i8*', SymbolKind.Object, 'local', metadata);
+    this.ctx.defineVariableWithMetadata(forOfStmt.variableName, elemAlloca, 'i8*', SymbolKind.Object, 'local', metadata);
 
     const condLabel = this.nextLabel('forof_cond');
     const bodyLabel = this.nextLabel('forof_body');
@@ -1204,9 +1218,11 @@ export class ControlFlowGenerator {
 
     this.emit(`store i8* ${elemValue}, i8** ${elemAlloca}`);
 
-    this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
+    this.loopContinueLabels.push(updateLabel);
+    this.loopBreakLabels.push(endLabel);
     this.ctx.generateBlock(forOfStmt.body, params);
-    this.loopStack.pop();
+    this.loopContinueLabels.pop();
+    this.loopBreakLabels.pop();
 
     const lastInstruction = this.ctx.getLastInstruction();
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
@@ -1231,20 +1247,20 @@ export class ControlFlowGenerator {
   }
 
   generateBreakStatement(): string {
-    if (this.loopStack.length === 0) {
+    if (this.loopBreakLabels.length === 0) {
       throw new Error('break statement outside of loop');
     }
-    const loop = this.loopStack[this.loopStack.length - 1] as { continueLabel: string; breakLabel: string };
-    this.emit(`br label %${loop.breakLabel}`);
+    const breakLabel = this.loopBreakLabels[this.loopBreakLabels.length - 1];
+    this.emit(`br label %${breakLabel}`);
     return '0';
   }
 
   generateContinueStatement(): string {
-    if (this.loopStack.length === 0) {
+    if (this.loopContinueLabels.length === 0) {
       throw new Error('continue statement outside of loop');
     }
-    const loop = this.loopStack[this.loopStack.length - 1] as { continueLabel: string; breakLabel: string };
-    this.emit(`br label %${loop.continueLabel}`);
+    const continueLabel = this.loopContinueLabels[this.loopContinueLabels.length - 1];
+    this.emit(`br label %${continueLabel}`);
     return '0';
   }
 
@@ -1508,9 +1524,8 @@ export class ControlFlowGenerator {
     if (maObjBase.type !== 'variable') return null;
 
     const varName = (ma.object as VariableNode).name;
-    const symbol = this.ctx.symbolTableLookup(varName);
-    if (!symbol || !symbol.objectMetadata) return null;
-    const objMeta = symbol.objectMetadata;
+    const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+    if (!objMeta) return null;
 
     const interfaceName = this.findInterfaceByDiscriminant(literalValue);
     if (!interfaceName) return null;
@@ -1578,7 +1593,7 @@ export class ControlFlowGenerator {
       const varName = (expr as VariableNode).name;
       if (this.ctx.symbolTableIsSet(varName)) {
         const setMeta = this.ctx.symbolTableGetSetMetadata(varName);
-        return !setMeta || setMeta.valueType === 'string';
+        return !setMeta || setMeta === 'string';
       }
       return false;
     }
@@ -1767,7 +1782,7 @@ export class ControlFlowGenerator {
     if (valueTypeInfo) {
       const vti = valueTypeInfo as { valueType: string; objectMetadata: ObjectMetadata | undefined };
       if (vti.objectMetadata) {
-        this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.Object, 'local', createObjectMetadata(vti.objectMetadata));
+        this.ctx.defineVariableWithMetadata(valueName, valueAlloca, 'i8*', SymbolKind.Object, 'local', createObjectMetadata(vti.objectMetadata));
       } else {
         this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.String, 'local');
       }
@@ -1821,9 +1836,11 @@ export class ControlFlowGenerator {
     this.emit(`${valueVal} = load i8*, i8** ${valueSlotPtr}`);
     this.emit(`store i8* ${valueVal}, i8** ${valueAlloca}`);
 
-    this.loopStack.push({ continueLabel: updateLabel, breakLabel: endLabel });
+    this.loopContinueLabels.push(updateLabel);
+    this.loopBreakLabels.push(endLabel);
     this.ctx.generateBlock(stmt.body, params);
-    this.loopStack.pop();
+    this.loopContinueLabels.pop();
+    this.loopBreakLabels.pop();
 
     const lastInstruction = this.ctx.getLastInstruction();
     const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
@@ -1859,13 +1876,15 @@ export class ControlFlowGenerator {
     const discriminantType = this.ctx.getVariableType(discriminantValue);
     const isString = discriminantType === 'i8*';
 
-    this.loopStack.push({ continueLabel: '', breakLabel: endLabel });
+    this.loopContinueLabels.push('');
+    this.loopBreakLabels.push(endLabel);
 
     const caseLabels: string[] = [];
     let defaultLabelIndex = -1;
 
     for (let i = 0; i < switchStmt.cases.length; i++) {
       const caseItem = switchStmt.cases[i];
+      if (!caseItem) continue;
       if (caseItem.test === null) {
         defaultLabelIndex = i;
         caseLabels.push(this.nextLabel('case_default'));
@@ -1879,6 +1898,7 @@ export class ControlFlowGenerator {
     let checkLabels: string[] = [];
     let testCaseCount = 0;
     for (let i = 0; i < switchStmt.cases.length; i++) {
+      if (!switchStmt.cases[i]) continue;
       if (switchStmt.cases[i].test !== null) {
         testCaseCount++;
       }
@@ -1891,6 +1911,7 @@ export class ControlFlowGenerator {
     let checkIndex = 0;
     for (let i = 0; i < switchStmt.cases.length; i++) {
       const caseItem = switchStmt.cases[i];
+      if (!caseItem) continue;
       if (caseItem.test !== null) {
         if (checkIndex > 0) {
           this.emit(`${checkLabels[checkIndex - 1]}:`);
@@ -1917,11 +1938,13 @@ export class ControlFlowGenerator {
 
     for (let i = 0; i < switchStmt.cases.length; i++) {
       const caseItem = switchStmt.cases[i];
+      if (!caseItem) continue;
       this.emit(`${caseLabels[i]}:`);
       this.ctx.setCurrentLabel(caseLabels[i]);
 
       for (let j = 0; j < caseItem.consequent.length; j++) {
         const consequentStmt = caseItem.consequent[j];
+        if (!consequentStmt) continue;
         if (consequentStmt.type === 'break') {
           this.emit(`br label %${endLabel}`);
         } else if (consequentStmt.type === 'variable_declaration' || consequentStmt.type === 'return' || consequentStmt.type === 'if' || consequentStmt.type === 'assignment' || consequentStmt.type === 'throw' || consequentStmt.type === 'while' || consequentStmt.type === 'for' || consequentStmt.type === 'for_of' || consequentStmt.type === 'continue' || consequentStmt.type === 'try' || consequentStmt.type === 'switch') {
@@ -1938,7 +1961,8 @@ export class ControlFlowGenerator {
       }
     }
 
-    this.loopStack.pop();
+    this.loopContinueLabels.pop();
+    this.loopBreakLabels.pop();
     this.emit(`${endLabel}:`);
 
     return '0';

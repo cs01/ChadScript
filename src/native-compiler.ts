@@ -1,7 +1,6 @@
 import { parseSource } from './parser-native/index.js';
 import { transformTree } from './parser-native/transformer.js';
 import { LLVMGenerator, LLVMGeneratorOptions } from './codegen/llvm-generator.js';
-import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST, ImportDeclaration } from './ast/types.js';
 
 declare const child_process: {
@@ -35,14 +34,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   console.log('Input file: ' + inputFile);
 
   const compiledFiles: string[] = [];
-  console.log('About to call compileMultiFile...');
   const mergedAST = compileMultiFile(inputFile, compiledFiles);
-
-  console.log('AST interfaces count: ' + mergedAST.interfaces.length);
-  console.log('AST functions count: ' + mergedAST.functions.length);
-  console.log('AST classes count: ' + mergedAST.classes.length);
-  console.log('AST topLevelStatements count: ' + mergedAST.topLevelStatements.length);
-  console.log('AST topLevelExpressions count: ' + mergedAST.topLevelExpressions.length);
 
   console.log('Skipping semantic analysis for native bootstrap...');
   // TODO: Re-enable semantic analysis when for-of on object arrays works
@@ -58,17 +50,15 @@ export function compileNative(inputFile: string, outputFile: string): void {
 
   // console.log('Semantic analysis passed');
 
-  console.log('About to create LLVMGenerator...');
+  console.log('Generating LLVM IR...');
   const generatorOptions: LLVMGeneratorOptions = {
     linkTreeSitter: true,
     sourceCode: '',
     filename: inputFile
   };
-  console.log('Created options');
   const generator = new LLVMGenerator(mergedAST, null, generatorOptions);
-  console.log('LLVMGenerator created, calling generate()...');
   const llvmIR = generator.generate();
-  console.log('generate() done, IR length = ' + llvmIR.length);
+  console.log('Generated IR, length = ' + llvmIR.length);
 
   const irFile = outputFile + '.ll';
   fs.writeFileSync(irFile, llvmIR);
@@ -268,13 +258,17 @@ if (!fs.existsSync(theInputFile)) {
   throw new Error('unreachable');
 }
 
-let theOutputFile: string = '.build/' + theInputFile;
+let inputForOutput: string = theInputFile;
+if (inputForOutput.substr(0, 1) === '/') {
+  inputForOutput = path.basename(inputForOutput);
+}
+let theOutputFile: string = '.build/' + inputForOutput;
 if (outputFile !== null) {
   theOutputFile = outputFile;
-} else if (theInputFile.substr(theInputFile.length - 3) === '.ts') {
-  theOutputFile = '.build/' + theInputFile.substr(0, theInputFile.length - 3);
-} else if (theInputFile.substr(theInputFile.length - 3) === '.js') {
-  theOutputFile = '.build/' + theInputFile.substr(0, theInputFile.length - 3);
+} else if (inputForOutput.substr(inputForOutput.length - 3) === '.ts') {
+  theOutputFile = '.build/' + inputForOutput.substr(0, inputForOutput.length - 3);
+} else if (inputForOutput.substr(inputForOutput.length - 3) === '.js') {
+  theOutputFile = '.build/' + inputForOutput.substr(0, inputForOutput.length - 3);
 }
 
 const outputDir = path.dirname(theOutputFile);

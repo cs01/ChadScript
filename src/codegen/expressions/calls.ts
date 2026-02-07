@@ -535,7 +535,8 @@ export class CallExpressionGenerator {
       argsList.push('i8* null');
     }
 
-    for (const arg of expr.args) {
+    for (let _cai = 0; _cai < expr.args.length; _cai++) {
+      const arg = expr.args[_cai];
       const result = this.ctx.generateExpression(arg, params);
       argsList.push(`double ${result}`);
     }
@@ -804,7 +805,11 @@ export class CallExpressionGenerator {
     for (let i = 0; i < expr.args.length; i++) {
       argValues.push(this.ctx.generateExpression(expr.args[i], params));
     }
-    const argsWithTypes = argValues.map(v => `i8* ${v}`).join(', ');
+    const argsWithTypesParts: string[] = [];
+    for (let ai = 0; ai < argValues.length; ai++) {
+      argsWithTypesParts.push('i8* ' + argValues[ai]);
+    }
+    const argsWithTypes = argsWithTypesParts.join(', ');
     const parentObj = this.ctx.nextTemp();
     if (argValues.length === 0) {
       this.ctx.emit(`${parentObj} = call ${parentStructType} @${parentClassName}_constructor()`);

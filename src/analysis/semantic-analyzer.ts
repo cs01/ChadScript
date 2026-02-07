@@ -42,7 +42,8 @@ export class SemanticAnalyzer {
   analyze(): boolean {
     this.errors = [];
 
-    for (const stmt of this.ast.topLevelStatements) {
+    for (let _si = 0; _si < this.ast.topLevelStatements.length; _si++) {
+      const stmt = this.ast.topLevelStatements[_si];
       if (stmt.type === 'variable_declaration') {
         this.analyzeVariableDeclaration(stmt);
       } else if (stmt.type === 'assignment') {
@@ -50,11 +51,13 @@ export class SemanticAnalyzer {
       }
     }
 
-    for (const func of this.ast.functions) {
+    for (let _fi = 0; _fi < this.ast.functions.length; _fi++) {
+      const func = this.ast.functions[_fi];
       this.analyzeFunction(func);
     }
 
-    for (const classNode of this.ast.classes) {
+    for (let _ci = 0; _ci < this.ast.classes.length; _ci++) {
+      const classNode = this.ast.classes[_ci];
       this.analyzeClass(classNode);
     }
 
@@ -98,8 +101,8 @@ export class SemanticAnalyzer {
     this.currentFunction = func.name;
 
     // Add parameters to symbol table (scoped to function)
-    for (const param of func.params) {
-      // Default to number unless TypeScript types tell us otherwise
+    for (let _pi = 0; _pi < func.params.length; _pi++) {
+      const param = func.params[_pi];
       this.symbols.set(param, {
         name: param,
         type: 'number',
@@ -112,7 +115,9 @@ export class SemanticAnalyzer {
   }
 
   private analyzeClass(classNode: ClassNode): void {
-    for (const field of classNode.fields || []) {
+    const classFields = classNode.fields || [];
+    for (let _fli = 0; _fli < classFields.length; _fli++) {
+      const field = classFields[_fli];
       let llvmType = 'i32';
       let type: SymbolType = 'number';
 
@@ -134,7 +139,9 @@ export class SemanticAnalyzer {
       });
     }
 
-    for (const method of classNode.methods || []) {
+    const classMethods = classNode.methods || [];
+    for (let _mi = 0; _mi < classMethods.length; _mi++) {
+      const method = classMethods[_mi];
       this.currentFunction = `${classNode.name}.${method.name}`;
 
       for (let i = 0; i < method.params.length; i++) {
@@ -167,7 +174,8 @@ export class SemanticAnalyzer {
   }
 
   private analyzeBlock(block: BlockStatement): void {
-    for (const stmt of block.statements) {
+    for (let _bi = 0; _bi < block.statements.length; _bi++) {
+      const stmt = block.statements[_bi];
       if (stmt.type === 'variable_declaration') {
         this.analyzeVariableDeclaration(stmt);
       } else if (stmt.type === 'assignment') {

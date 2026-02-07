@@ -433,11 +433,11 @@ function transformNewExpression(node: ts.NewExpression, checker: ts.TypeChecker 
 function transformTemplateExpression(node: ts.TemplateExpression, checker: ts.TypeChecker | undefined): TemplateLiteralNode {
   const parts: (string | Expression)[] = [];
 
-  parts.push(node.head.text);
+  parts.push({ type: 'string', value: node.head.text } as Expression);
 
   for (const span of node.templateSpans) {
     parts.push(transformExpression(span.expression, checker));
-    parts.push(span.literal.text);
+    parts.push({ type: 'string', value: span.literal.text } as Expression);
   }
 
   return { type: 'template_literal', parts };

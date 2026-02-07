@@ -1323,13 +1323,80 @@ export class ArrayGenerator {
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
-    const bufferSize = 65536;
-    const resultBuffer = this.nextTemp();
-    this.emit(`${resultBuffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
+    const sepLen = this.nextTemp();
+    this.emit(`${sepLen} = call i64 @strlen(i8* ${separator})`);
 
-    const nullByte = this.nextTemp();
-    this.emit(`${nullByte} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 0`);
-    this.emit(`store i8 0, i8* ${nullByte}`);
+    const totalSizePtr = this.ctx.nextAllocaReg('join_total');
+    this.emit(`${totalSizePtr} = alloca i64`);
+    this.emit(`store i64 0, i64* ${totalSizePtr}`);
+
+    const sizeCheckLabel = this.nextLabel('join_size_check');
+    const sizeBodyLabel = this.nextLabel('join_size_body');
+    const sizeEndLabel = this.nextLabel('join_size_end');
+
+    const sizeCounterPtr = this.ctx.nextAllocaReg('join_size_idx');
+    this.emit(`${sizeCounterPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${sizeCounterPtr}`);
+
+    this.emit(`br label %${sizeCheckLabel}`);
+
+    this.emit(`${sizeCheckLabel}:`);
+    const sizeCounter = this.nextTemp();
+    this.emit(`${sizeCounter} = load i32, i32* ${sizeCounterPtr}`);
+    const sizeCond = this.nextTemp();
+    this.emit(`${sizeCond} = icmp slt i32 ${sizeCounter}, ${length}`);
+    this.emit(`br i1 ${sizeCond}, label %${sizeBodyLabel}, label %${sizeEndLabel}`);
+
+    this.emit(`${sizeBodyLabel}:`);
+    const sizeElemPtr = this.nextTemp();
+    this.emit(`${sizeElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${sizeCounter}`);
+    const sizeElem = this.nextTemp();
+    this.emit(`${sizeElem} = load i8*, i8** ${sizeElemPtr}`);
+    const sizeElemNull = this.nextTemp();
+    this.emit(`${sizeElemNull} = icmp eq i8* ${sizeElem}, null`);
+    const sizeSkipLabel = this.nextLabel('join_size_skip');
+    const sizeAddLabel = this.nextLabel('join_size_add');
+    this.emit(`br i1 ${sizeElemNull}, label %${sizeSkipLabel}, label %${sizeAddLabel}`);
+
+    this.emit(`${sizeAddLabel}:`);
+    const elemLen = this.nextTemp();
+    this.emit(`${elemLen} = call i64 @strlen(i8* ${sizeElem})`);
+    const curTotal = this.nextTemp();
+    this.emit(`${curTotal} = load i64, i64* ${totalSizePtr}`);
+    const newTotal = this.nextTemp();
+    this.emit(`${newTotal} = add i64 ${curTotal}, ${elemLen}`);
+    this.emit(`store i64 ${newTotal}, i64* ${totalSizePtr}`);
+    this.emit(`br label %${sizeSkipLabel}`);
+
+    this.emit(`${sizeSkipLabel}:`);
+    const sizeNextCounter = this.nextTemp();
+    this.emit(`${sizeNextCounter} = add i32 ${sizeCounter}, 1`);
+    this.emit(`store i32 ${sizeNextCounter}, i32* ${sizeCounterPtr}`);
+    this.emit(`br label %${sizeCheckLabel}`);
+
+    this.emit(`${sizeEndLabel}:`);
+    const elemTotal = this.nextTemp();
+    this.emit(`${elemTotal} = load i64, i64* ${totalSizePtr}`);
+    const lengthI64 = this.nextTemp();
+    this.emit(`${lengthI64} = sext i32 ${length} to i64`);
+    const hasElements = this.nextTemp();
+    this.emit(`${hasElements} = icmp sgt i64 ${lengthI64}, 0`);
+    const sepCountRaw = this.nextTemp();
+    this.emit(`${sepCountRaw} = sub i64 ${lengthI64}, 1`);
+    const sepCount = this.nextTemp();
+    this.emit(`${sepCount} = select i1 ${hasElements}, i64 ${sepCountRaw}, i64 0`);
+    const totalSepLen = this.nextTemp();
+    this.emit(`${totalSepLen} = mul i64 ${sepCount}, ${sepLen}`);
+    const totalWithSep = this.nextTemp();
+    this.emit(`${totalWithSep} = add i64 ${elemTotal}, ${totalSepLen}`);
+    const finalSize = this.nextTemp();
+    this.emit(`${finalSize} = add i64 ${totalWithSep}, 1`);
+    const resultBuffer = this.nextTemp();
+    this.emit(`${resultBuffer} = call i8* @GC_malloc_atomic(i64 ${finalSize})`);
+
+    const offsetPtr = this.ctx.nextAllocaReg('join_offset');
+    this.emit(`${offsetPtr} = alloca i64`);
+    this.emit(`store i64 0, i64* ${offsetPtr}`);
 
     const checkLabel = this.nextLabel('join_check');
     const bodyLabel = this.nextLabel('join_body');
@@ -1355,6 +1422,13 @@ export class ArrayGenerator {
     const elem = this.nextTemp();
     this.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
+    const elemIsNull = this.nextTemp();
+    this.emit(`${elemIsNull} = icmp eq i8* ${elem}, null`);
+    const elemSkipLabel = this.nextLabel('join_elem_skip');
+    const elemCopyLabel = this.nextLabel('join_elem_copy');
+    this.emit(`br i1 ${elemIsNull}, label %${elemSkipLabel}, label %${elemCopyLabel}`);
+
+    this.emit(`${elemCopyLabel}:`);
     const isNotFirst = this.nextTemp();
     this.emit(`${isNotFirst} = icmp sgt i32 ${counter}, 0`);
     const addSepLabel = this.nextLabel('join_add_sep');
@@ -1362,13 +1436,30 @@ export class ArrayGenerator {
     this.emit(`br i1 ${isNotFirst}, label %${addSepLabel}, label %${afterSepLabel}`);
 
     this.emit(`${addSepLabel}:`);
-    const strcat1 = this.nextTemp();
-    this.emit(`${strcat1} = call i8* @strcat(i8* ${resultBuffer}, i8* ${separator})`);
+    const sepOffset = this.nextTemp();
+    this.emit(`${sepOffset} = load i64, i64* ${offsetPtr}`);
+    const sepDst = this.nextTemp();
+    this.emit(`${sepDst} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${sepOffset}`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${sepDst}, i8* ${separator}, i64 ${sepLen}, i1 false)`);
+    const sepOffsetNew = this.nextTemp();
+    this.emit(`${sepOffsetNew} = add i64 ${sepOffset}, ${sepLen}`);
+    this.emit(`store i64 ${sepOffsetNew}, i64* ${offsetPtr}`);
     this.emit(`br label %${afterSepLabel}`);
 
     this.emit(`${afterSepLabel}:`);
-    const strcat2 = this.nextTemp();
-    this.emit(`${strcat2} = call i8* @strcat(i8* ${resultBuffer}, i8* ${elem})`);
+    const curOffset = this.nextTemp();
+    this.emit(`${curOffset} = load i64, i64* ${offsetPtr}`);
+    const elemDst = this.nextTemp();
+    this.emit(`${elemDst} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${curOffset}`);
+    const elemLength = this.nextTemp();
+    this.emit(`${elemLength} = call i64 @strlen(i8* ${elem})`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${elemDst}, i8* ${elem}, i64 ${elemLength}, i1 false)`);
+    const newOffset = this.nextTemp();
+    this.emit(`${newOffset} = add i64 ${curOffset}, ${elemLength}`);
+    this.emit(`store i64 ${newOffset}, i64* ${offsetPtr}`);
+    this.emit(`br label %${elemSkipLabel}`);
+
+    this.emit(`${elemSkipLabel}:`);
 
     const nextCounter = this.nextTemp();
     this.emit(`${nextCounter} = add i32 ${counter}, 1`);
@@ -1376,6 +1467,11 @@ export class ArrayGenerator {
     this.emit(`br label %${checkLabel}`);
 
     this.emit(`${endLabel}:`);
+    const finalOffset = this.nextTemp();
+    this.emit(`${finalOffset} = load i64, i64* ${offsetPtr}`);
+    const nullTermPtr = this.nextTemp();
+    this.emit(`${nullTermPtr} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${finalOffset}`);
+    this.emit(`store i8 0, i8* ${nullTermPtr}`);
     this.ctx.setVariableType(resultBuffer, 'i8*');
     return resultBuffer;
   }

@@ -17,7 +17,8 @@ export interface FunctionGeneratorContext {
   nextTemp(): string;
   emit(instruction: string): void;
   setCurrentLabel(label: string): void;
-  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata?: SymbolMetadata): void;
+  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global'): void;
+  defineVariableWithMetadata(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata: SymbolMetadata): void;
   generateBlock(block: BlockStatement, params: string[]): string | null;
   generateExpression(expr: Expression, params: string[]): string;
   allocateVariable(stmt: VariableDeclaration, params: string[]): void;
@@ -282,7 +283,7 @@ export class FunctionGenerator {
           }
 
           if (classDefResult) {
-            this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Class, 'local', createClassMetadata({ className: classDefResult.name }));
+            this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Class, 'local', createClassMetadata({ className: classDefResult.name }));
           } else if (interfaceDefResult) {
             const interfaceDef = interfaceDefResult as { name: string; fields: { name: string; type: string }[] };
             const keys: string[] = [];
@@ -296,10 +297,10 @@ export class FunctionGenerator {
                 types.push(this.tsTypeToLlvmForField(fieldName, field.type));
               }
             }
-            this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types }, paramTypes[i]));
+            this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types }, paramTypes[i]));
           } else if (typeAliasResult && typeAliasResult.unionMembers) {
             const commonFields = this.getUnionCommonFields(typeAliasResult.unionMembers);
-            this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', createUnionMetadata(commonFields, paramTypes[i], typeAliasResult.unionMembers));
+            this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', createUnionMetadata(commonFields, paramTypes[i], typeAliasResult.unionMembers));
           } else {
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local');
           }
@@ -311,7 +312,7 @@ export class FunctionGenerator {
           this.ctx.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
         }
       } else if (llvmType === '%StringArray*') {
-        this.ctx.defineVariable(paramName, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', createPointerAllocaMetadata());
+        this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', createPointerAllocaMetadata());
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
         if (isOptional && hasOptionalParams) {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
@@ -319,7 +320,7 @@ export class FunctionGenerator {
           this.ctx.emit(`store %StringArray* %arg${i}, %StringArray** ${allocaReg}`);
         }
       } else if (llvmType === '%Array*') {
-        this.ctx.defineVariable(paramName, allocaReg, '%Array*', SymbolKind.Array, 'local', createPointerAllocaMetadata());
+        this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%Array*', SymbolKind.Array, 'local', createPointerAllocaMetadata());
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         if (isOptional && hasOptionalParams) {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
@@ -328,7 +329,7 @@ export class FunctionGenerator {
         }
       } else if (llvmType.startsWith('%') && llvmType.endsWith('*') && llvmType !== '%__FetchResponse*') {
         const interfaceName = llvmType.slice(1, -1);
-        this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind.Object, 'local', createInterfacePointerAllocaMetadata(interfaceName));
+        this.ctx.defineVariableWithMetadata(paramName, allocaReg, llvmType, SymbolKind.Object, 'local', createInterfacePointerAllocaMetadata(interfaceName));
         this.ctx.emit(`${allocaReg} = alloca ${llvmType}`);
         if (isOptional && hasOptionalParams) {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
@@ -508,8 +509,10 @@ export class FunctionGenerator {
         const switchStmt = block.statements[i] as SwitchStatement;
         for (let j = 0; j < switchStmt.cases.length; j++) {
           const caseItem = switchStmt.cases[j];
+          if (!caseItem) continue;
           for (let k = 0; k < caseItem.consequent.length; k++) {
             const consequentStmt = caseItem.consequent[k] as { type: string };
+            if (!consequentStmt) continue;
             if (consequentStmt.type === 'return') return true;
           }
         }

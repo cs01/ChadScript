@@ -28,7 +28,7 @@ export interface VariableExpressionContext {
   symbolTableIsPointerAlloca(name: string): boolean;
   symbolTableGetClassInfo(name: string): { ptr: string; className: string } | undefined;
   symbolTableGetMapMetadata(name: string): { keyType: string; valueType: string } | undefined;
-  symbolTableGetSetMetadata(name: string): { valueType: string } | undefined;
+  symbolTableGetSetMetadata(name: string): string | undefined;
   symbolTableGetAlloca(name: string): string | undefined;
   symbolTableGetType(name: string): string | undefined;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
@@ -112,8 +112,8 @@ export class VariableExpressionGenerator {
     // Check if it's a set variable
     if (this.ctx.symbolTableIsSet(name)) {
       const allocaReg = this.ctx.getVariableAlloca(name)!;
-      const setMeta = this.ctx.symbolTableGetSetMetadata(name);
-      if (setMeta && setMeta.valueType === 'string') {
+      const setValueType = this.ctx.symbolTableGetSetMetadata(name);
+      if (setValueType === 'string') {
         this.ctx.setVariableType(allocaReg, '%StringSet*');
       } else {
         this.ctx.setVariableType(allocaReg, '%Set*');

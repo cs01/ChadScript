@@ -13,6 +13,7 @@ export interface IndexAccessGeneratorContext {
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   symbolTableLookup(name: string): SymbolEntry | undefined;
+  symbolTableGetInterfaceType(name: string): string | undefined;
   symbolTableIsJSON(name: string): boolean;
   symbolTableIsObject(name: string): boolean;
   symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
@@ -56,8 +57,8 @@ export class IndexAccessGenerator {
       }
       if (memberAccessObjBase.type === 'variable') {
         const baseVarName = (memberAccess.object as VariableNode).name;
-        const symbol = this.ctx.symbolTableLookup(baseVarName);
-        if (symbol?.interfaceType) {
+        const baseIfaceType = this.ctx.symbolTableGetInterfaceType(baseVarName);
+        if (baseIfaceType) {
           const isStringArray = this.ctx.isStringArrayExpression(expr.object);
           const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
           if (isStringArray) {

@@ -172,7 +172,7 @@ export class UnaryExpressionGenerator {
     if (!fieldInfoResult) {
       throw new Error(`Cannot find field '${fieldName}' in class ${className}`);
     }
-    const fieldInfo = fieldInfoResult as { index: number; type: string };
+    const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
 
     const fieldPtr = this.ctx.nextTemp();
     this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${thisPtr}, i32 0, i32 ${fieldInfo.index}`);

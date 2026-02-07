@@ -126,7 +126,8 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
     case 'lexical_declaration':
     case 'variable_declaration':
       const varDecls = transformLexicalDeclaration(node);
-      for (const varDecl of varDecls) {
+      for (let _vdi = 0; _vdi < varDecls.length; _vdi++) {
+        const varDecl = varDecls[_vdi];
         ast.topLevelStatements.push(varDecl);
         ast.topLevelItems!.push(varDecl);
       }
@@ -248,9 +249,20 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
         ast.classes.push(cls);
         ast.exports.push({ type: 'export', declaration: cls });
       }
+    } else if (c.type === 'interface_declaration') {
+      const iface = transformInterfaceDeclaration(child);
+      if (iface) {
+        ast.interfaces.push(iface);
+      }
+    } else if (c.type === 'type_alias_declaration') {
+      const typeAlias = transformTypeAliasDeclaration(child);
+      if (typeAlias) {
+        ast.typeAliases.push(typeAlias);
+      }
     } else if (c.type === 'lexical_declaration') {
       const varDecls = transformLexicalDeclaration(child);
-      for (const varDecl of varDecls) {
+      for (let _vdi2 = 0; _vdi2 < varDecls.length; _vdi2++) {
+        const varDecl = varDecls[_vdi2];
         ast.topLevelStatements.push(varDecl);
         ast.topLevelItems!.push(varDecl);
       }
@@ -702,13 +714,17 @@ function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNo
     if (args.length > 0) {
       const firstArgType = getExprType(args[0]);
       if (firstArgType === 'array') {
-        const entries = (args[0] as ArrayNode).elements.map(elem => {
+        const elements = (args[0] as ArrayNode).elements;
+        const entries: { key: Expression; value: Expression }[] = [];
+        for (let ei = 0; ei < elements.length; ei++) {
+          const elem = elements[ei];
           const elemType = getExprType(elem);
           if (elemType === 'array' && (elem as ArrayNode).elements.length === 2) {
-            return { key: (elem as ArrayNode).elements[0], value: (elem as ArrayNode).elements[1] };
+            entries.push({ key: (elem as ArrayNode).elements[0], value: (elem as ArrayNode).elements[1] });
+          } else {
+            entries.push({ key: elem, value: { type: 'variable' as const, name: 'undefined' } });
           }
-          return { key: elem, value: { type: 'variable' as const, name: 'undefined' } };
-        });
+        }
         return { type: 'map', entries, keyType: undefined, valueType: undefined };
       }
     }
@@ -738,7 +754,7 @@ function transformTemplateString(node: TreeSitterNode): TemplateLiteralNode | St
     const c = child as NodeBase;
 
     if (c.type === 'string_fragment' || c.type === 'template_content') {
-      parts.push(c.text);
+      parts.push({ type: 'string', value: c.text } as Expression);
     } else if (c.type === 'template_substitution') {
       hasSubstitutions = true;
       const exprChild = getNamedChild(child, 0);
@@ -756,9 +772,9 @@ function transformTemplateString(node: TreeSitterNode): TemplateLiteralNode | St
   if (!hasSubstitutions && parts.length <= 1) {
     let text = '';
     if (parts.length === 1) {
-      const firstPart = parts[0] as { type: string };
-      if (!firstPart.type) {
-        text = parts[0] as string;
+      const firstPart = parts[0] as { type: string; value?: string };
+      if (firstPart.type === 'string') {
+        text = firstPart.value || '';
       }
     }
     return { type: 'string', value: text };
@@ -1747,6 +1763,7 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
   const name = (nameNode as NodeBase).text;
 
   let extendsClause: string | undefined;
+  const implementsClause: string[] = [];
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = getNamedChild(node, i);
     if (!child) continue;
@@ -1760,6 +1777,16 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
           const valueNode = getChildByFieldName(clause, 'value');
           if (valueNode) {
             extendsClause = (valueNode as NodeBase).text;
+          }
+        } else if (cl.type === 'implements_clause') {
+          for (let k = 0; k < cl.namedChildCount; k++) {
+            const typeNode = getNamedChild(clause, k);
+            if (typeNode) {
+              const tn = typeNode as NodeBase;
+              if (tn.type === 'type_identifier' || tn.type === 'generic_type') {
+                implementsClause.push(extractTypeString(typeNode));
+              }
+            }
           }
         }
       }
@@ -1791,7 +1818,48 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
     }
   }
 
-  return { name, extends: extendsClause, implements: [], fields, methods };
+  for (let mi = 0; mi < methods.length; mi++) {
+    const method = methods[mi];
+    if (method.isConstructor && method.parameterProperties) {
+      const paramTypes = method.paramTypes || [];
+      const params = method.params;
+      for (let pi = 0; pi < method.parameterProperties.length; pi++) {
+        const propName = method.parameterProperties[pi];
+        let propIdx = -1;
+        for (let k = 0; k < params.length; k++) {
+          if (params[k] === propName) {
+            propIdx = k;
+            break;
+          }
+        }
+        let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' = 'double';
+        let tsType: string | undefined;
+        if (propIdx !== -1 && propIdx < paramTypes.length) {
+          const pt = paramTypes[propIdx];
+          if (pt === 'string') fieldType = 'string';
+          else if (pt === 'number') fieldType = 'double';
+          else if (pt === 'boolean') fieldType = 'boolean';
+          else if (pt === 'string[]') fieldType = 'string[]';
+          else if (pt === 'number[]') fieldType = 'number[]';
+          else if (pt === 'boolean[]') fieldType = 'boolean[]';
+          else if (pt) tsType = pt;
+        }
+        let alreadyExists = false;
+        for (let fi = 0; fi < fields.length; fi++) {
+          if (fields[fi].name === propName) {
+            alreadyExists = true;
+            break;
+          }
+        }
+        if (alreadyExists === false) {
+          const newField: ClassField = { name: propName, fieldType, tsType };
+          fields.push(newField);
+        }
+      }
+    }
+  }
+
+  return { name, extends: extendsClause, implements: implementsClause, fields, methods };
 }
 
 function transformClassField(node: TreeSitterNode): ClassField | null {
@@ -1881,8 +1949,12 @@ function extractClassParamTypes(paramsNode: TreeSitterNode): string[] | undefine
         const mapped = mapToClassMethodType(typeStr);
         if (mapped) {
           types.push(mapped);
-          hasTypes = true;
+        } else {
+          types.push(typeStr);
         }
+        hasTypes = true;
+      } else {
+        types.push('any');
       }
     }
   }
@@ -1932,6 +2004,7 @@ function transformInterfaceDeclaration(node: TreeSitterNode): InterfaceDeclarati
 
   const name = (nameNode as NodeBase).text;
   const fields: { name: string; type: string }[] = [];
+  const methods: { name: string; params: string[]; paramTypes: string[]; returnType: string }[] = [];
   const extendsArr: string[] = [];
 
   for (let i = 0; i < node.namedChildCount; i++) {
@@ -1961,11 +2034,29 @@ function transformInterfaceDeclaration(node: TreeSitterNode): InterfaceDeclarati
         const fieldName = propNameNode ? (propNameNode as NodeBase).text : '';
         const fieldType = propTypeNode ? extractTypeString(propTypeNode) : 'any';
         fields.push({ name: fieldName, type: fieldType });
+      } else if (m.type === 'method_signature') {
+        const methodNameNode = getChildByFieldName(member, 'name');
+        if (!methodNameNode) continue;
+        const methodName = (methodNameNode as NodeBase).text;
+        const paramsNode = getChildByFieldName(member, 'parameters');
+        const params = paramsNode ? extractFunctionParams(paramsNode) : [];
+        const paramTypes = paramsNode ? (extractParamTypes(paramsNode) || []) : [];
+        const returnTypeNode = getChildByFieldName(member, 'return_type');
+        let returnType = 'void';
+        if (returnTypeNode) {
+          returnType = extractTypeString(returnTypeNode);
+        }
+        methods.push({ name: methodName, params, paramTypes, returnType });
       }
     }
   }
 
-  return { name, extends: extendsArr, fields, methods: [] };
+  return {
+    name,
+    extends: extendsArr,
+    fields,
+    methods
+  };
 }
 
 function transformTypeAliasDeclaration(node: TreeSitterNode): TypeAliasDeclaration | null {

@@ -408,8 +408,12 @@ export class BaseGenerator {
   /**
    * Define a variable in the symbol table
    */
-  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global' = 'local', metadata?: SymbolMetadata) {
-    this.symbolTable.define(name, kind, llvmType, allocaReg, scope, metadata);
+  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global' = 'local') {
+    this.symbolTable.define(name, kind, llvmType, allocaReg, scope);
+  }
+
+  defineVariableWithMetadata(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata: SymbolMetadata) {
+    this.symbolTable.defineWithMetadata(name, kind, llvmType, allocaReg, scope, metadata);
   }
 
   /**

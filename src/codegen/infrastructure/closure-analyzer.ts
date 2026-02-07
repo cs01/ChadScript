@@ -168,7 +168,7 @@ export interface ClosureInfo {
 
 export class ClosureAnalyzer {
   private declaredVars: Set<string> = new Set();
-  private referencedVars: Set<string> = new Set();
+  private referencedVarsList: string[] = [];
   private scopeVarNames: string[] = [];
   private scopeVarTypes: string[] = [];
 
@@ -189,7 +189,7 @@ export class ClosureAnalyzer {
     lambdaName: string
   ): ClosureInfo {
     this.declaredVars = new Set();
-    this.referencedVars = new Set();
+    this.referencedVarsList = [];
 
     this.scopeVarNames = [];
     this.scopeVarTypes = [];
@@ -198,8 +198,8 @@ export class ClosureAnalyzer {
       this.scopeVarTypes.push(scopeVarTypesIn[i]);
     }
 
-    for (const param of params) {
-      this.declaredVars.add(param);
+    for (let _pi = 0; _pi < params.length; _pi++) {
+      this.declaredVars.add(params[_pi]);
     }
 
     const bodyTyped = body as TypedNode;
@@ -210,7 +210,8 @@ export class ClosureAnalyzer {
     }
 
     const captures: CapturedVariable[] = [];
-    for (const varName of this.referencedVars) {
+    for (let _rvi = 0; _rvi < this.referencedVarsList.length; _rvi++) {
+      const varName = this.referencedVarsList[_rvi];
       if (!this.declaredVars.has(varName) && this.hasScopeVar(varName)) {
         captures.push({
           name: varName,
@@ -223,6 +224,12 @@ export class ClosureAnalyzer {
       captures,
       envStructName: `%__env_${lambdaName}`
     };
+  }
+
+  private addReferencedVar(name: string): void {
+    if (this.referencedVarsList.indexOf(name) === -1) {
+      this.referencedVarsList.push(name);
+    }
   }
 
   private hasScopeVar(name: string): boolean {
@@ -317,7 +324,7 @@ export class ClosureAnalyzer {
 
     if (exprType === 'variable') {
       const e = expr as { type: string; name: string };
-      this.referencedVars.add(e.name);
+      this.addReferencedVar(e.name);
     } else if (exprType === 'binary') {
       const e = expr as { type: string; left: Expression; right: Expression };
       this.walkExpression(e.left);
@@ -327,15 +334,15 @@ export class ClosureAnalyzer {
       this.walkExpression(e.operand);
     } else if (exprType === 'call') {
       const e = expr as { type: string; name: string; args: Expression[] };
-      this.referencedVars.add(e.name);
-      for (const arg of e.args) {
-        this.walkExpression(arg);
+      this.addReferencedVar(e.name);
+      for (let _ai = 0; _ai < e.args.length; _ai++) {
+        this.walkExpression(e.args[_ai]);
       }
     } else if (exprType === 'method_call') {
       const e = expr as { type: string; object: Expression; args: Expression[] };
       this.walkExpression(e.object);
-      for (const arg of e.args) {
-        this.walkExpression(arg);
+      for (let _ai2 = 0; _ai2 < e.args.length; _ai2++) {
+        this.walkExpression(e.args[_ai2]);
       }
     } else if (exprType === 'member_access') {
       const e = expr as { type: string; object: Expression };
@@ -346,8 +353,8 @@ export class ClosureAnalyzer {
       this.walkExpression(e.index);
     } else if (exprType === 'array') {
       const e = expr as { type: string; elements: Expression[] };
-      for (const el of e.elements) {
-        this.walkExpression(el);
+      for (let _eli = 0; _eli < e.elements.length; _eli++) {
+        this.walkExpression(e.elements[_eli]);
       }
     } else if (exprType === 'object') {
       const e = expr as { type: string; properties: ObjectProperty[] };
@@ -357,17 +364,18 @@ export class ClosureAnalyzer {
       }
     } else if (exprType === 'template_literal') {
       const e = expr as { type: string; parts: (string | Expression)[] };
-      for (const part of e.parts) {
+      for (let _pti = 0; _pti < e.parts.length; _pti++) {
+        const part = e.parts[_pti];
         const partAsObj = part as { type: string };
-        if (partAsObj.type) {
+        if (partAsObj.type && partAsObj.type !== 'string') {
           this.walkExpression(part as Expression);
         }
       }
     } else if (exprType === 'arrow_function') {
       const e = expr as { type: string; params: string[]; body: Expression | BlockStatement };
       const nestedDeclared = new Set(this.declaredVars);
-      for (const p of e.params) {
-        this.declaredVars.add(p);
+      for (let _ppi = 0; _ppi < e.params.length; _ppi++) {
+        this.declaredVars.add(e.params[_ppi]);
       }
       const bodyTyped = e.body as { type: string };
       if (bodyTyped.type === 'block') {
@@ -386,8 +394,8 @@ export class ClosureAnalyzer {
       this.walkExpression(e.argument);
     } else if (exprType === 'new') {
       const e = expr as { type: string; args: Expression[] };
-      for (const arg of e.args) {
-        this.walkExpression(arg);
+      for (let _nai = 0; _nai < e.args.length; _nai++) {
+        this.walkExpression(e.args[_nai]);
       }
     }
     // 'this', 'super', 'number', 'string', 'boolean', 'regex' - no action needed
