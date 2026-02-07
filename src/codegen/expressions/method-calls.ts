@@ -39,6 +39,7 @@ import {
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from '../infrastructure/type-resolver/index.js';
+import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -326,6 +327,7 @@ export interface MethodCallGeneratorContext {
   fsGenCanHandle(expr: MethodCallNode): boolean;
   fsGenReadFileSync(expr: MethodCallNode, params: string[]): string;
   fsGenWriteFileSync(expr: MethodCallNode, params: string[]): string;
+  fsGenAppendFileSync(expr: MethodCallNode, params: string[]): string;
   fsGenExistsSync(expr: MethodCallNode, params: string[]): string;
   fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string;
   jsonGenCanHandle(expr: MethodCallNode): boolean;
@@ -561,9 +563,9 @@ export class MethodCallGenerator {
     for (let i = 0; i < funcParams.length; i++) {
       const p = funcParams[i] as { name: string; type?: string };
       if (p.name === varName && p.type) {
-        const mapMatch = p.type.match(/^Map<(\w+),\s*(.+)>$/);
-        if (mapMatch) {
-          return mapMatch[1];
+        const mapParsed = parseMapTypeString(p.type);
+        if (mapParsed) {
+          return mapParsed.keyType;
         }
       }
     }
@@ -588,9 +590,9 @@ export class MethodCallGenerator {
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
-      const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-      if (!mapMatch) return null;
-      return mapMatch[1];
+      const mapParsed = parseMapTypeString(fieldInfo.tsType);
+      if (!mapParsed) return null;
+      return mapParsed.keyType;
     }
 
     return null;
@@ -614,9 +616,9 @@ export class MethodCallGenerator {
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
-    const setMatch = fieldInfo.tsType.match(/^Set<(\w+)>$/);
-    if (!setMatch) return null;
-    return setMatch[1];
+    const setParsed = parseSetTypeString(fieldInfo.tsType);
+    if (!setParsed) return null;
+    return setParsed.valueType;
   }
 
   // Helper methods delegate to context
@@ -686,6 +688,8 @@ export class MethodCallGenerator {
         return this.ctx.fsGenReadFileSync(expr, params);
       } else if (method === 'writeFileSync') {
         return this.ctx.fsGenWriteFileSync(expr, params);
+      } else if (method === 'appendFileSync') {
+        return this.ctx.fsGenAppendFileSync(expr, params);
       } else if (method === 'existsSync') {
         return this.ctx.fsGenExistsSync(expr, params);
       } else if (method === 'unlinkSync') {
@@ -1576,7 +1580,12 @@ export class MethodCallGenerator {
     const pattern = regexNode.pattern;
     const flags = regexNode.flags || '';
 
-    const numGroups = (pattern.match(/\(/g) || []).length;
+    let numGroups = 0;
+    for (let gi = 0; gi < pattern.length; gi++) {
+      if (pattern[gi] === '(') {
+        numGroups = numGroups + 1;
+      }
+    }
 
     const regexPtr = this.ctx.regexGenGenerateRegexCompile(pattern, flags);
     const result = this.ctx.regexGenGenerateRegexMatch(regexPtr, strPtr, numGroups);

@@ -1,6 +1,7 @@
 export type NumericKind = 'integer' | 'float';
 
 export function stripOptional(name: string): string {
+  if (!name) return '';
   return name.endsWith('?') ? name.slice(0, -1) : name;
 }
 
@@ -69,10 +70,10 @@ export function parseTypeString(typeStr: string): ResolvedType {
     str = str.slice(0, -2);
   }
 
-  const genericMatch = str.match(/^(\w+)<(.+)>$/);
-  if (genericMatch) {
-    const base = genericMatch[1];
-    const paramsStr = genericMatch[2];
+  const genericParsed = parseGenericTypeString(str);
+  if (genericParsed) {
+    const base = genericParsed.base;
+    const paramsStr = genericParsed.params;
     const typeParams = parseGenericParams(paramsStr);
     return { base, qualifiers, arrayDepth, typeParams };
   }
@@ -126,6 +127,14 @@ export function tsTypeToLlvm(tsType: string): string {
   if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
   if (tsType.endsWith('[]')) return '%ObjectArray*';
   if (tsType.startsWith("'") || tsType.startsWith('"')) return 'i8*';
+  if (tsType.indexOf(' | ') !== -1) {
+    const parts = tsType.split(' | ');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      if (part === 'null' || part === 'undefined') continue;
+      return tsTypeToLlvm(part);
+    }
+  }
   return 'i8*';
 }
 
@@ -136,4 +145,57 @@ export function tsTypeToLlvmJson(tsType: string): string {
   if (tsType === 'string[]') return '%StringArray*';
   if (tsType === 'number[]') return '%Array*';
   return 'i8*';
+}
+
+export function parseMapTypeString(s: string): { keyType: string; valueType: string } | null {
+  if (!s) return null;
+  const trimmed = s.trim();
+  if (!trimmed.startsWith('Map<')) return null;
+  if (!trimmed.endsWith('>')) return null;
+  const inner = trimmed.substring(4, trimmed.length - 1);
+  let depth = 0;
+  let commaIdx = -1;
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (ch === '<') { depth = depth + 1; }
+    else if (ch === '>') { depth = depth - 1; }
+    else if (ch === ',' && depth === 0) {
+      commaIdx = i;
+      break;
+    }
+  }
+  if (commaIdx === -1) return null;
+  const keyType = inner.substring(0, commaIdx).trim();
+  const valueType = inner.substring(commaIdx + 1).trim();
+  if (!keyType || !valueType) return null;
+  return { keyType, valueType };
+}
+
+export function parseSetTypeString(s: string): { valueType: string } | null {
+  if (!s) return null;
+  const trimmed = s.trim();
+  if (!trimmed.startsWith('Set<')) return null;
+  if (!trimmed.endsWith('>')) return null;
+  const valueType = trimmed.substring(4, trimmed.length - 1).trim();
+  if (!valueType) return null;
+  return { valueType };
+}
+
+export function parseArrayTypeString(s: string): { elementType: string } | null {
+  if (!s) return null;
+  const trimmed = s.trim();
+  if (!trimmed.endsWith('[]')) return null;
+  const elementType = trimmed.substring(0, trimmed.length - 2).trim();
+  if (!elementType) return null;
+  return { elementType };
+}
+
+function parseGenericTypeString(s: string): { base: string; params: string } | null {
+  if (!s) return null;
+  const lt = s.indexOf('<');
+  if (lt === -1) return null;
+  if (!s.endsWith('>')) return null;
+  const base = s.substring(0, lt);
+  const params = s.substring(lt + 1, s.length - 1);
+  return { base, params };
 }

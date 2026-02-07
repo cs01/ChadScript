@@ -68,6 +68,7 @@ function transformProgram(node: TreeSitterNode): AST {
     topLevelStatements: [],
     topLevelExpressions: [],
     topLevelItems: [],
+    topLevelItemTypes: [],
   };
 
   for (let i = 0; i < node.namedChildCount; i++) {
@@ -130,6 +131,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
         const varDecl = varDecls[_vdi];
         ast.topLevelStatements.push(varDecl);
         ast.topLevelItems!.push(varDecl);
+        ast.topLevelItemTypes!.push('variable_declaration');
       }
       break;
 
@@ -142,6 +144,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       if (forStmt) {
         ast.topLevelExpressions.push(forStmt);
         ast.topLevelItems!.push(forStmt);
+        ast.topLevelItemTypes!.push('for');
       }
       break;
 
@@ -150,6 +153,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       if (forOfStmt) {
         ast.topLevelExpressions.push(forOfStmt);
         ast.topLevelItems!.push(forOfStmt);
+        ast.topLevelItemTypes!.push('for_of');
       }
       break;
 
@@ -158,6 +162,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       if (whileStmt) {
         ast.topLevelExpressions.push(whileStmt);
         ast.topLevelItems!.push(whileStmt);
+        ast.topLevelItemTypes!.push('while');
       }
       break;
 
@@ -166,6 +171,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       if (ifStmt) {
         ast.topLevelExpressions.push(ifStmt);
         ast.topLevelItems!.push(ifStmt);
+        ast.topLevelItemTypes!.push('if');
       }
       break;
 
@@ -174,6 +180,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       if (tryStmt) {
         ast.topLevelExpressions.push(tryStmt);
         ast.topLevelItems!.push(tryStmt);
+        ast.topLevelItemTypes!.push('try');
       }
       break;
 
@@ -181,6 +188,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       const throwStmt = transformThrowStatement(node);
       if (throwStmt) {
         ast.topLevelItems!.push(throwStmt as TopLevelItem);
+        ast.topLevelItemTypes!.push('throw');
       }
       break;
 
@@ -206,9 +214,11 @@ function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
     };
     ast.topLevelStatements.push(assignment);
     ast.topLevelItems!.push(assignment);
+    ast.topLevelItemTypes!.push('assignment');
   } else if (e.type === 'call' || e.type === 'new' || e.type === 'method_call') {
     ast.topLevelExpressions.push(expr as CallNode | NewNode | MethodCallNode);
     ast.topLevelItems!.push(expr as TopLevelItem);
+    ast.topLevelItemTypes!.push(e.type);
   } else if (e.type === 'binary') {
     const binExprTyped = expr as { type: string; op: string; left: Expression; right: Expression };
     if (binExprTyped.op === '=') {
@@ -221,6 +231,7 @@ function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
       };
       ast.topLevelStatements.push(assignment);
       ast.topLevelItems!.push(assignment);
+      ast.topLevelItemTypes!.push('assignment');
     }
   }
 }
@@ -265,6 +276,7 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
         const varDecl = varDecls[_vdi2];
         ast.topLevelStatements.push(varDecl);
         ast.topLevelItems!.push(varDecl);
+        ast.topLevelItemTypes!.push('variable_declaration');
       }
     } else if (c.type === 'export_clause') {
       exportClause = child;
@@ -696,6 +708,7 @@ function transformObjectExpression(node: TreeSitterNode): ObjectNode {
 function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNode {
   const constructorNode = getChildByFieldName(node, 'constructor');
   const argsNode = getChildByFieldName(node, 'arguments');
+  const typeArgsNode = getChildByFieldName(node, 'type_arguments');
 
   const args: Expression[] = [];
   if (argsNode) {
@@ -708,9 +721,29 @@ function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNo
     }
   }
 
+  let typeArgs: string[] | undefined;
+  if (typeArgsNode) {
+    const tan = typeArgsNode as NodeBase;
+    if (tan.namedChildCount > 0) {
+      typeArgs = [];
+      for (let ti = 0; ti < tan.namedChildCount; ti++) {
+        const targ = getNamedChild(typeArgsNode, ti);
+        if (targ) {
+          typeArgs.push(extractTypeString(targ));
+        }
+      }
+    }
+  }
+
   const className = constructorNode ? (constructorNode as NodeBase).text : '';
 
   if (className === 'Map') {
+    let keyType: string | undefined;
+    let valueType: string | undefined;
+    if (typeArgs && typeArgs.length >= 2) {
+      keyType = typeArgs[0];
+      valueType = typeArgs[1];
+    }
     if (args.length > 0) {
       const firstArgType = getExprType(args[0]);
       if (firstArgType === 'array') {
@@ -725,23 +758,27 @@ function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNo
             entries.push({ key: elem, value: { type: 'variable' as const, name: 'undefined' } });
           }
         }
-        return { type: 'map', entries, keyType: undefined, valueType: undefined };
+        return { type: 'map', entries, keyType, valueType };
       }
     }
-    return { type: 'map', entries: [], keyType: undefined, valueType: undefined };
+    return { type: 'map', entries: [], keyType, valueType };
   }
 
   if (className === 'Set') {
+    let valueType: string | undefined;
+    if (typeArgs && typeArgs.length >= 1) {
+      valueType = typeArgs[0];
+    }
     if (args.length > 0) {
       const firstArgType = getExprType(args[0]);
       if (firstArgType === 'array') {
-        return { type: 'set', values: (args[0] as ArrayNode).elements, valueType: undefined };
+        return { type: 'set', values: (args[0] as ArrayNode).elements, valueType };
       }
     }
-    return { type: 'set', values: [], valueType: undefined };
+    return { type: 'set', values: [], valueType };
   }
 
-  return { type: 'new', className, args, typeArgs: undefined };
+  return { type: 'new', className, args, typeArgs };
 }
 
 function transformTemplateString(node: TreeSitterNode): TemplateLiteralNode | StringNode {
@@ -1813,47 +1850,43 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
         const method = transformClassMethod(member);
         if (method) {
           methods.push(method);
-        }
-      }
-    }
-  }
-
-  for (let mi = 0; mi < methods.length; mi++) {
-    const method = methods[mi];
-    if (method.isConstructor && method.parameterProperties) {
-      const paramTypes = method.paramTypes || [];
-      const params = method.params;
-      for (let pi = 0; pi < method.parameterProperties.length; pi++) {
-        const propName = method.parameterProperties[pi];
-        let propIdx = -1;
-        for (let k = 0; k < params.length; k++) {
-          if (params[k] === propName) {
-            propIdx = k;
-            break;
+          if (method.isConstructor && method.parameterProperties) {
+            const paramTypes = method.paramTypes || [];
+            const params = method.params;
+            for (let pi = 0; pi < method.parameterProperties.length; pi++) {
+              const propName = method.parameterProperties[pi];
+              let propIdx = -1;
+              for (let k = 0; k < params.length; k++) {
+                if (params[k] === propName) {
+                  propIdx = k;
+                  break;
+                }
+              }
+              let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' = 'double';
+              let tsType: string | undefined;
+              if (propIdx !== -1 && propIdx < paramTypes.length) {
+                const pt = paramTypes[propIdx];
+                if (pt === 'string') fieldType = 'string';
+                else if (pt === 'number') fieldType = 'double';
+                else if (pt === 'boolean') fieldType = 'boolean';
+                else if (pt === 'string[]') fieldType = 'string[]';
+                else if (pt === 'number[]') fieldType = 'number[]';
+                else if (pt === 'boolean[]') fieldType = 'boolean[]';
+                else if (pt) tsType = pt;
+              }
+              let alreadyExists = false;
+              for (let fi = 0; fi < fields.length; fi++) {
+                if (fields[fi].name === propName) {
+                  alreadyExists = true;
+                  break;
+                }
+              }
+              if (alreadyExists === false) {
+                const newField: ClassField = { name: propName, fieldType, tsType };
+                fields.push(newField);
+              }
+            }
           }
-        }
-        let fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' = 'double';
-        let tsType: string | undefined;
-        if (propIdx !== -1 && propIdx < paramTypes.length) {
-          const pt = paramTypes[propIdx];
-          if (pt === 'string') fieldType = 'string';
-          else if (pt === 'number') fieldType = 'double';
-          else if (pt === 'boolean') fieldType = 'boolean';
-          else if (pt === 'string[]') fieldType = 'string[]';
-          else if (pt === 'number[]') fieldType = 'number[]';
-          else if (pt === 'boolean[]') fieldType = 'boolean[]';
-          else if (pt) tsType = pt;
-        }
-        let alreadyExists = false;
-        for (let fi = 0; fi < fields.length; fi++) {
-          if (fields[fi].name === propName) {
-            alreadyExists = true;
-            break;
-          }
-        }
-        if (alreadyExists === false) {
-          const newField: ClassField = { name: propName, fieldType, tsType };
-          fields.push(newField);
         }
       }
     }
@@ -1902,8 +1935,10 @@ function transformClassMethod(node: TreeSitterNode): ClassMethod | null {
 
   let returnType: string | undefined;
   if (returnTypeNode) {
-    const typeStr = extractTypeString(returnTypeNode);
-    returnType = mapToClassMethodType(typeStr);
+    const rtn = returnTypeNode as NodeBase;
+    if (!rtn.isNull) {
+      returnType = extractTypeString(returnTypeNode);
+    }
   }
 
   const paramTypes = paramsNode ? extractClassParamTypes(paramsNode) : undefined;

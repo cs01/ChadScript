@@ -2,7 +2,7 @@ import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expres
 import { SymbolTable, ObjectMetadata, SymbolKind, Symbol as SymbolEntry, MapMetadata, ObjectArrayMetadata } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo, ClassGeneratorLike } from './types.js';
-import { ResolvedType, createResolvedType, parseTypeString, stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil, tsTypeToLlvmJson as tsTypeToLlvmJsonUtil } from '../type-system.js';
+import { ResolvedType, createResolvedType, parseTypeString, stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil, tsTypeToLlvmJson as tsTypeToLlvmJsonUtil, parseMapTypeString, parseSetTypeString, parseArrayTypeString } from '../type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -32,7 +32,7 @@ export interface TypeResolverContext {
   symbolTableIsBooleanArray(name: string): boolean;
   symbolTableGetMapMetadata(name: string): MapMetadata | undefined;
   symbolTableGetSetMetadata(name: string): string | undefined;
-  symbolTableGetKind(name: string): SymbolKind | undefined;
+  symbolTableGetKind(name: string): number | undefined;
   symbolTableGetClassName(name: string): string | undefined;
   symbolTableGetArrayMetadata(name: string): string | undefined;
   symbolTableGetInterfaceType(name: string): string | undefined;
@@ -410,10 +410,10 @@ export class TypeResolver {
     const fieldProp = this.getInterfaceProperty(objectType, memberAccess.property);
     if (!fieldProp) return null;
 
-    const arrayMatch = fieldProp.type.match(/^(.+)\[\]$/);
-    if (!arrayMatch) return null;
+    const arrayParsed = parseArrayTypeString(fieldProp.type);
+    if (!arrayParsed) return null;
 
-    return arrayMatch[1];
+    return arrayParsed.elementType;
   }
 
   private resolveMemberAccessObjectType(expr: Expression): string | null {
@@ -591,11 +591,11 @@ export class TypeResolver {
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
-    const match = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-    if (!match) return null;
+    const mapParsed = parseMapTypeString(fieldInfo.tsType);
+    if (!mapParsed) return null;
 
-    const keyType = match[1] as 'string' | 'number';
-    const valueType = match[2];
+    const keyType = mapParsed.keyType as 'string' | 'number';
+    const valueType = mapParsed.valueType;
 
     return {
       keyType,
@@ -610,10 +610,10 @@ export class TypeResolver {
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
-    const match = fieldInfo.tsType.match(/^Set<(\w+)>$/);
-    if (!match) return null;
+    const setParsed = parseSetTypeString(fieldInfo.tsType);
+    if (!setParsed) return null;
 
-    const valueType = match[1] as 'string' | 'number';
+    const valueType = setParsed.valueType as 'string' | 'number';
 
     return {
       valueType,
@@ -688,10 +688,10 @@ export class TypeResolver {
     const propTsType = tsTypesArr[propIndex];
     if (!propTsType) return null;
 
-    const arrayMatch = propTsType.match(/^(.+)\[\]$/);
-    if (!arrayMatch) return null;
+    const arrayParsed = parseArrayTypeString(propTsType);
+    if (!arrayParsed) return null;
 
-    const elementType = arrayMatch[1];
+    const elementType = arrayParsed.elementType;
     return this.getInterfaceMetadata(elementType);
   }
 
@@ -845,10 +845,10 @@ export class TypeResolver {
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
-      const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-      if (!mapMatch) return null;
+      const mapParsed = parseMapTypeString(fieldInfo.tsType);
+      if (!mapParsed) return null;
 
-      return { fieldName, keyType: mapMatch[1], valueType: mapMatch[2] };
+      return { fieldName, keyType: mapParsed.keyType, valueType: mapParsed.valueType };
     }
 
     if (memberExprObjBase.type === 'member_access') {
@@ -868,9 +868,9 @@ export class TypeResolver {
         }
         if (field) {
           const fieldTyped = field as { name: string; type: string };
-          const mapMatch = fieldTyped.type.match(/^Map<(\w+),\s*(.+)>$/);
-          if (mapMatch) {
-            return { fieldName: memberExpr.property, keyType: mapMatch[1], valueType: mapMatch[2] };
+          const mapParsed = parseMapTypeString(fieldTyped.type);
+          if (mapParsed) {
+            return { fieldName: memberExpr.property, keyType: mapParsed.keyType, valueType: mapParsed.valueType };
           }
         }
       }
@@ -889,9 +889,9 @@ export class TypeResolver {
         if (field) {
           const fieldTyped = field as { name: string; tsType: string };
           if (fieldTyped.tsType) {
-            const mapMatch = fieldTyped.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-            if (mapMatch) {
-              return { fieldName: memberExpr.property, keyType: mapMatch[1], valueType: mapMatch[2] };
+            const mapParsed = parseMapTypeString(fieldTyped.tsType);
+            if (mapParsed) {
+              return { fieldName: memberExpr.property, keyType: mapParsed.keyType, valueType: mapParsed.valueType };
             }
           }
         }
@@ -980,10 +980,10 @@ export class TypeResolver {
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
-    const setMatch = fieldInfo.tsType.match(/^Set<(\w+)>$/);
-    if (!setMatch) return null;
+    const setParsed = parseSetTypeString(fieldInfo.tsType);
+    if (!setParsed) return null;
 
-    return { fieldName, valueType: setMatch[1] };
+    return { fieldName, valueType: setParsed.valueType };
   }
 
   getThisFieldMapKeyType(expr: Expression): string | null {
@@ -999,9 +999,9 @@ export class TypeResolver {
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
-      const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-      if (!mapMatch) return null;
-      return mapMatch[1];
+      const mapParsed = parseMapTypeString(fieldInfo.tsType);
+      if (!mapParsed) return null;
+      return mapParsed.keyType;
     }
 
     if (memberExprObjBaseKey.type === 'member_access') {
@@ -1021,9 +1021,9 @@ export class TypeResolver {
         }
         if (field) {
           const fieldTyped = field as { name: string; type: string };
-          const mapMatch = fieldTyped.type.match(/^Map<(\w+),\s*(.+)>$/);
-          if (mapMatch) {
-            return mapMatch[1];
+          const mapParsed = parseMapTypeString(fieldTyped.type);
+          if (mapParsed) {
+            return mapParsed.keyType;
           }
         }
       }
@@ -1042,9 +1042,9 @@ export class TypeResolver {
         if (field) {
           const fieldTyped = field as { name: string; tsType: string };
           if (fieldTyped.tsType) {
-            const mapMatch = fieldTyped.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-            if (mapMatch) {
-              return mapMatch[1];
+            const mapParsed = parseMapTypeString(fieldTyped.tsType);
+            if (mapParsed) {
+              return mapParsed.keyType;
             }
           }
         }
@@ -1067,9 +1067,9 @@ export class TypeResolver {
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
-    const setMatch = fieldInfo.tsType.match(/^Set<(\w+)>$/);
-    if (!setMatch) return null;
-    return setMatch[1];
+    const setParsed = parseSetTypeString(fieldInfo.tsType);
+    if (!setParsed) return null;
+    return setParsed.valueType;
   }
 
   resolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null {
@@ -1109,10 +1109,10 @@ export class TypeResolver {
       const propTsType = tsTypesArr[propIndex];
       if (!propTsType) return null;
 
-      const arrayMatch = propTsType.match(/^(.+)\[\]$/);
-      if (!arrayMatch) return null;
+      const arrayParsed = parseArrayTypeString(propTsType);
+      if (!arrayParsed) return null;
 
-      const elementType = arrayMatch[1];
+      const elementType = arrayParsed.elementType;
       return this.getInterfaceMetadata(elementType);
     }
 

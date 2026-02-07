@@ -337,6 +337,7 @@ export interface AST {
   topLevelStatements: (VariableDeclaration | AssignmentStatement)[];  // Top-level const/let declarations and assignments
   topLevelExpressions: (CallNode | NewNode | MethodCallNode | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement)[];  // Top-level expressions and statements
   topLevelItems?: TopLevelItem[];  // Combined ordered list of all top-level statements and expressions
+  topLevelItemTypes?: string[];  // Parallel array of type discriminators for topLevelItems
 }
 
 export interface InterfaceField {

@@ -17,8 +17,8 @@ export interface FunctionGeneratorContext {
   nextTemp(): string;
   emit(instruction: string): void;
   setCurrentLabel(label: string): void;
-  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global'): void;
-  defineVariableWithMetadata(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata: SymbolMetadata): void;
+  defineVariable(name: string, allocaReg: string, llvmType: string, kind: number, scope: string): void;
+  defineVariableWithMetadata(name: string, allocaReg: string, llvmType: string, kind: number, scope: string, metadata: SymbolMetadata): void;
   generateBlock(block: BlockStatement, params: string[]): string | null;
   generateExpression(expr: Expression, params: string[]): string;
   allocateVariable(stmt: VariableDeclaration, params: string[]): void;
@@ -176,8 +176,8 @@ export class FunctionGenerator {
         returnType = 'double';
         this.ctx.setCurrentFunctionReturnType('double');
       } else if (theReturnType && theReturnType !== '' && theReturnType !== 'number' && theReturnType !== 'boolean') {
-        returnType = 'i8*';
-        this.ctx.setCurrentFunctionReturnType('i8*');
+        returnType = tsTypeToLlvmUtil(theReturnType);
+        this.ctx.setCurrentFunctionReturnType(returnType);
       }
       this.ctx.setCurrentFunctionTsReturnType(theReturnType);
     }
@@ -487,14 +487,17 @@ export class FunctionGenerator {
   }
 
   private hasReturnStatement(block: BlockStatement): boolean {
+    if (!block) return false;
+    if (!block.statements) return false;
     for (let i = 0; i < block.statements.length; i++) {
       const stmt = block.statements[i] as { type: string };
+      if (!stmt) continue;
       if (stmt.type === 'return') {
         return true;
       }
       if (stmt.type === 'if') {
         const ifStmt = block.statements[i] as IfStatement;
-        if (this.hasReturnStatement(ifStmt.thenBlock)) return true;
+        if (ifStmt.thenBlock && this.hasReturnStatement(ifStmt.thenBlock)) return true;
         if (ifStmt.elseBlock && this.hasReturnStatement(ifStmt.elseBlock)) return true;
       }
       if (stmt.type === 'while') {
@@ -507,9 +510,11 @@ export class FunctionGenerator {
       }
       if (stmt.type === 'switch') {
         const switchStmt = block.statements[i] as SwitchStatement;
+        if (!switchStmt.cases) continue;
         for (let j = 0; j < switchStmt.cases.length; j++) {
           const caseItem = switchStmt.cases[j];
           if (!caseItem) continue;
+          if (!caseItem.consequent) continue;
           for (let k = 0; k < caseItem.consequent.length; k++) {
             const consequentStmt = caseItem.consequent[k] as { type: string };
             if (!consequentStmt) continue;
@@ -562,7 +567,7 @@ export class FunctionGenerator {
     return tsTypeToLlvmUtil(tsType);
   }
 
-  private llvmTypeToSymbolKind(llvmType: string): SymbolKind {
+  private llvmTypeToSymbolKind(llvmType: string): number {
     if (llvmType === 'double') return SymbolKind.Number;
     if (llvmType === 'i8*') return SymbolKind.String;
     if (llvmType === '%Array*') return SymbolKind.Array;

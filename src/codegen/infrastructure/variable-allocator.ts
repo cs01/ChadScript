@@ -2,7 +2,7 @@ import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, In
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata, Symbol as SymbolEntry, ObjectArrayMetadata, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createObjectMetadata, createObjectMetadataWithInterface, createObjectMetadataWithPointerAlloca, createObjectMetadataWithInterfaceAndPointerAlloca, createClassMetadata, createClosureMetadataSymbol, createMapMetadataSymbol, createSetMetadataSymbol, createObjectArrayMetadataSymbol, createUnionMetadata, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import { TypeResolver, UnionCommonFields } from './type-resolver/index.js';
-import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil, tsTypeToLlvmJson as tsTypeToLlvmJsonUtil } from './type-system.js';
+import { stripOptional, stripNullable, tsTypeToLlvm as tsTypeToLlvmUtil, tsTypeToLlvmJson as tsTypeToLlvmJsonUtil, parseMapTypeString, parseSetTypeString, parseArrayTypeString } from './type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -67,8 +67,8 @@ export interface VariableAllocatorContext {
   nextAllocaReg(varName: string): string;
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
-  defineVariable(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global'): void;
-  defineVariableWithMetadata(name: string, allocaReg: string, llvmType: string, kind: SymbolKind, scope: 'local' | 'global', metadata: SymbolMetadata): void;
+  defineVariable(name: string, allocaReg: string, llvmType: string, kind: number, scope: string): void;
+  defineVariableWithMetadata(name: string, allocaReg: string, llvmType: string, kind: number, scope: string, metadata: SymbolMetadata): void;
   generateExpression(expr: Expression, params: string[]): string;
   isStringExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
@@ -94,7 +94,7 @@ export interface VariableAllocatorContext {
   getTypedJsonInterface(expr: Expression): string | null;
   getFunctionCallInterfaceReturn(expr: Expression): string | null;
   getMethodCallInterfaceReturn(expr: Expression): string | null;
-  getMethodCallArrayReturn(expr: Expression): { elementType: string; fields: { name: string; type: string }[] } | null;
+  getMethodCallArrayReturn(expr: Expression): string | null;
   getJSONParseInterface(expr: Expression): string | null;
   getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] };
   formatCodegenError(message: string, suggestion?: string): string;
@@ -281,7 +281,7 @@ export class VariableAllocator {
 
     if (stmt.value === null) {
       const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-      const baseType = stmt.declaredType ? stmt.declaredType.replace(/ \| undefined$/, '').replace(/ \| null$/, '').replace(/undefined \| /, '').replace(/null \| /, '').trim() : '';
+      const baseType = stmt.declaredType ? stripNullable(stmt.declaredType) : '';
       if (baseType === 'string') {
         this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
         this.ctx.emit(`${allocaReg} = alloca i8*`);
@@ -393,8 +393,14 @@ export class VariableAllocator {
     const isArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(stmt.value);
     const isJSONObject = this.ctx.isJSONParseExpression(stmt.value);
     const isObject = !isJSONObject && this.ctx.isObjectExpression(stmt.value);
-    const isMap = this.ctx.isMapExpression(stmt.value);
-    const isSet = this.ctx.isSetExpression(stmt.value);
+    let isMap = this.ctx.isMapExpression(stmt.value);
+    if (!isMap && stmtDeclaredType.startsWith('Map<')) {
+      isMap = true;
+    }
+    let isSet = this.ctx.isSetExpression(stmt.value);
+    if (!isSet && (stmtDeclaredType === 'Set' || stmtDeclaredType.startsWith('Set<'))) {
+      isSet = true;
+    }
     const isRegex = this.ctx.isRegexExpression(stmt.value);
     const isPromise = this.ctx.isPromiseExpression(stmt.value);
     const isAwait = this.ctx.isAwaitExpression(stmt.value);
@@ -410,6 +416,8 @@ export class VariableAllocator {
 
     if (declaredInterfaceType) {
       this.allocateDeclaredInterface(stmt, params, declaredInterfaceType);
+    } else if (isStringArray) {
+      this.allocateStringArray(stmt, params);
     } else if (mapGetInterfaceType) {
       this.allocateMapGetInterface(stmt, params, mapGetInterfaceType);
     } else if (functionInterfaceReturn) {
@@ -438,8 +446,6 @@ export class VariableAllocator {
       this.allocateMap(stmt, params);
     } else if (isSet) {
       this.allocateSet(stmt, params);
-    } else if (isStringArray) {
-      this.allocateStringArray(stmt, params);
     } else if (isObjectArray) {
       this.allocateObjectArray(stmt, params);
     } else if (isArray) {
@@ -537,30 +543,38 @@ export class VariableAllocator {
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
   }
 
-  private allocateMethodArrayReturn(stmt: VariableDeclaration, params: string[], arrayInfo: { elementType: string; fields: { name: string; type: string }[] }): void {
+  private allocateMethodArrayReturn(stmt: VariableDeclaration, params: string[], elementType: string): void {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const elementKeys: string[] = [];
     const elementTypes: string[] = [];
     const elementTsTypes: string[] = [];
 
-    for (let i = 0; i < arrayInfo.fields.length; i++) {
-      const field = arrayInfo.fields[i] as { name: string; type: string };
-      elementKeys.push(field.name);
-      elementTsTypes.push(field.type);
-      if (field.type === 'string') {
-        elementTypes.push('i8*');
-      } else if (field.type === 'number') {
-        elementTypes.push('double');
-      } else if (field.type === 'boolean') {
-        elementTypes.push('i32');
-      } else {
-        elementTypes.push('i8*');
+    if (elementType.startsWith('{') && elementType.endsWith('}')) {
+      const inlineFields = this.parseInlineObjectType(elementType);
+      if (inlineFields) {
+        for (let i = 0; i < inlineFields.length; i++) {
+          const field = inlineFields[i] as { name: string; type: string };
+          elementKeys.push(stripOptional(field.name));
+          elementTypes.push(this.tsTypeToLlvm(field.type));
+          elementTsTypes.push(field.type);
+        }
+      }
+    } else {
+      const interfaceDefResult = this.getInterface(elementType);
+      if (interfaceDefResult) {
+        const interfaceDef = interfaceDefResult as InterfaceDeclaration;
+        for (let i = 0; i < interfaceDef.fields.length; i++) {
+          const field = interfaceDef.fields[i] as { name: string; type: string };
+          elementKeys.push(stripOptional(field.name));
+          elementTypes.push(this.tsTypeToLlvm(field.type));
+          elementTsTypes.push(field.type);
+        }
       }
     }
 
     this.ctx.defineVariable(stmt.name, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local');
     this.ctx.symbolTableSetObjectArrayMetadata(stmt.name, {
-      elementInterfaceName: arrayInfo.elementType,
+      elementInterfaceName: elementType.startsWith('{') ? 'inline' : elementType,
       elementKeys,
       elementTypes,
       elementTsTypes
@@ -699,11 +713,11 @@ export class VariableAllocator {
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfo.tsType) return null;
 
-      const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-      if (!mapMatch) return null;
-      if (mapMatch[1] !== 'string') return null;
+      const mapParsed = parseMapTypeString(fieldInfo.tsType);
+      if (!mapParsed) return null;
+      if (mapParsed.keyType !== 'string') return null;
 
-      valueType = mapMatch[2];
+      valueType = mapParsed.valueType;
     }
 
     if (!valueType) return null;
@@ -882,9 +896,9 @@ export class VariableAllocator {
         const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
-          const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-          if (mapMatch && mapMatch[2]) {
-            return mapMatch[2];
+          const mapParsed = parseMapTypeString(fieldInfo.tsType);
+          if (mapParsed && mapParsed.valueType) {
+            return mapParsed.valueType;
           }
         }
       }
@@ -1070,23 +1084,23 @@ export class VariableAllocator {
   private parseMapType(declaredType: string | undefined): MapTypeInfo | null {
     if (!declaredType) return null;
 
-    const match = declaredType.match(/^Map<\s*(\w+)\s*,\s*(\w+)\s*>$/);
-    if (!match) return null;
+    const parsed = parseMapTypeString(declaredType);
+    if (!parsed) return null;
 
     return {
-      keyType: match[1],
-      valueType: match[2]
+      keyType: parsed.keyType,
+      valueType: parsed.valueType
     };
   }
 
   private parseSetType(declaredType: string | undefined): SetTypeInfo | null {
     if (!declaredType) return null;
 
-    const match = declaredType.match(/^Set<\s*(\w+)\s*>$/);
-    if (!match) return null;
+    const parsed = parseSetTypeString(declaredType);
+    if (!parsed) return null;
 
     return {
-      valueType: match[1]
+      valueType: parsed.valueType
     };
   }
 
@@ -1295,7 +1309,7 @@ export class VariableAllocator {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
 
     if (stmt.declaredType) {
-      const baseType = stmt.declaredType.replace(/ \| undefined$/, '').replace(/ \| null$/, '').replace(/undefined \| /, '').replace(/null \| /, '').trim();
+      const baseType = stripNullable(stmt.declaredType);
       if (baseType === 'number') {
         this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
         this.ctx.emit(`${allocaReg} = alloca double`);
@@ -1533,10 +1547,10 @@ export class VariableAllocator {
       const propTsType = objMetaTsTypes[propIndex];
       if (!propTsType) return null;
 
-      const arrayMatch = propTsType.match(/^(.+)\[\]$/);
-      if (!arrayMatch) return null;
+      const arrayParsed = parseArrayTypeString(propTsType);
+      if (!arrayParsed) return null;
 
-      const elementType = arrayMatch[1];
+      const elementType = arrayParsed.elementType;
       return this.getTypeInfoForElementType(elementType);
     }
 
@@ -1559,10 +1573,10 @@ export class VariableAllocator {
     const fieldType = this.getInterfaceFieldTypeByName(objectType, ma.property);
     if (!fieldType) return null;
 
-    const arrayMatch = fieldType.match(/^(.+)\[\]$/);
-    if (!arrayMatch) return null;
+    const arrayParsed = parseArrayTypeString(fieldType);
+    if (!arrayParsed) return null;
 
-    return arrayMatch[1];
+    return arrayParsed.elementType;
   }
 
   private resolveMemberAccessObjectType(expr: Expression): string | null {

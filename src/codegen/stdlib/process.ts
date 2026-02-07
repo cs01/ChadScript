@@ -22,9 +22,10 @@ export class ProcessGenerator {
    */
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
-    return exprObjBase.type === 'variable' &&
-           (expr.object as any).name === 'process' &&
-           expr.method === 'exit';
+    if (exprObjBase.type !== 'variable') return false;
+    const varNode = expr.object as { type: string; name: string };
+    if (varNode.name !== 'process') return false;
+    return expr.method === 'exit';
   }
 
   /**

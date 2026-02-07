@@ -38,11 +38,11 @@ export function generateArrayPush(
     const varType = gen.getVariableType(varName);
     isStringArray = varType === '%StringArray*';
     isObjectArray = varType === '%ObjectArray*';
-  } else {
-    // Check if the arrayPtr itself is tracked (e.g., from field access)
+  }
+  if (!isStringArray && !isObjectArray) {
     const ptrType = gen.getVariableType(arrayPtr);
-    isStringArray = ptrType === '%StringArray*';
-    isObjectArray = ptrType === '%ObjectArray*';
+    if (ptrType === '%StringArray*') isStringArray = true;
+    else if (ptrType === '%ObjectArray*') isObjectArray = true;
   }
 
   if (isStringArray) {
@@ -86,10 +86,11 @@ export function generateArrayPop(
     const varType = gen.getVariableType(varName);
     isStringArray = varType === '%StringArray*';
     isPointerArray = varType === 'i8*';
-  } else {
+  }
+  if (!isStringArray && !isPointerArray) {
     const ptrType = gen.getVariableType(arrayPtr);
-    isStringArray = ptrType === '%StringArray*';
-    isPointerArray = ptrType === 'i8*';
+    if (ptrType === '%StringArray*') isStringArray = true;
+    else if (ptrType === 'i8*') isPointerArray = true;
   }
 
   if (isStringArray) {

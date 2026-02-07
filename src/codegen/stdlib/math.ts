@@ -26,9 +26,10 @@ export class MathGenerator {
    */
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
-    return exprObjBase.type === 'variable' &&
-           (expr.object as any).name === 'Math' &&
-           this.getSupportedMethods().indexOf(expr.method) !== -1;
+    if (exprObjBase.type !== 'variable') return false;
+    const varNode = expr.object as { type: string; name: string };
+    if (varNode.name !== 'Math') return false;
+    return this.getSupportedMethods().indexOf(expr.method) !== -1;
   }
 
   /**

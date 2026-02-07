@@ -1,6 +1,6 @@
 import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode, ArrowFunctionNode, UnaryNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
-import { ClassInfo, MapMetadata, SetMetadata, ObjectArrayMetadata, ClosureMetadata, Symbol as SymbolEntry, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, ObjectMetadata } from './infrastructure/symbol-table.js';
+import { ClassInfo, MapMetadata, SetMetadata, ObjectArrayMetadata, ClosureMetadata, Symbol as SymbolEntry, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, ObjectMetadata } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
 import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/function-generator.js';
@@ -61,7 +61,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>;
 
   // Global variables declared with LLVM @ prefix (accessible from any function)
-  private globalVariables: Map<string, { llvmType: string; kind: SymbolKind; initialized: boolean }>;
+  private globalVariables: Map<string, { llvmType: string; kind: number; initialized: boolean }>;
 
   // Import alias map: local name -> original name (for renamed imports like "x as y")
   private importAliasMap: Map<string, string>;
@@ -330,11 +330,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return null;
   }
 
-  public getInterfaceProperties(name: string): { name: string; type: string }[] | null {
+  public getInterfaceProperties(name: string): { keys: string[]; types: string[] } | null {
     if (!this.ast || !this.ast.interfaces) return null;
     const baseName = name.endsWith('?') ? name.slice(0, -1) : name;
     const cleanName = baseName.indexOf(' | ') !== -1 ? baseName.split(' | ')[0] : baseName;
-    const properties: { name: string; type: string }[] = [];
+    const keys: string[] = [];
+    const types: string[] = [];
     for (let i = 0; i < this.ast.interfaces.length; i++) {
       const iface = this.ast.interfaces[i];
       if (!iface) continue;
@@ -347,11 +348,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (fieldName.endsWith('?')) {
             fieldName = fieldName.slice(0, -1);
           }
-          properties.push({ name: fieldName, type: field.type });
+          keys.push(fieldName);
+          types.push(field.type);
         }
       }
     }
-    if (properties.length > 0) return properties;
+    if (keys.length > 0) return { keys, types };
     return null;
   }
 
@@ -377,7 +379,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return false;
   }
 
-  public getTypeAliasCommonProperties(name: string): { name: string; type: string }[] | null {
+  public getTypeAliasCommonProperties(name: string): { keys: string[]; types: string[] } | null {
     if (!this.ast || !this.ast.typeAliases) return null;
     for (let i = 0; i < this.ast.typeAliases.length; i++) {
       const ta = this.ast.typeAliases[i];
@@ -392,9 +394,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           const memberProps = this.getInterfaceProperties(memberName);
           if (!memberProps) continue;
           if (first) {
-            for (let p = 0; p < memberProps.length; p++) {
-              commonNames.push(memberProps[p].name);
-              commonTypes.push(memberProps[p].type);
+            for (let p = 0; p < memberProps.keys.length; p++) {
+              commonNames.push(memberProps.keys[p]);
+              commonTypes.push(memberProps.types[p]);
             }
             first = false;
           } else {
@@ -402,8 +404,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             const nextTypes: string[] = [];
             for (let ci = 0; ci < commonNames.length; ci++) {
               let found = false;
-              for (let p = 0; p < memberProps.length; p++) {
-                if (memberProps[p].name === commonNames[ci]) {
+              for (let p = 0; p < memberProps.keys.length; p++) {
+                if (memberProps.keys[p] === commonNames[ci]) {
                   found = true;
                   break;
                 }
@@ -418,11 +420,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
         }
         if (commonNames.length > 0) {
-          const result: { name: string; type: string }[] = [];
-          for (let ri = 0; ri < commonNames.length; ri++) {
-            result.push({ name: commonNames[ri], type: commonTypes[ri] });
-          }
-          return result;
+          return { keys: commonNames, types: commonTypes };
         }
       }
     }
@@ -532,17 +530,50 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   // SymbolTable wrapper methods (avoid method chaining issues in native code)
   public symbolTableLookup(name: string): SymbolEntry | undefined { return this.symbolTable.lookup(name); }
-  public symbolTableIsClass(name: string): boolean { return this.symbolTable.isClass(name); }
-  public symbolTableIsJSON(name: string): boolean { return this.symbolTable.isJSON(name); }
-  public symbolTableIsObject(name: string): boolean { return this.symbolTable.isObject(name); }
-  public symbolTableIsMap(name: string): boolean { return this.symbolTable.isMap(name); }
-  public symbolTableIsSet(name: string): boolean { return this.symbolTable.isSet(name); }
-  public symbolTableIsNumberArray(name: string): boolean { return this.symbolTable.isNumberArray(name); }
-  public symbolTableIsStringArray(name: string): boolean { return this.symbolTable.isStringArray(name); }
-  public symbolTableIsBooleanArray(name: string): boolean { return this.symbolTable.isBooleanArray(name); }
-  public symbolTableIsObjectArray(name: string): boolean { return this.symbolTable.isObjectArray(name); }
-  public symbolTableIsString(name: string): boolean { return this.symbolTable.isString(name); }
-  public symbolTableIsRegex(name: string): boolean { return this.symbolTable.isRegex(name); }
+  public symbolTableIsClass(name: string): boolean {
+    const result = this.symbolTable.isClass(name);
+    return result;
+  }
+  public symbolTableIsJSON(name: string): boolean {
+    const result = this.symbolTable.isJSON(name);
+    return result;
+  }
+  public symbolTableIsObject(name: string): boolean {
+    const result = this.symbolTable.isObject(name);
+    return result;
+  }
+  public symbolTableIsMap(name: string): boolean {
+    const result = this.symbolTable.isMap(name);
+    return result;
+  }
+  public symbolTableIsSet(name: string): boolean {
+    const result = this.symbolTable.isSet(name);
+    return result;
+  }
+  public symbolTableIsNumberArray(name: string): boolean {
+    const result = this.symbolTable.isNumberArray(name);
+    return result;
+  }
+  public symbolTableIsStringArray(name: string): boolean {
+    const result = this.symbolTable.isStringArray(name);
+    return result;
+  }
+  public symbolTableIsBooleanArray(name: string): boolean {
+    const result = this.symbolTable.isBooleanArray(name);
+    return result;
+  }
+  public symbolTableIsObjectArray(name: string): boolean {
+    const result = this.symbolTable.isObjectArray(name);
+    return result;
+  }
+  public symbolTableIsString(name: string): boolean {
+    const result = this.symbolTable.isString(name);
+    return result;
+  }
+  public symbolTableIsRegex(name: string): boolean {
+    const result = this.symbolTable.isRegex(name);
+    return result;
+  }
   public symbolTableGetType(name: string): string | undefined { return this.symbolTable.getType(name); }
   public symbolTableGetClassName(name: string): string | undefined { return this.symbolTable.getClassName(name); }
   public symbolTableGetClassInfo(name: string): ClassInfo | undefined { return this.symbolTable.getClassInfo(name); }
@@ -565,7 +596,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public symbolTableGetMapMetadata(name: string): MapMetadata | undefined { return this.symbolTable.getMapMetadata(name); }
   public symbolTableGetSetMetadata(name: string): string | undefined { return this.symbolTable.getSetValueType(name); }
-  public symbolTableGetKind(name: string): SymbolKind | undefined { return this.symbolTable.getKind(name); }
+  public symbolTableGetKind(name: string): number | undefined { return this.symbolTable.getKind(name); }
   public symbolTableGetClassMetadata(name: string) { return this.symbolTable.getClassMetadata(name); }
   public symbolTableGetArrayMetadata(name: string): string | undefined { return this.symbolTable.getArrayMetadataElementType(name); }
   public symbolTableGetInterfaceType(name: string): string | undefined { return this.symbolTable.getInterfaceType(name); }
@@ -836,6 +867,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public fsGenCanHandle(expr: MethodCallNode): boolean { return this.fsGen.canHandle(expr); }
   public fsGenReadFileSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateReadFileSync(expr, params); }
   public fsGenWriteFileSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateWriteFileSync(expr, params); }
+  public fsGenAppendFileSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateAppendFileSync(expr, params); }
   public fsGenExistsSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateExistsSync(expr, params); }
   public fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateUnlinkSync(expr, params); }
 
@@ -1117,9 +1149,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const isBoolean = this.typeInference.isBooleanExpression(stmt.value);
         const isJSONParse = this.typeInference.isJSONParseExpression(stmt.value);
 
-        let llvmType: string;
-        let kind: SymbolKind;
-        let defaultValue: string;
+        let llvmType: string = '';
+        let kind: number = SymbolKind.Number;
+        let defaultValue: string = '0.0';
 
         if (isString) {
           llvmType = 'i8*';
@@ -1158,6 +1190,27 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           kind = SymbolKind.Object;
           defaultValue = 'null';
         } else if (isMap) {
+          let isStringMap = false;
+          if (stmt.declaredType) {
+            const dt = stmt.declaredType;
+            if (dt.indexOf('Map<string') !== -1) {
+              isStringMap = true;
+            }
+          }
+          if (isStringMap) {
+            llvmType = '%StringMap';
+            kind = SymbolKind.Map;
+            defaultValue = 'zeroinitializer';
+            ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
+            this.globalVariables.set(name, { llvmType, kind, initialized: false });
+            this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createMapMetadataSymbol({
+              keyType: 'string',
+              valueType: 'string',
+              llvmKeyType: 'i8*',
+              llvmValueType: 'i8*'
+            }));
+            continue;
+          }
           llvmType = '%Map';
           kind = SymbolKind.Map;
           defaultValue = 'zeroinitializer';
@@ -1196,10 +1249,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           } else if (interfaceName) {
             let interfaceDef: InterfaceDeclaration | null = null;
             for (let i = 0; i < this.ast.interfaces.length; i++) {
-              if (!this.ast.interfaces[i]) continue;
-              if (!this.ast.interfaces[i].name) continue;
-              if (this.ast.interfaces[i].name === interfaceName) {
-                interfaceDef = this.ast.interfaces[i] as InterfaceDeclaration;
+              const iface = this.ast.interfaces[i];
+              if (!iface) continue;
+              if (!iface.name) continue;
+              if (iface.name === interfaceName) {
+                interfaceDef = iface as InterfaceDeclaration;
                 break;
               }
             }
@@ -1234,9 +1288,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           } else if (stmtTyped.declaredType) {
             let foundInterface = false;
             for (let i = 0; i < this.ast.interfaces.length; i++) {
-              if (!this.ast.interfaces[i]) continue;
-              if (!this.ast.interfaces[i].name) continue;
-              if (this.ast.interfaces[i].name === stmtTyped.declaredType) {
+              const iface = this.ast.interfaces[i];
+              if (!iface) continue;
+              if (!iface.name) continue;
+              if (iface.name === stmtTyped.declaredType) {
                 foundInterface = true;
                 break;
               }
@@ -1470,35 +1525,221 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (fetchAsync) { irParts.push(fetchAsync); }
     }
 
-    let ir = irParts.join('');
+    const finalParts: string[] = [];
 
-    // Add global string constants at the beginning
-    if (this.globalStrings.length > 0) {
-      ir = this.globalStrings.join('\n') + '\n\n' + ir;
-    }
-
-    // Add class struct defs before the main IR (after interface structs)
-    if (this.classStructDefsCache) {
-      ir = this.classStructDefsCache + '\n' + ir;
-    }
-
-    // Add interface struct defs at the very beginning
-    if (this.interfaceStructDefsCache) {
-      ir = this.interfaceStructDefsCache + '\n' + ir;
-    }
-
-    // Add tree-sitter type definitions at the very beginning (if enabled)
     if (this.linkTreeSitter) {
-      let treeSitterTypes = '; Tree-sitter type definitions\n';
-      treeSitterTypes += '%TSParser = type opaque\n';
-      treeSitterTypes += '%TSTree = type opaque\n';
-      treeSitterTypes += '%TSLanguage = type opaque\n';
-      treeSitterTypes += '%TSNode = type { [4 x i32], i8*, %TSTree* }\n';
-      treeSitterTypes += '%TSPoint = type { i32, i32 }\n\n';
-      ir = treeSitterTypes + ir;
+      finalParts.push('; Tree-sitter type definitions\n');
+      finalParts.push('%TSParser = type opaque\n');
+      finalParts.push('%TSTree = type opaque\n');
+      finalParts.push('%TSLanguage = type opaque\n');
+      finalParts.push('%TSNode = type { [4 x i32], i8*, %TSTree* }\n');
+      finalParts.push('%TSPoint = type { i32, i32 }\n\n');
     }
 
+    if (this.interfaceStructDefsCache) {
+      finalParts.push(this.interfaceStructDefsCache);
+      finalParts.push('\n');
+    }
+
+    if (this.classStructDefsCache) {
+      finalParts.push(this.classStructDefsCache);
+      finalParts.push('\n');
+    }
+
+    if (this.globalStrings.length > 0) {
+      for (let gsi = 0; gsi < this.globalStrings.length; gsi++) {
+        finalParts.push(this.globalStrings[gsi]);
+        finalParts.push('\n');
+      }
+      finalParts.push('\n');
+    }
+
+    for (let ipi = 0; ipi < irParts.length; ipi++) {
+      finalParts.push(irParts[ipi]);
+    }
+
+    const ir = finalParts.join('');
     return ir;
+  }
+
+  generateParts(): string[] {
+    const irParts: string[] = [];
+
+    irParts.push(getLLVMDeclarations());
+
+    const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
+    this.interfaceStructDefsCache = interfaceStructDefs;
+
+    const classStructDefs = this.classGen.generateStructTypeDefinitions(this.classesCount);
+    this.classStructDefsCache = classStructDefs;
+
+    const fetchRuntime = this.runtimeGen.generateFetchRuntime();
+    if (fetchRuntime) { irParts.push(fetchRuntime); }
+    irParts.push('\n');
+
+    const jsonRuntime = this.runtimeGen.generateJSONRuntime();
+    if (jsonRuntime) { irParts.push(jsonRuntime); }
+    irParts.push('\n');
+
+    const mongooseDecls = this.mongooseGen.generateDeclarations();
+    if (mongooseDecls) { irParts.push(mongooseDecls); }
+    irParts.push('\n');
+
+    const libuvDecls = this.libuvGen.generateDeclarations();
+    if (libuvDecls) { irParts.push(libuvDecls); }
+    irParts.push('\n');
+
+    const promiseDecls = this.promiseGen.generateDeclarations();
+    if (promiseDecls) { irParts.push(promiseDecls); }
+    irParts.push('\n');
+
+    if (this.linkTreeSitter) {
+      const tsDecls = this.treesitterGen.generateDeclarations();
+      if (tsDecls) { irParts.push(tsDecls); }
+      irParts.push('\n');
+
+      const tsHelpers: string[] = [];
+      tsHelpers.push(this.treesitterGen.generateParseSourceHelper());
+      tsHelpers.push(this.treesitterGen.generateGetRootNodeHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeTypeHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeChildCountHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeChildHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeStartByteHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeEndByteHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeTextHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeIsNullHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeIsNamedHelper());
+      tsHelpers.push(this.treesitterGen.generateNamedChildHelper());
+      tsHelpers.push(this.treesitterGen.generateNamedChildCountHelper());
+      tsHelpers.push(this.treesitterGen.generateChildByFieldNameHelper());
+      for (let thi = 0; thi < tsHelpers.length; thi++) {
+        if (tsHelpers[thi]) { irParts.push(tsHelpers[thi]); }
+      }
+      irParts.push('\n');
+    }
+
+    const safeStr = getSafeStringHelper();
+    if (safeStr) { irParts.push(safeStr); }
+    const dblToStr = getDoubleToStringHelper();
+    if (dblToStr) { irParts.push(dblToStr); }
+
+    const globalVars = getGlobalVariables();
+    if (globalVars) { irParts.push(globalVars); }
+
+    const globalVarDecls = this.generateGlobalVariableDeclarations();
+    if (globalVarDecls) { irParts.push(globalVarDecls); }
+
+    for (let classIdx = 0; classIdx < this.classesCount; classIdx++) {
+      const classNode = this.ast.classes[classIdx];
+      if (!classNode) continue;
+      if (!classNode.name) continue;
+      this.syncStateToGenerators();
+      const classIr = this.classGen.generateClass(classNode);
+      if (classIr) {
+        irParts.push(classIr);
+        irParts.push('\n');
+      }
+    }
+
+    const userFuncParts: string[] = [];
+    for (let funcIdx = 0; funcIdx < this.functionsCount; funcIdx++) {
+      const func = this.ast.functions[funcIdx];
+      const funcIr = this.generateFunction(func);
+      if (funcIr) {
+        userFuncParts.push(funcIr);
+        userFuncParts.push('\n');
+      }
+    }
+
+    const mainIr = this.generateMain();
+
+    const envStructDefs = this.exprGen.arrowFunctionGen.getEnvStructDefinitions();
+    if (envStructDefs) {
+      irParts.push(envStructDefs);
+      irParts.push('\n');
+    }
+
+    const liftedFunctions = this.exprGen.arrowFunctionGen.getLiftedFunctions();
+    for (let _lfi = 0; _lfi < liftedFunctions.length; _lfi++) {
+      const func = liftedFunctions[_lfi];
+      const liftedIr = this.generateFunction(func);
+      if (liftedIr) {
+        irParts.push(liftedIr);
+        irParts.push('\n');
+      }
+    }
+
+    for (let ufi = 0; ufi < userFuncParts.length; ufi++) {
+      irParts.push(userFuncParts[ufi]);
+    }
+
+    if (mainIr) { irParts.push(mainIr); }
+
+    if (this.httpHandlers.length > 0) {
+      irParts.push('\n');
+      const httpServe = this.mongooseGen.generateHttpServeFunction();
+      if (httpServe) { irParts.push(httpServe); }
+      irParts.push('\n');
+      const eventHandler = this.mongooseGen.generateEventHandler(this.httpHandlers[0]);
+      if (eventHandler) { irParts.push(eventHandler); }
+    }
+
+    if (this.usesTimers) {
+      irParts.push('\n');
+      const timerCb = this.libuvGen.generateTimerCallbackWrapper();
+      if (timerCb) { irParts.push(timerCb); }
+      const setTimeout = this.libuvGen.generateSetTimeout();
+      if (setTimeout) { irParts.push(setTimeout); }
+      const setInterval = this.libuvGen.generateSetInterval();
+      if (setInterval) { irParts.push(setInterval); }
+      const clearTimer = this.libuvGen.generateClearTimer();
+      if (clearTimer) { irParts.push(clearTimer); }
+      const runLoop = this.libuvGen.generateRunEventLoop();
+      if (runLoop) { irParts.push(runLoop); }
+    }
+
+    if (this.usesPromises) {
+      irParts.push('\n');
+      const promiseAll = this.promiseGen.generateAll();
+      if (promiseAll) { irParts.push(promiseAll); }
+      const fetchAsync = this.runtimeGen.generateFetchAsyncWrapper();
+      if (fetchAsync) { irParts.push(fetchAsync); }
+    }
+
+    const finalParts: string[] = [];
+
+    if (this.linkTreeSitter) {
+      finalParts.push('; Tree-sitter type definitions\n');
+      finalParts.push('%TSParser = type opaque\n');
+      finalParts.push('%TSTree = type opaque\n');
+      finalParts.push('%TSLanguage = type opaque\n');
+      finalParts.push('%TSNode = type { [4 x i32], i8*, %TSTree* }\n');
+      finalParts.push('%TSPoint = type { i32, i32 }\n\n');
+    }
+
+    if (this.interfaceStructDefsCache) {
+      finalParts.push(this.interfaceStructDefsCache);
+      finalParts.push('\n');
+    }
+
+    if (this.classStructDefsCache) {
+      finalParts.push(this.classStructDefsCache);
+      finalParts.push('\n');
+    }
+
+    if (this.globalStrings.length > 0) {
+      for (let gsi = 0; gsi < this.globalStrings.length; gsi++) {
+        finalParts.push(this.globalStrings[gsi]);
+        finalParts.push('\n');
+      }
+      finalParts.push('\n');
+    }
+
+    for (let ipi = 0; ipi < irParts.length; ipi++) {
+      finalParts.push(irParts[ipi]);
+    }
+
+    return finalParts;
   }
 
   /**
@@ -1905,7 +2146,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.typeInference.getMethodCallInterfaceReturn(expr);
   }
 
-  public getMethodCallArrayReturn(expr: Expression): { elementType: string; fields: { name: string; type: string }[] } | null {
+  public getMethodCallArrayReturn(expr: Expression): string | null {
     return this.typeInference.getMethodCallArrayReturn(expr);
   }
 
@@ -1946,8 +2187,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public getTopLevelItemType(index: number): string {
-    if (!this.ast.topLevelItems![index]) return '';
-    return this.ast.topLevelItems![index].type;
+    const types = this.ast.topLevelItemTypes;
+    if (types && index < types.length) {
+      return types[index];
+    }
+    const items = this.ast.topLevelItems as Expression[];
+    const item = items[index];
+    if (!item) return '';
+    return item.type;
   }
 
   public getTopLevelStatement(index: number): VariableDeclaration {

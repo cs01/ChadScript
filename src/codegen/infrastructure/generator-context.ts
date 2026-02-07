@@ -156,16 +156,16 @@ export interface IGeneratorContext {
     name: string,
     allocaReg: string,
     llvmType: string,
-    kind: SymbolKind,
-    scope?: 'local' | 'global',
+    kind: number,
+    scope: string,
   ): void;
 
   defineVariableWithMetadata(
     name: string,
     allocaReg: string,
     llvmType: string,
-    kind: SymbolKind,
-    scope: 'local' | 'global',
+    kind: number,
+    scope: string,
     metadata: SymbolMetadata
   ): void;
 
@@ -244,7 +244,7 @@ export interface IGeneratorContext {
   symbolTableGetObjectInfoTsTypes(name: string): string[] | undefined;
   symbolTableGetMapMetadata(name: string): { keyType: string; valueType: string } | undefined;
   symbolTableGetSetMetadata(name: string): string | undefined;
-  symbolTableGetKind(name: string): SymbolKind | undefined;
+  symbolTableGetKind(name: string): number | undefined;
   symbolTableGetClassMetadata(name: string): { className: string; fields?: string[] } | undefined;
   symbolTableGetArrayMetadata(name: string): string | undefined;
   symbolTableGetInterfaceType(name: string): string | undefined;
@@ -375,10 +375,10 @@ export interface IGeneratorContext {
   getJsonObjectMetadataInterfaceType(key: string): string | undefined;
   getParameterTypeFromAST(paramName: string): string | null;
   findClassImplementingInterface(interfaceName: string): string | null;
-  getInterfaceProperties(name: string): { name: string; type: string }[] | null;
+  getInterfaceProperties(name: string): { keys: string[]; types: string[] } | null;
   getInterfaceDeclByName(name: string): InterfaceDeclaration | null;
   isTypeAlias(name: string): boolean;
-  getTypeAliasCommonProperties(name: string): { name: string; type: string }[] | null;
+  getTypeAliasCommonProperties(name: string): { keys: string[]; types: string[] } | null;
   getInterfaceFieldType(interfaceName: string, fieldName: string): string | null;
   getMethodReturnType(className: string, methodName: string): string | null;
   isEnumType(name: string): boolean;
@@ -700,6 +700,7 @@ export interface IGeneratorContext {
   fsGenCanHandle(expr: MethodCallNode): boolean;
   fsGenReadFileSync(expr: MethodCallNode, params: string[]): string;
   fsGenWriteFileSync(expr: MethodCallNode, params: string[]): string;
+  fsGenAppendFileSync(expr: MethodCallNode, params: string[]): string;
   fsGenExistsSync(expr: MethodCallNode, params: string[]): string;
   fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string;
 
@@ -830,10 +831,10 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   getParameterTypeFromAST(_paramName: string): string | null { return null; }
   findClassImplementingInterface(_interfaceName: string): string | null { return null; }
-  getInterfaceProperties(_name: string): { name: string; type: string }[] | null { return null; }
+  getInterfaceProperties(_name: string): { keys: string[]; types: string[] } | null { return null; }
   getInterfaceDeclByName(_name: string): InterfaceDeclaration | null { return null; }
   isTypeAlias(_name: string): boolean { return false; }
-  getTypeAliasCommonProperties(_name: string): { name: string; type: string }[] | null { return null; }
+  getTypeAliasCommonProperties(_name: string): { keys: string[]; types: string[] } | null { return null; }
   getInterfaceFieldType(_interfaceName: string, _fieldName: string): string | null { return null; }
   getMethodReturnType(_className: string, _methodName: string): string | null { return null; }
   isEnumType(_name: string): boolean { return false; }
@@ -854,17 +855,50 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   // SymbolTable wrapper methods (mock implementations)
   symbolTableLookup(name: string) { return this.symbolTable.lookup(name); }
-  symbolTableIsClass(name: string): boolean { return this.symbolTable.isClass(name); }
-  symbolTableIsJSON(name: string): boolean { return this.symbolTable.isJSON(name); }
-  symbolTableIsObject(name: string): boolean { return this.symbolTable.isObject(name); }
-  symbolTableIsMap(name: string): boolean { return this.symbolTable.isMap(name); }
-  symbolTableIsSet(name: string): boolean { return this.symbolTable.isSet(name); }
-  symbolTableIsNumberArray(name: string): boolean { return this.symbolTable.isNumberArray(name); }
-  symbolTableIsStringArray(name: string): boolean { return this.symbolTable.isStringArray(name); }
-  symbolTableIsBooleanArray(name: string): boolean { return this.symbolTable.isBooleanArray(name); }
-  symbolTableIsObjectArray(name: string): boolean { return this.symbolTable.isObjectArray(name); }
-  symbolTableIsString(name: string): boolean { return this.symbolTable.isString(name); }
-  symbolTableIsRegex(name: string): boolean { return this.symbolTable.isRegex(name); }
+  symbolTableIsClass(name: string): boolean {
+    const result = this.symbolTable.isClass(name);
+    return result;
+  }
+  symbolTableIsJSON(name: string): boolean {
+    const result = this.symbolTable.isJSON(name);
+    return result;
+  }
+  symbolTableIsObject(name: string): boolean {
+    const result = this.symbolTable.isObject(name);
+    return result;
+  }
+  symbolTableIsMap(name: string): boolean {
+    const result = this.symbolTable.isMap(name);
+    return result;
+  }
+  symbolTableIsSet(name: string): boolean {
+    const result = this.symbolTable.isSet(name);
+    return result;
+  }
+  symbolTableIsNumberArray(name: string): boolean {
+    const result = this.symbolTable.isNumberArray(name);
+    return result;
+  }
+  symbolTableIsStringArray(name: string): boolean {
+    const result = this.symbolTable.isStringArray(name);
+    return result;
+  }
+  symbolTableIsBooleanArray(name: string): boolean {
+    const result = this.symbolTable.isBooleanArray(name);
+    return result;
+  }
+  symbolTableIsObjectArray(name: string): boolean {
+    const result = this.symbolTable.isObjectArray(name);
+    return result;
+  }
+  symbolTableIsString(name: string): boolean {
+    const result = this.symbolTable.isString(name);
+    return result;
+  }
+  symbolTableIsRegex(name: string): boolean {
+    const result = this.symbolTable.isRegex(name);
+    return result;
+  }
   symbolTableGetType(name: string) { return this.symbolTable.getType(name); }
   symbolTableGetClassName(name: string) { return this.symbolTable.getClassName(name); }
   symbolTableGetClassInfo(name: string) { return this.symbolTable.getClassInfo(name); }
@@ -1053,8 +1087,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     name: string,
     allocaReg: string,
     llvmType: string,
-    kind: SymbolKind,
-    scope: 'local' | 'global' = 'local',
+    kind: number,
+    scope: string,
   ): void {
     this.symbolTable.define(name, kind, llvmType, allocaReg, scope);
   }
@@ -1063,8 +1097,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     name: string,
     allocaReg: string,
     llvmType: string,
-    kind: SymbolKind,
-    scope: 'local' | 'global',
+    kind: number,
+    scope: string,
     metadata: SymbolMetadata
   ): void {
     this.symbolTable.defineWithMetadata(name, kind, llvmType, allocaReg, scope, metadata);
@@ -1340,6 +1374,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   fsGenCanHandle(_expr: MethodCallNode): boolean { return false; }
   fsGenReadFileSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_readFileSync'; }
   fsGenWriteFileSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_writeFileSync'; }
+  fsGenAppendFileSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_appendFileSync'; }
   fsGenExistsSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_existsSync'; }
   fsGenUnlinkSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_unlinkSync'; }
 

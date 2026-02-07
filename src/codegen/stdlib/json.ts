@@ -16,9 +16,10 @@ export class JsonGenerator {
 
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
-    return exprObjBase.type === 'variable' &&
-           (expr.object as any).name === 'JSON' &&
-           (expr.method === 'parse' || expr.method === 'stringify');
+    if (exprObjBase.type !== 'variable') return false;
+    const varNode = expr.object as { type: string; name: string };
+    if (varNode.name !== 'JSON') return false;
+    return (expr.method === 'parse' || expr.method === 'stringify');
   }
 
   generateParse(expr: MethodCallNode, params: string[]): string {
@@ -26,7 +27,8 @@ export class JsonGenerator {
       throw new Error('JSON.parse() requires 1 argument (JSON string)');
     }
 
-    const typeParam = (expr as any).typeParameter;
+    const exprTyped = expr as { typeParameter?: string; args: Expression[]; object: Expression; method: string };
+    const typeParam = exprTyped.typeParameter;
     if (!typeParam) {
       throw new Error(
         'JSON.parse() requires a type parameter. Use JSON.parse<InterfaceName>(jsonString).\n' +

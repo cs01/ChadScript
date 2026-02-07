@@ -23,9 +23,11 @@ export class FilesystemGenerator {
    */
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
-    return exprObjBase.type === 'variable' &&
-           (expr.object as any).name === 'fs' &&
-           ['readFileSync', 'writeFileSync', 'existsSync', 'unlinkSync'].indexOf(expr.method) !== -1;
+    if (exprObjBase.type !== 'variable') return false;
+    const varNode = expr.object as { type: string; name: string };
+    if (varNode.name !== 'fs') return false;
+    const supported = ['readFileSync', 'writeFileSync', 'appendFileSync', 'existsSync', 'unlinkSync'];
+    return supported.indexOf(expr.method) !== -1;
   }
 
   /**
@@ -157,6 +159,51 @@ export class FilesystemGenerator {
     this.ctx.emit(`br label %${endLabel}`);
 
     // End: phi node to return success/failure
+    this.ctx.emit(`${endLabel}:`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = phi i32 [ -1, %${failLabel} ], [ 0, %${successLabel} ]`);
+
+    return result;
+  }
+
+  generateAppendFileSync(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      throw new Error('fs.appendFileSync() requires at least 2 arguments (filename, data)');
+    }
+
+    const filenamePtr = this.ctx.generateExpression(expr.args[0], params);
+    const dataPtr = this.ctx.generateExpression(expr.args[1], params);
+
+    const modeStr = this.ctx.createStringConstant('a');
+
+    const filePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
+
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
+
+    const failLabel = this.ctx.nextLabel('append_fail');
+    const successLabel = this.ctx.nextLabel('append_success');
+    const endLabel = this.ctx.nextLabel('append_end');
+
+    this.ctx.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
+
+    this.ctx.emit(`${failLabel}:`);
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${successLabel}:`);
+
+    const dataLen = this.ctx.nextTemp();
+    this.ctx.emit(`${dataLen} = call i64 @strlen(i8* ${dataPtr})`);
+
+    const bytesWritten = this.ctx.nextTemp();
+    this.ctx.emit(`${bytesWritten} = call i64 @fwrite(i8* ${dataPtr}, i64 1, i64 ${dataLen}, i8* ${filePtr})`);
+
+    const closeResult = this.ctx.nextTemp();
+    this.ctx.emit(`${closeResult} = call i32 @fclose(i8* ${filePtr})`);
+
+    this.ctx.emit(`br label %${endLabel}`);
+
     this.ctx.emit(`${endLabel}:`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi i32 [ -1, %${failLabel} ], [ 0, %${successLabel} ]`);
