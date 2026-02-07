@@ -118,6 +118,7 @@ export interface SymbolMetadata {
   setMetadata?: SetMetadata;
   isPointerAlloca?: boolean;
   interfaceType?: string;
+  concreteClass?: string;
   resolvedType?: ResolvedType;
   unionType?: string;
   unionMembers?: string[];
@@ -140,7 +141,7 @@ export function createPointerAllocaMetadata(): SymbolMetadata {
   };
 }
 
-export function createInterfacePointerAllocaMetadata(interfaceType: string): SymbolMetadata {
+export function createInterfacePointerAllocaMetadata(interfaceType: string, concreteClass?: string): SymbolMetadata {
   return {
     objectMetadata: undefined,
     classMetadata: undefined,
@@ -151,13 +152,14 @@ export function createInterfacePointerAllocaMetadata(interfaceType: string): Sym
     setMetadata: undefined,
     isPointerAlloca: true,
     interfaceType: interfaceType,
+    concreteClass: concreteClass,
     resolvedType: undefined,
     unionType: undefined,
     unionMembers: undefined
   };
 }
 
-export function createInterfaceMetadata(interfaceType: string): SymbolMetadata {
+export function createInterfaceMetadata(interfaceType: string, concreteClass?: string): SymbolMetadata {
   return {
     objectMetadata: undefined,
     classMetadata: undefined,
@@ -168,6 +170,7 @@ export function createInterfaceMetadata(interfaceType: string): SymbolMetadata {
     setMetadata: undefined,
     isPointerAlloca: undefined,
     interfaceType: interfaceType,
+    concreteClass: concreteClass,
     resolvedType: undefined,
     unionType: undefined,
     unionMembers: undefined
@@ -253,6 +256,7 @@ export function createClassMetadata(classMetadata: ClassMetadata): SymbolMetadat
     setMetadata: undefined,
     isPointerAlloca: undefined,
     interfaceType: undefined,
+    concreteClass: classMetadata.className,
     resolvedType: undefined,
     unionType: undefined,
     unionMembers: undefined
@@ -370,6 +374,7 @@ export interface Symbol {
   mapMetadata?: MapMetadata;
   setMetadata?: SetMetadata;
   interfaceType?: string;
+  concreteClass?: string;
 }
 
 /**
@@ -473,7 +478,8 @@ export class SymbolTable {
       closureMetadata: undefined,
       mapMetadata: undefined,
       setMetadata: undefined,
-      interfaceType: undefined
+      interfaceType: undefined,
+      concreteClass: undefined
     };
     if (!this.symbols.has(name)) {
       this.symbolKeys.push(name);
@@ -506,7 +512,8 @@ export class SymbolTable {
       closureMetadata: undefined,
       mapMetadata: undefined,
       setMetadata: undefined,
-      interfaceType: undefined
+      interfaceType: undefined,
+      concreteClass: undefined
     };
     if (metadata.objectMetadata) symbol.objectMetadata = metadata.objectMetadata;
     if (metadata.classMetadata) symbol.classMetadata = metadata.classMetadata;
@@ -520,6 +527,7 @@ export class SymbolTable {
       symbol.interfaceType = metadata.interfaceType;
       this.interfaceTypes.set(name, metadata.interfaceType);
     }
+    if (metadata.concreteClass) symbol.concreteClass = metadata.concreteClass;
     if (metadata.resolvedType) symbol.resolvedType = metadata.resolvedType;
     if (!this.symbols.has(name)) {
       this.symbolKeys.push(name);
@@ -603,6 +611,24 @@ export class SymbolTable {
       }
     }
     return this.interfaceTypes.get(name);
+  }
+
+  getConcreteClass(name: string): string | undefined {
+    if (!name) return undefined;
+    const symbol = this.symbols.get(name);
+    if (symbol) {
+      if (symbol.concreteClass) return symbol.concreteClass;
+      if (symbol.classMetadata) return symbol.classMetadata.className;
+    }
+    return undefined;
+  }
+
+  setConcreteClass(name: string, concreteClass: string): void {
+    if (!name) return;
+    const symbol = this.symbols.get(name);
+    if (symbol) {
+      symbol.concreteClass = concreteClass;
+    }
   }
 
   /**

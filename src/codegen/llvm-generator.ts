@@ -569,6 +569,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public symbolTableGetClassMetadata(name: string) { return this.symbolTable.getClassMetadata(name); }
   public symbolTableGetArrayMetadata(name: string): string | undefined { return this.symbolTable.getArrayMetadataElementType(name); }
   public symbolTableGetInterfaceType(name: string): string | undefined { return this.symbolTable.getInterfaceType(name); }
+  public symbolTableGetConcreteClass(name: string): string | undefined { return this.symbolTable.getConcreteClass(name); }
+  public symbolTableSetConcreteClass(name: string, concreteClass: string): void { this.symbolTable.setConcreteClass(name, concreteClass); }
   public symbolTableGetAlloca(name: string): string | undefined { return this.symbolTable.getAlloca(name); }
   public symbolTableGetScope(name: string): string | undefined { return this.symbolTable.getScope(name); }
   public symbolTableGetObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined { return this.symbolTable.getObjectArrayMetadata(name); }

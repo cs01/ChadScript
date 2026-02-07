@@ -248,6 +248,8 @@ export interface IGeneratorContext {
   symbolTableGetClassMetadata(name: string): { className: string; fields?: string[] } | undefined;
   symbolTableGetArrayMetadata(name: string): string | undefined;
   symbolTableGetInterfaceType(name: string): string | undefined;
+  symbolTableGetConcreteClass(name: string): string | undefined;
+  symbolTableSetConcreteClass(name: string, concreteClass: string): void;
   symbolTableGetAlloca(name: string): string | undefined;
   symbolTableGetScope(name: string): string | undefined;
   symbolTableGetObjectArrayMetadata(name: string): { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] } | undefined;
@@ -889,6 +891,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   symbolTableGetClassMetadata(name: string) { return this.symbolTable.getClassMetadata(name); }
   symbolTableGetArrayMetadata(name: string): string | undefined { return this.symbolTable.getArrayMetadataElementType(name); }
   symbolTableGetInterfaceType(name: string) { return this.symbolTable.getInterfaceType(name); }
+  symbolTableGetConcreteClass(name: string) { return this.symbolTable.getConcreteClass(name); }
+  symbolTableSetConcreteClass(name: string, concreteClass: string) { this.symbolTable.setConcreteClass(name, concreteClass); }
   symbolTableGetAlloca(name: string) { return this.symbolTable.getAlloca(name); }
   symbolTableGetScope(name: string) { return this.symbolTable.getScope(name); }
   symbolTableGetObjectArrayMetadata(name: string) { return this.symbolTable.getObjectArrayMetadata(name); }

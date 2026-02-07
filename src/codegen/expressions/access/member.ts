@@ -160,6 +160,8 @@ export interface MemberAccessGeneratorContext {
   interfaceStructGenGetInterfaceStruct(name: string): InterfaceStructInfo | undefined;
   mapGenGenerateMapSize(mapPtr: string): string;
   setGenGenerateSetSize(setPtr: string): string;
+  setActualClassType(name: string, className: string): void;
+  getActualClassType(name: string): string | undefined;
 }
 
 /**
@@ -674,11 +676,16 @@ export class MemberAccessGenerator {
         const structType = `%${tsType}_struct*`;
         this.ctx.emit(`${value} = load ${structType}, ${structType}* ${fieldPtr}`);
         this.ctx.setVariableType(value, structType);
+        this.ctx.setActualClassType(value, tsType!);
       } else {
         this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
         this.ctx.setVariableType(value, 'i8*');
         if (tsType) {
           this.storeInterfaceMetadata(value, tsType);
+          const concreteClass = this.findClassImplementingInterface(tsType);
+          if (concreteClass) {
+            this.ctx.setActualClassType(value, concreteClass);
+          }
         }
       }
       return value;
@@ -1448,6 +1455,7 @@ export class MemberAccessGenerator {
       const tsTypes: string[] = [];
       for (let j = 0; j < builtinFields.length; j++) {
         const f = builtinFields[j] as { name: string; type: string };
+        if (!f || !f.name) continue;
         keys.push(stripOptional(f.name));
         tsTypes.push(f.type);
         if (f.type === 'string') {
@@ -1471,6 +1479,7 @@ export class MemberAccessGenerator {
     const tsTypes: string[] = [];
     for (let j = 0; j < ifaceProps.length; j++) {
       const f = ifaceProps[j] as { name: string; type: string };
+      if (!f || !f.name) continue;
       keys.push(stripOptional(f.name));
       tsTypes.push(f.type);
       if (f.type === 'string') {
