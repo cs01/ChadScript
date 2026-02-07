@@ -244,6 +244,263 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return cls.name;
   }
 
+  public getParameterTypeFromAST(paramName: string): string | null {
+    if (!paramName) return null;
+    if (!this.ast) return null;
+    const currentFunc = this.currentFunction;
+    if (!currentFunc) return null;
+    for (let i = 0; i < this.ast.functions.length; i++) {
+      const fn = this.ast.functions[i];
+      if (!fn) continue;
+      if (!fn.name) continue;
+      if (fn.name === currentFunc) {
+        if (fn.parameters) {
+          for (let j = 0; j < fn.parameters.length; j++) {
+            const p = fn.parameters[j];
+            if (!p) continue;
+            if (!p.name) continue;
+            if (p.name === paramName && p.type) {
+              return p.type;
+            }
+          }
+        }
+      }
+    }
+    for (let i = 0; i < this.ast.classes.length; i++) {
+      const cls = this.ast.classes[i];
+      if (!cls) continue;
+      for (let j = 0; j < cls.methods.length; j++) {
+        const method = cls.methods[j];
+        if (!method) continue;
+        if (!method.name) continue;
+        if (method.name === currentFunc) {
+          if (method.paramTypes) {
+            for (let k = 0; k < method.params.length; k++) {
+              const methodParam = method.params[k];
+              if (!methodParam) continue;
+              if (methodParam === paramName && method.paramTypes[k]) {
+                return method.paramTypes[k];
+              }
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  public findClassImplementingInterface(interfaceName: string): string | null {
+    if (!this.ast || !this.ast.classes) return null;
+    let implementingClass: string | null = null;
+    for (let i = 0; i < this.ast.classes.length; i++) {
+      const cls = this.ast.classes[i];
+      if (!cls) continue;
+      if (cls.implements) {
+        for (let j = 0; j < cls.implements.length; j++) {
+          if (cls.implements[j] === interfaceName) {
+            if (cls.name.indexOf('Mock') !== -1 || cls.name.indexOf('Test') !== -1) {
+              continue;
+            }
+            if (implementingClass !== null) {
+              return null;
+            }
+            implementingClass = cls.name;
+          }
+        }
+      }
+    }
+    if (implementingClass) {
+      return implementingClass;
+    }
+    if (interfaceName.endsWith('Context') || interfaceName.endsWith('Like')) {
+      for (let i = 0; i < this.ast.classes.length; i++) {
+        const cls = this.ast.classes[i];
+        if (!cls) continue;
+        if (cls.implements) {
+          for (let j = 0; j < cls.implements.length; j++) {
+            if (cls.implements[j] === 'IGeneratorContext') {
+              if (cls.name.indexOf('Mock') === -1 && cls.name.indexOf('Test') === -1) {
+                return cls.name;
+              }
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  public getInterfaceProperties(name: string): { name: string; type: string }[] | null {
+    if (!this.ast || !this.ast.interfaces) return null;
+    const baseName = name.endsWith('?') ? name.slice(0, -1) : name;
+    const cleanName = baseName.indexOf(' | ') !== -1 ? baseName.split(' | ')[0] : baseName;
+    const properties: { name: string; type: string }[] = [];
+    for (let i = 0; i < this.ast.interfaces.length; i++) {
+      const iface = this.ast.interfaces[i];
+      if (!iface) continue;
+      if (iface.name === cleanName) {
+        if (!iface.fields) continue;
+        for (let j = 0; j < iface.fields.length; j++) {
+          const field = iface.fields[j] as InterfaceField;
+          if (!field) continue;
+          let fieldName = field.name;
+          if (fieldName.endsWith('?')) {
+            fieldName = fieldName.slice(0, -1);
+          }
+          properties.push({ name: fieldName, type: field.type });
+        }
+      }
+    }
+    if (properties.length > 0) return properties;
+    return null;
+  }
+
+  public getInterfaceDeclByName(name: string): InterfaceDeclaration | null {
+    if (!this.ast || !this.ast.interfaces) return null;
+    for (let i = 0; i < this.ast.interfaces.length; i++) {
+      const iface = this.ast.interfaces[i];
+      if (!iface) continue;
+      if (iface.name === name) {
+        return iface;
+      }
+    }
+    return null;
+  }
+
+  public isTypeAlias(name: string): boolean {
+    if (!this.ast || !this.ast.typeAliases) return false;
+    for (let i = 0; i < this.ast.typeAliases.length; i++) {
+      const ta = this.ast.typeAliases[i];
+      if (!ta) continue;
+      if (ta.name === name) return true;
+    }
+    return false;
+  }
+
+  public getTypeAliasCommonProperties(name: string): { name: string; type: string }[] | null {
+    if (!this.ast || !this.ast.typeAliases) return null;
+    for (let i = 0; i < this.ast.typeAliases.length; i++) {
+      const ta = this.ast.typeAliases[i];
+      if (!ta) continue;
+      if (ta.name === name && ta.unionMembers) {
+        let commonNames: string[] = [];
+        let commonTypes: string[] = [];
+        let first = true;
+        for (let m = 0; m < ta.unionMembers.length; m++) {
+          const memberName = ta.unionMembers[m];
+          if (!memberName) continue;
+          const memberProps = this.getInterfaceProperties(memberName);
+          if (!memberProps) continue;
+          if (first) {
+            for (let p = 0; p < memberProps.length; p++) {
+              commonNames.push(memberProps[p].name);
+              commonTypes.push(memberProps[p].type);
+            }
+            first = false;
+          } else {
+            const nextNames: string[] = [];
+            const nextTypes: string[] = [];
+            for (let ci = 0; ci < commonNames.length; ci++) {
+              let found = false;
+              for (let p = 0; p < memberProps.length; p++) {
+                if (memberProps[p].name === commonNames[ci]) {
+                  found = true;
+                  break;
+                }
+              }
+              if (found) {
+                nextNames.push(commonNames[ci]);
+                nextTypes.push(commonTypes[ci]);
+              }
+            }
+            commonNames = nextNames;
+            commonTypes = nextTypes;
+          }
+        }
+        if (commonNames.length > 0) {
+          const result: { name: string; type: string }[] = [];
+          for (let ri = 0; ri < commonNames.length; ri++) {
+            result.push({ name: commonNames[ri], type: commonTypes[ri] });
+          }
+          return result;
+        }
+      }
+    }
+    return null;
+  }
+
+  public getInterfaceFieldType(interfaceName: string, fieldName: string): string | null {
+    if (interfaceName.startsWith('{') && interfaceName.endsWith('}')) {
+      return null;
+    }
+    if (!this.ast || !this.ast.interfaces) return null;
+    for (let i = 0; i < this.ast.interfaces.length; i++) {
+      const iface = this.ast.interfaces[i];
+      if (!iface) continue;
+      if (iface.name === interfaceName) {
+        if (!iface.fields) continue;
+        for (let j = 0; j < iface.fields.length; j++) {
+          const f = iface.fields[j] as InterfaceField;
+          if (!f) continue;
+          let fName = f.name;
+          if (fName.endsWith('?')) {
+            fName = fName.slice(0, -1);
+          }
+          if (fName === fieldName) {
+            return f.type;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  public getMethodReturnType(className: string, methodName: string): string | null {
+    if (!this.ast || !this.ast.classes) return null;
+    for (let i = 0; i < this.ast.classes.length; i++) {
+      const cls = this.ast.classes[i];
+      if (!cls) continue;
+      if (cls.name === className) {
+        for (let j = 0; j < cls.methods.length; j++) {
+          const method = cls.methods[j];
+          if (!method) continue;
+          if (method.name === methodName && method.returnType) {
+            return method.returnType;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  public isEnumType(name: string): boolean {
+    if (!this.ast || !this.ast.enums) return false;
+    for (let i = 0; i < this.ast.enums.length; i++) {
+      const e = this.ast.enums[i];
+      if (!e) continue;
+      if (e.name === name) return true;
+    }
+    return false;
+  }
+
+  public getEnumMemberValue(enumName: string, memberName: string): number | string | null {
+    if (!this.ast || !this.ast.enums) return null;
+    for (let i = 0; i < this.ast.enums.length; i++) {
+      const e = this.ast.enums[i];
+      if (!e) continue;
+      if (e.name === enumName && e.members) {
+        for (let j = 0; j < e.members.length; j++) {
+          const m = e.members[j];
+          if (!m) continue;
+          if (m.name === memberName) {
+            return j;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
   public getLastInstruction(): string {
     if (this.output.length === 0) return '';
     const last = this.output[this.output.length - 1];
@@ -560,6 +817,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateResolve(expr, params); }
   public pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateDirname(expr, params); }
+  public pathGenGenerateBasename(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateBasename(expr, params); }
 
   public fsGenCanHandle(expr: MethodCallNode): boolean { return this.fsGen.canHandle(expr); }
   public fsGenReadFileSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateReadFileSync(expr, params); }
@@ -1609,27 +1867,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public getTopLevelItemsCount(): number {
     return this.topLevelItemsCount;
-  }
-
-  private isEnumType(typeName: string): boolean {
-    if (!this.ast.enums) return false;
-    let checkType = typeName;
-    if (checkType.indexOf(' | ') !== -1) {
-      const parts = checkType.split(' | ');
-      for (let j = 0; j < parts.length; j++) {
-        const part = parts[j].trim();
-        if (part !== 'undefined' && part !== 'null') {
-          checkType = part;
-          break;
-        }
-      }
-    }
-    for (let i = 0; i < this.ast.enums.length; i++) {
-      if (this.ast.enums[i].name === checkType) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private tsTypeToLlvmJsonWithEnums(tsType: string): string {

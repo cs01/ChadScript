@@ -66,7 +66,7 @@ export class ConsoleGenerator {
     // Check if it's a Response object (from fetch())
     if (argTyped.type === 'variable') {
       const varType = this.ctx.getVariableType(argTyped.name);
-      if (varType === '%Response*') {
+      if (varType === '%__FetchResponse*') {
         return this.generateResponsePrint(method, argValue);
       }
     }
@@ -150,7 +150,7 @@ export class ConsoleGenerator {
     // Extract the body field from Response* and print it as a string
     // Response = { i8* raw, i32 status, i8* body }
     const bodyPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${bodyPtr} = getelementptr %Response, %Response* ${argValue}, i32 0, i32 2`);
+    this.ctx.emit(`${bodyPtr} = getelementptr %__FetchResponse, %__FetchResponse* ${argValue}, i32 0, i32 2`);
     const body = this.ctx.nextTemp();
     this.ctx.emit(`${body} = load i8*, i8** ${bodyPtr}`);
     return this.generateStringPrint(method, body);

@@ -170,6 +170,7 @@ export class InterfaceStructGenerator {
 
   hasInterface(name: string): boolean {
     if (!name) return false;
+    if (name.length === 0) return false;
     const info = this.interfaceStructs.get(name);
     if (!info) return false;
     return !info.isBuiltinConflict;

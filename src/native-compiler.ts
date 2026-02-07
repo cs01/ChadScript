@@ -268,15 +268,13 @@ if (!fs.existsSync(theInputFile)) {
   throw new Error('unreachable');
 }
 
-let theOutputFile: string = '.build/' + path.basename(theInputFile);
+let theOutputFile: string = '.build/' + theInputFile;
 if (outputFile !== null) {
   theOutputFile = outputFile;
 } else if (theInputFile.substr(theInputFile.length - 3) === '.ts') {
-  const base = path.basename(theInputFile);
-  theOutputFile = '.build/' + base.substr(0, base.length - 3);
+  theOutputFile = '.build/' + theInputFile.substr(0, theInputFile.length - 3);
 } else if (theInputFile.substr(theInputFile.length - 3) === '.js') {
-  const base = path.basename(theInputFile);
-  theOutputFile = '.build/' + base.substr(0, base.length - 3);
+  theOutputFile = '.build/' + theInputFile.substr(0, theInputFile.length - 3);
 }
 
 const outputDir = path.dirname(theOutputFile);

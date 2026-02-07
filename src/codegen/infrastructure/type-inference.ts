@@ -1093,7 +1093,7 @@ export class TypeInference {
     const e = expr as ExprBase;
     if (e.type === 'variable') {
       const varType = this.ctx.symbolTableGetType((expr as VariableNode).name);
-      if (varType === '%Response*') {
+      if (varType === '%__FetchResponse*') {
         return true;
       }
     }

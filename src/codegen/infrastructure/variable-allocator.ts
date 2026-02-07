@@ -914,11 +914,11 @@ export class VariableAllocator {
 
   private allocateResponse(stmt: VariableDeclaration, params: string[]): void {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-    this.ctx.defineVariable(stmt.name, allocaReg, '%Response*', SymbolKind.Object, 'local');
-    this.ctx.emit(`${allocaReg} = alloca %Response*`);
+    this.ctx.defineVariable(stmt.name, allocaReg, '%__FetchResponse*', SymbolKind.Object, 'local');
+    this.ctx.emit(`${allocaReg} = alloca %__FetchResponse*`);
 
     const responsePtr = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.emit(`store %Response* ${responsePtr}, %Response** ${allocaReg}`);
+    this.ctx.emit(`store %__FetchResponse* ${responsePtr}, %__FetchResponse** ${allocaReg}`);
   }
 
   private allocateJSONObject(stmt: VariableDeclaration, params: string[]): void {

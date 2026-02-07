@@ -358,6 +358,16 @@ export interface IGeneratorContext {
   getJsonObjectMetadataTypes(key: string): string[] | undefined;
   getJsonObjectMetadataTsTypes(key: string): string[] | undefined;
   getJsonObjectMetadataInterfaceType(key: string): string | undefined;
+  getParameterTypeFromAST(paramName: string): string | null;
+  findClassImplementingInterface(interfaceName: string): string | null;
+  getInterfaceProperties(name: string): { name: string; type: string }[] | null;
+  getInterfaceDeclByName(name: string): InterfaceDeclaration | null;
+  isTypeAlias(name: string): boolean;
+  getTypeAliasCommonProperties(name: string): { name: string; type: string }[] | null;
+  getInterfaceFieldType(interfaceName: string, fieldName: string): string | null;
+  getMethodReturnType(className: string, methodName: string): string | null;
+  isEnumType(name: string): boolean;
+  getEnumMemberValue(enumName: string, memberName: string): number | string | null;
 
   /**
    * LLVM IR output buffer
@@ -667,6 +677,7 @@ export interface IGeneratorContext {
    */
   pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
+  pathGenGenerateBasename(expr: MethodCallNode, params: string[]): string;
 
   /**
    * FsGen delegate methods (avoid struct layout mismatch)
@@ -801,6 +812,17 @@ export class MockGeneratorContext implements IGeneratorContext {
     if (!meta) return undefined;
     return meta.interfaceType;
   }
+
+  getParameterTypeFromAST(_paramName: string): string | null { return null; }
+  findClassImplementingInterface(_interfaceName: string): string | null { return null; }
+  getInterfaceProperties(_name: string): { name: string; type: string }[] | null { return null; }
+  getInterfaceDeclByName(_name: string): InterfaceDeclaration | null { return null; }
+  isTypeAlias(_name: string): boolean { return false; }
+  getTypeAliasCommonProperties(_name: string): { name: string; type: string }[] | null { return null; }
+  getInterfaceFieldType(_interfaceName: string, _fieldName: string): string | null { return null; }
+  getMethodReturnType(_className: string, _methodName: string): string | null { return null; }
+  isEnumType(_name: string): boolean { return false; }
+  getEnumMemberValue(_enumName: string, _memberName: string): number | string | null { return null; }
 
   setCurrentFunction(name: string | null): void { this.currentFunction = name; }
   getCurrentFunction(): string | null { return this.currentFunction; }
@@ -999,7 +1021,10 @@ export class MockGeneratorContext implements IGeneratorContext {
     }
     const len = byteCount + 1;
     this.globalStrings.push(`${strId} = private unnamed_addr constant [${len} x i8] c"${escaped}\\00", align 1`);
-    return strId;
+    const ptrReg = this.nextTemp();
+    this.emit(`${ptrReg} = getelementptr inbounds [${len} x i8], [${len} x i8]* ${strId}, i64 0, i64 0`);
+    this.setVariableType(ptrReg, 'i8*');
+    return ptrReg;
   }
 
   defineVariable(
@@ -1278,6 +1303,7 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   pathGenGenerateResolve(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_resolve'; }
   pathGenGenerateDirname(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_dirname'; }
+  pathGenGenerateBasename(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_basename'; }
 
   fsGenCanHandle(_expr: MethodCallNode): boolean { return false; }
   fsGenReadFileSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_readFileSync'; }
