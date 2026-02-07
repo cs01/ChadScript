@@ -236,6 +236,7 @@ export interface MethodCallGeneratorContext {
   symbolTableGetSetMetadata(name: string): string | undefined;
   symbolTableGetAlloca(name: string): string | undefined;
   symbolTableGetInterfaceType(name: string): string | undefined;
+  symbolTableGetConcreteClass(name: string): string | undefined;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] };
   consoleGen: ConsoleGeneratorLike;
@@ -339,6 +340,7 @@ export interface MethodCallGeneratorContext {
   ): string;
   arrowFunctionGenGetClosureInfo(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null;
   exprGen: ExpressionGeneratorLike;
+  getActualClassType(name: string): string | undefined;
 }
 
 export class MethodCallGenerator {
@@ -502,7 +504,7 @@ export class MethodCallGenerator {
       const argTyped = arg as { type: string; value: number };
       if (argTyped.type === 'number') {
         const numValue = argTyped.value;
-        const intValue = Math.floor(numValue);
+        const intValue = numValue - (numValue % 1);
         this.ctx.emit(`call void @exit(i32 ${intValue})`);
       } else {
         const exprResult = this.ctx.generateExpression(arg as Expression, params);
@@ -678,19 +680,16 @@ export class MethodCallGenerator {
       }
     }
 
-    // Handle fs.* methods (delegated to FilesystemGenerator)
-    if (this.ctx.fsGenCanHandle(expr)) {
-      switch (expr.method) {
-        case 'readFileSync':
-          return this.ctx.fsGenReadFileSync(expr, params);
-        case 'writeFileSync':
-          return this.ctx.fsGenWriteFileSync(expr, params);
-        case 'existsSync':
-          return this.ctx.fsGenExistsSync(expr, params);
-        case 'unlinkSync':
-          return this.ctx.fsGenUnlinkSync(expr, params);
-        default:
-          throw new Error('Unsupported fs method: ' + expr.method);
+    // Handle fs.* methods - inline check to avoid interface dispatch issues
+    if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'fs') {
+      if (method === 'readFileSync') {
+        return this.ctx.fsGenReadFileSync(expr, params);
+      } else if (method === 'writeFileSync') {
+        return this.ctx.fsGenWriteFileSync(expr, params);
+      } else if (method === 'existsSync') {
+        return this.ctx.fsGenExistsSync(expr, params);
+      } else if (method === 'unlinkSync') {
+        return this.ctx.fsGenUnlinkSync(expr, params);
       }
     }
 
@@ -713,8 +712,8 @@ export class MethodCallGenerator {
       }
     }
 
-    // Handle JSON.parse() and JSON.stringify() (delegated to JsonGenerator)
-    if (this.ctx.jsonGenCanHandle(expr)) {
+    // Handle JSON.parse() and JSON.stringify() - inline check
+    if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'JSON') {
       if (method === 'parse') {
         return this.ctx.jsonGenGenerateParse(expr, params);
       } else if (method === 'stringify') {
@@ -1598,12 +1597,18 @@ export class MethodCallGenerator {
         className = classMeta.className;
         instancePtr = this.ctx.generateExpression(expr.object, params);
       } else {
-        const interfaceType = this.ctx.symbolTableGetInterfaceType(varName);
-        if (interfaceType) {
-          const implClass = this.findClassImplementingInterfaceMethod(interfaceType, method);
-          if (implClass) {
-            instancePtr = this.ctx.generateExpression(expr.object, params);
-            className = implClass;
+        const concreteClass = this.ctx.symbolTableGetConcreteClass(varName);
+        if (concreteClass) {
+          instancePtr = this.ctx.generateExpression(expr.object, params);
+          className = concreteClass;
+        } else {
+          const interfaceType = this.ctx.symbolTableGetInterfaceType(varName);
+          if (interfaceType) {
+            const implClass = this.findClassImplementingInterfaceMethod(interfaceType, method);
+            if (implClass) {
+              instancePtr = this.ctx.generateExpression(expr.object, params);
+              className = implClass;
+            }
           }
         }
       }
@@ -1782,6 +1787,21 @@ export class MethodCallGenerator {
       this.ctx.syncStateToGenerators();
       const instanceClass = isInterfaceClass ? resolvedClass : className;
       return this.ctx.classGenGenerateMethodCall(instancePtr, instanceClass, method, expr.args, params);
+    }
+
+    if (!className && !instancePtr && exprObjBase.type === 'member_access') {
+      instancePtr = this.ctx.generateExpression(expr.object, params);
+      if (instancePtr) {
+        const actualClass = this.ctx.getActualClassType(instancePtr);
+        if (actualClass) {
+          className = actualClass;
+          const resolvedClass = this.findClassWithMethod(actualClass, method);
+          if (resolvedClass) {
+            this.ctx.syncStateToGenerators();
+            return this.ctx.classGenGenerateMethodCall(instancePtr, resolvedClass, method, expr.args, params);
+          }
+        }
+      }
     }
 
     return null;
