@@ -18,7 +18,7 @@ import {
 import type { SymbolTable, Symbol as SymbolEntry } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import type { InterfaceStructGenerator, InterfaceFieldInfo, InterfaceStructInfo } from '../../types/interface-struct-generator.js';
-import { stripOptional, stripNullable, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
+import { stripOptional, stripNullable, tsTypeToLlvm as tsTypeToLlvmUtil, parseMapTypeString } from '../../infrastructure/type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -126,10 +126,10 @@ export interface MemberAccessGeneratorContext {
   getJsonObjectMetadataInterfaceType(key: string): string | undefined;
   getParameterTypeFromAST(paramName: string): string | null;
   findClassImplementingInterface(interfaceName: string): string | null;
-  getInterfaceProperties(name: string): { name: string; type: string }[] | null;
+  getInterfaceProperties(name: string): { keys: string[]; types: string[] } | null;
   getInterfaceDeclByName(name: string): InterfaceDeclaration | null;
   isTypeAlias(name: string): boolean;
-  getTypeAliasCommonProperties(name: string): { name: string; type: string }[] | null;
+  getTypeAliasCommonProperties(name: string): { keys: string[]; types: string[] } | null;
   getInterfaceFieldType(interfaceName: string, fieldName: string): string | null;
   getMethodReturnType(className: string, methodName: string): string | null;
   isEnumType(name: string): boolean;
@@ -186,10 +186,10 @@ export class MemberAccessGenerator {
   private getInterfaceFromAST(name: string): InterfaceInfo | null {
     const baseName = this.extractBaseTypeName(name);
     const props = this.ctx.getInterfaceProperties(baseName);
-    if (props && props.length > 0) {
+    if (props && props.keys.length > 0) {
       const properties: InterfaceProperty[] = [];
-      for (let i = 0; i < props.length; i++) {
-        properties.push({ name: props[i].name, type: props[i].type });
+      for (let i = 0; i < props.keys.length; i++) {
+        properties.push({ name: props.keys[i], type: props.types[i] });
       }
       return { properties };
     }
@@ -219,10 +219,10 @@ export class MemberAccessGenerator {
 
   private getTypeAliasCommonProperties(name: string): { properties: InterfaceProperty[] } | null {
     const props = this.ctx.getTypeAliasCommonProperties(name);
-    if (!props || props.length === 0) return null;
+    if (!props || props.keys.length === 0) return null;
     const properties: InterfaceProperty[] = [];
-    for (let i = 0; i < props.length; i++) {
-      properties.push({ name: props[i].name, type: props[i].type });
+    for (let i = 0; i < props.keys.length; i++) {
+      properties.push({ name: props.keys[i], type: props.types[i] });
     }
     return { properties };
   }
@@ -1351,98 +1351,97 @@ export class MemberAccessGenerator {
     return null;
   }
 
-  private getBuiltinAstTypeFields(name: string): { name: string; type: string }[] | null {
+  private getBuiltinAstTypeFields(name: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     if (name === 'AssignmentStatement') {
-      return [
-        { name: 'type', type: "'assignment'" },
-        { name: 'name', type: 'string' },
-        { name: 'value', type: 'Expression' }
-      ];
+      return {
+        keys: ['type', 'name', 'value'],
+        types: ['i8*', 'i8*', 'i8*'],
+        tsTypes: ["'assignment'", 'string', 'Expression']
+      };
     }
     if (name === 'VariableDeclaration') {
-      return [
-        { name: 'type', type: "'variable_declaration'" },
-        { name: 'kind', type: "'let' | 'const'" },
-        { name: 'name', type: 'string' },
-        { name: 'value', type: 'Expression | null' },
-        { name: 'declaredType', type: 'string' }
-      ];
+      return {
+        keys: ['type', 'kind', 'name', 'value', 'declaredType'],
+        types: ['i8*', 'i8*', 'i8*', 'i8*', 'i8*'],
+        tsTypes: ["'variable_declaration'", "'let' | 'const'", 'string', 'Expression | null', 'string']
+      };
     }
     if (name === 'ReturnStatement') {
-      return [
-        { name: 'type', type: "'return'" },
-        { name: 'value', type: 'Expression' }
-      ];
+      return {
+        keys: ['type', 'value'],
+        types: ['i8*', 'i8*'],
+        tsTypes: ["'return'", 'Expression']
+      };
     }
     if (name === 'IfStatement') {
-      return [
-        { name: 'type', type: "'if'" },
-        { name: 'condition', type: 'Expression' },
-        { name: 'thenBlock', type: 'BlockStatement' },
-        { name: 'elseBlock', type: 'BlockStatement | null' }
-      ];
+      return {
+        keys: ['type', 'condition', 'thenBlock', 'elseBlock'],
+        types: ['i8*', 'i8*', 'i8*', 'i8*'],
+        tsTypes: ["'if'", 'Expression', 'BlockStatement', 'BlockStatement | null']
+      };
     }
     if (name === 'WhileStatement') {
-      return [
-        { name: 'type', type: "'while'" },
-        { name: 'condition', type: 'Expression' },
-        { name: 'body', type: 'BlockStatement' }
-      ];
+      return {
+        keys: ['type', 'condition', 'body'],
+        types: ['i8*', 'i8*', 'i8*'],
+        tsTypes: ["'while'", 'Expression', 'BlockStatement']
+      };
     }
     if (name === 'ForStatement') {
-      return [
-        { name: 'type', type: "'for'" },
-        { name: 'init', type: 'VariableDeclaration | AssignmentStatement | null' },
-        { name: 'condition', type: 'Expression | null' },
-        { name: 'update', type: 'AssignmentStatement | null' },
-        { name: 'body', type: 'BlockStatement' }
-      ];
+      return {
+        keys: ['type', 'init', 'condition', 'update', 'body'],
+        types: ['i8*', 'i8*', 'i8*', 'i8*', 'i8*'],
+        tsTypes: ["'for'", 'VariableDeclaration | AssignmentStatement | null', 'Expression | null', 'AssignmentStatement | null', 'BlockStatement']
+      };
     }
     if (name === 'ForOfStatement') {
-      return [
-        { name: 'type', type: "'for_of'" },
-        { name: 'variableKind', type: "'let' | 'const' | 'var'" },
-        { name: 'variableName', type: 'string' },
-        { name: 'iterable', type: 'Expression' },
-        { name: 'body', type: 'BlockStatement' }
-      ];
+      return {
+        keys: ['type', 'variableKind', 'variableName', 'iterable', 'body'],
+        types: ['i8*', 'i8*', 'i8*', 'i8*', 'i8*'],
+        tsTypes: ["'for_of'", "'let' | 'const' | 'var'", 'string', 'Expression', 'BlockStatement']
+      };
     }
     if (name === 'BlockStatement') {
-      return [
-        { name: 'type', type: "'block'" },
-        { name: 'statements', type: 'Statement[]' }
-      ];
+      return {
+        keys: ['type', 'statements'],
+        types: ['i8*', 'i8*'],
+        tsTypes: ["'block'", 'Statement[]']
+      };
     }
     if (name === 'ThrowStatement') {
-      return [
-        { name: 'type', type: "'throw'" },
-        { name: 'argument', type: 'Expression' }
-      ];
+      return {
+        keys: ['type', 'argument'],
+        types: ['i8*', 'i8*'],
+        tsTypes: ["'throw'", 'Expression']
+      };
     }
     if (name === 'TryStatement') {
-      return [
-        { name: 'type', type: "'try'" },
-        { name: 'block', type: 'BlockStatement' },
-        { name: 'handler', type: 'CatchClause | null' },
-        { name: 'finalizer', type: 'BlockStatement | null' }
-      ];
+      return {
+        keys: ['type', 'block', 'handler', 'finalizer'],
+        types: ['i8*', 'i8*', 'i8*', 'i8*'],
+        tsTypes: ["'try'", 'BlockStatement', 'CatchClause | null', 'BlockStatement | null']
+      };
     }
     if (name === 'SwitchStatement') {
-      return [
-        { name: 'type', type: "'switch'" },
-        { name: 'discriminant', type: 'Expression' },
-        { name: 'cases', type: 'SwitchCase[]' }
-      ];
+      return {
+        keys: ['type', 'discriminant', 'cases'],
+        types: ['i8*', 'i8*', 'i8*'],
+        tsTypes: ["'switch'", 'Expression', 'SwitchCase[]']
+      };
     }
     if (name === 'BreakStatement') {
-      return [
-        { name: 'type', type: "'break'" }
-      ];
+      return {
+        keys: ['type'],
+        types: ['i8*'],
+        tsTypes: ["'break'"]
+      };
     }
     if (name === 'ContinueStatement') {
-      return [
-        { name: 'type', type: "'continue'" }
-      ];
+      return {
+        keys: ['type'],
+        types: ['i8*'],
+        tsTypes: ["'continue'"]
+      };
     }
     return null;
   }
@@ -1450,25 +1449,7 @@ export class MemberAccessGenerator {
   private getInterfaceInfo(interfaceName: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     const builtinFields = this.getBuiltinAstTypeFields(interfaceName);
     if (builtinFields) {
-      const keys: string[] = [];
-      const types: string[] = [];
-      const tsTypes: string[] = [];
-      for (let j = 0; j < builtinFields.length; j++) {
-        const f = builtinFields[j] as { name: string; type: string };
-        if (!f || !f.name) continue;
-        keys.push(stripOptional(f.name));
-        tsTypes.push(f.type);
-        if (f.type === 'string') {
-          types.push('i8*');
-        } else if (f.type === 'number') {
-          types.push('double');
-        } else if (f.type === 'boolean') {
-          types.push('double');
-        } else {
-          types.push('i8*');
-        }
-      }
-      return { keys, types, tsTypes };
+      return builtinFields;
     }
     const ifaceProps = this.ctx.getInterfaceProperties(interfaceName);
     if (!ifaceProps) {
@@ -1477,16 +1458,14 @@ export class MemberAccessGenerator {
     const keys: string[] = [];
     const types: string[] = [];
     const tsTypes: string[] = [];
-    for (let j = 0; j < ifaceProps.length; j++) {
-      const f = ifaceProps[j] as { name: string; type: string };
-      if (!f || !f.name) continue;
-      keys.push(stripOptional(f.name));
-      tsTypes.push(f.type);
-      if (f.type === 'string') {
+    for (let j = 0; j < ifaceProps.keys.length; j++) {
+      keys.push(stripOptional(ifaceProps.keys[j]));
+      tsTypes.push(ifaceProps.types[j]);
+      if (ifaceProps.types[j] === 'string') {
         types.push('i8*');
-      } else if (f.type === 'number') {
+      } else if (ifaceProps.types[j] === 'number') {
         types.push('double');
-      } else if (f.type === 'boolean') {
+      } else if (ifaceProps.types[j] === 'boolean') {
         types.push('double');
       } else {
         types.push('i8*');
@@ -1870,10 +1849,10 @@ export class MemberAccessGenerator {
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
     if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
-    const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-    if (!mapMatch) return null;
+    const mapParsed = parseMapTypeString(fieldInfo.tsType);
+    if (!mapParsed) return null;
 
-    const valueType = mapMatch[2];
+    const valueType = mapParsed.valueType;
     const interfaceDefResult = this.getInterfaceDecl(valueType);
     if (!interfaceDefResult) return null;
     const interfaceDef = interfaceDefResult as InterfaceDeclaration;
@@ -2628,9 +2607,8 @@ export class MemberAccessGenerator {
       const builtinFields = this.getBuiltinAstTypeFields(assertedType);
       if (builtinFields) {
         fields = [];
-        for (let bfi = 0; bfi < builtinFields.length; bfi++) {
-          const bf = builtinFields[bfi];
-          fields.push({ name: bf.name, type: bf.type });
+        for (let bfi = 0; bfi < builtinFields.keys.length; bfi++) {
+          fields.push({ name: builtinFields.keys[bfi], type: builtinFields.tsTypes[bfi] });
         }
       } else {
         const ifaceProps = this.ctx.getInterfaceProperties(assertedType);
@@ -2643,9 +2621,8 @@ export class MemberAccessGenerator {
           return this.generate(syntheticExpr, params);
         }
         fields = [];
-        for (let ipf = 0; ipf < ifaceProps.length; ipf++) {
-          const f = ifaceProps[ipf] as { name: string; type: string };
-          fields.push({ name: f.name, type: f.type });
+        for (let ipf = 0; ipf < ifaceProps.keys.length; ipf++) {
+          fields.push({ name: ifaceProps.keys[ipf], type: ifaceProps.types[ipf] });
         }
       }
     }

@@ -232,7 +232,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
   const absPath = path.resolve(entryFile);
 
   if (compiledFiles.has(absPath)) {
-    return { imports: [], functions: [], classes: [], exports: [], interfaces: [], typeAliases: [], enums: [], topLevelStatements: [], topLevelExpressions: [], topLevelItems: [] };
+    return { imports: [], functions: [], classes: [], exports: [], interfaces: [], typeAliases: [], enums: [], topLevelStatements: [], topLevelExpressions: [], topLevelItems: [], topLevelItemTypes: [] };
   }
   compiledFiles.add(absPath);
 
@@ -261,7 +261,8 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
     enums: ast.enums?.slice() || [],
     topLevelStatements: ast.topLevelStatements.slice(),
     topLevelExpressions: ast.topLevelExpressions.slice(),
-    topLevelItems: ast.topLevelItems?.slice() || []
+    topLevelItems: ast.topLevelItems?.slice() || [],
+    topLevelItemTypes: ast.topLevelItemTypes?.slice() || []
   };
 
   let i = 0;

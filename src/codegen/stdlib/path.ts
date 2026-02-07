@@ -21,9 +21,10 @@ export class PathGenerator {
    */
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
-    return exprObjBase.type === 'variable' &&
-           (expr.object as any).name === 'path' &&
-           (expr.method === 'resolve' || expr.method === 'dirname' || expr.method === 'basename');
+    if (exprObjBase.type !== 'variable') return false;
+    const varNode = expr.object as { type: string; name: string };
+    if (varNode.name !== 'path') return false;
+    return (expr.method === 'resolve' || expr.method === 'dirname' || expr.method === 'basename');
   }
 
   /**

@@ -353,10 +353,10 @@ export function createUnionMetadata(objectMetadata: ObjectMetadata, unionType: s
  */
 export interface Symbol {
   name: string;
-  kind: SymbolKind;
+  kind: number;
   llvmType: string;           // e.g., 'double', 'i8*', '%Array*'
   allocaRegister: string;     // e.g., '%1', '%foo'
-  scope: 'local' | 'global';  // Function-local or top-level
+  scope: string;  // Function-local or top-level
 
   // True if alloca contains a pointer (e.g., function parameter %Array** holding %Array*)
   // False if alloca contains the value directly (e.g., local %Array* pointing to %Array struct)
@@ -457,10 +457,10 @@ export class SymbolTable {
    */
   define(
     name: string,
-    kind: SymbolKind,
+    kind: number,
     llvmType: string,
     allocaRegister: string,
-    scope: 'local' | 'global' = 'local'
+    scope: string
   ): void {
     if (!name) return;
     const symbol: Symbol = {
@@ -490,10 +490,10 @@ export class SymbolTable {
 
   defineWithMetadata(
     name: string,
-    kind: SymbolKind,
+    kind: number,
     llvmType: string,
     allocaRegister: string,
-    scope: 'local' | 'global',
+    scope: string,
     metadata: SymbolMetadata
   ): void {
     if (!name) return;
@@ -588,7 +588,7 @@ export class SymbolTable {
   /**
    * Get symbol kind for a variable
    */
-  getKind(name: string): SymbolKind | undefined {
+  getKind(name: string): number | undefined {
     if (!name) return undefined;
     const symbol = this.symbols.get(name);
     if (symbol) {
@@ -741,7 +741,7 @@ export class SymbolTable {
   /**
    * Get all symbols of a specific kind
    */
-  getByKind(kind: SymbolKind): Symbol[] {
+  getByKind(kind: number): Symbol[] {
     const result: Symbol[] = [];
     for (let i = 0; i < this.symbolKeys.length; i++) {
       const name = this.symbolKeys[i];
@@ -796,7 +796,7 @@ export class SymbolTable {
   // Type-safe predicates
   // ============================================
 
-  private getSymbolKind(name: string): SymbolKind | undefined {
+  private getSymbolKind(name: string): number | undefined {
     const symbol = this.symbols.get(name);
     if (symbol) {
       return symbol.kind;
@@ -805,70 +805,152 @@ export class SymbolTable {
   }
 
   isNumber(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.Number;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.Number;
+    if (k === m) { return true; }
+    return false;
   }
 
   isString(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.String;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.String;
+    if (k === m) { return true; }
+    return false;
   }
 
   isBoolean(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.Boolean;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.Boolean;
+    if (k === m) { return true; }
+    return false;
   }
 
   isArray(name: string): boolean {
-    const kind = this.getSymbolKind(name);
-    return kind === SymbolKind.Array ||
-           kind === SymbolKind.StringArray ||
-           kind === SymbolKind.BooleanArray;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    if (k === SymbolKind.Array) { return true; }
+    if (k === SymbolKind.StringArray) { return true; }
+    if (k === SymbolKind.BooleanArray) { return true; }
+    return false;
   }
 
   isNumberArray(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.Array;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.Array;
+    if (k === m) { return true; }
+    return false;
   }
 
   isStringArray(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.StringArray;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.StringArray;
+    if (k === m) { return true; }
+    return false;
   }
 
   isBooleanArray(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.BooleanArray;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.BooleanArray;
+    if (k === m) { return true; }
+    return false;
   }
 
   isObject(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.Object;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.Object;
+    if (k === m) { return true; }
+    return false;
   }
 
   isMap(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.Map;
+    const symbol = this.symbols.get(name);
+    if (!symbol) {
+      return false;
+    }
+    const k = symbol.kind;
+    const m = SymbolKind.Map;
+    if (k === m) {
+      return true;
+    }
+    return false;
   }
 
   isSet(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.Set;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.Set;
+    if (k === m) { return true; }
+    return false;
   }
 
   isClass(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.Class;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.Class;
+    if (k === m) { return true; }
+    return false;
   }
 
   isRegex(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.Regex;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.Regex;
+    if (k === m) { return true; }
+    return false;
   }
 
   isJSON(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.JSON;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.JSON;
+    if (k === m) { return true; }
+    return false;
   }
 
   isProcessArgv(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.ProcessArgv;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.ProcessArgv;
+    if (k === m) { return true; }
+    return false;
   }
 
   isClosure(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.Closure;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.Closure;
+    if (k === m) { return true; }
+    return false;
   }
 
   isObjectArray(name: string): boolean {
-    return this.getSymbolKind(name) === SymbolKind.ObjectArray;
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.ObjectArray;
+    if (k === m) { return true; }
+    return false;
   }
 
   // ============================================

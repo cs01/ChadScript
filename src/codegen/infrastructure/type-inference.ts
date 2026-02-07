@@ -3,7 +3,7 @@ import { SymbolTable, SymbolKind } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { ClassGenerator } from '../types/objects/class.js';
 import type { TypeResolver } from './type-resolver/index.js';
-import { stripNullable } from './type-system.js';
+import { stripNullable, parseMapTypeString } from './type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -994,8 +994,8 @@ export class TypeInference {
           const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), memberAccess.property);
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
-            const mapMatch = fieldInfo.tsType.match(/^Map<string,\s*string>$/);
-            if (mapMatch) {
+            const mapParsed = parseMapTypeString(fieldInfo.tsType);
+            if (mapParsed && mapParsed.keyType === 'string' && mapParsed.valueType === 'string') {
               return true;
             }
           }
@@ -1051,8 +1051,8 @@ export class TypeInference {
             const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), memberExpr.property);
             const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
             if (fieldInfoResult && fieldInfo.tsType) {
-              const mapMatch = fieldInfo.tsType.match(/^Map<(\w+),\s*(.+)>$/);
-              if (mapMatch && mapMatch[2] && this.getClass(mapMatch[2])) {
+              const mapParsed = parseMapTypeString(fieldInfo.tsType);
+              if (mapParsed && mapParsed.valueType && this.getClass(mapParsed.valueType)) {
                 return true;
               }
             }
@@ -1261,7 +1261,7 @@ export class TypeInference {
     return null;
   }
 
-  getMethodCallArrayReturn(expr: Expression): { elementType: string; fields: { name: string; type: string }[] } | null {
+  getMethodCallArrayReturn(expr: Expression): string | null {
     const e = expr as ExprBase;
     if (e.type !== 'method_call') return null;
     const methodExpr = expr as MethodCallNode;
@@ -1270,27 +1270,15 @@ export class TypeInference {
 
     if (className) {
       const method = this.getClassMethod(className, methodExpr.method);
-      if (method && method.returnType && method.returnType.endsWith('[]')) {
-        const elementTypeName = method.returnType.slice(0, -2).trim();
-        if (elementTypeName === 'string' || elementTypeName === 'number' || elementTypeName === 'boolean') {
-          return null;
-        }
-        if (elementTypeName.startsWith('{') && elementTypeName.endsWith('}')) {
-          const fields = this.parseInlineObjectType(elementTypeName);
-          if (fields && fields.length > 0) {
-            return { elementType: 'inline', fields };
+      if (method && method.returnType) {
+        const rt = stripNullable(method.returnType);
+        if (rt.endsWith('[]')) {
+          const elementTypeName = rt.slice(0, -2).trim();
+          if (elementTypeName === 'string' || elementTypeName === 'number' || elementTypeName === 'boolean') {
+            return null;
           }
+          return elementTypeName;
         }
-        const elementIface = this.getInterface(elementTypeName);
-        if (elementIface) {
-          const fields: { name: string; type: string }[] = [];
-          for (let i = 0; i < elementIface.fields.length; i++) {
-            const f = elementIface.fields[i] as { name: string; type: string };
-            fields.push({ name: f.name.replace('?', ''), type: f.type });
-          }
-          return { elementType: elementTypeName, fields };
-        }
-        return { elementType: 'object', fields: [] };
       }
     }
 

@@ -1,5 +1,7 @@
 import { Expression, ArrayNode, ObjectNode, MapNode, SetNode } from '../../ast/types.js';
 
+import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
+
 interface StringGeneratorLike {
   createStringConstant(value: string): string;
 }
@@ -93,13 +95,11 @@ export class LiteralExpressionGenerator {
    * Converts integers to double via sitofp for consistency with JavaScript semantics
    */
   generateNumber(value: number): string {
-    const isInteger = (Math.floor(value) === value);
+    const isInteger = (value % 1 === 0);
 
     if (isInteger) {
-      // Generate integer literals as registers that can be converted to i32 or double as needed
       const temp = this.ctx.nextTemp();
-      const intValue = Math.floor(value);
-      this.ctx.emit(`${temp} = sitofp i32 ${intValue} to double`);
+      this.ctx.emit(`${temp} = sitofp i32 ${value} to double`);
       this.ctx.setVariableType(temp, 'double');
       return temp;
     } else {
@@ -160,8 +160,8 @@ export class LiteralExpressionGenerator {
 
     const declaredType = this.ctx.getCurrentDeclaredMapType();
     if (declaredType) {
-      const match = declaredType.match(/^Map<\s*(\w+)\s*,\s*(.+)\s*>$/);
-      if (match && match[1] === 'string') {
+      const mapParsed = parseMapTypeString(declaredType);
+      if (mapParsed && mapParsed.keyType === 'string') {
         return this.ctx.stringMapGenGenerateEmptyStringMap();
       }
     }
@@ -181,8 +181,8 @@ export class LiteralExpressionGenerator {
 
     const declaredType = this.ctx.getCurrentDeclaredSetType();
     if (declaredType) {
-      const match = declaredType.match(/^Set<\s*(\w+)\s*>$/);
-      if (match && match[1] === 'string') {
+      const setParsed = parseSetTypeString(declaredType);
+      if (setParsed && setParsed.valueType === 'string') {
         return this.ctx.stringSetGenGenerateEmptyStringSet();
       }
     }

@@ -303,9 +303,9 @@ export class ControlFlowGenerator {
     const isStringArray = this.ctx.isStringArrayExpression(forOfStmt.iterable);
     const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(forOfStmt.iterable);
     const isStringSet = this.isStringSetExpression(forOfStmt.iterable);
-    let arrayType: string;
-    let elementType: string;
-    let elementKind: SymbolKind;
+    let arrayType: string = '';
+    let elementType: string = '';
+    let elementKind: number = SymbolKind.Number;
 
     if (isStringSet) {
       arrayType = '%StringSet';
@@ -452,8 +452,8 @@ export class ControlFlowGenerator {
     if (!objMeta) {
       return null;
     }
-    const tsTypes = objMeta.tsTypes;
-    const keys = objMeta.keys;
+    const tsTypes: string[] = objMeta.tsTypes as string[];
+    const keys: string[] = objMeta.keys as string[];
     if (!tsTypes || !keys) {
       return null;
     }
@@ -530,20 +530,18 @@ export class ControlFlowGenerator {
 
     if (this.ctx.isTypeAlias(elementInterface)) {
       const commonProps = this.ctx.getTypeAliasCommonProperties(elementInterface);
-      if (commonProps && commonProps.length > 0) {
+      if (commonProps && commonProps.keys.length > 0) {
         const elementKeys: string[] = [];
         const elementTypes: string[] = [];
         const elementTsTypes: string[] = [];
-        for (let i = 0; i < commonProps.length; i++) {
-          const f = commonProps[i] as { name: string; type: string };
-          if (!f.name || !f.type) continue;
-          elementKeys.push(f.name);
-          elementTsTypes.push(f.type);
-          if (f.type === 'string') {
+        for (let i = 0; i < commonProps.keys.length; i++) {
+          elementKeys.push(commonProps.keys[i]);
+          elementTsTypes.push(commonProps.types[i]);
+          if (commonProps.types[i] === 'string') {
             elementTypes.push('i8*');
-          } else if (f.type === 'number') {
+          } else if (commonProps.types[i] === 'number') {
             elementTypes.push('double');
-          } else if (f.type === 'boolean') {
+          } else if (commonProps.types[i] === 'boolean') {
             elementTypes.push('i32');
           } else {
             elementTypes.push('i8*');
@@ -609,8 +607,8 @@ export class ControlFlowGenerator {
         }
         const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
         if (objMeta && objMeta.tsTypes) {
-          const keys = objMeta.keys;
-          const tsTypes = objMeta.tsTypes;
+          const keys: string[] = objMeta.keys as string[];
+          const tsTypes: string[] = objMeta.tsTypes as string[];
           const idx = keys.indexOf(propName);
           if (idx !== -1) {
             const fieldType = tsTypes[idx];
@@ -984,22 +982,20 @@ export class ControlFlowGenerator {
       return null;
     }
     const commonProps = this.ctx.getTypeAliasCommonProperties(typeName);
-    if (!commonProps || commonProps.length === 0) {
+    if (!commonProps || commonProps.keys.length === 0) {
       return null;
     }
     const elementKeys: string[] = [];
     const elementTypes: string[] = [];
     const elementTsTypes: string[] = [];
-    for (let i = 0; i < commonProps.length; i++) {
-      const f = commonProps[i] as { name: string; type: string };
-      if (!f.name || !f.type) continue;
-      elementKeys.push(f.name);
-      elementTsTypes.push(f.type);
-      if (f.type === 'string') {
+    for (let i = 0; i < commonProps.keys.length; i++) {
+      elementKeys.push(commonProps.keys[i]);
+      elementTsTypes.push(commonProps.types[i]);
+      if (commonProps.types[i] === 'string') {
         elementTypes.push('i8*');
-      } else if (f.type === 'number') {
+      } else if (commonProps.types[i] === 'number') {
         elementTypes.push('double');
-      } else if (f.type === 'boolean') {
+      } else if (commonProps.types[i] === 'boolean') {
         elementTypes.push('i32');
       } else {
         elementTypes.push('i8*');
@@ -1534,7 +1530,7 @@ export class ControlFlowGenerator {
     if (!ifaceResult) return null;
     const iface = ifaceResult as { name: string; fields: { name: string; type: string }[] };
 
-    const currentKeys = objMeta.keys;
+    const currentKeys: string[] = objMeta.keys as string[];
     const ifaceKeys: string[] = [];
     for (let fi = 0; fi < iface.fields.length; fi++) {
       const f = iface.fields[fi] as { name: string; type: string };
@@ -1898,8 +1894,9 @@ export class ControlFlowGenerator {
     let checkLabels: string[] = [];
     let testCaseCount = 0;
     for (let i = 0; i < switchStmt.cases.length; i++) {
-      if (!switchStmt.cases[i]) continue;
-      if (switchStmt.cases[i].test !== null) {
+      const caseItem = switchStmt.cases[i];
+      if (!caseItem) continue;
+      if (caseItem.test !== null) {
         testCaseCount++;
       }
     }

@@ -10,6 +10,7 @@ declare const child_process: {
 declare const fs: {
   readFileSync(filename: string): string;
   writeFileSync(filename: string, data: string): number;
+  appendFileSync(filename: string, data: string): number;
   existsSync(filename: string): boolean;
   unlinkSync(filename: string): number;
 };
@@ -25,6 +26,8 @@ declare const process: {
   argv: string[];
 };
 
+declare function __gc_disable(): void;
+
 const BDWGC_PATH = './vendor/bdwgc';
 const MONGOOSE_PATH = './vendor/mongoose';
 const CHADSCRIPT_PATH = '.';
@@ -32,6 +35,8 @@ const CHADSCRIPT_PATH = '.';
 export function compileNative(inputFile: string, outputFile: string): void {
   console.log('ChadScript native compiler v0.1.0');
   console.log('Input file: ' + inputFile);
+
+  __gc_disable();
 
   const compiledFiles: string[] = [];
   const mergedAST = compileMultiFile(inputFile, compiledFiles);
@@ -57,11 +62,19 @@ export function compileNative(inputFile: string, outputFile: string): void {
     filename: inputFile
   };
   const generator = new LLVMGenerator(mergedAST, null, generatorOptions);
-  const llvmIR = generator.generate();
-  console.log('Generated IR, length = ' + llvmIR.length);
+  const irParts = generator.generateParts();
+  console.log('Generated IR parts: ' + irParts.length);
 
   const irFile = outputFile + '.ll';
-  fs.writeFileSync(irFile, llvmIR);
+  fs.writeFileSync(irFile, '');
+  for (let pi = 0; pi < irParts.length; pi++) {
+    const part = irParts[pi];
+    if (part.indexOf('ts_parser_language') !== -1) {
+      const preview = part.substr(0, 80);
+      console.log('Part ' + pi + ' contains ts_parser_language, len=' + part.length + ' preview=' + preview);
+    }
+    fs.appendFileSync(irFile, part);
+  }
 
   const objFile = outputFile + '.o';
   const llcCmd = 'llc -filetype=obj ' + irFile + ' -o ' + objFile;
@@ -104,7 +117,8 @@ function compileMultiFile(entryFile: string, compiledFiles: string[]): AST {
     enums: ast.enums ? ast.enums.slice(0) : [],
     topLevelStatements: ast.topLevelStatements.slice(0),
     topLevelExpressions: ast.topLevelExpressions.slice(0),
-    topLevelItems: ast.topLevelItems ? ast.topLevelItems.slice(0) : []
+    topLevelItems: ast.topLevelItems ? ast.topLevelItems.slice(0) : [],
+    topLevelItemTypes: ast.topLevelItemTypes ? ast.topLevelItemTypes.slice(0) : []
   };
 
   let i = 0;
@@ -186,7 +200,8 @@ function emptyAST(): AST {
     enums: [],
     topLevelStatements: [],
     topLevelExpressions: [],
-    topLevelItems: []
+    topLevelItems: [],
+    topLevelItemTypes: []
   };
 }
 

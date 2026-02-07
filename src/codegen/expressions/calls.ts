@@ -59,6 +59,16 @@ export class CallExpressionGenerator {
       return this.generateSuperCall(expr, params);
     }
 
+    if (expr.name === '__gc_disable') {
+      this.ctx.emit('call void @GC_disable()');
+      return '0.0';
+    }
+
+    if (expr.name === '__gc_enable') {
+      this.ctx.emit('call void @GC_enable()');
+      return '0.0';
+    }
+
     // Handle httpServe() special built-in function
     if (expr.name === 'httpServe') {
       return this.ctx.generateHttpServe(expr, params);
@@ -819,7 +829,6 @@ export class CallExpressionGenerator {
 
     const parentFields = this.ctx.classGenGetClassFields(parentClassName);
     if (parentFields.length > 0) {
-      const currentClassName = this.ctx.currentClassName;
       const childStructType = `%${currentClassName}_struct*`;
       const castedThis = this.ctx.nextTemp();
       this.ctx.emit(`${castedThis} = bitcast i8* ${thisPtr} to ${childStructType}`);

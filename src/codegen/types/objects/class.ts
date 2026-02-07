@@ -329,8 +329,14 @@ export class ClassGenerator {
       this.ctx.clearOutput();
       const constructorIr = this.generateConstructor(className, constructor, allFields);
       if (constructorIr) {
+        const ctorPrefix = constructorIr.substr(0, 40);
+        if (ctorPrefix.indexOf('define') === -1) {
+          console.log('WARNING: constructor for ' + className + ' does not start with define! prefix=' + ctorPrefix);
+        }
         parts.push(constructorIr);
         parts.push('\n');
+      } else {
+        console.log('WARNING: constructor for ' + className + ' returned falsy');
       }
     } else {
       const defaultCtorIr = this.generateDefaultConstructor(className, allFields);
@@ -342,8 +348,12 @@ export class ClassGenerator {
 
     for (let methodIdx = 0; methodIdx < classNode.methods.length; methodIdx++) {
       const method = classNode.methods[methodIdx] as ClassMethod;
-      if (!method) continue;
-      if (!method.name) continue;
+      if (!method) {
+        continue;
+      }
+      if (!method.name) {
+        continue;
+      }
       if (!method.isConstructor) {
         this.ctx.clearOutput();
         const methodIr = this.generateMethod(className, method, allFields);
@@ -577,13 +587,10 @@ export class ClassGenerator {
 
     const paramLLVMTypes: string[] = [];
     const paramTsTypes: string[] = method.paramTypes || [];
-    if (method.paramTypes && method.paramTypes.length > 0) {
-      for (let ptIdx = 0; ptIdx < method.paramTypes.length; ptIdx++) {
-        const pType = method.paramTypes[ptIdx];
-        paramLLVMTypes.push(this.tsTypeToLlvm(pType));
-      }
-    } else {
-      for (let i = 0; i < method.params.length; i++) {
+    for (let i = 0; i < method.params.length; i++) {
+      if (method.paramTypes && i < method.paramTypes.length && method.paramTypes[i]) {
+        paramLLVMTypes.push(this.tsTypeToLlvm(method.paramTypes[i]));
+      } else {
         paramLLVMTypes.push('double');
       }
     }
@@ -1022,6 +1029,24 @@ export class ClassGenerator {
       return;
     }
 
+    if (tsType.startsWith('{') && tsType.endsWith('}')) {
+      const inlineFields = this.parseInlineObjectFields(tsType);
+      if (inlineFields.length > 0) {
+        const keys: string[] = [];
+        const types: string[] = [];
+        const tsTypes: string[] = [];
+        for (let fi = 0; fi < inlineFields.length; fi++) {
+          const f = inlineFields[fi] as { name: string; type: string };
+          keys.push(stripOptional(f.name));
+          types.push(this.fieldTypeToLlvm(f.type));
+          tsTypes.push(f.type);
+        }
+        this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local',
+          createObjectMetadata({ keys, types, tsTypes }));
+        return;
+      }
+    }
+
     this.ctx.defineVariable(paramName, allocaReg, llvmType, SymbolKind.Object, 'local');
   }
 
@@ -1030,7 +1055,55 @@ export class ClassGenerator {
     if (fieldType === 'number') return 'double';
     if (fieldType === 'boolean') return 'double';
     if (fieldType.startsWith("'") || fieldType.startsWith('"')) return 'i8*';
+    if (fieldType === 'string[]') return '%StringArray*';
+    if (fieldType === 'number[]' || fieldType === 'boolean[]') return '%Array*';
+    if (fieldType.endsWith('[]')) return '%ObjectArray*';
+    if (fieldType.indexOf(' | ') !== -1) {
+      const parts = fieldType.split(' | ');
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i].trim();
+        if (part === 'null' || part === 'undefined') continue;
+        return this.fieldTypeToLlvm(part);
+      }
+    }
     return 'i8*';
+  }
+
+  private parseInlineObjectFields(typeStr: string): { name: string; type: string }[] {
+    const inner = typeStr.slice(1, typeStr.length - 1).trim();
+    if (inner.length === 0) return [];
+    const fields: { name: string; type: string }[] = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i];
+      if (ch === '{' || ch === '(' || ch === '[' || ch === '<') {
+        depth++;
+      } else if (ch === '}' || ch === ')' || ch === ']' || ch === '>') {
+        depth--;
+      } else if (ch === ';' && depth === 0) {
+        const part = inner.slice(start, i).trim();
+        if (part) {
+          const colonIdx = part.indexOf(':');
+          if (colonIdx !== -1) {
+            const name = part.slice(0, colonIdx).trim();
+            const fieldType = part.slice(colonIdx + 1).trim();
+            fields.push({ name, type: fieldType });
+          }
+        }
+        start = i + 1;
+      }
+    }
+    const lastPart = inner.slice(start).trim();
+    if (lastPart) {
+      const colonIdx = lastPart.indexOf(':');
+      if (colonIdx !== -1) {
+        const name = lastPart.slice(0, colonIdx).trim();
+        const fieldType = lastPart.slice(colonIdx + 1).trim();
+        fields.push({ name, type: fieldType });
+      }
+    }
+    return fields;
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {

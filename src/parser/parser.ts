@@ -17,6 +17,7 @@ export class Parser implements ExpressionParserContext {
   topLevelStatements: (VariableDeclaration | AssignmentStatement)[] = [];
   topLevelExpressions: (CallNode | NewNode | MethodCallNode | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement)[] = [];
   topLevelItems: TopLevelItem[] = [];
+  topLevelItemTypes: string[] = [];
 
   constructor(code: string, filename: string = '<input>') {
     this.code = code;
@@ -134,6 +135,7 @@ export class Parser implements ExpressionParserContext {
         const varDecl = this.parseVariableDeclaration();
         this.topLevelStatements.push(varDecl);
         this.topLevelItems.push(varDecl);
+        this.topLevelItemTypes.push('variable_declaration');
         this.skipWhitespace();
         if (this.code[this.pos] === ';') {
           this.pos++;
@@ -144,18 +146,22 @@ export class Parser implements ExpressionParserContext {
         const forStmt = parseForStatement(this);
         this.topLevelExpressions.push(forStmt);
         this.topLevelItems.push(forStmt);
+        this.topLevelItemTypes.push('for');
       } else if (this.match('while')) {
         const whileStmt = parseWhileStatement(this);
         this.topLevelExpressions.push(whileStmt);
         this.topLevelItems.push(whileStmt);
+        this.topLevelItemTypes.push('while');
       } else if (this.match('if')) {
         const ifStmt = parseIfStatement(this);
         this.topLevelExpressions.push(ifStmt);
         this.topLevelItems.push(ifStmt);
+        this.topLevelItemTypes.push('if');
       } else if (this.match('try')) {
         const tryStmt = this.parseTryStatement();
         this.topLevelExpressions.push(tryStmt);
         this.topLevelItems.push(tryStmt);
+        this.topLevelItemTypes.push('try');
       } else if (this.match('declare')) {
         this.skipDeclareStatement();
       } else {
@@ -183,6 +189,7 @@ export class Parser implements ExpressionParserContext {
             if (expr.type === 'call' || expr.type === 'new' || expr.type === 'method_call') {
               this.topLevelExpressions.push(expr as CallNode | NewNode | MethodCallNode);
               this.topLevelItems.push(expr);
+              this.topLevelItemTypes.push(expr.type);
             }
             continue;
           }
@@ -226,6 +233,7 @@ export class Parser implements ExpressionParserContext {
 
           this.topLevelStatements.push(assignment);
           this.topLevelItems.push(assignment);
+          this.topLevelItemTypes.push('assignment');
         } catch (e) {
           const errorMsg = (e as Error).message;
           if (errorMsg && errorMsg.includes('is not supported in ChadScript')) {
@@ -251,7 +259,8 @@ export class Parser implements ExpressionParserContext {
       enums: this.enums,
       topLevelStatements: this.topLevelStatements,
       topLevelExpressions: this.topLevelExpressions,
-      topLevelItems: this.topLevelItems
+      topLevelItems: this.topLevelItems,
+      topLevelItemTypes: this.topLevelItemTypes
     };
   }
 
