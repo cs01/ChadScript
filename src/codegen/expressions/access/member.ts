@@ -160,6 +160,33 @@ export class MemberAccessGenerator {
     return this.ctx.findClassImplementingInterface(interfaceName);
   }
 
+  private resolveConcreteClassByFields(interfaceKeys: string[], targetProperty: string): string | null {
+    const classCount = this.ctx.getClassesCount();
+    let bestMatch: string | null = null;
+    let bestMatchCount = 0;
+    for (let i = 0; i < classCount; i++) {
+      const cls = this.ctx.getAstClassAt(i);
+      if (!cls || !cls.name || !cls.fields) continue;
+      const fieldInfo = this.ctx.classGenGetFieldInfo(cls.name, targetProperty);
+      if (!fieldInfo) continue;
+      let matchCount = 0;
+      for (let k = 0; k < interfaceKeys.length; k++) {
+        const key = interfaceKeys[k];
+        if (this.ctx.classGenGetFieldInfo(cls.name, key)) {
+          matchCount++;
+        }
+      }
+      if (matchCount > bestMatchCount) {
+        bestMatchCount = matchCount;
+        bestMatch = cls.name;
+      }
+    }
+    if (bestMatch && bestMatchCount >= 3) {
+      return bestMatch;
+    }
+    return null;
+  }
+
   private getInterfaceFromAST(name: string): InterfaceInfo | null {
     const baseName = this.extractBaseTypeName(name);
     const props = this.ctx.getInterfaceProperties(baseName);
@@ -964,6 +991,19 @@ export class MemberAccessGenerator {
         if (metaKeys && metaTypes) {
           const propIndex = metaKeys.indexOf(expr.property);
           if (propIndex !== -1) {
+            const resolvedClass = this.resolveConcreteClassByFields(metaKeys, expr.property);
+            if (resolvedClass) {
+              const fieldInfo = this.ctx.classGenGetFieldInfo(resolvedClass, expr.property);
+              if (fieldInfo) {
+                const castPtr = this.ctx.nextTemp();
+                this.ctx.emit(`${castPtr} = bitcast i8* ${innerPtr} to %${resolvedClass}_struct*`);
+                const fieldPtr = this.ctx.nextTemp();
+                this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${resolvedClass}_struct, %${resolvedClass}_struct* ${castPtr}, i32 0, i32 ${fieldInfo.index}`);
+                this.ctx.setActualClassType(innerPtr, resolvedClass);
+                const result = this.loadFieldValue(fieldPtr, fieldInfo, resolvedClass, expr.property);
+                return result;
+              }
+            }
             return this.accessObjectProperty(innerPtr, expr.property, metaKeys, metaTypes, metaTsTypes);
           }
         }
@@ -1033,8 +1073,32 @@ export class MemberAccessGenerator {
           this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${innerInterfaceName}, %${innerInterfaceName}* ${innerPtr}, i32 0, i32 ${propIndex}`);
         }
       } else {
-        fieldPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${innerInterfaceName}, %${innerInterfaceName}* ${innerPtr}, i32 0, i32 ${propIndex}`);
+        const interfaceFieldNames: string[] = [];
+        for (let ii = 0; ii < innerProps.length; ii++) {
+          const pp = innerProps[ii] as InterfaceProperty;
+          interfaceFieldNames.push(pp.name);
+        }
+        const structuralClass = this.resolveConcreteClassByFields(interfaceFieldNames, expr.property);
+        if (structuralClass) {
+          const classFieldInfo = this.ctx.classGenGetFieldInfo(structuralClass, expr.property);
+          if (classFieldInfo) {
+            const classFieldInfoTyped = classFieldInfo as { index: number; type: string; tsType?: string };
+            const castPtr = this.ctx.nextTemp();
+            this.ctx.emit(`${castPtr} = bitcast %${innerInterfaceName}* ${innerPtr} to %${structuralClass}_struct*`);
+            fieldPtr = this.ctx.nextTemp();
+            this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${structuralClass}_struct, %${structuralClass}_struct* ${castPtr}, i32 0, i32 ${classFieldInfoTyped.index}`);
+            this.ctx.setActualClassType(innerPtr, structuralClass);
+            if (classFieldInfoTyped.tsType) {
+              propType = classFieldInfoTyped.tsType;
+            }
+          } else {
+            fieldPtr = this.ctx.nextTemp();
+            this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${innerInterfaceName}, %${innerInterfaceName}* ${innerPtr}, i32 0, i32 ${propIndex}`);
+          }
+        } else {
+          fieldPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${innerInterfaceName}, %${innerInterfaceName}* ${innerPtr}, i32 0, i32 ${propIndex}`);
+        }
       }
     } else if (innerInterfaceName.endsWith('_struct')) {
       const className = innerInterfaceName.slice(0, -7);
