@@ -61,14 +61,12 @@ export function createStringConstant(ctx: IGeneratorContext, value: string): str
   const length = byteCount + 1;
   const globalName = ctx.nextString();
 
-  ctx.pushGlobalString(
-    `${globalName} = private unnamed_addr constant [${length} x i8] c"${escaped}\\00", align 1`
-  );
+  const globalDecl = globalName + ' = private unnamed_addr constant [' + length + ' x i8] c"' + escaped + '\\00", align 1';
+  ctx.pushGlobalString(globalDecl);
 
   const ptrReg = ctx.nextTemp();
-  ctx.emit(
-    `${ptrReg} = getelementptr inbounds [${length} x i8], [${length} x i8]* ${globalName}, i64 0, i64 0`
-  );
+  const gepInstr = ptrReg + ' = getelementptr inbounds [' + length + ' x i8], [' + length + ' x i8]* ' + globalName + ', i64 0, i64 0';
+  ctx.emit(gepInstr);
   ctx.setVariableType(ptrReg, 'i8*');
   return ptrReg;
 }

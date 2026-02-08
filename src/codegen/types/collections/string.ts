@@ -2,33 +2,33 @@ import { Expression } from '../../../ast/types.js';
 import { IGeneratorContext, IStringGenerator } from '../../infrastructure/generator-context.js';
 
 import {
-  createStringConstant as createStringConstantImpl,
-  convertNumberToString as convertNumberToStringImpl,
+  createStringConstant,
+  convertNumberToString,
 } from './string/constants.js';
 import {
-  generateStringConcat as generateStringConcatImpl,
-  generateStringConcatDirect as generateStringConcatDirectImpl,
+  generateStringConcat,
+  generateStringConcatDirect,
 } from './string/concatenation.js';
 import {
-  generateSubstr as generateSubstrImpl,
-  generateSlice as generateSliceImpl,
-  generateRepeat as generateRepeatImpl,
-  generatePadStart as generatePadStartImpl,
-  generateTrim as generateTrimImpl,
-  generateReplace as generateReplaceImpl,
-  generateReplaceAll as generateReplaceAllImpl,
-  generateToUpperCase as generateToUpperCaseImpl,
-  generateToLowerCase as generateToLowerCaseImpl,
+  generateSubstr,
+  generateSlice,
+  generateRepeat,
+  generatePadStart,
+  generateTrim,
+  generateReplace,
+  generateReplaceAll,
+  generateToUpperCase,
+  generateToLowerCase,
 } from './string/manipulation.js';
 import {
-  generateStartsWith as generateStartsWithImpl,
-  generateCharAt as generateCharAtImpl,
-  generateCharCodeAt as generateCharCodeAtImpl,
-  generateIndexOf as generateIndexOfImpl,
-  generateIncludes as generateIncludesImpl,
-  generateEndsWith as generateEndsWithImpl,
+  generateStartsWith,
+  generateCharAt,
+  generateCharCodeAt,
+  generateIndexOf,
+  generateIncludes,
+  generateEndsWith,
 } from './string/search.js';
-import { generateSplit as generateSplitImpl } from './string/split.js';
+import { generateSplit } from './string/split.js';
 
 // ============================================
 // STRING GENERATOR - String operations
@@ -41,107 +41,107 @@ export class StringGenerator implements IStringGenerator {
   // String Constants & Conversions
   // ============================================
 
-  createStringConstant(value: string): string {
-    return createStringConstantImpl(this.ctx, value);
+  doCreateStringConstant(value: string): string {
+    return createStringConstant(this.ctx, value);
   }
 
-  convertNumberToString(numValue: string): string {
-    return convertNumberToStringImpl(this.ctx, numValue);
+  doConvertNumberToString(numValue: string): string {
+    return convertNumberToString(this.ctx, numValue);
   }
 
   // ============================================
   // String Concatenation
   // ============================================
 
-  generateStringConcat(left: Expression, right: Expression, params: string[]): string {
-    return generateStringConcatImpl(this.ctx, left, right, params);
+  doGenerateStringConcat(left: Expression, right: Expression, params: string[]): string {
+    return generateStringConcat(this.ctx, left, right, params);
   }
 
-  generateStringConcatDirect(leftStr: string, rightStr: string): string {
-    return generateStringConcatDirectImpl(this.ctx, leftStr, rightStr);
+  doGenerateStringConcatDirect(leftStr: string, rightStr: string): string {
+    return generateStringConcatDirect(this.ctx, leftStr, rightStr);
   }
 
   // ============================================
   // String Manipulation
   // ============================================
 
-  generateSubstr(strPtr: string, startIndex: string, length: string | null): string {
-    return generateSubstrImpl(this.ctx, strPtr, startIndex, length);
+  doGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string {
+    return generateSubstr(this.ctx, strPtr, startIndex, length);
   }
 
-  generateSlice(strPtr: string, startIndex: string, endIndex: string | null): string {
-    return generateSliceImpl(this.ctx, strPtr, startIndex, endIndex);
+  doGenerateSlice(strPtr: string, startIndex: string, endIndex: string | null): string {
+    return generateSlice(this.ctx, strPtr, startIndex, endIndex);
   }
 
-  generateRepeat(strPtr: string, count: string): string {
-    return generateRepeatImpl(this.ctx, strPtr, count);
+  doGenerateRepeat(strPtr: string, count: string): string {
+    return generateRepeat(this.ctx, strPtr, count);
   }
 
-  generatePadStart(strPtr: string, targetLength: string, padString: string): string {
-    return generatePadStartImpl(this.ctx, strPtr, targetLength, padString);
+  doGeneratePadStart(strPtr: string, targetLength: string, padString: string): string {
+    return generatePadStart(this.ctx, strPtr, targetLength, padString);
   }
 
-  generateTrim(strPtr: string): string {
-    return generateTrimImpl(this.ctx, strPtr);
+  doGenerateTrim(strPtr: string): string {
+    return generateTrim(this.ctx, strPtr);
   }
 
-  generateToUpperCase(strPtr: string): string {
-    return generateToUpperCaseImpl(this.ctx, strPtr);
+  doGenerateToUpperCase(strPtr: string): string {
+    return generateToUpperCase(this.ctx, strPtr);
   }
 
-  generateToLowerCase(strPtr: string): string {
-    return generateToLowerCaseImpl(this.ctx, strPtr);
+  doGenerateToLowerCase(strPtr: string): string {
+    return generateToLowerCase(this.ctx, strPtr);
   }
 
   // ============================================
   // String Search & Query
   // ============================================
 
-  generateStartsWith(strPtr: string, prefix: string): string {
-    return generateStartsWithImpl(this.ctx, strPtr, prefix);
+  doGenerateStartsWith(strPtr: string, prefix: string): string {
+    return generateStartsWith(this.ctx, strPtr, prefix);
   }
 
-  generateCharAt(strPtr: string, index: string): string {
-    return generateCharAtImpl(this.ctx, strPtr, index);
+  doGenerateCharAt(strPtr: string, index: string): string {
+    return generateCharAt(this.ctx, strPtr, index);
   }
 
-  generateCharCodeAt(strPtr: string, index: string): string {
-    return generateCharCodeAtImpl(this.ctx, strPtr, index);
+  doGenerateCharCodeAt(strPtr: string, index: string): string {
+    return generateCharCodeAt(this.ctx, strPtr, index);
   }
 
-  generateIndexOf(strPtr: string, substring: string): string {
-    return generateIndexOfImpl(this.ctx, strPtr, substring);
+  doGenerateIndexOf(strPtr: string, substring: string): string {
+    return generateIndexOf(this.ctx, strPtr, substring);
   }
 
-  generateIncludes(strPtr: string, substring: string): string {
-    return generateIncludesImpl(this.ctx, strPtr, substring);
+  doGenerateIncludes(strPtr: string, substring: string): string {
+    return generateIncludes(this.ctx, strPtr, substring);
   }
 
-  generateEndsWith(strPtr: string, suffix: string): string {
-    return generateEndsWithImpl(this.ctx, strPtr, suffix);
+  doGenerateEndsWith(strPtr: string, suffix: string): string {
+    return generateEndsWith(this.ctx, strPtr, suffix);
   }
 
   // ============================================
   // String Split
   // ============================================
 
-  generateSplit(strPtr: string, delimiter: string): string {
-    return generateSplitImpl(this.ctx, strPtr, delimiter);
+  doGenerateSplit(strPtr: string, delimiter: string): string {
+    return generateSplit(this.ctx, strPtr, delimiter);
   }
 
   // ============================================
   // String Replace
   // ============================================
 
-  generateReplace(strPtr: string, search: string, replace: string): string {
-    return generateReplaceImpl(this.ctx, strPtr, search, replace);
+  doGenerateReplace(strPtr: string, search: string, replace: string): string {
+    return generateReplace(this.ctx, strPtr, search, replace);
   }
 
-  generateReplaceAll(strPtr: string, search: string, replace: string): string {
-    return generateReplaceAllImpl(this.ctx, strPtr, search, replace);
+  doGenerateReplaceAll(strPtr: string, search: string, replace: string): string {
+    return generateReplaceAll(this.ctx, strPtr, search, replace);
   }
 
-  generateGlobalString(value: string): string {
-    return createStringConstantImpl(this.ctx, value);
+  doGenerateGlobalString(value: string): string {
+    return createStringConstant(this.ctx, value);
   }
 }
