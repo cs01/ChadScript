@@ -358,13 +358,40 @@ function parseParameter(ctx: ParserContext): FunctionParameter {
 }
 
 function inferTypeFromNewExpression(expr: string): string | null {
-  const match = expr.match(/^new\s+(Map|Set)\s*<([^>]+)>\s*\(\s*\)$/);
-  if (match) {
-    const className = match[1];
-    const typeParams = match[2];
-    return `${className}<${typeParams}>`;
+  let i = 0;
+  if (expr.length < 8 || expr[0] !== 'n' || expr[1] !== 'e' || expr[2] !== 'w' || expr[3] !== ' ') return null;
+  i = 4;
+  while (i < expr.length && (expr[i] === ' ' || expr[i] === '\t')) i++;
+
+  let className: string;
+  if (expr.startsWith('Map', i)) {
+    className = 'Map';
+    i += 3;
+  } else if (expr.startsWith('Set', i)) {
+    className = 'Set';
+    i += 3;
+  } else {
+    return null;
   }
-  return null;
+
+  while (i < expr.length && (expr[i] === ' ' || expr[i] === '\t')) i++;
+  if (i >= expr.length || expr[i] !== '<') return null;
+  i++;
+  const typeStart = i;
+  while (i < expr.length && expr[i] !== '>') i++;
+  if (i >= expr.length || i === typeStart) return null;
+  const typeParams = expr.substring(typeStart, i);
+  i++;
+
+  while (i < expr.length && (expr[i] === ' ' || expr[i] === '\t')) i++;
+  if (i >= expr.length || expr[i] !== '(') return null;
+  i++;
+  while (i < expr.length && (expr[i] === ' ' || expr[i] === '\t')) i++;
+  if (i >= expr.length || expr[i] !== ')') return null;
+  i++;
+  if (i !== expr.length) return null;
+
+  return `${className}<${typeParams}>`;
 }
 
 export function parseClass(ctx: ParserContext): void {
