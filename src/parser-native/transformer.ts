@@ -1490,8 +1490,9 @@ function transformSwitchStatement(node: TreeSitterNode): IfStatement {
 
   const switchExpr = exprNode ? transformExpression(exprNode) : { type: 'variable' as const, name: 'undefined' };
 
-  let result: IfStatement | null = null;
-  let current: IfStatement | null = null;
+  const caseConditions: Expression[] = [];
+  const caseBodies: Statement[][] = [];
+  let defaultBody: Statement[] | null = null;
   let pendingConditions: Expression[] = [];
 
   if (bodyNode) {
@@ -1537,20 +1538,8 @@ function transformSwitchStatement(node: TreeSitterNode): IfStatement {
             }
             pendingConditions = [];
 
-            const ifStmt: IfStatement = {
-              type: 'if',
-              condition: finalCondition,
-              thenBlock: { type: 'block', statements },
-              elseBlock: null,
-            };
-
-            if (!result) {
-              result = ifStmt;
-              current = ifStmt;
-            } else if (current) {
-              current.elseBlock = { type: 'block', statements: [ifStmt] };
-              current = ifStmt;
-            }
+            caseConditions.push(finalCondition);
+            caseBodies.push(statements);
           }
         }
       } else if (cl.type === 'switch_default') {
@@ -1564,20 +1553,46 @@ function transformSwitchStatement(node: TreeSitterNode): IfStatement {
             if (stmt) statements.push(stmt);
           }
         }
-
-        if (current) {
-          current.elseBlock = { type: 'block', statements };
-        }
+        defaultBody = statements;
       }
     }
   }
 
-  return result || {
+  if (caseConditions.length === 0) {
+    return {
+      type: 'if',
+      condition: { type: 'boolean', value: false },
+      thenBlock: createEmptyBlock(),
+      elseBlock: null,
+    };
+  }
+
+  let elseBlock: BlockStatement | null = null;
+  if (defaultBody) {
+    elseBlock = { type: 'block', statements: defaultBody };
+  }
+
+  let idx = caseConditions.length - 1;
+  let ifChain: IfStatement = {
     type: 'if',
-    condition: { type: 'boolean', value: false },
-    thenBlock: createEmptyBlock(),
-    elseBlock: null,
+    condition: caseConditions[idx],
+    thenBlock: { type: 'block', statements: caseBodies[idx] },
+    elseBlock: elseBlock,
   };
+
+  idx = idx - 1;
+  while (idx >= 0) {
+    const wrappedElse: BlockStatement = { type: 'block', statements: [ifChain] };
+    ifChain = {
+      type: 'if',
+      condition: caseConditions[idx],
+      thenBlock: { type: 'block', statements: caseBodies[idx] },
+      elseBlock: wrappedElse,
+    };
+    idx = idx - 1;
+  }
+
+  return ifChain;
 }
 
 function createEmptyBlock(): BlockStatement {
