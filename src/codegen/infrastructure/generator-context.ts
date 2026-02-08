@@ -773,6 +773,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesPromises = false;
   public usesTimers = false;
   public currentFunction: string | null = null;
+  public currentDeclaredInterfaceType: string | undefined = undefined;
 
   getClassesCount(): number {
     if (!this.ast || !this.ast.classes) return 0;
@@ -864,6 +865,17 @@ export class MockGeneratorContext implements IGeneratorContext {
   getCurrentDeclaredMapType(): string | undefined { return this.currentDeclaredMapType; }
   getAllocaInstructions(): string[] { return this.allocaInstructions; }
   clearAllocaInstructions(): void { this.allocaInstructions.length = 0; }
+
+  setUsesPromises(value: boolean): void { this.usesPromises = value; }
+  getUsesPromises(): boolean { return this.usesPromises; }
+  setUsesTimers(value: boolean): void { this.usesTimers = value; }
+  getUsesTimers(): boolean { return this.usesTimers; }
+  setCurrentDeclaredInterfaceType(type: string | undefined): void { this.currentDeclaredInterfaceType = type; }
+  getCurrentDeclaredInterfaceType(): string | undefined { return this.currentDeclaredInterfaceType; }
+  setExpectedCallbackParamType(type: string | null): void { this.expectedCallbackParamType = type; }
+  getExpectedCallbackParamType(): string | null { return this.expectedCallbackParamType; }
+  setExpectedCallbackReturnType(type: string | null): void { this.expectedCallbackReturnType = type; }
+  getExpectedCallbackReturnType(): string | null { return this.expectedCallbackReturnType; }
 
   // SymbolTable wrapper methods (mock implementations)
   symbolTableLookup(name: string) { return this.symbolTable.lookup(name); }
