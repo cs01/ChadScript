@@ -77,7 +77,7 @@ export class RegexGenerator {
     const globalName = this.nextString();
 
     this.ctx.pushGlobalString(
-      `${globalName} = private unnamed_addr constant [${length} x i8] c"${escaped}\\00", align 1`
+      globalName + ' = private unnamed_addr constant [' + length + ' x i8] c"' + escaped + '\\00", align 1'
     );
 
     const patternPtr = this.nextTemp();

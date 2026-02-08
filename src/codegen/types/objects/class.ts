@@ -1,7 +1,7 @@
 import { Expression, ClassNode, ClassMethod, ClassField, VariableNode, InterfaceDeclaration, CommonField } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind, createObjectMetadata, createObjectMetadataWithInterfaceAndPointerAlloca, createClassMetadata } from '../../infrastructure/symbol-table.js';
-import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from '../../infrastructure/type-system.js';
+import { stripOptional, tsTypeToLlvm } from '../../infrastructure/type-system.js';
 
 // ============================================
 // CLASS GENERATOR - Class and instance operations
@@ -874,7 +874,7 @@ export class ClassGenerator {
     if (this.isEnumType(tsType)) {
       return 'double';
     }
-    return tsTypeToLlvmUtil(tsType);
+    return tsTypeToLlvm(tsType);
   }
 
   private isEnumType(typeName: string): boolean {
@@ -938,10 +938,11 @@ export class ClassGenerator {
 
   private defineParameterWithType(paramName: string, allocaReg: string, llvmType: string, tsType: string | undefined): void {
     if (!tsType || tsType.length === 0 || tsType === 'string') {
-      const kind = llvmType === 'i8*' ? SymbolKind.String :
-                   llvmType === '%StringArray*' ? SymbolKind.StringArray :
-                   llvmType === '%Array*' ? SymbolKind.Array :
-                   llvmType === 'double' ? SymbolKind.Number : SymbolKind.Object;
+      let kind = SymbolKind.Object;
+      if (llvmType === 'i8*') kind = SymbolKind.String;
+      else if (llvmType === '%StringArray*') kind = SymbolKind.StringArray;
+      else if (llvmType === '%Array*') kind = SymbolKind.Array;
+      else if (llvmType === 'double') kind = SymbolKind.Number;
       this.ctx.defineVariable(paramName, allocaReg, llvmType, kind, 'local');
       return;
     }
