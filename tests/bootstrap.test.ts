@@ -55,11 +55,12 @@ describe('Bootstrap Tests', { timeout: 180000 }, () => {
   it('Stage 1: can run all smoke test examples', async () => {
     assert.ok(fsSync.existsSync(stage1Binary), 'Stage 1 binary must exist');
 
-    const examples = [
+    const examples: Array<{ file: string; expectedExit?: number; expectTestPassed?: boolean }> = [
       { file: 'tests/fixtures/arithmetic/simple-add.js', expectedExit: 12 },
       { file: 'tests/fixtures/control-flow/if-else.js', expectedExit: 15 },
       { file: 'tests/fixtures/control-flow/for-loop.js', expectedExit: 55 },
       { file: 'tests/fixtures/arrays/array-literal.js', expectedExit: 3 },
+      { file: 'tests/fixtures/arrays/array-slice.ts', expectTestPassed: true },
     ];
 
     for (const example of examples) {
@@ -68,14 +69,22 @@ describe('Bootstrap Tests', { timeout: 180000 }, () => {
 
       await execAsync(`${stage1Binary} ${example.file}`, { timeout: 30000 });
 
-      try {
-        await execAsync(outputBinary);
-      } catch (err: any) {
-        assert.strictEqual(
-          err.code,
-          example.expectedExit,
-          `${example.file}: expected exit ${example.expectedExit}, got ${err.code}`
+      if (example.expectTestPassed) {
+        const { stdout } = await execAsync(outputBinary);
+        assert.ok(
+          stdout.includes('TEST_PASSED'),
+          `${example.file}: expected TEST_PASSED in stdout, got: ${stdout}`
         );
+      } else {
+        try {
+          await execAsync(outputBinary);
+        } catch (err: any) {
+          assert.strictEqual(
+            err.code,
+            example.expectedExit,
+            `${example.file}: expected exit ${example.expectedExit}, got ${err.code}`
+          );
+        }
       }
     }
   });
