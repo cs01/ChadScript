@@ -149,7 +149,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
         fieldTypesArr.push(envField.llvmType + '*');
       }
       const fieldTypes = fieldTypesArr.join(', ');
-      ir += `${envDef.name} = type { ${fieldTypes} }\n`;
+      ir += `${envDef.name} = type { ${fieldTypes} }` + '\n';
     }
     return ir;
   }

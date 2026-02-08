@@ -1,4 +1,4 @@
-import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter, SwitchStatement, SwitchCase } from '../../ast/types.js';
+import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter, SwitchStatement, SwitchCase, StringNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata, ObjectMetadata, createObjectMetadata, createObjectMetadataWithInterface } from '../infrastructure/symbol-table.js';
 import type { UnionCommonFields } from '../infrastructure/type-resolver/index.js';
@@ -1507,10 +1507,12 @@ export class ControlFlowGenerator {
 
     if (leftBase.type === 'member_access' && rightBase.type === 'string') {
       memberAccess = binary.left as MemberAccessNode;
-      literalValue = (binary.right as { type: 'string'; value: string }).value;
+      const rightStr = binary.right as StringNode;
+      literalValue = rightStr.value;
     } else if (rightBase.type === 'member_access' && leftBase.type === 'string') {
       memberAccess = binary.right as MemberAccessNode;
-      literalValue = (binary.left as { type: 'string'; value: string }).value;
+      const leftStr = binary.left as StringNode;
+      literalValue = leftStr.value;
     }
 
     if (!memberAccess || !literalValue) return null;

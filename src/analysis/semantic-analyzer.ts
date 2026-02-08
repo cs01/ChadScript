@@ -449,12 +449,12 @@ export class SemanticAnalyzer {
 
     for (let i = 0; i < this.errors.length; i++) {
       const error = this.errors[i] as AnalysisError;
-      output += `  \x1b[31m•\x1b[0m ${error.message}\n`;
+      output += `  \x1b[31m•\x1b[0m ${error.message}` + '\n';
       if (error.location) {
-        output += `    \x1b[90mLocation: ${error.location}\x1b[0m\n`;
+        output += `    \x1b[90mLocation: ${error.location}\x1b[0m` + '\n';
       }
       if (error.suggestion) {
-        output += `    \x1b[36mℹ ${error.suggestion}\x1b[0m\n`;
+        output += `    \x1b[36mℹ ${error.suggestion}\x1b[0m` + '\n';
       }
       output += '\n';
     }

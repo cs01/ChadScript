@@ -613,6 +613,15 @@ export class SymbolTable {
     return this.interfaceTypes.get(name);
   }
 
+  getObjectArrayElementType(name: string): string | undefined {
+    if (!name) return undefined;
+    const symbol = this.symbols.get(name);
+    if (symbol && symbol.kind === SymbolKind.ObjectArray) {
+      return this.interfaceTypes.get(name);
+    }
+    return undefined;
+  }
+
   getConcreteClass(name: string): string | undefined {
     if (!name) return undefined;
     const symbol = this.symbols.get(name);
@@ -1248,18 +1257,18 @@ export class SymbolTable {
       }
       const symbol = this.symbols.get(name);
       if (symbol) {
-        output += `${name}: ${symbol.kind} (${symbol.llvmType}) -> ${symbol.allocaRegister} [${symbol.scope}]\n`;
+        output += `${name}: ${symbol.kind} (${symbol.llvmType}) -> ${symbol.allocaRegister} [${symbol.scope}]` + '\n';
         if (symbol.objectMetadata) {
           const objMeta = symbol.objectMetadata;
-          output += `  Object: keys=${objMeta.keys.join(', ')}\n`;
+          output += `  Object: keys=${objMeta.keys.join(', ')}` + '\n';
         }
         if (symbol.classMetadata) {
           const classMeta = symbol.classMetadata;
-          output += `  Class: ${classMeta.className}\n`;
+          output += `  Class: ${classMeta.className}` + '\n';
         }
         if (symbol.arrayMetadata) {
           const arrMeta = symbol.arrayMetadata;
-          output += `  Array: elementType=${arrMeta.elementType}\n`;
+          output += `  Array: elementType=${arrMeta.elementType}` + '\n';
         }
       }
     }

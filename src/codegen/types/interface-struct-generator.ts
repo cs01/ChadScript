@@ -220,7 +220,7 @@ export class InterfaceStructGenerator {
       hasNonConflicting = true;
       const info = this.interfaceStructs.get(ifaceName)!;
       const fieldTypes = this.getFieldTypesString(info);
-      ir += `%${ifaceName} = type { ${fieldTypes} }\n`;
+      ir += `%${ifaceName} = type { ${fieldTypes} }` + '\n';
     }
 
     if (!hasNonConflicting) return '';

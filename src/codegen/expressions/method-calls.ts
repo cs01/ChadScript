@@ -242,22 +242,6 @@ export interface MethodCallGeneratorContext {
   symbolTableGetConcreteClass(name: string): string | undefined;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] };
-  consoleGen: ConsoleGeneratorLike;
-  processGen: ProcessGeneratorLike;
-  fsGen: FilesystemGeneratorLike;
-  pathGen: PathGeneratorLike;
-  jsonGen: JsonGeneratorLike;
-  mathGen: MathGeneratorLike;
-  stringGen: StringGeneratorLike;
-  regexGen: RegexGeneratorLike;
-  responseGen: ResponseGeneratorLike;
-  stringMapGen: StringMapGeneratorLike;
-  stringSetGen: StringSetGeneratorLike;
-  mapGen: MapGeneratorLike;
-  pointerMapGen: PointerMapGeneratorLike;
-  setGen: SetGeneratorLike;
-  arrayGen: ArrayGeneratorLike;
-  classGen: ClassGeneratorLike;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
   typeResolverGetThisFieldMapKeyType(expr: Expression): string | null;
@@ -270,8 +254,79 @@ export interface MethodCallGeneratorContext {
     scopeVarTypes: string[] | undefined
   ): string;
   arrowFunctionGenGetClosureInfo(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null;
-  exprGen: ExpressionGeneratorLike;
   getActualClassType(name: string): string | undefined;
+  findClassImplementingInterface(interfaceName: string): string | null;
+  stringGenCreateStringConstant(value: string): string;
+  stringGenGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string;
+  stringGenGenerateStringConcatDirect(left: string, right: string): string;
+  stringGenGenerateRepeat(strPtr: string, count: string): string;
+  stringGenGeneratePadStart(strPtr: string, targetLength: string, padString: string): string;
+  stringGenGenerateSplit(strPtr: string, delimiter: string): string;
+  stringGenGenerateStartsWith(strPtr: string, prefix: string): string;
+  stringGenGenerateEndsWith(strPtr: string, suffix: string): string;
+  stringGenGenerateTrim(strPtr: string): string;
+  stringGenGenerateToUpperCase(strPtr: string): string;
+  stringGenGenerateToLowerCase(strPtr: string): string;
+  stringGenGenerateIndexOf(strPtr: string, substring: string): string;
+  stringGenGenerateIncludes(strPtr: string, substring: string): string;
+  stringGenGenerateSlice(strPtr: string, start: string, end: string | null): string;
+  stringGenGenerateCharAt(strPtr: string, index: string): string;
+  stringGenGenerateCharCodeAt(strPtr: string, index: string): string;
+  stringGenGenerateReplace(strPtr: string, search: string, replace: string): string;
+  stringGenGenerateReplaceAll(strPtr: string, search: string, replace: string): string;
+  stringGenGenerateGlobalString(value: string): string;
+  fsGenReadFileSync(expr: MethodCallNode, params: string[]): string;
+  fsGenWriteFileSync(expr: MethodCallNode, params: string[]): string;
+  fsGenAppendFileSync(expr: MethodCallNode, params: string[]): string;
+  fsGenExistsSync(expr: MethodCallNode, params: string[]): string;
+  fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string;
+  pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
+  pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
+  pathGenGenerateBasename(expr: MethodCallNode, params: string[]): string;
+  jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string;
+  jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string;
+  mathGenCanHandle(expr: MethodCallNode): boolean;
+  mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string;
+  responseGenGenerateText(responsePtr: string): string;
+  responseGenGenerateJson(responsePtr: string): string;
+  responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: InterfaceDefInfo): string;
+  stringMapGenGenerateStringMapSet(mapAlloca: string, key: string, value: string): string;
+  stringMapGenGenerateStringMapGet(mapAlloca: string, key: string): string;
+  stringMapGenGenerateStringMapHas(mapAlloca: string, key: string): string;
+  stringMapGenGenerateStringMapClear(mapAlloca: string): string;
+  stringMapGenGenerateStringMapDelete(mapAlloca: string, key: string): string;
+  stringMapGenGenerateStringMapEntries(mapAlloca: string): string;
+  stringMapGenGenerateStringMapValues(mapAlloca: string): string;
+  stringMapGenGenerateStringMapKeys(mapAlloca: string): string;
+  stringSetGenGenerateStringSetAdd(setAlloca: string, value: string): string;
+  stringSetGenGenerateStringSetHas(setAlloca: string, value: string): string;
+  mapGenGenerateMapSet(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapGet(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapHas(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapClear(expr: MethodCallNode, params: string[]): string;
+  mapGenGenerateMapDelete(expr: MethodCallNode, params: string[]): string;
+  pointerMapGenGeneratePointerMapGet(mapPtr: string, keyToFind: string, valueType: string): string;
+  pointerMapGenGeneratePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
+  pointerMapGenGeneratePointerMapClear(mapPtr: string): string;
+  setGenGenerateSetAdd(expr: MethodCallNode, params: string[]): string;
+  setGenGenerateSetHas(expr: MethodCallNode, params: string[]): string;
+  setGenGenerateSetDelete(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayPush(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayPop(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayIncludes(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayMap(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateStringArrayMap(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayJoin(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayFind(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArraySome(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayEvery(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayFilter(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayForEach(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArraySlice(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayConcat(expr: MethodCallNode, params: string[]): string;
+  regexGenGenerateRegexTest(regexPtr: string, testStr: string): string;
+  regexGenGenerateRegexCompile(pattern: string, flags: string): string;
+  regexGenGenerateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string;
 }
 
 export class MethodCallGenerator {
@@ -364,7 +419,7 @@ export class MethodCallGenerator {
 
     if (argTyped.type === 'string') {
       const strValue = argTyped.value as string;
-      const strConstPtr = this.ctx.stringGen.doCreateStringConstant(strValue + '\n');
+      const strConstPtr = this.ctx.stringGenCreateStringConstant(strValue + '\n');
       if (useStderr) {
         const stderrPtr = this.ctx.nextTemp();
         this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
@@ -614,27 +669,27 @@ export class MethodCallGenerator {
     // Handle fs.* methods - inline check to avoid interface dispatch issues
     if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'fs') {
       if (method === 'readFileSync') {
-        return this.ctx.fsGen.generateReadFileSync(expr, params);
+        return this.ctx.fsGenReadFileSync(expr, params);
       } else if (method === 'writeFileSync') {
-        return this.ctx.fsGen.generateWriteFileSync(expr, params);
+        return this.ctx.fsGenWriteFileSync(expr, params);
       } else if (method === 'appendFileSync') {
-        return this.ctx.fsGen.generateAppendFileSync(expr, params);
+        return this.ctx.fsGenAppendFileSync(expr, params);
       } else if (method === 'existsSync') {
-        return this.ctx.fsGen.generateExistsSync(expr, params);
+        return this.ctx.fsGenExistsSync(expr, params);
       } else if (method === 'unlinkSync') {
-        return this.ctx.fsGen.generateUnlinkSync(expr, params);
+        return this.ctx.fsGenUnlinkSync(expr, params);
       }
     }
 
     // Handle path.resolve() and path.dirname() (delegated to PathGenerator)
     if (method === 'resolve' && this.isVariableWithName(expr.object, 'path')) {
-      return this.ctx.pathGen.generateResolve(expr, params);
+      return this.ctx.pathGenGenerateResolve(expr, params);
     }
     if (method === 'dirname' && this.isVariableWithName(expr.object, 'path')) {
-      return this.ctx.pathGen.generateDirname(expr, params);
+      return this.ctx.pathGenGenerateDirname(expr, params);
     }
     if (method === 'basename' && this.isVariableWithName(expr.object, 'path')) {
-      return this.ctx.pathGen.generateBasename(expr, params);
+      return this.ctx.pathGenGenerateBasename(expr, params);
     }
 
     // Handle execSync() from child_process
@@ -648,15 +703,15 @@ export class MethodCallGenerator {
     // Handle JSON.parse() and JSON.stringify() - inline check
     if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'JSON') {
       if (method === 'parse') {
-        return this.ctx.jsonGen.generateParse(expr, params);
+        return this.ctx.jsonGenGenerateParse(expr, params);
       } else if (method === 'stringify') {
-        return this.ctx.jsonGen.generateStringify(expr, params);
+        return this.ctx.jsonGenGenerateStringify(expr, params);
       }
     }
 
     // Handle Math.* methods (delegated to MathGenerator)
-    if (this.ctx.mathGen.canHandle(expr)) {
-      return this.ctx.mathGen.generateMathMethod(expr, params);
+    if (this.ctx.mathGenCanHandle(expr)) {
+      return this.ctx.mathGenGenerateMathMethod(expr, params);
     }
 
     // Handle JSON.stringify() (legacy implementation)
@@ -686,17 +741,17 @@ export class MethodCallGenerator {
         }
 
         if (method === 'text') {
-          return this.ctx.responseGen.generateText(responsePtr);
+          return this.ctx.responseGenGenerateText(responsePtr);
         } else if (method === 'json') {
           if (expr.typeParameter) {
             const typeName = expr.typeParameter;
             const interfaceDefResult = this.getInterfaceFromAST(typeName);
             if (interfaceDefResult) {
               const interfaceDef = interfaceDefResult as InterfaceDefInfo;
-              return this.ctx.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef);
+              return this.ctx.responseGenGenerateTypedJson(responsePtr, typeName, interfaceDef);
             }
           }
-          return this.ctx.responseGen.generateJson(responsePtr);
+          return this.ctx.responseGenGenerateJson(responsePtr);
         }
       } catch (e) {
         throw e;
@@ -775,40 +830,40 @@ export class MethodCallGenerator {
             if (method === 'set') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const valueValue = this.ctx.generateExpression(expr.args[1], params);
-              return this.ctx.stringMapGen.generateStringMapSet(mapAlloca, keyValue, valueValue);
+              return this.ctx.stringMapGenGenerateStringMapSet(mapAlloca, keyValue, valueValue);
             } else if (method === 'get') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapGet(mapAlloca, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapGet(mapAlloca, keyValue);
             } else if (method === 'has') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapHas(mapAlloca, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapHas(mapAlloca, keyValue);
             } else if (method === 'delete') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapDelete(mapAlloca, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapDelete(mapAlloca, keyValue);
             } else if (method === 'entries') {
-              return this.ctx.stringMapGen.generateStringMapEntries(mapAlloca);
+              return this.ctx.stringMapGenGenerateStringMapEntries(mapAlloca);
             } else if (method === 'values') {
-              return this.ctx.stringMapGen.generateStringMapValues(mapAlloca);
+              return this.ctx.stringMapGenGenerateStringMapValues(mapAlloca);
             } else if (method === 'keys') {
-              return this.ctx.stringMapGen.generateStringMapKeys(mapAlloca);
+              return this.ctx.stringMapGenGenerateStringMapKeys(mapAlloca);
             } else {
-              return this.ctx.stringMapGen.generateStringMapClear(mapAlloca);
+              return this.ctx.stringMapGenGenerateStringMapClear(mapAlloca);
             }
           }
         }
 
         if (method === 'set') {
-          return this.ctx.mapGen.generateMapSet(expr, params);
+          return this.ctx.mapGenGenerateMapSet(expr, params);
         } else if (method === 'get') {
-          return this.ctx.mapGen.generateMapGet(expr, params);
+          return this.ctx.mapGenGenerateMapGet(expr, params);
         } else if (method === 'has') {
-          return this.ctx.mapGen.generateMapHas(expr, params);
+          return this.ctx.mapGenGenerateMapHas(expr, params);
         } else if (method === 'delete') {
-          return this.ctx.mapGen.generateMapDelete(expr, params);
+          return this.ctx.mapGenGenerateMapDelete(expr, params);
         } else if (method === 'entries' || method === 'values' || method === 'keys') {
           throw new Error(`Map.${method}() only supported for Map<string, *> types`);
         } else {
-          return this.ctx.mapGen.generateMapClear(expr, params);
+          return this.ctx.mapGenGenerateMapClear(expr, params);
         }
       }
 
@@ -821,35 +876,35 @@ export class MethodCallGenerator {
             if (method === 'set') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const valueValue = this.ctx.generateExpression(expr.args[1], params);
-              return this.ctx.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue);
+              return this.ctx.stringMapGenGenerateStringMapSet(mapPtr, keyValue, valueValue);
             } else if (method === 'get') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapGet(mapPtr, keyValue);
             } else if (method === 'has') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapHas(mapPtr, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapHas(mapPtr, keyValue);
             } else if (method === 'delete') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringMapGen.generateStringMapDelete(mapPtr, keyValue);
+              return this.ctx.stringMapGenGenerateStringMapDelete(mapPtr, keyValue);
             } else if (method === 'clear') {
-              return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
+              return this.ctx.stringMapGenGenerateStringMapClear(mapPtr);
             } else if (method === 'entries') {
-              return this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
+              return this.ctx.stringMapGenGenerateStringMapEntries(mapPtr);
             } else if (method === 'values') {
-              return this.ctx.stringMapGen.generateStringMapValues(mapPtr);
+              return this.ctx.stringMapGenGenerateStringMapValues(mapPtr);
             } else {
-              return this.ctx.stringMapGen.generateStringMapKeys(mapPtr);
+              return this.ctx.stringMapGenGenerateStringMapKeys(mapPtr);
             }
           } else {
             if (method === 'set') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const valueValue = this.ctx.generateExpression(expr.args[1], params);
-              return this.ctx.pointerMapGen.generatePointerMapSet(mapPtr, keyValue, valueValue);
+              return this.ctx.pointerMapGenGeneratePointerMapSet(mapPtr, keyValue, valueValue);
             } else if (method === 'get') {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, 'i8*');
+              return this.ctx.pointerMapGenGeneratePointerMapGet(mapPtr, keyValue, 'i8*');
             } else if (method === 'clear') {
-              return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
+              return this.ctx.pointerMapGenGeneratePointerMapClear(mapPtr);
             } else {
               throw new Error(`Map.${method}() not supported for Map<${paramMapKeyType}, *> parameter types`);
             }
@@ -864,34 +919,34 @@ export class MethodCallGenerator {
           if (method === 'set') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
             const valueValue = this.ctx.generateExpression(expr.args[1], params);
-            return this.ctx.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue);
+            return this.ctx.stringMapGenGenerateStringMapSet(mapPtr, keyValue, valueValue);
           } else if (method === 'get') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
+            return this.ctx.stringMapGenGenerateStringMapGet(mapPtr, keyValue);
           } else if (method === 'has') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringMapGen.generateStringMapHas(mapPtr, keyValue);
+            return this.ctx.stringMapGenGenerateStringMapHas(mapPtr, keyValue);
           } else if (method === 'delete') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringMapGen.generateStringMapDelete(mapPtr, keyValue);
+            return this.ctx.stringMapGenGenerateStringMapDelete(mapPtr, keyValue);
           } else if (method === 'entries') {
-            return this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
+            return this.ctx.stringMapGenGenerateStringMapEntries(mapPtr);
           } else if (method === 'values') {
-            return this.ctx.stringMapGen.generateStringMapValues(mapPtr);
+            return this.ctx.stringMapGenGenerateStringMapValues(mapPtr);
           } else {
-            return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
+            return this.ctx.stringMapGenGenerateStringMapClear(mapPtr);
           }
         } else {
           const mapPtr = this.ctx.generateExpression(expr.object, params);
           if (method === 'set') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
             const valueValue = this.ctx.generateExpression(expr.args[1], params);
-            return this.ctx.pointerMapGen.generatePointerMapSet(mapPtr, keyValue, valueValue);
+            return this.ctx.pointerMapGenGeneratePointerMapSet(mapPtr, keyValue, valueValue);
           } else if (method === 'get') {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, 'i8*');
+            return this.ctx.pointerMapGenGeneratePointerMapGet(mapPtr, keyValue, 'i8*');
           } else if (method === 'clear') {
-            return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
+            return this.ctx.pointerMapGenGeneratePointerMapClear(mapPtr);
           } else {
             throw new Error(`Map.${method}() not supported for Map<${thisFieldMapKeyType}, *> types`);
           }
@@ -911,10 +966,10 @@ export class MethodCallGenerator {
           if (setAlloca) {
             if (method === 'add') {
               const valueValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringSetGen.generateStringSetAdd(setAlloca, valueValue);
+              return this.ctx.stringSetGenGenerateStringSetAdd(setAlloca, valueValue);
             } else if (method === 'has') {
               const valueValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.stringSetGen.generateStringSetHas(setAlloca, valueValue);
+              return this.ctx.stringSetGenGenerateStringSetHas(setAlloca, valueValue);
             } else {
               throw new Error('Set.delete() not yet implemented for Set<string>');
             }
@@ -922,11 +977,11 @@ export class MethodCallGenerator {
         }
 
         if (method === 'add') {
-          return this.ctx.setGen.generateSetAdd(expr, params);
+          return this.ctx.setGenGenerateSetAdd(expr, params);
         } else if (method === 'has') {
-          return this.ctx.setGen.generateSetHas(expr, params);
+          return this.ctx.setGenGenerateSetHas(expr, params);
         } else {
-          return this.ctx.setGen.generateSetDelete(expr, params);
+          return this.ctx.setGenGenerateSetDelete(expr, params);
         }
       }
 
@@ -936,10 +991,10 @@ export class MethodCallGenerator {
         if (thisFieldSetValueType === 'string') {
           if (method === 'add') {
             const valueValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringSetGen.generateStringSetAdd(setPtr, valueValue);
+            return this.ctx.stringSetGenGenerateStringSetAdd(setPtr, valueValue);
           } else if (method === 'has') {
             const valueValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.stringSetGen.generateStringSetHas(setPtr, valueValue);
+            return this.ctx.stringSetGenGenerateStringSetHas(setPtr, valueValue);
           } else {
             throw new Error('Set.delete() not yet implemented for Set<string>');
           }
@@ -949,32 +1004,32 @@ export class MethodCallGenerator {
 
     // Handle array methods (arrayGen uses context pattern - no sync needed! 🎯)
     if (method === 'push') {
-      return this.ctx.arrayGen.generateArrayPush(expr, params);
+      return this.ctx.arrayGenGenerateArrayPush(expr, params);
     } else if (method === 'pop') {
-      return this.ctx.arrayGen.generateArrayPop(expr, params);
+      return this.ctx.arrayGenGenerateArrayPop(expr, params);
     } else if (method === 'includes' && this.ctx.isArrayExpression(expr.object)) {
-      return this.ctx.arrayGen.generateArrayIncludes(expr, params);
+      return this.ctx.arrayGenGenerateArrayIncludes(expr, params);
     } else if (method === 'map') {
       if (this.ctx.isStringArrayExpression(expr.object)) {
-        return this.ctx.arrayGen.generateStringArrayMap(expr, params);
+        return this.ctx.arrayGenGenerateStringArrayMap(expr, params);
       }
-      return this.ctx.arrayGen.generateArrayMap(expr, params);
+      return this.ctx.arrayGenGenerateArrayMap(expr, params);
     } else if (method === 'join') {
-      return this.ctx.arrayGen.generateArrayJoin(expr, params);
+      return this.ctx.arrayGenGenerateArrayJoin(expr, params);
     } else if (method === 'find') {
-      return this.ctx.arrayGen.generateArrayFind(expr, params);
+      return this.ctx.arrayGenGenerateArrayFind(expr, params);
     } else if (method === 'some') {
-      return this.ctx.arrayGen.generateArraySome(expr, params);
+      return this.ctx.arrayGenGenerateArraySome(expr, params);
     } else if (method === 'every') {
-      return this.ctx.arrayGen.generateArrayEvery(expr, params);
+      return this.ctx.arrayGenGenerateArrayEvery(expr, params);
     } else if (method === 'filter') {
-      return this.ctx.arrayGen.generateArrayFilter(expr, params);
+      return this.ctx.arrayGenGenerateArrayFilter(expr, params);
     } else if (method === 'forEach') {
-      return this.ctx.arrayGen.generateArrayForEach(expr, params);
+      return this.ctx.arrayGenGenerateArrayForEach(expr, params);
     } else if (method === 'slice' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {
-      return this.ctx.arrayGen.generateArraySlice(expr, params);
+      return this.ctx.arrayGenGenerateArraySlice(expr, params);
     } else if (method === 'concat' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {
-      return this.ctx.arrayGen.generateArrayConcat(expr, params);
+      return this.ctx.arrayGenGenerateArrayConcat(expr, params);
     }
 
     // Handle class instance methods
@@ -1034,7 +1089,7 @@ export class MethodCallGenerator {
       this.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
 
       // Create format string: "\"%s\""
-      const formatStr = this.ctx.stringGen.doCreateStringConstant('"%s"');
+      const formatStr = this.ctx.stringGenCreateStringConstant('"%s"');
       const sprintfResult = this.nextTemp();
       this.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, i8* ${strPtr})`);
 
@@ -1048,7 +1103,7 @@ export class MethodCallGenerator {
       this.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 30)`);
 
       // Create format string: "%f"
-      const formatStr = this.ctx.stringGen.doCreateStringConstant('%f');
+      const formatStr = this.ctx.stringGenCreateStringConstant('%f');
       const sprintfResult = this.nextTemp();
       this.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${numValue})`);
 
@@ -1065,7 +1120,7 @@ export class MethodCallGenerator {
     }
 
     const testStr = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.regexGen.generateRegexTest(regexPtr, testStr);
+    return this.ctx.regexGenGenerateRegexTest(regexPtr, testStr);
   }
 
   private handleSubstr(expr: MethodCallNode, params: string[]): string {
@@ -1080,7 +1135,7 @@ export class MethodCallGenerator {
     const startIndex = this.convertToI32(startIndexDouble);
     const length = expr.args.length === 2 ? this.convertToI32(this.ctx.generateExpression(expr.args[1], params)) : null;
 
-    return this.ctx.stringGen.doGenerateSubstr(strPtr, startIndex, length);
+    return this.ctx.stringGenGenerateSubstr(strPtr, startIndex, length);
   }
 
   private handleSubstring(expr: MethodCallNode, params: string[]): string {
@@ -1102,7 +1157,7 @@ export class MethodCallGenerator {
       this.emit(`${length} = sub i32 ${endIndex}, ${startIndex}`);
     }
 
-    return this.ctx.stringGen.doGenerateSubstr(strPtr, startIndex, length);
+    return this.ctx.stringGenGenerateSubstr(strPtr, startIndex, length);
   }
 
   private handleConcat(expr: MethodCallNode, params: string[]): string {
@@ -1147,7 +1202,7 @@ export class MethodCallGenerator {
     for (let _mci = 0; _mci < expr.args.length; _mci++) {
       const arg = expr.args[_mci];
       const argStr = this.ctx.generateExpression(arg, params);
-      result = this.ctx.stringGen.doGenerateStringConcatDirect(result, argStr);
+      result = this.ctx.stringGenGenerateStringConcatDirect(result, argStr);
     }
 
     return result;
@@ -1163,7 +1218,7 @@ export class MethodCallGenerator {
 
     const countDouble = this.ctx.generateExpression(expr.args[0], params);
     const count = this.convertToI32(countDouble);
-    return this.ctx.stringGen.doGenerateRepeat(strPtr, count);
+    return this.ctx.stringGenGenerateRepeat(strPtr, count);
   }
 
   private handlePadStart(expr: MethodCallNode, params: string[]): string {
@@ -1178,9 +1233,9 @@ export class MethodCallGenerator {
     const targetLength = this.convertToI32(targetLengthDouble);
     const padString = expr.args.length === 2
       ? this.ctx.generateExpression(expr.args[1], params)
-      : this.ctx.stringGen.doCreateStringConstant(' ');
+      : this.ctx.stringGenCreateStringConstant(' ');
 
-    return this.ctx.stringGen.doGeneratePadStart(strPtr, targetLength, padString);
+    return this.ctx.stringGenGeneratePadStart(strPtr, targetLength, padString);
   }
 
   private handleSplit(expr: MethodCallNode, params: string[]): string {
@@ -1192,7 +1247,7 @@ export class MethodCallGenerator {
     }
 
     const delimiter = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGen.doGenerateSplit(strPtr, delimiter);
+    return this.ctx.stringGenGenerateSplit(strPtr, delimiter);
   }
 
   private handleStartsWith(expr: MethodCallNode, params: string[]): string {
@@ -1204,7 +1259,7 @@ export class MethodCallGenerator {
     }
 
     const prefix = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGen.doGenerateStartsWith(strPtr, prefix);
+    return this.ctx.stringGenGenerateStartsWith(strPtr, prefix);
   }
 
   private handleEndsWith(expr: MethodCallNode, params: string[]): string {
@@ -1216,7 +1271,7 @@ export class MethodCallGenerator {
     }
 
     const suffix = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGen.doGenerateEndsWith(strPtr, suffix);
+    return this.ctx.stringGenGenerateEndsWith(strPtr, suffix);
   }
 
   private handleTrim(expr: MethodCallNode, params: string[]): string {
@@ -1227,7 +1282,7 @@ export class MethodCallGenerator {
       throw new Error(`trim() expects 0 arguments, got ${expr.args.length}`);
     }
 
-    return this.ctx.stringGen.doGenerateTrim(strPtr);
+    return this.ctx.stringGenGenerateTrim(strPtr);
   }
 
   private handleIndexOf(expr: MethodCallNode, params: string[]): string {
@@ -1239,7 +1294,7 @@ export class MethodCallGenerator {
     }
 
     const substring = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGen.doGenerateIndexOf(strPtr, substring);
+    return this.ctx.stringGenGenerateIndexOf(strPtr, substring);
   }
 
   private handleStringArrayIndexOf(expr: MethodCallNode, params: string[]): string {
@@ -1371,7 +1426,7 @@ export class MethodCallGenerator {
     }
 
     const substring = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGen.doGenerateIncludes(strPtr, substring);
+    return this.ctx.stringGenGenerateIncludes(strPtr, substring);
   }
 
   private handleSlice(expr: MethodCallNode, params: string[]): string {
@@ -1421,7 +1476,7 @@ export class MethodCallGenerator {
       this.emit(`${endI32} = fptosi double ${endDouble} to i32`);
     }
 
-    return this.ctx.stringGen.doGenerateSlice(strPtr, startI32, endI32);
+    return this.ctx.stringGenGenerateSlice(strPtr, startI32, endI32);
   }
 
   private handleReplace(expr: MethodCallNode, params: string[]): string {
@@ -1438,18 +1493,18 @@ export class MethodCallGenerator {
     if (searchArg.type === 'regex') {
       const regexNode = searchArg as { pattern: string; flags: string };
       const isGlobal = regexNode.flags.indexOf('g') !== -1;
-      const searchStr = this.ctx.stringGen.doGenerateGlobalString(regexNode.pattern);
+      const searchStr = this.ctx.stringGenGenerateGlobalString(regexNode.pattern);
       const replaceStr = this.ctx.generateExpression(replaceArg, params);
       if (isGlobal) {
-        return this.ctx.stringGen.doGenerateReplaceAll(strPtr, searchStr, replaceStr);
+        return this.ctx.stringGenGenerateReplaceAll(strPtr, searchStr, replaceStr);
       } else {
-        return this.ctx.stringGen.doGenerateReplace(strPtr, searchStr, replaceStr);
+        return this.ctx.stringGenGenerateReplace(strPtr, searchStr, replaceStr);
       }
     }
 
     const searchStr = this.ctx.generateExpression(searchArg, params);
     const replaceStr = this.ctx.generateExpression(replaceArg, params);
-    return this.ctx.stringGen.doGenerateReplace(strPtr, searchStr, replaceStr);
+    return this.ctx.stringGenGenerateReplace(strPtr, searchStr, replaceStr);
   }
 
   private handleCharAt(expr: MethodCallNode, params: string[]): string {
@@ -1463,7 +1518,7 @@ export class MethodCallGenerator {
     const indexDouble = this.ctx.generateExpression(expr.args[0], params);
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(indexI32 + ' = fptosi double ' + indexDouble + ' to i32');
-    return this.ctx.stringGen.doGenerateCharAt(strPtr, indexI32);
+    return this.ctx.stringGenGenerateCharAt(strPtr, indexI32);
   }
 
   private handleCharCodeAt(expr: MethodCallNode, params: string[]): string {
@@ -1477,19 +1532,19 @@ export class MethodCallGenerator {
     const indexDouble = this.ctx.generateExpression(expr.args[0], params);
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(indexI32 + ' = fptosi double ' + indexDouble + ' to i32');
-    return this.ctx.stringGen.doGenerateCharCodeAt(strPtr, indexI32);
+    return this.ctx.stringGenGenerateCharCodeAt(strPtr, indexI32);
   }
 
   private handleToUpperCase(expr: MethodCallNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
     const strPtr = this.ctx.generateExpression(expr.object, params);
-    return this.ctx.stringGen.doGenerateToUpperCase(strPtr);
+    return this.ctx.stringGenGenerateToUpperCase(strPtr);
   }
 
   private handleToLowerCase(expr: MethodCallNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
     const strPtr = this.ctx.generateExpression(expr.object, params);
-    return this.ctx.stringGen.doGenerateToLowerCase(strPtr);
+    return this.ctx.stringGenGenerateToLowerCase(strPtr);
   }
 
   private handleMatch(expr: MethodCallNode, params: string[]): string {
@@ -1516,8 +1571,8 @@ export class MethodCallGenerator {
       }
     }
 
-    const regexPtr = this.ctx.regexGen.generateRegexCompile(pattern, flags);
-    const result = this.ctx.regexGen.generateRegexMatch(regexPtr, strPtr, numGroups);
+    const regexPtr = this.ctx.regexGenGenerateRegexCompile(pattern, flags);
+    const result = this.ctx.regexGenGenerateRegexMatch(regexPtr, strPtr, numGroups);
 
     return result;
   }
