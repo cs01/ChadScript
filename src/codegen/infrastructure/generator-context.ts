@@ -37,10 +37,10 @@ export interface IClassGenContext {
 }
 
 export interface IStringGenerator {
-  createStringConstant(value: string): string;
-  convertNumberToString(numValue: string): string;
-  generateStringConcat(left: Expression, right: Expression, params: string[]): string;
-  generateStringConcatDirect(left: string, right: string): string;
+  doCreateStringConstant(value: string): string;
+  doConvertNumberToString(numValue: string): string;
+  doGenerateStringConcat(left: Expression, right: Expression, params: string[]): string;
+  doGenerateStringConcatDirect(left: string, right: string): string;
 }
 
 export interface IStringMapGenerator {
@@ -1076,9 +1076,9 @@ export class MockGeneratorContext implements IGeneratorContext {
       }
     }
     const len = byteCount + 1;
-    this.globalStrings.push(`${strId} = private unnamed_addr constant [${len} x i8] c"${escaped}\\00", align 1`);
+    this.globalStrings.push(strId + ' = private unnamed_addr constant [' + len + ' x i8] c"' + escaped + '\\00", align 1');
     const ptrReg = this.nextTemp();
-    this.emit(`${ptrReg} = getelementptr inbounds [${len} x i8], [${len} x i8]* ${strId}, i64 0, i64 0`);
+    this.emit(ptrReg + ' = getelementptr inbounds [' + len + ' x i8], [' + len + ' x i8]* ' + strId + ', i64 0, i64 0');
     this.setVariableType(ptrReg, 'i8*');
     return ptrReg;
   }
@@ -1225,10 +1225,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   stringGen = {
-    createStringConstant: (_value: string): string => '%0',
-    convertNumberToString: (_numValue: string): string => '%0',
-    generateStringConcat: (_left: Expression, _right: Expression, _params: string[]): string => '%0',
-    generateStringConcatDirect: (_left: string, _right: string): string => '%0',
+    doCreateStringConstant: (_value: string): string => '%0',
+    doConvertNumberToString: (_numValue: string): string => '%0',
+    doGenerateStringConcat: (_left: Expression, _right: Expression, _params: string[]): string => '%0',
+    doGenerateStringConcatDirect: (_left: string, _right: string): string => '%0',
   };
 
   stringGenCreateStringConstant(_value: string): string { return '%0'; }

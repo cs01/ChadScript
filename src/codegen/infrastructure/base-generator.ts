@@ -176,7 +176,7 @@ export class BaseGenerator {
       }
     }
     const len = byteCount + 1;
-    this.globalStrings.push(`${strId} = private unnamed_addr constant [${len} x i8] c"${escaped}\\00", align 1`);
+    this.globalStrings.push(strId + ' = private unnamed_addr constant [' + len + ' x i8] c"' + escaped + '\\00", align 1');
     return strId;
   }
 
@@ -421,6 +421,7 @@ export class BaseGenerator {
    * Checks SymbolTable for named variables, then variableTypes for temporary registers
    */
   getVariableType(name: string): string | undefined {
+    if (!name) return undefined;
     // Check named variables in SymbolTable first
     const symbolType = this.symbolTable.getType(name);
     if (symbolType) return symbolType;
