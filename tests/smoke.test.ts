@@ -79,6 +79,12 @@ const smokeTests: TestCase[] = [
     description: 'Arrays: slice() should return sub-array'
   },
   {
+    name: 'array-init-safe',
+    fixture: 'tests/fixtures/arrays/array-init-safe.ts',
+    expectedExitCode: 10,
+    description: 'Arrays: zero-initialized with calloc for safe iteration'
+  },
+  {
     name: 'object-literal',
     fixture: 'tests/fixtures/objects/object-literal.js',
     expectedExitCode: 30,
