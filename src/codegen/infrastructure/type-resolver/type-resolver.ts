@@ -2,7 +2,7 @@ import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expres
 import { SymbolTable, ObjectMetadata, SymbolKind, Symbol as SymbolEntry, MapMetadata, ObjectArrayMetadata } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo, ClassGeneratorLike } from './types.js';
-import { ResolvedType, createResolvedType, parseTypeString, stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil, tsTypeToLlvmJson as tsTypeToLlvmJsonUtil, parseMapTypeString, parseSetTypeString, parseArrayTypeString } from '../type-system.js';
+import { ResolvedType, createResolvedType, parseTypeString, stripOptional, tsTypeToLlvm, tsTypeToLlvmJson, parseMapTypeString, parseSetTypeString, parseArrayTypeString } from '../type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -354,7 +354,7 @@ export class TypeResolver {
       for (let i = 0; i < builtinType.fields.length; i++) {
         const f = builtinType.fields[i];
         keys.push(stripOptional(f.name));
-        types.push(this.tsTypeToLlvm(f.type));
+        types.push(this.convertTsType(f.type));
         tsTypes.push(f.type);
       }
       return { keys, types, tsTypes };
@@ -368,7 +368,7 @@ export class TypeResolver {
     for (let i = 0; i < iface.fields.length; i++) {
       const f = iface.fields[i] as { name: string; type: string };
       keys.push(stripOptional(f.name));
-      types.push(this.tsTypeToLlvm(f.type));
+      types.push(this.convertTsType(f.type));
       tsTypes.push(f.type);
     }
     return { keys, types, tsTypes };
@@ -565,21 +565,21 @@ export class TypeResolver {
     for (let i = 0; i < commonFields.length; i++) {
       const f = commonFields[i] as CommonField;
       keys.push(stripOptional(f.name));
-      types.push(this.tsTypeToLlvm(f.type));
+      types.push(this.convertTsType(f.type));
       tsTypes.push(f.type);
     }
     return { keys, types, tsTypes };
   }
 
-  tsTypeToLlvm(tsType: string): string {
+  convertTsType(tsType: string): string {
     if (this.isEnumType(tsType)) {
       return 'double';
     }
-    return tsTypeToLlvmUtil(tsType);
+    return tsTypeToLlvm(tsType);
   }
 
-  tsTypeToLlvmJson(tsType: string): string {
-    return tsTypeToLlvmJsonUtil(tsType);
+  convertTsTypeJson(tsType: string): string {
+    return tsTypeToLlvmJson(tsType);
   }
 
   getClassFieldInfo(className: string, fieldName: string): FieldInfo | null {
@@ -601,7 +601,7 @@ export class TypeResolver {
       keyType,
       valueType,
       llvmKeyType: keyType === 'string' ? 'i8*' : 'double',
-      llvmValueType: this.tsTypeToLlvm(valueType)
+      llvmValueType: this.convertTsType(valueType)
     };
   }
 

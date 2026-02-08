@@ -1,5 +1,5 @@
 import { InterfaceDeclaration } from '../../ast/types.js';
-import { tsTypeToLlvm as tsTypeToLlvmUtil } from '../infrastructure/type-system.js';
+import { tsTypeToLlvm } from '../infrastructure/type-system.js';
 
 const BUILTIN_TYPES = [
   'Array', 'StringArray', 'Map', 'StringMap', 'Set', 'StringSet',
@@ -86,35 +86,36 @@ export class InterfaceStructGenerator {
   private getInheritedFields(iface: InterfaceDeclaration): { name: string; tsType: string; llvmType: string }[] {
     const result: { name: string; tsType: string; llvmType: string }[] = [];
     const extArr = iface.extends;
-    const hasExtends = extArr !== undefined && extArr !== null && extArr.length > 0;
-    if (!hasExtends) {
+    if (extArr === undefined || extArr === null) {
       return result;
     }
-    for (let i = 0; i < extArr!.length; i++) {
-      const parentName = extArr![i];
+    const extLen = extArr.length;
+    if (extLen === 0) {
+      return result;
+    }
+    for (let i = 0; i < extLen; i++) {
+      const parentName = extArr[i];
       const parent = this.getInterfaceByName(parentName);
-      const hasParent = parent !== undefined && parent !== null;
-      if (hasParent) {
-        const parentInherited = this.getInheritedFields(parent!);
-        for (let j = 0; j < parentInherited.length; j++) {
-          result.push(parentInherited[j]);
+      if (parent === undefined || parent === null) continue;
+      const parentInherited = this.getInheritedFields(parent);
+      for (let j = 0; j < parentInherited.length; j++) {
+        result.push(parentInherited[j]);
+      }
+      const pFields = parent.fields;
+      if (pFields === undefined || pFields === null) continue;
+      const pFieldsLen = pFields.length;
+      if (pFieldsLen === 0) continue;
+      for (let j = 0; j < pFieldsLen; j++) {
+        const f = pFields[j] as { name: string; type: string };
+        let fieldName = f.name;
+        if (fieldName.endsWith('?')) {
+          fieldName = fieldName.slice(0, -1);
         }
-        const pFields = parent!.fields;
-        const hasFields = pFields !== undefined && pFields !== null && pFields.length > 0;
-        if (hasFields) {
-          for (let j = 0; j < pFields!.length; j++) {
-            const f = pFields![j] as { name: string; type: string };
-            let fieldName = f.name;
-            if (fieldName.endsWith('?')) {
-              fieldName = fieldName.slice(0, -1);
-            }
-            result.push({
-              name: fieldName,
-              tsType: f.type,
-              llvmType: this.tsTypeToLlvmForField(fieldName, f.type)
-            });
-          }
-        }
+        result.push({
+          name: fieldName,
+          tsType: f.type,
+          llvmType: this.tsTypeToLlvmForField(fieldName, f.type)
+        });
       }
     }
     return result;
@@ -160,7 +161,7 @@ export class InterfaceStructGenerator {
     if (this.enumNames !== null && this.enumNames !== undefined && this.enumNames.has(tsType)) {
       return 'double';
     }
-    return tsTypeToLlvmUtil(tsType);
+    return tsTypeToLlvm(tsType);
   }
 
   getInterfaceStruct(name: string): InterfaceStructInfo | undefined {
