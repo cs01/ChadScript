@@ -37,8 +37,6 @@ import {
   TypeAssertionNode,
 } from '../../ast/types.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
-import type { TypeChecker } from '../../typescript/type-checker.js';
-import type { TypeResolver } from '../infrastructure/type-resolver/index.js';
 import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
 
 interface ExprBase { type: string; }
@@ -224,9 +222,7 @@ export interface MethodCallGeneratorContext {
   getAstFunctionsLength(): number;
   getAstFunctionAt(index: number): FunctionNode | null;
   getAstFunctionNameAt(index: number): string | null;
-  typeChecker: TypeChecker | null;
-  typeResolver?: TypeResolver;
-  usesPromises: boolean;
+  setUsesPromises(value: boolean): void;
   symbolTableIsClass(name: string): boolean;
   symbolTableIsMap(name: string): boolean;
   symbolTableIsSet(name: string): boolean;
@@ -2183,7 +2179,7 @@ export class MethodCallGenerator {
 
   private handlePromiseStaticMethods(expr: MethodCallNode, params: string[]): string {
     const method = expr.method;
-    this.ctx.usesPromises = true;
+    this.ctx.setUsesPromises(true);
 
     if (method === 'resolve') {
       let valuePtr: string;
@@ -2250,7 +2246,7 @@ export class MethodCallGenerator {
   }
 
   private handlePromiseThen(expr: MethodCallNode, params: string[], isCatch: boolean): string {
-    this.ctx.usesPromises = true;
+    this.ctx.setUsesPromises(true);
     const promisePtr = this.ctx.generateExpression(expr.object, params);
 
     let onFulfilled = 'null';

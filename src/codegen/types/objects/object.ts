@@ -4,8 +4,6 @@ import type { InterfaceStructGenerator } from '../interface-struct-generator.js'
 import { tsTypeToLlvm } from '../../infrastructure/type-system.js';
 
 interface ObjectGeneratorContext extends IGeneratorContext {
-  currentDeclaredInterfaceType?: string;
-  interfaceStructGen?: InterfaceStructGenerator;
 }
 
 export class ObjectGenerator {
@@ -31,7 +29,7 @@ export class ObjectGenerator {
       return 'null';
     }
 
-    const declaredInterfaceType = this.ctx.currentDeclaredInterfaceType;
+    const declaredInterfaceType = this.ctx.getCurrentDeclaredInterfaceType();
 
     if (declaredInterfaceType && declaredInterfaceType.startsWith('{')) {
       return this.generateInlineInterfaceObject(objExpr, params, declaredInterfaceType);

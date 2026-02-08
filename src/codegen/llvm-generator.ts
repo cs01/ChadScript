@@ -702,6 +702,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getCurrentDeclaredMapType(): string | undefined { return this.currentDeclaredMapType; }
   public setCurrentDeclaredSetType(type: string | undefined): void { this.currentDeclaredSetType = type; }
   public getCurrentDeclaredSetType(): string | undefined { return this.currentDeclaredSetType; }
+  public setUsesPromises(value: boolean): void { this.usesPromises = value; }
+  public getUsesPromises(): boolean { return this.usesPromises; }
+  public setUsesTimers(value: boolean): void { this.usesTimers = value; }
+  public getUsesTimers(): boolean { return this.usesTimers; }
+  public setCurrentDeclaredInterfaceType(type: string | undefined): void { this.currentDeclaredInterfaceType = type; }
+  public getCurrentDeclaredInterfaceType(): string | undefined { return this.currentDeclaredInterfaceType; }
+  public setExpectedCallbackParamType(type: string | null): void { this.expectedCallbackParamType = type; }
+  public getExpectedCallbackParamType(): string | null { return this.expectedCallbackParamType; }
+  public setExpectedCallbackReturnType(type: string | null): void { this.expectedCallbackReturnType = type; }
+  public getExpectedCallbackReturnType(): string | null { return this.expectedCallbackReturnType; }
   public setIsAsyncFunction(value: boolean): void { this.isAsyncFunction = value; }
   public setAsyncResultPromise(value: string): void { this.asyncResultPromise = value; }
   public getAsyncResultPromise(): string { return this.asyncResultPromise; }

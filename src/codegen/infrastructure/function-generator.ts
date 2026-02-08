@@ -1,5 +1,5 @@
 import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField, SwitchStatement } from '../../ast/types.js';
-import { SymbolKind, SymbolTable, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createUnionMetadata, SymbolMetadata } from './symbol-table.js';
+import { SymbolKind, SymbolTable, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createUnionMetadata, createInterfaceMetadata, SymbolMetadata } from './symbol-table.js';
 import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { StringGenerator } from '../types/collections/string.js';
@@ -22,21 +22,7 @@ export interface FunctionGeneratorContext {
   generateBlock(block: BlockStatement, params: string[]): string | null;
   generateExpression(expr: Expression, params: string[]): string;
   allocateVariable(stmt: VariableDeclaration, params: string[]): void;
-  currentFunction: string;
-  currentFunctionReturnType: string;
-  currentFunctionTsReturnType: string | undefined;
-  isAsyncFunction: boolean;
-  asyncResultPromise: string;
-  ast: AST;
   getAst(): AST | undefined;
-  typeChecker: TypeChecker | null;
-  output: string[];
-  allocaInstructions: string[];
-  stringGen: StringGenerator;
-  tempCounter: number;
-  symbolTable: SymbolTable;
-  controlFlowGen: ControlFlowGenerator;
-  interfaceStructGen?: InterfaceStructGenerator;
   topLevelStatementsCount: number;
   topLevelExpressionsCount: number;
   topLevelItemsCount: number;
@@ -108,6 +94,8 @@ export class FunctionGenerator {
           paramLLVMTypes.push('%StringArray*');
         } else if (paramType === 'number[]' || paramType === 'boolean[]') {
           paramLLVMTypes.push('%Array*');
+        } else if (paramType.endsWith('[]')) {
+          paramLLVMTypes.push('%ObjectArray*');
         } else if (this.isEnumType(paramType)) {
           paramLLVMTypes.push('double');
         } else if (paramType !== 'number' && paramType !== 'boolean') {
@@ -146,6 +134,8 @@ export class FunctionGenerator {
               paramLLVMTypes.push('%StringArray*');
             } else if (paramType === 'number[]' || paramType === 'boolean[]') {
               paramLLVMTypes.push('%Array*');
+            } else if (paramType.endsWith('[]')) {
+              paramLLVMTypes.push('%ObjectArray*');
             } else if (this.isEnumType(paramType)) {
               paramLLVMTypes.push('double');
             } else if (paramType !== 'number' && paramType !== 'boolean') {
@@ -326,6 +316,23 @@ export class FunctionGenerator {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
         } else {
           this.ctx.emit(`store %Array* %arg${i}, %Array** ${allocaReg}`);
+        }
+      } else if (llvmType === '%ObjectArray*') {
+        let elementType = '';
+        const pt = paramTypes[i] || '';
+        if (pt.endsWith('[]') && pt.length > 2) {
+          elementType = pt.substring(0, pt.length - 2);
+        }
+        if (elementType) {
+          this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local', createInterfaceMetadata(elementType));
+        } else {
+          this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local', createPointerAllocaMetadata());
+        }
+        this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
+        if (isOptional && hasOptionalParams) {
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
+        } else {
+          this.ctx.emit(`store %ObjectArray* %arg${i}, %ObjectArray** ${allocaReg}`);
         }
       } else if (llvmType.startsWith('%') && llvmType.endsWith('*') && llvmType !== '%__FetchResponse*') {
         const interfaceName = llvmType.slice(1, -1);

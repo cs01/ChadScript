@@ -13,15 +13,13 @@ import { MethodCallGenerator } from './method-calls.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 
 interface ExpressionOrchestratorContext {
-  symbolTable: SymbolTable;
   symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] };
-  variableTypes: Map<string, string>;
   setVariableType(name: string, type: string): void;
-  usesPromises: boolean;
-  expectedCallbackParamType: string | null;
-  expectedCallbackReturnType: string | null;
   nextTemp(): string;
   emit(instruction: string): void;
+  setUsesPromises(value: boolean): void;
+  getExpectedCallbackParamType(): string | null;
+  getExpectedCallbackReturnType(): string | null;
 }
 
 /**
@@ -168,13 +166,15 @@ export class ExpressionGenerator {
       const scopeVarsResult = this.ctx.symbolTableGetScopeVarsArraysForClosure();
       const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
       let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
-      if (this.ctx.expectedCallbackParamType || this.ctx.expectedCallbackReturnType) {
+      if (this.ctx.getExpectedCallbackParamType() || this.ctx.getExpectedCallbackReturnType()) {
         typeHints = {};
-        if (this.ctx.expectedCallbackParamType) {
-          typeHints.paramTypes = [this.ctx.expectedCallbackParamType];
+        const cbParamType = this.ctx.getExpectedCallbackParamType();
+        if (cbParamType) {
+          typeHints.paramTypes = [cbParamType];
         }
-        if (this.ctx.expectedCallbackReturnType) {
-          typeHints.returnType = this.ctx.expectedCallbackReturnType;
+        const cbReturnType = this.ctx.getExpectedCallbackReturnType();
+        if (cbReturnType) {
+          typeHints.returnType = cbReturnType;
         }
       }
       return this.arrowFunctionGen.generateArrowFunction(expr as ArrowFunctionNode, params, typeHints, scopeVarsTyped.names, scopeVarsTyped.types);
@@ -202,7 +202,7 @@ export class ExpressionGenerator {
       const valueReg = this.ctx.nextTemp();
       this.ctx.emit(`${valueReg} = call i8* @__Promise_get_value(%Promise* ${promiseReg})`);
       this.ctx.setVariableType(valueReg, 'i8*');
-      this.ctx.usesPromises = true;
+      this.ctx.setUsesPromises(true);
       return valueReg;
     }
 

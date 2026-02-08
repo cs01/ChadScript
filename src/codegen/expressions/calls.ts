@@ -102,7 +102,7 @@ export class CallExpressionGenerator {
       }
       const urlValue = this.ctx.generateExpression(expr.args[0], params);
       const temp = this.ctx.nextTemp();
-      this.ctx.usesPromises = true;
+      this.ctx.setUsesPromises(true);
       this.ctx.emit(`${temp} = call %Promise* @fetch_async(i8* ${urlValue})`);
       this.ctx.setVariableType(temp, '%Promise*');
       return temp;
@@ -418,7 +418,7 @@ export class CallExpressionGenerator {
 
     if (funcResult && func.async) {
       returnType = '%Promise*';
-      this.ctx.usesPromises = true;
+      this.ctx.setUsesPromises(true);
     } else if (funcResult && func.paramTypes && func.paramTypes.length > 0) {
       const normalizedReturnType = func.returnType ? stripNullable(func.returnType) : '';
       if (normalizedReturnType === 'string') {
@@ -445,6 +445,8 @@ export class CallExpressionGenerator {
           paramTypes.push('%StringArray*');
         } else if (p === 'number[]' || p === 'boolean[]') {
           paramTypes.push('%Array*');
+        } else if (p.endsWith('[]')) {
+          paramTypes.push('%ObjectArray*');
         } else if (p !== 'number' && p !== 'boolean' && !this.isEnumType(p)) {
           paramTypes.push('i8*');
         } else {
@@ -476,6 +478,7 @@ export class CallExpressionGenerator {
             } else if (p.type === 'string') paramTypes.push('i8*');
             else if (p.type === 'string[]') paramTypes.push('%StringArray*');
             else if (p.type === 'number[]' || p.type === 'boolean[]') paramTypes.push('%Array*');
+            else if (p.type && p.type.endsWith('[]')) paramTypes.push('%ObjectArray*');
             else if (p.type && p.type !== 'number' && p.type !== 'boolean' && !this.isEnumType(p.type)) paramTypes.push('i8*');
             else paramTypes.push('double');
           }
@@ -488,6 +491,7 @@ export class CallExpressionGenerator {
             } else if (t === 'string') paramTypes.push('i8*');
             else if (t === 'string[]') paramTypes.push('%StringArray*');
             else if (t === 'number[]' || t === 'boolean[]') paramTypes.push('%Array*');
+            else if (t && t.endsWith('[]')) paramTypes.push('%ObjectArray*');
             else if (t !== 'number' && t !== 'boolean' && !this.isEnumType(t)) paramTypes.push('i8*');
             else paramTypes.push('double');
           }
@@ -563,7 +567,7 @@ export class CallExpressionGenerator {
       throw new Error('setTimeout() requires 2 arguments (callback, delay_ms)');
     }
 
-    this.ctx.usesTimers = true;
+    this.ctx.setUsesTimers(true);
 
     const callbackArg = expr.args[0];
     if (callbackArg.type !== 'variable') {
@@ -588,7 +592,7 @@ export class CallExpressionGenerator {
       throw new Error('setInterval() requires 2 arguments (callback, interval_ms)');
     }
 
-    this.ctx.usesTimers = true;
+    this.ctx.setUsesTimers(true);
 
     const callbackArg = expr.args[0];
     if (callbackArg.type !== 'variable') {
@@ -621,7 +625,7 @@ export class CallExpressionGenerator {
   }
 
   private generateRunEventLoop(): string {
-    this.ctx.usesTimers = true;
+    this.ctx.setUsesTimers(true);
     this.ctx.emit('call void @__runEventLoop()');
     return '0.0';
   }
