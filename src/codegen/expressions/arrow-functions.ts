@@ -57,11 +57,18 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
 
     let funcParams = expr.params;
     const hasTypeHints = typeHints !== undefined && typeHints !== null;
-    const hasParamTypes = hasTypeHints && typeHints!.paramTypes !== undefined && typeHints!.paramTypes !== null;
-    if (hasParamTypes && typeHints!.paramTypes!.length > funcParams.length) {
-      funcParams = funcParams.slice(0);
-      for (let i = funcParams.length; i < typeHints!.paramTypes!.length; i++) {
-        funcParams.push(`__unused_${i}`);
+    let hintParamTypes: string[] | undefined = undefined;
+    if (hasTypeHints) {
+      hintParamTypes = typeHints!.paramTypes;
+    }
+    const hasParamTypes = hintParamTypes !== undefined && hintParamTypes !== null;
+    if (hasParamTypes) {
+      const ptLen = hintParamTypes!.length;
+      if (ptLen > funcParams.length) {
+        funcParams = funcParams.slice(0);
+        for (let i = funcParams.length; i < ptLen; i++) {
+          funcParams.push(`__unused_${i}`);
+        }
       }
     }
 

@@ -408,7 +408,7 @@ export class CallExpressionGenerator {
     if (funcResult && func.parameters) {
       for (let i = 0; i < func.parameters.length; i++) {
         const p = func.parameters[i];
-        const pTyped = p as { optional: boolean; defaultValue: unknown };
+        const pTyped = p as FunctionParameter;
         if (pTyped.optional || pTyped.defaultValue) {
           hasOptionalParams = true;
           break;

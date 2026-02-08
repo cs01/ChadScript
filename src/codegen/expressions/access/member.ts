@@ -2612,16 +2612,12 @@ export class MemberAccessGenerator {
     let fields: InterfaceField[] = [];
 
     if (assertedType.startsWith('{')) {
-      const inlineFields = this.parseInlineObjectTypeForAssertion(assertedType);
-      if (!inlineFields) {
-        const syntheticExpr: MemberAccessNode = {
-          type: 'member_access',
-          object: assertion.expression,
-          property: property
-        };
-        return this.generate(syntheticExpr, params);
-      }
-      fields = inlineFields;
+      const syntheticExpr: MemberAccessNode = {
+        type: 'member_access',
+        object: assertion.expression,
+        property: property
+      };
+      return this.generate(syntheticExpr, params);
     } else {
       if (assertedType.length > 0 && this.ctx.interfaceStructGenHasInterface(assertedType)) {
         const objPtr = this.ctx.generateExpression(assertion.expression, params);
