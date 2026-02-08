@@ -1,6 +1,121 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { parseMapTypeString, parseSetTypeString, parseArrayTypeString } from '../../src/codegen/infrastructure/type-system.js';
+import { parseMapTypeString, parseSetTypeString, parseArrayTypeString, stripOptional, stripNullable, parseTypeString, tsTypeToLlvm, tsTypeToLlvmJson } from '../../src/codegen/infrastructure/type-system.js';
+
+describe('stripOptional', () => {
+  it('should return empty string for null/undefined/empty input', () => {
+    assert.strictEqual(stripOptional(''), '');
+    assert.strictEqual(stripOptional(null as unknown as string), '');
+    assert.strictEqual(stripOptional(undefined as unknown as string), '');
+  });
+
+  it('should strip trailing question mark', () => {
+    assert.strictEqual(stripOptional('name?'), 'name');
+  });
+
+  it('should return unchanged string without question mark', () => {
+    assert.strictEqual(stripOptional('name'), 'name');
+  });
+});
+
+describe('stripNullable', () => {
+  it('should return empty string for null/undefined/empty input', () => {
+    assert.strictEqual(stripNullable(''), '');
+    assert.strictEqual(stripNullable(null as unknown as string), '');
+    assert.strictEqual(stripNullable(undefined as unknown as string), '');
+  });
+
+  it('should strip | null suffix', () => {
+    assert.strictEqual(stripNullable('string | null'), 'string');
+  });
+
+  it('should strip | undefined suffix', () => {
+    assert.strictEqual(stripNullable('string | undefined'), 'string');
+  });
+
+  it('should strip null | prefix', () => {
+    assert.strictEqual(stripNullable('null | string'), 'string');
+  });
+
+  it('should return unchanged string without nullable', () => {
+    assert.strictEqual(stripNullable('string'), 'string');
+  });
+});
+
+describe('parseTypeString', () => {
+  it('should return unknown for null/undefined/empty input', () => {
+    const empty = parseTypeString('');
+    assert.strictEqual(empty.base, 'unknown');
+    const nullInput = parseTypeString(null as unknown as string);
+    assert.strictEqual(nullInput.base, 'unknown');
+    const undefinedInput = parseTypeString(undefined as unknown as string);
+    assert.strictEqual(undefinedInput.base, 'unknown');
+  });
+
+  it('should parse simple type', () => {
+    const result = parseTypeString('string');
+    assert.strictEqual(result.base, 'string');
+    assert.strictEqual(result.arrayDepth, 0);
+  });
+
+  it('should parse array type', () => {
+    const result = parseTypeString('number[]');
+    assert.strictEqual(result.base, 'number');
+    assert.strictEqual(result.arrayDepth, 1);
+  });
+
+  it('should parse nullable type', () => {
+    const result = parseTypeString('string | null');
+    assert.strictEqual(result.base, 'string');
+    assert.strictEqual(result.qualifiers.isNullable, true);
+  });
+
+  it('should parse optional type', () => {
+    const result = parseTypeString('string?');
+    assert.strictEqual(result.base, 'string');
+    assert.strictEqual(result.qualifiers.isOptional, true);
+  });
+});
+
+describe('tsTypeToLlvm', () => {
+  it('should return i8* for null/undefined/empty input', () => {
+    assert.strictEqual(tsTypeToLlvm(''), 'i8*');
+    assert.strictEqual(tsTypeToLlvm(null as unknown as string), 'i8*');
+    assert.strictEqual(tsTypeToLlvm(undefined as unknown as string), 'i8*');
+  });
+
+  it('should map string to i8*', () => {
+    assert.strictEqual(tsTypeToLlvm('string'), 'i8*');
+  });
+
+  it('should map number to double', () => {
+    assert.strictEqual(tsTypeToLlvm('number'), 'double');
+  });
+
+  it('should map void to void', () => {
+    assert.strictEqual(tsTypeToLlvm('void'), 'void');
+  });
+});
+
+describe('tsTypeToLlvmJson', () => {
+  it('should return i8* for null/undefined/empty input', () => {
+    assert.strictEqual(tsTypeToLlvmJson(''), 'i8*');
+    assert.strictEqual(tsTypeToLlvmJson(null as unknown as string), 'i8*');
+    assert.strictEqual(tsTypeToLlvmJson(undefined as unknown as string), 'i8*');
+  });
+
+  it('should map string to i8*', () => {
+    assert.strictEqual(tsTypeToLlvmJson('string'), 'i8*');
+  });
+
+  it('should map number to double', () => {
+    assert.strictEqual(tsTypeToLlvmJson('number'), 'double');
+  });
+
+  it('should map boolean to double', () => {
+    assert.strictEqual(tsTypeToLlvmJson('boolean'), 'double');
+  });
+});
 
 describe('parseMapTypeString', () => {
   it('should parse simple Map<string, number>', () => {
