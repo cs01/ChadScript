@@ -5,7 +5,7 @@ import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { StringGenerator } from '../types/collections/string.js';
 import type { ControlFlowGenerator } from '../statements/control-flow.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
-import { stripOptional, tsTypeToLlvm as tsTypeToLlvmUtil } from './type-system.js';
+import { stripOptional, tsTypeToLlvm } from './type-system.js';
 
 interface LiftedFunction extends FunctionNode {
   closureInfo?: ClosureInfo;
@@ -176,7 +176,7 @@ export class FunctionGenerator {
         returnType = 'double';
         this.ctx.setCurrentFunctionReturnType('double');
       } else if (theReturnType && theReturnType !== '' && theReturnType !== 'number' && theReturnType !== 'boolean') {
-        returnType = tsTypeToLlvmUtil(theReturnType);
+        returnType = tsTypeToLlvm(theReturnType);
         this.ctx.setCurrentFunctionReturnType(returnType);
       }
       this.ctx.setCurrentFunctionTsReturnType(theReturnType);
@@ -208,7 +208,7 @@ export class FunctionGenerator {
           pIdx = pIdx + 1;
           continue;
         }
-        const pTyped = p as { optional: boolean; defaultValue: unknown };
+        const pTyped = p as FunctionParameter;
         if (pTyped.optional || pTyped.defaultValue) {
           hasOptionalParams = true;
           break;
@@ -294,7 +294,7 @@ export class FunctionGenerator {
                 if (!field || !field.name) continue;
                 const fieldName = stripOptional(field.name);
                 keys.push(fieldName);
-                types.push(this.tsTypeToLlvmForField(fieldName, field.type));
+                types.push(this.convertTsTypeForField(fieldName, field.type));
               }
             }
             this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types }, paramTypes[i]));
@@ -550,21 +550,21 @@ export class FunctionGenerator {
     return false;
   }
 
-  private tsTypeToLlvm(tsType: string): string {
+  private convertTsType(tsType: string): string {
     if (this.isEnumType(tsType)) {
       return 'double';
     }
-    return tsTypeToLlvmUtil(tsType);
+    return tsTypeToLlvm(tsType);
   }
 
-  private tsTypeToLlvmForField(fieldName: string, tsType: string): string {
+  private convertTsTypeForField(fieldName: string, tsType: string): string {
     if (fieldName === 'nodePtr' || fieldName === 'treePtr') {
       return 'i8*';
     }
     if (this.isEnumType(tsType)) {
       return 'double';
     }
-    return tsTypeToLlvmUtil(tsType);
+    return tsTypeToLlvm(tsType);
   }
 
   private llvmTypeToSymbolKind(llvmType: string): number {
@@ -636,7 +636,7 @@ export class FunctionGenerator {
     for (let i = 0; i < commonFields.length; i++) {
       const cf = commonFields[i] as CommonField;
       keys.push(stripOptional(cf.name));
-      types.push(this.tsTypeToLlvm(cf.type));
+      types.push(this.convertTsType(cf.type));
     }
 
     return { keys, types };

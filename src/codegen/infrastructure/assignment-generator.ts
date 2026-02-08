@@ -149,6 +149,7 @@ export class AssignmentGenerator {
     const propIndex = objMeta.keys.indexOf(property);
     if (propIndex === -1) {
       throw new Error(`Unknown property: ${property} on object ${object.name}. Available properties: ${objMeta.keys.join(', ')}`);
+      return;
     }
     const propType = objMeta.types[propIndex];
     const structType = `{ ${objMeta.types.join(', ')} }`;
