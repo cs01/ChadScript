@@ -607,6 +607,13 @@ export class MemberAccessGenerator {
       this.ctx.setVariableType(value, 'i8*');
       if (tsType) {
         this.storeInterfaceMetadata(value, tsType);
+        if (tsType !== 'string' && tsType !== 'number' && tsType !== 'boolean' &&
+            tsType.indexOf('|') === -1 && tsType.indexOf('[') === -1) {
+          const concreteClass = this.findClassImplementingInterface(tsType);
+          if (concreteClass) {
+            this.ctx.setActualClassType(value, concreteClass);
+          }
+        }
       }
       return value;
     } else if (fieldType === 'string[]') {
@@ -2583,7 +2590,15 @@ export class MemberAccessGenerator {
         const objPtr = this.ctx.nextTemp();
         this.ctx.emit(`${objPtr} = load i8*, i8** ${fallbackAlloca}`);
         this.ctx.setVariableType(objPtr, 'i8*');
-        return objPtr;
+        const structType = '{ i8* }';
+        const typedPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
+        const fieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 0`);
+        const value = this.ctx.nextTemp();
+        this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+        this.ctx.setVariableType(value, 'i8*');
+        return value;
       }
       return '0.0';
     }
