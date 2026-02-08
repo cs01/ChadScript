@@ -18,7 +18,7 @@ import {
 import type { SymbolTable, Symbol as SymbolEntry } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import type { InterfaceStructGenerator, InterfaceFieldInfo, InterfaceStructInfo } from '../../types/interface-struct-generator.js';
-import { stripOptional, stripNullable, tsTypeToLlvm as tsTypeToLlvmUtil, parseMapTypeString } from '../../infrastructure/type-system.js';
+import { stripOptional, stripNullable, tsTypeToLlvm, parseMapTypeString } from '../../infrastructure/type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -346,6 +346,7 @@ export class MemberAccessGenerator {
     const enumName = exprObjVar.name;
     const memberName = expr.property;
     const value = this.ctx.getEnumMemberValue(enumName, memberName);
+    console.log('ENUM_DEBUG: ' + enumName + '.' + memberName + ' = ' + value);
     if (value === -1) {
       return null;
     }
@@ -458,7 +459,7 @@ export class MemberAccessGenerator {
           for (let pi = 0; pi < nestedProps.length; pi++) {
             const p = nestedProps[pi] as { name: string; type: string };
             keys.push(stripOptional(p.name));
-            types.push(this.tsTypeToLlvm(p.type));
+            types.push(this.convertTsType(p.type));
             tsTypes.push(p.type);
           }
           this.ctx.setJsonObjectMetadata(value, { keys, types, tsTypes, interfaceType: undefined });
@@ -721,7 +722,7 @@ export class MemberAccessGenerator {
           const f = interfaceDef.fields[i] as { name: string; type: string };
           keys.push(stripOptional(f.name));
           tsTypes.push(f.type);
-          types.push(this.tsTypeToLlvm(f.type));
+          types.push(this.convertTsType(f.type));
         }
       }
       this.ctx.setJsonObjectMetadata(register, { keys, types, tsTypes, interfaceType: undefined });
@@ -809,7 +810,7 @@ export class MemberAccessGenerator {
           const f = nestedInterfaceDef.fields[i] as { name: string; type: string };
           keys.push(stripOptional(f.name));
           tsTypes.push(f.type);
-          types.push(this.tsTypeToLlvm(f.type));
+          types.push(this.convertTsType(f.type));
         }
       }
       this.ctx.setJsonObjectMetadata(fieldItem, { keys, types, tsTypes, interfaceType: undefined });
@@ -818,8 +819,8 @@ export class MemberAccessGenerator {
     return fieldItem;
   }
 
-  private tsTypeToLlvm(t: string): string {
-    return tsTypeToLlvmUtil(t);
+  private convertTsType(t: string): string {
+    return tsTypeToLlvm(t);
   }
 
   private interfaceTsTypeToLlvm(t: string): string {
@@ -936,6 +937,18 @@ export class MemberAccessGenerator {
     const innerType = this.ctx.getVariableType(innerPtr);
 
     if (innerType === 'i8*') {
+      const actualClass = this.ctx.getActualClassType(innerPtr);
+      if (actualClass) {
+        const fieldInfo = this.ctx.classGenGetFieldInfo(actualClass, expr.property);
+        if (fieldInfo) {
+          const castPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${castPtr} = bitcast i8* ${innerPtr} to %${actualClass}_struct*`);
+          const fieldPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${actualClass}_struct, %${actualClass}_struct* ${castPtr}, i32 0, i32 ${fieldInfo.index}`);
+          const result = this.loadFieldValue(fieldPtr, fieldInfo, actualClass, expr.property);
+          return result;
+        }
+      }
       if (this.ctx.hasJsonObjectMetadata(innerPtr)) {
         const interfaceType = this.ctx.getJsonObjectMetadataInterfaceType(innerPtr);
         if (interfaceType && interfaceType.length > 0) {
@@ -1002,7 +1015,7 @@ export class MemberAccessGenerator {
       const innerPropField = innerProps[propIndex] as InterfaceProperty;
       propType = innerPropField.type;
 
-      const implementingClass = this.findClassImplementingInterface(innerInterfaceName);
+      const implementingClass = this.ctx.getActualClassType(innerPtr) || this.findClassImplementingInterface(innerInterfaceName);
       if (implementingClass) {
         const classFieldInfo = this.ctx.classGenGetFieldInfo(implementingClass, expr.property);
         if (classFieldInfo) {
@@ -1110,6 +1123,10 @@ export class MemberAccessGenerator {
         const value = this.ctx.nextTemp();
         this.ctx.emit(`${value} = load %${nestedTypeName}*, %${nestedTypeName}** ${fieldPtr}`);
         this.ctx.setVariableType(value, `%${nestedTypeName}*`);
+        const concreteClass = this.findClassImplementingInterface(nestedTypeName);
+        if (concreteClass) {
+          this.ctx.setActualClassType(value, concreteClass);
+        }
         return value;
       }
       const classFields = this.ctx.classGenGetClassFields(nestedTypeName);
@@ -1117,11 +1134,18 @@ export class MemberAccessGenerator {
         const value = this.ctx.nextTemp();
         this.ctx.emit(`${value} = load %${nestedTypeName}_struct*, %${nestedTypeName}_struct** ${fieldPtr}`);
         this.ctx.setVariableType(value, `%${nestedTypeName}_struct*`);
+        this.ctx.setActualClassType(value, nestedTypeName);
         return value;
       }
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
       this.ctx.setVariableType(value, 'i8*');
+      if (nestedTypeName) {
+        const concreteClass = this.findClassImplementingInterface(nestedTypeName);
+        if (concreteClass) {
+          this.ctx.setActualClassType(value, concreteClass);
+        }
+      }
       return value;
     }
   }
@@ -1197,7 +1221,7 @@ export class MemberAccessGenerator {
       const innerPtr = this.ctx.generateExpression(expr.object, params);
       const propField = ifInfoProps[propIndex] as InterfaceProperty;
       const propType = propField.type;
-      const llvmType = this.tsTypeToLlvm(propType);
+      const llvmType = this.convertTsType(propType);
 
       const fieldPtr = this.ctx.nextTemp();
       this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${fieldInfo.tsType}, %${fieldInfo.tsType}* ${innerPtr}, i32 0, i32 ${propIndex}`);
@@ -1238,7 +1262,7 @@ export class MemberAccessGenerator {
     if (propIndex === -1) return null;
 
     const innerPtr = this.ctx.generateExpression(expr.object, params);
-    const llvmType = this.tsTypeToLlvm(propTsType || 'i8*');
+    const llvmType = this.convertTsType(propTsType || 'i8*');
 
     const fieldPtr = this.ctx.nextTemp();
     this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${fieldInfo.tsType}, %${fieldInfo.tsType}* ${innerPtr}, i32 0, i32 ${propIndex}`);
@@ -1258,6 +1282,11 @@ export class MemberAccessGenerator {
     const elementInfoRaw = this.getObjectArrayElementInfo(indexAccess.object);
     if (!elementInfoRaw) return null;
     const elementInfo = elementInfoRaw as { keys: string[]; types: string[]; tsTypes: string[] };
+
+    const propIndex = elementInfo.keys.indexOf(expr.property);
+    if (propIndex === -1) {
+      return null;
+    }
 
     const arrayPtr = this.ctx.generateExpression(indexAccess.object, params);
     const indexDouble = this.ctx.generateExpression(indexAccess.index, params);
@@ -1289,11 +1318,6 @@ export class MemberAccessGenerator {
 
     const elemTyped = this.ctx.nextTemp();
     this.ctx.emit(`${elemTyped} = bitcast i8* ${elemPtr} to ${structType}*`);
-
-    const propIndex = elementInfo.keys.indexOf(expr.property);
-    if (propIndex === -1) {
-      throw new Error(`Unknown property: ${expr.property}. Available properties: ${elementInfo.keys.join(', ')}`);
-    }
 
     const propType = elementInfo.types[propIndex];
     const propTsType = elementInfo.tsTypes[propIndex];
@@ -1488,7 +1512,7 @@ export class MemberAccessGenerator {
       const p = taProps[i] as InterfaceProperty;
       keys.push(stripOptional(p.name));
       tsTypes.push(p.type);
-      types.push(this.tsTypeToLlvm(p.type));
+      types.push(this.convertTsType(p.type));
     }
     return { keys, types, tsTypes };
   }
@@ -1781,8 +1805,8 @@ export class MemberAccessGenerator {
     const propIndex = keys.indexOf(expr.property);
     if (propIndex === -1) {
       const objDesc = exprObjType === 'variable' ? (expr.object as VariableNode).name : 'literal';
-      console.error(`DEBUG: Function=${this.ctx.getCurrentFunction()}, Var=${objDesc}, Property=${expr.property}, Keys=${keys.join(',')}`);
       throw new Error(`Unknown property: ${expr.property} on object ${objDesc}. Available properties: ${keys.join(', ')}`);
+      return null;
     }
 
     const propType = types[propIndex];
@@ -1878,11 +1902,11 @@ export class MemberAccessGenerator {
     }
 
     const propField = interfaceDef.fields[propIndex] as { name: string; type: string };
-    const propType = this.tsTypeToLlvm(propField.type);
+    const propType = this.convertTsType(propField.type);
     const structTypes: string[] = [];
     for (let i = 0; i < interfaceDef.fields.length; i++) {
       const field = interfaceDef.fields[i] as { name: string; type: string };
-      structTypes.push(this.tsTypeToLlvm(field.type));
+      structTypes.push(this.convertTsType(field.type));
     }
     const structType = `{ ${structTypes.join(', ')} }`;
 
@@ -2638,12 +2662,12 @@ export class MemberAccessGenerator {
     if (fieldIndex === -1) return null;
 
     const field = fields[fieldIndex] as { name: string; type: string };
-    const fieldLlvmType = this.tsTypeToLlvm(field.type);
+    const fieldLlvmType = this.convertTsType(field.type);
 
     const types: string[] = [];
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i] as { name: string; type: string };
-      types.push(this.tsTypeToLlvm(f.type));
+      types.push(this.convertTsType(f.type));
     }
     const structType = `{ ${types.join(', ')} }`;
 
@@ -2818,6 +2842,19 @@ export class MemberAccessGenerator {
   }
 
   private accessObjectPropertyWithNamedInterface(objPtr: string, property: string, interfaceType: string): string | null {
+    const concreteClass = this.ctx.getActualClassType(objPtr) || this.findClassImplementingInterface(interfaceType);
+    if (concreteClass) {
+      const classFieldInfo = this.ctx.classGenGetFieldInfo(concreteClass, property);
+      if (classFieldInfo) {
+        const castPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${castPtr} = bitcast i8* ${objPtr} to %${concreteClass}_struct*`);
+        const fieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${concreteClass}_struct, %${concreteClass}_struct* ${castPtr}, i32 0, i32 ${classFieldInfo.index}`);
+        const result = this.loadFieldValue(fieldPtr, classFieldInfo, concreteClass, property);
+        return result;
+      }
+    }
+
     const interfaceInfo = this.ctx.interfaceStructGenGetInterfaceStruct(interfaceType);
     if (!interfaceInfo) {
       throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
