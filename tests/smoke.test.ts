@@ -73,6 +73,12 @@ const smokeTests: TestCase[] = [
     description: 'Arrays: filter() with callback should work'
   },
   {
+    name: 'array-slice',
+    fixture: 'tests/fixtures/arrays/array-slice.ts',
+    expectTestPassed: true,
+    description: 'Arrays: slice() should return sub-array'
+  },
+  {
     name: 'object-literal',
     fixture: 'tests/fixtures/objects/object-literal.js',
     expectedExitCode: 30,
