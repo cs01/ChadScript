@@ -346,7 +346,6 @@ export class MemberAccessGenerator {
     const enumName = exprObjVar.name;
     const memberName = expr.property;
     const value = this.ctx.getEnumMemberValue(enumName, memberName);
-    console.log('ENUM_DEBUG: ' + enumName + '.' + memberName + ' = ' + value);
     if (value === -1) {
       return null;
     }

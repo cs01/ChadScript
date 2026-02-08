@@ -45,54 +45,61 @@ export class ClassGenerator {
   }
 
   private fieldToLlvmType(f: ClassField): string {
-    if (!f || !f.fieldType) {
-      if (f && f.tsType) {
-        if (f.tsType.startsWith('Map<string,')) {
+    if (!f) return 'double';
+    const ft = f.fieldType;
+    const ts = f.tsType;
+    if (!ft || ft === 'double') {
+      if (ts) {
+        if (ts.startsWith('Map<string,')) {
           return '%StringMap*';
-        } else if (f.tsType.startsWith('Map<')) {
+        } else if (ts.startsWith('Map<')) {
           return '%Map*';
-        } else if (f.tsType === 'Set<string>') {
+        } else if (ts === 'Set<string>') {
           return '%StringSet*';
-        } else if (f.tsType.startsWith('Set<')) {
+        } else if (ts.startsWith('Set<')) {
           return '%Set*';
-        } else if (f.tsType.endsWith('[]')) {
+        } else if (ts.endsWith('[]')) {
           return '%ObjectArray*';
+        } else if (ts === 'number' || ts === 'boolean') {
+          return 'double';
+        } else if (ts === 'number[]' || ts === 'boolean[]') {
+          return '%Array*';
         }
-        const classNode = this.findClassNode(f.tsType);
+        const classNode = this.findClassNode(ts);
         if (classNode) {
-          return '%' + f.tsType + '_struct*';
+          return '%' + ts + '_struct*';
         }
         return 'i8*';
       }
       return 'double';
     }
-    if (f.fieldType === 'string') {
+    if (ft === 'string') {
       return 'i8*';
-    } else if (f.fieldType === 'string[]') {
+    } else if (ft === 'string[]') {
       return '%StringArray*';
-    } else if (f.fieldType.endsWith('[]')) {
+    } else if (ft.endsWith('[]')) {
       return '%Array*';
-    } else if (f.fieldType === 'boolean') {
+    } else if (ft === 'boolean') {
       return 'i1';
-    } else if (f.tsType) {
-      if (f.tsType.startsWith('Map<string,')) {
+    } else if (ts) {
+      if (ts.startsWith('Map<string,')) {
         return '%StringMap*';
-      } else if (f.tsType.startsWith('Map<')) {
+      } else if (ts.startsWith('Map<')) {
         return '%Map*';
-      } else if (f.tsType === 'Set<string>') {
+      } else if (ts === 'Set<string>') {
         return '%StringSet*';
-      } else if (f.tsType.startsWith('Set<')) {
+      } else if (ts.startsWith('Set<')) {
         return '%Set*';
-      } else if (f.tsType === 'number' || f.tsType === 'boolean') {
+      } else if (ts === 'number' || ts === 'boolean') {
         return 'double';
-      } else if (f.tsType === 'number[]' || f.tsType === 'boolean[]') {
+      } else if (ts === 'number[]' || ts === 'boolean[]') {
         return '%Array*';
-      } else if (f.tsType.endsWith('[]')) {
+      } else if (ts.endsWith('[]')) {
         return '%ObjectArray*';
       } else {
-        const classNode = this.findClassNode(f.tsType);
+        const classNode = this.findClassNode(ts);
         if (classNode) {
-          return `%${f.tsType}_struct*`;
+          return '%' + ts + '_struct*';
         }
         return 'i8*';
       }
@@ -226,7 +233,7 @@ export class ClassGenerator {
       }
       if (index !== -1) {
         const foundField = fields[index] as { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType: string };
-        return { index, type: foundField.fieldType, tsType: foundField.tsType };
+        return { index, type: foundField.fieldType || 'double', tsType: foundField.tsType };
       }
     }
 
@@ -298,15 +305,16 @@ export class ClassGenerator {
 
     this.classFields.set(className, allFields);
 
+    const fieldLlvmTypes: string[] = [];
+    for (let fi = 0; fi < allFields.length; fi++) {
+      const f = allFields[fi] as ClassField;
+      if (!f) continue;
+      fieldLlvmTypes.push(this.fieldToLlvmType(f));
+    }
+
     if (!this.structTypesEmitted) {
       if (allFields.length > 0) {
-        const fieldTypes: string[] = [];
-        for (let fi = 0; fi < allFields.length; fi++) {
-          const f = allFields[fi] as ClassField;
-          if (!f) continue;
-          fieldTypes.push(this.fieldToLlvmType(f));
-        }
-        const joinedTypes = fieldTypes.join(', ');
+        const joinedTypes = fieldLlvmTypes.join(', ');
         const structDef = '%' + className + '_struct = type { ' + joinedTypes + ' }\n\n';
         parts.push(structDef);
       } else {
@@ -339,7 +347,7 @@ export class ClassGenerator {
         console.log('WARNING: constructor for ' + className + ' returned falsy');
       }
     } else {
-      const defaultCtorIr = this.generateDefaultConstructor(className, allFields);
+      const defaultCtorIr = this.generateDefaultConstructorFromTypes(className, fieldLlvmTypes);
       if (defaultCtorIr) {
         parts.push(defaultCtorIr);
         parts.push('\n');
@@ -367,7 +375,7 @@ export class ClassGenerator {
     return parts.join('');
   }
 
-  private generateConstructor(className: string, constructor: ClassMethod, _fieldsIgnored: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]): string {
+  private generateConstructor(className: string, constructor: ClassMethod, _fieldsIgnored: ClassField[]): string {
     const fieldsFromMap = this.classFields.get(className);
     const fields = fieldsFromMap || [];
     const structType = `%${className}_struct*`;
@@ -516,16 +524,25 @@ export class ClassGenerator {
       ir += indented;
       ir += '\n';
     }
-    ir += `  ret ${structType} ${objPtr}\n`;
+    ir += `  ret ${structType} ${objPtr}` + '\n';
     ir += '}\n';
 
     return ir;
   }
 
-  private generateDefaultConstructor(className: string, _fieldsIgnored: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]): string {
-    const fields = this.classFields.get(className) || [];
+  private generateDefaultConstructor(className: string, allFields: ClassField[]): string {
+    const fieldLlvmTypes: string[] = [];
+    for (let i = 0; i < allFields.length; i++) {
+      const f = allFields[i] as ClassField;
+      if (!f) continue;
+      fieldLlvmTypes.push(this.fieldToLlvmType(f));
+    }
+    return this.generateDefaultConstructorFromTypes(className, fieldLlvmTypes);
+  }
+
+  private generateDefaultConstructorFromTypes(className: string, fieldLlvmTypes: string[]): string {
     const structType = `%${className}_struct*`;
-    let ir = `define ${structType} @${className}_constructor() {\n`;
+    let ir = `define ${structType} @${className}_constructor() {` + '\n';
     ir += 'entry:\n';
 
     this.ctx.clearOutput();
@@ -533,7 +550,7 @@ export class ClassGenerator {
 
     let objPtr: string;
 
-    if (fields.length > 0) {
+    if (fieldLlvmTypes.length > 0) {
       const sizeofReg = this.nextTemp();
       this.emit(`${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`);
       const sizeReg = this.nextTemp();
@@ -544,16 +561,13 @@ export class ClassGenerator {
       objPtr = this.nextTemp();
       this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
 
-      for (let i = 0; i < fields.length; i++) {
-        const classField = fields[i];
-        if (!classField) continue;
+      for (let i = 0; i < fieldLlvmTypes.length; i++) {
+        const llvmType = fieldLlvmTypes[i];
         const fieldPtr = this.nextTemp();
-        const llvmType = this.fieldToLlvmType(classField);
         this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${objPtr}, i32 0, i32 ${i}`);
         this.emitFieldInit(fieldPtr, llvmType);
       }
     } else {
-      // Empty struct (no fields) - allocate minimal memory for the struct type
       const sizeofReg = this.nextTemp();
       this.emit(`${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`);
       const sizeReg = this.nextTemp();
@@ -569,13 +583,13 @@ export class ClassGenerator {
       ir += indented;
       ir += '\n';
     }
-    ir += `  ret ${structType} ${objPtr}\n`;
+    ir += `  ret ${structType} ${objPtr}` + '\n';
     ir += '}\n';
 
     return ir;
   }
 
-  private generateMethod(className: string, method: ClassMethod, _fieldsIgnored: { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[]): string {
+  private generateMethod(className: string, method: ClassMethod, _fieldsIgnored: ClassField[]): string {
     const fields = this.classFields.get(className) || [];
     let returnLLVMType = 'double';
     if (method.returnType && method.returnType.length > 0) {
@@ -705,12 +719,12 @@ export class ClassGenerator {
       if (returnLLVMType === 'void') {
         ir += '  ret void\n';
       } else if (result !== null && result !== '' && result !== '0') {
-        ir += `  ret ${returnLLVMType} ${result}\n`;
+        ir += `  ret ${returnLLVMType} ${result}` + '\n';
       } else {
         if (returnLLVMType && returnLLVMType.indexOf('*') !== -1) {
-          ir += `  ret ${returnLLVMType} null\n`;
+          ir += `  ret ${returnLLVMType} null` + '\n';
         } else {
-          ir += `  ret ${returnLLVMType} 0.0\n`;
+          ir += `  ret ${returnLLVMType} 0.0` + '\n';
         }
       }
     }
@@ -1212,9 +1226,9 @@ export class ClassGenerator {
           if (!f) continue;
           fieldTypes.push(this.fieldToLlvmType(f));
         }
-        ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }\n`;
+        ir += `%${className}_struct = type { ${fieldTypes.join(', ')} }` + '\n';
       } else {
-        ir += `%${className}_struct = type { }\n`;
+        ir += `%${className}_struct = type { }` + '\n';
       }
     }
 

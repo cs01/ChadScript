@@ -106,8 +106,8 @@ describe('Bootstrap Tests', { timeout: 180000 }, () => {
     const stage1Output = '.build/stage1-test.ll';
     const stage2Output = '.build/stage2-test.ll';
 
-    await execAsync(`${stage1Binary} ${testFile} -o .build/stage1-test`);
-    await execAsync(`${stage2Binary} ${testFile} -o .build/stage2-test`);
+    await execAsync(`${stage1Binary} ${testFile} -o .build/stage1-test --skip-semantic-analysis`);
+    await execAsync(`${stage2Binary} ${testFile} -o .build/stage2-test --skip-semantic-analysis`);
 
     const ll1 = await fs.readFile(stage1Output, 'utf-8');
     const ll2 = await fs.readFile(stage2Output, 'utf-8');

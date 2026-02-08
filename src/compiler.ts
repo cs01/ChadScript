@@ -316,8 +316,8 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
       }
 
       throw new Error(
-        `Cannot resolve npm package '${imp.source}' imported in ${absPath}\n` +
-        `Package not found in node_modules or missing TypeScript source.`
+        'Cannot resolve npm package \'' + imp.source + '\' imported in ' + absPath + '\n' +
+        'Package not found in node_modules or missing TypeScript source.'
       );
     }
 

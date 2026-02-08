@@ -465,19 +465,19 @@ export class FunctionGenerator {
         if (lastLine) {
           ir += '  ' + lastLine + '\n';
         }
-        ir += `  ret %Promise* ${asyncPromise}\n`;
+        ir += `  ret %Promise* ${asyncPromise}` + '\n';
       } else if (returnTypeIsVoid) {
         ir += '  ret void\n';
       } else if (result !== null && result !== '' && result !== '0') {
-        ir += `  ret ${returnType} ${result}\n`;
+        ir += `  ret ${returnType} ${result}` + '\n';
       } else {
         if (returnTypeIsString) {
           const emptyStr = this.ctx.createEmptyStringConstant();
-          ir += `  ret i8* ${emptyStr}\n`;
+          ir += `  ret i8* ${emptyStr}` + '\n';
         } else if (returnType && returnType.indexOf('*') !== -1) {
-          ir += `  ret ${returnType} null\n`;
+          ir += `  ret ${returnType} null` + '\n';
         } else {
-          ir += `  ret ${returnType} 0.0\n`;
+          ir += `  ret ${returnType} 0.0` + '\n';
         }
       }
     }

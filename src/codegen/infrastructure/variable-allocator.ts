@@ -113,6 +113,7 @@ export interface VariableAllocatorContext {
   symbolTableGetScope(name: string): string | undefined;
   symbolTableGetType(name: string): string | undefined;
   symbolTableGetInterfaceType(name: string): string | undefined;
+  symbolTableGetObjectArrayElementType(name: string): string | undefined;
   symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined;
   symbolTableHasObjectInfo(name: string): boolean;
@@ -1486,6 +1487,10 @@ export class VariableAllocator {
           types: objArrayMeta.elementTypes,
           tsTypes: objArrayMeta.elementTsTypes || []
         };
+      }
+      const objArrElemType = this.ctx.symbolTableGetObjectArrayElementType(varName);
+      if (objArrElemType) {
+        return this.getTypeInfoForElementType(objArrElemType);
       }
       const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
       if (objMeta && objMeta.tsTypes) {

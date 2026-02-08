@@ -270,6 +270,11 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
       if (typeAlias) {
         ast.typeAliases.push(typeAlias);
       }
+    } else if (c.type === 'enum_declaration') {
+      const enumDecl = transformEnumDeclaration(child);
+      if (enumDecl) {
+        ast.enums.push(enumDecl);
+      }
     } else if (c.type === 'lexical_declaration') {
       const varDecls = transformLexicalDeclaration(child);
       for (let _vdi2 = 0; _vdi2 < varDecls.length; _vdi2++) {
@@ -803,6 +808,16 @@ function transformTemplateString(node: TreeSitterNode): TemplateLiteralNode | St
 
     if (c.type === 'string_fragment' || c.type === 'template_content') {
       parts.push({ type: 'string', value: c.text } as Expression);
+    } else if (c.type === 'escape_sequence') {
+      let decoded = c.text;
+      if (decoded === '\\n') decoded = '\n';
+      else if (decoded === '\\t') decoded = '\t';
+      else if (decoded === '\\r') decoded = '\r';
+      else if (decoded === '\\\\') decoded = '\\';
+      else if (decoded === '\\`') decoded = '`';
+      else if (decoded === '\\$') decoded = '$';
+      else if (decoded.length === 2 && decoded.charAt(0) === '\\') decoded = decoded.charAt(1);
+      parts.push({ type: 'string', value: decoded } as Expression);
     } else if (c.type === 'template_substitution') {
       hasSubstitutions = true;
       const exprChild = getNamedChild(child, 0);
@@ -2164,7 +2179,12 @@ function transformEnumDeclaration(node: TreeSitterNode): EnumDeclaration | null 
         const memberNameNode = getChildByFieldName(member, 'name');
         const memberValueNode = getChildByFieldName(member, 'value');
 
-        const memberName = memberNameNode ? (memberNameNode as NodeBase).text : '';
+        let memberName = '';
+        if (memberNameNode) {
+          memberName = (memberNameNode as NodeBase).text;
+        } else {
+          memberName = (member as NodeBase).text;
+        }
         let value = currentValue;
 
         if (memberValueNode) {

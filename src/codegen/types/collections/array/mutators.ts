@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode } from '../../../../ast/types.js';
+import { Expression, MethodCallNode, VariableNode } from '../../../../ast/types.js';
 
 interface ExprBase { type: string; }
 
@@ -34,7 +34,8 @@ export function generateArrayPush(
   let isObjectArray = false;
   const exprObjBase = expr.object as ExprBase;
   if (exprObjBase.type === 'variable') {
-    const varName = (expr.object as { name: string }).name;
+    const varNode = expr.object as VariableNode;
+    const varName = varNode.name;
     const varType = gen.getVariableType(varName);
     isStringArray = varType === '%StringArray*';
     isObjectArray = varType === '%ObjectArray*';
@@ -82,7 +83,8 @@ export function generateArrayPop(
   let isPointerArray = false;
   const exprObjBase2 = expr.object as ExprBase;
   if (exprObjBase2.type === 'variable') {
-    const varName = (expr.object as { name: string }).name;
+    const varNode = expr.object as VariableNode;
+    const varName = varNode.name;
     const varType = gen.getVariableType(varName);
     isStringArray = varType === '%StringArray*';
     isPointerArray = varType === 'i8*';

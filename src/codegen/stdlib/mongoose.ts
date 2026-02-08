@@ -87,7 +87,7 @@ export class MongooseGenerator {
    */
   generateEventHandler(handlerName: string): string {
     let ir = '; HTTP event handler wrapper for mongoose\n';
-    ir += `define void @__mg_http_handler(%struct.mg_connection* %conn, i32 %ev, i8* %ev_data, i8* %fn_data) {\n`;
+    ir += `define void @__mg_http_handler(%struct.mg_connection* %conn, i32 %ev, i8* %ev_data, i8* %fn_data) {` + '\n';
     ir += 'entry:\n';
     ir += '  ; Check if this is an HTTP message event (MG_EV_HTTP_MSG = 11)\n';
     ir += '  %ev_http = load i32, i32* @MG_EV_HTTP_MSG\n';
@@ -236,10 +236,10 @@ export class MongooseGenerator {
     ir += '  store i8* %content_type_val, i8** %req_ct_ptr\n';
     ir += '\n';
 
-    ir += `  ; Call user handler: ${handlerName}(request) -> Response object\n`;
-    ir += `  ; Request struct layout: { i8* method, i8* path, i8* body, i8* contentType }\n`;
-    ir += `  ; Response struct layout: { double status, i8* body }\n`;
-    ir += `  %response_ptr = call i8* @${handlerName}(i8* %req_mem)\n`;
+    ir += `  ; Call user handler: ${handlerName}(request) -> Response object` + '\n';
+    ir += `  ; Request struct layout: { i8* method, i8* path, i8* body, i8* contentType }` + '\n';
+    ir += `  ; Response struct layout: { double status, i8* body }` + '\n';
+    ir += `  %response_ptr = call i8* @${handlerName}(i8* %req_mem)` + '\n';
     ir += '\n';
 
     ir += '  ; Cast response pointer to Response struct { double, i8* }\n';

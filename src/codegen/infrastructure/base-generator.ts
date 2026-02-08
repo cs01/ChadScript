@@ -239,8 +239,8 @@ export class BaseGenerator {
     const expectedType = ptrType.substring(0, ptrType.length - 1);
     if (valueType !== expectedType) {
       throw new Error(
-        `LLVM type mismatch in store: value type is '${valueType}' but pointer expects '${expectedType}'\n` +
-        `  Instruction: ${instruction}\n` +
+        `LLVM type mismatch in store: value type is '${valueType}' but pointer expects '${expectedType}'` + '\n' +
+        `  Instruction: ${instruction}` + '\n' +
         `  This usually means an expression returned a wrong type (e.g., ptr instead of double)`
       );
     }
@@ -274,8 +274,8 @@ export class BaseGenerator {
           const lookupType = this.variableTypes.get(value);
           if (lookupType && lookupType !== 'double') {
             throw new Error(
-              `LLVM phi type mismatch: declared type is '${declaredType}' but branch value '${value}' has type '${lookupType}'\n` +
-              `  Instruction: ${instruction}\n` +
+              `LLVM phi type mismatch: declared type is '${declaredType}' but branch value '${value}' has type '${lookupType}'` + '\n' +
+              `  Instruction: ${instruction}` + '\n' +
               `  This usually means a conditional expression has mismatched branch types`
             );
           }
@@ -283,8 +283,8 @@ export class BaseGenerator {
       } else if (declaredType.endsWith('*')) {
         if (this.looksLikeDoubleValue(value)) {
           throw new Error(
-            `LLVM phi type mismatch: declared type is '${declaredType}' but branch value '${value}' looks like a double\n` +
-            `  Instruction: ${instruction}\n` +
+            `LLVM phi type mismatch: declared type is '${declaredType}' but branch value '${value}' looks like a double` + '\n' +
+            `  Instruction: ${instruction}` + '\n' +
             `  This usually means a conditional expression has mismatched branch types`
           );
         }
@@ -342,8 +342,8 @@ export class BaseGenerator {
     const expectedType = ptrType.substring(0, ptrType.length - 1);
     if (loadType !== expectedType) {
       throw new Error(
-        `LLVM type mismatch in load: loading type '${loadType}' but pointer has type '${ptrType}' (expects '${expectedType}')\n` +
-        `  Instruction: ${instruction}\n` +
+        `LLVM type mismatch in load: loading type '${loadType}' but pointer has type '${ptrType}' (expects '${expectedType}')` + '\n' +
+        `  Instruction: ${instruction}` + '\n' +
         `  This usually means a variable has the wrong type or a cast is missing`
       );
     }
@@ -365,16 +365,16 @@ export class BaseGenerator {
       const indexValue = part.substring(spaceIdx + 1).trim();
       if (indexValue.startsWith('-')) {
         throw new Error(
-          `LLVM GEP with negative index: '${indexValue}'\n` +
-          `  Instruction: ${instruction}\n` +
+          `LLVM GEP with negative index: '${indexValue}'` + '\n' +
+          `  Instruction: ${instruction}` + '\n' +
           `  Negative GEP indices usually indicate a codegen bug`
         );
       }
       const numIndex = parseInt(indexValue, 10);
       if (!isNaN(numIndex) && numIndex > 100) {
         throw new Error(
-          `LLVM GEP with suspiciously large index: '${indexValue}'\n` +
-          `  Instruction: ${instruction}\n` +
+          `LLVM GEP with suspiciously large index: '${indexValue}'` + '\n' +
+          `  Instruction: ${instruction}` + '\n' +
           `  This may indicate an incorrect field index calculation`
         );
       }
@@ -443,8 +443,8 @@ export class BaseGenerator {
   setVariableType(name: string, type: string): void {
     if (type === 'unknown') {
       throw new Error(
-        `Cannot set type 'unknown' for register '${name}'.\n` +
-        `  This indicates type inference failed somewhere in the codegen pipeline.\n` +
+        `Cannot set type 'unknown' for register '${name}'.` + '\n' +
+        `  This indicates type inference failed somewhere in the codegen pipeline.` + '\n' +
         `  Check the expression that produced this register and ensure type tracking is correct.`
       );
     }
@@ -472,8 +472,8 @@ export class BaseGenerator {
   setExpressionType(expr: Expression, type: ResolvedType): void {
     if (type.base === 'unknown') {
       throw new Error(
-        `Cannot cache 'unknown' type for expression of type '${expr.type}'.\n` +
-        `  This indicates type resolution failed.\n` +
+        `Cannot cache 'unknown' type for expression of type '${expr.type}'.` + '\n' +
+        `  This indicates type resolution failed.` + '\n' +
         `  Ensure the expression's type can be determined at compile time.`
       );
     }
