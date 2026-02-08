@@ -280,7 +280,7 @@ export class JsonGenerator {
       const fieldName = fieldEntry.name;
       const fieldType = fieldEntry.type;
       const fieldNameConst = this.ctx.nextString();
-      this.ctx.pushGlobalString(`${fieldNameConst} = private unnamed_addr constant [${fieldName.length + 1} x i8] c"${fieldName}\\00", align 1`);
+      this.ctx.pushGlobalString(fieldNameConst + ' = private unnamed_addr constant [' + (fieldName.length + 1) + ' x i8] c"' + fieldName + '\\00", align 1');
 
       parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${fieldName.length + 1} x i8], [${fieldName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
 
