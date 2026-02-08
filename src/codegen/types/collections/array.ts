@@ -70,10 +70,10 @@ export class ArrayGenerator {
       predicateFn = (predicateArg as VariableNode).name;
     } else if (predicateArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
-        this.ctx.expectedCallbackParamType = 'string';
+        this.ctx.setExpectedCallbackParamType('string');
       }
       predicateFn = this.ctx.generateExpression(predicateArg, params);
-      this.ctx.expectedCallbackParamType = null;
+      this.ctx.setExpectedCallbackParamType(null);
     } else {
       throw new Error('find() argument must be a function name or inline function');
     }
@@ -247,10 +247,10 @@ export class ArrayGenerator {
       predicateFn = (predicateArg as VariableNode).name;
     } else if (predicateArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
-        this.ctx.expectedCallbackParamType = 'string';
+        this.ctx.setExpectedCallbackParamType('string');
       }
       predicateFn = this.ctx.generateExpression(predicateArg, params);
-      this.ctx.expectedCallbackParamType = null;
+      this.ctx.setExpectedCallbackParamType(null);
     } else {
       throw new Error('some() argument must be a function name or inline function');
     }
@@ -428,10 +428,10 @@ export class ArrayGenerator {
       predicateFn = (predicateArg as VariableNode).name;
     } else if (predicateArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
-        this.ctx.expectedCallbackParamType = 'string';
+        this.ctx.setExpectedCallbackParamType('string');
       }
       predicateFn = this.ctx.generateExpression(predicateArg, params);
-      this.ctx.expectedCallbackParamType = null;
+      this.ctx.setExpectedCallbackParamType(null);
     } else {
       throw new Error('every() argument must be a function name or inline function');
     }
@@ -598,10 +598,10 @@ export class ArrayGenerator {
       predicateFn = (predicateArg as VariableNode).name;
     } else if (predicateArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
-        this.ctx.expectedCallbackParamType = 'string';
+        this.ctx.setExpectedCallbackParamType('string');
       }
       predicateFn = this.ctx.generateExpression(predicateArg, params);
-      this.ctx.expectedCallbackParamType = null;
+      this.ctx.setExpectedCallbackParamType(null);
     } else {
       throw new Error('filter() argument must be a function name or inline function');
     }
@@ -844,10 +844,10 @@ export class ArrayGenerator {
       callbackFn = (callbackArg as VariableNode).name;
     } else if (callbackArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
-        this.ctx.expectedCallbackParamType = 'string';
+        this.ctx.setExpectedCallbackParamType('string');
       }
       callbackFn = this.ctx.generateExpression(callbackArg, params);
-      this.ctx.expectedCallbackParamType = null;
+      this.ctx.setExpectedCallbackParamType(null);
     } else {
       throw new Error('forEach() argument must be a function name or inline function');
     }
@@ -984,10 +984,10 @@ export class ArrayGenerator {
       callbackFn = (callbackArg as VariableNode).name;
     } else if (callbackArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
-        this.ctx.expectedCallbackParamType = 'string';
+        this.ctx.setExpectedCallbackParamType('string');
       }
       callbackFn = this.ctx.generateExpression(callbackArg, params);
-      this.ctx.expectedCallbackParamType = null;
+      this.ctx.setExpectedCallbackParamType(null);
     } else {
       throw new Error('map() argument must be a function name or inline function');
     }
@@ -1489,11 +1489,11 @@ export class ArrayGenerator {
     if (callbackArg.type === 'variable') {
       callbackFn = (callbackArg as VariableNode).name;
     } else if (callbackArg.type === 'arrow_function') {
-      this.ctx.expectedCallbackParamType = 'string';
-      this.ctx.expectedCallbackReturnType = 'string';
+      this.ctx.setExpectedCallbackParamType('string');
+      this.ctx.setExpectedCallbackReturnType('string');
       callbackFn = this.ctx.generateExpression(callbackArg, params);
-      this.ctx.expectedCallbackParamType = null;
-      this.ctx.expectedCallbackReturnType = null;
+      this.ctx.setExpectedCallbackParamType(null);
+      this.ctx.setExpectedCallbackReturnType(null);
     } else {
       throw new Error('map() argument must be a function name or inline function');
     }

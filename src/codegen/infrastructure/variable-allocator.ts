@@ -85,10 +85,8 @@ export interface VariableAllocatorContext {
   isJSONParseExpression(expr: Expression): boolean;
   isAwaitExpression(expr: Expression): boolean;
   getVariableType(name: string): string | undefined;
-  currentDeclaredMapType: string | undefined;
   setCurrentDeclaredMapType(type: string | undefined): void;
   getCurrentDeclaredMapType(): string | undefined;
-  currentDeclaredSetType: string | undefined;
   setCurrentDeclaredSetType(type: string | undefined): void;
   getCurrentDeclaredSetType(): string | undefined;
   getTypedJsonInterface(expr: Expression): string | null;
@@ -98,13 +96,10 @@ export interface VariableAllocatorContext {
   getJSONParseInterface(expr: Expression): string | null;
   getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] };
   formatCodegenError(message: string, suggestion?: string): string;
-  ast: AST;
   getAst(): AST | undefined;
-  classGen: ClassGeneratorLike;
   hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; llvmType: string }[];
-  symbolTable: SymbolTable;
   symbolTableLookup(name: string): SymbolEntry | undefined;
   symbolTableIsMap(name: string): boolean;
   symbolTableGetMapMetadata(name: string): MapMetadata | undefined;
@@ -119,7 +114,6 @@ export interface VariableAllocatorContext {
   symbolTableHasObjectInfo(name: string): boolean;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableSetObjectArrayMetadata(name: string, metadata: ObjectArrayMetadata): void;
-  exprGen: ExpressionGeneratorLike;
   arrowFunctionGenGenerate(
     expr: Expression,
     params: string[],
@@ -130,10 +124,9 @@ export interface VariableAllocatorContext {
   arrowFunctionGenGetClosureInfo(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null;
   setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void;
   getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null;
-  currentDeclaredInterfaceType: string | undefined;
-  currentClassName: string | null;
-  typeChecker?: TypeChecker | null;
-  typeResolver?: TypeResolver;
+  setCurrentDeclaredInterfaceType(type: string | undefined): void;
+  getCurrentDeclaredInterfaceType(): string | undefined;
+  getCurrentClassName(): string | null;
   typeResolverGetInterface(name: string): InterfaceDeclaration | null;
   typeResolverGetTypeAlias(name: string): TypeAliasDeclaration | null;
   typeResolverGetMapGetInterfaceType(expr: Expression): string | null;
@@ -676,9 +669,9 @@ export class VariableAllocator {
 
     this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
     this.ctx.emit(`${allocaReg} = alloca i8*`);
-    this.ctx.currentDeclaredInterfaceType = interfaceName;
+    this.ctx.setCurrentDeclaredInterfaceType(interfaceName);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.currentDeclaredInterfaceType = undefined;
+    this.ctx.setCurrentDeclaredInterfaceType(undefined);
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
   }
 
@@ -707,9 +700,9 @@ export class VariableAllocator {
       const memberExpr = methodExpr.object as MemberAccessNode;
       const memberExprObjBase = memberExpr.object as ExprBase;
       if (memberExprObjBase.type !== 'this') return null;
-      if (!this.ctx.currentClassName) return null;
+      if (!this.ctx.getCurrentClassName()) return null;
 
-      const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
+      const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), memberExpr.property);
       if (!fieldInfoResult) return null;
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfo.tsType) return null;
@@ -893,8 +886,8 @@ export class VariableAllocator {
     } else if (methodObjBase.type === 'member_access') {
       const memberExpr = methodExpr.object as MemberAccessNode;
       const memberExprObjBase = memberExpr.object as ExprBase;
-      if (memberExprObjBase.type === 'this' && this.ctx.currentClassName && this.ctx.hasClassGen()) {
-        const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, memberExpr.property);
+      if (memberExprObjBase.type === 'this' && this.ctx.getCurrentClassName() && this.ctx.hasClassGen()) {
+        const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
           const mapParsed = parseMapTypeString(fieldInfo.tsType);
@@ -1026,10 +1019,10 @@ export class VariableAllocator {
     this.ctx.emit(`${allocaReg} = alloca i8*`);
 
     if (interfaceDefResult) {
-      this.ctx.currentDeclaredInterfaceType = stmt.declaredType;
+      this.ctx.setCurrentDeclaredInterfaceType(stmt.declaredType);
     }
     const objExpr = this.ctx.generateExpression(stmt.value!, params);
-    this.ctx.currentDeclaredInterfaceType = undefined;
+    this.ctx.setCurrentDeclaredInterfaceType(undefined);
     this.ctx.emit(`store i8* ${objExpr}, i8** ${allocaReg}`);
   }
 
@@ -1589,7 +1582,7 @@ export class VariableAllocator {
     const e = expr as ExprBase;
     if (!e.type) return null;
     if (e.type === 'this') {
-      return this.ctx.currentClassName || null;
+      return this.ctx.getCurrentClassName() || null;
     }
     if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
@@ -1656,8 +1649,8 @@ export class VariableAllocator {
   }
 
   private getThisFieldInfo(fieldName: string): { tsType?: string } | null {
-    if (!this.ctx.currentClassName) return null;
-    return this.ctx.classGenGetFieldInfo(this.ctx.currentClassName, fieldName);
+    if (!this.ctx.getCurrentClassName()) return null;
+    return this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), fieldName);
   }
 
   private getTypeInfoForElementType(elementType: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {

@@ -2,32 +2,16 @@ import { Expression, MemberAccessNode, VariableNode } from '../../../ast/types.j
 
 interface ExprBase { type: string; }
 
-interface StringGenLike {
-  createStringConstant(value: string): string;
-}
-
-interface ClassGeneratorLike {
-  getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
-  getClassFields(className: string): { name: string; fieldType: string }[];
-  thisPointer?: string | null;
-  currentClassName?: string | null;
-}
-
 interface UnaryExpressionContext {
   nextTemp(): string;
   emit(instruction: string): void;
-  variableTypes: Map<string, string>;
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   getVariableAlloca(name: string): string | undefined;
-  thisPointer?: string | null;
   getThisPointer(): string | null;
-  currentClassName?: string | null;
   getCurrentClassName(): string | null;
-  classGen?: ClassGeneratorLike;
   hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
-  stringGen?: StringGenLike;
   generateExpression(expr: Expression, params: string[]): string;
   stringGenCreateStringConstant(value: string): string;
 }
@@ -221,9 +205,6 @@ export class UnaryExpressionGenerator {
       typeString = 'object';
     }
 
-    if (!this.ctx.stringGen) {
-      throw new Error('typeof requires stringGen in context');
-    }
     const strPtr = this.ctx.stringGenCreateStringConstant(typeString);
     this.ctx.setVariableType(strPtr, 'i8*');
     return strPtr;

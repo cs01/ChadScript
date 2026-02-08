@@ -37,25 +37,19 @@ export interface AssignmentGeneratorContext {
   generateExpression(expr: Expression, params: string[]): string;
   getVariableAlloca(name: string): string | null;
   getVariableType(name: string): string | null;
-  symbolTable: SymbolTable;
   symbolTableIsClass(name: string): boolean;
   symbolTableIsObject(name: string): boolean;
   symbolTableGetClassInfo(name: string): ClassInfo | undefined;
   symbolTableGetObjectInfo(name: string): ObjectInfo | undefined;
-  classGen: ClassGeneratorLike;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; llvmType: string }[];
-  thisPointer: string | null;
-  ast: AST;
   getAst(): AST | undefined;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
   setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void;
   currentDeclaredMapType: string | undefined;
   setCurrentDeclaredMapType(type: string | undefined): void;
-  currentClassName: string | null;
   getThisPointer(): string | null;
   getCurrentClassName(): string | null;
-  interfaceStructGen?: InterfaceStructGenerator;
 }
 
 export class AssignmentGenerator {

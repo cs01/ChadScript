@@ -50,6 +50,7 @@ export interface TypeInferenceContext {
   symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetObjectPropertyType(varName: string, propertyName: string): string | null;
+  symbolTableGetObjectArrayElementType(name: string): string | undefined;
 }
 
 export class TypeInference {
@@ -1156,12 +1157,20 @@ export class TypeInference {
   }
 
   getIndexAccessElementType(expr: Expression): string | null {
-    const e = expr as ExprBase;
+    let e = expr as ExprBase;
+    let indexExpr: Expression = expr;
+    if (e.type === 'type_assertion') {
+      const assertion = expr as { expression: Expression; assertedType: string };
+      if (assertion.expression) {
+        indexExpr = assertion.expression;
+        e = assertion.expression as ExprBase;
+      }
+    }
     if (e.type !== 'index_access') return null;
-    const indexExpr = expr as IndexAccessNode;
-    const objBase = indexExpr.object as ExprBase;
+    const idxNode = indexExpr as IndexAccessNode;
+    const objBase = idxNode.object as ExprBase;
     if (objBase.type === 'variable') {
-      const varName = (indexExpr.object as VariableNode).name;
+      const varName = (idxNode.object as VariableNode).name;
       const objMeta5 = this.ctx.symbolTableGetObjectMetadata(varName);
       if (objMeta5 && objMeta5.tsTypes) {
         return null;
@@ -1171,6 +1180,11 @@ export class TypeInference {
         const baseType = ifaceType5.replace('[]', '');
         const iface = this.getInterface(baseType);
         if (iface) return baseType;
+      }
+      const objArrElemType = this.ctx.symbolTableGetObjectArrayElementType(varName);
+      if (objArrElemType) {
+        const iface = this.getInterface(objArrElemType);
+        if (iface) return objArrElemType;
       }
     }
     return null;

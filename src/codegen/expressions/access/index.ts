@@ -9,7 +9,6 @@ export interface IndexAccessGeneratorContext {
   nextTemp(): string;
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
-  variableTypes: Map<string, string>;
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   symbolTableLookup(name: string): SymbolEntry | undefined;
@@ -24,7 +23,6 @@ export interface IndexAccessGeneratorContext {
   getVariableAlloca(name: string): string | undefined;
   generateExpression(expr: Expression, params: string[]): string;
   isStringExpression(expr: Expression): boolean;
-  stringGen: StringGenLike;
   stringGenCreateStringConstant(value: string): string;
 }
 

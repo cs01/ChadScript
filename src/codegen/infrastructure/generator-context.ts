@@ -308,11 +308,15 @@ export interface IGeneratorContext {
    * Expected callback parameter type (for type-aware lambda generation)
    */
   expectedCallbackParamType: string | null;
+  setExpectedCallbackParamType(type: string | null): void;
+  getExpectedCallbackParamType(): string | null;
 
   /**
    * Expected callback return type (for type-aware lambda generation)
    */
   expectedCallbackReturnType: string | null;
+  setExpectedCallbackReturnType(type: string | null): void;
+  getExpectedCallbackReturnType(): string | null;
 
   /**
    * Current 'this' pointer for class methods
@@ -478,11 +482,19 @@ export interface IGeneratorContext {
    * Whether the current compilation uses Promises
    */
   usesPromises: boolean;
+  setUsesPromises(value: boolean): void;
+  getUsesPromises(): boolean;
 
   /**
    * Whether the current compilation uses timers (setTimeout/setInterval)
    */
   usesTimers: boolean;
+  setUsesTimers(value: boolean): void;
+  getUsesTimers(): boolean;
+
+  currentDeclaredInterfaceType: string | undefined;
+  setCurrentDeclaredInterfaceType(type: string | undefined): void;
+  getCurrentDeclaredInterfaceType(): string | undefined;
 
   /**
    * Current function name for type resolution
