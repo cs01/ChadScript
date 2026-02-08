@@ -209,7 +209,7 @@ export class ResponseGenerator {
       const propName = prop.name;
       const propType = prop.type;
       const fieldNameConst = this.ctx.nextString();
-      this.ctx.pushGlobalString(`${fieldNameConst} = private unnamed_addr constant [${propName.length + 1} x i8] c"${propName}\\00", align 1`);
+      this.ctx.pushGlobalString(fieldNameConst + ' = private unnamed_addr constant [' + (propName.length + 1) + ' x i8] c"' + propName + '\\00", align 1');
 
       parserIR += `  ; Extract field "${propName}"\n`;
       parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${propName.length + 1} x i8], [${propName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
