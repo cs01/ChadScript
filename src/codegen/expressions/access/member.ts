@@ -78,7 +78,6 @@ export interface MemberAccessGeneratorContext {
   nextTemp(): string;
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
-  symbolTable: SymbolTable;
   symbolTableLookup(name: string): SymbolEntry | undefined;
   symbolTableIsClass(name: string): boolean;
   symbolTableIsJSON(name: string): boolean;
@@ -106,17 +105,10 @@ export interface MemberAccessGeneratorContext {
   symbolTableGetAlloca(name: string): string | undefined;
   symbolTableGetObjectArrayMetadata(name: string): { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] } | undefined;
   symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
-  variableTypes: Map<string, string>;
-  ast?: AST;
   getAst(): AST | undefined;
-  typeChecker?: TypeChecker | null;
-  thisPointer?: string | null;
   getThisPointer(): string | null;
-  currentClassName?: string | null;
   getCurrentClassName(): string | null;
-  currentFunction?: string | null;
   getCurrentFunction(): string | null;
-  jsonObjectMetadata?: Map<string, JsonObjectMeta>;
   setJsonObjectMetadata(key: string, value: JsonObjectMeta): void;
   getJsonObjectMetadata(key: string): JsonObjectMeta | undefined;
   hasJsonObjectMetadata(key: string): boolean;
@@ -136,22 +128,16 @@ export interface MemberAccessGeneratorContext {
   getEnumMemberValue(enumName: string, memberName: string): number;
   getClassesCount(): number;
   getAstClassAt(index: number): ClassNode | null;
-  interfaceStructGen?: InterfaceStructGenerator;
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   getVariableAlloca(name: string): string | undefined;
   syncStateToGenerators(): void;
   formatCodegenError(message: string, suggestion?: string): string;
   getObjectMetadata(obj: ObjectNode): ObjectMetadata;
-  classGen: ClassGeneratorLike;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
   classGenGetClassFields(className: string): FieldInfo[];
-  stringGen: StringGeneratorLike;
-  mapGen: MapGeneratorLike;
-  setGen: SetGeneratorLike;
-  responseGen: ResponseGeneratorLike;
   responseGenGenerateStatus(responsePtr: string): string;
   responseGenGenerateOk(responsePtr: string): string;
   generateExpression(expr: Expression, params: string[]): string;
@@ -162,6 +148,8 @@ export interface MemberAccessGeneratorContext {
   setGenGenerateSetSize(setPtr: string): string;
   setActualClassType(name: string, className: string): void;
   getActualClassType(name: string): string | undefined;
+  symbolTableGetConcreteClass(name: string): string | undefined;
+  symbolTableSetConcreteClass(name: string, concreteClass: string): void;
 }
 
 /**
@@ -180,6 +168,18 @@ export class MemberAccessGenerator {
   constructor(private ctx: MemberAccessGeneratorContext) {}
 
   private findClassImplementingInterface(interfaceName: string): string | null {
+    return this.ctx.findClassImplementingInterface(interfaceName);
+  }
+
+  private resolveConcreteClass(varName: string, interfaceName: string): string | null {
+    const concrete = this.ctx.symbolTableGetConcreteClass(varName);
+    if (concrete) return concrete;
+    return this.ctx.findClassImplementingInterface(interfaceName);
+  }
+
+  private resolveConcreteClassForRegister(register: string, interfaceName: string): string | null {
+    const concrete = this.ctx.getActualClassType(register);
+    if (concrete) return concrete;
     return this.ctx.findClassImplementingInterface(interfaceName);
   }
 
@@ -526,6 +526,24 @@ export class MemberAccessGenerator {
         if (classMeta) {
           className = classMeta.className;
           instancePtr = this.ctx.generateExpression(expr.object, params);
+        }
+      } else {
+        const concreteClass = this.ctx.symbolTableGetConcreteClass(varName);
+        if (concreteClass) {
+          const fieldCheck = this.ctx.classGenGetFieldInfo(concreteClass, expr.property);
+          if (fieldCheck) {
+            className = concreteClass;
+            const rawPtr = this.ctx.generateExpression(expr.object, params);
+            const ptrType = this.ctx.getVariableType(rawPtr);
+            if (ptrType === 'i8*' || (ptrType && ptrType !== `%${concreteClass}_struct*`)) {
+              const castPtr = this.ctx.nextTemp();
+              this.ctx.emit(`${castPtr} = bitcast ${ptrType || 'i8*'} ${rawPtr} to %${concreteClass}_struct*`);
+              this.ctx.setVariableType(castPtr, `%${concreteClass}_struct*`);
+              instancePtr = castPtr;
+            } else {
+              instancePtr = rawPtr;
+            }
+          }
         }
       }
     } else if (exprObjType === 'new') {
@@ -1021,7 +1039,7 @@ export class MemberAccessGenerator {
       const innerPropField = innerProps[propIndex] as InterfaceProperty;
       propType = innerPropField.type;
 
-      const implementingClass = this.ctx.getActualClassType(innerPtr) || this.findClassImplementingInterface(innerInterfaceName);
+      const implementingClass = this.resolveConcreteClassForRegister(innerPtr, innerInterfaceName);
       if (implementingClass) {
         const classFieldInfo = this.ctx.classGenGetFieldInfo(implementingClass, expr.property);
         if (classFieldInfo) {
@@ -1197,10 +1215,11 @@ export class MemberAccessGenerator {
         if (classFieldInfo) {
           const classFieldInfoTyped = classFieldInfo as { index: number; type: string; tsType?: string };
           const innerPtr = this.ctx.generateExpression(expr.object, params);
+          const resolvedClass = this.ctx.getActualClassType(innerPtr) || implementingClass;
           const castPtr = this.ctx.nextTemp();
-          this.ctx.emit(`${castPtr} = bitcast %${fieldInfo.tsType}* ${innerPtr} to %${implementingClass}_struct*`);
+          this.ctx.emit(`${castPtr} = bitcast %${fieldInfo.tsType}* ${innerPtr} to %${resolvedClass}_struct*`);
           const fieldPtr = this.ctx.nextTemp();
-          this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${implementingClass}_struct, %${implementingClass}_struct* ${castPtr}, i32 0, i32 ${classFieldInfoTyped.index}`);
+          this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${resolvedClass}_struct, %${resolvedClass}_struct* ${castPtr}, i32 0, i32 ${classFieldInfoTyped.index}`);
           return this.loadFieldValue(fieldPtr, classFieldInfo);
         }
       }
@@ -1244,10 +1263,11 @@ export class MemberAccessGenerator {
       if (classFieldInfo) {
         const classFieldInfoTyped = classFieldInfo as { index: number; type: string; tsType?: string };
         const innerPtr = this.ctx.generateExpression(expr.object, params);
+        const resolvedClass2 = this.ctx.getActualClassType(innerPtr) || implementingClass2;
         const castPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${castPtr} = bitcast %${fieldInfo.tsType}* ${innerPtr} to %${implementingClass2}_struct*`);
+        this.ctx.emit(`${castPtr} = bitcast %${fieldInfo.tsType}* ${innerPtr} to %${resolvedClass2}_struct*`);
         const fieldPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${implementingClass2}_struct, %${implementingClass2}_struct* ${castPtr}, i32 0, i32 ${classFieldInfoTyped.index}`);
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${resolvedClass2}_struct, %${resolvedClass2}_struct* ${castPtr}, i32 0, i32 ${classFieldInfoTyped.index}`);
         return this.loadFieldValue(fieldPtr, classFieldInfo);
       }
     }
@@ -1755,7 +1775,7 @@ export class MemberAccessGenerator {
       if (isObject) {
         const ifaceType = this.ctx.symbolTableGetInterfaceType(varName);
         if (ifaceType && ifaceType.length > 0) {
-          const implementingClass = this.findClassImplementingInterface(ifaceType);
+          const implementingClass = this.resolveConcreteClass(varName, ifaceType);
           if (implementingClass) {
             const classFieldInfo = this.ctx.classGenGetFieldInfo(implementingClass, expr.property);
             if (classFieldInfo) {
