@@ -14,6 +14,7 @@ let linkTreeSitter = false;
 let skipSemanticAnalysis = false;
 let keepTemps = false;
 let emitLLVMOnly = false;
+let sanitize: string | null = null;
 
 export function setUseTSParser(value: boolean): void {
   useTSParser = value;
@@ -33,6 +34,10 @@ export function setKeepTemps(value: boolean): void {
 
 export function setEmitLLVMOnly(value: boolean): void {
   emitLLVMOnly = value;
+}
+
+export function setSanitize(value: string): void {
+  sanitize = value;
 }
 
 // External library paths - check env vars, then use vendor/
@@ -157,10 +162,16 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
 
   // Compile IR to object file
   const objFile = outputFile + '.o';
-  const llcCmd = `llc -filetype=obj ${irFile} -o ${objFile}`;
-  logger.info(` "${llcPath}" -filetype=obj ${irFile} -o ${objFile}`);
+  const sanitizeFlags = sanitize ? ` -fsanitize=${sanitize}` : '';
+  let compileCmd: string;
+  if (sanitize) {
+    compileCmd = `clang -c${sanitizeFlags} ${irFile} -o ${objFile}`;
+  } else {
+    compileCmd = `llc -filetype=obj ${irFile} -o ${objFile}`;
+  }
+  logger.info(` ${compileCmd}`);
   const llcStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
-  execSync(llcCmd, { stdio: llcStdio });
+  execSync(compileCmd, { stdio: llcStdio });
 
   // Link to executable with all required libraries
   // - libgc: Boehm garbage collector (replaces malloc)
@@ -206,8 +217,12 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     linkLibs += ' /usr/lib64/libtree-sitter.so.0';
   }
 
-  const linkCmd = `${useClang ? 'clang' : 'gcc'} ${objFile} ${mongooseObj}${extraObjs} -o ${outputFile} -no-pie ${linkLibs}`;
-  logger.info(` "${linkerPath}" ${objFile} ${mongooseObj}${extraObjs} -o ${outputFile} -no-pie ${linkLibs}`);
+  let linker = useClang ? 'clang' : 'gcc';
+  if (sanitize) {
+    linker = 'gcc';
+  }
+  const linkCmd = `${linker} ${objFile} ${mongooseObj}${extraObjs} -o ${outputFile} -no-pie${sanitizeFlags} ${linkLibs}`;
+  logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });
 

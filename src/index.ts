@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { compile, setUseTSParser, setLinkTreeSitter, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly } from './compiler.js';
+import { compile, setUseTSParser, setLinkTreeSitter, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize } from './compiler.js';
 import { LogLevel, logger } from './utils/logger.js';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -39,6 +39,8 @@ for (let i = 0; i < args.length; i++) {
     setKeepTemps(true);
   } else if (arg === '--emit-llvm' || arg === '-S') {
     setEmitLLVMOnly(true);
+  } else if (arg === '-fsanitize=address' || arg === '--sanitize=address') {
+    setSanitize('address');
   } else if (arg === '-o') {
     if (i + 1 < args.length) {
       outputArg = args[i + 1];
@@ -58,6 +60,7 @@ for (let i = 0; i < args.length; i++) {
     console.log('  --skip-semantic-analysis  Skip semantic analysis (for self-hosting)');
     console.log('  --emit-llvm, -S  Output LLVM IR only (no binary)');
     console.log('  --keep-temps     Keep intermediate files (.ll, .o)');
+    console.log('  -fsanitize=address  Build with AddressSanitizer (ASAN)');
     console.log('  -h, --help       Show this help message');
     console.log('');
     console.log('Examples:');
