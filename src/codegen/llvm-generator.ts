@@ -474,22 +474,35 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public isEnumType(name: string): boolean {
     if (!this.ast || !this.ast.enums) return false;
     for (let i = 0; i < this.ast.enums.length; i++) {
-      const e = this.ast.enums[i];
-      if (!e) continue;
+      const eRaw = this.ast.enums[i];
+      if (!eRaw) continue;
+      const e = eRaw as { name: string };
       if (e.name === name) return true;
     }
     return false;
   }
 
   public getEnumMemberValue(enumName: string, memberName: string): number {
-    if (!this.ast || !this.ast.enums) return -1;
+    if (!this.ast || !this.ast.enums) {
+      console.log('ENUMDBG: ast.enums is null/undefined');
+      return -1;
+    }
+    console.log('ENUMDBG: ast.enums.length = ' + this.ast.enums.length);
     for (let i = 0; i < this.ast.enums.length; i++) {
-      const e = this.ast.enums[i];
-      if (!e) continue;
+      const eRaw = this.ast.enums[i];
+      if (!eRaw) {
+        console.log('ENUMDBG: enums[' + i + '] is null');
+        continue;
+      }
+      const e = eRaw as { name: string; members: { name: string; value: number }[] };
+      console.log('ENUMDBG: enums[' + i + '].name = ' + e.name);
       if (e.name === enumName && e.members) {
+        console.log('ENUMDBG: MATCH! members.length = ' + e.members.length);
         for (let j = 0; j < e.members.length; j++) {
-          const m = e.members[j];
-          if (!m) continue;
+          const mRaw = e.members[j];
+          if (!mRaw) continue;
+          const m = mRaw as { name: string; value: number };
+          console.log('ENUMDBG: member[' + j + '].name = ' + m.name);
           if (m.name === memberName) {
             return j;
           }
@@ -729,7 +742,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
     return lines.join('\n');
   }
-  public createEmptyStringConstant(): string { this.syncStateToGenerators(); return this.stringGen.createStringConstant(''); }
+  public createEmptyStringConstant(): string { this.syncStateToGenerators(); return this.stringGen.doCreateStringConstant(''); }
 
   public typeResolverGetInterface(name: string): InterfaceDeclaration | null { return this.typeResolver ? this.typeResolver.getInterface(name) : null; }
   public typeResolverGetInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null { return this.typeResolver ? this.typeResolver.getInterfaceProperty(interfaceName, propName) : null; }
@@ -746,27 +759,27 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public typeResolverGetClassFieldMapType(className: string, fieldName: string): { keyType: string; valueType: string } | null { return this.typeResolver ? this.typeResolver.getClassFieldMapType(className, fieldName) : null; }
   public typeResolverGetInterfaceMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | null { return this.typeResolver ? this.typeResolver.getInterfaceMetadata(name) : null; }
 
-  public stringGenCreateStringConstant(value: string): string { this.syncStateToGenerators(); return this.stringGen.createStringConstant(value); }
-  public stringGenGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string { this.syncStateToGenerators(); return this.stringGen.generateSubstr(strPtr, startIndex, length); }
-  public stringGenGenerateStringConcatDirect(left: string, right: string): string { this.syncStateToGenerators(); return this.stringGen.generateStringConcatDirect(left, right); }
-  public stringGenGenerateRepeat(strPtr: string, count: string): string { this.syncStateToGenerators(); return this.stringGen.generateRepeat(strPtr, count); }
-  public stringGenGeneratePadStart(strPtr: string, targetLength: string, padString: string): string { this.syncStateToGenerators(); return this.stringGen.generatePadStart(strPtr, targetLength, padString); }
-  public stringGenGenerateSplit(strPtr: string, delimiter: string): string { this.syncStateToGenerators(); return this.stringGen.generateSplit(strPtr, delimiter); }
-  public stringGenGenerateStartsWith(strPtr: string, prefix: string): string { this.syncStateToGenerators(); return this.stringGen.generateStartsWith(strPtr, prefix); }
-  public stringGenGenerateEndsWith(strPtr: string, suffix: string): string { this.syncStateToGenerators(); return this.stringGen.generateEndsWith(strPtr, suffix); }
-  public stringGenGenerateTrim(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.generateTrim(strPtr); }
-  public stringGenGenerateToUpperCase(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.generateToUpperCase(strPtr); }
-  public stringGenGenerateToLowerCase(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.generateToLowerCase(strPtr); }
-  public stringGenGenerateIndexOf(strPtr: string, substring: string): string { this.syncStateToGenerators(); return this.stringGen.generateIndexOf(strPtr, substring); }
-  public stringGenGenerateIncludes(strPtr: string, substring: string): string { this.syncStateToGenerators(); return this.stringGen.generateIncludes(strPtr, substring); }
-  public stringGenGenerateSlice(strPtr: string, start: string, end: string | null): string { this.syncStateToGenerators(); return this.stringGen.generateSlice(strPtr, start, end); }
-  public stringGenGenerateCharAt(strPtr: string, index: string): string { this.syncStateToGenerators(); return this.stringGen.generateCharAt(strPtr, index); }
-  public stringGenGenerateCharCodeAt(strPtr: string, index: string): string { this.syncStateToGenerators(); return this.stringGen.generateCharCodeAt(strPtr, index); }
-  public stringGenGenerateReplace(strPtr: string, search: string, replace: string): string { this.syncStateToGenerators(); return this.stringGen.generateReplace(strPtr, search, replace); }
-  public stringGenGenerateReplaceAll(strPtr: string, search: string, replace: string): string { this.syncStateToGenerators(); return this.stringGen.generateReplaceAll(strPtr, search, replace); }
-  public stringGenGenerateGlobalString(value: string): string { this.syncStateToGenerators(); return this.stringGen.generateGlobalString(value); }
-  public stringGenGenerateStringConcat(left: Expression, right: Expression, params: string[]): string { this.syncStateToGenerators(); return this.stringGen.generateStringConcat(left, right, params); }
-  public stringGenConvertNumberToString(numValue: string): string { this.syncStateToGenerators(); return this.stringGen.convertNumberToString(numValue); }
+  public stringGenCreateStringConstant(value: string): string { this.syncStateToGenerators(); return this.stringGen.doCreateStringConstant(value); }
+  public stringGenGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string { this.syncStateToGenerators(); return this.stringGen.doGenerateSubstr(strPtr, startIndex, length); }
+  public stringGenGenerateStringConcatDirect(left: string, right: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateStringConcatDirect(left, right); }
+  public stringGenGenerateRepeat(strPtr: string, count: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateRepeat(strPtr, count); }
+  public stringGenGeneratePadStart(strPtr: string, targetLength: string, padString: string): string { this.syncStateToGenerators(); return this.stringGen.doGeneratePadStart(strPtr, targetLength, padString); }
+  public stringGenGenerateSplit(strPtr: string, delimiter: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateSplit(strPtr, delimiter); }
+  public stringGenGenerateStartsWith(strPtr: string, prefix: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateStartsWith(strPtr, prefix); }
+  public stringGenGenerateEndsWith(strPtr: string, suffix: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateEndsWith(strPtr, suffix); }
+  public stringGenGenerateTrim(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateTrim(strPtr); }
+  public stringGenGenerateToUpperCase(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateToUpperCase(strPtr); }
+  public stringGenGenerateToLowerCase(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateToLowerCase(strPtr); }
+  public stringGenGenerateIndexOf(strPtr: string, substring: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateIndexOf(strPtr, substring); }
+  public stringGenGenerateIncludes(strPtr: string, substring: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateIncludes(strPtr, substring); }
+  public stringGenGenerateSlice(strPtr: string, start: string, end: string | null): string { this.syncStateToGenerators(); return this.stringGen.doGenerateSlice(strPtr, start, end); }
+  public stringGenGenerateCharAt(strPtr: string, index: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateCharAt(strPtr, index); }
+  public stringGenGenerateCharCodeAt(strPtr: string, index: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateCharCodeAt(strPtr, index); }
+  public stringGenGenerateReplace(strPtr: string, search: string, replace: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateReplace(strPtr, search, replace); }
+  public stringGenGenerateReplaceAll(strPtr: string, search: string, replace: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateReplaceAll(strPtr, search, replace); }
+  public stringGenGenerateGlobalString(value: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateGlobalString(value); }
+  public stringGenGenerateStringConcat(left: Expression, right: Expression, params: string[]): string { this.syncStateToGenerators(); return this.stringGen.doGenerateStringConcat(left, right, params); }
+  public stringGenConvertNumberToString(numValue: string): string { this.syncStateToGenerators(); return this.stringGen.doConvertNumberToString(numValue); }
 
   public interfaceStructGenHasInterface(name: string): boolean { return this.interfaceStructGen ? this.interfaceStructGen.hasInterface(name) : false; }
   public interfaceStructGenGetInterfaceStruct(name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined { return this.interfaceStructGen ? this.interfaceStructGen.getInterfaceStruct(name) : undefined; }
@@ -1125,13 +1138,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   private generateGlobalVariableDeclarations(): string {
     let ir = '';
-    if (this.topLevelStatementsCount === 0) {
+    const useTopLevelItems = this.topLevelItemsCount > 0;
+    const totalCount = useTopLevelItems ? this.topLevelItemsCount : this.topLevelStatementsCount;
+    if (totalCount === 0) {
       return ir;
     }
-    const stmts = this.ast.topLevelStatements;
-    for (let stmtIdx = 0; stmtIdx < this.topLevelStatementsCount; stmtIdx++) {
-      const stmt = stmts[stmtIdx] as { type: string; kind: string; name: string; value: Expression | null; declaredType?: string };
-      if (stmt.type === 'variable_declaration' && stmt.value !== null) {
+    const items = useTopLevelItems ? this.ast.topLevelItems! : this.ast.topLevelStatements;
+    const itemTypes = useTopLevelItems ? this.ast.topLevelItemTypes : undefined;
+    for (let stmtIdx = 0; stmtIdx < totalCount; stmtIdx++) {
+      const itemType = itemTypes ? itemTypes![stmtIdx] : (items[stmtIdx] as { type: string }).type;
+      if (itemType !== 'variable_declaration') continue;
+      const stmt = items[stmtIdx] as { type: string; kind: string; name: string; value: Expression | null; declaredType?: string };
+      if (stmt.value !== null) {
         const name = stmt.name;
         const isString = this.isStringExpression(stmt.value);
         const isStringArray = this.isStringArrayExpression(stmt.value);
@@ -1329,6 +1347,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
               this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(indexAccessInterface));
               continue;
+            }
+            if (stmt.value && (stmt.value as { type: string }).type === 'index_access') {
+              const idxObj = (stmt.value as { object: { type: string; name?: string } }).object;
+              if (idxObj && idxObj.type === 'variable' && idxObj.name) {
+                const arrSym = this.symbolTable.lookup(idxObj.name);
+                if (arrSym && arrSym.kind === SymbolKind.ObjectArray && arrSym.interfaceType) {
+                  llvmType = 'i8*';
+                  kind = SymbolKind.Object;
+                  defaultValue = 'null';
+                  ir += `@${name} = global ${llvmType} ${defaultValue}\n`;
+                  this.globalVariables.set(name, { llvmType, kind, initialized: false });
+                  this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(arrSym.interfaceType));
+                  continue;
+                }
+              }
             }
             llvmType = 'double';
             kind = SymbolKind.Number;
@@ -1922,7 +1955,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             this.emit(`ret void`);
           } else if (this.currentFunctionReturnType === 'i8*') {
             this.syncStateToGenerators();
-            const emptyStr = this.stringGen.createStringConstant('');
+            const emptyStr = this.stringGen.doCreateStringConstant('');
             this.emit(`ret i8* ${emptyStr}`);
           } else if (this.currentFunctionReturnType && this.currentFunctionReturnType.indexOf('*') !== -1) {
             this.emit(`ret ${this.currentFunctionReturnType} null`);
