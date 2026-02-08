@@ -1,6 +1,7 @@
 import { parseSource } from './parser-native/index.js';
 import { transformTree } from './parser-native/transformer.js';
 import { LLVMGenerator, LLVMGeneratorOptions } from './codegen/llvm-generator.js';
+import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST, ImportDeclaration } from './ast/types.js';
 
 declare const child_process: {
@@ -41,19 +42,21 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const compiledFiles: string[] = [];
   const mergedAST = compileMultiFile(inputFile, compiledFiles);
 
-  console.log('Skipping semantic analysis for native bootstrap...');
-  // TODO: Re-enable semantic analysis when for-of on object arrays works
-  // console.log('Running semantic analysis...');
-  // const analyzer = new SemanticAnalyzer(mergedAST);
-  // const analysisSuccess = analyzer.analyze();
+  if (skipSemanticAnalysis) {
+    console.log('Skipping semantic analysis (--skip-semantic-analysis)');
+  } else {
+    console.log('Running semantic analysis...');
+    const analyzer = new SemanticAnalyzer(mergedAST);
+    const analysisSuccess = analyzer.analyze();
 
-  // if (!analysisSuccess) {
-  //   const errorOutput = analyzer.formatErrors();
-  //   console.log(errorOutput);
-  //   process.exit(1);
-  // }
+    if (!analysisSuccess) {
+      const errorOutput = analyzer.formatErrors();
+      console.log(errorOutput);
+      process.exit(1);
+    }
 
-  // console.log('Semantic analysis passed');
+    console.log('Semantic analysis passed');
+  }
 
   console.log('Generating LLVM IR...');
   const generatorOptions: LLVMGeneratorOptions = {
@@ -153,6 +156,12 @@ function compileMultiFile(entryFile: string, compiledFiles: string[]): AST {
     mergedAST.typeAliases = mergedAST.typeAliases.concat(importedAST.typeAliases);
     mergedAST.enums = mergedAST.enums.concat(importedAST.enums);
     mergedAST.topLevelStatements = mergedAST.topLevelStatements.concat(importedAST.topLevelStatements);
+    if (importedAST.topLevelItems) {
+      mergedAST.topLevelItems = (mergedAST.topLevelItems || []).concat(importedAST.topLevelItems);
+    }
+    if (importedAST.topLevelItemTypes) {
+      mergedAST.topLevelItemTypes = (mergedAST.topLevelItemTypes || []).concat(importedAST.topLevelItemTypes);
+    }
     i = i + 1;
   }
 
@@ -225,6 +234,7 @@ if (args.length < 1) {
 
 let inputFile: string | null = null;
 let outputFile: string | null = null;
+let skipSemanticAnalysis = false;
 let argIdx = 0;
 while (argIdx < args.length) {
   const arg = args[argIdx];
@@ -236,6 +246,7 @@ while (argIdx < args.length) {
   } else if (arg === '--link-tree-sitter') {
     argIdx = argIdx + 1;
   } else if (arg === '--skip-semantic-analysis') {
+    skipSemanticAnalysis = true;
     argIdx = argIdx + 1;
   } else if (arg === '-o') {
     argIdx = argIdx + 1;
@@ -265,7 +276,8 @@ if (inputFile === null) {
   throw new Error('unreachable');
 }
 
-const theInputFile: string = inputFile;
+let theInputFile: string = '';
+theInputFile = inputFile;
 
 if (!fs.existsSync(theInputFile)) {
   console.log('Error: File not found: ' + theInputFile);

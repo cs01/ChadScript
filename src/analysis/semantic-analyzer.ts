@@ -146,7 +146,7 @@ export class SemanticAnalyzer {
 
       for (let i = 0; i < method.params.length; i++) {
         const param = method.params[i];
-        const paramType = method.paramTypes?.[i];
+        const paramType = method.paramTypes ? method.paramTypes[i] : undefined;
 
         let llvmType = 'i32';
         let type: SymbolType = 'number';
@@ -365,7 +365,8 @@ export class SemanticAnalyzer {
     if (e.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
 
-      if (['substr', 'substring', 'concat', 'repeat', 'padStart', 'charAt'].includes(methodExpr.method)) {
+      const m = methodExpr.method;
+      if (m === 'substr' || m === 'substring' || m === 'concat' || m === 'repeat' || m === 'padStart' || m === 'charAt') {
         return {
           name: '',
           type: 'string',
@@ -373,7 +374,7 @@ export class SemanticAnalyzer {
         };
       }
 
-      if (['filter', 'map'].includes(methodExpr.method)) {
+      if (m === 'filter' || m === 'map') {
         const objType = this.inferExpressionType(methodExpr.object);
         return objType;
       }
@@ -411,7 +412,8 @@ export class SemanticAnalyzer {
         }
       }
 
-      if (['<', '>', '<=', '>=', '==', '!=', '===', '!=='].includes(binExpr.op)) {
+      const op = binExpr.op;
+      if (op === '<' || op === '>' || op === '<=' || op === '>=' || op === '==' || op === '!=' || op === '===' || op === '!==') {
         return {
           name: '',
           type: 'boolean',
