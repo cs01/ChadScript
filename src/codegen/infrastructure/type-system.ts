@@ -6,6 +6,7 @@ export function stripOptional(name: string): string {
 }
 
 export function stripNullable(t: string): string {
+  if (!t) return '';
   let str = t.trim();
   if (str.indexOf(' | null') !== -1) str = str.replace(' | null', '');
   if (str.indexOf(' | undefined') !== -1) str = str.replace(' | undefined', '');
@@ -82,6 +83,7 @@ export function parseTypeString(typeStr: string): ResolvedType {
 }
 
 function parseGenericParams(paramsStr: string): ResolvedType[] {
+  if (!paramsStr) return [];
   const params: ResolvedType[] = [];
   let depth = 0;
   let current = '';
@@ -139,6 +141,7 @@ export function tsTypeToLlvm(tsType: string): string {
 }
 
 export function tsTypeToLlvmJson(tsType: string): string {
+  if (tsType === null || tsType === undefined || tsType === '') return 'i8*';
   if (tsType === 'string') return 'i8*';
   if (tsType === 'number') return 'double';
   if (tsType === 'boolean') return 'double';
