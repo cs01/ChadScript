@@ -61,6 +61,7 @@ describe('Bootstrap Tests', { timeout: 180000 }, () => {
       { file: 'tests/fixtures/control-flow/for-loop.js', expectedExit: 55 },
       { file: 'tests/fixtures/arrays/array-literal.js', expectedExit: 3 },
       { file: 'tests/fixtures/arrays/array-slice.ts', expectTestPassed: true },
+      { file: 'tests/fixtures/arrays/array-init-safe.ts', expectedExit: 10 },
     ];
 
     for (const example of examples) {
