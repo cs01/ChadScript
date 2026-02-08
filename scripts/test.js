@@ -22,7 +22,8 @@ const testPattern = args.length === 0 ? [
   'tests/unit/type-system.test.ts',
   'tests/network.test.ts',
   'tests/tcp-server-full.test.ts',
-  'tests/http-routes.test.ts'
+  'tests/http-routes.test.ts',
+  'tests/stage0-examples.test.ts'
 ] : args;
 
 const nodeArgs = ['--import', 'tsx', '--test', ...testPattern];

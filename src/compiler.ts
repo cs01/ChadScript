@@ -305,6 +305,12 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
         mergedAST.typeAliases = mergedAST.typeAliases.concat(importedAST.typeAliases || []);
         mergedAST.enums = mergedAST.enums.concat(importedAST.enums || []);
         mergedAST.topLevelStatements = mergedAST.topLevelStatements.concat(importedAST.topLevelStatements);
+        if (importedAST.topLevelItems) {
+          mergedAST.topLevelItems = (mergedAST.topLevelItems || []).concat(importedAST.topLevelItems);
+        }
+        if (importedAST.topLevelItemTypes) {
+          mergedAST.topLevelItemTypes = (mergedAST.topLevelItemTypes || []).concat(importedAST.topLevelItemTypes);
+        }
         i = i + 1;
         continue;
       }
@@ -325,6 +331,12 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
     mergedAST.typeAliases = mergedAST.typeAliases.concat(importedAST.typeAliases || []);
     mergedAST.enums = mergedAST.enums.concat(importedAST.enums || []);
     mergedAST.topLevelStatements = mergedAST.topLevelStatements.concat(importedAST.topLevelStatements);
+    if (importedAST.topLevelItems) {
+      mergedAST.topLevelItems = (mergedAST.topLevelItems || []).concat(importedAST.topLevelItems);
+    }
+    if (importedAST.topLevelItemTypes) {
+      mergedAST.topLevelItemTypes = (mergedAST.topLevelItemTypes || []).concat(importedAST.topLevelItemTypes);
+    }
     i = i + 1;
   }
 

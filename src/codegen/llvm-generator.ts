@@ -1138,17 +1138,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   private generateGlobalVariableDeclarations(): string {
     let ir = '';
-    const useTopLevelItems = this.topLevelItemsCount > 0;
-    const totalCount = useTopLevelItems ? this.topLevelItemsCount : this.topLevelStatementsCount;
+    const totalCount = this.topLevelStatementsCount;
     if (totalCount === 0) {
       return ir;
     }
-    const items = useTopLevelItems ? this.ast.topLevelItems! : this.ast.topLevelStatements;
-    const itemTypes = useTopLevelItems ? this.ast.topLevelItemTypes : undefined;
+    const items = this.ast.topLevelStatements;
     for (let stmtIdx = 0; stmtIdx < totalCount; stmtIdx++) {
-      const itemType = itemTypes ? itemTypes![stmtIdx] : (items[stmtIdx] as { type: string }).type;
-      if (itemType !== 'variable_declaration') continue;
       const stmt = items[stmtIdx] as { type: string; kind: string; name: string; value: Expression | null; declaredType?: string };
+      if (stmt.type !== 'variable_declaration') continue;
       if (stmt.value !== null) {
         const name = stmt.name;
         const isString = this.isStringExpression(stmt.value);
@@ -2004,12 +2001,22 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                 }
               }
               if (returnTypeName === this.currentFunctionTsReturnType) {
+                const numObjFields = objLit.properties ? objLit.properties.length : 0;
+                let bestMatch: string | null = null;
                 for (let i = 0; i < parts.length; i++) {
                   const part = parts[i].trim();
-                  if (part !== 'null' && part !== 'undefined') {
-                    returnTypeName = part;
-                    break;
+                  if (part === 'null' || part === 'undefined') continue;
+                  if (!bestMatch) bestMatch = part;
+                  if (this.interfaceStructGen) {
+                    const ifaceInfo = this.interfaceStructGen.getInterfaceStruct(part);
+                    if (ifaceInfo && ifaceInfo.fields && ifaceInfo.fields.length === numObjFields) {
+                      bestMatch = part;
+                      break;
+                    }
                   }
+                }
+                if (bestMatch) {
+                  returnTypeName = bestMatch;
                 }
               }
             }
