@@ -445,13 +445,24 @@ function transformStringNode(node: TreeSitterNode): StringNode {
       (text.startsWith("'") && text.endsWith("'"))) {
     text = text.slice(1, -1);
   }
-  text = text.replace(/\\n/g, '\n')
-             .replace(/\\t/g, '\t')
-             .replace(/\\r/g, '\r')
-             .replace(/\\\\/g, '\\')
-             .replace(/\\"/g, '"')
-             .replace(/\\'/g, "'");
-  return { type: 'string', value: text };
+  let processed = '';
+  let i = 0;
+  while (i < text.length) {
+    if (text.charAt(i) === '\\' && i + 1 < text.length) {
+      const next = text.charAt(i + 1);
+      if (next === 'n') { processed += '\n'; i += 2; }
+      else if (next === 't') { processed += '\t'; i += 2; }
+      else if (next === 'r') { processed += '\r'; i += 2; }
+      else if (next === '\\') { processed += '\\'; i += 2; }
+      else if (next === '"') { processed += '"'; i += 2; }
+      else if (next === "'") { processed += "'"; i += 2; }
+      else { processed += next; i += 2; }
+    } else {
+      processed += text.charAt(i);
+      i += 1;
+    }
+  }
+  return { type: 'string', value: processed };
 }
 
 function transformBinaryExpression(node: TreeSitterNode): BinaryNode {
