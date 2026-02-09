@@ -501,6 +501,17 @@ export class MethodCallGenerator {
     return '0';
   }
 
+  private generateProcessCwdInline(_expr: MethodCallNode, _params: string[]): string {
+    const bufSize = this.ctx.nextTemp();
+    this.ctx.emit(`${bufSize} = add i64 0, 4096`);
+    const buf = this.ctx.nextTemp();
+    this.ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 ${bufSize})`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @getcwd(i8* ${buf}, i64 4096)`);
+    this.ctx.setVariableType(result, 'i8*');
+    return result;
+  }
+
   private getParameterMapKeyType(varName: string): string | null {
     const currentFunc = this.ctx.getCurrentFunction();
     if (!currentFunc) return null;
@@ -660,6 +671,9 @@ export class MethodCallGenerator {
       const varNode = expr.object as VariableNode;
       if (varNode.name === 'process' && expr.method === 'exit') {
         return this.generateProcessExitInline(expr, params);
+      }
+      if (varNode.name === 'process' && expr.method === 'cwd') {
+        return this.generateProcessCwdInline(expr, params);
       }
     }
 
