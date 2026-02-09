@@ -1282,10 +1282,21 @@ export class MethodCallGenerator {
 
   private handleStartsWith(expr: MethodCallNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
+    let strPtr = this.ctx.generateExpression(expr.object, params);
 
-    if (expr.args.length !== 1) {
-      throw new Error(`startsWith() expects 1 argument, got ${expr.args.length}`);
+    if (expr.args.length < 1 || expr.args.length > 2) {
+      throw new Error(`startsWith() expects 1-2 arguments, got ${expr.args.length}`);
+    }
+
+    if (expr.args.length === 2) {
+      const position = this.ctx.generateExpression(expr.args[1], params);
+      const posI32 = this.ctx.nextTemp();
+      this.ctx.emit(`${posI32} = fptosi double ${position} to i32`);
+      const posI64 = this.ctx.nextTemp();
+      this.ctx.emit(`${posI64} = sext i32 ${posI32} to i64`);
+      const offsetPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${offsetPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${posI64}`);
+      strPtr = offsetPtr;
     }
 
     const prefix = this.ctx.generateExpression(expr.args[0], params);
