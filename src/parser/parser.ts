@@ -697,29 +697,7 @@ export class Parser implements ExpressionParserContext {
     while (this.code[this.pos] === '|' || this.code[this.pos] === '&') {
       this.pos++;
       this.skipWhitespace();
-      if (this.code[this.pos] === "'" || this.code[this.pos] === '"') {
-        const quote = this.code[this.pos];
-        this.pos++;
-        while (this.pos < this.code.length && this.code[this.pos] !== quote) {
-          if (this.code[this.pos] === '\\') {
-            this.pos++;
-          }
-          this.pos++;
-        }
-        if (this.code[this.pos] === quote) {
-          this.pos++;
-        }
-      } else if (/[a-zA-Z_]/.test(this.code[this.pos])) {
-        this.parseIdentifier();
-        this.skipWhitespace();
-        while (this.code[this.pos] === '[') {
-          this.pos++;
-          this.skipWhitespace();
-          if (this.code[this.pos] === ']') {
-            this.pos++;
-          }
-        }
-      }
+      this.skipTypeAnnotation();
       this.skipWhitespace();
     }
   }
