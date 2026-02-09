@@ -24,6 +24,19 @@ export function parseBlock(ctx: ParserContext): BlockStatement {
   return { type: 'block', statements };
 }
 
+function parseBlockOrStatement(ctx: ParserContext): BlockStatement {
+  ctx.skipWhitespace();
+  if (ctx.code[ctx.pos] === '{') {
+    ctx.expect('{');
+    const block = parseBlock(ctx);
+    ctx.expect('}');
+    return block;
+  } else {
+    const stmt = parseStatement(ctx);
+    return { type: 'block', statements: [stmt] };
+  }
+}
+
 export function parseStatement(ctx: ParserContext): Statement {
   ctx.skipWhitespace();
 
@@ -175,28 +188,11 @@ export function parseIfStatement(ctx: ParserContext): IfStatement {
   const condition = ctx.parseExpression();
   ctx.expect(')');
 
-  let thenBlock: BlockStatement;
-  ctx.skipWhitespace();
-  if (ctx.code[ctx.pos] === '{') {
-    ctx.expect('{');
-    thenBlock = parseBlock(ctx);
-    ctx.expect('}');
-  } else {
-    const stmt = parseStatement(ctx);
-    thenBlock = { type: 'block', statements: [stmt] };
-  }
+  const thenBlock = parseBlockOrStatement(ctx);
 
   let elseBlock: BlockStatement | null = null;
   if (ctx.match('else')) {
-    ctx.skipWhitespace();
-    if (ctx.code[ctx.pos] === '{') {
-      ctx.expect('{');
-      elseBlock = parseBlock(ctx);
-      ctx.expect('}');
-    } else {
-      const stmt = parseStatement(ctx);
-      elseBlock = { type: 'block', statements: [stmt] };
-    }
+    elseBlock = parseBlockOrStatement(ctx);
   }
 
   return { type: 'if', condition, thenBlock, elseBlock };
@@ -206,9 +202,7 @@ export function parseWhileStatement(ctx: ParserContext): WhileStatement {
   ctx.expect('(');
   const condition = ctx.parseExpression();
   ctx.expect(')');
-  ctx.expect('{');
-  const body = parseBlock(ctx);
-  ctx.expect('}');
+  const body = parseBlockOrStatement(ctx);
 
   return { type: 'while', condition, body };
 }
@@ -247,9 +241,7 @@ export function parseForStatement(ctx: ParserContext): ForStatement | ForOfState
         ctx.skipWhitespace();
         const iterable = ctx.parseExpression();
         ctx.expect(')');
-        ctx.expect('{');
-        const body = parseBlock(ctx);
-        ctx.expect('}');
+        const body = parseBlockOrStatement(ctx);
         return {
           type: 'for_of',
           variableKind: kind,
@@ -271,9 +263,7 @@ export function parseForStatement(ctx: ParserContext): ForStatement | ForOfState
       ctx.skipWhitespace();
       const iterable = ctx.parseExpression();
       ctx.expect(')');
-      ctx.expect('{');
-      const body = parseBlock(ctx);
-      ctx.expect('}');
+      const body = parseBlockOrStatement(ctx);
       return {
         type: 'for_of',
         variableKind: kind,
@@ -337,9 +327,7 @@ export function parseForStatement(ctx: ParserContext): ForStatement | ForOfState
   }
   ctx.expect(')');
 
-  ctx.expect('{');
-  const body = parseBlock(ctx);
-  ctx.expect('}');
+  const body = parseBlockOrStatement(ctx);
 
   return { type: 'for', init, condition, update, body };
 }
