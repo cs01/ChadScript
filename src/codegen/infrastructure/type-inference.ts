@@ -762,8 +762,19 @@ export class TypeInference {
       }
     }
     if (e.type === 'variable') {
-      const varType = this.ctx.symbolTableGetType((expr as VariableNode).name);
+      const varName = (expr as VariableNode).name;
+      if (this.ctx.symbolTableIsString(varName)) {
+        return true;
+      }
+      const varType = this.ctx.symbolTableGetType(varName);
       if (varType === 'i8*') {
+        if (this.ctx.symbolTableIsClass(varName) || this.ctx.symbolTableIsObject(varName)) {
+          return false;
+        }
+        const ifaceType = this.ctx.symbolTableGetInterfaceType(varName);
+        if (ifaceType && ifaceType.length > 0) {
+          return false;
+        }
         return true;
       }
       return false;
@@ -1439,8 +1450,10 @@ export class TypeInference {
       if (methodExpr.method === 'split') {
         return true;
       }
-      if (methodExpr.method === 'match' && this.isStringExpression(methodExpr.object)) {
-        return true;
+      if (methodExpr.method === 'match' && this.isStringExpression(methodExpr.object) && !this.isClassInstanceExpression(methodExpr.object)) {
+        if (methodExpr.args.length > 0 && methodExpr.args[0].type === 'regex') {
+          return true;
+        }
       }
       if (methodExpr.method === 'map' || methodExpr.method === 'filter' || methodExpr.method === 'slice' || methodExpr.method === 'concat') {
         return this.isStringArrayExpression(methodExpr.object);

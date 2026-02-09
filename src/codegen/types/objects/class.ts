@@ -48,6 +48,9 @@ export class ClassGenerator {
     if (!f) return 'double';
     const ft = f.fieldType;
     const ts = f.tsType;
+    if (ts && this.isEnumType(ts)) {
+      return 'double';
+    }
     if (!ft || ft === 'double') {
       if (ts) {
         if (ts.startsWith('Map<string,')) {

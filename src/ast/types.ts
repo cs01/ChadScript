@@ -179,7 +179,7 @@ export type Expression = NumberNode | StringNode | BooleanNode | NullNode | Unde
 
 export interface VariableDeclaration {
   type: 'variable_declaration';
-  kind: 'let' | 'const';
+  kind: string;
   name: string;
   value: Expression | null;
   declaredType?: string;  // Optional TypeScript type annotation (e.g., "string[]", "number")
@@ -224,7 +224,7 @@ export interface ForStatement {
 
 export interface ForOfStatement {
   type: 'for_of';
-  variableKind: 'let' | 'const' | 'var';
+  variableKind: string;
   variableName: string;
   destructuredNames?: string[];
   iterable: Expression;

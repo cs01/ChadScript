@@ -349,7 +349,7 @@ export function parseForStatement(ctx: ParserContext): ForStatement | ForOfState
 }
 
 export function parseVariableDeclaration(ctx: ParserContext): VariableDeclaration {
-  let kind: 'let' | 'const';
+  let kind: 'let' | 'const' = 'let';
   if (ctx.match('let')) {
     kind = 'let';
   } else if (ctx.match('const')) {
