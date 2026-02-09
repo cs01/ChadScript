@@ -374,6 +374,16 @@ export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Express
             assertedType += '[]';
             ctx.pos += 2;
           }
+          ctx.skipWhitespace();
+          while (ctx.pos < ctx.code.length && ctx.code[ctx.pos] === '|') {
+            assertedType += ' | ';
+            ctx.pos++;
+            ctx.skipWhitespace();
+            while (ctx.pos < ctx.code.length && /[a-zA-Z0-9_\[\]]/.test(ctx.code[ctx.pos])) {
+              assertedType += ctx.code[ctx.pos++];
+            }
+            ctx.skipWhitespace();
+          }
         } else {
           let bracketDepth = 0;
           while (ctx.pos < ctx.code.length) {
