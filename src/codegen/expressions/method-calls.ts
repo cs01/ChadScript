@@ -1045,8 +1045,22 @@ export class MethodCallGenerator {
       return objectResult;
     }
 
-    // Build a helpful error message with supported methods
     const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === 'variable') {
+      const varName = (expr.object as VariableNode).name;
+      const ast = this.ctx.getAst();
+      if (ast && ast.imports) {
+        for (let ii = 0; ii < ast.imports.length; ii++) {
+          const imp = ast.imports[ii];
+          if (!imp) continue;
+          const isRelative = imp.source.startsWith('./') || imp.source.startsWith('../') || imp.source.startsWith('/');
+          if (!isRelative && imp.specifiers && imp.specifiers.indexOf(varName) !== -1) {
+            return 'null';
+          }
+        }
+      }
+    }
+
     this.throwUnsupportedMethodError(method, exprObjBase.type, expr);
   }
 

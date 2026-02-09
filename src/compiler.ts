@@ -280,6 +280,18 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
     topLevelItemTypes: ast.topLevelItemTypes?.slice() || []
   };
 
+  let hasUnsupportedImports = false;
+  for (let ui = 0; ui < ast.imports.length; ui++) {
+    const imp = ast.imports[ui];
+    if (imp.source === 'typescript') {
+      hasUnsupportedImports = true;
+      break;
+    }
+  }
+  if (hasUnsupportedImports) {
+    return { imports: [], functions: [], classes: [], exports: [], interfaces: ast.interfaces.slice(), typeAliases: ast.typeAliases?.slice() || [], enums: ast.enums?.slice() || [], topLevelStatements: [], topLevelExpressions: [], topLevelItems: [], topLevelItemTypes: [] };
+  }
+
   let i = 0;
   while (i < ast.imports.length) {
     const imp = ast.imports[i];
