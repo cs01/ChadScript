@@ -651,6 +651,10 @@ export class Parser implements ExpressionParserContext {
         this.parseIdentifier();
       }
       this.skipWhitespace();
+      if (this.match('is')) {
+        this.skipTypeAnnotation();
+        return;
+      }
       if (this.code[this.pos] === '<') {
         this.pos++;
         this.skipTypeAnnotation();
