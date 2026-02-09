@@ -47,11 +47,6 @@ CLAUDE.md
 LEARNINGS.md
 todo.md
 
-# td (task daemon) files
-.td*
-td
-td-bin
-
 # LLM rules (local only)
 .llms/
 
