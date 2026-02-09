@@ -116,6 +116,13 @@ export function parseStatement(ctx: ParserContext): Statement {
     return parseSwitchStatement(ctx);
   }
 
+  if (ctx.code[ctx.pos] === '{') {
+    ctx.expect('{');
+    const block = parseBlock(ctx);
+    ctx.expect('}');
+    return block;
+  }
+
   const savedPos = ctx.pos;
 
   const leftExpr = ctx.parsePrimary();

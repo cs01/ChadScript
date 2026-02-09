@@ -529,6 +529,10 @@ export class FunctionGenerator {
           }
         }
       }
+      if (stmt.type === 'block') {
+        const blockStmt = block.statements[i] as BlockStatement;
+        if (this.hasReturnStatement(blockStmt)) return true;
+      }
     }
     return false;
   }
