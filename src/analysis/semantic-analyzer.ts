@@ -201,7 +201,7 @@ export class SemanticAnalyzer {
 
     const valueType = this.inferExpressionType(stmt.value);
 
-    if (varSymbol.llvmType !== valueType.llvmType) {
+    if (varSymbol.llvmType !== valueType.llvmType && varSymbol.type !== 'null' && valueType.type !== 'null') {
       this.errors.push({
         message: `Type mismatch: Cannot assign ${valueType.type} to ${varSymbol.type}`,
         location: `${this.currentFunction}: ${stmt.name} = ...`,
