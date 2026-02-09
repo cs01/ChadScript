@@ -55,6 +55,15 @@ export interface AssignmentGeneratorContext {
 export class AssignmentGenerator {
   constructor(private ctx: AssignmentGeneratorContext) {}
 
+  private isEnumType(typeName: string): boolean {
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.enums) return false;
+    for (let i = 0; i < ast.enums.length; i++) {
+      if (ast.enums[i].name === typeName) return true;
+    }
+    return false;
+  }
+
   generateMemberAccessAssignment(stmt: AssignmentStatement, params: string[]): void {
     const stmtValue = stmt.value;
     const stmtValueTyped = stmtValue as { type: string };
@@ -248,6 +257,13 @@ export class AssignmentGenerator {
     value: string,
     memberAccessValue: MemberAccessAssignmentNode
   ): void {
+    if (fiTsType) {
+      const enumResult = this.isEnumType(fiTsType);
+      if (enumResult) {
+        this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
+        return;
+      }
+    }
     if (fiType === null || fiType === undefined) {
       this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
       return;
@@ -295,7 +311,7 @@ export class AssignmentGenerator {
       this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Set<')) {
       this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
-    } else if (hasTsType && fiTsType !== 'number' && fiTsType !== 'boolean') {
+    } else if (hasTsType && fiTsType && fiTsType !== 'number' && fiTsType !== 'boolean' && !this.isEnumType(fiTsType)) {
       this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
     } else {
       this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
@@ -359,7 +375,7 @@ export class AssignmentGenerator {
       this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Set<')) {
       this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
-    } else if (hasTsType && fiTsType !== 'number' && fiTsType !== 'boolean') {
+    } else if (hasTsType && fiTsType && fiTsType !== 'number' && fiTsType !== 'boolean' && !this.isEnumType(fiTsType)) {
       this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
     } else {
       this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
