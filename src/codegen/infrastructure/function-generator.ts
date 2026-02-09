@@ -239,13 +239,13 @@ export class FunctionGenerator {
           this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Pointer, 'local');
         } else {
           const ast = this.ctx.getAst();
-          let classDefResult: { name: string } | null = null;
+          let classDefName: string = '';
           const classes = ast?.classes || [];
           for (let j = 0; j < classes.length; j++) {
             const cls = classes[j] as { name: string };
             if (!cls || !cls.name) continue;
             if (cls.name === paramTypes[i]) {
-              classDefResult = cls;
+              classDefName = cls.name;
               break;
             }
           }
@@ -272,8 +272,8 @@ export class FunctionGenerator {
             }
           }
 
-          if (classDefResult) {
-            this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Class, 'local', createClassMetadata({ className: classDefResult.name }));
+          if (classDefName !== '') {
+            this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Class, 'local', createClassMetadata({ className: classDefName }));
           } else if (interfaceDefResult) {
             const interfaceDef = interfaceDefResult as { name: string; fields: { name: string; type: string }[] };
             const keys: string[] = [];
