@@ -199,6 +199,19 @@ export class VariableAllocator {
     return false;
   }
 
+  private isStringLiteralUnion(typeName: string): boolean {
+    if (!typeName || typeName.indexOf('|') === -1) return false;
+    const parts = typeName.split('|');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      if (part.length === 0) continue;
+      if (part === 'null' || part === 'undefined') continue;
+      if ((part.startsWith("'") && part.endsWith("'")) || (part.startsWith('"') && part.endsWith('"'))) continue;
+      return false;
+    }
+    return true;
+  }
+
   private isEnumType(typeName: string): boolean {
     const ast = this.ctx.getAst();
     if (!ast || !ast.enums) return false;
@@ -273,7 +286,7 @@ export class VariableAllocator {
       return;
     }
 
-    const stmtValueAsVar = stmt.value as { type?: string; name?: string } | null;
+    const stmtValueAsVar = stmt.value as { type?: string; name?: string };
     const isAstNullLiteral = stmtValueAsVar && stmtValueAsVar.type === 'variable' && stmtValueAsVar.name === 'null';
     if (stmt.value === null || isAstNullLiteral) {
       const allocaReg = this.ctx.nextAllocaReg(stmt.name);
@@ -354,6 +367,10 @@ export class VariableAllocator {
           this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
         } else if (this.isUnionOfInterfaceTypes(baseType)) {
           this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.Object, 'local');
+          this.ctx.emit(`${allocaReg} = alloca i8*`);
+          this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
+        } else if (this.isStringLiteralUnion(baseType)) {
+          this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
           this.ctx.emit(`${allocaReg} = alloca i8*`);
           this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
         } else {
