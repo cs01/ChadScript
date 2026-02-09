@@ -646,6 +646,10 @@ export class Parser implements ExpressionParserContext {
       }
     } else if (/[a-zA-Z_]/.test(this.code[this.pos])) {
       this.parseIdentifier();
+      while (this.code[this.pos] === '.') {
+        this.pos++;
+        this.parseIdentifier();
+      }
       this.skipWhitespace();
       if (this.code[this.pos] === '<') {
         this.pos++;

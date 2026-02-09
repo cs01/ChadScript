@@ -289,7 +289,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
                                    imp.source.startsWith('/');
 
     if (!isRelativeOrAbsolute) {
-      const builtinModules = ['fs', 'path', 'child_process'];
+      const builtinModules = ['fs', 'path', 'child_process', 'typescript'];
       if (builtinModules.includes(imp.source)) {
         i = i + 1;
         continue;
