@@ -23,17 +23,12 @@ export interface TypedSymbol {
 const NUMBER_SYMBOL: TypedSymbol = { name: '', type: 'number', llvmType: 'double' };
 const STRING_SYMBOL: TypedSymbol = { name: '', type: 'string', llvmType: 'i8*' };
 
-const PROPERTY_TYPE_MAP: Partial<Record<SymbolType, Record<string, TypedSymbol>>> = {
-  'string': {
-    'length': NUMBER_SYMBOL,
-  },
-  'array<number>': {
-    'length': NUMBER_SYMBOL,
-  },
-  'array<string>': {
-    'length': NUMBER_SYMBOL,
-  },
-};
+function lookupPropertyType(typeName: string, property: string): TypedSymbol | null {
+  if (typeName === 'string' && property === 'length') return NUMBER_SYMBOL;
+  if (typeName === 'array<number>' && property === 'length') return NUMBER_SYMBOL;
+  if (typeName === 'array<string>' && property === 'length') return NUMBER_SYMBOL;
+  return null;
+}
 
 export interface AnalysisError {
   message: string;
@@ -433,11 +428,8 @@ export class SemanticAnalyzer {
       const memberExpr = expr as MemberAccessNode;
       const objectType = this.inferExpressionType(memberExpr.object);
 
-      const propsForType = PROPERTY_TYPE_MAP[objectType.type];
-      if (propsForType) {
-        const propType = propsForType[memberExpr.property];
-        if (propType) return propType;
-      }
+      const propType = lookupPropertyType(objectType.type, memberExpr.property);
+      if (propType) return propType;
 
       if (objectType.type === 'object' && objectType.objectSchema) {
         const fieldLlvmType = objectType.objectSchema.get(memberExpr.property);
