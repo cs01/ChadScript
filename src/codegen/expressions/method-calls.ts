@@ -828,10 +828,7 @@ export class MethodCallGenerator {
       return this.handleToLowerCase(expr, params);
     }
     if (method === 'match') {
-      const matchObjBase = expr.object as ExprBase;
-      const matchVarName = this.getVariableName(expr.object);
-      const isClassInstance = matchObjBase.type === 'this' || (matchVarName && this.ctx.symbolTableIsClass(matchVarName));
-      if (!isClassInstance) {
+      if (this.ctx.isStringExpression(expr.object)) {
         return this.handleMatch(expr, params);
       }
     }
