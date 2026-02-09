@@ -749,7 +749,7 @@ export class ClassGenerator {
     }
     const classNode = classNodeResult as ClassNode;
     if (!classNodeResult) {
-      throw new Error(`Class ${className} not found`);
+      return 'null';
     }
     let constructorResult2: ClassMethod | null = null;
     for (let mi = 0; mi < classNode.methods.length; mi++) {
