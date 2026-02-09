@@ -6,7 +6,7 @@ export interface LiteralParserContext extends ParserContext {
   parseNumber(): number;
 }
 
-export function parseTemplateLiteral(ctx: LiteralParserContext, parseExpressionFn: (ctx: LiteralParserContext) => Expression): Expression {
+export function parseTemplateLiteral(ctx: LiteralParserContext): Expression {
   ctx.pos++;
   const parts: Expression[] = [];
   let currentString = '';
@@ -65,7 +65,7 @@ export function parseTemplateLiteral(ctx: LiteralParserContext, parseExpressionF
       const savedCode = ctx.code;
       ctx.code = exprCode;
       ctx.pos = 0;
-      const expr = parseExpressionFn(ctx);
+      const expr = ctx.parseExpression();
       ctx.code = savedCode;
       ctx.pos = savedPos;
 
@@ -161,7 +161,7 @@ export function parseRegex(ctx: LiteralParserContext): { type: 'regex'; pattern:
   return { type: 'regex', pattern, flags };
 }
 
-export function parseArrayLiteral(ctx: LiteralParserContext, parseExpressionFn: (ctx: LiteralParserContext) => Expression): ArrayNode {
+export function parseArrayLiteral(ctx: LiteralParserContext): ArrayNode {
   ctx.expect('[');
   const elements: Expression[] = [];
   ctx.skipWhitespace();
@@ -170,7 +170,7 @@ export function parseArrayLiteral(ctx: LiteralParserContext, parseExpressionFn: 
       ctx.pos += 3;
       ctx.skipWhitespace();
     }
-    elements.push(parseExpressionFn(ctx));
+    elements.push(ctx.parseExpression());
     while (ctx.match(',')) {
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] === ']') break;
@@ -178,14 +178,14 @@ export function parseArrayLiteral(ctx: LiteralParserContext, parseExpressionFn: 
         ctx.pos += 3;
         ctx.skipWhitespace();
       }
-      elements.push(parseExpressionFn(ctx));
+      elements.push(ctx.parseExpression());
     }
   }
   ctx.expect(']');
   return { type: 'array', elements };
 }
 
-export function parseObjectLiteral(ctx: LiteralParserContext, parseExpressionFn: (ctx: LiteralParserContext) => Expression): ObjectNode {
+export function parseObjectLiteral(ctx: LiteralParserContext): ObjectNode {
   ctx.expect('{');
   const properties: { key: string; value: Expression; spread?: boolean }[] = [];
   ctx.skipWhitespace();
@@ -193,7 +193,7 @@ export function parseObjectLiteral(ctx: LiteralParserContext, parseExpressionFn:
     if (ctx.code[ctx.pos] === '.' && ctx.code[ctx.pos + 1] === '.' && ctx.code[ctx.pos + 2] === '.') {
       ctx.pos += 3;
       ctx.skipWhitespace();
-      const spreadExpr = parseExpressionFn(ctx);
+      const spreadExpr = ctx.parseExpression();
       properties.push({ key: '__spread__', value: spreadExpr, spread: true });
     } else {
       let key: string;
@@ -207,7 +207,7 @@ export function parseObjectLiteral(ctx: LiteralParserContext, parseExpressionFn:
       let value: Expression;
       if (ctx.code[ctx.pos] === ':') {
         ctx.pos++;
-        value = parseExpressionFn(ctx);
+        value = ctx.parseExpression();
       } else {
         value = { type: 'variable', name: key };
       }
@@ -220,7 +220,7 @@ export function parseObjectLiteral(ctx: LiteralParserContext, parseExpressionFn:
       if (ctx.code[ctx.pos] === '.' && ctx.code[ctx.pos + 1] === '.' && ctx.code[ctx.pos + 2] === '.') {
         ctx.pos += 3;
         ctx.skipWhitespace();
-        const spreadExpr = parseExpressionFn(ctx);
+        const spreadExpr = ctx.parseExpression();
         properties.push({ key: '__spread__', value: spreadExpr, spread: true });
       } else {
         let key: string;
@@ -234,7 +234,7 @@ export function parseObjectLiteral(ctx: LiteralParserContext, parseExpressionFn:
         let value: Expression;
         if (ctx.code[ctx.pos] === ':') {
           ctx.pos++;
-          value = parseExpressionFn(ctx);
+          value = ctx.parseExpression();
         } else {
           value = { type: 'variable', name: key };
         }
@@ -246,7 +246,7 @@ export function parseObjectLiteral(ctx: LiteralParserContext, parseExpressionFn:
   return { type: 'object', properties };
 }
 
-export function parseMethodCall(ctx: LiteralParserContext, object: Expression, methodName: string, parseExpressionFn: (ctx: LiteralParserContext) => Expression): MethodCallNode {
+export function parseMethodCall(ctx: LiteralParserContext, object: Expression, methodName: string): MethodCallNode {
   if (object.type === 'variable' && (object as VariableNode).name === 'Object') {
     if (methodName === 'keys') {
       throw new Error(formatUnsupportedFeatureError('Object.keys'));
@@ -263,16 +263,16 @@ export function parseMethodCall(ctx: LiteralParserContext, object: Expression, m
   const args: Expression[] = [];
   ctx.skipWhitespace();
   if (ctx.code[ctx.pos] !== ')') {
-    args.push(parseExpressionFn(ctx));
+    args.push(ctx.parseExpression());
     while (ctx.match(',')) {
-      args.push(parseExpressionFn(ctx));
+      args.push(ctx.parseExpression());
     }
   }
   ctx.expect(')');
   return { type: 'method_call', object, method: methodName, args };
 }
 
-export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Expression, parseExpressionFn: (ctx: LiteralParserContext) => Expression): Expression {
+export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Expression): Expression {
   while (true) {
     ctx.skipWhitespace();
     const isOptionalChain = ctx.code[ctx.pos] === '?' && ctx.code[ctx.pos + 1] === '.';
@@ -314,7 +314,7 @@ export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Express
       }
 
       if (ctx.code[ctx.pos] === '(') {
-        expr = parseMethodCall(ctx, expr, property, parseExpressionFn);
+        expr = parseMethodCall(ctx, expr, property);
         if (typeParameter) {
           (expr as MethodCallNode).typeParameter = typeParameter;
         }
@@ -323,7 +323,7 @@ export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Express
       }
     } else if (ctx.code[ctx.pos] === '[') {
       ctx.pos++;
-      const index = parseExpressionFn(ctx);
+      const index = ctx.parseExpression();
       ctx.expect(']');
       expr = { type: 'index_access', object: expr, index };
     } else if (ctx.code[ctx.pos] === '(' && expr.type === 'super') {
@@ -331,9 +331,9 @@ export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Express
       const args: Expression[] = [];
       ctx.skipWhitespace();
       if (ctx.code[ctx.pos] !== ')') {
-        args.push(parseExpressionFn(ctx));
+        args.push(ctx.parseExpression());
         while (ctx.match(',')) {
-          args.push(parseExpressionFn(ctx));
+          args.push(ctx.parseExpression());
         }
       }
       ctx.expect(')');

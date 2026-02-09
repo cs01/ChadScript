@@ -355,9 +355,9 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
       ctx.expect(')');
 
       if (className === 'Map') {
-        return parsePostfixExpressions(ctx, { type: 'map', entries: [], keyType, valueType } as MapNode, parseExpression);
+        return parsePostfixExpressions(ctx, { type: 'map', entries: [], keyType, valueType } as MapNode);
       } else {
-        return parsePostfixExpressions(ctx, { type: 'set', values: [], valueType: keyType } as SetNode, parseExpression);
+        return parsePostfixExpressions(ctx, { type: 'set', values: [], valueType: keyType } as SetNode);
       }
     }
 
@@ -401,15 +401,15 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
     if (typeArgs.length > 0) {
       node.typeArgs = typeArgs;
     }
-    return parsePostfixExpressions(ctx, node, parseExpression);
+    return parsePostfixExpressions(ctx, node);
   }
 
   if (ctx.match('this')) {
-    return parsePostfixExpressions(ctx, { type: 'this' } as ThisNode, parseExpression);
+    return parsePostfixExpressions(ctx, { type: 'this' } as ThisNode);
   }
 
   if (ctx.match('super')) {
-    return parsePostfixExpressions(ctx, { type: 'super' } as SuperNode, parseExpression);
+    return parsePostfixExpressions(ctx, { type: 'super' } as SuperNode);
   }
 
   if (ctx.match('void')) {
@@ -518,18 +518,18 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
         ctx.skipTypeAnnotation();
       }
       ctx.expect(')');
-      return parsePostfixExpressions(ctx, expr, parseExpression);
+      return parsePostfixExpressions(ctx, expr);
     }
   }
 
   if (ctx.code[ctx.pos] === '[') {
-    let expr: Expression = parseArrayLiteral(ctx, parseExpression);
-    return parsePostfixExpressions(ctx, expr, parseExpression);
+    let expr: Expression = parseArrayLiteral(ctx);
+    return parsePostfixExpressions(ctx, expr);
   }
 
   if (ctx.code[ctx.pos] === '{') {
-    let expr: Expression = parseObjectLiteral(ctx, parseExpression);
-    return parsePostfixExpressions(ctx, expr, parseExpression);
+    let expr: Expression = parseObjectLiteral(ctx);
+    return parsePostfixExpressions(ctx, expr);
   }
 
   if (ctx.match('function')) {
@@ -555,11 +555,11 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
   }
 
   if (ctx.code[ctx.pos] === '`') {
-    return parseTemplateLiteral(ctx, parseExpression);
+    return parseTemplateLiteral(ctx);
   }
 
   if (ctx.code[ctx.pos] === '"' || ctx.code[ctx.pos] === "'") {
-    return parsePostfixExpressions(ctx, { type: 'string', value: ctx.parseString() } as StringNode, parseExpression);
+    return parsePostfixExpressions(ctx, { type: 'string', value: ctx.parseString() } as StringNode);
   }
 
   if (ctx.code[ctx.pos] === '/') {
@@ -567,7 +567,7 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
     try {
       const regex = parseRegex(ctx);
       if (regex) {
-        return parsePostfixExpressions(ctx, regex, parseExpression);
+        return parsePostfixExpressions(ctx, regex);
       }
     } catch (e) {
       ctx.pos = savedPos;
@@ -598,7 +598,7 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
   }
 
   if (/[0-9]/.test(ctx.code[ctx.pos])) {
-    return parsePostfixExpressions(ctx, { type: 'number', value: ctx.parseNumber() }, parseExpression);
+    return parsePostfixExpressions(ctx, { type: 'number', value: ctx.parseNumber() });
   }
 
   const name = ctx.parseIdentifier();
@@ -645,7 +645,7 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
       if (ctx.code[ctx.pos] === '(') {
         const call = parseFunctionCallWithName(ctx, name);
         (call as any).typeParameter = typeParam;
-        return parsePostfixExpressions(ctx, call, parseExpression);
+        return parsePostfixExpressions(ctx, call);
       }
     }
     ctx.pos = savedPos;
@@ -680,11 +680,11 @@ export function parsePrimary(ctx: ExpressionParserContext): Expression {
     } else {
       ctx.pos = savedPos;
       const callExpr = parseFunctionCallWithName(ctx, name);
-      return parsePostfixExpressions(ctx, callExpr, parseExpression);
+      return parsePostfixExpressions(ctx, callExpr);
     }
   } else {
     let expr: Expression = { type: 'variable', name };
-    return parsePostfixExpressions(ctx, expr, parseExpression);
+    return parsePostfixExpressions(ctx, expr);
   }
 }
 
