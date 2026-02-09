@@ -806,8 +806,13 @@ export class MethodCallGenerator {
       }
       return this.handleIndexOf(expr, params);
     }
-    if (method === 'includes' && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object)) {
-      return this.handleStringIncludes(expr, params);
+    if (method === 'includes') {
+      if (this.ctx.isStringArrayExpression(expr.object)) {
+        return this.handleStringArrayIncludes(expr, params);
+      }
+      if (!this.ctx.isArrayExpression(expr.object)) {
+        return this.handleStringIncludes(expr, params);
+      }
     }
     if (method === 'slice' && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object) && !this.ctx.isObjectArrayExpression(expr.object)) {
       return this.handleSlice(expr, params);
@@ -1426,6 +1431,18 @@ export class MethodCallGenerator {
 
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+    this.ctx.setVariableType(result, 'double');
+    return result;
+  }
+
+  private handleStringArrayIncludes(expr: MethodCallNode, params: string[]): string {
+    const indexResult = this.handleStringArrayIndexOf(expr, params);
+    const cmp = this.ctx.nextTemp();
+    this.ctx.emit(`${cmp} = fcmp oge double ${indexResult}, 0.0`);
+    const cmpI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${cmpI32} = zext i1 ${cmp} to i32`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = sitofp i32 ${cmpI32} to double`);
     this.ctx.setVariableType(result, 'double');
     return result;
   }
