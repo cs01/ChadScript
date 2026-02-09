@@ -53,6 +53,12 @@ export class SemanticAnalyzer {
   analyze(): boolean {
     this.errors = [];
 
+    this.symbols.set('process', { name: 'process', type: 'object', llvmType: 'i8*' });
+    this.symbols.set('console', { name: 'console', type: 'object', llvmType: 'i8*' });
+    this.symbols.set('Math', { name: 'Math', type: 'object', llvmType: 'i8*' });
+    this.symbols.set('JSON', { name: 'JSON', type: 'object', llvmType: 'i8*' });
+    this.symbols.set('Date', { name: 'Date', type: 'object', llvmType: 'i8*' });
+
     if (this.ast.enums) {
       for (let _ei = 0; _ei < this.ast.enums.length; _ei++) {
         const enumNode = this.ast.enums[_ei] as { name: string };
@@ -137,6 +143,7 @@ export class SemanticAnalyzer {
     }
 
     const inferredType = this.inferExpressionType(stmt.value, stmt.declaredType);
+    if (!inferredType) return;
     const symbolEntry = {
       name: stmt.name,
       type: inferredType.type,
@@ -212,6 +219,7 @@ export class SemanticAnalyzer {
   }
 
   private analyzeBlock(block: BlockStatement): void {
+    if (!block || !block.statements) return;
     for (let _bi = 0; _bi < block.statements.length; _bi++) {
       const stmt = block.statements[_bi];
       if (stmt.type === 'variable_declaration') {
@@ -255,6 +263,7 @@ export class SemanticAnalyzer {
     }
 
     const valueType = this.inferExpressionType(stmt.value);
+    if (!valueType) return;
 
     if (varSymbol.llvmType !== valueType.llvmType && varSymbol.type !== 'null' && valueType.type !== 'null' && varSymbol.type !== 'unknown' && valueType.type !== 'unknown' && !this.areAssignmentCompatible(varSymbol, valueType)) {
       this.errors.push({
@@ -502,6 +511,30 @@ export class SemanticAnalyzer {
         name: '',
         type: 'string',
         llvmType: 'i8*',
+      };
+    }
+
+    if (e.type === 'call' || e.type === 'new' || e.type === 'index_access' || e.type === 'arrow_function' || e.type === 'type_assertion' || e.type === 'await' || e.type === 'regex' || e.type === 'map' || e.type === 'set') {
+      return {
+        name: '',
+        type: 'unknown',
+        llvmType: 'double',
+      };
+    }
+
+    if (e.type === 'unary') {
+      return {
+        name: '',
+        type: 'number',
+        llvmType: 'double',
+      };
+    }
+
+    if (e.type === 'conditional') {
+      return {
+        name: '',
+        type: 'unknown',
+        llvmType: 'double',
       };
     }
 
