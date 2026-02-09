@@ -92,10 +92,19 @@ export function parseStatement(ctx: ParserContext): Statement {
 
     let catchClause: { param: string; body: BlockStatement } | null = null;
     if (ctx.match('catch')) {
-      ctx.expect('(');
       ctx.skipWhitespace();
-      const param = ctx.parseIdentifier();
-      ctx.expect(')');
+      let param = '__unused__';
+      if (ctx.code[ctx.pos] === '(') {
+        ctx.expect('(');
+        ctx.skipWhitespace();
+        param = ctx.parseIdentifier();
+        ctx.skipWhitespace();
+        if (ctx.code[ctx.pos] === ':') {
+          ctx.pos++;
+          ctx.skipTypeAnnotation();
+        }
+        ctx.expect(')');
+      }
       ctx.expect('{');
       const body = parseBlock(ctx);
       ctx.expect('}');
