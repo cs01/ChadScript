@@ -1,4 +1,4 @@
-import { Expression, ArrayNode, ObjectNode, MethodCallNode, VariableNode, BinaryNode, NumberNode } from '../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MethodCallNode, VariableNode, BinaryNode, NumberNode, UnaryNode } from '../ast/types.js';
 import { ParserContext } from './declarations.js';
 import { formatUnsupportedFeatureError } from './unsupported-features.js';
 
@@ -340,15 +340,13 @@ export function parsePostfixExpressions(ctx: LiteralParserContext, expr: Express
       expr = { type: 'method_call', object: expr, method: '', args };
     } else if (ctx.code[ctx.pos] === '+' && ctx.code[ctx.pos + 1] === '+') {
       ctx.pos += 2;
-      if (expr.type === 'variable') {
-        const one: NumberNode = { type: 'number', value: 1 };
-        expr = { type: 'binary', op: '+', left: expr, right: one } as BinaryNode;
+      if (expr.type === 'variable' || expr.type === 'member_access') {
+        expr = { type: 'unary', op: 'post++', operand: expr } as UnaryNode;
       }
     } else if (ctx.code[ctx.pos] === '-' && ctx.code[ctx.pos + 1] === '-') {
       ctx.pos += 2;
-      if (expr.type === 'variable') {
-        const one: NumberNode = { type: 'number', value: 1 };
-        expr = { type: 'binary', op: '-', left: expr, right: one } as BinaryNode;
+      if (expr.type === 'variable' || expr.type === 'member_access') {
+        expr = { type: 'unary', op: 'post--', operand: expr } as UnaryNode;
       }
     } else if (ctx.code[ctx.pos] === '!' && ctx.code[ctx.pos + 1] !== '=') {
       ctx.pos++;
