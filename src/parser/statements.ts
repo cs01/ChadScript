@@ -167,7 +167,7 @@ export function parseStatement(ctx: ParserContext): Statement {
   }
 
   if (leftExpr.type === 'variable') {
-    return { type: 'assignment', name: leftExpr.name, value: finalValue };
+    return { type: 'assignment', name: leftExpr.name, value: finalValue, line: ctx.getLineNumber(savedPos) };
   } else if (leftExpr.type === 'member_access') {
     const memberExpr = leftExpr as MemberAccessNode;
     const memberAssignment: MemberAccessAssignmentNode = {
@@ -349,6 +349,7 @@ export function parseForStatement(ctx: ParserContext): ForStatement | ForOfState
 }
 
 export function parseVariableDeclaration(ctx: ParserContext): VariableDeclaration {
+  const startPos = ctx.pos;
   let kind: 'let' | 'const' = 'let';
   if (ctx.match('let')) {
     kind = 'let';
@@ -435,7 +436,7 @@ export function parseVariableDeclaration(ctx: ParserContext): VariableDeclaratio
 
   ctx.expect(';');
 
-  return { type: 'variable_declaration', kind, name, value, declaredType };
+  return { type: 'variable_declaration', kind, name, value, declaredType, line: ctx.getLineNumber(startPos) };
 }
 
 export function parseTryStatementTopLevel(ctx: ParserContext): void {

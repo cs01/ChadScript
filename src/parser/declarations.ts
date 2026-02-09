@@ -24,6 +24,7 @@ export interface ParserContext {
   parseString(): string;
   skipTypeAnnotation(): void;
   parseTypeAnnotation(): 'string' | 'number' | 'boolean' | 'string[]' | 'number[]' | 'boolean[]' | 'void' | null;
+  getLineNumber(pos: number): number;
   formatError(message: string, position?: number, options?: { help?: string; note?: string; suggestion?: string; contextLines?: number }): string;
 }
 

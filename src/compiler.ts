@@ -2,7 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { Parser } from './parser/parser.js';
+import { parseWithTSAPI } from './parser-ts/index.js';
 import { LLVMGenerator, LLVMGeneratorOptions } from './codegen/llvm-generator.js';
+import { TypeChecker } from './typescript/type-checker.js';
 import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
 import { LogLevel, logger } from './utils/logger.js';
@@ -38,19 +40,6 @@ export function setSanitize(value: string): void {
   sanitize = value;
 }
 
-function runCommand(cmd: string): string {
-  const result: string = execSync(cmd, { stdio: 'pipe', encoding: 'utf8' }) as string;
-  return result;
-}
-
-function runCommandVoid(cmd: string, stdioMode: string): void {
-  if (stdioMode === 'pipe') {
-    execSync(cmd, { stdio: 'pipe' });
-  } else {
-    execSync(cmd, { stdio: 'inherit' });
-  }
-}
-
 // External library paths - check env vars, then use vendor/
 const BDWGC_PATH = process.env.CHADSCRIPT_BDWGC_PATH || './vendor/bdwgc';
 const MONGOOSE_PATH = process.env.CHADSCRIPT_MONGOOSE_PATH || './vendor/mongoose';
@@ -79,7 +68,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   let useClang = true;
 
   try {
-    llcPath = runCommand('which llc').trim();
+    llcPath = execSync('which llc', { stdio: 'pipe', encoding: 'utf8' }).trim();
   } catch (error) {
     throw new Error(
       'chadscript: error: llc (LLVM compiler) not found in PATH\n' +
@@ -91,10 +80,10 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   }
 
   try {
-    linkerPath = runCommand('which clang').trim();
+    linkerPath = execSync('which clang', { stdio: 'pipe', encoding: 'utf8' }).trim();
   } catch (error) {
     try {
-      linkerPath = runCommand('which gcc').trim();
+      linkerPath = execSync('which gcc', { stdio: 'pipe', encoding: 'utf8' }).trim();
       useClang = false;
     } catch (gccError) {
       throw new Error(
@@ -130,6 +119,30 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     logger.info('Skipping semantic analysis (--skip-semantic-analysis)');
   }
 
+  // Create TypeScript type checker if compiling .ts files
+  let typeChecker: TypeChecker | null = null;
+  if (inputFile.endsWith('.ts')) {
+    try {
+      const files: { filename: string; code: string }[] = [];
+      for (let fci = 0; fci < fileContentKeys.length; fci++) {
+        const filename = fileContentKeys[fci];
+        const code = fileContentValues[fci];
+        if (filename.endsWith('.ts')) {
+          files.push({ filename, code });
+        }
+      }
+      if (files.length > 0) {
+        typeChecker = new TypeChecker(files);
+      }
+    } catch (error) {
+      const errorObj = error as { message?: string; stack?: string };
+      logger.warn('Warning: Could not load TypeScript types: ' + (errorObj.message || String(error)));
+      if (errorObj.stack) {
+        logger.warn('Stack trace: ' + errorObj.stack);
+      }
+    }
+  }
+
   // Generate LLVM IR
   let entryFileCode = '';
   for (let efci = 0; efci < fileContentKeys.length; efci++) {
@@ -143,7 +156,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     sourceCode: entryFileCode,
     filename: inputFile
   };
-  const generator = new LLVMGenerator(mergedAST, null, generatorOptions);
+  const generator = new LLVMGenerator(mergedAST, typeChecker, generatorOptions);
   const llvmIR = generator.generate();
 
   // Write IR to file
@@ -167,7 +180,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   }
   logger.info(` ${compileCmd}`);
   const llcStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
-  runCommandVoid(compileCmd, llcStdio);
+  execSync(compileCmd, { stdio: llcStdio });
 
   // Link to executable with all required libraries
   // - libgc: Boehm garbage collector (replaces malloc)
@@ -199,14 +212,14 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
       const parserSrc = path.join(tsInclude, 'parser.c');
       const compileParser = `clang -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${parserSrc} -o ${tsParserObj}`;
       logger.info(`  Compiling tree-sitter parser...`);
-      runCommandVoid(compileParser, 'pipe');
+      execSync(compileParser, { stdio: 'pipe' });
     }
 
     if (!fs.existsSync(tsScannerObj)) {
       const scannerSrc = path.join(tsInclude, 'scanner.c');
       const compileScanner = `clang -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${scannerSrc} -o ${tsScannerObj}`;
       logger.info(`  Compiling tree-sitter scanner...`);
-      runCommandVoid(compileScanner, 'pipe');
+      execSync(compileScanner, { stdio: 'pipe' });
     }
 
     extraObjs = ` ${tsParserObj} ${tsScannerObj}`;
@@ -220,7 +233,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const linkCmd = `${linker} ${objFile} ${mongooseObj}${extraObjs} -o ${outputFile} -no-pie${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
-  runCommandVoid(linkCmd, linkStdio);
+  execSync(linkCmd, { stdio: linkStdio });
 
   // Clean up intermediate files (unless --keep-temps is set)
   if (!keepTemps) {
@@ -259,8 +272,7 @@ function compileMultiFile(entryFile: string, compiledFiles: string[], fileConten
   let ast: AST;
   if (useTSParser) {
     logger.info(`  Using TypeScript API parser`);
-    const parser = new Parser(code, pathForErrors);
-    ast = parser.parse();
+    ast = parseWithTSAPI(code, { filename: pathForErrors });
   } else {
     const parser = new Parser(code, pathForErrors);
     ast = parser.parse();
@@ -383,19 +395,14 @@ function resolveNodeModule(fromFile: string, packageName: string): string | null
       const pkgJsonPath = path.join(nodeModulesPath, 'package.json');
       if (fs.existsSync(pkgJsonPath)) {
         const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'));
-        const entryPoints: string[] = [];
-        const pkgMain: string = pkgJson.main || '';
-        if (pkgMain.length > 0) {
-          const tsEntry = pkgMain.replace(/\.js$/, '.ts');
-          entryPoints.push(tsEntry);
-          const noJsEntry = pkgMain.replace(/\.js$/, '');
-          entryPoints.push(noJsEntry);
-        }
-        entryPoints.push('index.ts');
-        entryPoints.push('src/index.ts');
+        const entryPoints = [
+          pkgJson.main?.replace(/\.js$/, '.ts'),
+          pkgJson.main?.replace(/\.js$/, ''),
+          'index.ts',
+          'src/index.ts'
+        ].filter(Boolean);
 
-        for (let ei = 0; ei < entryPoints.length; ei++) {
-          const entry = entryPoints[ei];
+        for (const entry of entryPoints) {
           const entryPath = path.join(nodeModulesPath, entry);
           if (fs.existsSync(entryPath)) {
             return entryPath;
