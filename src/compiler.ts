@@ -97,9 +97,10 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   }
 
   // Parse all files (starting from entry point, following imports)
-  const compiledFiles = new Set<string>();
-  const fileContents = new Map<string, string>();
-  const mergedAST = compileMultiFile(inputFile, compiledFiles, fileContents, inputFile);
+  const compiledFiles: string[] = [];
+  const fileContentKeys: string[] = [];
+  const fileContentValues: string[] = [];
+  const mergedAST = compileMultiFile(inputFile, compiledFiles, fileContentKeys, fileContentValues, inputFile);
 
   // Run semantic analysis to catch type errors early (unless skipped)
   if (!skipSemanticAnalysis) {
@@ -123,7 +124,9 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   if (inputFile.endsWith('.ts')) {
     try {
       const files: { filename: string; code: string }[] = [];
-      for (const [filename, code] of fileContents.entries()) {
+      for (let fci = 0; fci < fileContentKeys.length; fci++) {
+        const filename = fileContentKeys[fci];
+        const code = fileContentValues[fci];
         if (filename.endsWith('.ts')) {
           files.push({ filename, code });
         }
@@ -141,7 +144,13 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   }
 
   // Generate LLVM IR
-  const entryFileCode = fileContents.get(inputFile) || '';
+  let entryFileCode = '';
+  for (let efci = 0; efci < fileContentKeys.length; efci++) {
+    if (fileContentKeys[efci] === inputFile) {
+      entryFileCode = fileContentValues[efci];
+      break;
+    }
+  }
   const generatorOptions: LLVMGeneratorOptions = {
     linkTreeSitter: linkTreeSitter,
     sourceCode: entryFileCode,
@@ -243,17 +252,20 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   // Silent on success (like clang)
 }
 
-function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileContents: Map<string, string>, displayPath?: string): AST {
+function compileMultiFile(entryFile: string, compiledFiles: string[], fileContentKeys: string[], fileContentValues: string[], displayPath?: string): AST {
   const absPath = path.resolve(entryFile);
 
-  if (compiledFiles.has(absPath)) {
-    return { imports: [], functions: [], classes: [], exports: [], interfaces: [], typeAliases: [], enums: [], topLevelStatements: [], topLevelExpressions: [], topLevelItems: [], topLevelItemTypes: [] };
+  for (let cfi = 0; cfi < compiledFiles.length; cfi++) {
+    if (compiledFiles[cfi] === absPath) {
+      return { imports: [], functions: [], classes: [], exports: [], interfaces: [], typeAliases: [], enums: [], topLevelStatements: [], topLevelExpressions: [], topLevelItems: [], topLevelItemTypes: [] };
+    }
   }
-  compiledFiles.add(absPath);
+  compiledFiles.push(absPath);
 
   logger.info(`  Parsing: ${absPath}`);
   const code = fs.readFileSync(absPath, 'utf8');
-  fileContents.set(absPath, code);
+  fileContentKeys.push(absPath);
+  fileContentValues.push(code);
 
   const pathForErrors = displayPath || absPath;
 
@@ -309,7 +321,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
 
       const npmPath = resolveNodeModule(absPath, imp.source);
       if (npmPath) {
-        const importedAST = compileMultiFile(npmPath, compiledFiles, fileContents);
+        const importedAST = compileMultiFile(npmPath, compiledFiles, fileContentKeys, fileContentValues);
         mergedAST.imports = mergedAST.imports.concat(importedAST.imports);
         mergedAST.functions = mergedAST.functions.concat(importedAST.functions);
         mergedAST.classes = mergedAST.classes.concat(importedAST.classes);
@@ -334,7 +346,7 @@ function compileMultiFile(entryFile: string, compiledFiles: Set<string>, fileCon
     }
 
     const importPath = resolveImportPath(absPath, imp.source);
-    const importedAST = compileMultiFile(importPath, compiledFiles, fileContents);
+    const importedAST = compileMultiFile(importPath, compiledFiles, fileContentKeys, fileContentValues);
 
     mergedAST.imports = mergedAST.imports.concat(importedAST.imports);
     mergedAST.functions = mergedAST.functions.concat(importedAST.functions);
