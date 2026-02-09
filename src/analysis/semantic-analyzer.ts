@@ -124,9 +124,9 @@ export class SemanticAnalyzer {
 
     const inferredType = this.inferExpressionType(stmt.value, stmt.declaredType);
     const symbolEntry = {
+      name: stmt.name,
       type: inferredType.type,
       llvmType: inferredType.llvmType,
-      name: stmt.name
     };
     this.symbols.set(stmt.name, symbolEntry);
   }
@@ -137,10 +137,26 @@ export class SemanticAnalyzer {
     // Add parameters to symbol table (scoped to function)
     for (let _pi = 0; _pi < func.params.length; _pi++) {
       const param = func.params[_pi];
+      const paramType = func.paramTypes ? func.paramTypes[_pi] : undefined;
+
+      let llvmType = 'double';
+      let type: SymbolType = 'number';
+
+      if (paramType === 'string') {
+        llvmType = 'i8*';
+        type = 'string';
+      } else if (paramType === 'string[]') {
+        llvmType = '%StringArray*';
+        type = 'array<string>';
+      } else if (paramType === 'number[]' || paramType === 'boolean[]') {
+        llvmType = '%Array*';
+        type = 'array<number>';
+      }
+
       this.symbols.set(param, {
         name: param,
-        type: 'number',
-        llvmType: 'double',
+        type,
+        llvmType,
       });
     }
 
@@ -214,6 +230,27 @@ export class SemanticAnalyzer {
         this.analyzeVariableDeclaration(stmt);
       } else if (stmt.type === 'assignment') {
         this.analyzeAssignment(stmt);
+      } else if (stmt.type === 'if') {
+        const ifStmt = stmt as any;
+        if (ifStmt.thenBlock) this.analyzeBlock(ifStmt.thenBlock);
+        if (ifStmt.elseBlock) this.analyzeBlock(ifStmt.elseBlock);
+      } else if (stmt.type === 'while') {
+        const whileStmt = stmt as any;
+        if (whileStmt.body) this.analyzeBlock(whileStmt.body);
+      } else if (stmt.type === 'for') {
+        const forStmt = stmt as any;
+        if (forStmt.init && forStmt.init.type === 'variable_declaration') {
+          this.analyzeVariableDeclaration(forStmt.init);
+        }
+        if (forStmt.body) this.analyzeBlock(forStmt.body);
+      } else if (stmt.type === 'for_of') {
+        const forOfStmt = stmt as any;
+        if (forOfStmt.body) this.analyzeBlock(forOfStmt.body);
+      } else if (stmt.type === 'try') {
+        const tryStmt = stmt as any;
+        if (tryStmt.tryBlock) this.analyzeBlock(tryStmt.tryBlock);
+        if (tryStmt.catchClause && tryStmt.catchClause.body) this.analyzeBlock(tryStmt.catchClause.body);
+        if (tryStmt.finallyBlock) this.analyzeBlock(tryStmt.finallyBlock);
       }
     }
   }
@@ -448,7 +485,11 @@ export class SemanticAnalyzer {
         }
       }
 
-      return objectType;
+      return {
+        name: '',
+        type: 'unknown',
+        llvmType: 'double',
+      };
     }
 
     if (e.type === 'template_literal') {
