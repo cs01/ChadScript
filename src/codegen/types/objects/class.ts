@@ -69,6 +69,9 @@ export class ClassGenerator {
         if (classNode) {
           return '%' + ts + '_struct*';
         }
+        if (this.isEnumType(ts)) {
+          return 'double';
+        }
         return 'i8*';
       }
       return 'double';
@@ -100,6 +103,9 @@ export class ClassGenerator {
         const classNode = this.findClassNode(ts);
         if (classNode) {
           return '%' + ts + '_struct*';
+        }
+        if (this.isEnumType(ts)) {
+          return 'double';
         }
         return 'i8*';
       }
