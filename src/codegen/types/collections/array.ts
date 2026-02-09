@@ -1265,12 +1265,17 @@ export class ArrayGenerator {
   }
 
   generateArrayJoin(expr: MethodCallNode, params: string[]): string {
-    if (expr.args.length !== 1) {
-      throw new Error('join() requires exactly 1 argument (separator)');
+    if (expr.args.length > 1) {
+      throw new Error('join() accepts 0 or 1 arguments (separator)');
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
-    const separator = this.ctx.generateExpression(expr.args[0], params);
+    let separator: string;
+    if (expr.args.length === 1) {
+      separator = this.ctx.generateExpression(expr.args[0], params);
+    } else {
+      separator = this.ctx.stringGenCreateStringConstant(',');
+    }
 
     let isStringArray = false;
     const exprObjBase = expr.object as ExprBase;
