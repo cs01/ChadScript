@@ -346,6 +346,9 @@ export class SemanticAnalyzer {
     // Variable reference - look up in symbol table
     if (e.type === 'variable') {
       const varExpr = expr as VariableNode;
+      if (varExpr.name === 'null' || varExpr.name === 'undefined') {
+        return { name: varExpr.name, type: 'null', llvmType: 'i8*' };
+      }
       const symbol = this.symbols.get(varExpr.name);
       if (!symbol) {
         this.errors.push({
