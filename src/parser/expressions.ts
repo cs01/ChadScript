@@ -272,6 +272,12 @@ function parseAsyncArrowFunction(ctx: ExpressionParserContext): Expression {
 export function parsePrimary(ctx: ExpressionParserContext): Expression {
   ctx.skipWhitespace();
 
+  if (ctx.code[ctx.pos] === '.' && ctx.code[ctx.pos + 1] === '.' && ctx.code[ctx.pos + 2] === '.') {
+    ctx.pos += 3;
+    const argument = parsePrimary(ctx);
+    return { type: 'spread', argument } as unknown as Expression;
+  }
+
   if (ctx.match('async')) {
     ctx.skipWhitespace();
     if (ctx.match('function')) {
