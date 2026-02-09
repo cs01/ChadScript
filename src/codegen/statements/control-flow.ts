@@ -287,7 +287,7 @@ export class ControlFlowGenerator {
       throw new Error('Expected for...of statement');
     }
 
-    const forOfStmt = stmt as { type: string; variableName: string; iterable: Expression; body: BlockStatement; destructuredNames: string[] | null };
+    const forOfStmt = stmt as { type: string; variableKind: string; variableName: string; destructuredNames: string[] | null; iterable: Expression; body: BlockStatement };
 
     const objectArrayInfo = this.getObjectArrayInfo(forOfStmt.iterable);
     if (objectArrayInfo) {
@@ -1153,7 +1153,7 @@ export class ControlFlowGenerator {
       throw new Error('Expected for...of statement');
     }
 
-    const forOfStmt = stmt as { type: string; variableName: string; iterable: Expression; body: BlockStatement };
+    const forOfStmt = stmt as { type: string; variableKind: string; variableName: string; destructuredNames: string[] | null; iterable: Expression; body: BlockStatement };
 
     const iterableValue = this.ctx.generateExpression(forOfStmt.iterable, params);
 

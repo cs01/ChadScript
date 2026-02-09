@@ -305,12 +305,12 @@ export class ClosureAnalyzer {
       }
       this.walkBlock(s.body);
     } else if (stmtType === 'for_of') {
-      const s = stmt as { type: string; variable: string; iterable: Expression; body: BlockStatement };
-      this.declaredVars.add(s.variable);
+      const s = stmt as { type: string; variableKind: string; variableName: string; destructuredNames: string[] | null; iterable: Expression; body: BlockStatement };
+      this.declaredVars.add(s.variableName);
       this.walkExpression(s.iterable);
       this.walkBlock(s.body);
     } else if (stmtType === 'try') {
-      const tryStmt = stmt as { tryBlock: BlockStatement; finallyBlock: BlockStatement | null };
+      const tryStmt = stmt as { type: string; tryBlock: BlockStatement; catchClause: { param: string; body: BlockStatement } | null; finallyBlock: BlockStatement | null };
       this.walkBlock(tryStmt.tryBlock);
       if (tryStmt.finallyBlock !== null) {
         this.walkBlock(tryStmt.finallyBlock);
