@@ -24,13 +24,13 @@ export class Parser implements ExpressionParserContext {
     this.filename = filename;
   }
 
-  formatError(message: string, position?: number, options?: {
+  formatError(message: string, position: number = -1, options?: {
     help?: string;
     note?: string;
     suggestion?: string;
     contextLines?: number;
   }): string {
-    const pos = position !== undefined ? position : this.pos;
+    const pos = position >= 0 ? position : this.pos;
     const lines = this.code.substring(0, pos).split('\n');
     const lineNum = lines.length;
     const col = lines[lines.length - 1].length;
@@ -386,7 +386,7 @@ export class Parser implements ExpressionParserContext {
         options.note = "Check that all parentheses are balanced";
       }
 
-      throw new Error(this.formatError(`Expected '${str}'`, undefined, options));
+      throw new Error(this.formatError(`Expected '${str}'`, this.pos, options));
     }
   }
 
