@@ -279,6 +279,7 @@ export interface MethodCallGeneratorContext {
   pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateBasename(expr: MethodCallNode, params: string[]): string;
+  pathGenGenerateJoin(expr: MethodCallNode, params: string[]): string;
   jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string;
   jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string;
   mathGenCanHandle(expr: MethodCallNode): boolean;
@@ -687,6 +688,9 @@ export class MethodCallGenerator {
     if (method === 'basename' && this.isVariableWithName(expr.object, 'path')) {
       return this.ctx.pathGenGenerateBasename(expr, params);
     }
+    if (method === 'join' && this.isVariableWithName(expr.object, 'path')) {
+      return this.ctx.pathGenGenerateJoin(expr, params);
+    }
 
     // Handle execSync() from child_process
     if (method === 'execSync') {
@@ -1015,7 +1019,7 @@ export class MethodCallGenerator {
         return this.ctx.arrayGenGenerateStringArrayMap(expr, params);
       }
       return this.ctx.arrayGenGenerateArrayMap(expr, params);
-    } else if (method === 'join') {
+    } else if (method === 'join' && (this.ctx.isStringArrayExpression(expr.object) || this.ctx.isArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {
       return this.ctx.arrayGenGenerateArrayJoin(expr, params);
     } else if (method === 'find') {
       return this.ctx.arrayGenGenerateArrayFind(expr, params);

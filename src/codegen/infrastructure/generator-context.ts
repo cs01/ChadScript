@@ -705,6 +705,7 @@ export interface IGeneratorContext {
   pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateBasename(expr: MethodCallNode, params: string[]): string;
+  pathGenGenerateJoin(expr: MethodCallNode, params: string[]): string;
 
   /**
    * FsGen delegate methods (avoid struct layout mismatch)
@@ -1394,6 +1395,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   pathGenGenerateResolve(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_resolve'; }
   pathGenGenerateDirname(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_dirname'; }
   pathGenGenerateBasename(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_basename'; }
+  pathGenGenerateJoin(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_join'; }
 
   fsGenCanHandle(_expr: MethodCallNode): boolean { return false; }
   fsGenReadFileSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_readFileSync'; }

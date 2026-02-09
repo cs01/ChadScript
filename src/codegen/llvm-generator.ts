@@ -885,6 +885,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateResolve(expr, params); }
   public pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateDirname(expr, params); }
   public pathGenGenerateBasename(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateBasename(expr, params); }
+  public pathGenGenerateJoin(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateJoin(expr, params); }
 
   public fsGenCanHandle(expr: MethodCallNode): boolean { return this.fsGen.canHandle(expr); }
   public fsGenReadFileSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateReadFileSync(expr, params); }

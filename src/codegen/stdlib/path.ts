@@ -134,4 +134,25 @@ export class PathGenerator {
 
     return result;
   }
+
+  generateJoin(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      throw new Error('path.join() requires at least 1 argument');
+    }
+
+    let result = this.ctx.generateExpression(expr.args[0], params);
+    const slash = this.ctx.stringGenCreateStringConstant('/');
+
+    for (let i = 1; i < expr.args.length; i++) {
+      const part = this.ctx.generateExpression(expr.args[i], params);
+      const withSlash = this.ctx.nextTemp();
+      this.ctx.emit(`${withSlash} = call i8* @__string_concat(i8* ${result}, i8* ${slash})`);
+      const joined = this.ctx.nextTemp();
+      this.ctx.emit(`${joined} = call i8* @__string_concat(i8* ${withSlash}, i8* ${part})`);
+      result = joined;
+    }
+
+    this.ctx.setVariableType(result, 'i8*');
+    return result;
+  }
 }
