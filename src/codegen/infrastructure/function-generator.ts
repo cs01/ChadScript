@@ -250,47 +250,50 @@ export class FunctionGenerator {
             }
           }
 
-          let interfaceDefResult: { name: string; fields: { name: string; type: string }[] } | null = null;
+          let interfaceDefName: string = '';
+          let interfaceDefFields: { name: string; type: string }[] = [];
           const interfaces = ast?.interfaces || [];
           for (let j = 0; j < interfaces.length; j++) {
             const iface = interfaces[j] as { name: string; fields: { name: string; type: string }[] };
             if (!iface || !iface.name) continue;
             if (iface.name === paramTypes[i]) {
-              interfaceDefResult = iface;
+              interfaceDefName = iface.name;
+              if (iface.fields) {
+                interfaceDefFields = iface.fields;
+              }
               break;
             }
           }
 
-          let typeAliasResult: { name: string; unionMembers: string[] } | null = null;
+          let typeAliasUnionMembers: string[] = [];
           const typeAliases = ast?.typeAliases || [];
           for (let j = 0; j < typeAliases.length; j++) {
             const ta = typeAliases[j] as { name: string; unionMembers: string[] };
             if (!ta || !ta.name) continue;
             if (ta.name === paramTypes[i]) {
-              typeAliasResult = ta;
+              if (ta.unionMembers) {
+                typeAliasUnionMembers = ta.unionMembers;
+              }
               break;
             }
           }
 
           if (classDefName !== '') {
             this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Class, 'local', createClassMetadata({ className: classDefName }));
-          } else if (interfaceDefResult) {
-            const interfaceDef = interfaceDefResult as { name: string; fields: { name: string; type: string }[] };
+          } else if (interfaceDefName !== '') {
             const keys: string[] = [];
             const types: string[] = [];
-            if (interfaceDef.fields) {
-              for (let j = 0; j < interfaceDef.fields.length; j++) {
-                const field = interfaceDef.fields[j] as { name: string; type: string };
-                if (!field || !field.name) continue;
-                const fieldName = stripOptional(field.name);
-                keys.push(fieldName);
-                types.push(this.convertTsTypeForField(fieldName, field.type));
-              }
+            for (let j = 0; j < interfaceDefFields.length; j++) {
+              const field = interfaceDefFields[j] as { name: string; type: string };
+              if (!field || !field.name) continue;
+              const fieldName = stripOptional(field.name);
+              keys.push(fieldName);
+              types.push(this.convertTsTypeForField(fieldName, field.type));
             }
             this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types }, paramTypes[i]));
-          } else if (typeAliasResult && typeAliasResult.unionMembers) {
-            const commonFields = this.getUnionCommonFields(typeAliasResult.unionMembers);
-            this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', createUnionMetadata(commonFields, paramTypes[i], typeAliasResult.unionMembers));
+          } else if (typeAliasUnionMembers.length > 0) {
+            const commonFields = this.getUnionCommonFields(typeAliasUnionMembers);
+            this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', createUnionMetadata(commonFields, paramTypes[i], typeAliasUnionMembers));
           } else {
             this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local');
           }
