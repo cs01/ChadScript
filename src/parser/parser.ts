@@ -362,7 +362,7 @@ export class Parser implements ExpressionParserContext {
 
   expect(str: string): void {
     if (!this.match(str)) {
-      let options: { help?: string; note?: string; suggestion?: string; contextLines?: number } = { contextLines: 1 };
+      let options = { contextLines: 1, help: '', note: '', suggestion: '' };
 
       if (str === ';') {
         this.skipWhitespace();
