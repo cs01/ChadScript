@@ -30,14 +30,11 @@ export class JsonGenerator {
     const exprTyped = expr as { typeParameter?: string; args: Expression[]; object: Expression; method: string };
     const typeParam = exprTyped.typeParameter;
     if (!typeParam) {
-      throw new Error(
-        'JSON.parse() requires a type parameter. Use JSON.parse<InterfaceName>(jsonString).\n' +
-        'ChadScript needs static types for JSON to generate efficient native code.\n\n' +
-        'Example:\n' +
-        '  interface User { name: string; age: number; }\n' +
-        '  const user = JSON.parse<User>(\'{"name":"Alice","age":30}\');\n\n' +
-        'Without type information, property access cannot be compiled.'
-      );
+      const jsonStr = this.ctx.generateExpression(expr.args[0], params);
+      const result = this.ctx.nextTemp();
+      this.ctx.emit(`${result} = call i8* @cJSON_Parse(i8* ${jsonStr})`);
+      this.ctx.setVariableType(result, 'i8*');
+      return result;
     }
 
     if (typeParam === 'number[]') {
