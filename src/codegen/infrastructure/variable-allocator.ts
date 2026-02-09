@@ -949,12 +949,11 @@ export class VariableAllocator {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const interfaceName = this.ctx.getJSONParseInterface(stmt.value!);
     if (!interfaceName) {
-      throw new Error(
-        this.ctx.formatCodegenError(
-          'JSON.parse() requires a type parameter. This should have been caught by the parser.\n' +
-          'Use: JSON.parse<InterfaceName>(jsonString)'
-        )
-      );
+      this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.JSON, 'local');
+      this.ctx.emit(`${allocaReg} = alloca i8*`);
+      const jsonPtr = this.ctx.generateExpression(stmt.value!, params);
+      this.ctx.emit(`store i8* ${jsonPtr}, i8** ${allocaReg}`);
+      return;
     }
 
     if (interfaceName === 'number[]') {
