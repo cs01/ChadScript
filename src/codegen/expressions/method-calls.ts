@@ -810,7 +810,12 @@ export class MethodCallGenerator {
       return this.handleToLowerCase(expr, params);
     }
     if (method === 'match') {
-      return this.handleMatch(expr, params);
+      const matchObjBase = expr.object as ExprBase;
+      const matchVarName = this.getVariableName(expr.object);
+      const isClassInstance = matchObjBase.type === 'this' || (matchVarName && this.ctx.symbolTableIsClass(matchVarName));
+      if (!isClassInstance) {
+        return this.handleMatch(expr, params);
+      }
     }
 
     // Handle Map methods
