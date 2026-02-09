@@ -296,15 +296,24 @@ export class Parser implements ExpressionParserContext {
   private skipDeclareStatement(): void {
     this.skipWhitespace();
     if (this.match('function')) {
+      this.skipWhitespace();
+      const name = this.parseIdentifier();
       while (this.pos < this.code.length && this.code[this.pos] !== ';') {
         this.pos++;
       }
       if (this.code[this.pos] === ';') {
         this.pos++;
       }
+      this.topLevelStatements.push({
+        type: 'variable_declaration',
+        kind: 'declare',
+        name: name,
+        value: null,
+        declaredType: 'function'
+      });
     } else if (this.match('const') || this.match('let') || this.match('var') || this.match('class')) {
       this.skipWhitespace();
-      this.parseIdentifier();
+      const name = this.parseIdentifier();
       this.skipWhitespace();
       if (this.code[this.pos] === ':') {
         this.pos++;
@@ -335,6 +344,13 @@ export class Parser implements ExpressionParserContext {
       } else if (this.code[this.pos] === ';') {
         this.pos++;
       }
+      this.topLevelStatements.push({
+        type: 'variable_declaration',
+        kind: 'declare',
+        name: name,
+        value: null,
+        declaredType: 'object'
+      });
     } else {
       while (this.pos < this.code.length && this.code[this.pos] !== ';') {
         this.pos++;
