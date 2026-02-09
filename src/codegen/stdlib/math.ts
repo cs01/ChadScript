@@ -36,7 +36,7 @@ export class MathGenerator {
    * Get list of supported Math methods
    */
   getSupportedMethods(): string[] {
-    return ['sqrt', 'pow', 'floor', 'ceil', 'round', 'abs'];
+    return ['sqrt', 'pow', 'floor', 'ceil', 'round', 'abs', 'max', 'min'];
   }
 
   /**
@@ -62,6 +62,10 @@ export class MathGenerator {
         return this.generateRound(expr, params);
       case 'abs':
         return this.generateAbs(expr, params);
+      case 'max':
+        return this.generateMax(expr, params);
+      case 'min':
+        return this.generateMin(expr, params);
       default:
         throw new Error(`Unsupported Math method: ${method}`);
     }
@@ -143,6 +147,28 @@ export class MathGenerator {
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.fabs.f64(double ${arg})`);
+    return result;
+  }
+
+  private generateMax(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 2) {
+      throw new Error('Math.max() requires 2 arguments');
+    }
+    const a = this.ctx.generateExpression(expr.args[0], params);
+    const b = this.ctx.generateExpression(expr.args[1], params);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @llvm.maxnum.f64(double ${a}, double ${b})`);
+    return result;
+  }
+
+  private generateMin(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 2) {
+      throw new Error('Math.min() requires 2 arguments');
+    }
+    const a = this.ctx.generateExpression(expr.args[0], params);
+    const b = this.ctx.generateExpression(expr.args[1], params);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @llvm.minnum.f64(double ${a}, double ${b})`);
     return result;
   }
 }

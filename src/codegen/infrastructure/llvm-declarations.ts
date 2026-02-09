@@ -41,6 +41,8 @@ export function getLLVMDeclarations(): string {
   ir += 'declare double @llvm.ceil.f64(double)\n';
   ir += 'declare double @llvm.round.f64(double)\n';
   ir += 'declare double @llvm.fabs.f64(double)\n';
+  ir += 'declare double @llvm.maxnum.f64(double, double)\n';
+  ir += 'declare double @llvm.minnum.f64(double, double)\n';
   ir += '\n';
 
   ir += 'declare i32 @regcomp(i8*, i8*, i32)\n';
