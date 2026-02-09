@@ -262,7 +262,7 @@ export interface SwitchStatement {
   cases: SwitchCase[];
 }
 
-export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | ForOfStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | SwitchStatement | Expression;
+export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | ForOfStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | SwitchStatement | BlockStatement | Expression;
 
 export type TopLevelItem = VariableDeclaration | AssignmentStatement | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | ThrowStatement | CallNode | NewNode | MethodCallNode;
 

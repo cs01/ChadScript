@@ -2103,6 +2103,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       } else if (stmtType === 'switch') {
         this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateSwitchStatement(stmtRaw as Statement, params);
+      } else if (stmtType === 'block') {
+        lastValue = this.generateBlock(stmtRaw as BlockStatement, params);
       } else {
         // Expression statement
         lastValue = this.generateExpression(stmtRaw as Expression, params);
