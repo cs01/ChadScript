@@ -1436,7 +1436,10 @@ export class TypeInference {
     }
     if (e.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
-      if (methodExpr.method === 'split' || methodExpr.method === 'match') {
+      if (methodExpr.method === 'split') {
+        return true;
+      }
+      if (methodExpr.method === 'match' && this.isStringExpression(methodExpr.object)) {
         return true;
       }
       if (methodExpr.method === 'map' || methodExpr.method === 'filter' || methodExpr.method === 'slice' || methodExpr.method === 'concat') {
