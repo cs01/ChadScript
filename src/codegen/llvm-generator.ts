@@ -7,7 +7,7 @@ import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/fu
 import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructure/assignment-generator.js';
 import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
 import { TypeResolver, TypeResolverContext, TypeGuardInfo } from './infrastructure/type-resolver/index.js';
-import { stripOptional, tsTypeToLlvmJson, ResolvedType } from './infrastructure/type-system.js';
+import { stripOptional, stripNullable, tsTypeToLlvmJson, ResolvedType } from './infrastructure/type-system.js';
 import { IGeneratorContext } from './infrastructure/generator-context.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
@@ -1317,33 +1317,36 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           defaultValue = 'null';
         } else {
           const stmtTyped = stmt as { declaredType?: string };
-          if (stmtTyped.declaredType === 'string') {
-            llvmType = 'i8*';
-            kind = SymbolKind.String;
-            defaultValue = 'null';
-          } else if (stmtTyped.declaredType) {
-            let foundInterface = false;
-            for (let i = 0; i < this.ast.interfaces.length; i++) {
-              const iface = this.ast.interfaces[i];
-              if (!iface) continue;
-              if (!iface.name) continue;
-              if (iface.name === stmtTyped.declaredType) {
-                foundInterface = true;
-                break;
-              }
-            }
-            if (foundInterface) {
+          if (stmtTyped.declaredType) {
+            const strippedDeclaredType = stripNullable(stmtTyped.declaredType);
+            if (strippedDeclaredType === 'string') {
               llvmType = 'i8*';
-              kind = SymbolKind.Object;
+              kind = SymbolKind.String;
               defaultValue = 'null';
-              ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
-              this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(stmtTyped.declaredType));
-              continue;
             } else {
-              llvmType = 'double';
-              kind = SymbolKind.Number;
-              defaultValue = '0.0';
+              let foundInterface = false;
+              for (let i = 0; i < this.ast.interfaces.length; i++) {
+                const iface = this.ast.interfaces[i];
+                if (!iface) continue;
+                if (!iface.name) continue;
+                if (iface.name === strippedDeclaredType) {
+                  foundInterface = true;
+                  break;
+                }
+              }
+              if (foundInterface) {
+                llvmType = 'i8*';
+                kind = SymbolKind.Object;
+                defaultValue = 'null';
+                ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+                this.globalVariables.set(name, { llvmType, kind, initialized: false });
+                this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(strippedDeclaredType));
+                continue;
+              } else {
+                llvmType = 'double';
+                kind = SymbolKind.Number;
+                defaultValue = '0.0';
+              }
             }
           } else {
             const funcReturnInterface = this.typeInference.getFunctionCallInterfaceReturn(stmt.value);
