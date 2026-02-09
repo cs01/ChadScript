@@ -273,7 +273,9 @@ export class VariableAllocator {
       return;
     }
 
-    if (stmt.value === null) {
+    const stmtValueAsVar = stmt.value as { type?: string; name?: string } | null;
+    const isAstNullLiteral = stmtValueAsVar && stmtValueAsVar.type === 'variable' && stmtValueAsVar.name === 'null';
+    if (stmt.value === null || isAstNullLiteral) {
       const allocaReg = this.ctx.nextAllocaReg(stmt.name);
       const baseType = stmt.declaredType ? stripNullable(stmt.declaredType) : '';
       if (baseType === 'string') {
@@ -363,6 +365,8 @@ export class VariableAllocator {
       return;
     }
 
+    const stmtValue = stmt.value!;
+
     if (stmt.declaredType) {
       if (stmt.declaredType === 'string[]') {
         this.ctx.setExpectedArrayElementType('string');
@@ -374,38 +378,38 @@ export class VariableAllocator {
     }
 
     const stmtDeclaredType: string = stmt.declaredType || '';
-    const isString = this.ctx.isStringExpression(stmt.value);
-    let isStringArray = this.ctx.isStringArrayExpression(stmt.value);
+    const isString = this.ctx.isStringExpression(stmtValue);
+    let isStringArray = this.ctx.isStringArrayExpression(stmtValue);
     if (!isStringArray && stmtDeclaredType === 'string[]') {
       isStringArray = true;
     }
-    let isObjectArray = this.ctx.isObjectArrayExpression(stmt.value);
+    let isObjectArray = this.ctx.isObjectArrayExpression(stmtValue);
     if (!isObjectArray && stmtDeclaredType && stmtDeclaredType.endsWith('[]') &&
         stmtDeclaredType !== 'string[]' && stmtDeclaredType !== 'number[]' && stmtDeclaredType !== 'boolean[]') {
       isObjectArray = true;
     }
-    const isArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(stmt.value);
-    const isJSONObject = this.ctx.isJSONParseExpression(stmt.value);
-    const isObject = !isJSONObject && this.ctx.isObjectExpression(stmt.value);
-    let isMap = this.ctx.isMapExpression(stmt.value);
+    const isArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(stmtValue);
+    const isJSONObject = this.ctx.isJSONParseExpression(stmtValue);
+    const isObject = !isJSONObject && this.ctx.isObjectExpression(stmtValue);
+    let isMap = this.ctx.isMapExpression(stmtValue);
     if (!isMap && stmtDeclaredType.startsWith('Map<')) {
       isMap = true;
     }
-    let isSet = this.ctx.isSetExpression(stmt.value);
+    let isSet = this.ctx.isSetExpression(stmtValue);
     if (!isSet && (stmtDeclaredType === 'Set' || stmtDeclaredType.startsWith('Set<'))) {
       isSet = true;
     }
-    const isRegex = this.ctx.isRegexExpression(stmt.value);
-    const isPromise = this.ctx.isPromiseExpression(stmt.value);
-    const isAwait = this.ctx.isAwaitExpression(stmt.value);
-    const isClassInstance = !isPromise && this.ctx.isClassInstanceExpression(stmt.value);
-    const isResponse = this.ctx.isResponseExpression(stmt.value);
-    const typedJsonInterface = this.ctx.getTypedJsonInterface(stmt.value);
-    const functionInterfaceReturn = this.ctx.getFunctionCallInterfaceReturn(stmt.value);
-    const methodInterfaceReturn = this.ctx.getMethodCallInterfaceReturn(stmt.value);
-    const methodArrayReturn = this.ctx.getMethodCallArrayReturn(stmt.value);
-    const memberAccessInterfaceType = this.getMemberAccessInterfaceType(stmt.value);
-    const mapGetInterfaceType = this.getMapGetInterfaceType(stmt.value);
+    const isRegex = this.ctx.isRegexExpression(stmtValue);
+    const isPromise = this.ctx.isPromiseExpression(stmtValue);
+    const isAwait = this.ctx.isAwaitExpression(stmtValue);
+    const isClassInstance = !isPromise && this.ctx.isClassInstanceExpression(stmtValue);
+    const isResponse = this.ctx.isResponseExpression(stmtValue);
+    const typedJsonInterface = this.ctx.getTypedJsonInterface(stmtValue);
+    const functionInterfaceReturn = this.ctx.getFunctionCallInterfaceReturn(stmtValue);
+    const methodInterfaceReturn = this.ctx.getMethodCallInterfaceReturn(stmtValue);
+    const methodArrayReturn = this.ctx.getMethodCallArrayReturn(stmtValue);
+    const memberAccessInterfaceType = this.getMemberAccessInterfaceType(stmtValue);
+    const mapGetInterfaceType = this.getMapGetInterfaceType(stmtValue);
     const declaredInterfaceType = this.getDeclaredInterfaceType(stmt);
 
     if (declaredInterfaceType) {
