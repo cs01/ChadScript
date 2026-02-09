@@ -35,6 +35,8 @@ export interface VariableExpressionContext {
   symbolTableGetInterfaceType(name: string): string | undefined;
   interfaceStructGen?: InterfaceStructGenerator;
   interfaceStructGenHasInterface(name: string): boolean;
+  getAstFunctionsLength(): number;
+  getAstFunctionNameAt(index: number): string | null;
 }
 
 interface ClassMeta {
@@ -185,6 +187,17 @@ export class VariableExpressionGenerator {
     const allocaReg = this.ctx.getVariableAlloca(name);
     if (allocaReg) {
       return this.loadRegularVariable(name, allocaReg);
+    }
+
+    const funcCount = this.ctx.getAstFunctionsLength();
+    for (let fi = 0; fi < funcCount; fi++) {
+      const funcName = this.ctx.getAstFunctionNameAt(fi);
+      if (funcName === name) {
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = inttoptr i64 1 to i8*`);
+        this.ctx.setVariableType(temp, 'i8*');
+        return temp;
+      }
     }
 
     throw new Error(`Unknown variable: ${name}`);

@@ -508,9 +508,20 @@ export class CallExpressionGenerator {
     const loopLimit = (func !== null && func.params !== null && func.params.length > 0) ? func.params.length : expr.args.length;
     for (let i = 0; i < loopLimit; i++) {
       if (i < expr.args.length) {
-        const result = this.ctx.generateExpression(expr.args[i], params);
         const paramType = paramTypes[i] || 'double';
-        argsList.push(`${paramType} ${result}`);
+        const result = this.ctx.generateExpression(expr.args[i], params);
+        const resultType = this.ctx.getVariableType(result);
+        if (paramType === 'double' && resultType === 'i8*') {
+          argsList.push(`double 0.0`);
+        } else if (paramType === 'i8*' && resultType === 'double') {
+          const coerced = this.ctx.nextTemp();
+          this.ctx.emit(`${coerced} = bitcast double ${result} to i64`);
+          const coerced2 = this.ctx.nextTemp();
+          this.ctx.emit(`${coerced2} = inttoptr i64 ${coerced} to i8*`);
+          argsList.push(`i8* ${coerced2}`);
+        } else {
+          argsList.push(`${paramType} ${result}`);
+        }
       } else {
         const paramType = paramTypes[i] || 'double';
         const defaultVal = paramType === 'double' ? '0.0' : 'null';
