@@ -591,6 +591,9 @@ export class VariableAllocator {
       }
     }
     if (!stmt.declaredType) return null;
+    if (stmt.declaredType.startsWith('{')) {
+      return stmt.declaredType;
+    }
     if (stmt.value?.type !== 'variable' && stmt.value?.type !== 'object') return null;
     const interfaceDefResult2 = this.getInterface(stmt.declaredType);
     if (!interfaceDefResult2) return null;

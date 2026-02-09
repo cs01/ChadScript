@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode, VariableNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode, VariableNode, MemberAccessNode } from '../ast/types.js';
 
 type SymbolType = 'number' | 'string' | 'boolean' | 'null' | 'undefined' | 'array<number>' | 'array<string>' | 'object' | 'class' | 'unknown';
 
@@ -19,6 +19,21 @@ export interface TypedSymbol {
   llvmType: string;
   objectSchema?: Map<string, string>;
 }
+
+const NUMBER_SYMBOL: TypedSymbol = { name: '', type: 'number', llvmType: 'double' };
+const STRING_SYMBOL: TypedSymbol = { name: '', type: 'string', llvmType: 'i8*' };
+
+const PROPERTY_TYPE_MAP: Partial<Record<SymbolType, Record<string, TypedSymbol>>> = {
+  'string': {
+    'length': NUMBER_SYMBOL,
+  },
+  'array<number>': {
+    'length': NUMBER_SYMBOL,
+  },
+  'array<string>': {
+    'length': NUMBER_SYMBOL,
+  },
+};
 
 export interface AnalysisError {
   message: string;
@@ -41,6 +56,29 @@ export class SemanticAnalyzer {
    */
   analyze(): boolean {
     this.errors = [];
+
+    if (this.ast.enums) {
+      for (let _ei = 0; _ei < this.ast.enums.length; _ei++) {
+        const enumNode = this.ast.enums[_ei] as { name: string };
+        if (enumNode.name) {
+          this.symbols.set(enumNode.name, { name: enumNode.name, type: 'object', llvmType: 'i8*' });
+        }
+      }
+    }
+
+    if (this.ast.imports) {
+      for (let _ii = 0; _ii < this.ast.imports.length; _ii++) {
+        const imp = this.ast.imports[_ii];
+        if (imp.aliasedSpecifiers) {
+          for (let _ai = 0; _ai < imp.aliasedSpecifiers.length; _ai++) {
+            const spec = imp.aliasedSpecifiers[_ai];
+            if (spec.name) {
+              this.symbols.set(spec.name, { name: spec.name, type: 'object', llvmType: 'i8*' });
+            }
+          }
+        }
+      }
+    }
 
     for (let _si = 0; _si < this.ast.topLevelStatements.length; _si++) {
       const stmt = this.ast.topLevelStatements[_si];
@@ -389,6 +427,25 @@ export class SemanticAnalyzer {
           llvmType: '%StringArray*',
         };
       }
+    }
+
+    if (e.type === 'member_access') {
+      const memberExpr = expr as MemberAccessNode;
+      const objectType = this.inferExpressionType(memberExpr.object);
+
+      const propsForType = PROPERTY_TYPE_MAP[objectType.type];
+      if (propsForType) {
+        const propType = propsForType[memberExpr.property];
+        if (propType) return propType;
+      }
+
+      if (objectType.type === 'object' && objectType.objectSchema) {
+        const fieldLlvmType = objectType.objectSchema.get(memberExpr.property);
+        if (fieldLlvmType === 'i8*') return STRING_SYMBOL;
+        if (fieldLlvmType === 'double') return NUMBER_SYMBOL;
+      }
+
+      return objectType;
     }
 
     if (e.type === 'template_literal') {
