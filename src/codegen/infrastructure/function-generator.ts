@@ -96,6 +96,10 @@ export class FunctionGenerator {
           paramLLVMTypes.push('%Array*');
         } else if (paramType.endsWith('[]')) {
           paramLLVMTypes.push('%ObjectArray*');
+        } else if (paramType.startsWith('Set<')) {
+          paramLLVMTypes.push('%StringSet*');
+        } else if (paramType.startsWith('Map<')) {
+          paramLLVMTypes.push('%StringMap*');
         } else if (this.isEnumType(paramType)) {
           paramLLVMTypes.push('double');
         } else if (paramType !== 'number' && paramType !== 'boolean') {
@@ -136,6 +140,10 @@ export class FunctionGenerator {
               paramLLVMTypes.push('%Array*');
             } else if (paramType.endsWith('[]')) {
               paramLLVMTypes.push('%ObjectArray*');
+            } else if (paramType.startsWith('Set<')) {
+              paramLLVMTypes.push('%StringSet*');
+            } else if (paramType.startsWith('Map<')) {
+              paramLLVMTypes.push('%StringMap*');
             } else if (this.isEnumType(paramType)) {
               paramLLVMTypes.push('double');
             } else if (paramType !== 'number' && paramType !== 'boolean') {
