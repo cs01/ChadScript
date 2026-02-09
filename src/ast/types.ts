@@ -183,12 +183,14 @@ export interface VariableDeclaration {
   name: string;
   value: Expression | null;
   declaredType?: string;  // Optional TypeScript type annotation (e.g., "string[]", "number")
+  line?: number;
 }
 
 export interface AssignmentStatement {
   type: 'assignment';
   name: string;
   value: Expression;
+  line?: number;
 }
 
 export interface BlockStatement {

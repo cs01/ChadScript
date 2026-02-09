@@ -24,6 +24,14 @@ export class Parser implements ExpressionParserContext {
     this.filename = filename;
   }
 
+  getLineNumber(pos: number): number {
+    let line = 1;
+    for (let i = 0; i < pos && i < this.code.length; i++) {
+      if (this.code[i] === '\n') line = line + 1;
+    }
+    return line;
+  }
+
   formatError(message: string, position: number = -1, options?: {
     help?: string;
     note?: string;
