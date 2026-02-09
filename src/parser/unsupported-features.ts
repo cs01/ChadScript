@@ -395,18 +395,18 @@ export function formatUnsupportedFeatureError(
  * Check if a feature keyword is unsupported
  */
 export function isUnsupportedKeyword(keyword: string): boolean {
-  const unsupportedKeywords = [
-    'async', 'await', 'typeof', 'instanceof', 'eval',
-  ];
-  return unsupportedKeywords.includes(keyword);
+  if (keyword === 'async' || keyword === 'await' || keyword === 'typeof' || keyword === 'instanceof' || keyword === 'eval') {
+    return true;
+  }
+  return false;
 }
 
 /**
  * Check if an identifier refers to an unsupported API
  */
 export function isUnsupportedAPI(name: string): boolean {
-  const unsupportedAPIs = [
-    'Object.keys', 'Object.values', 'Object.entries',
-  ];
-  return unsupportedAPIs.some(api => name.includes(api));
+  if (name === 'Object.keys' || name === 'Object.values' || name === 'Object.entries') {
+    return true;
+  }
+  return false;
 }
