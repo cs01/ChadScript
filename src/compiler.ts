@@ -313,8 +313,11 @@ function compileMultiFile(entryFile: string, compiledFiles: string[], fileConten
                                    imp.source.startsWith('/');
 
     if (!isRelativeOrAbsolute) {
-      const builtinModules = ['fs', 'path', 'child_process', 'typescript'];
-      if (builtinModules.includes(imp.source)) {
+      let isBuiltinModule = false;
+      if (imp.source === 'fs' || imp.source === 'path' || imp.source === 'child_process' || imp.source === 'typescript') {
+        isBuiltinModule = true;
+      }
+      if (isBuiltinModule) {
         i = i + 1;
         continue;
       }
