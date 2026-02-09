@@ -1,5 +1,5 @@
 import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField, SwitchStatement } from '../../ast/types.js';
-import { SymbolKind, SymbolTable, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createUnionMetadata, createInterfaceMetadata, SymbolMetadata } from './symbol-table.js';
+import { SymbolKind, SymbolTable, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createUnionMetadata, createInterfaceMetadata, createMapMetadataSymbol, SymbolMetadata } from './symbol-table.js';
 import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { StringGenerator } from '../types/collections/string.js';
@@ -337,6 +337,22 @@ export class FunctionGenerator {
         } else {
           this.ctx.emit(`store %ObjectArray* %arg${i}, %ObjectArray** ${allocaReg}`);
         }
+      } else if (llvmType === '%StringSet*') {
+        this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%StringSet*', SymbolKind.Set, 'local', createPointerAllocaMetadata());
+        this.ctx.emit(`${allocaReg} = alloca %StringSet*`);
+        if (isOptional && hasOptionalParams) {
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
+        } else {
+          this.ctx.emit(`store %StringSet* %arg${i}, %StringSet** ${allocaReg}`);
+        }
+      } else if (llvmType === '%StringMap*') {
+        this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%StringMap*', SymbolKind.Map, 'local', createMapMetadataSymbol({ keyType: 'string', valueType: 'string', llvmKeyType: 'i8*', llvmValueType: 'i8*' }));
+        this.ctx.emit(`${allocaReg} = alloca %StringMap*`);
+        if (isOptional && hasOptionalParams) {
+          this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
+        } else {
+          this.ctx.emit(`store %StringMap* %arg${i}, %StringMap** ${allocaReg}`);
+        }
       } else if (llvmType.startsWith('%') && llvmType.endsWith('*') && llvmType !== '%__FetchResponse*') {
         const interfaceName = llvmType.slice(1, -1);
         this.ctx.defineVariableWithMetadata(paramName, allocaReg, llvmType, SymbolKind.Object, 'local', createInterfacePointerAllocaMetadata(interfaceName));
@@ -587,7 +603,9 @@ export class FunctionGenerator {
     if (llvmType === '%Array*') return SymbolKind.Array;
     if (llvmType === '%StringArray*') return SymbolKind.StringArray;
     if (llvmType === '%Map*') return SymbolKind.Map;
+    if (llvmType === '%StringMap*') return SymbolKind.Map;
     if (llvmType === '%Set*') return SymbolKind.Set;
+    if (llvmType === '%StringSet*') return SymbolKind.Set;
     return SymbolKind.Object;
   }
 
