@@ -1216,6 +1216,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           llvmType = 'i8*';
           kind = SymbolKind.Object;
           defaultValue = 'null';
+          const objMeta = this.getObjectMetadata(stmt.value as ObjectNode);
+          if (objMeta && objMeta.keys.length > 0) {
+            const interfaceName = stmt.declaredType || undefined;
+            ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+            this.globalVariables.set(name, { llvmType, kind, initialized: false });
+            this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createObjectMetadataWithInterface({ keys: objMeta.keys, types: objMeta.types }, interfaceName || ''));
+            continue;
+          }
         } else if (isMap) {
           let isStringMap = false;
           if (stmt.declaredType) {

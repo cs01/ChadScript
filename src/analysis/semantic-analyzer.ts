@@ -17,7 +17,8 @@ export interface TypedSymbol {
   name: string;
   type: SymbolType;
   llvmType: string;
-  objectSchema?: Map<string, string>;
+  schemaKeys?: string[];
+  schemaTypes?: string[];
 }
 
 const NUMBER_SYMBOL: TypedSymbol = { name: '', type: 'number', llvmType: 'double' };
@@ -360,19 +361,22 @@ export class SemanticAnalyzer {
 
     if (e.type === 'object') {
       const objExpr = expr as ObjectNode;
-      const schema = new Map<string, string>();
+      const keys: string[] = [];
+      const types: string[] = [];
 
       for (let i = 0; i < objExpr.properties.length; i++) {
         const prop = objExpr.properties[i] as ObjectProperty;
         const valueType = this.inferExpressionType(prop.value);
-        schema.set(prop.key, valueType.llvmType);
+        keys.push(prop.key);
+        types.push(valueType.llvmType);
       }
 
       return {
         name: '',
         type: 'object',
         llvmType: 'i8*',
-        objectSchema: schema,
+        schemaKeys: keys,
+        schemaTypes: types,
       };
     }
 
@@ -431,10 +435,17 @@ export class SemanticAnalyzer {
       const propType = lookupPropertyType(objectType.type, memberExpr.property);
       if (propType) return propType;
 
-      if (objectType.type === 'object' && objectType.objectSchema) {
-        const fieldLlvmType = objectType.objectSchema.get(memberExpr.property);
-        if (fieldLlvmType === 'i8*') return STRING_SYMBOL;
-        if (fieldLlvmType === 'double') return NUMBER_SYMBOL;
+      if (objectType.type === 'object' && objectType.schemaKeys) {
+        const sKeys = objectType.schemaKeys;
+        const sTypes = objectType.schemaTypes || [];
+        for (let si = 0; si < sKeys.length; si++) {
+          if (sKeys[si] === memberExpr.property) {
+            const fieldLlvmType = sTypes[si];
+            if (fieldLlvmType === 'i8*') return STRING_SYMBOL;
+            if (fieldLlvmType === 'double') return NUMBER_SYMBOL;
+            break;
+          }
+        }
       }
 
       return objectType;
