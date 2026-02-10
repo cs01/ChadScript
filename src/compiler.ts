@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { Parser } from './parser/parser.js';
 import { parseWithTSAPI } from './parser-ts/index.js';
 import { LLVMGenerator, LLVMGeneratorOptions } from './codegen/llvm-generator.js';
 import { TypeChecker } from './typescript/type-checker.js';
@@ -9,16 +8,11 @@ import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
 import { LogLevel, logger } from './utils/logger.js';
 
-let useTSParser = false;
 let linkTreeSitter = false;
 let skipSemanticAnalysis = false;
 let keepTemps = false;
 let emitLLVMOnly = false;
 let sanitize: string | null = null;
-
-export function setUseTSParser(value: boolean): void {
-  useTSParser = value;
-}
 
 export function setLinkTreeSitter(value: boolean): void {
   linkTreeSitter = value;
@@ -269,14 +263,7 @@ function compileMultiFile(entryFile: string, compiledFiles: string[], fileConten
 
   const pathForErrors = displayPath || absPath;
 
-  let ast: AST;
-  if (useTSParser) {
-    logger.info(`  Using TypeScript API parser`);
-    ast = parseWithTSAPI(code, { filename: pathForErrors });
-  } else {
-    const parser = new Parser(code, pathForErrors);
-    ast = parser.parse();
-  }
+  const ast = parseWithTSAPI(code, { filename: pathForErrors });
 
   let mergedAST: AST = {
     imports: ast.imports.slice(),

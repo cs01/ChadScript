@@ -219,7 +219,7 @@ function printUsage(): void {
   console.log('');
   console.log('Options:');
   console.log('  -o <output>               Specify output file');
-  console.log('  --use-ts-parser           (ignored, tree-sitter always used)');
+  console.log('  --use-ts-parser           (deprecated, now the default)');
   console.log('  --link-tree-sitter        (ignored, always linked)');
   console.log('  --skip-semantic-analysis  Skip semantic analysis');
   console.log('  --help                    Show this help message');

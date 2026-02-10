@@ -140,6 +140,76 @@ export function getSafeStringHelper(): string {
   return ir;
 }
 
+export function getStringHashHelper(): string {
+  let ir = '';
+  ir += '; DJB2 hash function for strings\n';
+  ir += 'define i32 @__string_hash(i8* %str) {\n';
+  ir += 'entry:\n';
+  ir += '  %is_null = icmp eq i8* %str, null\n';
+  ir += '  br i1 %is_null, label %ret_zero, label %loop\n';
+  ir += 'ret_zero:\n';
+  ir += '  ret i32 0\n';
+  ir += 'loop:\n';
+  ir += '  %idx = phi i64 [ 0, %entry ], [ %next_idx, %loop_body ]\n';
+  ir += '  %hash = phi i32 [ 5381, %entry ], [ %new_hash, %loop_body ]\n';
+  ir += '  %char_ptr = getelementptr inbounds i8, i8* %str, i64 %idx\n';
+  ir += '  %char = load i8, i8* %char_ptr\n';
+  ir += '  %is_end = icmp eq i8 %char, 0\n';
+  ir += '  br i1 %is_end, label %done, label %loop_body\n';
+  ir += 'loop_body:\n';
+  ir += '  %char_i32 = zext i8 %char to i32\n';
+  ir += '  %hash_shl = shl i32 %hash, 5\n';
+  ir += '  %hash_plus = add i32 %hash_shl, %hash\n';
+  ir += '  %new_hash = add i32 %hash_plus, %char_i32\n';
+  ir += '  %next_idx = add i64 %idx, 1\n';
+  ir += '  br label %loop\n';
+  ir += 'done:\n';
+  ir += '  ret i32 %hash\n';
+  ir += '}\n\n';
+  ir += '; Rehash all entries from old arrays into new hash table arrays\n';
+  ir += 'define void @__strmap_rehash(i8** %old_keys, i8** %old_values, i32 %old_cap, i8** %new_keys, i8** %new_values, i32 %new_cap) {\n';
+  ir += 'entry:\n';
+  ir += '  br label %loop\n';
+  ir += 'loop:\n';
+  ir += '  %i = phi i32 [ 0, %entry ], [ %next_i, %loop_next ]\n';
+  ir += '  %cmp = icmp slt i32 %i, %old_cap\n';
+  ir += '  br i1 %cmp, label %body, label %done\n';
+  ir += 'body:\n';
+  ir += '  %key_ptr = getelementptr inbounds i8*, i8** %old_keys, i32 %i\n';
+  ir += '  %key = load i8*, i8** %key_ptr\n';
+  ir += '  %is_null = icmp eq i8* %key, null\n';
+  ir += '  br i1 %is_null, label %loop_next, label %insert\n';
+  ir += 'insert:\n';
+  ir += '  %val_ptr = getelementptr inbounds i8*, i8** %old_values, i32 %i\n';
+  ir += '  %val = load i8*, i8** %val_ptr\n';
+  ir += '  %hash = call i32 @__string_hash(i8* %key)\n';
+  ir += '  %mask = sub i32 %new_cap, 1\n';
+  ir += '  %slot0 = and i32 %hash, %mask\n';
+  ir += '  br label %probe\n';
+  ir += 'probe:\n';
+  ir += '  %slot = phi i32 [ %slot0, %insert ], [ %next_slot, %probe_next ]\n';
+  ir += '  %dest_key_ptr = getelementptr inbounds i8*, i8** %new_keys, i32 %slot\n';
+  ir += '  %dest_key = load i8*, i8** %dest_key_ptr\n';
+  ir += '  %is_empty = icmp eq i8* %dest_key, null\n';
+  ir += '  br i1 %is_empty, label %place, label %probe_next\n';
+  ir += 'place:\n';
+  ir += '  store i8* %key, i8** %dest_key_ptr\n';
+  ir += '  %dest_val_ptr = getelementptr inbounds i8*, i8** %new_values, i32 %slot\n';
+  ir += '  store i8* %val, i8** %dest_val_ptr\n';
+  ir += '  br label %loop_next\n';
+  ir += 'probe_next:\n';
+  ir += '  %slot_plus = add i32 %slot, 1\n';
+  ir += '  %next_slot = and i32 %slot_plus, %mask\n';
+  ir += '  br label %probe\n';
+  ir += 'loop_next:\n';
+  ir += '  %next_i = add i32 %i, 1\n';
+  ir += '  br label %loop\n';
+  ir += 'done:\n';
+  ir += '  ret void\n';
+  ir += '}\n\n';
+  return ir;
+}
+
 export function getDoubleToStringHelper(): string {
   let ir = '';
   ir += '; Convert a double to its string representation\n';
