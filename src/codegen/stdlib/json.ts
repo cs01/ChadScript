@@ -208,7 +208,7 @@ export class JsonGenerator {
       } else if (fieldType === 'number') {
         fieldTypes.push('double');
       } else if (fieldType === 'boolean') {
-        fieldTypes.push('i1');
+        fieldTypes.push('double');
       } else {
         const nestedInterface = this.ctx.getInterfaceFromAST(fieldType);
         if (nestedInterface) {
@@ -292,9 +292,8 @@ export class JsonGenerator {
         parserIR += `  store double %value_${fieldIndex}, double* %field_ptr_${fieldIndex}` + '\n\n';
       } else if (fieldType === 'boolean') {
         parserIR += `  %num_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})` + '\n';
-        parserIR += `  %value_${fieldIndex} = fcmp one double %num_${fieldIndex}, 0.0` + '\n';
         parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}` + '\n';
-        parserIR += `  store i1 %value_${fieldIndex}, i1* %field_ptr_${fieldIndex}` + '\n\n';
+        parserIR += `  store double %num_${fieldIndex}, double* %field_ptr_${fieldIndex}` + '\n\n';
       } else {
         parserIR += `  %nested_str_${fieldIndex} = call i8* @cJSON_PrintUnformatted(i8* %item_${fieldIndex})` + '\n';
         parserIR += `  %value_${fieldIndex} = call %${fieldType}* @parse_json_${fieldType}(i8* %nested_str_${fieldIndex})` + '\n';

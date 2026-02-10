@@ -198,7 +198,7 @@ export class ResponseGenerator {
       } else if (propType === 'number') {
         parserIR += `  store double 0.0, double* ${fieldPtr}` + '\n';
       } else if (propType === 'boolean') {
-        parserIR += `  store i1 false, i1* ${fieldPtr}` + '\n';
+        parserIR += `  store double 0.0, double* ${fieldPtr}` + '\n';
       }
     }
     parserIR += `  br label %json_done` + '\n\n';
@@ -221,8 +221,7 @@ export class ResponseGenerator {
       } else if (propType === 'number') {
         parserIR += `  %value_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})` + '\n';
       } else if (propType === 'boolean') {
-        parserIR += `  %num_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})` + '\n';
-        parserIR += `  %value_${fieldIndex} = fcmp one double %num_${fieldIndex}, 0.0` + '\n';
+        parserIR += `  %value_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})` + '\n';
       }
 
       parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}` + '\n';
@@ -232,7 +231,7 @@ export class ResponseGenerator {
       } else if (propType === 'number') {
         parserIR += `  store double %value_${fieldIndex}, double* %field_ptr_${fieldIndex}` + '\n\n';
       } else if (propType === 'boolean') {
-        parserIR += `  store i1 %value_${fieldIndex}, i1* %field_ptr_${fieldIndex}` + '\n\n';
+        parserIR += `  store double %value_${fieldIndex}, double* %field_ptr_${fieldIndex}` + '\n\n';
       }
     }
     parserIR += `  call void @cJSON_Delete(i8* %json_root)` + '\n';
