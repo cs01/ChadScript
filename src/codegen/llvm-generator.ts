@@ -142,21 +142,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const lineNumWidth = lineNumStr.length > 2 ? lineNumStr.length : 2;
 
       const filename = this.filename || '<input>';
-      error += `${filename}:${lineNum}:${col + 1}: \x1b[31m\x1b[1merror:\x1b[0m ${message}` + '\n';
-      error += `\x1b[36m\x1b[1m${' '.repeat(lineNumWidth)} |\x1b[0m` + '\n';
+      error += `${filename}:${lineNum}:${col + 1}: error: ${message}` + '\n';
+      error += `${' '.repeat(lineNumWidth)} |` + '\n';
 
       const lineContent = allLines[lineNum - 1] || '';
-      error += `\x1b[36m\x1b[1m${lineNumStr.padStart(lineNumWidth)} |\x1b[0m ${lineContent}` + '\n';
-      error += `\x1b[36m\x1b[1m${' '.repeat(lineNumWidth)} |\x1b[0m ${' '.repeat(col)}\x1b[31m\x1b[1m^\x1b[0m` + '\n';
+      error += `${lineNumStr.padStart(lineNumWidth)} | ${lineContent}` + '\n';
+      error += `${' '.repeat(lineNumWidth)} | ${' '.repeat(col)}^` + '\n';
 
       if (suggestion) {
-        error += `\x1b[36m\x1b[1m${' '.repeat(lineNumWidth)} |\x1b[0m` + '\n';
-        error += `\x1b[36m\x1b[1m${' '.repeat(lineNumWidth)} =\x1b[0m \x1b[33mhelp:\x1b[0m ${suggestion}` + '\n';
+        error += `${' '.repeat(lineNumWidth)} |` + '\n';
+        error += `${' '.repeat(lineNumWidth)} = help: ${suggestion}` + '\n';
       }
     } else {
-      error = `\x1b[31m\x1b[1merror:\x1b[0m ${message}` + '\n';
+      error = `error: ${message}` + '\n';
       if (suggestion) {
-        error += `\x1b[33m  help:\x1b[0m ${suggestion}` + '\n';
+        error += `  help: ${suggestion}` + '\n';
       }
     }
 
