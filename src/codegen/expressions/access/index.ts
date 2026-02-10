@@ -56,7 +56,7 @@ export class IndexAccessGenerator {
       if (memberAccessObjBase.type === 'variable') {
         const baseVarName = (memberAccess.object as VariableNode).name;
         const baseIfaceType = this.ctx.symbolTableGetInterfaceType(baseVarName);
-        if (baseIfaceType) {
+        if (baseIfaceType || this.ctx.symbolTableIsObject(baseVarName)) {
           const isStringArray = this.ctx.isStringArrayExpression(expr.object);
           const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
           if (isStringArray) {
@@ -389,6 +389,29 @@ export class IndexAccessGenerator {
 
   private generateJSONMemberArrayIndex(expr: IndexAccessNode, params: string[]): string {
     const jsonPtr = this.ctx.generateExpression(expr.object, params);
+
+    const ptrType = this.ctx.getVariableType(jsonPtr);
+    if (ptrType === '%ObjectArray*') {
+      const indexDouble = this.ctx.generateExpression(expr.index, params);
+      const idxType = this.ctx.getVariableType(indexDouble);
+      let index = indexDouble;
+      if (idxType === 'double') {
+        index = this.ctx.nextTemp();
+        this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+      }
+      const dataPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${jsonPtr}, i32 0, i32 0`);
+      const data = this.ctx.nextTemp();
+      this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
+      const dataAsPtrs = this.ctx.nextTemp();
+      this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${data} to i8**`);
+      const elemPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
+      const elem = this.ctx.nextTemp();
+      this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+      this.ctx.setVariableType(elem, 'i8*');
+      return elem;
+    }
 
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const indexType = this.ctx.getVariableType(indexDouble);
