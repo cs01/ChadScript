@@ -23,9 +23,6 @@ import {
   ForOfStatement,
   ThrowStatement,
   TryStatement,
-  SwitchStatement,
-  SwitchCase,
-  BreakStatement,
   TopLevelItem,
   FunctionParameter,
   StringNode,
@@ -74,10 +71,16 @@ function transformProgram(node: TreeSitterNode): AST {
     topLevelItemTypes: [],
   };
 
-  for (let i = 0; i < node.namedChildCount; i++) {
+  const childCount = node.namedChildCount;
+  let i = 0;
+  while (i < childCount) {
     const child = getNamedChild(node, i);
-    if (!child) continue;
+    if (!child) {
+      i = i + 1;
+      continue;
+    }
     transformTopLevelNode(child, ast);
+    i = i + 1;
   }
 
   return ast;
@@ -1502,13 +1505,15 @@ function transformTryStatement(node: TreeSitterNode): TryStatement {
   return { type: 'try', tryBlock, catchClause, finallyBlock };
 }
 
-function transformSwitchStatement(node: TreeSitterNode): SwitchStatement {
+function transformSwitchStatement(node: TreeSitterNode): BlockStatement {
   const exprNode = getChildByFieldName(node, 'value');
   const bodyNode = getChildByFieldName(node, 'body');
 
   const switchExpr = exprNode ? transformExpression(exprNode) : { type: 'variable' as const, name: 'undefined' };
 
-  const cases: SwitchCase[] = [];
+  const statements: Statement[] = [];
+  let pendingConditions: Expression[] = [];
+  let defaultStatements: Statement[] | null = null;
 
   if (bodyNode) {
     const bn = bodyNode as NodeBase;
@@ -1519,56 +1524,72 @@ function transformSwitchStatement(node: TreeSitterNode): SwitchStatement {
 
       if (cl.type === 'switch_case') {
         const valueNode = getChildByFieldName(clause, 'value');
-        const testExpr = valueNode ? transformExpression(valueNode) : null;
+        if (valueNode) {
+          const caseExpr = transformExpression(valueNode);
+          const condition: Expression = {
+            type: 'binary',
+            op: '===',
+            left: switchExpr,
+            right: caseExpr,
+          };
 
-        const consequent: Statement[] = [];
-        for (let j = 0; j < cl.namedChildCount; j++) {
-          const stmtNode = getNamedChild(clause, j);
-          if (!stmtNode) continue;
-          const sn = stmtNode as NodeBase;
-          if (stmtNode !== valueNode) {
-            if (sn.type === 'break_statement') {
-              consequent.push({ type: 'break' } as BreakStatement);
-            } else {
+          const caseStatements: Statement[] = [];
+          for (let j = 0; j < cl.namedChildCount; j++) {
+            const stmtNode = getNamedChild(clause, j);
+            if (!stmtNode) continue;
+            const sn = stmtNode as NodeBase;
+            if (stmtNode !== valueNode && sn.type !== 'break_statement') {
               const stmt = transformStatement(stmtNode);
-              if (stmt) consequent.push(stmt);
+              if (stmt) caseStatements.push(stmt);
             }
           }
-        }
 
-        const switchCase: SwitchCase = {
-          test: testExpr,
-          consequent: consequent,
-        };
-        cases.push(switchCase);
+          if (caseStatements.length === 0) {
+            pendingConditions.push(condition);
+          } else {
+            let finalCondition: Expression = condition;
+            for (let k = pendingConditions.length - 1; k >= 0; k--) {
+              finalCondition = {
+                type: 'binary',
+                op: '||',
+                left: pendingConditions[k],
+                right: finalCondition,
+              };
+            }
+            pendingConditions = [];
+
+            const thenBlock: BlockStatement = { type: 'block', statements: caseStatements };
+            const ifStmt: IfStatement = {
+              type: 'if',
+              condition: finalCondition,
+              thenBlock: thenBlock,
+              elseBlock: null,
+            };
+            statements.push(ifStmt);
+          }
+        }
       } else if (cl.type === 'switch_default') {
-        const consequent: Statement[] = [];
+        defaultStatements = [];
         for (let j = 0; j < cl.namedChildCount; j++) {
           const stmtNode = getNamedChild(clause, j);
           if (!stmtNode) continue;
           const sn = stmtNode as NodeBase;
-          if (sn.type === 'break_statement') {
-            consequent.push({ type: 'break' } as BreakStatement);
-          } else {
+          if (sn.type !== 'break_statement') {
             const stmt = transformStatement(stmtNode);
-            if (stmt) consequent.push(stmt);
+            if (stmt) defaultStatements.push(stmt);
           }
         }
-
-        const defaultCase: SwitchCase = {
-          test: null,
-          consequent: consequent,
-        };
-        cases.push(defaultCase);
       }
     }
   }
 
-  return {
-    type: 'switch',
-    discriminant: switchExpr,
-    cases: cases,
-  };
+  if (defaultStatements) {
+    for (let ds = 0; ds < defaultStatements.length; ds++) {
+      statements.push(defaultStatements[ds]);
+    }
+  }
+
+  return { type: 'block', statements: statements };
 }
 
 function createEmptyBlock(): BlockStatement {
@@ -1578,7 +1599,8 @@ function createEmptyBlock(): BlockStatement {
 
 function transformStatementBlock(node: TreeSitterNode): BlockStatement {
   const statements: Statement[] = [];
-  for (let i = 0; i < node.namedChildCount; i++) {
+  const ncc = node.namedChildCount;
+  for (let i = 0; i < ncc; i++) {
     const child = getNamedChild(node, i);
     if (child) {
       const stmt = transformStatement(child);
