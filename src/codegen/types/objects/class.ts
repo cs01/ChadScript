@@ -179,6 +179,8 @@ export class ClassGenerator {
       this.emit(`store i32 0, i32* ${capPtr}`);
       this.emit(`store %ObjectArray* ${arrayPtr}, %ObjectArray** ${fieldPtr}`);
     } else if (llvmType === '%StringMap*') {
+      const initialCapacity = 16;
+      const arrBytes = initialCapacity * 8;
       const sizePtr = this.nextTemp();
       this.emit(`${sizePtr} = getelementptr %StringMap, %StringMap* null, i32 1`);
       const structSize = this.nextTemp();
@@ -188,11 +190,11 @@ export class ClassGenerator {
       const mapPtr = this.nextTemp();
       this.emit(`${mapPtr} = bitcast i8* ${mapMem} to %StringMap*`);
       const keysDataMem = this.nextTemp();
-      this.emit(`${keysDataMem} = call i8* @GC_malloc(i64 16)`);
+      this.emit(`${keysDataMem} = call i8* @GC_malloc(i64 ${arrBytes})`);
       const keysData = this.nextTemp();
       this.emit(`${keysData} = bitcast i8* ${keysDataMem} to i8**`);
       const valuesDataMem = this.nextTemp();
-      this.emit(`${valuesDataMem} = call i8* @GC_malloc(i64 16)`);
+      this.emit(`${valuesDataMem} = call i8* @GC_malloc(i64 ${arrBytes})`);
       const valuesData = this.nextTemp();
       this.emit(`${valuesData} = bitcast i8* ${valuesDataMem} to i8**`);
       const keysPtr = this.nextTemp();
@@ -206,7 +208,7 @@ export class ClassGenerator {
       this.emit(`store i32 0, i32* ${lenPtr}`);
       const capPtr = this.nextTemp();
       this.emit(`${capPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
-      this.emit(`store i32 2, i32* ${capPtr}`);
+      this.emit(`store i32 ${initialCapacity}, i32* ${capPtr}`);
       this.emit(`store %StringMap* ${mapPtr}, %StringMap** ${fieldPtr}`);
     } else {
       this.emit(`store ${llvmType} null, ${llvmType}* ${fieldPtr}`);
