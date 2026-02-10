@@ -83,6 +83,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const llcCmd = 'llc -filetype=obj ' + irFile + ' -o ' + objFile;
   console.log('Running: ' + llcCmd);
   child_process.execSync(llcCmd);
+  if (!fs.existsSync(objFile)) {
+    console.log('Error: llc failed to produce ' + objFile);
+    process.exit(1);
+  }
 
   const mongooseObj = MONGOOSE_PATH + '/mongoose.o';
   const treeSitterTs = CHADSCRIPT_PATH + '/build/tree-sitter-typescript-parser.o ' + CHADSCRIPT_PATH + '/build/tree-sitter-typescript-scanner.o';
@@ -90,6 +94,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const linkCmd = 'clang ' + objFile + ' ' + mongooseObj + ' ' + treeSitterTs + ' -o ' + outputFile + ' -no-pie ' + linkLibs;
   console.log('Running: ' + linkCmd);
   child_process.execSync(linkCmd);
+  if (!fs.existsSync(outputFile)) {
+    console.log('Error: clang failed to produce ' + outputFile);
+    process.exit(1);
+  }
 
   fs.unlinkSync(objFile);
   console.log('Compiled: ' + outputFile);
@@ -215,14 +223,14 @@ function emptyAST(): AST {
 }
 
 function printUsage(): void {
-  console.log('Usage: native-compiler [options] <input.ts> [output]');
+  console.log('ChadScript - a native compiler for a subset of TypeScript');
+  console.log('');
+  console.log('Usage: chadscriptc [options] <input.ts> [output]');
   console.log('');
   console.log('Options:');
-  console.log('  -o <output>               Specify output file');
-  console.log('  --use-ts-parser           (deprecated, now the default)');
-  console.log('  --link-tree-sitter        (ignored, always linked)');
+  console.log('  -o <output>               Specify output file (default: .build/<input>)');
   console.log('  --skip-semantic-analysis  Skip semantic analysis');
-  console.log('  --help                    Show this help message');
+  console.log('  --help, -h                Show this help message');
 }
 
 const args = process.argv;
@@ -241,10 +249,6 @@ while (argIdx < args.length) {
   if (arg === '--help' || arg === '-h') {
     printUsage();
     process.exit(0);
-  } else if (arg === '--use-ts-parser') {
-    argIdx = argIdx + 1;
-  } else if (arg === '--link-tree-sitter') {
-    argIdx = argIdx + 1;
   } else if (arg === '--skip-semantic-analysis') {
     skipSemanticAnalysis = true;
     argIdx = argIdx + 1;
