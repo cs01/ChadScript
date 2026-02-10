@@ -6,11 +6,11 @@ package-lock.json
 dist/
 build/
 .build/
-*.o
 src-js/
 
-# Compiled binaries and LLVM IR (except intentional examples)
+# Compiled binaries and LLVM IR
 *.ll
+*.o
 native-compiler2
 
 # Test artifacts at root level
@@ -54,15 +54,13 @@ roadmap/
 .llms/
 
 # Accidental/temporary files
--o.ll
 vendor/
 
 # Scripts that are local/private
 ralph.sh
 
-# Compiled test binaries (no extension = likely binary)
+# Compiled binaries in fixtures and examples (no extension = likely ELF binary)
+# Use a shell script or Makefile to build these, don't commit them
 examples/hello
-tests/fixtures/**/string-trim
-tests/fixtures/**/string-methods
-tests/fixtures/**/string-trim-simple
-tests/fixtures/**/string-length-check
+examples/cli-parser-demo
+examples/he
