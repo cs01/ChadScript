@@ -593,6 +593,17 @@ export class TypeInference {
             return true;
           }
         }
+        const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+        if (objMeta && objMeta.keys) {
+          for (let ki = 0; ki < objMeta.keys.length; ki++) {
+            if (objMeta.keys[ki] === memberExpr.property && objMeta.types[ki]) {
+              const ft = objMeta.types[ki];
+              if (ft.endsWith('[]') && ft !== 'string[]' && ft !== 'number[]' && ft !== 'boolean[]') {
+                return true;
+              }
+            }
+          }
+        }
       }
       if (objBase.type === 'member_access') {
         const nestedMember = memberExpr.object as MemberAccessNode;
