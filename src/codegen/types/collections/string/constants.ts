@@ -72,19 +72,16 @@ export function createStringConstant(ctx: IGeneratorContext, value: string): str
 }
 
 export function convertNumberToString(ctx: IGeneratorContext, numValue: string): string {
-  const intValue = ctx.nextTemp();
-  ctx.emit(`${intValue} = fptosi double ${numValue} to i32`);
-
   const bufferSize = ctx.nextTemp();
-  ctx.emit(`${bufferSize} = alloca [12 x i8], align 1`);
+  ctx.emit(`${bufferSize} = alloca [32 x i8], align 1`);
 
   const bufferPtr = ctx.nextTemp();
-  ctx.emit(`${bufferPtr} = getelementptr inbounds [12 x i8], [12 x i8]* ${bufferSize}, i64 0, i64 0`);
+  ctx.emit(`${bufferPtr} = getelementptr inbounds [32 x i8], [32 x i8]* ${bufferSize}, i64 0, i64 0`);
 
-  const formatStr = createStringConstant(ctx, '%d');
+  const formatStr = createStringConstant(ctx, '%g');
 
   const snprintfResult = ctx.nextTemp();
-  ctx.emit(`${snprintfResult} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufferPtr}, i64 12, i8* ${formatStr}, i32 ${intValue})`);
+  ctx.emit(`${snprintfResult} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufferPtr}, i64 32, i8* ${formatStr}, double ${numValue})`);
 
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${bufferPtr})`);

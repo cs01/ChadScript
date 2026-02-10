@@ -2826,8 +2826,9 @@ export class MemberAccessGenerator {
   private accessObjectWithMetadata(varName: string, property: string, metadata: ObjectMetadata): string {
     const propIndex = metadata.keys.indexOf(property);
     if (propIndex === -1) {
+      const varType = this.ctx.getVariableType(varName) || 'unknown';
       throw new Error(this.ctx.formatCodegenError(
-        `Property '${property}' not found on object '${varName}'. Available properties: ${metadata.keys.join(', ')}`
+        `Property '${property}' not found on object '${varName}' (llvmType=${varType}, keys=${metadata.keys.length}). Available properties: ${metadata.keys.join(', ')}`
       ));
     }
 

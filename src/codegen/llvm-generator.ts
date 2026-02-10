@@ -244,6 +244,32 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return cls.name;
   }
 
+  public getAstTypeAliasesLength(): number {
+    return this.typeAliasesCount;
+  }
+
+  public getAstTypeAliasAt(index: number): TypeAliasDeclaration | null {
+    if (!this.ast || !this.ast.typeAliases) return null;
+    if (index < 0 || index >= this.typeAliasesCount) return null;
+    return this.ast.typeAliases[index];
+  }
+
+  public getAstTypeAliasNameAt(index: number): string | null {
+    if (!this.ast || !this.ast.typeAliases) return null;
+    if (index < 0 || index >= this.typeAliasesCount) return null;
+    const ta = this.ast.typeAliases[index];
+    if (!ta || !ta.name) return null;
+    return ta.name;
+  }
+
+  public getAstTypeAliasMembersAt(index: number): string[] | null {
+    if (!this.ast || !this.ast.typeAliases) return null;
+    if (index < 0 || index >= this.typeAliasesCount) return null;
+    const ta = this.ast.typeAliases[index];
+    if (!ta || !ta.unionMembers) return null;
+    return ta.unionMembers;
+  }
+
   public getParameterTypeFromAST(paramName: string): string | null {
     if (!paramName) return null;
     if (!this.ast) return null;
@@ -959,6 +985,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   topLevelItemsCount: number = 0;
   private functionsCount: number = 0;
   public classesCount: number = 0;
+  private typeAliasesCount: number = 0;
 
   private linkTreeSitter: boolean = false;
   public sourceCode: string = '';
@@ -982,6 +1009,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.topLevelItemsCount = ast.topLevelItems ? ast.topLevelItems.length : 0;
     this.functionsCount = ast.functions.length;
     this.classesCount = ast.classes.length;
+    this.typeAliasesCount = ast.typeAliases ? ast.typeAliases.length : 0;
 
     const ifaceCount = ast.interfaces.length;
     this.typeChecker = typeChecker;
@@ -1158,6 +1186,48 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (stmt.type !== 'variable_declaration') continue;
       if (stmt.value !== null) {
         const name = stmt.name;
+
+        if ((stmt.value as { type: string }).type === 'call') {
+          const callNode = stmt.value as { type: string; name: string };
+          if (callNode.name) {
+            let handled = false;
+            for (let fi = 0; fi < this.ast.functions.length; fi++) {
+              const fn = this.ast.functions[fi];
+              if (!fn) continue;
+              if (fn.name === callNode.name && fn.returnType) {
+                const rt = fn.returnType;
+                if (rt === 'string') {
+                  ir += `@${name} = global i8* null` + '\n';
+                  this.globalVariables.set(name, { llvmType: 'i8*', kind: SymbolKind.String, initialized: false });
+                  this.defineVariable(name, `@${name}`, 'i8*', SymbolKind.String, 'global');
+                  handled = true;
+                  break;
+                }
+                const iface = this.getInterfaceDeclByName(rt);
+                if (iface) {
+                  ir += `@${name} = global i8* null` + '\n';
+                  this.globalVariables.set(name, { llvmType: 'i8*', kind: SymbolKind.Object, initialized: false });
+                  this.defineVariableWithMetadata(name, `@${name}`, 'i8*', SymbolKind.Object, 'global', createInterfaceMetadata(rt));
+                  handled = true;
+                  break;
+                }
+                if (this.isTypeAlias(rt)) {
+                  const commonProps = this.getTypeAliasCommonProperties(rt);
+                  if (commonProps) {
+                    ir += `@${name} = global i8* null` + '\n';
+                    this.globalVariables.set(name, { llvmType: 'i8*', kind: SymbolKind.Object, initialized: false });
+                    this.defineVariableWithMetadata(name, `@${name}`, 'i8*', SymbolKind.Object, 'global', createObjectMetadataWithInterface(commonProps, rt));
+                    handled = true;
+                    break;
+                  }
+                }
+                break;
+              }
+            }
+            if (handled) continue;
+          }
+        }
+
         const isString = this.isStringExpression(stmt.value);
         let isStringArray = this.isStringArrayExpression(stmt.value);
         if (!isStringArray && stmt.declaredType === 'string[]') {
@@ -1388,9 +1458,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                 }
               }
             }
-            llvmType = 'double';
-            kind = SymbolKind.Number;
-            defaultValue = '0.0';
+            if (llvmType === '') {
+              llvmType = 'double';
+              kind = SymbolKind.Number;
+              defaultValue = '0.0';
+            }
           }
         }
 

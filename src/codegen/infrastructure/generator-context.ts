@@ -18,7 +18,7 @@
  * ```
  */
 
-import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode, InterfaceDeclaration, FunctionNode, ClassNode } from '../../ast/types.js';
+import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode, InterfaceDeclaration, FunctionNode, ClassNode, TypeAliasDeclaration } from '../../ast/types.js';
 import { SymbolTable, SymbolKind, SymbolMetadata, ClosureMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
@@ -448,6 +448,10 @@ export interface IGeneratorContext {
   getAstClassesLength(): number;
   getAstClassAt(index: number): ClassNode | null;
   getAstClassNameAt(index: number): string | null;
+  getAstTypeAliasesLength(): number;
+  getAstTypeAliasAt(index: number): TypeAliasDeclaration | null;
+  getAstTypeAliasNameAt(index: number): string | null;
+  getAstTypeAliasMembersAt(index: number): string[] | null;
 
   /**
    * Get the cached count of classes in the AST
@@ -1510,5 +1514,29 @@ export class MockGeneratorContext implements IGeneratorContext {
     const cls = this.ast.classes[index];
     if (!cls || !cls.name) return null;
     return cls.name;
+  }
+
+  getAstTypeAliasesLength(): number {
+    if (!this.ast || !this.ast.typeAliases) return 0;
+    return this.ast.typeAliases.length;
+  }
+
+  getAstTypeAliasAt(index: number): TypeAliasDeclaration | null {
+    if (!this.ast || !this.ast.typeAliases || index < 0 || index >= this.ast.typeAliases.length) return null;
+    return this.ast.typeAliases[index];
+  }
+
+  getAstTypeAliasNameAt(index: number): string | null {
+    if (!this.ast || !this.ast.typeAliases || index < 0 || index >= this.ast.typeAliases.length) return null;
+    const ta = this.ast.typeAliases[index];
+    if (!ta || !ta.name) return null;
+    return ta.name;
+  }
+
+  getAstTypeAliasMembersAt(index: number): string[] | null {
+    if (!this.ast || !this.ast.typeAliases || index < 0 || index >= this.ast.typeAliases.length) return null;
+    const ta = this.ast.typeAliases[index];
+    if (!ta || !ta.unionMembers) return null;
+    return ta.unionMembers;
   }
 }
