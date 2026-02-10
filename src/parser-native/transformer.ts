@@ -23,6 +23,9 @@ import {
   ForOfStatement,
   ThrowStatement,
   TryStatement,
+  SwitchStatement,
+  SwitchCase,
+  BreakStatement,
   TopLevelItem,
   FunctionParameter,
   StringNode,
@@ -1499,16 +1502,13 @@ function transformTryStatement(node: TreeSitterNode): TryStatement {
   return { type: 'try', tryBlock, catchClause, finallyBlock };
 }
 
-function transformSwitchStatement(node: TreeSitterNode): IfStatement {
+function transformSwitchStatement(node: TreeSitterNode): SwitchStatement {
   const exprNode = getChildByFieldName(node, 'value');
   const bodyNode = getChildByFieldName(node, 'body');
 
   const switchExpr = exprNode ? transformExpression(exprNode) : { type: 'variable' as const, name: 'undefined' };
 
-  const caseConditions: Expression[] = [];
-  const caseBodies: Statement[][] = [];
-  let defaultBody: Statement[] | null = null;
-  let pendingConditions: Expression[] = [];
+  const cases: SwitchCase[] = [];
 
   if (bodyNode) {
     const bn = bodyNode as NodeBase;
@@ -1519,95 +1519,56 @@ function transformSwitchStatement(node: TreeSitterNode): IfStatement {
 
       if (cl.type === 'switch_case') {
         const valueNode = getChildByFieldName(clause, 'value');
-        if (valueNode) {
-          const caseExpr = transformExpression(valueNode);
-          const condition: Expression = {
-            type: 'binary',
-            op: '===',
-            left: switchExpr,
-            right: caseExpr,
-          };
+        const testExpr = valueNode ? transformExpression(valueNode) : null;
 
-          const statements: Statement[] = [];
-          for (let j = 0; j < cl.namedChildCount; j++) {
-            const stmtNode = getNamedChild(clause, j);
-            if (!stmtNode) continue;
-            const sn = stmtNode as NodeBase;
-            if (stmtNode !== valueNode && sn.type !== 'break_statement') {
-              const stmt = transformStatement(stmtNode);
-              if (stmt) statements.push(stmt);
-            }
-          }
-
-          if (statements.length === 0) {
-            pendingConditions.push(condition);
-          } else {
-            let finalCondition: Expression = condition;
-            for (let k = pendingConditions.length - 1; k >= 0; k--) {
-              finalCondition = {
-                type: 'binary',
-                op: '||',
-                left: pendingConditions[k],
-                right: finalCondition,
-              };
-            }
-            pendingConditions = [];
-
-            caseConditions.push(finalCondition);
-            caseBodies.push(statements);
-          }
-        }
-      } else if (cl.type === 'switch_default') {
-        const statements: Statement[] = [];
+        const consequent: Statement[] = [];
         for (let j = 0; j < cl.namedChildCount; j++) {
           const stmtNode = getNamedChild(clause, j);
           if (!stmtNode) continue;
           const sn = stmtNode as NodeBase;
-          if (sn.type !== 'break_statement') {
-            const stmt = transformStatement(stmtNode);
-            if (stmt) statements.push(stmt);
+          if (stmtNode !== valueNode) {
+            if (sn.type === 'break_statement') {
+              consequent.push({ type: 'break' } as BreakStatement);
+            } else {
+              const stmt = transformStatement(stmtNode);
+              if (stmt) consequent.push(stmt);
+            }
           }
         }
-        defaultBody = statements;
+
+        const switchCase: SwitchCase = {
+          test: testExpr,
+          consequent: consequent,
+        };
+        cases.push(switchCase);
+      } else if (cl.type === 'switch_default') {
+        const consequent: Statement[] = [];
+        for (let j = 0; j < cl.namedChildCount; j++) {
+          const stmtNode = getNamedChild(clause, j);
+          if (!stmtNode) continue;
+          const sn = stmtNode as NodeBase;
+          if (sn.type === 'break_statement') {
+            consequent.push({ type: 'break' } as BreakStatement);
+          } else {
+            const stmt = transformStatement(stmtNode);
+            if (stmt) consequent.push(stmt);
+          }
+        }
+
+        const defaultCase: SwitchCase = {
+          test: null,
+          consequent: consequent,
+        };
+        cases.push(defaultCase);
       }
     }
   }
 
-  if (caseConditions.length === 0) {
-    return {
-      type: 'if',
-      condition: { type: 'boolean', value: false },
-      thenBlock: createEmptyBlock(),
-      elseBlock: null,
-    };
-  }
-
-  let elseBlock: BlockStatement | null = null;
-  if (defaultBody) {
-    elseBlock = { type: 'block', statements: defaultBody };
-  }
-
-  let idx = caseConditions.length - 1;
-  let ifChain: IfStatement = {
-    type: 'if',
-    condition: caseConditions[idx],
-    thenBlock: { type: 'block', statements: caseBodies[idx] },
-    elseBlock: elseBlock,
+  return {
+    type: 'switch',
+    discriminant: switchExpr,
+    cases: cases,
   };
-
-  idx = idx - 1;
-  while (idx >= 0) {
-    const wrappedElse: BlockStatement = { type: 'block', statements: [ifChain] };
-    ifChain = {
-      type: 'if',
-      condition: caseConditions[idx],
-      thenBlock: { type: 'block', statements: caseBodies[idx] },
-      elseBlock: wrappedElse,
-    };
-    idx = idx - 1;
-  }
-
-  return ifChain;
 }
 
 function createEmptyBlock(): BlockStatement {
