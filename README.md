@@ -1,6 +1,6 @@
 # ChadScript
 
-**A TypeScript-to-native compiler. Write TypeScript, get native binaries. No runtime.**
+**Compile High-speed Apps Directly — from TypeScript to native binaries. No runtime.**
 
 ChadScript compiles TypeScript directly to native machine code via LLVM IR. No Node.js, no V8, no interpreter. The output is a standalone ELF binary.
 
