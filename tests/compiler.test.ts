@@ -284,6 +284,12 @@ const testCases: TestCase[] = [
     description: 'If statement without else should work'
   },
   {
+    name: 'for-of-comprehensive',
+    fixture: 'tests/fixtures/control-flow/for-of-comprehensive.ts',
+    expectTestPassed: true,
+    description: 'for...of loops over numeric arrays, string arrays, and with break'
+  },
+  {
     name: 'string-length-check',
     fixture: 'tests/fixtures/strings/string-length-check.ts',
     expectTestPassed: true,

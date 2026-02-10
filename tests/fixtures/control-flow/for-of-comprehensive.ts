@@ -1,37 +1,58 @@
 // Test comprehensive for...of support
 
-function testNumericArray() {
+function testNumericArray(): boolean {
   const numbers = [10, 20, 30, 40];
+  let sum = 0;
 
   for (const n of numbers) {
-    console.log(n);
+    sum = sum + n;
   }
+
+  if (sum !== 100) {
+    console.log('FAIL: numeric sum expected 100 got ' + sum);
+    return false;
+  }
+  return true;
 }
 
-function testStringArray() {
-  const words: string[] = ['hello', 'world', 'from', 'chadscript'];
+function testStringArray(): boolean {
+  const words: string[] = ['hello', 'world'];
+  let result = '';
 
   for (const word of words) {
-    console.log(word);
+    result = result + word + ' ';
   }
+
+  if (result !== 'hello world ') {
+    console.log('FAIL: string concat expected "hello world " got "' + result + '"');
+    return false;
+  }
+  return true;
 }
 
-function testWithBreak() {
+function testWithBreak(): boolean {
   const values = [1, 2, 3, 4, 5];
+  let sum = 0;
 
   for (const val of values) {
-    if (val === 3) {
+    if (val === 4) {
       break;
     }
-    console.log(val);
+    sum = sum + val;
   }
+
+  if (sum !== 6) {
+    console.log('FAIL: break sum expected 6 got ' + sum);
+    return false;
+  }
+  return true;
 }
 
-console.log('=== Numeric Array ===');
-testNumericArray();
+let passed = true;
+if (!testNumericArray()) { passed = false; }
+if (!testStringArray()) { passed = false; }
+if (!testWithBreak()) { passed = false; }
 
-console.log('=== String Array ===');
-testStringArray();
-
-console.log('=== With Break ===');
-testWithBreak();
+if (passed) {
+  console.log('TEST_PASSED');
+}

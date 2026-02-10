@@ -269,6 +269,23 @@ export class SemanticAnalyzer {
         if (forStmt.body) this.analyzeBlock(forStmt.body);
       } else if (stmt.type === 'for_of') {
         const forOfStmt = stmt as ForOfStatement;
+        if (forOfStmt.variableName) {
+          const iterableType = this.inferExpressionType(forOfStmt.iterable);
+          let elemType: SymbolType = 'unknown';
+          let elemLlvm = 'i8*';
+          if (iterableType.type === 'array<number>') {
+            elemType = 'number';
+            elemLlvm = 'double';
+          } else if (iterableType.type === 'array<string>') {
+            elemType = 'string';
+            elemLlvm = 'i8*';
+          }
+          this.symbols.set(forOfStmt.variableName, {
+            name: forOfStmt.variableName,
+            type: elemType,
+            llvmType: elemLlvm,
+          });
+        }
         if (forOfStmt.body) this.analyzeBlock(forOfStmt.body);
       } else if (stmt.type === 'try') {
         const tryStmt = stmt as TryStatement;
