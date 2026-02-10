@@ -604,6 +604,8 @@ export class VariableAllocator {
       const assertionNode = stmt.value as TypeAssertionNode;
       const assertedType = assertionNode.assertedType;
       if (assertedType.startsWith('{')) {
+        const innerType = assertedType.slice(1).trim();
+        if (innerType.startsWith('[')) return null;
         return assertedType;
       }
       const interfaceDefResult = this.getInterface(assertedType);
@@ -614,6 +616,8 @@ export class VariableAllocator {
     if (!stmt.declaredType) return null;
     const strippedDeclaredType = stripNullable(stmt.declaredType);
     if (strippedDeclaredType.startsWith('{') && stmt.value?.type === 'object') {
+      const innerType = strippedDeclaredType.slice(1).trim();
+      if (innerType.startsWith('[')) return null;
       return strippedDeclaredType;
     }
     if (stmt.value?.type !== 'variable' && stmt.value?.type !== 'object') return null;
