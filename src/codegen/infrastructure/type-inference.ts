@@ -231,6 +231,12 @@ export class TypeInference {
       if (!objectType) return null;
       return this.getFieldTypeFromType(objectType, memberExpr.property);
     }
+    if (e.type === 'type_assertion') {
+      const assertion = expr as TypeAssertionNode;
+      if (assertion.assertedType) {
+        return assertion.assertedType;
+      }
+    }
     return null;
   }
 
@@ -623,6 +629,15 @@ export class TypeInference {
         const nestedType = this.resolveNestedMemberAccessTsType(nestedMember);
         if (nestedType) {
           const fieldType = this.getFieldTypeFromType(nestedType, memberExpr.property);
+          if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
+            return true;
+          }
+        }
+      }
+      if (objBase.type === 'type_assertion') {
+        const assertion = memberExpr.object as TypeAssertionNode;
+        if (assertion.assertedType) {
+          const fieldType = this.getFieldTypeFromType(assertion.assertedType, memberExpr.property);
           if (fieldType && fieldType.endsWith('[]') && fieldType !== 'string[]' && fieldType !== 'number[]' && fieldType !== 'boolean[]') {
             return true;
           }
@@ -1557,6 +1572,15 @@ export class TypeInference {
           const nestedMember = memberExpr.object as MemberAccessNode;
           if (nestedMember.property === 'objectMetadata' &&
               (memberExpr.property === 'keys' || memberExpr.property === 'types' || memberExpr.property === 'tsTypes')) {
+            return true;
+          }
+        }
+      }
+      if (objBase.type === 'type_assertion') {
+        const assertion = memberExpr.object as TypeAssertionNode;
+        if (assertion.assertedType) {
+          const fieldType = this.getFieldTypeFromType(assertion.assertedType, memberExpr.property);
+          if (fieldType === 'string[]') {
             return true;
           }
         }

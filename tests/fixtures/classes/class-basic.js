@@ -1,9 +1,9 @@
 class Counter {
-  constructor(value) {
+  constructor(value: number) {
     this.value = value;
   }
-  
-  getValue() {
+
+  getValue(): number {
     return this.value;
   }
 }
