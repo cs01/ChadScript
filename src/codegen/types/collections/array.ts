@@ -1,9 +1,12 @@
 import { Expression, MethodCallNode, VariableNode } from '../../../ast/types.js';
 
 interface ExprBase { type: string; }
+interface ArrayExpr { type: string; elements: Expression[]; }
+interface VariableExpr { type: string; name: string; }
+interface MethodCallExpr { type: string; object: Expression; method: string; }
+interface CallExpr { type: string; name: string; }
 
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
-import { generateArrayLiteral } from './array/literal.js';
 import { generateArrayPush, generateArrayPop } from './array/mutators.js';
 
 export class ArrayGenerator {
@@ -26,7 +29,202 @@ export class ArrayGenerator {
   }
 
   generateArrayLiteral(expr: Expression, params: string[]): string {
-    return generateArrayLiteral(this.ctx, expr, params);
+    const e = expr as ExprBase;
+    if (e.type !== 'array') {
+      throw new Error('Expected array literal');
+    }
+
+    const arrExpr = expr as ArrayExpr;
+    const length = arrExpr.elements.length;
+
+    let isStringArray = false;
+    if (length > 0) {
+      let allStrings = true;
+      for (let i = 0; i < arrExpr.elements.length; i++) {
+        const el = arrExpr.elements[i] as ExprBase;
+        if (el.type !== 'string') {
+          allStrings = false;
+          break;
+        }
+      }
+      isStringArray = allStrings;
+    }
+    if (length === 0 && this.ctx.getExpectedArrayElementType() === 'string') {
+      isStringArray = true;
+    }
+
+    let isPointerArray = false;
+    if (length === 0 && this.ctx.getExpectedArrayElementType() === 'pointer') {
+      isPointerArray = true;
+    }
+    let firstElemValue: string | null = null;
+    if (length > 0 && !isStringArray) {
+      firstElemValue = this.ctx.generateExpression(arrExpr.elements[0], params);
+      const firstElemType = this.ctx.getVariableType(firstElemValue);
+      if (firstElemType === 'i8*') {
+        isStringArray = true;
+      } else if (firstElemType && firstElemType !== 'double' && firstElemType.indexOf('*') !== -1) {
+        isPointerArray = true;
+      }
+      if (!isPointerArray && !isStringArray) {
+        for (let i = 0; i < arrExpr.elements.length; i++) {
+          const elem = arrExpr.elements[i];
+          const el = elem as ExprBase;
+          if (el.type === 'variable') {
+            const varExpr = elem as VariableExpr;
+            const varName = varExpr.name;
+            const varType = this.ctx.getVariableType(varName);
+            if (varType && (varType.indexOf('%Promise') !== -1 || varType.indexOf('*') !== -1)) {
+              isPointerArray = true;
+              break;
+            }
+          }
+          if (el.type === 'method_call') {
+            const mcExpr = elem as MethodCallExpr;
+            const obj = mcExpr.object;
+            const objBase = obj as ExprBase;
+            if (obj && objBase.type === 'variable') {
+              const objVar = obj as VariableExpr;
+              if (objVar.name === 'Promise') {
+                isPointerArray = true;
+                break;
+              }
+            }
+          }
+          if (el.type === 'call') {
+            const callExpr = elem as CallExpr;
+            const callName = callExpr.name;
+            if (callName === 'fetch') {
+              isPointerArray = true;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    if (isStringArray) {
+      const sizePtr = this.nextTemp();
+      this.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
+      const structSize = this.nextTemp();
+      this.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+      const arrayMem = this.nextTemp();
+      this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+      const arrayPtr = this.nextTemp();
+      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
+
+      const dataCount = length === 0 ? 1 : length;
+      const dataSize = this.nextTemp();
+      this.emit(`${dataSize} = mul i64 ${dataCount}, 8`);
+      const dataMem = this.nextTemp();
+      this.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSize})`);
+      const dataPtr = this.nextTemp();
+      this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
+
+      for (let i = 0; i < arrExpr.elements.length; i++) {
+        const elemValue = this.ctx.generateExpression(arrExpr.elements[i], params);
+        const elemPtr = this.nextTemp();
+        this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
+        this.emit(`store i8* ${elemValue}, i8** ${elemPtr}`);
+      }
+
+      const dataPtrField = this.nextTemp();
+      this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+      this.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
+
+      const lenField = this.nextTemp();
+      this.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+      this.emit(`store i32 ${length}, i32* ${lenField}`);
+
+      const capField = this.nextTemp();
+      this.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+      this.emit(`store i32 ${length}, i32* ${capField}`);
+
+      this.ctx.setVariableType(arrayPtr, '%StringArray*');
+      return arrayPtr;
+    } else if (isPointerArray) {
+      const sizePtr = this.nextTemp();
+      this.emit(`${sizePtr} = getelementptr %ObjectArray, %ObjectArray* null, i32 1`);
+      const structSize = this.nextTemp();
+      this.emit(`${structSize} = ptrtoint %ObjectArray* ${sizePtr} to i64`);
+      const arrayMem = this.nextTemp();
+      this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+      const arrayPtr = this.nextTemp();
+      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %ObjectArray*`);
+
+      const dataCount = length === 0 ? 1 : length;
+      const dataSize = this.nextTemp();
+      this.emit(`${dataSize} = mul i64 ${dataCount}, 8`);
+      const dataMem = this.nextTemp();
+      this.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSize})`);
+      const dataPtr = this.nextTemp();
+      this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
+
+      for (let i = 0; i < arrExpr.elements.length; i++) {
+        const elemValue = (i === 0 && firstElemValue) ? firstElemValue : this.ctx.generateExpression(arrExpr.elements[i], params);
+        const elemCast = this.nextTemp();
+        this.emit(`${elemCast} = bitcast ${this.ctx.getVariableType(elemValue) || 'i8*'} ${elemValue} to i8*`);
+        const elemPtr = this.nextTemp();
+        this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
+        this.emit(`store i8* ${elemCast}, i8** ${elemPtr}`);
+      }
+
+      const dataPtrField = this.nextTemp();
+      this.emit(`${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+      const dataPtrCast = this.nextTemp();
+      this.emit(`${dataPtrCast} = bitcast i8** ${dataPtr} to i8*`);
+      this.emit(`store i8* ${dataPtrCast}, i8** ${dataPtrField}`);
+
+      const lenField = this.nextTemp();
+      this.emit(`${lenField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`);
+      this.emit(`store i32 ${length}, i32* ${lenField}`);
+
+      const capField = this.nextTemp();
+      this.emit(`${capField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`);
+      this.emit(`store i32 ${length}, i32* ${capField}`);
+
+      this.ctx.setVariableType(arrayPtr, '%ObjectArray*');
+      return arrayPtr;
+    } else {
+      const sizePtr = this.nextTemp();
+      this.emit(`${sizePtr} = getelementptr %Array, %Array* null, i32 1`);
+      const structSize = this.nextTemp();
+      this.emit(`${structSize} = ptrtoint %Array* ${sizePtr} to i64`);
+      const arrayMem = this.nextTemp();
+      this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+      const arrayPtr = this.nextTemp();
+      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %Array*`);
+
+      const dataCount = length === 0 ? 1 : length;
+      const dataSize = this.nextTemp();
+      this.emit(`${dataSize} = mul i64 ${dataCount}, 8`);
+      const dataMem = this.nextTemp();
+      this.emit(`${dataMem} = call i8* @GC_malloc_atomic(i64 ${dataSize})`);
+      const dataPtr = this.nextTemp();
+      this.emit(`${dataPtr} = bitcast i8* ${dataMem} to double*`);
+
+      for (let i = 0; i < arrExpr.elements.length; i++) {
+        const elemValue = (i === 0 && firstElemValue) ? firstElemValue : this.ctx.generateExpression(arrExpr.elements[i], params);
+        const elemPtr = this.nextTemp();
+        this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
+        this.emit(`store double ${elemValue}, double* ${elemPtr}`);
+      }
+
+      const dataPtrField = this.nextTemp();
+      this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+      this.emit(`store double* ${dataPtr}, double** ${dataPtrField}`);
+
+      const lenField = this.nextTemp();
+      this.emit(`${lenField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+      this.emit(`store i32 ${length}, i32* ${lenField}`);
+
+      const capField = this.nextTemp();
+      this.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
+      this.emit(`store i32 ${length}, i32* ${capField}`);
+
+      this.ctx.setVariableType(arrayPtr, '%Array*');
+      return arrayPtr;
+    }
   }
 
   generateArrayPush(expr: MethodCallNode, params: string[]): string {
