@@ -391,7 +391,11 @@ export class IndexAccessGenerator {
     const jsonPtr = this.ctx.generateExpression(expr.object, params);
 
     const ptrType = this.ctx.getVariableType(jsonPtr);
-    if (ptrType === '%ObjectArray*') {
+    if (ptrType === '%ObjectArray*' || (ptrType === 'i8*' && this.isNonJSONObjectMemberAccess(expr.object))) {
+      const arrayPtr = ptrType === 'i8*' ? this.ctx.nextTemp() : jsonPtr;
+      if (ptrType === 'i8*') {
+        this.ctx.emit(`${arrayPtr} = bitcast i8* ${jsonPtr} to %ObjectArray*`);
+      }
       const indexDouble = this.ctx.generateExpression(expr.index, params);
       const idxType = this.ctx.getVariableType(indexDouble);
       let index = indexDouble;
@@ -400,7 +404,7 @@ export class IndexAccessGenerator {
         this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
       }
       const dataPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${jsonPtr}, i32 0, i32 0`);
+      this.ctx.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
       const data = this.ctx.nextTemp();
       this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
       const dataAsPtrs = this.ctx.nextTemp();
@@ -475,6 +479,17 @@ export class IndexAccessGenerator {
     this.ctx.setVariableType(result, 'i8*');
 
     return result;
+  }
+
+  private isNonJSONObjectMemberAccess(objExpr: Expression): boolean {
+    const base = objExpr as ExprBase;
+    if (base.type !== 'member_access') return false;
+    const memberExpr = objExpr as MemberAccessNode;
+    const memberObjBase = memberExpr.object as ExprBase;
+    if (memberObjBase.type !== 'variable') return false;
+    const varName = (memberExpr.object as VariableNode).name;
+    if (this.ctx.symbolTableIsJSON(varName)) return false;
+    return this.ctx.symbolTableIsObject(varName);
   }
 
   generateAssignment(expr: IndexAccessAssignmentNode, params: string[]): string {
