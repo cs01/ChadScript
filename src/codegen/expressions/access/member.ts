@@ -2020,6 +2020,16 @@ export class MemberAccessGenerator {
       const arrayPtr = this.ctx.generateExpression(expr.object, params);
       const arrayType = this.ctx.getVariableType(arrayPtr);
       if (arrayType === 'i8*') {
+        const innerAccess = expr.object as MemberAccessNode;
+        const innerObjBase = innerAccess.object as ExprBase;
+        if (innerObjBase.type === 'variable') {
+          const innerVarName = (innerAccess.object as VariableNode).name;
+          if (this.ctx.symbolTable.isObject(innerVarName) && !this.ctx.symbolTable.isJSON(innerVarName)) {
+            const objArrayPtr = this.ctx.nextTemp();
+            this.ctx.emit(`${objArrayPtr} = bitcast i8* ${arrayPtr} to %ObjectArray*`);
+            return this.getArrayLengthFromPtr(objArrayPtr, '%ObjectArray');
+          }
+        }
         return this.getStringLength(expr.object, params);
       }
       if (arrayType === '%StringArray*') {
@@ -2158,13 +2168,18 @@ export class MemberAccessGenerator {
       } else if (arrayType === '%ObjectArray*') {
         return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
       }
-      if (this.ctx.symbolTable.isJSON(varName) || this.ctx.symbolTable.isObject(varName)) {
+      if (this.ctx.symbolTable.isJSON(varName)) {
         const arraySize = this.ctx.nextTemp();
         this.ctx.emit(`${arraySize} = call i32 @cJSON_GetArraySize(i8* ${arrayPtr})`);
         const sizeDouble = this.ctx.nextTemp();
         this.ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
         this.ctx.setVariableType(sizeDouble, 'double');
         return sizeDouble;
+      }
+      if (this.ctx.symbolTable.isObject(varName)) {
+        const objArrayPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${objArrayPtr} = bitcast i8* ${arrayPtr} to %ObjectArray*`);
+        return this.getArrayLengthFromPtr(objArrayPtr, '%ObjectArray');
       }
     } else if (innerAccessObjBase.type === 'this') {
       const className = this.ctx.getCurrentClassName();
