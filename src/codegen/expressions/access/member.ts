@@ -429,11 +429,9 @@ export class MemberAccessGenerator {
       return value;
     } else if (propType === 'boolean') {
       const value = this.ctx.nextTemp();
-      this.ctx.emit(`${value} = load i1, i1* ${fieldPtr}`);
-      const doubleValue = this.ctx.nextTemp();
-      this.ctx.emit(`${doubleValue} = uitofp i1 ${value} to double`);
-      this.ctx.setVariableType(doubleValue, 'double');
-      return doubleValue;
+      this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
+      this.ctx.setVariableType(value, 'double');
+      return value;
     } else if (propType === 'string[]') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
@@ -655,10 +653,8 @@ export class MemberAccessGenerator {
       }
       return value;
     } else if (fieldType === 'boolean') {
-      const boolValue = this.ctx.nextTemp();
-      this.ctx.emit(`${boolValue} = load i1, i1* ${fieldPtr}`);
       const value = this.ctx.nextTemp();
-      this.ctx.emit(`${value} = uitofp i1 ${boolValue} to double`);
+      this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
       this.ctx.setVariableType(value, 'double');
       return value;
     } else if (tsType && tsType.startsWith('Map<string,')) {
@@ -1140,11 +1136,9 @@ export class MemberAccessGenerator {
       return value;
     } else if (propType === 'boolean') {
       const value = this.ctx.nextTemp();
-      this.ctx.emit(`${value} = load i1, i1* ${fieldPtr}`);
-      const doubleValue = this.ctx.nextTemp();
-      this.ctx.emit(`${doubleValue} = uitofp i1 ${value} to double`);
-      this.ctx.setVariableType(doubleValue, 'double');
-      return doubleValue;
+      this.ctx.emit(`${value} = load double, double* ${fieldPtr}`);
+      this.ctx.setVariableType(value, 'double');
+      return value;
     } else if (propType === 'string[]') {
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load %StringArray*, %StringArray** ${fieldPtr}`);
