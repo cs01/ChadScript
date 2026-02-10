@@ -80,7 +80,7 @@ npx tsx src/index.ts [options] <input.ts> [output]
 
 ## What Works
 
-**Core Language:** Functions, variables (`const`/`let`), operators, control flow (`if`/`while`/`for`/`for...of`/`for...in`), try/catch, ternary, classes with inheritance
+**Core Language:** Functions, variables (`const`/`let`), operators, control flow (`if`/`while`/`for`/`for...of`), try/catch, ternary, classes with inheritance
 
 **TypeScript:** Interfaces → native structs, type annotations, import/export modules, npm packages (with TS source)
 
@@ -94,7 +94,7 @@ See `/examples/` for working code: CLI tools, HTTP servers, argument parsing, an
 
 - **No discriminated unions** - Each type maps to one LLVM representation (`string` → `i8*`, `number` → `double`). Unions like `string | null` work (same repr), but `string | number` is rejected at compile time because the compiler can't represent both in a single value slot. Tagged unions may be added in the future.
 - **No dynamic features** - No `eval`, `typeof`, `Object.keys()`, destructuring, spread, optional chaining
-- **No reflection** - No `instanceof`, runtime type inspection
+- **No reflection** - No `instanceof`, `for..in`, runtime type inspection
 - **Nested if returns** - Deep nesting with early returns can generate invalid IR (extract to functions)
 
 ## Architecture
