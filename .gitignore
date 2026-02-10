@@ -53,6 +53,10 @@ roadmap/
 # LLM rules (local only)
 .llms/
 
+# LLM-generated notes and docs (local only)
+llmnotes/
+docs/
+
 # Accidental/temporary files
 vendor/
 
@@ -64,5 +68,3 @@ ralph.sh
 examples/hello
 examples/cli-parser-demo
 examples/he
-
-llmnotes
