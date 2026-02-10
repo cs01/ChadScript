@@ -223,9 +223,9 @@ function emptyAST(): AST {
 }
 
 function printUsage(): void {
-  console.log('ChadScript - a native compiler for a subset of TypeScript');
+  console.log('chad - ChadScript native compiler');
   console.log('');
-  console.log('Usage: chadscriptc [options] <input.ts> [output]');
+  console.log('Usage: chad [options] <input.ts> [output]');
   console.log('');
   console.log('Options:');
   console.log('  -o <output>               Specify output file (default: .build/<input>)');

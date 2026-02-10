@@ -29,8 +29,6 @@ for (let i = 0; i < args.length; i++) {
     logLevel = LogLevel.Debug;
   } else if (arg === '--trace') {
     logLevel = LogLevel.Trace;
-  } else if (arg === '--use-ts-parser') {
-    console.error('warning: --use-ts-parser is deprecated, the TypeScript API parser is now the default');
   } else if (arg === '--link-tree-sitter') {
     setLinkTreeSitter(true);
   } else if (arg === '--skip-semantic-analysis') {
@@ -47,15 +45,14 @@ for (let i = 0; i < args.length; i++) {
       skipNextArg = true;
     }
   } else if (arg === '-h' || arg === '--help') {
-    console.log('ChadScript - TypeScript to Native AOT Compiler');
+    console.log('chadc - ChadScript compiler');
     console.log('');
-    console.log('Usage: chadscript [options] <input.ts|.js> [output]');
+    console.log('Usage: chadc [options] <input.ts|.js> [output]');
     console.log('');
     console.log('Options:');
     console.log('  -v, --verbose    Show compilation steps');
     console.log('  --debug          Show internal debugging information');
     console.log('  --trace          Show everything (AST, IR, variable tracking)');
-    console.log('  --use-ts-parser  (deprecated, now the default)');
     console.log('  --link-tree-sitter  Link with tree-sitter for native parsing');
     console.log('  --skip-semantic-analysis  Skip semantic analysis (for self-hosting)');
     console.log('  --emit-llvm, -S  Output LLVM IR only (no binary)');
@@ -64,10 +61,9 @@ for (let i = 0; i < args.length; i++) {
     console.log('  -h, --help       Show this help message');
     console.log('');
     console.log('Examples:');
-    console.log('  chadscript hello.ts');
-    console.log('  chadscript hello.ts my-program');
-    console.log('  chadscript -v hello.ts');
-    console.log('  chadscript --debug hello.ts');
+    console.log('  chadc hello.ts');
+    console.log('  chadc hello.ts -o myapp');
+    console.log('  chadc -v hello.ts');
     process.exit(0);
   } else {
     fileArgs.push(arg);
@@ -75,8 +71,8 @@ for (let i = 0; i < args.length; i++) {
 }
 
 if (fileArgs.length < 1) {
-  logger.error('chadscript: error: no input files');
-  logger.error('Usage: chadscript [options] <input.ts|.js> [output]');
+  logger.error('chadc: error: no input files');
+  logger.error('Usage: chadc [options] <input.ts|.js> [output]');
   process.exit(1);
 }
 

@@ -5,7 +5,8 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "chadscript": "./dist/index.js"
+    "chad": "./dist/chad.js",
+    "chadc": "./dist/index.js"
   },
   "scripts": {
     "compile": "tsx src/index.ts",

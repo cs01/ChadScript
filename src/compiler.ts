@@ -65,7 +65,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     llcPath = execSync('which llc', { stdio: 'pipe', encoding: 'utf8' }).trim();
   } catch (error) {
     throw new Error(
-      'chadscript: error: llc (LLVM compiler) not found in PATH\n' +
+      'chad: error: llc (LLVM compiler) not found in PATH\n' +
       'Install LLVM:\n' +
       '  macOS: brew install llvm && export PATH="/opt/homebrew/opt/llvm/bin:$PATH"\n' +
       '  Ubuntu/Debian: sudo apt-get install llvm\n' +
@@ -81,7 +81,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
       useClang = false;
     } catch (gccError) {
       throw new Error(
-        'chadscript: error: clang or gcc not found in PATH\n' +
+        'chad: error: clang or gcc not found in PATH\n' +
         'Install a C compiler:\n' +
         '  macOS: xcode-select --install\n' +
         '  Ubuntu/Debian: sudo apt-get install clang\n' +
