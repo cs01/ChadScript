@@ -47,6 +47,9 @@ CLAUDE.md
 LEARNINGS.md
 todo.md
 
+# Roadmap (local only)
+roadmap/
+
 # LLM rules (local only)
 .llms/
 

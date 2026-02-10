@@ -109,6 +109,10 @@ export class LiteralExpressionGenerator {
   generateMap(expr: MapNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
 
+    if (expr.keyType === 'string') {
+      return this.ctx.stringMapGenGenerateEmptyStringMap();
+    }
+
     const declaredType = this.ctx.getCurrentDeclaredMapType();
     if (declaredType) {
       const mapParsed = parseMapTypeString(declaredType);

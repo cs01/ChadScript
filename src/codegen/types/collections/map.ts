@@ -27,6 +27,8 @@ export class MapGenerator {
       throw new Error('Expected map literal');
     }
 
+    const entries = mapExpr.entries || [];
+
     // Allocate Map struct on heap (not stack!)
     const sizeofPtr = this.nextTemp();
     this.emit(`${sizeofPtr} = getelementptr %Map, %Map* null, i32 1`);
@@ -38,7 +40,7 @@ export class MapGenerator {
     this.emit(`${mapPtr} = bitcast i8* ${mapMem} to %Map*`);
 
     // Initialize with empty arrays
-    const initialCapacity = mapExpr.entries.length > 4 ? mapExpr.entries.length : 4;
+    const initialCapacity = entries.length > 4 ? entries.length : 4;
 
     // Allocate keys array - use double* for JavaScript semantics
     const doubleSize = this.getDoubleSize();
@@ -74,7 +76,7 @@ export class MapGenerator {
     // Store size
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 2`);
-    this.emit(`store i32 ${mapExpr.entries.length}, i32* ${sizeFieldPtr}`);
+    this.emit(`store i32 ${entries.length}, i32* ${sizeFieldPtr}`);
 
     // Store capacity
     const capacityFieldPtr = this.nextTemp();
@@ -82,8 +84,8 @@ export class MapGenerator {
     this.emit(`store i32 ${initialCapacity}, i32* ${capacityFieldPtr}`);
 
     // Populate initial entries
-    for (let i = 0; i < mapExpr.entries.length; i++) {
-      const entry = mapExpr.entries[i] as MapEntry;
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i] as MapEntry;
       const keyValue = this.ctx.generateExpression(entry.key, params);
       const valueValue = this.ctx.generateExpression(entry.value, params);
 
