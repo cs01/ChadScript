@@ -565,7 +565,7 @@ function transformUpdateExpression(node: TreeSitterNode): UnaryNode {
   };
 }
 
-function transformCallExpression(node: TreeSitterNode): CallNode | MethodCallNode {
+function transformCallExpression(node: TreeSitterNode): Expression {
   const funcNode = getChildByFieldName(node, 'function');
   const argsNode = getChildByFieldName(node, 'arguments');
 
@@ -816,7 +816,7 @@ function transformNewClassExpression(className: string, args: Expression[], type
   return { type: 'new', className, args, typeArgs };
 }
 
-function transformTemplateString(node: TreeSitterNode): TemplateLiteralNode | StringNode {
+function transformTemplateString(node: TreeSitterNode): Expression {
   const parts: (string | Expression)[] = [];
   let hasSubstitutions = false;
 
@@ -1727,9 +1727,8 @@ function extractFunctionParams(paramsNode: TreeSitterNode): string[] {
   return params;
 }
 
-function extractParamTypes(paramsNode: TreeSitterNode): string[] | undefined {
+function extractParamTypes(paramsNode: TreeSitterNode): string[] {
   const types: string[] = [];
-  let hasTypes = false;
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const param = getNamedChild(paramsNode, i);
@@ -1739,17 +1738,16 @@ function extractParamTypes(paramsNode: TreeSitterNode): string[] | undefined {
       const typeNode = getChildByFieldName(param, 'type');
       if (typeNode) {
         types.push(extractTypeString(typeNode));
-        hasTypes = true;
       } else {
         types.push('any');
       }
     }
   }
 
-  return hasTypes ? types : undefined;
+  return types;
 }
 
-function extractFunctionParameters(paramsNode: TreeSitterNode): FunctionParameter[] | undefined {
+function extractFunctionParameters(paramsNode: TreeSitterNode): FunctionParameter[] {
   const params: FunctionParameter[] = [];
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
@@ -1770,7 +1768,7 @@ function extractFunctionParameters(paramsNode: TreeSitterNode): FunctionParamete
     }
   }
 
-  return params.length > 0 ? params : undefined;
+  return params;
 }
 
 function extractTypeString(typeNode: TreeSitterNode): string {
@@ -2006,9 +2004,8 @@ function mapToClassMethodType(typeStr: string): 'string' | 'number' | 'boolean' 
   }
 }
 
-function extractClassParamTypes(paramsNode: TreeSitterNode): string[] | undefined {
+function extractClassParamTypes(paramsNode: TreeSitterNode): string[] {
   const types: string[] = [];
-  let hasTypes = false;
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const param = getNamedChild(paramsNode, i);
@@ -2024,17 +2021,16 @@ function extractClassParamTypes(paramsNode: TreeSitterNode): string[] | undefine
         } else {
           types.push(typeStr);
         }
-        hasTypes = true;
       } else {
         types.push('any');
       }
     }
   }
 
-  return hasTypes ? types : undefined;
+  return types;
 }
 
-function extractParameterProperties(paramsNode: TreeSitterNode): string[] | undefined {
+function extractParameterProperties(paramsNode: TreeSitterNode): string[] {
   const properties: string[] = [];
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
@@ -2065,7 +2061,7 @@ function extractParameterProperties(paramsNode: TreeSitterNode): string[] | unde
     }
   }
 
-  return properties.length > 0 ? properties : undefined;
+  return properties;
 }
 
 function transformInterfaceDeclaration(node: TreeSitterNode): InterfaceDeclaration | null {
