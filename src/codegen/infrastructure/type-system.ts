@@ -155,7 +155,9 @@ export function tsTypeToLlvmJson(tsType: string): string {
 export function checkUnsafeUnionType(typeStr: string): string | null {
   if (!typeStr || typeStr.indexOf(' | ') === -1) return null;
 
-  const parts = typeStr.split(' | ');
+  const parts = splitTopLevelUnion(typeStr);
+  if (parts.length <= 1) return null;
+
   const nonNullParts: string[] = [];
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i].trim();
@@ -184,6 +186,35 @@ export function checkUnsafeUnionType(typeStr: string): string | null {
   }
 
   return null;
+}
+
+function splitTopLevelUnion(typeStr: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+
+  for (let i = 0; i < typeStr.length; i++) {
+    const ch = typeStr[i];
+    if (ch === '{' || ch === '<' || ch === '(') {
+      depth++;
+      current += ch;
+    } else if (ch === '}' || ch === '>' || ch === ')') {
+      depth--;
+      current += ch;
+    } else if (ch === '|' && depth === 0 && typeStr[i - 1] === ' ' && typeStr[i + 1] === ' ') {
+      parts.push(current.slice(0, -1));
+      current = '';
+      i++;
+    } else {
+      current += ch;
+    }
+  }
+
+  if (current.trim()) {
+    parts.push(current.trim());
+  }
+
+  return parts;
 }
 
 export function parseMapTypeString(s: string): { keyType: string; valueType: string } | null {

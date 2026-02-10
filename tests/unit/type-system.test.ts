@@ -322,4 +322,12 @@ describe('checkUnsafeUnionType', () => {
     assert.ok(result!.indexOf('%StringArray*') !== -1);
     assert.ok(result!.indexOf('%Array*') !== -1);
   });
+
+  it('should ignore unions nested inside object literal types', () => {
+    assert.strictEqual(checkUnsafeUnionType("{ name: string; fieldType: 'double' | 'string' | 'number[]' }[]"), null);
+  });
+
+  it('should ignore unions nested inside generic types', () => {
+    assert.strictEqual(checkUnsafeUnionType('Map<string, number | string>'), null);
+  });
 });
