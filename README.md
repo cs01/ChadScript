@@ -5,7 +5,7 @@
 ChadScript compiles TypeScript directly to native machine code via LLVM IR. No Node.js, no V8, no interpreter. The output is a standalone ELF binary.
 
 ```bash
-$ npx tsx src/index.ts examples/hello.ts /tmp/hello
+$ chad build examples/hello.ts -o /tmp/hello
 
 $ time /tmp/hello
 Hello from ChadScript!
@@ -59,19 +59,40 @@ export CHADSCRIPT_MONGOOSE_PATH=/path/to/mongoose
 
 ```bash
 git clone https://github.com/cs01/ChadScript && cd ChadScript
-npm install
-npx tsx src/index.ts examples/hello.ts ./hello
-./hello
+npm install && npm run build
+chad build examples/hello.ts
+.build/examples/hello
 ```
 
-### Compiler Options
+Or compile and run in one step:
+
+```bash
+chad run examples/hello.ts
+```
+
+### CLI
 
 ```
-npx tsx src/index.ts [options] <input.ts> [output]
+chad <command> [options] <file>
 
+Commands:
+  build <file>     Compile to a native binary
+  run <file>       Compile and run
+  ir <file>        Emit LLVM IR only
+  clean            Remove the .build directory
+
+Options:
+  -o <output>      Specify output file (default: .build/<input>)
   -v, --verbose    Show compilation steps
   --debug          Show internal debugging info
   --trace          Show everything (AST, IR, variable tracking)
+```
+
+The bare compiler is also available as `chadc`:
+
+```bash
+chadc hello.ts              # same as chad build hello.ts
+chadc hello.ts -o myapp     # same as chad build hello.ts -o myapp
 ```
 
 ## What Works
@@ -100,8 +121,8 @@ countStats(content);
 ```
 
 ```bash
-$ npx tsx src/index.ts word-count.ts ./wc
-$ ./wc README.md
+$ chad build word-count.ts
+$ .build/word-count README.md
 Words: 437
 ```
 
@@ -134,10 +155,10 @@ ChadScript can compile its own compiler to a native binary:
 
 ```bash
 # Stage 0: compile the compiler with Node.js
-npx tsx src/index.ts src/native-compiler.ts /tmp/chadscript-stage0
+chadc --link-tree-sitter --skip-semantic-analysis src/native-compiler.ts -o /tmp/chad-stage0
 
 # Stage 1: compile the compiler with itself
-/tmp/chadscript-stage0 src/native-compiler.ts /tmp/chadscript-stage1
+/tmp/chad-stage0 src/native-compiler.ts -o /tmp/chad-stage1
 ```
 
 The Stage 1 binary is a standalone native compiler that needs no Node.js runtime.

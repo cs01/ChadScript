@@ -6,10 +6,10 @@ Working examples demonstrating ChadScript features. Each compiles to a native bi
 
 ```bash
 # Compile an example
-npx tsx src/index.ts examples/hello.ts
+chad build examples/hello.ts
 
 # Run the compiled binary
-./.build/examples/hello
+.build/examples/hello
 ```
 
 ## Examples
