@@ -592,16 +592,16 @@ export class SemanticAnalyzer {
       return '';
     }
 
-    let output = '\x1b[31m\x1b[1m✗ Semantic Analysis Errors:\x1b[0m\n\n';
+    let output = '✗ Semantic Analysis Errors:\n\n';
 
     for (let i = 0; i < this.errors.length; i++) {
       const error = this.errors[i] as AnalysisError;
-      output += `  \x1b[31m•\x1b[0m ${error.message}` + '\n';
+      output += `  • ${error.message}` + '\n';
       if (error.location) {
-        output += `    \x1b[90mLocation: ${error.location}\x1b[0m` + '\n';
+        output += `    Location: ${error.location}` + '\n';
       }
       if (error.suggestion) {
-        output += `    \x1b[36mℹ ${error.suggestion}\x1b[0m` + '\n';
+        output += `    ℹ ${error.suggestion}` + '\n';
       }
       output += '\n';
     }
