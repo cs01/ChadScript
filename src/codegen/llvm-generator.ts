@@ -5,7 +5,7 @@ import { TypeInference, TypeInferenceContext } from './infrastructure/type-infer
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
 import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/function-generator.js';
 import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructure/assignment-generator.js';
-import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
+import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getStringHashHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
 import { TypeResolver, TypeResolverContext, TypeGuardInfo } from './infrastructure/type-resolver/index.js';
 import { stripOptional, stripNullable, tsTypeToLlvmJson, ResolvedType } from './infrastructure/type-system.js';
 import { IGeneratorContext } from './infrastructure/generator-context.js';
@@ -1560,6 +1560,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (safeStr) { irParts.push(safeStr); }
     const dblToStr = getDoubleToStringHelper();
     if (dblToStr) { irParts.push(dblToStr); }
+    const strHash = getStringHashHelper();
+    if (strHash) { irParts.push(strHash); }
 
     const globalVars = getGlobalVariables();
     if (globalVars) { irParts.push(globalVars); }
@@ -1752,6 +1754,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (safeStr) { irParts.push(safeStr); }
     const dblToStr = getDoubleToStringHelper();
     if (dblToStr) { irParts.push(dblToStr); }
+    const strHash = getStringHashHelper();
+    if (strHash) { irParts.push(strHash); }
 
     const globalVars = getGlobalVariables();
     if (globalVars) { irParts.push(globalVars); }
