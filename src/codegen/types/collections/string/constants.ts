@@ -12,6 +12,9 @@ function byteToHex(b: number): string {
 }
 
 export function createStringConstant(ctx: IGeneratorContext, value: string): string {
+  if (!value) {
+    value = '';
+  }
   let escaped = '';
   let byteCount = 0;
   for (let i = 0; i < value.length; i++) {
