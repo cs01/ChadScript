@@ -727,7 +727,7 @@ function transformObjectExpression(node: TreeSitterNode): ObjectNode {
   return { type: 'object', properties };
 }
 
-function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNode {
+function transformNewExpression(node: TreeSitterNode): Expression {
   const constructorNode = getChildByFieldName(node, 'constructor');
   const argsNode = getChildByFieldName(node, 'arguments');
   const typeArgsNode = getChildByFieldName(node, 'type_arguments');
@@ -743,16 +743,13 @@ function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNo
     }
   }
 
-  let typeArgs: string[] | undefined;
+  const typeArgs: string[] = [];
   if (typeArgsNode) {
     const tan = typeArgsNode as NodeBase;
-    if (tan.namedChildCount > 0) {
-      typeArgs = [];
-      for (let ti = 0; ti < tan.namedChildCount; ti++) {
-        const targ = getNamedChild(typeArgsNode, ti);
-        if (targ) {
-          typeArgs.push(extractTypeString(targ));
-        }
+    for (let ti = 0; ti < tan.namedChildCount; ti++) {
+      const targ = getNamedChild(typeArgsNode, ti);
+      if (targ) {
+        typeArgs.push(extractTypeString(targ));
       }
     }
   }
@@ -760,46 +757,62 @@ function transformNewExpression(node: TreeSitterNode): NewNode | MapNode | SetNo
   const className = constructorNode ? (constructorNode as NodeBase).text : '';
 
   if (className === 'Map') {
-    let keyType: string | undefined;
-    let valueType: string | undefined;
-    if (typeArgs && typeArgs.length >= 2) {
-      keyType = typeArgs[0];
-      valueType = typeArgs[1];
-    }
-    if (args.length > 0) {
-      const firstArgType = getExprType(args[0]);
-      if (firstArgType === 'array') {
-        const elements = (args[0] as ArrayNode).elements;
-        const entries: { key: Expression; value: Expression }[] = [];
-        for (let ei = 0; ei < elements.length; ei++) {
-          const elem = elements[ei];
-          const elemType = getExprType(elem);
-          if (elemType === 'array' && (elem as ArrayNode).elements.length === 2) {
-            entries.push({ key: (elem as ArrayNode).elements[0], value: (elem as ArrayNode).elements[1] });
-          } else {
-            entries.push({ key: elem, value: { type: 'variable' as const, name: 'undefined' } });
-          }
-        }
-        return { type: 'map', entries, keyType, valueType };
-      }
-    }
-    return { type: 'map', entries: [], keyType, valueType };
+    return transformNewMapExpression(args, typeArgs);
   }
 
   if (className === 'Set') {
-    let valueType: string | undefined;
-    if (typeArgs && typeArgs.length >= 1) {
-      valueType = typeArgs[0];
-    }
-    if (args.length > 0) {
-      const firstArgType = getExprType(args[0]);
-      if (firstArgType === 'array') {
-        return { type: 'set', values: (args[0] as ArrayNode).elements, valueType };
-      }
-    }
-    return { type: 'set', values: [], valueType };
+    return transformNewSetExpression(args, typeArgs);
   }
 
+  return transformNewClassExpression(className, args, typeArgs);
+}
+
+function transformNewMapExpression(args: Expression[], typeArgs: string[]): MapNode {
+  let keyType: string | undefined;
+  let valueType: string | undefined;
+  if (typeArgs.length >= 2) {
+    keyType = typeArgs[0];
+    valueType = typeArgs[1];
+  }
+  if (args.length > 0) {
+    const firstArgType = getExprType(args[0]);
+    if (firstArgType === 'array') {
+      const elements = (args[0] as ArrayNode).elements;
+      const entries: { key: Expression; value: Expression }[] = [];
+      for (let ei = 0; ei < elements.length; ei++) {
+        const elem = elements[ei];
+        const elemType = getExprType(elem);
+        if (elemType === 'array' && (elem as ArrayNode).elements.length === 2) {
+          entries.push({ key: (elem as ArrayNode).elements[0], value: (elem as ArrayNode).elements[1] });
+        } else {
+          const undefinedVal: Expression = { type: 'variable' as const, name: 'undefined' };
+          entries.push({ key: elem, value: undefinedVal });
+        }
+      }
+      return { type: 'map', entries, keyType, valueType };
+    }
+  }
+  const emptyEntries: { key: Expression; value: Expression }[] = [];
+  return { type: 'map', entries: emptyEntries, keyType, valueType };
+}
+
+function transformNewSetExpression(args: Expression[], typeArgs: string[]): SetNode {
+  let valueType: string | undefined;
+  if (typeArgs.length >= 1) {
+    valueType = typeArgs[0];
+  }
+  if (args.length > 0) {
+    const firstArgType = getExprType(args[0]);
+    if (firstArgType === 'array') {
+      const setValues = (args[0] as ArrayNode).elements;
+      return { type: 'set', values: setValues, valueType };
+    }
+  }
+  const emptyValues: Expression[] = [];
+  return { type: 'set', values: emptyValues, valueType };
+}
+
+function transformNewClassExpression(className: string, args: Expression[], typeArgs: string[]): NewNode {
   return { type: 'new', className, args, typeArgs };
 }
 
