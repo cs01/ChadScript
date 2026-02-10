@@ -37,6 +37,9 @@ export function setSanitize(value: string): void {
 // External library paths - check env vars, then use vendor/
 const BDWGC_PATH = process.env.CHADSCRIPT_BDWGC_PATH || './vendor/bdwgc';
 const MONGOOSE_PATH = process.env.CHADSCRIPT_MONGOOSE_PATH || './vendor/mongoose';
+const CJSON_PATH = process.env.CHADSCRIPT_CJSON_PATH || './vendor/cJSON/build';
+const LIBUV_PATH = process.env.CHADSCRIPT_LIBUV_PATH || './vendor/libuv/build';
+const TREESITTER_LIB_PATH = process.env.CHADSCRIPT_TREESITTER_PATH || './vendor/tree-sitter';
 const TREESITTER_TS_PATH = 'node_modules/tree-sitter-typescript/typescript/src';
 
 // ============================================
@@ -187,7 +190,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const mongooseObj = `${MONGOOSE_PATH}/mongoose.o`;
 
   // Build link command with all libraries
-  let linkLibs = `-L${BDWGC_PATH} -lgc -lcurl -lcjson -l:libuv.so.1 -lm -lpthread`;
+  let linkLibs = `-L${BDWGC_PATH} -L${CJSON_PATH} -L${LIBUV_PATH} -l:libgc.a -l:libcjson.a -l:libuv.a -lcurl -lm -lpthread -ldl -lrt`;
   let extraObjs = '';
 
   if (linkTreeSitter) {
@@ -217,7 +220,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     }
 
     extraObjs = ` ${tsParserObj} ${tsScannerObj}`;
-    linkLibs += ' /usr/lib64/libtree-sitter.so.0';
+    linkLibs += ` -L${TREESITTER_LIB_PATH} -l:libtree-sitter.a`;
   }
 
   let linker = useClang ? 'clang' : 'gcc';

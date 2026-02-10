@@ -21,45 +21,29 @@ ChadScript is self-hosting: the compiler can compile itself to a native binary, 
 
 ## Quick Start
 
-### Prerequisites
+### Install
 
-**System packages:**
+Download the latest release from [GitHub Releases](https://github.com/cs01/ChadScript/releases), extract it, and add it to your PATH.
+
+You'll also need LLVM, clang, and libcurl on your system:
 
 ```bash
 # Ubuntu/Debian
-sudo apt-get install llvm clang libcurl4-openssl-dev libcjson-dev libuv1-dev libgc-dev
+sudo apt-get install llvm clang libcurl4-openssl-dev
 
 # RHEL/Fedora
-sudo dnf install llvm clang libcurl-devel cjson-devel libuv-devel gc-devel
+sudo dnf install llvm clang libcurl-devel
 
 # macOS
-brew install llvm cjson libuv
+brew install llvm
 export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 ```
 
-**Vendored dependencies:**
-
-ChadScript links against [Boehm GC](https://github.com/ivmai/bdwgc) for garbage collection and [Mongoose](https://github.com/cesanta/mongoose) for embedded HTTP. Build them into `vendor/`:
-
-```bash
-git clone https://github.com/ivmai/bdwgc vendor/bdwgc
-cd vendor/bdwgc && ./autogen.sh && ./configure && make && cd ../..
-
-git clone https://github.com/cesanta/mongoose vendor/mongoose
-cc -c vendor/mongoose/mongoose.c -o vendor/mongoose/mongoose.o
-```
-
-Or point to existing builds:
-```bash
-export CHADSCRIPT_BDWGC_PATH=/path/to/bdwgc
-export CHADSCRIPT_MONGOOSE_PATH=/path/to/mongoose
-```
+To build from source instead, see [BUILDING.md](BUILDING.md).
 
 ### Compile and Run
 
 ```bash
-git clone https://github.com/cs01/ChadScript && cd ChadScript
-npm install && npm run build
 chad build examples/hello.ts
 .build/examples/hello
 ```
@@ -101,9 +85,24 @@ chadc hello.ts -o myapp     # same as chad build hello.ts -o myapp
 
 **Type system:** interfaces compile to native structs, type annotations, generics (`Map<K,V>`, `Set<T>`, `Array<T>`), import/export modules
 
-**Data structures:** `Array`, `String`, `Map`, `Set`, `RegExp` with standard methods (`push`, `pop`, `filter`, `find`, `forEach`, `some`, `includes`, `split`, `indexOf`, `slice`, `map`, etc.)
+**Standard library:**
 
-**Built-in APIs:** `console.log`, `process.argv`, `process.exit`, `fs.readFileSync`, `path.join`, `fetch`, `JSON.parse<T>`, `JSON.stringify`, `parseInt`, `Math.*`, `httpServe`, `async`/`await`, `Promise.all`, `setTimeout`/`setInterval`
+| Module | APIs |
+|--------|------|
+| `console` | `log`, `error` |
+| `process` | `argv`, `exit`, `env` |
+| `fs` | `readFileSync`, `writeFileSync`, `existsSync`, `unlinkSync` |
+| `path` | `join`, `resolve`, `dirname`, `basename` |
+| `Math` | `floor`, `ceil`, `round`, `abs`, `min`, `max`, `sqrt`, `pow`, `random`, `PI`, `E`, `log`, `log2`, `log10`, `sin`, `cos`, `tan` |
+| `JSON` | `parse<T>`, `stringify` |
+| `String` | `length`, `split`, `indexOf`, `includes`, `slice`, `substr`, `trim`, `padStart`, `repeat`, `concat`, `replace`, `startsWith`, `endsWith`, `charAt` |
+| `Array` | `length`, `push`, `pop`, `shift`, `map`, `filter`, `find`, `forEach`, `some`, `includes`, `slice`, `indexOf`, `join`, `concat`, `splice` |
+| `Map` | `set`, `get`, `has`, `delete`, `size`, `keys`, `values` |
+| `Set` | `add`, `has`, `delete`, `size` |
+| `RegExp` | `test` |
+| Networking | `fetch`, `httpServe` |
+| Async | `async`/`await`, `Promise.all`, `setTimeout`, `setInterval` |
+| Other | `parseInt`, `Date.now`, `child_process.execSync` |
 
 ## Examples
 
@@ -149,26 +148,15 @@ TypeScript source
 
 The compiler is ~45k lines of TypeScript across ~70 source files in `src/`.
 
-### Self-Hosting
-
-ChadScript can compile its own compiler to a native binary:
-
-```bash
-# Stage 0: compile the compiler with Node.js
-chadc --link-tree-sitter --skip-semantic-analysis src/native-compiler.ts -o /tmp/chad-stage0
-
-# Stage 1: compile the compiler with itself
-/tmp/chad-stage0 src/native-compiler.ts -o /tmp/chad-stage1
-```
-
-The Stage 1 binary is a standalone native compiler that needs no Node.js runtime.
-
 ## Development
+
+See [BUILDING.md](BUILDING.md) for full build-from-source instructions.
 
 ```bash
 npm install
-npm test          # run all tests (222 tests)
-npm run typecheck # run tsc --noEmit
+bash scripts/build-vendor.sh
+npm run build
+npm test
 ```
 
 ## License
