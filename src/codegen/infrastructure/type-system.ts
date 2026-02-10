@@ -152,6 +152,40 @@ export function tsTypeToLlvmJson(tsType: string): string {
   return 'i8*';
 }
 
+export function checkUnsafeUnionType(typeStr: string): string | null {
+  if (!typeStr || typeStr.indexOf(' | ') === -1) return null;
+
+  const parts = typeStr.split(' | ');
+  const nonNullParts: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i].trim();
+    if (part !== 'null' && part !== 'undefined') {
+      nonNullParts.push(part);
+    }
+  }
+
+  if (nonNullParts.length <= 1) return null;
+
+  const llvmTypes: string[] = [];
+  for (let i = 0; i < nonNullParts.length; i++) {
+    llvmTypes.push(tsTypeToLlvm(nonNullParts[i]));
+  }
+
+  let hasDifferentTypes = false;
+  for (let i = 1; i < llvmTypes.length; i++) {
+    if (llvmTypes[i] !== llvmTypes[0]) {
+      hasDifferentTypes = true;
+      break;
+    }
+  }
+
+  if (hasDifferentTypes) {
+    return 'Union type \'' + typeStr + '\' has members with different native representations (' + llvmTypes.join(', ') + '). This will be miscompiled. Use a single concrete type or a common base type instead.';
+  }
+
+  return null;
+}
+
 export function parseMapTypeString(s: string): { keyType: string; valueType: string } | null {
   if (!s) return null;
   const trimmed = s.trim();

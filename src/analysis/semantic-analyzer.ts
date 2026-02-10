@@ -1,4 +1,5 @@
 import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode, VariableNode, MemberAccessNode, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement } from '../ast/types.js';
+import { checkUnsafeUnionType } from '../codegen/infrastructure/type-system.js';
 
 type SymbolType = 'number' | 'string' | 'boolean' | 'null' | 'undefined' | 'array<number>' | 'array<string>' | 'object' | 'class' | 'unknown';
 
@@ -155,6 +156,8 @@ export class SemanticAnalyzer {
   private analyzeFunction(func: FunctionNode): void {
     this.currentFunction = func.name;
 
+    this.checkFunctionUnionTypes(func.name, func.paramTypes, func.returnType);
+
     // Add parameters to symbol table (scoped to function)
     for (let _pi = 0; _pi < func.params.length; _pi++) {
       const param = func.params[_pi];
@@ -202,6 +205,8 @@ export class SemanticAnalyzer {
       const method = classMethods[_mi];
       this.currentFunction = `${classNode.name}.${method.name}`;
 
+      this.checkFunctionUnionTypes(this.currentFunction, method.paramTypes, method.returnType);
+
       for (let i = 0; i < method.params.length; i++) {
         const param = method.params[i];
         const paramType = method.paramTypes ? method.paramTypes[i] : undefined;
@@ -215,6 +220,29 @@ export class SemanticAnalyzer {
       }
 
       this.analyzeBlock(method.body);
+    }
+  }
+
+  private checkFunctionUnionTypes(funcName: string, paramTypes: string[] | undefined, returnType: string | undefined): void {
+    if (paramTypes) {
+      for (let i = 0; i < paramTypes.length; i++) {
+        const warning = checkUnsafeUnionType(paramTypes[i]);
+        if (warning) {
+          this.errors.push({
+            message: `In function '${funcName}', parameter ${i}: ${warning}`,
+            location: funcName,
+          });
+        }
+      }
+    }
+    if (returnType) {
+      const warning = checkUnsafeUnionType(returnType);
+      if (warning) {
+        this.errors.push({
+          message: `In function '${funcName}', return type: ${warning}`,
+          location: funcName,
+        });
+      }
     }
   }
 

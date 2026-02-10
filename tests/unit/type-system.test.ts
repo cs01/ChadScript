@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { parseMapTypeString, parseSetTypeString, parseArrayTypeString, stripOptional, stripNullable, parseTypeString, tsTypeToLlvm, tsTypeToLlvmJson } from '../../src/codegen/infrastructure/type-system.js';
+import { parseMapTypeString, parseSetTypeString, parseArrayTypeString, stripOptional, stripNullable, parseTypeString, tsTypeToLlvm, tsTypeToLlvmJson, checkUnsafeUnionType } from '../../src/codegen/infrastructure/type-system.js';
 
 describe('stripOptional', () => {
   it('should return empty string for null/undefined/empty input', () => {
@@ -273,5 +273,53 @@ describe('parseArrayTypeString', () => {
 
   it('should return null for bare brackets', () => {
     assert.strictEqual(parseArrayTypeString('[]'), null);
+  });
+});
+
+describe('checkUnsafeUnionType', () => {
+  it('should return null for non-union types', () => {
+    assert.strictEqual(checkUnsafeUnionType('string'), null);
+    assert.strictEqual(checkUnsafeUnionType('number'), null);
+    assert.strictEqual(checkUnsafeUnionType('boolean'), null);
+    assert.strictEqual(checkUnsafeUnionType('void'), null);
+    assert.strictEqual(checkUnsafeUnionType('string[]'), null);
+  });
+
+  it('should return null for null/undefined/empty input', () => {
+    assert.strictEqual(checkUnsafeUnionType(''), null);
+    assert.strictEqual(checkUnsafeUnionType(null as unknown as string), null);
+    assert.strictEqual(checkUnsafeUnionType(undefined as unknown as string), null);
+  });
+
+  it('should return null for nullable unions (same LLVM type)', () => {
+    assert.strictEqual(checkUnsafeUnionType('string | null'), null);
+    assert.strictEqual(checkUnsafeUnionType('number | undefined'), null);
+    assert.strictEqual(checkUnsafeUnionType('string | null | undefined'), null);
+    assert.strictEqual(checkUnsafeUnionType('null | string'), null);
+  });
+
+  it('should return null for unions with same LLVM representation', () => {
+    assert.strictEqual(checkUnsafeUnionType('string | SomeInterface'), null);
+  });
+
+  it('should return error for string | number (i8* vs double)', () => {
+    const result = checkUnsafeUnionType('string | number');
+    assert.notStrictEqual(result, null);
+    assert.ok(result!.indexOf('string | number') !== -1);
+    assert.ok(result!.indexOf('i8*') !== -1);
+    assert.ok(result!.indexOf('double') !== -1);
+  });
+
+  it('should return error for number | boolean | string', () => {
+    const result = checkUnsafeUnionType('number | boolean | string');
+    assert.notStrictEqual(result, null);
+    assert.ok(result!.indexOf('i8*') !== -1);
+  });
+
+  it('should return error for string[] | number[] (different array types)', () => {
+    const result = checkUnsafeUnionType('string[] | number[]');
+    assert.notStrictEqual(result, null);
+    assert.ok(result!.indexOf('%StringArray*') !== -1);
+    assert.ok(result!.indexOf('%Array*') !== -1);
   });
 });
