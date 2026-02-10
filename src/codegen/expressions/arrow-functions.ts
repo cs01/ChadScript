@@ -19,7 +19,7 @@ export interface LiftedFunction extends FunctionNode {
   closureInfo?: ClosureInfo;
 }
 
-export interface EnvStructDef {
+interface EnvStructDef {
   name: string;
   fields: CapturedVariable[];
 }
@@ -159,13 +159,6 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
    */
   getLiftedFunctions(): LiftedFunction[] {
     return this.liftedFunctions;
-  }
-
-  /**
-   * Get all environment struct definitions.
-   */
-  getEnvStructDefs(): EnvStructDef[] {
-    return this.envStructDefs;
   }
 
   /**

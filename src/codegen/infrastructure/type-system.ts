@@ -1,4 +1,4 @@
-export type NumericKind = 'integer' | 'float';
+type NumericKind = 'integer' | 'float';
 
 export function stripOptional(name: string): string {
   if (!name) return '';
@@ -15,7 +15,7 @@ export function stripNullable(t: string): string {
   return str.trim();
 }
 
-export interface TypeQualifiers {
+interface TypeQualifiers {
   isNullable: boolean;
   isOptional: boolean;
   numericKind?: NumericKind;
@@ -111,11 +111,11 @@ function parseGenericParams(paramsStr: string): ResolvedType[] {
   return params;
 }
 
-export function createIntegerType(): ResolvedType {
+function createIntegerType(): ResolvedType {
   return createResolvedType('number', { numericKind: 'integer' });
 }
 
-export function createFloatType(): ResolvedType {
+function createFloatType(): ResolvedType {
   return createResolvedType('number', { numericKind: 'float' });
 }
 

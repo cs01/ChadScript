@@ -18,13 +18,6 @@ export interface SetTypeInfo {
   llvmValueType: string;
 }
 
-export interface TypeResolution {
-  llvmType: string;
-  tsType?: string;
-  isInterface?: boolean;
-  metadata?: ObjectMetadata;
-}
-
 export interface TypeGuardInfo {
   varName: string;
   narrowedMetadata: ObjectMetadata;
