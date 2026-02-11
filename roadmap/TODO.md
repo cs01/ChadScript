@@ -26,6 +26,8 @@ Items marked DONE were completed in the current session. Items are grouped into 
 - [x] process.uptime() — clock_gettime(CLOCK_MONOTONIC)
 - [x] process.getuid(), process.getgid(), process.geteuid(), process.getegid() — id syscalls
 - [x] Async/concurrent fetch — uv_queue_work thread pool, real Promise.all concurrency, proper await with event loop
+- [x] Promise.race() — first-to-settle semantics with ObjectArray parameter handling
+- [x] tty.isatty() — isatty() syscall for terminal detection
 
 ---
 
@@ -45,7 +47,6 @@ Each one unlocks a meaningful category of code or multiple npm packages.
 - [ ] String match() / search() — regex capture groups, unlocks semver and brace-expansion
 - [ ] RegExp exec() with capture groups — needed for semver, many string parsers
 - [ ] String codePointAt() — unicode handling, unlocks string-width
-- [ ] tty.isatty() — `isatty()` syscall, unlocks supports-color, debug
 - [ ] fs.readdirSync(), fs.statSync() — directory listing and file metadata, unlocks glob
 - [ ] Map iteration (for...of) — iterate Map entries, unlocks lru-cache
 - [ ] Set iteration (for...of) — iterate Set values

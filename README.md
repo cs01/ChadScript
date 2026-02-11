@@ -91,6 +91,8 @@ Options:
   -v, --verbose    Show compilation steps
   --debug          Show internal debugging info
   --trace          Show everything (AST, IR, variable tracking)
+  --target <triple> Cross-compile for a different platform (planned)
+                    e.g. x86_64-linux-gnu, aarch64-linux-gnu
 ```
 
 The bare compiler is also available as `chadc`:
@@ -104,7 +106,7 @@ chadc hello.ts -o myapp     # same as chad build hello.ts -o myapp
 
 ChadScript ships with a full standard library — HTTP servers, file I/O, JSON parsing, async timers, regex, and more — all compiled to native code. No npm, no node_modules, no bundler. Write TypeScript, get a single binary with everything built in.
 
-**Core language:** functions, variables (`const`/`let`), arithmetic/logic operators, control flow (`if`/`else`/`while`/`for`/`for...of`), try/catch/throw, ternary expressions, classes with inheritance, enums
+**Core language:** functions, variables (`const`/`let`), arithmetic/logic operators, control flow (`if`/`else`/`while`/`for`/`for...of`), try/catch/throw, ternary expressions, classes with inheritance, enums, destructuring (`const { a, b } = obj`, `const [x, y] = arr`), spread (`[...arr1, ...arr2]`), rest parameters (`...args`)
 
 **Type system:** interfaces compile to native structs, type annotations, generics (`Map<K,V>`, `Set<T>`, `Array<T>`), import/export modules
 
@@ -113,19 +115,21 @@ ChadScript ships with a full standard library — HTTP servers, file I/O, JSON p
 | Module | APIs |
 |--------|------|
 | `console` | `log`, `error` |
-| `process` | `argv`, `exit`, `env` |
+| `process` | `argv`, `exit`, `env`, `platform`, `arch`, `version`, `pid`, `ppid`, `execPath`, `argv0`, `chdir`, `abort`, `kill`, `uptime`, `getuid`, `getgid`, `geteuid`, `getegid`, `stdout.write`, `stderr.write` |
 | `fs` | `readFileSync`, `writeFileSync`, `existsSync`, `unlinkSync` |
 | `path` | `join`, `resolve`, `dirname`, `basename` |
 | `Math` | `floor`, `ceil`, `round`, `abs`, `min`, `max`, `sqrt`, `pow`, `random`, `PI`, `E`, `log`, `log2`, `log10`, `sin`, `cos`, `tan` |
 | `JSON` | `parse<T>`, `stringify` |
-| `String` | `length`, `split`, `indexOf`, `includes`, `slice`, `substr`, `trim`, `padStart`, `repeat`, `concat`, `replace`, `startsWith`, `endsWith`, `charAt` |
-| `Array` | `length`, `push`, `pop`, `shift`, `map`, `filter`, `find`, `forEach`, `some`, `includes`, `slice`, `indexOf`, `join`, `concat`, `splice` |
+| `String` | `length`, `split`, `indexOf`, `includes`, `slice`, `substr`, `trim`, `trimStart`, `trimEnd`, `padStart`, `repeat`, `concat`, `replace`, `replaceAll`, `startsWith`, `endsWith`, `charAt` |
+| `Number` | `isFinite`, `isNaN`, `isInteger`, `toString` |
+| `Array` | `length`, `push`, `pop`, `shift`, `map`, `filter`, `find`, `forEach`, `some`, `includes`, `slice`, `indexOf`, `join`, `concat`, `splice`, `reduce`, `isArray` |
 | `Map` | `set`, `get`, `has`, `delete`, `size`, `keys`, `values` |
 | `Set` | `add`, `has`, `delete`, `size` |
 | `RegExp` | `test` |
-| `Object` | `keys` |
-| Networking | `fetch`, `httpServe` |
-| Async | `async`/`await`, `Promise.all`, `setTimeout`, `setInterval` |
+| `Object` | `keys`, `values`, `entries` |
+| `tty` | `isatty` |
+| Networking | `fetch` (async, libcurl), `httpServe` |
+| Async | `async`/`await`, `Promise.all`, `Promise.race`, `setTimeout`, `setInterval` |
 | Other | `parseInt`, `Date.now`, `child_process.execSync` |
 
 ## Examples
@@ -163,8 +167,9 @@ $ curl http://localhost:3000/json
 **HTTP client** — `fetch` is built in too, backed by libcurl:
 
 ```typescript
-const response = fetch("https://api.github.com/repos/cs01/ChadScript");
-console.log(response);
+const response = await fetch("https://api.github.com/repos/cs01/ChadScript");
+const data = response.json<Repo>();
+console.log(data.name);
 ```
 
 **CLI tool** — read files, parse arguments, process text:
@@ -214,17 +219,20 @@ Node.js APIs map to native equivalents — inlined directly as LLVM IR at the ca
 | `fs.readFileSync()` | `fopen()` + `fread()` |
 | `fs.writeFileSync()` | `fopen()` + `fwrite()` |
 | `JSON.parse()` | cJSON library |
-| `fetch()` | libcurl |
+| `fetch()` | libcurl + libuv thread pool |
 | `Math.floor()` etc. | LLVM intrinsics (`@llvm.floor.f64`) |
 | `process.argv` | C `main(argc, argv)` |
 | `process.exit()` | `exit()` |
+| `process.uptime()` | `clock_gettime(CLOCK_MONOTONIC)` |
+| `tty.isatty()` | `isatty()` |
 | `child_process.execSync()` | `popen()` + `fread()` |
 
 ## Limitations
 
 - **No discriminated unions** - Types map to fixed LLVM representations (`string` → `i8*`, `number` → `double`). `string | null` works (same repr), but `string | number` is rejected at compile time. Tagged unions may come later.
-- **No dynamic features** - No `eval`, destructuring, spread, optional chaining
+- **No dynamic features** - No `eval`, optional chaining, or runtime type manipulation
 - **No reflection** - No `instanceof`, `for...in`, runtime type inspection
+- **No user-defined generics** - Built-in generics (`Map<K,V>`, `Array<T>`, `.json<T>()`) work, but you can't define your own generic functions or classes yet
 
 ## Architecture
 
