@@ -1077,6 +1077,12 @@ export class TypeInference {
     if (e.type === 'regex') {
       return true;
     }
+    if (e.type === 'new') {
+      const newExpr = expr as NewNode;
+      if (newExpr.className === 'RegExp') {
+        return true;
+      }
+    }
     if (e.type === 'variable') {
       return this.ctx.symbolTableIsRegex((expr as VariableNode).name);
     }
@@ -1088,6 +1094,9 @@ export class TypeInference {
     if (e.type === 'new') {
       const newExpr = expr as NewNode;
       if (newExpr.className === 'Promise') {
+        return false;
+      }
+      if (newExpr.className === 'RegExp') {
         return false;
       }
       return true;

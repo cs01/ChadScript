@@ -308,6 +308,12 @@ const testCases: TestCase[] = [
     description: 'Regex test() method should work'
   },
   {
+    name: 'regex-constructor',
+    fixture: 'tests/fixtures/regex/regex-constructor.ts',
+    expectTestPassed: true,
+    description: 'new RegExp() constructor with flags (i, m) and dynamic patterns'
+  },
+  {
     name: 'array-literal',
     fixture: 'tests/fixtures/arrays/array-literal.js',
     expectedExitCode: 3,

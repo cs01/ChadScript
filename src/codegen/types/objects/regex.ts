@@ -85,17 +85,15 @@ export class RegexGenerator {
       `${patternPtr} = getelementptr inbounds [${length} x i8], [${length} x i8]* ${globalName}, i64 0, i64 0`
     );
 
-    // Allocate memory for regex_t struct (approximately 32 bytes should be enough)
-    const regexSize = this.nextTemp();
-    this.emit(`${regexSize} = add i64 0, 32`);
     const regexPtr = this.nextTemp();
-    this.emit(`${regexPtr} = call i8* @GC_malloc(i64 ${regexSize})`);
+    this.emit(`${regexPtr} = call i8* @GC_malloc(i64 64)`);
 
-    // Determine regex flags (for now, we'll use REG_EXTENDED = 1)
-    // REG_EXTENDED = 1, REG_ICASE = 2, REG_NOSUB = 4
-    let cflags = 1; // REG_EXTENDED by default
+    let cflags = 1; // REG_EXTENDED
     if (flags.indexOf('i') !== -1) {
       cflags = cflags | 2; // REG_ICASE
+    }
+    if (flags.indexOf('m') !== -1) {
+      cflags = cflags | 4; // REG_NEWLINE
     }
 
     // Call regcomp(regex_t *preg, const char *pattern, int cflags)
@@ -106,6 +104,18 @@ export class RegexGenerator {
 
     // For simplicity, we're not checking the compile result
     // In production, we should check if regcomp returns 0 (success)
+
+    return regexPtr;
+  }
+
+  generateRegexCompileRuntime(patternPtr: string, cflags: number): string {
+    const regexPtr = this.nextTemp();
+    this.emit(`${regexPtr} = call i8* @GC_malloc(i64 64)`);
+
+    const compileResult = this.nextTemp();
+    this.emit(
+      `${compileResult} = call i32 @regcomp(i8* ${regexPtr}, i8* ${patternPtr}, i32 ${cflags})`
+    );
 
     return regexPtr;
   }

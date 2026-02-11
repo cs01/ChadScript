@@ -1,4 +1,4 @@
-import { Expression, ArrayNode, ObjectNode, MapNode, SetNode } from '../../ast/types.js';
+import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, StringNode } from '../../ast/types.js';
 
 import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
 
@@ -20,6 +20,7 @@ export interface LiteralGeneratorContext {
   setGenGenerateSetLiteral(expr: SetNode, params: string[]): string;
   stringSetGenGenerateEmptyStringSet(): string;
   regexGenGenerateRegexCompile(pattern: string, flags: string): string;
+  regexGenGenerateRegexCompileRuntime(patternPtr: string, cflags: number): string;
   objectGenGenerateObjectLiteral(expr: Expression, params: string[]): string;
 }
 
@@ -152,6 +153,9 @@ export class LiteralExpressionGenerator {
     if (className === 'Promise') {
       return this.generateNewPromise(args, params);
     }
+    if (className === 'RegExp') {
+      return this.generateNewRegExp(args, params);
+    }
     if (className === 'Set') {
       if (typeArgs && typeArgs.length > 0 && typeArgs[0] === 'string') {
         return this.ctx.stringSetGenGenerateEmptyStringSet();
@@ -172,6 +176,33 @@ export class LiteralExpressionGenerator {
     this.ctx.emit(`${promiseResult} = call %Promise* @__Promise_new()`);
     this.ctx.setVariableType(promiseResult, '%Promise*');
     return promiseResult;
+  }
+
+  generateNewRegExp(args: Expression[], params: string[]): string {
+    if (args.length < 1) {
+      throw new Error('new RegExp() requires at least 1 argument');
+    }
+
+    const patternArg = args[0] as { type: string; value?: string };
+    const flagsArg = args.length > 1 ? args[1] as { type: string; value?: string } : null;
+
+    let flags = '';
+    if (flagsArg && flagsArg.type === 'string' && flagsArg.value !== undefined) {
+      flags = flagsArg.value;
+    }
+
+    if (patternArg.type === 'string' && patternArg.value !== undefined) {
+      this.ctx.syncStateToGenerators();
+      return this.ctx.regexGenGenerateRegexCompile(patternArg.value, flags);
+    }
+
+    let cflags = 1; // REG_EXTENDED
+    if (flags.indexOf('i') !== -1) cflags = cflags | 2; // REG_ICASE
+    if (flags.indexOf('m') !== -1) cflags = cflags | 4; // REG_NEWLINE
+
+    this.ctx.syncStateToGenerators();
+    const patternPtr = this.ctx.generateExpression(args[0], params);
+    return this.ctx.regexGenGenerateRegexCompileRuntime(patternPtr, cflags);
   }
 
   /**
