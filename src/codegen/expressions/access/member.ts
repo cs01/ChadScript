@@ -263,7 +263,7 @@ export class MemberAccessGenerator {
     }
 
     if (this.isProcessPlatform(expr)) {
-      return this.ctx.stringGenCreateStringConstant('linux');
+      return this.ctx.stringGenCreateStringConstant(process.platform);
     }
 
     if (this.isProcessEnvAccess(expr)) {

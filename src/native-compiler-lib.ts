@@ -25,6 +25,7 @@ declare const path: {
 declare const process: {
   exit(code: number): void;
   argv: string[];
+  platform: string;
 };
 
 declare function __gc_disable(): void;
@@ -111,10 +112,13 @@ export function compileNative(inputFile: string, outputFile: string): void {
     process.exit(1);
   }
 
+  const isMac = process.platform === 'darwin';
+  const platformLibs = isMac ? '' : ' -ldl -lrt';
+  const noPie = isMac ? '' : ' -no-pie';
   const mongooseObj = MONGOOSE_PATH + '/mongoose.o';
   const treeSitterTs = CHADSCRIPT_PATH + '/build/tree-sitter-typescript-parser.o ' + CHADSCRIPT_PATH + '/build/tree-sitter-typescript-scanner.o';
-  const linkLibs = '-L' + BDWGC_PATH + ' -L./vendor/cJSON/build -L./vendor/libuv/build -l:libgc.a -l:libcjson.a -l:libuv.a -lcurl -lm -lpthread -ldl -lrt -L./vendor/tree-sitter -l:libtree-sitter.a';
-  const linkCmd = 'clang ' + objFile + ' ' + mongooseObj + ' ' + treeSitterTs + ' -o ' + outputFile + ' -no-pie ' + linkLibs;
+  const linkLibs = '-L' + BDWGC_PATH + ' -L./vendor/cJSON/build -L./vendor/libuv/build -lgc -lcjson -luv -lcurl -lm -lpthread' + platformLibs + ' ./vendor/tree-sitter/libtree-sitter.a';
+  const linkCmd = 'clang ' + objFile + ' ' + mongooseObj + ' ' + treeSitterTs + ' -o ' + outputFile + noPie + ' ' + linkLibs;
   if (verbose) { console.log('Running: ' + linkCmd); }
   child_process.execSync(linkCmd);
   if (!fs.existsSync(outputFile)) {

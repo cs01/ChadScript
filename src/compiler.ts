@@ -190,7 +190,8 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const mongooseObj = `${MONGOOSE_PATH}/mongoose.o`;
 
   // Build link command with all libraries
-  let linkLibs = `-L${BDWGC_PATH} -L${CJSON_PATH} -L${LIBUV_PATH} -l:libgc.a -l:libcjson.a -l:libuv.a -lcurl -lm -lpthread -ldl -lrt`;
+  const isMac = process.platform === 'darwin';
+  let linkLibs = `-L${BDWGC_PATH} -L${CJSON_PATH} -L${LIBUV_PATH} -lgc -lcjson -luv -lcurl -lm -lpthread` + (isMac ? '' : ' -ldl -lrt');
   let extraObjs = '';
 
   if (linkTreeSitter) {
@@ -220,14 +221,15 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     }
 
     extraObjs = ` ${tsParserObj} ${tsScannerObj}`;
-    linkLibs += ` -L${TREESITTER_LIB_PATH} -l:libtree-sitter.a`;
+    linkLibs += ` ${TREESITTER_LIB_PATH}/libtree-sitter.a`;
   }
 
   let linker = useClang ? 'clang' : 'gcc';
   if (sanitize) {
     linker = 'gcc';
   }
-  const linkCmd = `${linker} ${objFile} ${mongooseObj}${extraObjs} -o ${outputFile} -no-pie${sanitizeFlags} ${linkLibs}`;
+  const noPie = isMac ? '' : ' -no-pie';
+  const linkCmd = `${linker} ${objFile} ${mongooseObj}${extraObjs} -o ${outputFile}${noPie}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });

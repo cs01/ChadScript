@@ -1,13 +1,12 @@
 function testProcessPlatform(): void {
   const platform = process.platform;
-  if (platform !== "linux") {
-    console.log("Error: expected linux, got:");
-    console.log(platform);
+  if (platform.length === 0) {
+    console.log("Error: platform is empty");
     process.exit(1);
   }
 
-  if (process.platform !== "linux") {
-    console.log("Error: direct access failed");
+  if (process.platform !== platform) {
+    console.log("Error: direct access differs from cached");
     process.exit(1);
   }
 
