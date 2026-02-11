@@ -17,7 +17,28 @@ $ file /tmp/hello
 /tmp/hello: ELF 64-bit LSB executable, x86-64
 ```
 
-ChadScript is self-hosting: the compiler can compile itself to a native binary, which can then compile programs without Node.js at all.
+### Self-Hosting
+
+ChadScript is self-hosting — the compiler is written in TypeScript and can compile itself into a native binary. That native binary can then compile other programs without Node.js installed at all. This means ChadScript is expressive enough to implement a ~45k-line compiler with multi-file imports, LLVM IR generation, and full AST processing.
+
+## Why ChadScript?
+
+ChadScript compared to...
+
+**Node.js / Deno / Bun** — No runtime, no `node_modules`, no cold start penalty. Ship a single binary that starts in under 10ms. Ideal for CLI tools, microservices, and edge deployments where container size and startup time matter.
+
+**Rust / C / C++** — You already know the syntax. No borrow checker, no header files, no makefiles. ChadScript targets developers who want native performance without learning a new language. Write the TypeScript you know, get the binary you need.
+
+**Go** — TypeScript syntax instead of Go's idiosyncratic type system. Classes, generics, interfaces, and async/await work the way you expect. Same single-binary deployment story, familiar language.
+
+ChadScript is not a drop-in replacement for TypeScript - it's a compiled language that uses TypeScript syntax.
+
+## Non-Goals
+
+- **npm compatibility** — ChadScript is not a Node.js replacement. npm packages assume V8 semantics, a specific GC model, and Node APIs.
+- **Full TypeScript compatibility** — ChadScript uses TypeScript syntax but is a different language with different semantics. Features like `any`, `unknown`, conditional types, and mapped types don't have meaningful native representations.
+- **REPL / interpreter mode** — ChadScript compiles to native code.
+
 
 ## Quick Start
 

@@ -7,7 +7,8 @@ export function getLLVMDeclarations(): string {
   ir += '%Map = type { double*, double*, i32, i32 }\n';
   ir += '%StringMap = type { i8**, i8**, i32, i32 }\n';
   ir += '%Set = type { double*, i32, i32 }\n';
-  ir += '%StringSet = type { i8**, i32, i32 }\n\n';
+  ir += '%StringSet = type { i8**, i32, i32 }\n';
+  ir += '%struct.timeval = type { i64, i64 }\n\n';
 
   ir += 'declare i8* @malloc(i64)\n';
   ir += 'declare i8* @calloc(i64, i64)\n';
@@ -100,6 +101,7 @@ export function getLLVMDeclarations(): string {
   ir += '\n';
 
   ir += 'declare i32 @sprintf(i8*, i8*, ...)\n';
+  ir += 'declare i32 @gettimeofday(%struct.timeval*, i8*)\n';
   ir += '\n';
 
   ir += '; libcurl functions\n';

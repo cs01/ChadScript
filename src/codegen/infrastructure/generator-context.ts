@@ -728,6 +728,9 @@ export interface IGeneratorContext {
   jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string;
   jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string;
 
+  dateGenCanHandle(expr: MethodCallNode): boolean;
+  dateGenGenerateNow(): string;
+
   arrowFunctionGenGenerate(
     expr: Expression,
     params: string[],
@@ -1411,6 +1414,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   jsonGenCanHandle(_expr: MethodCallNode): boolean { return false; }
   jsonGenGenerateParse(_expr: MethodCallNode, _params: string[]): string { return '%mock_json_parse'; }
   jsonGenGenerateStringify(_expr: MethodCallNode, _params: string[]): string { return '%mock_json_stringify'; }
+
+  dateGenCanHandle(_expr: MethodCallNode): boolean { return false; }
+  dateGenGenerateNow(): string { return '%mock_date_now'; }
 
   arrowFunctionGenGenerate(
     _expr: Expression,

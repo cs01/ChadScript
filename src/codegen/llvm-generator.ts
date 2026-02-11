@@ -22,6 +22,7 @@ import { ConsoleGenerator } from './stdlib/console.js';
 import { ProcessGenerator } from './stdlib/process.js';
 import { PathGenerator } from './stdlib/path.js';
 import { JsonGenerator } from './stdlib/json.js';
+import { DateGenerator } from './stdlib/date.js';
 import { FilesystemGenerator } from './stdlib/fs.js';
 import { ResponseGenerator } from './stdlib/response.js';
 import { RuntimeGenerator } from './runtime/runtime.js';
@@ -86,6 +87,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public processGen: ProcessGenerator;
   public pathGen: PathGenerator;
   public jsonGen: JsonGenerator;
+  public dateGen: DateGenerator;
   public fsGen: FilesystemGenerator;
   public responseGen: ResponseGenerator;
   private runtimeGen: RuntimeGenerator;
@@ -924,6 +926,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.jsonGen.generateParse(expr, params); }
   public jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.jsonGen.generateStringify(expr, params); }
 
+  public dateGenCanHandle(expr: MethodCallNode): boolean { return this.dateGen.canHandle(expr); }
+  public dateGenGenerateNow(): string { this.syncStateToGenerators(); return this.dateGen.generateNow(); }
+
   public arrowFunctionGenGenerate(expr: Expression, params: string[], typeHints: { paramTypes?: string[]; returnType?: string } | undefined, scopeVarNames: string[] | undefined, scopeVarTypes: string[] | undefined): string {
     this.syncStateToGenerators();
     return this.exprGen.arrowFunctionGen.generateArrowFunction(expr as ArrowFunctionNode, params, typeHints, scopeVarNames, scopeVarTypes);
@@ -1036,6 +1041,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.processGen = new ProcessGenerator(this);
     this.pathGen = new PathGenerator(this);
     this.jsonGen = new JsonGenerator(this);
+    this.dateGen = new DateGenerator(this);
     this.fsGen = new FilesystemGenerator(this);
     this.responseGen = new ResponseGenerator(this);
     this.runtimeGen = new RuntimeGenerator();

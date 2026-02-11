@@ -284,6 +284,8 @@ export interface MethodCallGeneratorContext {
   jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string;
   mathGenCanHandle(expr: MethodCallNode): boolean;
   mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string;
+  dateGenCanHandle(expr: MethodCallNode): boolean;
+  dateGenGenerateNow(): string;
   responseGenGenerateText(responsePtr: string): string;
   responseGenGenerateJson(responsePtr: string): string;
   responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: InterfaceDefInfo): string;
@@ -726,6 +728,11 @@ export class MethodCallGenerator {
     // Handle Math.* methods (delegated to MathGenerator)
     if (this.ctx.mathGenCanHandle(expr)) {
       return this.ctx.mathGenGenerateMathMethod(expr, params);
+    }
+
+    // Handle Date.now()
+    if (this.ctx.dateGenCanHandle(expr)) {
+      return this.ctx.dateGenGenerateNow();
     }
 
     // Handle JSON.stringify() (legacy implementation)
