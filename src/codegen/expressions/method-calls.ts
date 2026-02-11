@@ -518,6 +518,69 @@ export class MethodCallGenerator {
     return result;
   }
 
+  private handleProcessChdir(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length === 0) {
+      throw new Error('process.chdir() requires 1 argument');
+    }
+    const dirValue = this.ctx.generateExpression(expr.args[0], params);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i32 @chdir(i8* ${dirValue})`);
+    return '0';
+  }
+
+  private handleProcessKill(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      throw new Error('process.kill() requires at least 1 argument');
+    }
+    const pidValue = this.ctx.generateExpression(expr.args[0], params);
+    const pidI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${pidI32} = fptosi double ${pidValue} to i32`);
+
+    let sigI32 = '15';
+    if (expr.args.length >= 2) {
+      const sigValue = this.ctx.generateExpression(expr.args[1], params);
+      const sigTemp = this.ctx.nextTemp();
+      this.ctx.emit(`${sigTemp} = fptosi double ${sigValue} to i32`);
+      sigI32 = sigTemp;
+    }
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i32 @kill(i32 ${pidI32}, i32 ${sigI32})`);
+    return '0';
+  }
+
+  private handleProcessUptime(): string {
+    const tsPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${tsPtr} = alloca %struct.timespec`);
+    const callResult = this.ctx.nextTemp();
+    this.ctx.emit(`${callResult} = call i32 @clock_gettime(i32 1, %struct.timespec* ${tsPtr})`);
+    const secPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${secPtr} = getelementptr inbounds %struct.timespec, %struct.timespec* ${tsPtr}, i32 0, i32 0`);
+    const sec = this.ctx.nextTemp();
+    this.ctx.emit(`${sec} = load i64, i64* ${secPtr}`);
+    const nsecPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${nsecPtr} = getelementptr inbounds %struct.timespec, %struct.timespec* ${tsPtr}, i32 0, i32 1`);
+    const nsec = this.ctx.nextTemp();
+    this.ctx.emit(`${nsec} = load i64, i64* ${nsecPtr}`);
+    const secDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${secDouble} = sitofp i64 ${sec} to double`);
+    const nsecDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${nsecDouble} = sitofp i64 ${nsec} to double`);
+    const nsecSec = this.ctx.nextTemp();
+    this.ctx.emit(`${nsecSec} = fdiv double ${nsecDouble}, 1000000000.0`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = fadd double ${secDouble}, ${nsecSec}`);
+    return result;
+  }
+
+  private handleProcessSyscallI32(funcName: string): string {
+    const i32Result = this.ctx.nextTemp();
+    this.ctx.emit(`${i32Result} = call i32 ${funcName}()`);
+    const doubleResult = this.ctx.nextTemp();
+    this.ctx.emit(`${doubleResult} = sitofp i32 ${i32Result} to double`);
+    return doubleResult;
+  }
+
   private isProcessStdoutOrStderr(expr: MethodCallNode): boolean {
     const objBase = expr.object as ExprBase;
     if (objBase.type !== 'member_access') return false;
@@ -772,6 +835,31 @@ export class MethodCallGenerator {
       }
       if (varNode.name === 'process' && expr.method === 'cwd') {
         return this.generateProcessCwdInline(expr, params);
+      }
+      if (varNode.name === 'process' && expr.method === 'chdir') {
+        return this.handleProcessChdir(expr, params);
+      }
+      if (varNode.name === 'process' && expr.method === 'abort') {
+        this.ctx.emit(`call void @abort()`);
+        return '0';
+      }
+      if (varNode.name === 'process' && expr.method === 'kill') {
+        return this.handleProcessKill(expr, params);
+      }
+      if (varNode.name === 'process' && expr.method === 'uptime') {
+        return this.handleProcessUptime();
+      }
+      if (varNode.name === 'process' && expr.method === 'getuid') {
+        return this.handleProcessSyscallI32('@getuid');
+      }
+      if (varNode.name === 'process' && expr.method === 'getgid') {
+        return this.handleProcessSyscallI32('@getgid');
+      }
+      if (varNode.name === 'process' && expr.method === 'geteuid') {
+        return this.handleProcessSyscallI32('@geteuid');
+      }
+      if (varNode.name === 'process' && expr.method === 'getegid') {
+        return this.handleProcessSyscallI32('@getegid');
       }
     }
 

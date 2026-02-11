@@ -631,6 +631,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/builtins/process-properties.ts',
       expectTestPassed: true,
       description: 'process.arch, version, pid, ppid, execPath, argv0'
+    },
+    {
+      name: 'process-methods',
+      fixture: 'tests/fixtures/builtins/process-methods.ts',
+      expectTestPassed: true,
+      description: 'process.getuid, getgid, geteuid, getegid, uptime, chdir, kill'
     }
   ];
 
