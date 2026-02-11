@@ -270,6 +270,9 @@ export class MemberAccessGenerator {
       return this.handleProcessEnvAccess(expr);
     }
 
+    const processSimple = this.handleProcessSimpleProperty(expr);
+    if (processSimple !== null) return processSimple;
+
     const classResult = this.handleClassPropertyAccess(expr, params);
     if (classResult !== null) return classResult;
 
@@ -367,6 +370,45 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${result} = call i8* @getenv(i8* ${nameConst})`);
     this.ctx.setVariableType(result, 'i8*');
     return result;
+  }
+
+  private handleProcessSimpleProperty(expr: MemberAccessNode): string | null {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type !== 'variable') return null;
+    const varNode = expr.object as VariableNode;
+    if (varNode.name !== 'process') return null;
+
+    switch (expr.property) {
+      case 'arch':
+        return this.ctx.stringGenCreateStringConstant('x64');
+      case 'version':
+        return this.ctx.stringGenCreateStringConstant('v1.0.0');
+      case 'pid': {
+        const pidI32 = this.ctx.nextTemp();
+        this.ctx.emit(`${pidI32} = call i32 @getpid()`);
+        const pidDouble = this.ctx.nextTemp();
+        this.ctx.emit(`${pidDouble} = sitofp i32 ${pidI32} to double`);
+        return pidDouble;
+      }
+      case 'ppid': {
+        const ppidI32 = this.ctx.nextTemp();
+        this.ctx.emit(`${ppidI32} = call i32 @getppid()`);
+        const ppidDouble = this.ctx.nextTemp();
+        this.ctx.emit(`${ppidDouble} = sitofp i32 ${ppidI32} to double`);
+        return ppidDouble;
+      }
+      case 'execPath':
+      case 'argv0': {
+        const argvPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${argvPtr} = load i8**, i8*** @__argv`);
+        const firstArg = this.ctx.nextTemp();
+        this.ctx.emit(`${firstArg} = load i8*, i8** ${argvPtr}`);
+        this.ctx.setVariableType(firstArg, 'i8*');
+        return firstArg;
+      }
+      default:
+        return null;
+    }
   }
 
   private handleEnumMemberAccess(expr: MemberAccessNode): string | null {

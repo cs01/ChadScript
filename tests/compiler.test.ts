@@ -625,6 +625,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/builtins/process-env.ts',
       expectTestPassed: true,
       description: 'process.env should read environment variables via getenv()'
+    },
+    {
+      name: 'process-properties',
+      fixture: 'tests/fixtures/builtins/process-properties.ts',
+      expectTestPassed: true,
+      description: 'process.arch, version, pid, ppid, execPath, argv0'
     }
   ];
 
