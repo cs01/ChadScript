@@ -57,9 +57,8 @@ roadmap/
 .llms/rules/*
 !.llms/rules/rules.md
 
-# LLM-generated notes and docs (local only)
+# LLM-generated notes (local only)
 llmnotes/
-docs/
 
 # Accidental/temporary files
 vendor/

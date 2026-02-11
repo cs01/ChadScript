@@ -46,17 +46,17 @@ ChadScript is not a drop-in replacement for TypeScript - it's a compiled languag
 
 Download the latest release from [GitHub Releases](https://github.com/cs01/ChadScript/releases), extract it, and add it to your PATH.
 
-You'll also need LLVM, clang, and libcurl on your system:
+You'll also need LLVM, clang, and a few system libraries:
 
 ```bash
 # Ubuntu/Debian
-sudo apt-get install llvm clang libcurl4-openssl-dev
+sudo apt-get install llvm clang libcurl4-openssl-dev libssl-dev libsqlite3-dev
 
 # RHEL/Fedora
-sudo dnf install llvm clang libcurl-devel
+sudo dnf install llvm clang libcurl-devel openssl-devel sqlite-devel
 
 # macOS
-brew install llvm
+brew install llvm openssl sqlite
 export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 ```
 
@@ -128,9 +128,13 @@ ChadScript ships with a full standard library — HTTP servers, file I/O, JSON p
 | `RegExp` | `test` |
 | `Object` | `keys`, `values`, `entries` |
 | `tty` | `isatty` |
+| `crypto` | `sha256`, `md5`, `sha512`, `randomBytes` |
+| `sqlite` | `open`, `exec`, `get`, `all`, `close` |
 | Networking | `fetch` (async, libcurl), `httpServe` |
 | Async | `async`/`await`, `Promise.all`, `Promise.race`, `setTimeout`, `setInterval` |
 | Other | `parseInt`, `Date.now`, `child_process.execSync` |
+
+For the full API reference with usage examples, see [docs/API.md](docs/API.md).
 
 ## Examples
 
@@ -226,6 +230,8 @@ Node.js APIs map to native equivalents — inlined directly as LLVM IR at the ca
 | `process.uptime()` | `clock_gettime(CLOCK_MONOTONIC)` |
 | `tty.isatty()` | `isatty()` |
 | `child_process.execSync()` | `popen()` + `fread()` |
+| `crypto.sha256()` etc. | OpenSSL EVP API (`libcrypto`) |
+| `sqlite.open()` etc. | `libsqlite3` |
 
 ## Limitations
 
@@ -243,7 +249,7 @@ TypeScript source
     → Semantic analysis
     → LLVM IR generation
     → llc (LLVM IR → object file)
-    → clang (link against libgc, libcurl, libcjson, libuv, mongoose)
+    → clang (link against libgc, libcurl, libcjson, libuv, libcrypto, libsqlite3, mongoose)
     → native binary
 ```
 
