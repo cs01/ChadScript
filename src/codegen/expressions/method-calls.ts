@@ -651,6 +651,15 @@ export class MethodCallGenerator {
       return this.ctx.generateExpression(expr.args[0], params);
     }
 
+    if (this.isVariableWithName(expr.object, 'Array') && method === 'isArray') {
+      if (expr.args.length === 0) {
+        throw new Error('Array.isArray() requires at least 1 argument');
+      }
+      const arg = expr.args[0];
+      const isArray = this.ctx.isArrayExpression(arg) || this.ctx.isStringArrayExpression(arg) || this.ctx.isObjectArrayExpression(arg);
+      return isArray ? '1.0' : '0.0';
+    }
+
     if (this.isVariableWithName(expr.object, 'Object') && method === 'keys') {
       return this.generateObjectKeys(expr, params);
     }

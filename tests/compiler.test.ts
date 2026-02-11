@@ -589,6 +589,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/strings/string-trim-variants.ts',
       expectTestPassed: true,
       description: 'String.trimStart() and trimEnd() should trim whitespace from one side'
+    },
+    {
+      name: 'array-isarray',
+      fixture: 'tests/fixtures/arrays/array-isarray.ts',
+      expectTestPassed: true,
+      description: 'Array.isArray() should return true for arrays and false for non-arrays'
     }
   ];
 
