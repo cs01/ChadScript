@@ -832,6 +832,9 @@ export class MethodCallGenerator {
     if (method === 'replace') {
       return this.handleReplace(expr, params);
     }
+    if (method === 'replaceAll') {
+      return this.handleReplaceAll(expr, params);
+    }
     if (method === 'charAt') {
       return this.handleCharAt(expr, params);
     }
@@ -1577,6 +1580,19 @@ export class MethodCallGenerator {
     const searchStr = this.ctx.generateExpression(searchArg, params);
     const replaceStr = this.ctx.generateExpression(replaceArg, params);
     return this.ctx.stringGenGenerateReplace(strPtr, searchStr, replaceStr);
+  }
+
+  private handleReplaceAll(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+    const strPtr = this.ctx.generateExpression(expr.object, params);
+
+    if (expr.args.length !== 2) {
+      throw new Error(`replaceAll() expects 2 arguments, got ${expr.args.length}`);
+    }
+
+    const searchStr = this.ctx.generateExpression(expr.args[0], params);
+    const replaceStr = this.ctx.generateExpression(expr.args[1], params);
+    return this.ctx.stringGenGenerateReplaceAll(strPtr, searchStr, replaceStr);
   }
 
   private handleCharAt(expr: MethodCallNode, params: string[]): string {

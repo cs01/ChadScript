@@ -577,6 +577,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/functions/rest-params.ts',
       expectTestPassed: true,
       description: 'Rest parameters function(...args) with spread call syntax should work'
+    },
+    {
+      name: 'string-replaceall',
+      fixture: 'tests/fixtures/strings/string-replaceall.ts',
+      expectTestPassed: true,
+      description: 'String.replaceAll() should replace all occurrences of a substring'
     }
   ];
 
