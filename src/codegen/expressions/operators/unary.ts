@@ -14,6 +14,7 @@ interface UnaryExpressionContext {
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   generateExpression(expr: Expression, params: string[]): string;
   stringGenCreateStringConstant(value: string): string;
+  symbolTableIsString(name: string): boolean;
 }
 
 export class UnaryExpressionGenerator {
@@ -192,15 +193,15 @@ export class UnaryExpressionGenerator {
       const varName = (operand as VariableNode).name;
       if (varName === 'undefined') {
         typeString = 'undefined';
-      } else if (operandType === 'i8*' || (operandType && operandType.indexOf('*') !== -1)) {
-        typeString = 'object';
+      } else if (this.ctx.symbolTableIsString(varName)) {
+        typeString = 'string';
       } else if (operandType === 'double') {
         typeString = 'number';
       } else {
         typeString = 'object';
       }
-    } else if (operandType === 'i8*' || (operandType && operandType.indexOf('*') !== -1)) {
-      typeString = 'object';
+    } else if (operandType === 'double') {
+      typeString = 'number';
     } else {
       typeString = 'object';
     }

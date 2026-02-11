@@ -385,6 +385,12 @@ const testCases: TestCase[] = [
     expectTestPassed: true,
     description: 'Object.keys() should return field names of typed objects'
   },
+  {
+    name: 'typeof',
+    fixture: 'tests/fixtures/builtins/typeof.ts',
+    expectTestPassed: true,
+    description: 'typeof operator should return correct type strings'
+  },
     {
       name: 'object-method',
       fixture: 'tests/fixtures/objects/object-method.js',

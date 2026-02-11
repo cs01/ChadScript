@@ -774,6 +774,9 @@ export class TypeInference {
     if (e.type === 'template_literal') {
       return true;
     }
+    if (e.type === 'unary' && (expr as { op: string }).op === 'typeof') {
+      return true;
+    }
     if (e.type === 'type_assertion') {
       const assertion = expr as TypeAssertionNode;
       if (assertion.assertedType === 'string') {
