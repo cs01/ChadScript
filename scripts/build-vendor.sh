@@ -11,9 +11,8 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
   echo "==> Building bdwgc..."
   cd "$VENDOR_DIR"
   if [ ! -d bdwgc ]; then
-    git clone --depth 1 https://github.com/nicknisi/bdwgc.git
+    git clone --depth 1 https://github.com/ivmai/bdwgc.git
     cd bdwgc
-    git clone --depth 1 https://github.com/nicknisi/libatomic_ops.git
   else
     cd bdwgc
   fi
@@ -30,7 +29,7 @@ if [ ! -f "$VENDOR_DIR/mongoose/mongoose.o" ]; then
   echo "==> Building mongoose..."
   cd "$VENDOR_DIR"
   if [ ! -d mongoose ]; then
-    git clone --depth 1 https://github.com/nicknisi/mongoose.git
+    git clone --depth 1 https://github.com/cesanta/mongoose.git
   fi
   cd mongoose
   cc -c -O2 -DMG_ENABLE_IPV6=0 mongoose.c -o mongoose.o

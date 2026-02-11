@@ -65,7 +65,7 @@ export CHADSCRIPT_TREESITTER_PATH=/path/to/tree-sitter
 ChadScript can compile its own compiler to a native binary:
 
 ```bash
-chadc --link-tree-sitter --skip-semantic-analysis src/native-compiler.ts -o /tmp/chad-stage0
+chadc --link-tree-sitter src/native-compiler.ts -o /tmp/chad-stage0
 
 /tmp/chad-stage0 src/native-compiler.ts -o /tmp/chad-stage1
 ```
