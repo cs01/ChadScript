@@ -266,7 +266,12 @@ function transformPostfixUnaryExpression(node: ts.PostfixUnaryExpression, checke
 }
 
 function transformCallExpression(node: ts.CallExpression, checker: ts.TypeChecker | undefined): CallNode | MethodCallNode {
-  const args = node.arguments.map(arg => transformExpression(arg, checker));
+  const args = node.arguments.map(arg => {
+    if (ts.isSpreadElement(arg)) {
+      return transformExpression(arg.expression, checker);
+    }
+    return transformExpression(arg, checker);
+  });
 
   let typeParameter: string | undefined;
   if (node.typeArguments && node.typeArguments.length > 0) {

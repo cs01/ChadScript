@@ -34,8 +34,12 @@ export function transformFunctionDeclaration(
 
   const parameters: FunctionParameter[] = node.parameters.map(p => {
     const paramName = ts.isIdentifier(p.name) ? p.name.text : '';
-    const paramType = p.type ? extractTypeString(p.type) : undefined;
+    let paramType = p.type ? extractTypeString(p.type) : undefined;
     const optional = !!p.questionToken;
+    const isRest = !!p.dotDotDotToken;
+    if (isRest && paramType && !paramType.endsWith('[]')) {
+      paramType = paramType + '[]';
+    }
     let defaultValue = undefined;
     if (p.initializer) {
       defaultValue = transformExpression(p.initializer, checker);

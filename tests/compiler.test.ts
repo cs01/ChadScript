@@ -571,6 +571,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/arrays/array-spread.ts',
       expectTestPassed: true,
       description: 'Spread operator in array literals [...arr, x] should work'
+    },
+    {
+      name: 'rest-params',
+      fixture: 'tests/fixtures/functions/rest-params.ts',
+      expectTestPassed: true,
+      description: 'Rest parameters function(...args) with spread call syntax should work'
     }
   ];
 
