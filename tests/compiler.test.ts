@@ -619,6 +619,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/builtins/object-values-entries.ts',
       expectTestPassed: true,
       description: 'Object.values() and Object.entries() should return object field values'
+    },
+    {
+      name: 'process-env',
+      fixture: 'tests/fixtures/builtins/process-env.ts',
+      expectTestPassed: true,
+      description: 'process.env should read environment variables via getenv()'
     }
   ];
 

@@ -266,6 +266,10 @@ export class MemberAccessGenerator {
       return this.ctx.stringGenCreateStringConstant('linux');
     }
 
+    if (this.isProcessEnvAccess(expr)) {
+      return this.handleProcessEnvAccess(expr);
+    }
+
     const classResult = this.handleClassPropertyAccess(expr, params);
     if (classResult !== null) return classResult;
 
@@ -344,6 +348,25 @@ export class MemberAccessGenerator {
     return exprObjBase.type === 'variable' &&
            (expr.object as VariableNode).name === 'process' &&
            expr.property === 'platform';
+  }
+
+  private isProcessEnvAccess(expr: MemberAccessNode): boolean {
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type !== 'member_access') return false;
+    const innerMember = expr.object as MemberAccessNode;
+    const innerObjBase = innerMember.object as ExprBase;
+    return innerObjBase.type === 'variable' &&
+           (innerMember.object as VariableNode).name === 'process' &&
+           innerMember.property === 'env';
+  }
+
+  private handleProcessEnvAccess(expr: MemberAccessNode): string {
+    const envVarName = expr.property;
+    const nameConst = this.ctx.stringGenCreateStringConstant(envVarName);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @getenv(i8* ${nameConst})`);
+    this.ctx.setVariableType(result, 'i8*');
+    return result;
   }
 
   private handleEnumMemberAccess(expr: MemberAccessNode): string | null {

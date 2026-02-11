@@ -837,6 +837,9 @@ export class TypeInference {
         if (varName === 'process' && memberExpr.property === 'platform') {
           return true;
         }
+        if (varName === 'process' && (memberExpr.property === 'arch' || memberExpr.property === 'version' || memberExpr.property === 'execPath' || memberExpr.property === 'argv0')) {
+          return true;
+        }
         const propType = this.ctx.symbolTableGetObjectPropertyType(varName, memberExpr.property);
         if (propType === 'i8*') {
           return true;
@@ -886,6 +889,13 @@ export class TypeInference {
         }
       }
       if (objBase.type === 'member_access') {
+        const nestedMemberEnv = memberExpr.object as MemberAccessNode;
+        const nestedObjBaseEnv = nestedMemberEnv.object as ExprBase;
+        if (nestedObjBaseEnv.type === 'variable' &&
+            (nestedMemberEnv.object as VariableNode).name === 'process' &&
+            nestedMemberEnv.property === 'env') {
+          return true;
+        }
         const nestedMemberTsType = this.resolveNestedMemberAccessTsType(memberExpr.object as MemberAccessNode);
         if (nestedMemberTsType) {
           const fieldProp = this.getInterfaceProperty(nestedMemberTsType, memberExpr.property);

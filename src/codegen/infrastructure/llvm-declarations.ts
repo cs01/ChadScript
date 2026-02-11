@@ -97,6 +97,22 @@ export function getLLVMDeclarations(): string {
   ir += 'declare i8* @basename(i8*)\n';
   ir += '\n';
 
+  ir += '; Process-related syscalls\n';
+  ir += 'declare i8* @getenv(i8*)\n';
+  ir += 'declare i8* @getcwd(i8*, i64)\n';
+  ir += 'declare i32 @getpid()\n';
+  ir += 'declare i32 @getppid()\n';
+  ir += 'declare i32 @getuid()\n';
+  ir += 'declare i32 @getgid()\n';
+  ir += 'declare i32 @geteuid()\n';
+  ir += 'declare i32 @getegid()\n';
+  ir += 'declare i32 @chdir(i8*)\n';
+  ir += 'declare void @abort()\n';
+  ir += 'declare i32 @kill(i32, i32)\n';
+  ir += '%struct.timespec = type { i64, i64 }\n';
+  ir += 'declare i32 @clock_gettime(i32, %struct.timespec*)\n';
+  ir += '\n';
+
   ir += 'declare i32 @system(i8*)\n';
   ir += 'declare i8* @popen(i8*, i8*)\n';
   ir += 'declare i32 @pclose(i8*)\n';
