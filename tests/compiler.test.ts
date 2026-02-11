@@ -583,6 +583,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/strings/string-replaceall.ts',
       expectTestPassed: true,
       description: 'String.replaceAll() should replace all occurrences of a substring'
+    },
+    {
+      name: 'string-trim-variants',
+      fixture: 'tests/fixtures/strings/string-trim-variants.ts',
+      expectTestPassed: true,
+      description: 'String.trimStart() and trimEnd() should trim whitespace from one side'
     }
   ];
 

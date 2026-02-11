@@ -436,6 +436,218 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   return result;
 }
 
+export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): string {
+  const strLen = ctx.nextTemp();
+  ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+  const strLenI32 = ctx.nextTemp();
+  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+
+  const isEmpty = ctx.nextTemp();
+  ctx.emit(`${isEmpty} = icmp eq i32 ${strLenI32}, 0`);
+
+  const emptyLabel = ctx.nextLabel('trimstart_empty');
+  const notEmptyLabel = ctx.nextLabel('trimstart_notempty');
+  const endLabel = ctx.nextLabel('trimstart_end');
+
+  ctx.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
+
+  ctx.emit(`${emptyLabel}:`);
+  const emptyResult = ctx.nextTemp();
+  ctx.emit(`${emptyResult} = call i8* @GC_malloc_atomic(i64 1)`);
+  ctx.emit(`store i8 0, i8* ${emptyResult}`);
+  ctx.emit(`br label %${endLabel}`);
+
+  ctx.emit(`${notEmptyLabel}:`);
+
+  const startPtr = ctx.nextTemp();
+  ctx.emit(`${startPtr} = alloca i32`);
+  ctx.emit(`store i32 0, i32* ${startPtr}`);
+
+  const findStartLabel = ctx.nextLabel('trimstart_find');
+  const findStartBodyLabel = ctx.nextLabel('trimstart_find_body');
+  const findStartCheckLabel = ctx.nextLabel('trimstart_find_check');
+  const findStartEndLabel = ctx.nextLabel('trimstart_find_end');
+
+  ctx.emit(`br label %${findStartLabel}`);
+
+  ctx.emit(`${findStartLabel}:`);
+  const start = ctx.nextTemp();
+  ctx.emit(`${start} = load i32, i32* ${startPtr}`);
+  const startCond = ctx.nextTemp();
+  ctx.emit(`${startCond} = icmp slt i32 ${start}, ${strLenI32}`);
+  ctx.emit(`br i1 ${startCond}, label %${findStartBodyLabel}, label %${findStartEndLabel}`);
+
+  ctx.emit(`${findStartBodyLabel}:`);
+  const startI64 = ctx.nextTemp();
+  ctx.emit(`${startI64} = sext i32 ${start} to i64`);
+  const charPtr = ctx.nextTemp();
+  ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${startI64}`);
+  const ch = ctx.nextTemp();
+  ctx.emit(`${ch} = load i8, i8* ${charPtr}`);
+
+  const isSpace = ctx.nextTemp();
+  ctx.emit(`${isSpace} = icmp eq i8 ${ch}, 32`);
+  const isTab = ctx.nextTemp();
+  ctx.emit(`${isTab} = icmp eq i8 ${ch}, 9`);
+  const isNewline = ctx.nextTemp();
+  ctx.emit(`${isNewline} = icmp eq i8 ${ch}, 10`);
+  const isCR = ctx.nextTemp();
+  ctx.emit(`${isCR} = icmp eq i8 ${ch}, 13`);
+
+  const isWS1 = ctx.nextTemp();
+  ctx.emit(`${isWS1} = or i1 ${isSpace}, ${isTab}`);
+  const isWS2 = ctx.nextTemp();
+  ctx.emit(`${isWS2} = or i1 ${isWS1}, ${isNewline}`);
+  const isWhitespace = ctx.nextTemp();
+  ctx.emit(`${isWhitespace} = or i1 ${isWS2}, ${isCR}`);
+
+  ctx.emit(`br i1 ${isWhitespace}, label %${findStartCheckLabel}, label %${findStartEndLabel}`);
+
+  ctx.emit(`${findStartCheckLabel}:`);
+  const nextStart = ctx.nextTemp();
+  ctx.emit(`${nextStart} = add i32 ${start}, 1`);
+  ctx.emit(`store i32 ${nextStart}, i32* ${startPtr}`);
+  ctx.emit(`br label %${findStartLabel}`);
+
+  ctx.emit(`${findStartEndLabel}:`);
+  const finalStart = ctx.nextTemp();
+  ctx.emit(`${finalStart} = load i32, i32* ${startPtr}`);
+
+  const allWhitespace = ctx.nextTemp();
+  ctx.emit(`${allWhitespace} = icmp eq i32 ${finalStart}, ${strLenI32}`);
+
+  const allWSLabel = ctx.nextLabel('trimstart_all_ws');
+  const substrLabel = ctx.nextLabel('trimstart_substr');
+
+  ctx.emit(`br i1 ${allWhitespace}, label %${allWSLabel}, label %${substrLabel}`);
+
+  ctx.emit(`${allWSLabel}:`);
+  const allWSResult = ctx.nextTemp();
+  ctx.emit(`${allWSResult} = call i8* @GC_malloc_atomic(i64 1)`);
+  ctx.emit(`store i8 0, i8* ${allWSResult}`);
+  ctx.emit(`br label %${endLabel}`);
+
+  ctx.emit(`${substrLabel}:`);
+  const remainLen = ctx.nextTemp();
+  ctx.emit(`${remainLen} = sub i32 ${strLenI32}, ${finalStart}`);
+  const trimmedResult = generateSubstr(ctx, strPtr, finalStart, remainLen);
+  ctx.emit(`br label %${endLabel}`);
+
+  ctx.emit(`${endLabel}:`);
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = phi i8* [ ${emptyResult}, %${emptyLabel} ], [ ${allWSResult}, %${allWSLabel} ], [ ${trimmedResult}, %${substrLabel} ]`);
+  ctx.setVariableType(result, 'i8*');
+
+  return result;
+}
+
+export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string {
+  const strLen = ctx.nextTemp();
+  ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+  const strLenI32 = ctx.nextTemp();
+  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+
+  const isEmpty = ctx.nextTemp();
+  ctx.emit(`${isEmpty} = icmp eq i32 ${strLenI32}, 0`);
+
+  const emptyLabel = ctx.nextLabel('trimend_empty');
+  const notEmptyLabel = ctx.nextLabel('trimend_notempty');
+  const endLabel = ctx.nextLabel('trimend_end');
+
+  ctx.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
+
+  ctx.emit(`${emptyLabel}:`);
+  const emptyResult = ctx.nextTemp();
+  ctx.emit(`${emptyResult} = call i8* @GC_malloc_atomic(i64 1)`);
+  ctx.emit(`store i8 0, i8* ${emptyResult}`);
+  ctx.emit(`br label %${endLabel}`);
+
+  ctx.emit(`${notEmptyLabel}:`);
+
+  const endPtr = ctx.nextTemp();
+  ctx.emit(`${endPtr} = alloca i32`);
+  const initEnd = ctx.nextTemp();
+  ctx.emit(`${initEnd} = sub i32 ${strLenI32}, 1`);
+  ctx.emit(`store i32 ${initEnd}, i32* ${endPtr}`);
+
+  const findEndLabel = ctx.nextLabel('trimend_find');
+  const findEndBodyLabel = ctx.nextLabel('trimend_find_body');
+  const findEndCheckLabel = ctx.nextLabel('trimend_find_check');
+  const findEndEndLabel = ctx.nextLabel('trimend_find_end');
+
+  ctx.emit(`br label %${findEndLabel}`);
+
+  ctx.emit(`${findEndLabel}:`);
+  const end = ctx.nextTemp();
+  ctx.emit(`${end} = load i32, i32* ${endPtr}`);
+  const endCond = ctx.nextTemp();
+  ctx.emit(`${endCond} = icmp sge i32 ${end}, 0`);
+  ctx.emit(`br i1 ${endCond}, label %${findEndBodyLabel}, label %${findEndEndLabel}`);
+
+  ctx.emit(`${findEndBodyLabel}:`);
+  const endI64 = ctx.nextTemp();
+  ctx.emit(`${endI64} = sext i32 ${end} to i64`);
+  const charPtr = ctx.nextTemp();
+  ctx.emit(`${charPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${endI64}`);
+  const ch = ctx.nextTemp();
+  ctx.emit(`${ch} = load i8, i8* ${charPtr}`);
+
+  const isSpace = ctx.nextTemp();
+  ctx.emit(`${isSpace} = icmp eq i8 ${ch}, 32`);
+  const isTab = ctx.nextTemp();
+  ctx.emit(`${isTab} = icmp eq i8 ${ch}, 9`);
+  const isNewline = ctx.nextTemp();
+  ctx.emit(`${isNewline} = icmp eq i8 ${ch}, 10`);
+  const isCR = ctx.nextTemp();
+  ctx.emit(`${isCR} = icmp eq i8 ${ch}, 13`);
+
+  const isWS1 = ctx.nextTemp();
+  ctx.emit(`${isWS1} = or i1 ${isSpace}, ${isTab}`);
+  const isWS2 = ctx.nextTemp();
+  ctx.emit(`${isWS2} = or i1 ${isWS1}, ${isNewline}`);
+  const isWhitespace = ctx.nextTemp();
+  ctx.emit(`${isWhitespace} = or i1 ${isWS2}, ${isCR}`);
+
+  ctx.emit(`br i1 ${isWhitespace}, label %${findEndCheckLabel}, label %${findEndEndLabel}`);
+
+  ctx.emit(`${findEndCheckLabel}:`);
+  const nextEnd = ctx.nextTemp();
+  ctx.emit(`${nextEnd} = sub i32 ${end}, 1`);
+  ctx.emit(`store i32 ${nextEnd}, i32* ${endPtr}`);
+  ctx.emit(`br label %${findEndLabel}`);
+
+  ctx.emit(`${findEndEndLabel}:`);
+  const finalEnd = ctx.nextTemp();
+  ctx.emit(`${finalEnd} = load i32, i32* ${endPtr}`);
+
+  const allWhitespace = ctx.nextTemp();
+  ctx.emit(`${allWhitespace} = icmp slt i32 ${finalEnd}, 0`);
+
+  const allWSLabel = ctx.nextLabel('trimend_all_ws');
+  const substrLabel = ctx.nextLabel('trimend_substr');
+
+  ctx.emit(`br i1 ${allWhitespace}, label %${allWSLabel}, label %${substrLabel}`);
+
+  ctx.emit(`${allWSLabel}:`);
+  const allWSResult = ctx.nextTemp();
+  ctx.emit(`${allWSResult} = call i8* @GC_malloc_atomic(i64 1)`);
+  ctx.emit(`store i8 0, i8* ${allWSResult}`);
+  ctx.emit(`br label %${endLabel}`);
+
+  ctx.emit(`${substrLabel}:`);
+  const trimmedLen = ctx.nextTemp();
+  ctx.emit(`${trimmedLen} = add i32 ${finalEnd}, 1`);
+  const trimmedResult = generateSubstr(ctx, strPtr, '0', trimmedLen);
+  ctx.emit(`br label %${endLabel}`);
+
+  ctx.emit(`${endLabel}:`);
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = phi i8* [ ${emptyResult}, %${emptyLabel} ], [ ${allWSResult}, %${allWSLabel} ], [ ${trimmedResult}, %${substrLabel} ]`);
+  ctx.setVariableType(result, 'i8*');
+
+  return result;
+}
+
 export function generateReplace(ctx: IGeneratorContext, strPtr: string, searchPtr: string, replacePtr: string): string {
   const foundPtr = ctx.nextTemp();
   ctx.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${searchPtr})`);

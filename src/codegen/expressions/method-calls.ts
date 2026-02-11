@@ -261,6 +261,8 @@ export interface MethodCallGeneratorContext {
   stringGenGenerateStartsWith(strPtr: string, prefix: string): string;
   stringGenGenerateEndsWith(strPtr: string, suffix: string): string;
   stringGenGenerateTrim(strPtr: string): string;
+  stringGenGenerateTrimStart(strPtr: string): string;
+  stringGenGenerateTrimEnd(strPtr: string): string;
   stringGenGenerateToUpperCase(strPtr: string): string;
   stringGenGenerateToLowerCase(strPtr: string): string;
   stringGenGenerateIndexOf(strPtr: string, substring: string): string;
@@ -812,6 +814,12 @@ export class MethodCallGenerator {
     if (method === 'trim') {
       return this.handleTrim(expr, params);
     }
+    if (method === 'trimStart') {
+      return this.handleTrimStart(expr, params);
+    }
+    if (method === 'trimEnd') {
+      return this.handleTrimEnd(expr, params);
+    }
     if (method === 'indexOf') {
       if (this.ctx.isStringArrayExpression(expr.object)) {
         return this.handleStringArrayIndexOf(expr, params);
@@ -1346,6 +1354,28 @@ export class MethodCallGenerator {
     }
 
     return this.ctx.stringGenGenerateTrim(strPtr);
+  }
+
+  private handleTrimStart(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+    const strPtr = this.ctx.generateExpression(expr.object, params);
+
+    if (expr.args.length !== 0) {
+      throw new Error(`trimStart() expects 0 arguments, got ${expr.args.length}`);
+    }
+
+    return this.ctx.stringGenGenerateTrimStart(strPtr);
+  }
+
+  private handleTrimEnd(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+    const strPtr = this.ctx.generateExpression(expr.object, params);
+
+    if (expr.args.length !== 0) {
+      throw new Error(`trimEnd() expects 0 arguments, got ${expr.args.length}`);
+    }
+
+    return this.ctx.stringGenGenerateTrimEnd(strPtr);
   }
 
   private handleIndexOf(expr: MethodCallNode, params: string[]): string {

@@ -805,6 +805,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public stringGenGenerateStartsWith(strPtr: string, prefix: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateStartsWith(strPtr, prefix); }
   public stringGenGenerateEndsWith(strPtr: string, suffix: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateEndsWith(strPtr, suffix); }
   public stringGenGenerateTrim(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateTrim(strPtr); }
+  public stringGenGenerateTrimStart(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateTrimStart(strPtr); }
+  public stringGenGenerateTrimEnd(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateTrimEnd(strPtr); }
   public stringGenGenerateToUpperCase(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateToUpperCase(strPtr); }
   public stringGenGenerateToLowerCase(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateToLowerCase(strPtr); }
   public stringGenGenerateIndexOf(strPtr: string, substring: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateIndexOf(strPtr, substring); }

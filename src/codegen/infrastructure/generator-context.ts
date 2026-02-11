@@ -577,6 +577,8 @@ export interface IGeneratorContext {
   stringGenGenerateStartsWith(strPtr: string, prefix: string): string;
   stringGenGenerateEndsWith(strPtr: string, suffix: string): string;
   stringGenGenerateTrim(strPtr: string): string;
+  stringGenGenerateTrimStart(strPtr: string): string;
+  stringGenGenerateTrimEnd(strPtr: string): string;
   stringGenGenerateToUpperCase(strPtr: string): string;
   stringGenGenerateToLowerCase(strPtr: string): string;
   stringGenGenerateIndexOf(strPtr: string, substring: string): string;
@@ -1273,6 +1275,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   stringGenGenerateStartsWith(_strPtr: string, _prefix: string): string { return '%0'; }
   stringGenGenerateEndsWith(_strPtr: string, _suffix: string): string { return '%0'; }
   stringGenGenerateTrim(_strPtr: string): string { return '%0'; }
+  stringGenGenerateTrimStart(_strPtr: string): string { return '%0'; }
+  stringGenGenerateTrimEnd(_strPtr: string): string { return '%0'; }
   stringGenGenerateToUpperCase(_strPtr: string): string { return '%0'; }
   stringGenGenerateToLowerCase(_strPtr: string): string { return '%0'; }
   stringGenGenerateIndexOf(_strPtr: string, _substring: string): string { return '%0'; }

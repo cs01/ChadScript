@@ -15,6 +15,8 @@ import {
   generateRepeat,
   generatePadStart,
   generateTrim,
+  generateTrimStart,
+  generateTrimEnd,
   generateReplace,
   generateReplaceAll,
   generateToUpperCase,
@@ -83,6 +85,14 @@ export class StringGenerator implements IStringGenerator {
 
   doGenerateTrim(strPtr: string): string {
     return generateTrim(this.ctx, strPtr);
+  }
+
+  doGenerateTrimStart(strPtr: string): string {
+    return generateTrimStart(this.ctx, strPtr);
+  }
+
+  doGenerateTrimEnd(strPtr: string): string {
+    return generateTrimEnd(this.ctx, strPtr);
   }
 
   doGenerateToUpperCase(strPtr: string): string {
