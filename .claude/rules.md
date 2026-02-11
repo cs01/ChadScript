@@ -1,3 +1,30 @@
+# ChadScript Rules
+
+## Testing & Commit Workflow
+
+After completing each todo:
+1. Run unit tests
+2. If tests pass, commit the changes
+3. If tests fail, fix them before moving to the next todo
+4. Never move on to the next todo while tests are failing
+
+## Stage 0 Compatibility - STOP Adding Wrapper Methods
+
+The wrapper method pattern for Stage 0 compatibility is NOT scalable. Do NOT add more wrapper methods like:
+- `ctx.fooGenMethod()` instead of `ctx.fooGen.method()`
+- `symbolTableIsX()` instead of `symbolTable.isX()`
+- `typeResolverGetX()` instead of `typeResolver.getX()`
+
+The generator-context.ts file already has ~195 wrapper methods. This O(n*m) pattern makes the codebase unmaintainable.
+
+**What to do instead:**
+1. If Stage 0 crashes on chained access, investigate the root cause in member.ts/method-calls.ts
+2. Fix the type tracking for intermediate pointer values
+3. Store concrete type information alongside i8* pointers
+4. See LEARNINGS.md section "Interface Method Dispatch Struct Layout Mismatch"
+
+**Root cause**: Stage 0 loses type information when accessing a field that returns an interface pointer (i8*). The proper fix is to track the concrete type, not to flatten all method calls.
+
 # ChadScript Architecture Guide
 
 ## What It Is

@@ -30,7 +30,8 @@ Thumbs.db
 *.swp
 *.swo
 *~
-.claude/
+.claude/*
+!.claude/rules.md
 
 # Logs and process output
 *.log
@@ -50,8 +51,11 @@ todo.md
 # Roadmap (local only)
 roadmap/
 
-# LLM rules (local only)
-.llms/
+# LLM rules
+.llms/*
+!.llms/rules/
+.llms/rules/*
+!.llms/rules/rules.md
 
 # LLM-generated notes and docs (local only)
 llmnotes/
