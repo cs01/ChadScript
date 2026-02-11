@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration, InterfaceField, BinaryNode, TypeAssertionNode } from '../../ast/types.js';
+import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration, InterfaceField, BinaryNode, TypeAssertionNode, UnaryNode } from '../../ast/types.js';
 import { SymbolTable, SymbolKind } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { ClassGenerator } from '../types/objects/class.js';
@@ -780,7 +780,7 @@ export class TypeInference {
     if (e.type === 'template_literal') {
       return true;
     }
-    if (e.type === 'unary' && (expr as { op: string }).op === 'typeof') {
+    if (e.type === 'unary' && (expr as UnaryNode).op === 'typeof') {
       return true;
     }
     if (e.type === 'type_assertion') {

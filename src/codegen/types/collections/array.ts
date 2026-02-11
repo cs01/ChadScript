@@ -310,10 +310,13 @@ export class ArrayGenerator {
     this.emit(`${offsetPtr} = alloca i32`);
     this.emit(`store i32 0, i32* ${offsetPtr}`);
 
+    let spreadIdx = 0;
+    let litIdx = 0;
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
       if (el.type === 'spread_element') {
-        const src = spreadSources.find(s => s.index === i)!;
+        const src = spreadSources[spreadIdx];
+        spreadIdx++;
         const srcMeta = this.loadArrayMeta(src.ptr);
 
         const checkLabel = this.nextLabel('spread_check');
@@ -354,7 +357,8 @@ export class ArrayGenerator {
 
         this.emit(`${endLabel}:`);
       } else {
-        const lit = literalValues.find(l => l.index === i)!;
+        const lit = literalValues[litIdx];
+        litIdx++;
         const curOffset = this.nextTemp();
         this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
         const elemPtr = this.nextTemp();
@@ -431,10 +435,13 @@ export class ArrayGenerator {
     this.emit(`${offsetPtr} = alloca i32`);
     this.emit(`store i32 0, i32* ${offsetPtr}`);
 
+    let spreadIdx = 0;
+    let litIdx = 0;
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
       if (el.type === 'spread_element') {
-        const src = spreadSources.find(s => s.index === i)!;
+        const src = spreadSources[spreadIdx];
+        spreadIdx++;
         const srcLenPtr = this.nextTemp();
         this.emit(`${srcLenPtr} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 1`);
         const srcLen = this.nextTemp();
@@ -482,7 +489,8 @@ export class ArrayGenerator {
 
         this.emit(`${endLabel}:`);
       } else {
-        const lit = literalValues.find(l => l.index === i)!;
+        const lit = literalValues[litIdx];
+        litIdx++;
         const curOffset = this.nextTemp();
         this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
         const elemPtr = this.nextTemp();

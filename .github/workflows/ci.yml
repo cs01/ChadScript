@@ -75,10 +75,10 @@ jobs:
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
 
       - name: Build native chadc
-        run: node dist/index.js --link-tree-sitter --skip-semantic-analysis src/native-compiler.ts -o .build/chadc
+        run: node dist/index.js --link-tree-sitter src/native-compiler.ts -o .build/chadc
 
       - name: Build native chad
-        run: node dist/index.js --link-tree-sitter --skip-semantic-analysis src/chad-native.ts -o .build/chad
+        run: node dist/index.js --link-tree-sitter src/chad-native.ts -o .build/chad
 
       - name: Smoke test native chadc
         run: |
