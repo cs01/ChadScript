@@ -175,7 +175,12 @@ export interface TypeAssertionNode {
   assertedType: string;
 }
 
-export type Expression = NumberNode | StringNode | BooleanNode | NullNode | UndefinedNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode | AwaitExpressionNode | MemberAccessAssignmentNode | IndexAccessAssignmentNode | TypeAssertionNode;
+export interface SpreadElementNode {
+  type: 'spread_element';
+  argument: Expression;
+}
+
+export type Expression = NumberNode | StringNode | BooleanNode | NullNode | UndefinedNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode | AwaitExpressionNode | MemberAccessAssignmentNode | IndexAccessAssignmentNode | TypeAssertionNode | SpreadElementNode;
 
 export interface VariableDeclaration {
   type: 'variable_declaration';

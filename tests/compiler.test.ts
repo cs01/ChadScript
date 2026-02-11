@@ -565,6 +565,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/arrays/array-reduce.ts',
       expectTestPassed: true,
       description: 'Array.reduce() with named function, arrow function, and no initial value'
+    },
+    {
+      name: 'array-spread',
+      fixture: 'tests/fixtures/arrays/array-spread.ts',
+      expectTestPassed: true,
+      description: 'Spread operator in array literals [...arr, x] should work'
     }
   ];
 

@@ -23,6 +23,7 @@ import {
   SetNode,
   BlockStatement,
   TypeAssertionNode,
+  SpreadElementNode,
 } from '../../ast/types.js';
 import { transformStatement, extractTypeString } from './statements.js';
 
@@ -333,7 +334,13 @@ function transformElementAccessExpression(node: ts.ElementAccessExpression, chec
 }
 
 function transformArrayLiteral(node: ts.ArrayLiteralExpression, checker: ts.TypeChecker | undefined): ArrayNode {
-  const elements = node.elements.map(elem => transformExpression(elem, checker));
+  const elements = node.elements.map(elem => {
+    if (ts.isSpreadElement(elem)) {
+      const argument = transformExpression(elem.expression, checker);
+      return { type: 'spread_element', argument } as SpreadElementNode;
+    }
+    return transformExpression(elem, checker);
+  });
   return { type: 'array', elements };
 }
 

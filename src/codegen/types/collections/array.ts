@@ -35,6 +35,19 @@ export class ArrayGenerator {
     }
 
     const arrExpr = expr as ArrayExpr;
+
+    let hasSpread = false;
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const el = arrExpr.elements[i] as ExprBase;
+      if (el.type === 'spread_element') {
+        hasSpread = true;
+        break;
+      }
+    }
+    if (hasSpread) {
+      return this.generateArrayLiteralWithSpread(arrExpr, params);
+    }
+
     const length = arrExpr.elements.length;
 
     let isStringArray = false;
@@ -225,6 +238,276 @@ export class ArrayGenerator {
       this.ctx.setVariableType(arrayPtr, '%Array*');
       return arrayPtr;
     }
+  }
+
+  private generateArrayLiteralWithSpread(arrExpr: ArrayExpr, params: string[]): string {
+    let isStringArray = false;
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const el = arrExpr.elements[i] as ExprBase;
+      if (el.type === 'string') {
+        isStringArray = true;
+        break;
+      }
+      if (el.type === 'spread_element') {
+        const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
+        if (spreadArg.type === 'variable') {
+          const varName = (spreadArg as VariableExpr).name;
+          const varType = this.ctx.getVariableType(varName);
+          if (varType === '%StringArray*') {
+            isStringArray = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (isStringArray) {
+      return this.generateStringArrayLiteralWithSpread(arrExpr, params);
+    }
+
+    const spreadSources: { index: number; ptr: string }[] = [];
+    const literalValues: { index: number; value: string }[] = [];
+
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const el = arrExpr.elements[i] as ExprBase;
+      if (el.type === 'spread_element') {
+        const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
+        const ptr = this.ctx.generateExpression(spreadArg, params);
+        spreadSources.push({ index: i, ptr });
+      } else {
+        const value = this.ctx.generateExpression(arrExpr.elements[i], params);
+        literalValues.push({ index: i, value });
+      }
+    }
+
+    let totalLen = `${literalValues.length}`;
+    for (const src of spreadSources) {
+      const meta = this.loadArrayMeta(src.ptr);
+      const newTotal = this.nextTemp();
+      this.emit(`${newTotal} = add i32 ${totalLen}, ${meta.length}`);
+      totalLen = newTotal;
+    }
+
+    const sizePtr = this.nextTemp();
+    this.emit(`${sizePtr} = getelementptr %Array, %Array* null, i32 1`);
+    const structSize = this.nextTemp();
+    this.emit(`${structSize} = ptrtoint %Array* ${sizePtr} to i64`);
+    const arrayMem = this.nextTemp();
+    this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+    const arrayPtr = this.nextTemp();
+    this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %Array*`);
+
+    const totalLenI64 = this.nextTemp();
+    this.emit(`${totalLenI64} = zext i32 ${totalLen} to i64`);
+    const dataSize = this.nextTemp();
+    this.emit(`${dataSize} = mul i64 ${totalLenI64}, 8`);
+    const dataMem = this.nextTemp();
+    this.emit(`${dataMem} = call i8* @GC_malloc_atomic(i64 ${dataSize})`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = bitcast i8* ${dataMem} to double*`);
+
+    const offsetPtr = this.nextTemp();
+    this.emit(`${offsetPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${offsetPtr}`);
+
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const el = arrExpr.elements[i] as ExprBase;
+      if (el.type === 'spread_element') {
+        const src = spreadSources.find(s => s.index === i)!;
+        const srcMeta = this.loadArrayMeta(src.ptr);
+
+        const checkLabel = this.nextLabel('spread_check');
+        const bodyLabel = this.nextLabel('spread_body');
+        const endLabel = this.nextLabel('spread_end');
+
+        const counterPtr = this.nextTemp();
+        this.emit(`${counterPtr} = alloca i32`);
+        this.emit(`store i32 0, i32* ${counterPtr}`);
+        this.emit(`br label %${checkLabel}`);
+
+        this.emit(`${checkLabel}:`);
+        const counter = this.nextTemp();
+        this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+        const cond = this.nextTemp();
+        this.emit(`${cond} = icmp slt i32 ${counter}, ${srcMeta.length}`);
+        this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+        this.emit(`${bodyLabel}:`);
+        const srcElemPtr = this.nextTemp();
+        this.emit(`${srcElemPtr} = getelementptr inbounds double, double* ${srcMeta.dataPtr}, i32 ${counter}`);
+        const srcElem = this.nextTemp();
+        this.emit(`${srcElem} = load double, double* ${srcElemPtr}`);
+
+        const curOffset = this.nextTemp();
+        this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
+        const dstElemPtr = this.nextTemp();
+        this.emit(`${dstElemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${curOffset}`);
+        this.emit(`store double ${srcElem}, double* ${dstElemPtr}`);
+
+        const nextOffset = this.nextTemp();
+        this.emit(`${nextOffset} = add i32 ${curOffset}, 1`);
+        this.emit(`store i32 ${nextOffset}, i32* ${offsetPtr}`);
+        const nextCounter = this.nextTemp();
+        this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+        this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+        this.emit(`br label %${checkLabel}`);
+
+        this.emit(`${endLabel}:`);
+      } else {
+        const lit = literalValues.find(l => l.index === i)!;
+        const curOffset = this.nextTemp();
+        this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
+        const elemPtr = this.nextTemp();
+        this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${curOffset}`);
+        this.emit(`store double ${lit.value}, double* ${elemPtr}`);
+        const nextOffset = this.nextTemp();
+        this.emit(`${nextOffset} = add i32 ${curOffset}, 1`);
+        this.emit(`store i32 ${nextOffset}, i32* ${offsetPtr}`);
+      }
+    }
+
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(`store double* ${dataPtr}, double** ${dataPtrField}`);
+
+    const lenField = this.nextTemp();
+    this.emit(`${lenField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(`store i32 ${totalLen}, i32* ${lenField}`);
+
+    const capField = this.nextTemp();
+    this.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
+    this.emit(`store i32 ${totalLen}, i32* ${capField}`);
+
+    this.ctx.setVariableType(arrayPtr, '%Array*');
+    return arrayPtr;
+  }
+
+  private generateStringArrayLiteralWithSpread(arrExpr: ArrayExpr, params: string[]): string {
+    const spreadSources: { index: number; ptr: string }[] = [];
+    const literalValues: { index: number; value: string }[] = [];
+
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const el = arrExpr.elements[i] as ExprBase;
+      if (el.type === 'spread_element') {
+        const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
+        const ptr = this.ctx.generateExpression(spreadArg, params);
+        spreadSources.push({ index: i, ptr });
+      } else {
+        const value = this.ctx.generateExpression(arrExpr.elements[i], params);
+        literalValues.push({ index: i, value });
+      }
+    }
+
+    let totalLen = `${literalValues.length}`;
+    for (const src of spreadSources) {
+      const lenPtr = this.nextTemp();
+      this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 1`);
+      const srcLen = this.nextTemp();
+      this.emit(`${srcLen} = load i32, i32* ${lenPtr}`);
+      const newTotal = this.nextTemp();
+      this.emit(`${newTotal} = add i32 ${totalLen}, ${srcLen}`);
+      totalLen = newTotal;
+    }
+
+    const sizePtr = this.nextTemp();
+    this.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
+    const structSize = this.nextTemp();
+    this.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+    const arrayMem = this.nextTemp();
+    this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+    const arrayPtr = this.nextTemp();
+    this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
+
+    const totalLenI64 = this.nextTemp();
+    this.emit(`${totalLenI64} = zext i32 ${totalLen} to i64`);
+    const dataSize = this.nextTemp();
+    this.emit(`${dataSize} = mul i64 ${totalLenI64}, 8`);
+    const dataMem = this.nextTemp();
+    this.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSize})`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
+
+    const offsetPtr = this.nextTemp();
+    this.emit(`${offsetPtr} = alloca i32`);
+    this.emit(`store i32 0, i32* ${offsetPtr}`);
+
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const el = arrExpr.elements[i] as ExprBase;
+      if (el.type === 'spread_element') {
+        const src = spreadSources.find(s => s.index === i)!;
+        const srcLenPtr = this.nextTemp();
+        this.emit(`${srcLenPtr} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 1`);
+        const srcLen = this.nextTemp();
+        this.emit(`${srcLen} = load i32, i32* ${srcLenPtr}`);
+        const srcDataField = this.nextTemp();
+        this.emit(`${srcDataField} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 0`);
+        const srcDataPtr = this.nextTemp();
+        this.emit(`${srcDataPtr} = load i8**, i8*** ${srcDataField}`);
+
+        const checkLabel = this.nextLabel('spread_check');
+        const bodyLabel = this.nextLabel('spread_body');
+        const endLabel = this.nextLabel('spread_end');
+
+        const counterPtr = this.nextTemp();
+        this.emit(`${counterPtr} = alloca i32`);
+        this.emit(`store i32 0, i32* ${counterPtr}`);
+        this.emit(`br label %${checkLabel}`);
+
+        this.emit(`${checkLabel}:`);
+        const counter = this.nextTemp();
+        this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+        const cond = this.nextTemp();
+        this.emit(`${cond} = icmp slt i32 ${counter}, ${srcLen}`);
+        this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+        this.emit(`${bodyLabel}:`);
+        const srcElemPtr = this.nextTemp();
+        this.emit(`${srcElemPtr} = getelementptr inbounds i8*, i8** ${srcDataPtr}, i32 ${counter}`);
+        const srcElem = this.nextTemp();
+        this.emit(`${srcElem} = load i8*, i8** ${srcElemPtr}`);
+
+        const curOffset = this.nextTemp();
+        this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
+        const dstElemPtr = this.nextTemp();
+        this.emit(`${dstElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${curOffset}`);
+        this.emit(`store i8* ${srcElem}, i8** ${dstElemPtr}`);
+
+        const nextOffset = this.nextTemp();
+        this.emit(`${nextOffset} = add i32 ${curOffset}, 1`);
+        this.emit(`store i32 ${nextOffset}, i32* ${offsetPtr}`);
+        const nextCounter = this.nextTemp();
+        this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+        this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+        this.emit(`br label %${checkLabel}`);
+
+        this.emit(`${endLabel}:`);
+      } else {
+        const lit = literalValues.find(l => l.index === i)!;
+        const curOffset = this.nextTemp();
+        this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
+        const elemPtr = this.nextTemp();
+        this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${curOffset}`);
+        this.emit(`store i8* ${lit.value}, i8** ${elemPtr}`);
+        const nextOffset = this.nextTemp();
+        this.emit(`${nextOffset} = add i32 ${curOffset}, 1`);
+        this.emit(`store i32 ${nextOffset}, i32* ${offsetPtr}`);
+      }
+    }
+
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
+
+    const lenField = this.nextTemp();
+    this.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(`store i32 ${totalLen}, i32* ${lenField}`);
+
+    const capField = this.nextTemp();
+    this.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+    this.emit(`store i32 ${totalLen}, i32* ${capField}`);
+
+    this.ctx.setVariableType(arrayPtr, '%StringArray*');
+    return arrayPtr;
   }
 
   generateArrayPush(expr: MethodCallNode, params: string[]): string {
