@@ -20,6 +20,7 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
   ./autogen.sh
   ./configure --enable-static --disable-shared --with-pic
   make -j"$NPROC"
+  cp .libs/libgc.a . 2>/dev/null || true
   echo "  -> $VENDOR_DIR/bdwgc/libgc.a"
 else
   echo "==> bdwgc already built, skipping"

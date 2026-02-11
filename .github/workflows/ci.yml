@@ -47,6 +47,22 @@ jobs:
       - name: Build compiler
         run: npm run build
 
+      - name: Verify vendor libraries
+        run: |
+          fail=0
+          for lib in vendor/bdwgc/libgc.a vendor/cJSON/build/libcjson.a vendor/libuv/build/libuv.a vendor/mongoose/mongoose.o; do
+            if [ ! -f "$lib" ]; then
+              echo "MISSING: $lib"
+              fail=1
+            else
+              echo "OK: $lib"
+            fi
+          done
+          if [ "$fail" -eq 1 ]; then
+            echo "Vendor library build incomplete - aborting before tests"
+            exit 1
+          fi
+
       - name: Run tests
         run: npm test
 
