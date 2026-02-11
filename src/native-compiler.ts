@@ -1,4 +1,4 @@
-import { compileNative, setSkipSemanticAnalysis } from './native-compiler-lib.js';
+import { compileNative, setSkipSemanticAnalysis, setVerbose } from './native-compiler-lib.js';
 
 declare const fs: {
   existsSync(filename: string): boolean;
@@ -26,6 +26,7 @@ function printUsage(): void {
   console.log('');
   console.log('Options:');
   console.log('  -o <output>               Specify output file (default: .build/<input>)');
+  console.log('  -v, --verbose             Show compilation steps');
   console.log('  --skip-semantic-analysis  Skip semantic analysis');
   console.log('  --help, -h                Show this help message');
 }
@@ -40,6 +41,7 @@ if (args.length < 1) {
 let inputFile: string | null = null;
 let outputFile: string | null = null;
 let wantSkipSemantic = false;
+let wantVerbose = false;
 let argIdx = 0;
 while (argIdx < args.length) {
   const arg = args[argIdx];
@@ -48,6 +50,9 @@ while (argIdx < args.length) {
     process.exit(0);
   } else if (arg === '--skip-semantic-analysis') {
     wantSkipSemantic = true;
+    argIdx = argIdx + 1;
+  } else if (arg === '-v' || arg === '--verbose') {
+    wantVerbose = true;
     argIdx = argIdx + 1;
   } else if (arg === '-o') {
     argIdx = argIdx + 1;
@@ -72,6 +77,10 @@ while (argIdx < args.length) {
 
 if (wantSkipSemantic) {
   setSkipSemanticAnalysis(true);
+}
+
+if (wantVerbose) {
+  setVerbose(true);
 }
 
 if (inputFile === null) {

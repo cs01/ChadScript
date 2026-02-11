@@ -31,6 +31,7 @@ declare function __gc_disable(): void;
 
 export let skipSemanticAnalysis = false;
 export let emitLLVMOnly = false;
+export let verbose = false;
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -40,13 +41,19 @@ export function setEmitLLVMOnly(value: boolean): void {
   emitLLVMOnly = value;
 }
 
+export function setVerbose(value: boolean): void {
+  verbose = value;
+}
+
 export function compileNative(inputFile: string, outputFile: string): void {
   const BDWGC_PATH = './vendor/bdwgc';
   const MONGOOSE_PATH = './vendor/mongoose';
   const CHADSCRIPT_PATH = '.';
 
-  console.log('ChadScript native compiler v0.1.0');
-  console.log('Input file: ' + inputFile);
+  if (verbose) {
+    console.log('ChadScript native compiler v0.1.0');
+    console.log('Input file: ' + inputFile);
+  }
 
   __gc_disable();
 
@@ -54,9 +61,9 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const mergedAST = compileMultiFile(inputFile, compiledFiles);
 
   if (skipSemanticAnalysis) {
-    console.log('Skipping semantic analysis (--skip-semantic-analysis)');
+    if (verbose) { console.log('Skipping semantic analysis (--skip-semantic-analysis)'); }
   } else {
-    console.log('Running semantic analysis...');
+    if (verbose) { console.log('Running semantic analysis...'); }
     const analyzer = new SemanticAnalyzer(mergedAST);
     const analysisSuccess = analyzer.analyze();
 
@@ -66,10 +73,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
       process.exit(1);
     }
 
-    console.log('Semantic analysis passed');
+    if (verbose) { console.log('Semantic analysis passed'); }
   }
 
-  console.log('Generating LLVM IR...');
+  if (verbose) { console.log('Generating LLVM IR...'); }
   const generatorOptions: LLVMGeneratorOptions = {
     linkTreeSitter: true,
     sourceCode: '',
@@ -77,13 +84,13 @@ export function compileNative(inputFile: string, outputFile: string): void {
   };
   const generator = new LLVMGenerator(mergedAST, null, generatorOptions);
   const irParts = generator.generateParts();
-  console.log('Generated IR parts: ' + irParts.length);
+  if (verbose) { console.log('Generated IR parts: ' + irParts.length); }
 
   const irFile = outputFile + '.ll';
   fs.writeFileSync(irFile, '');
   for (let pi = 0; pi < irParts.length; pi++) {
     const part = irParts[pi];
-    if (part.indexOf('ts_parser_language') !== -1) {
+    if (verbose && part.indexOf('ts_parser_language') !== -1) {
       const preview = part.substr(0, 80);
       console.log('Part ' + pi + ' contains ts_parser_language, len=' + part.length + ' preview=' + preview);
     }
@@ -91,13 +98,13 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
 
   if (emitLLVMOnly) {
-    console.log('LLVM IR written to ' + irFile);
+    if (verbose) { console.log('LLVM IR written to ' + irFile); }
     return;
   }
 
   const objFile = outputFile + '.o';
   const llcCmd = 'llc -filetype=obj ' + irFile + ' -o ' + objFile;
-  console.log('Running: ' + llcCmd);
+  if (verbose) { console.log('Running: ' + llcCmd); }
   child_process.execSync(llcCmd);
   if (!fs.existsSync(objFile)) {
     console.log('Error: llc failed to produce ' + objFile);
@@ -108,7 +115,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const treeSitterTs = CHADSCRIPT_PATH + '/build/tree-sitter-typescript-parser.o ' + CHADSCRIPT_PATH + '/build/tree-sitter-typescript-scanner.o';
   const linkLibs = '-L' + BDWGC_PATH + ' -L./vendor/cJSON/build -L./vendor/libuv/build -l:libgc.a -l:libcjson.a -l:libuv.a -lcurl -lm -lpthread -ldl -lrt -L./vendor/tree-sitter -l:libtree-sitter.a';
   const linkCmd = 'clang ' + objFile + ' ' + mongooseObj + ' ' + treeSitterTs + ' -o ' + outputFile + ' -no-pie ' + linkLibs;
-  console.log('Running: ' + linkCmd);
+  if (verbose) { console.log('Running: ' + linkCmd); }
   child_process.execSync(linkCmd);
   if (!fs.existsSync(outputFile)) {
     console.log('Error: clang failed to produce ' + outputFile);
@@ -116,7 +123,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
 
   fs.unlinkSync(objFile);
-  console.log('Compiled: ' + outputFile);
+  if (verbose) { console.log('Compiled: ' + outputFile); }
 }
 
 export function compileMultiFile(entryFile: string, compiledFiles: string[]): AST {
@@ -129,7 +136,7 @@ export function compileMultiFile(entryFile: string, compiledFiles: string[]): AS
   }
   compiledFiles.push(absPath);
 
-  console.log('Parsing: ' + absPath);
+  if (verbose) { console.log('Parsing: ' + absPath); }
   const code = fs.readFileSync(absPath);
   const tree = parseSource(code);
   const ast = transformTree(tree);
