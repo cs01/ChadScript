@@ -12,6 +12,8 @@ import {
   ForOfStatement,
   ThrowStatement,
   TryStatement,
+  IndexAccessNode,
+  MemberAccessNode,
 } from '../../ast/types.js';
 import { transformExpression } from './expressions.js';
 
@@ -77,11 +79,87 @@ function transformVariableStatement(node: ts.VariableStatement, checker: ts.Type
   return first;
 }
 
+function desugarObjectDestructuring(
+  decl: ts.VariableDeclaration,
+  pattern: ts.ObjectBindingPattern,
+  flags: ts.NodeFlags,
+  checker: ts.TypeChecker | undefined
+): BlockStatement {
+  const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
+  const statements: Statement[] = [];
+
+  let source: Expression | null = null;
+  if (decl.initializer) {
+    source = transformExpression(decl.initializer, checker);
+  }
+
+  for (const element of pattern.elements) {
+    if (!ts.isBindingElement(element)) continue;
+    if (!ts.isIdentifier(element.name)) continue;
+
+    const localName = element.name.text;
+    const propertyName = element.propertyName && ts.isIdentifier(element.propertyName)
+      ? element.propertyName.text
+      : localName;
+
+    const memberAccess: MemberAccessNode = {
+      type: 'member_access',
+      object: source!,
+      property: propertyName,
+    };
+
+    statements.push({ type: 'variable_declaration', kind, name: localName, value: memberAccess });
+  }
+
+  return { type: 'block', statements };
+}
+
+function desugarArrayDestructuring(
+  decl: ts.VariableDeclaration,
+  pattern: ts.ArrayBindingPattern,
+  flags: ts.NodeFlags,
+  checker: ts.TypeChecker | undefined
+): BlockStatement {
+  const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
+  const statements: Statement[] = [];
+
+  let source: Expression | null = null;
+  if (decl.initializer) {
+    source = transformExpression(decl.initializer, checker);
+  }
+
+  for (let i = 0; i < pattern.elements.length; i++) {
+    const element = pattern.elements[i];
+    if (ts.isOmittedExpression(element)) continue;
+    if (!ts.isBindingElement(element)) continue;
+    if (!ts.isIdentifier(element.name)) continue;
+
+    const localName = element.name.text;
+
+    const indexAccess: IndexAccessNode = {
+      type: 'index_access',
+      object: source!,
+      index: { type: 'number', value: i },
+    };
+
+    statements.push({ type: 'variable_declaration', kind, name: localName, value: indexAccess });
+  }
+
+  return { type: 'block', statements };
+}
+
 function transformVariableDecl(
   decl: ts.VariableDeclaration,
   flags: ts.NodeFlags,
   checker: ts.TypeChecker | undefined
-): VariableDeclaration {
+): VariableDeclaration | BlockStatement {
+  if (ts.isObjectBindingPattern(decl.name)) {
+    return desugarObjectDestructuring(decl, decl.name, flags, checker);
+  }
+  if (ts.isArrayBindingPattern(decl.name)) {
+    return desugarArrayDestructuring(decl, decl.name, flags, checker);
+  }
+
   const name = ts.isIdentifier(decl.name) ? decl.name.text : '';
   const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
 
@@ -251,7 +329,7 @@ function transformForStatement(node: ts.ForStatement, checker: ts.TypeChecker | 
   if (node.initializer) {
     if (ts.isVariableDeclarationList(node.initializer)) {
       const decl = node.initializer.declarations[0];
-      init = transformVariableDecl(decl, node.initializer.flags, checker);
+      init = transformVariableDecl(decl, node.initializer.flags, checker) as VariableDeclaration;
     } else {
       const expr = node.initializer;
       if (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.EqualsToken) {

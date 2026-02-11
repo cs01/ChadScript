@@ -541,6 +541,24 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/edge-cases/bitwise-float-conversion.js',
     expectedExitCode: 8,
       description: 'Bitwise operations with floats should convert to integers (regression test)'
+    },
+    {
+      name: 'object-destructure',
+      fixture: 'tests/fixtures/destructuring/object-destructure.ts',
+      expectTestPassed: true,
+      description: 'Object destructuring const { x, y } = obj should work'
+    },
+    {
+      name: 'object-destructure-rename',
+      fixture: 'tests/fixtures/destructuring/object-destructure-rename.ts',
+      expectTestPassed: true,
+      description: 'Object destructuring with renaming const { host: h } = obj should work'
+    },
+    {
+      name: 'array-destructure',
+      fixture: 'tests/fixtures/destructuring/array-destructure.ts',
+      expectTestPassed: true,
+      description: 'Array destructuring const [a, b, c] = arr should work'
     }
   ];
 

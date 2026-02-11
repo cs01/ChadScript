@@ -6,6 +6,7 @@ import {
   ImportDeclaration,
   VariableDeclaration,
   AssignmentStatement,
+  BlockStatement,
   CallNode,
   NewNode,
   MethodCallNode,
@@ -14,8 +15,9 @@ import {
   WhileStatement,
   IfStatement,
   TryStatement,
-  BlockStatement,
   TopLevelItem,
+  MemberAccessNode,
+  IndexAccessNode,
 } from '../ast/types.js';
 
 import { transformExpression } from './handlers/expressions.js';
@@ -125,9 +127,18 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
       const varStmt = node as ts.VariableStatement;
 
       for (const decl of varStmt.declarationList.declarations) {
-        const varDecl = transformVariableDeclaration(decl, varStmt.declarationList.flags, checker);
-        ast.topLevelStatements.push(varDecl);
-        ast.topLevelItems!.push(varDecl);
+        const result = transformVariableDeclaration(decl, varStmt.declarationList.flags, checker);
+        if (result.type === 'block') {
+          for (const stmt of result.statements) {
+            if (stmt.type === 'variable_declaration') {
+              ast.topLevelStatements.push(stmt);
+              ast.topLevelItems!.push(stmt);
+            }
+          }
+        } else {
+          ast.topLevelStatements.push(result);
+          ast.topLevelItems!.push(result);
+        }
       }
       break;
     }
@@ -292,7 +303,66 @@ export function transformVariableDeclaration(
   decl: ts.VariableDeclaration,
   flags: ts.NodeFlags,
   checker: ts.TypeChecker | undefined
-): VariableDeclaration {
+): VariableDeclaration | BlockStatement {
+  if (ts.isObjectBindingPattern(decl.name)) {
+    const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
+    const statements: Statement[] = [];
+
+    let source: Expression | null = null;
+    if (decl.initializer) {
+      source = transformExpression(decl.initializer, checker);
+    }
+
+    for (const element of decl.name.elements) {
+      if (!ts.isBindingElement(element)) continue;
+      if (!ts.isIdentifier(element.name)) continue;
+
+      const localName = element.name.text;
+      const propertyName = element.propertyName && ts.isIdentifier(element.propertyName)
+        ? element.propertyName.text
+        : localName;
+
+      const memberAccess: MemberAccessNode = {
+        type: 'member_access',
+        object: source!,
+        property: propertyName,
+      };
+
+      statements.push({ type: 'variable_declaration', kind, name: localName, value: memberAccess });
+    }
+
+    return { type: 'block', statements };
+  }
+
+  if (ts.isArrayBindingPattern(decl.name)) {
+    const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
+    const statements: Statement[] = [];
+
+    let source: Expression | null = null;
+    if (decl.initializer) {
+      source = transformExpression(decl.initializer, checker);
+    }
+
+    for (let i = 0; i < decl.name.elements.length; i++) {
+      const element = decl.name.elements[i];
+      if (ts.isOmittedExpression(element)) continue;
+      if (!ts.isBindingElement(element)) continue;
+      if (!ts.isIdentifier(element.name)) continue;
+
+      const localName = element.name.text;
+
+      const indexAccess: IndexAccessNode = {
+        type: 'index_access',
+        object: source!,
+        index: { type: 'number', value: i },
+      };
+
+      statements.push({ type: 'variable_declaration', kind, name: localName, value: indexAccess });
+    }
+
+    return { type: 'block', statements };
+  }
+
   const name = ts.isIdentifier(decl.name) ? decl.name.text : '';
   const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
 
