@@ -50,24 +50,72 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Package release artifact
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Build tree-sitter TypeScript objects
         run: |
-          mkdir -p release/${{ matrix.artifact }}
-          cp -r dist release/${{ matrix.artifact }}/
-          cp -r vendor release/${{ matrix.artifact }}/
-          cp package.json release/${{ matrix.artifact }}/
-          cp README.md BUILDING.md LICENSE release/${{ matrix.artifact }}/ 2>/dev/null || true
-          cp -r node_modules/tree-sitter release/${{ matrix.artifact }}/node_modules/ 2>/dev/null || true
-          cp -r node_modules/tree-sitter-typescript release/${{ matrix.artifact }}/node_modules/ 2>/dev/null || true
-          tar -czf ${{ matrix.artifact }}.tar.gz -C release ${{ matrix.artifact }}
+          mkdir -p build
+          TS_SRC=node_modules/tree-sitter-typescript/typescript/src
+          TS_INCLUDE=node_modules/tree-sitter-typescript
+          clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/parser.c -o build/tree-sitter-typescript-parser.o
+          clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
 
-      - name: Upload release artifact
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Build native chadc
+        run: node dist/index.js --link-tree-sitter --skip-semantic-analysis src/native-compiler.ts -o .build/chadc
+
+      - name: Build native chad
+        run: node dist/index.js --link-tree-sitter --skip-semantic-analysis src/chad-native.ts -o .build/chad
+
+      - name: Smoke test native chadc
+        run: |
+          .build/chadc examples/hello.ts -o /tmp/hello
+          /tmp/hello
+
+      - name: Smoke test native chad
+        run: |
+          .build/chad build examples/hello.ts -o /tmp/hello2
+          /tmp/hello2
+
+      - name: Package release artifact
+        run: |
+          mkdir -p release
+          cp .build/chad release/
+          cp .build/chadc release/
+          tar -czf ${{ matrix.artifact }}.tar.gz -C release chad chadc
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.artifact }}.tar.gz
+
+  pre-release:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Delete old latest release
+        run: gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+
+      - name: Create latest pre-release
+        run: |
+          gh release create latest \
+            --prerelease \
+            --title "Latest Build" \
+            --notes "Automated pre-release from main branch. Download native binaries below." \
+            artifacts/**/*.tar.gz
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
 
   release:
     needs: build

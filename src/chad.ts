@@ -19,7 +19,7 @@ function printVersion(): void {
 }
 
 function printHelp(): void {
-  console.log('chad - ChadScript compiler');
+  console.log('chad - compile TypeScript to native binaries via LLVM');
   console.log('');
   console.log('Usage: chad <command> [options] <file>');
   console.log('');
