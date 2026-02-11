@@ -191,7 +191,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
 
   // Build link command with all libraries
   const isMac = process.platform === 'darwin';
-  let linkLibs = `-L${BDWGC_PATH} -L${CJSON_PATH} -L${LIBUV_PATH} -lgc -lcjson -luv -lcurl -lm -lpthread` + (isMac ? '' : ' -ldl -lrt');
+  let linkLibs = `-L${BDWGC_PATH} -L${CJSON_PATH} -L${LIBUV_PATH} -lgc -lcjson -luv -lcurl -lcrypto -lsqlite3 -lm -lpthread` + (isMac ? '' : ' -ldl -lrt');
   let extraObjs = '';
 
   if (linkTreeSitter) {

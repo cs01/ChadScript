@@ -738,6 +738,19 @@ export interface IGeneratorContext {
   dateGenCanHandle(expr: MethodCallNode): boolean;
   dateGenGenerateNow(): string;
 
+  cryptoGenCanHandle(expr: MethodCallNode): boolean;
+  cryptoGenSha256(expr: MethodCallNode, params: string[]): string;
+  cryptoGenMd5(expr: MethodCallNode, params: string[]): string;
+  cryptoGenSha512(expr: MethodCallNode, params: string[]): string;
+  cryptoGenRandomBytes(expr: MethodCallNode, params: string[]): string;
+
+  sqliteGenCanHandle(expr: MethodCallNode): boolean;
+  sqliteGenOpen(expr: MethodCallNode, params: string[]): string;
+  sqliteGenExec(expr: MethodCallNode, params: string[]): string;
+  sqliteGenGet(expr: MethodCallNode, params: string[]): string;
+  sqliteGenAll(expr: MethodCallNode, params: string[]): string;
+  sqliteGenClose(expr: MethodCallNode, params: string[]): string;
+
   arrowFunctionGenGenerate(
     expr: Expression,
     params: string[],
@@ -1439,6 +1452,19 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   dateGenCanHandle(_expr: MethodCallNode): boolean { return false; }
   dateGenGenerateNow(): string { return '%mock_date_now'; }
+
+  cryptoGenCanHandle(_expr: MethodCallNode): boolean { return false; }
+  cryptoGenSha256(_expr: MethodCallNode, _params: string[]): string { return '%mock_crypto_sha256'; }
+  cryptoGenMd5(_expr: MethodCallNode, _params: string[]): string { return '%mock_crypto_md5'; }
+  cryptoGenSha512(_expr: MethodCallNode, _params: string[]): string { return '%mock_crypto_sha512'; }
+  cryptoGenRandomBytes(_expr: MethodCallNode, _params: string[]): string { return '%mock_crypto_random_bytes'; }
+
+  sqliteGenCanHandle(_expr: MethodCallNode): boolean { return false; }
+  sqliteGenOpen(_expr: MethodCallNode, _params: string[]): string { return '%mock_sqlite_open'; }
+  sqliteGenExec(_expr: MethodCallNode, _params: string[]): string { return '%mock_sqlite_exec'; }
+  sqliteGenGet(_expr: MethodCallNode, _params: string[]): string { return '%mock_sqlite_get'; }
+  sqliteGenAll(_expr: MethodCallNode, _params: string[]): string { return '%mock_sqlite_all'; }
+  sqliteGenClose(_expr: MethodCallNode, _params: string[]): string { return '%mock_sqlite_close'; }
 
   arrowFunctionGenGenerate(
     _expr: Expression,

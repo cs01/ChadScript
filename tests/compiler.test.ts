@@ -667,6 +667,18 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/builtins/tty-isatty.ts',
       expectTestPassed: true,
       description: 'tty.isatty() syscall for terminal detection'
+    },
+    {
+      name: 'crypto',
+      fixture: 'tests/fixtures/builtins/crypto-test.ts',
+      expectTestPassed: true,
+      description: 'crypto.sha256, md5, sha512, randomBytes via OpenSSL'
+    },
+    {
+      name: 'sqlite',
+      fixture: 'tests/fixtures/builtins/sqlite-test.ts',
+      expectTestPassed: true,
+      description: 'sqlite.open, exec, get, all, close via libsqlite3'
     }
   ];
 

@@ -25,6 +25,8 @@ import { JsonGenerator } from './stdlib/json.js';
 import { DateGenerator } from './stdlib/date.js';
 import { FilesystemGenerator } from './stdlib/fs.js';
 import { ResponseGenerator } from './stdlib/response.js';
+import { CryptoGenerator } from './stdlib/crypto.js';
+import { SqliteGenerator } from './stdlib/sqlite.js';
 import { RuntimeGenerator } from './runtime/runtime.js';
 import { MongooseGenerator } from './stdlib/mongoose.js';
 import { LibuvGenerator } from './stdlib/libuv.js';
@@ -90,6 +92,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public dateGen: DateGenerator;
   public fsGen: FilesystemGenerator;
   public responseGen: ResponseGenerator;
+  public cryptoGen: CryptoGenerator;
+  public sqliteGen: SqliteGenerator;
   private runtimeGen: RuntimeGenerator;
   private mongooseGen: MongooseGenerator;
   private libuvGen: LibuvGenerator;
@@ -936,6 +940,19 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public dateGenCanHandle(expr: MethodCallNode): boolean { return this.dateGen.canHandle(expr); }
   public dateGenGenerateNow(): string { this.syncStateToGenerators(); return this.dateGen.generateNow(); }
 
+  public cryptoGenCanHandle(expr: MethodCallNode): boolean { return this.cryptoGen.canHandle(expr); }
+  public cryptoGenSha256(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.cryptoGen.generateSha256(expr, params); }
+  public cryptoGenMd5(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.cryptoGen.generateMd5(expr, params); }
+  public cryptoGenSha512(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.cryptoGen.generateSha512(expr, params); }
+  public cryptoGenRandomBytes(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.cryptoGen.generateRandomBytes(expr, params); }
+
+  public sqliteGenCanHandle(expr: MethodCallNode): boolean { return this.sqliteGen.canHandle(expr); }
+  public sqliteGenOpen(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.sqliteGen.generateOpen(expr, params); }
+  public sqliteGenExec(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.sqliteGen.generateExec(expr, params); }
+  public sqliteGenGet(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.sqliteGen.generateGet(expr, params); }
+  public sqliteGenAll(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.sqliteGen.generateAll(expr, params); }
+  public sqliteGenClose(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.sqliteGen.generateClose(expr, params); }
+
   public arrowFunctionGenGenerate(expr: Expression, params: string[], typeHints: { paramTypes?: string[]; returnType?: string } | undefined, scopeVarNames: string[] | undefined, scopeVarTypes: string[] | undefined): string {
     this.syncStateToGenerators();
     return this.exprGen.arrowFunctionGen.generateArrowFunction(expr as ArrowFunctionNode, params, typeHints, scopeVarNames, scopeVarTypes);
@@ -1053,6 +1070,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.dateGen = new DateGenerator(this);
     this.fsGen = new FilesystemGenerator(this);
     this.responseGen = new ResponseGenerator(this);
+    this.cryptoGen = new CryptoGenerator(this);
+    this.sqliteGen = new SqliteGenerator(this);
     this.runtimeGen = new RuntimeGenerator();
     this.mongooseGen = new MongooseGenerator();
     this.libuvGen = new LibuvGenerator();
@@ -1560,6 +1579,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     irParts.push(this.fsGen.generateReaddirSyncHelper());
     irParts.push(this.fsGen.generateStatSyncHelper());
+    irParts.push(this.cryptoGen.generateBytesToHexHelper());
+    irParts.push(this.sqliteGen.generateSqliteGetHelper());
+    irParts.push(this.sqliteGen.generateSqliteAllHelper());
 
     const globalVars = getGlobalVariables();
     if (globalVars) { irParts.push(globalVars); }

@@ -988,6 +988,16 @@ export class TypeInference {
           methodExpr.method === 'stringify') {
         return true;
       }
+      if (methodObjBase.type === 'variable' &&
+          (methodExpr.object as VariableNode).name === 'crypto' &&
+          (methodExpr.method === 'sha256' || methodExpr.method === 'md5' || methodExpr.method === 'sha512' || methodExpr.method === 'randomBytes')) {
+        return true;
+      }
+      if (methodObjBase.type === 'variable' &&
+          (methodExpr.object as VariableNode).name === 'sqlite' &&
+          methodExpr.method === 'get') {
+        return true;
+      }
       if (methodExpr.method === 'substr' || methodExpr.method === 'substring' ||
           methodExpr.method === 'repeat' ||
           methodExpr.method === 'padStart' || methodExpr.method === 'charAt' ||
@@ -1509,6 +1519,12 @@ export class TypeInference {
       const methodExpr = expr as MethodCallNode;
       if (methodExpr.method === 'split') {
         return true;
+      }
+      if (methodExpr.method === 'all') {
+        const objBase = methodExpr.object as ExprBase;
+        if (objBase.type === 'variable' && (methodExpr.object as VariableNode).name === 'sqlite') {
+          return true;
+        }
       }
       if (methodExpr.method === 'keys') {
         const objBase = methodExpr.object as ExprBase;

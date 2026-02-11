@@ -746,6 +746,14 @@ export class FunctionGenerator {
     ir += '  call void @GC_init()\n';
     ir += '\n';
 
+    if (process.platform === 'darwin') {
+      ir += '  %__stderr_val = load i8*, i8** @__stderrp\n';
+      ir += '  store i8* %__stderr_val, i8** @stderr\n';
+      ir += '  %__stdout_val = load i8*, i8** @__stdoutp\n';
+      ir += '  store i8* %__stdout_val, i8** @stdout\n';
+      ir += '\n';
+    }
+
     ir += '  store i32 %argc, i32* @__argc\n';
     ir += '  store i8** %argv, i8*** @__argv\n';
 

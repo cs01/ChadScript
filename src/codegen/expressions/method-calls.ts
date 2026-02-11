@@ -291,6 +291,17 @@ export interface MethodCallGeneratorContext {
   mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string;
   dateGenCanHandle(expr: MethodCallNode): boolean;
   dateGenGenerateNow(): string;
+  cryptoGenCanHandle(expr: MethodCallNode): boolean;
+  cryptoGenSha256(expr: MethodCallNode, params: string[]): string;
+  cryptoGenMd5(expr: MethodCallNode, params: string[]): string;
+  cryptoGenSha512(expr: MethodCallNode, params: string[]): string;
+  cryptoGenRandomBytes(expr: MethodCallNode, params: string[]): string;
+  sqliteGenCanHandle(expr: MethodCallNode): boolean;
+  sqliteGenOpen(expr: MethodCallNode, params: string[]): string;
+  sqliteGenExec(expr: MethodCallNode, params: string[]): string;
+  sqliteGenGet(expr: MethodCallNode, params: string[]): string;
+  sqliteGenAll(expr: MethodCallNode, params: string[]): string;
+  sqliteGenClose(expr: MethodCallNode, params: string[]): string;
   responseGenGenerateText(responsePtr: string): string;
   responseGenGenerateJson(responsePtr: string): string;
   responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: InterfaceDefInfo): string;
@@ -942,6 +953,34 @@ export class MethodCallGenerator {
     // Handle Date.now()
     if (this.ctx.dateGenCanHandle(expr)) {
       return this.ctx.dateGenGenerateNow();
+    }
+
+    // Handle crypto.* methods
+    if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'crypto') {
+      if (method === 'sha256') {
+        return this.ctx.cryptoGenSha256(expr, params);
+      } else if (method === 'md5') {
+        return this.ctx.cryptoGenMd5(expr, params);
+      } else if (method === 'sha512') {
+        return this.ctx.cryptoGenSha512(expr, params);
+      } else if (method === 'randomBytes') {
+        return this.ctx.cryptoGenRandomBytes(expr, params);
+      }
+    }
+
+    // Handle sqlite.* methods
+    if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'sqlite') {
+      if (method === 'open') {
+        return this.ctx.sqliteGenOpen(expr, params);
+      } else if (method === 'exec') {
+        return this.ctx.sqliteGenExec(expr, params);
+      } else if (method === 'get') {
+        return this.ctx.sqliteGenGet(expr, params);
+      } else if (method === 'all') {
+        return this.ctx.sqliteGenAll(expr, params);
+      } else if (method === 'close') {
+        return this.ctx.sqliteGenClose(expr, params);
+      }
     }
 
     // Handle JSON.stringify() (legacy implementation)
