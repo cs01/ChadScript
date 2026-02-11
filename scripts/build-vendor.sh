@@ -13,6 +13,7 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
   if [ ! -d bdwgc ]; then
     git clone --depth 1 https://github.com/ivmai/bdwgc.git
     cd bdwgc
+    git clone --depth 1 https://github.com/ivmai/libatomic_ops.git
   else
     cd bdwgc
   fi
