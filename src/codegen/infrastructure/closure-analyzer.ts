@@ -19,13 +19,14 @@ interface TypedNode {
 
 interface VarDeclNode {
   type: string;
+  kind: string;
   name: string;
   value: Expression | null;
 }
 
 interface AssignmentNode {
   type: string;
-  target: Expression;
+  name: string;
   value: Expression;
 }
 
@@ -62,7 +63,9 @@ interface ForNode {
 
 interface ForOfNode {
   type: string;
-  variable: string;
+  variableKind: string;
+  variableName: string;
+  destructuredNames: string[] | null;
   iterable: Expression;
   body: BlockStatement;
 }
@@ -86,12 +89,14 @@ interface VariableExpr {
 
 interface BinaryExpr {
   type: string;
+  op: string;
   left: Expression;
   right: Expression;
 }
 
 interface UnaryExpr {
   type: string;
+  op: string;
   operand: Expression;
 }
 
@@ -104,12 +109,14 @@ interface CallExpr {
 interface MethodCallExpr {
   type: string;
   object: Expression;
+  method: string;
   args: Expression[];
 }
 
 interface MemberAccessExpr {
   type: string;
   object: Expression;
+  property: string;
 }
 
 interface IndexAccessExpr {
@@ -153,6 +160,7 @@ interface AwaitExpr {
 
 interface NewExpr {
   type: string;
+  className: string;
   args: Expression[];
 }
 
@@ -263,7 +271,7 @@ export class ClosureAnalyzer {
       }
     } else if (stmtType === 'assignment') {
       const s = stmt as AssignmentNode;
-      this.walkExpression(s.target);
+      this.addReferencedVar(s.name);
       this.walkExpression(s.value);
     } else if (stmtType === 'expression_statement') {
       const s = stmt as { type: string; expression: Expression };
@@ -326,11 +334,11 @@ export class ClosureAnalyzer {
       const e = expr as { type: string; name: string };
       this.addReferencedVar(e.name);
     } else if (exprType === 'binary') {
-      const e = expr as { type: string; left: Expression; right: Expression };
+      const e = expr as { type: string; op: string; left: Expression; right: Expression };
       this.walkExpression(e.left);
       this.walkExpression(e.right);
     } else if (exprType === 'unary') {
-      const e = expr as { type: string; operand: Expression };
+      const e = expr as { type: string; op: string; operand: Expression };
       this.walkExpression(e.operand);
     } else if (exprType === 'call') {
       const e = expr as { type: string; name: string; args: Expression[] };
@@ -339,13 +347,13 @@ export class ClosureAnalyzer {
         this.walkExpression(e.args[_ai]);
       }
     } else if (exprType === 'method_call') {
-      const e = expr as { type: string; object: Expression; args: Expression[] };
+      const e = expr as { type: string; object: Expression; method: string; args: Expression[] };
       this.walkExpression(e.object);
       for (let _ai2 = 0; _ai2 < e.args.length; _ai2++) {
         this.walkExpression(e.args[_ai2]);
       }
     } else if (exprType === 'member_access') {
-      const e = expr as { type: string; object: Expression };
+      const e = expr as { type: string; object: Expression; property: string };
       this.walkExpression(e.object);
     } else if (exprType === 'index_access') {
       const e = expr as { type: string; object: Expression; index: Expression };
@@ -393,7 +401,7 @@ export class ClosureAnalyzer {
       const e = expr as { type: string; argument: Expression };
       this.walkExpression(e.argument);
     } else if (exprType === 'new') {
-      const e = expr as { type: string; args: Expression[] };
+      const e = expr as { type: string; className: string; args: Expression[] };
       for (let _nai = 0; _nai < e.args.length; _nai++) {
         this.walkExpression(e.args[_nai]);
       }

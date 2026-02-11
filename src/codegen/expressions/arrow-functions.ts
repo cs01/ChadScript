@@ -12,7 +12,7 @@
  */
 
 import { BaseGenerator } from '../infrastructure/base-generator.js';
-import { FunctionNode, ArrowFunctionNode } from '../../ast/types.js';
+import { FunctionNode, ArrowFunctionNode, BlockStatement } from '../../ast/types.js';
 import { ClosureAnalyzer, CapturedVariable, ClosureInfo } from '../infrastructure/closure-analyzer.js';
 
 export interface LiftedFunction extends FunctionNode {
@@ -96,7 +96,8 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     let closureEnvStructName: string = '';
 
     if (scopeVarNames && scopeVarTypes) {
-      const analyzeResult = this.closureAnalyzer.analyze(
+      const closureAnalyzer = new ClosureAnalyzer();
+      const analyzeResult = closureAnalyzer.analyze(
         funcParams,
         expr.body,
         scopeVarNames,
@@ -118,15 +119,29 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       }
     }
 
+    let liftedParamTypes: string[] | undefined = undefined;
+    let liftedReturnType: string | undefined = undefined;
+    if (typeHints) {
+      liftedParamTypes = typeHints.paramTypes;
+      liftedReturnType = typeHints.returnType;
+    }
+
+    let liftedBody: BlockStatement;
+    if (expr.body.type === 'block') {
+      liftedBody = expr.body as BlockStatement;
+    } else {
+      liftedBody = {
+        type: 'block',
+        statements: [{ type: 'return', value: expr.body }]
+      } as BlockStatement;
+    }
+
     const liftedFunc: LiftedFunction = {
       name: funcName,
       params: funcParams,
-      body: expr.body.type === 'block' ? expr.body : {
-        type: 'block',
-        statements: [{ type: 'return', value: expr.body }]
-      },
-      paramTypes: typeHints?.paramTypes,
-      returnType: typeHints?.returnType,
+      body: liftedBody,
+      paramTypes: liftedParamTypes,
+      returnType: liftedReturnType,
       closureInfo
     };
 
