@@ -19,6 +19,13 @@ Items marked DONE were completed in the current session. Items are grouped into 
 - [x] Number.isFinite(), Number.isNaN(), Number.isInteger(), Number.toString()
 - [x] process.stdout.write() / process.stderr.write() — raw fd write, no newline
 - [x] Object.values(), Object.entries() — static resolution of object fields
+- [x] process.env — `getenv()` syscall, chained member access (process.env.PATH)
+- [x] process.arch, process.version, process.execPath, process.argv0 — compile-time constants
+- [x] process.pid, process.ppid — getpid()/getppid() syscalls
+- [x] process.chdir(), process.abort(), process.kill() — directory/signal syscalls
+- [x] process.uptime() — clock_gettime(CLOCK_MONOTONIC)
+- [x] process.getuid(), process.getgid(), process.geteuid(), process.getegid() — id syscalls
+- [x] Async/concurrent fetch — uv_queue_work thread pool, real Promise.all concurrency, proper await with event loop
 
 ---
 
@@ -26,9 +33,7 @@ Items marked DONE were completed in the current session. Items are grouped into 
 
 Small, well-scoped items that unlock real code patterns or npm packages.
 
-- [ ] Async/concurrent fetch — Promise.all() with actual concurrent HTTP requests (libuv event loop exists)
 - [ ] new RegExp() constructor + flags (g, i, m) — unlocks ansi-regex, emoji-regex, strip-ansi, semver
-- [ ] process.env — `getenv()` syscall, unlocks debug, supports-color, chalk
 
 ## Tier 2 — Medium effort, high payoff
 

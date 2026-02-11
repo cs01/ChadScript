@@ -1662,8 +1662,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       irParts.push('\n');
       const promiseAll = this.promiseGen.generateAll();
       if (promiseAll) { irParts.push(promiseAll); }
-      const fetchAsync = this.runtimeGen.generateFetchAsyncWrapper();
+      const fetchCallbacks = this.libuvGen.generateFetchWorkCallbacks();
+      if (fetchCallbacks) { irParts.push(fetchCallbacks); }
+      const fetchAsync = this.libuvGen.generateFetchAsync();
       if (fetchAsync) { irParts.push(fetchAsync); }
+      const promiseAwait = this.libuvGen.generatePromiseAwait();
+      if (promiseAwait) { irParts.push(promiseAwait); }
     }
 
     const finalParts: string[] = [];
@@ -1845,8 +1849,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       irParts.push('\n');
       const promiseAll = this.promiseGen.generateAll();
       if (promiseAll) { irParts.push(promiseAll); }
-      const fetchAsync = this.runtimeGen.generateFetchAsyncWrapper();
+      const fetchCallbacks = this.libuvGen.generateFetchWorkCallbacks();
+      if (fetchCallbacks) { irParts.push(fetchCallbacks); }
+      const fetchAsync = this.libuvGen.generateFetchAsync();
       if (fetchAsync) { irParts.push(fetchAsync); }
+      const promiseAwait = this.libuvGen.generatePromiseAwait();
+      if (promiseAwait) { irParts.push(promiseAwait); }
     }
 
     const finalParts: string[] = [];

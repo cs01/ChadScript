@@ -200,7 +200,7 @@ export class ExpressionGenerator {
       const awaitExpr = expr as AwaitExpressionNode;
       const promiseReg = this.generate(awaitExpr.argument, params);
       const valueReg = this.ctx.nextTemp();
-      this.ctx.emit(`${valueReg} = call i8* @__Promise_get_value(%Promise* ${promiseReg})`);
+      this.ctx.emit(`${valueReg} = call i8* @__Promise_await(%Promise* ${promiseReg})`);
       this.ctx.setVariableType(valueReg, 'i8*');
       this.ctx.setUsesPromises(true);
       return valueReg;
