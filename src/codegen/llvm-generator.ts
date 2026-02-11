@@ -36,7 +36,7 @@ import { InterfaceStructGenerator } from './types/interface-struct-generator.js'
 import { JsonObjectMeta } from './expressions/access/member.js';
 
 export interface LLVMGeneratorOptions {
-  linkTreeSitter: boolean;
+  linkTreeSitter?: boolean;
   sourceCode?: string;
   filename?: string;
 }
@@ -734,6 +734,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesPromises(): boolean { return this.usesPromises; }
   public setUsesTimers(value: boolean): void { this.usesTimers = value; }
   public getUsesTimers(): boolean { return this.usesTimers; }
+  public setUsesTreeSitter(value: boolean): void { this.usesTreeSitter = value; }
   public setCurrentDeclaredInterfaceType(type: string | undefined): void { this.currentDeclaredInterfaceType = type; }
   public getCurrentDeclaredInterfaceType(): string | undefined { return this.currentDeclaredInterfaceType; }
   public setExpectedCallbackParamType(type: string | null): void { this.expectedCallbackParamType = type; }
@@ -999,6 +1000,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private typeAliasesCount: number = 0;
 
   private linkTreeSitter: boolean = false;
+  private usesTreeSitter: boolean = false;
   public sourceCode: string = '';
   public filename: string = '';
 
@@ -1024,7 +1026,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     const ifaceCount = ast.interfaces.length;
     this.typeChecker = typeChecker;
-    this.linkTreeSitter = options.linkTreeSitter;
+    this.linkTreeSitter = options.linkTreeSitter || false;
     this.sourceCode = options.sourceCode || '';
     this.filename = options.filename || '';
 
@@ -1543,31 +1545,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (promiseDecls) { irParts.push(promiseDecls); }
     irParts.push('\n');
 
-    if (this.linkTreeSitter) {
-      const tsDecls = this.treesitterGen.generateDeclarations();
-      if (tsDecls) { irParts.push(tsDecls); }
-      irParts.push('\n');
-
-      const tsHelpers: string[] = [];
-      tsHelpers.push(this.treesitterGen.generateParseSourceHelper());
-      tsHelpers.push(this.treesitterGen.generateGetRootNodeHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeTypeHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeChildCountHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeChildHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeStartByteHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeEndByteHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeTextHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeIsNullHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeIsNamedHelper());
-      tsHelpers.push(this.treesitterGen.generateNamedChildHelper());
-      tsHelpers.push(this.treesitterGen.generateNamedChildCountHelper());
-      tsHelpers.push(this.treesitterGen.generateChildByFieldNameHelper());
-      for (let thi = 0; thi < tsHelpers.length; thi++) {
-        if (tsHelpers[thi]) { irParts.push(tsHelpers[thi]); }
-      }
-      irParts.push('\n');
-    }
-
     const safeStr = getSafeStringHelper();
     if (safeStr) { irParts.push(safeStr); }
     const dblToStr = getDoubleToStringHelper();
@@ -1676,16 +1653,39 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (promiseAwait) { irParts.push(promiseAwait); }
     }
 
+    if (this.linkTreeSitter || this.usesTreeSitter) {
+      const tsDecls = this.treesitterGen.generateDeclarations();
+      if (tsDecls) { irParts.push(tsDecls); }
+      irParts.push('\n');
+
+      const tsHelpers: string[] = [];
+      tsHelpers.push(this.treesitterGen.generateParseSourceHelper());
+      tsHelpers.push(this.treesitterGen.generateGetRootNodeHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeTypeHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeChildCountHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeChildHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeStartByteHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeEndByteHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeTextHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeIsNullHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeIsNamedHelper());
+      tsHelpers.push(this.treesitterGen.generateNamedChildHelper());
+      tsHelpers.push(this.treesitterGen.generateNamedChildCountHelper());
+      tsHelpers.push(this.treesitterGen.generateChildByFieldNameHelper());
+      for (let thi = 0; thi < tsHelpers.length; thi++) {
+        if (tsHelpers[thi]) { irParts.push(tsHelpers[thi]); }
+      }
+      irParts.push('\n');
+    }
+
     const finalParts: string[] = [];
 
-    if (this.linkTreeSitter) {
-      finalParts.push('; Tree-sitter type definitions\n');
-      finalParts.push('%TSParser = type opaque\n');
-      finalParts.push('%TSTree = type opaque\n');
-      finalParts.push('%TSLanguage = type opaque\n');
-      finalParts.push('%TSNode = type { [4 x i32], i8*, %TSTree* }\n');
-      finalParts.push('%TSPoint = type { i32, i32 }\n\n');
-    }
+    finalParts.push('; Tree-sitter type definitions\n');
+    finalParts.push('%TSParser = type opaque\n');
+    finalParts.push('%TSTree = type opaque\n');
+    finalParts.push('%TSLanguage = type opaque\n');
+    finalParts.push('%TSNode = type { [4 x i32], i8*, %TSTree* }\n');
+    finalParts.push('%TSPoint = type { i32, i32 }\n\n');
 
     if (this.interfaceStructDefsCache) {
       finalParts.push(this.interfaceStructDefsCache);
@@ -1743,31 +1743,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     const promiseDecls = this.promiseGen.generateDeclarations();
     if (promiseDecls) { irParts.push(promiseDecls); }
     irParts.push('\n');
-
-    if (this.linkTreeSitter) {
-      const tsDecls = this.treesitterGen.generateDeclarations();
-      if (tsDecls) { irParts.push(tsDecls); }
-      irParts.push('\n');
-
-      const tsHelpers: string[] = [];
-      tsHelpers.push(this.treesitterGen.generateParseSourceHelper());
-      tsHelpers.push(this.treesitterGen.generateGetRootNodeHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeTypeHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeChildCountHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeChildHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeStartByteHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeEndByteHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeTextHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeIsNullHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeIsNamedHelper());
-      tsHelpers.push(this.treesitterGen.generateNamedChildHelper());
-      tsHelpers.push(this.treesitterGen.generateNamedChildCountHelper());
-      tsHelpers.push(this.treesitterGen.generateChildByFieldNameHelper());
-      for (let thi = 0; thi < tsHelpers.length; thi++) {
-        if (tsHelpers[thi]) { irParts.push(tsHelpers[thi]); }
-      }
-      irParts.push('\n');
-    }
 
     const safeStr = getSafeStringHelper();
     if (safeStr) { irParts.push(safeStr); }
@@ -1868,14 +1843,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     const finalParts: string[] = [];
 
-    if (this.linkTreeSitter) {
-      finalParts.push('; Tree-sitter type definitions\n');
-      finalParts.push('%TSParser = type opaque\n');
-      finalParts.push('%TSTree = type opaque\n');
-      finalParts.push('%TSLanguage = type opaque\n');
-      finalParts.push('%TSNode = type { [4 x i32], i8*, %TSTree* }\n');
-      finalParts.push('%TSPoint = type { i32, i32 }\n\n');
-    }
+    finalParts.push('; Tree-sitter type definitions\n');
+    finalParts.push('%TSParser = type opaque\n');
+    finalParts.push('%TSTree = type opaque\n');
+    finalParts.push('%TSLanguage = type opaque\n');
+    finalParts.push('%TSNode = type { [4 x i32], i8*, %TSTree* }\n');
+    finalParts.push('%TSPoint = type { i32, i32 }\n\n');
 
     if (this.interfaceStructDefsCache) {
       finalParts.push(this.interfaceStructDefsCache);

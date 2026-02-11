@@ -28,26 +28,22 @@ Items marked DONE were completed in the current session. Items are grouped into 
 - [x] Async/concurrent fetch — uv_queue_work thread pool, real Promise.all concurrency, proper await with event loop
 - [x] Promise.race() — first-to-settle semantics with ObjectArray parameter handling
 - [x] tty.isatty() — isatty() syscall for terminal detection
+- [x] new RegExp() constructor + flags (g, i, m) — unlocks ansi-regex, emoji-regex, strip-ansi, semver
+- [x] String match() — regex capture groups, unlocks semver and brace-expansion
+- [x] RegExp exec() with capture groups — needed for semver, many string parsers
+- [x] fs.readdirSync(), fs.statSync() — directory listing and file metadata, unlocks glob
 
 ---
-
-## Tier 1 — Quick wins, high impact
-
-Small, well-scoped items that unlock real code patterns or npm packages.
-
-- [ ] new RegExp() constructor + flags (g, i, m) — unlocks ansi-regex, emoji-regex, strip-ansi, semver
 
 ## Tier 2 — Medium effort, high payoff
 
 Each one unlocks a meaningful category of code or multiple npm packages.
 
 - [ ] Getters/setters — `get x() { }` / `set x(v) { }` in classes and objects. Unlocks ansi-styles, chalk, lru-cache
-- [ ] Optional chaining — `user?.name` desugars to null-check + access. Daily-use safety feature
-- [ ] Nullish coalescing — `value ?? default` desugars to null-check ternary
-- [ ] String match() / search() — regex capture groups, unlocks semver and brace-expansion
-- [ ] RegExp exec() with capture groups — needed for semver, many string parsers
+- [ ] Optional chaining — `user?.name` desugars to null-check + access (parses but null case fails in codegen)
+- [ ] Nullish coalescing — `value ?? default` desugars to null-check ternary (parser doesn't recognize `??`)
+- [ ] String search() — regex-based string searching
 - [ ] String codePointAt() — unicode handling, unlocks string-width
-- [ ] fs.readdirSync(), fs.statSync() — directory listing and file metadata, unlocks glob
 - [ ] Map iteration (for...of) — iterate Map entries, unlocks lru-cache
 - [ ] Set iteration (for...of) — iterate Set values
 - [ ] Date object — full constructor, getFullYear/getMonth/getDate/toISOString, formatting

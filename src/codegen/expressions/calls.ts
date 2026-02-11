@@ -159,6 +159,7 @@ export class CallExpressionGenerator {
     }
 
     if (expr.name === '__ts_parse_source') {
+      this.ctx.setUsesTreeSitter(true);
       return this.generateTsParseSource(expr, params);
     }
 

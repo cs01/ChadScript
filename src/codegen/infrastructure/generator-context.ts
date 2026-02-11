@@ -495,6 +495,7 @@ export interface IGeneratorContext {
   usesTimers: boolean;
   setUsesTimers(value: boolean): void;
   getUsesTimers(): boolean;
+  setUsesTreeSitter(value: boolean): void;
 
   currentDeclaredInterfaceType: string | undefined;
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
@@ -884,6 +885,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   getUsesPromises(): boolean { return this.usesPromises; }
   setUsesTimers(value: boolean): void { this.usesTimers = value; }
   getUsesTimers(): boolean { return this.usesTimers; }
+  setUsesTreeSitter(_value: boolean): void { }
   setCurrentDeclaredInterfaceType(type: string | undefined): void { this.currentDeclaredInterfaceType = type; }
   getCurrentDeclaredInterfaceType(): string | undefined { return this.currentDeclaredInterfaceType; }
   setExpectedCallbackParamType(type: string | null): void { this.expectedCallbackParamType = type; }
