@@ -828,6 +828,9 @@ export class TypeInference {
       }
       if (objBase.type === 'variable') {
         const varName = (memberExpr.object as VariableNode).name;
+        if (varName === 'process' && memberExpr.property === 'platform') {
+          return true;
+        }
         const propType = this.ctx.symbolTableGetObjectPropertyType(varName, memberExpr.property);
         if (propType === 'i8*') {
           return true;

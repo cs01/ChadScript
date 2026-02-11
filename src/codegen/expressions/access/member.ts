@@ -262,6 +262,10 @@ export class MemberAccessGenerator {
       return this.handleProcessArgv();
     }
 
+    if (this.isProcessPlatform(expr)) {
+      return this.ctx.stringGenCreateStringConstant('linux');
+    }
+
     const classResult = this.handleClassPropertyAccess(expr, params);
     if (classResult !== null) return classResult;
 
@@ -333,6 +337,13 @@ export class MemberAccessGenerator {
     return exprObjBase.type === 'variable' &&
            (expr.object as VariableNode).name === 'process' &&
            expr.property === 'argv';
+  }
+
+  private isProcessPlatform(expr: MemberAccessNode): boolean {
+    const exprObjBase = expr.object as ExprBase;
+    return exprObjBase.type === 'variable' &&
+           (expr.object as VariableNode).name === 'process' &&
+           expr.property === 'platform';
   }
 
   private handleEnumMemberAccess(expr: MemberAccessNode): string | null {

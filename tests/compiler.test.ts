@@ -595,6 +595,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/arrays/array-isarray.ts',
       expectTestPassed: true,
       description: 'Array.isArray() should return true for arrays and false for non-arrays'
+    },
+    {
+      name: 'process-platform',
+      fixture: 'tests/fixtures/builtins/process-platform.ts',
+      expectTestPassed: true,
+      description: 'process.platform should return the current platform string'
     }
   ];
 
