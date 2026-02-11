@@ -379,6 +379,12 @@ const testCases: TestCase[] = [
     expectedExitCode: 10,
     description: 'Property access on object literal should work'
   },
+  {
+    name: 'object-keys',
+    fixture: 'tests/fixtures/builtins/object-keys.ts',
+    expectTestPassed: true,
+    description: 'Object.keys() should return field names of typed objects'
+  },
     {
       name: 'object-method',
       fixture: 'tests/fixtures/objects/object-method.js',

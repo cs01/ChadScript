@@ -123,6 +123,7 @@ ChadScript ships with a full standard library — HTTP servers, file I/O, JSON p
 | `Map` | `set`, `get`, `has`, `delete`, `size`, `keys`, `values` |
 | `Set` | `add`, `has`, `delete`, `size` |
 | `RegExp` | `test` |
+| `Object` | `keys` |
 | Networking | `fetch`, `httpServe` |
 | Async | `async`/`await`, `Promise.all`, `setTimeout`, `setInterval` |
 | Other | `parseInt`, `Date.now`, `child_process.execSync` |
@@ -222,7 +223,7 @@ Node.js APIs map to native equivalents — inlined directly as LLVM IR at the ca
 ## Limitations
 
 - **No discriminated unions** - Types map to fixed LLVM representations (`string` → `i8*`, `number` → `double`). `string | null` works (same repr), but `string | number` is rejected at compile time. Tagged unions may come later.
-- **No dynamic features** - No `eval`, `typeof`, `Object.keys()`, destructuring, spread, optional chaining
+- **No dynamic features** - No `eval`, destructuring, spread, optional chaining
 - **No reflection** - No `instanceof`, `for...in`, runtime type inspection
 
 ## Architecture

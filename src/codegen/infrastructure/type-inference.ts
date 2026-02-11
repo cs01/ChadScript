@@ -1476,6 +1476,12 @@ export class TypeInference {
       if (methodExpr.method === 'split') {
         return true;
       }
+      if (methodExpr.method === 'keys') {
+        const objBase = methodExpr.object as ExprBase;
+        if (objBase.type === 'variable' && (methodExpr.object as VariableNode).name === 'Object') {
+          return true;
+        }
+      }
       if (methodExpr.method === 'match' && this.isStringExpression(methodExpr.object) && !this.isClassInstanceExpression(methodExpr.object)) {
         if (methodExpr.args.length > 0 && methodExpr.args[0].type === 'regex') {
           return true;

@@ -648,6 +648,10 @@ export class MethodCallGenerator {
       return this.ctx.generateExpression(expr.args[0], params);
     }
 
+    if (this.isVariableWithName(expr.object, 'Object') && method === 'keys') {
+      return this.generateObjectKeys(expr, params);
+    }
+
     // Handle Promise instance methods (.then, .catch)
     if (method === 'then' || method === 'catch') {
       const isPromise = this.isPromiseExpression(expr.object);
@@ -2377,6 +2381,82 @@ export class MethodCallGenerator {
     this.emit(`${result} = call %Promise* @__Promise_then(%Promise* ${promisePtr}, void (i8*, i8*)* ${onFulfilledPtr}, void (i8*, i8*)* ${onRejectedPtr})`);
     this.ctx.setVariableType(result, '%Promise*');
     return result;
+  }
+
+  private generateObjectKeys(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length === 0) {
+      throw new Error('Object.keys() requires 1 argument');
+    }
+
+    const arg = expr.args[0];
+    const argBase = arg as ExprBase;
+    if (argBase.type !== 'variable') {
+      throw new Error('Object.keys() argument must be a variable');
+    }
+    const name = (arg as VariableNode).name;
+
+    let fieldNames: string[] = [];
+
+    const interfaceType = this.ctx.symbolTableGetInterfaceType(name);
+    if (interfaceType) {
+      const ifaceDef = this.getInterfaceFromAST(interfaceType);
+      if (ifaceDef) {
+        for (let i = 0; i < ifaceDef.properties.length; i++) {
+          fieldNames.push(ifaceDef.properties[i].name);
+        }
+      }
+    }
+
+    if (fieldNames.length === 0) {
+      const objInfo = this.ctx.symbolTableGetObjectInfo(name);
+      if (objInfo) {
+        fieldNames = objInfo.keys;
+      }
+    }
+
+    if (fieldNames.length === 0) {
+      throw new Error(`Object.keys(): cannot determine fields for '${name}'`);
+    }
+
+    const length = fieldNames.length;
+
+    const sizePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
+    const structSize = this.ctx.nextTemp();
+    this.ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+    const arrayMem = this.ctx.nextTemp();
+    this.ctx.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+    const arrayPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
+
+    const dataSize = this.ctx.nextTemp();
+    this.ctx.emit(`${dataSize} = mul i64 ${length}, 8`);
+    const dataMem = this.ctx.nextTemp();
+    this.ctx.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSize})`);
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
+
+    for (let i = 0; i < fieldNames.length; i++) {
+      const strConst = this.ctx.stringGenCreateStringConstant(fieldNames[i]);
+      const elemPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
+      this.ctx.emit(`store i8* ${strConst}, i8** ${elemPtr}`);
+    }
+
+    const dataPtrField = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.ctx.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
+
+    const lenField = this.ctx.nextTemp();
+    this.ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.ctx.emit(`store i32 ${length}, i32* ${lenField}`);
+
+    const capField = this.ctx.nextTemp();
+    this.ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+    this.ctx.emit(`store i32 ${length}, i32* ${capField}`);
+
+    this.ctx.setVariableType(arrayPtr, '%StringArray*');
+    return arrayPtr;
   }
 
   private throwUnsupportedMethodError(method: string, _objectType?: string, methodCallExpr?: MethodCallNode): never {
