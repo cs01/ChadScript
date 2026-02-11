@@ -33,7 +33,12 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
   private anonFuncCounter = 0;
   private liftedFunctions: LiftedFunction[] = [];
   private envStructDefs: EnvStructDef[] = [];
-  private closureAnalyzer: ClosureAnalyzer = new ClosureAnalyzer();
+  private closureAnalyzer: ClosureAnalyzer;
+
+  constructor() {
+    super();
+    this.closureAnalyzer = new ClosureAnalyzer();
+  }
 
   /**
    * Generate code for an arrow function expression.
@@ -183,14 +188,14 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     let funcResult: LiftedFunction | null = null;
     for (let i = 0; i < this.liftedFunctions.length; i++) {
       const fRaw = this.liftedFunctions[i];
-      const f = fRaw as { name: string; closureInfo: ClosureInfo };
+      const f = fRaw as { name: string };
       if (f.name === lambdaName) {
         funcResult = fRaw as LiftedFunction;
         break;
       }
     }
     if (funcResult) {
-      const func = funcResult as { closureInfo: ClosureInfo };
+      const func = funcResult as { name: string; params: string[]; body: BlockStatement; paramTypes: string[]; returnType: string; closureInfo: ClosureInfo };
       return func.closureInfo;
     }
     return undefined;

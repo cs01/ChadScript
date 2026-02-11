@@ -106,7 +106,7 @@ export class AssignmentGenerator {
       className = this.ctx.getCurrentClassName();
       if (!className) {
         const ast = this.ctx.getAst();
-        const classes = ast?.classes || [];
+        const classes = ast ? (ast.classes || []) : [];
         let classWithFieldResult: ClassNode | null = null;
         for (let ci = 0; ci < classes.length; ci++) {
           const c = classes[ci] as ClassNode;

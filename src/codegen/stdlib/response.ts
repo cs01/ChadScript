@@ -33,10 +33,13 @@ interface ResponseGeneratorContext {
 }
 
 export class ResponseGenerator {
-  private generatedStructs: Set<string> = new Set();  // Track generated interface structs
-  private generatedParsers: Set<string> = new Set();  // Track generated JSON parsers
+  private generatedStructs: Set<string>;  // Track generated interface structs
+  private generatedParsers: Set<string>;  // Track generated JSON parsers
 
-  constructor(private ctx: ResponseGeneratorContext) {}
+  constructor(private ctx: ResponseGeneratorContext) {
+    this.generatedStructs = new Set();
+    this.generatedParsers = new Set();
+  }
 
   /**
    * Generate Response.text() method call

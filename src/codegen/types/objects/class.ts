@@ -9,9 +9,11 @@ import { stripOptional, tsTypeToLlvm } from '../../infrastructure/type-system.js
 
 export class ClassGenerator {
   // Track class structures: className -> ALL fields (including inherited)
-  public classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]> = new Map();
+  public classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]>;
 
-  constructor(private ctx: IGeneratorContext) {}
+  constructor(private ctx: IGeneratorContext) {
+    this.classFields = new Map();
+  }
 
   private findClassNode(className: string): ClassNode | null {
     const ast = this.ctx.getAst();
@@ -989,7 +991,7 @@ export class ClassGenerator {
 
     let interfaceDefResult: InterfaceDeclaration | null = null;
     const ast = this.ctx.getAst();
-    if (ast?.interfaces) {
+    if (ast && ast.interfaces) {
       for (let ii = 0; ii < ast.interfaces.length; ii++) {
         const iface = ast.interfaces[ii] as InterfaceDeclaration;
         if (!iface) continue;
@@ -1019,7 +1021,7 @@ export class ClassGenerator {
 
     let typeAlias: { name: string; unionMembers: string[] } | null = null;
     const ast2 = this.ctx.getAst();
-    const typeAliases = ast2?.typeAliases || [];
+    const typeAliases = ast2 ? (ast2.typeAliases || []) : [];
     for (let i = 0; i < typeAliases.length; i++) {
       const ta = typeAliases[i] as { name: string; unionMembers: string[] };
       if (ta.name === tsType) {
@@ -1039,7 +1041,7 @@ export class ClassGenerator {
 
     let classDef: { name: string } | null = null;
     const ast3 = this.ctx.getAst();
-    const classes = ast3?.classes || [];
+    const classes = ast3 ? (ast3.classes || []) : [];
     for (let i = 0; i < classes.length; i++) {
       const cls = classes[i] as { name: string };
       if (!cls) continue;
@@ -1135,7 +1137,7 @@ export class ClassGenerator {
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
     const interfaces: { name: string; extends: string[]; fields: { name: string; type: string }[]; methods: { name: string }[] }[] = [];
     const ast = this.ctx.getAst();
-    const astInterfaces = ast?.interfaces || [];
+    const astInterfaces = ast ? (ast.interfaces || []) : [];
     for (let i = 0; i < memberNames.length; i++) {
       const memberName = memberNames[i];
       for (let j = 0; j < astInterfaces.length; j++) {

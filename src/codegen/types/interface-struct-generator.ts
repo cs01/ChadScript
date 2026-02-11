@@ -24,12 +24,13 @@ export interface InterfaceStructInfo {
 }
 
 export class InterfaceStructGenerator {
-  private interfaceStructs: Map<string, InterfaceStructInfo> = new Map();
+  private interfaceStructs: Map<string, InterfaceStructInfo>;
   private interfaceCount: number = 0;
   private interfaces: InterfaceDeclaration[] = [];
-  private enumNames: Set<string> = new Set();
+  private enumNames: Set<string>;
 
   constructor(interfaces: InterfaceDeclaration[], interfaceCount: number, enumNames?: string[]) {
+    this.interfaceStructs = new Map();
     this.interfaceCount = interfaceCount;
     this.enumNames = new Set();
     if (enumNames) {

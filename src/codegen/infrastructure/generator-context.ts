@@ -766,11 +766,11 @@ export class MockGeneratorContext implements IGeneratorContext {
   private stringCount = 0;
   public output: string[] = [];
   public allocaInstructions: string[] = [];
-  public symbolTable: SymbolTable = new SymbolTable();
-  public variableTypes: Map<string, string> = new Map();
-  public actualClassTypes: Map<string, string> = new Map();
-  public jsonObjectMetadata: Map<string, JsonObjectMeta> = new Map();
-  public expressionTypes: Map<Expression, ResolvedType> = new Map();
+  public symbolTable: SymbolTable;
+  public variableTypes: Map<string, string>;
+  public actualClassTypes: Map<string, string>;
+  public jsonObjectMetadata: Map<string, JsonObjectMeta>;
+  public expressionTypes: Map<Expression, ResolvedType>;
   public globalStrings: string[] = [];
   public currentFunctionReturnType: string = 'double';
   public currentFunctionTsReturnType: string | undefined = undefined;
@@ -789,6 +789,14 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesTimers = false;
   public currentFunction: string | null = null;
   public currentDeclaredInterfaceType: string | undefined = undefined;
+
+  constructor() {
+    this.symbolTable = new SymbolTable();
+    this.variableTypes = new Map();
+    this.actualClassTypes = new Map();
+    this.jsonObjectMetadata = new Map();
+    this.expressionTypes = new Map();
+  }
 
   getClassesCount(): number {
     if (!this.ast || !this.ast.classes) return 0;
@@ -1310,7 +1318,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null {
     if (!this.ast) return null;
     for (let i = 0; i < this.ast.interfaces.length; i++) {
-      const iface = this.ast.interfaces[i] as { name: string; fields: { name: string; type: string }[] };
+      const iface = this.ast.interfaces[i] as { name: string; extends: string[]; fields: { name: string; type: string }[] };
       if (iface.name === name) {
         return iface;
       }

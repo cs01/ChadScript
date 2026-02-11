@@ -9,10 +9,13 @@ interface JsonInterfaceDef {
 }
 
 export class JsonGenerator {
-  private generatedStructs: Set<string> = new Set();
-  private generatedParsers: Set<string> = new Set();
+  private generatedStructs: Set<string>;
+  private generatedParsers: Set<string>;
 
-  constructor(private ctx: IGeneratorContext) {}
+  constructor(private ctx: IGeneratorContext) {
+    this.generatedStructs = new Set();
+    this.generatedParsers = new Set();
+  }
 
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;

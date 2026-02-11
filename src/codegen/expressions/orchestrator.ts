@@ -166,16 +166,11 @@ export class ExpressionGenerator {
       const scopeVarsResult = this.ctx.symbolTableGetScopeVarsArraysForClosure();
       const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
       let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
-      if (this.ctx.getExpectedCallbackParamType() || this.ctx.getExpectedCallbackReturnType()) {
-        typeHints = {};
-        const cbParamType = this.ctx.getExpectedCallbackParamType();
-        if (cbParamType) {
-          typeHints.paramTypes = [cbParamType];
-        }
-        const cbReturnType = this.ctx.getExpectedCallbackReturnType();
-        if (cbReturnType) {
-          typeHints.returnType = cbReturnType;
-        }
+      const cbParamType = this.ctx.getExpectedCallbackParamType();
+      const cbReturnType = this.ctx.getExpectedCallbackReturnType();
+      if (cbParamType || cbReturnType) {
+        const hintParamTypes: string[] | undefined = cbParamType ? [cbParamType] : undefined;
+        typeHints = { paramTypes: hintParamTypes, returnType: cbReturnType || undefined };
       }
       return this.arrowFunctionGen.generateArrowFunction(expr as ArrowFunctionNode, params, typeHints, scopeVarsTyped.names, scopeVarsTyped.types);
     }

@@ -175,10 +175,14 @@ export interface ClosureInfo {
 }
 
 export class ClosureAnalyzer {
-  private declaredVars: Set<string> = new Set();
+  private declaredVars: Set<string>;
   private referencedVarsList: string[] = [];
   private scopeVarNames: string[] = [];
   private scopeVarTypes: string[] = [];
+
+  constructor() {
+    this.declaredVars = new Set();
+  }
 
   /**
    * Analyze an arrow function and return information about captured variables.

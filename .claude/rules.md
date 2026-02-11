@@ -8,6 +8,19 @@ After completing each todo:
 3. If tests fail, fix them before moving to the next todo
 4. Never move on to the next todo while tests are failing
 
+## Self-Hosting Verification
+
+Before considering any feature complete, run the full self-hosting chain:
+1. `npm test` — all tests pass
+2. `npm run build && node dist/index.js --link-tree-sitter src/native-compiler.ts -o .build/chadc` — rebuild Stage 0
+3. `.build/chadc examples/hello.ts -o /tmp/hello && /tmp/hello` — Stage 0 smoke test
+4. `.build/chadc src/native-compiler.ts -o /tmp/chad-stage1` — Stage 0 compiles itself (Stage 1)
+5. `/tmp/chad-stage1 examples/hello.ts -o /tmp/hello2 && /tmp/hello2` — Stage 1 smoke test
+6. `/tmp/chad-stage1 src/native-compiler.ts -o /tmp/chad-stage2` — Stage 1 compiles itself (Stage 2)
+7. `/tmp/chad-stage2 examples/hello.ts -o /tmp/hello3 && /tmp/hello3` — Stage 2 smoke test
+
+New features have complex side effects that may not be caught by unit tests alone. A change that passes all 240 tests can still break self-hosting. The Stage 2 test is the true verification — it proves the compiler's output is correct enough to compile itself.
+
 ## Stage 0 Compatibility - STOP Adding Wrapper Methods
 
 The wrapper method pattern for Stage 0 compatibility is NOT scalable. Do NOT add more wrapper methods like:

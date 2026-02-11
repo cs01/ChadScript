@@ -25,8 +25,8 @@ interface ArrowFunctionGeneratorLike {
 }
 
 interface ClosureInfoResult {
-  envStructName: string;
   captures: CaptureInfo[];
+  envStructName: string;
 }
 
 interface CaptureInfo {
@@ -600,7 +600,7 @@ export class VariableAllocator {
   }
 
   private getDeclaredInterfaceType(stmt: VariableDeclaration): string | null {
-    if (stmt.value?.type === 'type_assertion') {
+    if (stmt.value && stmt.value.type === 'type_assertion') {
       const assertionNode = stmt.value as TypeAssertionNode;
       const assertedType = assertionNode.assertedType;
       if (assertedType.startsWith('{')) {
@@ -615,12 +615,12 @@ export class VariableAllocator {
     }
     if (!stmt.declaredType) return null;
     const strippedDeclaredType = stripNullable(stmt.declaredType);
-    if (strippedDeclaredType.startsWith('{') && stmt.value?.type === 'object') {
+    if (strippedDeclaredType.startsWith('{') && stmt.value && stmt.value.type === 'object') {
       const innerType = strippedDeclaredType.slice(1).trim();
       if (innerType.startsWith('[')) return null;
       return strippedDeclaredType;
     }
-    if (stmt.value?.type !== 'variable' && stmt.value?.type !== 'object') return null;
+    if (!stmt.value || (stmt.value.type !== 'variable' && stmt.value.type !== 'object')) return null;
     const interfaceDefResult2 = this.getInterface(stmt.declaredType);
     if (!interfaceDefResult2) return null;
     return stmt.declaredType;
@@ -709,13 +709,13 @@ export class VariableAllocator {
     if (result) {
       return result;
     }
-    if (expr?.type !== 'method_call') return null;
+    if (!expr || expr.type !== 'method_call') return null;
     const methodExpr = expr as MethodCallNode;
     if (methodExpr.method !== 'get') return null;
 
     let valueType: string | null = null;
 
-    if (methodExpr.object?.type === 'variable') {
+    if (methodExpr.object && methodExpr.object.type === 'variable') {
       const varObj = methodExpr.object as VariableNode;
       const mapName = varObj.name;
       if (!this.ctx.symbolTableIsMap(mapName)) return null;
@@ -725,7 +725,7 @@ export class VariableAllocator {
       if (mapMeta.keyType !== 'string') return null;
 
       valueType = mapMeta.valueType;
-    } else if (methodExpr.object?.type === 'member_access') {
+    } else if (methodExpr.object && methodExpr.object.type === 'member_access') {
       const memberExpr = methodExpr.object as MemberAccessNode;
       const memberExprObjBase = memberExpr.object as ExprBase;
       if (memberExprObjBase.type !== 'this') return null;
@@ -1647,7 +1647,7 @@ export class VariableAllocator {
     if (!objectType) return null;
 
     const ast = this.ctx.getAst();
-    const classes = ast?.classes || [];
+    const classes = ast ? (ast.classes || []) : [];
     for (let i = 0; i < classes.length; i++) {
       const cls = classes[i];
       if (cls.name === objectType) {

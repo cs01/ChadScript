@@ -40,12 +40,13 @@ export interface AnalysisError {
 
 export class SemanticAnalyzer {
   private ast: AST;
-  private symbols: Map<string, TypedSymbol> = new Map();
+  private symbols: Map<string, TypedSymbol>;
   private errors: AnalysisError[] = [];
   private currentFunction: string = '';
 
   constructor(ast: AST) {
     this.ast = ast;
+    this.symbols = new Map();
   }
 
   /**

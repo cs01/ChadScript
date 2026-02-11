@@ -2416,7 +2416,7 @@ export class MethodCallGenerator {
       const varName = (expr as VariableNode).name;
       if (this.ctx.symbolTableIsClass(varName)) {
         const classMeta = this.ctx.symbolTableGetClassInfo(varName);
-        return classMeta?.className || null;
+        return classMeta ? (classMeta.className || null) : null;
       }
       return null;
     }
@@ -2861,7 +2861,9 @@ export class MethodCallGenerator {
       throw new Error(`Object.values(): cannot determine fields for '${name}'`);
     }
 
-    const { keys, types, ptr } = info;
+    const keys = info.keys;
+    const types = info.types;
+    const ptr = info.ptr;
     const length = keys.length;
     const structType = `{ ${types.join(', ')} }`;
 
@@ -3025,7 +3027,9 @@ export class MethodCallGenerator {
       throw new Error(`Object.entries(): cannot determine fields for '${name}'`);
     }
 
-    const { keys, types, ptr } = info;
+    const keys = info.keys;
+    const types = info.types;
+    const ptr = info.ptr;
     const length = keys.length;
     const structType = `{ ${types.join(', ')} }`;
 

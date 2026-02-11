@@ -127,7 +127,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private classStructDefsCache: string = '';
 
   // JSON object metadata for tracking parsed JSON structures
-  public jsonObjectMetadata: Map<string, JsonObjectMeta> = new Map();
+  public jsonObjectMetadata: Map<string, JsonObjectMeta>;
 
   // Helper: Format nice compiler errors (public for context pattern access)
   public formatCodegenError(message: string, suggestion?: string, pos?: number): string {
@@ -1013,6 +1013,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.globalVariables = new Map();
     this.importAliasMap = new Map();
     this.httpHandlers = [];
+    this.jsonObjectMetadata = new Map();
 
     this.ast = ast;
 
@@ -1344,7 +1345,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           defaultValue = 'null';
         } else if (isClassInstance) {
           const className = (stmt.value as NewNode).className;
-          const fields = this.classGen?.getClassFields(className) || [];
+          const fields = this.classGen ? (this.classGen.getClassFields(className) || []) : [];
           llvmType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
           kind = SymbolKind.Class;
           defaultValue = 'null';
@@ -1515,202 +1516,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
    * @returns Complete LLVM IR module as string (struct types + extern declarations + functions + main)
    */
   generate(): string {
-    const irParts: string[] = [];
-
-    irParts.push(getLLVMDeclarations());
-
-    const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
-    this.interfaceStructDefsCache = interfaceStructDefs;
-
-    const classStructDefs = this.classGen.generateStructTypeDefinitions(this.classesCount);
-    this.classStructDefsCache = classStructDefs;
-
-    const fetchRuntime = this.runtimeGen.generateFetchRuntime();
-    if (fetchRuntime) { irParts.push(fetchRuntime); }
-    irParts.push('\n');
-
-    const jsonRuntime = this.runtimeGen.generateJSONRuntime();
-    if (jsonRuntime) { irParts.push(jsonRuntime); }
-    irParts.push('\n');
-
-    const mongooseDecls = this.mongooseGen.generateDeclarations();
-    if (mongooseDecls) { irParts.push(mongooseDecls); }
-    irParts.push('\n');
-
-    const libuvDecls = this.libuvGen.generateDeclarations();
-    if (libuvDecls) { irParts.push(libuvDecls); }
-    irParts.push('\n');
-
-    const promiseDecls = this.promiseGen.generateDeclarations();
-    if (promiseDecls) { irParts.push(promiseDecls); }
-    irParts.push('\n');
-
-    const safeStr = getSafeStringHelper();
-    if (safeStr) { irParts.push(safeStr); }
-    const dblToStr = getDoubleToStringHelper();
-    if (dblToStr) { irParts.push(dblToStr); }
-    const strHash = getStringHashHelper();
-    if (strHash) { irParts.push(strHash); }
-
-    irParts.push(this.fsGen.generateReaddirSyncHelper());
-    irParts.push(this.fsGen.generateStatSyncHelper());
-
-    const globalVars = getGlobalVariables();
-    if (globalVars) { irParts.push(globalVars); }
-
-    const globalVarDecls = this.generateGlobalVariableDeclarations();
-    if (globalVarDecls) { irParts.push(globalVarDecls); }
-
-    // Generate class definitions
-    for (let classIdx = 0; classIdx < this.classesCount; classIdx++) {
-      const classNode = this.ast.classes[classIdx];
-      if (!classNode) continue;
-      if (!classNode.name) continue;
-      this.syncStateToGenerators();
-      const classIr = this.classGen.generateClass(classNode);
-      if (classIr) {
-        irParts.push(classIr);
-        irParts.push('\n');
-      }
-    }
-
-    // Generate user function definitions (this may discover lifted functions)
-    const userFuncParts: string[] = [];
-    for (let funcIdx = 0; funcIdx < this.functionsCount; funcIdx++) {
-      const func = this.ast.functions[funcIdx];
-      const funcIr = this.generateFunction(func);
-      if (funcIr) {
-        userFuncParts.push(funcIr);
-        userFuncParts.push('\n');
-      }
-    }
-
-    // Generate main function (this may also discover lifted functions)
-    const mainIr = this.generateMain();
-
-    // Generate environment struct type definitions for closures
-    const envStructDefs = this.exprGen.arrowFunctionGen.getEnvStructDefinitions();
-    if (envStructDefs) {
-      irParts.push(envStructDefs);
-      irParts.push('\n');
-    }
-
-    // Generate lifted functions (discovered during user function and main generation)
-    // These need to be placed BEFORE user functions so they can be called
-    const liftedFunctions = this.exprGen.arrowFunctionGen.getLiftedFunctions();
-    for (let _lfi = 0; _lfi < liftedFunctions.length; _lfi++) {
-      const func = liftedFunctions[_lfi];
-      const liftedIr = this.generateFunction(func);
-      if (liftedIr) {
-        irParts.push(liftedIr);
-        irParts.push('\n');
-      }
-    }
-
-    // Append user functions after lifted functions
-    for (let ufi = 0; ufi < userFuncParts.length; ufi++) {
-      irParts.push(userFuncParts[ufi]);
-    }
-
-    // Append main function after all other functions
-    if (mainIr) { irParts.push(mainIr); }
-
-    // Generate mongoose HTTP server runtime if httpServe was used
-    if (this.httpHandlers.length > 0) {
-      irParts.push('\n');
-      const httpServe = this.mongooseGen.generateHttpServeFunction();
-      if (httpServe) { irParts.push(httpServe); }
-      irParts.push('\n');
-      const eventHandler = this.mongooseGen.generateEventHandler(this.httpHandlers[0]);
-      if (eventHandler) { irParts.push(eventHandler); }
-    }
-
-    // Generate libuv timer runtime if setTimeout/setInterval was used
-    if (this.usesTimers) {
-      irParts.push('\n');
-      const timerCb = this.libuvGen.generateTimerCallbackWrapper();
-      if (timerCb) { irParts.push(timerCb); }
-      const setTimeout = this.libuvGen.generateSetTimeout();
-      if (setTimeout) { irParts.push(setTimeout); }
-      const setInterval = this.libuvGen.generateSetInterval();
-      if (setInterval) { irParts.push(setInterval); }
-      const clearTimer = this.libuvGen.generateClearTimer();
-      if (clearTimer) { irParts.push(clearTimer); }
-      const runLoop = this.libuvGen.generateRunEventLoop();
-      if (runLoop) { irParts.push(runLoop); }
-    }
-
-    // Generate Promise runtime if Promise is used
-    if (this.usesPromises) {
-      irParts.push('\n');
-      const promiseAll = this.promiseGen.generateAll();
-      if (promiseAll) { irParts.push(promiseAll); }
-      const fetchCallbacks = this.libuvGen.generateFetchWorkCallbacks();
-      if (fetchCallbacks) { irParts.push(fetchCallbacks); }
-      const fetchAsync = this.libuvGen.generateFetchAsync();
-      if (fetchAsync) { irParts.push(fetchAsync); }
-      const promiseAwait = this.libuvGen.generatePromiseAwait();
-      if (promiseAwait) { irParts.push(promiseAwait); }
-    }
-
-    if (this.linkTreeSitter || this.usesTreeSitter) {
-      const tsDecls = this.treesitterGen.generateDeclarations();
-      if (tsDecls) { irParts.push(tsDecls); }
-      irParts.push('\n');
-
-      const tsHelpers: string[] = [];
-      tsHelpers.push(this.treesitterGen.generateParseSourceHelper());
-      tsHelpers.push(this.treesitterGen.generateGetRootNodeHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeTypeHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeChildCountHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeChildHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeStartByteHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeEndByteHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeTextHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeIsNullHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeIsNamedHelper());
-      tsHelpers.push(this.treesitterGen.generateNamedChildHelper());
-      tsHelpers.push(this.treesitterGen.generateNamedChildCountHelper());
-      tsHelpers.push(this.treesitterGen.generateChildByFieldNameHelper());
-      for (let thi = 0; thi < tsHelpers.length; thi++) {
-        if (tsHelpers[thi]) { irParts.push(tsHelpers[thi]); }
-      }
-      irParts.push('\n');
-    }
-
-    const finalParts: string[] = [];
-
-    finalParts.push('; Tree-sitter type definitions\n');
-    finalParts.push('%TSParser = type opaque\n');
-    finalParts.push('%TSTree = type opaque\n');
-    finalParts.push('%TSLanguage = type opaque\n');
-    finalParts.push('%TSNode = type { [4 x i32], i8*, %TSTree* }\n');
-    finalParts.push('%TSPoint = type { i32, i32 }\n\n');
-
-    if (this.interfaceStructDefsCache) {
-      finalParts.push(this.interfaceStructDefsCache);
-      finalParts.push('\n');
-    }
-
-    if (this.classStructDefsCache) {
-      finalParts.push(this.classStructDefsCache);
-      finalParts.push('\n');
-    }
-
-    if (this.globalStrings.length > 0) {
-      for (let gsi = 0; gsi < this.globalStrings.length; gsi++) {
-        finalParts.push(this.globalStrings[gsi]);
-        finalParts.push('\n');
-      }
-      finalParts.push('\n');
-    }
-
-    for (let ipi = 0; ipi < irParts.length; ipi++) {
-      finalParts.push(irParts[ipi]);
-    }
-
-    const ir = finalParts.join('');
-    return ir;
+    const parts = this.generateParts();
+    return parts.join('');
   }
 
   generateParts(): string[] {
@@ -1839,6 +1646,31 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (fetchAsync) { irParts.push(fetchAsync); }
       const promiseAwait = this.libuvGen.generatePromiseAwait();
       if (promiseAwait) { irParts.push(promiseAwait); }
+    }
+
+    if (this.linkTreeSitter || this.usesTreeSitter) {
+      const tsDecls = this.treesitterGen.generateDeclarations();
+      if (tsDecls) { irParts.push(tsDecls); }
+      irParts.push('\n');
+
+      const tsHelpers: string[] = [];
+      tsHelpers.push(this.treesitterGen.generateParseSourceHelper());
+      tsHelpers.push(this.treesitterGen.generateGetRootNodeHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeTypeHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeChildCountHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeChildHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeStartByteHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeEndByteHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeTextHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeIsNullHelper());
+      tsHelpers.push(this.treesitterGen.generateNodeIsNamedHelper());
+      tsHelpers.push(this.treesitterGen.generateNamedChildHelper());
+      tsHelpers.push(this.treesitterGen.generateNamedChildCountHelper());
+      tsHelpers.push(this.treesitterGen.generateChildByFieldNameHelper());
+      for (let thi = 0; thi < tsHelpers.length; thi++) {
+        if (tsHelpers[thi]) { irParts.push(tsHelpers[thi]); }
+      }
+      irParts.push('\n');
     }
 
     const finalParts: string[] = [];

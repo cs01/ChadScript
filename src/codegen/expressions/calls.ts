@@ -37,7 +37,7 @@ export class CallExpressionGenerator {
 
   private getFunctionFromAST(name: string): FunctionNode | null {
     const ast = this.ctx.getAst();
-    if (!ast?.functions) return null;
+    if (!ast || !ast.functions) return null;
     const resolvedName = this.ctx.resolveImportAlias(name);
     for (let i = 0; i < ast.functions.length; i++) {
       const fn = ast.functions[i] as FunctionNode;
@@ -834,7 +834,7 @@ export class CallExpressionGenerator {
       throw new Error('super() called outside of class context');
     }
     const ast = this.ctx.getAst();
-    if (!ast?.classes) {
+    if (!ast || !ast.classes) {
       throw new Error('super() called but no classes defined');
     }
     let currentClass: ClassNode | null = null;

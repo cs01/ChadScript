@@ -448,7 +448,7 @@ export class TypeResolver {
   getTypeAlias(name: string): TypeAliasDeclaration | null {
     if (!name) return null;
     const ast = this.ctx.getAst();
-    if (!ast?.typeAliases) return null;
+    if (!ast || !ast.typeAliases) return null;
     for (let i = 0; i < ast.typeAliases.length; i++) {
       const ta = ast.typeAliases[i] as TypeAliasDeclaration;
       if (!ta || !ta.name) {
@@ -622,13 +622,13 @@ export class TypeResolver {
   }
 
   getMapGetInterfaceType(expr: Expression): string | null {
-    if (expr?.type !== 'method_call') return null;
+    if (!expr || expr.type !== 'method_call') return null;
     const methodCall = expr as MethodCallNode;
     if (methodCall.method !== 'get') return null;
 
     let valueType: string | null = null;
 
-    if (methodCall.object?.type === 'variable') {
+    if (methodCall.object && methodCall.object.type === 'variable') {
       const mapName = (methodCall.object as VariableNode).name;
       if (!this.ctx.symbolTableIsMap(mapName)) return null;
 
@@ -637,7 +637,7 @@ export class TypeResolver {
       if (mapMeta.keyType !== 'string') return null;
 
       valueType = mapMeta.valueType;
-    } else if (methodCall.object?.type === 'member_access') {
+    } else if (methodCall.object && methodCall.object.type === 'member_access') {
       const memberExpr = methodCall.object as MemberAccessNode;
       const memberExprObjBase = memberExpr.object as ExprBase;
       if (memberExprObjBase.type !== 'this') return null;
@@ -1073,7 +1073,7 @@ export class TypeResolver {
   }
 
   resolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null {
-    if (expr?.type !== 'method_call') return null;
+    if (!expr || expr.type !== 'method_call') return null;
 
     const methodCall = expr as MethodCallNode;
     const method = methodCall.method;
