@@ -18,7 +18,7 @@ chad build examples/hello.ts
 |------|-------------|
 | `hello.ts` | Hello World - native execution with no runtime |
 | `timers.ts` | setTimeout/setInterval async timers |
-| `http-handler.ts` | HTTP server with Request/Response routing |
+| `http-server.ts` | HTTP server with Request/Response routing |
 | `cli-parser-demo.ts` | CLI argument parsing with flags and options |
 | `word-count.ts` | File processing - lines, words, characters |
 
@@ -32,7 +32,7 @@ chad build examples/hello.ts
 ./.build/examples/timers
 
 # HTTP server (runs on port 3000)
-./.build/examples/http-handler
+./.build/examples/http-server
 
 # CLI with arguments
 ./.build/examples/cli-parser-demo --verbose --output out.txt input.txt

@@ -14,7 +14,7 @@ const SELF_CONTAINED = [
 
 const SKIP_FILES = [
   'README.md',
-  'http-handler.ts',
+  'http-server.ts',
   'word-count.ts',
 ];
 

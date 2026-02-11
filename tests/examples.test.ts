@@ -22,7 +22,7 @@ const EXAMPLES: ExampleTest[] = [
   { file: 'hello.ts', mode: 'run' },
   { file: 'timers.ts', mode: 'run', timeout: 15000 },
   { file: 'cli-parser-demo.ts', mode: 'run' },
-  { file: 'http-handler.ts', mode: 'compile-only' },
+  { file: 'http-server.ts', mode: 'compile-only' },
   { file: 'word-count.ts', mode: 'compile-only' },
 ];
 

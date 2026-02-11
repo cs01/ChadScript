@@ -257,10 +257,33 @@ export class MongooseGenerator {
     ir += '  %response_body = load i8*, i8** %body_ptr_loc\n';
     ir += '\n';
 
-    ir += '  ; Send HTTP response with extracted status code\n';
-    ir += '  %resp_content_type = getelementptr [27 x i8], [27 x i8]* @.str.content_type_text, i32 0, i32 0\n';
+    ir += '  ; Auto-detect content type from body content\n';
+    ir += '  %body_first_byte = load i8, i8* %response_body\n';
+    ir += '  %is_lt = icmp eq i8 %body_first_byte, 60\n';
+    ir += '  br i1 %is_lt, label %ct_html, label %check_json\n\n';
+
+    ir += 'check_json:\n';
+    ir += '  %is_lbrace = icmp eq i8 %body_first_byte, 123\n';
+    ir += '  %is_lbracket = icmp eq i8 %body_first_byte, 91\n';
+    ir += '  %is_json = or i1 %is_lbrace, %is_lbracket\n';
+    ir += '  br i1 %is_json, label %ct_json, label %ct_plain\n\n';
+
+    ir += 'ct_html:\n';
+    ir += '  %html_ct = getelementptr [26 x i8], [26 x i8]* @.str.ct_html, i32 0, i32 0\n';
+    ir += '  br label %send_response\n\n';
+
+    ir += 'ct_json:\n';
+    ir += '  %json_ct = getelementptr [33 x i8], [33 x i8]* @.str.ct_json, i32 0, i32 0\n';
+    ir += '  br label %send_response\n\n';
+
+    ir += 'ct_plain:\n';
+    ir += '  %plain_ct = getelementptr [27 x i8], [27 x i8]* @.str.content_type_text, i32 0, i32 0\n';
+    ir += '  br label %send_response\n\n';
+
+    ir += 'send_response:\n';
+    ir += '  %final_ct = phi i8* [ %html_ct, %ct_html ], [ %json_ct, %ct_json ], [ %plain_ct, %ct_plain ]\n';
     ir += '  %body_fmt = getelementptr [3 x i8], [3 x i8]* @.str.body_fmt, i32 0, i32 0\n';
-    ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 %status_code, i8* %resp_content_type, i8* %body_fmt, i8* %response_body)\n';
+    ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 %status_code, i8* %final_ct, i8* %body_fmt, i8* %response_body)\n';
     ir += '\n';
 
     ir += '  ; GC will handle cleanup of allocated strings\n';
@@ -271,6 +294,8 @@ export class MongooseGenerator {
     ir += '}\n\n';
 
     ir += '@.str.content_type_text = private constant [27 x i8] c"Content-Type: text/plain\\0D\\0A\\00"\n';
+    ir += '@.str.ct_html = private constant [26 x i8] c"Content-Type: text/html\\0D\\0A\\00"\n';
+    ir += '@.str.ct_json = private constant [33 x i8] c"Content-Type: application/json\\0D\\0A\\00"\n';
     ir += '@.str.body_fmt = private constant [3 x i8] c"%s\\00"\n';
     ir += '@.str.content_type_header = private constant [13 x i8] c"Content-Type\\00"\n';
     ir += '@.str.mongoose_empty = private constant [1 x i8] c"\\00"\n';
