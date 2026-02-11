@@ -401,25 +401,36 @@ export class FilesystemGenerator {
   }
 
   generateStatSyncHelper(): string {
+    const isMac = process.platform === 'darwin';
+    const statBufSize = isMac ? 144 : 144;
+    const modeOffset = isMac ? 4 : 24;
+    const sizeOffset = isMac ? 96 : 48;
+    const modeType = isMac ? 'i16' : 'i32';
+
     let ir = '';
     ir += '%StatResult = type { double, double, double }\n\n';
     ir += 'define i8* @__fs_statSync(i8* %path) {\n';
     ir += 'entry:\n';
-    ir += '  %buf = call i8* @GC_malloc(i64 144)\n';
+    ir += `  %buf = call i8* @GC_malloc(i64 ${statBufSize})\n`;
     ir += '  %rc = call i32 @stat(i8* %path, i8* %buf)\n';
     ir += '  %result = call i8* @GC_malloc(i64 24)\n';
     ir += '  %typed = bitcast i8* %result to %StatResult*\n';
     ir += '\n';
-    ir += '  %size_ptr = getelementptr inbounds i8, i8* %buf, i64 48\n';
+    ir += `  %size_ptr = getelementptr inbounds i8, i8* %buf, i64 ${sizeOffset}\n`;
     ir += '  %size_typed = bitcast i8* %size_ptr to i64*\n';
     ir += '  %size_i64 = load i64, i64* %size_typed\n';
     ir += '  %size_dbl = sitofp i64 %size_i64 to double\n';
     ir += '  %f0 = getelementptr inbounds %StatResult, %StatResult* %typed, i32 0, i32 0\n';
     ir += '  store double %size_dbl, double* %f0\n';
     ir += '\n';
-    ir += '  %mode_ptr = getelementptr inbounds i8, i8* %buf, i64 24\n';
-    ir += '  %mode_typed = bitcast i8* %mode_ptr to i32*\n';
-    ir += '  %mode = load i32, i32* %mode_typed\n';
+    ir += `  %mode_ptr = getelementptr inbounds i8, i8* %buf, i64 ${modeOffset}\n`;
+    ir += `  %mode_typed = bitcast i8* %mode_ptr to ${modeType}*\n`;
+    ir += `  %mode_raw = load ${modeType}, ${modeType}* %mode_typed\n`;
+    if (isMac) {
+      ir += '  %mode = zext i16 %mode_raw to i32\n';
+    } else {
+      ir += '  %mode = add i32 %mode_raw, 0\n';
+    }
     ir += '  %masked = and i32 %mode, 61440\n';
     ir += '\n';
     ir += '  %is_file_i1 = icmp eq i32 %masked, 32768\n';
