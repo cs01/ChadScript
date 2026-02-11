@@ -347,12 +347,13 @@ export class PromiseGenerator {
     ir += 'store_result:\n';
     ir += '  ; Get results array from state\n';
     ir += '  %results_ptr_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 1\n';
-    ir += '  %results = load %Array*, %Array** %results_ptr_ptr\n';
+    ir += '  %results_as_array = load %Array*, %Array** %results_ptr_ptr\n';
+    ir += '  %results = bitcast %Array* %results_as_array to %ObjectArray*\n';
     ir += '\n';
-    ir += '  ; Store value at index in results array data\n';
-    ir += '  %data_ptr_ptr = getelementptr inbounds %Array, %Array* %results, i32 0, i32 2\n';
-    ir += '  %data_ptr = load double*, double** %data_ptr_ptr\n';
-    ir += '  %data_i8 = bitcast double* %data_ptr to i8**\n';
+    ir += '  ; Store value at index in results array data (field 0 of ObjectArray)\n';
+    ir += '  %data_ptr_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %results, i32 0, i32 0\n';
+    ir += '  %data_ptr = load i8*, i8** %data_ptr_ptr\n';
+    ir += '  %data_i8 = bitcast i8* %data_ptr to i8**\n';
     ir += '  %slot = getelementptr inbounds i8*, i8** %data_i8, i32 %index\n';
     ir += '  store i8* %value, i8** %slot\n';
     ir += '\n';
@@ -416,18 +417,17 @@ export class PromiseGenerator {
   }
 
   generatePromiseAll(): string {
-    let ir = '; __Promise_all(%Array* promises) -> %Promise*\n';
+    let ir = '; __Promise_all(%ObjectArray* promises) -> %Promise*\n';
     ir += '; Returns a promise that resolves when all input promises resolve\n';
     ir += '; The resolved value is an array of results\n';
-    ir += 'define %Promise* @__Promise_all(%Array* %promises) {\n';
+    ir += 'define %Promise* @__Promise_all(%ObjectArray* %promises) {\n';
     ir += 'entry:\n';
     ir += '  ; Create result promise\n';
     ir += '  %result_promise = call %Promise* @__Promise_new()\n';
     ir += '\n';
-    ir += '  ; Get array length\n';
-    ir += '  %len_ptr = getelementptr inbounds %Array, %Array* %promises, i32 0, i32 0\n';
-    ir += '  %len_double = load double, double* %len_ptr\n';
-    ir += '  %len = fptosi double %len_double to i32\n';
+    ir += '  ; Get array length (field 1 of ObjectArray)\n';
+    ir += '  %len_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %promises, i32 0, i32 1\n';
+    ir += '  %len = load i32, i32* %len_ptr\n';
     ir += '\n';
     ir += '  ; Check if empty array\n';
     ir += '  %is_empty = icmp eq i32 %len, 0\n';
@@ -435,15 +435,15 @@ export class PromiseGenerator {
     ir += '\n';
     ir += 'resolve_empty:\n';
     ir += '  ; Resolve with empty array\n';
-    ir += '  %empty_arr_mem = call i8* @GC_malloc(i64 24)\n';
-    ir += '  %empty_arr = bitcast i8* %empty_arr_mem to %Array*\n';
-    ir += '  %empty_len_ptr = getelementptr inbounds %Array, %Array* %empty_arr, i32 0, i32 0\n';
-    ir += '  store double 0.0, double* %empty_len_ptr\n';
-    ir += '  %empty_cap_ptr = getelementptr inbounds %Array, %Array* %empty_arr, i32 0, i32 1\n';
-    ir += '  store double 0.0, double* %empty_cap_ptr\n';
-    ir += '  %empty_data_ptr = getelementptr inbounds %Array, %Array* %empty_arr, i32 0, i32 2\n';
-    ir += '  store double* null, double** %empty_data_ptr\n';
-    ir += '  %empty_ptr = bitcast %Array* %empty_arr to i8*\n';
+    ir += '  %empty_arr_mem = call i8* @GC_malloc(i64 16)\n';
+    ir += '  %empty_arr = bitcast i8* %empty_arr_mem to %ObjectArray*\n';
+    ir += '  %empty_data_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %empty_arr, i32 0, i32 0\n';
+    ir += '  store i8* null, i8** %empty_data_ptr\n';
+    ir += '  %empty_len_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %empty_arr, i32 0, i32 1\n';
+    ir += '  store i32 0, i32* %empty_len_ptr\n';
+    ir += '  %empty_cap_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %empty_arr, i32 0, i32 2\n';
+    ir += '  store i32 0, i32* %empty_cap_ptr\n';
+    ir += '  %empty_ptr = bitcast %ObjectArray* %empty_arr to i8*\n';
     ir += '  call void @__Promise_resolve(%Promise* %result_promise, i8* %empty_ptr)\n';
     ir += '  br label %done\n';
     ir += '\n';
@@ -462,25 +462,25 @@ export class PromiseGenerator {
     ir += '  %rejected = bitcast i8* %rejected_mem to i32*\n';
     ir += '  store i32 0, i32* %rejected\n';
     ir += '\n';
-    ir += '  ; Allocate results array\n';
-    ir += '  %results_arr_mem = call i8* @GC_malloc(i64 24)\n';
-    ir += '  %results_arr = bitcast i8* %results_arr_mem to %Array*\n';
-    ir += '  %results_len_ptr = getelementptr inbounds %Array, %Array* %results_arr, i32 0, i32 0\n';
-    ir += '  store double %len_double, double* %results_len_ptr\n';
-    ir += '  %results_cap_ptr = getelementptr inbounds %Array, %Array* %results_arr, i32 0, i32 1\n';
-    ir += '  store double %len_double, double* %results_cap_ptr\n';
+    ir += '  ; Allocate results array (ObjectArray: {i8*, i32, i32})\n';
+    ir += '  %results_arr_mem = call i8* @GC_malloc(i64 16)\n';
+    ir += '  %results_arr = bitcast i8* %results_arr_mem to %ObjectArray*\n';
     ir += '  %results_data_size = mul i32 %len, 8\n';
     ir += '  %results_data_size_i64 = sext i32 %results_data_size to i64\n';
     ir += '  %results_data_mem = call i8* @GC_malloc(i64 %results_data_size_i64)\n';
-    ir += '  %results_data = bitcast i8* %results_data_mem to double*\n';
-    ir += '  %results_data_ptr = getelementptr inbounds %Array, %Array* %results_arr, i32 0, i32 2\n';
-    ir += '  store double* %results_data, double** %results_data_ptr\n';
+    ir += '  %results_data_field = getelementptr inbounds %ObjectArray, %ObjectArray* %results_arr, i32 0, i32 0\n';
+    ir += '  store i8* %results_data_mem, i8** %results_data_field\n';
+    ir += '  %results_len_field = getelementptr inbounds %ObjectArray, %ObjectArray* %results_arr, i32 0, i32 1\n';
+    ir += '  store i32 %len, i32* %results_len_field\n';
+    ir += '  %results_cap_field = getelementptr inbounds %ObjectArray, %ObjectArray* %results_arr, i32 0, i32 2\n';
+    ir += '  store i32 %len, i32* %results_cap_field\n';
     ir += '\n';
     ir += '  ; Initialize PromiseAllState fields\n';
     ir += '  %state_counter_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 0\n';
     ir += '  store i32* %counter, i32** %state_counter_ptr\n';
     ir += '  %state_results_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 1\n';
-    ir += '  store %Array* %results_arr, %Array** %state_results_ptr\n';
+    ir += '  %results_arr_as_array = bitcast %ObjectArray* %results_arr to %Array*\n';
+    ir += '  store %Array* %results_arr_as_array, %Array** %state_results_ptr\n';
     ir += '  %state_promise_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 2\n';
     ir += '  store %Promise* %result_promise, %Promise** %state_promise_ptr\n';
     ir += '  %state_total_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 3\n';
@@ -488,10 +488,10 @@ export class PromiseGenerator {
     ir += '  %state_rejected_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 4\n';
     ir += '  store i32* %rejected, i32** %state_rejected_ptr\n';
     ir += '\n';
-    ir += '  ; Get promises array data pointer\n';
-    ir += '  %promises_data_ptr_ptr = getelementptr inbounds %Array, %Array* %promises, i32 0, i32 2\n';
-    ir += '  %promises_data_ptr = load double*, double** %promises_data_ptr_ptr\n';
-    ir += '  %promises_data = bitcast double* %promises_data_ptr to %Promise**\n';
+    ir += '  ; Get promises array data pointer (field 0 of ObjectArray)\n';
+    ir += '  %promises_data_ptr_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %promises, i32 0, i32 0\n';
+    ir += '  %promises_data_i8 = load i8*, i8** %promises_data_ptr_ptr\n';
+    ir += '  %promises_data = bitcast i8* %promises_data_i8 to %Promise**\n';
     ir += '\n';
     ir += '  ; Loop through promises and set up callbacks\n';
     ir += '  br label %loop\n';
@@ -539,6 +539,82 @@ export class PromiseGenerator {
     return ir;
   }
 
+  generatePromiseRaceCallbacks(): string {
+    let ir = '';
+
+    ir += '; __Promise_race_onFulfilled(i8* value, i8* context)\n';
+    ir += 'define void @__Promise_race_onFulfilled(i8* %value, i8* %context) {\n';
+    ir += 'entry:\n';
+    ir += '  %result_promise = bitcast i8* %context to %Promise*\n';
+    ir += '  %state_ptr = getelementptr inbounds %Promise, %Promise* %result_promise, i32 0, i32 0\n';
+    ir += '  %state = load i32, i32* %state_ptr\n';
+    ir += '  %already_settled = icmp ne i32 %state, 0\n';
+    ir += '  br i1 %already_settled, label %done, label %do_resolve\n';
+    ir += '\n';
+    ir += 'do_resolve:\n';
+    ir += '  call void @__Promise_resolve(%Promise* %result_promise, i8* %value)\n';
+    ir += '  br label %done\n';
+    ir += '\n';
+    ir += 'done:\n';
+    ir += '  ret void\n';
+    ir += '}\n\n';
+
+    ir += '; __Promise_race_onRejected(i8* reason, i8* context)\n';
+    ir += 'define void @__Promise_race_onRejected(i8* %reason, i8* %context) {\n';
+    ir += 'entry:\n';
+    ir += '  %result_promise = bitcast i8* %context to %Promise*\n';
+    ir += '  %state_ptr = getelementptr inbounds %Promise, %Promise* %result_promise, i32 0, i32 0\n';
+    ir += '  %state = load i32, i32* %state_ptr\n';
+    ir += '  %already_settled = icmp ne i32 %state, 0\n';
+    ir += '  br i1 %already_settled, label %done, label %do_reject\n';
+    ir += '\n';
+    ir += 'do_reject:\n';
+    ir += '  call void @__Promise_reject(%Promise* %result_promise, i8* %reason)\n';
+    ir += '  br label %done\n';
+    ir += '\n';
+    ir += 'done:\n';
+    ir += '  ret void\n';
+    ir += '}\n\n';
+
+    return ir;
+  }
+
+  generatePromiseRace(): string {
+    let ir = '; __Promise_race(%ObjectArray* promises) -> %Promise*\n';
+    ir += '; Returns a promise that settles as soon as the first input promise settles\n';
+    ir += 'define %Promise* @__Promise_race(%ObjectArray* %promises) {\n';
+    ir += 'entry:\n';
+    ir += '  %result_promise = call %Promise* @__Promise_new()\n';
+    ir += '  %len_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %promises, i32 0, i32 1\n';
+    ir += '  %len = load i32, i32* %len_ptr\n';
+    ir += '  %is_empty = icmp eq i32 %len, 0\n';
+    ir += '  br i1 %is_empty, label %done, label %setup\n';
+    ir += '\n';
+    ir += 'setup:\n';
+    ir += '  %promises_data_ptr_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %promises, i32 0, i32 0\n';
+    ir += '  %promises_data_i8 = load i8*, i8** %promises_data_ptr_ptr\n';
+    ir += '  %promises_data = bitcast i8* %promises_data_i8 to %Promise**\n';
+    ir += '  %ctx = bitcast %Promise* %result_promise to i8*\n';
+    ir += '  br label %loop\n';
+    ir += '\n';
+    ir += 'loop:\n';
+    ir += '  %i = phi i32 [ 0, %setup ], [ %next_i, %loop_body ]\n';
+    ir += '  %loop_done = icmp sge i32 %i, %len\n';
+    ir += '  br i1 %loop_done, label %done, label %loop_body\n';
+    ir += '\n';
+    ir += 'loop_body:\n';
+    ir += '  %promise_slot = getelementptr inbounds %Promise*, %Promise** %promises_data, i32 %i\n';
+    ir += '  %promise = load %Promise*, %Promise** %promise_slot\n';
+    ir += '  call %Promise* @__Promise_then_with_context(%Promise* %promise, void (i8*, i8*)* @__Promise_race_onFulfilled, void (i8*, i8*)* @__Promise_race_onRejected, i8* %ctx)\n';
+    ir += '  %next_i = add i32 %i, 1\n';
+    ir += '  br label %loop\n';
+    ir += '\n';
+    ir += 'done:\n';
+    ir += '  ret %Promise* %result_promise\n';
+    ir += '}\n\n';
+    return ir;
+  }
+
   generateAll(): string {
     let ir = '';
     ir += this.generatePromiseNew();
@@ -551,6 +627,8 @@ export class PromiseGenerator {
     ir += this.generatePromiseRejectStatic();
     ir += this.generatePromiseAllCallbacks();
     ir += this.generatePromiseAll();
+    ir += this.generatePromiseRaceCallbacks();
+    ir += this.generatePromiseRace();
     ir += this.generatePromiseGetValue();
     return ir;
   }

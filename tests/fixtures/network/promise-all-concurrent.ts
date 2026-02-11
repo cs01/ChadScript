@@ -1,9 +1,9 @@
 async function testPromiseAll(): any {
   const start = process.uptime();
 
-  const p1 = fetch("http://127.0.0.1:19878/slow/1");
-  const p2 = fetch("http://127.0.0.1:19878/slow/2");
-  const p3 = fetch("http://127.0.0.1:19878/slow/3");
+  const p1 = fetch("http://127.0.0.1:19880/slow/1");
+  const p2 = fetch("http://127.0.0.1:19880/slow/2");
+  const p3 = fetch("http://127.0.0.1:19880/slow/3");
 
   const results = await Promise.all([p1, p2, p3]);
 

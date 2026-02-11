@@ -2588,7 +2588,18 @@ export class MethodCallGenerator {
       }
       const promisesArray = this.ctx.generateExpression(expr.args[0], params);
       const result = this.nextTemp();
-      this.emit(`${result} = call %Promise* @__Promise_all(%Array* ${promisesArray})`);
+      this.emit(`${result} = call %Promise* @__Promise_all(%ObjectArray* ${promisesArray})`);
+      this.ctx.setVariableType(result, '%Promise*');
+      return result;
+    }
+
+    if (method === 'race') {
+      if (expr.args.length < 1) {
+        throw new Error('Promise.race() requires 1 argument (array of promises)');
+      }
+      const promisesArray = this.ctx.generateExpression(expr.args[0], params);
+      const result = this.nextTemp();
+      this.emit(`${result} = call %Promise* @__Promise_race(%ObjectArray* ${promisesArray})`);
       this.ctx.setVariableType(result, '%Promise*');
       return result;
     }
