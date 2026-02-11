@@ -634,6 +634,7 @@ export interface IGeneratorContext {
   arrayGenGenerateArrayEvery(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArrayFilter(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArrayForEach(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayReduce(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArraySlice(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArrayConcat(expr: MethodCallNode, params: string[]): string;
 
@@ -1357,6 +1358,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   arrayGenGenerateArrayEvery(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_every'; }
   arrayGenGenerateArrayFilter(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_filter'; }
   arrayGenGenerateArrayForEach(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_foreach'; }
+  arrayGenGenerateArrayReduce(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_reduce'; }
   arrayGenGenerateArraySlice(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_slice'; }
   arrayGenGenerateArrayConcat(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_concat'; }
 

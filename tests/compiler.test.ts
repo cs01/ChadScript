@@ -559,6 +559,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/destructuring/array-destructure.ts',
       expectTestPassed: true,
       description: 'Array destructuring const [a, b, c] = arr should work'
+    },
+    {
+      name: 'array-reduce',
+      fixture: 'tests/fixtures/arrays/array-reduce.ts',
+      expectTestPassed: true,
+      description: 'Array.reduce() with named function, arrow function, and no initial value'
     }
   ];
 

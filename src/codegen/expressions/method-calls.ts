@@ -321,6 +321,7 @@ export interface MethodCallGeneratorContext {
   arrayGenGenerateArrayEvery(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArrayFilter(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArrayForEach(expr: MethodCallNode, params: string[]): string;
+  arrayGenGenerateArrayReduce(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArraySlice(expr: MethodCallNode, params: string[]): string;
   arrayGenGenerateArrayConcat(expr: MethodCallNode, params: string[]): string;
   regexGenGenerateRegexTest(regexPtr: string, testStr: string): string;
@@ -1058,6 +1059,8 @@ export class MethodCallGenerator {
       return this.ctx.arrayGenGenerateArrayFilter(expr, params);
     } else if (method === 'forEach') {
       return this.ctx.arrayGenGenerateArrayForEach(expr, params);
+    } else if (method === 'reduce') {
+      return this.ctx.arrayGenGenerateArrayReduce(expr, params);
     } else if (method === 'slice' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {
       return this.ctx.arrayGenGenerateArraySlice(expr, params);
     } else if (method === 'concat' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {

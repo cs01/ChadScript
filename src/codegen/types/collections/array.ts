@@ -1542,6 +1542,172 @@ export class ArrayGenerator {
     return '0';
   }
 
+  generateArrayReduce(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1 || expr.args.length > 2) {
+      throw new Error('reduce() requires 1-2 arguments (callback, optional initialValue)');
+    }
+
+    const arrayPtr = this.ctx.generateExpression(expr.object, params);
+
+    let isStringArray = false;
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === 'variable') {
+      const varName = (expr.object as VariableNode).name;
+      const varType = this.ctx.getVariableType(varName);
+      isStringArray = varType === '%StringArray*';
+    } else {
+      const ptrType = this.ctx.getVariableType(arrayPtr);
+      isStringArray = ptrType === '%StringArray*';
+    }
+
+    const callbackArg = expr.args[0];
+    let callbackFn: string;
+
+    if (callbackArg.type === 'variable') {
+      callbackFn = (callbackArg as VariableNode).name;
+    } else if (callbackArg.type === 'arrow_function') {
+      if (isStringArray) {
+        this.ctx.setExpectedCallbackParamType('string');
+      }
+      callbackFn = this.ctx.generateExpression(callbackArg, params);
+      this.ctx.setExpectedCallbackParamType(null);
+    } else {
+      throw new Error('reduce() first argument must be a function name or inline function');
+    }
+
+    if (isStringArray) {
+      return this.generateStringArrayReduce(arrayPtr, callbackFn, expr, params);
+    }
+
+    const arrayMeta = this.loadArrayMeta(arrayPtr) as { length: string; dataPtr: string };
+    const length = arrayMeta.length;
+    const dataPtr = arrayMeta.dataPtr;
+
+    const checkLabel = this.nextLabel('reduce_check');
+    const bodyLabel = this.nextLabel('reduce_body');
+    const endLabel = this.nextLabel('reduce_end');
+
+    const accPtr = this.nextTemp();
+    this.emit(`${accPtr} = alloca double`);
+
+    const counterPtr = this.nextTemp();
+    this.emit(`${counterPtr} = alloca i32`);
+
+    if (expr.args.length === 2) {
+      const initVal = this.ctx.generateExpression(expr.args[1], params);
+      this.emit(`store double ${initVal}, double* ${accPtr}`);
+      this.emit(`store i32 0, i32* ${counterPtr}`);
+    } else {
+      const firstElemPtr = this.nextTemp();
+      this.emit(`${firstElemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 0`);
+      const firstElem = this.nextTemp();
+      this.emit(`${firstElem} = load double, double* ${firstElemPtr}`);
+      this.emit(`store double ${firstElem}, double* ${accPtr}`);
+      this.emit(`store i32 1, i32* ${counterPtr}`);
+    }
+
+    this.emit(`br label %${checkLabel}`);
+
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    this.emit(`${bodyLabel}:`);
+
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load double, double* ${elemPtr}`);
+
+    const acc = this.nextTemp();
+    this.emit(`${acc} = load double, double* ${accPtr}`);
+
+    const newAcc = this.nextTemp();
+    this.emit(`${newAcc} = call double @${callbackFn}(double ${acc}, double ${elem})`);
+    this.emit(`store double ${newAcc}, double* ${accPtr}`);
+
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
+    this.emit(`${endLabel}:`);
+    const finalAcc = this.nextTemp();
+    this.emit(`${finalAcc} = load double, double* ${accPtr}`);
+    return finalAcc;
+  }
+
+  private generateStringArrayReduce(arrayPtr: string, callbackFn: string, expr: MethodCallNode, params: string[]): string {
+    const lenPtr = this.nextTemp();
+    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    const length = this.nextTemp();
+    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+
+    const dataPtrField = this.nextTemp();
+    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.nextTemp();
+    this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+
+    const checkLabel = this.nextLabel('reduce_check');
+    const bodyLabel = this.nextLabel('reduce_body');
+    const endLabel = this.nextLabel('reduce_end');
+
+    const accPtr = this.nextTemp();
+    this.emit(`${accPtr} = alloca i8*`);
+
+    const counterPtr = this.nextTemp();
+    this.emit(`${counterPtr} = alloca i32`);
+
+    if (expr.args.length === 2) {
+      const initVal = this.ctx.generateExpression(expr.args[1], params);
+      this.emit(`store i8* ${initVal}, i8** ${accPtr}`);
+      this.emit(`store i32 0, i32* ${counterPtr}`);
+    } else {
+      const firstElemPtr = this.nextTemp();
+      this.emit(`${firstElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 0`);
+      const firstElem = this.nextTemp();
+      this.emit(`${firstElem} = load i8*, i8** ${firstElemPtr}`);
+      this.emit(`store i8* ${firstElem}, i8** ${accPtr}`);
+      this.emit(`store i32 1, i32* ${counterPtr}`);
+    }
+
+    this.emit(`br label %${checkLabel}`);
+
+    this.emit(`${checkLabel}:`);
+    const counter = this.nextTemp();
+    this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+    const cond = this.nextTemp();
+    this.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
+    this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+    this.emit(`${bodyLabel}:`);
+
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${counter}`);
+    const elem = this.nextTemp();
+    this.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+
+    const acc = this.nextTemp();
+    this.emit(`${acc} = load i8*, i8** ${accPtr}`);
+
+    const newAcc = this.nextTemp();
+    this.emit(`${newAcc} = call i8* @${callbackFn}(i8* ${acc}, i8* ${elem})`);
+    this.emit(`store i8* ${newAcc}, i8** ${accPtr}`);
+
+    const nextCounter = this.nextTemp();
+    this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+    this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+    this.emit(`br label %${checkLabel}`);
+
+    this.emit(`${endLabel}:`);
+    const finalAcc = this.nextTemp();
+    this.emit(`${finalAcc} = load i8*, i8** ${accPtr}`);
+    return finalAcc;
+  }
+
   private generateStringArrayForEach(arrayPtr: string, callbackFn: string): string {
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
