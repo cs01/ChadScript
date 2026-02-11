@@ -382,8 +382,14 @@ export class TypeInference {
     }
     if (e.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
-      if (methodExpr.method === 'filter' || methodExpr.method === 'map' || methodExpr.method === 'entries' || methodExpr.method === 'values') {
+      if (methodExpr.method === 'filter' || methodExpr.method === 'map' || methodExpr.method === 'entries') {
         return true;
+      }
+      if (methodExpr.method === 'values') {
+        const objBase = methodExpr.object as ExprBase;
+        if (objBase.type !== 'variable' || (methodExpr.object as VariableNode).name !== 'Object') {
+          return true;
+        }
       }
       if (methodExpr.method === 'slice' || methodExpr.method === 'concat') {
         const objBase = methodExpr.object as ExprBase;
@@ -1489,6 +1495,25 @@ export class TypeInference {
         const objBase = methodExpr.object as ExprBase;
         if (objBase.type === 'variable' && (methodExpr.object as VariableNode).name === 'Object') {
           return true;
+        }
+      }
+      if (methodExpr.method === 'values' || methodExpr.method === 'entries') {
+        const objBase = methodExpr.object as ExprBase;
+        if (objBase.type === 'variable' && (methodExpr.object as VariableNode).name === 'Object') {
+          if (methodExpr.method === 'entries') {
+            return true;
+          }
+          if (methodExpr.args.length > 0) {
+            const argBase = methodExpr.args[0] as ExprBase;
+            if (argBase.type === 'variable') {
+              const argName = (methodExpr.args[0] as VariableNode).name;
+              const objInfo = this.ctx.symbolTableGetObjectInfo(argName);
+              if (objInfo) {
+                const allNumbers = objInfo.types.every((t: string) => t === 'double');
+                if (!allNumbers) return true;
+              }
+            }
+          }
         }
       }
       if (methodExpr.method === 'match' && this.isStringExpression(methodExpr.object) && !this.isClassInstanceExpression(methodExpr.object)) {

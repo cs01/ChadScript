@@ -613,6 +613,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/builtins/process-stdout-write.ts',
       expectTestPassed: true,
       description: 'process.stdout.write() should output without trailing newline'
+    },
+    {
+      name: 'object-values-entries',
+      fixture: 'tests/fixtures/builtins/object-values-entries.ts',
+      expectTestPassed: true,
+      description: 'Object.values() and Object.entries() should return object field values'
     }
   ];
 

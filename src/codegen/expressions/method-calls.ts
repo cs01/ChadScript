@@ -715,6 +715,14 @@ export class MethodCallGenerator {
       return this.generateObjectKeys(expr, params);
     }
 
+    if (this.isVariableWithName(expr.object, 'Object') && method === 'values') {
+      return this.generateObjectValues(expr, params);
+    }
+
+    if (this.isVariableWithName(expr.object, 'Object') && method === 'entries') {
+      return this.generateObjectEntries(expr, params);
+    }
+
     if (this.isVariableWithName(expr.object, 'Number') && method === 'isFinite') {
       if (expr.args.length === 0) {
         throw new Error('Number.isFinite() requires at least 1 argument');
@@ -2636,6 +2644,294 @@ export class MethodCallGenerator {
     const capField = this.ctx.nextTemp();
     this.ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
     this.ctx.emit(`store i32 ${length}, i32* ${capField}`);
+
+    this.ctx.setVariableType(arrayPtr, '%StringArray*');
+    return arrayPtr;
+  }
+
+  private getObjectFieldInfo(name: string): { keys: string[]; types: string[]; ptr: string } | null {
+    let fieldNames: string[] = [];
+    let fieldTypes: string[] = [];
+
+    const interfaceType = this.ctx.symbolTableGetInterfaceType(name);
+    if (interfaceType) {
+      const ifaceDef = this.getInterfaceFromAST(interfaceType);
+      if (ifaceDef) {
+        for (let i = 0; i < ifaceDef.properties.length; i++) {
+          fieldNames.push(ifaceDef.properties[i].name);
+          const propType = ifaceDef.properties[i].type;
+          if (propType === 'number') {
+            fieldTypes.push('double');
+          } else if (propType === 'string') {
+            fieldTypes.push('i8*');
+          } else if (propType === 'boolean') {
+            fieldTypes.push('double');
+          } else {
+            fieldTypes.push('i8*');
+          }
+        }
+      }
+    }
+
+    if (fieldNames.length === 0) {
+      const objInfo = this.ctx.symbolTableGetObjectInfo(name);
+      if (objInfo) {
+        fieldNames = objInfo.keys;
+        fieldTypes = objInfo.types;
+      }
+    }
+
+    if (fieldNames.length === 0) return null;
+
+    const alloca = this.ctx.symbolTableGetAlloca(name);
+    if (!alloca) return null;
+
+    return { keys: fieldNames, types: fieldTypes, ptr: alloca };
+  }
+
+  private generateObjectValues(expr: MethodCallNode, _params: string[]): string {
+    if (expr.args.length === 0) {
+      throw new Error('Object.values() requires 1 argument');
+    }
+
+    const arg = expr.args[0];
+    const argBase = arg as ExprBase;
+    if (argBase.type !== 'variable') {
+      throw new Error('Object.values() argument must be a variable');
+    }
+    const name = (arg as VariableNode).name;
+
+    const info = this.getObjectFieldInfo(name);
+    if (!info) {
+      throw new Error(`Object.values(): cannot determine fields for '${name}'`);
+    }
+
+    const { keys, types, ptr } = info;
+    const length = keys.length;
+    const structType = `{ ${types.join(', ')} }`;
+
+    const allStrings = types.every(t => t === 'i8*');
+    const allNumbers = types.every(t => t === 'double');
+
+    const objPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${objPtr} = load i8*, i8** ${ptr}`);
+    const typedPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
+
+    if (allStrings) {
+      const sizePtr = this.ctx.nextTemp();
+      this.ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
+      const structSize = this.ctx.nextTemp();
+      this.ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+      const arrayMem = this.ctx.nextTemp();
+      this.ctx.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+      const arrayPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
+
+      const dataSize = this.ctx.nextTemp();
+      this.ctx.emit(`${dataSize} = mul i64 ${length}, 8`);
+      const dataMem = this.ctx.nextTemp();
+      this.ctx.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSize})`);
+      const dataPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
+
+      for (let i = 0; i < length; i++) {
+        const fieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
+        const fieldVal = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldVal} = load i8*, i8** ${fieldPtr}`);
+        const elemPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
+        this.ctx.emit(`store i8* ${fieldVal}, i8** ${elemPtr}`);
+      }
+
+      const dataPtrField = this.ctx.nextTemp();
+      this.ctx.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+      this.ctx.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
+
+      const lenField = this.ctx.nextTemp();
+      this.ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+      this.ctx.emit(`store i32 ${length}, i32* ${lenField}`);
+
+      const capField = this.ctx.nextTemp();
+      this.ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+      this.ctx.emit(`store i32 ${length}, i32* ${capField}`);
+
+      this.ctx.setVariableType(arrayPtr, '%StringArray*');
+      return arrayPtr;
+    } else if (allNumbers) {
+      const sizePtr = this.ctx.nextTemp();
+      this.ctx.emit(`${sizePtr} = getelementptr %Array, %Array* null, i32 1`);
+      const structSize = this.ctx.nextTemp();
+      this.ctx.emit(`${structSize} = ptrtoint %Array* ${sizePtr} to i64`);
+      const arrayMem = this.ctx.nextTemp();
+      this.ctx.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+      const arrayPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %Array*`);
+
+      const dataSize = this.ctx.nextTemp();
+      this.ctx.emit(`${dataSize} = mul i64 ${length}, 8`);
+      const dataMem = this.ctx.nextTemp();
+      this.ctx.emit(`${dataMem} = call i8* @GC_malloc_atomic(i64 ${dataSize})`);
+      const dataPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${dataPtr} = bitcast i8* ${dataMem} to double*`);
+
+      for (let i = 0; i < length; i++) {
+        const fieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
+        const fieldVal = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldVal} = load double, double* ${fieldPtr}`);
+        const elemPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
+        this.ctx.emit(`store double ${fieldVal}, double* ${elemPtr}`);
+      }
+
+      const dataPtrField = this.ctx.nextTemp();
+      this.ctx.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+      this.ctx.emit(`store double* ${dataPtr}, double** ${dataPtrField}`);
+
+      const lenField = this.ctx.nextTemp();
+      this.ctx.emit(`${lenField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
+      this.ctx.emit(`store i32 ${length}, i32* ${lenField}`);
+
+      const capField = this.ctx.nextTemp();
+      this.ctx.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
+      this.ctx.emit(`store i32 ${length}, i32* ${capField}`);
+
+      this.ctx.setVariableType(arrayPtr, '%Array*');
+      return arrayPtr;
+    } else {
+      const sizePtr = this.ctx.nextTemp();
+      this.ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
+      const structSize = this.ctx.nextTemp();
+      this.ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+      const arrayMem = this.ctx.nextTemp();
+      this.ctx.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+      const arrayPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
+
+      const dataSize = this.ctx.nextTemp();
+      this.ctx.emit(`${dataSize} = mul i64 ${length}, 8`);
+      const dataMem = this.ctx.nextTemp();
+      this.ctx.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSize})`);
+      const dataPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
+
+      for (let i = 0; i < length; i++) {
+        const fieldPtr = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
+        if (types[i] === 'i8*') {
+          const fieldVal = this.ctx.nextTemp();
+          this.ctx.emit(`${fieldVal} = load i8*, i8** ${fieldPtr}`);
+          const elemPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
+          this.ctx.emit(`store i8* ${fieldVal}, i8** ${elemPtr}`);
+        } else {
+          const fieldVal = this.ctx.nextTemp();
+          this.ctx.emit(`${fieldVal} = load double, double* ${fieldPtr}`);
+          const strVal = this.ctx.stringGenConvertNumberToString(fieldVal);
+          const elemPtr = this.ctx.nextTemp();
+          this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
+          this.ctx.emit(`store i8* ${strVal}, i8** ${elemPtr}`);
+        }
+      }
+
+      const dataPtrField = this.ctx.nextTemp();
+      this.ctx.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+      this.ctx.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
+
+      const lenField = this.ctx.nextTemp();
+      this.ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+      this.ctx.emit(`store i32 ${length}, i32* ${lenField}`);
+
+      const capField = this.ctx.nextTemp();
+      this.ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+      this.ctx.emit(`store i32 ${length}, i32* ${capField}`);
+
+      this.ctx.setVariableType(arrayPtr, '%StringArray*');
+      return arrayPtr;
+    }
+  }
+
+  private generateObjectEntries(expr: MethodCallNode, _params: string[]): string {
+    if (expr.args.length === 0) {
+      throw new Error('Object.entries() requires 1 argument');
+    }
+
+    const arg = expr.args[0];
+    const argBase = arg as ExprBase;
+    if (argBase.type !== 'variable') {
+      throw new Error('Object.entries() argument must be a variable');
+    }
+    const name = (arg as VariableNode).name;
+
+    const info = this.getObjectFieldInfo(name);
+    if (!info) {
+      throw new Error(`Object.entries(): cannot determine fields for '${name}'`);
+    }
+
+    const { keys, types, ptr } = info;
+    const length = keys.length;
+    const structType = `{ ${types.join(', ')} }`;
+
+    const objPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${objPtr} = load i8*, i8** ${ptr}`);
+    const typedPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
+
+    const flatLength = length * 2;
+
+    const sizePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
+    const structSize = this.ctx.nextTemp();
+    this.ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
+    const arrayMem = this.ctx.nextTemp();
+    this.ctx.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
+    const arrayPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
+
+    const dataSize = this.ctx.nextTemp();
+    this.ctx.emit(`${dataSize} = mul i64 ${flatLength}, 8`);
+    const dataMem = this.ctx.nextTemp();
+    this.ctx.emit(`${dataMem} = call i8* @GC_malloc(i64 ${dataSize})`);
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
+
+    for (let i = 0; i < length; i++) {
+      const keyConst = this.ctx.stringGenCreateStringConstant(keys[i]);
+      const keyElemPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i * 2}`);
+      this.ctx.emit(`store i8* ${keyConst}, i8** ${keyElemPtr}`);
+
+      const fieldPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
+
+      let valueStr: string;
+      if (types[i] === 'i8*') {
+        valueStr = this.ctx.nextTemp();
+        this.ctx.emit(`${valueStr} = load i8*, i8** ${fieldPtr}`);
+      } else {
+        const fieldVal = this.ctx.nextTemp();
+        this.ctx.emit(`${fieldVal} = load double, double* ${fieldPtr}`);
+        valueStr = this.ctx.stringGenConvertNumberToString(fieldVal);
+      }
+
+      const valElemPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${valElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i * 2 + 1}`);
+      this.ctx.emit(`store i8* ${valueStr}, i8** ${valElemPtr}`);
+    }
+
+    const dataPtrField = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.ctx.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
+
+    const lenField = this.ctx.nextTemp();
+    this.ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.ctx.emit(`store i32 ${flatLength}, i32* ${lenField}`);
+
+    const capField = this.ctx.nextTemp();
+    this.ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+    this.ctx.emit(`store i32 ${flatLength}, i32* ${capField}`);
 
     this.ctx.setVariableType(arrayPtr, '%StringArray*');
     return arrayPtr;
