@@ -601,6 +601,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/builtins/process-platform.ts',
       expectTestPassed: true,
       description: 'process.platform should return the current platform string'
+    },
+    {
+      name: 'number-methods',
+      fixture: 'tests/fixtures/builtins/number-methods.ts',
+      expectTestPassed: true,
+      description: 'Number.isFinite(), Number.isNaN(), Number.isInteger(), Number.toString()'
     }
   ];
 

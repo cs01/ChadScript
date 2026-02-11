@@ -273,6 +273,7 @@ export interface MethodCallGeneratorContext {
   stringGenGenerateReplace(strPtr: string, search: string, replace: string): string;
   stringGenGenerateReplaceAll(strPtr: string, search: string, replace: string): string;
   stringGenGenerateGlobalString(value: string): string;
+  stringGenConvertNumberToString(numValue: string): string;
   fsGenReadFileSync(expr: MethodCallNode, params: string[]): string;
   fsGenWriteFileSync(expr: MethodCallNode, params: string[]): string;
   fsGenAppendFileSync(expr: MethodCallNode, params: string[]): string;
@@ -664,6 +665,27 @@ export class MethodCallGenerator {
       return this.generateObjectKeys(expr, params);
     }
 
+    if (this.isVariableWithName(expr.object, 'Number') && method === 'isFinite') {
+      if (expr.args.length === 0) {
+        throw new Error('Number.isFinite() requires at least 1 argument');
+      }
+      return this.handleNumberIsFinite(expr, params);
+    }
+
+    if (this.isVariableWithName(expr.object, 'Number') && method === 'isNaN') {
+      if (expr.args.length === 0) {
+        throw new Error('Number.isNaN() requires at least 1 argument');
+      }
+      return this.handleNumberIsNaN(expr, params);
+    }
+
+    if (this.isVariableWithName(expr.object, 'Number') && method === 'isInteger') {
+      if (expr.args.length === 0) {
+        throw new Error('Number.isInteger() requires at least 1 argument');
+      }
+      return this.handleNumberIsInteger(expr, params);
+    }
+
     // Handle Promise instance methods (.then, .catch)
     if (method === 'then' || method === 'catch') {
       const isPromise = this.isPromiseExpression(expr.object);
@@ -863,6 +885,11 @@ export class MethodCallGenerator {
     }
     if (method === 'toLowerCase') {
       return this.handleToLowerCase(expr, params);
+    }
+    if (method === 'toString') {
+      if (!this.ctx.isStringExpression(expr.object) && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object)) {
+        return this.handleNumberToString(expr, params);
+      }
     }
     if (method === 'match') {
       if (this.ctx.isStringExpression(expr.object)) {
@@ -1632,6 +1659,49 @@ export class MethodCallGenerator {
     const searchStr = this.ctx.generateExpression(expr.args[0], params);
     const replaceStr = this.ctx.generateExpression(expr.args[1], params);
     return this.ctx.stringGenGenerateReplaceAll(strPtr, searchStr, replaceStr);
+  }
+
+  private handleNumberIsFinite(expr: MethodCallNode, params: string[]): string {
+    const value = this.ctx.generateExpression(expr.args[0], params);
+    const isOrdered = this.ctx.nextTemp();
+    this.ctx.emit(`${isOrdered} = fcmp ord double ${value}, 0.0`);
+    const posInf = this.ctx.nextTemp();
+    this.ctx.emit(`${posInf} = fcmp one double ${value}, 0x7FF0000000000000`);
+    const negInf = this.ctx.nextTemp();
+    this.ctx.emit(`${negInf} = fcmp one double ${value}, 0xFFF0000000000000`);
+    const notInf = this.ctx.nextTemp();
+    this.ctx.emit(`${notInf} = and i1 ${posInf}, ${negInf}`);
+    const isFinite = this.ctx.nextTemp();
+    this.ctx.emit(`${isFinite} = and i1 ${isOrdered}, ${notInf}`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = uitofp i1 ${isFinite} to double`);
+    return result;
+  }
+
+  private handleNumberIsNaN(expr: MethodCallNode, params: string[]): string {
+    const value = this.ctx.generateExpression(expr.args[0], params);
+    const isNaN = this.ctx.nextTemp();
+    this.ctx.emit(`${isNaN} = fcmp uno double ${value}, ${value}`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = uitofp i1 ${isNaN} to double`);
+    return result;
+  }
+
+  private handleNumberIsInteger(expr: MethodCallNode, params: string[]): string {
+    const value = this.ctx.generateExpression(expr.args[0], params);
+    const truncated = this.ctx.nextTemp();
+    this.ctx.emit(`${truncated} = call double @llvm.trunc.f64(double ${value})`);
+    const isInt = this.ctx.nextTemp();
+    this.ctx.emit(`${isInt} = fcmp oeq double ${value}, ${truncated}`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = uitofp i1 ${isInt} to double`);
+    return result;
+  }
+
+  private handleNumberToString(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+    const numValue = this.ctx.generateExpression(expr.object, params);
+    return this.ctx.stringGenConvertNumberToString(numValue);
   }
 
   private handleCharAt(expr: MethodCallNode, params: string[]): string {

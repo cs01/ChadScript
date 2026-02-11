@@ -975,7 +975,10 @@ export class TypeInference {
       if (methodExpr.method === 'substr' || methodExpr.method === 'substring' ||
           methodExpr.method === 'repeat' ||
           methodExpr.method === 'padStart' || methodExpr.method === 'charAt' ||
-          methodExpr.method === 'trim' ||
+          methodExpr.method === 'trim' || methodExpr.method === 'trimStart' || methodExpr.method === 'trimEnd' ||
+          methodExpr.method === 'replace' || methodExpr.method === 'replaceAll' ||
+          methodExpr.method === 'toUpperCase' || methodExpr.method === 'toLowerCase' ||
+          methodExpr.method === 'toString' ||
           methodExpr.method === 'text' || methodExpr.method === 'getVariableType') {
         return true;
       }
