@@ -335,6 +335,9 @@ export class MemberAccessGenerator {
     const responseResult = this.handleResponseProperty(expr);
     if (responseResult !== null) return responseResult;
 
+    const statResult = this.handleStatProperty(expr);
+    if (statResult !== null) return statResult;
+
     // Handle TypeScript parameter property access
     return this.handleParameterPropertyAccess(expr, params);
   }
@@ -2377,6 +2380,33 @@ export class MemberAccessGenerator {
     } else {
       return this.ctx.responseGenGenerateOk(responsePtr);
     }
+  }
+
+  private handleStatProperty(expr: MemberAccessNode): string | null {
+    if (expr.property !== 'size' && expr.property !== 'isFile' && expr.property !== 'isDirectory') return null;
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type !== 'variable') return null;
+    const varName = (expr.object as VariableNode).name;
+    const varType = this.ctx.getVariableType(varName);
+    if (varType !== '%StatResult*' && varType !== 'i8*') return null;
+    const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
+    if (ifaceType) return null;
+    if (this.hasObjectInfo(varName)) return null;
+    const varPtr = this.ctx.getVariableAlloca(varName);
+    const raw = this.ctx.nextTemp();
+    this.ctx.emit(`${raw} = load i8*, i8** ${varPtr}`);
+    const statPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${statPtr} = bitcast i8* ${raw} to double*`);
+    let fieldIdx = 0;
+    if (expr.property === 'size') fieldIdx = 0;
+    else if (expr.property === 'isFile') fieldIdx = 1;
+    else if (expr.property === 'isDirectory') fieldIdx = 2;
+    const fieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${statPtr}, i64 ${fieldIdx}`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = load double, double* ${fieldPtr}`);
+    this.ctx.setVariableType(result, 'double');
+    return result;
   }
 
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {

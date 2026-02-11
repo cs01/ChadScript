@@ -314,6 +314,24 @@ const testCases: TestCase[] = [
     description: 'new RegExp() constructor with flags (i, m) and dynamic patterns'
   },
   {
+    name: 'regex-exec',
+    fixture: 'tests/fixtures/regex/regex-exec.ts',
+    expectTestPassed: true,
+    description: 'RegExp.exec() with literal, variable, and new RegExp patterns'
+  },
+  {
+    name: 'fs-readdirSync',
+    fixture: 'tests/fixtures/builtins/fs-readdir.ts',
+    expectTestPassed: true,
+    description: 'fs.readdirSync should list directory entries'
+  },
+  {
+    name: 'fs-statSync',
+    fixture: 'tests/fixtures/builtins/fs-stat.ts',
+    expectTestPassed: true,
+    description: 'fs.statSync should return file/directory metadata'
+  },
+  {
     name: 'array-literal',
     fixture: 'tests/fixtures/arrays/array-literal.js',
     expectedExitCode: 3,

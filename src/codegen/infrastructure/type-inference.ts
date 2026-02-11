@@ -1536,9 +1536,12 @@ export class TypeInference {
         }
       }
       if (methodExpr.method === 'match' && this.isStringExpression(methodExpr.object) && !this.isClassInstanceExpression(methodExpr.object)) {
-        if (methodExpr.args.length > 0 && methodExpr.args[0].type === 'regex') {
+        if (methodExpr.args.length > 0 && (methodExpr.args[0].type === 'regex' || this.isRegexExpression(methodExpr.args[0]))) {
           return true;
         }
+      }
+      if (methodExpr.method === 'exec' && this.isRegexExpression(methodExpr.object)) {
+        return true;
       }
       if (methodExpr.method === 'map' || methodExpr.method === 'filter' || methodExpr.method === 'slice' || methodExpr.method === 'concat') {
         return this.isStringArrayExpression(methodExpr.object);

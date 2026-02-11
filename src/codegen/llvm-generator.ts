@@ -925,6 +925,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public fsGenAppendFileSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateAppendFileSync(expr, params); }
   public fsGenExistsSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateExistsSync(expr, params); }
   public fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateUnlinkSync(expr, params); }
+  public fsGenReaddirSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateReaddirSync(expr, params); }
+  public fsGenStatSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateStatSync(expr, params); }
 
   public jsonGenCanHandle(expr: MethodCallNode): boolean { return this.jsonGen.canHandle(expr); }
   public jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.jsonGen.generateParse(expr, params); }
@@ -1573,6 +1575,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     const strHash = getStringHashHelper();
     if (strHash) { irParts.push(strHash); }
 
+    irParts.push(this.fsGen.generateReaddirSyncHelper());
+    irParts.push(this.fsGen.generateStatSyncHelper());
+
     const globalVars = getGlobalVariables();
     if (globalVars) { irParts.push(globalVars); }
 
@@ -1770,6 +1775,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (dblToStr) { irParts.push(dblToStr); }
     const strHash = getStringHashHelper();
     if (strHash) { irParts.push(strHash); }
+
+    irParts.push(this.fsGen.generateReaddirSyncHelper());
+    irParts.push(this.fsGen.generateStatSyncHelper());
 
     const globalVars = getGlobalVariables();
     if (globalVars) { irParts.push(globalVars); }

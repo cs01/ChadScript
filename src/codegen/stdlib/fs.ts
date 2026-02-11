@@ -26,7 +26,7 @@ export class FilesystemGenerator {
     if (exprObjBase.type !== 'variable') return false;
     const varNode = expr.object as { type: string; name: string };
     if (varNode.name !== 'fs') return false;
-    const supported = ['readFileSync', 'writeFileSync', 'appendFileSync', 'existsSync', 'unlinkSync'];
+    const supported = ['readFileSync', 'writeFileSync', 'appendFileSync', 'existsSync', 'unlinkSync', 'readdirSync', 'statSync'];
     return supported.indexOf(expr.method) !== -1;
   }
 
@@ -273,5 +273,169 @@ export class FilesystemGenerator {
     this.ctx.emit(`${result} = call i32 @unlink(i8* ${filenamePtr})`);
 
     return result;
+  }
+
+  generateReaddirSync(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      throw new Error('fs.readdirSync() requires 1 argument (path)');
+    }
+
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call %StringArray* @__fs_readdirSync(i8* ${pathPtr})`);
+    this.ctx.setVariableType(result, '%StringArray*');
+
+    return result;
+  }
+
+  generateStatSync(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      throw new Error('fs.statSync() requires 1 argument (path)');
+    }
+
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @__fs_statSync(i8* ${pathPtr})`);
+    this.ctx.setVariableType(result, '%StatResult*');
+
+    return result;
+  }
+
+  generateReaddirSyncHelper(): string {
+    let ir = '';
+    ir += 'define %StringArray* @__fs_readdirSync(i8* %path) {\n';
+    ir += 'entry:\n';
+    ir += '  %dir = call i8* @opendir(i8* %path)\n';
+    ir += '  %dir_null = icmp eq i8* %dir, null\n';
+    ir += '  br i1 %dir_null, label %fail, label %init\n';
+    ir += '\n';
+    ir += 'fail:\n';
+    ir += '  %empty = call i8* @GC_malloc(i64 24)\n';
+    ir += '  %empty_arr = bitcast i8* %empty to %StringArray*\n';
+    ir += '  %empty_data = call i8* @GC_malloc(i64 8)\n';
+    ir += '  %empty_data_typed = bitcast i8* %empty_data to i8**\n';
+    ir += '  %ef0 = getelementptr inbounds %StringArray, %StringArray* %empty_arr, i32 0, i32 0\n';
+    ir += '  store i8** %empty_data_typed, i8*** %ef0\n';
+    ir += '  %ef1 = getelementptr inbounds %StringArray, %StringArray* %empty_arr, i32 0, i32 1\n';
+    ir += '  store i32 0, i32* %ef1\n';
+    ir += '  %ef2 = getelementptr inbounds %StringArray, %StringArray* %empty_arr, i32 0, i32 2\n';
+    ir += '  store i32 0, i32* %ef2\n';
+    ir += '  ret %StringArray* %empty_arr\n';
+    ir += '\n';
+    ir += 'init:\n';
+    ir += '  %init_data_raw = call i8* @GC_malloc(i64 512)\n';
+    ir += '  %init_data = bitcast i8* %init_data_raw to i8**\n';
+    ir += '  br label %loop\n';
+    ir += '\n';
+    ir += 'loop:\n';
+    ir += '  %len = phi i32 [ 0, %init ], [ %new_len, %store ], [ %len, %skip ]\n';
+    ir += '  %cap = phi i32 [ 64, %init ], [ %final_cap, %store ], [ %cap, %skip ]\n';
+    ir += '  %data = phi i8** [ %init_data, %init ], [ %final_data, %store ], [ %data, %skip ]\n';
+    ir += '  %ent = call i8* @readdir(i8* %dir)\n';
+    ir += '  %ent_null = icmp eq i8* %ent, null\n';
+    ir += '  br i1 %ent_null, label %done, label %body\n';
+    ir += '\n';
+    ir += 'body:\n';
+    ir += '  %name_ptr = getelementptr inbounds i8, i8* %ent, i64 19\n';
+    ir += '  %c0 = load i8, i8* %name_ptr\n';
+    ir += '  %is_dot_char = icmp eq i8 %c0, 46\n';
+    ir += '  br i1 %is_dot_char, label %check_dot, label %proceed\n';
+    ir += '\n';
+    ir += 'check_dot:\n';
+    ir += '  %c1_ptr = getelementptr inbounds i8, i8* %name_ptr, i64 1\n';
+    ir += '  %c1 = load i8, i8* %c1_ptr\n';
+    ir += '  %is_single_dot = icmp eq i8 %c1, 0\n';
+    ir += '  br i1 %is_single_dot, label %skip, label %check_dotdot\n';
+    ir += '\n';
+    ir += 'check_dotdot:\n';
+    ir += '  %is_dot2 = icmp eq i8 %c1, 46\n';
+    ir += '  br i1 %is_dot2, label %check_dotdot2, label %proceed\n';
+    ir += '\n';
+    ir += 'check_dotdot2:\n';
+    ir += '  %c2_ptr = getelementptr inbounds i8, i8* %name_ptr, i64 2\n';
+    ir += '  %c2 = load i8, i8* %c2_ptr\n';
+    ir += '  %is_double_dot = icmp eq i8 %c2, 0\n';
+    ir += '  br i1 %is_double_dot, label %skip, label %proceed\n';
+    ir += '\n';
+    ir += 'skip:\n';
+    ir += '  br label %loop\n';
+    ir += '\n';
+    ir += 'proceed:\n';
+    ir += '  %name_copy = call i8* @strdup(i8* %name_ptr)\n';
+    ir += '  %need_grow = icmp eq i32 %len, %cap\n';
+    ir += '  br i1 %need_grow, label %grow, label %store\n';
+    ir += '\n';
+    ir += 'grow:\n';
+    ir += '  %new_cap = mul i32 %cap, 2\n';
+    ir += '  %new_cap_i64 = sext i32 %new_cap to i64\n';
+    ir += '  %new_bytes = mul i64 %new_cap_i64, 8\n';
+    ir += '  %old_i8 = bitcast i8** %data to i8*\n';
+    ir += '  %new_alloc = call i8* @GC_realloc(i8* %old_i8, i64 %new_bytes)\n';
+    ir += '  %new_data = bitcast i8* %new_alloc to i8**\n';
+    ir += '  br label %store\n';
+    ir += '\n';
+    ir += 'store:\n';
+    ir += '  %final_data = phi i8** [ %data, %proceed ], [ %new_data, %grow ]\n';
+    ir += '  %final_cap = phi i32 [ %cap, %proceed ], [ %new_cap, %grow ]\n';
+    ir += '  %len_i64 = sext i32 %len to i64\n';
+    ir += '  %elem_ptr = getelementptr inbounds i8*, i8** %final_data, i64 %len_i64\n';
+    ir += '  store i8* %name_copy, i8** %elem_ptr\n';
+    ir += '  %new_len = add i32 %len, 1\n';
+    ir += '  br label %loop\n';
+    ir += '\n';
+    ir += 'done:\n';
+    ir += '  call i32 @closedir(i8* %dir)\n';
+    ir += '  %arr_raw = call i8* @GC_malloc(i64 24)\n';
+    ir += '  %arr = bitcast i8* %arr_raw to %StringArray*\n';
+    ir += '  %f0 = getelementptr inbounds %StringArray, %StringArray* %arr, i32 0, i32 0\n';
+    ir += '  store i8** %data, i8*** %f0\n';
+    ir += '  %f1 = getelementptr inbounds %StringArray, %StringArray* %arr, i32 0, i32 1\n';
+    ir += '  store i32 %len, i32* %f1\n';
+    ir += '  %f2 = getelementptr inbounds %StringArray, %StringArray* %arr, i32 0, i32 2\n';
+    ir += '  store i32 %cap, i32* %f2\n';
+    ir += '  ret %StringArray* %arr\n';
+    ir += '}\n\n';
+    return ir;
+  }
+
+  generateStatSyncHelper(): string {
+    let ir = '';
+    ir += '%StatResult = type { double, double, double }\n\n';
+    ir += 'define i8* @__fs_statSync(i8* %path) {\n';
+    ir += 'entry:\n';
+    ir += '  %buf = call i8* @GC_malloc(i64 144)\n';
+    ir += '  %rc = call i32 @stat(i8* %path, i8* %buf)\n';
+    ir += '  %result = call i8* @GC_malloc(i64 24)\n';
+    ir += '  %typed = bitcast i8* %result to %StatResult*\n';
+    ir += '\n';
+    ir += '  %size_ptr = getelementptr inbounds i8, i8* %buf, i64 48\n';
+    ir += '  %size_typed = bitcast i8* %size_ptr to i64*\n';
+    ir += '  %size_i64 = load i64, i64* %size_typed\n';
+    ir += '  %size_dbl = sitofp i64 %size_i64 to double\n';
+    ir += '  %f0 = getelementptr inbounds %StatResult, %StatResult* %typed, i32 0, i32 0\n';
+    ir += '  store double %size_dbl, double* %f0\n';
+    ir += '\n';
+    ir += '  %mode_ptr = getelementptr inbounds i8, i8* %buf, i64 24\n';
+    ir += '  %mode_typed = bitcast i8* %mode_ptr to i32*\n';
+    ir += '  %mode = load i32, i32* %mode_typed\n';
+    ir += '  %masked = and i32 %mode, 61440\n';
+    ir += '\n';
+    ir += '  %is_file_i1 = icmp eq i32 %masked, 32768\n';
+    ir += '  %is_file_i32 = zext i1 %is_file_i1 to i32\n';
+    ir += '  %is_file_dbl = sitofp i32 %is_file_i32 to double\n';
+    ir += '  %f1 = getelementptr inbounds %StatResult, %StatResult* %typed, i32 0, i32 1\n';
+    ir += '  store double %is_file_dbl, double* %f1\n';
+    ir += '\n';
+    ir += '  %is_dir_i1 = icmp eq i32 %masked, 16384\n';
+    ir += '  %is_dir_i32 = zext i1 %is_dir_i1 to i32\n';
+    ir += '  %is_dir_dbl = sitofp i32 %is_dir_i32 to double\n';
+    ir += '  %f2 = getelementptr inbounds %StatResult, %StatResult* %typed, i32 0, i32 2\n';
+    ir += '  store double %is_dir_dbl, double* %f2\n';
+    ir += '\n';
+    ir += '  ret i8* %result\n';
+    ir += '}\n\n';
+    return ir;
   }
 }

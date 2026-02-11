@@ -724,6 +724,8 @@ export interface IGeneratorContext {
   fsGenAppendFileSync(expr: MethodCallNode, params: string[]): string;
   fsGenExistsSync(expr: MethodCallNode, params: string[]): string;
   fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string;
+  fsGenReaddirSync(expr: MethodCallNode, params: string[]): string;
+  fsGenStatSync(expr: MethodCallNode, params: string[]): string;
 
   /**
    * JsonGen delegate methods (avoid struct layout mismatch)
@@ -1418,6 +1420,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   fsGenAppendFileSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_appendFileSync'; }
   fsGenExistsSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_existsSync'; }
   fsGenUnlinkSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_unlinkSync'; }
+  fsGenReaddirSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_readdirSync'; }
+  fsGenStatSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_statSync'; }
 
   jsonGenCanHandle(_expr: MethodCallNode): boolean { return false; }
   jsonGenGenerateParse(_expr: MethodCallNode, _params: string[]): string { return '%mock_json_parse'; }

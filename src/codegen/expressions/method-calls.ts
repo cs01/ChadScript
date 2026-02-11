@@ -279,6 +279,8 @@ export interface MethodCallGeneratorContext {
   fsGenAppendFileSync(expr: MethodCallNode, params: string[]): string;
   fsGenExistsSync(expr: MethodCallNode, params: string[]): string;
   fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string;
+  fsGenReaddirSync(expr: MethodCallNode, params: string[]): string;
+  fsGenStatSync(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateBasename(expr: MethodCallNode, params: string[]): string;
@@ -890,6 +892,10 @@ export class MethodCallGenerator {
         return this.ctx.fsGenExistsSync(expr, params);
       } else if (method === 'unlinkSync') {
         return this.ctx.fsGenUnlinkSync(expr, params);
+      } else if (method === 'readdirSync') {
+        return this.ctx.fsGenReaddirSync(expr, params);
+      } else if (method === 'statSync') {
+        return this.ctx.fsGenStatSync(expr, params);
       }
     }
 
@@ -948,6 +954,13 @@ export class MethodCallGenerator {
       const isRegex = this.ctx.isRegexExpression(expr.object);
       if (isRegex) {
         return this.handleRegexTest(expr, params);
+      }
+    }
+
+    if (method === 'exec') {
+      const isRegex = this.ctx.isRegexExpression(expr.object);
+      if (isRegex) {
+        return this.handleRegexExec(expr, params);
       }
     }
 
@@ -1382,6 +1395,34 @@ export class MethodCallGenerator {
 
     const testStr = this.ctx.generateExpression(expr.args[0], params);
     return this.ctx.regexGenGenerateRegexTest(regexPtr, testStr);
+  }
+
+  private handleRegexExec(expr: MethodCallNode, params: string[]): string {
+    this.ctx.syncStateToGenerators();
+
+    if (expr.args.length !== 1) {
+      throw new Error(`exec() expects 1 argument, got ${expr.args.length}`);
+    }
+
+    const strPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    const regexObj = expr.object;
+    const regexBase = regexObj as { type: string; pattern?: string; flags?: string };
+
+    let numGroups = 0;
+    if (regexBase.type === 'regex' && regexBase.pattern) {
+      const pattern = regexBase.pattern;
+      for (let gi = 0; gi < pattern.length; gi++) {
+        if (pattern[gi] === '(') {
+          numGroups = numGroups + 1;
+        }
+      }
+    } else {
+      numGroups = 9;
+    }
+
+    const regexPtr = this.ctx.generateExpression(regexObj, params);
+    return this.ctx.regexGenGenerateRegexMatch(regexPtr, strPtr, numGroups);
   }
 
   private handleSubstr(expr: MethodCallNode, params: string[]): string {
@@ -1918,25 +1959,25 @@ export class MethodCallGenerator {
     }
 
     const regexArg = expr.args[0];
-    if (regexArg.type !== 'regex') {
-      throw new Error('match() expects a regex literal argument');
-    }
 
-    const regexNode = regexArg as RegexNode;
-    const pattern = regexNode.pattern;
-    const flags = regexNode.flags || '';
+    if (regexArg.type === 'regex') {
+      const regexNode = regexArg as RegexNode;
+      const pattern = regexNode.pattern;
+      const flags = regexNode.flags || '';
 
-    let numGroups = 0;
-    for (let gi = 0; gi < pattern.length; gi++) {
-      if (pattern[gi] === '(') {
-        numGroups = numGroups + 1;
+      let numGroups = 0;
+      for (let gi = 0; gi < pattern.length; gi++) {
+        if (pattern[gi] === '(') {
+          numGroups = numGroups + 1;
+        }
       }
+
+      const regexPtr = this.ctx.regexGenGenerateRegexCompile(pattern, flags);
+      return this.ctx.regexGenGenerateRegexMatch(regexPtr, strPtr, numGroups);
     }
 
-    const regexPtr = this.ctx.regexGenGenerateRegexCompile(pattern, flags);
-    const result = this.ctx.regexGenGenerateRegexMatch(regexPtr, strPtr, numGroups);
-
-    return result;
+    const regexPtr = this.ctx.generateExpression(regexArg, params);
+    return this.ctx.regexGenGenerateRegexMatch(regexPtr, strPtr, 9);
   }
 
   private handleClassMethods(expr: MethodCallNode, params: string[]): string | null {
