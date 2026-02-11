@@ -518,6 +518,56 @@ export class MethodCallGenerator {
     return result;
   }
 
+  private isProcessStdoutOrStderr(expr: MethodCallNode): boolean {
+    const objBase = expr.object as ExprBase;
+    if (objBase.type !== 'member_access') return false;
+    const memberAccess = expr.object as MemberAccessNode;
+    const innerBase = memberAccess.object as ExprBase;
+    if (innerBase.type !== 'variable') return false;
+    const varNode = memberAccess.object as VariableNode;
+    return varNode.name === 'process' &&
+           (memberAccess.property === 'stdout' || memberAccess.property === 'stderr');
+  }
+
+  private handleProcessWrite(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length === 0) {
+      return '0';
+    }
+
+    const memberAccess = expr.object as MemberAccessNode;
+    const isStderr = memberAccess.property === 'stderr';
+
+    const arg = expr.args[0];
+    const argValue = this.ctx.generateExpression(arg as Expression, params);
+    const isString = this.ctx.isStringExpression(arg as Expression);
+
+    if (isStderr) {
+      const stderrPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+      if (isString || (arg as ExprBase).type === 'string') {
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([3 x i8], [3 x i8]* @.str.strfmt_no_nl, i32 0, i32 0), i8* ${argValue})`);
+      } else {
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([3 x i8], [3 x i8]* @.str.numfmt_no_nl, i32 0, i32 0), double ${argValue})`);
+      }
+      const flushTemp = this.ctx.nextTemp();
+      this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
+    } else {
+      if (isString || (arg as ExprBase).type === 'string') {
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([3 x i8], [3 x i8]* @.str.strfmt_no_nl, i32 0, i32 0), i8* ${argValue})`);
+      } else {
+        const temp = this.ctx.nextTemp();
+        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([3 x i8], [3 x i8]* @.str.numfmt_no_nl, i32 0, i32 0), double ${argValue})`);
+      }
+      const flushTemp = this.ctx.nextTemp();
+      this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* null)`);
+    }
+
+    return '1.0';
+  }
+
   private getParameterMapKeyType(varName: string): string | null {
     const currentFunc = this.ctx.getCurrentFunction();
     if (!currentFunc) return null;
@@ -752,6 +802,10 @@ export class MethodCallGenerator {
       if (objName === 'child_process' || objName === 'cp') {
         return this.handleExecSync(expr, params);
       }
+    }
+
+    if (method === 'write' && this.isProcessStdoutOrStderr(expr)) {
+      return this.handleProcessWrite(expr, params);
     }
 
     // Handle JSON.parse() and JSON.stringify() - inline check

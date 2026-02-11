@@ -65,6 +65,8 @@ export function getLLVMDeclarations(): string {
   ir += '@.str.newline = private unnamed_addr constant [2 x i8] c"\\0A\\00", align 1\n';
   ir += '@.str.strfmt = private unnamed_addr constant [4 x i8] c"%s\\0A\\00", align 1\n';
   ir += '@.str.numfmt = private unnamed_addr constant [4 x i8] c"%g\\0A\\00", align 1\n';
+  ir += '@.str.strfmt_no_nl = private unnamed_addr constant [3 x i8] c"%s\\00", align 1\n';
+  ir += '@.str.numfmt_no_nl = private unnamed_addr constant [3 x i8] c"%g\\00", align 1\n';
   ir += '@.str.hello = private unnamed_addr constant [7 x i8] c"Hello\\0A\\00", align 1\n';
   ir += '@.str.throw_fmt = private constant [11 x i8] c"Error: %s\\0A\\00"\n';
   ir += '@.str.popen_mode = private unnamed_addr constant [2 x i8] c"r\\00", align 1\n';

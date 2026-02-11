@@ -607,6 +607,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/builtins/number-methods.ts',
       expectTestPassed: true,
       description: 'Number.isFinite(), Number.isNaN(), Number.isInteger(), Number.toString()'
+    },
+    {
+      name: 'process-stdout-write',
+      fixture: 'tests/fixtures/builtins/process-stdout-write.ts',
+      expectTestPassed: true,
+      description: 'process.stdout.write() should output without trailing newline'
     }
   ];
 
