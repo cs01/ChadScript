@@ -111,6 +111,7 @@ export function getLLVMDeclarations(): string {
   ir += 'declare i32 @kill(i32, i32)\n';
   ir += '%struct.timespec = type { i64, i64 }\n';
   ir += 'declare i32 @clock_gettime(i32, %struct.timespec*)\n';
+  ir += 'declare i32 @isatty(i32)\n';
   ir += '\n';
 
   ir += 'declare i32 @system(i8*)\n';

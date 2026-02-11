@@ -637,6 +637,12 @@ const testCases: TestCase[] = [
       fixture: 'tests/fixtures/builtins/process-methods.ts',
       expectTestPassed: true,
       description: 'process.getuid, getgid, geteuid, getegid, uptime, chdir, kill'
+    },
+    {
+      name: 'tty-isatty',
+      fixture: 'tests/fixtures/builtins/tty-isatty.ts',
+      expectTestPassed: true,
+      description: 'tty.isatty() syscall for terminal detection'
     }
   ];
 

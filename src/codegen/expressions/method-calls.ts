@@ -861,6 +861,21 @@ export class MethodCallGenerator {
       if (varNode.name === 'process' && expr.method === 'getegid') {
         return this.handleProcessSyscallI32('@getegid');
       }
+      if (varNode.name === 'tty' && expr.method === 'isatty') {
+        if (expr.args.length === 0) {
+          throw new Error('tty.isatty() requires 1 argument (fd)');
+        }
+        const fdValue = this.ctx.generateExpression(expr.args[0], params);
+        const fdInt = this.nextTemp();
+        this.ctx.emit(`${fdInt} = fptosi double ${fdValue} to i32`);
+        const rawResult = this.nextTemp();
+        this.ctx.emit(`${rawResult} = call i32 @isatty(i32 ${fdInt})`);
+        const boolResult = this.nextTemp();
+        this.ctx.emit(`${boolResult} = icmp ne i32 ${rawResult}, 0`);
+        const doubleResult = this.nextTemp();
+        this.ctx.emit(`${doubleResult} = uitofp i1 ${boolResult} to double`);
+        return doubleResult;
+      }
     }
 
     // Handle fs.* methods - inline check to avoid interface dispatch issues
