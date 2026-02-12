@@ -98,6 +98,11 @@ export class ExpressionGenerator {
       return 'null';
     }
 
+    if (exprTyped.type.indexOf('spread:') === 0) {
+      const varName = exprTyped.type.substr(7);
+      return this.variableGen.generate(varName);
+    }
+
     if (exprTyped.type === 'regex') {
       const regexExpr = expr as RegexNode;
       return this.literalGen.generateRegex(regexExpr.pattern, regexExpr.flags);

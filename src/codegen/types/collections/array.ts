@@ -39,7 +39,7 @@ export class ArrayGenerator {
     let hasSpread = false;
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type === 'spread_element') {
+      if (el.type === 'spread_element' || el.type.indexOf('spread:') === 0) {
         hasSpread = true;
         break;
       }
@@ -248,16 +248,14 @@ export class ArrayGenerator {
         isStringArray = true;
         break;
       }
-      if (el.type === 'spread_element') {
-        const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
-        if (spreadArg.type === 'variable') {
-          const varName = (spreadArg as VariableExpr).name;
-          const varType = this.ctx.getVariableType(varName);
-          if (varType === '%StringArray*') {
-            isStringArray = true;
-            break;
-          }
+      if (el.type.indexOf('spread:') === 0) {
+        const varName = el.type.substr(7);
+        const varType = this.ctx.getVariableType(varName);
+        if (varType === '%StringArray*') {
+          isStringArray = true;
+          break;
         }
+      } else if (el.type === 'spread_element') {
       }
     }
 
@@ -265,27 +263,34 @@ export class ArrayGenerator {
       return this.generateStringArrayLiteralWithSpread(arrExpr, params);
     }
 
-    const spreadSources: { index: number; ptr: string }[] = [];
-    const literalValues: { index: number; value: string }[] = [];
-
+    let literalCount = 0;
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type === 'spread_element') {
-        const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
-        const ptr = this.ctx.generateExpression(spreadArg, params);
-        spreadSources.push({ index: i, ptr });
-      } else {
-        const value = this.ctx.generateExpression(arrExpr.elements[i], params);
-        literalValues.push({ index: i, value });
+      if (el.type.indexOf('spread:') !== 0 && el.type !== 'spread_element') {
+        literalCount = literalCount + 1;
       }
     }
 
-    let totalLen = `${literalValues.length}`;
-    for (const src of spreadSources) {
-      const meta = this.loadArrayMeta(src.ptr);
-      const newTotal = this.nextTemp();
-      this.emit(`${newTotal} = add i32 ${totalLen}, ${meta.length}`);
-      totalLen = newTotal;
+    let totalLen = `${literalCount}`;
+    for (let i = 0; i < arrExpr.elements.length; i++) {
+      const el = arrExpr.elements[i] as ExprBase;
+      if (el.type.indexOf('spread:') === 0) {
+        const varName = el.type.substr(7);
+        const alloca = this.ctx.getVariableAlloca(varName);
+        const arrPtr = this.nextTemp();
+        this.emit(`${arrPtr} = load %Array*, %Array** ${alloca}`);
+        const meta = this.loadArrayMeta(arrPtr);
+        const newTotal = this.nextTemp();
+        this.emit(`${newTotal} = add i32 ${totalLen}, ${meta.length}`);
+        totalLen = newTotal;
+      } else if (el.type === 'spread_element') {
+        const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
+        const arrPtr = this.ctx.generateExpression(spreadArg, params);
+        const meta = this.loadArrayMeta(arrPtr);
+        const newTotal = this.nextTemp();
+        this.emit(`${newTotal} = add i32 ${totalLen}, ${meta.length}`);
+        totalLen = newTotal;
+      }
     }
 
     const sizePtr = this.nextTemp();
@@ -310,14 +315,56 @@ export class ArrayGenerator {
     this.emit(`${offsetPtr} = alloca i32`);
     this.emit(`store i32 0, i32* ${offsetPtr}`);
 
-    let spreadIdx = 0;
-    let litIdx = 0;
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type === 'spread_element') {
-        const src = spreadSources[spreadIdx];
-        spreadIdx++;
-        const srcMeta = this.loadArrayMeta(src.ptr);
+      if (el.type.indexOf('spread:') === 0) {
+        const varName = el.type.substr(7);
+        const alloca = this.ctx.getVariableAlloca(varName);
+        const srcArrPtr = this.nextTemp();
+        this.emit(`${srcArrPtr} = load %Array*, %Array** ${alloca}`);
+        const srcMeta = this.loadArrayMeta(srcArrPtr);
+
+        const checkLabel = this.nextLabel('spread_check');
+        const bodyLabel = this.nextLabel('spread_body');
+        const endLabel = this.nextLabel('spread_end');
+
+        const counterPtr = this.nextTemp();
+        this.emit(`${counterPtr} = alloca i32`);
+        this.emit(`store i32 0, i32* ${counterPtr}`);
+        this.emit(`br label %${checkLabel}`);
+
+        this.emit(`${checkLabel}:`);
+        const counter = this.nextTemp();
+        this.emit(`${counter} = load i32, i32* ${counterPtr}`);
+        const cond = this.nextTemp();
+        this.emit(`${cond} = icmp slt i32 ${counter}, ${srcMeta.length}`);
+        this.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+
+        this.emit(`${bodyLabel}:`);
+        const srcElemPtr = this.nextTemp();
+        this.emit(`${srcElemPtr} = getelementptr inbounds double, double* ${srcMeta.dataPtr}, i32 ${counter}`);
+        const srcElem = this.nextTemp();
+        this.emit(`${srcElem} = load double, double* ${srcElemPtr}`);
+
+        const curOffset = this.nextTemp();
+        this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
+        const dstElemPtr = this.nextTemp();
+        this.emit(`${dstElemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${curOffset}`);
+        this.emit(`store double ${srcElem}, double* ${dstElemPtr}`);
+
+        const nextOffset = this.nextTemp();
+        this.emit(`${nextOffset} = add i32 ${curOffset}, 1`);
+        this.emit(`store i32 ${nextOffset}, i32* ${offsetPtr}`);
+        const nextCounter = this.nextTemp();
+        this.emit(`${nextCounter} = add i32 ${counter}, 1`);
+        this.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
+        this.emit(`br label %${checkLabel}`);
+
+        this.emit(`${endLabel}:`);
+      } else if (el.type === 'spread_element') {
+        const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
+        const srcArrPtr = this.ctx.generateExpression(spreadArg, params);
+        const srcMeta = this.loadArrayMeta(srcArrPtr);
 
         const checkLabel = this.nextLabel('spread_check');
         const bodyLabel = this.nextLabel('spread_body');
@@ -357,13 +404,12 @@ export class ArrayGenerator {
 
         this.emit(`${endLabel}:`);
       } else {
-        const lit = literalValues[litIdx];
-        litIdx++;
+        const value = this.ctx.generateExpression(arrExpr.elements[i], params);
         const curOffset = this.nextTemp();
         this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
         const elemPtr = this.nextTemp();
         this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${curOffset}`);
-        this.emit(`store double ${lit.value}, double* ${elemPtr}`);
+        this.emit(`store double ${value}, double* ${elemPtr}`);
         const nextOffset = this.nextTemp();
         this.emit(`${nextOffset} = add i32 ${curOffset}, 1`);
         this.emit(`store i32 ${nextOffset}, i32* ${offsetPtr}`);
@@ -392,7 +438,14 @@ export class ArrayGenerator {
 
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type === 'spread_element') {
+      if (el.type.indexOf('spread:') === 0) {
+        const varName = el.type.substr(7);
+        const alloca = this.ctx.getVariableAlloca(varName);
+        const ptr = this.nextTemp();
+        this.emit(`${ptr} = load %Array*, %Array** ${alloca}`);
+        this.ctx.setVariableType(ptr, '%Array*');
+        spreadSources.push({ index: i, ptr: ptr });
+      } else if (el.type === 'spread_element') {
         const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
         const ptr = this.ctx.generateExpression(spreadArg, params);
         spreadSources.push({ index: i, ptr });
@@ -439,7 +492,7 @@ export class ArrayGenerator {
     let litIdx = 0;
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type === 'spread_element') {
+      if (el.type === 'spread_element' || el.type.indexOf('spread:') === 0) {
         const src = spreadSources[spreadIdx];
         spreadIdx++;
         const srcLenPtr = this.nextTemp();
@@ -2081,8 +2134,12 @@ export class ArrayGenerator {
       if (isStringArray || isObjectArray) {
         this.ctx.setExpectedCallbackParamType('string');
       }
+      if (!isStringArray && !isObjectArray) {
+        this.ctx.setExpectedCallbackReturnType('number');
+      }
       callbackFn = this.ctx.generateExpression(callbackArg, params);
       this.ctx.setExpectedCallbackParamType(null);
+      this.ctx.setExpectedCallbackReturnType(null);
     } else {
       throw new Error('map() argument must be a function name or inline function');
     }

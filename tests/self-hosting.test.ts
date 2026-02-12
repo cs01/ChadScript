@@ -28,20 +28,10 @@ const NATIVE_ENV: NodeJS.ProcessEnv = {
   TERM: process.env.TERM || 'dumb',
 };
 
-const STAGE0_TODO = new Set([
-  'function-expression',
-  'object-destructure',
-  'object-destructure-rename',
-  'array-destructure',
-  'array-spread',
-  'rest-params',
-  'typeof',
-  'process-properties',
+const STAGE0_TODO = new Set<string>([
 ]);
 
-const STAGE1_TODO = new Set([
-  ...STAGE0_TODO,
-  'set-basic',
+const STAGE1_TODO = new Set<string>([
 ]);
 
 function isCrashSignal(signal: string | null): boolean {

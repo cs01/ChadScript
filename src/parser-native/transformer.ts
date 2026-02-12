@@ -577,7 +577,15 @@ function transformCallExpression(node: TreeSitterNode): Expression {
     for (let i = 0; i < an.namedChildCount; i++) {
       const argChild = getNamedChild(argsNode, i);
       if (argChild) {
-        args.push(transformExpression(argChild));
+        const ac = argChild as NodeBase;
+        if (ac.type === 'spread_element') {
+          const innerArg = getNamedChild(argChild, 0);
+          if (innerArg) {
+            args.push(transformExpression(innerArg));
+          }
+        } else {
+          args.push(transformExpression(argChild));
+        }
       }
     }
   }
@@ -661,10 +669,25 @@ function transformArrayExpression(node: TreeSitterNode): ArrayNode {
       const c = child as NodeBase;
       if (c.type === 'spread_element') {
         const arg = getNamedChild(child, 0);
-        elements.push({
-          type: 'spread_element',
-          argument: arg ? transformExpression(arg) : { type: 'variable', name: 'undefined' }
-        } as Expression);
+        if (arg) {
+          const argBase = arg as NodeBase;
+          if (argBase.type === 'identifier') {
+            elements.push({ type: 'spread:' + argBase.text } as unknown as Expression);
+          } else {
+            const argExpr = transformExpression(arg);
+            const argExprTyped = argExpr as { type: string; name?: string };
+            if (argExprTyped.type === 'variable' && argExprTyped.name) {
+              elements.push({ type: 'spread:' + argExprTyped.name } as unknown as Expression);
+            } else {
+              elements.push({
+                type: 'spread_element',
+                argument: argExpr
+              } as Expression);
+            }
+          }
+        } else {
+          elements.push({ type: 'spread:undefined' } as unknown as Expression);
+        }
       } else {
         elements.push(transformExpression(child));
       }
@@ -1830,20 +1853,70 @@ function extractParams(paramsNode: TreeSitterNode, outNames: string[], outTypes:
     if (p.type === 'required_parameter' || p.type === 'optional_parameter') {
       const patternNode = getChildByFieldName(param, 'pattern');
       const typeNode = getChildByFieldName(param, 'type');
+      let paramName = '';
       if (patternNode) {
         const pn = patternNode as NodeBase;
         if (pn.type === 'identifier') {
-          outNames.push(pn.text);
-        } else {
-          outNames.push('');
+          paramName = pn.text;
         }
-      } else {
-        outNames.push('');
       }
+      if (paramName === '') {
+        const nodeText = p.text;
+        if (nodeText.indexOf('...') !== -1) {
+          const afterDots = nodeText.substr(nodeText.indexOf('...') + 3);
+          const colonIdx = afterDots.indexOf(':');
+          if (colonIdx !== -1) {
+            paramName = afterDots.substr(0, colonIdx);
+          } else {
+            paramName = afterDots;
+          }
+        }
+      }
+      outNames.push(paramName);
       outTypes.push(typeNode ? extractTypeString(typeNode) : 'number');
     } else if (p.type === 'identifier') {
       outNames.push(p.text);
       outTypes.push('number');
+    } else {
+      let restName = '';
+      let restType = 'number[]';
+      let hasDots = false;
+      for (let ci = 0; ci < param.childCount; ci++) {
+        const ch = getChild(param, ci);
+        if (!ch) continue;
+        const chb = ch as NodeBase;
+        if (!chb.isNamed && chb.text === '...') {
+          hasDots = true;
+        }
+        if (chb.isNamed && chb.type === 'identifier' && hasDots) {
+          restName = chb.text;
+        }
+        if (chb.isNamed && chb.type === 'type_annotation') {
+          restType = extractTypeString(ch);
+        }
+      }
+      if (!hasDots) {
+        const pText = p.text;
+        if (pText.indexOf('...') !== -1) {
+          hasDots = true;
+          const afterDots = pText.substr(pText.indexOf('...') + 3);
+          const colonIdx = afterDots.indexOf(':');
+          if (colonIdx !== -1) {
+            restName = afterDots.substr(0, colonIdx);
+          } else {
+            const parenIdx = afterDots.indexOf(')');
+            if (parenIdx !== -1) {
+              restName = afterDots.substr(0, parenIdx);
+            } else {
+              restName = afterDots;
+            }
+          }
+        }
+      }
+      if (hasDots && restName !== '') {
+        outNames.push(restName);
+        outTypes.push(restType);
+      }
     }
   }
 }
@@ -1883,6 +1956,23 @@ function extractFunctionParameters(paramsNode: TreeSitterNode): FunctionParamete
       params.push({ name, type, optional, defaultValue });
     } else if (p.type === 'identifier') {
       extractedIdx = extractedIdx + 1;
+    } else {
+      let hasDots = false;
+      for (let ci = 0; ci < param.childCount; ci++) {
+        const ch = getChild(param, ci);
+        if (!ch) continue;
+        const chb = ch as NodeBase;
+        if (!chb.isNamed && chb.text === '...') {
+          hasDots = true;
+          break;
+        }
+      }
+      if (hasDots) {
+        const name = extractedIdx < extractedNames.length ? extractedNames[extractedIdx] : '';
+        const type = extractedIdx < extractedTypes.length ? extractedTypes[extractedIdx] : undefined;
+        extractedIdx = extractedIdx + 1;
+        params.push({ name, type });
+      }
     }
   }
 
