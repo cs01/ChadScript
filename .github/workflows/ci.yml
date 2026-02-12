@@ -108,7 +108,7 @@ jobs:
 
       - name: Run self-hosting tests
         if: runner.os == 'Linux'
-        run: node --import tsx --test tests/self-hosting.test.ts
+        run: node --import tsx --test --test-name-pattern 'Self-hosting chain' tests/self-hosting.test.ts
         timeout-minutes: 15
 
       - name: Package release artifact
