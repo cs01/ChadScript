@@ -1,6 +1,6 @@
 import { CallNode, FunctionNode, VariableNode, FunctionParameter, ClassNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
-import { stripNullable } from '../infrastructure/type-system.js';
+import { stripNullable, mapParamTypeToLLVM, mapReturnTypeToLLVM, isEnumType } from '../infrastructure/type-system.js';
 
 /**
  * CallExpressionGenerator
@@ -13,26 +13,10 @@ import { stripNullable } from '../infrastructure/type-system.js';
 export class CallExpressionGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  private isEnumType(typeName: string): boolean {
+  private checkIsEnumType(typeName: string): boolean {
     const ast = this.ctx.getAst();
-    if (!ast || !ast.enums) return false;
-    let checkType = typeName;
-    if (checkType.indexOf(' | ') !== -1) {
-      const parts = checkType.split(' | ');
-      for (let j = 0; j < parts.length; j++) {
-        const part = parts[j].trim();
-        if (part !== 'undefined' && part !== 'null') {
-          checkType = part;
-          break;
-        }
-      }
-    }
-    for (let i = 0; i < ast.enums.length; i++) {
-      if (ast.enums[i].name === checkType) {
-        return true;
-      }
-    }
-    return false;
+    if (!ast) return false;
+    return isEnumType(typeName, ast.enums);
   }
 
   private getFunctionFromAST(name: string): FunctionNode | null {
@@ -512,79 +496,33 @@ export class CallExpressionGenerator {
       this.ctx.setUsesPromises(true);
     } else if (funcResult && func.paramTypes && func.paramTypes.length > 0) {
       const normalizedReturnType = func.returnType ? stripNullable(func.returnType) : '';
-      if (normalizedReturnType === 'string') {
-        returnType = 'i8*';
-      } else if (normalizedReturnType === 'void') {
-        returnType = 'void';
-      } else if (normalizedReturnType === 'string[]') {
-        returnType = '%StringArray*';
-      } else if (normalizedReturnType === 'number[]' || normalizedReturnType === 'boolean[]') {
-        returnType = '%Array*';
-      } else if (normalizedReturnType && normalizedReturnType.endsWith('[]')) {
-        returnType = '%ObjectArray*';
-      } else if (normalizedReturnType && normalizedReturnType !== '' && normalizedReturnType !== 'number' && normalizedReturnType !== 'boolean' && !this.isEnumType(normalizedReturnType)) {
-        returnType = 'i8*';
+      if (normalizedReturnType) {
+        returnType = mapReturnTypeToLLVM(normalizedReturnType, (t: string) => this.checkIsEnumType(t));
       }
+      const noInterface = (): boolean => false;
       for (let i = 0; i < func.paramTypes.length; i++) {
         const p = func.paramTypes[i] as string;
-        const paramName = func.params[i];
-        if (paramName === 'nodePtr' || paramName === 'treePtr') {
-          paramTypes.push('i8*');
-        } else if (p === 'string') {
-          paramTypes.push('i8*');
-        } else if (p === 'string[]') {
-          paramTypes.push('%StringArray*');
-        } else if (p === 'number[]' || p === 'boolean[]') {
-          paramTypes.push('%Array*');
-        } else if (p.endsWith('[]')) {
-          paramTypes.push('%ObjectArray*');
-        } else if (p !== 'number' && p !== 'boolean' && !this.isEnumType(p)) {
-          paramTypes.push('i8*');
-        } else {
-          paramTypes.push('double');
-        }
+        const paramName = func.params[i] || '';
+        paramTypes.push(mapParamTypeToLLVM(p, paramName, (t: string) => this.checkIsEnumType(t), noInterface));
       }
     } else {
       const funcNode = this.getFunctionFromAST(expr.name);
       if (funcNode) {
         const normalizedRetType = funcNode.returnType ? stripNullable(funcNode.returnType) : '';
-        if (normalizedRetType === 'string') {
-          returnType = 'i8*';
-        } else if (normalizedRetType === 'void') {
-          returnType = 'void';
-        } else if (normalizedRetType === 'string[]') {
-          returnType = '%StringArray*';
-        } else if (normalizedRetType === 'number[]' || normalizedRetType === 'boolean[]') {
-          returnType = '%Array*';
-        } else if (normalizedRetType && normalizedRetType.endsWith('[]')) {
-          returnType = '%ObjectArray*';
-        } else if (normalizedRetType && normalizedRetType !== '' && normalizedRetType !== 'number' && normalizedRetType !== 'boolean' && !this.isEnumType(normalizedRetType)) {
-          returnType = 'i8*';
+        if (normalizedRetType) {
+          returnType = mapReturnTypeToLLVM(normalizedRetType, (t: string) => this.checkIsEnumType(t));
         }
+        const noInterface = (): boolean => false;
         if (funcNode.parameters) {
           for (let i = 0; i < funcNode.parameters.length; i++) {
             const p = funcNode.parameters[i] as FunctionParameter;
-            if (p.name === 'nodePtr' || p.name === 'treePtr') {
-              paramTypes.push('i8*');
-            } else if (p.type === 'string') paramTypes.push('i8*');
-            else if (p.type === 'string[]') paramTypes.push('%StringArray*');
-            else if (p.type === 'number[]' || p.type === 'boolean[]') paramTypes.push('%Array*');
-            else if (p.type && p.type.endsWith('[]')) paramTypes.push('%ObjectArray*');
-            else if (p.type && p.type !== 'number' && p.type !== 'boolean' && !this.isEnumType(p.type)) paramTypes.push('i8*');
-            else paramTypes.push('double');
+            paramTypes.push(mapParamTypeToLLVM(p.type || 'number', p.name || '', (t: string) => this.checkIsEnumType(t), noInterface));
           }
         } else if (funcNode.paramTypes) {
           for (let i = 0; i < funcNode.paramTypes.length; i++) {
             const t = funcNode.paramTypes[i];
-            const paramName = funcNode.params[i];
-            if (paramName === 'nodePtr' || paramName === 'treePtr') {
-              paramTypes.push('i8*');
-            } else if (t === 'string') paramTypes.push('i8*');
-            else if (t === 'string[]') paramTypes.push('%StringArray*');
-            else if (t === 'number[]' || t === 'boolean[]') paramTypes.push('%Array*');
-            else if (t && t.endsWith('[]')) paramTypes.push('%ObjectArray*');
-            else if (t !== 'number' && t !== 'boolean' && !this.isEnumType(t)) paramTypes.push('i8*');
-            else paramTypes.push('double');
+            const paramName = funcNode.params[i] || '';
+            paramTypes.push(mapParamTypeToLLVM(t, paramName, (t: string) => this.checkIsEnumType(t), noInterface));
           }
         }
       }
