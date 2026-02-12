@@ -1,0 +1,58 @@
+# crypto
+
+Cryptographic hash functions and random bytes via OpenSSL (`libcrypto`). All hash functions return hex-encoded strings.
+
+## `crypto.sha256(input)`
+
+Compute SHA-256 hash of a string.
+
+```typescript
+const hash = crypto.sha256("hello");
+// "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+```
+
+## `crypto.sha512(input)`
+
+Compute SHA-512 hash of a string.
+
+```typescript
+const hash = crypto.sha512("hello");
+```
+
+## `crypto.md5(input)`
+
+Compute MD5 hash of a string.
+
+```typescript
+const hash = crypto.md5("hello");
+// "5d41402abc4b2a76b9719d911017c592"
+```
+
+## `crypto.randomBytes(n)`
+
+Generate `n` random bytes, returned as a hex string (2n characters).
+
+```typescript
+const token = crypto.randomBytes(16);
+// 32-character random hex string, e.g. "a1b2c3d4e5f6..."
+```
+
+## Example
+
+```typescript
+const password = "secret123";
+const hash = crypto.sha256(password);
+console.log(hash);
+
+const sessionId = crypto.randomBytes(32);
+console.log(sessionId);
+```
+
+## Native Implementation
+
+| API | Maps to |
+|-----|---------|
+| `crypto.sha256()` | OpenSSL EVP API (`EVP_sha256`) |
+| `crypto.sha512()` | OpenSSL EVP API (`EVP_sha512`) |
+| `crypto.md5()` | OpenSSL EVP API (`EVP_md5`) |
+| `crypto.randomBytes()` | `RAND_bytes()` |

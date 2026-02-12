@@ -1,0 +1,50 @@
+:root {
+  --vp-c-brand-1: #f59e0b;
+  --vp-c-brand-2: #d97706;
+  --vp-c-brand-3: #b45309;
+  --vp-c-brand-soft: rgba(245, 158, 11, 0.14);
+}
+
+.dark {
+  --vp-c-brand-1: #fbbf24;
+  --vp-c-brand-2: #f59e0b;
+  --vp-c-brand-3: #d97706;
+}
+
+.copy-markdown-btn {
+  position: fixed;
+  top: 72px;
+  right: 24px;
+  z-index: 20;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--vp-c-text-2);
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.copy-markdown-btn:hover {
+  color: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-1);
+}
+
+.copy-markdown-btn.copied {
+  color: #22c55e;
+  border-color: #22c55e;
+}
+
+@media (max-width: 1280px) {
+  .copy-markdown-btn {
+    display: none;
+  }
+}
+
+.VPHero .name .clip {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
