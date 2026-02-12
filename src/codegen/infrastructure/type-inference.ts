@@ -1316,7 +1316,7 @@ export class TypeInference {
           }
         }
 
-        if (returnType.startsWith('{') && !returnType.endsWith('[]')) {
+        if (returnType.startsWith('{') && !stripNullable(returnType).endsWith('[]')) {
           return returnType;
         }
 
@@ -1344,7 +1344,7 @@ export class TypeInference {
           }
         }
 
-        if (returnType.startsWith('{') && !returnType.endsWith('[]')) {
+        if (returnType.startsWith('{') && !stripNullable(returnType).endsWith('[]')) {
           return returnType;
         }
 
