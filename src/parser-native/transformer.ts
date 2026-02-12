@@ -1703,8 +1703,9 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
   };
 }
 
-function extractFunctionParams(paramsNode: TreeSitterNode): string[] {
-  const params: string[] = [];
+function extractParams(paramsNode: TreeSitterNode): { names: string[]; types: string[] } {
+  const names: string[] = [];
+  const types: string[] = [];
   const namedChildCount = paramsNode.namedChildCount;
   for (let i = 0; i < namedChildCount; i++) {
     const param = getNamedChild(paramsNode, i);
@@ -1714,59 +1715,53 @@ function extractFunctionParams(paramsNode: TreeSitterNode): string[] {
     const p = param as NodeBase;
     if (p.type === 'required_parameter' || p.type === 'optional_parameter') {
       const patternNode = getChildByFieldName(param, 'pattern');
+      const typeNode = getChildByFieldName(param, 'type');
       if (patternNode) {
         const pn = patternNode as NodeBase;
         if (pn.type === 'identifier') {
-          params.push(pn.text);
+          names.push(pn.text);
+        } else {
+          names.push('');
         }
-      }
-    } else if (p.type === 'identifier') {
-      params.push(p.text);
-    }
-  }
-  return params;
-}
-
-function extractParamTypes(paramsNode: TreeSitterNode): string[] {
-  const types: string[] = [];
-
-  for (let i = 0; i < paramsNode.namedChildCount; i++) {
-    const param = getNamedChild(paramsNode, i);
-    if (!param) continue;
-    const p = param as NodeBase;
-    if (p.type === 'required_parameter' || p.type === 'optional_parameter') {
-      const typeNode = getChildByFieldName(param, 'type');
-      if (typeNode) {
-        types.push(extractTypeString(typeNode));
       } else {
-        types.push('number');
+        names.push('');
       }
+      types.push(typeNode ? extractTypeString(typeNode) : 'number');
     } else if (p.type === 'identifier') {
+      names.push(p.text);
       types.push('number');
     }
   }
+  return { names, types };
+}
 
-  return types;
+function extractFunctionParams(paramsNode: TreeSitterNode): string[] {
+  return extractParams(paramsNode).names;
+}
+
+function extractParamTypes(paramsNode: TreeSitterNode): string[] {
+  return extractParams(paramsNode).types;
 }
 
 function extractFunctionParameters(paramsNode: TreeSitterNode): FunctionParameter[] {
   const params: FunctionParameter[] = [];
+  const extracted = extractParams(paramsNode);
+  let extractedIdx = 0;
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
     const param = getNamedChild(paramsNode, i);
     if (!param) continue;
     const p = param as NodeBase;
     if (p.type === 'required_parameter' || p.type === 'optional_parameter') {
-      const patternNode = getChildByFieldName(param, 'pattern');
-      const typeNode = getChildByFieldName(param, 'type');
       const valueNode = getChildByFieldName(param, 'value');
-
-      const name = patternNode ? ((patternNode as NodeBase).type === 'identifier' ? (patternNode as NodeBase).text : '') : '';
-      const type = typeNode ? extractTypeString(typeNode) : undefined;
+      const name = extractedIdx < extracted.names.length ? extracted.names[extractedIdx] : '';
+      const type = extractedIdx < extracted.types.length ? extracted.types[extractedIdx] : undefined;
       const optional = p.type === 'optional_parameter';
       const defaultValue = valueNode ? transformExpression(valueNode) : undefined;
-
+      extractedIdx = extractedIdx + 1;
       params.push({ name, type, optional, defaultValue });
+    } else if (p.type === 'identifier') {
+      extractedIdx = extractedIdx + 1;
     }
   }
 
