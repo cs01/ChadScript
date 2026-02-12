@@ -196,9 +196,12 @@ export class LiteralExpressionGenerator {
       return this.ctx.regexGenGenerateRegexCompile(patternArg.value, flags);
     }
 
-    let cflags = 1; // REG_EXTENDED
-    if (flags.indexOf('i') !== -1) cflags = cflags | 2; // REG_ICASE
-    if (flags.indexOf('m') !== -1) cflags = cflags | 4; // REG_NEWLINE
+    const REG_EXTENDED = 1;
+    const REG_ICASE = 2;
+    const REG_NEWLINE = process.platform === 'darwin' ? 8 : 4;
+    let cflags = REG_EXTENDED;
+    if (flags.indexOf('i') !== -1) cflags = cflags | REG_ICASE;
+    if (flags.indexOf('m') !== -1) cflags = cflags | REG_NEWLINE;
 
     this.ctx.syncStateToGenerators();
     const patternPtr = this.ctx.generateExpression(args[0], params);

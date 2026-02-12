@@ -88,12 +88,15 @@ export class RegexGenerator {
     const regexPtr = this.nextTemp();
     this.emit(`${regexPtr} = call i8* @GC_malloc(i64 64)`);
 
-    let cflags = 1; // REG_EXTENDED
+    const REG_EXTENDED = 1;
+    const REG_ICASE = 2;
+    const REG_NEWLINE = process.platform === 'darwin' ? 8 : 4;
+    let cflags = REG_EXTENDED;
     if (flags.indexOf('i') !== -1) {
-      cflags = cflags | 2; // REG_ICASE
+      cflags = cflags | REG_ICASE;
     }
     if (flags.indexOf('m') !== -1) {
-      cflags = cflags | 4; // REG_NEWLINE
+      cflags = cflags | REG_NEWLINE;
     }
 
     // Call regcomp(regex_t *preg, const char *pattern, int cflags)
@@ -154,7 +157,9 @@ export class RegexGenerator {
 
   generateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string {
     const MAX_GROUPS = numGroups + 1;
-    const regmatchSize = 8;
+    const isMac = process.platform === 'darwin';
+    const regmatchSize = isMac ? 16 : 8;
+    const regoffType = isMac ? 'i64' : 'i32';
     const pmatchSize = MAX_GROUPS * regmatchSize;
 
     const pmatchPtr = this.nextTemp();
@@ -201,18 +206,25 @@ export class RegexGenerator {
     this.emit(`store i32 ${MAX_GROUPS}, i32* ${capPtr}`);
 
     const typedPmatch = this.nextTemp();
-    this.emit(`${typedPmatch} = bitcast i8* ${pmatchPtr} to i32*`);
+    this.emit(`${typedPmatch} = bitcast i8* ${pmatchPtr} to ${regoffType}*`);
 
     for (let i = 0; i < MAX_GROUPS; i++) {
       const rmSoPtr = this.nextTemp();
-      this.emit(`${rmSoPtr} = getelementptr inbounds i32, i32* ${typedPmatch}, i64 ${i * 2}`);
-      const rmSo = this.nextTemp();
-      this.emit(`${rmSo} = load i32, i32* ${rmSoPtr}`);
+      this.emit(`${rmSoPtr} = getelementptr inbounds ${regoffType}, ${regoffType}* ${typedPmatch}, i64 ${i * 2}`);
+      const rmSoRaw = this.nextTemp();
+      this.emit(`${rmSoRaw} = load ${regoffType}, ${regoffType}* ${rmSoPtr}`);
 
       const rmEoPtr = this.nextTemp();
-      this.emit(`${rmEoPtr} = getelementptr inbounds i32, i32* ${typedPmatch}, i64 ${i * 2 + 1}`);
-      const rmEo = this.nextTemp();
-      this.emit(`${rmEo} = load i32, i32* ${rmEoPtr}`);
+      this.emit(`${rmEoPtr} = getelementptr inbounds ${regoffType}, ${regoffType}* ${typedPmatch}, i64 ${i * 2 + 1}`);
+      const rmEoRaw = this.nextTemp();
+      this.emit(`${rmEoRaw} = load ${regoffType}, ${regoffType}* ${rmEoPtr}`);
+
+      const rmSo = isMac ? this.nextTemp() : rmSoRaw;
+      const rmEo = isMac ? this.nextTemp() : rmEoRaw;
+      if (isMac) {
+        this.emit(`${rmSo} = trunc i64 ${rmSoRaw} to i32`);
+        this.emit(`${rmEo} = trunc i64 ${rmEoRaw} to i32`);
+      }
 
       const matchLen = this.nextTemp();
       this.emit(`${matchLen} = sub i32 ${rmEo}, ${rmSo}`);

@@ -304,6 +304,8 @@ export class FilesystemGenerator {
   }
 
   generateReaddirSyncHelper(): string {
+    const isMac = process.platform === 'darwin';
+    const dNameOffset = isMac ? 21 : 19;
     let ir = '';
     ir += 'define %StringArray* @__fs_readdirSync(i8* %path) {\n';
     ir += 'entry:\n';
@@ -338,7 +340,7 @@ export class FilesystemGenerator {
     ir += '  br i1 %ent_null, label %done, label %body\n';
     ir += '\n';
     ir += 'body:\n';
-    ir += '  %name_ptr = getelementptr inbounds i8, i8* %ent, i64 19\n';
+    ir += `  %name_ptr = getelementptr inbounds i8, i8* %ent, i64 ${dNameOffset}\n`;
     ir += '  %c0 = load i8, i8* %name_ptr\n';
     ir += '  %is_dot_char = icmp eq i8 %c0, 46\n';
     ir += '  br i1 %is_dot_char, label %check_dot, label %proceed\n';
