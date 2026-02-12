@@ -119,7 +119,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const treeSitterTs = CHADSCRIPT_PATH + '/build/tree-sitter-typescript-parser.o ' + CHADSCRIPT_PATH + '/build/tree-sitter-typescript-scanner.o ' + CHADSCRIPT_PATH + '/build/treesitter-bridge.o';
   let linkLibs = '-L' + BDWGC_PATH + ' -L./vendor/cJSON/build -L./vendor/libuv/build -lgc -lcjson -luv -lcurl -lcrypto -lsqlite3 -lm -lpthread' + platformLibs + ' ./vendor/tree-sitter/libtree-sitter.a';
   if (isMac) {
-    linkLibs = '-L/opt/homebrew/opt/openssl/lib -L/opt/homebrew/opt/sqlite/lib -L/usr/local/opt/openssl/lib -L/usr/local/opt/sqlite/lib ' + linkLibs;
+    linkLibs = '-L/opt/homebrew/opt/openssl/lib -L/opt/homebrew/opt/sqlite/lib -L/usr/local/opt/openssl/lib -L/usr/local/opt/sqlite/lib -L/usr/local/lib ' + linkLibs;
   }
   const linkCmd = 'clang ' + objFile + ' ' + mongooseObj + ' ' + treeSitterTs + ' -o ' + outputFile + noPie + ' ' + linkLibs;
   if (verbose) { console.log('Running: ' + linkCmd); }

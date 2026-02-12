@@ -194,7 +194,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   let linkLibs = `-L${BDWGC_PATH} -L${CJSON_PATH} -L${LIBUV_PATH} -lgc -lcjson -luv -lcurl -lcrypto -lsqlite3 -lm -lpthread` + (isMac ? '' : ' -ldl -lrt');
   if (isMac) {
     const brewPrefix = process.arch === 'arm64' ? '/opt/homebrew/opt' : '/usr/local/opt';
-    linkLibs = `-L${brewPrefix}/openssl/lib -L${brewPrefix}/sqlite/lib ` + linkLibs;
+    linkLibs = `-L${brewPrefix}/openssl/lib -L${brewPrefix}/sqlite/lib -L/usr/local/lib ` + linkLibs;
   }
   let extraObjs = '';
 
