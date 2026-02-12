@@ -174,14 +174,16 @@ child_process.execSync(command)    // string — execute shell command, return s
 
 ## fetch
 
-HTTP client via `libcurl`.
+HTTP client via `libcurl`. Returns a `Promise` — must be used with `await` inside an `async` function.
 
 ```typescript
-const response = fetch(url);
-const body = response.text();      // string — response body
-const data = response.json();      // parsed JSON
-const status = response.status;    // number — HTTP status code
-const ok = response.ok;            // boolean — true if 2xx
+async function main(): any {
+  const response = await fetch(url);
+  const body = response.text();      // string — response body
+  const data = response.json();      // parsed JSON
+  const status = response.status;    // number — HTTP status code
+  const ok = response.ok;            // boolean — true if 2xx
+}
 ```
 
 ---

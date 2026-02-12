@@ -158,6 +158,18 @@ export class CallExpressionGenerator {
       return this.generateHtons(expr, params);
     }
 
+    if (expr.name === 'bind') {
+      return this.generateBind(expr, params);
+    }
+
+    if (expr.name === 'listen') {
+      return this.generateListen(expr, params);
+    }
+
+    if (expr.name === 'accept') {
+      return this.generateAccept(expr, params);
+    }
+
     if (expr.name === '__ts_parse_source') {
       this.ctx.setUsesTreeSitter(true);
       return this.generateTsParseSource(expr, params);
@@ -416,6 +428,60 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${resultI16} = or i16 ${hi}, ${lo}`);
     const resultI32 = this.ctx.nextTemp();
     this.ctx.emit(`${resultI32} = zext i16 ${resultI16} to i32`);
+    const resultDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
+    return resultDouble;
+  }
+
+  private generateBind(expr: CallNode, params: string[]): string {
+    const fdDouble = this.ctx.generateExpression(expr.args[0], params);
+    const addrDouble = this.ctx.generateExpression(expr.args[1], params);
+    const addrlenDouble = this.ctx.generateExpression(expr.args[2], params);
+    const fd = this.ctx.nextTemp();
+    this.ctx.emit(`${fd} = fptosi double ${fdDouble} to i32`);
+    const addrI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${addrI64} = fptosi double ${addrDouble} to i64`);
+    const addr = this.ctx.nextTemp();
+    this.ctx.emit(`${addr} = inttoptr i64 ${addrI64} to i8*`);
+    const addrlen = this.ctx.nextTemp();
+    this.ctx.emit(`${addrlen} = fptosi double ${addrlenDouble} to i32`);
+    const resultI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${resultI32} = call i32 @bind(i32 ${fd}, i8* ${addr}, i32 ${addrlen})`);
+    const resultDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
+    return resultDouble;
+  }
+
+  private generateListen(expr: CallNode, params: string[]): string {
+    const fdDouble = this.ctx.generateExpression(expr.args[0], params);
+    const backlogDouble = this.ctx.generateExpression(expr.args[1], params);
+    const fd = this.ctx.nextTemp();
+    this.ctx.emit(`${fd} = fptosi double ${fdDouble} to i32`);
+    const backlog = this.ctx.nextTemp();
+    this.ctx.emit(`${backlog} = fptosi double ${backlogDouble} to i32`);
+    const resultI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${resultI32} = call i32 @listen(i32 ${fd}, i32 ${backlog})`);
+    const resultDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
+    return resultDouble;
+  }
+
+  private generateAccept(expr: CallNode, params: string[]): string {
+    const fdDouble = this.ctx.generateExpression(expr.args[0], params);
+    const addrDouble = this.ctx.generateExpression(expr.args[1], params);
+    const addrlenDouble = this.ctx.generateExpression(expr.args[2], params);
+    const fd = this.ctx.nextTemp();
+    this.ctx.emit(`${fd} = fptosi double ${fdDouble} to i32`);
+    const addrI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${addrI64} = fptosi double ${addrDouble} to i64`);
+    const addr = this.ctx.nextTemp();
+    this.ctx.emit(`${addr} = inttoptr i64 ${addrI64} to i8*`);
+    const addrlenI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${addrlenI64} = fptosi double ${addrlenDouble} to i64`);
+    const addrlen = this.ctx.nextTemp();
+    this.ctx.emit(`${addrlen} = inttoptr i64 ${addrlenI64} to i32*`);
+    const resultI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${resultI32} = call i32 @accept(i32 ${fd}, i8* ${addr}, i32* ${addrlen})`);
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
     return resultDouble;
