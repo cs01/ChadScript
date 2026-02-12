@@ -361,29 +361,26 @@ export class CallExpressionGenerator {
   }
 
   private generateMalloc(expr: CallNode, params: string[]): string {
-    // malloc(size: number) -> i8*
     const sizeDouble = this.ctx.generateExpression(expr.args[0], params);
     const sizeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${sizeI64} = fptosi double ${sizeDouble} to i64`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @malloc(i64 ${sizeI64})`);
-    // Store pointer as i32 for compatibility
-    const resultI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI32} = ptrtoint i8* ${result} to i32`);
+    const resultI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${resultI64} = ptrtoint i8* ${result} to i64`);
     const resultDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
+    this.ctx.emit(`${resultDouble} = sitofp i64 ${resultI64} to double`);
     return resultDouble;
   }
 
   private generateFree(expr: CallNode, params: string[]): string {
-    // free(ptr: number) -> void
     const ptrDouble = this.ctx.generateExpression(expr.args[0], params);
-    const ptrI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${ptrI32} = fptosi double ${ptrDouble} to i32`);
+    const ptrI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${ptrI64} = fptosi double ${ptrDouble} to i64`);
     const ptr = this.ctx.nextTemp();
-    this.ctx.emit(`${ptr} = inttoptr i32 ${ptrI32} to i8*`);
+    this.ctx.emit(`${ptr} = inttoptr i64 ${ptrI64} to i8*`);
     this.ctx.emit(`call void @free(i8* ${ptr})`);
-    return '0.0'; // Return dummy value
+    return '0.0';
   }
 
   private generateSocket(expr: CallNode, params: string[]): string {
