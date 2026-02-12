@@ -1674,25 +1674,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const tsDecls = this.treesitterGen.generateDeclarations();
       if (tsDecls) { irParts.push(tsDecls); }
       irParts.push('\n');
-
-      const tsHelpers: string[] = [];
-      tsHelpers.push(this.treesitterGen.generateParseSourceHelper());
-      tsHelpers.push(this.treesitterGen.generateGetRootNodeHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeTypeHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeChildCountHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeChildHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeStartByteHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeEndByteHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeTextHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeIsNullHelper());
-      tsHelpers.push(this.treesitterGen.generateNodeIsNamedHelper());
-      tsHelpers.push(this.treesitterGen.generateNamedChildHelper());
-      tsHelpers.push(this.treesitterGen.generateNamedChildCountHelper());
-      tsHelpers.push(this.treesitterGen.generateChildByFieldNameHelper());
-      for (let thi = 0; thi < tsHelpers.length; thi++) {
-        if (tsHelpers[thi]) { irParts.push(tsHelpers[thi]); }
-      }
-      irParts.push('\n');
     }
 
     const finalParts: string[] = [];

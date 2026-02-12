@@ -73,6 +73,7 @@ jobs:
           TS_INCLUDE=node_modules/tree-sitter-typescript
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/parser.c -o build/tree-sitter-typescript-parser.o
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
+          clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include src/treesitter-bridge.c -o build/treesitter-bridge.o
 
       - name: Build native chadc
         run: node dist/index.js --link-tree-sitter src/native-compiler.ts -o .build/chadc
@@ -85,7 +86,7 @@ jobs:
         run: |
           if [ "$(uname)" = "Darwin" ]; then
             echo "::group::Running chadc under lldb for crash diagnostics"
-            lldb --batch -o 'run' -o 'bt all' -o 'register read' -o 'disassemble --pc' -- .build/chadc examples/hello.ts -o /tmp/hello
+            lldb --batch -o 'run' -k 'bt all' -k 'register read' -k 'disassemble --pc' -k 'quit' -- .build/chadc examples/hello.ts -o /tmp/hello
             echo "::endgroup::"
             /tmp/hello
           else
@@ -98,7 +99,7 @@ jobs:
         run: |
           if [ "$(uname)" = "Darwin" ]; then
             echo "::group::Running chad under lldb for crash diagnostics"
-            lldb --batch -o 'run' -o 'bt all' -o 'register read' -o 'disassemble --pc' -- .build/chad build examples/hello.ts -o /tmp/hello2
+            lldb --batch -o 'run' -k 'bt all' -k 'register read' -k 'disassemble --pc' -k 'quit' -- .build/chad build examples/hello.ts -o /tmp/hello2
             echo "::endgroup::"
             /tmp/hello2
           else

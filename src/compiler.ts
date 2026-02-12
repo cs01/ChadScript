@@ -224,7 +224,16 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
       execSync(compileScanner, { stdio: 'pipe' });
     }
 
-    extraObjs = ` ${tsParserObj} ${tsScannerObj}`;
+    const bridgeObj = path.join(buildDir, 'treesitter-bridge.o');
+    if (!fs.existsSync(bridgeObj)) {
+      const bridgeSrc = path.join(process.cwd(), 'src', 'treesitter-bridge.c');
+      const tsLibInclude = path.join(process.cwd(), TREESITTER_LIB_PATH, 'lib', 'include');
+      const compileBridge = `clang -c -O2 -fPIC -I ${tsLibInclude} ${bridgeSrc} -o ${bridgeObj}`;
+      logger.info(`  Compiling tree-sitter bridge...`);
+      execSync(compileBridge, { stdio: 'pipe' });
+    }
+
+    extraObjs = ` ${tsParserObj} ${tsScannerObj} ${bridgeObj}`;
     linkLibs += ` ${TREESITTER_LIB_PATH}/libtree-sitter.a`;
   }
 
