@@ -349,5 +349,39 @@ describe('ChadScript Compiler', () => {
         await execAsync('node dist/index.js nonexistent.js');
       }, 'Should throw error for missing file');
     });
+
+    it('should reject any type in function parameters', async () => {
+      const fixture = '/tmp/test-reject-any.ts';
+      await fs.writeFile(fixture, 'function add(x: any, y: any): number { return x + y; }\nprocess.exit(add(5, 7));');
+      try {
+        await assert.rejects(async () => {
+          await execAsync(`node dist/index.js ${fixture} -o /tmp/test-reject-any`);
+        }, (err: any) => {
+          assert.ok(err.stderr.includes("'any' is not allowed") || err.message.includes("'any' is not allowed"),
+            `Expected error about 'any' type, got: ${err.stderr || err.message}`);
+          return true;
+        });
+      } finally {
+        try { await fs.unlink(fixture); } catch {}
+        try { await fs.unlink('/tmp/test-reject-any'); } catch {}
+      }
+    });
+
+    it('should reject unknown type in function parameters', async () => {
+      const fixture = '/tmp/test-reject-unknown.ts';
+      await fs.writeFile(fixture, 'function add(x: unknown, y: unknown): number { return x + y; }\nprocess.exit(add(5, 7));');
+      try {
+        await assert.rejects(async () => {
+          await execAsync(`node dist/index.js ${fixture} -o /tmp/test-reject-unknown`);
+        }, (err: any) => {
+          assert.ok(err.stderr.includes("'unknown' is not allowed") || err.message.includes("'unknown' is not allowed"),
+            `Expected error about 'unknown' type, got: ${err.stderr || err.message}`);
+          return true;
+        });
+      } finally {
+        try { await fs.unlink(fixture); } catch {}
+        try { await fs.unlink('/tmp/test-reject-unknown'); } catch {}
+      }
+    });
   });
 });

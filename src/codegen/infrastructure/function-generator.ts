@@ -103,6 +103,8 @@ export class FunctionGenerator {
           paramLLVMTypes.push('%StringMap*');
         } else if (this.isEnumType(paramType)) {
           paramLLVMTypes.push('double');
+        } else if (paramType === 'any' || paramType === 'unknown') {
+          throw new Error(`Parameter type '${paramType}' is not allowed — add explicit type annotations or fix the parser`);
         } else if (paramType !== 'number' && paramType !== 'boolean') {
           if (this.ctx.interfaceStructGenHasInterface(paramType)) {
             paramLLVMTypes.push(`%${paramType}*`);
@@ -147,6 +149,8 @@ export class FunctionGenerator {
               paramLLVMTypes.push('%StringMap*');
             } else if (this.isEnumType(paramType)) {
               paramLLVMTypes.push('double');
+            } else if (paramType === 'any' || paramType === 'unknown') {
+              throw new Error(`Parameter type '${paramType}' is not allowed — add explicit type annotations or fix the parser`);
             } else if (paramType !== 'number' && paramType !== 'boolean') {
               if (this.ctx.interfaceStructGenHasInterface(paramType)) {
                 paramLLVMTypes.push(`%${paramType}*`);

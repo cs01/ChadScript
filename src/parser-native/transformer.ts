@@ -1739,8 +1739,10 @@ function extractParamTypes(paramsNode: TreeSitterNode): string[] {
       if (typeNode) {
         types.push(extractTypeString(typeNode));
       } else {
-        types.push('any');
+        types.push('number');
       }
+    } else if (p.type === 'identifier') {
+      types.push('number');
     }
   }
 

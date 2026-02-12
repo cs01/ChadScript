@@ -98,6 +98,25 @@ export class BinaryExpressionGenerator {
   }
 
   private generateArithmetic(_op: string, llvmOp: string, left: string, right: string): string {
+    const leftType = this.ctx.getVariableType(left);
+    const rightType = this.ctx.getVariableType(right);
+
+    if (leftType === 'i8*' || (leftType && leftType.indexOf('*') !== -1)) {
+      const asInt = this.ctx.nextTemp();
+      this.ctx.emit(`${asInt} = ptrtoint ${leftType} ${left} to i64`);
+      const asDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${asDouble} = sitofp i64 ${asInt} to double`);
+      left = asDouble;
+    }
+
+    if (rightType === 'i8*' || (rightType && rightType.indexOf('*') !== -1)) {
+      const asInt = this.ctx.nextTemp();
+      this.ctx.emit(`${asInt} = ptrtoint ${rightType} ${right} to i64`);
+      const asDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${asDouble} = sitofp i64 ${asInt} to double`);
+      right = asDouble;
+    }
+
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = ${llvmOp} double ${left}, ${right}`);
     this.ctx.setVariableType(temp, 'double');
@@ -106,10 +125,22 @@ export class BinaryExpressionGenerator {
 
   private generateBitwise(_op: string, llvmOp: string, left: string, right: string): string {
     // Bitwise operators: convert double -> i64 -> operate -> double
+    const leftType = this.ctx.getVariableType(left);
+    const rightType = this.ctx.getVariableType(right);
+
     const leftInt = this.ctx.nextTemp();
+    if (leftType === 'i8*' || (leftType && leftType.indexOf('*') !== -1)) {
+      this.ctx.emit(`${leftInt} = ptrtoint ${leftType} ${left} to i64`);
+    } else {
+      this.ctx.emit(`${leftInt} = fptosi double ${left} to i64`);
+    }
+
     const rightInt = this.ctx.nextTemp();
-    this.ctx.emit(`${leftInt} = fptosi double ${left} to i64`);
-    this.ctx.emit(`${rightInt} = fptosi double ${right} to i64`);
+    if (rightType === 'i8*' || (rightType && rightType.indexOf('*') !== -1)) {
+      this.ctx.emit(`${rightInt} = ptrtoint ${rightType} ${right} to i64`);
+    } else {
+      this.ctx.emit(`${rightInt} = fptosi double ${right} to i64`);
+    }
 
     const resultInt = this.ctx.nextTemp();
     this.ctx.emit(`${resultInt} = ${llvmOp} i64 ${leftInt}, ${rightInt}`);
