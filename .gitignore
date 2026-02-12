@@ -76,3 +76,4 @@ examples/he
 # VitePress docs build artifacts
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+benchmarks/tools/httpbench

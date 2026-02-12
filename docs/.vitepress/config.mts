@@ -24,6 +24,7 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/getting-started/installation' },
       { text: 'API', link: '/stdlib/' },
+      { text: 'Benchmarks', link: '/benchmarks' },
       { text: 'Language', link: '/language/type-mappings' }
     ],
 
@@ -63,6 +64,12 @@ export default defineConfig({
           { text: 'Object', link: '/stdlib/object' },
           { text: 'Async', link: '/stdlib/async' },
           { text: 'Low-Level / Syscalls', link: '/stdlib/syscalls' }
+        ]
+      },
+      {
+        text: 'Performance',
+        items: [
+          { text: 'Benchmarks', link: '/benchmarks' }
         ]
       },
       {
