@@ -30,7 +30,7 @@ Node.js APIs map to native equivalents, inlined directly as LLVM IR at the call 
 | `console.log()` | `printf()` |
 | `fs.readFileSync()` | `fopen()` + `fread()` |
 | `fs.writeFileSync()` | `fopen()` + `fwrite()` |
-| `JSON.parse()` | cJSON library |
+| `JSON.parse<T>()` | cJSON library (generated per-type parser) |
 | `fetch()` | libcurl + libuv thread pool |
 | `Math.floor()` etc. | LLVM intrinsics (`@llvm.floor.f64`) |
 | `process.argv` | C `main(argc, argv)` |

@@ -33,11 +33,7 @@ export class JsonGenerator {
     const exprTyped = expr as { typeParameter?: string; args: Expression[]; object: Expression; method: string };
     const typeParam = exprTyped.typeParameter;
     if (!typeParam) {
-      const jsonStr = this.ctx.generateExpression(expr.args[0], params);
-      const result = this.ctx.nextTemp();
-      this.ctx.emit(`${result} = call i8* @cJSON_Parse(i8* ${jsonStr})`);
-      this.ctx.setVariableType(result, 'i8*');
-      return result;
+      throw new Error('JSON.parse() requires a type parameter: JSON.parse<MyType>(jsonString)');
     }
 
     if (typeParam === 'number[]') {

@@ -32,9 +32,14 @@ VS Code and other TypeScript-aware editors will automatically pick up these type
 
 ```typescript
 // This will have full type support in VS Code!
+interface Config {
+  host: string;
+  port: number;
+}
+
 function readConfig(): string {
   const content = fs.readFileSync("config.json");
-  const parsed = JSON.parse(content);
+  const parsed = JSON.parse<Config>(content);
   console.log("Config loaded");
   return content;
 }

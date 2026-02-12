@@ -124,11 +124,14 @@ declare namespace Math {
  */
 declare namespace JSON {
   /**
-   * Parses a JSON string and returns the resulting value.
+   * Parses a JSON string into a typed struct.
+   * The type parameter T must be an interface — the compiler generates
+   * a specialized parser based on the interface fields.
+   * Missing or wrong-typed fields get safe defaults ("" for strings, 0 for numbers).
    * @param str A valid JSON string
-   * @returns The parsed value, or null if parsing fails
+   * @returns The parsed value as type T
    */
-  function parse(str: string): any;
+  function parse<T>(str: string): T;
 
   /**
    * Converts a value to a JSON string.

@@ -2,20 +2,42 @@
 
 JSON parsing and serialization via the cJSON library.
 
-## `JSON.parse(str)` / `JSON.parse<T>(str)`
+## `JSON.parse<T>(str)`
 
-Parse a JSON string. Use a type parameter to get typed access to the result.
+Parse a JSON string into a typed struct. The type parameter `T` must be an interface — ChadScript generates a specialized parser at compile time based on the interface's field names and types.
 
 ```typescript
-const data = JSON.parse<MyInterface>(jsonString);
-console.log(data.name);
-console.log(data.count);
+interface Config {
+  host: string;
+  port: number;
+}
+
+const config = JSON.parse<Config>('{"host":"localhost","port":8080}');
+console.log(config.host);
+console.log(config.port);
 ```
 
-Without a type parameter, returns an untyped value:
+### Safety
+
+Missing or wrong-typed fields get safe zero values instead of crashing:
+
+| Scenario | Behavior |
+|----------|----------|
+| Field missing from JSON | `""` for strings, `0` for numbers, `false` for booleans |
+| Field has wrong type | Same defaults as missing |
+| Invalid JSON string | Returns struct with all defaults |
 
 ```typescript
-const data = JSON.parse(str);
+interface User {
+  name: string;
+  age: number;
+}
+
+const partial = JSON.parse<User>('{"name":"Alice"}');
+// partial.age === 0 (safe default, no crash)
+
+const invalid = JSON.parse<User>('not json');
+// invalid.name === "" (safe default, no crash)
 ```
 
 ## `JSON.stringify(value)`
@@ -27,23 +49,9 @@ const json = JSON.stringify(myObject);
 console.log(json);
 ```
 
-## Example
-
-```typescript
-interface Config {
-  host: string;
-  port: number;
-}
-
-const raw = fs.readFileSync("config.json");
-const config = JSON.parse<Config>(raw);
-console.log(config.host);
-console.log(config.port);
-```
-
 ## Native Implementation
 
 | API | Maps to |
 |-----|---------|
-| `JSON.parse()` | cJSON library (`cJSON_Parse`) |
+| `JSON.parse<T>()` | cJSON library (`cJSON_Parse` + generated field extractor) |
 | `JSON.stringify()` | cJSON library (`cJSON_Print`) |
