@@ -260,6 +260,62 @@ export function parseArrayTypeString(s: string): { elementType: string } | null 
   return { elementType };
 }
 
+export function isEnumType(typeName: string, enums: { name: string }[] | null | undefined): boolean {
+  if (!enums) return false;
+  let checkType = typeName;
+  if (checkType.indexOf(' | ') !== -1) {
+    const parts = checkType.split(' | ');
+    for (let j = 0; j < parts.length; j++) {
+      const part = parts[j].trim();
+      if (part !== 'undefined' && part !== 'null') {
+        checkType = part;
+        break;
+      }
+    }
+  }
+  for (let i = 0; i < enums.length; i++) {
+    if (enums[i].name === checkType) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function mapParamTypeToLLVM(
+  paramType: string,
+  paramName: string,
+  checkIsEnumType: (t: string) => boolean,
+  hasInterface: (t: string) => boolean
+): string {
+  if (paramName === 'nodePtr' || paramName === 'treePtr') return 'i8*';
+  if (paramType === 'any' || paramType === 'unknown') {
+    throw new Error(`Parameter type '${paramType}' is not allowed — add explicit type annotations or fix the parser`);
+  }
+  if (checkIsEnumType(paramType)) return 'double';
+  if (paramType === 'string') return 'i8*';
+  if (paramType === 'number' || paramType === 'boolean') return 'double';
+  if (paramType === 'string[]') return '%StringArray*';
+  if (paramType === 'number[]' || paramType === 'boolean[]') return '%Array*';
+  if (paramType.endsWith('[]')) return '%ObjectArray*';
+  if (paramType.startsWith('Set<')) return '%StringSet*';
+  if (paramType.startsWith('Map<')) return '%StringMap*';
+  if (hasInterface(paramType)) return `%${paramType}*`;
+  return 'i8*';
+}
+
+export function mapReturnTypeToLLVM(
+  returnType: string,
+  checkIsEnumType: (t: string) => boolean
+): string {
+  if (returnType === 'string') return 'i8*';
+  if (returnType === 'void') return 'void';
+  if (returnType === 'string[]') return '%StringArray*';
+  if (returnType === 'number[]' || returnType === 'boolean[]') return '%Array*';
+  if (returnType.endsWith('[]')) return '%ObjectArray*';
+  if (returnType !== '' && returnType !== 'number' && returnType !== 'boolean' && !checkIsEnumType(returnType)) return 'i8*';
+  return 'double';
+}
+
 function parseGenericTypeString(s: string): { base: string; params: string } | null {
   if (!s) return null;
   const lt = s.indexOf('<');
