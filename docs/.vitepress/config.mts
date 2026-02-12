@@ -6,6 +6,7 @@ export default defineConfig({
   title: 'ChadScript',
   description: 'Compile TypeScript to native binaries via LLVM',
 
+  base: '/ChadScript/',
   appearance: 'dark',
 
   transformPageData(pageData) {
