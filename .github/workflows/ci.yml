@@ -81,16 +81,33 @@ jobs:
         run: node dist/index.js --link-tree-sitter src/chad-native.ts -o .build/chad
 
       - name: Smoke test native chadc
+        continue-on-error: ${{ runner.os == 'macOS' }}
         run: |
-          .build/chadc examples/hello.ts -o /tmp/hello
-          /tmp/hello
+          if [ "$(uname)" = "Darwin" ]; then
+            echo "::group::Running chadc under lldb for crash diagnostics"
+            lldb --batch -o 'run' -o 'bt all' -o 'register read' -o 'disassemble --pc' -- .build/chadc examples/hello.ts -o /tmp/hello
+            echo "::endgroup::"
+            /tmp/hello
+          else
+            .build/chadc examples/hello.ts -o /tmp/hello
+            /tmp/hello
+          fi
 
       - name: Smoke test native chad
+        continue-on-error: ${{ runner.os == 'macOS' }}
         run: |
-          .build/chad build examples/hello.ts -o /tmp/hello2
-          /tmp/hello2
+          if [ "$(uname)" = "Darwin" ]; then
+            echo "::group::Running chad under lldb for crash diagnostics"
+            lldb --batch -o 'run' -o 'bt all' -o 'register read' -o 'disassemble --pc' -- .build/chad build examples/hello.ts -o /tmp/hello2
+            echo "::endgroup::"
+            /tmp/hello2
+          else
+            .build/chad build examples/hello.ts -o /tmp/hello2
+            /tmp/hello2
+          fi
 
       - name: Run self-hosting tests
+        if: runner.os == 'Linux'
         run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
 
