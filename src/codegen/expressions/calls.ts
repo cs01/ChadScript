@@ -13,12 +13,6 @@ import { stripNullable, mapParamTypeToLLVM, mapReturnTypeToLLVM, isEnumType } fr
 export class CallExpressionGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  private checkIsEnumType(typeName: string): boolean {
-    const ast = this.ctx.getAst();
-    if (!ast) return false;
-    return isEnumType(typeName, ast.enums);
-  }
-
   private getFunctionFromAST(name: string): FunctionNode | null {
     const ast = this.ctx.getAst();
     if (!ast || !ast.functions) return null;
@@ -495,34 +489,37 @@ export class CallExpressionGenerator {
       returnType = '%Promise*';
       this.ctx.setUsesPromises(true);
     } else if (funcResult && func.paramTypes && func.paramTypes.length > 0) {
+      const ast = this.ctx.getAst();
+      const enums = ast ? ast.enums : null;
       const normalizedReturnType = func.returnType ? stripNullable(func.returnType) : '';
       if (normalizedReturnType) {
-        returnType = mapReturnTypeToLLVM(normalizedReturnType, (t: string) => this.checkIsEnumType(t));
+        returnType = mapReturnTypeToLLVM(normalizedReturnType, isEnumType(normalizedReturnType, enums));
       }
-      const noInterface = (): boolean => false;
       for (let i = 0; i < func.paramTypes.length; i++) {
         const p = func.paramTypes[i] as string;
         const paramName = func.params[i] || '';
-        paramTypes.push(mapParamTypeToLLVM(p, paramName, (t: string) => this.checkIsEnumType(t), noInterface));
+        paramTypes.push(mapParamTypeToLLVM(p, paramName, isEnumType(p, enums), false));
       }
     } else {
       const funcNode = this.getFunctionFromAST(expr.name);
       if (funcNode) {
+        const ast = this.ctx.getAst();
+        const enums = ast ? ast.enums : null;
         const normalizedRetType = funcNode.returnType ? stripNullable(funcNode.returnType) : '';
         if (normalizedRetType) {
-          returnType = mapReturnTypeToLLVM(normalizedRetType, (t: string) => this.checkIsEnumType(t));
+          returnType = mapReturnTypeToLLVM(normalizedRetType, isEnumType(normalizedRetType, enums));
         }
-        const noInterface = (): boolean => false;
         if (funcNode.parameters) {
           for (let i = 0; i < funcNode.parameters.length; i++) {
             const p = funcNode.parameters[i] as FunctionParameter;
-            paramTypes.push(mapParamTypeToLLVM(p.type || 'number', p.name || '', (t: string) => this.checkIsEnumType(t), noInterface));
+            const pType = p.type || 'number';
+            paramTypes.push(mapParamTypeToLLVM(pType, p.name || '', isEnumType(pType, enums), false));
           }
         } else if (funcNode.paramTypes) {
           for (let i = 0; i < funcNode.paramTypes.length; i++) {
             const t = funcNode.paramTypes[i];
             const paramName = funcNode.params[i] || '';
-            paramTypes.push(mapParamTypeToLLVM(t, paramName, (t: string) => this.checkIsEnumType(t), noInterface));
+            paramTypes.push(mapParamTypeToLLVM(t, paramName, isEnumType(t, enums), false));
           }
         }
       }

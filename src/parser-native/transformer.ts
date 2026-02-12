@@ -1703,9 +1703,7 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
   };
 }
 
-function extractParams(paramsNode: TreeSitterNode): { names: string[]; types: string[] } {
-  const names: string[] = [];
-  const types: string[] = [];
+function extractParams(paramsNode: TreeSitterNode, outNames: string[], outTypes: string[]): void {
   const namedChildCount = paramsNode.namedChildCount;
   for (let i = 0; i < namedChildCount; i++) {
     const param = getNamedChild(paramsNode, i);
@@ -1719,33 +1717,40 @@ function extractParams(paramsNode: TreeSitterNode): { names: string[]; types: st
       if (patternNode) {
         const pn = patternNode as NodeBase;
         if (pn.type === 'identifier') {
-          names.push(pn.text);
+          outNames.push(pn.text);
         } else {
-          names.push('');
+          outNames.push('');
         }
       } else {
-        names.push('');
+        outNames.push('');
       }
-      types.push(typeNode ? extractTypeString(typeNode) : 'number');
+      outTypes.push(typeNode ? extractTypeString(typeNode) : 'number');
     } else if (p.type === 'identifier') {
-      names.push(p.text);
-      types.push('number');
+      outNames.push(p.text);
+      outTypes.push('number');
     }
   }
-  return { names, types };
 }
 
 function extractFunctionParams(paramsNode: TreeSitterNode): string[] {
-  return extractParams(paramsNode).names;
+  const names: string[] = [];
+  const types: string[] = [];
+  extractParams(paramsNode, names, types);
+  return names;
 }
 
 function extractParamTypes(paramsNode: TreeSitterNode): string[] {
-  return extractParams(paramsNode).types;
+  const names: string[] = [];
+  const types: string[] = [];
+  extractParams(paramsNode, names, types);
+  return types;
 }
 
 function extractFunctionParameters(paramsNode: TreeSitterNode): FunctionParameter[] {
   const params: FunctionParameter[] = [];
-  const extracted = extractParams(paramsNode);
+  const extractedNames: string[] = [];
+  const extractedTypes: string[] = [];
+  extractParams(paramsNode, extractedNames, extractedTypes);
   let extractedIdx = 0;
 
   for (let i = 0; i < paramsNode.namedChildCount; i++) {
@@ -1754,8 +1759,8 @@ function extractFunctionParameters(paramsNode: TreeSitterNode): FunctionParamete
     const p = param as NodeBase;
     if (p.type === 'required_parameter' || p.type === 'optional_parameter') {
       const valueNode = getChildByFieldName(param, 'value');
-      const name = extractedIdx < extracted.names.length ? extracted.names[extractedIdx] : '';
-      const type = extractedIdx < extracted.types.length ? extracted.types[extractedIdx] : undefined;
+      const name = extractedIdx < extractedNames.length ? extractedNames[extractedIdx] : '';
+      const type = extractedIdx < extractedTypes.length ? extractedTypes[extractedIdx] : undefined;
       const optional = p.type === 'optional_parameter';
       const defaultValue = valueNode ? transformExpression(valueNode) : undefined;
       extractedIdx = extractedIdx + 1;

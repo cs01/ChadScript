@@ -60,6 +60,7 @@ export class FunctionGenerator {
   generate(func: FunctionNode): string {
     this.ctx.reset();
     this.ctx.syncStateToGenerators();
+    const ctx = this.ctx;
     const funcName = func.name || '';
     this.ctx.setCurrentFunction(funcName);
     this.ctx.setIsAsyncFunction(func.async || false);
@@ -83,17 +84,21 @@ export class FunctionGenerator {
       returnType = '%Promise*';
       this.ctx.setCurrentFunctionReturnType('%Promise*');
     } else if (hasParamTypes && paramTypesLen > 0) {
+      const ast = this.ctx.getAst();
+      const enums = ast ? ast.enums : null;
       const entryTypes: string[] = [];
       const entryNames: string[] = [];
       for (let i = 0; i < funcParams.length; i++) {
         entryTypes.push(func.paramTypes![i] || 'number');
         entryNames.push(funcParams[i] || '');
       }
-      const checkEnum = (t: string): boolean => this.isEnumType(t);
-      const checkInterface = (t: string): boolean => this.ctx.interfaceStructGenHasInterface(t);
       for (let i = 0; i < entryTypes.length; i++) {
         paramTypes.push(entryTypes[i]);
-        paramLLVMTypes.push(mapParamTypeToLLVM(entryTypes[i], entryNames[i], checkEnum, checkInterface));
+        paramLLVMTypes.push(mapParamTypeToLLVM(
+          entryTypes[i], entryNames[i],
+          isEnumType(entryTypes[i], enums),
+          ctx.interfaceStructGenHasInterface(entryTypes[i])
+        ));
       }
     } else {
       const hasParameters = func.parameters ? true : false;
@@ -108,6 +113,8 @@ export class FunctionGenerator {
           }
         }
         if (paramCount > 0) {
+          const ast = this.ctx.getAst();
+          const enums = ast ? ast.enums : null;
           const entryTypes: string[] = [];
           const entryNames: string[] = [];
           for (let i = 0; i < funcParams.length; i++) {
@@ -115,11 +122,13 @@ export class FunctionGenerator {
             entryTypes.push(param ? (param.type || 'number') : 'number');
             entryNames.push(funcParams[i]);
           }
-          const checkEnum = (t: string): boolean => this.isEnumType(t);
-          const checkInterface = (t: string): boolean => this.ctx.interfaceStructGenHasInterface(t);
           for (let i = 0; i < entryTypes.length; i++) {
             paramTypes.push(entryTypes[i]);
-            paramLLVMTypes.push(mapParamTypeToLLVM(entryTypes[i], entryNames[i], checkEnum, checkInterface));
+            paramLLVMTypes.push(mapParamTypeToLLVM(
+              entryTypes[i], entryNames[i],
+              isEnumType(entryTypes[i], enums),
+              ctx.interfaceStructGenHasInterface(entryTypes[i])
+            ));
           }
         }
       }
