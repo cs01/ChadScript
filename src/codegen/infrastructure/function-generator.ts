@@ -5,7 +5,7 @@ import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { StringGenerator } from '../types/collections/string.js';
 import type { ControlFlowGenerator } from '../statements/control-flow.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
-import { stripOptional, tsTypeToLlvm } from './type-system.js';
+import { stripOptional, tsTypeToLlvm, mapParamTypeToLLVM, isEnumType } from './type-system.js';
 
 interface LiftedFunction extends FunctionNode {
   closureInfo?: ClosureInfo;
@@ -83,37 +83,17 @@ export class FunctionGenerator {
       returnType = '%Promise*';
       this.ctx.setCurrentFunctionReturnType('%Promise*');
     } else if (hasParamTypes && paramTypesLen > 0) {
+      const entryTypes: string[] = [];
+      const entryNames: string[] = [];
       for (let i = 0; i < funcParams.length; i++) {
-        const paramType = func.paramTypes![i] || 'number';
-        const paramName = funcParams[i] || '';
-        paramTypes.push(paramType);
-        if (paramName === 'nodePtr' || paramName === 'treePtr') {
-          paramLLVMTypes.push('i8*');
-        } else if (paramType === 'string') {
-          paramLLVMTypes.push('i8*');
-        } else if (paramType === 'string[]') {
-          paramLLVMTypes.push('%StringArray*');
-        } else if (paramType === 'number[]' || paramType === 'boolean[]') {
-          paramLLVMTypes.push('%Array*');
-        } else if (paramType.endsWith('[]')) {
-          paramLLVMTypes.push('%ObjectArray*');
-        } else if (paramType.startsWith('Set<')) {
-          paramLLVMTypes.push('%StringSet*');
-        } else if (paramType.startsWith('Map<')) {
-          paramLLVMTypes.push('%StringMap*');
-        } else if (this.isEnumType(paramType)) {
-          paramLLVMTypes.push('double');
-        } else if (paramType === 'any' || paramType === 'unknown') {
-          throw new Error(`Parameter type '${paramType}' is not allowed — add explicit type annotations or fix the parser`);
-        } else if (paramType !== 'number' && paramType !== 'boolean') {
-          if (this.ctx.interfaceStructGenHasInterface(paramType)) {
-            paramLLVMTypes.push(`%${paramType}*`);
-          } else {
-            paramLLVMTypes.push('i8*');
-          }
-        } else {
-          paramLLVMTypes.push('double');
-        }
+        entryTypes.push(func.paramTypes![i] || 'number');
+        entryNames.push(funcParams[i] || '');
+      }
+      const checkEnum = (t: string): boolean => this.isEnumType(t);
+      const checkInterface = (t: string): boolean => this.ctx.interfaceStructGenHasInterface(t);
+      for (let i = 0; i < entryTypes.length; i++) {
+        paramTypes.push(entryTypes[i]);
+        paramLLVMTypes.push(mapParamTypeToLLVM(entryTypes[i], entryNames[i], checkEnum, checkInterface));
       }
     } else {
       const hasParameters = func.parameters ? true : false;
@@ -128,38 +108,18 @@ export class FunctionGenerator {
           }
         }
         if (paramCount > 0) {
+          const entryTypes: string[] = [];
+          const entryNames: string[] = [];
           for (let i = 0; i < funcParams.length; i++) {
             const param = func.parameters![i] as { name: string; type: string; optional: boolean; defaultValue: Expression | null };
-            const paramType = param ? (param.type || 'number') : 'number';
-            const paramName = funcParams[i];
-            paramTypes.push(paramType);
-            if (paramName === 'nodePtr' || paramName === 'treePtr') {
-              paramLLVMTypes.push('i8*');
-            } else if (paramType === 'string') {
-              paramLLVMTypes.push('i8*');
-            } else if (paramType === 'string[]') {
-              paramLLVMTypes.push('%StringArray*');
-            } else if (paramType === 'number[]' || paramType === 'boolean[]') {
-              paramLLVMTypes.push('%Array*');
-            } else if (paramType.endsWith('[]')) {
-              paramLLVMTypes.push('%ObjectArray*');
-            } else if (paramType.startsWith('Set<')) {
-              paramLLVMTypes.push('%StringSet*');
-            } else if (paramType.startsWith('Map<')) {
-              paramLLVMTypes.push('%StringMap*');
-            } else if (this.isEnumType(paramType)) {
-              paramLLVMTypes.push('double');
-            } else if (paramType === 'any' || paramType === 'unknown') {
-              throw new Error(`Parameter type '${paramType}' is not allowed — add explicit type annotations or fix the parser`);
-            } else if (paramType !== 'number' && paramType !== 'boolean') {
-              if (this.ctx.interfaceStructGenHasInterface(paramType)) {
-                paramLLVMTypes.push(`%${paramType}*`);
-              } else {
-                paramLLVMTypes.push('i8*');
-              }
-            } else {
-              paramLLVMTypes.push('double');
-            }
+            entryTypes.push(param ? (param.type || 'number') : 'number');
+            entryNames.push(funcParams[i]);
+          }
+          const checkEnum = (t: string): boolean => this.isEnumType(t);
+          const checkInterface = (t: string): boolean => this.ctx.interfaceStructGenHasInterface(t);
+          for (let i = 0; i < entryTypes.length; i++) {
+            paramTypes.push(entryTypes[i]);
+            paramLLVMTypes.push(mapParamTypeToLLVM(entryTypes[i], entryNames[i], checkEnum, checkInterface));
           }
         }
       }
@@ -560,25 +520,7 @@ export class FunctionGenerator {
   private isEnumType(typeName: string): boolean {
     const ast = this.ctx.getAst();
     const enums = ast ? ast.enums : null;
-    if (!enums) return false;
-    let checkType = typeName;
-    if (checkType.indexOf(' | ') !== -1) {
-      const parts = checkType.split(' | ');
-      for (let j = 0; j < parts.length; j++) {
-        const part = parts[j].trim();
-        if (part !== 'undefined' && part !== 'null') {
-          checkType = part;
-          break;
-        }
-      }
-    }
-    for (let i = 0; i < enums.length; i++) {
-      const enumDecl = enums[i];
-      if (enumDecl.name === checkType) {
-        return true;
-      }
-    }
-    return false;
+    return isEnumType(typeName, enums);
   }
 
   private convertTsType(tsType: string): string {
