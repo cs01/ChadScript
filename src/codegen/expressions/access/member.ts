@@ -381,37 +381,37 @@ export class MemberAccessGenerator {
     const varNode = expr.object as VariableNode;
     if (varNode.name !== 'process') return null;
 
-    switch (expr.property) {
-      case 'arch':
-        return this.ctx.stringGenCreateStringConstant('x64');
-      case 'version':
-        return this.ctx.stringGenCreateStringConstant('v1.0.0');
-      case 'pid': {
-        const pidI32 = this.ctx.nextTemp();
-        this.ctx.emit(`${pidI32} = call i32 @getpid()`);
-        const pidDouble = this.ctx.nextTemp();
-        this.ctx.emit(`${pidDouble} = sitofp i32 ${pidI32} to double`);
-        return pidDouble;
-      }
-      case 'ppid': {
-        const ppidI32 = this.ctx.nextTemp();
-        this.ctx.emit(`${ppidI32} = call i32 @getppid()`);
-        const ppidDouble = this.ctx.nextTemp();
-        this.ctx.emit(`${ppidDouble} = sitofp i32 ${ppidI32} to double`);
-        return ppidDouble;
-      }
-      case 'execPath':
-      case 'argv0': {
-        const argvPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${argvPtr} = load i8**, i8*** @__argv`);
-        const firstArg = this.ctx.nextTemp();
-        this.ctx.emit(`${firstArg} = load i8*, i8** ${argvPtr}`);
-        this.ctx.setVariableType(firstArg, 'i8*');
-        return firstArg;
-      }
-      default:
-        return null;
+    const prop = expr.property;
+
+    if (prop === 'arch') {
+      return this.ctx.stringGenCreateStringConstant('x64');
     }
+    if (prop === 'version') {
+      return this.ctx.stringGenCreateStringConstant('v1.0.0');
+    }
+    if (prop === 'pid') {
+      const pidI32 = this.ctx.nextTemp();
+      this.ctx.emit(`${pidI32} = call i32 @getpid()`);
+      const pidDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${pidDouble} = sitofp i32 ${pidI32} to double`);
+      return pidDouble;
+    }
+    if (prop === 'ppid') {
+      const ppidI32 = this.ctx.nextTemp();
+      this.ctx.emit(`${ppidI32} = call i32 @getppid()`);
+      const ppidDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${ppidDouble} = sitofp i32 ${ppidI32} to double`);
+      return ppidDouble;
+    }
+    if (prop === 'execPath' || prop === 'argv0') {
+      const argvPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${argvPtr} = load i8**, i8*** @__argv`);
+      const firstArg = this.ctx.nextTemp();
+      this.ctx.emit(`${firstArg} = load i8*, i8** ${argvPtr}`);
+      this.ctx.setVariableType(firstArg, 'i8*');
+      return firstArg;
+    }
+    return null;
   }
 
   private handleEnumMemberAccess(expr: MemberAccessNode): string | null {

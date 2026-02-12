@@ -520,9 +520,11 @@ function transformUnaryExpression(node: TreeSitterNode): UnaryNode {
     if (!child) continue;
     const c = child as NodeBase;
     if (!c.isNamed) {
-      if (['-', '+', '!', '~'].includes(c.type)) {
+      if (['-', '+', '!', '~', 'typeof'].includes(c.type)) {
         op = c.type;
       }
+    } else if (c.type === 'typeof') {
+      op = 'typeof';
     } else {
       operandNode = child;
     }
@@ -656,7 +658,16 @@ function transformArrayExpression(node: TreeSitterNode): ArrayNode {
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = getNamedChild(node, i);
     if (child) {
-      elements.push(transformExpression(child));
+      const c = child as NodeBase;
+      if (c.type === 'spread_element') {
+        const arg = getNamedChild(child, 0);
+        elements.push({
+          type: 'spread_element',
+          argument: arg ? transformExpression(arg) : { type: 'variable', name: 'undefined' }
+        } as Expression);
+      } else {
+        elements.push(transformExpression(child));
+      }
     }
   }
   return { type: 'array', elements };
@@ -1219,14 +1230,97 @@ function transformLexicalDeclaration(node: TreeSitterNode): VariableDeclaration[
     if (!child) continue;
     const c = child as NodeBase;
     if (c.type === 'variable_declarator') {
-      const decl = transformVariableDeclarator(child, kind);
-      if (decl) {
-        declarations.push(decl);
+      const nameNode = getNamedChild(child, 0);
+      if (!nameNode) continue;
+      const nn = nameNode as NodeBase;
+
+      if (nn.type === 'object_pattern' || nn.type === 'array_pattern') {
+        const desugared = desugarDestructuring(child, kind);
+        for (let j = 0; j < desugared.length; j++) {
+          declarations.push(desugared[j]);
+        }
+      } else {
+        const decl = transformVariableDeclarator(child, kind);
+        if (decl) {
+          declarations.push(decl);
+        }
       }
     }
   }
 
   return declarations;
+}
+
+function desugarDestructuring(declaratorNode: TreeSitterNode, kind: 'let' | 'const'): VariableDeclaration[] {
+  const nameNode = getNamedChild(declaratorNode, 0);
+  if (!nameNode) return [];
+  const nn = nameNode as NodeBase;
+
+  let rhsExpr: Expression | null = null;
+  const child1 = getNamedChild(declaratorNode, 1);
+  if (child1) {
+    const c1 = child1 as NodeBase;
+    if (c1.type === 'type_annotation') {
+      const child2 = getNamedChild(declaratorNode, 2);
+      if (child2) {
+        rhsExpr = transformExpression(child2);
+      }
+    } else {
+      rhsExpr = transformExpression(child1);
+    }
+  }
+  if (!rhsExpr) return [];
+
+  const results: VariableDeclaration[] = [];
+
+  if (nn.type === 'object_pattern') {
+    for (let i = 0; i < nameNode.namedChildCount; i++) {
+      const prop = getNamedChild(nameNode, i);
+      if (!prop) continue;
+      const p = prop as NodeBase;
+
+      if (p.type === 'shorthand_property_identifier_pattern') {
+        const propName = p.text;
+        results.push({
+          type: 'variable_declaration',
+          kind,
+          name: propName,
+          value: { type: 'member_access', object: rhsExpr, property: propName } as Expression,
+        });
+      } else if (p.type === 'pair_pattern') {
+        const keyNode = getNamedChild(prop, 0);
+        const valueNode = getNamedChild(prop, 1);
+        if (keyNode && valueNode) {
+          const keyName = (keyNode as NodeBase).text;
+          const aliasName = (valueNode as NodeBase).text;
+          results.push({
+            type: 'variable_declaration',
+            kind,
+            name: aliasName,
+            value: { type: 'member_access', object: rhsExpr, property: keyName } as Expression,
+          });
+        }
+      }
+    }
+  } else if (nn.type === 'array_pattern') {
+    let idx = 0;
+    for (let i = 0; i < nameNode.namedChildCount; i++) {
+      const elem = getNamedChild(nameNode, i);
+      if (!elem) { idx++; continue; }
+      const e = elem as NodeBase;
+      if (e.type === 'identifier') {
+        results.push({
+          type: 'variable_declaration',
+          kind,
+          name: e.text,
+          value: { type: 'index_access', object: rhsExpr, index: { type: 'number', value: idx } } as Expression,
+        });
+        idx++;
+      }
+    }
+  }
+
+  return results;
 }
 
 function transformVariableDeclarator(node: TreeSitterNode, kind: 'let' | 'const'): VariableDeclaration | null {
@@ -1552,8 +1646,15 @@ function transformSwitchStatement(node: TreeSitterNode): BlockStatement {
             if (!stmtNode) continue;
             const sn = stmtNode as NodeBase;
             if (stmtNode !== valueNode && sn.type !== 'break_statement') {
-              const stmt = transformStatement(stmtNode);
-              if (stmt) caseStatements.push(stmt);
+              if (sn.type === 'lexical_declaration' || sn.type === 'variable_declaration') {
+                const decls = transformLexicalDeclaration(stmtNode);
+                for (let dk = 0; dk < decls.length; dk++) {
+                  caseStatements.push(decls[dk]);
+                }
+              } else {
+                const stmt = transformStatement(stmtNode);
+                if (stmt) caseStatements.push(stmt);
+              }
             }
           }
 
@@ -1588,8 +1689,15 @@ function transformSwitchStatement(node: TreeSitterNode): BlockStatement {
           if (!stmtNode) continue;
           const sn = stmtNode as NodeBase;
           if (sn.type !== 'break_statement') {
-            const stmt = transformStatement(stmtNode);
-            if (stmt) defaultStatements.push(stmt);
+            if (sn.type === 'lexical_declaration' || sn.type === 'variable_declaration') {
+              const decls = transformLexicalDeclaration(stmtNode);
+              for (let dk = 0; dk < decls.length; dk++) {
+                defaultStatements.push(decls[dk]);
+              }
+            } else {
+              const stmt = transformStatement(stmtNode);
+              if (stmt) defaultStatements.push(stmt);
+            }
           }
         }
       }
@@ -1616,9 +1724,17 @@ function transformStatementBlock(node: TreeSitterNode): BlockStatement {
   for (let i = 0; i < ncc; i++) {
     const child = getNamedChild(node, i);
     if (child) {
-      const stmt = transformStatement(child);
-      if (stmt) {
-        statements.push(stmt);
+      const cn = child as NodeBase;
+      if (cn.type === 'lexical_declaration' || cn.type === 'variable_declaration') {
+        const decls = transformLexicalDeclaration(child);
+        for (let j = 0; j < decls.length; j++) {
+          statements.push(decls[j]);
+        }
+      } else {
+        const stmt = transformStatement(child);
+        if (stmt) {
+          statements.push(stmt);
+        }
       }
     }
   }
