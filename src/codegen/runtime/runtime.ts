@@ -171,6 +171,8 @@ export class RuntimeGenerator {
     ir += 'declare i32 @cJSON_IsNumber(i8*)\n';
     ir += 'declare i32 @cJSON_IsString(i8*)\n';
     ir += 'declare i32 @cJSON_IsObject(i8*)\n';
+    ir += 'declare i32 @cJSON_IsBool(i8*)\n';
+    ir += 'declare i32 @cJSON_IsNull(i8*)\n';
     ir += 'declare i8* @cJSON_PrintUnformatted(i8*)\n';
     ir += '\n';
 

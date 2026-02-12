@@ -263,50 +263,85 @@ export class JsonGenerator {
     }
 
     const structSize = interfaceDef.fields.length * 8;
-    let parserIR = `define %${typeName}* @parse_json_${typeName}(i8* %json_str) {` + '\n';
+    let parserIR = `define %${typeName}* @parse_json_${typeName}(i8* %json_str) {\n`;
     parserIR += 'entry:\n';
-    parserIR += `  %struct_bytes = call i8* @GC_malloc(i64 ${structSize})` + '\n';
-    parserIR += `  %struct_ptr = bitcast i8* %struct_bytes to %${typeName}*` + '\n';
-    parserIR += `  %json_root = call i8* @cJSON_Parse(i8* %json_str)` + '\n';
-    parserIR += `  %json_is_null = icmp eq i8* %json_root, null` + '\n';
-    parserIR += `  br i1 %json_is_null, label %json_error, label %json_ok` + '\n\n';
+    parserIR += `  %struct_bytes = call i8* @GC_malloc(i64 ${structSize})\n`;
+    parserIR += `  %struct_ptr = bitcast i8* %struct_bytes to %${typeName}*\n`;
 
-    parserIR += `json_error:` + '\n';
-    parserIR += `  ret %${typeName}* null` + '\n\n';
-
-    parserIR += `json_ok:` + '\n';
     for (let fieldIndex = 0; fieldIndex < interfaceDef.fields.length; fieldIndex++) {
       const fieldEntry = interfaceDef.fields[fieldIndex] as { name: string; type: string };
-      const fieldName = fieldEntry.name;
-      const fieldType = fieldEntry.type;
-      const fieldNameConst = this.ctx.nextString();
-      this.ctx.pushGlobalString(fieldNameConst + ' = private unnamed_addr constant [' + (fieldName.length + 1) + ' x i8] c"' + fieldName + '\\00", align 1');
-
-      parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${fieldName.length + 1} x i8], [${fieldName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))` + '\n';
-
-      if (fieldType === 'string') {
-        parserIR += `  %temp_str_${fieldIndex} = call i8* @cJSON_GetStringValue(i8* %item_${fieldIndex})` + '\n';
-        parserIR += `  %value_${fieldIndex} = call i8* @strdup(i8* %temp_str_${fieldIndex})` + '\n';
-        parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}` + '\n';
-        parserIR += `  store i8* %value_${fieldIndex}, i8** %field_ptr_${fieldIndex}` + '\n\n';
-      } else if (fieldType === 'number') {
-        parserIR += `  %value_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})` + '\n';
-        parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}` + '\n';
-        parserIR += `  store double %value_${fieldIndex}, double* %field_ptr_${fieldIndex}` + '\n\n';
-      } else if (fieldType === 'boolean') {
-        parserIR += `  %num_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})` + '\n';
-        parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}` + '\n';
-        parserIR += `  store double %num_${fieldIndex}, double* %field_ptr_${fieldIndex}` + '\n\n';
-      } else {
-        parserIR += `  %nested_str_${fieldIndex} = call i8* @cJSON_PrintUnformatted(i8* %item_${fieldIndex})` + '\n';
-        parserIR += `  %value_${fieldIndex} = call %${fieldType}* @parse_json_${fieldType}(i8* %nested_str_${fieldIndex})` + '\n';
-        parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}` + '\n';
-        parserIR += `  store %${fieldType}* %value_${fieldIndex}, %${fieldType}** %field_ptr_${fieldIndex}` + '\n\n';
+      if (fieldEntry.type === 'string') {
+        parserIR += `  %init_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
+        parserIR += `  store i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.empty_str, i64 0, i64 0), i8** %init_ptr_${fieldIndex}\n`;
       }
     }
-    parserIR += `  call void @cJSON_Delete(i8* %json_root)` + '\n';
-    parserIR += `  ret %${typeName}* %struct_ptr` + '\n';
-    parserIR += `}` + '\n\n';
+
+    parserIR += `  %json_root = call i8* @cJSON_Parse(i8* %json_str)\n`;
+    parserIR += `  %json_is_null = icmp eq i8* %json_root, null\n`;
+    parserIR += `  br i1 %json_is_null, label %json_error, label %json_ok\n\n`;
+
+    parserIR += `json_error:\n`;
+    parserIR += `  ret %${typeName}* %struct_ptr\n\n`;
+
+    const getNextLabel = (fieldIndex: number): string => {
+      if (fieldIndex + 1 < interfaceDef.fields.length) {
+        return `field_${fieldIndex + 1}`;
+      }
+      return 'json_cleanup';
+    };
+
+    if (interfaceDef.fields.length === 0) {
+      parserIR += `json_ok:\n`;
+      parserIR += `  br label %json_cleanup\n\n`;
+    } else {
+      parserIR += `json_ok:\n`;
+      parserIR += `  br label %field_0\n\n`;
+
+      for (let fieldIndex = 0; fieldIndex < interfaceDef.fields.length; fieldIndex++) {
+        const fieldEntry = interfaceDef.fields[fieldIndex] as { name: string; type: string };
+        const fieldName = fieldEntry.name;
+        const fieldType = fieldEntry.type;
+        const nextLabel = getNextLabel(fieldIndex);
+        const fieldNameConst = this.ctx.nextString();
+        this.ctx.pushGlobalString(fieldNameConst + ' = private unnamed_addr constant [' + (fieldName.length + 1) + ' x i8] c"' + fieldName + '\\00", align 1');
+
+        parserIR += `field_${fieldIndex}:\n`;
+        parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${fieldName.length + 1} x i8], [${fieldName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
+        parserIR += `  %item_${fieldIndex}_null = icmp eq i8* %item_${fieldIndex}, null\n`;
+        parserIR += `  br i1 %item_${fieldIndex}_null, label %${nextLabel}, label %field_${fieldIndex}_extract\n\n`;
+
+        if (fieldType === 'string') {
+          parserIR += `field_${fieldIndex}_extract:\n`;
+          parserIR += `  %temp_str_${fieldIndex} = call i8* @cJSON_GetStringValue(i8* %item_${fieldIndex})\n`;
+          parserIR += `  %str_${fieldIndex}_null = icmp eq i8* %temp_str_${fieldIndex}, null\n`;
+          parserIR += `  br i1 %str_${fieldIndex}_null, label %${nextLabel}, label %field_${fieldIndex}_store\n\n`;
+
+          parserIR += `field_${fieldIndex}_store:\n`;
+          parserIR += `  %value_${fieldIndex} = call i8* @strdup(i8* %temp_str_${fieldIndex})\n`;
+          parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
+          parserIR += `  store i8* %value_${fieldIndex}, i8** %field_ptr_${fieldIndex}\n`;
+          parserIR += `  br label %${nextLabel}\n\n`;
+        } else if (fieldType === 'number' || fieldType === 'boolean') {
+          parserIR += `field_${fieldIndex}_extract:\n`;
+          parserIR += `  %value_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})\n`;
+          parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
+          parserIR += `  store double %value_${fieldIndex}, double* %field_ptr_${fieldIndex}\n`;
+          parserIR += `  br label %${nextLabel}\n\n`;
+        } else {
+          parserIR += `field_${fieldIndex}_extract:\n`;
+          parserIR += `  %nested_str_${fieldIndex} = call i8* @cJSON_PrintUnformatted(i8* %item_${fieldIndex})\n`;
+          parserIR += `  %value_${fieldIndex} = call %${fieldType}* @parse_json_${fieldType}(i8* %nested_str_${fieldIndex})\n`;
+          parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
+          parserIR += `  store %${fieldType}* %value_${fieldIndex}, %${fieldType}** %field_ptr_${fieldIndex}\n`;
+          parserIR += `  br label %${nextLabel}\n\n`;
+        }
+      }
+    }
+
+    parserIR += `json_cleanup:\n`;
+    parserIR += `  call void @cJSON_Delete(i8* %json_root)\n`;
+    parserIR += `  ret %${typeName}* %struct_ptr\n`;
+    parserIR += `}\n\n`;
 
     this.ctx.pushGlobalString(parserIR);
   }

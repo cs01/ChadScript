@@ -341,6 +341,27 @@ describe('ChadScript Compiler', () => {
         }
       }
     });
+
+    it('should safely handle missing fields and invalid JSON', async () => {
+      const fixturePath = 'tests/fixtures/builtins/json-safe-parse-test.ts';
+      const outputDir = path.join('.build', path.dirname(fixturePath));
+      const baseName = path.basename(fixturePath, '.ts');
+      const exeFile = path.join(outputDir, baseName);
+
+      try {
+        await execAsync(`node dist/index.js ${fixturePath}`);
+        const { stdout } = await execAsync(`./${exeFile}`);
+        assert.ok(stdout.includes('TEST_PASSED'), 'JSON safe parse test should pass');
+      } finally {
+        try {
+          const llFile = path.join(outputDir, `${baseName}.ll`);
+          if (fsSync.existsSync(llFile)) await fs.unlink(llFile);
+          if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    });
   });
 
   describe('Error Handling', () => {
