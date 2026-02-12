@@ -1613,12 +1613,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     const mainIr = this.generateMain();
 
-    const envStructDefs = this.exprGen.arrowFunctionGen.getEnvStructDefinitions();
-    if (envStructDefs) {
-      irParts.push(envStructDefs);
-      irParts.push('\n');
-    }
-
     const liftedFunctions = this.exprGen.arrowFunctionGen.getLiftedFunctions();
     for (let _lfi = 0; _lfi < liftedFunctions.length; _lfi++) {
       const func = liftedFunctions[_lfi];
@@ -1628,6 +1622,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         irParts.push('\n');
       }
     }
+
+    const envStructDefs = this.exprGen.arrowFunctionGen.getEnvStructDefinitions();
 
     for (let ufi = 0; ufi < userFuncParts.length; ufi++) {
       irParts.push(userFuncParts[ufi]);
@@ -1692,6 +1688,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     if (this.classStructDefsCache) {
       finalParts.push(this.classStructDefsCache);
+      finalParts.push('\n');
+    }
+
+    if (envStructDefs) {
+      finalParts.push(envStructDefs);
       finalParts.push('\n');
     }
 
