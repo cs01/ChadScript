@@ -90,11 +90,9 @@ jobs:
           .build/chad build examples/hello.ts -o /tmp/hello2
           /tmp/hello2
 
-      - name: Run stage0 tests
-        run: |
-          mkdir -p .build/src
-          ln -sf $(pwd)/.build/chadc .build/src/native-compiler
-          node --import tsx --test tests/stage0-examples.test.ts
+      - name: Run self-hosting tests
+        run: node --import tsx --test tests/self-hosting.test.ts
+        timeout-minutes: 15
 
       - name: Package release artifact
         run: |

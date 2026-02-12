@@ -16,6 +16,7 @@ native-compiler2
 # Test artifacts at root level
 test-*.ts
 test-*.sh
+!tests/test-fixtures.ts
 
 # TypeScript
 *.tsbuildinfo
