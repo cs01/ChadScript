@@ -83,7 +83,14 @@ async function execWithRetry(cmd: string, opts: { timeout: number; env?: NodeJS.
       if (isCrashSignal(err.signal) && attempt < retries) {
         continue;
       }
-      throw err;
+      const stdout = err.stdout?.slice(-2000) || '';
+      const stderr = err.stderr?.slice(-2000) || '';
+      throw new Error(
+        `${err.message}\n` +
+        `signal: ${err.signal}, code: ${err.code}, attempts: ${attempt}\n` +
+        `stdout (last 2000 chars):\n${stdout}\n` +
+        `stderr (last 2000 chars):\n${stderr}`
+      );
     }
   }
   throw new Error('unreachable');
@@ -192,7 +199,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       if (fsSync.existsSync(STAGE1)) fsSync.unlinkSync(STAGE1);
 
       await execWithRetry(
-        `${STAGE0} src/native-compiler.ts -o ${STAGE1}`,
+        `${STAGE0} -v src/native-compiler.ts -o ${STAGE1}`,
         { timeout: 180000, env: NATIVE_ENV }
       );
 
@@ -221,7 +228,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       if (fsSync.existsSync(STAGE2)) fsSync.unlinkSync(STAGE2);
 
       await execWithRetry(
-        `${STAGE1} src/native-compiler.ts -o ${STAGE2}`,
+        `${STAGE1} -v src/native-compiler.ts -o ${STAGE2}`,
         { timeout: 180000, env: NATIVE_ENV }
       );
 
@@ -250,7 +257,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       if (fsSync.existsSync(STAGE3)) fsSync.unlinkSync(STAGE3);
 
       await execWithRetry(
-        `${STAGE2} src/native-compiler.ts -o ${STAGE3}`,
+        `${STAGE2} -v src/native-compiler.ts -o ${STAGE3}`,
         { timeout: 180000, env: NATIVE_ENV }
       );
 

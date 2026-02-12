@@ -29,7 +29,10 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm clang libcurl4-openssl-dev cmake autoconf automake libtool
+          sudo apt-get install -y llvm clang libcurl4-openssl-dev cmake autoconf automake libtool gdb
+          echo "--- LLVM/Clang versions ---"
+          llc --version 2>&1 | head -4
+          clang --version 2>&1 | head -2
 
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
@@ -109,7 +112,7 @@ jobs:
 
       - name: Run self-hosting tests
         if: runner.os == 'Linux'
-        run: node --import tsx --test --test-name-pattern 'Self-hosting chain' tests/self-hosting.test.ts
+        run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
 
       - name: Package release artifact
