@@ -405,12 +405,15 @@ export class CallExpressionGenerator {
   }
 
   private generateHtons(expr: CallNode, params: string[]): string {
-    // htons(hostshort: number) -> i16
     const hostshortDouble = this.ctx.generateExpression(expr.args[0], params);
     const hostshort = this.ctx.nextTemp();
     this.ctx.emit(`${hostshort} = fptosi double ${hostshortDouble} to i16`);
+    const hi = this.ctx.nextTemp();
+    this.ctx.emit(`${hi} = lshr i16 ${hostshort}, 8`);
+    const lo = this.ctx.nextTemp();
+    this.ctx.emit(`${lo} = shl i16 ${hostshort}, 8`);
     const resultI16 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI16} = call i16 @htons(i16 ${hostshort})`);
+    this.ctx.emit(`${resultI16} = or i16 ${hi}, ${lo}`);
     const resultI32 = this.ctx.nextTemp();
     this.ctx.emit(`${resultI32} = zext i16 ${resultI16} to i32`);
     const resultDouble = this.ctx.nextTemp();

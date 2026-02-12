@@ -275,9 +275,11 @@ export class RuntimeGenerator {
     ir += '  %addr = alloca %struct.sockaddr_in\n';
     ir += '  %addr_family_ptr = getelementptr %struct.sockaddr_in, %struct.sockaddr_in* %addr, i32 0, i32 0\n';
     ir += '  store i16 2, i16* %addr_family_ptr\n'; // AF_INET
-    ir += '  ; Convert port to network byte order\n';
+    ir += '  ; Convert port to network byte order (inline htons)\n';
     ir += '  %port_i16 = trunc i32 %port to i16\n';
-    ir += '  %port_net = call i16 @htons(i16 %port_i16)\n';
+    ir += '  %port_hi = lshr i16 %port_i16, 8\n';
+    ir += '  %port_lo = shl i16 %port_i16, 8\n';
+    ir += '  %port_net = or i16 %port_hi, %port_lo\n';
     ir += '  %addr_port_ptr = getelementptr %struct.sockaddr_in, %struct.sockaddr_in* %addr, i32 0, i32 1\n';
     ir += '  store i16 %port_net, i16* %addr_port_ptr\n';
     ir += '  ; Set address to INADDR_ANY (0.0.0.0)\n';

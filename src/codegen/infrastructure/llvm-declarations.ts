@@ -105,7 +105,6 @@ export function getLLVMDeclarations(): string {
   ir += 'declare i32 @connect(i32, i8*, i32)\n';
   ir += 'declare i64 @read(i32, i8*, i64)\n';
   ir += 'declare i64 @write(i32, i8*, i64)\n';
-  ir += 'declare i16 @htons(i16)\n';
   ir += '\n';
 
   ir += 'declare i8* @realpath(i8*, i8*)\n';

@@ -11,27 +11,26 @@ describe('TCP Server Tests - Full Syscall Validation', () => {
   it('should create and bind a TCP socket', async () => {
     const testFile = 'tests/fixtures/tcp-bind-test.ts';
     const testCode = `
-// Test that bind() syscall works
 function testBind(): number {
   const AF_INET = 2;
   const SOCK_STREAM = 1;
 
-  // Create socket
   const sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock < 0) {
-    console.log("Socket creation failed");
+    console.log("FAIL: socket creation failed");
     return 1;
   }
-
   console.log("Socket created successfully");
 
-  // Allocate sockaddr_in (16 bytes)
   const addr = malloc(16);
 
-  // For now, just test that bind can be called
-  // Proper struct packing needs memory write operations
+  const bindResult = bind(sock, addr, 16);
+  if (bindResult < 0) {
+    console.log("bind returned error (expected with uninitialized addr)");
+  } else {
+    console.log("bind succeeded");
+  }
 
-  // Close socket
   close(sock);
   free(addr);
 
@@ -67,14 +66,12 @@ testBind();
   it('should validate all network syscalls are declared and linkable', async () => {
     const testFile = 'tests/fixtures/tcp-syscalls-test.ts';
     const testCode = `
-// Comprehensive test that all network syscalls link correctly
 function testAllSyscalls(): number {
   const AF_INET = 2;
   const SOCK_STREAM = 1;
 
   console.log("Testing socket syscalls...");
 
-  // 1. socket() - Create endpoint
   const sock = socket(AF_INET, SOCK_STREAM, 0);
   if (sock < 0) {
     console.log("FAIL: socket()");
@@ -82,36 +79,29 @@ function testAllSyscalls(): number {
   }
   console.log("PASS: socket()");
 
-  // 2. Allocate memory for sockaddr_in
   const addr = malloc(16);
   console.log("PASS: malloc() for sockaddr");
 
-  // 3. htons() - Convert port to network byte order
   const port = htons(8080);
   console.log("PASS: htons()");
 
-  // 4. bind() - Bind socket to address (will fail without proper struct, but tests linkage)
-  // We're just testing that the function is callable
-  // const bindResult = bind(sock, addr, 16);
-  console.log("PASS: bind() linkable");
+  const bindResult = bind(sock, addr, 16);
+  if (bindResult < 0) {
+    console.log("PASS: bind() called (returned error with uninitialized addr)");
+  } else {
+    console.log("PASS: bind() succeeded");
+  }
 
-  // 5. listen() - Mark socket as passive (will fail on unbound socket, but tests linkage)
-  // const listenResult = listen(sock, 5);
-  console.log("PASS: listen() linkable");
+  const listenResult = listen(sock, 5);
+  if (listenResult < 0) {
+    console.log("PASS: listen() called (returned error on unbound socket)");
+  } else {
+    console.log("PASS: listen() succeeded");
+  }
 
-  // 6. accept() - Accept connection (non-blocking, will fail but tests linkage)
-  // const client = accept(sock, 0, 0);
-  console.log("PASS: accept() linkable");
-
-  // 7. connect() - Connect to remote (tests linkage)
-  // const connResult = connect(sock, addr, 16);
-  console.log("PASS: connect() linkable");
-
-  // 8. read() and write() - I/O operations
   const buffer = malloc(1024);
-  console.log("PASS: I/O syscalls available");
+  console.log("PASS: I/O buffer allocated");
 
-  // Cleanup
   close(sock);
   free(addr);
   free(buffer);
@@ -151,29 +141,25 @@ testAllSyscalls();
   it('should create a simple HTTP request handler (logic only)', async () => {
     const testFile = 'tests/fixtures/http-handler-test.ts';
     const testCode = `
-// HTTP request handler - demonstrates HTTP protocol logic
-// (Network I/O would connect this to real TCP sockets)
-
 interface HttpRequest {
-  method: number;   // 0=GET, 1=POST, 2=PUT, 3=DELETE
-  path: number;     // Route ID
+  method: number;
+  path: number;
   bodyLen: number;
 }
 
-// Separate handlers to avoid nested if bug
 function handleGet(path: number): number {
   if (path === 1) {
-    return 200;  // GET /
+    return 200;
   }
   if (path === 2) {
-    return 200;  // GET /health
+    return 200;
   }
-  return 404;    // Not found
+  return 404;
 }
 
 function handlePost(path: number): number {
   if (path === 10) {
-    return 200;  // POST /echo
+    return 200;
   }
   return 404;
 }
@@ -185,33 +171,28 @@ function routeRequest(req: HttpRequest): number {
   if (req.method === 1) {
     return handlePost(req.path);
   }
-  return 405;  // Method not allowed
+  return 405;
 }
 
 function testHttpHandler(): number {
   console.log("Testing HTTP handler logic...");
 
-  // Test GET /
   const req1 = { method: 0, path: 1, bodyLen: 0 };
   const status1 = routeRequest(req1);
   console.log("PASS: GET / handler executed");
 
-  // Test GET /health
   const req2 = { method: 0, path: 2, bodyLen: 0 };
   const status2 = routeRequest(req2);
   console.log("PASS: GET /health handler executed");
 
-  // Test 404
   const req3 = { method: 0, path: 999, bodyLen: 0 };
   const status3 = routeRequest(req3);
   console.log("PASS: GET /unknown handler executed");
 
-  // Test POST
   const req4 = { method: 1, path: 10, bodyLen: 100 };
   const status4 = routeRequest(req4);
   console.log("PASS: POST /echo handler executed");
 
-  // Test 405
   const req5 = { method: 3, path: 1, bodyLen: 0 };
   const status5 = routeRequest(req5);
   console.log("PASS: DELETE handler executed");
