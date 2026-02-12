@@ -1275,6 +1275,22 @@ export class MemberAccessGenerator {
         this.ctx.setActualClassType(value, nestedTypeName);
         return value;
       }
+      let isAstClass = false;
+      const classCount = this.ctx.getClassesCount();
+      for (let ci = 0; ci < classCount; ci++) {
+        const cls = this.ctx.getAstClassAt(ci);
+        if (cls && cls.name === nestedTypeName) {
+          isAstClass = true;
+          break;
+        }
+      }
+      if (isAstClass) {
+        const value = this.ctx.nextTemp();
+        this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
+        this.ctx.setVariableType(value, 'i8*');
+        this.ctx.setActualClassType(value, nestedTypeName);
+        return value;
+      }
       const value = this.ctx.nextTemp();
       this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}`);
       this.ctx.setVariableType(value, 'i8*');

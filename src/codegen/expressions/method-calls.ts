@@ -2169,6 +2169,35 @@ export class MethodCallGenerator {
               }
             }
           }
+        } else {
+          const interfaceType = this.ctx.symbolTableGetInterfaceType(varName);
+          if (interfaceType) {
+            const interfaceDeclResult = this.getInterfaceDecl(interfaceType);
+            if (interfaceDeclResult) {
+              const interfaceDecl = interfaceDeclResult as InterfaceDeclaration;
+              for (let i = 0; i < interfaceDecl.fields.length; i++) {
+                const f = interfaceDecl.fields[i] as { name: string; type: string };
+                if (f.name === memberAccess.property) {
+                  let fieldType = f.type;
+                  if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
+                    fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
+                  }
+                  const resolvedClass = this.findClassWithMethod(fieldType, method);
+                  if (resolvedClass) {
+                    instancePtr = this.ctx.generateExpression(expr.object, params);
+                    className = resolvedClass;
+                  } else {
+                    const implClass = this.findClassImplementingInterfaceMethod(fieldType, method);
+                    if (implClass) {
+                      instancePtr = this.ctx.generateExpression(expr.object, params);
+                      className = implClass;
+                    }
+                  }
+                  break;
+                }
+              }
+            }
+          }
         }
       } else if (memberAccessObjBase.type === 'member_access') {
         const resolvedType = this.resolveNestedMemberAccessType(expr.object);
@@ -2456,6 +2485,10 @@ export class MethodCallGenerator {
       if (this.ctx.symbolTableIsClass(varName)) {
         const classMeta = this.ctx.symbolTableGetClassInfo(varName);
         return classMeta ? (classMeta.className || null) : null;
+      }
+      const interfaceType = this.ctx.symbolTableGetInterfaceType(varName);
+      if (interfaceType) {
+        return interfaceType;
       }
       return null;
     }

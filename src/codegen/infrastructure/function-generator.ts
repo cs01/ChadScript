@@ -5,7 +5,7 @@ import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { StringGenerator } from '../types/collections/string.js';
 import type { ControlFlowGenerator } from '../statements/control-flow.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
-import { stripOptional, tsTypeToLlvm, mapParamTypeToLLVM, isEnumType } from './type-system.js';
+import { stripOptional, tsTypeToLlvm, mapParamTypeToLLVM } from './type-system.js';
 
 interface LiftedFunction extends FunctionNode {
   closureInfo?: ClosureInfo;
@@ -23,6 +23,7 @@ export interface FunctionGeneratorContext {
   generateExpression(expr: Expression, params: string[]): string;
   allocateVariable(stmt: VariableDeclaration, params: string[]): void;
   getAst(): AST | undefined;
+  isEnumType(name: string): boolean;
   topLevelStatementsCount: number;
   topLevelExpressionsCount: number;
   topLevelItemsCount: number;
@@ -84,8 +85,6 @@ export class FunctionGenerator {
       returnType = '%Promise*';
       this.ctx.setCurrentFunctionReturnType('%Promise*');
     } else if (hasParamTypes && paramTypesLen > 0) {
-      const ast = this.ctx.getAst();
-      const enums = ast ? ast.enums : null;
       const entryTypes: string[] = [];
       const entryNames: string[] = [];
       for (let i = 0; i < funcParams.length; i++) {
@@ -96,7 +95,7 @@ export class FunctionGenerator {
         paramTypes.push(entryTypes[i]);
         paramLLVMTypes.push(mapParamTypeToLLVM(
           entryTypes[i], entryNames[i],
-          isEnumType(entryTypes[i], enums),
+          this.ctx.isEnumType(entryTypes[i]),
           ctx.interfaceStructGenHasInterface(entryTypes[i])
         ));
       }
@@ -113,8 +112,6 @@ export class FunctionGenerator {
           }
         }
         if (paramCount > 0) {
-          const ast = this.ctx.getAst();
-          const enums = ast ? ast.enums : null;
           const entryTypes: string[] = [];
           const entryNames: string[] = [];
           for (let i = 0; i < funcParams.length; i++) {
@@ -126,7 +123,7 @@ export class FunctionGenerator {
             paramTypes.push(entryTypes[i]);
             paramLLVMTypes.push(mapParamTypeToLLVM(
               entryTypes[i], entryNames[i],
-              isEnumType(entryTypes[i], enums),
+              this.ctx.isEnumType(entryTypes[i]),
               ctx.interfaceStructGenHasInterface(entryTypes[i])
             ));
           }
@@ -527,9 +524,7 @@ export class FunctionGenerator {
   }
 
   private isEnumType(typeName: string): boolean {
-    const ast = this.ctx.getAst();
-    const enums = ast ? ast.enums : null;
-    return isEnumType(typeName, enums);
+    return this.ctx.isEnumType(typeName);
   }
 
   private convertTsType(tsType: string): string {

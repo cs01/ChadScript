@@ -1,6 +1,6 @@
 import { CallNode, FunctionNode, VariableNode, FunctionParameter, ClassNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
-import { stripNullable, mapParamTypeToLLVM, mapReturnTypeToLLVM, isEnumType } from '../infrastructure/type-system.js';
+import { stripNullable, mapParamTypeToLLVM, mapReturnTypeToLLVM } from '../infrastructure/type-system.js';
 
 /**
  * CallExpressionGenerator
@@ -489,37 +489,33 @@ export class CallExpressionGenerator {
       returnType = '%Promise*';
       this.ctx.setUsesPromises(true);
     } else if (funcResult && func.paramTypes && func.paramTypes.length > 0) {
-      const ast = this.ctx.getAst();
-      const enums = ast ? ast.enums : null;
       const normalizedReturnType = func.returnType ? stripNullable(func.returnType) : '';
       if (normalizedReturnType) {
-        returnType = mapReturnTypeToLLVM(normalizedReturnType, isEnumType(normalizedReturnType, enums));
+        returnType = mapReturnTypeToLLVM(normalizedReturnType, this.ctx.isEnumType(normalizedReturnType));
       }
       for (let i = 0; i < func.paramTypes.length; i++) {
         const p = func.paramTypes[i] as string;
         const paramName = func.params[i] || '';
-        paramTypes.push(mapParamTypeToLLVM(p, paramName, isEnumType(p, enums), false));
+        paramTypes.push(mapParamTypeToLLVM(p, paramName, this.ctx.isEnumType(stripNullable(p)), false));
       }
     } else {
       const funcNode = this.getFunctionFromAST(expr.name);
       if (funcNode) {
-        const ast = this.ctx.getAst();
-        const enums = ast ? ast.enums : null;
         const normalizedRetType = funcNode.returnType ? stripNullable(funcNode.returnType) : '';
         if (normalizedRetType) {
-          returnType = mapReturnTypeToLLVM(normalizedRetType, isEnumType(normalizedRetType, enums));
+          returnType = mapReturnTypeToLLVM(normalizedRetType, this.ctx.isEnumType(normalizedRetType));
         }
         if (funcNode.parameters) {
           for (let i = 0; i < funcNode.parameters.length; i++) {
             const p = funcNode.parameters[i] as FunctionParameter;
             const pType = p.type || 'number';
-            paramTypes.push(mapParamTypeToLLVM(pType, p.name || '', isEnumType(pType, enums), false));
+            paramTypes.push(mapParamTypeToLLVM(pType, p.name || '', this.ctx.isEnumType(stripNullable(pType)), false));
           }
         } else if (funcNode.paramTypes) {
           for (let i = 0; i < funcNode.paramTypes.length; i++) {
             const t = funcNode.paramTypes[i];
             const paramName = funcNode.params[i] || '';
-            paramTypes.push(mapParamTypeToLLVM(t, paramName, isEnumType(t, enums), false));
+            paramTypes.push(mapParamTypeToLLVM(t, paramName, this.ctx.isEnumType(stripNullable(t)), false));
           }
         }
       }
