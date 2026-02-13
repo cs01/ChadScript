@@ -8,6 +8,9 @@ build/
 .build/
 src-js/
 
+# Generated files
+src/codegen/stdlib/embedded-dts.ts
+
 # Compiled binaries and LLVM IR
 *.ll
 *.o
