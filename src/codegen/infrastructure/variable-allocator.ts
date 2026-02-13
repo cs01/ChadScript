@@ -311,6 +311,10 @@ export class VariableAllocator {
         this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, '%Array*', SymbolKind.Array, 'local', createPointerAllocaMetadata());
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         this.ctx.emit(`store %Array* null, %Array** ${allocaReg}`);
+      } else if (baseType.endsWith('[]')) {
+        this.ctx.defineVariableWithMetadata(stmt.name, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local', createPointerAllocaMetadata());
+        this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
+        this.ctx.emit(`store %ObjectArray* null, %ObjectArray** ${allocaReg}`);
       } else {
         let isInterfaceType = false;
         if (baseType && this.getInterface(baseType)) {
@@ -385,11 +389,12 @@ export class VariableAllocator {
     const stmtValue = stmt.value!;
 
     if (stmt.declaredType) {
-      if (stmt.declaredType === 'string[]') {
+      const strippedType = stripNullable(stmt.declaredType);
+      if (strippedType === 'string[]') {
         this.ctx.setExpectedArrayElementType('string');
-      } else if (stmt.declaredType === 'number[]' || stmt.declaredType === 'boolean[]') {
+      } else if (strippedType === 'number[]' || strippedType === 'boolean[]') {
         this.ctx.setExpectedArrayElementType('number');
-      } else if (stmt.declaredType.endsWith('[]')) {
+      } else if (strippedType.endsWith('[]')) {
         this.ctx.setExpectedArrayElementType('pointer');
       }
     }
@@ -397,12 +402,13 @@ export class VariableAllocator {
     const stmtDeclaredType: string = stmt.declaredType || '';
     const isString = this.ctx.isStringExpression(stmtValue);
     let isStringArray = this.ctx.isStringArrayExpression(stmtValue);
-    if (!isStringArray && stmtDeclaredType === 'string[]') {
+    const strippedDeclType = stripNullable(stmtDeclaredType);
+    if (!isStringArray && strippedDeclType === 'string[]') {
       isStringArray = true;
     }
     let isObjectArray = this.ctx.isObjectArrayExpression(stmtValue);
-    if (!isObjectArray && stmtDeclaredType && stmtDeclaredType.endsWith('[]') &&
-        stmtDeclaredType !== 'string[]' && stmtDeclaredType !== 'number[]' && stmtDeclaredType !== 'boolean[]') {
+    if (!isObjectArray && strippedDeclType && strippedDeclType.endsWith('[]') &&
+        strippedDeclType !== 'string[]' && strippedDeclType !== 'number[]' && strippedDeclType !== 'boolean[]') {
       isObjectArray = true;
     }
     const isArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(stmtValue);

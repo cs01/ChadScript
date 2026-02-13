@@ -100,8 +100,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private promiseGen: PromiseGenerator;
   private treesitterGen: TreeSitterGenerator;
   private httpHandlers: string[];
-  public usesTimers: boolean = false;
-  public usesPromises: boolean = false;
+  public usesTimers: number = 0;
+  public usesPromises: number = 0;
+  public usesSqlite: number = 0;
+  public usesCurl: number = 0;
+  public usesCrypto: number = 0;
+  public usesJson: number = 0;
+  public usesMongoose: number = 0;
 
   // Expression generator (context pattern)
   private exprGen: ExpressionGenerator;
@@ -734,11 +739,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getCurrentDeclaredMapType(): string | undefined { return this.currentDeclaredMapType; }
   public setCurrentDeclaredSetType(type: string | undefined): void { this.currentDeclaredSetType = type; }
   public getCurrentDeclaredSetType(): string | undefined { return this.currentDeclaredSetType; }
-  public setUsesPromises(value: boolean): void { this.usesPromises = value; }
-  public getUsesPromises(): boolean { return this.usesPromises; }
-  public setUsesTimers(value: boolean): void { this.usesTimers = value; }
-  public getUsesTimers(): boolean { return this.usesTimers; }
+  public setUsesPromises(value: boolean): void { this.usesPromises = value ? 1 : 0; }
+  public getUsesPromises(): boolean { return this.usesPromises !== 0; }
+  public setUsesTimers(value: boolean): void { this.usesTimers = value ? 1 : 0; }
+  public getUsesTimers(): boolean { return this.usesTimers !== 0; }
   public setUsesTreeSitter(value: boolean): void { this.usesTreeSitter = value; }
+  public setUsesSqlite(value: boolean): void { this.usesSqlite = value ? 1 : 0; }
+  public getUsesSqlite(): boolean { return this.usesSqlite !== 0; }
+  public setUsesCurl(value: boolean): void { this.usesCurl = value ? 1 : 0; }
+  public getUsesCurl(): boolean { return this.usesCurl !== 0; }
+  public setUsesCrypto(value: boolean): void { this.usesCrypto = value ? 1 : 0; }
+  public getUsesCrypto(): boolean { return this.usesCrypto !== 0; }
+  public setUsesJson(value: boolean): void { this.usesJson = value ? 1 : 0; }
+  public getUsesJson(): boolean { return this.usesJson !== 0; }
+  public setUsesMongoose(value: boolean): void { this.usesMongoose = value ? 1 : 0; }
+  public getUsesMongoose(): boolean { return this.usesMongoose !== 0; }
   public setCurrentDeclaredInterfaceType(type: string | undefined): void { this.currentDeclaredInterfaceType = type; }
   public getCurrentDeclaredInterfaceType(): string | undefined { return this.currentDeclaredInterfaceType; }
   public setExpectedCallbackParamType(type: string | null): void { this.expectedCallbackParamType = type; }
@@ -1031,6 +1046,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.importAliasMap = new Map();
     this.httpHandlers = [];
     this.jsonObjectMetadata = new Map();
+    this.usesTimers = 0;
+    this.usesPromises = 0;
+    this.usesSqlite = 0;
+    this.usesCurl = 0;
+    this.usesCrypto = 0;
+    this.usesJson = 0;
+    this.usesMongoose = 0;
 
     this.ast = ast;
 
@@ -1542,33 +1564,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   generateParts(): string[] {
     const irParts: string[] = [];
 
-    irParts.push(getLLVMDeclarations());
-
     const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();
     this.interfaceStructDefsCache = interfaceStructDefs;
 
     const classStructDefs = this.classGen.generateStructTypeDefinitions(this.classesCount);
     this.classStructDefsCache = classStructDefs;
-
-    const fetchRuntime = this.runtimeGen.generateFetchRuntime();
-    if (fetchRuntime) { irParts.push(fetchRuntime); }
-    irParts.push('\n');
-
-    const jsonRuntime = this.runtimeGen.generateJSONRuntime();
-    if (jsonRuntime) { irParts.push(jsonRuntime); }
-    irParts.push('\n');
-
-    const mongooseDecls = this.mongooseGen.generateDeclarations();
-    if (mongooseDecls) { irParts.push(mongooseDecls); }
-    irParts.push('\n');
-
-    const libuvDecls = this.libuvGen.generateDeclarations();
-    if (libuvDecls) { irParts.push(libuvDecls); }
-    irParts.push('\n');
-
-    const promiseDecls = this.promiseGen.generateDeclarations();
-    if (promiseDecls) { irParts.push(promiseDecls); }
-    irParts.push('\n');
 
     const safeStr = getSafeStringHelper();
     if (safeStr) { irParts.push(safeStr); }
@@ -1579,9 +1579,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     irParts.push(this.fsGen.generateReaddirSyncHelper());
     irParts.push(this.fsGen.generateStatSyncHelper());
-    irParts.push(this.cryptoGen.generateBytesToHexHelper());
-    irParts.push(this.sqliteGen.generateSqliteGetHelper());
-    irParts.push(this.sqliteGen.generateSqliteAllHelper());
 
     const globalVars = getGlobalVariables();
     if (globalVars) { irParts.push(globalVars); }
@@ -1672,6 +1669,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       irParts.push('\n');
     }
 
+    const needsLibuv = this.usesTimers || this.usesPromises || this.usesCurl;
+    const needsPromise = this.usesPromises || this.usesCurl;
+
     const finalParts: string[] = [];
 
     finalParts.push('; Tree-sitter type definitions\n');
@@ -1702,6 +1702,47 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         finalParts.push('\n');
       }
       finalParts.push('\n');
+    }
+
+    finalParts.push(getLLVMDeclarations({ curl: this.usesCurl !== 0, crypto: this.usesCrypto !== 0, sqlite: this.usesSqlite !== 0 }));
+
+    if (this.usesCurl) {
+      const fetchRuntime = this.runtimeGen.generateFetchRuntime();
+      if (fetchRuntime) { finalParts.push(fetchRuntime); }
+      finalParts.push('\n');
+    }
+
+    if (this.usesJson) {
+      const jsonRuntime = this.runtimeGen.generateJSONRuntime();
+      if (jsonRuntime) { finalParts.push(jsonRuntime); }
+      finalParts.push('\n');
+    }
+
+    if (this.usesMongoose) {
+      const mongooseDecls = this.mongooseGen.generateDeclarations();
+      if (mongooseDecls) { finalParts.push(mongooseDecls); }
+      finalParts.push('\n');
+    }
+
+    if (needsLibuv) {
+      const libuvDecls = this.libuvGen.generateDeclarations(needsPromise ? true : false);
+      if (libuvDecls) { finalParts.push(libuvDecls); }
+      finalParts.push('\n');
+    }
+
+    if (needsPromise) {
+      const promiseDecls = this.promiseGen.generateDeclarations();
+      if (promiseDecls) { finalParts.push(promiseDecls); }
+      finalParts.push('\n');
+    }
+
+    if (this.usesCrypto) {
+      finalParts.push(this.cryptoGen.generateBytesToHexHelper());
+    }
+
+    if (this.usesSqlite) {
+      finalParts.push(this.sqliteGen.generateSqliteGetHelper());
+      finalParts.push(this.sqliteGen.generateSqliteAllHelper());
     }
 
     for (let ipi = 0; ipi < irParts.length; ipi++) {
@@ -1799,7 +1840,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private handleSimpleAssignmentWithFields(stmtName: string, stmtValue: Expression, params: string[]): void {
+    if (this.symbolTable.isObjectArray(stmtName)) {
+      this.setExpectedArrayElementType('pointer');
+    } else if (this.symbolTable.isStringArray(stmtName)) {
+      this.setExpectedArrayElementType('string');
+    }
     const value = this.generateExpression(stmtValue, params);
+    this.setExpectedArrayElementType(null);
 
     const stringAllocaReg = this.symbolTable.getStringAlloca(stmtName);
     if (stringAllocaReg) {
@@ -2255,6 +2302,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     // Track handler for mongoose event handler generation
     this.httpHandlers.push(handlerName);
+    this.usesMongoose = 1;
+    this.usesTimers = 1;
 
     // Convert port from double to i32
     const portI32 = this.nextTemp();
