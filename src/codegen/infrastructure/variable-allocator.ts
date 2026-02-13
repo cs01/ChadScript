@@ -434,6 +434,11 @@ export class VariableAllocator {
     const memberAccessInterfaceType = this.getMemberAccessInterfaceType(stmtValue);
     const mapGetInterfaceType = this.getMapGetInterfaceType(stmtValue);
     const declaredInterfaceType = this.getDeclaredInterfaceType(stmt);
+    const isArrowFunction = stmt.value && stmt.value.type === 'arrow_function';
+    const indexedObjectType = this.getIndexedObjectArrayType(stmt.value);
+    const arrayMethodReturnType = this.getArrayMethodReturnType(stmt.value);
+    const isPointer = this.isPointerOrExpression(stmt.value);
+    const isNull = this.isNullLiteral(stmt.value);
 
     if (declaredInterfaceType) {
       this.allocateDeclaredInterface(stmt, params, declaredInterfaceType);
@@ -475,24 +480,18 @@ export class VariableAllocator {
       this.allocateRegex(stmt, params);
     } else if (isString) {
       this.allocateString(stmt, params);
-    } else if (stmt.value && stmt.value.type === 'arrow_function') {
+    } else if (isArrowFunction) {
       this.allocateArrowFunction(stmt, params);
+    } else if (indexedObjectType) {
+      this.allocateIndexedObjectArray(stmt, params, indexedObjectType);
+    } else if (arrayMethodReturnType) {
+      this.allocateArrayMethodReturn(stmt, params, arrayMethodReturnType);
+    } else if (isPointer) {
+      this.allocatePointer(stmt, params);
+    } else if (isNull) {
+      this.allocateNullPointer(stmt);
     } else {
-      const indexedObjectType = this.getIndexedObjectArrayType(stmt.value);
-      if (indexedObjectType) {
-        this.allocateIndexedObjectArray(stmt, params, indexedObjectType);
-      } else {
-        const arrayMethodReturnType = this.getArrayMethodReturnType(stmt.value);
-        if (arrayMethodReturnType) {
-          this.allocateArrayMethodReturn(stmt, params, arrayMethodReturnType);
-        } else if (this.isPointerOrExpression(stmt.value)) {
-          this.allocatePointer(stmt, params);
-        } else if (this.isNullLiteral(stmt.value)) {
-          this.allocateNullPointer(stmt);
-        } else {
-          this.allocateNumeric(stmt, params);
-        }
-      }
+      this.allocateNumeric(stmt, params);
     }
 
     this.ctx.setExpectedArrayElementType(null);
