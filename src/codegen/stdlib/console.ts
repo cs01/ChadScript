@@ -128,7 +128,7 @@ export class ConsoleGenerator {
    * Generate code to print a number value
    */
   private generateNumberPrint(method: string, argValue: string): string {
-    const formatStr = this.ctx.createStringConstant('%g\n');
+    const formatStr = this.ctx.createStringConstant('%.15g\n');
     const temp = this.ctx.nextTemp();
 
     if (method === 'error' || method === 'warn') {

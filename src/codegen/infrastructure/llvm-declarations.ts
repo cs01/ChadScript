@@ -81,9 +81,9 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += '; Console format strings for inline console.log\n';
   ir += '@.str.newline = private unnamed_addr constant [2 x i8] c"\\0A\\00", align 1\n';
   ir += '@.str.strfmt = private unnamed_addr constant [4 x i8] c"%s\\0A\\00", align 1\n';
-  ir += '@.str.numfmt = private unnamed_addr constant [4 x i8] c"%g\\0A\\00", align 1\n';
+  ir += '@.str.numfmt = private unnamed_addr constant [7 x i8] c"%.15g\\0A\\00", align 1\n';
   ir += '@.str.strfmt_no_nl = private unnamed_addr constant [3 x i8] c"%s\\00", align 1\n';
-  ir += '@.str.numfmt_no_nl = private unnamed_addr constant [3 x i8] c"%g\\00", align 1\n';
+  ir += '@.str.numfmt_no_nl = private unnamed_addr constant [6 x i8] c"%.15g\\00", align 1\n';
   ir += '@.str.hello = private unnamed_addr constant [7 x i8] c"Hello\\0A\\00", align 1\n';
   ir += '@.str.throw_fmt = private constant [11 x i8] c"Error: %s\\0A\\00"\n';
   ir += '@.str.popen_mode = private unnamed_addr constant [2 x i8] c"r\\00", align 1\n';
@@ -285,13 +285,13 @@ export function getStringHashHelper(): string {
 export function getDoubleToStringHelper(): string {
   let ir = '';
   ir += '; Convert a double to its string representation\n';
-  ir += '@.double_fmt = private unnamed_addr constant [3 x i8] c"%g\\00", align 1\n';
+  ir += '@.double_fmt = private unnamed_addr constant [6 x i8] c"%.15g\\00", align 1\n';
   ir += '\n';
   ir += 'define i8* @__double_to_string(double %val) {\n';
   ir += 'entry:\n';
-  ir += '  %buffer = call i8* @GC_malloc_atomic(i64 32)\n';
-  ir += '  %fmt = getelementptr inbounds [3 x i8], [3 x i8]* @.double_fmt, i64 0, i64 0\n';
-  ir += '  call i32 (i8*, i64, i8*, ...) @snprintf(i8* %buffer, i64 32, i8* %fmt, double %val)\n';
+  ir += '  %buffer = call i8* @GC_malloc_atomic(i64 48)\n';
+  ir += '  %fmt = getelementptr inbounds [6 x i8], [6 x i8]* @.double_fmt, i64 0, i64 0\n';
+  ir += '  call i32 (i8*, i64, i8*, ...) @snprintf(i8* %buffer, i64 48, i8* %fmt, double %val)\n';
   ir += '  ret i8* %buffer\n';
   ir += '}\n';
   ir += '\n';

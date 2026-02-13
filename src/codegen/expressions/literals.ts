@@ -51,7 +51,7 @@ export class LiteralExpressionGenerator {
 
     if (isInteger && value >= -2147483648 && value <= 2147483647) {
       const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = sitofp i32 ${value | 0} to double`);
+      this.ctx.emit(`${temp} = sitofp i32 ${value} to double`);
       this.ctx.setVariableType(temp, 'double');
       return temp;
     } else {

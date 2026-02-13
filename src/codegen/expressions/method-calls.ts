@@ -460,13 +460,13 @@ export class MethodCallGenerator {
         const stderrPtr = this.ctx.nextTemp();
         this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
         const temp = this.ctx.nextTemp();
-        this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+        this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
         const flushTemp = this.ctx.nextTemp();
         this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
         return temp;
       } else {
         const temp = this.ctx.nextTemp();
-        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
         return temp;
       }
     } else {
@@ -491,13 +491,13 @@ export class MethodCallGenerator {
           const stderrPtr = this.ctx.nextTemp();
           this.ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
           const temp = this.ctx.nextTemp();
-          this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+          this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
           const flushTemp = this.ctx.nextTemp();
           this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
           return temp;
         } else {
           const temp = this.ctx.nextTemp();
-          this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([4 x i8], [4 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+          this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
           return temp;
         }
       }
@@ -630,7 +630,7 @@ export class MethodCallGenerator {
         this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([3 x i8], [3 x i8]* @.str.strfmt_no_nl, i32 0, i32 0), i8* ${argValue})`);
       } else {
         const temp = this.ctx.nextTemp();
-        this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([3 x i8], [3 x i8]* @.str.numfmt_no_nl, i32 0, i32 0), double ${argValue})`);
+        this.ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([6 x i8], [6 x i8]* @.str.numfmt_no_nl, i32 0, i32 0), double ${argValue})`);
       }
       const flushTemp = this.ctx.nextTemp();
       this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
@@ -640,7 +640,7 @@ export class MethodCallGenerator {
         this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([3 x i8], [3 x i8]* @.str.strfmt_no_nl, i32 0, i32 0), i8* ${argValue})`);
       } else {
         const temp = this.ctx.nextTemp();
-        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([3 x i8], [3 x i8]* @.str.numfmt_no_nl, i32 0, i32 0), double ${argValue})`);
+        this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([6 x i8], [6 x i8]* @.str.numfmt_no_nl, i32 0, i32 0), double ${argValue})`);
       }
       const flushTemp = this.ctx.nextTemp();
       this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* null)`);
