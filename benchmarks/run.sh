@@ -10,6 +10,251 @@ WS_BENCH="$DIR/tools/wsbench"
 HTTP_PORT=9876
 WS_PORT=9877
 BENCH_DURATION=10s
+JSON_DIR=$(mktemp -d)
+JSON_OUT="$REPO/docs/public/benchmarks.json"
+
+extract_metric() {
+    local key="$1"
+    local output="$2"
+    echo "$output" | grep "^${key}" | head -1 | sed "s/^${key}[[:space:]]*//"
+}
+
+json_add_result() {
+    local bench="$1"
+    local lang="$2"
+    local value="$3"
+    local label="$4"
+    local file="$JSON_DIR/${bench}.json"
+    if [ ! -f "$file" ]; then
+        echo -n "" > "$file"
+    fi
+    echo "${lang}|${value}|${label}" >> "$file"
+}
+
+bench_compute() {
+    local bench="$1"
+    local lang="$2"
+    local display="$3"
+    local metric_key="$4"
+    shift 4
+
+    echo "  $display"
+    local output
+    output=$("$@" 2>&1) || true
+    echo "$output" | sed 's/^/    /'
+    echo ""
+
+    local raw
+    raw=$(extract_metric "$metric_key" "$output")
+    local value
+    value=$(echo "$raw" | sed 's/[^0-9.]//g')
+    if [ -n "$value" ]; then
+        json_add_result "$bench" "$lang" "$value" "$raw"
+    fi
+}
+
+bench_startup() {
+    local name="$1"
+    local lang="$2"
+    shift 2
+    local start_ns=$(date +%s%N)
+    for i in $(seq 1 $STARTUP_RUNS); do
+        "$@" > /dev/null 2>&1
+    done
+    local end_ns=$(date +%s%N)
+    local avg_us=$(( (end_ns - start_ns) / STARTUP_RUNS / 1000 ))
+    local avg_ms_int=$(( avg_us / 1000 ))
+    local avg_ms_frac=$(( (avg_us % 1000) / 100 ))
+    printf "    %-20s %d.%dms\n" "$name" "$avg_ms_int" "$avg_ms_frac"
+
+    local value="${avg_ms_int}.${avg_ms_frac}"
+    json_add_result "startup" "$lang" "$value" "${value}ms"
+}
+
+wait_port_free() {
+    local port=$1
+    for i in $(seq 1 30); do
+        if ! ss -tln 2>/dev/null | grep -q ":${port} "; then
+            return 0
+        fi
+        sleep 0.2
+    done
+}
+
+bench_http_server() {
+    local name="$1"
+    local lang="$2"
+    local bench_key="$3"
+    local extra_flags="$4"
+    shift 4
+    wait_port_free $HTTP_PORT
+    "$@" > /dev/null 2>&1 &
+    local pid=$!
+    sleep 1
+    echo "  $name"
+    local output
+    output=$($HTTP_BENCH -url "http://127.0.0.1:${HTTP_PORT}/" -c 100 -d "$BENCH_DURATION" $extra_flags 2>&1) || true
+    echo "$output" | sed 's/^/    /'
+    kill -9 $pid 2>/dev/null
+    wait $pid 2>/dev/null
+    sleep 0.5
+    echo ""
+
+    local raw
+    raw=$(extract_metric "Req/sec:" "$output")
+    local value
+    value=$(echo "$raw" | sed 's/[^0-9.]//g')
+    if [ -n "$value" ]; then
+        json_add_result "$bench_key" "$lang" "$value" "$raw"
+    fi
+}
+
+bench_ws_server() {
+    local name="$1"
+    local lang="$2"
+    shift 2
+    wait_port_free $WS_PORT
+    "$@" > /dev/null 2>&1 &
+    local pid=$!
+    sleep 1
+    echo "  $name"
+    local output
+    output=$($WS_BENCH -url "ws://127.0.0.1:${WS_PORT}/" -c 32 -d "$BENCH_DURATION" 2>&1) || true
+    echo "$output" | sed 's/^/    /'
+    kill -9 $pid 2>/dev/null
+    wait $pid 2>/dev/null
+    sleep 0.5
+    echo ""
+
+    local raw
+    raw=$(extract_metric "Msg/sec:" "$output")
+    local value
+    value=$(echo "$raw" | sed 's/[^0-9.]//g')
+    if [ -n "$value" ]; then
+        json_add_result "websocket" "$lang" "$value" "$raw"
+    fi
+}
+
+assemble_json() {
+    local outfile="$1"
+    mkdir -p "$(dirname "$outfile")"
+
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    declare -A bench_names
+    bench_names[startup]="Cold Start"
+    bench_names[sqlite]="SQLite"
+    bench_names[matmul]="Matrix Multiply"
+    bench_names[montecarlo]="Monte Carlo Pi"
+    bench_names[fibonacci]="Fibonacci"
+    bench_names[http]="HTTP Server"
+    bench_names[http_keepalive]="HTTP Keep-Alive"
+    bench_names[websocket]="WebSocket"
+    bench_names[sieve]="Sieve of Eratosthenes"
+    bench_names[sorting]="Quicksort"
+    bench_names[nbody]="N-Body Simulation"
+    bench_names[stringops]="String Manipulation"
+    bench_names[fileio]="File I/O"
+    bench_names[binarytrees]="Binary Trees"
+    bench_names[json]="JSON Parse/Stringify"
+
+    declare -A bench_descs
+    bench_descs[startup]="Time to print 'Hello, World!' and exit. Average of ${STARTUP_RUNS} runs."
+    bench_descs[sqlite]="100K SELECT queries on a 100-row in-memory table."
+    bench_descs[matmul]="512x512 double-precision matrix multiply."
+    bench_descs[montecarlo]="100M Monte Carlo samples to estimate Pi."
+    bench_descs[fibonacci]="fib(42) naive recursion."
+    bench_descs[http]="HTTP hello-world, 100 concurrent, no keep-alive."
+    bench_descs[http_keepalive]="HTTP hello-world, 100 concurrent, keep-alive enabled."
+    bench_descs[websocket]="WebSocket echo, 32 clients."
+    bench_descs[sieve]="Find all primes up to 10M."
+    bench_descs[sorting]="Quicksort 2M doubles (deterministic LCG)."
+    bench_descs[nbody]="5-body simulation, 50M timesteps."
+    bench_descs[stringops]="Concatenate 100K strings, split, toUpperCase, join."
+    bench_descs[fileio]="Write and read ~100MB to /tmp."
+    bench_descs[binarytrees]="Build/check/discard binary trees of depth 18."
+    bench_descs[json]="Parse 10K JSON objects, stringify back."
+
+    declare -A bench_metrics
+    bench_metrics[startup]="ms"
+    bench_metrics[sqlite]="s"
+    bench_metrics[matmul]="s"
+    bench_metrics[montecarlo]="s"
+    bench_metrics[fibonacci]="s"
+    bench_metrics[http]="req/s"
+    bench_metrics[http_keepalive]="req/s"
+    bench_metrics[websocket]="msg/s"
+    bench_metrics[sieve]="s"
+    bench_metrics[sorting]="s"
+    bench_metrics[nbody]="s"
+    bench_metrics[stringops]="s"
+    bench_metrics[fileio]="s"
+    bench_metrics[binarytrees]="s"
+    bench_metrics[json]="s"
+
+    declare -A bench_lower
+    bench_lower[startup]="true"
+    bench_lower[sqlite]="true"
+    bench_lower[matmul]="true"
+    bench_lower[montecarlo]="true"
+    bench_lower[fibonacci]="true"
+    bench_lower[http]="false"
+    bench_lower[http_keepalive]="false"
+    bench_lower[websocket]="false"
+    bench_lower[sieve]="true"
+    bench_lower[sorting]="true"
+    bench_lower[nbody]="true"
+    bench_lower[stringops]="true"
+    bench_lower[fileio]="true"
+    bench_lower[binarytrees]="true"
+    bench_lower[json]="true"
+
+    echo "{" > "$outfile"
+    echo "  \"timestamp\": \"$timestamp\"," >> "$outfile"
+    echo "  \"benchmarks\": {" >> "$outfile"
+
+    local first_bench=true
+    for benchfile in "$JSON_DIR"/*.json; do
+        [ -f "$benchfile" ] || continue
+        local bench
+        bench=$(basename "$benchfile" .json)
+
+        if [ "$first_bench" = true ]; then
+            first_bench=false
+        else
+            echo "," >> "$outfile"
+        fi
+
+        local name="${bench_names[$bench]:-$bench}"
+        local desc="${bench_descs[$bench]:-}"
+        local metric="${bench_metrics[$bench]:-}"
+        local lower="${bench_lower[$bench]:-true}"
+
+        echo -n "    \"$bench\": {" >> "$outfile"
+        echo -n "\"name\": \"$name\"," >> "$outfile"
+        echo -n "\"desc\": \"$desc\"," >> "$outfile"
+        echo -n "\"metric\": \"$metric\"," >> "$outfile"
+        echo -n "\"lower_is_better\": $lower," >> "$outfile"
+        echo -n "\"results\": {" >> "$outfile"
+
+        local first_result=true
+        while IFS='|' read -r lang value label; do
+            if [ "$first_result" = true ]; then
+                first_result=false
+            else
+                echo -n "," >> "$outfile"
+            fi
+            echo -n "\"$lang\": {\"value\": $value, \"label\": \"$label\"}" >> "$outfile"
+        done < "$benchfile"
+
+        echo -n "}}" >> "$outfile"
+    done
+
+    echo "" >> "$outfile"
+    echo "  }" >> "$outfile"
+    echo "}" >> "$outfile"
+}
 
 echo "╔══════════════════════════════════════════════════╗"
 echo "║          ChadScript Benchmark Suite              ║"
@@ -30,11 +275,35 @@ echo "  ChadScript Matmul built"
 $CHAD "$DIR/montecarlo/chadscript.ts" -o /tmp/bench-montecarlo-chad
 echo "  ChadScript Monte Carlo built"
 
+$CHAD "$DIR/fibonacci/chadscript.ts" -o /tmp/bench-fibonacci-chad
+echo "  ChadScript Fibonacci built"
+
 $CHAD "$DIR/http/chadscript.ts" -o /tmp/bench-http-chad
 echo "  ChadScript HTTP server built"
 
 $CHAD "$DIR/websocket/chadscript.ts" -o /tmp/bench-ws-chad
 echo "  ChadScript WebSocket server built"
+
+$CHAD "$DIR/sieve/chadscript.ts" -o /tmp/bench-sieve-chad
+echo "  ChadScript Sieve built"
+
+$CHAD "$DIR/sorting/chadscript.ts" -o /tmp/bench-sorting-chad
+echo "  ChadScript Sorting built"
+
+$CHAD "$DIR/nbody/chadscript.ts" -o /tmp/bench-nbody-chad
+echo "  ChadScript N-Body built"
+
+$CHAD "$DIR/stringops/chadscript.ts" -o /tmp/bench-stringops-chad
+echo "  ChadScript String Ops built"
+
+$CHAD "$DIR/fileio/chadscript.ts" -o /tmp/bench-fileio-chad
+echo "  ChadScript File I/O built"
+
+$CHAD "$DIR/binarytrees/chadscript.ts" -o /tmp/bench-binarytrees-chad
+echo "  ChadScript Binary Trees built"
+
+$CHAD "$DIR/json/chadscript.ts" -o /tmp/bench-json-chad
+echo "  ChadScript JSON built"
 
 clang -O2 -o /tmp/bench-startup-c "$DIR/startup/hello.c"
 echo "  C startup built"
@@ -48,6 +317,30 @@ echo "  C Matmul built"
 clang -O2 -o /tmp/bench-montecarlo-c "$DIR/montecarlo/bench.c"
 echo "  C Monte Carlo built"
 
+clang -O2 -o /tmp/bench-fibonacci-c "$DIR/fibonacci/fib.c"
+echo "  C Fibonacci built"
+
+clang -O2 -o /tmp/bench-sieve-c "$DIR/sieve/bench.c"
+echo "  C Sieve built"
+
+clang -O2 -o /tmp/bench-sorting-c "$DIR/sorting/bench.c" -lm
+echo "  C Sorting built"
+
+clang -O2 -o /tmp/bench-nbody-c "$DIR/nbody/bench.c" -lm
+echo "  C N-Body built"
+
+clang -O2 -o /tmp/bench-stringops-c "$DIR/stringops/bench.c"
+echo "  C String Ops built"
+
+clang -O2 -o /tmp/bench-fileio-c "$DIR/fileio/bench.c"
+echo "  C File I/O built"
+
+clang -O2 -o /tmp/bench-binarytrees-c "$DIR/binarytrees/bench.c"
+echo "  C Binary Trees built"
+
+clang -O2 -o /tmp/bench-json-c "$DIR/json/bench.c" -lcjson
+echo "  C JSON built"
+
 go build -o /tmp/bench-startup-go "$DIR/startup/hello.go"
 echo "  Go startup built"
 
@@ -57,78 +350,48 @@ echo "  Go Matmul built"
 go build -o /tmp/bench-montecarlo-go "$DIR/montecarlo/montecarlo.go"
 echo "  Go Monte Carlo built"
 
+go build -o /tmp/bench-fibonacci-go "$DIR/fibonacci/fib.go"
+echo "  Go Fibonacci built"
+
 go build -o /tmp/bench-http-go "$DIR/http/go_server.go"
 echo "  Go HTTP server built"
 
 go build -o /tmp/bench-ws-go "$DIR/websocket/go_server.go"
 echo "  Go WebSocket server built"
 
+go build -o /tmp/bench-sieve-go "$DIR/sieve/sieve.go"
+echo "  Go Sieve built"
+
+go build -o /tmp/bench-sorting-go "$DIR/sorting/sorting.go"
+echo "  Go Sorting built"
+
+go build -o /tmp/bench-nbody-go "$DIR/nbody/nbody.go"
+echo "  Go N-Body built"
+
+go build -o /tmp/bench-stringops-go "$DIR/stringops/stringops.go"
+echo "  Go String Ops built"
+
+go build -o /tmp/bench-fileio-go "$DIR/fileio/fileio.go"
+echo "  Go File I/O built"
+
+go build -o /tmp/bench-binarytrees-go "$DIR/binarytrees/binarytrees.go"
+echo "  Go Binary Trees built"
+
+go build -o /tmp/bench-json-go "$DIR/json/json_bench.go"
+echo "  Go JSON built"
+
 echo ""
-
-bench_startup() {
-    local name="$1"
-    shift
-    local start_ns=$(date +%s%N)
-    for i in $(seq 1 $STARTUP_RUNS); do
-        "$@" > /dev/null 2>&1
-    done
-    local end_ns=$(date +%s%N)
-    local avg_us=$(( (end_ns - start_ns) / STARTUP_RUNS / 1000 ))
-    local avg_ms_int=$(( avg_us / 1000 ))
-    local avg_ms_frac=$(( (avg_us % 1000) / 100 ))
-    printf "    %-20s %d.%dms\n" "$name" "$avg_ms_int" "$avg_ms_frac"
-}
-
-wait_port_free() {
-    local port=$1
-    for i in $(seq 1 30); do
-        if ! ss -tln 2>/dev/null | grep -q ":${port} "; then
-            return 0
-        fi
-        sleep 0.2
-    done
-}
-
-bench_http_server() {
-    local name="$1"
-    shift
-    wait_port_free $HTTP_PORT
-    "$@" > /dev/null 2>&1 &
-    local pid=$!
-    sleep 1
-    echo "  $name"
-    $HTTP_BENCH -url "http://127.0.0.1:${HTTP_PORT}/" -c 100 -d "$BENCH_DURATION" 2>&1 | sed 's/^/    /'
-    kill -9 $pid 2>/dev/null
-    wait $pid 2>/dev/null
-    sleep 0.5
-    echo ""
-}
-
-bench_ws_server() {
-    local name="$1"
-    shift
-    wait_port_free $WS_PORT
-    "$@" > /dev/null 2>&1 &
-    local pid=$!
-    sleep 1
-    echo "  $name"
-    $WS_BENCH -url "ws://127.0.0.1:${WS_PORT}/" -c 32 -d "$BENCH_DURATION" 2>&1 | sed 's/^/    /'
-    kill -9 $pid 2>/dev/null
-    wait $pid 2>/dev/null
-    sleep 0.5
-    echo ""
-}
 
 echo "═══════════════════════════════════════════════════"
 echo "  Cold Start  (avg of ${STARTUP_RUNS} runs)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_startup "C (clang -O2)" /tmp/bench-startup-c
-bench_startup "ChadScript" /tmp/bench-startup-chad
-bench_startup "Go" /tmp/bench-startup-go
-bench_startup "Bun" bun "$DIR/startup/bun.mjs"
-bench_startup "Node.js" node "$DIR/startup/node.mjs"
+bench_startup "C (clang -O2)" "c" /tmp/bench-startup-c
+bench_startup "ChadScript" "chadscript" /tmp/bench-startup-chad
+bench_startup "Go" "go" /tmp/bench-startup-go
+bench_startup "Bun" "bun" bun "$DIR/startup/bun.mjs"
+bench_startup "Node.js" "node" node "$DIR/startup/node.mjs"
 
 echo ""
 echo "═══════════════════════════════════════════════════"
@@ -136,92 +399,155 @@ echo "  SQLite  (100 rows, 100K queries, in-memory)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-echo "  C (clang -O2)"
-/tmp/bench-sqlite-c 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  ChadScript (native)"
-/tmp/bench-sqlite-chad 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Node.js $(node --version)"
-node --experimental-sqlite "$DIR/sqlite/node.mjs" 2>&1 | grep -v -i experimental | grep -v trace-warnings | sed 's/^/    /'
-echo ""
-
-echo "  Bun $(bun --version)"
-bun "$DIR/sqlite/bun.mjs" 2>&1 | sed 's/^/    /'
-echo ""
+bench_compute "sqlite" "c" "C (clang -O2)" "Time:" /tmp/bench-sqlite-c
+bench_compute "sqlite" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-sqlite-chad
+bench_compute "sqlite" "node" "Node.js $(node --version)" "Time:" node --experimental-sqlite "$DIR/sqlite/node.mjs"
+bench_compute "sqlite" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/sqlite/bun.mjs"
 
 echo "═══════════════════════════════════════════════════"
 echo "  Matrix Multiply  (512x512, double precision)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-echo "  C (clang -O2)"
-/tmp/bench-matmul-c 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  ChadScript (native)"
-/tmp/bench-matmul-chad 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Go"
-/tmp/bench-matmul-go 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Node.js $(node --version)"
-node "$DIR/matmul/node.mjs" 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Bun $(bun --version)"
-bun "$DIR/matmul/bun.mjs" 2>&1 | sed 's/^/    /'
-echo ""
+bench_compute "matmul" "c" "C (clang -O2)" "Time:" /tmp/bench-matmul-c
+bench_compute "matmul" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-matmul-chad
+bench_compute "matmul" "go" "Go" "Time:" /tmp/bench-matmul-go
+bench_compute "matmul" "node" "Node.js $(node --version)" "Time:" node "$DIR/matmul/node.mjs"
+bench_compute "matmul" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/matmul/bun.mjs"
 
 echo "═══════════════════════════════════════════════════"
 echo "  Monte Carlo Pi  (100M samples, deterministic LCG)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-echo "  C (clang -O2)"
-/tmp/bench-montecarlo-c 2>&1 | sed 's/^/    /'
+bench_compute "montecarlo" "c" "C (clang -O2)" "Time:" /tmp/bench-montecarlo-c
+bench_compute "montecarlo" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-montecarlo-chad
+bench_compute "montecarlo" "go" "Go" "Time:" /tmp/bench-montecarlo-go
+bench_compute "montecarlo" "node" "Node.js $(node --version)" "Time:" node "$DIR/montecarlo/node.mjs"
+bench_compute "montecarlo" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/montecarlo/bun.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  Fibonacci  (fib(42), naive recursion)"
+echo "═══════════════════════════════════════════════════"
 echo ""
 
-echo "  ChadScript (native)"
-/tmp/bench-montecarlo-chad 2>&1 | sed 's/^/    /'
+bench_compute "fibonacci" "c" "C (clang -O2)" "Time:" /tmp/bench-fibonacci-c
+bench_compute "fibonacci" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-fibonacci-chad
+bench_compute "fibonacci" "go" "Go" "Time:" /tmp/bench-fibonacci-go
+bench_compute "fibonacci" "node" "Node.js $(node --version)" "Time:" node "$DIR/fibonacci/node.mjs"
+bench_compute "fibonacci" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/fibonacci/bun.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  Sieve of Eratosthenes  (primes up to 10M)"
+echo "═══════════════════════════════════════════════════"
 echo ""
 
-echo "  Go"
-/tmp/bench-montecarlo-go 2>&1 | sed 's/^/    /'
+bench_compute "sieve" "c" "C (clang -O2)" "Time:" /tmp/bench-sieve-c
+bench_compute "sieve" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-sieve-chad
+bench_compute "sieve" "go" "Go" "Time:" /tmp/bench-sieve-go
+bench_compute "sieve" "node" "Node.js $(node --version)" "Time:" node "$DIR/sieve/node.mjs"
+bench_compute "sieve" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/sieve/bun.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  Quicksort  (2M doubles, deterministic LCG)"
+echo "═══════════════════════════════════════════════════"
 echo ""
 
-echo "  Node.js $(node --version)"
-node "$DIR/montecarlo/node.mjs" 2>&1 | sed 's/^/    /'
+bench_compute "sorting" "c" "C (clang -O2)" "Time:" /tmp/bench-sorting-c
+bench_compute "sorting" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-sorting-chad
+bench_compute "sorting" "go" "Go" "Time:" /tmp/bench-sorting-go
+bench_compute "sorting" "node" "Node.js $(node --version)" "Time:" node "$DIR/sorting/node.mjs"
+bench_compute "sorting" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/sorting/bun.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  N-Body Simulation  (5 bodies, 50M steps)"
+echo "═══════════════════════════════════════════════════"
 echo ""
 
-echo "  Bun $(bun --version)"
-bun "$DIR/montecarlo/bun.mjs" 2>&1 | sed 's/^/    /'
+bench_compute "nbody" "c" "C (clang -O2)" "Time:" /tmp/bench-nbody-c
+bench_compute "nbody" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-nbody-chad
+bench_compute "nbody" "go" "Go" "Time:" /tmp/bench-nbody-go
+bench_compute "nbody" "node" "Node.js $(node --version)" "Time:" node "$DIR/nbody/node.mjs"
+bench_compute "nbody" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/nbody/bun.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  String Manipulation  (100K strings)"
+echo "═══════════════════════════════════════════════════"
 echo ""
+
+bench_compute "stringops" "c" "C (clang -O2)" "Time:" /tmp/bench-stringops-c
+bench_compute "stringops" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-stringops-chad
+bench_compute "stringops" "go" "Go" "Time:" /tmp/bench-stringops-go
+bench_compute "stringops" "node" "Node.js $(node --version)" "Time:" node "$DIR/stringops/node.mjs"
+bench_compute "stringops" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/stringops/bun.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  File I/O  (write + read ~100MB)"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+bench_compute "fileio" "c" "C (clang -O2)" "Time:" /tmp/bench-fileio-c
+bench_compute "fileio" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-fileio-chad
+bench_compute "fileio" "go" "Go" "Time:" /tmp/bench-fileio-go
+bench_compute "fileio" "node" "Node.js $(node --version)" "Time:" node "$DIR/fileio/node.mjs"
+bench_compute "fileio" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/fileio/bun.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  Binary Trees  (depth 18, GC pressure)"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+bench_compute "binarytrees" "c" "C (clang -O2)" "Time:" /tmp/bench-binarytrees-c
+bench_compute "binarytrees" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-binarytrees-chad
+bench_compute "binarytrees" "go" "Go" "Time:" /tmp/bench-binarytrees-go
+bench_compute "binarytrees" "node" "Node.js $(node --version)" "Time:" node "$DIR/binarytrees/node.mjs"
+bench_compute "binarytrees" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/binarytrees/bun.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  JSON Parse/Stringify  (10K objects)"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+bench_compute "json" "c" "C (clang -O2, cJSON)" "Time:" /tmp/bench-json-c
+bench_compute "json" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-json-chad
+bench_compute "json" "go" "Go" "Time:" /tmp/bench-json-go
+bench_compute "json" "node" "Node.js $(node --version)" "Time:" node "$DIR/json/node.mjs"
+bench_compute "json" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/json/bun.mjs"
 
 echo "═══════════════════════════════════════════════════"
 echo "  HTTP Server  (hello world, 100 concurrent, ${BENCH_DURATION})"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_http_server "ChadScript (native)" /tmp/bench-http-chad
-bench_http_server "Go (net/http)" /tmp/bench-http-go
-bench_http_server "Bun $(bun --version)" bun "$DIR/http/bun.mjs"
-bench_http_server "Node.js $(node --version)" node "$DIR/http/node.mjs"
+bench_http_server "ChadScript (native)" "chadscript" "http" "" /tmp/bench-http-chad
+bench_http_server "Go (net/http)" "go" "http" "" /tmp/bench-http-go
+bench_http_server "Bun $(bun --version)" "bun" "http" "" bun "$DIR/http/bun.mjs"
+bench_http_server "Node.js $(node --version)" "node" "http" "" node "$DIR/http/node.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  HTTP Keep-Alive  (hello world, 100 concurrent, ${BENCH_DURATION})"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+bench_http_server "ChadScript (native)" "chadscript" "http_keepalive" "-keepalive" /tmp/bench-http-chad
+bench_http_server "Go (net/http)" "go" "http_keepalive" "-keepalive" /tmp/bench-http-go
+bench_http_server "Bun $(bun --version)" "bun" "http_keepalive" "-keepalive" bun "$DIR/http/bun.mjs"
+bench_http_server "Node.js $(node --version)" "node" "http_keepalive" "-keepalive" node "$DIR/http/node.mjs"
 
 echo "═══════════════════════════════════════════════════"
 echo "  WebSocket  (echo, 32 clients, ${BENCH_DURATION})"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_ws_server "ChadScript (native)" /tmp/bench-ws-chad
-bench_ws_server "Go (x/net/websocket)" /tmp/bench-ws-go
-bench_ws_server "Bun $(bun --version)" bun "$DIR/websocket/bun.mjs"
-bench_ws_server "Node.js $(node --version)" node "$DIR/websocket/node.mjs"
+bench_ws_server "ChadScript (native)" "chadscript" /tmp/bench-ws-chad
+bench_ws_server "Go (x/net/websocket)" "go" /tmp/bench-ws-go
+bench_ws_server "Bun $(bun --version)" "bun" bun "$DIR/websocket/bun.mjs"
+bench_ws_server "Node.js $(node --version)" "node" node "$DIR/websocket/node.mjs"
 
+assemble_json "$JSON_OUT"
+echo ""
 echo "═══════════════════════════════════════════════════"
-echo "  Done"
+echo "  Done — JSON written to $JSON_OUT"
 echo "═══════════════════════════════════════════════════"
+
+rm -rf "$JSON_DIR"

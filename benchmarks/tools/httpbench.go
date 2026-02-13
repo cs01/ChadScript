@@ -15,12 +15,13 @@ func main() {
 	url := flag.String("url", "http://127.0.0.1:9876/", "URL to benchmark")
 	concurrency := flag.Int("c", 100, "concurrent workers")
 	duration := flag.Duration("d", 10*time.Second, "test duration")
+	keepalive := flag.Bool("keepalive", false, "enable keep-alive (reuse connections)")
 	flag.Parse()
 
 	transport := &http.Transport{
 		MaxIdleConnsPerHost: *concurrency,
 		MaxConnsPerHost:     *concurrency,
-		DisableKeepAlives:   true,
+		DisableKeepAlives:   !*keepalive,
 	}
 	client := &http.Client{
 		Transport: transport,

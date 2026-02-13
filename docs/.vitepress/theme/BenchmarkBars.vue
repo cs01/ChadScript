@@ -3,7 +3,21 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 
 const tab = ref('startup')
 
-const benchmarks = {
+const langMeta = {
+  c:          { name: 'C',          color: 'c' },
+  chadscript: { name: 'ChadScript', color: 'chad', hero: true },
+  go:         { name: 'Go',         color: 'go' },
+  bun:        { name: 'Bun',        color: 'bun' },
+  node:       { name: 'Node.js',    color: 'node' },
+}
+
+const featuredNotes = {
+  startup: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines.',
+  matmul: 'Dense matrix multiply with array element read/write. TBAA metadata lets LLVM hoist array data pointers out of inner loops. ChadScript matches hand-written C (-O2) and Go on this benchmark.',
+  sqlite: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. 1.7x faster than Bun, 2.4x faster than Node.',
+}
+
+const defaultBenchmarks = {
   startup: {
     layout: 'horizontal',
     desc: 'Time to print \u201cHello, World!\u201d and exit. Average of 50 runs.',
@@ -15,7 +29,7 @@ const benchmarks = {
       { name: 'Bun', val: '19.5ms', w: 33, h: 40, color: 'bun', d: 0.36, speed: 4.5 },
       { name: 'Node.js', val: '58.3ms', w: 100, h: 22, color: 'node', d: 0.48, speed: 7.8 },
     ],
-    note: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines.'
+    note: featuredNotes.startup,
   },
   matmul: {
     layout: 'horizontal',
@@ -28,7 +42,7 @@ const benchmarks = {
       { name: 'Bun', val: '0.61s', w: 94, h: 77, color: 'bun', d: 0.36, speed: 2.0 },
       { name: 'Node.js', val: '0.65s', w: 100, h: 72, color: 'node', d: 0.48, speed: 2.1 },
     ],
-    note: 'Dense matrix multiply with array element read/write. TBAA metadata lets LLVM hoist array data pointers out of inner loops. ChadScript matches hand-written C (-O2) and Go on this benchmark.'
+    note: featuredNotes.matmul,
   },
   sqlite: {
     layout: 'vertical',
@@ -40,11 +54,55 @@ const benchmarks = {
       { name: 'Bun', val: '164K qps', h: 42, color: 'bun', d: 0.24, speed: 3.2 },
       { name: 'Node.js', val: '117K qps', h: 30, color: 'node', d: 0.36, speed: 3.8 },
     ],
-    note: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. 1.7x faster than Bun, 2.4x faster than Node.'
+    note: featuredNotes.sqlite,
   }
 }
 
-const current = computed(() => benchmarks[tab.value])
+function transformJson(json) {
+  const result = {}
+  const featured = ['startup', 'matmul', 'sqlite']
+  for (const key of featured) {
+    const bench = json.benchmarks[key]
+    if (!bench) continue
+    const entries = Object.entries(bench.results)
+    const values = entries.map(([, r]) => r.value)
+    const maxVal = Math.max(...values)
+    const minVal = Math.min(...values)
+    const lowerBetter = bench.lower_is_better
+    const layout = key === 'sqlite' ? 'vertical' : 'horizontal'
+    const metric = lowerBetter ? 'Smaller = faster.' : 'Taller = more throughput.'
+
+    const items = entries.map(([lang, r], idx) => {
+      const meta = langMeta[lang] || { name: lang, color: 'c' }
+      const w = lowerBetter ? Math.round((r.value / maxVal) * 100) : Math.round((r.value / maxVal) * 100)
+      const h = lowerBetter ? Math.round((minVal / r.value) * 100) : Math.round((r.value / maxVal) * 100)
+      const speed = lowerBetter ? 1.5 + (r.value / minVal) * 1.5 : 1.5 + (maxVal / r.value) * 1.5
+      return {
+        name: meta.name,
+        val: r.label,
+        w,
+        h,
+        color: meta.color,
+        d: idx * 0.12,
+        hero: meta.hero || false,
+        speed: Math.round(speed * 10) / 10,
+      }
+    })
+
+    result[key] = {
+      layout,
+      desc: bench.desc,
+      metric,
+      items,
+      note: featuredNotes[key] || '',
+    }
+  }
+  return result
+}
+
+const benchmarks = ref(defaultBenchmarks)
+
+const current = computed(() => benchmarks.value[tab.value])
 
 let frameId = 0
 
@@ -78,7 +136,21 @@ function animateBalls() {
   frameId = requestAnimationFrame(frame)
 }
 
-onMounted(animateBalls)
+onMounted(async () => {
+  animateBalls()
+  try {
+    const base = import.meta.env.BASE_URL || '/'
+    const resp = await fetch(`${base}benchmarks.json`)
+    if (resp.ok) {
+      const json = await resp.json()
+      if (json.benchmarks) {
+        benchmarks.value = transformJson(json)
+        await nextTick()
+        animateBalls()
+      }
+    }
+  } catch (e) {}
+})
 
 watch(tab, async () => {
   await nextTick()
