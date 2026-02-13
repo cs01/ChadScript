@@ -1,4 +1,4 @@
-import { compileNative, setSkipSemanticAnalysis, setVerbose, setLinkTreeSitter } from './native-compiler-lib.js';
+import { compileNative, setSkipSemanticAnalysis, setVerbose } from './native-compiler-lib.js';
 
 declare const fs: {
   existsSync(filename: string): boolean;
@@ -28,7 +28,6 @@ function printUsage(): void {
   console.log('  -o <output>               Specify output file (default: .build/<input>)');
   console.log('  -v, --verbose             Show compilation steps');
   console.log('  --skip-semantic-analysis  Skip semantic analysis');
-  console.log('  --link-tree-sitter        Link with tree-sitter for native parsing');
   console.log('  --help, -h                Show this help message');
 }
 
@@ -43,7 +42,6 @@ let inputFile: string | null = null;
 let outputFile: string | null = null;
 let wantSkipSemantic = false;
 let wantVerbose = false;
-let wantLinkTreeSitter = false;
 let argIdx = 0;
 while (argIdx < args.length) {
   const arg = args[argIdx];
@@ -55,9 +53,6 @@ while (argIdx < args.length) {
     argIdx = argIdx + 1;
   } else if (arg === '-v' || arg === '--verbose') {
     wantVerbose = true;
-    argIdx = argIdx + 1;
-  } else if (arg === '--link-tree-sitter') {
-    wantLinkTreeSitter = true;
     argIdx = argIdx + 1;
   } else if (arg === '-o') {
     argIdx = argIdx + 1;
@@ -86,10 +81,6 @@ if (wantSkipSemantic) {
 
 if (wantVerbose) {
   setVerbose(true);
-}
-
-if (wantLinkTreeSitter) {
-  setLinkTreeSitter(true);
 }
 
 if (inputFile === null) {

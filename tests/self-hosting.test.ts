@@ -115,7 +115,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
     before(() => {
       assert.ok(
         fsSync.existsSync(CHADC),
-        `Native compiler not found at ${CHADC} — build it first with: npm run build && node dist/index.js --link-tree-sitter src/native-compiler.ts -o .build/chadc`
+        `Native compiler not found at ${CHADC} — build it first with: npm run build && node dist/index.js src/native-compiler.ts -o .build/chadc`
       );
       fsSync.mkdirSync(outDir, { recursive: true });
     });
@@ -133,7 +133,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       if (fsSync.existsSync(STAGE0)) fsSync.unlinkSync(STAGE0);
 
       await execAsync(
-        `node dist/index.js --link-tree-sitter src/native-compiler.ts -o ${STAGE0}`,
+        `node dist/index.js src/native-compiler.ts -o ${STAGE0}`,
         { timeout: 180000 }
       );
 

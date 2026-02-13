@@ -33,7 +33,6 @@ declare function __gc_disable(): void;
 export let skipSemanticAnalysis = false;
 export let emitLLVMOnly = false;
 export let verbose = false;
-export let linkTreeSitter = false;
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -45,10 +44,6 @@ export function setEmitLLVMOnly(value: boolean): void {
 
 export function setVerbose(value: boolean): void {
   verbose = value;
-}
-
-export function setLinkTreeSitter(value: boolean): void {
-  linkTreeSitter = value;
 }
 
 export function compileNative(inputFile: string, outputFile: string): void {
@@ -88,7 +83,6 @@ export function compileNative(inputFile: string, outputFile: string): void {
 
   if (verbose) { console.log('Generating LLVM IR...'); }
   const generatorOptions: LLVMGeneratorOptions = {
-    linkTreeSitter: linkTreeSitter,
     sourceCode: '',
     filename: inputFile
   };
@@ -131,7 +125,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const tsObjDir = isInstalled ? installedLibDir : CHADSCRIPT_PATH + '/build';
   let treeSitterObjs = '';
   let tsLibPath = '';
-  if (linkTreeSitter || generator.getUsesTreeSitter()) {
+  if (generator.getUsesTreeSitter()) {
     treeSitterObjs = tsObjDir + '/tree-sitter-typescript-parser.o ' + tsObjDir + '/tree-sitter-typescript-scanner.o ' + tsObjDir + '/treesitter-bridge.o';
     tsLibPath = isInstalled ? installedLibDir + '/libtree-sitter.a' : './vendor/tree-sitter/libtree-sitter.a';
   }

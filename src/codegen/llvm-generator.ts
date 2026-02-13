@@ -38,7 +38,6 @@ import { InterfaceStructGenerator } from './types/interface-struct-generator.js'
 import { JsonObjectMeta } from './expressions/access/member.js';
 
 export interface LLVMGeneratorOptions {
-  linkTreeSitter?: boolean;
   sourceCode?: string;
   filename?: string;
 }
@@ -1032,7 +1031,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public classesCount: number = 0;
   private typeAliasesCount: number = 0;
 
-  private linkTreeSitter: boolean = false;
   private usesTreeSitter: boolean = false;
   public sourceCode: string = '';
   public filename: string = '';
@@ -1067,7 +1065,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     const ifaceCount = ast.interfaces.length;
     this.typeChecker = typeChecker;
-    this.linkTreeSitter = options.linkTreeSitter || false;
     this.sourceCode = options.sourceCode || '';
     this.filename = options.filename || '';
 
@@ -1664,7 +1661,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (promiseAwait) { irParts.push(promiseAwait); }
     }
 
-    if (this.linkTreeSitter || this.usesTreeSitter) {
+    if (this.usesTreeSitter) {
       const tsDecls = this.treesitterGen.generateDeclarations();
       if (tsDecls) { irParts.push(tsDecls); }
       irParts.push('\n');

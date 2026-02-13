@@ -8,15 +8,10 @@ import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
 import { LogLevel, logger } from './utils/logger.js';
 
-let linkTreeSitter = false;
 let skipSemanticAnalysis = false;
 let keepTemps = false;
 let emitLLVMOnly = false;
 let sanitize: string | null = null;
-
-export function setLinkTreeSitter(value: boolean): void {
-  linkTreeSitter = value;
-}
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -149,7 +144,6 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     }
   }
   const generatorOptions: LLVMGeneratorOptions = {
-    linkTreeSitter: linkTreeSitter,
     sourceCode: entryFileCode,
     filename: inputFile
   };
@@ -201,7 +195,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const mongooseObj = generator.usesMongoose ? `${MONGOOSE_PATH}/mongoose.o` : '';
   let extraObjs = '';
 
-  if (linkTreeSitter || generator.getUsesTreeSitter()) {
+  if (generator.getUsesTreeSitter()) {
     logger.info('  Compiling tree-sitter-typescript...');
     const buildDir = path.join(process.cwd(), 'build');
     if (!fs.existsSync(buildDir)) {

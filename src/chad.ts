@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { compile, setLinkTreeSitter, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize } from './compiler.js';
+import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize } from './compiler.js';
 import { LogLevel, logger } from './utils/logger.js';
 import { runInit } from './codegen/stdlib/init-templates.js';
 import * as path from 'path';
@@ -36,7 +36,6 @@ function printHelp(): void {
   console.log('  -v, --verbose               Show compilation steps');
   console.log('  --debug                     Show internal debugging information');
   console.log('  --trace                     Show everything (AST, IR, variable tracking)');
-  console.log('  --link-tree-sitter          Link with tree-sitter for native parsing');
   console.log('  --skip-semantic-analysis    Skip semantic analysis');
   console.log('  --keep-temps                Keep intermediate files (.ll, .o)');
   console.log('  -fsanitize=address          Build with AddressSanitizer');
@@ -115,8 +114,6 @@ for (let i = 0; i < subArgs.length; i++) {
     logLevel = LogLevel.Debug;
   } else if (arg === '--trace') {
     logLevel = LogLevel.Trace;
-  } else if (arg === '--link-tree-sitter') {
-    setLinkTreeSitter(true);
   } else if (arg === '--skip-semantic-analysis') {
     setSkipSemanticAnalysis(true);
   } else if (arg === '--keep-temps' || arg === '-save-temps') {
