@@ -21,7 +21,7 @@ ChadScript ships with a full standard library compiled to native code. No npm, n
 | [`crypto`](/stdlib/crypto) | `sha256`, `md5`, `sha512`, `randomBytes` |
 | [`sqlite`](/stdlib/sqlite) | `open`, `exec`, `get`, `all`, `close` |
 | [`fetch`](/stdlib/fetch) | HTTP client via libcurl |
-| [`httpServe`](/stdlib/http-server) | HTTP server via mongoose |
+| [`httpServe`](/stdlib/http-server) | HTTP server via libwebsockets |
 | [`Async`](/stdlib/async) | `async`/`await`, `Promise.all`, `Promise.race`, `setTimeout`, `setInterval` |
 | [`child_process`](/stdlib/child-process) | `execSync` |
 | [`Date`](/stdlib/date) | `Date.now()` |

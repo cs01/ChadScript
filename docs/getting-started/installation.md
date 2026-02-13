@@ -38,7 +38,7 @@ bash scripts/build-vendor.sh
 npm run build
 ```
 
-`scripts/build-vendor.sh` clones and builds static archives for libgc, cJSON, libuv, tree-sitter, and mongoose into `vendor/`. It's idempotent — re-running skips already-built libraries.
+`scripts/build-vendor.sh` clones and builds static archives for libgc, cJSON, libuv, tree-sitter, and libwebsockets into `vendor/`. It's idempotent — re-running skips already-built libraries.
 
 ## Verify
 

@@ -26,18 +26,45 @@ else
   echo "==> bdwgc already built, skipping"
 fi
 
-# --- mongoose ---
-if [ ! -f "$VENDOR_DIR/mongoose/mongoose.o" ]; then
-  echo "==> Building mongoose..."
+# --- libwebsockets ---
+if [ ! -f "$VENDOR_DIR/libwebsockets/build/lib/libwebsockets.a" ]; then
+  echo "==> Building libwebsockets..."
   cd "$VENDOR_DIR"
-  if [ ! -d mongoose ]; then
-    git clone --depth 1 https://github.com/cesanta/mongoose.git
+  if [ ! -d libwebsockets ]; then
+    git clone --depth 1 https://github.com/warmcat/libwebsockets.git
   fi
-  cd mongoose
-  cc -c -O2 -DMG_ENABLE_IPV6=0 mongoose.c -o mongoose.o
-  echo "  -> $VENDOR_DIR/mongoose/mongoose.o"
+  mkdir -p libwebsockets/build && cd libwebsockets/build
+  cmake .. \
+    -DCMAKE_C_FLAGS="-fPIC" \
+    -DLWS_WITH_SSL=OFF \
+    -DLWS_WITH_SHARED=OFF \
+    -DLWS_WITHOUT_TESTAPPS=ON \
+    -DLWS_WITHOUT_TEST_SERVER=ON \
+    -DLWS_WITHOUT_TEST_CLIENT=ON \
+    -DLWS_WITH_HTTP2=ON \
+    -DLWS_WITH_ZLIB=OFF \
+    -DLWS_WITH_ZIP_FOPS=OFF \
+    -DLWS_WITH_RANGES=OFF \
+    -DLWS_WITH_ACCESS_LOG=OFF \
+    -DLWS_WITH_DAEMONIZE=OFF
+  make -j"$NPROC"
+  echo "  -> $VENDOR_DIR/libwebsockets/build/lib/libwebsockets.a"
 else
-  echo "==> mongoose already built, skipping"
+  echo "==> libwebsockets already built, skipping"
+fi
+
+# --- lws-bridge ---
+LWS_BRIDGE_SRC="$VENDOR_DIR/lws-bridge.c"
+LWS_BRIDGE_OBJ="$VENDOR_DIR/lws-bridge.o"
+if [ ! -f "$LWS_BRIDGE_OBJ" ] || [ "$LWS_BRIDGE_SRC" -nt "$LWS_BRIDGE_OBJ" ]; then
+  echo "==> Building lws-bridge..."
+  cc -c -O2 -fPIC \
+    -I"$VENDOR_DIR/libwebsockets/include" \
+    -I"$VENDOR_DIR/libwebsockets/build" \
+    "$LWS_BRIDGE_SRC" -o "$LWS_BRIDGE_OBJ"
+  echo "  -> $LWS_BRIDGE_OBJ"
+else
+  echo "==> lws-bridge already built, skipping"
 fi
 
 # --- cJSON ---

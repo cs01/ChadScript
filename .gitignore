@@ -65,7 +65,9 @@ roadmap/
 llmnotes/
 
 # Accidental/temporary files
-vendor/
+vendor/*
+!vendor/lws-bridge.c
+!vendor/lws-bridge.h
 
 # Scripts that are local/private
 ralph.sh

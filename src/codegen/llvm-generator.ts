@@ -28,7 +28,7 @@ import { ResponseGenerator } from './stdlib/response.js';
 import { CryptoGenerator } from './stdlib/crypto.js';
 import { SqliteGenerator } from './stdlib/sqlite.js';
 import { RuntimeGenerator } from './runtime/runtime.js';
-import { MongooseGenerator } from './stdlib/mongoose.js';
+import { HttpServerGenerator } from './stdlib/http-server.js';
 import { LibuvGenerator } from './stdlib/libuv.js';
 import { PromiseGenerator } from './stdlib/promise.js';
 import { TreeSitterGenerator } from './stdlib/treesitter.js';
@@ -95,7 +95,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public cryptoGen: CryptoGenerator;
   public sqliteGen: SqliteGenerator;
   private runtimeGen: RuntimeGenerator;
-  private mongooseGen: MongooseGenerator;
+  private httpServerGen: HttpServerGenerator;
   private libuvGen: LibuvGenerator;
   private promiseGen: PromiseGenerator;
   private treesitterGen: TreeSitterGenerator;
@@ -1101,7 +1101,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.cryptoGen = new CryptoGenerator(this);
     this.sqliteGen = new SqliteGenerator(this);
     this.runtimeGen = new RuntimeGenerator();
-    this.mongooseGen = new MongooseGenerator();
+    this.httpServerGen = new HttpServerGenerator();
     this.libuvGen = new LibuvGenerator();
     this.promiseGen = new PromiseGenerator();
     this.treesitterGen = new TreeSitterGenerator();
@@ -1648,18 +1648,17 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     if (this.httpHandlers.length > 0) {
       irParts.push('\n');
-      const httpServe = this.mongooseGen.generateHttpServeFunction();
-      if (httpServe) { irParts.push(httpServe); }
-      irParts.push('\n');
       const wsHandler = this.wsHandlers.length > 0 ? this.wsHandlers[0] : undefined;
       const mangledHttpHandler = this.mangleUserName(this.httpHandlers[0]);
       const mangledWsHandler = wsHandler ? this.mangleUserName(wsHandler) : undefined;
-      const eventHandler = this.mongooseGen.generateEventHandler(mangledHttpHandler, mangledWsHandler);
+      const httpServe = this.httpServerGen.generateHttpServeFunction(mangledWsHandler);
+      if (httpServe) { irParts.push(httpServe); }
+      irParts.push('\n');
+      const eventHandler = this.httpServerGen.generateEventHandler(mangledHttpHandler, mangledWsHandler);
       if (eventHandler) { irParts.push(eventHandler); }
       if (wsHandler) {
         irParts.push('\n');
-        irParts.push(this.mongooseGen.generateWsConnectionTracking());
-        irParts.push(this.mongooseGen.generateWsBroadcastFunction());
+        irParts.push(this.httpServerGen.generateWsBroadcastFunction());
       }
     }
 
@@ -1749,8 +1748,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     if (this.usesMongoose) {
-      const mongooseDecls = this.mongooseGen.generateDeclarations();
-      if (mongooseDecls) { finalParts.push(mongooseDecls); }
+      const httpServerDecls = this.httpServerGen.generateDeclarations();
+      if (httpServerDecls) { finalParts.push(httpServerDecls); }
       finalParts.push('\n');
     }
 
@@ -2344,10 +2343,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
     const handlerName = (handlerArg as VariableNode).name;
 
-    // Track handler for mongoose event handler generation
+    // Track handler for http server event handler generation
     this.httpHandlers.push(handlerName);
     this.usesMongoose = 1;
-    this.usesTimers = 1;
 
     if (expr.args.length >= 3) {
       const wsHandlerArg = expr.args[2];

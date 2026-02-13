@@ -1,6 +1,6 @@
 # httpServe
 
-Built-in HTTP server with websockt support compiled to native code via the mongoose networking library.
+Built-in HTTP server with websocket support compiled to native code via libwebsockets.
 
 ## `httpServe(port, handler)`
 
@@ -151,9 +151,9 @@ $ websocat ws://localhost:8080/
 
 | API | Maps to |
 |-----|---------|
-| `httpServe()` | mongoose HTTP server library |
-| `wsBroadcast()` | `mg_ws_send()` to all tracked connections |
-| WebSocket upgrade | `mg_ws_upgrade()` on `Upgrade` header detection |
+| `httpServe()` | libwebsockets HTTP server (via lws-bridge) |
+| `wsBroadcast()` | `lws_bridge_ws_broadcast()` to all tracked connections |
+| WebSocket upgrade | automatic via libwebsockets protocol list |
 
 ## Transparent Compression
 

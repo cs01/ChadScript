@@ -38,7 +38,7 @@ bash scripts/build-vendor.sh
 npm run build
 ```
 
-`scripts/build-vendor.sh` clones and builds static archives for libgc, cJSON, libuv, tree-sitter, and mongoose into `vendor/`. It's idempotent — re-running skips already-built libraries.
+`scripts/build-vendor.sh` clones and builds static archives for libgc, cJSON, libuv, tree-sitter, and libwebsockets into `vendor/`. It's idempotent — re-running skips already-built libraries.
 
 ## Verify
 
@@ -54,7 +54,7 @@ Override vendor library paths if you have your own builds:
 
 ```bash
 export CHADSCRIPT_BDWGC_PATH=/path/to/bdwgc
-export CHADSCRIPT_MONGOOSE_PATH=/path/to/mongoose
+export CHADSCRIPT_LWS_PATH=/path/to/libwebsockets/build
 export CHADSCRIPT_CJSON_PATH=/path/to/cjson/build
 export CHADSCRIPT_LIBUV_PATH=/path/to/libuv/build
 export CHADSCRIPT_TREESITTER_PATH=/path/to/tree-sitter
@@ -65,7 +65,7 @@ export CHADSCRIPT_TREESITTER_PATH=/path/to/tree-sitter
 ChadScript can compile its own compiler to a native binary:
 
 ```bash
-chadc --link-tree-sitter src/native-compiler.ts -o /tmp/chad-stage0
+chadc src/native-compiler.ts -o /tmp/chad-stage0
 
 /tmp/chad-stage0 src/native-compiler.ts -o /tmp/chad-stage1
 ```

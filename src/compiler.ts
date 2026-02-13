@@ -31,7 +31,8 @@ export function setSanitize(value: string): void {
 
 // External library paths - check env vars, then use vendor/
 const BDWGC_PATH = process.env.CHADSCRIPT_BDWGC_PATH || './vendor/bdwgc';
-const MONGOOSE_PATH = process.env.CHADSCRIPT_MONGOOSE_PATH || './vendor/mongoose';
+const LWS_PATH = process.env.CHADSCRIPT_LWS_PATH || './vendor/libwebsockets/build';
+const LWS_BRIDGE_PATH = process.env.CHADSCRIPT_LWS_BRIDGE_PATH || './vendor';
 const CJSON_PATH = process.env.CHADSCRIPT_CJSON_PATH || './vendor/cJSON/build';
 const LIBUV_PATH = process.env.CHADSCRIPT_LIBUV_PATH || './vendor/libuv/build';
 const TREESITTER_LIB_PATH = process.env.CHADSCRIPT_TREESITTER_PATH || './vendor/tree-sitter';
@@ -186,14 +187,14 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   if (generator.usesCurl) { linkLibs += ' -lcurl'; }
   if (generator.usesCrypto) { linkLibs += ' -lcrypto'; }
   if (generator.usesSqlite) { linkLibs += ' -lsqlite3'; }
-  if (generator.usesMongoose) { linkLibs += ' -lz -lzstd'; }
+  if (generator.usesMongoose) { linkLibs += ` -L${LWS_PATH}/lib -lwebsockets -lz -lzstd`; }
   if (isMac) {
     const brewPrefix = process.arch === 'arm64' ? '/opt/homebrew/opt' : '/usr/local/opt';
     if (generator.usesCrypto) { linkLibs = `-L${brewPrefix}/openssl/lib ` + linkLibs; }
     if (generator.usesSqlite) { linkLibs = `-L${brewPrefix}/sqlite/lib ` + linkLibs; }
     linkLibs = `-L/usr/local/lib ` + linkLibs;
   }
-  const mongooseObj = generator.usesMongoose ? `${MONGOOSE_PATH}/mongoose.o` : '';
+  const lwsBridgeObj = generator.usesMongoose ? `${LWS_BRIDGE_PATH}/lws-bridge.o` : '';
   let extraObjs = '';
 
   if (generator.getUsesTreeSitter()) {
@@ -240,7 +241,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     linker = 'gcc';
   }
   const noPie = isMac ? '' : ' -no-pie';
-  const linkCmd = `${linker} ${objFile} ${mongooseObj}${extraObjs} -o ${outputFile}${noPie}${sanitizeFlags} ${linkLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj}${extraObjs} -o ${outputFile}${noPie}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });
