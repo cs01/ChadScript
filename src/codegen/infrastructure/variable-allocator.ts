@@ -1,4 +1,4 @@
-import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, InterfaceField, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode, CommonField, BinaryNode, MapNode, SetNode, AwaitExpressionNode } from '../../ast/types.js';
+import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, InterfaceField, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode, CallNode, CommonField, BinaryNode, MapNode, SetNode, AwaitExpressionNode } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata, Symbol as SymbolEntry, ObjectArrayMetadata, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createObjectMetadata, createObjectMetadataWithInterface, createObjectMetadataWithPointerAlloca, createObjectMetadataWithInterfaceAndPointerAlloca, createClassMetadata, createClosureMetadataSymbol, createMapMetadataSymbol, createSetMetadataSymbol, createObjectArrayMetadataSymbol, createUnionMetadata, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import { TypeResolver, UnionCommonFields } from './type-resolver/index.js';
@@ -961,6 +961,27 @@ export class VariableAllocator {
         this.ctx.emit(`store %ObjectArray* ${castReg}, %ObjectArray** ${allocaReg}`);
         return;
       }
+    }
+
+    if (inner.type === 'call') {
+      const callNode = awaitExpr.argument as CallNode;
+      if (callNode.name === 'fetch') {
+        const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+        this.ctx.defineVariable(stmt.name, allocaReg, '%__FetchResponse*', SymbolKind.Object, 'local');
+        this.ctx.emit(`${allocaReg} = alloca %__FetchResponse*`);
+        const value = this.ctx.generateExpression(stmt.value!, params);
+        this.ctx.emit(`store %__FetchResponse* ${value}, %__FetchResponse** ${allocaReg}`);
+        return;
+      }
+    }
+
+    if (stmt.declaredType === 'Response') {
+      const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+      this.ctx.defineVariable(stmt.name, allocaReg, '%__FetchResponse*', SymbolKind.Object, 'local');
+      this.ctx.emit(`${allocaReg} = alloca %__FetchResponse*`);
+      const value = this.ctx.generateExpression(stmt.value!, params);
+      this.ctx.emit(`store %__FetchResponse* ${value}, %__FetchResponse** ${allocaReg}`);
+      return;
     }
 
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
