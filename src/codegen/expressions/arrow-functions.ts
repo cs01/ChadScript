@@ -80,7 +80,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     if (!hasParamTypes && funcParams.length > 0) {
       const inferredTypes = this.inferParamTypesFromBody(funcParams, expr.body);
       if (inferredTypes.length > 0) {
-        typeHints = { paramTypes: inferredTypes };
+        typeHints = { paramTypes: inferredTypes, returnType: undefined };
       }
     }
 
@@ -89,9 +89,9 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       const inferredReturnType = this.inferReturnTypeFromBody(expr.body);
       if (inferredReturnType) {
         if (typeHints) {
-          typeHints.returnType = inferredReturnType;
+          typeHints = { paramTypes: typeHints.paramTypes, returnType: inferredReturnType };
         } else {
-          typeHints = { returnType: inferredReturnType };
+          typeHints = { paramTypes: undefined, returnType: inferredReturnType };
         }
       }
     }
@@ -145,8 +145,8 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       name: funcName,
       params: funcParams,
       body: liftedBody,
-      paramTypes: liftedParamTypes,
       returnType: liftedReturnType,
+      paramTypes: liftedParamTypes,
       closureInfo
     };
 
@@ -229,7 +229,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       return 'string';
     }
     if (bodyTyped.type === 'binary') {
-      const binExpr = body as { op: string; left: unknown; right: unknown };
+      const binExpr = body as { type: string; op: string; left: unknown; right: unknown };
       if (binExpr.op === '+') {
         const leftType = this.inferReturnTypeFromBody(binExpr.left as ArrowFunctionNode['body']);
         const rightType = this.inferReturnTypeFromBody(binExpr.right as ArrowFunctionNode['body']);
@@ -242,7 +242,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       return 'array';
     }
     if (bodyTyped.type === 'conditional') {
-      const condTyped = body as { consequent: unknown; alternate: unknown };
+      const condTyped = body as { type: string; condition: unknown; consequent: unknown; alternate: unknown };
       const consequent = condTyped.consequent;
       const alternate = condTyped.alternate;
       if (consequent) {
@@ -262,7 +262,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       }
     }
     if (bodyTyped.type === 'block') {
-      const blockTyped = body as { statements: unknown[] };
+      const blockTyped = body as { type: string; statements: unknown[] };
       const blockStatements = blockTyped.statements;
       if (blockStatements) {
         for (let i = 0; i < blockStatements.length; i++) {
@@ -279,8 +279,8 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
             }
           }
           if (stmtTyped.type === 'if') {
-            const ifStmt = stmt as { thenBlock: unknown; elseBlock: unknown };
-            const thenBlock = ifStmt.thenBlock as { statements: unknown[] };
+            const ifStmt = stmt as { type: string; condition: unknown; thenBlock: unknown; elseBlock: unknown };
+            const thenBlock = ifStmt.thenBlock as { type: string; statements: unknown[] };
             const thenBlockStatements = thenBlock ? thenBlock.statements : null;
             if (thenBlockStatements) {
               for (let j = 0; j < thenBlockStatements.length; j++) {
