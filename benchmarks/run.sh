@@ -5,6 +5,11 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(dirname "$DIR")"
 CHAD="$REPO/.build/chadc"
 STARTUP_RUNS=50
+HTTP_BENCH="$DIR/tools/httpbench"
+WS_BENCH="$DIR/tools/wsbench"
+HTTP_PORT=9876
+WS_PORT=9877
+BENCH_DURATION=10s
 
 echo "╔══════════════════════════════════════════════════╗"
 echo "║          ChadScript Benchmark Suite              ║"
@@ -27,6 +32,12 @@ echo "  ChadScript Matmul built"
 
 $CHAD "$DIR/montecarlo/chadscript.ts" -o /tmp/bench-montecarlo-chad
 echo "  ChadScript Monte Carlo built"
+
+$CHAD "$DIR/http/chadscript.ts" -o /tmp/bench-http-chad
+echo "  ChadScript HTTP server built"
+
+$CHAD "$DIR/websocket/chadscript.ts" -o /tmp/bench-ws-chad
+echo "  ChadScript WebSocket server built"
 
 clang -O2 -o /tmp/bench-startup-c "$DIR/startup/hello.c"
 echo "  C startup built"
@@ -55,6 +66,9 @@ echo "  Go Matmul built"
 go build -o /tmp/bench-montecarlo-go "$DIR/montecarlo/montecarlo.go"
 echo "  Go Monte Carlo built"
 
+go build -o /tmp/bench-http-go "$DIR/http/go_server.go"
+echo "  Go HTTP server built"
+
 echo ""
 
 bench_startup() {
@@ -71,6 +85,32 @@ bench_startup() {
     printf "    %-20s %d.%dms\n" "$name" "$avg_ms_int" "$avg_ms_frac"
 }
 
+bench_http_server() {
+    local name="$1"
+    shift
+    "$@" > /dev/null 2>&1 &
+    local pid=$!
+    sleep 1
+    echo "  $name"
+    $HTTP_BENCH -url "http://127.0.0.1:${HTTP_PORT}/" -c 50 -d "$BENCH_DURATION" 2>&1 | sed 's/^/    /'
+    kill $pid 2>/dev/null
+    wait $pid 2>/dev/null
+    echo ""
+}
+
+bench_ws_server() {
+    local name="$1"
+    shift
+    "$@" > /dev/null 2>&1 &
+    local pid=$!
+    sleep 1
+    echo "  $name"
+    $WS_BENCH -url "ws://127.0.0.1:${WS_PORT}/" -c 32 -d "$BENCH_DURATION" 2>&1 | sed 's/^/    /'
+    kill $pid 2>/dev/null
+    wait $pid 2>/dev/null
+    echo ""
+}
+
 echo "═══════════════════════════════════════════════════"
 echo "  Cold Start  (avg of ${STARTUP_RUNS} runs)"
 echo "═══════════════════════════════════════════════════"
@@ -81,7 +121,6 @@ bench_startup "ChadScript" /tmp/bench-startup-chad
 bench_startup "Go" /tmp/bench-startup-go
 bench_startup "Bun" bun "$DIR/startup/bun.mjs"
 bench_startup "Node.js" node "$DIR/startup/node.mjs"
-bench_startup "Python" python3 "$DIR/startup/hello.py"
 
 echo ""
 echo "═══════════════════════════════════════════════════"
@@ -103,10 +142,6 @@ echo ""
 
 echo "  Bun $(bun --version)"
 bun "$DIR/sqlite/bun.mjs" 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Python $(python3 --version 2>&1 | awk '{print $2}')"
-python3 "$DIR/sqlite/python_bench.py" 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "═══════════════════════════════════════════════════"
@@ -134,10 +169,6 @@ echo "  Bun $(bun --version)"
 bun "$DIR/nbody/bun.mjs" 2>&1 | sed 's/^/    /'
 echo ""
 
-echo "  Python $(python3 --version 2>&1 | awk '{print $2}')"
-python3 "$DIR/nbody/nbody.py" 2>&1 | sed 's/^/    /'
-echo ""
-
 echo "═══════════════════════════════════════════════════"
 echo "  Matrix Multiply  (512x512, double precision)"
 echo "═══════════════════════════════════════════════════"
@@ -161,10 +192,6 @@ echo ""
 
 echo "  Bun $(bun --version)"
 bun "$DIR/matmul/bun.mjs" 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Python $(python3 --version 2>&1 | awk '{print $2}')"
-python3 "$DIR/matmul/matmul.py" 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "═══════════════════════════════════════════════════"
@@ -192,9 +219,24 @@ echo "  Bun $(bun --version)"
 bun "$DIR/montecarlo/bun.mjs" 2>&1 | sed 's/^/    /'
 echo ""
 
-echo "  Python $(python3 --version 2>&1 | awk '{print $2}')"
-python3 "$DIR/montecarlo/montecarlo.py" 2>&1 | sed 's/^/    /'
+echo "═══════════════════════════════════════════════════"
+echo "  HTTP Server  (hello world, 50 concurrent, ${BENCH_DURATION})"
+echo "═══════════════════════════════════════════════════"
 echo ""
+
+bench_http_server "ChadScript (native)" /tmp/bench-http-chad
+bench_http_server "Go (net/http)" /tmp/bench-http-go
+bench_http_server "Bun $(bun --version)" bun "$DIR/http/bun.mjs"
+bench_http_server "Node.js $(node --version)" node "$DIR/http/node.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  WebSocket  (chat broadcast, 32 clients, ${BENCH_DURATION})"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+bench_ws_server "ChadScript (native)" /tmp/bench-ws-chad
+bench_ws_server "Bun $(bun --version)" bun "$DIR/websocket/bun.mjs"
+bench_ws_server "Node.js $(node --version)" node "$DIR/websocket/node.mjs"
 
 echo "═══════════════════════════════════════════════════"
 echo "  Done"
