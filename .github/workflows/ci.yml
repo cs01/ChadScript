@@ -79,10 +79,10 @@ jobs:
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include src/treesitter-bridge.c -o build/treesitter-bridge.o
 
       - name: Build native chadc
-        run: node dist/index.js --link-tree-sitter src/native-compiler.ts -o .build/chadc
+        run: node dist/index.js src/native-compiler.ts -o .build/chadc
 
       - name: Build native chad
-        run: node dist/index.js --link-tree-sitter src/chad-native.ts -o .build/chad
+        run: node dist/index.js src/chad-native.ts -o .build/chad
 
       - name: Sign macOS binaries
         if: runner.os == 'macOS'
