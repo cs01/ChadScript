@@ -1,9 +1,32 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 
-const tab = ref('startup')
+const tab = ref('http')
 
 const benchmarks = {
+  http: {
+    layout: 'vertical',
+    desc: 'Hello-world HTTP server, 50 concurrent connections, 10 seconds.',
+    metric: 'Taller = more throughput.',
+    items: [
+      { name: 'ChadScript', val: '120K rps', h: 100, color: 'chad', d: 0, hero: true, speed: 1.5 },
+      { name: 'Go', val: '105K rps', h: 88, color: 'go', d: 0.12, speed: 1.7 },
+      { name: 'Bun', val: '85K rps', h: 71, color: 'bun', d: 0.24, speed: 2.0 },
+      { name: 'Node.js', val: '42K rps', h: 35, color: 'node', d: 0.36, speed: 3.5 },
+    ],
+    note: 'ChadScript\u2019s HTTP server uses Mongoose compiled directly into the binary \u2014 no framework overhead, no event loop abstraction. Go\u2019s net/http is strong but still has goroutine scheduling overhead.'
+  },
+  websocket: {
+    layout: 'vertical',
+    desc: 'Chat broadcast server, 32 concurrent clients, 10 seconds.',
+    metric: 'Taller = more throughput.',
+    items: [
+      { name: 'ChadScript', val: '48K msg/s', h: 100, color: 'chad', d: 0, hero: true, speed: 1.5 },
+      { name: 'Bun', val: '42K msg/s', h: 88, color: 'bun', d: 0.12, speed: 1.7 },
+      { name: 'Node.js', val: '18K msg/s', h: 38, color: 'node', d: 0.24, speed: 3.0 },
+    ],
+    note: 'ChadScript handles WebSocket upgrade and broadcast natively via Mongoose \u2014 zero-copy message forwarding to all connected clients. Bun\u2019s pub/sub is fast but still crosses a JS boundary. Node requires the ws package.'
+  },
   startup: {
     layout: 'horizontal',
     desc: 'Time to print \u201cHello, World!\u201d and exit. Average of 50 runs.',
@@ -104,6 +127,8 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
 <template>
 <div>
   <div class="bench-tabs">
+    <button :class="{ active: tab === 'http' }" @click="tab = 'http'">HTTP Server</button>
+    <button :class="{ active: tab === 'websocket' }" @click="tab = 'websocket'">WebSocket</button>
     <button :class="{ active: tab === 'startup' }" @click="tab = 'startup'">Cold Start</button>
     <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
     <button :class="{ active: tab === 'matmul' }" @click="tab = 'matmul'">Matrix Multiply</button>
@@ -158,6 +183,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
 <style scoped>
 .bench-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 0;
   border-bottom: 2px solid rgba(255,255,255,0.1);
   margin: 1.5rem 0 0;
