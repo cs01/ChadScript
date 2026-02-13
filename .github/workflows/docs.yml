@@ -1,10 +1,8 @@
 name: Deploy Docs
 
 on:
-  workflow_run:
-    workflows: ["CI"]
+  push:
     branches: [dev]
-    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -18,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/dev' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
