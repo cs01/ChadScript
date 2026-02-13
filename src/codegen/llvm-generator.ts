@@ -65,8 +65,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   // Global variables declared with LLVM @ prefix (accessible from any function)
   private globalVariables: Map<string, { llvmType: string; kind: number; initialized: boolean }>;
 
-  // Import alias map: local name -> original name (for renamed imports like "x as y")
-  private importAliasMap: Map<string, string>;
+  // Import alias: parallel arrays for self-hosting compatibility (Map has issues in native runtime)
+  private importAliasNames: string[];
+  private importAliasOriginals: string[];
 
   // Specialized generators (public for context pattern access)
   public arrayGen: ArrayGenerator;
@@ -1043,7 +1044,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.externalFunctions = new Set();
     this.topLevelObjectVariables = new Map();
     this.globalVariables = new Map();
-    this.importAliasMap = new Map();
+    this.importAliasNames = [];
+    this.importAliasOriginals = [];
     this.httpHandlers = [];
     this.wsHandlers = [];
     this.jsonObjectMetadata = new Map();
@@ -1152,11 +1154,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   setImportAlias(name: string, original: string): void {
-    this.importAliasMap.set(name, original);
+    this.importAliasNames.push(name);
+    this.importAliasOriginals.push(original);
   }
 
   getImportAlias(name: string): string | undefined {
-    return this.importAliasMap.get(name);
+    const len = this.importAliasNames.length;
+    for (let i = 0; i < len; i++) {
+      if (this.importAliasNames[i] === name) {
+        return this.importAliasOriginals[i];
+      }
+    }
+    return undefined;
   }
 
   resolveImportAlias(localName: string): string {
