@@ -48,3 +48,13 @@
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+.hero-rotator-anchor {
+  display: none;
+}
+
+.hero-rotating {
+  display: inline-block;
+  text-align: left;
+  color: var(--vp-c-brand-1);
+}

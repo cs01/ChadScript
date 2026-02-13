@@ -4,6 +4,7 @@ import CopyMarkdown from './CopyMarkdown.vue'
 import BenchmarkChart from './BenchmarkChart.vue'
 import BenchmarkBars from './BenchmarkBars.vue'
 import BenchmarkRace from './BenchmarkRace.vue'
+import HeroRotator from './HeroRotator.vue'
 import './style.css'
 
 export default {
@@ -17,5 +18,6 @@ export default {
     app.component('BenchmarkChart', BenchmarkChart)
     app.component('BenchmarkBars', BenchmarkBars)
     app.component('BenchmarkRace', BenchmarkRace)
+    app.component('HeroRotator', HeroRotator)
   }
 }
