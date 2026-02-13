@@ -587,6 +587,12 @@ export const testCases: TestCase[] = [
     description: 'Spread operator in array literals [...arr, x] should work'
   },
   {
+    name: 'array-index-assign',
+    fixture: 'tests/fixtures/arrays/array-index-assign.ts',
+    expectTestPassed: true,
+    description: 'Array element assignment arr[i] = value with computed indices'
+  },
+  {
     name: 'rest-params',
     fixture: 'tests/fixtures/functions/rest-params.ts',
     expectTestPassed: true,

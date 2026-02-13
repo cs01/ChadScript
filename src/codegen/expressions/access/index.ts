@@ -507,21 +507,7 @@ export class IndexAccessGenerator {
   }
 
   private generateStringArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
-    const exprBase = expr.object as { type: string };
-
-    let arrayPtr: string;
-    if (exprBase.type === 'variable') {
-      const objectExpr = expr.object as VariableNode;
-      const varName = objectExpr.name;
-      const arrayAllocaReg = this.ctx.symbolTableGetArrayAlloca(varName);
-      if (!arrayAllocaReg) {
-        throw new Error(`Unknown string array variable: ${varName}`);
-      }
-      arrayPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${arrayPtr} = load %StringArray*, %StringArray** ${arrayAllocaReg}`);
-    } else {
-      arrayPtr = this.ctx.generateExpression(expr.object, params);
-    }
+    const arrayPtr = this.ctx.generateExpression(expr.object, params);
 
     const dataFieldPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
@@ -529,8 +515,12 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${dataPtr} = load i8**, i8*** ${dataFieldPtr}`);
 
     const indexDouble = this.ctx.generateExpression(expr.index, params);
-    const index = this.ctx.nextTemp();
-    this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    const indexType = this.ctx.getVariableType(indexDouble);
+    let index = indexDouble;
+    if (indexType === 'double') {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    }
     const indexI64 = this.ctx.nextTemp();
     this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
 
@@ -543,30 +533,20 @@ export class IndexAccessGenerator {
   }
 
   private generateNumericArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
-    const exprBase = expr.object as { type: string };
-
-    let arrayPtr: string;
-    if (exprBase.type === 'variable') {
-      const objectExpr = expr.object as VariableNode;
-      const varName = objectExpr.name;
-      const arrayAllocaReg = this.ctx.symbolTableGetArrayAlloca(varName);
-      if (!arrayAllocaReg) {
-        throw new Error(`Unknown numeric array variable: ${varName}`);
-      }
-      arrayPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${arrayPtr} = load %Array*, %Array** ${arrayAllocaReg}`);
-    } else {
-      arrayPtr = this.ctx.generateExpression(expr.object, params);
-    }
+    const arrayPtr = this.ctx.generateExpression(expr.object, params);
 
     const dataFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
+    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}`);
 
     const indexDouble = this.ctx.generateExpression(expr.index, params);
-    const index = this.ctx.nextTemp();
-    this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    const indexType = this.ctx.getVariableType(indexDouble);
+    let index = indexDouble;
+    if (indexType === 'double') {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    }
     const indexI64 = this.ctx.nextTemp();
     this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
 
