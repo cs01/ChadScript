@@ -983,10 +983,15 @@ export class MemberAccessGenerator {
   }
 
   private handleNestedJsonAccess(expr: MemberAccessNode, params: string[]): string | null {
+    if (expr.property === 'length') return null;
+
     const innerResult = this.ctx.generateExpression(expr.object, params);
 
     const innerType = this.ctx.getVariableType(innerResult);
-    if (innerType && innerType.startsWith('%') && innerType.endsWith('*') && innerType !== '%__FetchResponse*' && innerType.indexOf('Array') === -1 && innerType.indexOf('Map') === -1 && innerType.indexOf('Set') === -1) {
+    if (innerType === '%Array*' || innerType === '%StringArray*' || innerType === '%ObjectArray*') {
+      return null;
+    }
+    if (innerType && innerType.startsWith('%') && innerType.endsWith('*') && innerType !== '%__FetchResponse*' && innerType.indexOf('Map') === -1 && innerType.indexOf('Set') === -1) {
       return null;
     }
 
