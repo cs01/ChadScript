@@ -695,6 +695,10 @@ export interface IGeneratorContext {
   responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string;
   responseGenGenerateStatus(responsePtr: string): string;
   responseGenGenerateOk(responsePtr: string): string;
+  responseGenGenerateUrl(responsePtr: string): string;
+  responseGenGenerateHeaders(responsePtr: string): string;
+  responseGenGenerateRedirected(responsePtr: string): string;
+  responseGenGenerateStatusText(responsePtr: string): string;
 
   /**
    * RegexGen delegate methods (avoid struct layout mismatch)
@@ -1445,6 +1449,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   responseGenGenerateTypedJson(_responsePtr: string, _typeName: string, _interfaceDef: { properties: { name: string; type: string }[] }): string { return '%mock_response_typed_json'; }
   responseGenGenerateStatus(_responsePtr: string): string { return '%mock_response_status'; }
   responseGenGenerateOk(_responsePtr: string): string { return '%mock_response_ok'; }
+  responseGenGenerateUrl(_responsePtr: string): string { return '%mock_response_url'; }
+  responseGenGenerateHeaders(_responsePtr: string): string { return '%mock_response_headers'; }
+  responseGenGenerateRedirected(_responsePtr: string): string { return '%mock_response_redirected'; }
+  responseGenGenerateStatusText(_responsePtr: string): string { return '%mock_response_status_text'; }
 
   regexGenGenerateRegexCompile(_pattern: string, _flags: string): string { return '%mock_regex_compile'; }
   regexGenGenerateRegexTest(_regexPtr: string, _testStr: string): string { return '%mock_regex_test'; }

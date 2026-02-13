@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
 import * as path from 'node:path';
+import * as http from 'node:http';
 import { testCases } from './test-fixtures';
 
 const execAsync = promisify(exec);
@@ -402,6 +403,74 @@ describe('ChadScript Compiler', () => {
       } finally {
         try { await fs.unlink(fixture); } catch {}
         try { await fs.unlink('/tmp/test-reject-unknown'); } catch {}
+      }
+    });
+  });
+
+  describe('Network tests', () => {
+    it('should access response properties (url, statusText, redirected, headers)', async () => {
+      const server = http.createServer((_req, res) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain', 'X-Test': 'hello' });
+        res.end('test body');
+      });
+
+      await new Promise<void>((resolve) => {
+        server.listen(0, '127.0.0.1', () => resolve());
+      });
+
+      const addr = server.address() as { port: number };
+      const port = addr.port;
+
+      try {
+        const fixture = '/tmp/test-response-properties.ts';
+        const fixtureContent = `async function main(): Promise<void> {
+  const response = await fetch("http://127.0.0.1:${port}/");
+
+  const status = response.status;
+  console.log(status);
+
+  const ok = response.ok;
+  console.log(ok);
+
+  const body = response.text();
+  console.log(body);
+
+  const url = response.url;
+  console.log(url);
+
+  const statusText = response.statusText;
+  console.log(statusText);
+
+  const redirected = response.redirected;
+  console.log(redirected);
+
+  const headers = response.headers;
+  console.log(headers);
+
+  console.log("TEST_PASSED");
+}
+
+await main();
+`;
+        await fs.writeFile(fixture, fixtureContent);
+        const exeFile = '/tmp/test-response-properties';
+        try { if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile); } catch {}
+
+        await execAsync(`node dist/index.js ${fixture} -o ${exeFile}`);
+        assert.ok(fsSync.existsSync(exeFile), `Executable should exist at ${exeFile}`);
+
+        const result = await execAsync(exeFile);
+        const stdout = result.stdout;
+
+        assert.ok(stdout.includes('200'), `Expected stdout to contain '200', got: ${stdout}`);
+        assert.ok(stdout.includes('OK'), `Expected stdout to contain 'OK', got: ${stdout}`);
+        assert.ok(stdout.includes('test body'), `Expected stdout to contain 'test body', got: ${stdout}`);
+        assert.ok(stdout.includes(`http://127.0.0.1:${port}/`), `Expected stdout to contain url, got: ${stdout}`);
+        assert.ok(stdout.includes('TEST_PASSED'), `Expected stdout to contain TEST_PASSED, got: ${stdout}`);
+      } finally {
+        server.close();
+        try { await fs.unlink('/tmp/test-response-properties.ts'); } catch {}
+        try { await fs.unlink('/tmp/test-response-properties'); } catch {}
       }
     });
   });

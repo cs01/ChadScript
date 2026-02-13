@@ -159,6 +159,10 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += '@CURLOPT_WRITEDATA = constant i32 10001\n';
   ir += '@CURLOPT_FOLLOWLOCATION = constant i32 52\n';
   ir += '@CURLOPT_USERAGENT = constant i32 10018\n';
+  ir += '@CURLOPT_HEADERFUNCTION = constant i32 20079\n';
+  ir += '@CURLOPT_HEADERDATA = constant i32 10029\n';
+  ir += '@CURLINFO_EFFECTIVE_URL = constant i32 1048577\n';
+  ir += '@CURLINFO_REDIRECT_COUNT = constant i32 2097172\n';
   ir += '\n';
   }
 

@@ -29,9 +29,29 @@ export class RuntimeGenerator {
     let ir = '; fetch() API implementation using libcurl\n';
 
     ir += '%FetchBuffer = type { i8*, i64, i64 }\n';
-    ir += '%__FetchResponse = type { i8*, i32, i8* }\n\n';
+    ir += '%__FetchResponse = type { i8*, i32, i8*, i8*, i8*, i32 }\n\n';
 
     ir += 'define i64 @fetch_write_callback(i8* %data, i64 %size, i64 %nmemb, i8* %userdata) {\n';
+    ir += 'entry:\n';
+    ir += '  %total_size = mul i64 %size, %nmemb\n';
+    ir += '  %buffer = bitcast i8* %userdata to %FetchBuffer*\n';
+    ir += '  %size_ptr = getelementptr %FetchBuffer, %FetchBuffer* %buffer, i32 0, i32 1\n';
+    ir += '  %current_size = load i64, i64* %size_ptr\n';
+    ir += '  %new_size = add i64 %current_size, %total_size\n';
+    ir += '  %data_ptr_ptr = getelementptr %FetchBuffer, %FetchBuffer* %buffer, i32 0, i32 0\n';
+    ir += '  %old_data = load i8*, i8** %data_ptr_ptr\n';
+    ir += '  %alloc_size = add i64 %new_size, 1\n';
+    ir += '  %new_data = call i8* @realloc(i8* %old_data, i64 %alloc_size)\n';
+    ir += '  store i8* %new_data, i8** %data_ptr_ptr\n';
+    ir += '  %dest = getelementptr i8, i8* %new_data, i64 %current_size\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %dest, i8* %data, i64 %total_size, i1 false)\n';
+    ir += '  store i64 %new_size, i64* %size_ptr\n';
+    ir += '  %null_pos = getelementptr i8, i8* %new_data, i64 %new_size\n';
+    ir += '  store i8 0, i8* %null_pos\n';
+    ir += '  ret i64 %total_size\n';
+    ir += '}\n\n';
+
+    ir += 'define i64 @fetch_header_callback(i8* %data, i64 %size, i64 %nmemb, i8* %userdata) {\n';
     ir += 'entry:\n';
     ir += '  %total_size = mul i64 %size, %nmemb\n';
     ir += '  %buffer = bitcast i8* %userdata to %FetchBuffer*\n';
@@ -65,6 +85,13 @@ export class RuntimeGenerator {
     ir += '  store i64 0, i64* %size_ptr\n';
     ir += '  %cap_ptr = getelementptr %FetchBuffer, %FetchBuffer* %buffer, i32 0, i32 2\n';
     ir += '  store i64 0, i64* %cap_ptr\n';
+    ir += '  %hdr_buffer = alloca %FetchBuffer\n';
+    ir += '  %hdr_data_ptr = getelementptr %FetchBuffer, %FetchBuffer* %hdr_buffer, i32 0, i32 0\n';
+    ir += '  store i8* null, i8** %hdr_data_ptr\n';
+    ir += '  %hdr_size_ptr = getelementptr %FetchBuffer, %FetchBuffer* %hdr_buffer, i32 0, i32 1\n';
+    ir += '  store i64 0, i64* %hdr_size_ptr\n';
+    ir += '  %hdr_cap_ptr = getelementptr %FetchBuffer, %FetchBuffer* %hdr_buffer, i32 0, i32 2\n';
+    ir += '  store i64 0, i64* %hdr_cap_ptr\n';
     ir += '  %url_opt = load i32, i32* @CURLOPT_URL\n';
     ir += '  %url_result = call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %url_opt, i8* %url)\n';
     ir += '  %user_agent = getelementptr [17 x i8], [17 x i8]* @.str.user_agent, i32 0, i32 0\n';
@@ -76,6 +103,12 @@ export class RuntimeGenerator {
     ir += '  %write_data_opt = load i32, i32* @CURLOPT_WRITEDATA\n';
     ir += '  %buffer_ptr = bitcast %FetchBuffer* %buffer to i8*\n';
     ir += '  %write_data_result = call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %write_data_opt, i8* %buffer_ptr)\n';
+    ir += '  %hdr_fn_opt = load i32, i32* @CURLOPT_HEADERFUNCTION\n';
+    ir += '  %hdr_fn = bitcast i64 (i8*, i64, i64, i8*)* @fetch_header_callback to i8*\n';
+    ir += '  %hdr_fn_result = call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %hdr_fn_opt, i8* %hdr_fn)\n';
+    ir += '  %hdr_data_opt = load i32, i32* @CURLOPT_HEADERDATA\n';
+    ir += '  %hdr_buffer_ptr = bitcast %FetchBuffer* %hdr_buffer to i8*\n';
+    ir += '  %hdr_data_result = call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %hdr_data_opt, i8* %hdr_buffer_ptr)\n';
     ir += '  %follow_opt = load i32, i32* @CURLOPT_FOLLOWLOCATION\n';
     ir += '  %follow_result = call i32 (i8*, i32, ...) @curl_easy_setopt(i8* %curl, i32 %follow_opt, i64 1)\n';
     ir += '  %perform_result = call i32 @curl_easy_perform(i8* %curl)\n';
@@ -89,13 +122,31 @@ export class RuntimeGenerator {
     ir += '  %info_result = call i32 (i8*, i32, ...) @curl_easy_getinfo(i8* %curl, i32 %info_opt, i64* %status_storage)\n';
     ir += '  %status_i64 = load i64, i64* %status_storage\n';
     ir += '  %status_code = trunc i64 %status_i64 to i32\n';
+    ir += '  %url_storage = alloca i8*\n';
+    ir += '  store i8* null, i8** %url_storage\n';
+    ir += '  %url_info_opt = load i32, i32* @CURLINFO_EFFECTIVE_URL\n';
+    ir += '  %url_info_result = call i32 (i8*, i32, ...) @curl_easy_getinfo(i8* %curl, i32 %url_info_opt, i8** %url_storage)\n';
+    ir += '  %effective_url_raw = load i8*, i8** %url_storage\n';
+    ir += '  %effective_url = call i8* @strdup(i8* %effective_url_raw)\n';
+    ir += '  %redir_storage = alloca i64\n';
+    ir += '  store i64 0, i64* %redir_storage\n';
+    ir += '  %redir_info_opt = load i32, i32* @CURLINFO_REDIRECT_COUNT\n';
+    ir += '  %redir_info_result = call i32 (i8*, i32, ...) @curl_easy_getinfo(i8* %curl, i32 %redir_info_opt, i64* %redir_storage)\n';
+    ir += '  %redir_i64 = load i64, i64* %redir_storage\n';
+    ir += '  %redir_i32 = trunc i64 %redir_i64 to i32\n';
+    ir += '  %redir_gt0 = icmp sgt i32 %redir_i32, 0\n';
+    ir += '  %redirected = zext i1 %redir_gt0 to i32\n';
+    ir += '  %header_data = load i8*, i8** %hdr_data_ptr\n';
+    ir += '  %has_headers = icmp ne i8* %header_data, null\n';
+    ir += '  %empty_hdr = getelementptr [1 x i8], [1 x i8]* @.str.empty, i32 0, i32 0\n';
+    ir += '  %headers_str = select i1 %has_headers, i8* %header_data, i8* %empty_hdr\n';
     ir += '  call void @curl_easy_cleanup(i8* %curl)\n';
     ir += '  %response_data = load i8*, i8** %data_ptr\n';
     ir += '  %has_data = icmp ne i8* %response_data, null\n';
     ir += '  br i1 %has_data, label %create_response, label %error\n\n';
 
     ir += 'create_response:\n';
-    ir += '  %resp_mem = call i8* @GC_malloc(i64 24)\n';
+    ir += '  %resp_mem = call i8* @GC_malloc(i64 48)\n';
     ir += '  %resp = bitcast i8* %resp_mem to %__FetchResponse*\n';
     ir += '  %raw_field = getelementptr %__FetchResponse, %__FetchResponse* %resp, i32 0, i32 0\n';
     ir += '  store i8* %response_data, i8** %raw_field\n';
@@ -103,6 +154,12 @@ export class RuntimeGenerator {
     ir += '  store i32 %status_code, i32* %status_field\n';
     ir += '  %body_field = getelementptr %__FetchResponse, %__FetchResponse* %resp, i32 0, i32 2\n';
     ir += '  store i8* %response_data, i8** %body_field\n';
+    ir += '  %url_field = getelementptr %__FetchResponse, %__FetchResponse* %resp, i32 0, i32 3\n';
+    ir += '  store i8* %effective_url, i8** %url_field\n';
+    ir += '  %headers_field = getelementptr %__FetchResponse, %__FetchResponse* %resp, i32 0, i32 4\n';
+    ir += '  store i8* %headers_str, i8** %headers_field\n';
+    ir += '  %redir_field = getelementptr %__FetchResponse, %__FetchResponse* %resp, i32 0, i32 5\n';
+    ir += '  store i32 %redirected, i32* %redir_field\n';
     ir += '  ret %__FetchResponse* %resp\n\n';
 
     ir += 'fetch_error:\n';
@@ -113,7 +170,7 @@ export class RuntimeGenerator {
     ir += '  br label %error\n\n';
 
     ir += 'error:\n';
-    ir += '  %err_resp_mem = call i8* @GC_malloc(i64 24)\n';
+    ir += '  %err_resp_mem = call i8* @GC_malloc(i64 48)\n';
     ir += '  %err_resp = bitcast i8* %err_resp_mem to %__FetchResponse*\n';
     ir += '  %empty = getelementptr [1 x i8], [1 x i8]* @.str.empty, i32 0, i32 0\n';
     ir += '  %err_raw_field = getelementptr %__FetchResponse, %__FetchResponse* %err_resp, i32 0, i32 0\n';
@@ -122,6 +179,12 @@ export class RuntimeGenerator {
     ir += '  store i32 0, i32* %err_status_field\n';
     ir += '  %err_body_field = getelementptr %__FetchResponse, %__FetchResponse* %err_resp, i32 0, i32 2\n';
     ir += '  store i8* %empty, i8** %err_body_field\n';
+    ir += '  %err_url_field = getelementptr %__FetchResponse, %__FetchResponse* %err_resp, i32 0, i32 3\n';
+    ir += '  store i8* %empty, i8** %err_url_field\n';
+    ir += '  %err_headers_field = getelementptr %__FetchResponse, %__FetchResponse* %err_resp, i32 0, i32 4\n';
+    ir += '  store i8* %empty, i8** %err_headers_field\n';
+    ir += '  %err_redir_field = getelementptr %__FetchResponse, %__FetchResponse* %err_resp, i32 0, i32 5\n';
+    ir += '  store i32 0, i32* %err_redir_field\n';
     ir += '  ret %__FetchResponse* %err_resp\n';
     ir += '}\n\n';
 

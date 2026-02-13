@@ -304,4 +304,113 @@ export class ResponseGenerator {
 
     return okDouble;
   }
+
+  generateUrl(responsePtr: string): string {
+    const urlFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${urlFieldPtr} = getelementptr %__FetchResponse, %__FetchResponse* ${responsePtr}, i32 0, i32 3`);
+    const url = this.ctx.nextTemp();
+    this.ctx.emit(`${url} = load i8*, i8** ${urlFieldPtr}`);
+    this.ctx.setVariableType(url, 'i8*');
+    return url;
+  }
+
+  generateHeaders(responsePtr: string): string {
+    const headersFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${headersFieldPtr} = getelementptr %__FetchResponse, %__FetchResponse* ${responsePtr}, i32 0, i32 4`);
+    const headers = this.ctx.nextTemp();
+    this.ctx.emit(`${headers} = load i8*, i8** ${headersFieldPtr}`);
+    this.ctx.setVariableType(headers, 'i8*');
+    return headers;
+  }
+
+  generateRedirected(responsePtr: string): string {
+    const redirFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${redirFieldPtr} = getelementptr %__FetchResponse, %__FetchResponse* ${responsePtr}, i32 0, i32 5`);
+    const redirI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${redirI32} = load i32, i32* ${redirFieldPtr}`);
+    const redirDouble = this.ctx.nextTemp();
+    this.ctx.emit(`${redirDouble} = sitofp i32 ${redirI32} to double`);
+    this.ctx.setVariableType(redirDouble, 'double');
+    return redirDouble;
+  }
+
+  generateStatusText(responsePtr: string): string {
+    const statusFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${statusFieldPtr} = getelementptr %__FetchResponse, %__FetchResponse* ${responsePtr}, i32 0, i32 1`);
+    const statusI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${statusI32} = load i32, i32* ${statusFieldPtr}`);
+    const statusText = this.ctx.nextTemp();
+    this.ctx.emit(`${statusText} = call i8* @__status_text(i32 ${statusI32})`);
+    this.ctx.setVariableType(statusText, 'i8*');
+    return statusText;
+  }
+
+  generateStatusTextRuntime(): string {
+    let ir = 'define i8* @__status_text(i32 %code) {\n';
+    ir += 'entry:\n';
+    ir += '  switch i32 %code, label %default [\n';
+    ir += '    i32 200, label %s200\n';
+    ir += '    i32 201, label %s201\n';
+    ir += '    i32 204, label %s204\n';
+    ir += '    i32 301, label %s301\n';
+    ir += '    i32 302, label %s302\n';
+    ir += '    i32 304, label %s304\n';
+    ir += '    i32 400, label %s400\n';
+    ir += '    i32 401, label %s401\n';
+    ir += '    i32 403, label %s403\n';
+    ir += '    i32 404, label %s404\n';
+    ir += '    i32 405, label %s405\n';
+    ir += '    i32 500, label %s500\n';
+    ir += '    i32 502, label %s502\n';
+    ir += '    i32 503, label %s503\n';
+    ir += '  ]\n';
+    ir += 's200:\n';
+    ir += '  ret i8* getelementptr ([3 x i8], [3 x i8]* @.st.200, i32 0, i32 0)\n';
+    ir += 's201:\n';
+    ir += '  ret i8* getelementptr ([8 x i8], [8 x i8]* @.st.201, i32 0, i32 0)\n';
+    ir += 's204:\n';
+    ir += '  ret i8* getelementptr ([11 x i8], [11 x i8]* @.st.204, i32 0, i32 0)\n';
+    ir += 's301:\n';
+    ir += '  ret i8* getelementptr ([18 x i8], [18 x i8]* @.st.301, i32 0, i32 0)\n';
+    ir += 's302:\n';
+    ir += '  ret i8* getelementptr ([6 x i8], [6 x i8]* @.st.302, i32 0, i32 0)\n';
+    ir += 's304:\n';
+    ir += '  ret i8* getelementptr ([13 x i8], [13 x i8]* @.st.304, i32 0, i32 0)\n';
+    ir += 's400:\n';
+    ir += '  ret i8* getelementptr ([12 x i8], [12 x i8]* @.st.400, i32 0, i32 0)\n';
+    ir += 's401:\n';
+    ir += '  ret i8* getelementptr ([13 x i8], [13 x i8]* @.st.401, i32 0, i32 0)\n';
+    ir += 's403:\n';
+    ir += '  ret i8* getelementptr ([10 x i8], [10 x i8]* @.st.403, i32 0, i32 0)\n';
+    ir += 's404:\n';
+    ir += '  ret i8* getelementptr ([10 x i8], [10 x i8]* @.st.404, i32 0, i32 0)\n';
+    ir += 's405:\n';
+    ir += '  ret i8* getelementptr ([19 x i8], [19 x i8]* @.st.405, i32 0, i32 0)\n';
+    ir += 's500:\n';
+    ir += '  ret i8* getelementptr ([22 x i8], [22 x i8]* @.st.500, i32 0, i32 0)\n';
+    ir += 's502:\n';
+    ir += '  ret i8* getelementptr ([12 x i8], [12 x i8]* @.st.502, i32 0, i32 0)\n';
+    ir += 's503:\n';
+    ir += '  ret i8* getelementptr ([20 x i8], [20 x i8]* @.st.503, i32 0, i32 0)\n';
+    ir += 'default:\n';
+    ir += '  ret i8* getelementptr ([8 x i8], [8 x i8]* @.st.unknown, i32 0, i32 0)\n';
+    ir += '}\n\n';
+    ir += '@.st.200 = private constant [3 x i8] c"OK\\00"\n';
+    ir += '@.st.201 = private constant [8 x i8] c"Created\\00"\n';
+    ir += '@.st.204 = private constant [11 x i8] c"No Content\\00"\n';
+    ir += '@.st.301 = private constant [18 x i8] c"Moved Permanently\\00"\n';
+    ir += '@.st.302 = private constant [6 x i8] c"Found\\00"\n';
+    ir += '@.st.304 = private constant [13 x i8] c"Not Modified\\00"\n';
+    ir += '@.st.400 = private constant [12 x i8] c"Bad Request\\00"\n';
+    ir += '@.st.401 = private constant [13 x i8] c"Unauthorized\\00"\n';
+    ir += '@.st.403 = private constant [10 x i8] c"Forbidden\\00"\n';
+    ir += '@.st.404 = private constant [10 x i8] c"Not Found\\00"\n';
+    ir += '@.st.405 = private constant [19 x i8] c"Method Not Allowed\\00"\n';
+    ir += '@.st.500 = private constant [22 x i8] c"Internal Server Error\\00"\n';
+    ir += '@.st.502 = private constant [12 x i8] c"Bad Gateway\\00"\n';
+    ir += '@.st.503 = private constant [20 x i8] c"Service Unavailable\\00"\n';
+    ir += '@.st.unknown = private constant [8 x i8] c"Unknown\\00"\n';
+    ir += '\n';
+    return ir;
+  }
 }

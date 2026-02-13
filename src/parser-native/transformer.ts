@@ -221,7 +221,7 @@ function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
     ast.topLevelStatements.push(assignment);
     ast.topLevelItems!.push(assignment);
     ast.topLevelItemTypes!.push('assignment');
-  } else if (e.type === 'call' || e.type === 'new' || e.type === 'method_call') {
+  } else if (e.type === 'call' || e.type === 'new' || e.type === 'method_call' || e.type === 'await') {
     ast.topLevelExpressions.push(expr as CallNode | NewNode | MethodCallNode);
     ast.topLevelItems!.push(expr as TopLevelItem);
     ast.topLevelItemTypes!.push(e.type);

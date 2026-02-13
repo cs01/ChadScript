@@ -271,7 +271,7 @@ export interface SwitchStatement {
 
 export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | ForOfStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | SwitchStatement | BlockStatement | Expression;
 
-export type TopLevelItem = VariableDeclaration | AssignmentStatement | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | ThrowStatement | CallNode | NewNode | MethodCallNode;
+export type TopLevelItem = VariableDeclaration | AssignmentStatement | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | ThrowStatement | CallNode | NewNode | MethodCallNode | AwaitExpressionNode;
 
 export interface FunctionParameter {
   name: string;
@@ -342,7 +342,7 @@ export interface AST {
   typeAliases: TypeAliasDeclaration[];  // Type alias declarations (union types)
   enums: EnumDeclaration[];  // Enum declarations (compile to integer constants)
   topLevelStatements: (VariableDeclaration | AssignmentStatement)[];  // Top-level const/let declarations and assignments
-  topLevelExpressions: (CallNode | NewNode | MethodCallNode | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement)[];  // Top-level expressions and statements
+  topLevelExpressions: (CallNode | NewNode | MethodCallNode | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | AwaitExpressionNode)[];  // Top-level expressions and statements
   topLevelItems?: TopLevelItem[];  // Combined ordered list of all top-level statements and expressions
   topLevelItemTypes?: string[];  // Parallel array of type discriminators for topLevelItems
 }

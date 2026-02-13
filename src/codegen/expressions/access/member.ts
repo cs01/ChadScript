@@ -114,6 +114,10 @@ export interface MemberAccessGeneratorContext {
   classGenGetClassFields(className: string): FieldInfo[];
   responseGenGenerateStatus(responsePtr: string): string;
   responseGenGenerateOk(responsePtr: string): string;
+  responseGenGenerateUrl(responsePtr: string): string;
+  responseGenGenerateHeaders(responsePtr: string): string;
+  responseGenGenerateRedirected(responsePtr: string): string;
+  responseGenGenerateStatusText(responsePtr: string): string;
   generateExpression(expr: Expression, params: string[]): string;
   stringGenCreateStringConstant(value: string): string;
   interfaceStructGenHasInterface(name: string): boolean;
@@ -2369,7 +2373,7 @@ export class MemberAccessGenerator {
   }
 
   private handleResponseProperty(expr: MemberAccessNode): string | null {
-    if (expr.property !== 'status' && expr.property !== 'ok') return null;
+    if (expr.property !== 'status' && expr.property !== 'ok' && expr.property !== 'url' && expr.property !== 'statusText' && expr.property !== 'redirected' && expr.property !== 'headers') return null;
     const exprObjBase = expr.object as ExprBase;
     const exprObjType = exprObjBase.type;
     if (exprObjType === null || exprObjType === undefined) return null;
@@ -2398,9 +2402,18 @@ export class MemberAccessGenerator {
     this.ctx.syncStateToGenerators();
     if (expr.property === 'status') {
       return this.ctx.responseGenGenerateStatus(responsePtr);
-    } else {
+    } else if (expr.property === 'ok') {
       return this.ctx.responseGenGenerateOk(responsePtr);
+    } else if (expr.property === 'url') {
+      return this.ctx.responseGenGenerateUrl(responsePtr);
+    } else if (expr.property === 'headers') {
+      return this.ctx.responseGenGenerateHeaders(responsePtr);
+    } else if (expr.property === 'redirected') {
+      return this.ctx.responseGenGenerateRedirected(responsePtr);
+    } else if (expr.property === 'statusText') {
+      return this.ctx.responseGenGenerateStatusText(responsePtr);
     }
+    return null;
   }
 
   private handleStatProperty(expr: MemberAccessNode): string | null {

@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode, ArrowFunctionNode, UnaryNode, IndexAccessNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode, ArrowFunctionNode, UnaryNode, IndexAccessNode, AwaitExpressionNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { ClassInfo, MapMetadata, SetMetadata, ObjectArrayMetadata, ClosureMetadata, Symbol as SymbolEntry, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, ObjectMetadata } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
@@ -923,6 +923,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string { this.syncStateToGenerators(); return this.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef); }
   public responseGenGenerateStatus(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateStatus(responsePtr); }
   public responseGenGenerateOk(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateOk(responsePtr); }
+  public responseGenGenerateUrl(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateUrl(responsePtr); }
+  public responseGenGenerateHeaders(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateHeaders(responsePtr); }
+  public responseGenGenerateRedirected(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateRedirected(responsePtr); }
+  public responseGenGenerateStatusText(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateStatusText(responsePtr); }
 
   public regexGenGenerateRegexCompile(pattern: string, flags: string): string { this.syncStateToGenerators(); return this.regexGen.generateRegexCompile(pattern, flags); }
   public regexGenGenerateRegexTest(regexPtr: string, testStr: string): string { this.syncStateToGenerators(); return this.regexGen.generateRegexTest(regexPtr, testStr); }
@@ -1733,6 +1737,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (this.usesCurl) {
       const fetchRuntime = this.runtimeGen.generateFetchRuntime();
       if (fetchRuntime) { finalParts.push(fetchRuntime); }
+      const statusTextRuntime = this.responseGen.generateStatusTextRuntime();
+      if (statusTextRuntime) { finalParts.push(statusTextRuntime); }
       finalParts.push('\n');
     }
 
@@ -2267,7 +2273,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.ast.topLevelStatements[index] as VariableDeclaration;
   }
 
-  public getTopLevelExpression(index: number): CallNode | NewNode | MethodCallNode | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | UnaryNode {
+  public getTopLevelExpression(index: number): CallNode | NewNode | MethodCallNode | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | UnaryNode | AwaitExpressionNode {
     return this.ast.topLevelExpressions[index];
   }
 

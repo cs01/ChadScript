@@ -155,7 +155,7 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
         };
         ast.topLevelStatements.push(assignment);
         ast.topLevelItems!.push(assignment);
-      } else if (expr.type === 'call' || expr.type === 'new' || expr.type === 'method_call') {
+      } else if (expr.type === 'call' || expr.type === 'new' || expr.type === 'method_call' || expr.type === 'await') {
         ast.topLevelExpressions.push(expr as CallNode | NewNode | MethodCallNode);
         ast.topLevelItems!.push(expr as TopLevelItem);
       } else if (isAssignmentExpression(exprStmt.expression)) {

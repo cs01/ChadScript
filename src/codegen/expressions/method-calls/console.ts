@@ -211,7 +211,10 @@ export function generateConsoleCallInline(ctx: MethodCallGeneratorContext, expr:
     }
 
     const varType = ctx.getVariableType(argValue);
-    if (varType && varType.endsWith('*') && varType !== 'i8*') {
+    if (varType === 'i8*') {
+      return emitPrintStr(ctx, useStderr, argValue);
+    }
+    if (varType && varType.endsWith('*')) {
       const objStr = ctx.stringGenCreateStringConstant('[object Object]\n');
       return emitPrintStrNoNl(ctx, useStderr, objStr);
     }
