@@ -1,6 +1,9 @@
 import { h } from 'vue'
 import DefaultTheme from 'vitepress/theme'
 import CopyMarkdown from './CopyMarkdown.vue'
+import BenchmarkChart from './BenchmarkChart.vue'
+import BenchmarkBars from './BenchmarkBars.vue'
+import BenchmarkRace from './BenchmarkRace.vue'
 import './style.css'
 
 export default {
@@ -9,5 +12,10 @@ export default {
     return h(DefaultTheme.Layout, null, {
       'doc-before': () => h(CopyMarkdown)
     })
+  },
+  enhanceApp({ app }) {
+    app.component('BenchmarkChart', BenchmarkChart)
+    app.component('BenchmarkBars', BenchmarkBars)
+    app.component('BenchmarkRace', BenchmarkRace)
   }
 }
