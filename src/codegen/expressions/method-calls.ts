@@ -49,6 +49,35 @@ import {
   isProcessStdoutOrStderr as _isProcessStdoutOrStderr,
   handleProcessWrite as _handleProcessWrite,
 } from './method-calls/process.js';
+import {
+  handleSubstr as _handleSubstr,
+  handleSubstring as _handleSubstring,
+  handleConcat as _handleConcat,
+  handleRepeat as _handleRepeat,
+  handlePadStart as _handlePadStart,
+  handleSplit as _handleSplit,
+  handleStartsWith as _handleStartsWith,
+  handleEndsWith as _handleEndsWith,
+  handleTrim as _handleTrim,
+  handleTrimStart as _handleTrimStart,
+  handleTrimEnd as _handleTrimEnd,
+  handleIndexOf as _handleIndexOf,
+  handleStringArrayIndexOf as _handleStringArrayIndexOf,
+  handleStringArrayIncludes as _handleStringArrayIncludes,
+  handleStringIncludes as _handleStringIncludes,
+  handleSlice as _handleSlice,
+  handleReplace as _handleReplace,
+  handleReplaceAll as _handleReplaceAll,
+  handleNumberIsFinite as _handleNumberIsFinite,
+  handleNumberIsNaN as _handleNumberIsNaN,
+  handleNumberIsInteger as _handleNumberIsInteger,
+  handleNumberToString as _handleNumberToString,
+  handleCharAt as _handleCharAt,
+  handleCharCodeAt as _handleCharCodeAt,
+  handleToUpperCase as _handleToUpperCase,
+  handleToLowerCase as _handleToLowerCase,
+  handleMatch as _handleMatch,
+} from './method-calls/string-methods.js';
 
 interface ExprBase { type: string; }
 
@@ -1144,558 +1173,111 @@ export class MethodCallGenerator {
   }
 
   private handleSubstr(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length < 1 || expr.args.length > 2) {
-      throw new Error(`substr() expects 1 or 2 arguments, got ${expr.args.length}`);
-    }
-
-    const startIndexDouble = this.ctx.generateExpression(expr.args[0], params);
-    const startIndex = this.convertToI32(startIndexDouble);
-    const length = expr.args.length === 2 ? this.convertToI32(this.ctx.generateExpression(expr.args[1], params)) : null;
-
-    return this.ctx.stringGenGenerateSubstr(strPtr, startIndex, length);
+    return _handleSubstr(this.ctx, expr, params);
   }
 
   private handleSubstring(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length < 1 || expr.args.length > 2) {
-      throw new Error(`substring() expects 1 or 2 arguments, got ${expr.args.length}`);
-    }
-
-    const startIndexDouble = this.ctx.generateExpression(expr.args[0], params);
-    const startIndex = this.convertToI32(startIndexDouble);
-
-    let length: string | null = null;
-    if (expr.args.length === 2) {
-      const endIndexDouble = this.ctx.generateExpression(expr.args[1], params);
-      const endIndex = this.convertToI32(endIndexDouble);
-      length = this.nextTemp();
-      this.emit(`${length} = sub i32 ${endIndex}, ${startIndex}`);
-    }
-
-    return this.ctx.stringGenGenerateSubstr(strPtr, startIndex, length);
+    return _handleSubstring(this.ctx, expr, params);
   }
 
   private handleConcat(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    const ptrType = this.ctx.getVariableType(strPtr);
-    if (ptrType && (ptrType === '%Array*' || ptrType === '%StringArray*' || ptrType === '%ObjectArray*' || ptrType.endsWith('Array*'))) {
-      const exprObjBase = expr.object as ExprBase;
-      let details = `Expression type: ${exprObjBase.type}`;
-      if (exprObjBase.type === 'member_access') {
-        const memberExpr = expr.object as MemberAccessNode;
-        const objBase = memberExpr.object as ExprBase;
-        details += `, property: ${memberExpr.property}`;
-        details += `, object base type: ${objBase.type}`;
-        if (objBase.type === 'variable') {
-          const varName = (memberExpr.object as VariableNode).name;
-          const isClass = this.ctx.symbolTableIsClass(varName);
-          const symbolType = this.ctx.symbolTableGetType(varName);
-          const interfaceType = this.ctx.symbolTableGetInterfaceType(varName);
-          details += `, variable: ${varName}, isClass: ${isClass}`;
-          details += `, symbolType: ${symbolType}, interfaceType: ${interfaceType}`;
-          if (isClass) {
-            const className = this.ctx.symbolTableGetClassName(varName);
-            details += `, className: ${className}`;
-          }
-        }
-      }
-      throw new Error(
-        `concat() was dispatched to string handler but received an array type '${ptrType}'.\n` +
-        `  This indicates isArrayExpression/isStringArrayExpression/isObjectArrayExpression failed to detect the array.\n` +
-        `  ${details}\n` +
-        `  Check type tracking for this expression.`
-      );
-    }
-
-    if (expr.args.length < 1) {
-      throw new Error(`concat() expects at least 1 argument, got ${expr.args.length}`);
-    }
-
-    let result = strPtr;
-    for (let _mci = 0; _mci < expr.args.length; _mci++) {
-      const arg = expr.args[_mci];
-      const argStr = this.ctx.generateExpression(arg, params);
-      result = this.ctx.stringGenGenerateStringConcatDirect(result, argStr);
-    }
-
-    return result;
+    return _handleConcat(this.ctx, expr, params);
   }
 
   private handleRepeat(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 1) {
-      throw new Error(`repeat() expects 1 argument, got ${expr.args.length}`);
-    }
-
-    const countDouble = this.ctx.generateExpression(expr.args[0], params);
-    const count = this.convertToI32(countDouble);
-    return this.ctx.stringGenGenerateRepeat(strPtr, count);
+    return _handleRepeat(this.ctx, expr, params);
   }
 
   private handlePadStart(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length < 1 || expr.args.length > 2) {
-      throw new Error(`padStart() expects 1 or 2 arguments, got ${expr.args.length}`);
-    }
-
-    const targetLengthDouble = this.ctx.generateExpression(expr.args[0], params);
-    const targetLength = this.convertToI32(targetLengthDouble);
-    const padString = expr.args.length === 2
-      ? this.ctx.generateExpression(expr.args[1], params)
-      : this.ctx.stringGenCreateStringConstant(' ');
-
-    return this.ctx.stringGenGeneratePadStart(strPtr, targetLength, padString);
+    return _handlePadStart(this.ctx, expr, params);
   }
 
   private handleSplit(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 1) {
-      throw new Error(`split() expects 1 argument, got ${expr.args.length}`);
-    }
-
-    const delimiter = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGenGenerateSplit(strPtr, delimiter);
+    return _handleSplit(this.ctx, expr, params);
   }
 
   private handleStartsWith(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    let strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length < 1 || expr.args.length > 2) {
-      throw new Error(`startsWith() expects 1-2 arguments, got ${expr.args.length}`);
-    }
-
-    if (expr.args.length === 2) {
-      const position = this.ctx.generateExpression(expr.args[1], params);
-      const posI32 = this.ctx.nextTemp();
-      this.ctx.emit(`${posI32} = fptosi double ${position} to i32`);
-      const posI64 = this.ctx.nextTemp();
-      this.ctx.emit(`${posI64} = sext i32 ${posI32} to i64`);
-      const offsetPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${offsetPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${posI64}`);
-      strPtr = offsetPtr;
-    }
-
-    const prefix = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGenGenerateStartsWith(strPtr, prefix);
+    return _handleStartsWith(this.ctx, expr, params);
   }
 
   private handleEndsWith(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 1) {
-      throw new Error(`endsWith() expects 1 argument, got ${expr.args.length}`);
-    }
-
-    const suffix = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGenGenerateEndsWith(strPtr, suffix);
+    return _handleEndsWith(this.ctx, expr, params);
   }
 
   private handleTrim(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 0) {
-      throw new Error(`trim() expects 0 arguments, got ${expr.args.length}`);
-    }
-
-    return this.ctx.stringGenGenerateTrim(strPtr);
+    return _handleTrim(this.ctx, expr, params);
   }
 
   private handleTrimStart(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 0) {
-      throw new Error(`trimStart() expects 0 arguments, got ${expr.args.length}`);
-    }
-
-    return this.ctx.stringGenGenerateTrimStart(strPtr);
+    return _handleTrimStart(this.ctx, expr, params);
   }
 
   private handleTrimEnd(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 0) {
-      throw new Error(`trimEnd() expects 0 arguments, got ${expr.args.length}`);
-    }
-
-    return this.ctx.stringGenGenerateTrimEnd(strPtr);
+    return _handleTrimEnd(this.ctx, expr, params);
   }
 
   private handleIndexOf(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 1) {
-      throw new Error(`indexOf() expects 1 argument, got ${expr.args.length}`);
-    }
-
-    const substring = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGenGenerateIndexOf(strPtr, substring);
+    return _handleIndexOf(this.ctx, expr, params);
   }
 
   private handleStringArrayIndexOf(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const arrayPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 1) {
-      throw new Error(`indexOf() expects 1 argument, got ${expr.args.length}`);
-    }
-
-    const searchValue = this.ctx.generateExpression(expr.args[0], params);
-
-    const checkLabel = this.ctx.nextLabel('indexof_check');
-    const bodyLabel = this.ctx.nextLabel('indexof_body');
-    const foundLabel = this.ctx.nextLabel('indexof_found');
-    const notfoundLabel = this.ctx.nextLabel('indexof_notfound');
-    const endLabel = this.ctx.nextLabel('indexof_end');
-
-    const arrIsNull = this.ctx.nextTemp();
-    this.ctx.emit(`${arrIsNull} = icmp eq %StringArray* ${arrayPtr}, null`);
-    this.ctx.emit(`br i1 ${arrIsNull}, label %${notfoundLabel}, label %${checkLabel}_arrvalid`);
-
-    this.ctx.emit(`${checkLabel}_arrvalid:`);
-    const lenPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
-    const length = this.ctx.nextTemp();
-    this.ctx.emit(`${length} = load i32, i32* ${lenPtr}`);
-
-    const dataPtrField = this.ctx.nextTemp();
-    this.ctx.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
-    const dataPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
-
-    const dataPtrIsNull = this.ctx.nextTemp();
-    this.ctx.emit(`${dataPtrIsNull} = icmp eq i8** ${dataPtr}, null`);
-    this.ctx.emit(`br i1 ${dataPtrIsNull}, label %${notfoundLabel}, label %${checkLabel}_start`);
-
-    this.ctx.emit(`${checkLabel}_start:`);
-    const counterPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${counterPtr} = alloca i32`);
-    this.ctx.emit(`store i32 0, i32* ${counterPtr}`);
-
-    this.ctx.emit(`br label %${checkLabel}`);
-
-    this.ctx.emit(`${checkLabel}:`);
-    const counter = this.ctx.nextTemp();
-    this.ctx.emit(`${counter} = load i32, i32* ${counterPtr}`);
-    const cond = this.ctx.nextTemp();
-    this.ctx.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
-    this.ctx.emit(`br i1 ${cond}, label %${bodyLabel}, label %${notfoundLabel}`);
-
-    this.ctx.emit(`${bodyLabel}:`);
-    const counter64 = this.ctx.nextTemp();
-    this.ctx.emit(`${counter64} = sext i32 ${counter} to i64`);
-    const elemPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${elemPtr} = getelementptr i8*, i8** ${dataPtr}, i64 ${counter64}`);
-    const elem = this.ctx.nextTemp();
-    this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
-
-    const elemIsNull = this.ctx.nextTemp();
-    this.ctx.emit(`${elemIsNull} = icmp eq i8* ${elem}, null`);
-    this.ctx.emit(`br i1 ${elemIsNull}, label %${checkLabel}_next, label %${checkLabel}_cmp`);
-
-    this.ctx.emit(`${checkLabel}_cmp:`);
-    const cmpResult = this.ctx.nextTemp();
-    this.ctx.emit(`${cmpResult} = call i32 @strcmp(i8* ${elem}, i8* ${searchValue})`);
-    const isMatch = this.ctx.nextTemp();
-    this.ctx.emit(`${isMatch} = icmp eq i32 ${cmpResult}, 0`);
-    this.ctx.emit(`br i1 ${isMatch}, label %${foundLabel}, label %${checkLabel}_next`);
-
-    this.ctx.emit(`${checkLabel}_next:`);
-    const nextCounter = this.ctx.nextTemp();
-    this.ctx.emit(`${nextCounter} = add i32 ${counter}, 1`);
-    this.ctx.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
-    this.ctx.emit(`br label %${checkLabel}`);
-
-    this.ctx.emit(`${foundLabel}:`);
-    const foundIndex = this.ctx.nextTemp();
-    this.ctx.emit(`${foundIndex} = load i32, i32* ${counterPtr}`);
-    this.ctx.emit(`br label %${endLabel}`);
-
-    this.ctx.emit(`${notfoundLabel}:`);
-    this.ctx.emit(`br label %${endLabel}`);
-
-    this.ctx.emit(`${endLabel}:`);
-    const resultI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI32} = phi i32 [ ${foundIndex}, %${foundLabel} ], [ -1, %${notfoundLabel} ]`);
-
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-    this.ctx.setVariableType(result, 'double');
-    return result;
+    return _handleStringArrayIndexOf(this.ctx, expr, params);
   }
 
   private handleStringArrayIncludes(expr: MethodCallNode, params: string[]): string {
-    const indexResult = this.handleStringArrayIndexOf(expr, params);
-    const cmp = this.ctx.nextTemp();
-    this.ctx.emit(`${cmp} = fcmp oge double ${indexResult}, 0.0`);
-    const cmpI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${cmpI32} = zext i1 ${cmp} to i32`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = sitofp i32 ${cmpI32} to double`);
-    this.ctx.setVariableType(result, 'double');
-    return result;
+    return _handleStringArrayIncludes(this.ctx, expr, params);
   }
 
   private handleStringIncludes(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    const ptrType = this.ctx.getVariableType(strPtr);
-    if (ptrType && (ptrType === '%Array*' || ptrType === '%StringArray*' || ptrType === '%ObjectArray*' || ptrType.endsWith('Array*'))) {
-      throw new Error(
-        `includes() was dispatched to string handler but received an array type '${ptrType}'.\n` +
-        `  This indicates isArrayExpression/isStringArrayExpression failed to detect the array.\n` +
-        `  Expression type: ${expr.object.type}\n` +
-        `  Check type tracking for this expression.`
-      );
-    }
-
-    if (!ptrType || ptrType === 'unknown') {
-      const exprObjBase = expr.object as ExprBase;
-      let details = `Expression type: ${exprObjBase.type}`;
-      if (exprObjBase.type === 'variable') {
-        details += `, variable: ${(expr.object as VariableNode).name}`;
-      } else if (exprObjBase.type === 'method_call') {
-        const mc = expr.object as MethodCallNode;
-        details += `, method: ${mc.method}`;
-      }
-      throw new Error(
-        `includes() called on expression with unknown type.\n` +
-        `  Result register: ${strPtr}, type: ${ptrType || 'undefined'}\n` +
-        `  ${details}\n` +
-        `  If this is an array, isArrayExpression/isStringArrayExpression is not detecting it.\n` +
-        `  Fix type tracking to ensure proper dispatch.`
-      );
-    }
-
-    if (expr.args.length !== 1) {
-      throw new Error(`includes() expects 1 argument, got ${expr.args.length}`);
-    }
-
-    const substring = this.ctx.generateExpression(expr.args[0], params);
-    return this.ctx.stringGenGenerateIncludes(strPtr, substring);
+    return _handleStringIncludes(this.ctx, expr, params);
   }
 
   private handleSlice(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    const ptrType = this.ctx.getVariableType(strPtr);
-    if (ptrType && (ptrType === '%Array*' || ptrType === '%StringArray*' || ptrType === '%ObjectArray*' || ptrType.endsWith('Array*'))) {
-      throw new Error(
-        `slice() was dispatched to string handler but received an array type '${ptrType}'.\n` +
-        `  This indicates isArrayExpression/isStringArrayExpression/isObjectArrayExpression failed to detect the array.\n` +
-        `  Expression type: ${expr.object.type}\n` +
-        `  Check type tracking for this expression.`
-      );
-    }
-
-    if (!ptrType || ptrType === 'unknown') {
-      const exprObjBase = expr.object as ExprBase;
-      let details = `Expression type: ${exprObjBase.type}`;
-      if (exprObjBase.type === 'variable') {
-        details += `, variable: ${(expr.object as VariableNode).name}`;
-      } else if (exprObjBase.type === 'method_call') {
-        const mc = expr.object as MethodCallNode;
-        details += `, method: ${mc.method}`;
-      }
-      throw new Error(
-        `slice() called on expression with unknown type.\n` +
-        `  Result register: ${strPtr}, type: ${ptrType || 'undefined'}\n` +
-        `  ${details}\n` +
-        `  If this is an array, isArrayExpression/isStringArrayExpression/isObjectArrayExpression is not detecting it.\n` +
-        `  Fix type tracking to ensure proper dispatch.`
-      );
-    }
-
-    if (expr.args.length < 1 || expr.args.length > 2) {
-      throw new Error(`slice() expects 1 or 2 arguments, got ${expr.args.length}`);
-    }
-
-    const startDouble = this.ctx.generateExpression(expr.args[0], params);
-    const startI32 = this.nextTemp();
-    this.emit(`${startI32} = fptosi double ${startDouble} to i32`);
-
-    let endI32: string | null = null;
-    if (expr.args.length === 2) {
-      const endDouble = this.ctx.generateExpression(expr.args[1], params);
-      endI32 = this.nextTemp();
-      this.emit(`${endI32} = fptosi double ${endDouble} to i32`);
-    }
-
-    return this.ctx.stringGenGenerateSlice(strPtr, startI32, endI32);
+    return _handleSlice(this.ctx, expr, params);
   }
 
   private handleReplace(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 2) {
-      throw new Error(`replace() expects 2 arguments, got ${expr.args.length}`);
-    }
-
-    const searchArg = expr.args[0];
-    const replaceArg = expr.args[1];
-
-    if (searchArg.type === 'regex') {
-      const regexNode = searchArg as { pattern: string; flags: string };
-      const isGlobal = regexNode.flags.indexOf('g') !== -1;
-      const searchStr = this.ctx.stringGenGenerateGlobalString(regexNode.pattern);
-      const replaceStr = this.ctx.generateExpression(replaceArg, params);
-      if (isGlobal) {
-        return this.ctx.stringGenGenerateReplaceAll(strPtr, searchStr, replaceStr);
-      } else {
-        return this.ctx.stringGenGenerateReplace(strPtr, searchStr, replaceStr);
-      }
-    }
-
-    const searchStr = this.ctx.generateExpression(searchArg, params);
-    const replaceStr = this.ctx.generateExpression(replaceArg, params);
-    return this.ctx.stringGenGenerateReplace(strPtr, searchStr, replaceStr);
+    return _handleReplace(this.ctx, expr, params);
   }
 
   private handleReplaceAll(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 2) {
-      throw new Error(`replaceAll() expects 2 arguments, got ${expr.args.length}`);
-    }
-
-    const searchStr = this.ctx.generateExpression(expr.args[0], params);
-    const replaceStr = this.ctx.generateExpression(expr.args[1], params);
-    return this.ctx.stringGenGenerateReplaceAll(strPtr, searchStr, replaceStr);
+    return _handleReplaceAll(this.ctx, expr, params);
   }
 
   private handleNumberIsFinite(expr: MethodCallNode, params: string[]): string {
-    const value = this.ctx.generateExpression(expr.args[0], params);
-    const isOrdered = this.ctx.nextTemp();
-    this.ctx.emit(`${isOrdered} = fcmp ord double ${value}, 0.0`);
-    const posInf = this.ctx.nextTemp();
-    this.ctx.emit(`${posInf} = fcmp one double ${value}, 0x7FF0000000000000`);
-    const negInf = this.ctx.nextTemp();
-    this.ctx.emit(`${negInf} = fcmp one double ${value}, 0xFFF0000000000000`);
-    const notInf = this.ctx.nextTemp();
-    this.ctx.emit(`${notInf} = and i1 ${posInf}, ${negInf}`);
-    const isFinite = this.ctx.nextTemp();
-    this.ctx.emit(`${isFinite} = and i1 ${isOrdered}, ${notInf}`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = uitofp i1 ${isFinite} to double`);
-    return result;
+    return _handleNumberIsFinite(this.ctx, expr, params);
   }
 
   private handleNumberIsNaN(expr: MethodCallNode, params: string[]): string {
-    const value = this.ctx.generateExpression(expr.args[0], params);
-    const isNaN = this.ctx.nextTemp();
-    this.ctx.emit(`${isNaN} = fcmp uno double ${value}, ${value}`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = uitofp i1 ${isNaN} to double`);
-    return result;
+    return _handleNumberIsNaN(this.ctx, expr, params);
   }
 
   private handleNumberIsInteger(expr: MethodCallNode, params: string[]): string {
-    const value = this.ctx.generateExpression(expr.args[0], params);
-    const truncated = this.ctx.nextTemp();
-    this.ctx.emit(`${truncated} = call double @llvm.trunc.f64(double ${value})`);
-    const isInt = this.ctx.nextTemp();
-    this.ctx.emit(`${isInt} = fcmp oeq double ${value}, ${truncated}`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = uitofp i1 ${isInt} to double`);
-    return result;
+    return _handleNumberIsInteger(this.ctx, expr, params);
   }
 
   private handleNumberToString(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const numValue = this.ctx.generateExpression(expr.object, params);
-    return this.ctx.stringGenConvertNumberToString(numValue);
+    return _handleNumberToString(this.ctx, expr, params);
   }
 
   private handleCharAt(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 1) {
-      throw new Error('charAt() expects 1 argument, got ' + expr.args.length);
-    }
-
-    const indexDouble = this.ctx.generateExpression(expr.args[0], params);
-    const indexI32 = this.ctx.nextTemp();
-    this.ctx.emit(indexI32 + ' = fptosi double ' + indexDouble + ' to i32');
-    return this.ctx.stringGenGenerateCharAt(strPtr, indexI32);
+    return _handleCharAt(this.ctx, expr, params);
   }
 
   private handleCharCodeAt(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 1) {
-      throw new Error('charCodeAt() expects 1 argument, got ' + expr.args.length);
-    }
-
-    const indexDouble = this.ctx.generateExpression(expr.args[0], params);
-    const indexI32 = this.ctx.nextTemp();
-    this.ctx.emit(indexI32 + ' = fptosi double ' + indexDouble + ' to i32');
-    return this.ctx.stringGenGenerateCharCodeAt(strPtr, indexI32);
+    return _handleCharCodeAt(this.ctx, expr, params);
   }
 
   private handleToUpperCase(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-    return this.ctx.stringGenGenerateToUpperCase(strPtr);
+    return _handleToUpperCase(this.ctx, expr, params);
   }
 
   private handleToLowerCase(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-    return this.ctx.stringGenGenerateToLowerCase(strPtr);
+    return _handleToLowerCase(this.ctx, expr, params);
   }
 
   private handleMatch(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
-    const strPtr = this.ctx.generateExpression(expr.object, params);
-
-    if (expr.args.length !== 1) {
-      throw new Error('match() expects 1 argument (a regex), got ' + expr.args.length);
-    }
-
-    const regexArg = expr.args[0];
-
-    if (regexArg.type === 'regex') {
-      const regexNode = regexArg as RegexNode;
-      const pattern = regexNode.pattern;
-      const flags = regexNode.flags || '';
-
-      let numGroups = 0;
-      for (let gi = 0; gi < pattern.length; gi++) {
-        if (pattern[gi] === '(') {
-          numGroups = numGroups + 1;
-        }
-      }
-
-      const regexPtr = this.ctx.regexGenGenerateRegexCompile(pattern, flags);
-      return this.ctx.regexGenGenerateRegexMatch(regexPtr, strPtr, numGroups);
-    }
-
-    const regexPtr = this.ctx.generateExpression(regexArg, params);
-    return this.ctx.regexGenGenerateRegexMatch(regexPtr, strPtr, 9);
+    return _handleMatch(this.ctx, expr, params);
   }
 
   private handleClassMethods(expr: MethodCallNode, params: string[]): string | null {
