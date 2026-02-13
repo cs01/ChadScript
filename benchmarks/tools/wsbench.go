@@ -2,14 +2,11 @@ package main
 
 import (
 	"crypto/rand"
-	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
 	"flag"
 	"fmt"
 	"io"
-	"math/big"
-	mrand "math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -31,12 +28,14 @@ func wsConnect(host string) (net.Conn, error) {
 	key := base64.StdEncoding.EncodeToString(keyBytes)
 
 	req := fmt.Sprintf("GET / HTTP/1.1\r\nHost: %s\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: %s\r\nSec-WebSocket-Version: 13\r\n\r\n", host, key)
+	conn.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	_, err = conn.Write([]byte(req))
 	if err != nil {
 		conn.Close()
 		return nil, err
 	}
 
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	buf := make([]byte, 4096)
 	n, err := conn.Read(buf)
 	if err != nil {
@@ -49,23 +48,18 @@ func wsConnect(host string) (net.Conn, error) {
 		return nil, fmt.Errorf("upgrade failed: %s", resp[:min(len(resp), 80)])
 	}
 
-	magic := "258EAFA5-E914-47DA-95CA-5AB9CD86F85B"
-	h := sha1.New()
-	h.Write([]byte(key + magic))
-	expected := base64.StdEncoding.EncodeToString(h.Sum(nil))
-	if !strings.Contains(resp, expected) {
-		conn.Close()
-		return nil, fmt.Errorf("bad accept key")
-	}
-
+	conn.SetReadDeadline(time.Time{})
+	conn.SetWriteDeadline(time.Time{})
 	return conn, nil
 }
 
-func wsSendText(conn net.Conn, data []byte) error {
-	payloadLen := len(data)
-	maskKey := make([]byte, 4)
-	mrand.Read(maskKey)
+func wsSendText(conn net.Conn, frame []byte) error {
+	_, err := conn.Write(frame)
+	return err
+}
 
+func buildFrame(data []byte, maskKey [4]byte) []byte {
+	payloadLen := len(data)
 	var header []byte
 	header = append(header, 0x81)
 	if payloadLen < 126 {
@@ -81,35 +75,33 @@ func wsSendText(conn net.Conn, data []byte) error {
 		binary.BigEndian.PutUint64(lenBytes, uint64(payloadLen))
 		header = append(header, lenBytes...)
 	}
-	header = append(header, maskKey...)
+	header = append(header, maskKey[:]...)
 
 	masked := make([]byte, payloadLen)
 	for i := 0; i < payloadLen; i++ {
 		masked[i] = data[i] ^ maskKey[i%4]
 	}
 
-	frame := append(header, masked...)
-	_, err := conn.Write(frame)
-	return err
+	return append(header, masked...)
 }
 
-func wsReadFrame(conn net.Conn, buf []byte) ([]byte, error) {
+func wsReadFrame(conn net.Conn, buf []byte) (int, error) {
 	_, err := io.ReadFull(conn, buf[:2])
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
 	payloadLen := int(buf[1] & 0x7F)
 	if payloadLen == 126 {
 		_, err := io.ReadFull(conn, buf[:2])
 		if err != nil {
-			return nil, err
+			return 0, err
 		}
 		payloadLen = int(binary.BigEndian.Uint16(buf[:2]))
 	} else if payloadLen == 127 {
 		_, err := io.ReadFull(conn, buf[:8])
 		if err != nil {
-			return nil, err
+			return 0, err
 		}
 		payloadLen = int(binary.BigEndian.Uint64(buf[:8]))
 	}
@@ -120,17 +112,16 @@ func wsReadFrame(conn net.Conn, buf []byte) ([]byte, error) {
 
 	_, err = io.ReadFull(conn, buf[:payloadLen])
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 
-	return buf[:payloadLen], nil
+	return payloadLen, nil
 }
 
 func main() {
 	serverURL := flag.String("url", "ws://127.0.0.1:9877/", "WebSocket server URL")
 	numClients := flag.Int("c", 32, "number of concurrent clients")
 	dur := flag.Duration("d", 10*time.Second, "test duration")
-	msgInterval := flag.Duration("i", 50*time.Millisecond, "interval between sends per client")
 	flag.Parse()
 
 	u, err := url.Parse(*serverURL)
@@ -144,12 +135,10 @@ func main() {
 		host += ":80"
 	}
 
-	var totalReceived int64
-	var totalSent int64
 	var done int64
+	var wg sync.WaitGroup
 
 	conns := make([]net.Conn, *numClients)
-	var wg sync.WaitGroup
 
 	fmt.Printf("Connecting %d WebSocket clients to %s...\n", *numClients, u.String())
 
@@ -157,6 +146,7 @@ func main() {
 	for i := 0; i < *numClients; i++ {
 		c, err := wsConnect(host)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "  client %d: %v\n", i, err)
 			continue
 		}
 		conns[i] = c
@@ -169,41 +159,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	for i := 0; i < *numClients; i++ {
-		if conns[i] == nil {
-			continue
-		}
-		wg.Add(1)
-		go func(c net.Conn) {
-			defer wg.Done()
-			buf := make([]byte, 4096)
-			for atomic.LoadInt64(&done) == 0 {
-				_, err := wsReadFrame(c, buf)
-				if err != nil {
-					return
-				}
-				atomic.AddInt64(&totalReceived, 1)
-			}
-		}(conns[i])
-	}
+	msg := []byte("Hello, World!")
+	maskKey := [4]byte{0x12, 0x34, 0x56, 0x78}
+	frame := buildFrame(msg, maskKey)
+
+	counters := make([]int64, *numClients)
 
 	for i := 0; i < *numClients; i++ {
 		if conns[i] == nil {
 			continue
 		}
 		wg.Add(1)
-		go func(c net.Conn) {
+		go func(idx int, c net.Conn) {
 			defer wg.Done()
-			msg := []byte("Hello, World!")
+			readBuf := make([]byte, 4096)
 			for atomic.LoadInt64(&done) == 0 {
-				err := wsSendText(c, msg)
+				err := wsSendText(c, frame)
 				if err != nil {
 					return
 				}
-				atomic.AddInt64(&totalSent, 1)
-				time.Sleep(*msgInterval)
+				_, err = wsReadFrame(c, readBuf)
+				if err != nil {
+					return
+				}
+				atomic.AddInt64(&counters[idx], 1)
 			}
-		}(conns[i])
+		}(i, conns[i])
 	}
 
 	sigCh := make(chan os.Signal, 1)
@@ -214,20 +195,20 @@ func main() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 	start := time.Now()
-	var lastReceived int64
-
-	seed, _ := rand.Int(rand.Reader, big.NewInt(1<<62))
-	mrand.Seed(seed.Int64())
+	var lastTotal int64
 
 loop:
 	for {
 		select {
 		case <-ticker.C:
-			cur := atomic.LoadInt64(&totalReceived)
-			delta := cur - lastReceived
-			lastReceived = cur
+			var cur int64
+			for i := 0; i < *numClients; i++ {
+				cur += atomic.LoadInt64(&counters[i])
+			}
+			delta := cur - lastTotal
+			lastTotal = cur
 			elapsed := time.Since(start).Seconds()
-			fmt.Printf("  [%.0fs] %d msg/sec\n", elapsed, delta)
+			fmt.Printf("  [%.0fs] %d echo/sec\n", elapsed, delta)
 			if time.Since(start) >= *dur {
 				break loop
 			}
@@ -245,16 +226,17 @@ loop:
 	wg.Wait()
 
 	elapsed := time.Since(start)
-	recv := atomic.LoadInt64(&totalReceived)
-	sent := atomic.LoadInt64(&totalSent)
-	rps := float64(recv) / elapsed.Seconds()
+	var totalEchoes int64
+	for i := 0; i < *numClients; i++ {
+		totalEchoes += counters[i]
+	}
+	rps := float64(totalEchoes) / elapsed.Seconds()
 
 	fmt.Println()
 	fmt.Printf("Clients:     %d\n", connected)
 	fmt.Printf("Duration:    %.2fs\n", elapsed.Seconds())
-	fmt.Printf("Sent:        %d\n", sent)
-	fmt.Printf("Received:    %d\n", recv)
-	fmt.Printf("Msg/sec:     %.0f\n", rps)
+	fmt.Printf("Echoes:      %d\n", totalEchoes)
+	fmt.Printf("Echo/sec:    %.0f\n", rps)
 }
 
 func min(a, b int) int {

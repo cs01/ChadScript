@@ -7,21 +7,10 @@ const server = createServer((req, res) => {
 });
 
 const wss = new WebSocketServer({ server });
-const clients = [];
 
 wss.on("connection", (ws) => {
-  clients.push(ws);
-
   ws.on("message", (message) => {
-    const out = message.toString();
-    for (let i = 0; i < clients.length; i++) {
-      clients[i].send(out);
-    }
-  });
-
-  ws.on("close", () => {
-    const idx = clients.indexOf(ws);
-    if (idx !== -1) clients.splice(idx, 1);
+    ws.send(message);
   });
 });
 

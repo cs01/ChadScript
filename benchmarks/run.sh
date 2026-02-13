@@ -24,9 +24,6 @@ echo "  ChadScript startup built"
 $CHAD "$DIR/sqlite/chadscript.ts" -o /tmp/bench-sqlite-chad
 echo "  ChadScript SQLite built"
 
-$CHAD "$DIR/nbody/chadscript.ts" -o /tmp/bench-nbody-chad
-echo "  ChadScript N-Body built"
-
 $CHAD "$DIR/matmul/chadscript.ts" -o /tmp/bench-matmul-chad
 echo "  ChadScript Matmul built"
 
@@ -45,9 +42,6 @@ echo "  C startup built"
 clang -O2 -o /tmp/bench-sqlite-c "$DIR/sqlite/bench.c" -lsqlite3
 echo "  C SQLite built"
 
-clang -O2 -o /tmp/bench-nbody-c "$DIR/nbody/bench.c" -lm
-echo "  C N-Body built"
-
 clang -O2 -o /tmp/bench-matmul-c "$DIR/matmul/bench.c"
 echo "  C Matmul built"
 
@@ -57,9 +51,6 @@ echo "  C Monte Carlo built"
 go build -o /tmp/bench-startup-go "$DIR/startup/hello.go"
 echo "  Go startup built"
 
-go build -o /tmp/bench-nbody-go "$DIR/nbody/nbody.go"
-echo "  Go N-Body built"
-
 go build -o /tmp/bench-matmul-go "$DIR/matmul/matmul.go"
 echo "  Go Matmul built"
 
@@ -68,6 +59,9 @@ echo "  Go Monte Carlo built"
 
 go build -o /tmp/bench-http-go "$DIR/http/go_server.go"
 echo "  Go HTTP server built"
+
+go build -o /tmp/bench-ws-go "$DIR/websocket/go_server.go"
+echo "  Go WebSocket server built"
 
 echo ""
 
@@ -85,29 +79,43 @@ bench_startup() {
     printf "    %-20s %d.%dms\n" "$name" "$avg_ms_int" "$avg_ms_frac"
 }
 
+wait_port_free() {
+    local port=$1
+    for i in $(seq 1 30); do
+        if ! ss -tln 2>/dev/null | grep -q ":${port} "; then
+            return 0
+        fi
+        sleep 0.2
+    done
+}
+
 bench_http_server() {
     local name="$1"
     shift
+    wait_port_free $HTTP_PORT
     "$@" > /dev/null 2>&1 &
     local pid=$!
     sleep 1
     echo "  $name"
     $HTTP_BENCH -url "http://127.0.0.1:${HTTP_PORT}/" -c 50 -d "$BENCH_DURATION" 2>&1 | sed 's/^/    /'
-    kill $pid 2>/dev/null
+    kill -9 $pid 2>/dev/null
     wait $pid 2>/dev/null
+    sleep 0.5
     echo ""
 }
 
 bench_ws_server() {
     local name="$1"
     shift
+    wait_port_free $WS_PORT
     "$@" > /dev/null 2>&1 &
     local pid=$!
     sleep 1
     echo "  $name"
     $WS_BENCH -url "ws://127.0.0.1:${WS_PORT}/" -c 32 -d "$BENCH_DURATION" 2>&1 | sed 's/^/    /'
-    kill $pid 2>/dev/null
+    kill -9 $pid 2>/dev/null
     wait $pid 2>/dev/null
+    sleep 0.5
     echo ""
 }
 
@@ -142,31 +150,6 @@ echo ""
 
 echo "  Bun $(bun --version)"
 bun "$DIR/sqlite/bun.mjs" 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "═══════════════════════════════════════════════════"
-echo "  N-Body  (5 bodies, 50M steps)"
-echo "═══════════════════════════════════════════════════"
-echo ""
-
-echo "  C (clang -O2)"
-/tmp/bench-nbody-c 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  ChadScript (native)"
-/tmp/bench-nbody-chad 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Go"
-/tmp/bench-nbody-go 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Node.js $(node --version)"
-node "$DIR/nbody/node.mjs" 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Bun $(bun --version)"
-bun "$DIR/nbody/bun.mjs" 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "═══════════════════════════════════════════════════"
@@ -230,11 +213,12 @@ bench_http_server "Bun $(bun --version)" bun "$DIR/http/bun.mjs"
 bench_http_server "Node.js $(node --version)" node "$DIR/http/node.mjs"
 
 echo "═══════════════════════════════════════════════════"
-echo "  WebSocket  (chat broadcast, 32 clients, ${BENCH_DURATION})"
+echo "  WebSocket  (echo, 32 clients, ${BENCH_DURATION})"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
 bench_ws_server "ChadScript (native)" /tmp/bench-ws-chad
+bench_ws_server "Go (x/net/websocket)" /tmp/bench-ws-go
 bench_ws_server "Bun $(bun --version)" bun "$DIR/websocket/bun.mjs"
 bench_ws_server "Node.js $(node --version)" node "$DIR/websocket/node.mjs"
 

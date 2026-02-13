@@ -17,8 +17,7 @@ interface Response {
 
 function wsHandler(event: WsEvent): string {
   if (event.event == "message") {
-    wsBroadcast(event.data);
-    return "";
+    return event.data;
   }
   return "";
 }
