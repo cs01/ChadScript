@@ -223,6 +223,11 @@ export interface MethodCallGeneratorContext {
   getAstFunctionAt(index: number): FunctionNode | null;
   getAstFunctionNameAt(index: number): string | null;
   setUsesPromises(value: boolean): void;
+  setUsesSqlite(value: boolean): void;
+  setUsesCurl(value: boolean): void;
+  setUsesCrypto(value: boolean): void;
+  setUsesJson(value: boolean): void;
+  setUsesMongoose(value: boolean): void;
   symbolTableIsClass(name: string): boolean;
   symbolTableIsMap(name: string): boolean;
   symbolTableIsSet(name: string): boolean;
@@ -939,6 +944,7 @@ export class MethodCallGenerator {
     // Handle JSON.parse() and JSON.stringify() - inline check
     if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'JSON') {
       if (method === 'parse') {
+        this.ctx.setUsesJson(true);
         return this.ctx.jsonGenGenerateParse(expr, params);
       } else if (method === 'stringify') {
         return this.ctx.jsonGenGenerateStringify(expr, params);
@@ -957,6 +963,7 @@ export class MethodCallGenerator {
 
     // Handle crypto.* methods
     if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'crypto') {
+      this.ctx.setUsesCrypto(true);
       if (method === 'sha256') {
         return this.ctx.cryptoGenSha256(expr, params);
       } else if (method === 'md5') {
@@ -970,6 +977,7 @@ export class MethodCallGenerator {
 
     // Handle sqlite.* methods
     if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'sqlite') {
+      this.ctx.setUsesSqlite(true);
       if (method === 'open') {
         return this.ctx.sqliteGenOpen(expr, params);
       } else if (method === 'exec') {
@@ -1019,6 +1027,7 @@ export class MethodCallGenerator {
         if (method === 'text') {
           return this.ctx.responseGenGenerateText(responsePtr);
         } else if (method === 'json') {
+          this.ctx.setUsesJson(true);
           if (expr.typeParameter) {
             const typeName = expr.typeParameter;
             const interfaceDefResult = this.getInterfaceFromAST(typeName);

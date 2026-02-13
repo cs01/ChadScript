@@ -85,6 +85,8 @@ export class CallExpressionGenerator {
       const urlValue = this.ctx.generateExpression(expr.args[0], params);
       const temp = this.ctx.nextTemp();
       this.ctx.setUsesPromises(true);
+      this.ctx.setUsesCurl(true);
+      this.ctx.setUsesJson(true);
       this.ctx.emit(`${temp} = call %Promise* @fetch_async(i8* ${urlValue})`);
       this.ctx.setVariableType(temp, '%Promise*');
       return temp;

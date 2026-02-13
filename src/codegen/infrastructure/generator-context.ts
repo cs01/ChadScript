@@ -485,17 +485,22 @@ export interface IGeneratorContext {
   /**
    * Whether the current compilation uses Promises
    */
-  usesPromises: boolean;
+  usesPromises: number;
   setUsesPromises(value: boolean): void;
   getUsesPromises(): boolean;
 
   /**
    * Whether the current compilation uses timers (setTimeout/setInterval)
    */
-  usesTimers: boolean;
+  usesTimers: number;
   setUsesTimers(value: boolean): void;
   getUsesTimers(): boolean;
   setUsesTreeSitter(value: boolean): void;
+  setUsesSqlite(value: boolean): void;
+  setUsesCurl(value: boolean): void;
+  setUsesCrypto(value: boolean): void;
+  setUsesJson(value: boolean): void;
+  setUsesMongoose(value: boolean): void;
 
   currentDeclaredInterfaceType: string | undefined;
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
@@ -798,8 +803,13 @@ export class MockGeneratorContext implements IGeneratorContext {
   public currentLabel: string = 'entry';
   public typeChecker: TypeChecker | null = null;
   public typeResolver?: TypeResolver;
-  public usesPromises = false;
-  public usesTimers = false;
+  public usesPromises: number = 0;
+  public usesTimers: number = 0;
+  public usesSqlite: number = 0;
+  public usesCurl: number = 0;
+  public usesCrypto: number = 0;
+  public usesJson: number = 0;
+  public usesMongoose: number = 0;
   public currentFunction: string | null = null;
   public currentDeclaredInterfaceType: string | undefined = undefined;
 
@@ -902,11 +912,16 @@ export class MockGeneratorContext implements IGeneratorContext {
   getAllocaInstructions(): string[] { return this.allocaInstructions; }
   clearAllocaInstructions(): void { this.allocaInstructions.length = 0; }
 
-  setUsesPromises(value: boolean): void { this.usesPromises = value; }
-  getUsesPromises(): boolean { return this.usesPromises; }
-  setUsesTimers(value: boolean): void { this.usesTimers = value; }
-  getUsesTimers(): boolean { return this.usesTimers; }
+  setUsesPromises(value: boolean): void { this.usesPromises = value ? 1 : 0; }
+  getUsesPromises(): boolean { return this.usesPromises !== 0; }
+  setUsesTimers(value: boolean): void { this.usesTimers = value ? 1 : 0; }
+  getUsesTimers(): boolean { return this.usesTimers !== 0; }
   setUsesTreeSitter(_value: boolean): void { }
+  setUsesSqlite(value: boolean): void { this.usesSqlite = value ? 1 : 0; }
+  setUsesCurl(value: boolean): void { this.usesCurl = value ? 1 : 0; }
+  setUsesCrypto(value: boolean): void { this.usesCrypto = value ? 1 : 0; }
+  setUsesJson(value: boolean): void { this.usesJson = value ? 1 : 0; }
+  setUsesMongoose(value: boolean): void { this.usesMongoose = value ? 1 : 0; }
   setCurrentDeclaredInterfaceType(type: string | undefined): void { this.currentDeclaredInterfaceType = type; }
   getCurrentDeclaredInterfaceType(): string | undefined { return this.currentDeclaredInterfaceType; }
   setExpectedCallbackParamType(type: string | null): void { this.expectedCallbackParamType = type; }

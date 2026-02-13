@@ -1,5 +1,5 @@
 export class LibuvGenerator {
-  generateDeclarations(): string {
+  generateDeclarations(includePromiseTypes?: boolean): string {
     let ir = '; libuv library declarations\n';
     ir += '; Cross-platform async I/O library (event loop, timers, etc.)\n\n';
 
@@ -48,8 +48,10 @@ export class LibuvGenerator {
     ir += 'declare void @uv_req_set_data(i8*, i8*)\n';
     ir += 'declare i8* @uv_req_get_data(i8*)\n\n';
 
+    if (includePromiseTypes) {
     ir += '; FetchWorkContext: { url: i8*, response: %__FetchResponse*, promise: %Promise* }\n';
     ir += '%FetchWorkContext = type { i8*, %__FetchResponse*, %Promise* }\n\n';
+    }
 
     return ir;
   }

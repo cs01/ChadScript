@@ -179,23 +179,22 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const llcStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(compileCmd, { stdio: llcStdio });
 
-  // Link to executable with all required libraries
-  // - libgc: Boehm garbage collector (replaces malloc)
-  // - mongoose: HTTP server (compiled object file)
-  // - libcurl: HTTP client (fetch API)
-  // - libcjson: JSON parsing
-  // - libuv: Event loop and async I/O (timers, etc.)
-  // - libm: Math functions
-  // - tree-sitter: Incremental parsing (optional, for self-hosting)
-  const mongooseObj = `${MONGOOSE_PATH}/mongoose.o`;
-
-  // Build link command with all libraries
+  // Link to executable - only link libraries that the program actually uses
   const isMac = process.platform === 'darwin';
-  let linkLibs = `-L${BDWGC_PATH} -L${CJSON_PATH} -L${LIBUV_PATH} -lgc -lcjson -luv -lcurl -lcrypto -lsqlite3 -lm -lpthread` + (isMac ? '' : ' -ldl -lrt');
+  const platformLibs = isMac ? '' : ' -ldl -lrt';
+  let linkLibs = `-L${BDWGC_PATH} -lgc -lm -lpthread` + platformLibs;
+  if (generator.usesJson) { linkLibs += ` -L${CJSON_PATH} -lcjson`; }
+  if (generator.usesTimers || generator.usesPromises || generator.usesCurl) { linkLibs += ` -L${LIBUV_PATH} -luv`; }
+  if (generator.usesCurl) { linkLibs += ' -lcurl'; }
+  if (generator.usesCrypto) { linkLibs += ' -lcrypto'; }
+  if (generator.usesSqlite) { linkLibs += ' -lsqlite3'; }
   if (isMac) {
     const brewPrefix = process.arch === 'arm64' ? '/opt/homebrew/opt' : '/usr/local/opt';
-    linkLibs = `-L${brewPrefix}/openssl/lib -L${brewPrefix}/sqlite/lib -L/usr/local/lib ` + linkLibs;
+    if (generator.usesCrypto) { linkLibs = `-L${brewPrefix}/openssl/lib ` + linkLibs; }
+    if (generator.usesSqlite) { linkLibs = `-L${brewPrefix}/sqlite/lib ` + linkLibs; }
+    linkLibs = `-L/usr/local/lib ` + linkLibs;
   }
+  const mongooseObj = generator.usesMongoose ? `${MONGOOSE_PATH}/mongoose.o` : '';
   let extraObjs = '';
 
   if (linkTreeSitter) {

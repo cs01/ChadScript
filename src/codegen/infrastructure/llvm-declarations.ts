@@ -1,4 +1,10 @@
-export function getLLVMDeclarations(): string {
+export interface DeclConfig {
+  curl?: boolean;
+  crypto?: boolean;
+  sqlite?: boolean;
+}
+
+export function getLLVMDeclarations(config?: DeclConfig): string {
   let ir = '';
 
   ir += '%Array = type { double*, i32, i32 }\n';
@@ -138,6 +144,7 @@ export function getLLVMDeclarations(): string {
   ir += 'declare i32 @gettimeofday(%struct.timeval*, i8*)\n';
   ir += '\n';
 
+  if (config && config.curl) {
   ir += '; libcurl functions\n';
   ir += 'declare i8* @curl_easy_init()\n';
   ir += 'declare i32 @curl_easy_setopt(i8*, i32, ...)\n';
@@ -152,7 +159,9 @@ export function getLLVMDeclarations(): string {
   ir += '@CURLOPT_FOLLOWLOCATION = constant i32 52\n';
   ir += '@CURLOPT_USERAGENT = constant i32 10018\n';
   ir += '\n';
+  }
 
+  if (config && config.crypto) {
   ir += '; OpenSSL EVP functions (crypto module)\n';
   ir += 'declare i8* @EVP_MD_CTX_new()\n';
   ir += 'declare void @EVP_MD_CTX_free(i8*)\n';
@@ -164,7 +173,9 @@ export function getLLVMDeclarations(): string {
   ir += 'declare i8* @EVP_sha512()\n';
   ir += 'declare i32 @RAND_bytes(i8*, i32)\n';
   ir += '\n';
+  }
 
+  if (config && config.sqlite) {
   ir += '; SQLite3 functions (sqlite module)\n';
   ir += 'declare i32 @sqlite3_open(i8*, i8**)\n';
   ir += 'declare i32 @sqlite3_exec(i8*, i8*, i8*, i8*, i8**)\n';
@@ -175,6 +186,7 @@ export function getLLVMDeclarations(): string {
   ir += 'declare i32 @sqlite3_column_count(i8*)\n';
   ir += 'declare i32 @sqlite3_finalize(i8*)\n';
   ir += '\n';
+  }
 
   return ir;
 }
