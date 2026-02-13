@@ -45,7 +45,7 @@ function setup() {
   const textEl = document.querySelector('.VPHero .text') as HTMLElement | null
   if (!textEl) return false
 
-  textEl.innerHTML = 'TypeScript to <span class="hero-rotating">Native Binaries</span>'
+  textEl.innerHTML = 'Compiles TypeScript to <span class="hero-rotating">Native Binaries</span>'
   rotatingEl = textEl.querySelector('.hero-rotating')
   if (!rotatingEl) return false
 
