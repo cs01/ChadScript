@@ -209,6 +209,7 @@ function transformMethodDeclaration(
     name,
     params,
     paramTypes,
+    parameterProperties: undefined,
     returnType,
     body,
     isConstructor,
@@ -293,6 +294,9 @@ function transformAccessorDeclaration(
     type: 'method',
     name,
     params,
+    paramTypes: undefined,
+    parameterProperties: undefined,
+    returnType: undefined,
     body,
     isConstructor: false,
   };

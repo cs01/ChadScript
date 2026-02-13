@@ -114,7 +114,7 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
             specifiers.push(element.name.text);
           }
         }
-        const syntheticImport: ImportDeclaration = { type: 'import', specifiers, source };
+        const syntheticImport: ImportDeclaration = { type: 'import', specifiers, aliasedSpecifiers: undefined, source };
         ast.imports.push(syntheticImport);
       }
       break;
