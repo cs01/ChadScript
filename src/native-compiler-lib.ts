@@ -33,6 +33,7 @@ declare function __gc_disable(): void;
 export let skipSemanticAnalysis = false;
 export let emitLLVMOnly = false;
 export let verbose = false;
+export let linkTreeSitter = false;
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -44,6 +45,10 @@ export function setEmitLLVMOnly(value: boolean): void {
 
 export function setVerbose(value: boolean): void {
   verbose = value;
+}
+
+export function setLinkTreeSitter(value: boolean): void {
+  linkTreeSitter = value;
 }
 
 export function compileNative(inputFile: string, outputFile: string): void {
@@ -83,7 +88,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
 
   if (verbose) { console.log('Generating LLVM IR...'); }
   const generatorOptions: LLVMGeneratorOptions = {
-    linkTreeSitter: true,
+    linkTreeSitter: linkTreeSitter,
     sourceCode: '',
     filename: inputFile
   };
@@ -108,7 +113,11 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
 
   const objFile = outputFile + '.o';
-  const llcCmd = 'llc -filetype=obj ' + irFile + ' -o ' + objFile;
+  const optFile = irFile.replace('.ll', '.opt.bc');
+  const optCmd = 'opt -O2 ' + irFile + ' -o ' + optFile;
+  if (verbose) { console.log('Running: ' + optCmd); }
+  child_process.execSync(optCmd);
+  const llcCmd = 'llc -O2 -filetype=obj ' + optFile + ' -o ' + objFile;
   if (verbose) { console.log('Running: ' + llcCmd); }
   child_process.execSync(llcCmd);
   if (!fs.existsSync(objFile)) {
@@ -120,9 +129,14 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const platformLibs = isMac ? '' : ' -ldl -lrt';
   const noPie = isMac ? '' : ' -no-pie';
   const tsObjDir = isInstalled ? installedLibDir : CHADSCRIPT_PATH + '/build';
-  const treeSitterTs = tsObjDir + '/tree-sitter-typescript-parser.o ' + tsObjDir + '/tree-sitter-typescript-scanner.o ' + tsObjDir + '/treesitter-bridge.o';
-  const tsLibPath = isInstalled ? installedLibDir + '/libtree-sitter.a' : './vendor/tree-sitter/libtree-sitter.a';
-  let linkLibs = '-L' + BDWGC_PATH + ' -lgc -lm -lpthread' + platformLibs + ' ' + tsLibPath;
+  let treeSitterObjs = '';
+  let tsLibPath = '';
+  if (linkTreeSitter || generator.getUsesTreeSitter()) {
+    treeSitterObjs = tsObjDir + '/tree-sitter-typescript-parser.o ' + tsObjDir + '/tree-sitter-typescript-scanner.o ' + tsObjDir + '/treesitter-bridge.o';
+    tsLibPath = isInstalled ? installedLibDir + '/libtree-sitter.a' : './vendor/tree-sitter/libtree-sitter.a';
+  }
+  let linkLibs = '-L' + BDWGC_PATH + ' -lgc -lm -lpthread' + platformLibs;
+  if (tsLibPath) { linkLibs = linkLibs + ' ' + tsLibPath; }
   const cjsonDir = isInstalled ? installedLibDir : './vendor/cJSON/build';
   if (generator.getUsesJson()) { linkLibs = '-L' + cjsonDir + ' -lcjson ' + linkLibs; }
   const uvDir = isInstalled ? installedLibDir : './vendor/libuv/build';
@@ -136,7 +150,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     if (generator.getUsesSqlite()) { linkLibs = '-L/opt/homebrew/opt/sqlite/lib -L/usr/local/opt/sqlite/lib ' + linkLibs; }
     linkLibs = '-L/usr/local/lib ' + linkLibs;
   }
-  const linkCmd = 'clang ' + objFile + ' ' + mongooseObj + ' ' + treeSitterTs + ' -o ' + outputFile + noPie + ' ' + linkLibs;
+  const linkCmd = 'clang ' + objFile + ' ' + mongooseObj + ' ' + treeSitterObjs + ' -o ' + outputFile + noPie + ' ' + linkLibs;
   if (verbose) { console.log('Running: ' + linkCmd); }
   child_process.execSync(linkCmd);
   if (!fs.existsSync(outputFile)) {

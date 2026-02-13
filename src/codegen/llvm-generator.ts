@@ -744,6 +744,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public setUsesTimers(value: boolean): void { this.usesTimers = value ? 1 : 0; }
   public getUsesTimers(): boolean { return this.usesTimers !== 0; }
   public setUsesTreeSitter(value: boolean): void { this.usesTreeSitter = value; }
+  public getUsesTreeSitter(): boolean { return this.usesTreeSitter; }
   public setUsesSqlite(value: boolean): void { this.usesSqlite = value ? 1 : 0; }
   public getUsesSqlite(): boolean { return this.usesSqlite !== 0; }
   public setUsesCurl(value: boolean): void { this.usesCurl = value ? 1 : 0; }

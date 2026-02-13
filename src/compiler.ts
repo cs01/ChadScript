@@ -169,14 +169,18 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   // Compile IR to object file
   const objFile = outputFile + '.o';
   const sanitizeFlags = sanitize ? ` -fsanitize=${sanitize}` : '';
+  const llcStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   let compileCmd: string;
   if (sanitize) {
     compileCmd = `clang -c${sanitizeFlags} ${irFile} -o ${objFile}`;
   } else {
-    compileCmd = `llc -filetype=obj ${irFile} -o ${objFile}`;
+    const optFile = irFile.replace('.ll', '.opt.bc');
+    const optCmd = `opt -O2 ${irFile} -o ${optFile}`;
+    logger.info(` ${optCmd}`);
+    execSync(optCmd, { stdio: llcStdio });
+    compileCmd = `llc -O2 -filetype=obj ${optFile} -o ${objFile}`;
   }
   logger.info(` ${compileCmd}`);
-  const llcStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(compileCmd, { stdio: llcStdio });
 
   // Link to executable - only link libraries that the program actually uses
@@ -197,7 +201,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const mongooseObj = generator.usesMongoose ? `${MONGOOSE_PATH}/mongoose.o` : '';
   let extraObjs = '';
 
-  if (linkTreeSitter) {
+  if (linkTreeSitter || generator.getUsesTreeSitter()) {
     logger.info('  Compiling tree-sitter-typescript...');
     const buildDir = path.join(process.cwd(), 'build');
     if (!fs.existsSync(buildDir)) {
