@@ -9,38 +9,55 @@ const benchmarks = {
     desc: 'Time to print \u201cHello, World!\u201d and exit. Average of 50 runs.',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'ChadScript', val: '1.7ms', w: 2, h: 100, color: 'chad', d: 0, hero: true, speed: 1.8 },
-      { name: 'Go', val: '3.4ms', w: 4, h: 85, color: 'go', d: 0.12, speed: 2.2 },
-      { name: 'Bun', val: '18.7ms', w: 21, h: 40, color: 'bun', d: 0.24, speed: 4.5 },
-      { name: 'Node.js', val: '56.3ms', w: 62, h: 22, color: 'node', d: 0.36, speed: 7.8 },
-      { name: 'Python', val: '91.1ms', w: 100, h: 18, color: 'python', d: 0.48, speed: 10.5 },
+      { name: 'C', val: '1.4ms', w: 2, h: 100, color: 'c', d: 0, speed: 1.7 },
+      { name: 'ChadScript', val: '1.7ms', w: 2, h: 98, color: 'chad', d: 0.12, hero: true, speed: 1.8 },
+      { name: 'Go', val: '3.5ms', w: 4, h: 85, color: 'go', d: 0.24, speed: 2.2 },
+      { name: 'Bun', val: '19.9ms', w: 21, h: 40, color: 'bun', d: 0.36, speed: 4.5 },
+      { name: 'Node.js', val: '57.0ms', w: 60, h: 22, color: 'node', d: 0.48, speed: 7.8 },
+      { name: 'Python', val: '95.2ms', w: 100, h: 18, color: 'python', d: 0.60, speed: 10.5 },
     ],
     note: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines. Python loads its interpreter.'
-  },
-  fib: {
-    layout: 'horizontal',
-    desc: 'Recursive fib(42), no memoization. Pure function-call + arithmetic overhead.',
-    metric: 'Smaller = faster.',
-    items: [
-      { name: 'Go', val: '1.75s', w: 3, h: 100, color: 'go', d: 0, speed: 2.0 },
-      { name: 'ChadScript', val: '2.01s', w: 3, h: 96, color: 'chad', d: 0.12, hero: true, speed: 2.1 },
-      { name: 'Bun', val: '2.70s', w: 4, h: 85, color: 'bun', d: 0.24, speed: 2.35 },
-      { name: 'Node.js', val: '4.48s', w: 7, h: 66, color: 'node', d: 0.36, speed: 3.0 },
-      { name: 'Python', val: '60.9s', w: 100, h: 18, color: 'python', d: 0.48, speed: 11.0 },
-    ],
-    note: 'ChadScript compiles to LLVM IR with the same optimizations as clang/C++. Go\u2019s edge comes from native int64 \u2014 ChadScript uses double for all numbers.'
   },
   sqlite: {
     layout: 'vertical',
     desc: '100K SELECT queries on a 100-row in-memory table.',
     metric: 'Taller = more throughput.',
     items: [
-      { name: 'Python', val: '395K qps', h: 100, color: 'python', d: 0, speed: 2.0 },
-      { name: 'ChadScript', val: '309K qps', h: 78, color: 'chad', d: 0.12, hero: true, speed: 2.3 },
-      { name: 'Bun', val: '189K qps', h: 48, color: 'bun', d: 0.24, speed: 3.2 },
-      { name: 'Node.js', val: '144K qps', h: 36, color: 'node', d: 0.36, speed: 3.8 },
+      { name: 'C', val: '434K qps', h: 100, color: 'c', d: 0, speed: 2.0 },
+      { name: 'Python', val: '356K qps', h: 82, color: 'python', d: 0.12, speed: 2.2 },
+      { name: 'ChadScript', val: '314K qps', h: 72, color: 'chad', d: 0.24, hero: true, speed: 2.5 },
+      { name: 'Bun', val: '176K qps', h: 41, color: 'bun', d: 0.36, speed: 3.2 },
+      { name: 'Node.js', val: '151K qps', h: 35, color: 'node', d: 0.48, speed: 3.8 },
     ],
     note: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. Python\u2019s sqlite3 module is decades-old battle-tested C. Both ~2x the JS runtimes.'
+  },
+  matmul: {
+    layout: 'horizontal',
+    desc: '512\u00d7512 double-precision matrix multiply (A\u00d7B into C).',
+    metric: 'Smaller = faster.',
+    items: [
+      { name: 'ChadScript', val: '0.42s', w: 2, h: 100, color: 'chad', d: 0, hero: true, speed: 1.5 },
+      { name: 'C', val: '0.43s', w: 2, h: 99, color: 'c', d: 0.12, speed: 1.6 },
+      { name: 'Go', val: '0.47s', w: 2, h: 90, color: 'go', d: 0.24, speed: 1.7 },
+      { name: 'Bun', val: '0.59s', w: 3, h: 72, color: 'bun', d: 0.36, speed: 2.0 },
+      { name: 'Node.js', val: '0.61s', w: 3, h: 69, color: 'node', d: 0.48, speed: 2.1 },
+      { name: 'Python', val: '61.3s', w: 100, h: 5, color: 'python', d: 0.60, speed: 10.5 },
+    ],
+    note: 'Dense matrix multiply with array element read/write. ChadScript\u2019s arrays go through GC-managed structs, yet opt -O2 eliminates the overhead. Node/Bun\u2019s V8 JIT is strong but can\u2019t match LLVM\u2019s static optimizations here.'
+  },
+  mandelbrot: {
+    layout: 'horizontal',
+    desc: 'Mandelbrot set, 4096\u00d74096 grid, max 100 iterations per pixel.',
+    metric: 'Smaller = faster.',
+    items: [
+      { name: 'ChadScript', val: '1.95s', w: 2, h: 100, color: 'chad', d: 0, hero: true, speed: 1.5 },
+      { name: 'C', val: '1.98s', w: 2, h: 98, color: 'c', d: 0.12, speed: 1.6 },
+      { name: 'Bun', val: '1.98s', w: 2, h: 98, color: 'bun', d: 0.24, speed: 1.6 },
+      { name: 'Node.js', val: '2.02s', w: 2, h: 96, color: 'node', d: 0.36, speed: 1.7 },
+      { name: 'Go', val: '2.05s', w: 2, h: 95, color: 'go', d: 0.48, speed: 1.8 },
+      { name: 'Python', val: '229.8s', w: 100, h: 5, color: 'python', d: 0.60, speed: 10.5 },
+    ],
+    note: 'Pure floating-point compute \u2014 no I/O, no allocations, just math. ChadScript\u2019s LLVM IR + opt -O2 produces code that matches hand-written C. Python is ~118x slower without NumPy.'
   }
 }
 
@@ -92,8 +109,9 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
 <div>
   <div class="bench-tabs">
     <button :class="{ active: tab === 'startup' }" @click="tab = 'startup'">Cold Start</button>
-    <button :class="{ active: tab === 'fib' }" @click="tab = 'fib'">Fibonacci(42)</button>
     <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
+    <button :class="{ active: tab === 'matmul' }" @click="tab = 'matmul'">Matrix Multiply</button>
+    <button :class="{ active: tab === 'mandelbrot' }" @click="tab = 'mandelbrot'">Mandelbrot</button>
   </div>
 
   <div class="bench-panel">
@@ -137,7 +155,6 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
     </div>
 
     <p class="bench-note">{{ current.note }}</p>
-    <p class="bench-details"><a href="https://github.com/cssmith36/ChadScript/tree/main/benchmarks" target="_blank">details &rarr;</a></p>
   </div>
 </div>
 </template>
@@ -212,6 +229,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
 }
 .horiz-val.hero { color: #e8a525; font-weight: 700; }
 .horiz-bar.chad { background: #e8a525; }
+.horiz-bar.c { background: rgba(255,255,255,0.25); }
 .horiz-bar.go { background: rgba(255,255,255,0.25); }
 .horiz-bar.bun { background: rgba(255,255,255,0.25); }
 .horiz-bar.node { background: rgba(255,255,255,0.25); }
@@ -262,6 +280,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
 }
 .vert-name.hero { color: #e8a525; font-weight: 700; }
 .vert-bar.chad { background: #e8a525; }
+.vert-bar.c { background: rgba(255,255,255,0.25); }
 .vert-bar.go { background: rgba(255,255,255,0.25); }
 .vert-bar.bun { background: rgba(255,255,255,0.25); }
 .vert-bar.node { background: rgba(255,255,255,0.25); }
@@ -315,6 +334,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
 }
 .race-val.hero { color: #e8a525; font-weight: 700; }
 .race-ball.chad { background: #e8a525; }
+.race-ball.c { background: rgba(255,255,255,0.4); }
 .race-ball.go { background: rgba(255,255,255,0.4); }
 .race-ball.bun { background: rgba(255,255,255,0.4); }
 .race-ball.node { background: rgba(255,255,255,0.4); }
@@ -326,16 +346,6 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
   color: rgba(255,255,255,0.35);
   line-height: 1.5;
 }
-.bench-details {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-}
-.bench-details a {
-  color: rgba(255,255,255,0.35);
-  text-decoration: none;
-  transition: color 0.2s;
-}
-.bench-details a:hover { color: rgba(255,255,255,0.6); }
 @keyframes grow-up {
   from { height: 0; }
   to { height: var(--h); }

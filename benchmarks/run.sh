@@ -16,17 +16,35 @@ echo "--- Building ---"
 $CHAD "$DIR/startup/chadscript.ts" -o /tmp/bench-startup-chad
 echo "  ChadScript startup built"
 
-$CHAD "$DIR/fibonacci/chadscript.ts" -o /tmp/bench-fib-chad
-echo "  ChadScript fibonacci built"
-
 $CHAD "$DIR/sqlite/chadscript.ts" -o /tmp/bench-sqlite-chad
 echo "  ChadScript SQLite built"
+
+$CHAD "$DIR/mandelbrot/chadscript.ts" -o /tmp/bench-mandelbrot-chad
+echo "  ChadScript Mandelbrot built"
+
+$CHAD "$DIR/matmul/chadscript.ts" -o /tmp/bench-matmul-chad
+echo "  ChadScript Matmul built"
+
+clang -O2 -o /tmp/bench-startup-c "$DIR/startup/hello.c"
+echo "  C startup built"
+
+clang -O2 -o /tmp/bench-sqlite-c "$DIR/sqlite/bench.c" -lsqlite3
+echo "  C SQLite built"
+
+clang -O2 -o /tmp/bench-mandelbrot-c "$DIR/mandelbrot/bench.c"
+echo "  C Mandelbrot built"
+
+clang -O2 -o /tmp/bench-matmul-c "$DIR/matmul/bench.c"
+echo "  C Matmul built"
 
 go build -o /tmp/bench-startup-go "$DIR/startup/hello.go"
 echo "  Go startup built"
 
-go build -o /tmp/bench-fib-go "$DIR/fibonacci/fib.go"
-echo "  Go fibonacci built"
+go build -o /tmp/bench-mandelbrot-go "$DIR/mandelbrot/mandelbrot.go"
+echo "  Go Mandelbrot built"
+
+go build -o /tmp/bench-matmul-go "$DIR/matmul/matmul.go"
+echo "  Go Matmul built"
 
 echo ""
 
@@ -49,6 +67,7 @@ echo "  Cold Start  (avg of ${STARTUP_RUNS} runs)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
+bench_startup "C (clang -O2)" /tmp/bench-startup-c
 bench_startup "ChadScript" /tmp/bench-startup-chad
 bench_startup "Go" /tmp/bench-startup-go
 bench_startup "Bun" bun "$DIR/startup/bun.mjs"
@@ -57,33 +76,12 @@ bench_startup "Python" python3 "$DIR/startup/hello.py"
 
 echo ""
 echo "═══════════════════════════════════════════════════"
-echo "  Fibonacci(42) — recursive CPU benchmark"
-echo "═══════════════════════════════════════════════════"
-echo ""
-
-echo "  ChadScript (native)"
-/tmp/bench-fib-chad 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Go $(go version | awk '{print $3}')"
-/tmp/bench-fib-go 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Bun $(bun --version)"
-bun "$DIR/fibonacci/bun.mjs" 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Node.js $(node --version)"
-node "$DIR/fibonacci/node.mjs" 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "  Python $(python3 --version 2>&1 | awk '{print $2}')"
-python3 "$DIR/fibonacci/fib.py" 2>&1 | sed 's/^/    /'
-echo ""
-
-echo "═══════════════════════════════════════════════════"
 echo "  SQLite  (100 rows, 100K queries, in-memory)"
 echo "═══════════════════════════════════════════════════"
+echo ""
+
+echo "  C (clang -O2)"
+/tmp/bench-sqlite-c 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "  ChadScript (native)"
@@ -100,6 +98,64 @@ echo ""
 
 echo "  Python $(python3 --version 2>&1 | awk '{print $2}')"
 python3 "$DIR/sqlite/python_bench.py" 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "═══════════════════════════════════════════════════"
+echo "  Mandelbrot  (4096x4096, max 100 iterations)"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+echo "  C (clang -O2)"
+/tmp/bench-mandelbrot-c 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  ChadScript (native)"
+/tmp/bench-mandelbrot-chad 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Go"
+/tmp/bench-mandelbrot-go 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Node.js $(node --version)"
+node "$DIR/mandelbrot/node.mjs" 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Bun $(bun --version)"
+bun "$DIR/mandelbrot/bun.mjs" 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Python $(python3 --version 2>&1 | awk '{print $2}')"
+python3 "$DIR/mandelbrot/mandelbrot.py" 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "═══════════════════════════════════════════════════"
+echo "  Matrix Multiply  (512x512, double precision)"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+echo "  C (clang -O2)"
+/tmp/bench-matmul-c 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  ChadScript (native)"
+/tmp/bench-matmul-chad 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Go"
+/tmp/bench-matmul-go 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Node.js $(node --version)"
+node "$DIR/matmul/node.mjs" 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Bun $(bun --version)"
+bun "$DIR/matmul/bun.mjs" 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Python $(python3 --version 2>&1 | awk '{print $2}')"
+python3 "$DIR/matmul/matmul.py" 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "═══════════════════════════════════════════════════"

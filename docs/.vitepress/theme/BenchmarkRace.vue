@@ -8,36 +8,52 @@ const benchmarks = {
     desc: 'Time to print \u201cHello, World!\u201d and exit. Average of 50 runs.',
     metric: 'Faster bounce = faster runtime.',
     items: [
+      { name: 'C', val: '1.4ms', speed: 0.55, color: 'c' },
       { name: 'ChadScript', val: '1.7ms', speed: 0.6, color: 'chad', hero: true },
-      { name: 'Go', val: '3.4ms', speed: 0.8, color: 'go' },
-      { name: 'Bun', val: '18.7ms', speed: 1.8, color: 'bun' },
-      { name: 'Node.js', val: '56.3ms', speed: 3.1, color: 'node' },
-      { name: 'Python', val: '91.1ms', speed: 4.2, color: 'python' },
+      { name: 'Go', val: '3.5ms', speed: 0.8, color: 'go' },
+      { name: 'Bun', val: '19.9ms', speed: 1.8, color: 'bun' },
+      { name: 'Node.js', val: '57.0ms', speed: 3.1, color: 'node' },
+      { name: 'Python', val: '95.2ms', speed: 4.2, color: 'python' },
     ],
     note: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines. Python loads its interpreter.'
-  },
-  fib: {
-    desc: 'Recursive fib(42), no memoization. Pure function-call + arithmetic overhead.',
-    metric: 'Faster bounce = faster runtime.',
-    items: [
-      { name: 'Go', val: '1.75s', speed: 0.8, color: 'go' },
-      { name: 'ChadScript', val: '2.01s', speed: 0.84, color: 'chad', hero: true },
-      { name: 'Bun', val: '2.70s', speed: 0.94, color: 'bun' },
-      { name: 'Node.js', val: '4.48s', speed: 1.2, color: 'node' },
-      { name: 'Python', val: '60.9s', speed: 4.5, color: 'python' },
-    ],
-    note: 'ChadScript compiles to LLVM IR with the same optimizations as clang/C++. Go\u2019s edge comes from native int64 \u2014 ChadScript uses double for all numbers.'
   },
   sqlite: {
     desc: '100K SELECT queries on a 100-row in-memory table.',
     metric: 'Faster bounce = higher throughput.',
     items: [
-      { name: 'Python', val: '395K qps', speed: 0.8, color: 'python' },
-      { name: 'ChadScript', val: '309K qps', speed: 0.9, color: 'chad', hero: true },
-      { name: 'Bun', val: '189K qps', speed: 1.14, color: 'bun' },
-      { name: 'Node.js', val: '144K qps', speed: 1.26, color: 'node' },
+      { name: 'C', val: '434K qps', speed: 0.8, color: 'c' },
+      { name: 'Python', val: '356K qps', speed: 0.85, color: 'python' },
+      { name: 'ChadScript', val: '314K qps', speed: 0.9, color: 'chad', hero: true },
+      { name: 'Bun', val: '176K qps', speed: 1.14, color: 'bun' },
+      { name: 'Node.js', val: '151K qps', speed: 1.26, color: 'node' },
     ],
     note: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. Python\u2019s sqlite3 module is decades-old battle-tested C. Both ~2x the JS runtimes.'
+  },
+  matmul: {
+    desc: '512\u00d7512 double-precision matrix multiply (A\u00d7B into C).',
+    metric: 'Faster bounce = faster compute.',
+    items: [
+      { name: 'ChadScript', val: '0.42s', speed: 0.55, color: 'chad', hero: true },
+      { name: 'C', val: '0.43s', speed: 0.56, color: 'c' },
+      { name: 'Go', val: '0.47s', speed: 0.6, color: 'go' },
+      { name: 'Bun', val: '0.59s', speed: 0.72, color: 'bun' },
+      { name: 'Node.js', val: '0.61s', speed: 0.75, color: 'node' },
+      { name: 'Python', val: '61.3s', speed: 4.5, color: 'python' },
+    ],
+    note: 'Dense matrix multiply with array element read/write. ChadScript\u2019s arrays go through GC-managed structs, yet opt -O2 eliminates the overhead. Node/Bun\u2019s V8 JIT is strong but can\u2019t match LLVM\u2019s static optimizations here.'
+  },
+  mandelbrot: {
+    desc: 'Mandelbrot set, 4096\u00d74096 grid, max 100 iterations per pixel.',
+    metric: 'Faster bounce = faster compute.',
+    items: [
+      { name: 'ChadScript', val: '1.95s', speed: 0.55, color: 'chad', hero: true },
+      { name: 'C', val: '1.98s', speed: 0.56, color: 'c' },
+      { name: 'Bun', val: '1.98s', speed: 0.56, color: 'bun' },
+      { name: 'Node.js', val: '2.02s', speed: 0.58, color: 'node' },
+      { name: 'Go', val: '2.05s', speed: 0.59, color: 'go' },
+      { name: 'Python', val: '229.8s', speed: 4.5, color: 'python' },
+    ],
+    note: 'Pure floating-point compute \u2014 no I/O, no allocations, just math. ChadScript\u2019s LLVM IR + opt -O2 produces code that matches hand-written C. Python is ~118x slower without NumPy.'
   }
 }
 
@@ -48,8 +64,9 @@ const current = computed(() => benchmarks[tab.value])
 <div>
   <div class="bench-tabs">
     <button :class="{ active: tab === 'startup' }" @click="tab = 'startup'">Cold Start</button>
-    <button :class="{ active: tab === 'fib' }" @click="tab = 'fib'">Fibonacci(42)</button>
     <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
+    <button :class="{ active: tab === 'matmul' }" @click="tab = 'matmul'">Matrix Multiply</button>
+    <button :class="{ active: tab === 'mandelbrot' }" @click="tab = 'mandelbrot'">Mandelbrot</button>
   </div>
 
   <div :key="tab" class="bench-panel">
@@ -65,7 +82,6 @@ const current = computed(() => benchmarks[tab.value])
       </div>
     </div>
     <p class="bench-note">{{ current.note }}</p>
-    <p class="bench-details"><a href="https://github.com/cssmith36/ChadScript/tree/main/benchmarks" target="_blank">details &rarr;</a></p>
   </div>
 </div>
 </template>
@@ -149,20 +165,11 @@ const current = computed(() => benchmarks[tab.value])
   line-height: 1.5;
 }
 .race-ball.chad { background: #e8a525; color: #e8a525; }
+.race-ball.c { background: rgba(255,255,255,0.4); color: rgba(255,255,255,0.2); }
 .race-ball.go { background: rgba(255,255,255,0.4); color: rgba(255,255,255,0.2); }
 .race-ball.bun { background: rgba(255,255,255,0.4); color: rgba(255,255,255,0.2); }
 .race-ball.node { background: rgba(255,255,255,0.4); color: rgba(255,255,255,0.2); }
 .race-ball.python { background: rgba(255,255,255,0.4); color: rgba(255,255,255,0.2); }
-.bench-details {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-}
-.bench-details a {
-  color: rgba(255,255,255,0.35);
-  text-decoration: none;
-  transition: color 0.2s;
-}
-.bench-details a:hover { color: rgba(255,255,255,0.6); }
 @keyframes bounce-lr {
   0%, 100% { left: 5px; }
   50% { left: calc(100% - 27px); }

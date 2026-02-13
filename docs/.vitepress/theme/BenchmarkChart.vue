@@ -7,130 +7,198 @@ const tab = ref('startup')
 <div>
 <div class="bench-tabs">
   <button :class="{ active: tab === 'startup' }" @click="tab = 'startup'">Cold Start</button>
-  <button :class="{ active: tab === 'fib' }" @click="tab = 'fib'">Fibonacci(42)</button>
   <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
+  <button :class="{ active: tab === 'matmul' }" @click="tab = 'matmul'">Matrix Multiply</button>
+  <button :class="{ active: tab === 'mandelbrot' }" @click="tab = 'mandelbrot'">Mandelbrot</button>
 </div>
 
 <div v-if="tab === 'startup'" :key="'s'+Date.now()" class="bench-panel">
   <p class="bench-desc">Time to print &quot;Hello, World!&quot; and exit. Average of 50 runs. <em>Lower is better.</em></p>
   <div class="bench-chart">
     <div class="bench-row">
+      <div class="bench-label">C</div>
+      <div class="bench-track">
+        <div class="bench-bar c" style="--w: 100%; --d: 0.0s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">1.4ms</div>
+    </div>
+    <div class="bench-row">
       <div class="bench-label chad-label">ChadScript</div>
       <div class="bench-track">
-        <div class="bench-bar chad" style="--w: 100%; --d: 0.0s"><div class="bench-ball"></div></div>
+        <div class="bench-bar chad" style="--w: 82%; --d: 0.12s"><div class="bench-ball"></div></div>
       </div>
       <div class="bench-val"><strong>1.7ms</strong></div>
     </div>
     <div class="bench-row">
       <div class="bench-label">Go</div>
       <div class="bench-track">
-        <div class="bench-bar go" style="--w: 50%; --d: 0.12s"><div class="bench-ball"></div></div>
+        <div class="bench-bar go" style="--w: 40%; --d: 0.24s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">3.4ms</div>
+      <div class="bench-val">3.5ms</div>
     </div>
     <div class="bench-row">
       <div class="bench-label">Bun</div>
       <div class="bench-track">
-        <div class="bench-bar bun" style="--w: 9%; --d: 0.24s"><div class="bench-ball"></div></div>
+        <div class="bench-bar bun" style="--w: 7%; --d: 0.36s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">18.7ms</div>
+      <div class="bench-val">19.9ms</div>
     </div>
     <div class="bench-row">
       <div class="bench-label">Node.js</div>
       <div class="bench-track">
-        <div class="bench-bar node" style="--w: 3%; --d: 0.36s"><div class="bench-ball"></div></div>
+        <div class="bench-bar node" style="--w: 2%; --d: 0.48s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">56.3ms</div>
+      <div class="bench-val">57.0ms</div>
     </div>
     <div class="bench-row">
       <div class="bench-label">Python</div>
       <div class="bench-track">
-        <div class="bench-bar python" style="--w: 5%; --d: 0.48s"><div class="bench-ball"></div></div>
+        <div class="bench-bar python" style="--w: 1%; --d: 0.60s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">91.1ms</div>
+      <div class="bench-val">95.2ms</div>
     </div>
   </div>
   <p class="bench-note">ChadScript only links what you use — a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines. Python loads its interpreter.</p>
-  <p class="bench-details"><a href="https://github.com/cssmith36/ChadScript/tree/main/benchmarks" target="_blank">details &rarr;</a></p>
-</div>
-
-<div v-if="tab === 'fib'" :key="'f'+Date.now()" class="bench-panel">
-  <p class="bench-desc">Recursive <code>fib(42)</code>, no memoization. Pure function-call + arithmetic overhead. <em>Lower is better.</em></p>
-  <div class="bench-chart">
-    <div class="bench-row">
-      <div class="bench-label">Go</div>
-      <div class="bench-track">
-        <div class="bench-bar go" style="--w: 100%; --d: 0.0s"><div class="bench-ball"></div></div>
-      </div>
-      <div class="bench-val">1.75s</div>
-    </div>
-    <div class="bench-row">
-      <div class="bench-label chad-label">ChadScript</div>
-      <div class="bench-track">
-        <div class="bench-bar chad" style="--w: 87%; --d: 0.12s"><div class="bench-ball"></div></div>
-      </div>
-      <div class="bench-val"><strong>2.01s</strong></div>
-    </div>
-    <div class="bench-row">
-      <div class="bench-label">Bun</div>
-      <div class="bench-track">
-        <div class="bench-bar bun" style="--w: 65%; --d: 0.24s"><div class="bench-ball"></div></div>
-      </div>
-      <div class="bench-val">2.70s</div>
-    </div>
-    <div class="bench-row">
-      <div class="bench-label">Node.js</div>
-      <div class="bench-track">
-        <div class="bench-bar node" style="--w: 39%; --d: 0.36s"><div class="bench-ball"></div></div>
-      </div>
-      <div class="bench-val">4.48s</div>
-    </div>
-    <div class="bench-row">
-      <div class="bench-label">Python</div>
-      <div class="bench-track">
-        <div class="bench-bar python" style="--w: 5%; --d: 0.48s"><div class="bench-ball"></div></div>
-      </div>
-      <div class="bench-val">60.9s</div>
-    </div>
-  </div>
-  <p class="bench-note">ChadScript compiles to LLVM IR with the same optimizations as clang/C++. Go's edge comes from native <code>int64</code> — ChadScript uses <code>double</code> for all numbers.</p>
-  <p class="bench-details"><a href="https://github.com/cssmith36/ChadScript/tree/main/benchmarks" target="_blank">details &rarr;</a></p>
 </div>
 
 <div v-if="tab === 'sqlite'" :key="'q'+Date.now()" class="bench-panel">
   <p class="bench-desc">100K <code>SELECT</code> queries on a 100-row in-memory table. <em>Higher is better.</em></p>
   <div class="bench-chart">
     <div class="bench-row">
+      <div class="bench-label">C</div>
+      <div class="bench-track">
+        <div class="bench-bar c" style="--w: 100%; --d: 0.0s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">434K qps</div>
+    </div>
+    <div class="bench-row">
       <div class="bench-label">Python</div>
       <div class="bench-track">
-        <div class="bench-bar python" style="--w: 100%; --d: 0.0s"><div class="bench-ball"></div></div>
+        <div class="bench-bar python" style="--w: 82%; --d: 0.12s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">395K qps</div>
+      <div class="bench-val">356K qps</div>
     </div>
     <div class="bench-row">
       <div class="bench-label chad-label">ChadScript</div>
       <div class="bench-track">
-        <div class="bench-bar chad" style="--w: 78%; --d: 0.12s"><div class="bench-ball"></div></div>
+        <div class="bench-bar chad" style="--w: 72%; --d: 0.24s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val"><strong>309K qps</strong></div>
+      <div class="bench-val"><strong>314K qps</strong></div>
     </div>
     <div class="bench-row">
       <div class="bench-label">Bun</div>
       <div class="bench-track">
-        <div class="bench-bar bun" style="--w: 48%; --d: 0.24s"><div class="bench-ball"></div></div>
+        <div class="bench-bar bun" style="--w: 41%; --d: 0.36s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">189K qps</div>
+      <div class="bench-val">176K qps</div>
     </div>
     <div class="bench-row">
       <div class="bench-label">Node.js</div>
       <div class="bench-track">
-        <div class="bench-bar node" style="--w: 36%; --d: 0.36s"><div class="bench-ball"></div></div>
+        <div class="bench-bar node" style="--w: 35%; --d: 0.48s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">144K qps</div>
+      <div class="bench-val">151K qps</div>
     </div>
   </div>
   <p class="bench-note">ChadScript calls SQLite's C API directly — no FFI bridge, no marshaling. Python's <code>sqlite3</code> module is decades-old battle-tested C. Both ~2x the JS runtimes.</p>
-  <p class="bench-details"><a href="https://github.com/cssmith36/ChadScript/tree/main/benchmarks" target="_blank">details &rarr;</a></p>
+</div>
+
+<div v-if="tab === 'mandelbrot'" :key="'m'+Date.now()" class="bench-panel">
+  <p class="bench-desc">Mandelbrot set, 4096&times;4096 grid, max 100 iterations per pixel. <em>Lower is better.</em></p>
+  <div class="bench-chart">
+    <div class="bench-row">
+      <div class="bench-label chad-label">ChadScript</div>
+      <div class="bench-track">
+        <div class="bench-bar chad" style="--w: 100%; --d: 0.0s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val"><strong>1.95s</strong></div>
+    </div>
+    <div class="bench-row">
+      <div class="bench-label">C</div>
+      <div class="bench-track">
+        <div class="bench-bar c" style="--w: 98%; --d: 0.12s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">1.98s</div>
+    </div>
+    <div class="bench-row">
+      <div class="bench-label">Bun</div>
+      <div class="bench-track">
+        <div class="bench-bar bun" style="--w: 98%; --d: 0.24s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">1.98s</div>
+    </div>
+    <div class="bench-row">
+      <div class="bench-label">Node.js</div>
+      <div class="bench-track">
+        <div class="bench-bar node" style="--w: 97%; --d: 0.36s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">2.02s</div>
+    </div>
+    <div class="bench-row">
+      <div class="bench-label">Go</div>
+      <div class="bench-track">
+        <div class="bench-bar go" style="--w: 95%; --d: 0.48s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">2.05s</div>
+    </div>
+    <div class="bench-row">
+      <div class="bench-label">Python</div>
+      <div class="bench-track">
+        <div class="bench-bar python" style="--w: 1%; --d: 0.60s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">229.8s</div>
+    </div>
+  </div>
+  <p class="bench-note">Pure floating-point compute — no I/O, no allocations, just math. ChadScript's LLVM IR + opt -O2 produces code that matches hand-written C. Python is ~118x slower without NumPy.</p>
+</div>
+
+<div v-if="tab === 'matmul'" :key="'mm'+Date.now()" class="bench-panel">
+  <p class="bench-desc">512&times;512 double-precision matrix multiply (A&times;B into C). <em>Lower is better.</em></p>
+  <div class="bench-chart">
+    <div class="bench-row">
+      <div class="bench-label chad-label">ChadScript</div>
+      <div class="bench-track">
+        <div class="bench-bar chad" style="--w: 100%; --d: 0.0s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val"><strong>0.42s</strong></div>
+    </div>
+    <div class="bench-row">
+      <div class="bench-label">C</div>
+      <div class="bench-track">
+        <div class="bench-bar c" style="--w: 98%; --d: 0.12s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">0.43s</div>
+    </div>
+    <div class="bench-row">
+      <div class="bench-label">Go</div>
+      <div class="bench-track">
+        <div class="bench-bar go" style="--w: 89%; --d: 0.24s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">0.47s</div>
+    </div>
+    <div class="bench-row">
+      <div class="bench-label">Bun</div>
+      <div class="bench-track">
+        <div class="bench-bar bun" style="--w: 71%; --d: 0.36s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">0.59s</div>
+    </div>
+    <div class="bench-row">
+      <div class="bench-label">Node.js</div>
+      <div class="bench-track">
+        <div class="bench-bar node" style="--w: 69%; --d: 0.48s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">0.61s</div>
+    </div>
+    <div class="bench-row">
+      <div class="bench-label">Python</div>
+      <div class="bench-track">
+        <div class="bench-bar python" style="--w: 1%; --d: 0.60s"><div class="bench-ball"></div></div>
+      </div>
+      <div class="bench-val">61.3s</div>
+    </div>
+  </div>
+  <p class="bench-note">Dense matrix multiply with array element read/write. ChadScript's arrays go through GC-managed structs, yet opt -O2 eliminates the overhead. Node/Bun's V8 JIT is strong but can't match LLVM's static optimizations here.</p>
 </div>
 </div>
 </template>
@@ -241,22 +309,13 @@ const tab = ref('startup')
   color: rgba(255,255,255,0.35);
   line-height: 1.5;
 }
-.bench-details {
-  margin-top: 0.5rem;
-  font-size: 0.8rem;
-}
-.bench-details a {
-  color: rgba(255,255,255,0.35);
-  text-decoration: none;
-  transition: color 0.2s;
-}
-.bench-details a:hover { color: rgba(255,255,255,0.6); }
 @keyframes bench-race {
   0% { width: 0; }
   85% { width: calc(var(--w) + 1.5%); }
   100% { width: var(--w); }
 }
 .bench-bar.chad { background: #e8a525; }
+.bench-bar.c { background: rgba(255,255,255,0.25); }
 .bench-bar.go { background: rgba(255,255,255,0.25); }
 .bench-bar.bun { background: rgba(255,255,255,0.25); }
 .bench-bar.node { background: rgba(255,255,255,0.25); }
