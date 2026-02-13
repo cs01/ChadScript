@@ -126,7 +126,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
 
   const isMac = process.platform === 'darwin';
-  const platformLibs = isMac ? '' : ' -ldl -lrt';
+  const platformLibs = isMac ? '' : ' -lm -ldl -lrt';
   const noPie = isMac ? '' : ' -no-pie';
   const tsObjDir = isInstalled ? installedLibDir : CHADSCRIPT_PATH + '/build';
   let treeSitterObjs = '';
@@ -135,7 +135,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     treeSitterObjs = tsObjDir + '/tree-sitter-typescript-parser.o ' + tsObjDir + '/tree-sitter-typescript-scanner.o ' + tsObjDir + '/treesitter-bridge.o';
     tsLibPath = isInstalled ? installedLibDir + '/libtree-sitter.a' : './vendor/tree-sitter/libtree-sitter.a';
   }
-  let linkLibs = '-L' + BDWGC_PATH + ' -lgc -lm -lpthread' + platformLibs;
+  let linkLibs = '-L' + BDWGC_PATH + ' -lgc -lpthread' + platformLibs;
   if (tsLibPath) { linkLibs = linkLibs + ' ' + tsLibPath; }
   const cjsonDir = isInstalled ? installedLibDir : './vendor/cJSON/build';
   if (generator.getUsesJson()) { linkLibs = '-L' + cjsonDir + ' -lcjson ' + linkLibs; }
