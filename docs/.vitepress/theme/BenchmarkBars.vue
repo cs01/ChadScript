@@ -14,9 +14,8 @@ const benchmarks = {
       { name: 'Go', val: '3.8ms', w: 4, h: 85, color: 'go', d: 0.24, speed: 2.2 },
       { name: 'Bun', val: '19.5ms', w: 18, h: 40, color: 'bun', d: 0.36, speed: 4.5 },
       { name: 'Node.js', val: '64.7ms', w: 58, h: 22, color: 'node', d: 0.48, speed: 7.8 },
-      { name: 'Python', val: '111.7ms', w: 100, h: 18, color: 'python', d: 0.60, speed: 10.5 },
     ],
-    note: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines. Python loads its interpreter.'
+    note: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines.'
   },
   sqlite: {
     layout: 'vertical',
@@ -24,12 +23,11 @@ const benchmarks = {
     metric: 'Taller = more throughput.',
     items: [
       { name: 'C', val: '373K qps', h: 100, color: 'c', d: 0, speed: 2.0 },
-      { name: 'Python', val: '358K qps', h: 96, color: 'python', d: 0.12, speed: 2.2 },
-      { name: 'ChadScript', val: '332K qps', h: 89, color: 'chad', d: 0.24, hero: true, speed: 2.5 },
-      { name: 'Bun', val: '179K qps', h: 48, color: 'bun', d: 0.36, speed: 3.2 },
-      { name: 'Node.js', val: '144K qps', h: 39, color: 'node', d: 0.48, speed: 3.8 },
+      { name: 'ChadScript', val: '332K qps', h: 89, color: 'chad', d: 0.12, hero: true, speed: 2.2 },
+      { name: 'Bun', val: '179K qps', h: 48, color: 'bun', d: 0.24, speed: 3.2 },
+      { name: 'Node.js', val: '144K qps', h: 39, color: 'node', d: 0.36, speed: 3.8 },
     ],
-    note: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. Python\u2019s sqlite3 module is decades-old battle-tested C. Both ~2x the JS runtimes.'
+    note: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. ~2x the JS runtimes.'
   },
   matmul: {
     layout: 'horizontal',
