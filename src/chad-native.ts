@@ -1,7 +1,9 @@
 import { compileNative, setSkipSemanticAnalysis, setEmitLLVMOnly } from './native-compiler-lib.js';
+import { getDtsContent } from './codegen/stdlib/embedded-dts.js';
 
 declare const fs: {
   existsSync(filename: string): boolean;
+  writeFileSync(filename: string, data: string): number;
 };
 
 declare const path: {
@@ -30,6 +32,7 @@ function printHelp(): void {
   console.log('  build <file>     Compile to a native binary');
   console.log('  run <file>       Compile and run');
   console.log('  ir <file>        Emit LLVM IR only');
+  console.log('  init             Generate starter project (chadscript.d.ts, tsconfig.json, hello.ts)');
   console.log('  clean            Remove the .build directory');
   console.log('');
   console.log('Options:');
@@ -68,6 +71,31 @@ if (command === '--version') {
   process.exit(0);
 }
 
+if (command === 'init') {
+  const dtsContent = getDtsContent();
+  if (fs.existsSync('chadscript.d.ts')) {
+    console.log('  skip chadscript.d.ts (already exists)');
+  } else {
+    fs.writeFileSync('chadscript.d.ts', dtsContent);
+    console.log('  created chadscript.d.ts');
+  }
+  if (fs.existsSync('tsconfig.json')) {
+    console.log('  skip tsconfig.json (already exists)');
+  } else {
+    fs.writeFileSync('tsconfig.json', '{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "ES2020",\n    "lib": ["ES2020"],\n    "noEmit": true,\n    "skipLibCheck": true,\n    "strict": false\n  },\n  "files": ["chadscript.d.ts"]\n}\n');
+    console.log('  created tsconfig.json');
+  }
+  if (fs.existsSync('hello.ts')) {
+    console.log('  skip hello.ts (already exists)');
+  } else {
+    fs.writeFileSync('hello.ts', 'console.log("Hello from ChadScript!");\nprocess.exit(0);\n');
+    console.log('  created hello.ts');
+  }
+  console.log('');
+  console.log('ready! try: chad run hello.ts');
+  process.exit(0);
+}
+
 if (command === 'clean') {
   if (fs.existsSync('.build')) {
     child_process.execSync('rm -rf .build');
@@ -76,7 +104,7 @@ if (command === 'clean') {
   process.exit(0);
 }
 
-if (command !== 'build' && command !== 'run' && command !== 'ir') {
+if (command !== 'build' && command !== 'run' && command !== 'ir' && command !== 'init') {
   const endsWithTs = command.substr(command.length - 3) === '.ts';
   const endsWithJs = command.substr(command.length - 3) === '.js';
   if (endsWithTs || endsWithJs) {

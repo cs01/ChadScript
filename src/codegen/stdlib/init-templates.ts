@@ -35,5 +35,5 @@ export function runInit(): void {
   }
 
   console.log('');
-  console.log('ready! try: chad build hello.ts && .build/hello');
+  console.log('ready! try: chad run hello.ts');
 }
