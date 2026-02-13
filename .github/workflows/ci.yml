@@ -84,6 +84,12 @@ jobs:
       - name: Build native chad
         run: node dist/index.js --link-tree-sitter src/chad-native.ts -o .build/chad
 
+      - name: Sign macOS binaries
+        if: runner.os == 'macOS'
+        run: |
+          codesign --sign - --force .build/chad
+          codesign --sign - --force .build/chadc
+
       - name: Smoke test native chadc
         continue-on-error: ${{ runner.os == 'macOS' }}
         run: |
@@ -117,10 +123,18 @@ jobs:
 
       - name: Package release artifact
         run: |
-          mkdir -p release
+          mkdir -p release/lib
           cp .build/chad release/
           cp .build/chadc release/
-          tar -czf ${{ matrix.artifact }}.tar.gz -C release chad chadc
+          cp build/tree-sitter-typescript-parser.o release/lib/
+          cp build/tree-sitter-typescript-scanner.o release/lib/
+          cp build/treesitter-bridge.o release/lib/
+          cp vendor/tree-sitter/libtree-sitter.a release/lib/
+          cp vendor/bdwgc/libgc.a release/lib/
+          cp vendor/cJSON/build/libcjson.a release/lib/
+          cp vendor/libuv/build/libuv.a release/lib/
+          cp vendor/mongoose/mongoose.o release/lib/
+          tar -czf ${{ matrix.artifact }}.tar.gz -C release chad chadc lib
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

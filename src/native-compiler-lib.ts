@@ -47,8 +47,12 @@ export function setVerbose(value: boolean): void {
 }
 
 export function compileNative(inputFile: string, outputFile: string): void {
-  const BDWGC_PATH = './vendor/bdwgc';
-  const MONGOOSE_PATH = './vendor/mongoose';
+  const execDir = path.dirname(path.resolve(process.argv[0]));
+  const installedLibDir = execDir + '/lib';
+  const isInstalled = fs.existsSync(installedLibDir + '/libgc.a');
+
+  const BDWGC_PATH = isInstalled ? installedLibDir : './vendor/bdwgc';
+  const MONGOOSE_PATH = isInstalled ? installedLibDir : './vendor/mongoose';
   const CHADSCRIPT_PATH = '.';
 
   if (verbose) {
@@ -115,10 +119,14 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const isMac = process.platform === 'darwin';
   const platformLibs = isMac ? '' : ' -ldl -lrt';
   const noPie = isMac ? '' : ' -no-pie';
-  const treeSitterTs = CHADSCRIPT_PATH + '/build/tree-sitter-typescript-parser.o ' + CHADSCRIPT_PATH + '/build/tree-sitter-typescript-scanner.o ' + CHADSCRIPT_PATH + '/build/treesitter-bridge.o';
-  let linkLibs = '-L' + BDWGC_PATH + ' -lgc -lm -lpthread' + platformLibs + ' ./vendor/tree-sitter/libtree-sitter.a';
-  if (generator.getUsesJson()) { linkLibs = '-L./vendor/cJSON/build -lcjson ' + linkLibs; }
-  if (generator.getUsesTimers() || generator.getUsesPromises() || generator.getUsesCurl()) { linkLibs = '-L./vendor/libuv/build -luv ' + linkLibs; }
+  const tsObjDir = isInstalled ? installedLibDir : CHADSCRIPT_PATH + '/build';
+  const treeSitterTs = tsObjDir + '/tree-sitter-typescript-parser.o ' + tsObjDir + '/tree-sitter-typescript-scanner.o ' + tsObjDir + '/treesitter-bridge.o';
+  const tsLibPath = isInstalled ? installedLibDir + '/libtree-sitter.a' : './vendor/tree-sitter/libtree-sitter.a';
+  let linkLibs = '-L' + BDWGC_PATH + ' -lgc -lm -lpthread' + platformLibs + ' ' + tsLibPath;
+  const cjsonDir = isInstalled ? installedLibDir : './vendor/cJSON/build';
+  if (generator.getUsesJson()) { linkLibs = '-L' + cjsonDir + ' -lcjson ' + linkLibs; }
+  const uvDir = isInstalled ? installedLibDir : './vendor/libuv/build';
+  if (generator.getUsesTimers() || generator.getUsesPromises() || generator.getUsesCurl()) { linkLibs = '-L' + uvDir + ' -luv ' + linkLibs; }
   if (generator.getUsesCurl()) { linkLibs = '-lcurl ' + linkLibs; }
   if (generator.getUsesCrypto()) { linkLibs = '-lcrypto ' + linkLibs; }
   if (generator.getUsesSqlite()) { linkLibs = '-lsqlite3 ' + linkLibs; }

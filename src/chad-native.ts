@@ -92,7 +92,9 @@ if (command === 'init') {
     console.log('  created hello.ts');
   }
   console.log('');
-  console.log('ready! try: chad run hello.ts');
+  console.log('Ready!');
+  console.log('');
+  console.log('  Try: chad run hello.ts');
   process.exit(0);
 }
 

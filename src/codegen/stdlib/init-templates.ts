@@ -35,5 +35,7 @@ export function runInit(): void {
   }
 
   console.log('');
-  console.log('ready! try: chad run hello.ts');
+  console.log('\x1b[32mReady!\x1b[0m');
+  console.log('');
+  console.log('  Try: chad run hello.ts');
 }
