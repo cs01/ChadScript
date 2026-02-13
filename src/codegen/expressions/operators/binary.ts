@@ -61,8 +61,7 @@ export class BinaryExpressionGenerator {
       '+': 'fadd',
       '-': 'fsub',
       '*': 'fmul',
-      '/': 'fdiv',
-      '%': 'frem'
+      '/': 'fdiv'
     };
 
     // Bitwise operators (need to convert double -> i64 -> operate -> double)
@@ -86,7 +85,9 @@ export class BinaryExpressionGenerator {
       '!==': 'one'  // Strict inequality (same as != for double)
     };
 
-    if (arithMap[op]) {
+    if (op === '%') {
+      return this.generateModulo(leftValue, rightValue);
+    } else if (arithMap[op]) {
       return this.generateArithmetic(op, arithMap[op], leftValue, rightValue);
     } else if (bitwiseMap[op]) {
       return this.generateBitwise(op, bitwiseMap[op], leftValue, rightValue);
@@ -121,6 +122,70 @@ export class BinaryExpressionGenerator {
     this.ctx.emit(`${temp} = ${llvmOp} double ${left}, ${right}`);
     this.ctx.setVariableType(temp, 'double');
     return temp;
+  }
+
+  private generateModulo(left: string, right: string): string {
+    const leftType = this.ctx.getVariableType(left);
+    const rightType = this.ctx.getVariableType(right);
+
+    if (leftType === 'i8*' || (leftType && leftType.indexOf('*') !== -1)) {
+      const asInt = this.ctx.nextTemp();
+      this.ctx.emit(`${asInt} = ptrtoint ${leftType} ${left} to i64`);
+      const asDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${asDouble} = sitofp i64 ${asInt} to double`);
+      left = asDouble;
+    }
+
+    if (rightType === 'i8*' || (rightType && rightType.indexOf('*') !== -1)) {
+      const asInt = this.ctx.nextTemp();
+      this.ctx.emit(`${asInt} = ptrtoint ${rightType} ${right} to i64`);
+      const asDouble = this.ctx.nextTemp();
+      this.ctx.emit(`${asDouble} = sitofp i64 ${asInt} to double`);
+      right = asDouble;
+    }
+
+    const leftTrunc = this.ctx.nextTemp();
+    this.ctx.emit(`${leftTrunc} = call double @llvm.trunc.f64(double ${left})`);
+    const leftIsInt = this.ctx.nextTemp();
+    this.ctx.emit(`${leftIsInt} = fcmp oeq double ${left}, ${leftTrunc}`);
+
+    const rightTrunc = this.ctx.nextTemp();
+    this.ctx.emit(`${rightTrunc} = call double @llvm.trunc.f64(double ${right})`);
+    const rightIsInt = this.ctx.nextTemp();
+    this.ctx.emit(`${rightIsInt} = fcmp oeq double ${right}, ${rightTrunc}`);
+
+    const bothInt = this.ctx.nextTemp();
+    this.ctx.emit(`${bothInt} = and i1 ${leftIsInt}, ${rightIsInt}`);
+
+    const intModLabel = this.ctx.nextLabel('mod_int');
+    const floatModLabel = this.ctx.nextLabel('mod_float');
+    const mergeLabel = this.ctx.nextLabel('mod_merge');
+
+    this.ctx.emit(`br i1 ${bothInt}, label %${intModLabel}, label %${floatModLabel}`);
+
+    this.ctx.emit(`${intModLabel}:`);
+    const leftInt = this.ctx.nextTemp();
+    this.ctx.emit(`${leftInt} = fptosi double ${left} to i64`);
+    const rightInt = this.ctx.nextTemp();
+    this.ctx.emit(`${rightInt} = fptosi double ${right} to i64`);
+    const sremResult = this.ctx.nextTemp();
+    this.ctx.emit(`${sremResult} = srem i64 ${leftInt}, ${rightInt}`);
+    const intResult = this.ctx.nextTemp();
+    this.ctx.emit(`${intResult} = sitofp i64 ${sremResult} to double`);
+    const intBranchEnd = this.ctx.getCurrentLabel();
+    this.ctx.emit(`br label %${mergeLabel}`);
+
+    this.ctx.emit(`${floatModLabel}:`);
+    const fremResult = this.ctx.nextTemp();
+    this.ctx.emit(`${fremResult} = frem double ${left}, ${right}`);
+    const floatBranchEnd = this.ctx.getCurrentLabel();
+    this.ctx.emit(`br label %${mergeLabel}`);
+
+    this.ctx.emit(`${mergeLabel}:`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = phi double [ ${intResult}, %${intBranchEnd} ], [ ${fremResult}, %${floatBranchEnd} ]`);
+    this.ctx.setVariableType(result, 'double');
+    return result;
   }
 
   private generateBitwise(_op: string, llvmOp: string, left: string, right: string): string {
