@@ -514,6 +514,12 @@ export const testCases: TestCase[] = [
     description: 'TCP Echo Server - Functional style without interface returns'
   },
   {
+    name: 'ws-server-basic',
+    fixture: 'tests/fixtures/websocket/ws-server-basic.ts',
+    expectTestPassed: true,
+    description: 'WebSocket server basic compilation test'
+  },
+  {
     name: 'typescript-struct',
     fixture: 'tests/fixtures/typescript/typescript-struct.ts',
     expectedExitCode: 7,
@@ -675,5 +681,11 @@ export const testCases: TestCase[] = [
     fixture: 'tests/fixtures/builtins/sqlite-test.ts',
     expectTestPassed: true,
     description: 'sqlite.open, exec, get, all, close via libsqlite3'
+  },
+  {
+    name: 'large-numbers',
+    fixture: 'tests/fixtures/math/large-numbers.ts',
+    expectTestPassed: true,
+    description: 'large integer literals beyond i32 range and big arithmetic'
   }
 ];

@@ -49,14 +49,17 @@ export class LiteralExpressionGenerator {
   generateNumber(value: number): string {
     const isInteger = (value % 1 === 0);
 
-    if (isInteger) {
+    if (isInteger && value >= -2147483648 && value <= 2147483647) {
       const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = sitofp i32 ${value} to double`);
+      this.ctx.emit(`${temp} = sitofp i32 ${value | 0} to double`);
       this.ctx.setVariableType(temp, 'double');
       return temp;
     } else {
-      // Floating-point literals stay as constants
-      return String(value);
+      const s = String(value);
+      if (!s.includes('.') && !s.includes('e') && !s.includes('E') && !s.includes('inf') && !s.includes('NaN')) {
+        return s + '.0';
+      }
+      return s;
     }
   }
 
