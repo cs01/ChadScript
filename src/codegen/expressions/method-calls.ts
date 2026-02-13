@@ -83,6 +83,10 @@ import {
   generateObjectValues as _generateObjectValues,
   generateObjectEntries as _generateObjectEntries,
 } from './method-calls/object-static.js';
+import {
+  handlePromiseStaticMethods as _handlePromiseStaticMethods,
+  handlePromiseThen as _handlePromiseThen,
+} from './method-calls/promise-handlers.js';
 
 interface ExprBase { type: string; }
 
@@ -1923,147 +1927,11 @@ export class MethodCallGenerator {
   }
 
   private handlePromiseStaticMethods(expr: MethodCallNode, params: string[]): string {
-    const method = expr.method;
-    this.ctx.setUsesPromises(true);
-
-    if (method === 'resolve') {
-      let valuePtr: string;
-      if (expr.args.length > 0) {
-        const value = this.ctx.generateExpression(expr.args[0], params);
-        valuePtr = this.nextTemp();
-        this.emit(`${valuePtr} = bitcast i8* null to i8*`);
-        const valueType = this.ctx.getVariableType(value) || 'double';
-        if (valueType === 'i8*') {
-          valuePtr = value;
-        } else {
-          const allocMem = this.nextTemp();
-          this.emit(`${allocMem} = call i8* @GC_malloc(i64 8)`);
-          const doublePtr = this.nextTemp();
-          this.emit(`${doublePtr} = bitcast i8* ${allocMem} to double*`);
-          this.emit(`store double ${value}, double* ${doublePtr}`);
-          valuePtr = allocMem;
-        }
-      } else {
-        valuePtr = 'null';
-      }
-      const result = this.nextTemp();
-      this.emit(`${result} = call %Promise* @__Promise_resolve_static(i8* ${valuePtr})`);
-      this.ctx.setVariableType(result, '%Promise*');
-      return result;
-    }
-
-    if (method === 'reject') {
-      let reasonPtr: string;
-      if (expr.args.length > 0) {
-        const reason = this.ctx.generateExpression(expr.args[0], params);
-        const reasonType = this.ctx.getVariableType(reason) || 'double';
-        if (reasonType === 'i8*') {
-          reasonPtr = reason;
-        } else {
-          const allocMem = this.nextTemp();
-          this.emit(`${allocMem} = call i8* @GC_malloc(i64 8)`);
-          const doublePtr = this.nextTemp();
-          this.emit(`${doublePtr} = bitcast i8* ${allocMem} to double*`);
-          this.emit(`store double ${reason}, double* ${doublePtr}`);
-          reasonPtr = allocMem;
-        }
-      } else {
-        reasonPtr = 'null';
-      }
-      const result = this.nextTemp();
-      this.emit(`${result} = call %Promise* @__Promise_reject_static(i8* ${reasonPtr})`);
-      this.ctx.setVariableType(result, '%Promise*');
-      return result;
-    }
-
-    if (method === 'all') {
-      if (expr.args.length < 1) {
-        throw new Error('Promise.all() requires 1 argument (array of promises)');
-      }
-      const promisesArray = this.ctx.generateExpression(expr.args[0], params);
-      const result = this.nextTemp();
-      this.emit(`${result} = call %Promise* @__Promise_all(%ObjectArray* ${promisesArray})`);
-      this.ctx.setVariableType(result, '%Promise*');
-      return result;
-    }
-
-    if (method === 'race') {
-      if (expr.args.length < 1) {
-        throw new Error('Promise.race() requires 1 argument (array of promises)');
-      }
-      const promisesArray = this.ctx.generateExpression(expr.args[0], params);
-      const result = this.nextTemp();
-      this.emit(`${result} = call %Promise* @__Promise_race(%ObjectArray* ${promisesArray})`);
-      this.ctx.setVariableType(result, '%Promise*');
-      return result;
-    }
-
-    throw new Error(`Unsupported Promise static method: ${method}`);
+    return _handlePromiseStaticMethods(this.ctx, expr, params);
   }
 
   private handlePromiseThen(expr: MethodCallNode, params: string[], isCatch: boolean): string {
-    this.ctx.setUsesPromises(true);
-    const promisePtr = this.ctx.generateExpression(expr.object, params);
-
-    let onFulfilled = 'null';
-    let onRejected = 'null';
-
-    const promiseCallbackTypes = { paramTypes: ['string', 'any'], returnType: 'void' };
-    const scopeVarsResult = this.ctx.symbolTableGetScopeVarsArraysForClosure();
-    const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
-
-    if (isCatch) {
-      if (expr.args.length > 0) {
-        const callback = expr.args[0] as Expression;
-        const callbackBase = callback as ExprBase;
-        if (callbackBase.type === 'arrow_function') {
-          const callbackName = this.ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
-          onRejected = `@${callbackName}`;
-        } else if (callbackBase.type === 'variable') {
-          onRejected = `@${(callback as VariableNode).name}`;
-        }
-      }
-    } else {
-      if (expr.args.length > 0) {
-        const callback = expr.args[0] as Expression;
-        const callbackBase = callback as ExprBase;
-        if (callbackBase.type === 'arrow_function') {
-          const callbackName = this.ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
-          onFulfilled = `@${callbackName}`;
-        } else if (callbackBase.type === 'variable') {
-          onFulfilled = `@${(callback as VariableNode).name}`;
-        }
-      }
-      if (expr.args.length > 1) {
-        const callback = expr.args[1] as Expression;
-        const callbackBase = callback as ExprBase;
-        if (callbackBase.type === 'arrow_function') {
-          const callbackName = this.ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
-          onRejected = `@${callbackName}`;
-        } else if (callbackBase.type === 'variable') {
-          onRejected = `@${(callback as VariableNode).name}`;
-        }
-      }
-    }
-
-    const onFulfilledPtr = this.nextTemp();
-    if (onFulfilled === 'null') {
-      this.emit(`${onFulfilledPtr} = bitcast i8* null to void (i8*, i8*)*`);
-    } else {
-      this.emit(`${onFulfilledPtr} = bitcast void (i8*, i8*)* ${onFulfilled} to void (i8*, i8*)*`);
-    }
-
-    const onRejectedPtr = this.nextTemp();
-    if (onRejected === 'null') {
-      this.emit(`${onRejectedPtr} = bitcast i8* null to void (i8*, i8*)*`);
-    } else {
-      this.emit(`${onRejectedPtr} = bitcast void (i8*, i8*)* ${onRejected} to void (i8*, i8*)*`);
-    }
-
-    const result = this.nextTemp();
-    this.emit(`${result} = call %Promise* @__Promise_then(%Promise* ${promisePtr}, void (i8*, i8*)* ${onFulfilledPtr}, void (i8*, i8*)* ${onRejectedPtr})`);
-    this.ctx.setVariableType(result, '%Promise*');
-    return result;
+    return _handlePromiseThen(this.ctx, expr, params, isCatch);
   }
 
   private generateObjectKeys(expr: MethodCallNode, params: string[]): string {
