@@ -155,14 +155,17 @@ $ websocat ws://localhost:8080/
 | `wsBroadcast()` | `mg_ws_send()` to all tracked connections |
 | WebSocket upgrade | `mg_ws_upgrade()` on `Upgrade` header detection |
 
-## Transparent Deflate Compression
+## Transparent Compression
 
 Responses are automatically compressed when:
 
-1. The client sends `Accept-Encoding: deflate`
+1. The client sends an `Accept-Encoding` header
 2. The response body is larger than 256 bytes
 3. The compressed output is smaller than the original
 
-When compression is applied, the server sets `Content-Encoding: deflate` on the response. No changes to user code are needed — compression is fully transparent.
+The server prefers **zstd** over **deflate**. If the client supports both, zstd is used. If only deflate is supported, deflate is used. No changes to user code are needed — compression is fully transparent.
 
-Uses zlib's `compress()` function, which produces RFC 1950 zlib-format output.
+| Priority | Encoding | Header | Library |
+|----------|----------|--------|---------|
+| 1 | zstd | `Content-Encoding: zstd` | libzstd |
+| 2 | deflate | `Content-Encoding: deflate` | zlib |

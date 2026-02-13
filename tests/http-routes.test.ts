@@ -388,4 +388,69 @@ describe('HTTP Route Isolation Tests', { concurrency: 1 }, () => {
       await stopServer();
     }
   });
+
+  it('GET /large with Accept-Encoding: zstd returns zstd compressed response', async () => {
+    const srv = await startServer();
+    const pid = srv.pid!;
+
+    try {
+      const { headers, body } = await new Promise<{ headers: http.IncomingHttpHeaders; body: Buffer }>((resolve, reject) => {
+        const req = http.request({
+          hostname: '127.0.0.1',
+          port: PORT,
+          path: '/large',
+          method: 'GET',
+          headers: { 'Accept-Encoding': 'zstd' }
+        }, (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }));
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+      assert.ok(isProcessAlive(pid), 'Server crashed after zstd request');
+      assert.strictEqual(headers['content-encoding'], 'zstd', 'Response should have Content-Encoding: zstd');
+
+      const decompressed = zlib.zstdDecompressSync(body);
+      const text = decompressed.toString('utf-8');
+      assert.ok(text.includes('Large Response'), 'Decompressed body should contain expected content');
+      assert.ok(text.startsWith('<html>'), 'Decompressed body should start with <html>');
+    } finally {
+      await stopServer();
+    }
+  });
+
+  it('GET /large with Accept-Encoding: zstd, deflate prefers zstd', async () => {
+    const srv = await startServer();
+    const pid = srv.pid!;
+
+    try {
+      const { headers, body } = await new Promise<{ headers: http.IncomingHttpHeaders; body: Buffer }>((resolve, reject) => {
+        const req = http.request({
+          hostname: '127.0.0.1',
+          port: PORT,
+          path: '/large',
+          method: 'GET',
+          headers: { 'Accept-Encoding': 'zstd, deflate' }
+        }, (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }));
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+      assert.ok(isProcessAlive(pid), 'Server crashed after zstd+deflate request');
+      assert.strictEqual(headers['content-encoding'], 'zstd', 'zstd should be preferred over deflate');
+
+      const decompressed = zlib.zstdDecompressSync(body);
+      const text = decompressed.toString('utf-8');
+      assert.ok(text.includes('Large Response'), 'Decompressed body should contain expected content');
+    } finally {
+      await stopServer();
+    }
+  });
 });

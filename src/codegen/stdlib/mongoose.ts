@@ -63,6 +63,8 @@ export class MongooseGenerator {
     ir += 'declare void @mg_http_reply(%struct.mg_connection*, i32, i8*, i8*, ...)\n';
     ir += 'declare i32 @mg_http_match_uri(%struct.mg_http_message*, i8*)\n';
     ir += 'declare %struct.mg_str* @mg_http_get_header(%struct.mg_http_message*, i8*)\n';
+    ir += 'declare i64 @mg_printf(%struct.mg_connection*, i8*, ...)\n';
+    ir += 'declare i1 @mg_send(%struct.mg_connection*, i8*, i64)\n';
     ir += '\n';
 
     ir += '; WebSocket functions\n';
@@ -387,9 +389,9 @@ export class MongooseGenerator {
     ir += '  %zstd_combined_hdr = call i8* @GC_malloc_atomic(i64 %zstd_hdr_alloc)\n';
     ir += '  call i8* @strcpy(i8* %zstd_combined_hdr, i8* %final_ct)\n';
     ir += '  call i8* @strcat(i8* %zstd_combined_hdr, i8* %ce_zstd_hdr)\n';
-    ir += '  %zstd_len_i32 = trunc i64 %zstd_result to i32\n';
-    ir += '  %zstd_binary_fmt = getelementptr [5 x i8], [5 x i8]* @.str.body_binary_fmt, i32 0, i32 0\n';
-    ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 %status_code, i8* %zstd_combined_hdr, i8* %zstd_binary_fmt, i32 %zstd_len_i32, i8* %zstd_buf)\n';
+    ir += '  %zstd_resp_fmt = getelementptr [42 x i8], [42 x i8]* @.str.binary_resp_fmt, i32 0, i32 0\n';
+    ir += '  call i64 (%struct.mg_connection*, i8*, ...) @mg_printf(%struct.mg_connection* %conn, i8* %zstd_resp_fmt, i32 %status_code, i8* %zstd_combined_hdr, i64 %zstd_result)\n';
+    ir += '  call i1 @mg_send(%struct.mg_connection* %conn, i8* %zstd_buf, i64 %zstd_result)\n';
     ir += '  br label %done\n\n';
 
     ir += 'check_ae_deflate:\n';
@@ -425,9 +427,9 @@ export class MongooseGenerator {
     ir += '  %combined_hdr = call i8* @GC_malloc_atomic(i64 %combined_hdr_alloc)\n';
     ir += '  call i8* @strcpy(i8* %combined_hdr, i8* %final_ct)\n';
     ir += '  call i8* @strcat(i8* %combined_hdr, i8* %ce_hdr)\n';
-    ir += '  %comp_len_i32 = trunc i64 %compressed_len to i32\n';
-    ir += '  %binary_fmt = getelementptr [5 x i8], [5 x i8]* @.str.body_binary_fmt, i32 0, i32 0\n';
-    ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 %status_code, i8* %combined_hdr, i8* %binary_fmt, i32 %comp_len_i32, i8* %comp_buf)\n';
+    ir += '  %deflate_resp_fmt = getelementptr [42 x i8], [42 x i8]* @.str.binary_resp_fmt, i32 0, i32 0\n';
+    ir += '  call i64 (%struct.mg_connection*, i8*, ...) @mg_printf(%struct.mg_connection* %conn, i8* %deflate_resp_fmt, i32 %status_code, i8* %combined_hdr, i64 %compressed_len)\n';
+    ir += '  call i1 @mg_send(%struct.mg_connection* %conn, i8* %comp_buf, i64 %compressed_len)\n';
     ir += '  br label %done\n\n';
 
     ir += 'send_uncompressed:\n';
@@ -457,9 +459,9 @@ export class MongooseGenerator {
     ir += '@.str.accept_encoding_header = private constant [16 x i8] c"Accept-Encoding\\00"\n';
     ir += '@.str.deflate_needle = private constant [8 x i8] c"deflate\\00"\n';
     ir += '@.str.ce_deflate = private constant [28 x i8] c"Content-Encoding: deflate\\0D\\0A\\00"\n';
-    ir += '@.str.body_binary_fmt = private constant [5 x i8] c"%.*s\\00"\n';
     ir += '@.str.zstd_needle = private constant [5 x i8] c"zstd\\00"\n';
     ir += '@.str.ce_zstd = private constant [25 x i8] c"Content-Encoding: zstd\\0D\\0A\\00"\n';
+    ir += '@.str.binary_resp_fmt = private constant [42 x i8] c"HTTP/1.1 %d OK\\0D\\0A%sContent-Length: %ld\\0D\\0A\\0D\\0A\\00"\n';
 
     if (wsHandlerName) {
       ir += '@.str.upgrade_header = private constant [8 x i8] c"Upgrade\\00"\n';
