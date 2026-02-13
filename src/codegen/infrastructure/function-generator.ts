@@ -49,6 +49,7 @@ export interface FunctionGeneratorContext {
   clearOutput(): void;
   pushOutput(line: string): void;
   createEmptyStringConstant(): string;
+  mangleUserName(name: string): string;
 }
 
 export class FunctionGenerator {
@@ -193,7 +194,7 @@ export class FunctionGenerator {
       }
     }
 
-    let ir = `define ${returnType} @${funcName}(`;
+    let ir = `define ${returnType} @${this.ctx.mangleUserName(funcName)}(`;
     const paramStrings: string[] = [];
     if (hasClosure) {
       paramStrings.push('i8* %__env');

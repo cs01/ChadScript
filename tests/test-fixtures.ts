@@ -611,6 +611,12 @@ export const testCases: TestCase[] = [
     description: 'Rest parameters function(...args) with spread call syntax should work'
   },
   {
+    name: 'user-main-function',
+    fixture: 'tests/fixtures/functions/user-main-function.ts',
+    expectTestPassed: true,
+    description: 'User function named main() should not conflict with C entry point'
+  },
+  {
     name: 'string-replaceall',
     fixture: 'tests/fixtures/strings/string-replaceall.ts',
     expectTestPassed: true,

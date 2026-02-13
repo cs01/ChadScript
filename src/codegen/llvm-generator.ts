@@ -1173,6 +1173,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return original || localName;
   }
 
+  mangleUserName(name: string): string {
+    if (name.startsWith('__')) return name;
+    return `_cs_${name}`;
+  }
+
   reset(): void {
     this.tempCounter = 0;
     this.labelCounter = 0;
@@ -1643,7 +1648,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (httpServe) { irParts.push(httpServe); }
       irParts.push('\n');
       const wsHandler = this.wsHandlers.length > 0 ? this.wsHandlers[0] : undefined;
-      const eventHandler = this.mongooseGen.generateEventHandler(this.httpHandlers[0], wsHandler);
+      const mangledHttpHandler = this.mangleUserName(this.httpHandlers[0]);
+      const mangledWsHandler = wsHandler ? this.mangleUserName(wsHandler) : undefined;
+      const eventHandler = this.mongooseGen.generateEventHandler(mangledHttpHandler, mangledWsHandler);
       if (eventHandler) { irParts.push(eventHandler); }
       if (wsHandler) {
         irParts.push('\n');
@@ -2352,7 +2359,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     // Call the runtime http_serve function
     // Handler now takes a single Request object (i8*) and returns Response object (i8*)
     const temp = this.nextTemp();
-    this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*)* @${handlerName})`);
+    this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*)* @${this.mangleUserName(handlerName)})`);
 
     return temp;
   }

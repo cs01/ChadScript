@@ -58,6 +58,7 @@ export interface MethodCallGeneratorContext {
   isRegexExpression(expr: Expression): boolean;
   isPromiseExpression(expr: Expression): boolean;
   formatCodegenError(message: string, suggestion: string, pos?: number): string;
+  mangleUserName(name: string): string;
   symbolTable: SymbolTable;
   variableTypes: Map<string, string>;
   getVariableType(name: string): string | undefined;

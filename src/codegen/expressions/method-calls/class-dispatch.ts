@@ -688,6 +688,6 @@ export function handleObjectMethods(ctx: MethodCallGeneratorContext, expr: Metho
   const args = argParts.join(', ');
 
   const temp = ctx.nextTemp();
-  ctx.emit(`${temp} = call ${returnType} @${method}(${args})`);
+  ctx.emit(`${temp} = call ${returnType} @${ctx.mangleUserName(method)}(${args})`);
   return temp;
 }

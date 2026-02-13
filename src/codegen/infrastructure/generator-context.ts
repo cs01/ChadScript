@@ -547,6 +547,8 @@ export interface IGeneratorContext {
    */
   resolveImportAlias(localName: string): string;
 
+  mangleUserName(name: string): string;
+
   /**
    * Access to class generator for field type lookups
    */
@@ -1501,6 +1503,11 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   resolveImportAlias(localName: string): string {
     return localName;
+  }
+
+  mangleUserName(name: string): string {
+    if (name.startsWith('__')) return name;
+    return `_cs_${name}`;
   }
 
   typeResolverGetUnionCommonFields(_memberNames: string[]): { keys: string[]; types: string[] } {

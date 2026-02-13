@@ -390,7 +390,7 @@ export class ClassGenerator {
     const fieldsFromMap = this.classFields.get(className);
     const fields = fieldsFromMap || [];
     const structType = `%${className}_struct*`;
-    let ir = `define ${structType} @${className}_constructor(`;
+    let ir = `define ${structType} @${this.ctx.mangleUserName(className)}_constructor(`;
     const paramLLVMTypes: string[] = [];
     let paramTsTypes: string[];
     if (constructor.paramTypes) {
@@ -553,7 +553,7 @@ export class ClassGenerator {
 
   private generateDefaultConstructorFromTypes(className: string, fieldLlvmTypes: string[]): string {
     const structType = `%${className}_struct*`;
-    let ir = `define ${structType} @${className}_constructor() {` + '\n';
+    let ir = `define ${structType} @${this.ctx.mangleUserName(className)}_constructor() {` + '\n';
     ir += 'entry:\n';
 
     this.ctx.clearOutput();
@@ -608,7 +608,7 @@ export class ClassGenerator {
     }
 
     const thisType = `%${className}_struct*`;
-    let ir = `define ${returnLLVMType} @${className}_${method.name}(${thisType} %this`;
+    let ir = `define ${returnLLVMType} @${this.ctx.mangleUserName(className)}_${method.name}(${thisType} %this`;
 
     const paramLLVMTypes: string[] = [];
     const paramTsTypes: string[] = method.paramTypes || [];
@@ -800,7 +800,7 @@ export class ClassGenerator {
     const returnType = `%${className}_struct*`;
 
     const instance = this.nextTemp();
-    this.emit(`${instance} = call ${returnType} @${className}_constructor(${argValues})`);
+    this.emit(`${instance} = call ${returnType} @${this.ctx.mangleUserName(className)}_constructor(${argValues})`);
 
     return instance;
   }
@@ -882,11 +882,11 @@ export class ClassGenerator {
 
     if (returnLLVMType === 'void') {
       // Void methods don't return a value
-      this.emit(`call void @${methodOwnerClass}_${methodName}(${thisType} ${actualInstancePtr}${argList})`);
+      this.emit(`call void @${this.ctx.mangleUserName(methodOwnerClass)}_${methodName}(${thisType} ${actualInstancePtr}${argList})`);
       return '0'; // Return dummy value for void calls
     } else {
       const result = this.nextTemp();
-      this.emit(`${result} = call ${returnLLVMType} @${methodOwnerClass}_${methodName}(${thisType} ${actualInstancePtr}${argList})`);
+      this.emit(`${result} = call ${returnLLVMType} @${this.ctx.mangleUserName(methodOwnerClass)}_${methodName}(${thisType} ${actualInstancePtr}${argList})`);
       this.ctx.setVariableType(result, returnLLVMType);
       return result;
     }

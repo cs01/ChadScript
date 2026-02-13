@@ -1049,7 +1049,7 @@ export class ArrayGenerator {
     let predicateFn: string;
 
     if (predicateArg.type === 'variable') {
-      predicateFn = (predicateArg as VariableNode).name;
+      predicateFn = this.ctx.mangleUserName((predicateArg as VariableNode).name);
     } else if (predicateArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
         this.ctx.setExpectedCallbackParamType('string');
@@ -1226,7 +1226,7 @@ export class ArrayGenerator {
     let predicateFn: string;
 
     if (predicateArg.type === 'variable') {
-      predicateFn = (predicateArg as VariableNode).name;
+      predicateFn = this.ctx.mangleUserName((predicateArg as VariableNode).name);
     } else if (predicateArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
         this.ctx.setExpectedCallbackParamType('string');
@@ -1407,7 +1407,7 @@ export class ArrayGenerator {
     let predicateFn: string;
 
     if (predicateArg.type === 'variable') {
-      predicateFn = (predicateArg as VariableNode).name;
+      predicateFn = this.ctx.mangleUserName((predicateArg as VariableNode).name);
     } else if (predicateArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
         this.ctx.setExpectedCallbackParamType('string');
@@ -1577,7 +1577,7 @@ export class ArrayGenerator {
     let predicateFn: string;
 
     if (predicateArg.type === 'variable') {
-      predicateFn = (predicateArg as VariableNode).name;
+      predicateFn = this.ctx.mangleUserName((predicateArg as VariableNode).name);
     } else if (predicateArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
         this.ctx.setExpectedCallbackParamType('string');
@@ -1823,7 +1823,7 @@ export class ArrayGenerator {
     let callbackFn: string;
 
     if (callbackArg.type === 'variable') {
-      callbackFn = (callbackArg as VariableNode).name;
+      callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
     } else if (callbackArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
         this.ctx.setExpectedCallbackParamType('string');
@@ -1908,7 +1908,7 @@ export class ArrayGenerator {
     let callbackFn: string;
 
     if (callbackArg.type === 'variable') {
-      callbackFn = (callbackArg as VariableNode).name;
+      callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
     } else if (callbackArg.type === 'arrow_function') {
       if (isStringArray) {
         this.ctx.setExpectedCallbackParamType('string');
@@ -2129,7 +2129,7 @@ export class ArrayGenerator {
     let callbackFn: string;
 
     if (callbackArg.type === 'variable') {
-      callbackFn = (callbackArg as VariableNode).name;
+      callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
     } else if (callbackArg.type === 'arrow_function') {
       if (isStringArray || isObjectArray) {
         this.ctx.setExpectedCallbackParamType('string');
@@ -2644,7 +2644,7 @@ export class ArrayGenerator {
     let callbackFn: string;
 
     if (callbackArg.type === 'variable') {
-      callbackFn = (callbackArg as VariableNode).name;
+      callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
     } else if (callbackArg.type === 'arrow_function') {
       this.ctx.setExpectedCallbackParamType('string');
       this.ctx.setExpectedCallbackReturnType('string');

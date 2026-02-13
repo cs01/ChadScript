@@ -99,9 +99,9 @@ export function handlePromiseThen(ctx: MethodCallGeneratorContext, expr: MethodC
       const callbackBase = callback as ExprBase;
       if (callbackBase.type === 'arrow_function') {
         const callbackName = ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
-        onRejected = `@${callbackName}`;
+        onRejected = `@${ctx.mangleUserName(callbackName)}`;
       } else if (callbackBase.type === 'variable') {
-        onRejected = `@${(callback as VariableNode).name}`;
+        onRejected = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
       }
     }
   } else {
@@ -110,9 +110,9 @@ export function handlePromiseThen(ctx: MethodCallGeneratorContext, expr: MethodC
       const callbackBase = callback as ExprBase;
       if (callbackBase.type === 'arrow_function') {
         const callbackName = ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
-        onFulfilled = `@${callbackName}`;
+        onFulfilled = `@${ctx.mangleUserName(callbackName)}`;
       } else if (callbackBase.type === 'variable') {
-        onFulfilled = `@${(callback as VariableNode).name}`;
+        onFulfilled = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
       }
     }
     if (expr.args.length > 1) {
@@ -120,9 +120,9 @@ export function handlePromiseThen(ctx: MethodCallGeneratorContext, expr: MethodC
       const callbackBase = callback as ExprBase;
       if (callbackBase.type === 'arrow_function') {
         const callbackName = ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
-        onRejected = `@${callbackName}`;
+        onRejected = `@${ctx.mangleUserName(callbackName)}`;
       } else if (callbackBase.type === 'variable') {
-        onRejected = `@${(callback as VariableNode).name}`;
+        onRejected = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
       }
     }
   }
