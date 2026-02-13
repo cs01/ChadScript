@@ -1766,6 +1766,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     finalParts.push('!3 = !{!"any pointer", !1, i64 0}\n');
     finalParts.push('!4 = !{!2, !2, i64 0}\n');
     finalParts.push('!5 = !{!3, !3, i64 0}\n');
+    finalParts.push('!6 = !{!"int", !1, i64 0}\n');
+    finalParts.push('!7 = !{!6, !6, i64 0}\n');
 
     return finalParts;
   }

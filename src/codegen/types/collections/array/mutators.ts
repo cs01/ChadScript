@@ -138,13 +138,13 @@ function generateIntArrayPop(gen: ArrayMutatorContext, arrayPtr: string): string
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
 
   // Load last element
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${lastIndex}`);
   const lastElem = gen.nextTemp();
-  gen.emit(`${lastElem} = load double, double* ${elemPtr}`);
+  gen.emit(`${lastElem} = load double, double* ${elemPtr}, !tbaa !4`);
 
   // Decrement length
   gen.emit(`store i32 ${lastIndex}, i32* ${lenPtr}`);
@@ -196,13 +196,13 @@ function generateStringArrayPop(gen: ArrayMutatorContext, arrayPtr: string): str
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
 
   // Load last element
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${lastIndex}`);
   const lastElem = gen.nextTemp();
-  gen.emit(`${lastElem} = load i8*, i8** ${elemPtr}`);
+  gen.emit(`${lastElem} = load i8*, i8** ${elemPtr}, !tbaa !5`);
 
   // Decrement length
   gen.emit(`store i32 ${lastIndex}, i32* ${lenPtr}`);
@@ -249,14 +249,14 @@ function generatePointerArrayPop(gen: ArrayMutatorContext, arrayPtr: string): st
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${castPtr}, i32 0, i32 0`);
   const dataPtrRaw = gen.nextTemp();
-  gen.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField}`);
+  gen.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField}, !tbaa !5`);
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = bitcast double* ${dataPtrRaw} to i8**`);
 
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${lastIndex}`);
   const lastElem = gen.nextTemp();
-  gen.emit(`${lastElem} = load i8*, i8** ${elemPtr}`);
+  gen.emit(`${lastElem} = load i8*, i8** ${elemPtr}, !tbaa !5`);
 
   gen.emit(`store i32 ${lastIndex}, i32* ${lenPtr}`);
 
@@ -348,12 +348,12 @@ function generateIntArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value:
   const dataPtrField2 = gen.nextTemp();
   gen.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField2}`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField2}, !tbaa !5`);
 
   // Store value at current length index
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentLen}`);
-  gen.emit(`store double ${value}, double* ${elemPtr}`);
+  gen.emit(`store double ${value}, double* ${elemPtr}, !tbaa !4`);
 
   // Increment length
   const newLen = gen.nextTemp();
@@ -443,12 +443,12 @@ function generateStringArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
   const dataPtrField2 = gen.nextTemp();
   gen.emit(`${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField2}`);
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField2}, !tbaa !5`);
 
   // Store value at current length index
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
-  gen.emit(`store i8* ${value}, i8** ${elemPtr}`);
+  gen.emit(`store i8* ${value}, i8** ${elemPtr}, !tbaa !5`);
 
   // Increment length
   const newLen = gen.nextTemp();
@@ -528,7 +528,7 @@ function generatePointerArrayPush(gen: ArrayMutatorContext, arrayPtr: string, va
   const dataPtrField2 = gen.nextTemp();
   gen.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtrRaw = gen.nextTemp();
-  gen.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField2}`);
+  gen.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField2}, !tbaa !5`);
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = bitcast double* ${dataPtrRaw} to i8**`);
 
@@ -536,7 +536,7 @@ function generatePointerArrayPush(gen: ArrayMutatorContext, arrayPtr: string, va
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
   const valueAsI8 = gen.nextTemp();
   gen.emit(`${valueAsI8} = bitcast ${valueType} ${value} to i8*`);
-  gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}`);
+  gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}, !tbaa !5`);
 
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = add i32 ${currentLen}, 1`);
@@ -614,7 +614,7 @@ function generateObjectArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
   const dataPtrField2 = gen.nextTemp();
   gen.emit(`${dataPtrField2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
   const dataPtrRaw = gen.nextTemp();
-  gen.emit(`${dataPtrRaw} = load i8*, i8** ${dataPtrField2}`);
+  gen.emit(`${dataPtrRaw} = load i8*, i8** ${dataPtrField2}, !tbaa !5`);
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = bitcast i8* ${dataPtrRaw} to i8**`);
 
@@ -622,7 +622,7 @@ function generateObjectArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
   const valueAsI8 = gen.nextTemp();
   gen.emit(`${valueAsI8} = bitcast ${valueType} ${value} to i8*`);
-  gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}`);
+  gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}, !tbaa !5`);
 
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = add i32 ${currentLen}, 1`);

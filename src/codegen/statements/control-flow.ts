@@ -328,7 +328,7 @@ export class ControlFlowGenerator {
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 1`);
     const lengthI32 = this.nextTemp();
-    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
+    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
 
     const indexAlloca = this.ctx.nextAllocaReg('__forof_idx');
     this.emit(`${indexAlloca} = alloca i32`);
@@ -366,15 +366,15 @@ export class ControlFlowGenerator {
     let dataArray: string;
     if (isStringSet || isStringArray) {
       dataArray = this.nextTemp();
-      this.emit(`${dataArray} = load i8**, i8*** ${dataPtr}`);
+      this.emit(`${dataArray} = load i8**, i8*** ${dataPtr}, !tbaa !5`);
     } else if (isObjectArray) {
       const dataI8 = this.nextTemp();
-      this.emit(`${dataI8} = load i8*, i8** ${dataPtr}`);
+      this.emit(`${dataI8} = load i8*, i8** ${dataPtr}, !tbaa !5`);
       dataArray = this.nextTemp();
       this.emit(`${dataArray} = bitcast i8* ${dataI8} to i8**`);
     } else {
       dataArray = this.nextTemp();
-      this.emit(`${dataArray} = load double*, double** ${dataPtr}`);
+      this.emit(`${dataArray} = load double*, double** ${dataPtr}, !tbaa !5`);
     }
 
     // Load the element at current index
@@ -1160,7 +1160,7 @@ export class ControlFlowGenerator {
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 1`);
     const lengthI32 = this.nextTemp();
-    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
+    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
 
     const indexAlloca = this.ctx.nextAllocaReg('__forof_idx');
     this.emit(`${indexAlloca} = alloca i32`);
@@ -1200,7 +1200,7 @@ export class ControlFlowGenerator {
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 0`);
     const dataArray = this.nextTemp();
-    this.emit(`${dataArray} = load double*, double** ${dataPtr}`);
+    this.emit(`${dataArray} = load double*, double** ${dataPtr}, !tbaa !5`);
 
     const elemPtrRaw = this.nextTemp();
     this.emit(`${elemPtrRaw} = bitcast double* ${dataArray} to i8**`);
@@ -1808,7 +1808,7 @@ export class ControlFlowGenerator {
     const dataFieldPtr = this.nextTemp();
     this.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 2`);
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}`);
+    this.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}, !tbaa !5`);
     const dataCast = this.nextTemp();
     this.emit(`${dataCast} = bitcast double* ${dataPtr} to i8**`);
 

@@ -20,11 +20,11 @@ export class ArrayGenerator {
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
     const length = this.nextTemp();
-    this.emit(`${length} = load i32, i32* ${lenPtr}`);
+    this.emit(`${length} = load i32, i32* ${lenPtr}, !tbaa !7`);
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
     return { length, dataPtr };
   }
 
@@ -498,11 +498,11 @@ export class ArrayGenerator {
         const srcLenPtr = this.nextTemp();
         this.emit(`${srcLenPtr} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 1`);
         const srcLen = this.nextTemp();
-        this.emit(`${srcLen} = load i32, i32* ${srcLenPtr}`);
+        this.emit(`${srcLen} = load i32, i32* ${srcLenPtr}, !tbaa !7`);
         const srcDataField = this.nextTemp();
         this.emit(`${srcDataField} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 0`);
         const srcDataPtr = this.nextTemp();
-        this.emit(`${srcDataPtr} = load i8**, i8*** ${srcDataField}`);
+        this.emit(`${srcDataPtr} = load i8**, i8*** ${srcDataField}, !tbaa !5`);
 
         const checkLabel = this.nextLabel('spread_check');
         const bodyLabel = this.nextLabel('spread_body');
@@ -679,7 +679,7 @@ export class ArrayGenerator {
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const oldDataPtr = this.nextTemp();
-    this.emit(`${oldDataPtr} = load double*, double** ${dataPtrField}`);
+    this.emit(`${oldDataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
     const oldDataI8 = this.nextTemp();
     this.emit(`${oldDataI8} = bitcast double* ${oldDataPtr} to i8*`);
     const newDataI8 = this.nextTemp();
@@ -697,10 +697,10 @@ export class ArrayGenerator {
     const dataPtrField2 = this.nextTemp();
     this.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load double*, double** ${dataPtrField2}`);
+    this.emit(`${dataPtr} = load double*, double** ${dataPtrField2}, !tbaa !5`);
     const elemPtr = this.nextTemp();
     this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentLen}`);
-    this.emit(`store double ${value}, double* ${elemPtr}`);
+    this.emit(`store double ${value}, double* ${elemPtr}, !tbaa !4`);
     const newLen = this.nextTemp();
     this.emit(`${newLen} = add i32 ${currentLen}, 1`);
     this.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
@@ -742,7 +742,7 @@ export class ArrayGenerator {
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
     const oldDataPtr = this.nextTemp();
-    this.emit(`${oldDataPtr} = load i8**, i8*** ${dataPtrField}`);
+    this.emit(`${oldDataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
     const oldDataI8 = this.nextTemp();
     this.emit(`${oldDataI8} = bitcast i8** ${oldDataPtr} to i8*`);
     const newDataI8 = this.nextTemp();
@@ -759,10 +759,10 @@ export class ArrayGenerator {
     const dataPtrField2 = this.nextTemp();
     this.emit(`${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField2}`);
+    this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField2}, !tbaa !5`);
     const elemPtr = this.nextTemp();
     this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
-    this.emit(`store i8* ${value}, i8** ${elemPtr}`);
+    this.emit(`store i8* ${value}, i8** ${elemPtr}, !tbaa !5`);
     const newLen = this.nextTemp();
     this.emit(`${newLen} = add i32 ${currentLen}, 1`);
     this.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
@@ -874,7 +874,7 @@ export class ArrayGenerator {
     const dataPtrField = this.nextTemp();
     this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const oldDataPtrRaw = this.nextTemp();
-    this.emit(`${oldDataPtrRaw} = load double*, double** ${dataPtrField}`);
+    this.emit(`${oldDataPtrRaw} = load double*, double** ${dataPtrField}, !tbaa !5`);
     const oldDataPtr = this.nextTemp();
     this.emit(`${oldDataPtr} = bitcast double* ${oldDataPtrRaw} to i8**`);
     const oldDataI8 = this.nextTemp();
@@ -895,7 +895,7 @@ export class ArrayGenerator {
     const dataPtrField2 = this.nextTemp();
     this.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtrRaw = this.nextTemp();
-    this.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField2}`);
+    this.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField2}, !tbaa !5`);
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = bitcast double* ${dataPtrRaw} to i8**`);
     const elemPtr = this.nextTemp();

@@ -22,9 +22,9 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
 
   ir += '; Boehm GC - automatic garbage collection\n';
   ir += 'declare void @GC_init()\n';
-  ir += 'declare i8* @GC_malloc(i64)\n';
-  ir += 'declare i8* @GC_malloc_atomic(i64)\n';
-  ir += 'declare i8* @GC_malloc_uncollectable(i64)\n';
+  ir += 'declare noalias i8* @GC_malloc(i64)\n';
+  ir += 'declare noalias i8* @GC_malloc_atomic(i64)\n';
+  ir += 'declare noalias i8* @GC_malloc_uncollectable(i64)\n';
   ir += 'declare i8* @GC_realloc(i8*, i64)\n';
   ir += 'declare void @GC_disable()\n';
   ir += 'declare void @GC_enable()\n';

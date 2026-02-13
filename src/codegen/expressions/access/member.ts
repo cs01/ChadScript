@@ -2164,7 +2164,7 @@ export class MemberAccessGenerator {
     const lenPtr = this.ctx.nextTemp();
     this.ctx.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`);
     const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
+    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
     const len = this.ctx.nextTemp();
     this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
     this.ctx.setVariableType(len, 'double');
@@ -2175,7 +2175,7 @@ export class MemberAccessGenerator {
     const lenPtr = this.ctx.nextTemp();
     this.ctx.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 1`);
     const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
+    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
     const len = this.ctx.nextTemp();
     this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
     this.ctx.setVariableType(len, 'double');
@@ -2304,7 +2304,7 @@ export class MemberAccessGenerator {
     const lenPtr = this.ctx.nextTemp();
     this.ctx.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`);
     const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
+    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
     const len = this.ctx.nextTemp();
     this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
     this.ctx.setVariableType(len, 'double');
