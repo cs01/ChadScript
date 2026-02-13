@@ -1,82 +1,46 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 
-const tab = ref('http')
+const tab = ref('startup')
 
 const benchmarks = {
-  http: {
-    layout: 'vertical',
-    desc: 'Hello-world HTTP server, 50 concurrent connections, 10 seconds.',
-    metric: 'Taller = more throughput.',
-    items: [
-      { name: 'ChadScript', val: '120K rps', h: 100, color: 'chad', d: 0, hero: true, speed: 1.5 },
-      { name: 'Go', val: '105K rps', h: 88, color: 'go', d: 0.12, speed: 1.7 },
-      { name: 'Bun', val: '85K rps', h: 71, color: 'bun', d: 0.24, speed: 2.0 },
-      { name: 'Node.js', val: '42K rps', h: 35, color: 'node', d: 0.36, speed: 3.5 },
-    ],
-    note: 'ChadScript\u2019s HTTP server uses Mongoose compiled directly into the binary \u2014 no framework overhead, no event loop abstraction. Go\u2019s net/http is strong but still has goroutine scheduling overhead.'
-  },
-  websocket: {
-    layout: 'vertical',
-    desc: 'Chat broadcast server, 32 concurrent clients, 10 seconds.',
-    metric: 'Taller = more throughput.',
-    items: [
-      { name: 'ChadScript', val: '48K msg/s', h: 100, color: 'chad', d: 0, hero: true, speed: 1.5 },
-      { name: 'Bun', val: '42K msg/s', h: 88, color: 'bun', d: 0.12, speed: 1.7 },
-      { name: 'Node.js', val: '18K msg/s', h: 38, color: 'node', d: 0.24, speed: 3.0 },
-    ],
-    note: 'ChadScript handles WebSocket upgrade and broadcast natively via Mongoose \u2014 zero-copy message forwarding to all connected clients. Bun\u2019s pub/sub is fast but still crosses a JS boundary. Node requires the ws package.'
-  },
   startup: {
     layout: 'horizontal',
     desc: 'Time to print \u201cHello, World!\u201d and exit. Average of 50 runs.',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'C', val: '1.6ms', w: 3, h: 100, color: 'c', d: 0, speed: 1.7 },
-      { name: 'ChadScript', val: '1.9ms', w: 3, h: 98, color: 'chad', d: 0.12, hero: true, speed: 1.8 },
-      { name: 'Go', val: '3.8ms', w: 6, h: 85, color: 'go', d: 0.24, speed: 2.2 },
-      { name: 'Bun', val: '19.5ms', w: 30, h: 40, color: 'bun', d: 0.36, speed: 4.5 },
-      { name: 'Node.js', val: '64.7ms', w: 100, h: 22, color: 'node', d: 0.48, speed: 7.8 },
+      { name: 'C', val: '1.5ms', w: 3, h: 100, color: 'c', d: 0, speed: 1.7 },
+      { name: 'ChadScript', val: '1.7ms', w: 3, h: 98, color: 'chad', d: 0.12, hero: true, speed: 1.8 },
+      { name: 'Go', val: '3.4ms', w: 6, h: 85, color: 'go', d: 0.24, speed: 2.2 },
+      { name: 'Bun', val: '19.5ms', w: 33, h: 40, color: 'bun', d: 0.36, speed: 4.5 },
+      { name: 'Node.js', val: '58.3ms', w: 100, h: 22, color: 'node', d: 0.48, speed: 7.8 },
     ],
     note: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines.'
-  },
-  sqlite: {
-    layout: 'vertical',
-    desc: '100K SELECT queries on a 100-row in-memory table.',
-    metric: 'Taller = more throughput.',
-    items: [
-      { name: 'C', val: '373K qps', h: 100, color: 'c', d: 0, speed: 2.0 },
-      { name: 'ChadScript', val: '332K qps', h: 89, color: 'chad', d: 0.12, hero: true, speed: 2.2 },
-      { name: 'Bun', val: '179K qps', h: 48, color: 'bun', d: 0.24, speed: 3.2 },
-      { name: 'Node.js', val: '144K qps', h: 39, color: 'node', d: 0.36, speed: 3.8 },
-    ],
-    note: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. ~2x the JS runtimes.'
   },
   matmul: {
     layout: 'horizontal',
     desc: '512\u00d7512 double-precision matrix multiply (A\u00d7B into C).',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'ChadScript', val: '0.43s', w: 72, h: 100, color: 'chad', d: 0, hero: true, speed: 1.5 },
-      { name: 'C', val: '0.43s', w: 72, h: 100, color: 'c', d: 0.12, speed: 1.5 },
-      { name: 'Go', val: '0.47s', w: 78, h: 91, color: 'go', d: 0.24, speed: 1.7 },
-      { name: 'Bun', val: '0.57s', w: 95, h: 75, color: 'bun', d: 0.36, speed: 2.0 },
-      { name: 'Node.js', val: '0.60s', w: 100, h: 72, color: 'node', d: 0.48, speed: 2.1 },
+      { name: 'C', val: '0.47s', w: 73, h: 100, color: 'c', d: 0, speed: 1.5 },
+      { name: 'Go', val: '0.47s', w: 73, h: 100, color: 'go', d: 0.12, speed: 1.5 },
+      { name: 'ChadScript', val: '0.47s', w: 73, h: 100, color: 'chad', d: 0.24, hero: true, speed: 1.5 },
+      { name: 'Bun', val: '0.61s', w: 94, h: 77, color: 'bun', d: 0.36, speed: 2.0 },
+      { name: 'Node.js', val: '0.65s', w: 100, h: 72, color: 'node', d: 0.48, speed: 2.1 },
     ],
-    note: 'Dense matrix multiply with array element read/write. TBAA metadata lets LLVM hoist array data pointers out of inner loops, matching hand-written C. Node/Bun\u2019s V8 JIT is strong but can\u2019t match LLVM\u2019s static optimizations here.'
+    note: 'Dense matrix multiply with array element read/write. TBAA metadata lets LLVM hoist array data pointers out of inner loops. ChadScript matches hand-written C (-O2) and Go on this benchmark.'
   },
-  nbody: {
-    layout: 'horizontal',
-    desc: 'N-Body gravitational simulation: 5 bodies, 50 million steps.',
-    metric: 'Smaller = faster.',
+  sqlite: {
+    layout: 'vertical',
+    desc: '100K SELECT queries on a 100-row in-memory table.',
+    metric: 'Taller = more throughput.',
     items: [
-      { name: 'C', val: '5.04s', w: 56, h: 100, color: 'c', d: 0, speed: 1.5 },
-      { name: 'Go', val: '5.77s', w: 65, h: 87, color: 'go', d: 0.12, speed: 1.6 },
-      { name: 'Bun', val: '7.90s', w: 88, h: 64, color: 'bun', d: 0.24, speed: 2.0 },
-      { name: 'ChadScript', val: '8.2s', w: 92, h: 61, color: 'chad', d: 0.36, hero: true, speed: 2.3 },
-      { name: 'Node.js', val: '8.94s', w: 100, h: 56, color: 'node', d: 0.48, speed: 2.5 },
+      { name: 'C', val: '394K qps', h: 100, color: 'c', d: 0, speed: 2.0 },
+      { name: 'ChadScript', val: '276K qps', h: 70, color: 'chad', d: 0.12, hero: true, speed: 2.2 },
+      { name: 'Bun', val: '164K qps', h: 42, color: 'bun', d: 0.24, speed: 3.2 },
+      { name: 'Node.js', val: '117K qps', h: 30, color: 'node', d: 0.36, speed: 3.8 },
     ],
-    note: 'Classic N-Body from the Computer Language Benchmarks Game. Heavy FP arithmetic with 7 parallel arrays. TBAA metadata lets LLVM prove array element stores can\u2019t alias struct pointer fields, enabling data pointer hoisting.'
+    note: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. 1.7x faster than Bun, 2.4x faster than Node.'
   }
 }
 
@@ -127,12 +91,9 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
 <template>
 <div>
   <div class="bench-tabs">
-    <button :class="{ active: tab === 'http' }" @click="tab = 'http'">HTTP Server</button>
-    <button :class="{ active: tab === 'websocket' }" @click="tab = 'websocket'">WebSocket</button>
     <button :class="{ active: tab === 'startup' }" @click="tab = 'startup'">Cold Start</button>
-    <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
     <button :class="{ active: tab === 'matmul' }" @click="tab = 'matmul'">Matrix Multiply</button>
-    <button :class="{ active: tab === 'nbody' }" @click="tab = 'nbody'">N-Body</button>
+    <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
   </div>
 
   <div class="bench-panel">
