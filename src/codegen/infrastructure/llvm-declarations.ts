@@ -185,6 +185,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += 'declare i8* @sqlite3_column_text(i8*, i32)\n';
   ir += 'declare i32 @sqlite3_column_count(i8*)\n';
   ir += 'declare i32 @sqlite3_finalize(i8*)\n';
+  ir += 'declare i32 @sqlite3_bind_text(i8*, i32, i8*, i32, i64)\n';
   ir += '\n';
   }
 

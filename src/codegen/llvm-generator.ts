@@ -1741,6 +1741,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (this.usesSqlite) {
       finalParts.push(this.sqliteGen.generateSqliteGetHelper());
       finalParts.push(this.sqliteGen.generateSqliteAllHelper());
+      finalParts.push(this.sqliteGen.generateSqliteBindParamsHelper());
+      finalParts.push(this.sqliteGen.generateSqliteExecWithParamsHelper());
+      finalParts.push(this.sqliteGen.generateSqliteGetWithParamsHelper());
+      finalParts.push(this.sqliteGen.generateSqliteAllWithParamsHelper());
     }
 
     for (let ipi = 0; ipi < irParts.length; ipi++) {

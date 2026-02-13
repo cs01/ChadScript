@@ -31,6 +31,30 @@ function testSqlite(): void {
     process.exit(1);
   }
 
+  sqlite.exec(db, "INSERT INTO users VALUES (?, ?)", [4, "Dave"]);
+
+  const dave = sqlite.get(db, "SELECT name FROM users WHERE id = ?", [4]);
+  if (dave !== "Dave") {
+    console.log("FAIL: expected Dave, got:");
+    console.log(dave);
+    process.exit(1);
+  }
+
+  const after2 = sqlite.all(db, "SELECT name FROM users WHERE id > ? ORDER BY id", [2]);
+  if (after2.length !== 2) {
+    console.log("FAIL: expected 2 rows after id>2, got:");
+    console.log(after2.length);
+    process.exit(1);
+  }
+  if (after2[0] !== "Charlie") {
+    console.log("FAIL: first row after id>2 should be Charlie");
+    process.exit(1);
+  }
+  if (after2[1] !== "Dave") {
+    console.log("FAIL: second row after id>2 should be Dave");
+    process.exit(1);
+  }
+
   sqlite.close(db);
   console.log("TEST_PASSED");
 }
