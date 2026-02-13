@@ -97,7 +97,7 @@ bench_http_server() {
     local pid=$!
     sleep 1
     echo "  $name"
-    $HTTP_BENCH -url "http://127.0.0.1:${HTTP_PORT}/" -c 50 -d "$BENCH_DURATION" 2>&1 | sed 's/^/    /'
+    $HTTP_BENCH -url "http://127.0.0.1:${HTTP_PORT}/" -c 100 -d "$BENCH_DURATION" 2>&1 | sed 's/^/    /'
     kill -9 $pid 2>/dev/null
     wait $pid 2>/dev/null
     sleep 0.5
@@ -203,7 +203,7 @@ bun "$DIR/montecarlo/bun.mjs" 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "═══════════════════════════════════════════════════"
-echo "  HTTP Server  (hello world, 50 concurrent, ${BENCH_DURATION})"
+echo "  HTTP Server  (hello world, 100 concurrent, ${BENCH_DURATION})"
 echo "═══════════════════════════════════════════════════"
 echo ""
 

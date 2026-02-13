@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"sync"
@@ -12,13 +13,14 @@ import (
 
 func main() {
 	url := flag.String("url", "http://127.0.0.1:9876/", "URL to benchmark")
-	concurrency := flag.Int("c", 50, "concurrent workers")
+	concurrency := flag.Int("c", 100, "concurrent workers")
 	duration := flag.Duration("d", 10*time.Second, "test duration")
 	flag.Parse()
 
 	transport := &http.Transport{
 		MaxIdleConnsPerHost: *concurrency,
-		DisableKeepAlives:   false,
+		MaxConnsPerHost:     *concurrency,
+		DisableKeepAlives:   true,
 	}
 	client := &http.Client{
 		Transport: transport,
@@ -45,13 +47,15 @@ func main() {
 			var lats []time.Duration
 			var count, errs int64
 			for atomic.LoadInt64(&done) == 0 {
+				r, _ := http.NewRequest("GET", *url, nil)
 				t0 := time.Now()
-				resp, err := client.Get(*url)
+				resp, err := client.Do(r)
 				elapsed := time.Since(t0)
 				if err != nil {
 					errs++
 					continue
 				}
+				io.Copy(io.Discard, resp.Body)
 				resp.Body.Close()
 				count++
 				lats = append(lats, elapsed)
