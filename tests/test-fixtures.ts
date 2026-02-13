@@ -178,6 +178,12 @@ export const testCases: TestCase[] = [
     description: 'console.log and console.error should output correctly'
   },
   {
+    name: 'console-log-array',
+    fixture: 'tests/fixtures/builtins/console-log-array.ts',
+    expectTestPassed: true,
+    description: 'console.log should print arrays correctly'
+  },
+  {
     name: 'parseint',
     fixture: 'tests/fixtures/builtins/parseint.js',
     expectTestPassed: true,
