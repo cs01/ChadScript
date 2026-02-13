@@ -9,11 +9,11 @@ const benchmarks = {
     desc: 'Time to print \u201cHello, World!\u201d and exit. Average of 50 runs.',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'C', val: '1.6ms', w: 2, h: 100, color: 'c', d: 0, speed: 1.7 },
-      { name: 'ChadScript', val: '1.9ms', w: 2, h: 98, color: 'chad', d: 0.12, hero: true, speed: 1.8 },
-      { name: 'Go', val: '3.8ms', w: 4, h: 85, color: 'go', d: 0.24, speed: 2.2 },
-      { name: 'Bun', val: '19.5ms', w: 18, h: 40, color: 'bun', d: 0.36, speed: 4.5 },
-      { name: 'Node.js', val: '64.7ms', w: 58, h: 22, color: 'node', d: 0.48, speed: 7.8 },
+      { name: 'C', val: '1.6ms', w: 3, h: 100, color: 'c', d: 0, speed: 1.7 },
+      { name: 'ChadScript', val: '1.9ms', w: 3, h: 98, color: 'chad', d: 0.12, hero: true, speed: 1.8 },
+      { name: 'Go', val: '3.8ms', w: 6, h: 85, color: 'go', d: 0.24, speed: 2.2 },
+      { name: 'Bun', val: '19.5ms', w: 30, h: 40, color: 'bun', d: 0.36, speed: 4.5 },
+      { name: 'Node.js', val: '64.7ms', w: 100, h: 22, color: 'node', d: 0.48, speed: 7.8 },
     ],
     note: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines.'
   },
@@ -34,26 +34,26 @@ const benchmarks = {
     desc: '512\u00d7512 double-precision matrix multiply (A\u00d7B into C).',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'C', val: '0.43s', w: 2, h: 100, color: 'c', d: 0, speed: 1.5 },
-      { name: 'ChadScript', val: '0.46s', w: 2, h: 93, color: 'chad', d: 0.12, hero: true, speed: 1.6 },
-      { name: 'Go', val: '0.47s', w: 2, h: 91, color: 'go', d: 0.24, speed: 1.7 },
-      { name: 'Bun', val: '0.57s', w: 3, h: 75, color: 'bun', d: 0.36, speed: 2.0 },
-      { name: 'Node.js', val: '0.60s', w: 3, h: 72, color: 'node', d: 0.48, speed: 2.1 },
+      { name: 'ChadScript', val: '0.43s', w: 72, h: 100, color: 'chad', d: 0, hero: true, speed: 1.5 },
+      { name: 'C', val: '0.43s', w: 72, h: 100, color: 'c', d: 0.12, speed: 1.5 },
+      { name: 'Go', val: '0.47s', w: 78, h: 91, color: 'go', d: 0.24, speed: 1.7 },
+      { name: 'Bun', val: '0.57s', w: 95, h: 75, color: 'bun', d: 0.36, speed: 2.0 },
+      { name: 'Node.js', val: '0.60s', w: 100, h: 72, color: 'node', d: 0.48, speed: 2.1 },
     ],
-    note: 'Dense matrix multiply with array element read/write. ChadScript\u2019s arrays go through GC-managed structs, yet opt -O2 eliminates the overhead. Node/Bun\u2019s V8 JIT is strong but can\u2019t match LLVM\u2019s static optimizations here.'
+    note: 'Dense matrix multiply with array element read/write. TBAA metadata lets LLVM hoist array data pointers out of inner loops, matching hand-written C. Node/Bun\u2019s V8 JIT is strong but can\u2019t match LLVM\u2019s static optimizations here.'
   },
   nbody: {
     layout: 'horizontal',
     desc: 'N-Body gravitational simulation: 5 bodies, 50 million steps.',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'C', val: '5.04s', w: 2, h: 100, color: 'c', d: 0, speed: 1.5 },
-      { name: 'Go', val: '5.77s', w: 3, h: 87, color: 'go', d: 0.12, speed: 1.6 },
-      { name: 'Bun', val: '7.90s', w: 8, h: 64, color: 'bun', d: 0.24, speed: 2.0 },
-      { name: 'Node.js', val: '8.94s', w: 10, h: 56, color: 'node', d: 0.36, speed: 2.5 },
-      { name: 'ChadScript', val: '9.12s', w: 10, h: 55, color: 'chad', d: 0.48, hero: true, speed: 2.6 },
+      { name: 'C', val: '5.04s', w: 56, h: 100, color: 'c', d: 0, speed: 1.5 },
+      { name: 'Go', val: '5.77s', w: 65, h: 87, color: 'go', d: 0.12, speed: 1.6 },
+      { name: 'Bun', val: '7.90s', w: 88, h: 64, color: 'bun', d: 0.24, speed: 2.0 },
+      { name: 'ChadScript', val: '8.2s', w: 92, h: 61, color: 'chad', d: 0.36, hero: true, speed: 2.3 },
+      { name: 'Node.js', val: '8.94s', w: 100, h: 56, color: 'node', d: 0.48, speed: 2.5 },
     ],
-    note: 'Classic N-Body from the Computer Language Benchmarks Game. Heavy FP arithmetic with array indexing. ChadScript uses GC-managed parallel arrays instead of structs \u2014 the array indirection overhead adds up over 50M iterations.'
+    note: 'Classic N-Body from the Computer Language Benchmarks Game. Heavy FP arithmetic with 7 parallel arrays. TBAA metadata lets LLVM prove array element stores can\u2019t alias struct pointer fields, enabling data pointer hoisting.'
   }
 }
 

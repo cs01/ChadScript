@@ -155,13 +155,13 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${dataPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 0`);
 
     const data = this.ctx.nextTemp();
-    this.ctx.emit(`${data} = load i8**, i8*** ${dataPtr}`);
+    this.ctx.emit(`${data} = load i8**, i8*** ${dataPtr}, !tbaa !5`);
 
     const elemPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${data}, i32 ${index}`);
 
     const elem = this.ctx.nextTemp();
-    this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+    this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}, !tbaa !5`);
     // Track that this loaded value is a string
     this.ctx.setVariableType(elem, 'i8*');
     return elem;
@@ -183,14 +183,14 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
 
     const data = this.ctx.nextTemp();
-    this.ctx.emit(`${data} = load double*, double** ${dataPtr}`);
+    this.ctx.emit(`${data} = load double*, double** ${dataPtr}, !tbaa !5`);
 
     const elemPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elemPtr} = getelementptr inbounds double, double* ${data}, i32 ${index}`);
 
     // Load double element
     const elem = this.ctx.nextTemp();
-    this.ctx.emit(`${elem} = load double, double* ${elemPtr}`);
+    this.ctx.emit(`${elem} = load double, double* ${elemPtr}, !tbaa !4`);
     this.ctx.setVariableType(elem, 'double');
     return elem;
   }
@@ -512,7 +512,7 @@ export class IndexAccessGenerator {
     const dataFieldPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataPtr} = load i8**, i8*** ${dataFieldPtr}`);
+    this.ctx.emit(`${dataPtr} = load i8**, i8*** ${dataFieldPtr}, !tbaa !5`);
 
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const indexType = this.ctx.getVariableType(indexDouble);
@@ -527,7 +527,7 @@ export class IndexAccessGenerator {
     const elementPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elementPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i64 ${indexI64}`);
 
-    this.ctx.emit(`store i8* ${value}, i8** ${elementPtr}`);
+    this.ctx.emit(`store i8* ${value}, i8** ${elementPtr}, !tbaa !5`);
 
     return value;
   }
@@ -538,7 +538,7 @@ export class IndexAccessGenerator {
     const dataFieldPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
     const dataPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}`);
+    this.ctx.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}, !tbaa !5`);
 
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const indexType = this.ctx.getVariableType(indexDouble);
@@ -553,7 +553,7 @@ export class IndexAccessGenerator {
     const elementPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elementPtr} = getelementptr inbounds double, double* ${dataPtr}, i64 ${indexI64}`);
 
-    this.ctx.emit(`store double ${value}, double* ${elementPtr}`);
+    this.ctx.emit(`store double ${value}, double* ${elementPtr}, !tbaa !4`);
 
     return value;
   }

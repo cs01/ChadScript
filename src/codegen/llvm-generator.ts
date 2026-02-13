@@ -1759,6 +1759,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push(irParts[ipi]);
     }
 
+    finalParts.push('\n; TBAA metadata for alias analysis\n');
+    finalParts.push('!0 = !{!"ChadScript TBAA Root"}\n');
+    finalParts.push('!1 = !{!"omnipotent char", !0, i64 0}\n');
+    finalParts.push('!2 = !{!"double", !1, i64 0}\n');
+    finalParts.push('!3 = !{!"any pointer", !1, i64 0}\n');
+    finalParts.push('!4 = !{!2, !2, i64 0}\n');
+    finalParts.push('!5 = !{!3, !3, i64 0}\n');
+
     return finalParts;
   }
 
