@@ -168,9 +168,7 @@ export class AssignmentGenerator {
     this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${propIndex}`);
 
     if (propType === 'i1') {
-      const boolVal = this.ctx.nextTemp();
-      this.ctx.emit(`${boolVal} = fcmp one double ${value}, 0.0`);
-      this.ctx.emit(`store i1 ${boolVal}, i1* ${fieldPtr}`);
+      this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
     } else {
       this.ctx.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}`);
     }
@@ -300,9 +298,7 @@ export class AssignmentGenerator {
     } else if (fiType.endsWith('[]')) {
       this.ctx.emit(`store %Array* ${value}, %Array** ${fieldPtr}`);
     } else if (fiType === 'boolean') {
-      const boolValue = this.ctx.nextTemp();
-      this.ctx.emit(`${boolValue} = fcmp one double ${value}, 0.0`);
-      this.ctx.emit(`store i1 ${boolValue}, i1* ${fieldPtr}`);
+      this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<string,')) {
       this.ctx.emit(`store %StringMap* ${value}, %StringMap** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<')) {
@@ -364,9 +360,7 @@ export class AssignmentGenerator {
     } else if (fiType.endsWith('[]')) {
       this.ctx.emit(`store %Array* ${value}, %Array** ${fieldPtr}`);
     } else if (fiType === 'boolean') {
-      const boolValue = this.ctx.nextTemp();
-      this.ctx.emit(`${boolValue} = fcmp one double ${value}, 0.0`);
-      this.ctx.emit(`store i1 ${boolValue}, i1* ${fieldPtr}`);
+      this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<string,')) {
       this.ctx.emit(`store %StringMap* ${value}, %StringMap** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<')) {

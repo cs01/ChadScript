@@ -88,7 +88,7 @@ export class ClassGenerator {
     } else if (ft.endsWith('[]')) {
       return '%Array*';
     } else if (ft === 'boolean') {
-      return 'i1';
+      return 'double';
     } else if (ts) {
       if (ts.startsWith('Map<string,')) {
         return '%StringMap*';
@@ -119,9 +119,7 @@ export class ClassGenerator {
   }
 
   private emitFieldInit(fieldPtr: string, llvmType: string): void {
-    if (llvmType === 'i1') {
-      this.emit(`store i1 false, i1* ${fieldPtr}`);
-    } else if (llvmType === 'double') {
+    if (llvmType === 'double') {
       this.emit(`store double 0.0, double* ${fieldPtr}`);
     } else if (llvmType === '%Array*') {
       const sizePtr = this.nextTemp();

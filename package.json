@@ -10,6 +10,7 @@
   },
   "scripts": {
     "compile": "tsx src/index.ts",
+    "prebuild": "node scripts/embed-dts.js",
     "build": "tsc",
     "test": "node scripts/test.js",
     "test:fast": "npm run build && node --import tsx --test tests/smoke.test.ts",
