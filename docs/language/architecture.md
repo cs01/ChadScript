@@ -2,6 +2,10 @@
 
 ChadScript compiles TypeScript source code to native binaries through a multi-stage pipeline.
 
+::: tip Self-Hosting
+ChadScript compiles itself, meaning it is sufficiently powerful to build a complex compiler. The compiler is ~45k lines of TypeScript that compiles to a native binary — no Node.js needed.
+:::
+
 ## Compilation Pipeline
 
 ```
@@ -19,10 +23,28 @@ TypeScript source
 
 ### 1. Parsing
 
-The TypeScript Compiler API (`tsc`) parses the source file and provides:
-- Full AST with type annotations
-- Type resolution for variables, parameters, and return types
-- Import/export resolution across files
+ChadScript has two parser frontends depending on the compilation path:
+
+**Node.js path** (development): Uses the TypeScript Compiler API (`typescript` npm package) to parse source files. This provides a full AST with type annotations, type resolution for variables and parameters, and import/export resolution. The parser lives in `src/parser-ts/`.
+
+**Native path** (self-hosting): Uses [tree-sitter](https://tree-sitter.github.io/) via C FFI to parse TypeScript. The tree-sitter grammar produces a concrete syntax tree that is then transformed into ChadScript's internal AST. The parser lives in `src/parser-native/`.
+
+Both paths produce the same AST structure — the rest of the pipeline is shared.
+
+### 2. Type Checking
+
+The two compilation paths handle type resolution differently:
+
+**Node.js path**: Creates a `TypeChecker` instance that wraps TypeScript's own `ts.TypeChecker`. This provides property type resolution, function signature lookup, interface definition extraction, and array element type inference. The TypeChecker is passed to the code generator as a supplementary source of type information alongside AST-level annotations. It is only created for `.ts` files — `.js` files rely entirely on AST-level inference.
+
+**Native path**: Passes `null` as the TypeChecker to the code generator. Since the TypeScript compiler API can't run natively, the native path relies entirely on:
+
+- **AST-level type annotations** extracted by the tree-sitter parser (parameter types, return types, field types)
+- **InterfaceStructGenerator** for building struct layouts from interface declarations
+- **ClassGenerator** field tracking from AST class declarations
+- **Type inference** from context (string literals produce `i8*`, numeric operations produce `double`, etc.)
+
+The practical effect is that code compiled via the native path needs more explicit type annotations. This is why the compiler's own source code is heavily annotated — it must work correctly without TypeScript's type inference engine.
 
 ### 2. AST Processing
 

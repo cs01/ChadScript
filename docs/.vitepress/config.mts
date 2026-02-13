@@ -25,7 +25,7 @@ export default defineConfig({
       { text: 'Guide', link: '/getting-started/installation' },
       { text: 'API', link: '/stdlib/' },
       { text: 'Benchmarks', link: '/benchmarks' },
-      { text: 'Language', link: '/language/type-mappings' }
+      { text: 'Language', link: '/language/architecture' }
     ],
 
     sidebar: [
@@ -75,19 +75,27 @@ export default defineConfig({
       {
         text: 'Language',
         items: [
+          { text: 'Architecture', link: '/language/architecture' },
+          { text: 'Classes & Interfaces', link: '/language/classes' },
           { text: 'Type Mappings', link: '/language/type-mappings' },
-          { text: 'Limitations', link: '/language/limitations' },
-          { text: 'Architecture', link: '/language/architecture' }
+          { text: 'Limitations', link: '/language/limitations' }
+        ]
+      },
+      {
+        text: 'Resources',
+        items: [
+          { text: 'FAQ', link: '/faq' }
         ]
       }
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/cs01/ChadScript' }
+      { icon: 'github', link: 'https://github.com/cs01/ChadScript' },
+      { icon: 'x', link: 'https://x.com/cs01_software' }
     ],
 
     footer: {
-      message: 'Released under the MIT License.'
+      message: '<a href="https://chadsmith.dev">chadsmith.dev</a>'
     }
   }
 })

@@ -9,24 +9,24 @@ const benchmarks = {
     desc: 'Time to print \u201cHello, World!\u201d and exit. Average of 50 runs.',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'Go', val: '3.5ms', w: 4, h: 100, color: 'go', d: 0, speed: 2.0 },
-      { name: 'ChadScript', val: '5.9ms', w: 6, h: 77, color: 'chad', d: 0.12, hero: true, speed: 2.5 },
-      { name: 'Bun', val: '17.6ms', w: 19, h: 45, color: 'bun', d: 0.24, speed: 4.5 },
-      { name: 'Node.js', val: '52.7ms', w: 56, h: 26, color: 'node', d: 0.36, speed: 7.8 },
-      { name: 'Python', val: '94.6ms', w: 100, h: 19, color: 'python', d: 0.48, speed: 10.5 },
+      { name: 'ChadScript', val: '1.7ms', w: 2, h: 100, color: 'chad', d: 0, hero: true, speed: 1.8 },
+      { name: 'Go', val: '3.4ms', w: 4, h: 85, color: 'go', d: 0.12, speed: 2.2 },
+      { name: 'Bun', val: '18.7ms', w: 21, h: 40, color: 'bun', d: 0.24, speed: 4.5 },
+      { name: 'Node.js', val: '56.3ms', w: 62, h: 22, color: 'node', d: 0.36, speed: 7.8 },
+      { name: 'Python', val: '91.1ms', w: 100, h: 18, color: 'python', d: 0.48, speed: 10.5 },
     ],
-    note: 'ChadScript and Go are precompiled native binaries \u2014 no runtime to bootstrap. Bun/Node must initialize their JS engines. Python loads its interpreter.'
+    note: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines. Python loads its interpreter.'
   },
   fib: {
     layout: 'horizontal',
     desc: 'Recursive fib(42), no memoization. Pure function-call + arithmetic overhead.',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'Go', val: '1.93s', w: 3, h: 100, color: 'go', d: 0, speed: 2.0 },
-      { name: 'ChadScript', val: '2.11s', w: 3, h: 96, color: 'chad', d: 0.12, hero: true, speed: 2.1 },
-      { name: 'Bun', val: '2.69s', w: 4, h: 85, color: 'bun', d: 0.24, speed: 2.35 },
-      { name: 'Node.js', val: '4.41s', w: 7, h: 66, color: 'node', d: 0.36, speed: 3.0 },
-      { name: 'Python', val: '61.3s', w: 100, h: 18, color: 'python', d: 0.48, speed: 11.0 },
+      { name: 'Go', val: '1.75s', w: 3, h: 100, color: 'go', d: 0, speed: 2.0 },
+      { name: 'ChadScript', val: '2.01s', w: 3, h: 96, color: 'chad', d: 0.12, hero: true, speed: 2.1 },
+      { name: 'Bun', val: '2.70s', w: 4, h: 85, color: 'bun', d: 0.24, speed: 2.35 },
+      { name: 'Node.js', val: '4.48s', w: 7, h: 66, color: 'node', d: 0.36, speed: 3.0 },
+      { name: 'Python', val: '60.9s', w: 100, h: 18, color: 'python', d: 0.48, speed: 11.0 },
     ],
     note: 'ChadScript compiles to LLVM IR with the same optimizations as clang/C++. Go\u2019s edge comes from native int64 \u2014 ChadScript uses double for all numbers.'
   },
@@ -35,10 +35,10 @@ const benchmarks = {
     desc: '100K SELECT queries on a 100-row in-memory table.',
     metric: 'Taller = more throughput.',
     items: [
-      { name: 'Python', val: '348K qps', h: 100, color: 'python', d: 0, speed: 2.0 },
-      { name: 'ChadScript', val: '322K qps', h: 96, color: 'chad', d: 0.12, hero: true, speed: 2.08 },
-      { name: 'Bun', val: '171K qps', h: 70, color: 'bun', d: 0.24, speed: 2.85 },
-      { name: 'Node.js', val: '141K qps', h: 64, color: 'node', d: 0.36, speed: 3.15 },
+      { name: 'Python', val: '395K qps', h: 100, color: 'python', d: 0, speed: 2.0 },
+      { name: 'ChadScript', val: '309K qps', h: 78, color: 'chad', d: 0.12, hero: true, speed: 2.3 },
+      { name: 'Bun', val: '189K qps', h: 48, color: 'bun', d: 0.24, speed: 3.2 },
+      { name: 'Node.js', val: '144K qps', h: 36, color: 'node', d: 0.36, speed: 3.8 },
     ],
     note: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. Python\u2019s sqlite3 module is decades-old battle-tested C. Both ~2x the JS runtimes.'
   }
