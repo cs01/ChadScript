@@ -2,6 +2,7 @@
 
 import { compile, setLinkTreeSitter, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize } from './compiler.js';
 import { LogLevel, logger } from './utils/logger.js';
+import { runInit } from './codegen/stdlib/init-templates.js';
 import * as path from 'path';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
@@ -27,6 +28,7 @@ function printHelp(): void {
   console.log('  build <file>     Compile to a native binary');
   console.log('  run <file>       Compile and run');
   console.log('  ir <file>        Emit LLVM IR only');
+  console.log('  init             Generate starter project (chadscript.d.ts, tsconfig.json, hello.ts)');
   console.log('  clean            Remove the .build directory');
   console.log('');
   console.log('Options:');
@@ -66,6 +68,11 @@ if (command === '--version') {
   process.exit(0);
 }
 
+if (command === 'init') {
+  runInit();
+  process.exit(0);
+}
+
 if (command === 'clean') {
   const buildDir = path.resolve('.build');
   if (fs.existsSync(buildDir)) {
@@ -75,7 +82,7 @@ if (command === 'clean') {
   process.exit(0);
 }
 
-if (command !== 'build' && command !== 'run' && command !== 'ir') {
+if (command !== 'build' && command !== 'run' && command !== 'ir' && command !== 'init') {
   if (command.endsWith('.ts') || command.endsWith('.js')) {
     console.error(`chad: error: missing command. did you mean 'chad build ${command}'?`);
   } else {
