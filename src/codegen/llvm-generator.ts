@@ -99,6 +99,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private promiseGen: PromiseGenerator;
   private treesitterGen: TreeSitterGenerator;
   private httpHandlers: string[];
+  private wsHandlers: string[];
   public usesTimers: number = 0;
   public usesPromises: number = 0;
   public usesSqlite: number = 0;
@@ -1044,6 +1045,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.globalVariables = new Map();
     this.importAliasMap = new Map();
     this.httpHandlers = [];
+    this.wsHandlers = [];
     this.jsonObjectMetadata = new Map();
     this.usesTimers = 0;
     this.usesPromises = 0;
@@ -1631,8 +1633,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const httpServe = this.mongooseGen.generateHttpServeFunction();
       if (httpServe) { irParts.push(httpServe); }
       irParts.push('\n');
-      const eventHandler = this.mongooseGen.generateEventHandler(this.httpHandlers[0]);
+      const wsHandler = this.wsHandlers.length > 0 ? this.wsHandlers[0] : undefined;
+      const eventHandler = this.mongooseGen.generateEventHandler(this.httpHandlers[0], wsHandler);
       if (eventHandler) { irParts.push(eventHandler); }
+      if (wsHandler) {
+        irParts.push('\n');
+        irParts.push(this.mongooseGen.generateWsConnectionTracking());
+        irParts.push(this.mongooseGen.generateWsBroadcastFunction());
+      }
     }
 
     if (this.usesTimers) {
@@ -2292,7 +2300,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   // Generate HTTP server - creates a TCP server that parses HTTP and calls handler
   public generateHttpServe(expr: CallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      throw new Error('httpServe() requires 2 arguments: port and handler function');
+      throw new Error('httpServe() requires at least 2 arguments: port and handler function');
     }
 
     const portValue = this.generateExpression(expr.args[0], params);
@@ -2307,6 +2315,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesMongoose = 1;
     this.usesTimers = 1;
 
+    if (expr.args.length >= 3) {
+      const wsHandlerArg = expr.args[2];
+      if (wsHandlerArg.type !== 'variable') {
+        throw new Error('httpServe() WebSocket handler must be a function reference');
+      }
+      const wsHandlerName = (wsHandlerArg as VariableNode).name;
+      this.wsHandlers.push(wsHandlerName);
+    }
+
     // Convert port from double to i32
     const portI32 = this.nextTemp();
     this.emit(`${portI32} = fptosi double ${portValue} to i32`);
@@ -2317,6 +2334,17 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*)* @${handlerName})`);
 
     return temp;
+  }
+
+  public generateWsBroadcast(expr: CallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      throw new Error('wsBroadcast() requires 1 argument: message string');
+    }
+    const msgValue = this.generateExpression(expr.args[0], params);
+    const len = this.nextTemp();
+    this.emit(`${len} = call i64 @strlen(i8* ${msgValue})`);
+    this.emit(`call void @__ws_broadcast(i8* ${msgValue}, i64 ${len})`);
+    return '0.0';
   }
 
   public getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null {

@@ -530,6 +530,11 @@ export interface IGeneratorContext {
   generateHttpServe(expr: CallNode, params: string[]): string;
 
   /**
+   * Generate WebSocket broadcast call
+   */
+  generateWsBroadcast(expr: CallNode, params: string[]): string;
+
+  /**
    * Look up an interface definition by name from the AST
    */
   getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null;
@@ -1341,6 +1346,10 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   generateHttpServe(_expr: CallNode, _params: string[]): string {
     return this.nextTemp();
+  }
+
+  generateWsBroadcast(_expr: CallNode, _params: string[]): string {
+    return '0.0';
   }
 
   getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null {

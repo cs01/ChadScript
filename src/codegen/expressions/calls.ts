@@ -56,6 +56,11 @@ export class CallExpressionGenerator {
       return this.ctx.generateHttpServe(expr, params);
     }
 
+    // Handle wsBroadcast() - broadcast message to all WebSocket clients
+    if (expr.name === 'wsBroadcast') {
+      return this.ctx.generateWsBroadcast(expr, params);
+    }
+
     // Handle setTimeout() - libuv timer (one-shot)
     if (expr.name === 'setTimeout') {
       return this.generateSetTimeout(expr, params);

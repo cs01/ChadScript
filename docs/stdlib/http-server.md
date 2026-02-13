@@ -1,6 +1,6 @@
 # httpServe
 
-Built-in HTTP server compiled to native code via the mongoose networking library.
+Built-in HTTP server with websockt support compiled to native code via the mongoose networking library.
 
 ## `httpServe(port, handler)`
 
@@ -17,6 +17,37 @@ function handleRequest(req: Request): Response {
 httpServe(3000, handleRequest);
 ```
 
+## `httpServe(port, handler, wsHandler)`
+
+Start an HTTP server with WebSocket support. The third argument is a WebSocket handler that receives a `WsEvent` and returns a string.
+
+Any HTTP request with an `Upgrade: websocket` header is automatically upgraded when a wsHandler is registered.
+
+```typescript
+interface WsEvent {
+  data: string;
+  event: string;  // "open", "message", "close"
+}
+
+function wsHandler(event: WsEvent): string {
+  if (event.event == "message") {
+    wsBroadcast("someone said: " + event.data);
+    return "echo: " + event.data;  // sent back to sender
+  }
+  return "";  // empty = no response
+}
+
+httpServe(3000, handleRequest, wsHandler);
+```
+
+## `wsBroadcast(message)`
+
+Send a message to all connected WebSocket clients. Only available when a wsHandler is registered.
+
+```typescript
+wsBroadcast("hello everyone");
+```
+
 ## Request Object
 
 | Property | Type | Description |
@@ -24,6 +55,7 @@ httpServe(3000, handleRequest);
 | `method` | `string` | HTTP method (`"GET"`, `"POST"`, etc.) |
 | `path` | `string` | Request path (`"/"`, `"/api/users"`, etc.) |
 | `body` | `string` | Request body |
+| `contentType` | `string` | Content-Type header value |
 
 ## Response Object
 
@@ -31,6 +63,13 @@ httpServe(3000, handleRequest);
 |----------|------|-------------|
 | `status` | `number` | HTTP status code |
 | `body` | `string` | Response body |
+
+## WsEvent Object
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `data` | `string` | Message data (empty for open/close events) |
+| `event` | `string` | Event type: `"open"`, `"message"`, or `"close"` |
 
 ## Example
 
@@ -63,8 +102,55 @@ $ curl http://localhost:3000/json
 {"message":"hello","count":42}
 ```
 
+## WebSocket Example
+
+A chat server with HTTP homepage and WebSocket messaging:
+
+```typescript
+interface WsEvent {
+  data: string;
+  event: string;
+}
+
+interface Request {
+  method: string;
+  path: string;
+  body: string;
+  contentType: string;
+}
+
+interface Response {
+  status: number;
+  body: string;
+}
+
+function wsHandler(event: WsEvent): string {
+  if (event.event == "message") {
+    wsBroadcast("someone said: " + event.data);
+    return "echo: " + event.data;
+  }
+  return "";
+}
+
+function handleRequest(req: Request): Response {
+  return { status: 200, body: "<h1>WebSocket Chat</h1>" };
+}
+
+httpServe(8080, handleRequest, wsHandler);
+```
+
+```bash
+$ chad build chat.ts -o chat
+$ ./chat &
+$ websocat ws://localhost:8080/
+> hello
+< echo: hello
+```
+
 ## Native Implementation
 
 | API | Maps to |
 |-----|---------|
 | `httpServe()` | mongoose HTTP server library |
+| `wsBroadcast()` | `mg_ws_send()` to all tracked connections |
+| WebSocket upgrade | `mg_ws_upgrade()` on `Upgrade` header detection |

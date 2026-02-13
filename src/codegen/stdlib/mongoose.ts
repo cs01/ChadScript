@@ -10,6 +10,7 @@
  * - HTTP request parsing
  * - Response formatting
  * - Event-driven I/O
+ * - WebSocket upgrade and messaging
  *
  * Library: mongoose (cesanta/mongoose)
  * Location: /data/users/cssmith/git/mongoose/mongoose.c
@@ -48,6 +49,9 @@ export class MongooseGenerator {
     ir += '  %struct.mg_str   ; 7: message (full raw message)\n';
     ir += '}\n\n';
 
+    ir += '; Mongoose WebSocket message structure\n';
+    ir += '%struct.mg_ws_message = type { %struct.mg_str, i8 }\n\n';
+
     ir += '; Core mongoose functions\n';
     ir += 'declare void @mg_mgr_init(%struct.mg_mgr*)\n';
     ir += 'declare void @mg_mgr_free(%struct.mg_mgr*)\n';
@@ -59,6 +63,11 @@ export class MongooseGenerator {
     ir += 'declare void @mg_http_reply(%struct.mg_connection*, i32, i8*, i8*, ...)\n';
     ir += 'declare i32 @mg_http_match_uri(%struct.mg_http_message*, i8*)\n';
     ir += 'declare %struct.mg_str* @mg_http_get_header(%struct.mg_http_message*, i8*)\n';
+    ir += '\n';
+
+    ir += '; WebSocket functions\n';
+    ir += 'declare void @mg_ws_upgrade(%struct.mg_connection*, %struct.mg_http_message*, i8*)\n';
+    ir += 'declare i64 @mg_ws_send(%struct.mg_connection*, i8*, i64, i32)\n';
     ir += '\n';
 
     ir += '; String utility functions\n';
@@ -79,22 +88,52 @@ export class MongooseGenerator {
   }
 
   /**
-   * Generate the HTTP server event handler wrapper
-   * This bridges mongoose's C callback to ChadScript's handler function
+   * Generate the HTTP/WebSocket server event handler wrapper
+   * This bridges mongoose's C callback to ChadScript's handler functions
    *
-   * Handler receives a Request object: { method: string, path: string, body: string, contentType: string }
-   * Handler returns a Response object: { status: number, body: string }
+   * HTTP handler receives a Request object: { method: string, path: string, body: string, contentType: string }
+   * HTTP handler returns a Response object: { status: number, body: string }
+   *
+   * WS handler receives a WsEvent object: { data: string, event: string }
+   * WS handler returns a string (sent back to sender; empty = no response)
    */
-  generateEventHandler(handlerName: string): string {
-    let ir = '; HTTP event handler wrapper for mongoose\n';
+  generateEventHandler(httpHandlerName: string, wsHandlerName?: string): string {
+    let ir = '; HTTP/WebSocket event handler wrapper for mongoose\n';
     ir += `define void @__mg_http_handler(%struct.mg_connection* %conn, i32 %ev, i8* %ev_data, i8* %fn_data) {` + '\n';
     ir += 'entry:\n';
-    ir += '  ; Check if this is an HTTP message event (MG_EV_HTTP_MSG = 11)\n';
-    ir += '  %ev_http = load i32, i32* @MG_EV_HTTP_MSG\n';
-    ir += '  %is_http = icmp eq i32 %ev, %ev_http\n';
-    ir += '  br i1 %is_http, label %handle_http, label %done\n\n';
+
+    if (wsHandlerName) {
+      ir += '  switch i32 %ev, label %done [\n';
+      ir += '    i32 11, label %handle_http\n';
+      ir += '    i32 12, label %handle_ws_open\n';
+      ir += '    i32 13, label %handle_ws_msg\n';
+      ir += '    i32 9, label %handle_close\n';
+      ir += '  ]\n\n';
+    } else {
+      ir += '  ; Check if this is an HTTP message event (MG_EV_HTTP_MSG = 11)\n';
+      ir += '  %ev_http = load i32, i32* @MG_EV_HTTP_MSG\n';
+      ir += '  %is_http = icmp eq i32 %ev, %ev_http\n';
+      ir += '  br i1 %is_http, label %handle_http, label %done\n\n';
+    }
 
     ir += 'handle_http:\n';
+
+    if (wsHandlerName) {
+      ir += '  ; Check for Upgrade: websocket header\n';
+      ir += '  %hm_upgrade_check = bitcast i8* %ev_data to %struct.mg_http_message*\n';
+      ir += '  %upgrade_hdr_name = getelementptr [8 x i8], [8 x i8]* @.str.upgrade_header, i32 0, i32 0\n';
+      ir += '  %upgrade_ptr = call %struct.mg_str* @mg_http_get_header(%struct.mg_http_message* %hm_upgrade_check, i8* %upgrade_hdr_name)\n';
+      ir += '  %has_upgrade = icmp ne %struct.mg_str* %upgrade_ptr, null\n';
+      ir += '  br i1 %has_upgrade, label %do_ws_upgrade, label %handle_http_normal\n\n';
+
+      ir += 'do_ws_upgrade:\n';
+      ir += '  %null_fmt = getelementptr [1 x i8], [1 x i8]* @.str.mongoose_empty, i32 0, i32 0\n';
+      ir += '  call void @mg_ws_upgrade(%struct.mg_connection* %conn, %struct.mg_http_message* %hm_upgrade_check, i8* %null_fmt)\n';
+      ir += '  br label %done\n\n';
+
+      ir += 'handle_http_normal:\n';
+    }
+
     ir += '  ; Cast ev_data to mg_http_message*\n';
     ir += '  %hm = bitcast i8* %ev_data to %struct.mg_http_message*\n';
     ir += '\n';
@@ -236,10 +275,10 @@ export class MongooseGenerator {
     ir += '  store i8* %content_type_val, i8** %req_ct_ptr\n';
     ir += '\n';
 
-    ir += `  ; Call user handler: ${handlerName}(request) -> Response object` + '\n';
+    ir += `  ; Call user handler: ${httpHandlerName}(request) -> Response object` + '\n';
     ir += `  ; Request struct layout: { i8* method, i8* path, i8* body, i8* contentType }` + '\n';
     ir += `  ; Response struct layout: { double status, i8* body }` + '\n';
-    ir += `  %response_ptr = call i8* @${handlerName}(i8* %req_mem)` + '\n';
+    ir += `  %response_ptr = call i8* @${httpHandlerName}(i8* %req_mem)` + '\n';
     ir += '\n';
 
     ir += '  ; Cast response pointer to Response struct { double, i8* }\n';
@@ -289,6 +328,12 @@ export class MongooseGenerator {
     ir += '  ; GC will handle cleanup of allocated strings\n';
     ir += '  br label %done\n\n';
 
+    if (wsHandlerName) {
+      ir += this.generateWsOpenHandler(wsHandlerName);
+      ir += this.generateWsMsgHandler(wsHandlerName);
+      ir += this.generateWsCloseHandler(wsHandlerName);
+    }
+
     ir += 'done:\n';
     ir += '  ret void\n';
     ir += '}\n\n';
@@ -299,6 +344,217 @@ export class MongooseGenerator {
     ir += '@.str.body_fmt = private constant [3 x i8] c"%s\\00"\n';
     ir += '@.str.content_type_header = private constant [13 x i8] c"Content-Type\\00"\n';
     ir += '@.str.mongoose_empty = private constant [1 x i8] c"\\00"\n';
+
+    if (wsHandlerName) {
+      ir += '@.str.upgrade_header = private constant [8 x i8] c"Upgrade\\00"\n';
+      ir += '@.str.ws_event_open = private constant [5 x i8] c"open\\00"\n';
+      ir += '@.str.ws_event_message = private constant [8 x i8] c"message\\00"\n';
+      ir += '@.str.ws_event_close = private constant [6 x i8] c"close\\00"\n';
+    }
+
+    return ir;
+  }
+
+  private generateWsOpenHandler(wsHandlerName: string): string {
+    let ir = 'handle_ws_open:\n';
+    ir += '  call void @__ws_track_add(%struct.mg_connection* %conn)\n';
+    ir += '  %ws_open_evt_mem = call i8* @GC_malloc(i64 16)\n';
+    ir += '  %ws_open_evt = bitcast i8* %ws_open_evt_mem to { i8*, i8* }*\n';
+    ir += '  %ws_open_data_ptr = getelementptr { i8*, i8* }, { i8*, i8* }* %ws_open_evt, i32 0, i32 0\n';
+    ir += '  %ws_open_empty = getelementptr [1 x i8], [1 x i8]* @.str.mongoose_empty, i32 0, i32 0\n';
+    ir += '  store i8* %ws_open_empty, i8** %ws_open_data_ptr\n';
+    ir += '  %ws_open_event_ptr = getelementptr { i8*, i8* }, { i8*, i8* }* %ws_open_evt, i32 0, i32 1\n';
+    ir += '  %ws_open_event_str = getelementptr [5 x i8], [5 x i8]* @.str.ws_event_open, i32 0, i32 0\n';
+    ir += '  store i8* %ws_open_event_str, i8** %ws_open_event_ptr\n';
+    ir += `  %ws_open_result = call i8* @${wsHandlerName}(i8* %ws_open_evt_mem)\n`;
+    ir += '  %ws_open_first = load i8, i8* %ws_open_result\n';
+    ir += '  %ws_open_has_reply = icmp ne i8 %ws_open_first, 0\n';
+    ir += '  br i1 %ws_open_has_reply, label %ws_open_send, label %done\n\n';
+
+    ir += 'ws_open_send:\n';
+    ir += '  %ws_open_len = call i64 @strlen(i8* %ws_open_result)\n';
+    ir += '  call i64 @mg_ws_send(%struct.mg_connection* %conn, i8* %ws_open_result, i64 %ws_open_len, i32 1)\n';
+    ir += '  br label %done\n\n';
+
+    return ir;
+  }
+
+  private generateWsMsgHandler(wsHandlerName: string): string {
+    let ir = 'handle_ws_msg:\n';
+    ir += '  %wm = bitcast i8* %ev_data to %struct.mg_ws_message*\n';
+    ir += '  %ws_data_str_ptr = getelementptr %struct.mg_ws_message, %struct.mg_ws_message* %wm, i32 0, i32 0, i32 0\n';
+    ir += '  %ws_data_buf = load i8*, i8** %ws_data_str_ptr\n';
+    ir += '  %ws_data_len_ptr = getelementptr %struct.mg_ws_message, %struct.mg_ws_message* %wm, i32 0, i32 0, i32 1\n';
+    ir += '  %ws_data_len = load i64, i64* %ws_data_len_ptr\n';
+    ir += '  %ws_data_alloc = add i64 %ws_data_len, 1\n';
+    ir += '  %ws_data_copy = call i8* @GC_malloc_atomic(i64 %ws_data_alloc)\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %ws_data_copy, i8* %ws_data_buf, i64 %ws_data_len, i1 false)\n';
+    ir += '  %ws_data_null = getelementptr i8, i8* %ws_data_copy, i64 %ws_data_len\n';
+    ir += '  store i8 0, i8* %ws_data_null\n';
+    ir += '  %ws_msg_evt_mem = call i8* @GC_malloc(i64 16)\n';
+    ir += '  %ws_msg_evt = bitcast i8* %ws_msg_evt_mem to { i8*, i8* }*\n';
+    ir += '  %ws_msg_data_ptr = getelementptr { i8*, i8* }, { i8*, i8* }* %ws_msg_evt, i32 0, i32 0\n';
+    ir += '  store i8* %ws_data_copy, i8** %ws_msg_data_ptr\n';
+    ir += '  %ws_msg_event_ptr = getelementptr { i8*, i8* }, { i8*, i8* }* %ws_msg_evt, i32 0, i32 1\n';
+    ir += '  %ws_msg_event_str = getelementptr [8 x i8], [8 x i8]* @.str.ws_event_message, i32 0, i32 0\n';
+    ir += '  store i8* %ws_msg_event_str, i8** %ws_msg_event_ptr\n';
+    ir += `  %ws_msg_result = call i8* @${wsHandlerName}(i8* %ws_msg_evt_mem)\n`;
+    ir += '  %ws_msg_first = load i8, i8* %ws_msg_result\n';
+    ir += '  %ws_msg_has_reply = icmp ne i8 %ws_msg_first, 0\n';
+    ir += '  br i1 %ws_msg_has_reply, label %ws_msg_send, label %done\n\n';
+
+    ir += 'ws_msg_send:\n';
+    ir += '  %ws_msg_reply_len = call i64 @strlen(i8* %ws_msg_result)\n';
+    ir += '  call i64 @mg_ws_send(%struct.mg_connection* %conn, i8* %ws_msg_result, i64 %ws_msg_reply_len, i32 1)\n';
+    ir += '  br label %done\n\n';
+
+    return ir;
+  }
+
+  private generateWsCloseHandler(wsHandlerName: string): string {
+    let ir = 'handle_close:\n';
+    ir += '  call void @__ws_track_remove(%struct.mg_connection* %conn)\n';
+    ir += '  %ws_close_evt_mem = call i8* @GC_malloc(i64 16)\n';
+    ir += '  %ws_close_evt = bitcast i8* %ws_close_evt_mem to { i8*, i8* }*\n';
+    ir += '  %ws_close_data_ptr = getelementptr { i8*, i8* }, { i8*, i8* }* %ws_close_evt, i32 0, i32 0\n';
+    ir += '  %ws_close_empty = getelementptr [1 x i8], [1 x i8]* @.str.mongoose_empty, i32 0, i32 0\n';
+    ir += '  store i8* %ws_close_empty, i8** %ws_close_data_ptr\n';
+    ir += '  %ws_close_event_ptr = getelementptr { i8*, i8* }, { i8*, i8* }* %ws_close_evt, i32 0, i32 1\n';
+    ir += '  %ws_close_event_str = getelementptr [6 x i8], [6 x i8]* @.str.ws_event_close, i32 0, i32 0\n';
+    ir += '  store i8* %ws_close_event_str, i8** %ws_close_event_ptr\n';
+    ir += `  call i8* @${wsHandlerName}(i8* %ws_close_evt_mem)\n`;
+    ir += '  br label %done\n\n';
+
+    return ir;
+  }
+
+  generateWsConnectionTracking(): string {
+    let ir = '; WebSocket connection tracking\n';
+    ir += '@__ws_conns = global %struct.mg_connection** null\n';
+    ir += '@__ws_conn_count = global i32 0\n';
+    ir += '@__ws_conn_capacity = global i32 0\n\n';
+
+    ir += 'define void @__ws_track_add(%struct.mg_connection* %conn) {\n';
+    ir += 'entry:\n';
+    ir += '  %count = load i32, i32* @__ws_conn_count\n';
+    ir += '  %cap = load i32, i32* @__ws_conn_capacity\n';
+    ir += '  %need_grow = icmp sge i32 %count, %cap\n';
+    ir += '  br i1 %need_grow, label %grow, label %add\n\n';
+
+    ir += 'grow:\n';
+    ir += '  %new_cap_base = icmp eq i32 %cap, 0\n';
+    ir += '  br i1 %new_cap_base, label %init_cap, label %double_cap\n\n';
+
+    ir += 'init_cap:\n';
+    ir += '  br label %do_realloc\n\n';
+
+    ir += 'double_cap:\n';
+    ir += '  %doubled = mul i32 %cap, 2\n';
+    ir += '  br label %do_realloc\n\n';
+
+    ir += 'do_realloc:\n';
+    ir += '  %new_cap = phi i32 [ 16, %init_cap ], [ %doubled, %double_cap ]\n';
+    ir += '  %new_cap_i64 = zext i32 %new_cap to i64\n';
+    ir += '  %alloc_size = mul i64 %new_cap_i64, 8\n';
+    ir += '  %new_arr = call i8* @GC_malloc(i64 %alloc_size)\n';
+    ir += '  %new_arr_typed = bitcast i8* %new_arr to %struct.mg_connection**\n';
+    ir += '  %old_arr = load %struct.mg_connection**, %struct.mg_connection*** @__ws_conns\n';
+    ir += '  %old_is_null = icmp eq %struct.mg_connection** %old_arr, null\n';
+    ir += '  br i1 %old_is_null, label %store_new, label %copy_old\n\n';
+
+    ir += 'copy_old:\n';
+    ir += '  %count_i64 = zext i32 %count to i64\n';
+    ir += '  %copy_size = mul i64 %count_i64, 8\n';
+    ir += '  %old_i8 = bitcast %struct.mg_connection** %old_arr to i8*\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %new_arr, i8* %old_i8, i64 %copy_size, i1 false)\n';
+    ir += '  br label %store_new\n\n';
+
+    ir += 'store_new:\n';
+    ir += '  store %struct.mg_connection** %new_arr_typed, %struct.mg_connection*** @__ws_conns\n';
+    ir += '  store i32 %new_cap, i32* @__ws_conn_capacity\n';
+    ir += '  br label %add\n\n';
+
+    ir += 'add:\n';
+    ir += '  %cur_count = load i32, i32* @__ws_conn_count\n';
+    ir += '  %arr = load %struct.mg_connection**, %struct.mg_connection*** @__ws_conns\n';
+    ir += '  %idx = zext i32 %cur_count to i64\n';
+    ir += '  %slot = getelementptr %struct.mg_connection*, %struct.mg_connection** %arr, i64 %idx\n';
+    ir += '  store %struct.mg_connection* %conn, %struct.mg_connection** %slot\n';
+    ir += '  %new_count = add i32 %cur_count, 1\n';
+    ir += '  store i32 %new_count, i32* @__ws_conn_count\n';
+    ir += '  ret void\n';
+    ir += '}\n\n';
+
+    ir += 'define void @__ws_track_remove(%struct.mg_connection* %conn) {\n';
+    ir += 'entry:\n';
+    ir += '  %count = load i32, i32* @__ws_conn_count\n';
+    ir += '  %is_zero = icmp eq i32 %count, 0\n';
+    ir += '  br i1 %is_zero, label %ret, label %search_start\n\n';
+
+    ir += 'search_start:\n';
+    ir += '  %arr = load %struct.mg_connection**, %struct.mg_connection*** @__ws_conns\n';
+    ir += '  br label %search_loop\n\n';
+
+    ir += 'search_loop:\n';
+    ir += '  %i = phi i32 [ 0, %search_start ], [ %i_next, %search_continue ]\n';
+    ir += '  %done = icmp sge i32 %i, %count\n';
+    ir += '  br i1 %done, label %ret, label %search_check\n\n';
+
+    ir += 'search_check:\n';
+    ir += '  %i_i64 = zext i32 %i to i64\n';
+    ir += '  %slot = getelementptr %struct.mg_connection*, %struct.mg_connection** %arr, i64 %i_i64\n';
+    ir += '  %cur = load %struct.mg_connection*, %struct.mg_connection** %slot\n';
+    ir += '  %match = icmp eq %struct.mg_connection* %cur, %conn\n';
+    ir += '  br i1 %match, label %found, label %search_continue\n\n';
+
+    ir += 'search_continue:\n';
+    ir += '  %i_next = add i32 %i, 1\n';
+    ir += '  br label %search_loop\n\n';
+
+    ir += 'found:\n';
+    ir += '  %last_idx = sub i32 %count, 1\n';
+    ir += '  %last_i64 = zext i32 %last_idx to i64\n';
+    ir += '  %last_slot = getelementptr %struct.mg_connection*, %struct.mg_connection** %arr, i64 %last_i64\n';
+    ir += '  %last_val = load %struct.mg_connection*, %struct.mg_connection** %last_slot\n';
+    ir += '  store %struct.mg_connection* %last_val, %struct.mg_connection** %slot\n';
+    ir += '  store i32 %last_idx, i32* @__ws_conn_count\n';
+    ir += '  br label %ret\n\n';
+
+    ir += 'ret:\n';
+    ir += '  ret void\n';
+    ir += '}\n\n';
+
+    return ir;
+  }
+
+  generateWsBroadcastFunction(): string {
+    let ir = '; WebSocket broadcast to all connected clients\n';
+    ir += 'define void @__ws_broadcast(i8* %msg, i64 %len) {\n';
+    ir += 'entry:\n';
+    ir += '  %count = load i32, i32* @__ws_conn_count\n';
+    ir += '  %is_zero = icmp eq i32 %count, 0\n';
+    ir += '  br i1 %is_zero, label %ret, label %loop_start\n\n';
+
+    ir += 'loop_start:\n';
+    ir += '  %arr = load %struct.mg_connection**, %struct.mg_connection*** @__ws_conns\n';
+    ir += '  br label %loop\n\n';
+
+    ir += 'loop:\n';
+    ir += '  %i = phi i32 [ 0, %loop_start ], [ %i_next, %loop_body ]\n';
+    ir += '  %done = icmp sge i32 %i, %count\n';
+    ir += '  br i1 %done, label %ret, label %loop_body\n\n';
+
+    ir += 'loop_body:\n';
+    ir += '  %i_i64 = zext i32 %i to i64\n';
+    ir += '  %slot = getelementptr %struct.mg_connection*, %struct.mg_connection** %arr, i64 %i_i64\n';
+    ir += '  %conn = load %struct.mg_connection*, %struct.mg_connection** %slot\n';
+    ir += '  call i64 @mg_ws_send(%struct.mg_connection* %conn, i8* %msg, i64 %len, i32 1)\n';
+    ir += '  %i_next = add i32 %i, 1\n';
+    ir += '  br label %loop\n\n';
+
+    ir += 'ret:\n';
+    ir += '  ret void\n';
+    ir += '}\n\n';
 
     return ir;
   }
