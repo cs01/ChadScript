@@ -19,11 +19,14 @@ echo "  ChadScript startup built"
 $CHAD "$DIR/sqlite/chadscript.ts" -o /tmp/bench-sqlite-chad
 echo "  ChadScript SQLite built"
 
-$CHAD "$DIR/mandelbrot/chadscript.ts" -o /tmp/bench-mandelbrot-chad
-echo "  ChadScript Mandelbrot built"
+$CHAD "$DIR/nbody/chadscript.ts" -o /tmp/bench-nbody-chad
+echo "  ChadScript N-Body built"
 
 $CHAD "$DIR/matmul/chadscript.ts" -o /tmp/bench-matmul-chad
 echo "  ChadScript Matmul built"
+
+$CHAD "$DIR/montecarlo/chadscript.ts" -o /tmp/bench-montecarlo-chad
+echo "  ChadScript Monte Carlo built"
 
 clang -O2 -o /tmp/bench-startup-c "$DIR/startup/hello.c"
 echo "  C startup built"
@@ -31,20 +34,26 @@ echo "  C startup built"
 clang -O2 -o /tmp/bench-sqlite-c "$DIR/sqlite/bench.c" -lsqlite3
 echo "  C SQLite built"
 
-clang -O2 -o /tmp/bench-mandelbrot-c "$DIR/mandelbrot/bench.c"
-echo "  C Mandelbrot built"
+clang -O2 -o /tmp/bench-nbody-c "$DIR/nbody/bench.c" -lm
+echo "  C N-Body built"
 
 clang -O2 -o /tmp/bench-matmul-c "$DIR/matmul/bench.c"
 echo "  C Matmul built"
 
+clang -O2 -o /tmp/bench-montecarlo-c "$DIR/montecarlo/bench.c"
+echo "  C Monte Carlo built"
+
 go build -o /tmp/bench-startup-go "$DIR/startup/hello.go"
 echo "  Go startup built"
 
-go build -o /tmp/bench-mandelbrot-go "$DIR/mandelbrot/mandelbrot.go"
-echo "  Go Mandelbrot built"
+go build -o /tmp/bench-nbody-go "$DIR/nbody/nbody.go"
+echo "  Go N-Body built"
 
 go build -o /tmp/bench-matmul-go "$DIR/matmul/matmul.go"
 echo "  Go Matmul built"
+
+go build -o /tmp/bench-montecarlo-go "$DIR/montecarlo/montecarlo.go"
+echo "  Go Monte Carlo built"
 
 echo ""
 
@@ -101,32 +110,32 @@ python3 "$DIR/sqlite/python_bench.py" 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "═══════════════════════════════════════════════════"
-echo "  Mandelbrot  (4096x4096, max 100 iterations)"
+echo "  N-Body  (5 bodies, 50M steps)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
 echo "  C (clang -O2)"
-/tmp/bench-mandelbrot-c 2>&1 | sed 's/^/    /'
+/tmp/bench-nbody-c 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "  ChadScript (native)"
-/tmp/bench-mandelbrot-chad 2>&1 | sed 's/^/    /'
+/tmp/bench-nbody-chad 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "  Go"
-/tmp/bench-mandelbrot-go 2>&1 | sed 's/^/    /'
+/tmp/bench-nbody-go 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "  Node.js $(node --version)"
-node "$DIR/mandelbrot/node.mjs" 2>&1 | sed 's/^/    /'
+node "$DIR/nbody/node.mjs" 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "  Bun $(bun --version)"
-bun "$DIR/mandelbrot/bun.mjs" 2>&1 | sed 's/^/    /'
+bun "$DIR/nbody/bun.mjs" 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "  Python $(python3 --version 2>&1 | awk '{print $2}')"
-python3 "$DIR/mandelbrot/mandelbrot.py" 2>&1 | sed 's/^/    /'
+python3 "$DIR/nbody/nbody.py" 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "═══════════════════════════════════════════════════"
@@ -156,6 +165,35 @@ echo ""
 
 echo "  Python $(python3 --version 2>&1 | awk '{print $2}')"
 python3 "$DIR/matmul/matmul.py" 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "═══════════════════════════════════════════════════"
+echo "  Monte Carlo Pi  (100M samples, deterministic LCG)"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+echo "  C (clang -O2)"
+/tmp/bench-montecarlo-c 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  ChadScript (native)"
+/tmp/bench-montecarlo-chad 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Go"
+/tmp/bench-montecarlo-go 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Node.js $(node --version)"
+node "$DIR/montecarlo/node.mjs" 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Bun $(bun --version)"
+bun "$DIR/montecarlo/bun.mjs" 2>&1 | sed 's/^/    /'
+echo ""
+
+echo "  Python $(python3 --version 2>&1 | awk '{print $2}')"
+python3 "$DIR/montecarlo/montecarlo.py" 2>&1 | sed 's/^/    /'
 echo ""
 
 echo "═══════════════════════════════════════════════════"
