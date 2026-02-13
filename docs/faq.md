@@ -26,7 +26,7 @@ See [Limitations](/language/limitations) for the complete list.
 
 ## How fast is it?
 
-ChadScript binaries start in ~1.7ms (vs ~57ms for Node.js, ~19ms for Bun). See [Benchmarks](/benchmarks) for detailed numbers.
+ChadScript binaries start in ~1.9ms (vs ~65ms for Node.js, ~20ms for Bun). See [Benchmarks](/benchmarks) for detailed numbers.
 
 ## What platforms are supported?
 

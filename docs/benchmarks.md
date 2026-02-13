@@ -8,9 +8,9 @@ ChadScript compiles to native ELF binaries via LLVM. No runtime, no JIT warmup, 
 
 **ChadScript delivers compiled-language performance with TypeScript syntax:**
 
-- **1.7ms cold start** — within 21% of C, 2x faster than Go, 12x faster than Bun, 34x faster than Node
-- **Faster than C on compute** — ties C on 512×512 matrix multiply, beats it on Mandelbrot
-- **Zero-overhead FFI** — calls C libraries directly, 72% of C's SQLite throughput
-- **56x faster than Python** on startup, 146x on matrix multiply
+- **1.9ms cold start** — within 19% of C, 2x faster than Go, 10x faster than Bun, 34x faster than Node
+- **Near-C on compute** — within 7% of C on 512×512 matrix multiply
+- **Zero-overhead FFI** — calls C libraries directly, 89% of C's SQLite throughput
+- **59x faster than Python** on startup, 2.3x faster than Node/Bun on SQLite
 
 Reproduce: `./benchmarks/run.sh` — Linux x86-64, single run, all runtimes on same machine.

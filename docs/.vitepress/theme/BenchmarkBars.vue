@@ -9,12 +9,12 @@ const benchmarks = {
     desc: 'Time to print \u201cHello, World!\u201d and exit. Average of 50 runs.',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'C', val: '1.4ms', w: 2, h: 100, color: 'c', d: 0, speed: 1.7 },
-      { name: 'ChadScript', val: '1.7ms', w: 2, h: 98, color: 'chad', d: 0.12, hero: true, speed: 1.8 },
-      { name: 'Go', val: '3.5ms', w: 4, h: 85, color: 'go', d: 0.24, speed: 2.2 },
-      { name: 'Bun', val: '19.9ms', w: 21, h: 40, color: 'bun', d: 0.36, speed: 4.5 },
-      { name: 'Node.js', val: '57.0ms', w: 60, h: 22, color: 'node', d: 0.48, speed: 7.8 },
-      { name: 'Python', val: '95.2ms', w: 100, h: 18, color: 'python', d: 0.60, speed: 10.5 },
+      { name: 'C', val: '1.6ms', w: 2, h: 100, color: 'c', d: 0, speed: 1.7 },
+      { name: 'ChadScript', val: '1.9ms', w: 2, h: 98, color: 'chad', d: 0.12, hero: true, speed: 1.8 },
+      { name: 'Go', val: '3.8ms', w: 4, h: 85, color: 'go', d: 0.24, speed: 2.2 },
+      { name: 'Bun', val: '19.5ms', w: 18, h: 40, color: 'bun', d: 0.36, speed: 4.5 },
+      { name: 'Node.js', val: '64.7ms', w: 58, h: 22, color: 'node', d: 0.48, speed: 7.8 },
+      { name: 'Python', val: '111.7ms', w: 100, h: 18, color: 'python', d: 0.60, speed: 10.5 },
     ],
     note: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines. Python loads its interpreter.'
   },
@@ -23,11 +23,11 @@ const benchmarks = {
     desc: '100K SELECT queries on a 100-row in-memory table.',
     metric: 'Taller = more throughput.',
     items: [
-      { name: 'C', val: '434K qps', h: 100, color: 'c', d: 0, speed: 2.0 },
-      { name: 'Python', val: '356K qps', h: 82, color: 'python', d: 0.12, speed: 2.2 },
-      { name: 'ChadScript', val: '314K qps', h: 72, color: 'chad', d: 0.24, hero: true, speed: 2.5 },
-      { name: 'Bun', val: '176K qps', h: 41, color: 'bun', d: 0.36, speed: 3.2 },
-      { name: 'Node.js', val: '151K qps', h: 35, color: 'node', d: 0.48, speed: 3.8 },
+      { name: 'C', val: '373K qps', h: 100, color: 'c', d: 0, speed: 2.0 },
+      { name: 'Python', val: '358K qps', h: 96, color: 'python', d: 0.12, speed: 2.2 },
+      { name: 'ChadScript', val: '332K qps', h: 89, color: 'chad', d: 0.24, hero: true, speed: 2.5 },
+      { name: 'Bun', val: '179K qps', h: 48, color: 'bun', d: 0.36, speed: 3.2 },
+      { name: 'Node.js', val: '144K qps', h: 39, color: 'node', d: 0.48, speed: 3.8 },
     ],
     note: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. Python\u2019s sqlite3 module is decades-old battle-tested C. Both ~2x the JS runtimes.'
   },
@@ -36,28 +36,26 @@ const benchmarks = {
     desc: '512\u00d7512 double-precision matrix multiply (A\u00d7B into C).',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'ChadScript', val: '0.42s', w: 2, h: 100, color: 'chad', d: 0, hero: true, speed: 1.5 },
-      { name: 'C', val: '0.43s', w: 2, h: 99, color: 'c', d: 0.12, speed: 1.6 },
-      { name: 'Go', val: '0.47s', w: 2, h: 90, color: 'go', d: 0.24, speed: 1.7 },
-      { name: 'Bun', val: '0.59s', w: 3, h: 72, color: 'bun', d: 0.36, speed: 2.0 },
-      { name: 'Node.js', val: '0.61s', w: 3, h: 69, color: 'node', d: 0.48, speed: 2.1 },
-      { name: 'Python', val: '61.3s', w: 100, h: 5, color: 'python', d: 0.60, speed: 10.5 },
+      { name: 'C', val: '0.43s', w: 2, h: 100, color: 'c', d: 0, speed: 1.5 },
+      { name: 'ChadScript', val: '0.46s', w: 2, h: 93, color: 'chad', d: 0.12, hero: true, speed: 1.6 },
+      { name: 'Go', val: '0.47s', w: 2, h: 91, color: 'go', d: 0.24, speed: 1.7 },
+      { name: 'Bun', val: '0.57s', w: 3, h: 75, color: 'bun', d: 0.36, speed: 2.0 },
+      { name: 'Node.js', val: '0.60s', w: 3, h: 72, color: 'node', d: 0.48, speed: 2.1 },
     ],
     note: 'Dense matrix multiply with array element read/write. ChadScript\u2019s arrays go through GC-managed structs, yet opt -O2 eliminates the overhead. Node/Bun\u2019s V8 JIT is strong but can\u2019t match LLVM\u2019s static optimizations here.'
   },
-  mandelbrot: {
+  nbody: {
     layout: 'horizontal',
-    desc: 'Mandelbrot set, 4096\u00d74096 grid, max 100 iterations per pixel.',
+    desc: 'N-Body gravitational simulation: 5 bodies, 50 million steps.',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'ChadScript', val: '1.95s', w: 2, h: 100, color: 'chad', d: 0, hero: true, speed: 1.5 },
-      { name: 'C', val: '1.98s', w: 2, h: 98, color: 'c', d: 0.12, speed: 1.6 },
-      { name: 'Bun', val: '1.98s', w: 2, h: 98, color: 'bun', d: 0.24, speed: 1.6 },
-      { name: 'Node.js', val: '2.02s', w: 2, h: 96, color: 'node', d: 0.36, speed: 1.7 },
-      { name: 'Go', val: '2.05s', w: 2, h: 95, color: 'go', d: 0.48, speed: 1.8 },
-      { name: 'Python', val: '229.8s', w: 100, h: 5, color: 'python', d: 0.60, speed: 10.5 },
+      { name: 'C', val: '5.04s', w: 2, h: 100, color: 'c', d: 0, speed: 1.5 },
+      { name: 'Go', val: '5.77s', w: 3, h: 87, color: 'go', d: 0.12, speed: 1.6 },
+      { name: 'Bun', val: '7.90s', w: 8, h: 64, color: 'bun', d: 0.24, speed: 2.0 },
+      { name: 'Node.js', val: '8.94s', w: 10, h: 56, color: 'node', d: 0.36, speed: 2.5 },
+      { name: 'ChadScript', val: '9.12s', w: 10, h: 55, color: 'chad', d: 0.48, hero: true, speed: 2.6 },
     ],
-    note: 'Pure floating-point compute \u2014 no I/O, no allocations, just math. ChadScript\u2019s LLVM IR + opt -O2 produces code that matches hand-written C. Python is ~118x slower without NumPy.'
+    note: 'Classic N-Body from the Computer Language Benchmarks Game. Heavy FP arithmetic with array indexing. ChadScript uses GC-managed parallel arrays instead of structs \u2014 the array indirection overhead adds up over 50M iterations.'
   }
 }
 
@@ -111,7 +109,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
     <button :class="{ active: tab === 'startup' }" @click="tab = 'startup'">Cold Start</button>
     <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
     <button :class="{ active: tab === 'matmul' }" @click="tab = 'matmul'">Matrix Multiply</button>
-    <button :class="{ active: tab === 'mandelbrot' }" @click="tab = 'mandelbrot'">Mandelbrot</button>
+    <button :class="{ active: tab === 'nbody' }" @click="tab = 'nbody'">N-Body</button>
   </div>
 
   <div class="bench-panel">
