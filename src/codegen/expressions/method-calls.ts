@@ -725,16 +725,18 @@ export class MethodCallGenerator {
 
     // Handle Response methods (from fetch())
     if (method === 'text' || method === 'json') {
-      try {
-        this.ctx.syncStateToGenerators();
-        let responsePtr = this.ctx.generateExpression(expr.object, params);
+      const isLikelyResponse = this.isLikelyResponseExpression(expr);
+      if (isLikelyResponse) {
+        try {
+          this.ctx.syncStateToGenerators();
+          let responsePtr = this.ctx.generateExpression(expr.object, params);
 
-        const objType = this.ctx.getVariableType(responsePtr);
-        if (objType === 'i8*') {
-          const castPtr = this.ctx.nextTemp();
-          this.ctx.emit(`${castPtr} = bitcast i8* ${responsePtr} to %__FetchResponse*`);
-          responsePtr = castPtr;
-        }
+          const objType = this.ctx.getVariableType(responsePtr);
+          if (objType === 'i8*') {
+            const castPtr = this.ctx.nextTemp();
+            this.ctx.emit(`${castPtr} = bitcast i8* ${responsePtr} to %__FetchResponse*`);
+            responsePtr = castPtr;
+          }
 
         if (method === 'text') {
           return this.ctx.responseGenGenerateText(responsePtr);
@@ -752,6 +754,7 @@ export class MethodCallGenerator {
         }
       } catch (e) {
         throw e;
+      }
       }
     }
 
@@ -1305,6 +1308,25 @@ export class MethodCallGenerator {
 
   private isPromiseExpression(expr: Expression): boolean {
     return this.ctx.isPromiseExpression(expr);
+  }
+
+  private isLikelyResponseExpression(expr: MethodCallNode): boolean {
+    const exprObj = expr.object as ExprBase;
+    if (exprObj.type === 'variable') {
+      const varName = (expr.object as VariableNode).name;
+      const varType = this.ctx.symbolTableGetType(varName);
+      if (varType === '%__FetchResponse*') return true;
+    }
+    if (exprObj.type === 'index_access' || exprObj.type === 'member_access') {
+      return true;
+    }
+    if (exprObj.type === 'call') {
+      return true;
+    }
+    if (exprObj.type === 'await') {
+      return true;
+    }
+    return false;
   }
 
   private handlePromiseStaticMethods(expr: MethodCallNode, params: string[]): string {
