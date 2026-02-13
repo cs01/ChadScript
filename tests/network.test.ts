@@ -148,6 +148,87 @@ testTcpClient();
     }
   });
 
+  it('should run Promise.all with concurrent fetch() calls', async () => {
+    const server = http.createServer((req, res) => {
+      if (req.url === '/a') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('response-a');
+      } else if (req.url === '/b') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('response-b');
+      } else if (req.url === '/c') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('response-c');
+      } else {
+        res.writeHead(404);
+        res.end('Not found');
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(19881, '127.0.0.1', resolve);
+    });
+
+    try {
+      const testFile = 'tests/fixtures/network/promise-all-fetch-test.ts';
+      await execAsync(`node dist/index.js ${testFile}`);
+      const { stdout } = await execAsync('.build/tests/fixtures/network/promise-all-fetch-test');
+      assert.ok(stdout.includes('TEST_PASSED'), 'Promise.all + fetch test should pass');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('should run async fetch with response.ok and response.text()', async () => {
+    const server = http.createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end(req.url);
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(19878, '127.0.0.1', resolve);
+    });
+
+    try {
+      const testFile = 'tests/fixtures/network/async-fetch-test.ts';
+      await execAsync(`node dist/index.js ${testFile}`);
+      const { stdout } = await execAsync('.build/tests/fixtures/network/async-fetch-test');
+      assert.ok(stdout.includes('TEST_PASSED'), 'async fetch test should pass');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('should run Promise.all with concurrent slow fetches', async () => {
+    const server = http.createServer((req, res) => {
+      const delay = 100;
+      setTimeout(() => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end(req.url);
+      }, delay);
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(19880, '127.0.0.1', resolve);
+    });
+
+    try {
+      const testFile = 'tests/fixtures/network/promise-all-concurrent.ts';
+      await execAsync(`node dist/index.js ${testFile}`);
+      const { stdout } = await execAsync('.build/tests/fixtures/network/promise-all-concurrent');
+      assert.ok(stdout.includes('TEST_PASSED'), 'Promise.all concurrent test should pass');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('should run Promise.race with resolved promises', async () => {
+    const testFile = 'tests/fixtures/network/promise-race-test.ts';
+    await execAsync(`node dist/index.js ${testFile}`);
+    const { stdout } = await execAsync('.build/tests/fixtures/network/promise-race-test');
+    assert.ok(stdout.includes('TEST_PASSED'), 'Promise.race test should pass');
+  });
+
   it('should run HTTP server using httpServe() and mongoose', async () => {
     const testFile = 'tests/fixtures/network/http-server-test.ts';
     const testCode = `

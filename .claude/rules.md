@@ -19,7 +19,7 @@ Before considering any feature complete, run the full self-hosting chain:
 6. `/tmp/chad-stage1 src/native-compiler.ts -o /tmp/chad-stage2` — Stage 1 compiles itself (Stage 2)
 7. `/tmp/chad-stage2 examples/hello.ts -o /tmp/hello3 && /tmp/hello3` — Stage 2 smoke test
 
-New features have complex side effects that may not be caught by unit tests alone. A change that passes all 240 tests can still break self-hosting. The Stage 2 test is the true verification — it proves the compiler's output is correct enough to compile itself.
+New features have complex side effects that may not be caught by unit tests alone. A change that passes all tests can still break self-hosting. The Stage 2 test is the true verification — it proves the compiler's output is correct enough to compile itself.
 
 ## Stage 0 Compatibility - STOP Adding Wrapper Methods
 

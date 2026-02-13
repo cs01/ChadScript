@@ -13,7 +13,7 @@ interface JsonTestResponse {
   message: string;
 }
 
-async function runTests(): any {
+async function runTests(): Promise<string> {
   // Test 1: Basic endpoint with .ok and .status checks
   const response1 = await fetch("http://localhost:9998/test");
   if (!response1.ok) {

@@ -1661,10 +1661,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       irParts.push('\n');
       const promiseAll = this.promiseGen.generateAll();
       if (promiseAll) { irParts.push(promiseAll); }
-      const fetchCallbacks = this.libuvGen.generateFetchWorkCallbacks();
-      if (fetchCallbacks) { irParts.push(fetchCallbacks); }
-      const fetchAsync = this.libuvGen.generateFetchAsync();
-      if (fetchAsync) { irParts.push(fetchAsync); }
+      if (this.usesCurl) {
+        const fetchCallbacks = this.libuvGen.generateFetchWorkCallbacks();
+        if (fetchCallbacks) { irParts.push(fetchCallbacks); }
+        const fetchAsync = this.libuvGen.generateFetchAsync();
+        if (fetchAsync) { irParts.push(fetchAsync); }
+      }
       const promiseAwait = this.libuvGen.generatePromiseAwait();
       if (promiseAwait) { irParts.push(promiseAwait); }
     }
@@ -1731,7 +1733,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     if (needsLibuv) {
-      const libuvDecls = this.libuvGen.generateDeclarations(needsPromise ? true : false);
+      const libuvDecls = this.libuvGen.generateDeclarations(this.usesCurl !== 0);
       if (libuvDecls) { finalParts.push(libuvDecls); }
       finalParts.push('\n');
     }

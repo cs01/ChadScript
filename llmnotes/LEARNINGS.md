@@ -86,3 +86,33 @@ Tree-sitter pushed `'any'` for untyped params; codegen treated `'any'` as non-pr
 1. **function-generator.ts has two identical type-mapping chains** (Path A ~line 86, Path B ~line 120). Extract to shared function.
 2. **Stage 0 inline function expressions crash.** `arr.map(function(x) { ... })` segfaults; named function refs work. Likely AST representation issue for anonymous functions.
 3. **`extractParamTypes`/`extractParamNames` split is fragile** — see note above.
+
+## 🔄 Async Function Return Type & Promise.all Type Erasure
+
+### Problem 1: Async functions with no explicit `return` produce LLVM errors
+
+`function-generator.ts` has a "no return statement → void" override (~line 155) that ran AFTER the async return type was set to `%Promise*`. For `async function f(): Promise<void>` (which naturally has no `return`), this would override `%Promise*` to `void`, then the async epilogue emitted `ret %Promise*` against a `void` signature.
+
+**Fix:** Gate the override with `!funcIsAsync`.
+
+### Problem 2: `allocateAwaitResult` type-erases everything to `i8*`
+
+`variable-allocator.ts:allocateAwaitResult` unconditionally stores await results as `SymbolKind.String` / `i8*`. For `await fetch(...)` this works accidentally (method-calls.ts bitcasts `i8*` to `%__FetchResponse*` on `.text()` calls). For `await Promise.all(...)` it breaks — the result is actually `%ObjectArray*`, but stored as `i8*`, causing string character indexing instead of array element indexing → segfault.
+
+**Fix:** Inspect `(stmt.value as AwaitExpressionNode).argument` to detect `Promise.all(...)` calls and allocate as `SymbolKind.ObjectArray` / `%ObjectArray*` with proper bitcast from the `i8*` returned by `__Promise_await`.
+
+**Pattern for future await type tracking:** For each new async API that resolves to a specific type, add a detection case to `allocateAwaitResult`. The general flow is: detect the awaited expression type → define the variable with the correct SymbolKind → bitcast the `i8*` from `__Promise_await` to the concrete type.
+
+### Problem 3: Fetch runtime types emitted unconditionally with promises
+
+`llvm-generator.ts` emitted `fetchCallbacks` and `fetchAsync` (which reference `%FetchWorkContext` → `%__FetchResponse`) whenever `usesPromises` was true, even if `fetch()` was never called. Similarly, `libuv.ts:generateDeclarations` emitted `%FetchWorkContext` based on promise usage, not fetch usage.
+
+**Fix:** Gate fetch-related code generation on `usesCurl` (which tracks actual `fetch()` usage), not `usesPromises`.
+
+### Async return type validation
+
+Async functions now require `Promise<T>` return types. Bare `any`, `void`, `string`, etc. produce compile errors. Omitting the return type is allowed (implicit `Promise<void>`).
+
+### Zero orphaned test fixtures
+
+All test fixture files must have corresponding test entries. Network fixtures that need a server go in `network.test.ts` with a locally-started HTTP server (Node.js `http.createServer`). Fixtures without network dependencies go in `test-fixtures.ts`.

@@ -1,4 +1,4 @@
-async function testPromiseAll(): any {
+async function testPromiseAll(): Promise<string> {
   const start = process.uptime();
 
   const p1 = fetch("http://127.0.0.1:19880/slow/1");

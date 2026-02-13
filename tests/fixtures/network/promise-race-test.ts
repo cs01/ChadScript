@@ -1,4 +1,4 @@
-async function testPromiseRace(): any {
+async function testPromiseRace(): Promise<string> {
   const p1 = Promise.resolve("first");
   const p2 = Promise.resolve("second");
 

@@ -82,6 +82,13 @@ export class FunctionGenerator {
     }
     const funcIsAsync = func.async ? true : false;
     if (funcIsAsync) {
+      const asyncRetType = func.returnType || '';
+      if (asyncRetType === 'any') {
+        throw new Error(`Async function '${funcName}' has return type 'any' — async functions must have an explicit Promise<T> return type (e.g., Promise<void>, Promise<string>)`);
+      }
+      if (asyncRetType !== '' && !asyncRetType.startsWith('Promise<')) {
+        throw new Error(`Async function '${funcName}' has return type '${asyncRetType}' — async functions must return Promise<T> (e.g., Promise<void>, Promise<${asyncRetType}>)`);
+      }
       returnType = '%Promise*';
       this.ctx.setCurrentFunctionReturnType('%Promise*');
     } else if (hasParamTypes && paramTypesLen > 0) {
@@ -152,7 +159,7 @@ export class FunctionGenerator {
     }
 
     const funcBody = func.body || { statements: [] };
-    if (!returnTypeIsString && !returnTypeIsVoid && !this.hasReturnStatement(funcBody)) {
+    if (!funcIsAsync && !returnTypeIsString && !returnTypeIsVoid && !this.hasReturnStatement(funcBody)) {
       returnType = 'void';
       returnTypeIsVoid = true;
       this.ctx.setCurrentFunctionReturnType('void');

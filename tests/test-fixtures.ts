@@ -687,5 +687,11 @@ export const testCases: TestCase[] = [
     fixture: 'tests/fixtures/math/large-numbers.ts',
     expectTestPassed: true,
     description: 'large integer literals beyond i32 range and big arithmetic'
+  },
+  {
+    name: 'stable-struct',
+    fixture: 'tests/fixtures/interfaces/stable-struct.ts',
+    expectedExitCode: 0,
+    description: 'Interface struct creation, passing, and returning should work'
   }
 ];

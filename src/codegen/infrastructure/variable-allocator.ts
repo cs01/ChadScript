@@ -1,4 +1,4 @@
-import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, InterfaceField, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode, CommonField, BinaryNode, MapNode, SetNode } from '../../ast/types.js';
+import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, InterfaceField, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode, CommonField, BinaryNode, MapNode, SetNode, AwaitExpressionNode } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata, Symbol as SymbolEntry, ObjectArrayMetadata, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createObjectMetadata, createObjectMetadataWithInterface, createObjectMetadataWithPointerAlloca, createObjectMetadataWithInterfaceAndPointerAlloca, createClassMetadata, createClosureMetadataSymbol, createMapMetadataSymbol, createSetMetadataSymbol, createObjectArrayMetadataSymbol, createUnionMetadata, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import { TypeResolver, UnionCommonFields } from './type-resolver/index.js';
@@ -945,6 +945,24 @@ export class VariableAllocator {
   }
 
   private allocateAwaitResult(stmt: VariableDeclaration, params: string[]): void {
+    const awaitExpr = stmt.value as AwaitExpressionNode;
+    const inner = awaitExpr.argument as ExprBase;
+
+    if (inner.type === 'method_call') {
+      const methodCall = awaitExpr.argument as MethodCallNode;
+      const objBase = methodCall.object as ExprBase;
+      if (objBase.type === 'variable' && (methodCall.object as VariableNode).name === 'Promise' && methodCall.method === 'all') {
+        const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+        this.ctx.defineVariable(stmt.name, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local');
+        this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
+        const value = this.ctx.generateExpression(stmt.value!, params);
+        const castReg = this.ctx.nextTemp();
+        this.ctx.emit(`${castReg} = bitcast i8* ${value} to %ObjectArray*`);
+        this.ctx.emit(`store %ObjectArray* ${castReg}, %ObjectArray** ${allocaReg}`);
+        return;
+      }
+    }
+
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     this.ctx.defineVariable(stmt.name, allocaReg, 'i8*', SymbolKind.String, 'local');
     this.ctx.emit(`${allocaReg} = alloca i8*`);
