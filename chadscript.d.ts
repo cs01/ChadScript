@@ -202,6 +202,7 @@ interface HttpRequest {
   method: string;
   path: string;
   body: string;
+  contentType: string;
 }
 
 interface HttpResponse {

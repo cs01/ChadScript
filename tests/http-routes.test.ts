@@ -4,6 +4,8 @@ import { exec, spawn, ChildProcess } from 'node:child_process';
 import { promisify } from 'node:util';
 import * as fs from 'node:fs/promises';
 import * as fsSync from 'node:fs';
+import * as zlib from 'node:zlib';
+import * as http from 'node:http';
 
 const execAsync = promisify(exec);
 
@@ -57,6 +59,16 @@ function createdHandler(req: Request): Response {
   return { status: 201, body: "Resource Created" };
 }
 
+function largeHandler(req: Request): Response {
+  let body = "<html><head><title>Large Response</title></head><body>";
+  body = body + "<h1>This is a large response for compression testing</h1>";
+  body = body + "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>";
+  body = body + "<p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>";
+  body = body + "<p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>";
+  body = body + "</body></html>";
+  return { status: 200, body: body };
+}
+
 function notFoundHandler(req: Request): Response {
   return { status: 404, body: "Not Found" };
 }
@@ -68,6 +80,7 @@ function handleRequest(req: Request): Response {
     if (req.path.startsWith("/echo?msg=")) return echoQueryHandler(req);
     if (req.path.startsWith("/status/")) return statusHandler(req);
     if (req.path == "/content-type") return contentTypeHandler(req);
+    if (req.path == "/large") return largeHandler(req);
     if (req.path == "/error") return errorHandler(req);
     if (req.path == "/created") return createdHandler(req);
   }
@@ -279,6 +292,98 @@ describe('HTTP Route Isolation Tests', { concurrency: 1 }, () => {
       }
 
       assert.ok(isProcessAlive(pid), 'Server crashed after concurrent requests');
+    } finally {
+      await stopServer();
+    }
+  });
+
+  it('GET /large with Accept-Encoding: deflate returns compressed response', async () => {
+    const srv = await startServer();
+    const pid = srv.pid!;
+
+    try {
+      const { headers, body } = await new Promise<{ headers: http.IncomingHttpHeaders; body: Buffer }>((resolve, reject) => {
+        const req = http.request({
+          hostname: '127.0.0.1',
+          port: PORT,
+          path: '/large',
+          method: 'GET',
+          headers: { 'Accept-Encoding': 'deflate' }
+        }, (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }));
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+      assert.ok(isProcessAlive(pid), 'Server crashed after deflate request');
+      assert.strictEqual(headers['content-encoding'], 'deflate', 'Response should have Content-Encoding: deflate');
+
+      const decompressed = zlib.inflateSync(body);
+      const text = decompressed.toString('utf-8');
+      assert.ok(text.includes('Large Response'), 'Decompressed body should contain expected content');
+      assert.ok(text.startsWith('<html>'), 'Decompressed body should start with <html>');
+    } finally {
+      await stopServer();
+    }
+  });
+
+  it('GET /json with Accept-Encoding: deflate skips compression for small body', async () => {
+    const srv = await startServer();
+    const pid = srv.pid!;
+
+    try {
+      const { headers, body } = await new Promise<{ headers: http.IncomingHttpHeaders; body: Buffer }>((resolve, reject) => {
+        const req = http.request({
+          hostname: '127.0.0.1',
+          port: PORT,
+          path: '/json',
+          method: 'GET',
+          headers: { 'Accept-Encoding': 'deflate' }
+        }, (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }));
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+      assert.ok(isProcessAlive(pid), 'Server crashed after deflate request to small body');
+      assert.strictEqual(headers['content-encoding'], undefined, 'Small response should NOT have Content-Encoding header');
+      assert.strictEqual(body.toString('utf-8'), '{"message":"hello","count":42}');
+    } finally {
+      await stopServer();
+    }
+  });
+
+  it('GET /large without Accept-Encoding does not compress', async () => {
+    const srv = await startServer();
+    const pid = srv.pid!;
+
+    try {
+      const { headers, body } = await new Promise<{ headers: http.IncomingHttpHeaders; body: Buffer }>((resolve, reject) => {
+        const req = http.request({
+          hostname: '127.0.0.1',
+          port: PORT,
+          path: '/large',
+          method: 'GET',
+          headers: { 'Accept-Encoding': 'identity' }
+        }, (res) => {
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }));
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+      assert.ok(isProcessAlive(pid), 'Server crashed after non-deflate request');
+      assert.strictEqual(headers['content-encoding'], undefined, 'Response without Accept-Encoding: deflate should not be compressed');
+      const text = body.toString('utf-8');
+      assert.ok(text.includes('Large Response'), 'Body should contain expected content');
     } finally {
       await stopServer();
     }

@@ -186,6 +186,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   if (generator.usesCurl) { linkLibs += ' -lcurl'; }
   if (generator.usesCrypto) { linkLibs += ' -lcrypto'; }
   if (generator.usesSqlite) { linkLibs += ' -lsqlite3'; }
+  if (generator.usesMongoose) { linkLibs += ' -lz'; }
   if (isMac) {
     const brewPrefix = process.arch === 'arm64' ? '/opt/homebrew/opt' : '/usr/local/opt';
     if (generator.usesCrypto) { linkLibs = `-L${brewPrefix}/openssl/lib ` + linkLibs; }

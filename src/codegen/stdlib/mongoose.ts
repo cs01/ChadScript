@@ -84,6 +84,11 @@ export class MongooseGenerator {
     ir += '@MG_EV_HTTP_MSG = private constant i32 11\n';
     ir += '\n';
 
+    ir += '; zlib compression functions\n';
+    ir += 'declare i32 @compress(i8*, i64*, i8*, i64)\n';
+    ir += 'declare i64 @compressBound(i64)\n';
+    ir += '\n';
+
     return ir;
   }
 
@@ -321,6 +326,73 @@ export class MongooseGenerator {
 
     ir += 'send_response:\n';
     ir += '  %final_ct = phi i8* [ %html_ct, %ct_html ], [ %json_ct, %ct_json ], [ %plain_ct, %ct_plain ]\n';
+    ir += '\n';
+
+    ir += '  ; Get body length for compression check\n';
+    ir += '  %resp_body_len = call i64 @strlen(i8* %response_body)\n';
+    ir += '\n';
+
+    ir += '  ; Check for Accept-Encoding header\n';
+    ir += '  %ae_header_name = getelementptr [16 x i8], [16 x i8]* @.str.accept_encoding_header, i32 0, i32 0\n';
+    ir += '  %ae_ptr = call %struct.mg_str* @mg_http_get_header(%struct.mg_http_message* %hm, i8* %ae_header_name)\n';
+    ir += '  %ae_found = icmp ne %struct.mg_str* %ae_ptr, null\n';
+    ir += '  br i1 %ae_found, label %check_ae_deflate, label %send_uncompressed\n\n';
+
+    ir += 'check_ae_deflate:\n';
+    ir += '  ; Copy Accept-Encoding value to null-terminated string\n';
+    ir += '  %ae_buf_ptr = getelementptr %struct.mg_str, %struct.mg_str* %ae_ptr, i32 0, i32 0\n';
+    ir += '  %ae_buf = load i8*, i8** %ae_buf_ptr\n';
+    ir += '  %ae_len_ptr = getelementptr %struct.mg_str, %struct.mg_str* %ae_ptr, i32 0, i32 1\n';
+    ir += '  %ae_len = load i64, i64* %ae_len_ptr\n';
+    ir += '  %ae_alloc = add i64 %ae_len, 1\n';
+    ir += '  %ae_str = call i8* @GC_malloc_atomic(i64 %ae_alloc)\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %ae_str, i8* %ae_buf, i64 %ae_len, i1 false)\n';
+    ir += '  %ae_null_pos = getelementptr i8, i8* %ae_str, i64 %ae_len\n';
+    ir += '  store i8 0, i8* %ae_null_pos\n';
+    ir += '  %deflate_needle = getelementptr [8 x i8], [8 x i8]* @.str.deflate_needle, i32 0, i32 0\n';
+    ir += '  %has_deflate_ptr = call i8* @strstr(i8* %ae_str, i8* %deflate_needle)\n';
+    ir += '  %has_deflate = icmp ne i8* %has_deflate_ptr, null\n';
+    ir += '  br i1 %has_deflate, label %check_body_size, label %send_uncompressed\n\n';
+
+    ir += 'check_body_size:\n';
+    ir += '  ; Only compress if body > 256 bytes\n';
+    ir += '  %body_big_enough = icmp ugt i64 %resp_body_len, 256\n';
+    ir += '  br i1 %body_big_enough, label %do_compress, label %send_uncompressed\n\n';
+
+    ir += 'do_compress:\n';
+    ir += '  ; Get max compressed size\n';
+    ir += '  %max_compressed = call i64 @compressBound(i64 %resp_body_len)\n';
+    ir += '  %comp_buf = call i8* @GC_malloc_atomic(i64 %max_compressed)\n';
+    ir += '  ; alloca for destLen (zlib writes actual compressed size here)\n';
+    ir += '  %dest_len_ptr = alloca i64\n';
+    ir += '  store i64 %max_compressed, i64* %dest_len_ptr\n';
+    ir += '  %comp_result = call i32 @compress(i8* %comp_buf, i64* %dest_len_ptr, i8* %response_body, i64 %resp_body_len)\n';
+    ir += '  %comp_ok = icmp eq i32 %comp_result, 0\n';
+    ir += '  br i1 %comp_ok, label %check_ratio, label %send_uncompressed\n\n';
+
+    ir += 'check_ratio:\n';
+    ir += '  ; Only use compressed if smaller than original\n';
+    ir += '  %compressed_len = load i64, i64* %dest_len_ptr\n';
+    ir += '  %is_smaller = icmp ult i64 %compressed_len, %resp_body_len\n';
+    ir += '  br i1 %is_smaller, label %send_compressed, label %send_uncompressed\n\n';
+
+    ir += 'send_compressed:\n';
+    ir += '  ; Build combined headers: content-type + Content-Encoding: deflate\\r\\n\n';
+    ir += '  %ct_len_comp = call i64 @strlen(i8* %final_ct)\n';
+    ir += '  %ce_hdr = getelementptr [28 x i8], [28 x i8]* @.str.ce_deflate, i32 0, i32 0\n';
+    ir += '  %ce_len = call i64 @strlen(i8* %ce_hdr)\n';
+    ir += '  %combined_hdr_len = add i64 %ct_len_comp, %ce_len\n';
+    ir += '  %combined_hdr_alloc = add i64 %combined_hdr_len, 1\n';
+    ir += '  %combined_hdr = call i8* @GC_malloc_atomic(i64 %combined_hdr_alloc)\n';
+    ir += '  call i8* @strcpy(i8* %combined_hdr, i8* %final_ct)\n';
+    ir += '  call i8* @strcat(i8* %combined_hdr, i8* %ce_hdr)\n';
+    ir += '  ; Use %.*s format to send binary compressed data\n';
+    ir += '  %comp_len_i32 = trunc i64 %compressed_len to i32\n';
+    ir += '  %binary_fmt = getelementptr [5 x i8], [5 x i8]* @.str.body_binary_fmt, i32 0, i32 0\n';
+    ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 %status_code, i8* %combined_hdr, i8* %binary_fmt, i32 %comp_len_i32, i8* %comp_buf)\n';
+    ir += '  br label %done\n\n';
+
+    ir += 'send_uncompressed:\n';
     ir += '  %body_fmt = getelementptr [3 x i8], [3 x i8]* @.str.body_fmt, i32 0, i32 0\n';
     ir += '  call void (%struct.mg_connection*, i32, i8*, i8*, ...) @mg_http_reply(%struct.mg_connection* %conn, i32 %status_code, i8* %final_ct, i8* %body_fmt, i8* %response_body)\n';
     ir += '\n';
@@ -344,6 +416,10 @@ export class MongooseGenerator {
     ir += '@.str.body_fmt = private constant [3 x i8] c"%s\\00"\n';
     ir += '@.str.content_type_header = private constant [13 x i8] c"Content-Type\\00"\n';
     ir += '@.str.mongoose_empty = private constant [1 x i8] c"\\00"\n';
+    ir += '@.str.accept_encoding_header = private constant [16 x i8] c"Accept-Encoding\\00"\n';
+    ir += '@.str.deflate_needle = private constant [8 x i8] c"deflate\\00"\n';
+    ir += '@.str.ce_deflate = private constant [28 x i8] c"Content-Encoding: deflate\\0D\\0A\\00"\n';
+    ir += '@.str.body_binary_fmt = private constant [5 x i8] c"%.*s\\00"\n';
 
     if (wsHandlerName) {
       ir += '@.str.upgrade_header = private constant [8 x i8] c"Upgrade\\00"\n';

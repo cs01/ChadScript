@@ -138,6 +138,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   if (generator.getUsesCurl()) { linkLibs = '-lcurl ' + linkLibs; }
   if (generator.getUsesCrypto()) { linkLibs = '-lcrypto ' + linkLibs; }
   if (generator.getUsesSqlite()) { linkLibs = '-lsqlite3 ' + linkLibs; }
+  if (generator.getUsesMongoose()) { linkLibs = '-lz ' + linkLibs; }
   const mongooseObj = generator.getUsesMongoose() ? MONGOOSE_PATH + '/mongoose.o' : '';
   if (isMac) {
     if (generator.getUsesCrypto()) { linkLibs = '-L/opt/homebrew/opt/openssl/lib -L/usr/local/opt/openssl/lib ' + linkLibs; }
