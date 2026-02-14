@@ -109,7 +109,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesJson: number = 0;
   public usesMongoose: number = 0;
   public usesStringBuilder: number = 0;
-  private stringBuilderAllocas: Map<string, { slen: string; scap: string }> = new Map();
+  private stringBuilderSlen: Map<string, string> = new Map();
+  private stringBuilderScap: Map<string, string> = new Map();
 
   // Expression generator (context pattern)
   private exprGen: ExpressionGenerator;
@@ -770,7 +771,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getAllocaInstructions(): string[] { return this.allocaInstructions; }
   public clearAllocaInstructions(): void { this.allocaInstructions.length = 0; }
   public getOutput(): string[] { return this.output; }
-  public clearOutput(): void { this.output.length = 0; }
+  public clearOutput(): void { this.output.length = 0; this.stringBuilderSlen.clear(); this.stringBuilderScap.clear(); }
   public pushOutput(line: string): void { this.output.push(line); }
   public getOutputLength(): number { return this.output.length; }
   public getOutputLine(index: number): string { return this.output[index] || ''; }
@@ -1197,7 +1198,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.symbolTable.clearLocals();
     this.variableTypes.clear();
     this.expressionTypes.clear();
-    this.stringBuilderAllocas.clear();
+    this.stringBuilderSlen.clear();
+    this.stringBuilderScap.clear();
   }
 
   getThisPointer(): string | null {
@@ -1945,64 +1947,75 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   private flattenStringAppendChain(varName: string, expr: BinaryNode): Expression[] | null {
     if (expr.op !== '+') return null;
-    const pieces: Expression[] = [];
-    let current: Expression = expr;
-    while (current.type === 'binary') {
-      const bin = current as BinaryNode;
-      if (bin.op !== '+') return null;
-      pieces.push(bin.right);
-      current = bin.left;
+    const revPieces: Expression[] = [];
+    let currentBin: BinaryNode = expr;
+    while (true) {
+      if (currentBin.op !== '+') return null;
+      revPieces.push(currentBin.right);
+      const leftTyped = currentBin.left as { type: string };
+      const leftType = leftTyped.type;
+      if (leftType === 'binary') {
+        currentBin = currentBin.left as BinaryNode;
+      } else if (leftType === 'variable') {
+        if ((currentBin.left as VariableNode).name !== varName) return null;
+        const pieces: Expression[] = [];
+        let ri = revPieces.length - 1;
+        while (ri >= 0) {
+          pieces.push(revPieces[ri]);
+          ri = ri - 1;
+        }
+        return pieces;
+      } else {
+        return null;
+      }
     }
-    if (current.type !== 'variable') return null;
-    if ((current as VariableNode).name !== varName) return null;
-    pieces.reverse();
-    return pieces;
   }
 
-  private ensureStringBuilderAllocas(varName: string): { slen: string; scap: string } {
-    const existing = this.stringBuilderAllocas.get(varName);
-    if (existing) return existing;
-    const slen = this.nextTemp();
-    this.emit(`${slen} = alloca i64`);
-    this.emit(`store i64 0, i64* ${slen}`);
-    const scap = this.nextTemp();
-    this.emit(`${scap} = alloca i64`);
-    this.emit(`store i64 0, i64* ${scap}`);
-    const allocas = { slen, scap };
-    this.stringBuilderAllocas.set(varName, allocas);
+  private ensureStringBuilderAllocas(varName: string): void {
+    const existing = this.stringBuilderSlen.get(varName);
+    if (existing) return;
+    const slenName = '%' + this.nextLabel('SBlen');
+    const scapName = '%' + this.nextLabel('SBcap');
+    this.allocaInstructions.push(slenName + ' = alloca i64');
+    this.allocaInstructions.push('store i64 0, i64* ' + slenName);
+    this.allocaInstructions.push(scapName + ' = alloca i64');
+    this.allocaInstructions.push('store i64 0, i64* ' + scapName);
+    this.stringBuilderSlen.set(varName, slenName);
+    this.stringBuilderScap.set(varName, scapName);
     this.usesStringBuilder = 1;
-    return allocas;
   }
 
   private invalidateStringBuilder(varName: string): void {
-    const allocas = this.stringBuilderAllocas.get(varName);
-    if (allocas) {
-      this.emit(`store i64 0, i64* ${allocas.scap}`);
+    const scap = this.stringBuilderScap.get(varName);
+    if (scap) {
+      this.emit('store i64 0, i64* ' + scap);
     }
   }
 
   private emitStringBuilderAppend(varName: string, pieces: Expression[], params: string[]): void {
-    const allocas = this.ensureStringBuilderAllocas(varName);
+    this.ensureStringBuilderAllocas(varName);
+    const slen = this.stringBuilderSlen.get(varName);
+    const scap = this.stringBuilderScap.get(varName);
     const ptrAlloca = this.symbolTable.getStringAlloca(varName);
-    if (!ptrAlloca) return;
+    if (!ptrAlloca || !slen || !scap) return;
 
     const currentCap = this.nextTemp();
-    this.emit(`${currentCap} = load i64, i64* ${allocas.scap}`);
+    this.emit(currentCap + ' = load i64, i64* ' + scap);
     const isInit = this.nextTemp();
-    this.emit(`${isInit} = icmp eq i64 ${currentCap}, 0`);
+    this.emit(isInit + ' = icmp eq i64 ' + currentCap + ', 0');
     const initLabel = this.nextLabel('sb_init');
     const readyLabel = this.nextLabel('sb_ready');
-    this.emit(`br i1 ${isInit}, label %${initLabel}, label %${readyLabel}`);
+    this.emit('br i1 ' + isInit + ', label %' + initLabel + ', label %' + readyLabel);
 
-    this.emit(`${initLabel}:`);
+    this.emit(initLabel + ':');
     const curPtr = this.nextTemp();
-    this.emit(`${curPtr} = load i8*, i8** ${ptrAlloca}`);
+    this.emit(curPtr + ' = load i8*, i8** ' + ptrAlloca);
     const curLen = this.nextTemp();
-    this.emit(`${curLen} = call i64 @strlen(i8* ${curPtr})`);
-    this.emit(`store i64 ${curLen}, i64* ${allocas.slen}`);
-    this.emit(`br label %${readyLabel}`);
+    this.emit(curLen + ' = call i64 @strlen(i8* ' + curPtr + ')');
+    this.emit('store i64 ' + curLen + ', i64* ' + slen);
+    this.emit('br label %' + readyLabel);
 
-    this.emit(`${readyLabel}:`);
+    this.emit(readyLabel + ':');
 
     for (let i = 0; i < pieces.length; i++) {
       const piece = pieces[i];
@@ -2015,8 +2028,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         pieceStr = this.stringGenConvertNumberToString(pieceValue);
       }
       const pieceLen = this.nextTemp();
-      this.emit(`${pieceLen} = call i64 @strlen(i8* ${pieceStr})`);
-      this.emit(`call void @__cs_str_builder_append(i8** ${ptrAlloca}, i64* ${allocas.slen}, i64* ${allocas.scap}, i8* ${pieceStr}, i64 ${pieceLen})`);
+      this.emit(pieceLen + ' = call i64 @strlen(i8* ' + pieceStr + ')');
+      this.emit('call void @__cs_str_builder_append(i8** ' + ptrAlloca + ', i64* ' + slen + ', i64* ' + scap + ', i8* ' + pieceStr + ', i64 ' + pieceLen + ')');
     }
   }
 
