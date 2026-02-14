@@ -114,6 +114,7 @@ export interface VariableAllocatorContext {
   symbolTableHasObjectInfo(name: string): boolean;
   symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableSetObjectArrayMetadata(name: string, metadata: ObjectArrayMetadata): void;
+  symbolTableSetRawInterfaceType(name: string, type: string): void;
   arrowFunctionGenGenerate(
     expr: Expression,
     params: string[],
@@ -593,6 +594,7 @@ export class VariableAllocator {
     }
 
     this.ctx.defineVariable(stmt.name, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local');
+    this.ctx.symbolTableSetRawInterfaceType(stmt.name, elementType.startsWith('{') ? 'inline' : elementType);
     this.ctx.symbolTableSetObjectArrayMetadata(stmt.name, {
       elementInterfaceName: elementType.startsWith('{') ? 'inline' : elementType,
       elementKeys,
@@ -1276,6 +1278,13 @@ export class VariableAllocator {
           types: typeInfo.types,
           tsTypes: typeInfo.tsTypes
         }, elementType));
+        this.ctx.symbolTableSetRawInterfaceType(stmt.name, elementType);
+        this.ctx.symbolTableSetObjectArrayMetadata(stmt.name, {
+          elementInterfaceName: elementType,
+          elementKeys: typeInfo.keys,
+          elementTypes: typeInfo.types,
+          elementTsTypes: typeInfo.tsTypes
+        });
         this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
         const value = this.ctx.generateExpression(stmt.value!, params);
         this.ctx.emit(`store %ObjectArray* ${value}, %ObjectArray** ${allocaReg}`);

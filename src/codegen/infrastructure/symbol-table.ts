@@ -622,6 +622,14 @@ export class SymbolTable {
     return undefined;
   }
 
+  getRawInterfaceType(name: string): string | undefined {
+    return this.interfaceTypes.get(name);
+  }
+
+  setRawInterfaceType(name: string, type: string): void {
+    this.interfaceTypes.set(name, type);
+  }
+
   getConcreteClass(name: string): string | undefined {
     if (!name) return undefined;
     const symbol = this.symbols.get(name);

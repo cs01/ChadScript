@@ -668,6 +668,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined { return this.symbolTable.getObjectMetadata(name); }
   public symbolTableGetArrayAlloca(name: string): string | undefined { return this.symbolTable.getArrayAlloca(name); }
   public symbolTableSetObjectArrayMetadata(name: string, metadata: ObjectArrayMetadata): void { this.symbolTable.setObjectArrayMetadata(name, metadata); }
+  public symbolTableSetRawInterfaceType(name: string, type: string): void { this.symbolTable.setRawInterfaceType(name, type); }
   public symbolTableGetResolvedType(name: string): ResolvedType | undefined { return this.symbolTable.getResolvedType(name); }
   public symbolTableSetResolvedType(name: string, resolvedType: ResolvedType): void { this.symbolTable.setResolvedType(name, resolvedType); }
   public classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null {
@@ -1355,6 +1356,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           this.globalVariables.set(name, { llvmType, kind, initialized: false });
           if (elementType) {
             this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(elementType));
+            this.symbolTable.setRawInterfaceType(name, elementType);
           } else {
             this.defineVariable(name, `@${name}`, llvmType, kind, 'global');
           }

@@ -593,11 +593,11 @@ function transformCallExpression(node: TreeSitterNode): Expression {
   let typeParameter: string | undefined;
   const typeArgsNode = getChildByFieldName(node, 'type_arguments');
   if (typeArgsNode) {
-    const tan = typeArgsNode as NodeBase;
-    if (tan.namedChildCount > 0) {
+    const ncc = typeArgsNode.namedChildCount;
+    if (ncc > 0) {
       const firstTypeArg = getNamedChild(typeArgsNode, 0);
       if (firstTypeArg) {
-        typeParameter = (firstTypeArg as NodeBase).text;
+        typeParameter = firstTypeArg.text;
       }
     }
   }
@@ -615,10 +615,10 @@ function transformCallExpression(node: TreeSitterNode): Expression {
 
     return {
       type: 'method_call',
-      object,
-      method,
-      args,
-      typeParameter,
+      object: object,
+      method: method,
+      args: args,
+      typeParameter: typeParameter,
       pos: 0,
     };
   } else if (fn.type === 'identifier') {

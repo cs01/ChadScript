@@ -253,6 +253,7 @@ export interface IGeneratorContext {
   symbolTableGetAlloca(name: string): string | undefined;
   symbolTableGetScope(name: string): string | undefined;
   symbolTableGetObjectArrayMetadata(name: string): { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] } | undefined;
+  symbolTableGetObjectArrayElementType(name: string): string | undefined;
   symbolTableIsPointerAlloca(name: string): boolean;
   symbolTableNarrowType(name: string, narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] }): void;
   symbolTableRestoreType(name: string): void;
@@ -263,6 +264,7 @@ export interface IGeneratorContext {
   symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetArrayAlloca(name: string): string | undefined;
   symbolTableSetObjectArrayMetadata(name: string, metadata: { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] }): void;
+  symbolTableSetRawInterfaceType(name: string, type: string): void;
   symbolTableGetResolvedType(name: string): ResolvedType | undefined;
   symbolTableSetResolvedType(name: string, resolvedType: ResolvedType): void;
 
@@ -1018,6 +1020,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   symbolTableGetAlloca(name: string) { return this.symbolTable.getAlloca(name); }
   symbolTableGetScope(name: string) { return this.symbolTable.getScope(name); }
   symbolTableGetObjectArrayMetadata(name: string) { return this.symbolTable.getObjectArrayMetadata(name); }
+  symbolTableGetObjectArrayElementType(name: string) { return this.symbolTable.getRawInterfaceType(name); }
   symbolTableIsPointerAlloca(name: string) { return this.symbolTable.isPointerAlloca(name); }
   symbolTableNarrowType(name: string, narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] }) { this.symbolTable.narrowType(name, narrowedMetadata); }
   symbolTableRestoreType(name: string) { this.symbolTable.restoreType(name); }
@@ -1028,6 +1031,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   symbolTableGetObjectMetadata(name: string) { return this.symbolTable.getObjectMetadata(name); }
   symbolTableGetArrayAlloca(name: string) { return this.symbolTable.getArrayAlloca(name); }
   symbolTableSetObjectArrayMetadata(name: string, metadata: { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] }) { this.symbolTable.setObjectArrayMetadata(name, metadata); }
+  symbolTableSetRawInterfaceType(name: string, type: string) { this.symbolTable.setRawInterfaceType(name, type); }
   symbolTableGetResolvedType(name: string): ResolvedType | undefined { return this.symbolTable.getResolvedType(name); }
   symbolTableSetResolvedType(name: string, resolvedType: ResolvedType) { this.symbolTable.setResolvedType(name, resolvedType); }
 
