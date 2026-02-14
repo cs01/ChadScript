@@ -302,7 +302,7 @@ export class FunctionGenerator {
           elementType = pt.substring(0, pt.length - 2);
         }
         if (elementType) {
-          this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local', createInterfaceMetadata(elementType));
+          this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local', createInterfacePointerAllocaMetadata(elementType));
         } else {
           this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local', createPointerAllocaMetadata());
         }
