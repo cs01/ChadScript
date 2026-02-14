@@ -392,11 +392,16 @@ export function handleSlice(ctx: MethodCallGeneratorContext, expr: MethodCallNod
     );
   }
 
-  if (expr.args.length < 1 || expr.args.length > 2) {
-    throw new Error(`slice() expects 1 or 2 arguments, got ${expr.args.length}`);
+  if (expr.args.length > 2) {
+    throw new Error(`slice() expects 0-2 arguments, got ${expr.args.length}`);
   }
 
-  const startDouble = ctx.generateExpression(expr.args[0], params);
+  let startDouble: string;
+  if (expr.args.length >= 1) {
+    startDouble = ctx.generateExpression(expr.args[0], params);
+  } else {
+    startDouble = '0.0';
+  }
   const startI32 = ctx.nextTemp();
   ctx.emit(`${startI32} = fptosi double ${startDouble} to i32`);
 
