@@ -58,10 +58,10 @@ export class BinaryExpressionGenerator {
 
     // Arithmetic operators (floating-point)
     const arithMap: { [key: string]: string } = {
-      '+': 'fadd',
-      '-': 'fsub',
-      '*': 'fmul',
-      '/': 'fdiv'
+      '+': 'fadd fast',
+      '-': 'fsub fast',
+      '*': 'fmul fast',
+      '/': 'fdiv fast'
     };
 
     // Bitwise operators (need to convert double -> i64 -> operate -> double)
@@ -177,7 +177,7 @@ export class BinaryExpressionGenerator {
 
     this.ctx.emit(`${floatModLabel}:`);
     const fremResult = this.ctx.nextTemp();
-    this.ctx.emit(`${fremResult} = frem double ${left}, ${right}`);
+    this.ctx.emit(`${fremResult} = frem fast double ${left}, ${right}`);
     const floatBranchEnd = this.ctx.getCurrentLabel();
     this.ctx.emit(`br label %${mergeLabel}`);
 
@@ -375,7 +375,7 @@ export class BinaryExpressionGenerator {
     }
 
     const cmpResult = this.ctx.nextTemp();
-    this.ctx.emit(`${cmpResult} = fcmp ${cond} double ${leftDouble}, ${rightDouble}`);
+    this.ctx.emit(`${cmpResult} = fcmp fast ${cond} double ${leftDouble}, ${rightDouble}`);
 
     // Convert boolean result to double (JavaScript semantics: comparisons return numbers)
     const i32Result = this.ctx.nextTemp();

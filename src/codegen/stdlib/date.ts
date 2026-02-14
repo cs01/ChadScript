@@ -38,12 +38,12 @@ export class DateGenerator {
     this.ctx.emit(`${usecDouble} = sitofp i64 ${usecVal} to double`);
 
     const secMs = this.ctx.nextTemp();
-    this.ctx.emit(`${secMs} = fmul double ${secDouble}, 1.000000e+03`);
+    this.ctx.emit(`${secMs} = fmul fast double ${secDouble}, 1.000000e+03`);
     const usecMs = this.ctx.nextTemp();
-    this.ctx.emit(`${usecMs} = fdiv double ${usecDouble}, 1.000000e+03`);
+    this.ctx.emit(`${usecMs} = fdiv fast double ${usecDouble}, 1.000000e+03`);
 
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = fadd double ${secMs}, ${usecMs}`);
+    this.ctx.emit(`${result} = fadd fast double ${secMs}, ${usecMs}`);
 
     return result;
   }

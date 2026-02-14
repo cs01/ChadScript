@@ -117,7 +117,7 @@ describe('ChadScript Compiler', () => {
         assert.ok(llContent.includes('define double @_cs_add'), 'Should define add function (mangled)');
         assert.ok(llContent.includes('define i32 @main'), 'Should define main function');
         assert.ok(llContent.includes('ret'), 'Should have return statements');
-        assert.ok(llContent.includes('fadd double'), 'Should have add instruction');
+        assert.ok(llContent.includes('fadd fast double'), 'Should have add instruction');
       } finally {
         // Clean up
         try {

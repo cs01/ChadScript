@@ -76,9 +76,9 @@ export function handleProcessUptime(ctx: MethodCallGeneratorContext): string {
   const nsecDouble = ctx.nextTemp();
   ctx.emit(`${nsecDouble} = sitofp i64 ${nsec} to double`);
   const nsecSec = ctx.nextTemp();
-  ctx.emit(`${nsecSec} = fdiv double ${nsecDouble}, 1000000000.0`);
+  ctx.emit(`${nsecSec} = fdiv fast double ${nsecDouble}, 1000000000.0`);
   const total = ctx.nextTemp();
-  ctx.emit(`${total} = fadd double ${secDouble}, ${nsecSec}`);
+  ctx.emit(`${total} = fadd fast double ${secDouble}, ${nsecSec}`);
   return total;
 }
 

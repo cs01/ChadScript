@@ -440,7 +440,7 @@ export class MemberAccessGenerator {
     const result = this.ctx.nextTemp();
     const valueStr = String(value);
     const formattedValue = valueStr.indexOf('.') === -1 ? valueStr + '.0' : valueStr;
-    this.ctx.emit(`${result} = fadd double ${formattedValue}, 0.0`);
+    this.ctx.emit(`${result} = fadd fast double ${formattedValue}, 0.0`);
     this.ctx.setVariableType(result, 'double');
     return result;
   }

@@ -71,7 +71,7 @@ export class UnaryExpressionGenerator {
 
     const delta = op === 'post++' ? '1.0' : '-1.0';
     const newValue = this.ctx.nextTemp();
-    this.ctx.emit(`${newValue} = fadd double ${originalValue}, ${delta}`);
+    this.ctx.emit(`${newValue} = fadd fast double ${originalValue}, ${delta}`);
 
     this.ctx.emit(`store double ${newValue}, double* ${allocaReg}`);
 
@@ -98,7 +98,7 @@ export class UnaryExpressionGenerator {
 
     const delta = op === '++' ? '1.0' : '-1.0';
     const newValue = this.ctx.nextTemp();
-    this.ctx.emit(`${newValue} = fadd double ${originalValue}, ${delta}`);
+    this.ctx.emit(`${newValue} = fadd fast double ${originalValue}, ${delta}`);
     this.ctx.setVariableType(newValue, 'double');
 
     this.ctx.emit(`store double ${newValue}, double* ${allocaReg}`);
@@ -169,7 +169,7 @@ export class UnaryExpressionGenerator {
     const isIncrement = op === 'post++' || op === '++';
     const delta = isIncrement ? '1.0' : '-1.0';
     const newValue = this.ctx.nextTemp();
-    this.ctx.emit(`${newValue} = fadd double ${originalValue}, ${delta}`);
+    this.ctx.emit(`${newValue} = fadd fast double ${originalValue}, ${delta}`);
     this.ctx.setVariableType(newValue, 'double');
 
     this.ctx.emit(`store double ${newValue}, double* ${fieldPtr}`);
