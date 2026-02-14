@@ -86,7 +86,7 @@ export class BinaryExpressionGenerator {
     };
 
     if (op === '%') {
-      return this.generateModulo(leftValue, rightValue);
+      return this.generateModulo(leftValue, rightValue, left, right);
     } else if (arithMap[op]) {
       return this.generateArithmetic(op, arithMap[op], leftValue, rightValue);
     } else if (bitwiseMap[op]) {
@@ -124,7 +124,15 @@ export class BinaryExpressionGenerator {
     return temp;
   }
 
-  private generateModulo(left: string, right: string): string {
+  private isKnownInteger(expr: Expression): boolean {
+    const exprTyped = expr as { type: string; value?: number };
+    if (exprTyped.type === 'number' && typeof exprTyped.value === 'number') {
+      return Number.isInteger(exprTyped.value);
+    }
+    return false;
+  }
+
+  private generateModulo(left: string, right: string, leftExpr: Expression, rightExpr: Expression): string {
     const leftType = this.ctx.getVariableType(left);
     const rightType = this.ctx.getVariableType(right);
 
@@ -144,18 +152,47 @@ export class BinaryExpressionGenerator {
       right = asDouble;
     }
 
-    const leftTrunc = this.ctx.nextTemp();
-    this.ctx.emit(`${leftTrunc} = call double @llvm.trunc.f64(double ${left})`);
-    const leftIsInt = this.ctx.nextTemp();
-    this.ctx.emit(`${leftIsInt} = fcmp oeq double ${left}, ${leftTrunc}`);
+    const leftIsKnown = this.isKnownInteger(leftExpr);
+    const rightIsKnown = this.isKnownInteger(rightExpr);
 
-    const rightTrunc = this.ctx.nextTemp();
-    this.ctx.emit(`${rightTrunc} = call double @llvm.trunc.f64(double ${right})`);
-    const rightIsInt = this.ctx.nextTemp();
-    this.ctx.emit(`${rightIsInt} = fcmp oeq double ${right}, ${rightTrunc}`);
+    if (leftIsKnown && rightIsKnown) {
+      const leftInt = this.ctx.nextTemp();
+      this.ctx.emit(`${leftInt} = fptosi double ${left} to i64`);
+      const rightInt = this.ctx.nextTemp();
+      this.ctx.emit(`${rightInt} = fptosi double ${right} to i64`);
+      const sremResult = this.ctx.nextTemp();
+      this.ctx.emit(`${sremResult} = srem i64 ${leftInt}, ${rightInt}`);
+      const result = this.ctx.nextTemp();
+      this.ctx.emit(`${result} = sitofp i64 ${sremResult} to double`);
+      this.ctx.setVariableType(result, 'double');
+      return result;
+    }
 
-    const bothInt = this.ctx.nextTemp();
-    this.ctx.emit(`${bothInt} = and i1 ${leftIsInt}, ${rightIsInt}`);
+    let bothInt: string;
+    if (leftIsKnown) {
+      const rightTrunc = this.ctx.nextTemp();
+      this.ctx.emit(`${rightTrunc} = call double @llvm.trunc.f64(double ${right})`);
+      bothInt = this.ctx.nextTemp();
+      this.ctx.emit(`${bothInt} = fcmp oeq double ${right}, ${rightTrunc}`);
+    } else if (rightIsKnown) {
+      const leftTrunc = this.ctx.nextTemp();
+      this.ctx.emit(`${leftTrunc} = call double @llvm.trunc.f64(double ${left})`);
+      bothInt = this.ctx.nextTemp();
+      this.ctx.emit(`${bothInt} = fcmp oeq double ${left}, ${leftTrunc}`);
+    } else {
+      const leftTrunc = this.ctx.nextTemp();
+      this.ctx.emit(`${leftTrunc} = call double @llvm.trunc.f64(double ${left})`);
+      const leftIsInt = this.ctx.nextTemp();
+      this.ctx.emit(`${leftIsInt} = fcmp oeq double ${left}, ${leftTrunc}`);
+
+      const rightTrunc = this.ctx.nextTemp();
+      this.ctx.emit(`${rightTrunc} = call double @llvm.trunc.f64(double ${right})`);
+      const rightIsInt = this.ctx.nextTemp();
+      this.ctx.emit(`${rightIsInt} = fcmp oeq double ${right}, ${rightTrunc}`);
+
+      bothInt = this.ctx.nextTemp();
+      this.ctx.emit(`${bothInt} = and i1 ${leftIsInt}, ${rightIsInt}`);
+    }
 
     const intModLabel = this.ctx.nextLabel('mod_int');
     const floatModLabel = this.ctx.nextLabel('mod_float');
