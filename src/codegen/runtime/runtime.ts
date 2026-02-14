@@ -409,4 +409,51 @@ export class RuntimeGenerator {
 
     return ir;
   }
+
+  generateStringBuilderRuntime(): string {
+    let ir = '; StringBuilder append helper for O(1) amortized string concatenation\n';
+    ir += 'define void @__cs_str_builder_append(i8** %ptr, i64* %len, i64* %cap, i8* %piece, i64 %piece_len) {\n';
+    ir += 'entry:\n';
+    ir += '  %cur_len = load i64, i64* %len\n';
+    ir += '  %cur_cap = load i64, i64* %cap\n';
+    ir += '  %cur_ptr = load i8*, i8** %ptr\n';
+    ir += '  %needed = add i64 %cur_len, %piece_len\n';
+    ir += '  %needed1 = add i64 %needed, 1\n';
+    ir += '  %fits = icmp ule i64 %needed1, %cur_cap\n';
+    ir += '  br i1 %fits, label %do_copy, label %grow\n';
+    ir += 'grow:\n';
+    ir += '  %double_cap = shl i64 %cur_cap, 1\n';
+    ir += '  %min_cap = icmp ugt i64 %double_cap, %needed1\n';
+    ir += '  %new_cap_tmp = select i1 %min_cap, i64 %double_cap, i64 %needed1\n';
+    ir += '  %at_least_256 = icmp ugt i64 %new_cap_tmp, 256\n';
+    ir += '  %new_cap = select i1 %at_least_256, i64 %new_cap_tmp, i64 256\n';
+    ir += '  %was_zero = icmp eq i64 %cur_cap, 0\n';
+    ir += '  br i1 %was_zero, label %fresh_alloc, label %realloc\n';
+    ir += 'fresh_alloc:\n';
+    ir += '  %fresh = call i8* @GC_malloc_atomic(i64 %new_cap)\n';
+    ir += '  %has_old = icmp ne i64 %cur_len, 0\n';
+    ir += '  br i1 %has_old, label %copy_old, label %store_fresh\n';
+    ir += 'copy_old:\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %fresh, i8* %cur_ptr, i64 %cur_len, i1 false)\n';
+    ir += '  br label %store_fresh\n';
+    ir += 'store_fresh:\n';
+    ir += '  store i8* %fresh, i8** %ptr\n';
+    ir += '  store i64 %new_cap, i64* %cap\n';
+    ir += '  br label %do_copy\n';
+    ir += 'realloc:\n';
+    ir += '  %grown = call i8* @GC_realloc(i8* %cur_ptr, i64 %new_cap)\n';
+    ir += '  store i8* %grown, i8** %ptr\n';
+    ir += '  store i64 %new_cap, i64* %cap\n';
+    ir += '  br label %do_copy\n';
+    ir += 'do_copy:\n';
+    ir += '  %dst_ptr = load i8*, i8** %ptr\n';
+    ir += '  %dest = getelementptr i8, i8* %dst_ptr, i64 %cur_len\n';
+    ir += '  call void @llvm.memcpy.p0i8.p0i8.i64(i8* %dest, i8* %piece, i64 %piece_len, i1 false)\n';
+    ir += '  %null_pos = getelementptr i8, i8* %dst_ptr, i64 %needed\n';
+    ir += '  store i8 0, i8* %null_pos\n';
+    ir += '  store i64 %needed, i64* %len\n';
+    ir += '  ret void\n';
+    ir += '}\n\n';
+    return ir;
+  }
 }

@@ -711,5 +711,11 @@ export const testCases: TestCase[] = [
     fixture: 'tests/fixtures/arrays/interface-array-mutation.ts',
     expectTestPassed: true,
     description: 'Mutating fields of interface objects in arrays (arr[i].field = value) should work'
+  },
+  {
+    name: 'string-builder',
+    fixture: 'tests/fixtures/strings/string-builder.ts',
+    expectTestPassed: true,
+    description: 'String builder optimization for s = s + x pattern should produce correct results'
   }
 ];

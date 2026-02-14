@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode, ArrowFunctionNode, UnaryNode, IndexAccessNode, AwaitExpressionNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode, ArrowFunctionNode, UnaryNode, IndexAccessNode, AwaitExpressionNode, BinaryNode } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { ClassInfo, MapMetadata, SetMetadata, ObjectArrayMetadata, ClosureMetadata, Symbol as SymbolEntry, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, ObjectMetadata } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
@@ -108,6 +108,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesCrypto: number = 0;
   public usesJson: number = 0;
   public usesMongoose: number = 0;
+  public usesStringBuilder: number = 0;
+  private stringBuilderAllocas: Map<string, { slen: string; scap: string }> = new Map();
 
   // Expression generator (context pattern)
   private exprGen: ExpressionGenerator;
@@ -1195,6 +1197,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.symbolTable.clearLocals();
     this.variableTypes.clear();
     this.expressionTypes.clear();
+    this.stringBuilderAllocas.clear();
   }
 
   getThisPointer(): string | null {
@@ -1779,6 +1782,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push(this.sqliteGen.generateSqliteAllWithParamsHelper());
     }
 
+    if (this.usesStringBuilder) {
+      finalParts.push(this.runtimeGen.generateStringBuilderRuntime());
+    }
+
     for (let ipi = 0; ipi < irParts.length; ipi++) {
       finalParts.push(irParts[ipi]);
     }
@@ -1884,6 +1891,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private handleSimpleAssignmentWithFields(stmtName: string, stmtValue: Expression, params: string[]): void {
+    if (this.symbolTable.isString(stmtName) && stmtValue.type === 'binary') {
+      const pieces = this.flattenStringAppendChain(stmtName, stmtValue as BinaryNode);
+      if (pieces) {
+        this.emitStringBuilderAppend(stmtName, pieces, params);
+        return;
+      }
+    }
+
     if (this.symbolTable.isObjectArray(stmtName)) {
       this.setExpectedArrayElementType('pointer');
     } else if (this.symbolTable.isStringArray(stmtName)) {
@@ -1895,6 +1910,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     const stringAllocaReg = this.symbolTable.getStringAlloca(stmtName);
     if (stringAllocaReg) {
       this.emit(`store i8* ${value}, i8** ${stringAllocaReg}`);
+      this.invalidateStringBuilder(stmtName);
       return;
     }
 
@@ -1925,6 +1941,83 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
     const varType = this.getVariableType(stmtName) || 'double';
     this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
+  }
+
+  private flattenStringAppendChain(varName: string, expr: BinaryNode): Expression[] | null {
+    if (expr.op !== '+') return null;
+    const pieces: Expression[] = [];
+    let current: Expression = expr;
+    while (current.type === 'binary') {
+      const bin = current as BinaryNode;
+      if (bin.op !== '+') return null;
+      pieces.push(bin.right);
+      current = bin.left;
+    }
+    if (current.type !== 'variable') return null;
+    if ((current as VariableNode).name !== varName) return null;
+    pieces.reverse();
+    return pieces;
+  }
+
+  private ensureStringBuilderAllocas(varName: string): { slen: string; scap: string } {
+    const existing = this.stringBuilderAllocas.get(varName);
+    if (existing) return existing;
+    const slen = this.nextTemp();
+    this.emit(`${slen} = alloca i64`);
+    this.emit(`store i64 0, i64* ${slen}`);
+    const scap = this.nextTemp();
+    this.emit(`${scap} = alloca i64`);
+    this.emit(`store i64 0, i64* ${scap}`);
+    const allocas = { slen, scap };
+    this.stringBuilderAllocas.set(varName, allocas);
+    this.usesStringBuilder = 1;
+    return allocas;
+  }
+
+  private invalidateStringBuilder(varName: string): void {
+    const allocas = this.stringBuilderAllocas.get(varName);
+    if (allocas) {
+      this.emit(`store i64 0, i64* ${allocas.scap}`);
+    }
+  }
+
+  private emitStringBuilderAppend(varName: string, pieces: Expression[], params: string[]): void {
+    const allocas = this.ensureStringBuilderAllocas(varName);
+    const ptrAlloca = this.symbolTable.getStringAlloca(varName);
+    if (!ptrAlloca) return;
+
+    const currentCap = this.nextTemp();
+    this.emit(`${currentCap} = load i64, i64* ${allocas.scap}`);
+    const isInit = this.nextTemp();
+    this.emit(`${isInit} = icmp eq i64 ${currentCap}, 0`);
+    const initLabel = this.nextLabel('sb_init');
+    const readyLabel = this.nextLabel('sb_ready');
+    this.emit(`br i1 ${isInit}, label %${initLabel}, label %${readyLabel}`);
+
+    this.emit(`${initLabel}:`);
+    const curPtr = this.nextTemp();
+    this.emit(`${curPtr} = load i8*, i8** ${ptrAlloca}`);
+    const curLen = this.nextTemp();
+    this.emit(`${curLen} = call i64 @strlen(i8* ${curPtr})`);
+    this.emit(`store i64 ${curLen}, i64* ${allocas.slen}`);
+    this.emit(`br label %${readyLabel}`);
+
+    this.emit(`${readyLabel}:`);
+
+    for (let i = 0; i < pieces.length; i++) {
+      const piece = pieces[i];
+      let pieceStr: string;
+      const pieceValue = this.generateExpression(piece, params);
+      const pieceType = this.getVariableType(pieceValue);
+      if (pieceType === 'i8*' || this.isStringExpression(piece)) {
+        pieceStr = pieceValue;
+      } else {
+        pieceStr = this.stringGenConvertNumberToString(pieceValue);
+      }
+      const pieceLen = this.nextTemp();
+      this.emit(`${pieceLen} = call i64 @strlen(i8* ${pieceStr})`);
+      this.emit(`call void @__cs_str_builder_append(i8** ${ptrAlloca}, i64* ${allocas.slen}, i64* ${allocas.scap}, i8* ${pieceStr}, i64 ${pieceLen})`);
+    }
   }
 
   private allocateVariableWithFields(stmtName: string, stmtValue: Expression | null, stmtKind: string, stmtDeclaredType: string | undefined, params: string[]): void {
