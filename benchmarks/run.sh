@@ -338,7 +338,7 @@ echo "  C File I/O built"
 clang -O2 -o /tmp/bench-binarytrees-c "$DIR/binarytrees/bench.c"
 echo "  C Binary Trees built"
 
-clang -O2 -o /tmp/bench-json-c "$DIR/json/bench.c" -lcjson
+clang -O2 -I "$DIR/../vendor/yyjson" -o /tmp/bench-json-c "$DIR/json/bench.c" "$DIR/../vendor/yyjson/libyyjson.a"
 echo "  C JSON built"
 
 go build -o /tmp/bench-startup-go "$DIR/startup/hello.go"
@@ -508,7 +508,7 @@ echo "  JSON Parse/Stringify  (10K objects)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "json" "c" "C (clang -O2, cJSON)" "Time:" /tmp/bench-json-c
+bench_compute "json" "c" "C (clang -O2, yyjson)" "Time:" /tmp/bench-json-c
 bench_compute "json" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-json-chad
 bench_compute "json" "go" "Go" "Time:" /tmp/bench-json-go
 bench_compute "json" "node" "Node.js $(node --version)" "Time:" node "$DIR/json/node.mjs"

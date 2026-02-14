@@ -13,8 +13,8 @@ const langMeta = {
 
 const featuredNotes = {
   startup: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines.',
-  matmul: 'Dense matrix multiply with array element read/write. TBAA metadata lets LLVM hoist array data pointers out of inner loops. ChadScript matches hand-written C (-O2) and Go on this benchmark.',
   sqlite: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. 1.7x faster than Bun, 2.4x faster than Node.',
+  json: 'ChadScript uses yyjson (SIMD-accelerated) via a thin C bridge. Near-identical to raw C. 2x faster than Bun, 2.6x faster than Node, 3.4x faster than Go.',
 }
 
 const defaultBenchmarks = {
@@ -31,18 +31,18 @@ const defaultBenchmarks = {
     ],
     note: featuredNotes.startup,
   },
-  matmul: {
+  json: {
     layout: 'horizontal',
-    desc: '512\u00d7512 double-precision matrix multiply (A\u00d7B into C).',
+    desc: 'Parse + stringify 10,000 JSON objects (4 fields each).',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'C', val: '0.47s', w: 73, h: 100, color: 'c', d: 0, speed: 1.5 },
-      { name: 'Go', val: '0.47s', w: 73, h: 100, color: 'go', d: 0.12, speed: 1.5 },
-      { name: 'ChadScript', val: '0.47s', w: 73, h: 100, color: 'chad', d: 0.24, hero: true, speed: 1.5 },
-      { name: 'Bun', val: '0.61s', w: 94, h: 77, color: 'bun', d: 0.36, speed: 2.0 },
-      { name: 'Node.js', val: '0.65s', w: 100, h: 72, color: 'node', d: 0.48, speed: 2.1 },
+      { name: 'C', val: '7ms', w: 26, h: 100, color: 'c', d: 0, speed: 1.5 },
+      { name: 'ChadScript', val: '8ms', w: 30, h: 88, color: 'chad', d: 0.12, hero: true, speed: 1.6 },
+      { name: 'Bun', val: '16ms', w: 59, h: 44, color: 'bun', d: 0.24, speed: 2.5 },
+      { name: 'Node.js', val: '21ms', w: 78, h: 33, color: 'node', d: 0.36, speed: 3.5 },
+      { name: 'Go', val: '27ms', w: 100, h: 26, color: 'go', d: 0.48, speed: 4.5 },
     ],
-    note: featuredNotes.matmul,
+    note: featuredNotes.json,
   },
   sqlite: {
     layout: 'vertical',
@@ -60,7 +60,7 @@ const defaultBenchmarks = {
 
 function transformJson(json) {
   const result = {}
-  const featured = ['startup', 'matmul', 'sqlite']
+  const featured = ['startup', 'json', 'sqlite']
   for (const key of featured) {
     const bench = json.benchmarks[key]
     if (!bench) continue
@@ -164,7 +164,7 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
 <div>
   <div class="bench-tabs">
     <button :class="{ active: tab === 'startup' }" @click="tab = 'startup'">Cold Start</button>
-    <button :class="{ active: tab === 'matmul' }" @click="tab = 'matmul'">Matrix Multiply</button>
+    <button :class="{ active: tab === 'json' }" @click="tab = 'json'">JSON</button>
     <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
   </div>
 

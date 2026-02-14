@@ -67,24 +67,25 @@ else
   echo "==> lws-bridge already built, skipping"
 fi
 
-# --- cJSON ---
-if [ ! -f "$VENDOR_DIR/cJSON/build/libcjson.a" ]; then
-  echo "==> Building cJSON..."
+# --- yyjson ---
+if [ ! -f "$VENDOR_DIR/yyjson/libyyjson.a" ]; then
+  echo "==> Building yyjson..."
   cd "$VENDOR_DIR"
-  if [ ! -d cJSON ]; then
-    git clone --depth 1 https://github.com/DaveGamble/cJSON.git
+  if [ ! -d yyjson ]; then
+    mkdir -p yyjson
   fi
-  mkdir -p cJSON/build
-  cd cJSON/build
-  cmake .. \
-    -DCMAKE_C_FLAGS="-fPIC" \
-    -DENABLE_CJSON_TEST=OFF \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DBUILD_SHARED_AND_STATIC_LIBS=OFF
-  make -j"$NPROC"
-  echo "  -> $VENDOR_DIR/cJSON/build/libcjson.a"
+  if [ ! -f yyjson/yyjson.c ]; then
+    git clone --depth 1 https://github.com/ibireme/yyjson.git yyjson-src
+    cp yyjson-src/src/yyjson.h yyjson-src/src/yyjson.c yyjson/
+    rm -rf yyjson-src
+  fi
+  cd yyjson
+  cc -c -O2 -fPIC yyjson.c -o yyjson.o
+  cc -c -O2 -fPIC yyjson-bridge.c -o yyjson-bridge.o
+  ar rcs libyyjson.a yyjson.o yyjson-bridge.o
+  echo "  -> $VENDOR_DIR/yyjson/libyyjson.a"
 else
-  echo "==> cJSON already built, skipping"
+  echo "==> yyjson already built, skipping"
 fi
 
 # --- libuv ---

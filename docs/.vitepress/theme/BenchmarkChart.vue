@@ -7,8 +7,8 @@ const tab = ref('startup')
 <div>
 <div class="bench-tabs">
   <button :class="{ active: tab === 'startup' }" @click="tab = 'startup'">Cold Start</button>
+  <button :class="{ active: tab === 'json' }" @click="tab = 'json'">JSON</button>
   <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
-  <button :class="{ active: tab === 'matmul' }" @click="tab = 'matmul'">Matrix Multiply</button>
   <button :class="{ active: tab === 'mandelbrot' }" @click="tab = 'mandelbrot'">Mandelbrot</button>
 </div>
 
@@ -152,53 +152,46 @@ const tab = ref('startup')
   <p class="bench-note">Pure floating-point compute — no I/O, no allocations, just math. ChadScript's LLVM IR + opt -O2 produces code that matches hand-written C. Python is ~118x slower without NumPy.</p>
 </div>
 
-<div v-if="tab === 'matmul'" :key="'mm'+Date.now()" class="bench-panel">
-  <p class="bench-desc">512&times;512 double-precision matrix multiply (A&times;B into C). <em>Lower is better.</em></p>
+<div v-if="tab === 'json'" :key="'j'+Date.now()" class="bench-panel">
+  <p class="bench-desc">Parse + stringify 10,000 JSON objects (4 fields each). <em>Lower is better.</em></p>
   <div class="bench-chart">
-    <div class="bench-row">
-      <div class="bench-label chad-label">ChadScript</div>
-      <div class="bench-track">
-        <div class="bench-bar chad" style="--w: 100%; --d: 0.0s"><div class="bench-ball"></div></div>
-      </div>
-      <div class="bench-val"><strong>0.42s</strong></div>
-    </div>
     <div class="bench-row">
       <div class="bench-label">C</div>
       <div class="bench-track">
-        <div class="bench-bar c" style="--w: 98%; --d: 0.12s"><div class="bench-ball"></div></div>
+        <div class="bench-bar c" style="--w: 100%; --d: 0.0s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">0.43s</div>
+      <div class="bench-val">7ms</div>
     </div>
     <div class="bench-row">
-      <div class="bench-label">Go</div>
+      <div class="bench-label chad-label">ChadScript</div>
       <div class="bench-track">
-        <div class="bench-bar go" style="--w: 89%; --d: 0.24s"><div class="bench-ball"></div></div>
+        <div class="bench-bar chad" style="--w: 88%; --d: 0.12s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">0.47s</div>
+      <div class="bench-val"><strong>8ms</strong></div>
     </div>
     <div class="bench-row">
       <div class="bench-label">Bun</div>
       <div class="bench-track">
-        <div class="bench-bar bun" style="--w: 71%; --d: 0.36s"><div class="bench-ball"></div></div>
+        <div class="bench-bar bun" style="--w: 44%; --d: 0.24s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">0.59s</div>
+      <div class="bench-val">16ms</div>
     </div>
     <div class="bench-row">
       <div class="bench-label">Node.js</div>
       <div class="bench-track">
-        <div class="bench-bar node" style="--w: 69%; --d: 0.48s"><div class="bench-ball"></div></div>
+        <div class="bench-bar node" style="--w: 33%; --d: 0.36s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">0.61s</div>
+      <div class="bench-val">21ms</div>
     </div>
     <div class="bench-row">
-      <div class="bench-label">Python</div>
+      <div class="bench-label">Go</div>
       <div class="bench-track">
-        <div class="bench-bar python" style="--w: 1%; --d: 0.60s"><div class="bench-ball"></div></div>
+        <div class="bench-bar go" style="--w: 26%; --d: 0.48s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val">61.3s</div>
+      <div class="bench-val">27ms</div>
     </div>
   </div>
-  <p class="bench-note">Dense matrix multiply with array element read/write. ChadScript's arrays go through GC-managed structs, yet opt -O2 eliminates the overhead. Node/Bun's V8 JIT is strong but can't match LLVM's static optimizations here.</p>
+  <p class="bench-note">ChadScript uses yyjson (SIMD-accelerated) via a thin C bridge. Near-identical to raw C performance. Go's encoding/json uses reflection. Bun/Node rely on V8's built-in JSON parser.</p>
 </div>
 </div>
 </template>
