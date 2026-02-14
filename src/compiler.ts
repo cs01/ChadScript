@@ -288,12 +288,12 @@ function compileMultiFile(entryFile: string, compiledFiles: string[], fileConten
     classes: ast.classes.slice(),
     exports: ast.exports.slice(),
     interfaces: ast.interfaces.slice(),
-    typeAliases: ast.typeAliases?.slice() || [],
-    enums: ast.enums?.slice() || [],
+    typeAliases: ast.typeAliases ? ast.typeAliases.slice() : [],
+    enums: ast.enums ? ast.enums.slice() : [],
     topLevelStatements: ast.topLevelStatements.slice(),
     topLevelExpressions: ast.topLevelExpressions.slice(),
-    topLevelItems: ast.topLevelItems?.slice() || [],
-    topLevelItemTypes: ast.topLevelItemTypes?.slice() || []
+    topLevelItems: ast.topLevelItems ? ast.topLevelItems.slice() : [],
+    topLevelItemTypes: ast.topLevelItemTypes ? ast.topLevelItemTypes.slice() : []
   };
 
   let hasUnsupportedImports = false;
@@ -305,7 +305,7 @@ function compileMultiFile(entryFile: string, compiledFiles: string[], fileConten
     }
   }
   if (hasUnsupportedImports) {
-    return { imports: [], functions: [], classes: [], exports: [], interfaces: ast.interfaces.slice(), typeAliases: ast.typeAliases?.slice() || [], enums: ast.enums?.slice() || [], topLevelStatements: [], topLevelExpressions: [], topLevelItems: [], topLevelItemTypes: [] };
+    return { imports: [], functions: [], classes: [], exports: [], interfaces: ast.interfaces.slice(), typeAliases: ast.typeAliases ? ast.typeAliases.slice() : [], enums: ast.enums ? ast.enums.slice() : [], topLevelStatements: [], topLevelExpressions: [], topLevelItems: [], topLevelItemTypes: [] };
   }
 
   let i = 0;
