@@ -41,6 +41,7 @@ function buildBarsDefaults(json) {
     const bench = json.benchmarks[key];
     if (!bench) continue;
     const entries = Object.entries(bench.results);
+    entries.sort(([, a], [, b]) => bench.lower_is_better ? a.value - b.value : b.value - a.value);
     const values = entries.map(([, r]) => r.value);
     const maxVal = Math.max(...values);
     const minVal = Math.min(...values);
@@ -91,6 +92,7 @@ function buildRaceData(json) {
     const bench = json.benchmarks[key];
     if (!bench) continue;
     const entries = Object.entries(bench.results);
+    entries.sort(([, a], [, b]) => bench.lower_is_better ? a.value - b.value : b.value - a.value);
     const values = entries.map(([, r]) => r.value);
     const minVal = Math.min(...values);
     const lower = bench.lower_is_better;
