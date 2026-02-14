@@ -978,9 +978,10 @@ export class TypeInference {
           methodExpr.method === 'readFileSync') {
         return true;
       }
+      const stringPathMethods = ['resolve', 'dirname', 'join', 'basename', 'normalize', 'extname', 'relative'];
       if (methodObjBase.type === 'variable' &&
           (methodExpr.object as VariableNode).name === 'path' &&
-          (methodExpr.method === 'resolve' || methodExpr.method === 'dirname')) {
+          stringPathMethods.indexOf(methodExpr.method) !== -1) {
         return true;
       }
       if (methodObjBase.type === 'variable' &&
