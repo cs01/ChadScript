@@ -29,7 +29,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm clang libcurl4-openssl-dev cmake autoconf automake libtool gdb
+          sudo apt-get install -y llvm clang libcurl4-openssl-dev cmake autoconf automake libtool gdb libzstd-dev zlib1g-dev
           echo "--- LLVM/Clang versions ---"
           llc --version 2>&1 | head -4
           clang --version 2>&1 | head -2
@@ -37,7 +37,7 @@ jobs:
       - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install llvm cmake autoconf automake libtool
+          brew install llvm cmake autoconf automake libtool zstd
           echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
           echo "/usr/local/opt/llvm/bin" >> $GITHUB_PATH
 

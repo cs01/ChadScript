@@ -58,9 +58,18 @@ LWS_BRIDGE_SRC="$VENDOR_DIR/lws-bridge.c"
 LWS_BRIDGE_OBJ="$VENDOR_DIR/lws-bridge.o"
 if [ ! -f "$LWS_BRIDGE_OBJ" ] || [ "$LWS_BRIDGE_SRC" -nt "$LWS_BRIDGE_OBJ" ]; then
   echo "==> Building lws-bridge..."
+  EXTRA_CFLAGS=""
+  if [ "$(uname)" = "Darwin" ]; then
+    BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "/opt/homebrew")
+    ZSTD_PREFIX=$(brew --prefix zstd 2>/dev/null || echo "$BREW_PREFIX")
+    if [ -f "$ZSTD_PREFIX/include/zstd.h" ]; then
+      EXTRA_CFLAGS="-I$ZSTD_PREFIX/include"
+    fi
+  fi
   cc -c -O2 -fPIC \
     -I"$VENDOR_DIR/libwebsockets/include" \
     -I"$VENDOR_DIR/libwebsockets/build" \
+    $EXTRA_CFLAGS \
     "$LWS_BRIDGE_SRC" -o "$LWS_BRIDGE_OBJ"
   echo "  -> $LWS_BRIDGE_OBJ"
 else
