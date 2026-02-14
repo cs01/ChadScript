@@ -26,7 +26,7 @@ export class FilesystemGenerator {
     if (exprObjBase.type !== 'variable') return false;
     const varNode = expr.object as { type: string; name: string };
     if (varNode.name !== 'fs') return false;
-    const supported = ['readFileSync', 'writeFileSync', 'appendFileSync', 'existsSync', 'unlinkSync', 'readdirSync', 'statSync'];
+    const supported = ['readFileSync', 'writeFileSync', 'appendFileSync', 'existsSync', 'unlinkSync', 'readdirSync', 'statSync', 'mkdirSync'];
     return supported.indexOf(expr.method) !== -1;
   }
 
@@ -271,6 +271,24 @@ export class FilesystemGenerator {
     // Call unlink: unlink(filename) returns 0 on success, -1 on error
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i32 @unlink(i8* ${filenamePtr})`);
+
+    return result;
+  }
+
+  generateMkdirSync(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      throw new Error('fs.mkdirSync() requires at least 1 argument (path)');
+    }
+
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    const fmtStr = this.ctx.createStringConstant('mkdir -p %s');
+    const bufRaw = this.ctx.nextTemp();
+    this.ctx.emit(`${bufRaw} = call i8* @GC_malloc(i64 4096)`);
+    const written = this.ctx.nextTemp();
+    this.ctx.emit(`${written} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufRaw}, i64 4096, i8* ${fmtStr}, i8* ${pathPtr})`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i32 @system(i8* ${bufRaw})`);
 
     return result;
   }
