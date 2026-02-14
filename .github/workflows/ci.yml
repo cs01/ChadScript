@@ -91,33 +91,16 @@ jobs:
           codesign --sign - --force .build/chadc
 
       - name: Smoke test native chadc
-        continue-on-error: ${{ runner.os == 'macOS' }}
         run: |
-          if [ "$(uname)" = "Darwin" ]; then
-            echo "::group::Running chadc under lldb for crash diagnostics"
-            lldb --batch -o 'run' -k 'bt all' -k 'register read' -k 'disassemble --pc' -k 'quit' -- .build/chadc examples/hello.ts -o /tmp/hello
-            echo "::endgroup::"
-            /tmp/hello
-          else
-            .build/chadc examples/hello.ts -o /tmp/hello
-            /tmp/hello
-          fi
+          .build/chadc examples/hello.ts -o /tmp/hello
+          /tmp/hello
 
       - name: Smoke test native chad
-        continue-on-error: ${{ runner.os == 'macOS' }}
         run: |
-          if [ "$(uname)" = "Darwin" ]; then
-            echo "::group::Running chad under lldb for crash diagnostics"
-            lldb --batch -o 'run' -k 'bt all' -k 'register read' -k 'disassemble --pc' -k 'quit' -- .build/chad build examples/hello.ts -o /tmp/hello2
-            echo "::endgroup::"
-            /tmp/hello2
-          else
-            .build/chad build examples/hello.ts -o /tmp/hello2
-            /tmp/hello2
-          fi
+          .build/chad build examples/hello.ts -o /tmp/hello2
+          /tmp/hello2
 
       - name: Run self-hosting tests
-        if: runner.os == 'Linux'
         run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
 

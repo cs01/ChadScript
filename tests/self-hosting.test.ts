@@ -23,7 +23,7 @@ const NATIVE_ENV: NodeJS.ProcessEnv = {
   PATH: process.env.PATH,
   HOME: process.env.HOME,
   LIBRARY_PATH: isMac
-    ? `${brewPrefix}/lib:${brewPrefix}/opt/openssl/lib:${brewPrefix}/opt/sqlite/lib:/usr/lib`
+    ? `${brewPrefix}/lib:${brewPrefix}/opt/openssl/lib:${brewPrefix}/opt/sqlite/lib:${brewPrefix}/opt/zstd/lib:/usr/lib`
     : '/lib64:/usr/lib:/usr/lib64:/usr/local/lib',
   TERM: process.env.TERM || 'dumb',
 };
