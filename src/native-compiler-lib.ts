@@ -132,8 +132,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
   let linkLibs = '-L' + BDWGC_PATH + ' -lgc -lpthread' + platformLibs;
   if (tsLibPath) { linkLibs = linkLibs + ' ' + tsLibPath; }
-  const cjsonDir = isInstalled ? installedLibDir : './vendor/cJSON/build';
-  if (generator.getUsesJson()) { linkLibs = '-L' + cjsonDir + ' -lcjson ' + linkLibs; }
+  const yyjsonDir = isInstalled ? installedLibDir : './vendor/yyjson';
+  if (generator.getUsesJson()) { linkLibs = '-L' + yyjsonDir + ' -lyyjson ' + linkLibs; }
   const uvDir = isInstalled ? installedLibDir : './vendor/libuv/build';
   if (generator.getUsesTimers() || generator.getUsesPromises() || generator.getUsesCurl()) { linkLibs = '-L' + uvDir + ' -luv ' + linkLibs; }
   if (generator.getUsesCurl()) { linkLibs = '-lcurl ' + linkLibs; }

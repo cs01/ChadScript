@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <cjson/cJSON.h>
+#include "yyjson.h"
 
 #define COUNT 10000
 
@@ -27,24 +27,29 @@ int main(void) {
 
     Item *items = (Item *)malloc(COUNT * sizeof(Item));
     for (int i = 0; i < COUNT; i++) {
-        cJSON *root = cJSON_Parse(json_strings[i]);
-        items[i].id = cJSON_GetObjectItem(root, "id")->valueint;
-        strncpy(items[i].name, cJSON_GetObjectItem(root, "name")->valuestring, 31);
+        yyjson_doc *doc = yyjson_read(json_strings[i], strlen(json_strings[i]), 0);
+        yyjson_val *root = yyjson_doc_get_root(doc);
+        items[i].id = yyjson_get_int(yyjson_obj_get(root, "id"));
+        const char *name = yyjson_get_str(yyjson_obj_get(root, "name"));
+        strncpy(items[i].name, name ? name : "", 31);
         items[i].name[31] = '\0';
-        items[i].value = cJSON_GetObjectItem(root, "value")->valuedouble;
-        items[i].active = cJSON_IsTrue(cJSON_GetObjectItem(root, "active"));
-        cJSON_Delete(root);
+        items[i].value = yyjson_get_num(yyjson_obj_get(root, "value"));
+        items[i].active = yyjson_is_true(yyjson_obj_get(root, "active"));
+        yyjson_doc_free(doc);
     }
 
     char **outputs = (char **)malloc(COUNT * sizeof(char *));
     for (int i = 0; i < COUNT; i++) {
-        cJSON *root = cJSON_CreateObject();
-        cJSON_AddNumberToObject(root, "id", items[i].id);
-        cJSON_AddStringToObject(root, "name", items[i].name);
-        cJSON_AddNumberToObject(root, "value", items[i].value);
-        cJSON_AddBoolToObject(root, "active", items[i].active);
-        outputs[i] = cJSON_PrintUnformatted(root);
-        cJSON_Delete(root);
+        yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+        yyjson_mut_val *root = yyjson_mut_obj(doc);
+        yyjson_mut_doc_set_root(doc, root);
+        yyjson_mut_obj_add_int(doc, root, "id", items[i].id);
+        yyjson_mut_obj_add_str(doc, root, "name", items[i].name);
+        yyjson_mut_obj_add_real(doc, root, "value", items[i].value);
+        yyjson_mut_obj_add_bool(doc, root, "active", items[i].active);
+        size_t len;
+        outputs[i] = yyjson_mut_write(doc, 0, &len);
+        yyjson_mut_doc_free(doc);
     }
 
     clock_gettime(CLOCK_MONOTONIC, &t1);

@@ -70,7 +70,7 @@ export class JsonGenerator {
   private generateUntypedParse(expr: MethodCallNode, params: string[]): string {
     const jsonStr = this.ctx.generateExpression(expr.args[0], params);
     const jsonRoot = this.ctx.nextTemp();
-    this.ctx.emit(`${jsonRoot} = call i8* @cJSON_Parse(i8* ${jsonStr})`);
+    this.ctx.emit(`${jsonRoot} = call i8* @csyyjson_parse(i8* ${jsonStr})`);
     return jsonRoot;
   }
 
@@ -78,7 +78,7 @@ export class JsonGenerator {
     const jsonStr = this.ctx.generateExpression(expr.args[0], params);
 
     const jsonRoot = this.ctx.nextTemp();
-    this.ctx.emit(`${jsonRoot} = call i8* @cJSON_Parse(i8* ${jsonStr})`);
+    this.ctx.emit(`${jsonRoot} = call i8* @csyyjson_parse(i8* ${jsonStr})`);
 
     const isNull = this.ctx.nextTemp();
     this.ctx.emit(`${isNull} = icmp eq i8* ${jsonRoot}, null`);
@@ -97,7 +97,7 @@ export class JsonGenerator {
     this.ctx.emit(`${successLabel}:`);
 
     const sizeI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${sizeI32} = call i32 @cJSON_GetArraySize(i8* ${jsonRoot})`);
+    this.ctx.emit(`${sizeI32} = call i32 @csyyjson_arr_size(i8* ${jsonRoot})`);
     const size = this.ctx.nextTemp();
     this.ctx.emit(`${size} = sitofp i32 ${sizeI32} to double`);
 
@@ -146,9 +146,9 @@ export class JsonGenerator {
 
     this.ctx.emit(`${loopBody}:`);
     const item = this.ctx.nextTemp();
-    this.ctx.emit(`${item} = call i8* @cJSON_GetArrayItem(i8* ${jsonRoot}, i32 ${i})`);
+    this.ctx.emit(`${item} = call i8* @csyyjson_arr_get(i8* ${jsonRoot}, i32 ${i})`);
     const valPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${valPtr} = call double @cJSON_GetNumberValue(i8* ${item})`);
+    this.ctx.emit(`${valPtr} = call double @csyyjson_get_num(i8* ${item})`);
     const elemPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elemPtr} = getelementptr double, double* ${data}, i32 ${i}`);
     this.ctx.emit(`store double ${valPtr}, double* ${elemPtr}`);
@@ -277,7 +277,7 @@ export class JsonGenerator {
       }
     }
 
-    parserIR += `  %json_root = call i8* @cJSON_Parse(i8* %json_str)\n`;
+    parserIR += `  %json_root = call i8* @csyyjson_parse(i8* %json_str)\n`;
     parserIR += `  %json_is_null = icmp eq i8* %json_root, null\n`;
     parserIR += `  br i1 %json_is_null, label %json_error, label %json_ok\n\n`;
 
@@ -307,13 +307,13 @@ export class JsonGenerator {
         this.ctx.pushGlobalString(fieldNameConst + ' = private unnamed_addr constant [' + (fieldName.length + 1) + ' x i8] c"' + fieldName + '\\00", align 1');
 
         parserIR += `field_${fieldIndex}:\n`;
-        parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${fieldName.length + 1} x i8], [${fieldName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
+        parserIR += `  %item_${fieldIndex} = call i8* @csyyjson_obj_get(i8* %json_root, i8* getelementptr inbounds ([${fieldName.length + 1} x i8], [${fieldName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))\n`;
         parserIR += `  %item_${fieldIndex}_null = icmp eq i8* %item_${fieldIndex}, null\n`;
         parserIR += `  br i1 %item_${fieldIndex}_null, label %${nextLabel}, label %field_${fieldIndex}_extract\n\n`;
 
         if (fieldType === 'string') {
           parserIR += `field_${fieldIndex}_extract:\n`;
-          parserIR += `  %temp_str_${fieldIndex} = call i8* @cJSON_GetStringValue(i8* %item_${fieldIndex})\n`;
+          parserIR += `  %temp_str_${fieldIndex} = call i8* @csyyjson_get_str(i8* %item_${fieldIndex})\n`;
           parserIR += `  %str_${fieldIndex}_null = icmp eq i8* %temp_str_${fieldIndex}, null\n`;
           parserIR += `  br i1 %str_${fieldIndex}_null, label %${nextLabel}, label %field_${fieldIndex}_store\n\n`;
 
@@ -324,13 +324,13 @@ export class JsonGenerator {
           parserIR += `  br label %${nextLabel}\n\n`;
         } else if (fieldType === 'number' || fieldType === 'boolean') {
           parserIR += `field_${fieldIndex}_extract:\n`;
-          parserIR += `  %value_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})\n`;
+          parserIR += `  %value_${fieldIndex} = call double @csyyjson_get_num(i8* %item_${fieldIndex})\n`;
           parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
           parserIR += `  store double %value_${fieldIndex}, double* %field_ptr_${fieldIndex}\n`;
           parserIR += `  br label %${nextLabel}\n\n`;
         } else {
           parserIR += `field_${fieldIndex}_extract:\n`;
-          parserIR += `  %nested_str_${fieldIndex} = call i8* @cJSON_PrintUnformatted(i8* %item_${fieldIndex})\n`;
+          parserIR += `  %nested_str_${fieldIndex} = call i8* @csyyjson_val_write(i8* %item_${fieldIndex})\n`;
           parserIR += `  %value_${fieldIndex} = call %${fieldType}* @parse_json_${fieldType}(i8* %nested_str_${fieldIndex})\n`;
           parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
           parserIR += `  store %${fieldType}* %value_${fieldIndex}, %${fieldType}** %field_ptr_${fieldIndex}\n`;
@@ -340,7 +340,7 @@ export class JsonGenerator {
     }
 
     parserIR += `json_cleanup:\n`;
-    parserIR += `  call void @cJSON_Delete(i8* %json_root)\n`;
+    parserIR += `  call void @csyyjson_free(i8* %json_root)\n`;
     parserIR += `  ret %${typeName}* %struct_ptr\n`;
     parserIR += `}\n\n`;
 
@@ -415,8 +415,10 @@ export class JsonGenerator {
     this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
 
     this.ctx.setUsesJson(true);
+    const jsonDoc = this.ctx.nextTemp();
+    this.ctx.emit(`${jsonDoc} = call i8* @csyyjson_create_obj()`);
     const jsonObj = this.ctx.nextTemp();
-    this.ctx.emit(`${jsonObj} = call i8* @cJSON_CreateObject()`);
+    this.ctx.emit(`${jsonObj} = call i8* @csyyjson_mut_get_root(i8* ${jsonDoc})`);
 
     for (let i = 0; i < mappedFields.length; i++) {
       const field = mappedFields[i];
@@ -428,26 +430,22 @@ export class JsonGenerator {
       if (field.type === 'string') {
         const val = this.ctx.nextTemp();
         this.ctx.emit(`${val} = load i8*, i8** ${fieldPtr}`);
-        const addResult = this.ctx.nextTemp();
-        this.ctx.emit(`${addResult} = call i8* @cJSON_AddStringToObject(i8* ${jsonObj}, i8* ${nameConst}, i8* ${val})`);
+        this.ctx.emit(`call void @csyyjson_obj_add_str(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i8* ${val})`);
       } else if (field.type === 'boolean') {
         const val = this.ctx.nextTemp();
         this.ctx.emit(`${val} = load double, double* ${fieldPtr}`);
         const boolInt = this.ctx.nextTemp();
         this.ctx.emit(`${boolInt} = fptosi double ${val} to i32`);
-        const addResult = this.ctx.nextTemp();
-        this.ctx.emit(`${addResult} = call i8* @cJSON_AddBoolToObject(i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolInt})`);
+        this.ctx.emit(`call void @csyyjson_obj_add_bool(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolInt})`);
       } else {
         const val = this.ctx.nextTemp();
         this.ctx.emit(`${val} = load double, double* ${fieldPtr}`);
-        const addResult = this.ctx.nextTemp();
-        this.ctx.emit(`${addResult} = call i8* @cJSON_AddNumberToObject(i8* ${jsonObj}, i8* ${nameConst}, double ${val})`);
+        this.ctx.emit(`call void @csyyjson_obj_add_num(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, double ${val})`);
       }
     }
 
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @cJSON_PrintUnformatted(i8* ${jsonObj})`);
-    this.ctx.emit(`call void @cJSON_Delete(i8* ${jsonObj})`);
+    this.ctx.emit(`${result} = call i8* @csyyjson_stringify(i8* ${jsonDoc})`);
     this.ctx.setVariableType(result, 'i8*');
 
     return result;

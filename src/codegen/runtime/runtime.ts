@@ -222,36 +222,30 @@ export class RuntimeGenerator {
    * @returns Complete LLVM IR code for JSON runtime
    */
   generateJSONRuntime(): string {
-    let ir = '; JSON parsing using cJSON library\n';
+    let ir = '; JSON parsing using yyjson library (via bridge)\n';
 
-    // cJSON library declarations
-    ir += 'declare i8* @cJSON_Parse(i8*)\n';
-    ir += 'declare i8* @cJSON_GetObjectItem(i8*, i8*)\n';
-    ir += 'declare i8* @cJSON_GetObjectItemCaseSensitive(i8*, i8*)\n';
-    ir += 'declare i8* @cJSON_GetArrayItem(i8*, i32)\n';
-    ir += 'declare i32 @cJSON_GetArraySize(i8*)\n';
-    ir += 'declare void @cJSON_Delete(i8*)\n';
-    ir += 'declare i32 @cJSON_IsNumber(i8*)\n';
-    ir += 'declare i32 @cJSON_IsString(i8*)\n';
-    ir += 'declare i32 @cJSON_IsObject(i8*)\n';
-    ir += 'declare i32 @cJSON_IsBool(i8*)\n';
-    ir += 'declare i32 @cJSON_IsNull(i8*)\n';
-    ir += 'declare i8* @cJSON_PrintUnformatted(i8*)\n';
-    ir += 'declare i8* @cJSON_CreateObject()\n';
-    ir += 'declare i8* @cJSON_AddStringToObject(i8*, i8*, i8*)\n';
-    ir += 'declare i8* @cJSON_AddNumberToObject(i8*, i8*, double)\n';
-    ir += 'declare i8* @cJSON_AddBoolToObject(i8*, i8*, i32)\n';
+    ir += 'declare i8* @csyyjson_parse(i8*)\n';
+    ir += 'declare void @csyyjson_free(i8*)\n';
+    ir += 'declare i8* @csyyjson_obj_get(i8*, i8*)\n';
+    ir += 'declare i8* @csyyjson_get_str(i8*)\n';
+    ir += 'declare double @csyyjson_get_num(i8*)\n';
+    ir += 'declare i32 @csyyjson_is_true(i8*)\n';
+    ir += 'declare i32 @csyyjson_is_num(i8*)\n';
+    ir += 'declare i32 @csyyjson_is_obj(i8*)\n';
+    ir += 'declare i32 @csyyjson_arr_size(i8*)\n';
+    ir += 'declare i8* @csyyjson_arr_get(i8*, i32)\n';
+    ir += 'declare i8* @csyyjson_val_write(i8*)\n';
+    ir += 'declare i8* @csyyjson_create_obj()\n';
+    ir += 'declare i8* @csyyjson_mut_get_root(i8*)\n';
+    ir += 'declare void @csyyjson_obj_add_str(i8*, i8*, i8*, i8*)\n';
+    ir += 'declare void @csyyjson_obj_add_num(i8*, i8*, i8*, double)\n';
+    ir += 'declare void @csyyjson_obj_add_bool(i8*, i8*, i8*, i32)\n';
+    ir += 'declare i8* @csyyjson_stringify(i8*)\n';
     ir += '\n';
 
-    // Use cJSON's official API functions (portable across all platforms)
-    // cJSON_GetNumberValue returns double, cJSON_GetStringValue returns char*
-    ir += 'declare double @cJSON_GetNumberValue(i8*)\n';
-    ir += 'declare i8* @cJSON_GetStringValue(i8*)\n\n';
-
-    // Helper to convert double to i32 for integer JSON values
-    ir += 'define i32 @cJSON_GetNumberValueAsInt(i8* %item) {\n';
+    ir += 'define i32 @csyyjson_get_num_as_int(i8* %item) {\n';
     ir += 'entry:\n';
-    ir += '  %double_val = call double @cJSON_GetNumberValue(i8* %item)\n';
+    ir += '  %double_val = call double @csyyjson_get_num(i8* %item)\n';
     ir += '  %int_val = fptosi double %double_val to i32\n';
     ir += '  ret i32 %int_val\n';
     ir += '}\n\n';

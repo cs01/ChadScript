@@ -33,7 +33,7 @@ export function setSanitize(value: string): void {
 const BDWGC_PATH = process.env.CHADSCRIPT_BDWGC_PATH || './vendor/bdwgc';
 const LWS_PATH = process.env.CHADSCRIPT_LWS_PATH || './vendor/libwebsockets/build';
 const LWS_BRIDGE_PATH = process.env.CHADSCRIPT_LWS_BRIDGE_PATH || './vendor';
-const CJSON_PATH = process.env.CHADSCRIPT_CJSON_PATH || './vendor/cJSON/build';
+const YYJSON_PATH = process.env.CHADSCRIPT_YYJSON_PATH || './vendor/yyjson';
 const LIBUV_PATH = process.env.CHADSCRIPT_LIBUV_PATH || './vendor/libuv/build';
 const TREESITTER_LIB_PATH = process.env.CHADSCRIPT_TREESITTER_PATH || './vendor/tree-sitter';
 const TREESITTER_TS_PATH = 'node_modules/tree-sitter-typescript/typescript/src';
@@ -182,7 +182,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const isMac = process.platform === 'darwin';
   const platformLibs = isMac ? '' : ' -lm -ldl -lrt';
   let linkLibs = `-L${BDWGC_PATH} -lgc -lpthread` + platformLibs;
-  if (generator.usesJson) { linkLibs += ` -L${CJSON_PATH} -lcjson`; }
+  if (generator.usesJson) { linkLibs += ` -L${YYJSON_PATH} -lyyjson`; }
   if (generator.usesTimers || generator.usesPromises || generator.usesCurl) { linkLibs += ` -L${LIBUV_PATH} -luv`; }
   if (generator.usesCurl) { linkLibs += ' -lcurl'; }
   if (generator.usesCrypto) { linkLibs += ' -lcrypto'; }

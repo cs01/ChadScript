@@ -68,6 +68,9 @@ llmnotes/
 vendor/*
 !vendor/lws-bridge.c
 !vendor/lws-bridge.h
+!vendor/yyjson/
+vendor/yyjson/*
+!vendor/yyjson/yyjson-bridge.c
 
 # Scripts that are local/private
 ralph.sh

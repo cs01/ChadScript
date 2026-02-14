@@ -325,11 +325,11 @@ export class IndexAccessGenerator {
 
     // Get array item using cJSON_GetArrayItem
     const itemPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${itemPtr} = call i8* @cJSON_GetArrayItem(i8* ${jsonPtr}, i32 ${index})`);
+    this.ctx.emit(`${itemPtr} = call i8* @csyyjson_arr_get(i8* ${jsonPtr}, i32 ${index})`);
 
     // Check if item is an object - if so, return the item pointer directly
     const isObject = this.ctx.nextTemp();
-    this.ctx.emit(`${isObject} = call i32 @cJSON_IsObject(i8* ${itemPtr})`);
+    this.ctx.emit(`${isObject} = call i32 @csyyjson_is_obj(i8* ${itemPtr})`);
     const isObjBool = this.ctx.nextTemp();
     this.ctx.emit(`${isObjBool} = icmp ne i32 ${isObject}, 0`);
 
@@ -346,7 +346,7 @@ export class IndexAccessGenerator {
     // Primitive case - check if number or string
     this.ctx.emit(`${primitiveLabel}:`);
     const isNumber = this.ctx.nextTemp();
-    this.ctx.emit(`${isNumber} = call i32 @cJSON_IsNumber(i8* ${itemPtr})`);
+    this.ctx.emit(`${isNumber} = call i32 @csyyjson_is_num(i8* ${itemPtr})`);
     const isNumBool = this.ctx.nextTemp();
     this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
 
@@ -359,7 +359,7 @@ export class IndexAccessGenerator {
     // Number case
     this.ctx.emit(`${numberLabel}:`);
     const numValue = this.ctx.nextTemp();
-    this.ctx.emit(`${numValue} = call double @cJSON_GetNumberValue(i8* ${itemPtr})`);
+    this.ctx.emit(`${numValue} = call double @csyyjson_get_num(i8* ${itemPtr})`);
     const numAsPtr = this.ctx.nextTemp();
     this.ctx.emit(`${numAsPtr} = fptosi double ${numValue} to i64`);
     const numPtr = this.ctx.nextTemp();
@@ -369,7 +369,7 @@ export class IndexAccessGenerator {
     // String case
     this.ctx.emit(`${stringLabel}:`);
     const strValue = this.ctx.nextTemp();
-    this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${itemPtr})`);
+    this.ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${itemPtr})`);
     this.ctx.emit(`br label %${primEndLabel}`);
 
     // Merge primitives
@@ -426,10 +426,10 @@ export class IndexAccessGenerator {
     }
 
     const itemPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${itemPtr} = call i8* @cJSON_GetArrayItem(i8* ${jsonPtr}, i32 ${index})`);
+    this.ctx.emit(`${itemPtr} = call i8* @csyyjson_arr_get(i8* ${jsonPtr}, i32 ${index})`);
 
     const isObject = this.ctx.nextTemp();
-    this.ctx.emit(`${isObject} = call i32 @cJSON_IsObject(i8* ${itemPtr})`);
+    this.ctx.emit(`${isObject} = call i32 @csyyjson_is_obj(i8* ${itemPtr})`);
     const isObjBool = this.ctx.nextTemp();
     this.ctx.emit(`${isObjBool} = icmp ne i32 ${isObject}, 0`);
 
@@ -444,7 +444,7 @@ export class IndexAccessGenerator {
 
     this.ctx.emit(`${primitiveLabel}:`);
     const isNumber = this.ctx.nextTemp();
-    this.ctx.emit(`${isNumber} = call i32 @cJSON_IsNumber(i8* ${itemPtr})`);
+    this.ctx.emit(`${isNumber} = call i32 @csyyjson_is_num(i8* ${itemPtr})`);
     const isNumBool = this.ctx.nextTemp();
     this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
 
@@ -456,7 +456,7 @@ export class IndexAccessGenerator {
 
     this.ctx.emit(`${numberLabel}:`);
     const numValue = this.ctx.nextTemp();
-    this.ctx.emit(`${numValue} = call double @cJSON_GetNumberValue(i8* ${itemPtr})`);
+    this.ctx.emit(`${numValue} = call double @csyyjson_get_num(i8* ${itemPtr})`);
     const numAsPtr = this.ctx.nextTemp();
     this.ctx.emit(`${numAsPtr} = fptosi double ${numValue} to i64`);
     const numPtr = this.ctx.nextTemp();
@@ -465,7 +465,7 @@ export class IndexAccessGenerator {
 
     this.ctx.emit(`${stringLabel}:`);
     const strValue = this.ctx.nextTemp();
-    this.ctx.emit(`${strValue} = call i8* @cJSON_GetStringValue(i8* ${itemPtr})`);
+    this.ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${itemPtr})`);
     this.ctx.emit(`br label %${primEndLabel}`);
 
     this.ctx.emit(`${primEndLabel}:`);

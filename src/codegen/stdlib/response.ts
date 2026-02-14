@@ -71,7 +71,7 @@ export class ResponseGenerator {
 
     // Parse JSON using cJSON library (same as JSON.parse())
     const jsonRoot = this.ctx.nextTemp();
-    this.ctx.emit(`${jsonRoot} = call i8* @cJSON_Parse(i8* ${bodyPtr})`);
+    this.ctx.emit(`${jsonRoot} = call i8* @csyyjson_parse(i8* ${bodyPtr})`);
 
     // Check if parse succeeded
     const isNull = this.ctx.nextTemp();
@@ -186,7 +186,7 @@ export class ResponseGenerator {
     const structSize = interfaceDef.properties.length * 8;
     parserIR += `  %struct_bytes = call i8* @GC_malloc(i64 ${structSize})` + '\n';
     parserIR += `  %struct_ptr = bitcast i8* %struct_bytes to %${typeName}*` + '\n';
-    parserIR += `  %json_root = call i8* @cJSON_Parse(i8* %json_str)` + '\n';
+    parserIR += `  %json_root = call i8* @csyyjson_parse(i8* %json_str)` + '\n';
     parserIR += `  %json_is_null = icmp eq i8* %json_root, null` + '\n';
     parserIR += `  br i1 %json_is_null, label %json_error, label %json_ok` + '\n\n';
 
@@ -215,16 +215,16 @@ export class ResponseGenerator {
       this.ctx.pushGlobalString(fieldNameConst + ' = private unnamed_addr constant [' + (propName.length + 1) + ' x i8] c"' + propName + '\\00", align 1');
 
       parserIR += `  ; Extract field "${propName}"` + '\n';
-      parserIR += `  %item_${fieldIndex} = call i8* @cJSON_GetObjectItem(i8* %json_root, i8* getelementptr inbounds ([${propName.length + 1} x i8], [${propName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))` + '\n';
+      parserIR += `  %item_${fieldIndex} = call i8* @csyyjson_obj_get(i8* %json_root, i8* getelementptr inbounds ([${propName.length + 1} x i8], [${propName.length + 1} x i8]* ${fieldNameConst}, i64 0, i64 0))` + '\n';
 
       if (propType === 'string') {
-        parserIR += `  %temp_str_${fieldIndex} = call i8* @cJSON_GetStringValue(i8* %item_${fieldIndex})` + '\n';
+        parserIR += `  %temp_str_${fieldIndex} = call i8* @csyyjson_get_str(i8* %item_${fieldIndex})` + '\n';
         parserIR += `  %safe_str_${fieldIndex} = call i8* @__safe_string(i8* %temp_str_${fieldIndex})` + '\n';
         parserIR += `  %value_${fieldIndex} = call i8* @strdup(i8* %safe_str_${fieldIndex})` + '\n';
       } else if (propType === 'number') {
-        parserIR += `  %value_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})` + '\n';
+        parserIR += `  %value_${fieldIndex} = call double @csyyjson_get_num(i8* %item_${fieldIndex})` + '\n';
       } else if (propType === 'boolean') {
-        parserIR += `  %value_${fieldIndex} = call double @cJSON_GetNumberValue(i8* %item_${fieldIndex})` + '\n';
+        parserIR += `  %value_${fieldIndex} = call double @csyyjson_get_num(i8* %item_${fieldIndex})` + '\n';
       }
 
       parserIR += `  %field_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}` + '\n';
@@ -237,7 +237,7 @@ export class ResponseGenerator {
         parserIR += `  store double %value_${fieldIndex}, double* %field_ptr_${fieldIndex}` + '\n\n';
       }
     }
-    parserIR += `  call void @cJSON_Delete(i8* %json_root)` + '\n';
+    parserIR += `  call void @csyyjson_free(i8* %json_root)` + '\n';
     parserIR += `  br label %json_done` + '\n\n';
 
     parserIR += `json_done:` + '\n';
