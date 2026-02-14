@@ -39,11 +39,14 @@ export function generateStringConcatDirect(ctx: IGeneratorContext, leftStr: stri
   ctx.emit(`${resultPtr} = call i8* @GC_malloc_atomic(i64 ${totalLenPlus1})`);
   ctx.setVariableType(resultPtr, 'i8*');
 
-  const copyResult1 = ctx.nextTemp();
-  ctx.emit(`${copyResult1} = call i8* @strcpy(i8* ${resultPtr}, i8* ${leftStr})`);
+  ctx.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${resultPtr}, i8* ${leftStr}, i64 ${leftLen}, i1 false)`);
 
-  const concatResult = ctx.nextTemp();
-  ctx.emit(`${concatResult} = call i8* @strcat(i8* ${resultPtr}, i8* ${rightStr})`);
+  const dest = ctx.nextTemp();
+  ctx.emit(`${dest} = getelementptr i8, i8* ${resultPtr}, i64 ${leftLen}`);
+
+  const rightLenPlus1 = ctx.nextTemp();
+  ctx.emit(`${rightLenPlus1} = add i64 ${rightLen}, 1`);
+  ctx.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dest}, i8* ${rightStr}, i64 ${rightLenPlus1}, i1 false)`);
 
   return resultPtr;
 }
