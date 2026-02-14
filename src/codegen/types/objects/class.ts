@@ -414,7 +414,7 @@ export class ClassGenerator {
       paramParts.push(paramLLVMTypes[argIdx] + ' %arg' + argIdx);
     }
     ir += paramParts.join(', ');
-    ir += ') {\n';
+    ir += ') nounwind {\n';
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
 

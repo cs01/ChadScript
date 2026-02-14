@@ -207,7 +207,7 @@ export class FunctionGenerator {
       paramStrings.push(`${llvmType} %arg${i}`);
     }
     ir += paramStrings.join(', ');
-    ir += ') {\n';
+    ir += ') nounwind {\n';
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
 
@@ -696,7 +696,7 @@ export class FunctionGenerator {
   }
 
   generateMain(topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>): string {
-    let ir = 'define i32 @main(i32 %argc, i8** %argv) {\n';
+    let ir = 'define i32 @main(i32 %argc, i8** %argv) nounwind {\n';
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
 
