@@ -7,10 +7,10 @@ const tab = ref('startup')
 <div>
 <div class="bench-tabs">
   <button :class="{ active: tab === 'startup' }" @click="tab = 'startup'">Cold Start</button>
-  <button :class="{ active: tab === 'json' }" @click="tab = 'json'">JSON</button>
-  <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
   <button :class="{ active: tab === 'mandelbrot' }" @click="tab = 'mandelbrot'">Mandelbrot</button>
   <button :class="{ active: tab === 'fibonacci' }" @click="tab = 'fibonacci'">Fibonacci</button>
+  <button :class="{ active: tab === 'json' }" @click="tab = 'json'">JSON</button>
+  <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
 </div>
 
 <div v-if="tab === 'startup'" :key="'s'+Date.now()" class="bench-panel">
@@ -154,7 +154,7 @@ const tab = ref('startup')
       <div class="bench-track">
         <div class="bench-bar chad" style="--w: 67%; --d: 0.12s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val"><strong>9ms</strong></div>
+      <div class="bench-val"><strong>8ms</strong></div>
     </div>
     <div class="bench-row">
       <div class="bench-label">Bun</div>
@@ -194,9 +194,9 @@ const tab = ref('startup')
     <div class="bench-row">
       <div class="bench-label chad-label">ChadScript</div>
       <div class="bench-track">
-        <div class="bench-bar chad" style="--w: 65%; --d: 0.12s"><div class="bench-ball"></div></div>
+        <div class="bench-bar chad" style="--w: 61%; --d: 0.12s"><div class="bench-ball"></div></div>
       </div>
-      <div class="bench-val"><strong>1.6s</strong></div>
+      <div class="bench-val"><strong>1.7s</strong></div>
     </div>
     <div class="bench-row">
       <div class="bench-label">Go</div>

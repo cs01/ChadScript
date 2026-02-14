@@ -31,7 +31,7 @@ const benchmarks = {
     desc: '512\u00d7512 double-precision matrix multiply (A\u00d7B into C).',
     metric: 'Faster bounce = faster compute.',
     items: [
-      { name: 'ChadScript', val: '0.44s', speed: 0.55, color: 'chad', hero: true },
+      { name: 'ChadScript', val: '0.45s', speed: 0.55, color: 'chad', hero: true },
       { name: 'C', val: '0.45s', speed: 0.56, color: 'c' },
       { name: 'Go', val: '0.46s', speed: 0.58, color: 'go' },
       { name: 'Bun', val: '0.61s', speed: 0.72, color: 'bun' },
@@ -44,7 +44,7 @@ const benchmarks = {
     metric: 'Faster bounce = faster runtime.',
     items: [
       { name: 'C', val: '1.04s', speed: 0.55, color: 'c' },
-      { name: 'ChadScript', val: '1.6s', speed: 0.7, color: 'chad', hero: true },
+      { name: 'ChadScript', val: '1.7s', speed: 0.7, color: 'chad', hero: true },
       { name: 'Go', val: '1.81s', speed: 0.78, color: 'go' },
       { name: 'Bun', val: '3.06s', speed: 1.3, color: 'bun' },
       { name: 'Node.js', val: '4.61s', speed: 1.9, color: 'node' },
