@@ -1,16 +1,18 @@
 # Quick Start
 
-## Compile and Run
+## Run Your First Program
+
+```bash
+chad run examples/hello.ts
+```
+
+This compiles and runs in one step — perfect for getting started.
+
+## Compile and Run Separately
 
 ```bash
 chad build examples/hello.ts
 .build/examples/hello
-```
-
-Or compile and run in one step:
-
-```bash
-chad run examples/hello.ts
 ```
 
 ## Hello World

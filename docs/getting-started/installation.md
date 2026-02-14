@@ -27,6 +27,12 @@ brew install llvm openssl sqlite
 export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 ```
 
+**Security Note**: If you get a Gatekeeper warning when running the downloaded `chad` binary, bypass it with:
+
+```bash
+xattr -d com.apple.quarantine /path/to/chad
+```
+
 ## Build from Source
 
 See [BUILDING.md](https://github.com/cs01/ChadScript/blob/main/BUILDING.md) for full instructions.
@@ -44,6 +50,5 @@ npm run build
 
 ```bash
 npm test
-chad build examples/hello.ts -o /tmp/hello
-/tmp/hello
+chad run examples/hello.ts
 ```

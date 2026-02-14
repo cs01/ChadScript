@@ -28,9 +28,17 @@ ChadScript is not a drop-in replacement for TypeScript — it's a compiled langu
 sudo apt-get install llvm clang libcurl4-openssl-dev libssl-dev libsqlite3-dev
 
 # Download from GitHub Releases, then:
+chad run hello.ts
+```
+
+Or compile to a binary:
+
+```bash
 chad build hello.ts -o hello
 ./hello
 ```
+
+**macOS users**: If you get a security warning, run `xattr -d com.apple.quarantine /path/to/chad` to bypass Gatekeeper.
 
 To build from source, see [BUILDING.md](BUILDING.md).
 

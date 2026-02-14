@@ -44,9 +44,10 @@ npm run build
 
 ```bash
 npm test
-chad build examples/hello.ts -o /tmp/hello
-/tmp/hello
+chad run examples/hello.ts
 ```
+
+**macOS users**: If you get a security warning, run `xattr -d com.apple.quarantine ./chad` to bypass Gatekeeper.
 
 ## Environment Variables
 
