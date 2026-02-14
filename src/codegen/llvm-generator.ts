@@ -953,9 +953,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateUnlinkSync(expr, params); }
   public fsGenReaddirSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateReaddirSync(expr, params); }
   public fsGenStatSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateStatSync(expr, params); }
+  public fsGenMkdirSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateMkdirSync(expr, params); }
 
   public jsonGenCanHandle(expr: MethodCallNode): boolean { return this.jsonGen.canHandle(expr); }
-  public jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.jsonGen.generateParse(expr, params); }
+  public jsonGenGenerateParse(expr: MethodCallNode, params: string[], typeParam?: string): string { this.syncStateToGenerators(); return this.jsonGen.generateParse(expr, params, typeParam); }
   public jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.jsonGen.generateStringify(expr, params); }
 
   public dateGenCanHandle(expr: MethodCallNode): boolean { return this.dateGen.canHandle(expr); }

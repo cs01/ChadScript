@@ -743,12 +743,13 @@ export interface IGeneratorContext {
   fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string;
   fsGenReaddirSync(expr: MethodCallNode, params: string[]): string;
   fsGenStatSync(expr: MethodCallNode, params: string[]): string;
+  fsGenMkdirSync(expr: MethodCallNode, params: string[]): string;
 
   /**
    * JsonGen delegate methods (avoid struct layout mismatch)
    */
   jsonGenCanHandle(expr: MethodCallNode): boolean;
-  jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string;
+  jsonGenGenerateParse(expr: MethodCallNode, params: string[], typeParam?: string): string;
   jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string;
 
   dateGenCanHandle(expr: MethodCallNode): boolean;
@@ -1479,9 +1480,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   fsGenUnlinkSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_unlinkSync'; }
   fsGenReaddirSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_readdirSync'; }
   fsGenStatSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_statSync'; }
+  fsGenMkdirSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_mkdirSync'; }
 
   jsonGenCanHandle(_expr: MethodCallNode): boolean { return false; }
-  jsonGenGenerateParse(_expr: MethodCallNode, _params: string[]): string { return '%mock_json_parse'; }
+  jsonGenGenerateParse(_expr: MethodCallNode, _params: string[], _typeParam?: string): string { return '%mock_json_parse'; }
   jsonGenGenerateStringify(_expr: MethodCallNode, _params: string[]): string { return '%mock_json_stringify'; }
 
   dateGenCanHandle(_expr: MethodCallNode): boolean { return false; }

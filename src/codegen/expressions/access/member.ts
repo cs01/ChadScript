@@ -126,6 +126,7 @@ export interface MemberAccessGeneratorContext {
   setGenGenerateSetSize(setPtr: string): string;
   setActualClassType(name: string, className: string): void;
   getActualClassType(name: string): string | undefined;
+  setUsesJson(value: boolean): void;
 }
 
 /**
@@ -840,6 +841,7 @@ export class MemberAccessGenerator {
 
   private handleJsonPropertyAccess(expr: MemberAccessNode, _params: string[]): string {
     const varName = (expr.object as VariableNode).name;
+    this.ctx.setUsesJson(true);
 
     if (expr.property === 'length') {
       const jsonObjPtrPtr = this.ctx.getVariableAlloca(varName)!;
@@ -1004,6 +1006,7 @@ export class MemberAccessGenerator {
     const nestedMetaTsTypes = this.ctx.getJsonObjectMetadataTsTypes(innerResult);
     if (!nestedMetaKeys) return null;
 
+    this.ctx.setUsesJson(true);
     this.ctx.syncStateToGenerators();
     const fieldNameStr = this.ctx.stringGenCreateStringConstant(expr.property);
     const fieldItem = this.ctx.nextTemp();
@@ -1811,6 +1814,13 @@ export class MemberAccessGenerator {
       if (objArrayMeta) {
         return { keys: objArrayMeta.elementKeys, types: objArrayMeta.elementTypes, tsTypes: objArrayMeta.elementTsTypes || [] };
       }
+      const elementType = this.ctx.symbolTable.getObjectArrayElementType(varName);
+      if (elementType) {
+        const interfaceInfo = this.getInterfaceInfo(elementType);
+        if (interfaceInfo) {
+          return interfaceInfo;
+        }
+      }
     }
     return null;
   }
@@ -2011,6 +2021,7 @@ export class MemberAccessGenerator {
     if (methodCallObjBase.type !== 'variable') return null;
     if ((methodCall.object as VariableNode).name !== 'JSON') return null;
 
+    this.ctx.setUsesJson(true);
     this.ctx.syncStateToGenerators();
     const jsonObjPtr = this.ctx.generateExpression(expr.object, params);
     const fieldNameStr = this.ctx.stringGenCreateStringConstant(expr.property);

@@ -144,11 +144,12 @@ export interface MethodCallGeneratorContext {
   fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string;
   fsGenReaddirSync(expr: MethodCallNode, params: string[]): string;
   fsGenStatSync(expr: MethodCallNode, params: string[]): string;
+  fsGenMkdirSync(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateBasename(expr: MethodCallNode, params: string[]): string;
   pathGenGenerateJoin(expr: MethodCallNode, params: string[]): string;
-  jsonGenGenerateParse(expr: MethodCallNode, params: string[]): string;
+  jsonGenGenerateParse(expr: MethodCallNode, params: string[], typeParam?: string): string;
   jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string;
   mathGenCanHandle(expr: MethodCallNode): boolean;
   mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string;
@@ -491,6 +492,8 @@ export class MethodCallGenerator {
         return this.ctx.fsGenReaddirSync(expr, params);
       } else if (method === 'statSync') {
         return this.ctx.fsGenStatSync(expr, params);
+      } else if (method === 'mkdirSync') {
+        return this.ctx.fsGenMkdirSync(expr, params);
       }
     }
 
@@ -524,7 +527,7 @@ export class MethodCallGenerator {
     if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'JSON') {
       if (method === 'parse') {
         this.ctx.setUsesJson(true);
-        return this.ctx.jsonGenGenerateParse(expr, params);
+        return this.ctx.jsonGenGenerateParse(expr, params, expr.typeParameter);
       } else if (method === 'stringify') {
         return this.ctx.jsonGenGenerateStringify(expr, params);
       }

@@ -237,6 +237,10 @@ export class RuntimeGenerator {
     ir += 'declare i32 @cJSON_IsBool(i8*)\n';
     ir += 'declare i32 @cJSON_IsNull(i8*)\n';
     ir += 'declare i8* @cJSON_PrintUnformatted(i8*)\n';
+    ir += 'declare i8* @cJSON_CreateObject()\n';
+    ir += 'declare i8* @cJSON_AddStringToObject(i8*, i8*, i8*)\n';
+    ir += 'declare i8* @cJSON_AddNumberToObject(i8*, i8*, double)\n';
+    ir += 'declare i8* @cJSON_AddBoolToObject(i8*, i8*, i32)\n';
     ir += '\n';
 
     // Use cJSON's official API functions (portable across all platforms)

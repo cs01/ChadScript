@@ -25,15 +25,13 @@ export class JsonGenerator {
     return (expr.method === 'parse' || expr.method === 'stringify');
   }
 
-  generateParse(expr: MethodCallNode, params: string[]): string {
+  generateParse(expr: MethodCallNode, params: string[], typeParam?: string): string {
     if (expr.args.length < 1) {
       throw new Error('JSON.parse() requires 1 argument (JSON string)');
     }
 
-    const exprTyped = expr as { typeParameter?: string; args: Expression[]; object: Expression; method: string };
-    const typeParam = exprTyped.typeParameter;
     if (!typeParam) {
-      throw new Error('JSON.parse() requires a type parameter: JSON.parse<MyType>(jsonString)');
+      return this.generateUntypedParse(expr, params);
     }
 
     if (typeParam === 'number[]') {
@@ -67,6 +65,13 @@ export class JsonGenerator {
     this.ctx.setVariableType(result, `%${typeParam}*`);
 
     return result;
+  }
+
+  private generateUntypedParse(expr: MethodCallNode, params: string[]): string {
+    const jsonStr = this.ctx.generateExpression(expr.args[0], params);
+    const jsonRoot = this.ctx.nextTemp();
+    this.ctx.emit(`${jsonRoot} = call i8* @cJSON_Parse(i8* ${jsonStr})`);
+    return jsonRoot;
   }
 
   private generateParseNumberArray(expr: MethodCallNode, params: string[]): string {
@@ -351,9 +356,101 @@ export class JsonGenerator {
 
     if (this.ctx.isStringExpression(arg)) {
       return this.stringifyString(arg, params);
-    } else {
+    }
+
+    const interfaceType = this.resolveInterfaceType(arg);
+    if (interfaceType) {
+      return this.stringifyInterface(arg, params, interfaceType);
+    }
+
+    return this.stringifyNumber(arg, params);
+  }
+
+  private resolveInterfaceType(arg: Expression): string | null {
+    if (arg.type === 'variable') {
+      const varNode = arg as { type: string; name: string };
+      return this.ctx.symbolTable.getInterfaceType(varNode.name) || null;
+    }
+    if (arg.type === 'index_access') {
+      const indexAccess = arg as { type: string; object: Expression; index: Expression };
+      if (indexAccess.object.type === 'variable') {
+        const arrayName = (indexAccess.object as { type: string; name: string }).name;
+        return this.ctx.symbolTable.getObjectArrayElementType(arrayName) || null;
+      }
+    }
+    return null;
+  }
+
+  private stringifyInterface(arg: Expression, params: string[], interfaceType: string): string {
+    const interfaceDefResult = this.ctx.getInterfaceFromAST(interfaceType);
+    if (!interfaceDefResult) {
       return this.stringifyNumber(arg, params);
     }
+
+    const mappedFields: { name: string; type: string }[] = [];
+    for (let i = 0; i < interfaceDefResult.fields.length; i++) {
+      const rawField = interfaceDefResult.fields[i] as { name: string; type: string };
+      mappedFields.push({
+        name: rawField.name.replace(/\?$/, ''),
+        type: rawField.type
+      });
+    }
+
+    const fieldTypes: string[] = [];
+    for (let i = 0; i < mappedFields.length; i++) {
+      const ft = mappedFields[i].type;
+      if (ft === 'string') {
+        fieldTypes.push('i8*');
+      } else if (ft === 'number' || ft === 'boolean') {
+        fieldTypes.push('double');
+      } else {
+        fieldTypes.push('i8*');
+      }
+    }
+    const structType = `{ ${fieldTypes.join(', ')} }`;
+
+    const objPtr = this.ctx.generateExpression(arg, params);
+
+    const typedPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
+
+    this.ctx.setUsesJson(true);
+    const jsonObj = this.ctx.nextTemp();
+    this.ctx.emit(`${jsonObj} = call i8* @cJSON_CreateObject()`);
+
+    for (let i = 0; i < mappedFields.length; i++) {
+      const field = mappedFields[i];
+      const fieldPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
+
+      const nameConst = this.ctx.createStringConstant(field.name);
+
+      if (field.type === 'string') {
+        const val = this.ctx.nextTemp();
+        this.ctx.emit(`${val} = load i8*, i8** ${fieldPtr}`);
+        const addResult = this.ctx.nextTemp();
+        this.ctx.emit(`${addResult} = call i8* @cJSON_AddStringToObject(i8* ${jsonObj}, i8* ${nameConst}, i8* ${val})`);
+      } else if (field.type === 'boolean') {
+        const val = this.ctx.nextTemp();
+        this.ctx.emit(`${val} = load double, double* ${fieldPtr}`);
+        const boolInt = this.ctx.nextTemp();
+        this.ctx.emit(`${boolInt} = fptosi double ${val} to i32`);
+        const addResult = this.ctx.nextTemp();
+        this.ctx.emit(`${addResult} = call i8* @cJSON_AddBoolToObject(i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolInt})`);
+      } else {
+        const val = this.ctx.nextTemp();
+        this.ctx.emit(`${val} = load double, double* ${fieldPtr}`);
+        const addResult = this.ctx.nextTemp();
+        this.ctx.emit(`${addResult} = call i8* @cJSON_AddNumberToObject(i8* ${jsonObj}, i8* ${nameConst}, double ${val})`);
+      }
+    }
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @cJSON_PrintUnformatted(i8* ${jsonObj})`);
+    this.ctx.emit(`call void @cJSON_Delete(i8* ${jsonObj})`);
+    this.ctx.setVariableType(result, 'i8*');
+
+    return result;
   }
 
   private stringifyString(arg: Expression, params: string[]): string {
