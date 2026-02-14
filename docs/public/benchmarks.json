@@ -1,0 +1,337 @@
+{
+  "timestamp": "2026-02-14T23:30:41Z",
+  "benchmarks": {
+    "binarytrees": {
+      "name": "Binary Trees",
+      "desc": "Build/check/discard binary trees of depth 18.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 2.057,
+          "label": "2.057s"
+        },
+        "chadscript": {
+          "value": 2.553255,
+          "label": "2.553255s"
+        },
+        "go": {
+          "value": 4.145,
+          "label": "4.145s"
+        },
+        "node": {
+          "value": 2.263,
+          "label": "2.263s"
+        },
+        "bun": {
+          "value": 1.517,
+          "label": "1.517s"
+        }
+      }
+    },
+    "fibonacci": {
+      "name": "Fibonacci",
+      "desc": "fib(42) naive recursion.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 1.004,
+          "label": "1.004s"
+        },
+        "chadscript": {
+          "value": 1.48776499804688,
+          "label": "1.48776499804688s"
+        },
+        "go": {
+          "value": 1.672,
+          "label": "1.672s"
+        },
+        "node": {
+          "value": 4.365,
+          "label": "4.365s"
+        },
+        "bun": {
+          "value": 2.885,
+          "label": "2.885s"
+        }
+      }
+    },
+    "fileio": {
+      "name": "File I/O",
+      "desc": "Write and read ~100MB to /tmp.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.164,
+          "label": "0.164s"
+        },
+        "chadscript": {
+          "value": 0.341544,
+          "label": "0.341544s"
+        },
+        "go": {
+          "value": 0.141,
+          "label": "0.141s"
+        },
+        "node": {
+          "value": 0.571,
+          "label": "0.571s"
+        },
+        "bun": {
+          "value": 0.261,
+          "label": "0.261s"
+        }
+      }
+    },
+    "json": {
+      "name": "JSON Parse/Stringify",
+      "desc": "Parse 10K JSON objects, stringify back.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.007,
+          "label": "0.007s"
+        },
+        "chadscript": {
+          "value": 0.008432,
+          "label": "0.008432s"
+        },
+        "go": {
+          "value": 0.042,
+          "label": "0.042s"
+        },
+        "node": {
+          "value": 0.02,
+          "label": "0.020s"
+        },
+        "bun": {
+          "value": 0.009,
+          "label": "0.009s"
+        }
+      }
+    },
+    "matmul": {
+      "name": "Matrix Multiply",
+      "desc": "512\u00d7512 double-precision matrix multiply.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.43,
+          "label": "0.430s"
+        },
+        "chadscript": {
+          "value": 0.456953,
+          "label": "0.456953s"
+        },
+        "go": {
+          "value": 0.429,
+          "label": "0.429s"
+        },
+        "node": {
+          "value": 0.633,
+          "label": "0.633s"
+        },
+        "bun": {
+          "value": 0.583,
+          "label": "0.583s"
+        }
+      }
+    },
+    "montecarlo": {
+      "name": "Monte Carlo Pi",
+      "desc": "100M Monte Carlo samples to estimate Pi.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.924,
+          "label": "0.924s"
+        },
+        "chadscript": {
+          "value": 2.509721,
+          "label": "2.509721s"
+        },
+        "go": {
+          "value": 0.89,
+          "label": "0.890s"
+        },
+        "node": {
+          "value": 3.449,
+          "label": "3.449s"
+        },
+        "bun": {
+          "value": 15.664,
+          "label": "15.664s"
+        }
+      }
+    },
+    "nbody": {
+      "name": "N-Body Simulation",
+      "desc": "5-body simulation, 50M timesteps.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 4.117,
+          "label": "4.117s"
+        },
+        "chadscript": {
+          "value": 6.711515,
+          "label": "6.711515s"
+        },
+        "go": {
+          "value": 5.933,
+          "label": "5.933s"
+        },
+        "node": {
+          "value": 7.116,
+          "label": "7.116s"
+        },
+        "bun": {
+          "value": 9.372,
+          "label": "9.372s"
+        }
+      }
+    },
+    "sieve": {
+      "name": "Sieve of Eratosthenes",
+      "desc": "Find all primes up to 10M.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.041,
+          "label": "0.041s"
+        },
+        "chadscript": {
+          "value": 0.283603,
+          "label": "0.283603s"
+        },
+        "go": {
+          "value": 0.049,
+          "label": "0.049s"
+        },
+        "node": {
+          "value": 0.09,
+          "label": "0.090s"
+        },
+        "bun": {
+          "value": 0.067,
+          "label": "0.067s"
+        }
+      }
+    },
+    "sorting": {
+      "name": "Quicksort",
+      "desc": "Quicksort 2M doubles (deterministic LCG).",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.201,
+          "label": "0.201s"
+        },
+        "chadscript": {
+          "value": 0.304954,
+          "label": "0.304954s"
+        },
+        "go": {
+          "value": 0.216,
+          "label": "0.216s"
+        },
+        "node": {
+          "value": 0.31,
+          "label": "0.310s"
+        },
+        "bun": {
+          "value": 0.242,
+          "label": "0.242s"
+        }
+      }
+    },
+    "sqlite": {
+      "name": "SQLite",
+      "desc": "100K SELECT queries on a 100-row in-memory table.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.241,
+          "label": "0.241s"
+        },
+        "chadscript": {
+          "value": 0.413759,
+          "label": "0.413759s"
+        },
+        "node": {
+          "value": 0.801,
+          "label": "0.801s"
+        },
+        "bun": {
+          "value": 0.637,
+          "label": "0.637s"
+        }
+      }
+    },
+    "startup": {
+      "name": "Cold Start",
+      "desc": "Time to print \u2018Hello, World!\u2019 and exit. Average of 50 runs.",
+      "metric": "ms",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 1.7,
+          "label": "1.7ms"
+        },
+        "chadscript": {
+          "value": 1.9,
+          "label": "1.9ms"
+        },
+        "go": {
+          "value": 3.7,
+          "label": "3.7ms"
+        },
+        "bun": {
+          "value": 18.6,
+          "label": "18.6ms"
+        },
+        "node": {
+          "value": 53.6,
+          "label": "53.6ms"
+        }
+      }
+    },
+    "stringops": {
+      "name": "String Manipulation",
+      "desc": "Concatenate 100K strings, split, toUpperCase, join.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.012,
+          "label": "0.012s"
+        },
+        "chadscript": {
+          "value": 0.074468,
+          "label": "0.074468s"
+        },
+        "go": {
+          "value": 0.028,
+          "label": "0.028s"
+        },
+        "node": {
+          "value": 0.079,
+          "label": "0.079s"
+        },
+        "bun": {
+          "value": 0.045,
+          "label": "0.045s"
+        }
+      }
+    }
+  }
+}

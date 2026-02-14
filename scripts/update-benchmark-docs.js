@@ -26,6 +26,15 @@ const langMeta = {
 
 const featuredOrder = ['startup', 'matmul', 'fibonacci', 'json', 'sqlite'];
 
+function formatVal(value, metric) {
+  if (metric === 'ms') {
+    return value < 10 ? value.toFixed(1) + 'ms' : Math.round(value) + 'ms';
+  }
+  if (value < 0.1) return Math.round(value * 1000) + 'ms';
+  if (value < 1) return value.toFixed(3) + 's';
+  return value.toFixed(2) + 's';
+}
+
 function buildBarsDefaults(json) {
   const lines = [];
   for (const key of featuredOrder) {
@@ -46,7 +55,7 @@ function buildBarsDefaults(json) {
       const speed = lower ? 1.5 + (r.value / minVal) * 1.5 : 1.5 + (maxVal / r.value) * 1.5;
       const obj = {
         name: meta.name,
-        val: r.label,
+        val: formatVal(r.value, bench.metric),
         w, h,
         color: meta.color,
         d: idx * 0.12,
@@ -91,7 +100,7 @@ function buildRaceData(json) {
       const speed = lower ? 0.5 + (r.value / minVal) * 0.3 : 0.5 + (minVal / r.value) * 0.3;
       const obj = {
         name: meta.name,
-        val: r.label,
+        val: formatVal(r.value, bench.metric),
         speed: Math.round(speed * 100) / 100,
         color: meta.color,
       };
@@ -118,6 +127,7 @@ function buildRaceData(json) {
 function buildMarkdownSummary(json) {
   const b = json.benchmarks;
   const lines = [];
+  const fmt = (bench, lang) => formatVal(bench.results[lang].value, bench.metric);
 
   if (b.matmul) {
     const cs = b.matmul.results.chadscript;
@@ -125,7 +135,7 @@ function buildMarkdownSummary(json) {
     const node = b.matmul.results.node;
     if (cs && c) {
       const ratio = (node.value / cs.value).toFixed(1);
-      lines.push(`- **Matches C on matrix multiply** \u2014 ${cs.label} vs C's ${c.label} on 512x512 dense matmul, ${ratio}x faster than Node`);
+      lines.push(`- **Matches C on matrix multiply** \u2014 ${fmt(b.matmul, 'chadscript')} vs C\u2019s ${fmt(b.matmul, 'c')} on 512\u00d7512 dense matmul, ${ratio}x faster than Node`);
     }
   }
 
@@ -137,7 +147,7 @@ function buildMarkdownSummary(json) {
     if (cs && go) {
       const bunRatio = bun ? (bun.value / cs.value).toFixed(0) : '?';
       const nodeRatio = node ? (node.value / cs.value).toFixed(0) : '?';
-      lines.push(`- **Faster than Go on recursion** \u2014 fib(42) in ${cs.label} vs Go's ${go.label}, ${bunRatio}x faster than Bun, ${nodeRatio}x faster than Node`);
+      lines.push(`- **Faster than Go on recursion** \u2014 fib(42) in ${fmt(b.fibonacci, 'chadscript')} vs Go\u2019s ${fmt(b.fibonacci, 'go')}, ${bunRatio}x faster than Bun, ${nodeRatio}x faster than Node`);
     }
   }
 
@@ -151,7 +161,7 @@ function buildMarkdownSummary(json) {
       const goRatio = go ? Math.round(go.value / cs.value) : '?';
       const bunRatio = bun ? Math.round(bun.value / cs.value) : '?';
       const nodeRatio = node ? Math.round(node.value / cs.value) : '?';
-      lines.push(`- **${cs.label} cold start** \u2014 within ${Math.round((cs.value / c.value - 1) * 100)}% of C, ${goRatio}x faster than Go, ${bunRatio}x faster than Bun, ${nodeRatio}x faster than Node`);
+      lines.push(`- **${fmt(b.startup, 'chadscript')} cold start** \u2014 within ${Math.round((cs.value / c.value - 1) * 100)}% of C, ${goRatio}x faster than Go, ${bunRatio}x faster than Bun, ${nodeRatio}x faster than Node`);
     }
   }
 
@@ -162,7 +172,7 @@ function buildMarkdownSummary(json) {
     if (cs && node && go) {
       const nodeRatio = Math.round(node.value / cs.value);
       const goRatio = Math.round(go.value / cs.value);
-      lines.push(`- **Near-C JSON** \u2014 ${cs.label} to parse+stringify 10K objects via yyjson, ${nodeRatio}x faster than Node, ${goRatio}x faster than Go`);
+      lines.push(`- **Near-C JSON** \u2014 ${fmt(b.json, 'chadscript')} to parse+stringify 10K objects via yyjson, ${nodeRatio}x faster than Node, ${goRatio}x faster than Go`);
     }
   }
 
@@ -172,10 +182,10 @@ function buildMarkdownSummary(json) {
     const bun = b.sqlite.results.bun;
     const node = b.sqlite.results.node;
     if (cs && c) {
-      const pct = Math.round((cs.value / c.value) * 100);
-      const bunRatio = bun ? (cs.value / bun.value).toFixed(1) : '?';
-      const nodeRatio = node ? (cs.value / node.value).toFixed(1) : '?';
-      lines.push(`- **Zero-overhead FFI** \u2014 calls C libraries directly, ${pct}% of C's SQLite throughput, ${bunRatio}x faster than Bun, ${nodeRatio}x faster than Node`);
+      const pct = Math.round((c.value / cs.value) * 100);
+      const bunRatio = bun ? (bun.value / cs.value).toFixed(1) : '?';
+      const nodeRatio = node ? (node.value / cs.value).toFixed(1) : '?';
+      lines.push(`- **Zero-overhead FFI** \u2014 calls C libraries directly, ${pct}% of C\u2019s SQLite throughput, ${bunRatio}x faster than Bun, ${nodeRatio}x faster than Node`);
     }
   }
 
