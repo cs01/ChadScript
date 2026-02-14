@@ -1,23 +1,8 @@
-const CHUNK_SIZE = 1024;
 const CHUNKS = 1024;
 const FILE_PATH = "/tmp/bench-fileio-test.dat";
 
 function run(): void {
-  let base = "";
-  let i = 0;
-  while (i < 100) {
-    base = base + "abcdefghij";
-    i = i + 1;
-  }
-
-  let chunk = "";
-  let k = 0;
-  while (k < 10) {
-    chunk = chunk + base;
-    k = k + 1;
-  }
-  chunk = chunk + base;
-  const chunkLen = chunk.length;
+  const chunk = "A".repeat(102400);
 
   const start = Date.now();
 
