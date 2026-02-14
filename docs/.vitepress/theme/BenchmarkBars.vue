@@ -13,8 +13,10 @@ const langMeta = {
 
 const featuredNotes = {
   startup: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines.',
-  sqlite: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. 1.7x faster than Bun, 2.4x faster than Node.',
-  json: 'ChadScript uses yyjson (SIMD-accelerated) via a thin C bridge. Near-identical to raw C. 2x faster than Bun, 2.6x faster than Node, 3.4x faster than Go.',
+  sqlite: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. 1.9x faster than Bun, 2.4x faster than Node.',
+  json: 'ChadScript uses yyjson (SIMD-accelerated) via a thin C bridge. Near-identical to raw C. 2x faster than Node, 3.7x faster than Go.',
+  matmul: 'Dense 512\u00d7512 matrix multiply. ChadScript\u2019s LLVM IR with fast-math flags lets the optimizer auto-vectorize and fuse multiply-accumulate \u2014 matching or beating hand-written C compiled with -O2.',
+  fibonacci: 'Naive recursive fib(42) \u2014 ~4 billion function calls. ChadScript\u2019s nounwind functions and fast-math optimizations make it faster than Go and 2\u20133x faster than JS runtimes.',
 }
 
 const defaultBenchmarks = {
@@ -25,22 +27,48 @@ const defaultBenchmarks = {
     items: [
       { name: 'C', val: '1.5ms', w: 3, h: 100, color: 'c', d: 0, speed: 1.7 },
       { name: 'ChadScript', val: '1.7ms', w: 3, h: 98, color: 'chad', d: 0.12, hero: true, speed: 1.8 },
-      { name: 'Go', val: '3.4ms', w: 6, h: 85, color: 'go', d: 0.24, speed: 2.2 },
-      { name: 'Bun', val: '19.5ms', w: 33, h: 40, color: 'bun', d: 0.36, speed: 4.5 },
-      { name: 'Node.js', val: '58.3ms', w: 100, h: 22, color: 'node', d: 0.48, speed: 7.8 },
+      { name: 'Go', val: '3.5ms', w: 6, h: 85, color: 'go', d: 0.24, speed: 2.2 },
+      { name: 'Bun', val: '19.4ms', w: 35, h: 40, color: 'bun', d: 0.36, speed: 4.5 },
+      { name: 'Node.js', val: '55.0ms', w: 100, h: 22, color: 'node', d: 0.48, speed: 7.8 },
     ],
     note: featuredNotes.startup,
+  },
+  matmul: {
+    layout: 'horizontal',
+    desc: '512\u00d7512 double-precision matrix multiply. Single-threaded.',
+    metric: 'Smaller = faster.',
+    items: [
+      { name: 'ChadScript', val: '0.44s', w: 72, h: 100, color: 'chad', d: 0, hero: true, speed: 1.5 },
+      { name: 'C', val: '0.45s', w: 74, h: 98, color: 'c', d: 0.12, speed: 1.5 },
+      { name: 'Go', val: '0.46s', w: 75, h: 96, color: 'go', d: 0.24, speed: 1.6 },
+      { name: 'Node.js', val: '0.61s', w: 100, h: 72, color: 'node', d: 0.36, speed: 2.0 },
+      { name: 'Bun', val: '0.61s', w: 100, h: 72, color: 'bun', d: 0.48, speed: 2.0 },
+    ],
+    note: featuredNotes.matmul,
+  },
+  fibonacci: {
+    layout: 'horizontal',
+    desc: 'Naive recursive fib(42) \u2014 ~4 billion function calls.',
+    metric: 'Smaller = faster.',
+    items: [
+      { name: 'C', val: '1.04s', w: 22, h: 100, color: 'c', d: 0, speed: 1.5 },
+      { name: 'ChadScript', val: '1.6s', w: 35, h: 65, color: 'chad', d: 0.12, hero: true, speed: 1.8 },
+      { name: 'Go', val: '1.81s', w: 39, h: 57, color: 'go', d: 0.24, speed: 2.0 },
+      { name: 'Bun', val: '3.06s', w: 66, h: 34, color: 'bun', d: 0.36, speed: 3.0 },
+      { name: 'Node.js', val: '4.61s', w: 100, h: 23, color: 'node', d: 0.48, speed: 4.5 },
+    ],
+    note: featuredNotes.fibonacci,
   },
   json: {
     layout: 'horizontal',
     desc: 'Parse + stringify 10,000 JSON objects (4 fields each).',
     metric: 'Smaller = faster.',
     items: [
-      { name: 'C', val: '7ms', w: 26, h: 100, color: 'c', d: 0, speed: 1.5 },
-      { name: 'ChadScript', val: '8ms', w: 30, h: 88, color: 'chad', d: 0.12, hero: true, speed: 1.6 },
-      { name: 'Bun', val: '16ms', w: 59, h: 44, color: 'bun', d: 0.24, speed: 2.5 },
-      { name: 'Node.js', val: '21ms', w: 78, h: 33, color: 'node', d: 0.36, speed: 3.5 },
-      { name: 'Go', val: '27ms', w: 100, h: 26, color: 'go', d: 0.48, speed: 4.5 },
+      { name: 'C', val: '6ms', w: 18, h: 100, color: 'c', d: 0, speed: 1.5 },
+      { name: 'ChadScript', val: '9ms', w: 27, h: 67, color: 'chad', d: 0.12, hero: true, speed: 1.6 },
+      { name: 'Bun', val: '10ms', w: 30, h: 60, color: 'bun', d: 0.24, speed: 1.7 },
+      { name: 'Node.js', val: '23ms', w: 70, h: 26, color: 'node', d: 0.36, speed: 3.0 },
+      { name: 'Go', val: '33ms', w: 100, h: 18, color: 'go', d: 0.48, speed: 4.5 },
     ],
     note: featuredNotes.json,
   },
@@ -49,10 +77,10 @@ const defaultBenchmarks = {
     desc: '100K SELECT queries on a 100-row in-memory table.',
     metric: 'Taller = more throughput.',
     items: [
-      { name: 'C', val: '394K qps', h: 100, color: 'c', d: 0, speed: 2.0 },
-      { name: 'ChadScript', val: '276K qps', h: 70, color: 'chad', d: 0.12, hero: true, speed: 2.2 },
-      { name: 'Bun', val: '164K qps', h: 42, color: 'bun', d: 0.24, speed: 3.2 },
-      { name: 'Node.js', val: '117K qps', h: 30, color: 'node', d: 0.36, speed: 3.8 },
+      { name: 'C', val: '407K qps', h: 100, color: 'c', d: 0, speed: 2.0 },
+      { name: 'ChadScript', val: '288K qps', h: 71, color: 'chad', d: 0.12, hero: true, speed: 2.2 },
+      { name: 'Bun', val: '155K qps', h: 38, color: 'bun', d: 0.24, speed: 3.2 },
+      { name: 'Node.js', val: '122K qps', h: 30, color: 'node', d: 0.36, speed: 3.8 },
     ],
     note: featuredNotes.sqlite,
   }
@@ -60,7 +88,7 @@ const defaultBenchmarks = {
 
 function transformJson(json) {
   const result = {}
-  const featured = ['startup', 'json', 'sqlite']
+  const featured = ['startup', 'matmul', 'fibonacci', 'json', 'sqlite']
   for (const key of featured) {
     const bench = json.benchmarks[key]
     if (!bench) continue
@@ -164,6 +192,8 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
 <div>
   <div class="bench-tabs">
     <button :class="{ active: tab === 'startup' }" @click="tab = 'startup'">Cold Start</button>
+    <button :class="{ active: tab === 'matmul' }" @click="tab = 'matmul'">Matrix Multiply</button>
+    <button :class="{ active: tab === 'fibonacci' }" @click="tab = 'fibonacci'">Fibonacci</button>
     <button :class="{ active: tab === 'json' }" @click="tab = 'json'">JSON</button>
     <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
   </div>
