@@ -53,7 +53,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/mongoose/mongoose.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/libwebsockets/build/lib/libwebsockets.a vendor/lws-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -133,7 +133,8 @@ jobs:
           cp vendor/bdwgc/libgc.a release/lib/
           cp vendor/yyjson/libyyjson.a release/lib/
           cp vendor/libuv/build/libuv.a release/lib/
-          cp vendor/mongoose/mongoose.o release/lib/
+          cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
+          cp vendor/lws-bridge.o release/lib/
           tar -czf ${{ matrix.artifact }}.tar.gz -C release chad chadc lib
 
       - name: Upload artifact
