@@ -192,6 +192,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     const brewPrefix = process.arch === 'arm64' ? '/opt/homebrew/opt' : '/usr/local/opt';
     if (generator.usesCrypto) { linkLibs = `-L${brewPrefix}/openssl/lib ` + linkLibs; }
     if (generator.usesSqlite) { linkLibs = `-L${brewPrefix}/sqlite/lib ` + linkLibs; }
+    if (generator.usesMongoose) { linkLibs = `-L${brewPrefix}/zstd/lib ` + linkLibs; }
     linkLibs = `-L/usr/local/lib ` + linkLibs;
   }
   const lwsBridgeObj = generator.usesMongoose ? `${LWS_BRIDGE_PATH}/lws-bridge.o` : '';
