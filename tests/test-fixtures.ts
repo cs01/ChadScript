@@ -705,5 +705,11 @@ export const testCases: TestCase[] = [
     fixture: 'tests/fixtures/interfaces/stable-struct.ts',
     expectedExitCode: 0,
     description: 'Interface struct creation, passing, and returning should work'
+  },
+  {
+    name: 'interface-array-mutation',
+    fixture: 'tests/fixtures/arrays/interface-array-mutation.ts',
+    expectTestPassed: true,
+    description: 'Mutating fields of interface objects in arrays (arr[i].field = value) should work'
   }
 ];

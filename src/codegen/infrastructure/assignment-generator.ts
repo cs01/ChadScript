@@ -4,11 +4,12 @@ import {
   VariableNode,
   MemberAccessAssignmentNode,
   MemberAccessNode,
+  IndexAccessNode,
   AST,
   ClassNode,
   AssignmentStatement,
 } from '../../ast/types.js';
-import type { SymbolTable, ClassInfo } from './symbol-table.js';
+import type { SymbolTable, ClassInfo, ObjectArrayMetadata } from './symbol-table.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
 
 interface ClassGeneratorLike {
@@ -50,6 +51,9 @@ export interface AssignmentGeneratorContext {
   setCurrentDeclaredMapType(type: string | undefined): void;
   getThisPointer(): string | null;
   getCurrentClassName(): string | null;
+  symbolTableGetObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined;
+  symbolTableGetObjectArrayElementType(name: string): string | undefined;
+  getInterfaceFromAST(typeName: string): { name: string; fields: { name: string; type: string }[] } | null;
 }
 
 export class AssignmentGenerator {
@@ -130,6 +134,9 @@ export class AssignmentGenerator {
       }
     } else if (objType === 'member_access' && property === 'length') {
       this.handleArrayLengthAssignment(object as MemberAccessNode, memberAccessValue, params);
+      return;
+    } else if (objType === 'index_access') {
+      this.handleIndexAccessPropertyAssignment(object as IndexAccessNode, property, memberAccessValue, params);
       return;
     }
 
@@ -374,6 +381,96 @@ export class AssignmentGenerator {
     } else {
       this.ctx.emit(`store double ${value}, double* ${fieldPtr}`);
     }
+  }
+
+  private handleIndexAccessPropertyAssignment(
+    indexAccess: IndexAccessNode,
+    property: string,
+    memberAccessValue: MemberAccessAssignmentNode,
+    params: string[]
+  ): void {
+    const elementInfo = this.getObjectArrayElementInfoForAssignment(indexAccess.object);
+    if (!elementInfo) return;
+
+    const propIndex = elementInfo.keys.indexOf(property);
+    if (propIndex === -1) return;
+
+    const arrayPtr = this.ctx.generateExpression(indexAccess.object, params);
+    const indexDouble = this.ctx.generateExpression(indexAccess.index, params);
+
+    const indexType = this.ctx.getVariableType(indexDouble);
+    let index = indexDouble;
+    if (indexType === 'double' || indexType === undefined) {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    }
+
+    const structTypeFields = elementInfo.types.join(', ');
+    const structType = `{ ${structTypeFields} }`;
+
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+
+    const data = this.ctx.nextTemp();
+    this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
+
+    const dataAsPtrs = this.ctx.nextTemp();
+    this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${data} to i8**`);
+
+    const elemPtrPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elemPtrPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
+
+    const elemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elemPtr} = load i8*, i8** ${elemPtrPtr}`);
+
+    const elemTyped = this.ctx.nextTemp();
+    this.ctx.emit(`${elemTyped} = bitcast i8* ${elemPtr} to ${structType}*`);
+
+    const propType = elementInfo.types[propIndex];
+    const fieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${elemTyped}, i32 0, i32 ${propIndex}`);
+
+    const value = this.ctx.generateExpression(memberAccessValue.value, params);
+    this.ctx.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}`);
+  }
+
+  private getObjectArrayElementInfoForAssignment(arrayExpr: Expression): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+    if (arrayExpr.type === 'variable') {
+      const varName = (arrayExpr as VariableNode).name;
+      const objArrayMeta = this.ctx.symbolTableGetObjectArrayMetadata(varName);
+      if (objArrayMeta) {
+        return { keys: objArrayMeta.elementKeys, types: objArrayMeta.elementTypes, tsTypes: objArrayMeta.elementTsTypes || [] };
+      }
+      const elementType = this.ctx.symbolTableGetObjectArrayElementType(varName);
+      if (elementType) {
+        const iface = this.ctx.getInterfaceFromAST(elementType);
+        if (iface) {
+          const keys: string[] = [];
+          const types: string[] = [];
+          const tsTypes: string[] = [];
+          for (let j = 0; j < iface.fields.length; j++) {
+            const f = iface.fields[j];
+            let fieldName = f.name;
+            if (fieldName.endsWith('?')) {
+              fieldName = fieldName.slice(0, -1);
+            }
+            keys.push(fieldName);
+            tsTypes.push(f.type);
+            if (f.type === 'string') {
+              types.push('i8*');
+            } else if (f.type === 'number') {
+              types.push('double');
+            } else if (f.type === 'boolean') {
+              types.push('double');
+            } else {
+              types.push('i8*');
+            }
+          }
+          return { keys, types, tsTypes };
+        }
+      }
+    }
+    return null;
   }
 
   private handleArrayLengthAssignment(
