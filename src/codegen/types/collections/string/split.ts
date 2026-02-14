@@ -1,5 +1,4 @@
 import { IGeneratorContext } from '../../../infrastructure/generator-context.js';
-import { generateSubstr } from './manipulation.js';
 
 // ============================================
 // STRING SPLIT - Complex string splitting into arrays
@@ -220,7 +219,20 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const partLen = ctx.nextTemp();
   ctx.emit(`${partLen} = sub i32 ${curPos}, ${startPos}`);
 
-  const partStr = generateSubstr(ctx, strPtr, startPos, partLen);
+  const partLenI64 = ctx.nextTemp();
+  ctx.emit(`${partLenI64} = sext i32 ${partLen} to i64`);
+  const allocLen = ctx.nextTemp();
+  ctx.emit(`${allocLen} = add i64 ${partLenI64}, 1`);
+  const partStr = ctx.nextTemp();
+  ctx.emit(`${partStr} = call i8* @GC_malloc_atomic(i64 ${allocLen})`);
+  const startI64 = ctx.nextTemp();
+  ctx.emit(`${startI64} = sext i32 ${startPos} to i64`);
+  const srcPtr = ctx.nextTemp();
+  ctx.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${startI64}`);
+  ctx.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${partStr}, i8* ${srcPtr}, i64 ${partLenI64}, i1 false)`);
+  const nullTermPtr = ctx.nextTemp();
+  ctx.emit(`${nullTermPtr} = getelementptr inbounds i8, i8* ${partStr}, i64 ${partLenI64}`);
+  ctx.emit(`store i8 0, i8* ${nullTermPtr}`);
 
   const partIndex = ctx.nextTemp();
   ctx.emit(`${partIndex} = load i32, i32* ${partIndexPtr}`);
