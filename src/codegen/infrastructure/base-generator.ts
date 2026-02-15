@@ -42,6 +42,9 @@ export class BaseGenerator {
   public expectedCallbackReturnType: string | null = null; // Expected callback return type for lambda generation
   public currentFunctionReturnType: string = 'double'; // Current function/method return type for return statements
 
+  public debugInfoEnabled: boolean = false;
+  public currentDebugLocId: number = -1;
+
   constructor() {
     this.output = [];
     this.allocaInstructions = [];
@@ -68,6 +71,7 @@ export class BaseGenerator {
     this.variableTypes.clear();
     this.expressionTypes.clear();
     this.actualClassTypes.clear();
+    this.currentDebugLocId = -1;
   }
 
   // Helper to get next temp register (can be overridden)
@@ -200,24 +204,36 @@ export class BaseGenerator {
     } else if (instruction.includes(' = getelementptr ')) {
       this.validateGepInstruction(instruction);
     }
-    const allocaIdx = instruction.indexOf(' = alloca ');
+    const dbgInstruction = this.maybeAppendDbg(instruction);
+    const allocaIdx = dbgInstruction.indexOf(' = alloca ');
     if (allocaIdx > 0) {
-      const regName = instruction.substring(0, allocaIdx).trim();
+      const regName = dbgInstruction.substring(0, allocaIdx).trim();
       const isNamedReg = regName.length > 1 && regName.charAt(1) >= 'A';
       if (isNamedReg) {
-        this.allocaInstructions.push(instruction);
+        this.allocaInstructions.push(dbgInstruction);
       } else {
-        this.output.push(instruction);
+        this.output.push(dbgInstruction);
         this.outputCount++;
       }
     } else {
-      this.output.push(instruction);
+      this.output.push(dbgInstruction);
       this.outputCount++;
     }
-    if (instruction.trim().endsWith(':')) {
-      const label = instruction.trim().slice(0, -1);
+    if (dbgInstruction.trim().endsWith(':')) {
+      const label = dbgInstruction.trim().slice(0, -1);
       this.currentLabel = label;
     }
+  }
+
+  private maybeAppendDbg(instruction: string): string {
+    if (!this.debugInfoEnabled || this.currentDebugLocId < 0) return instruction;
+    const trimmed = instruction.trim();
+    if (trimmed.length === 0) return instruction;
+    if (trimmed.endsWith(':')) return instruction;
+    if (trimmed.startsWith(';')) return instruction;
+    if (trimmed.indexOf('!dbg') !== -1) return instruction;
+    if (trimmed.indexOf(' = alloca ') !== -1) return instruction;
+    return instruction + `, !dbg !${this.currentDebugLocId}`;
   }
 
   private validateStoreInstruction(instruction: string): void {
@@ -371,7 +387,7 @@ export class BaseGenerator {
         );
       }
       const numIndex = parseInt(indexValue, 10);
-      if (!isNaN(numIndex) && numIndex > 100) {
+      if (!isNaN(numIndex) && numIndex > 200) {
         throw new Error(
           `LLVM GEP with suspiciously large index: '${indexValue}'` + '\n' +
           `  Instruction: ${instruction}` + '\n' +

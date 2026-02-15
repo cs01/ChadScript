@@ -16,6 +16,7 @@ import {
   MemberAccessNode,
 } from '../../ast/types.js';
 import { transformExpression } from './expressions.js';
+import { getLoc } from '../transformer.js';
 
 export function transformStatement(node: ts.Statement, checker: ts.TypeChecker | undefined): Statement | null {
   switch (node.kind) {
@@ -44,10 +45,10 @@ export function transformStatement(node: ts.Statement, checker: ts.TypeChecker |
       return transformForInStatement(node as ts.ForInStatement, checker);
 
     case ts.SyntaxKind.BreakStatement:
-      return { type: 'break' };
+      return { type: 'break', loc: getLoc(node) };
 
     case ts.SyntaxKind.ContinueStatement:
-      return { type: 'continue' };
+      return { type: 'continue', loc: getLoc(node) };
 
     case ts.SyntaxKind.ThrowStatement:
       return transformThrowStatement(node as ts.ThrowStatement, checker);
@@ -173,7 +174,7 @@ function transformVariableDecl(
     value = transformExpression(decl.initializer, checker);
   }
 
-  return { type: 'variable_declaration', kind, name, value, declaredType };
+  return { type: 'variable_declaration', kind, name, value, declaredType, loc: getLoc(decl) };
 }
 
 export function extractTypeString(typeNode: ts.TypeNode): string {
@@ -297,7 +298,7 @@ function transformReturnStatement(node: ts.ReturnStatement, checker: ts.TypeChec
   const value = node.expression
     ? transformExpression(node.expression, checker)
     : { type: 'variable' as const, name: 'undefined' };
-  return { type: 'return', value };
+  return { type: 'return', value, loc: getLoc(node) };
 }
 
 function transformIfStatement(node: ts.IfStatement, checker: ts.TypeChecker | undefined): IfStatement {
@@ -314,13 +315,13 @@ function transformIfStatement(node: ts.IfStatement, checker: ts.TypeChecker | un
     }
   }
 
-  return { type: 'if', condition, thenBlock, elseBlock };
+  return { type: 'if', condition, thenBlock, elseBlock, loc: getLoc(node) };
 }
 
 function transformWhileStatement(node: ts.WhileStatement, checker: ts.TypeChecker | undefined): WhileStatement {
   const condition = transformExpression(node.expression, checker);
   const body = wrapInBlock(node.statement, checker);
-  return { type: 'while', condition, body };
+  return { type: 'while', condition, body, loc: getLoc(node) };
 }
 
 function transformForStatement(node: ts.ForStatement, checker: ts.TypeChecker | undefined): ForStatement {
@@ -360,7 +361,7 @@ function transformForStatement(node: ts.ForStatement, checker: ts.TypeChecker | 
 
   const body = wrapInBlock(node.statement, checker);
 
-  return { type: 'for', init, condition, update, body };
+  return { type: 'for', init, condition, update, body, loc: getLoc(node) };
 }
 
 function transformForOfStatement(node: ts.ForOfStatement, checker: ts.TypeChecker | undefined): ForOfStatement {
@@ -387,7 +388,7 @@ function transformForOfStatement(node: ts.ForOfStatement, checker: ts.TypeChecke
   const iterable = transformExpression(node.expression, checker);
   const body = wrapInBlock(node.statement, checker);
 
-  return { type: 'for_of', variableKind, variableName, destructuredNames, iterable, body };
+  return { type: 'for_of', variableKind, variableName, destructuredNames, iterable, body, loc: getLoc(node) };
 }
 
 function transformForInStatement(node: ts.ForInStatement, checker: ts.TypeChecker | undefined): ForOfStatement {
@@ -412,14 +413,14 @@ function transformForInStatement(node: ts.ForInStatement, checker: ts.TypeChecke
 
   const body = wrapInBlock(node.statement, checker);
 
-  return { type: 'for_of', variableKind, variableName, iterable: keysCall, body };
+  return { type: 'for_of', variableKind, variableName, iterable: keysCall, body, loc: getLoc(node) };
 }
 
 function transformThrowStatement(node: ts.ThrowStatement, checker: ts.TypeChecker | undefined): ThrowStatement {
   const argument = node.expression
     ? transformExpression(node.expression, checker)
     : { type: 'string' as const, value: 'Error' };
-  return { type: 'throw', argument };
+  return { type: 'throw', argument, loc: getLoc(node) };
 }
 
 function transformTryStatement(node: ts.TryStatement, checker: ts.TypeChecker | undefined): TryStatement {
@@ -439,7 +440,7 @@ function transformTryStatement(node: ts.TryStatement, checker: ts.TypeChecker | 
     finallyBlock = transformBlock(node.finallyBlock, checker);
   }
 
-  return { type: 'try', tryBlock, catchClause, finallyBlock };
+  return { type: 'try', tryBlock, catchClause, finallyBlock, loc: getLoc(node) };
 }
 
 export function transformBlock(block: ts.Block, checker: ts.TypeChecker | undefined): BlockStatement {

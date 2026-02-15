@@ -26,6 +26,7 @@ import {
   SpreadElementNode,
 } from '../../ast/types.js';
 import { transformStatement, extractTypeString } from './statements.js';
+import { getLoc } from '../transformer.js';
 
 export function transformExpression(node: ts.Expression, checker: ts.TypeChecker | undefined): Expression {
   switch (node.kind) {
@@ -36,13 +37,13 @@ export function transformExpression(node: ts.Expression, checker: ts.TypeChecker
       return transformStringLiteral(node as ts.StringLiteral);
 
     case ts.SyntaxKind.TrueKeyword:
-      return { type: 'boolean', value: true };
+      return { type: 'boolean', value: true, loc: getLoc(node) };
 
     case ts.SyntaxKind.FalseKeyword:
-      return { type: 'boolean', value: false };
+      return { type: 'boolean', value: false, loc: getLoc(node) };
 
     case ts.SyntaxKind.NullKeyword:
-      return { type: 'null' };
+      return { type: 'null', loc: getLoc(node) };
 
     case ts.SyntaxKind.Identifier:
       return transformIdentifier(node as ts.Identifier);
@@ -75,16 +76,16 @@ export function transformExpression(node: ts.Expression, checker: ts.TypeChecker
       return transformNewExpression(node as ts.NewExpression, checker);
 
     case ts.SyntaxKind.ThisKeyword:
-      return { type: 'this' };
+      return { type: 'this', loc: getLoc(node) };
 
     case ts.SyntaxKind.SuperKeyword:
-      return { type: 'super' };
+      return { type: 'super', loc: getLoc(node) };
 
     case ts.SyntaxKind.TemplateExpression:
       return transformTemplateExpression(node as ts.TemplateExpression, checker);
 
     case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
-      return { type: 'string', value: (node as ts.NoSubstitutionTemplateLiteral).text };
+      return { type: 'string', value: (node as ts.NoSubstitutionTemplateLiteral).text, loc: getLoc(node) };
 
     case ts.SyntaxKind.ArrowFunction:
       return transformArrowFunction(node as ts.ArrowFunction, checker);
@@ -124,18 +125,18 @@ export function transformExpressionStatement(node: ts.ExpressionStatement, check
 }
 
 function transformNumericLiteral(node: ts.NumericLiteral): NumberNode {
-  return { type: 'number', value: parseFloat(node.text) };
+  return { type: 'number', value: parseFloat(node.text), loc: getLoc(node) };
 }
 
 function transformStringLiteral(node: ts.StringLiteral): StringNode {
-  return { type: 'string', value: node.text };
+  return { type: 'string', value: node.text, loc: getLoc(node) };
 }
 
 function transformIdentifier(node: ts.Identifier): Expression {
   if (node.text === 'undefined') {
-    return { type: 'undefined' };
+    return { type: 'undefined', loc: getLoc(node) };
   }
-  return { type: 'variable', name: node.text };
+  return { type: 'variable', name: node.text, loc: getLoc(node) };
 }
 
 function transformBinaryExpression(node: ts.BinaryExpression, checker: ts.TypeChecker | undefined): Expression {
@@ -152,7 +153,7 @@ function transformBinaryExpression(node: ts.BinaryExpression, checker: ts.TypeCh
     return createAssignment(node.left, right, checker);
   }
 
-  return { type: 'binary', op, left, right };
+  return { type: 'binary', op, left, right, loc: getLoc(node) };
 }
 
 function createAssignment(left: ts.Expression, value: Expression, checker: ts.TypeChecker | undefined): Expression {
@@ -248,7 +249,7 @@ function transformPrefixUnaryExpression(node: ts.PrefixUnaryExpression, checker:
       throw new Error(`Unknown prefix unary operator: ${ts.SyntaxKind[node.operator]}`);
   }
 
-  return { type: 'unary', op, operand };
+  return { type: 'unary', op, operand, loc: getLoc(node) };
 }
 
 function transformPostfixUnaryExpression(node: ts.PostfixUnaryExpression, checker: ts.TypeChecker | undefined): UnaryNode {
@@ -262,7 +263,7 @@ function transformPostfixUnaryExpression(node: ts.PostfixUnaryExpression, checke
       throw new Error(`Unknown postfix unary operator: ${ts.SyntaxKind[node.operator]}`);
   }
 
-  return { type: 'unary', op, operand };
+  return { type: 'unary', op, operand, loc: getLoc(node) };
 }
 
 function transformCallExpression(node: ts.CallExpression, checker: ts.TypeChecker | undefined): CallNode | MethodCallNode {
@@ -290,12 +291,14 @@ function transformCallExpression(node: ts.CallExpression, checker: ts.TypeChecke
       args,
       typeParameter,
       pos: node.getStart(),
+      loc: getLoc(node),
     };
   } else if (ts.isIdentifier(node.expression)) {
     return {
       type: 'call',
       name: node.expression.text,
       args,
+      loc: getLoc(node),
     };
   } else if (ts.isCallExpression(node.expression) || ts.isParenthesizedExpression(node.expression)) {
     const callee = transformExpression(node.expression, checker);
@@ -305,12 +308,14 @@ function transformCallExpression(node: ts.CallExpression, checker: ts.TypeChecke
       method: '',
       args,
       pos: node.getStart(),
+      loc: getLoc(node),
     };
   } else if (node.expression.kind === ts.SyntaxKind.SuperKeyword) {
     return {
       type: 'call',
       name: 'super',
       args,
+      loc: getLoc(node),
     };
   }
 
@@ -325,6 +330,7 @@ function transformPropertyAccessExpression(node: ts.PropertyAccessExpression, ch
     object,
     property: node.name.text,
     optional: isOptional || undefined,
+    loc: getLoc(node),
   };
 }
 
@@ -335,6 +341,7 @@ function transformElementAccessExpression(node: ts.ElementAccessExpression, chec
     type: 'index_access',
     object,
     index,
+    loc: getLoc(node),
   };
 }
 
@@ -346,7 +353,7 @@ function transformArrayLiteral(node: ts.ArrayLiteralExpression, checker: ts.Type
     }
     return transformExpression(elem, checker);
   });
-  return { type: 'array', elements };
+  return { type: 'array', elements, loc: getLoc(node) };
 }
 
 function transformObjectLiteral(node: ts.ObjectLiteralExpression, checker: ts.TypeChecker | undefined): ObjectNode {
@@ -392,7 +399,7 @@ function transformObjectLiteral(node: ts.ObjectLiteralExpression, checker: ts.Ty
     }
   }
 
-  return { type: 'object', properties };
+  return { type: 'object', properties, loc: getLoc(node) };
 }
 
 function transformBlockToBlockStatement(block: ts.Block, checker: ts.TypeChecker | undefined): BlockStatement {
@@ -420,9 +427,9 @@ function transformNewExpression(node: ts.NewExpression, checker: ts.TypeChecker 
           }
           return { key: elem, value: { type: 'variable' as const, name: 'undefined' } };
         });
-        return { type: 'map', entries, keyType, valueType };
+        return { type: 'map', entries, keyType, valueType, loc: getLoc(node) };
       }
-      return { type: 'map', entries: [], keyType, valueType };
+      return { type: 'map', entries: [], keyType, valueType, loc: getLoc(node) };
     }
 
     if (className === 'Set') {
@@ -431,12 +438,12 @@ function transformNewExpression(node: ts.NewExpression, checker: ts.TypeChecker 
         valueType = extractTypeString(node.typeArguments[0]);
       }
       if (args.length > 0 && args[0].type === 'array') {
-        return { type: 'set', values: (args[0] as ArrayNode).elements, valueType };
+        return { type: 'set', values: (args[0] as ArrayNode).elements, valueType, loc: getLoc(node) };
       }
-      return { type: 'set', values: [], valueType };
+      return { type: 'set', values: [], valueType, loc: getLoc(node) };
     }
 
-    return { type: 'new', className, args };
+    return { type: 'new', className, args, loc: getLoc(node) };
   }
 
   throw new Error(`Unsupported new expression: ${ts.SyntaxKind[node.expression.kind]}`);
@@ -452,7 +459,7 @@ function transformTemplateExpression(node: ts.TemplateExpression, checker: ts.Ty
     parts.push({ type: 'string', value: span.literal.text } as Expression);
   }
 
-  return { type: 'template_literal', parts };
+  return { type: 'template_literal', parts, loc: getLoc(node) };
 }
 
 function transformArrowFunction(node: ts.ArrowFunction, checker: ts.TypeChecker | undefined): ArrowFunctionNode {
@@ -472,6 +479,7 @@ function transformArrowFunction(node: ts.ArrowFunction, checker: ts.TypeChecker 
     params,
     body,
     async: isAsync || undefined,
+    loc: getLoc(node),
   };
 }
 
@@ -485,6 +493,7 @@ function transformFunctionExpression(node: ts.FunctionExpression, checker: ts.Ty
     params,
     body,
     async: isAsync || undefined,
+    loc: getLoc(node),
   };
 }
 
@@ -494,6 +503,7 @@ function transformConditionalExpression(node: ts.ConditionalExpression, checker:
     condition: transformExpression(node.condition, checker),
     consequent: transformExpression(node.whenTrue, checker),
     alternate: transformExpression(node.whenFalse, checker),
+    loc: getLoc(node),
   };
 }
 
@@ -501,6 +511,7 @@ function transformAwaitExpression(node: ts.AwaitExpression, checker: ts.TypeChec
   return {
     type: 'await',
     argument: transformExpression(node.expression, checker),
+    loc: getLoc(node),
   };
 }
 
@@ -509,7 +520,7 @@ function transformRegexLiteral(node: ts.RegularExpressionLiteral): RegexNode {
   const lastSlash = text.lastIndexOf('/');
   const pattern = text.slice(1, lastSlash);
   const flags = text.slice(lastSlash + 1);
-  return { type: 'regex', pattern, flags };
+  return { type: 'regex', pattern, flags, loc: getLoc(node) };
 }
 
 function transformTypeOfExpression(node: ts.TypeOfExpression, checker: ts.TypeChecker | undefined): UnaryNode {
@@ -517,6 +528,7 @@ function transformTypeOfExpression(node: ts.TypeOfExpression, checker: ts.TypeCh
     type: 'unary',
     op: 'typeof',
     operand: transformExpression(node.expression, checker),
+    loc: getLoc(node),
   };
 }
 
@@ -527,6 +539,7 @@ function transformTypeAssertion(node: ts.AsExpression | ts.TypeAssertion, checke
     type: 'type_assertion',
     expression,
     assertedType,
+    loc: getLoc(node),
   };
 }
 

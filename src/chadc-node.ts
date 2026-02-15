@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize } from './compiler.js';
+import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize, setDebugInfo } from './compiler.js';
 import { LogLevel, logger } from './utils/logger.js';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -32,6 +32,8 @@ for (let i = 0; i < args.length; i++) {
     setEmitLLVMOnly(true);
   } else if (arg === '-fsanitize=address' || arg === '--sanitize=address') {
     setSanitize('address');
+  } else if (arg === '-g') {
+    setDebugInfo(true);
   } else if (arg === '-o') {
     if (i + 1 < args.length) {
       outputArg = args[i + 1];
@@ -50,6 +52,7 @@ for (let i = 0; i < args.length; i++) {
     console.log('  --emit-llvm, -S  Output LLVM IR only (no binary)');
     console.log('  --keep-temps     Keep intermediate files (.ll, .o)');
     console.log('  -fsanitize=address  Build with AddressSanitizer (ASAN)');
+    console.log('  -g                 Emit DWARF debug info for source-level debugging');
     console.log('  -h, --help       Show this help message');
     console.log('');
     console.log('Examples:');

@@ -15,6 +15,7 @@ import {
 } from '../../ast/types.js';
 import { transformBlock } from './statements.js';
 import { transformExpression } from './expressions.js';
+import { getLoc } from '../transformer.js';
 
 export function transformFunctionDeclaration(
   node: ts.FunctionDeclaration,
@@ -72,6 +73,7 @@ export function transformFunctionDeclaration(
     typeParameters,
     async: isAsync || undefined,
     parameters: parameters.length > 0 ? parameters : undefined,
+    loc: getLoc(node),
   };
 }
 
@@ -141,6 +143,7 @@ export function transformClassDeclaration(
     implements: implementsClause,
     fields,
     methods,
+    loc: getLoc(node),
   };
 }
 

@@ -18,13 +18,24 @@ import {
   TopLevelItem,
   MemberAccessNode,
   IndexAccessNode,
+  SourceLocation,
 } from '../ast/types.js';
 
 import { transformExpression } from './handlers/expressions.js';
 import { transformStatement } from './handlers/statements.js';
 import { transformFunctionDeclaration, transformClassDeclaration, transformInterfaceDeclaration, transformEnumDeclaration, transformTypeAliasDeclaration, transformImportDeclaration } from './handlers/declarations.js';
 
+let currentSourceFile: ts.SourceFile | null = null;
+
+export function getLoc(node: ts.Node): SourceLocation {
+  const sf = currentSourceFile!;
+  const pos = node.getStart(sf);
+  const { line, character } = sf.getLineAndCharacterOfPosition(pos);
+  return { file: sf.fileName, line: line + 1, column: character + 1, offset: pos };
+}
+
 export function transformSourceFile(sourceFile: ts.SourceFile, checker: ts.TypeChecker | undefined): AST {
+  currentSourceFile = sourceFile;
   const ast: AST = {
     imports: [],
     functions: [],

@@ -50,6 +50,7 @@ export interface FunctionGeneratorContext {
   pushOutput(line: string): void;
   createEmptyStringConstant(): string;
   mangleUserName(name: string): string;
+  getSubprogramDbgRef(): string;
 }
 
 export class FunctionGenerator {
@@ -207,7 +208,7 @@ export class FunctionGenerator {
       paramStrings.push(`${llvmType} %arg${i}`);
     }
     ir += paramStrings.join(', ');
-    ir += ') nounwind {\n';
+    ir += ') nounwind' + this.ctx.getSubprogramDbgRef() + ' {\n';
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
 
@@ -696,7 +697,7 @@ export class FunctionGenerator {
   }
 
   generateMain(topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>): string {
-    let ir = 'define i32 @main(i32 %argc, i8** %argv) nounwind {\n';
+    let ir = 'define i32 @main(i32 %argc, i8** %argv) nounwind' + this.ctx.getSubprogramDbgRef() + ' {\n';
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
 

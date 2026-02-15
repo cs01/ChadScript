@@ -12,6 +12,7 @@ let skipSemanticAnalysis = false;
 let keepTemps = false;
 let emitLLVMOnly = false;
 let sanitize: string | null = null;
+let debugInfo = false;
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -27,6 +28,10 @@ export function setEmitLLVMOnly(value: boolean): void {
 
 export function setSanitize(value: string): void {
   sanitize = value;
+}
+
+export function setDebugInfo(value: boolean): void {
+  debugInfo = value;
 }
 
 // External library paths - check env vars, then use vendor/
@@ -146,7 +151,9 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   }
   const generatorOptions: LLVMGeneratorOptions = {
     sourceCode: entryFileCode,
-    filename: inputFile
+    filename: inputFile,
+    debugInfo,
+    debugFilename: debugInfo ? path.resolve(inputFile) : undefined,
   };
   const generator = new LLVMGenerator(mergedAST, typeChecker, generatorOptions);
   const llvmIR = generator.generate();
@@ -168,6 +175,8 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   let compileCmd: string;
   if (sanitize) {
     compileCmd = `clang -c${sanitizeFlags} ${irFile} -o ${objFile}`;
+  } else if (debugInfo) {
+    compileCmd = `llc -O0 -filetype=obj ${irFile} -o ${objFile}`;
   } else {
     const optFile = irFile.replace('.ll', '.opt.bc');
     const optCmd = `opt -O2 ${irFile} -o ${optFile}`;
@@ -242,7 +251,8 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     linker = 'gcc';
   }
   const noPie = isMac ? '' : ' -no-pie';
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj}${extraObjs} -o ${outputFile}${noPie}${sanitizeFlags} ${linkLibs}`;
+  const debugFlag = debugInfo ? ' -g' : '';
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });
@@ -254,10 +264,12 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     } catch (e) {
       // File may already be deleted, ignore
     }
-    try {
-      fs.unlinkSync(irFile);
-    } catch (e) {
-      // File may already be deleted, ignore
+    if (!debugInfo) {
+      try {
+        fs.unlinkSync(irFile);
+      } catch (e) {
+        // File may already be deleted, ignore
+      }
     }
   }
 
