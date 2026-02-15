@@ -1746,6 +1746,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
    */
   private allocateVariable(stmt: VariableDeclaration, params: string[]): void {
     this.varAllocator.allocate(stmt, params);
+    if (this.symbolTable.isString(stmt.name)) {
+      this.ensureStringBuilderAllocas(stmt.name);
+      this.invalidateStringBuilder(stmt.name);
+    }
   }
 
   private handleSimpleAssignment(stmt: AssignmentStatement, params: string[]): void {

@@ -717,5 +717,11 @@ export const testCases: TestCase[] = [
     fixture: 'tests/fixtures/strings/string-builder.ts',
     expectTestPassed: true,
     description: 'String builder optimization for s = s + x pattern should produce correct results'
+  },
+  {
+    name: 'string-builder-loop',
+    fixture: 'tests/fixtures/strings/string-builder-loop.ts',
+    expectTestPassed: true,
+    description: 'String builder with let re-declaration inside a loop should not segfault'
   }
 ];

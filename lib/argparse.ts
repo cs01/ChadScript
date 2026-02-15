@@ -201,40 +201,37 @@ export class ArgumentParser {
     }
     console.log("");
 
-    // Build usage line - print options inline
-    const usageParts: string[] = [];
-    usageParts.push("Usage: " + this.programName);
+    let usage = "Usage: " + this.programName;
 
     let i = 0;
     while (i < this.argNames.length) {
       if (!this.argIsPositional[i]) {
         if (this.argShortFlags[i].length > 0) {
           if (!this.argIsFlag[i]) {
-            usageParts.push(" [-" + this.argShortFlags[i] + " <" + this.argNames[i] + ">]");
+            usage = usage + " [-" + this.argShortFlags[i] + " <" + this.argNames[i] + ">]";
           } else {
-            usageParts.push(" [-" + this.argShortFlags[i] + "]");
+            usage = usage + " [-" + this.argShortFlags[i] + "]";
           }
         } else {
           if (!this.argIsFlag[i]) {
-            usageParts.push(" [--" + this.argLongFlags[i] + " <" + this.argNames[i] + ">]");
+            usage = usage + " [--" + this.argLongFlags[i] + " <" + this.argNames[i] + ">]";
           } else {
-            usageParts.push(" [--" + this.argLongFlags[i] + "]");
+            usage = usage + " [--" + this.argLongFlags[i] + "]";
           }
         }
       }
       i = i + 1;
     }
 
-    // Add positionals to usage
     i = 0;
     while (i < this.argNames.length) {
       if (this.argIsPositional[i]) {
-        usageParts.push(" <" + this.argNames[i] + ">");
+        usage = usage + " <" + this.argNames[i] + ">";
       }
       i = i + 1;
     }
 
-    console.log(usageParts.join(""));
+    console.log(usage);
     console.log("");
 
     // Print options
