@@ -571,7 +571,7 @@ export class CallExpressionGenerator {
   }
 
   private generateClosureCall(expr: CallNode, params: string[]): string {
-    const closureMetadata = this.ctx.symbolTableGetClosureMetadata(expr.name);
+    const closureMetadata = this.ctx.symbolTable.getClosureMetadata(expr.name);
     if (!closureMetadata) {
       throw new Error(`Closure metadata not found for: ${expr.name}`);
     }

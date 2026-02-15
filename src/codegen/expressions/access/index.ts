@@ -12,10 +12,6 @@ export interface IndexAccessGeneratorContext {
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   readonly symbolTable: SymbolTable;
-  symbolTableLookup(name: string): SymbolEntry | undefined;
-  symbolTableGetInterfaceType(name: string): string | undefined;
-  symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
-  symbolTableGetArrayAlloca(name: string): string | undefined;
   isStringArrayExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
   isObjectArrayExpression(expr: Expression): boolean;
@@ -54,7 +50,7 @@ export class IndexAccessGenerator {
       }
       if (memberAccessObjBase.type === 'variable') {
         const baseVarName = (memberAccess.object as VariableNode).name;
-        const baseIfaceType = this.ctx.symbolTableGetInterfaceType(baseVarName);
+        const baseIfaceType = this.ctx.symbolTable.getInterfaceType(baseVarName);
         if (baseIfaceType || this.ctx.symbolTable.isObject(baseVarName)) {
           const isStringArray = this.ctx.isStringArrayExpression(expr.object);
           const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
@@ -92,7 +88,7 @@ export class IndexAccessGenerator {
     if (exprObjBase.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
       if (this.ctx.symbolTable.isObject(varName)) {
-        const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+        const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
         if (objMeta && objMeta.keys.length > 0) {
           return this.generateDynamicObjectAccess(expr, params, objMeta);
         }

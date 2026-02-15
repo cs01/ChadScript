@@ -100,21 +100,7 @@ export interface VariableAllocatorContext {
   hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; llvmType: string }[];
-  symbolTableLookup(name: string): SymbolEntry | undefined;
   readonly symbolTable: SymbolTable;
-  symbolTableGetMapMetadata(name: string): MapMetadata | undefined;
-  symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] };
-  symbolTableGetAlloca(name: string): string | undefined;
-  symbolTableGetScope(name: string): string | undefined;
-  symbolTableGetType(name: string): string | undefined;
-  symbolTableGetInterfaceType(name: string): string | undefined;
-  symbolTableGetObjectArrayElementType(name: string): string | undefined;
-  symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
-  symbolTableGetObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined;
-  symbolTableHasObjectInfo(name: string): boolean;
-  symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
-  symbolTableSetObjectArrayMetadata(name: string, metadata: ObjectArrayMetadata): void;
-  symbolTableSetRawInterfaceType(name: string, type: string): void;
   arrowFunctionGenGenerate(
     expr: Expression,
     params: string[],
@@ -270,11 +256,11 @@ export class VariableAllocator {
   }
 
   allocate(stmt: VariableDeclaration, params: string[]): void {
-    const existingScope = this.ctx.symbolTableGetScope(stmt.name);
+    const existingScope = this.ctx.symbolTable.getScope(stmt.name);
     if (existingScope === 'global' && stmt.value !== null) {
       const value = this.ctx.generateExpression(stmt.value, params);
-      const globalPtr = this.ctx.symbolTableGetAlloca(stmt.name) || '';
-      const llvmType = this.ctx.symbolTableGetType(stmt.name) || 'i8*';
+      const globalPtr = this.ctx.symbolTable.getAlloca(stmt.name) || '';
+      const llvmType = this.ctx.symbolTable.getType(stmt.name) || 'i8*';
       if (llvmType.indexOf('*') !== -1) {
         this.ctx.emit(`store ${llvmType} ${value}, ${llvmType}* ${globalPtr}`);
       } else if (llvmType === '%Array' || llvmType === '%StringArray' || llvmType === '%Map' || llvmType === '%Set') {
@@ -594,8 +580,8 @@ export class VariableAllocator {
     }
 
     this.ctx.defineVariable(stmt.name, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local');
-    this.ctx.symbolTableSetRawInterfaceType(stmt.name, elementType.startsWith('{') ? 'inline' : elementType);
-    this.ctx.symbolTableSetObjectArrayMetadata(stmt.name, {
+    this.ctx.symbolTable.setRawInterfaceType(stmt.name, elementType.startsWith('{') ? 'inline' : elementType);
+    this.ctx.symbolTable.setObjectArrayMetadata(stmt.name, {
       elementInterfaceName: elementType.startsWith('{') ? 'inline' : elementType,
       elementKeys,
       elementTypes,
@@ -727,7 +713,7 @@ export class VariableAllocator {
       const mapName = varObj.name;
       if (!this.ctx.symbolTable.isMap(mapName)) return null;
 
-      const mapMeta = this.ctx.symbolTableGetMapMetadata(mapName);
+      const mapMeta = this.ctx.symbolTable.getMapMetadata(mapName);
       if (!mapMeta) return null;
       if (mapMeta.keyType !== 'string') return null;
 
@@ -819,11 +805,11 @@ export class VariableAllocator {
     const varName = (memberExpr.object as VariableNode).name;
     if (!varName) return null;
     let objectInterfaceType: string | null = null;
-    const ifaceType = this.ctx.symbolTableGetInterfaceType(varName);
+    const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
     if (ifaceType) {
       objectInterfaceType = ifaceType;
     } else {
-      const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+      const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
       if (objMeta && objMeta.tsTypes) {
         if (!objMeta.keys || !memberExpr.property) return null;
         const keyIdx = objMeta.keys.indexOf(memberExpr.property);
@@ -914,7 +900,7 @@ export class VariableAllocator {
     if (methodObjBase.type === 'variable') {
       const varName = (methodExpr.object as VariableNode).name;
       if (this.ctx.symbolTable.isMap(varName)) {
-        const mapMeta = this.ctx.symbolTableGetMapMetadata(varName);
+        const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
         if (mapMeta && mapMeta.valueType) {
           return mapMeta.valueType;
         }
@@ -1278,8 +1264,8 @@ export class VariableAllocator {
           types: typeInfo.types,
           tsTypes: typeInfo.tsTypes
         }, elementType));
-        this.ctx.symbolTableSetRawInterfaceType(stmt.name, elementType);
-        this.ctx.symbolTableSetObjectArrayMetadata(stmt.name, {
+        this.ctx.symbolTable.setRawInterfaceType(stmt.name, elementType);
+        this.ctx.symbolTable.setObjectArrayMetadata(stmt.name, {
           elementInterfaceName: elementType,
           elementKeys: typeInfo.keys,
           elementTypes: typeInfo.types,
@@ -1488,7 +1474,7 @@ export class VariableAllocator {
 
   private allocateArrowFunction(stmt: VariableDeclaration, params: string[]): void {
     if (!stmt.value) return;
-    const scopeVarsResult = this.ctx.symbolTableGetScopeVarsArraysForClosure();
+    const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
     const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
     const lambdaName = this.ctx.arrowFunctionGenGenerate(stmt.value, params, undefined, scopeVarsTyped.names, scopeVarsTyped.types);
 
@@ -1506,7 +1492,7 @@ export class VariableAllocator {
 
       for (let i = 0; i < captures.length; i++) {
         const captureItem = captures[i] as CaptureInfo;
-        const allocaReg = this.ctx.symbolTableGetAlloca(captureItem.name);
+        const allocaReg = this.ctx.symbolTable.getAlloca(captureItem.name);
         if (!allocaReg) {
           throw new Error(`Closure capture error: variable '${captureItem.name}' not found`);
         }
@@ -1550,11 +1536,11 @@ export class VariableAllocator {
     if (idxObjBase.type === 'variable') {
       const varName = (indexExpr.object as VariableNode).name;
       if (!varName) return null;
-      const ifaceType = this.ctx.symbolTableGetInterfaceType(varName);
+      const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
       if (ifaceType) {
         return this.getTypeInfoForElementType(ifaceType);
       }
-      const objArrayMeta = this.ctx.symbolTableGetObjectArrayMetadata(varName);
+      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
       if (objArrayMeta) {
         return {
           keys: objArrayMeta.elementKeys,
@@ -1562,11 +1548,11 @@ export class VariableAllocator {
           tsTypes: objArrayMeta.elementTsTypes || []
         };
       }
-      const objArrElemType = this.ctx.symbolTableGetObjectArrayElementType(varName);
+      const objArrElemType = this.ctx.symbolTable.getRawInterfaceType(varName);
       if (objArrElemType) {
         return this.getTypeInfoForElementType(objArrElemType);
       }
-      const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+      const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
       if (objMeta && objMeta.tsTypes) {
         const tsTypes = objMeta.tsTypes as string[];
         if (tsTypes.length > 0) {
@@ -1582,7 +1568,7 @@ export class VariableAllocator {
           };
         }
       }
-      const objectMeta2 = this.ctx.symbolTableGetObjectMetadata(varName);
+      const objectMeta2 = this.ctx.symbolTable.getObjectMetadata(varName);
       if (objectMeta2 && objectMeta2.keys && objectMeta2.types && objectMeta2.tsTypes) {
         return {
           keys: objectMeta2.keys as string[],
@@ -1614,7 +1600,7 @@ export class VariableAllocator {
     if (memberObjBase.type === 'variable') {
       const varName = (memberAccess.object as VariableNode).name;
       if (!varName) return null;
-      const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+      const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
       if (!objMeta) return null;
       if (!objMeta.keys) return null;
 
@@ -1667,9 +1653,9 @@ export class VariableAllocator {
     }
     if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
-      const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+      const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
       if (objMeta && objMeta.tsTypes) {
-        return this.ctx.symbolTableGetType(varName) || null;
+        return this.ctx.symbolTable.getType(varName) || null;
       }
       return null;
     }

@@ -355,7 +355,7 @@ export class JsonGenerator {
   private resolveInterfaceType(arg: Expression): string | null {
     if (arg.type === 'variable') {
       const varNode = arg as { type: string; name: string };
-      return this.ctx.symbolTableGetInterfaceType(varNode.name) || this.ctx.symbolTableGetObjectArrayElementType(varNode.name) || null;
+      return this.ctx.symbolTable.getInterfaceType(varNode.name) || this.ctx.symbolTable.getRawInterfaceType(varNode.name) || null;
     }
     if (arg.type === 'index_access') {
       const indexAccess = arg as { type: string; object: Expression; index: Expression };
@@ -364,7 +364,7 @@ export class JsonGenerator {
         const varObj = objExpr as { type: string; name: string };
         const arrayName = varObj.name;
         if (arrayName) {
-          const elemType = this.ctx.symbolTableGetObjectArrayElementType(arrayName);
+          const elemType = this.ctx.symbolTable.getRawInterfaceType(arrayName);
           if (elemType) {
             return elemType;
           }

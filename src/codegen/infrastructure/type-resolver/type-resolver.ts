@@ -26,19 +26,6 @@ export interface TypeResolverContext {
   classGen?: ClassGeneratorLike;
   hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
-  symbolTableLookup(name: string): SymbolEntry | undefined;
-  symbolTableGetMapMetadata(name: string): MapMetadata | undefined;
-  symbolTableGetSetMetadata(name: string): string | undefined;
-  symbolTableGetKind(name: string): number | undefined;
-  symbolTableGetClassName(name: string): string | undefined;
-  symbolTableGetArrayMetadata(name: string): string | undefined;
-  symbolTableGetInterfaceType(name: string): string | undefined;
-  symbolTableGetType(name: string): string | undefined;
-  symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
-  symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
-  symbolTableGetObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined;
-  symbolTableGetResolvedType(name: string): ResolvedType | undefined;
-  symbolTableSetResolvedType(name: string, resolvedType: ResolvedType): void;
 }
 
 interface BuiltinAstType {
@@ -206,17 +193,17 @@ export class TypeResolver {
   }
 
   getCompleteType(name: string): ResolvedType | null {
-    const cached = this.ctx.symbolTableGetResolvedType(name);
+    const cached = this.ctx.symbolTable.getResolvedType(name);
     if (cached) return cached;
 
     let resolved: ResolvedType | null = null;
 
-    const ifaceType = this.ctx.symbolTableGetInterfaceType(name);
+    const ifaceType = this.ctx.symbolTable.getInterfaceType(name);
     if (ifaceType) {
       resolved = parseTypeString(ifaceType);
     }
     if (!resolved) {
-      const mapMeta = this.ctx.symbolTableGetMapMetadata(name);
+      const mapMeta = this.ctx.symbolTable.getMapMetadata(name);
       if (mapMeta) {
         const keyType = parseTypeString(mapMeta.keyType);
         const valueType = parseTypeString(mapMeta.valueType);
@@ -224,20 +211,20 @@ export class TypeResolver {
       }
     }
     if (!resolved) {
-      const setValueType = this.ctx.symbolTableGetSetMetadata(name);
+      const setValueType = this.ctx.symbolTable.getSetValueType(name);
       if (setValueType) {
         const valueType = parseTypeString(setValueType);
         resolved = createResolvedType('Set', {}, 0, [valueType]);
       }
     }
     if (!resolved) {
-      const objArrayMeta = this.ctx.symbolTableGetObjectArrayMetadata(name);
+      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(name);
       if (objArrayMeta) {
         resolved = createResolvedType(objArrayMeta.elementInterfaceName, {}, 1);
       }
     }
     if (!resolved) {
-      const arrMetaElementType = this.ctx.symbolTableGetArrayMetadata(name);
+      const arrMetaElementType = this.ctx.symbolTable.getArrayMetadataElementType(name);
       if (arrMetaElementType) {
         resolved = createResolvedType(arrMetaElementType, {}, 1);
       }
@@ -249,13 +236,13 @@ export class TypeResolver {
       resolved = createResolvedType('boolean', {}, 1);
     }
     if (!resolved) {
-      const className = this.ctx.symbolTableGetClassName(name);
+      const className = this.ctx.symbolTable.getClassName(name);
       if (className) {
         resolved = createResolvedType(className);
       }
     }
     if (!resolved) {
-      const llvmType = this.ctx.symbolTableGetType(name);
+      const llvmType = this.ctx.symbolTable.getType(name);
       if (llvmType) {
         switch (llvmType) {
           case 'double':
@@ -300,7 +287,7 @@ export class TypeResolver {
     }
 
     if (resolved) {
-      this.ctx.symbolTableSetResolvedType(name, resolved);
+      this.ctx.symbolTable.setResolvedType(name, resolved);
     }
 
     return resolved;
@@ -629,7 +616,7 @@ export class TypeResolver {
       const mapName = (methodCall.object as VariableNode).name;
       if (!this.ctx.symbolTable.isMap(mapName)) return null;
 
-      const mapMeta = this.ctx.symbolTableGetMapMetadata(mapName);
+      const mapMeta = this.ctx.symbolTable.getMapMetadata(mapName);
       if (!mapMeta) return null;
       if (mapMeta.keyType !== 'string') return null;
 
@@ -673,7 +660,7 @@ export class TypeResolver {
     const memberAccessObjBase = memberAccess.object as ExprBase;
     if (memberAccessObjBase.type === 'variable') {
       const varName = (memberAccess.object as VariableNode).name;
-      objectInfo = this.ctx.symbolTableGetObjectInfo(varName);
+      objectInfo = this.ctx.symbolTable.getObjectInfo(varName);
     }
 
     if (!objectInfo) return null;
@@ -725,7 +712,7 @@ export class TypeResolver {
     if (memberAccessObjBase2.type !== 'variable') return null;
 
     const varName = (memberAccess.object as VariableNode).name;
-    const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+    const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
     if (!objMeta) return null;
 
     const interfaceName = this.findInterfaceByDiscriminant(literalValue);
@@ -1088,7 +1075,7 @@ export class TypeResolver {
       const memberObj = memberAccess.object as { type: string };
       if (memberObj.type === 'variable') {
         const varName = (memberObj as VariableNode).name;
-        objectInfo = this.ctx.symbolTableGetObjectInfo(varName);
+        objectInfo = this.ctx.symbolTable.getObjectInfo(varName);
       } else if (memberObj.type === 'member_access' || memberObj.type === 'this') {
         const arrayType = this.resolveMemberAccessArrayType(memberAccess);
         if (arrayType) {
@@ -1116,7 +1103,7 @@ export class TypeResolver {
     if (arrayExpr.type === 'variable') {
       const varExpr = arrayExpr as VariableNode;
       const varName = varExpr.name;
-      const objArrayMeta = this.ctx.symbolTableGetObjectArrayMetadata(varName);
+      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
       if (objArrayMeta) {
         return {
           keys: objArrayMeta.elementKeys,

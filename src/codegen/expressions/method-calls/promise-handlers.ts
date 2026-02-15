@@ -90,7 +90,7 @@ export function handlePromiseThen(ctx: MethodCallGeneratorContext, expr: MethodC
   let onRejected = 'null';
 
   const promiseCallbackTypes = { paramTypes: ['string', 'any'], returnType: 'void' };
-  const scopeVarsResult = ctx.symbolTableGetScopeVarsArraysForClosure();
+  const scopeVarsResult = ctx.symbolTable.getScopeVarsArraysForClosure();
   const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
 
   if (isCatch) {

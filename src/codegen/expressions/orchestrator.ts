@@ -13,7 +13,7 @@ import { MethodCallGenerator } from './method-calls.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 
 interface ExpressionOrchestratorContext {
-  symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] };
+  readonly symbolTable: SymbolTable;
   setVariableType(name: string, type: string): void;
   nextTemp(): string;
   emit(instruction: string): void;
@@ -168,7 +168,7 @@ export class ExpressionGenerator {
 
     // Arrow functions
     if (exprTyped.type === 'arrow_function') {
-      const scopeVarsResult = this.ctx.symbolTableGetScopeVarsArraysForClosure();
+      const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
       const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
       let typeHints: { paramTypes?: string[]; returnType?: string } | undefined = undefined;
       const cbParamType = this.ctx.getExpectedCallbackParamType();

@@ -19,7 +19,7 @@
  */
 
 import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode, InterfaceDeclaration, FunctionNode, ClassNode, TypeAliasDeclaration } from '../../ast/types.js';
-import { SymbolTable, SymbolKind, SymbolMetadata, ClosureMetadata } from './symbol-table.js';
+import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
 import type { ResolvedType } from './type-system.js';
@@ -217,43 +217,6 @@ export interface IGeneratorContext {
    */
   readonly symbolTable: SymbolTable;
 
-  // ============================================
-  // SymbolTable Wrapper Methods (avoid method chaining issues)
-  // ============================================
-
-  symbolTableLookup(name: string): SymbolMetadata | undefined;
-  symbolTableGetType(name: string): string | undefined;
-  symbolTableGetClassName(name: string): string | undefined;
-  symbolTableGetClassInfo(name: string): { ptr: string; className: string } | undefined;
-  symbolTableGetObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
-  symbolTableHasObjectInfo(name: string): boolean;
-  symbolTableGetObjectInfoPtr(name: string): string | undefined;
-  symbolTableGetObjectInfoKeys(name: string): string[] | undefined;
-  symbolTableGetObjectInfoTypes(name: string): string[] | undefined;
-  symbolTableGetObjectInfoTsTypes(name: string): string[] | undefined;
-  symbolTableGetMapMetadata(name: string): { keyType: string; valueType: string } | undefined;
-  symbolTableGetSetMetadata(name: string): string | undefined;
-  symbolTableGetKind(name: string): number | undefined;
-  symbolTableGetClassMetadata(name: string): { className: string; fields?: string[] } | undefined;
-  symbolTableGetArrayMetadata(name: string): string | undefined;
-  symbolTableGetInterfaceType(name: string): string | undefined;
-  symbolTableGetConcreteClass(name: string): string | undefined;
-  symbolTableSetConcreteClass(name: string, concreteClass: string): void;
-  symbolTableGetAlloca(name: string): string | undefined;
-  symbolTableGetScope(name: string): string | undefined;
-  symbolTableGetObjectArrayMetadata(name: string): { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] } | undefined;
-  symbolTableGetObjectArrayElementType(name: string): string | undefined;
-  symbolTableNarrowType(name: string, narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] }): void;
-  symbolTableRestoreType(name: string): void;
-  symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] };
-  symbolTableGetClosureMetadata(name: string): ClosureMetadata | undefined;
-  symbolTableGetObjectPropertyType(varName: string, propertyName: string): string | null;
-  symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
-  symbolTableGetArrayAlloca(name: string): string | undefined;
-  symbolTableSetObjectArrayMetadata(name: string, metadata: { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] }): void;
-  symbolTableSetRawInterfaceType(name: string, type: string): void;
-  symbolTableGetResolvedType(name: string): ResolvedType | undefined;
-  symbolTableSetResolvedType(name: string, resolvedType: ResolvedType): void;
 
   /**
    * Access to global string constants
@@ -929,52 +892,6 @@ export class MockGeneratorContext implements IGeneratorContext {
   getExpectedCallbackParamType(): string | null { return this.expectedCallbackParamType; }
   setExpectedCallbackReturnType(type: string | null): void { this.expectedCallbackReturnType = type; }
   getExpectedCallbackReturnType(): string | null { return this.expectedCallbackReturnType; }
-
-  // SymbolTable wrapper methods (mock implementations)
-  symbolTableLookup(name: string) { return this.symbolTable.lookup(name); }
-  symbolTableGetType(name: string) { return this.symbolTable.getType(name); }
-  symbolTableGetClassName(name: string) { return this.symbolTable.getClassName(name); }
-  symbolTableGetClassInfo(name: string) { return this.symbolTable.getClassInfo(name); }
-  symbolTableGetObjectInfo(name: string) { return this.symbolTable.getObjectInfo(name); }
-  symbolTableHasObjectInfo(name: string): boolean {
-    if (!this.symbolTable.isObject(name) && !this.symbolTable.isJSON(name)) return false;
-    return this.symbolTable.getObjectMetadataKeys(name) !== undefined;
-  }
-  symbolTableGetObjectInfoPtr(name: string): string | undefined {
-    return this.symbolTable.getAlloca(name);
-  }
-  symbolTableGetObjectInfoKeys(name: string): string[] | undefined {
-    return this.symbolTable.getObjectMetadataKeys(name);
-  }
-  symbolTableGetObjectInfoTypes(name: string): string[] | undefined {
-    return this.symbolTable.getObjectMetadataTypes(name);
-  }
-  symbolTableGetObjectInfoTsTypes(name: string): string[] | undefined {
-    return this.symbolTable.getObjectMetadataTsTypes(name);
-  }
-  symbolTableGetMapMetadata(name: string) { return this.symbolTable.getMapMetadata(name); }
-  symbolTableGetSetMetadata(name: string) { return this.symbolTable.getSetValueType(name); }
-  symbolTableGetKind(name: string) { return this.symbolTable.getKind(name); }
-  symbolTableGetClassMetadata(name: string) { return this.symbolTable.getClassMetadata(name); }
-  symbolTableGetArrayMetadata(name: string): string | undefined { return this.symbolTable.getArrayMetadataElementType(name); }
-  symbolTableGetInterfaceType(name: string) { return this.symbolTable.getInterfaceType(name); }
-  symbolTableGetConcreteClass(name: string) { return this.symbolTable.getConcreteClass(name); }
-  symbolTableSetConcreteClass(name: string, concreteClass: string) { this.symbolTable.setConcreteClass(name, concreteClass); }
-  symbolTableGetAlloca(name: string) { return this.symbolTable.getAlloca(name); }
-  symbolTableGetScope(name: string) { return this.symbolTable.getScope(name); }
-  symbolTableGetObjectArrayMetadata(name: string) { return this.symbolTable.getObjectArrayMetadata(name); }
-  symbolTableGetObjectArrayElementType(name: string) { return this.symbolTable.getRawInterfaceType(name); }
-  symbolTableNarrowType(name: string, narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] }) { this.symbolTable.narrowType(name, narrowedMetadata); }
-  symbolTableRestoreType(name: string) { this.symbolTable.restoreType(name); }
-  symbolTableGetScopeVarsArraysForClosure() { return this.symbolTable.getScopeVarsArraysForClosure(); }
-  symbolTableGetClosureMetadata(name: string) { return this.symbolTable.getClosureMetadata(name); }
-  symbolTableGetObjectPropertyType(varName: string, propertyName: string) { return this.symbolTable.getObjectPropertyType(varName, propertyName); }
-  symbolTableGetObjectMetadata(name: string) { return this.symbolTable.getObjectMetadata(name); }
-  symbolTableGetArrayAlloca(name: string) { return this.symbolTable.getArrayAlloca(name); }
-  symbolTableSetObjectArrayMetadata(name: string, metadata: { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] }) { this.symbolTable.setObjectArrayMetadata(name, metadata); }
-  symbolTableSetRawInterfaceType(name: string, type: string) { this.symbolTable.setRawInterfaceType(name, type); }
-  symbolTableGetResolvedType(name: string): ResolvedType | undefined { return this.symbolTable.getResolvedType(name); }
-  symbolTableSetResolvedType(name: string, resolvedType: ResolvedType) { this.symbolTable.setResolvedType(name, resolvedType); }
 
   getThisPointer(): string | null {
     return this.thisPointer;

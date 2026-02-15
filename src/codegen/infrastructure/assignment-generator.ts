@@ -38,8 +38,6 @@ export interface AssignmentGeneratorContext {
   generateExpression(expr: Expression, params: string[]): string;
   getVariableAlloca(name: string): string | null;
   getVariableType(name: string): string | null;
-  symbolTableGetClassInfo(name: string): ClassInfo | undefined;
-  symbolTableGetObjectInfo(name: string): ObjectInfo | undefined;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; llvmType: string }[];
   getAst(): AST | undefined;
@@ -90,7 +88,7 @@ export class AssignmentGenerator {
     if (objType === 'variable') {
       const varName = (object as VariableNode).name;
       if (this.ctx.symbolTable.isClass(varName)) {
-        const classMeta = this.ctx.symbolTableGetClassInfo(varName)!;
+        const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
         className = classMeta.className;
       } else if (this.ctx.symbolTable.isObject(varName)) {
         this.handleObjectPropertyAssignment(object as VariableNode, property, memberAccessValue, params);
@@ -148,7 +146,7 @@ export class AssignmentGenerator {
     memberAccessValue: MemberAccessAssignmentNode,
     params: string[]
   ): void {
-    const objMetaResult = this.ctx.symbolTableGetObjectInfo(object.name);
+    const objMetaResult = this.ctx.symbolTable.getObjectInfo(object.name);
     if (!objMetaResult) return;
     const objMeta = objMetaResult as { ptr: string; keys: string[]; types: string[]; tsTypes: string[] };
 

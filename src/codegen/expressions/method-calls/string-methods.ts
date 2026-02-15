@@ -62,12 +62,12 @@ export function handleConcat(ctx: MethodCallGeneratorContext, expr: MethodCallNo
       if (objBase.type === 'variable') {
         const varName = (memberExpr.object as VariableNode).name;
         const isClass = ctx.symbolTable.isClass(varName);
-        const symbolType = ctx.symbolTableGetType(varName);
-        const interfaceType = ctx.symbolTableGetInterfaceType(varName);
+        const symbolType = ctx.symbolTable.getType(varName);
+        const interfaceType = ctx.symbolTable.getInterfaceType(varName);
         details += `, variable: ${varName}, isClass: ${isClass}`;
         details += `, symbolType: ${symbolType}, interfaceType: ${interfaceType}`;
         if (isClass) {
-          const className = ctx.symbolTableGetClassName(varName);
+          const className = ctx.symbolTable.getClassName(varName);
           details += `, className: ${className}`;
         }
       }

@@ -93,14 +93,14 @@ export class ControlFlowGenerator {
 
     if (typeGuard) {
       const tg = typeGuard as { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } };
-      this.ctx.symbolTableNarrowType(tg.varName, tg.narrowedMetadata);
+      this.ctx.symbolTable.narrowType(tg.varName, tg.narrowedMetadata);
     }
 
     this.ctx.generateBlock(ifStmt.thenBlock, params);
 
     if (typeGuard) {
       const tg = typeGuard as { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } };
-      this.ctx.symbolTableRestoreType(tg.varName);
+      this.ctx.symbolTable.restoreType(tg.varName);
     }
 
     const lastInstruction = this.ctx.getLastInstruction();
@@ -448,7 +448,7 @@ export class ControlFlowGenerator {
   }
 
   private getObjectArrayInfoFromAST(varName: string, propName: string): ObjectArrayMetadata | null {
-    const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+    const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
     if (!objMeta) {
       return null;
     }
@@ -605,7 +605,7 @@ export class ControlFlowGenerator {
         if (fromAST) {
           return fromAST;
         }
-        const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+        const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
         if (objMeta && objMeta.tsTypes) {
           const keys: string[] = objMeta.keys as string[];
           const tsTypes: string[] = objMeta.tsTypes as string[];
@@ -725,7 +725,7 @@ export class ControlFlowGenerator {
 
     if (iterable.type === 'variable') {
       const varName = (iterable as VariableNode).name;
-      const objArrayMeta = this.ctx.symbolTableGetObjectArrayMetadata(varName);
+      const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
       if (objArrayMeta) {
         return objArrayMeta;
       }
@@ -744,10 +744,10 @@ export class ControlFlowGenerator {
     if (exprBase.type === 'variable') {
       const varName = (expr as VariableNode).name;
       if (this.ctx.symbolTable.isClass(varName)) {
-        const classMeta = this.ctx.symbolTableGetClassInfo(varName);
+        const classMeta = this.ctx.symbolTable.getClassInfo(varName);
         return classMeta ? classMeta.className : null;
       }
-      const interfaceType = this.ctx.symbolTableGetInterfaceType(varName);
+      const interfaceType = this.ctx.symbolTable.getInterfaceType(varName);
       if (interfaceType) {
         return interfaceType;
       }
@@ -1522,7 +1522,7 @@ export class ControlFlowGenerator {
     if (maObjBase.type !== 'variable') return null;
 
     const varName = (ma.object as VariableNode).name;
-    const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
+    const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
     if (!objMeta) return null;
 
     const interfaceName = this.findInterfaceByDiscriminant(literalValue);
@@ -1590,7 +1590,7 @@ export class ControlFlowGenerator {
     if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
       if (this.ctx.symbolTable.isSet(varName)) {
-        const setMeta = this.ctx.symbolTableGetSetMetadata(varName);
+        const setMeta = this.ctx.symbolTable.getSetValueType(varName);
         return !setMeta || setMeta === 'string';
       }
       return false;
@@ -1666,7 +1666,7 @@ export class ControlFlowGenerator {
 
     if (e.type === 'variable') {
       const varName = (iterable as VariableNode).name;
-      const mapMeta = this.ctx.symbolTableGetMapMetadata(varName);
+      const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
       if (mapMeta) {
         valueType = mapMeta.valueType;
       }
@@ -1689,7 +1689,7 @@ export class ControlFlowGenerator {
         const methodCallObjBase = methodCall.object as ExprBase;
         if (methodCallObjBase.type === 'variable') {
           const varName = (methodCall.object as VariableNode).name;
-          const mapMeta = this.ctx.symbolTableGetMapMetadata(varName);
+          const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
           if (mapMeta) {
             valueType = mapMeta.valueType;
           }

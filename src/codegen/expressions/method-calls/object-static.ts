@@ -12,7 +12,7 @@ function getObjectFieldInfo(ctx: MethodCallGeneratorContext, name: string): { ke
   let fieldNames: string[] = [];
   let fieldTypes: string[] = [];
 
-  const interfaceType = ctx.symbolTableGetInterfaceType(name);
+  const interfaceType = ctx.symbolTable.getInterfaceType(name);
   if (interfaceType) {
     const ifaceDef = getInterfaceFromAST(ctx, interfaceType);
     if (ifaceDef) {
@@ -33,7 +33,7 @@ function getObjectFieldInfo(ctx: MethodCallGeneratorContext, name: string): { ke
   }
 
   if (fieldNames.length === 0) {
-    const objInfo = ctx.symbolTableGetObjectInfo(name);
+    const objInfo = ctx.symbolTable.getObjectInfo(name);
     if (objInfo) {
       fieldNames = objInfo.keys;
       fieldTypes = objInfo.types;
@@ -42,7 +42,7 @@ function getObjectFieldInfo(ctx: MethodCallGeneratorContext, name: string): { ke
 
   if (fieldNames.length === 0) return null;
 
-  const alloca = ctx.symbolTableGetAlloca(name);
+  const alloca = ctx.symbolTable.getAlloca(name);
   if (!alloca) return null;
 
   return { keys: fieldNames, types: fieldTypes, ptr: alloca };
@@ -62,7 +62,7 @@ export function generateObjectKeys(ctx: MethodCallGeneratorContext, expr: Method
 
   let fieldNames: string[] = [];
 
-  const interfaceType = ctx.symbolTableGetInterfaceType(name);
+  const interfaceType = ctx.symbolTable.getInterfaceType(name);
   if (interfaceType) {
     const ifaceDef = getInterfaceFromAST(ctx, interfaceType);
     if (ifaceDef) {
@@ -73,7 +73,7 @@ export function generateObjectKeys(ctx: MethodCallGeneratorContext, expr: Method
   }
 
   if (fieldNames.length === 0) {
-    const objInfo = ctx.symbolTableGetObjectInfo(name);
+    const objInfo = ctx.symbolTable.getObjectInfo(name);
     if (objInfo) {
       fieldNames = objInfo.keys;
     }

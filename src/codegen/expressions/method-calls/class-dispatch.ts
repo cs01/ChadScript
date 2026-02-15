@@ -253,10 +253,10 @@ export function resolveNestedMemberAccessType(ctx: MethodCallGeneratorContext, e
   if (e.type === 'variable') {
     const varName = (expr as VariableNode).name;
     if (ctx.symbolTable.isClass(varName)) {
-      const classMeta = ctx.symbolTableGetClassInfo(varName);
+      const classMeta = ctx.symbolTable.getClassInfo(varName);
       return classMeta ? (classMeta.className || null) : null;
     }
-    const interfaceType = ctx.symbolTableGetInterfaceType(varName);
+    const interfaceType = ctx.symbolTable.getInterfaceType(varName);
     if (interfaceType) {
       return interfaceType;
     }
@@ -356,16 +356,16 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
   if (exprObjBase.type === 'variable') {
     const varName = (expr.object as VariableNode).name;
     if (ctx.symbolTable.isClass(varName)) {
-      const classMeta = ctx.symbolTableGetClassInfo(varName)!;
+      const classMeta = ctx.symbolTable.getClassInfo(varName)!;
       className = classMeta.className;
       instancePtr = ctx.generateExpression(expr.object, params);
     } else {
-      const concreteClass = ctx.symbolTableGetConcreteClass(varName);
+      const concreteClass = ctx.symbolTable.getConcreteClass(varName);
       if (concreteClass) {
         instancePtr = ctx.generateExpression(expr.object, params);
         className = concreteClass;
       } else {
-        const interfaceType = ctx.symbolTableGetInterfaceType(varName);
+        const interfaceType = ctx.symbolTable.getInterfaceType(varName);
         if (interfaceType) {
           const implClass = findClassImplementingInterfaceMethod(ctx, interfaceType, method);
           if (implClass) {
@@ -447,7 +447,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
       }
     } else if (memberAccessObjBase.type === 'variable') {
       const varName = (memberAccess.object as VariableNode).name;
-      const concreteClass = ctx.symbolTableGetConcreteClass(varName) || ctx.getActualClassType(varName);
+      const concreteClass = ctx.symbolTable.getConcreteClass(varName) || ctx.getActualClassType(varName);
       if (concreteClass) {
         const fieldInfoResult = ctx.classGenGetFieldInfo(concreteClass, memberAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
@@ -466,7 +466,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
           }
         }
       } else if (ctx.symbolTable.isClass(varName)) {
-        const classMeta = ctx.symbolTableGetClassInfo(varName)!;
+        const classMeta = ctx.symbolTable.getClassInfo(varName)!;
         const outerClassName = classMeta.className;
         const fieldInfoResult = ctx.classGenGetFieldInfo(outerClassName, memberAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
@@ -498,7 +498,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
           }
         }
       } else {
-        const interfaceType = ctx.symbolTableGetInterfaceType(varName);
+        const interfaceType = ctx.symbolTable.getInterfaceType(varName);
         if (interfaceType) {
           const interfaceDeclResult = getInterfaceDecl(ctx, interfaceType);
           if (interfaceDeclResult) {
@@ -568,7 +568,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
     if (innerExprBase.type === 'variable') {
       const varName = (innerExpr as VariableNode).name;
       if (ctx.symbolTable.isClass(varName)) {
-        const classMeta = ctx.symbolTableGetClassInfo(varName)!;
+        const classMeta = ctx.symbolTable.getClassInfo(varName)!;
         className = classMeta.className;
         instancePtr = ctx.generateExpression(innerExpr, params);
       }
@@ -625,7 +625,7 @@ export function handleObjectMethods(ctx: MethodCallGeneratorContext, expr: Metho
   if (exprObjBase.type === 'variable') {
     const varName = (expr.object as VariableNode).name;
     if (ctx.symbolTable.isObject(varName)) {
-      const objMetaRaw = ctx.symbolTableGetObjectInfo(varName);
+      const objMetaRaw = ctx.symbolTable.getObjectInfo(varName);
       if (!objMetaRaw) {
         return null;
       }
