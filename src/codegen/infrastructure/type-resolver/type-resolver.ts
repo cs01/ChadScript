@@ -27,9 +27,6 @@ export interface TypeResolverContext {
   hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   symbolTableLookup(name: string): SymbolEntry | undefined;
-  symbolTableIsMap(name: string): boolean;
-  symbolTableIsStringArray(name: string): boolean;
-  symbolTableIsBooleanArray(name: string): boolean;
   symbolTableGetMapMetadata(name: string): MapMetadata | undefined;
   symbolTableGetSetMetadata(name: string): string | undefined;
   symbolTableGetKind(name: string): number | undefined;
@@ -245,10 +242,10 @@ export class TypeResolver {
         resolved = createResolvedType(arrMetaElementType, {}, 1);
       }
     }
-    if (!resolved && this.ctx.symbolTableIsStringArray(name)) {
+    if (!resolved && this.ctx.symbolTable.isStringArray(name)) {
       resolved = createResolvedType('string', {}, 1);
     }
-    if (!resolved && this.ctx.symbolTableIsBooleanArray(name)) {
+    if (!resolved && this.ctx.symbolTable.isBooleanArray(name)) {
       resolved = createResolvedType('boolean', {}, 1);
     }
     if (!resolved) {
@@ -630,7 +627,7 @@ export class TypeResolver {
 
     if (methodCall.object && methodCall.object.type === 'variable') {
       const mapName = (methodCall.object as VariableNode).name;
-      if (!this.ctx.symbolTableIsMap(mapName)) return null;
+      if (!this.ctx.symbolTable.isMap(mapName)) return null;
 
       const mapMeta = this.ctx.symbolTableGetMapMetadata(mapName);
       if (!mapMeta) return null;

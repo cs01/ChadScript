@@ -252,7 +252,7 @@ export function resolveNestedMemberAccessType(ctx: MethodCallGeneratorContext, e
 
   if (e.type === 'variable') {
     const varName = (expr as VariableNode).name;
-    if (ctx.symbolTableIsClass(varName)) {
+    if (ctx.symbolTable.isClass(varName)) {
       const classMeta = ctx.symbolTableGetClassInfo(varName);
       return classMeta ? (classMeta.className || null) : null;
     }
@@ -355,7 +355,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
   const exprObjBase = expr.object as ExprBase;
   if (exprObjBase.type === 'variable') {
     const varName = (expr.object as VariableNode).name;
-    if (ctx.symbolTableIsClass(varName)) {
+    if (ctx.symbolTable.isClass(varName)) {
       const classMeta = ctx.symbolTableGetClassInfo(varName)!;
       className = classMeta.className;
       instancePtr = ctx.generateExpression(expr.object, params);
@@ -465,7 +465,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
             }
           }
         }
-      } else if (ctx.symbolTableIsClass(varName)) {
+      } else if (ctx.symbolTable.isClass(varName)) {
         const classMeta = ctx.symbolTableGetClassInfo(varName)!;
         const outerClassName = classMeta.className;
         const fieldInfoResult = ctx.classGenGetFieldInfo(outerClassName, memberAccess.property);
@@ -567,7 +567,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
     const innerExprBase = innerExpr as ExprBase;
     if (innerExprBase.type === 'variable') {
       const varName = (innerExpr as VariableNode).name;
-      if (ctx.symbolTableIsClass(varName)) {
+      if (ctx.symbolTable.isClass(varName)) {
         const classMeta = ctx.symbolTableGetClassInfo(varName)!;
         className = classMeta.className;
         instancePtr = ctx.generateExpression(innerExpr, params);
@@ -624,7 +624,7 @@ export function handleObjectMethods(ctx: MethodCallGeneratorContext, expr: Metho
   const exprObjBase = expr.object as ExprBase;
   if (exprObjBase.type === 'variable') {
     const varName = (expr.object as VariableNode).name;
-    if (ctx.symbolTableIsObject(varName)) {
+    if (ctx.symbolTable.isObject(varName)) {
       const objMetaRaw = ctx.symbolTableGetObjectInfo(varName);
       if (!objMetaRaw) {
         return null;

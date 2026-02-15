@@ -86,10 +86,6 @@ export interface MethodCallGeneratorContext {
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
-  symbolTableIsClass(name: string): boolean;
-  symbolTableIsMap(name: string): boolean;
-  symbolTableIsSet(name: string): boolean;
-  symbolTableIsObject(name: string): boolean;
   symbolTableLookup(name: string): { kind?: string; type?: string; interfaceType?: string } | undefined;
   symbolTableGetType(name: string): string | undefined;
   symbolTableGetClassName(name: string): string | undefined;
@@ -711,7 +707,7 @@ export class MethodCallGenerator {
     // Handle Map methods
     if (method === 'set' || method === 'get' || method === 'has' || method === 'clear' || method === 'delete' || method === 'entries' || method === 'values' || method === 'keys') {
       const varName = this.getVariableName(expr.object);
-      if (varName && this.ctx.symbolTableIsMap(varName)) {
+      if (varName && this.ctx.symbolTable.isMap(varName)) {
         this.ctx.syncStateToGenerators();
         const mapMeta = this.ctx.symbolTableGetMapMetadata(varName);
 
@@ -848,7 +844,7 @@ export class MethodCallGenerator {
     // Handle Set methods
     if (method === 'add' || method === 'has' || method === 'delete') {
       const varName = this.getVariableName(expr.object);
-      if (varName && this.ctx.symbolTableIsSet(varName)) {
+      if (varName && this.ctx.symbolTable.isSet(varName)) {
         this.ctx.syncStateToGenerators();
         const setValueType = this.ctx.symbolTableGetSetMetadata(varName);
 

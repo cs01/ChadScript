@@ -17,15 +17,6 @@ export interface VariableExpressionContext {
   emit(instruction: string): void;
   getVariableAlloca(name: string): string | undefined;
   getVariableType(name: string): string | undefined;
-  symbolTableIsClass(name: string): boolean;
-  symbolTableIsRegex(name: string): boolean;
-  symbolTableIsMap(name: string): boolean;
-  symbolTableIsSet(name: string): boolean;
-  symbolTableIsNumberArray(name: string): boolean;
-  symbolTableIsStringArray(name: string): boolean;
-  symbolTableIsString(name: string): boolean;
-  symbolTableIsObject(name: string): boolean;
-  symbolTableIsPointerAlloca(name: string): boolean;
   symbolTableGetClassInfo(name: string): { ptr: string; className: string } | undefined;
   symbolTableGetMapMetadata(name: string): { keyType: string; valueType: string } | undefined;
   symbolTableGetSetMetadata(name: string): string | undefined;
@@ -88,19 +79,19 @@ export class VariableExpressionGenerator {
     }
 
     // Check if it's a class instance variable
-    if (this.ctx.symbolTableIsClass(name)) {
+    if (this.ctx.symbolTable.isClass(name)) {
       const classMeta = this.ctx.symbolTableGetClassInfo(name)!;
       return this.loadClassInstance(name, classMeta);
     }
 
     // Check if it's a regex variable
-    if (this.ctx.symbolTableIsRegex(name)) {
+    if (this.ctx.symbolTable.isRegex(name)) {
       const allocaReg = this.ctx.getVariableAlloca(name)!;
       return this.loadRegex(allocaReg);
     }
 
     // Check if it's a map variable
-    if (this.ctx.symbolTableIsMap(name)) {
+    if (this.ctx.symbolTable.isMap(name)) {
       const allocaReg = this.ctx.getVariableAlloca(name)!;
       const mapMeta = this.ctx.symbolTableGetMapMetadata(name);
       if (mapMeta && mapMeta.keyType === 'string') {
@@ -112,7 +103,7 @@ export class VariableExpressionGenerator {
     }
 
     // Check if it's a set variable
-    if (this.ctx.symbolTableIsSet(name)) {
+    if (this.ctx.symbolTable.isSet(name)) {
       const allocaReg = this.ctx.getVariableAlloca(name)!;
       const setValueType = this.ctx.symbolTableGetSetMetadata(name);
       if (setValueType === 'string') {
@@ -124,11 +115,11 @@ export class VariableExpressionGenerator {
     }
 
     // Check if it's an array variable (number or boolean array)
-    if (this.ctx.symbolTableIsNumberArray(name)) {
+    if (this.ctx.symbolTable.isNumberArray(name)) {
       const allocaReg = this.ctx.symbolTableGetAlloca(name)!;
       const llvmType = this.ctx.symbolTableGetType(name);
       if (llvmType === '%Array*') {
-        const isPointerAlloca = this.ctx.symbolTableIsPointerAlloca(name);
+        const isPointerAlloca = this.ctx.symbolTable.isPointerAlloca(name);
         return this.loadArray(allocaReg, '%Array*', isPointerAlloca);
       } else if (llvmType === 'i8*') {
         const temp = this.ctx.nextTemp();
@@ -140,11 +131,11 @@ export class VariableExpressionGenerator {
     }
 
     // Check if it's a string array variable
-    if (this.ctx.symbolTableIsStringArray(name)) {
+    if (this.ctx.symbolTable.isStringArray(name)) {
       const allocaReg = this.ctx.symbolTableGetAlloca(name)!;
       const llvmType = this.ctx.symbolTableGetType(name);
       if (llvmType === '%StringArray*') {
-        const isPointerAlloca = this.ctx.symbolTableIsPointerAlloca(name);
+        const isPointerAlloca = this.ctx.symbolTable.isPointerAlloca(name);
         return this.loadArray(allocaReg, '%StringArray*', isPointerAlloca);
       } else if (llvmType === 'i8*') {
         const temp = this.ctx.nextTemp();
@@ -156,13 +147,13 @@ export class VariableExpressionGenerator {
     }
 
     // Check if it's a string variable
-    if (this.ctx.symbolTableIsString(name)) {
+    if (this.ctx.symbolTable.isString(name)) {
       const allocaReg = this.ctx.symbolTableGetAlloca(name)!;
       return this.loadString(allocaReg);
     }
 
     // Check if it's an object variable
-    if (this.ctx.symbolTableIsObject(name)) {
+    if (this.ctx.symbolTable.isObject(name)) {
       const objectMeta = this.ctx.symbolTableGetObjectInfo(name);
       if (objectMeta) {
         const interfaceType = this.ctx.symbolTableGetInterfaceType(name);

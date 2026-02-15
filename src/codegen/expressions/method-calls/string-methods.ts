@@ -61,7 +61,7 @@ export function handleConcat(ctx: MethodCallGeneratorContext, expr: MethodCallNo
       details += `, object base type: ${objBase.type}`;
       if (objBase.type === 'variable') {
         const varName = (memberExpr.object as VariableNode).name;
-        const isClass = ctx.symbolTableIsClass(varName);
+        const isClass = ctx.symbolTable.isClass(varName);
         const symbolType = ctx.symbolTableGetType(varName);
         const interfaceType = ctx.symbolTableGetInterfaceType(varName);
         details += `, variable: ${varName}, isClass: ${isClass}`;

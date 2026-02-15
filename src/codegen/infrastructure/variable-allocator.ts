@@ -101,7 +101,7 @@ export interface VariableAllocatorContext {
   classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
   classGenGetClassFields(className: string): { name: string; llvmType: string }[];
   symbolTableLookup(name: string): SymbolEntry | undefined;
-  symbolTableIsMap(name: string): boolean;
+  readonly symbolTable: SymbolTable;
   symbolTableGetMapMetadata(name: string): MapMetadata | undefined;
   symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] };
   symbolTableGetAlloca(name: string): string | undefined;
@@ -725,7 +725,7 @@ export class VariableAllocator {
     if (methodExpr.object && methodExpr.object.type === 'variable') {
       const varObj = methodExpr.object as VariableNode;
       const mapName = varObj.name;
-      if (!this.ctx.symbolTableIsMap(mapName)) return null;
+      if (!this.ctx.symbolTable.isMap(mapName)) return null;
 
       const mapMeta = this.ctx.symbolTableGetMapMetadata(mapName);
       if (!mapMeta) return null;
@@ -913,7 +913,7 @@ export class VariableAllocator {
     const methodObjBase = methodExpr.object as ExprBase;
     if (methodObjBase.type === 'variable') {
       const varName = (methodExpr.object as VariableNode).name;
-      if (this.ctx.symbolTableIsMap(varName)) {
+      if (this.ctx.symbolTable.isMap(varName)) {
         const mapMeta = this.ctx.symbolTableGetMapMetadata(varName);
         if (mapMeta && mapMeta.valueType) {
           return mapMeta.valueType;

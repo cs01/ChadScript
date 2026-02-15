@@ -1,4 +1,5 @@
 import { Expression, MemberAccessNode, VariableNode } from '../../../ast/types.js';
+import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 
 interface ExprBase { type: string; }
 
@@ -14,7 +15,7 @@ interface UnaryExpressionContext {
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   generateExpression(expr: Expression, params: string[]): string;
   stringGenCreateStringConstant(value: string): string;
-  symbolTableIsString(name: string): boolean;
+  readonly symbolTable: SymbolTable;
 }
 
 export class UnaryExpressionGenerator {
@@ -193,7 +194,7 @@ export class UnaryExpressionGenerator {
       const varName = (operand as VariableNode).name;
       if (varName === 'undefined') {
         typeString = 'undefined';
-      } else if (this.ctx.symbolTableIsString(varName)) {
+      } else if (this.ctx.symbolTable.isString(varName)) {
         typeString = 'string';
       } else if (operandType === 'double') {
         typeString = 'number';

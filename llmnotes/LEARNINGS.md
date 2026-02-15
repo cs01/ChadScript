@@ -15,11 +15,11 @@
 
 When a class instance is stored in an interface-typed variable, calling methods crashes because interface structs have fewer fields than class structs. Bitcasting between them causes out-of-bounds GEP field access.
 
-**Current workaround:** Wrapper/delegate methods (e.g., `symbolTableIsClass(name)` instead of `symbolTable.isClass(name)`). **⚠️ NOT SCALABLE** — generator-context.ts has ~195 wrappers. DO NOT add more.
+**Previous workaround:** Wrapper/delegate methods (e.g., `symbolTableIsClass(name)` instead of `symbolTable.isClass(name)`). **⚠️ NOT SCALABLE** — generator-context.ts had ~195 wrappers.
 
-**Chosen fix: Concrete Type Registry** (see `docs/design/interface-dispatch-rfc.md`) — track concrete class behind interface-typed variables at compile time. Phase 1 prototype implemented; wrappers can be removed incrementally.
+**Fix implemented:** Concrete type propagation in `loadFieldValue` (member.ts). When a field is loaded as `i8*` but the field's `tsType` is a known class name in the AST, `setActualClassType` is called to record the concrete type. This allows subsequent method dispatch to find the correct vtable entry via `getActualClassType`. All `symbolTableIs*` wrappers (14 methods) have been removed and replaced with direct `ctx.symbolTable.isXxx()` chained access, verified through Stage 2 self-hosting.
 
-Other options (deferred): vtable-based dispatch, compile-time type assertion transform, or breaking chains with typed intermediates.
+**Remaining work:** ~180+ wrappers remain for other sub-generators (`symbolTableGet*`, `typeResolverXxx`, `classGenXxx`, `stringGenXxx`, `arrayGenXxx`, `mapGen/setGen`, etc.). These can be removed incrementally using the same pattern — each batch should pass the full self-hosting chain before committing.
 
 ## 🔀 Duplicate Code Paths — `generate()` vs `generateParts()`
 

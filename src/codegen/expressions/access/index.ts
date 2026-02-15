@@ -3,7 +3,7 @@ import { Expression, IndexAccessNode, IndexAccessAssignmentNode, MemberAccessNod
 interface ExprBase { type: string; }
 interface ObjectMetaBasic { keys: string[]; types: string[]; }
 interface StringGenLike { createStringConstant(value: string): string; }
-import type { Symbol as SymbolEntry } from '../../infrastructure/symbol-table.js';
+import type { Symbol as SymbolEntry, SymbolTable } from '../../infrastructure/symbol-table.js';
 
 export interface IndexAccessGeneratorContext {
   nextTemp(): string;
@@ -11,10 +11,9 @@ export interface IndexAccessGeneratorContext {
   emit(instruction: string): void;
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
+  readonly symbolTable: SymbolTable;
   symbolTableLookup(name: string): SymbolEntry | undefined;
   symbolTableGetInterfaceType(name: string): string | undefined;
-  symbolTableIsJSON(name: string): boolean;
-  symbolTableIsObject(name: string): boolean;
   symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
   symbolTableGetArrayAlloca(name: string): string | undefined;
   isStringArrayExpression(expr: Expression): boolean;
@@ -56,7 +55,7 @@ export class IndexAccessGenerator {
       if (memberAccessObjBase.type === 'variable') {
         const baseVarName = (memberAccess.object as VariableNode).name;
         const baseIfaceType = this.ctx.symbolTableGetInterfaceType(baseVarName);
-        if (baseIfaceType || this.ctx.symbolTableIsObject(baseVarName)) {
+        if (baseIfaceType || this.ctx.symbolTable.isObject(baseVarName)) {
           const isStringArray = this.ctx.isStringArrayExpression(expr.object);
           const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
           if (isStringArray) {
@@ -65,14 +64,14 @@ export class IndexAccessGenerator {
             return this.generateObjectArrayIndex(expr, params);
           }
         }
-        if (this.ctx.symbolTableIsJSON(baseVarName) || this.ctx.symbolTableIsObject(baseVarName)) {
+        if (this.ctx.symbolTable.isJSON(baseVarName) || this.ctx.symbolTable.isObject(baseVarName)) {
           return this.generateJSONMemberArrayIndex(expr, params);
         }
       }
     }
 
     // Check if it's a JSON array (from JSON.parse<number[]> or similar)
-    if (exprObjBase.type === 'variable' && this.ctx.symbolTableIsJSON((expr.object as VariableNode).name)) {
+    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
       return this.generateJSONArrayIndex(expr, params);
     }
 
@@ -92,7 +91,7 @@ export class IndexAccessGenerator {
     // Check if it's an object variable with dynamic property access
     if (exprObjBase.type === 'variable') {
       const varName = (expr.object as VariableNode).name;
-      if (this.ctx.symbolTableIsObject(varName)) {
+      if (this.ctx.symbolTable.isObject(varName)) {
         const objMeta = this.ctx.symbolTableGetObjectMetadata(varName);
         if (objMeta && objMeta.keys.length > 0) {
           return this.generateDynamicObjectAccess(expr, params, objMeta);
@@ -488,8 +487,8 @@ export class IndexAccessGenerator {
     const memberObjBase = memberExpr.object as ExprBase;
     if (memberObjBase.type !== 'variable') return false;
     const varName = (memberExpr.object as VariableNode).name;
-    if (this.ctx.symbolTableIsJSON(varName)) return false;
-    return this.ctx.symbolTableIsObject(varName);
+    if (this.ctx.symbolTable.isJSON(varName)) return false;
+    return this.ctx.symbolTable.isObject(varName);
   }
 
   generateAssignment(expr: IndexAccessAssignmentNode, params: string[]): string {

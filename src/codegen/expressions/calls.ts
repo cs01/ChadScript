@@ -470,7 +470,7 @@ export class CallExpressionGenerator {
   }
 
   private generateGenericCall(expr: CallNode, params: string[]): string {
-    if (this.ctx.symbolTableIsClosure(expr.name)) {
+    if (this.ctx.symbolTable.isClosure(expr.name)) {
       return this.generateClosureCall(expr, params);
     }
 

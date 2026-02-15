@@ -1033,7 +1033,7 @@ export class ArrayGenerator {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
       isStringArray = varType === '%StringArray*';
-      isObjectArray = this.ctx.symbolTableIsObjectArray(varName);
+      isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
     } else if (exprObjBase.type === 'member_access') {
       const ptrType = this.ctx.getVariableType(arrayPtr);
       isStringArray = ptrType === '%StringArray*';
@@ -1210,7 +1210,7 @@ export class ArrayGenerator {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
       isStringArray = varType === '%StringArray*';
-      isObjectArray = this.ctx.symbolTableIsObjectArray(varName);
+      isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
     } else if (exprObjBase.type === 'member_access') {
       const ptrType = this.ctx.getVariableType(arrayPtr);
       isStringArray = ptrType === '%StringArray*';
@@ -1391,7 +1391,7 @@ export class ArrayGenerator {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
       isStringArray = varType === '%StringArray*';
-      isObjectArray = this.ctx.symbolTableIsObjectArray(varName);
+      isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
     } else if (exprObjBase.type === 'member_access') {
       const ptrType = this.ctx.getVariableType(arrayPtr);
       isStringArray = ptrType === '%StringArray*';
@@ -1561,7 +1561,7 @@ export class ArrayGenerator {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
       isStringArray = varType === '%StringArray*';
-      isObjectArray = this.ctx.symbolTableIsObjectArray(varName);
+      isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
     } else if (exprObjBase.type === 'member_access') {
       const ptrType = this.ctx.getVariableType(arrayPtr);
       isStringArray = ptrType === '%StringArray*';
@@ -1807,7 +1807,7 @@ export class ArrayGenerator {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
       isStringArray = varType === '%StringArray*';
-      isObjectArray = this.ctx.symbolTableIsObjectArray(varName);
+      isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
     } else if (exprObjBase.type === 'member_access') {
       const ptrType = this.ctx.getVariableType(arrayPtr);
       isStringArray = ptrType === '%StringArray*';
@@ -2113,7 +2113,7 @@ export class ArrayGenerator {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
       isStringArray = varType === '%StringArray*';
-      isObjectArray = this.ctx.symbolTableIsObjectArray(varName);
+      isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
     } else if (exprObjBase.type === 'member_access') {
       const ptrType = this.ctx.getVariableType(arrayPtr);
       isStringArray = ptrType === '%StringArray*';
@@ -2741,7 +2741,7 @@ export class ArrayGenerator {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
       isStringArray = varType === '%StringArray*';
-      isObjectArray = this.ctx.symbolTableIsObjectArray(varName);
+      isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
     } else if (exprObjBase.type === 'member_access') {
       const ptrType = this.ctx.getVariableType(arrayPtr);
       isStringArray = ptrType === '%StringArray*';

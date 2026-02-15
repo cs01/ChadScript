@@ -582,50 +582,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   // SymbolTable wrapper methods (avoid method chaining issues in native code)
   public symbolTableLookup(name: string): SymbolEntry | undefined { return this.symbolTable.lookup(name); }
-  public symbolTableIsClass(name: string): boolean {
-    const result = this.symbolTable.isClass(name);
-    return result;
-  }
-  public symbolTableIsJSON(name: string): boolean {
-    const result = this.symbolTable.isJSON(name);
-    return result;
-  }
-  public symbolTableIsObject(name: string): boolean {
-    const result = this.symbolTable.isObject(name);
-    return result;
-  }
-  public symbolTableIsMap(name: string): boolean {
-    const result = this.symbolTable.isMap(name);
-    return result;
-  }
-  public symbolTableIsSet(name: string): boolean {
-    const result = this.symbolTable.isSet(name);
-    return result;
-  }
-  public symbolTableIsNumberArray(name: string): boolean {
-    const result = this.symbolTable.isNumberArray(name);
-    return result;
-  }
-  public symbolTableIsStringArray(name: string): boolean {
-    const result = this.symbolTable.isStringArray(name);
-    return result;
-  }
-  public symbolTableIsBooleanArray(name: string): boolean {
-    const result = this.symbolTable.isBooleanArray(name);
-    return result;
-  }
-  public symbolTableIsObjectArray(name: string): boolean {
-    const result = this.symbolTable.isObjectArray(name);
-    return result;
-  }
-  public symbolTableIsString(name: string): boolean {
-    const result = this.symbolTable.isString(name);
-    return result;
-  }
-  public symbolTableIsRegex(name: string): boolean {
-    const result = this.symbolTable.isRegex(name);
-    return result;
-  }
   public symbolTableGetType(name: string): string | undefined { return this.symbolTable.getType(name); }
   public symbolTableGetClassName(name: string): string | undefined { return this.symbolTable.getClassName(name); }
   public symbolTableGetClassInfo(name: string): ClassInfo | undefined { return this.symbolTable.getClassInfo(name); }
@@ -658,11 +614,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public symbolTableGetAlloca(name: string): string | undefined { return this.symbolTable.getAlloca(name); }
   public symbolTableGetScope(name: string): string | undefined { return this.symbolTable.getScope(name); }
   public symbolTableGetObjectArrayMetadata(name: string): ObjectArrayMetadata | undefined { return this.symbolTable.getObjectArrayMetadata(name); }
-  public symbolTableIsPointerAlloca(name: string): boolean { return this.symbolTable.isPointerAlloca(name); }
   public symbolTableNarrowType(name: string, narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] }): void { this.symbolTable.narrowType(name, narrowedMetadata); }
   public symbolTableRestoreType(name: string): void { this.symbolTable.restoreType(name); }
   public symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] } { return this.symbolTable.getScopeVarsArraysForClosure(); }
-  public symbolTableIsClosure(name: string): boolean { return this.symbolTable.isClosure(name); }
   public symbolTableGetClosureMetadata(name: string): ClosureMetadata | undefined { return this.symbolTable.getClosureMetadata(name); }
   public symbolTableGetObjectPropertyType(varName: string, propertyName: string): string | null { return this.symbolTable.getObjectPropertyType(varName, propertyName); }
   public symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined { return this.symbolTable.getObjectMetadata(name); }

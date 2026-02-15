@@ -222,17 +222,6 @@ export interface IGeneratorContext {
   // ============================================
 
   symbolTableLookup(name: string): SymbolMetadata | undefined;
-  symbolTableIsClass(name: string): boolean;
-  symbolTableIsJSON(name: string): boolean;
-  symbolTableIsObject(name: string): boolean;
-  symbolTableIsMap(name: string): boolean;
-  symbolTableIsSet(name: string): boolean;
-  symbolTableIsNumberArray(name: string): boolean;
-  symbolTableIsStringArray(name: string): boolean;
-  symbolTableIsBooleanArray(name: string): boolean;
-  symbolTableIsObjectArray(name: string): boolean;
-  symbolTableIsString(name: string): boolean;
-  symbolTableIsRegex(name: string): boolean;
   symbolTableGetType(name: string): string | undefined;
   symbolTableGetClassName(name: string): string | undefined;
   symbolTableGetClassInfo(name: string): { ptr: string; className: string } | undefined;
@@ -254,11 +243,9 @@ export interface IGeneratorContext {
   symbolTableGetScope(name: string): string | undefined;
   symbolTableGetObjectArrayMetadata(name: string): { elementInterfaceName: string; elementKeys: string[]; elementTypes: string[]; elementTsTypes?: string[] } | undefined;
   symbolTableGetObjectArrayElementType(name: string): string | undefined;
-  symbolTableIsPointerAlloca(name: string): boolean;
   symbolTableNarrowType(name: string, narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] }): void;
   symbolTableRestoreType(name: string): void;
   symbolTableGetScopeVarsArraysForClosure(): { names: string[]; types: string[] };
-  symbolTableIsClosure(name: string): boolean;
   symbolTableGetClosureMetadata(name: string): ClosureMetadata | undefined;
   symbolTableGetObjectPropertyType(varName: string, propertyName: string): string | null;
   symbolTableGetObjectMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
@@ -945,50 +932,6 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   // SymbolTable wrapper methods (mock implementations)
   symbolTableLookup(name: string) { return this.symbolTable.lookup(name); }
-  symbolTableIsClass(name: string): boolean {
-    const result = this.symbolTable.isClass(name);
-    return result;
-  }
-  symbolTableIsJSON(name: string): boolean {
-    const result = this.symbolTable.isJSON(name);
-    return result;
-  }
-  symbolTableIsObject(name: string): boolean {
-    const result = this.symbolTable.isObject(name);
-    return result;
-  }
-  symbolTableIsMap(name: string): boolean {
-    const result = this.symbolTable.isMap(name);
-    return result;
-  }
-  symbolTableIsSet(name: string): boolean {
-    const result = this.symbolTable.isSet(name);
-    return result;
-  }
-  symbolTableIsNumberArray(name: string): boolean {
-    const result = this.symbolTable.isNumberArray(name);
-    return result;
-  }
-  symbolTableIsStringArray(name: string): boolean {
-    const result = this.symbolTable.isStringArray(name);
-    return result;
-  }
-  symbolTableIsBooleanArray(name: string): boolean {
-    const result = this.symbolTable.isBooleanArray(name);
-    return result;
-  }
-  symbolTableIsObjectArray(name: string): boolean {
-    const result = this.symbolTable.isObjectArray(name);
-    return result;
-  }
-  symbolTableIsString(name: string): boolean {
-    const result = this.symbolTable.isString(name);
-    return result;
-  }
-  symbolTableIsRegex(name: string): boolean {
-    const result = this.symbolTable.isRegex(name);
-    return result;
-  }
   symbolTableGetType(name: string) { return this.symbolTable.getType(name); }
   symbolTableGetClassName(name: string) { return this.symbolTable.getClassName(name); }
   symbolTableGetClassInfo(name: string) { return this.symbolTable.getClassInfo(name); }
@@ -1021,11 +964,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   symbolTableGetScope(name: string) { return this.symbolTable.getScope(name); }
   symbolTableGetObjectArrayMetadata(name: string) { return this.symbolTable.getObjectArrayMetadata(name); }
   symbolTableGetObjectArrayElementType(name: string) { return this.symbolTable.getRawInterfaceType(name); }
-  symbolTableIsPointerAlloca(name: string) { return this.symbolTable.isPointerAlloca(name); }
   symbolTableNarrowType(name: string, narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] }) { this.symbolTable.narrowType(name, narrowedMetadata); }
   symbolTableRestoreType(name: string) { this.symbolTable.restoreType(name); }
   symbolTableGetScopeVarsArraysForClosure() { return this.symbolTable.getScopeVarsArraysForClosure(); }
-  symbolTableIsClosure(name: string) { return this.symbolTable.isClosure(name); }
   symbolTableGetClosureMetadata(name: string) { return this.symbolTable.getClosureMetadata(name); }
   symbolTableGetObjectPropertyType(varName: string, propertyName: string) { return this.symbolTable.getObjectPropertyType(varName, propertyName); }
   symbolTableGetObjectMetadata(name: string) { return this.symbolTable.getObjectMetadata(name); }

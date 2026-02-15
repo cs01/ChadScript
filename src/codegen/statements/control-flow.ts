@@ -743,7 +743,7 @@ export class ControlFlowGenerator {
 
     if (exprBase.type === 'variable') {
       const varName = (expr as VariableNode).name;
-      if (this.ctx.symbolTableIsClass(varName)) {
+      if (this.ctx.symbolTable.isClass(varName)) {
         const classMeta = this.ctx.symbolTableGetClassInfo(varName);
         return classMeta ? classMeta.className : null;
       }
@@ -1589,7 +1589,7 @@ export class ControlFlowGenerator {
 
     if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
-      if (this.ctx.symbolTableIsSet(varName)) {
+      if (this.ctx.symbolTable.isSet(varName)) {
         const setMeta = this.ctx.symbolTableGetSetMetadata(varName);
         return !setMeta || setMeta === 'string';
       }
@@ -1617,7 +1617,7 @@ export class ControlFlowGenerator {
 
     if (e.type === 'variable') {
       const varName = (expr as VariableNode).name;
-      return this.ctx.symbolTableIsMap(varName);
+      return this.ctx.symbolTable.isMap(varName);
     }
 
     if (e.type === 'member_access') {
@@ -1640,7 +1640,7 @@ export class ControlFlowGenerator {
     const objBase = methodCall.object as ExprBase;
     if (objBase.type === 'variable') {
       const varName = (methodCall.object as VariableNode).name;
-      return this.ctx.symbolTableIsMap(varName);
+      return this.ctx.symbolTable.isMap(varName);
     }
 
     if (objBase.type === 'member_access') {
@@ -1735,7 +1735,7 @@ export class ControlFlowGenerator {
     const iterableBase = stmt.iterable as ExprBase;
     if (iterableBase.type === 'variable') {
       const varName = (stmt.iterable as VariableNode).name;
-      if (this.ctx.symbolTableIsMap(varName)) {
+      if (this.ctx.symbolTable.isMap(varName)) {
         const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
         iterableValue = this.ctx.stringMapGenGenerateStringMapEntries(mapPtr);
       } else {

@@ -12,7 +12,7 @@ After completing each todo:
 
 Before considering any feature complete, run the full self-hosting chain:
 1. `npm test` — all tests pass
-2. `npm run build && node dist/index.js --link-tree-sitter src/native-compiler.ts -o .build/chadc` — rebuild Stage 0
+2. `npm run build && node dist/index.js src/native-compiler.ts -o .build/chadc` — rebuild Stage 0
 3. `.build/chadc examples/hello.ts -o /tmp/hello && /tmp/hello` — Stage 0 smoke test
 4. `.build/chadc src/native-compiler.ts -o /tmp/chad-stage1` — Stage 0 compiles itself (Stage 1)
 5. `/tmp/chad-stage1 examples/hello.ts -o /tmp/hello2 && /tmp/hello2` — Stage 1 smoke test
@@ -20,23 +20,6 @@ Before considering any feature complete, run the full self-hosting chain:
 7. `/tmp/chad-stage2 examples/hello.ts -o /tmp/hello3 && /tmp/hello3` — Stage 2 smoke test
 
 New features have complex side effects that may not be caught by unit tests alone. A change that passes all tests can still break self-hosting. The Stage 2 test is the true verification — it proves the compiler's output is correct enough to compile itself.
-
-## Stage 0 Compatibility - STOP Adding Wrapper Methods
-
-The wrapper method pattern for Stage 0 compatibility is NOT scalable. Do NOT add more wrapper methods like:
-- `ctx.fooGenMethod()` instead of `ctx.fooGen.method()`
-- `symbolTableIsX()` instead of `symbolTable.isX()`
-- `typeResolverGetX()` instead of `typeResolver.getX()`
-
-The generator-context.ts file already has ~195 wrapper methods. This O(n*m) pattern makes the codebase unmaintainable.
-
-**What to do instead:**
-1. If Stage 0 crashes on chained access, investigate the root cause in member.ts/method-calls.ts
-2. Fix the type tracking for intermediate pointer values
-3. Store concrete type information alongside i8* pointers
-4. See LEARNINGS.md section "Interface Method Dispatch Struct Layout Mismatch"
-
-**Root cause**: Stage 0 loses type information when accessing a field that returns an interface pointer (i8*). The proper fix is to track the concrete type, not to flatten all method calls.
 
 # ChadScript Architecture Guide
 
@@ -55,7 +38,7 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 | `src/codegen/types/collections/array/` | Array sub-modules (mutators.ts) |
 | `src/codegen/stdlib/` | Built-in module generators (console.ts, process.ts, fs.ts, math.ts, etc.) |
 | `src/codegen/infrastructure/` | Core: generator-context.ts, symbol-table.ts, type-resolver.ts |
-| `src/codegen/llvm-generator.ts` | Main orchestrator, has all wrapper methods |
+| `src/codegen/llvm-generator.ts` | Main orchestrator, delegates to sub-generators |
 | `src/ast/types.ts` | AST node type definitions |
 | `tests/compiler.test.ts` | Main test suite |
 | `tests/fixtures/` | Test fixture programs organized by category |
@@ -66,10 +49,10 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 2. **Facade**: Add `doGenerateX()` in `src/codegen/types/collections/string.ts` (StringGenerator class)
 3. **Dispatch**: Add `if (method === 'x')` block in `src/codegen/expressions/method-calls.ts` (~line 812 area)
 4. **Handler**: Add `private handleX()` method in method-calls.ts
-5. **Wrapper**: Add to `IGeneratorContext` interface in `src/codegen/infrastructure/generator-context.ts` and `llvm-generator.ts`
+5. **Context**: If consumers access via a sub-generator context interface, ensure `readonly stringGen: IStringGenerator` is declared
 6. **Test**: Add fixture in `tests/fixtures/strings/` and test case in `tests/compiler.test.ts`
 
-**NOTE**: Per project rules, avoid adding new wrapper methods where possible. The `generator-context.ts` already has ~195 wrappers.
+**NOTE**: Prefer direct field access (`ctx.stringGen.doMethod()`) over adding wrapper methods to `IGeneratorContext`. Concrete type propagation in `loadFieldValue` (member.ts) ensures chained access through interface fields works in the native compiler.
 
 ## How to Add a New Built-in (process.x, console.x, etc.)
 

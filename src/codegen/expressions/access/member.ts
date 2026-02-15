@@ -790,10 +790,23 @@ export class MemberAccessGenerator {
         this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}, !tbaa !5`);
         this.ctx.setVariableType(value, 'i8*');
         if (tsType) {
-          this.storeInterfaceMetadata(value, tsType);
-          const concreteClass = this.findClassImplementingInterface(tsType);
-          if (concreteClass) {
-            this.ctx.setActualClassType(value, concreteClass);
+          let isKnownClass = false;
+          const classCount = this.ctx.getClassesCount();
+          for (let ci = 0; ci < classCount; ci++) {
+            const classNode = this.ctx.getAstClassAt(ci);
+            if (classNode && classNode.name === tsType) {
+              isKnownClass = true;
+              break;
+            }
+          }
+          if (isKnownClass) {
+            this.ctx.setActualClassType(value, tsType);
+          } else {
+            this.storeInterfaceMetadata(value, tsType);
+            const concreteClass = this.findClassImplementingInterface(tsType);
+            if (concreteClass) {
+              this.ctx.setActualClassType(value, concreteClass);
+            }
           }
         }
       }
