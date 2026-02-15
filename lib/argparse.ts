@@ -101,8 +101,8 @@ export class ArgumentParser {
       i = i + 1;
     }
 
-    // Parse argv (skip first element which is program name)
-    let argIdx = 1;
+    // Parse argv
+    let argIdx = 0;
     while (argIdx < argv.length) {
       // Check for help
       if (argv[argIdx].length > 0 && (argv[argIdx] === "-h" || argv[argIdx] === "--help")) {
@@ -201,37 +201,40 @@ export class ArgumentParser {
     }
     console.log("");
 
-    // Build usage line
-    let usage = "Usage: " + this.programName;
+    // Build usage line - print options inline
+    const usageParts: string[] = [];
+    usageParts.push("Usage: " + this.programName);
 
-    // Add options/flags
     let i = 0;
     while (i < this.argNames.length) {
       if (!this.argIsPositional[i]) {
         if (this.argShortFlags[i].length > 0) {
-          usage = usage + " [-" + this.argShortFlags[i];
+          if (!this.argIsFlag[i]) {
+            usageParts.push(" [-" + this.argShortFlags[i] + " <" + this.argNames[i] + ">]");
+          } else {
+            usageParts.push(" [-" + this.argShortFlags[i] + "]");
+          }
         } else {
-          usage = usage + " [--" + this.argLongFlags[i];
+          if (!this.argIsFlag[i]) {
+            usageParts.push(" [--" + this.argLongFlags[i] + " <" + this.argNames[i] + ">]");
+          } else {
+            usageParts.push(" [--" + this.argLongFlags[i] + "]");
+          }
         }
-
-        if (!this.argIsFlag[i]) {
-          usage = usage + " <" + this.argNames[i] + ">";
-        }
-        usage = usage + "]";
       }
       i = i + 1;
     }
 
-    // Add positionals
+    // Add positionals to usage
     i = 0;
     while (i < this.argNames.length) {
       if (this.argIsPositional[i]) {
-        usage = usage + " <" + this.argNames[i] + ">";
+        usageParts.push(" <" + this.argNames[i] + ">");
       }
       i = i + 1;
     }
 
-    console.log(usage);
+    console.log(usageParts.join(""));
     console.log("");
 
     // Print options
@@ -239,17 +242,19 @@ export class ArgumentParser {
     i = 0;
     while (i < this.argNames.length) {
       if (!this.argIsPositional[i]) {
-        let line = "  ";
         if (this.argShortFlags[i].length > 0) {
-          line = line + "-" + this.argShortFlags[i] + ", ";
+          if (!this.argIsFlag[i] && this.argDefaultValue[i].length > 0) {
+            console.log("  -" + this.argShortFlags[i] + ", --" + this.argLongFlags[i] + " (default: " + this.argDefaultValue[i] + ")");
+          } else {
+            console.log("  -" + this.argShortFlags[i] + ", --" + this.argLongFlags[i]);
+          }
+        } else {
+          if (!this.argIsFlag[i] && this.argDefaultValue[i].length > 0) {
+            console.log("  --" + this.argLongFlags[i] + " (default: " + this.argDefaultValue[i] + ")");
+          } else {
+            console.log("  --" + this.argLongFlags[i]);
+          }
         }
-        line = line + "--" + this.argLongFlags[i];
-
-        if (!this.argIsFlag[i] && this.argDefaultValue[i].length > 0) {
-          line = line + " (default: " + this.argDefaultValue[i] + ")";
-        }
-
-        console.log(line);
         console.log("      " + this.argHelp[i]);
       }
       i = i + 1;

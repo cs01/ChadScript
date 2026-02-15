@@ -379,8 +379,8 @@ function resolveImportPath(fromFile: string, importSource: string): string {
   const dir = path.dirname(fromFile);
   const resolved = path.resolve(dir, importSource);
 
-  // If the import has .js extension but file doesn't exist, try .ts
-  if (importSource.endsWith('.js') && !fs.existsSync(resolved)) {
+  // If the import has .js extension, prefer .ts source over compiled .js
+  if (importSource.endsWith('.js')) {
     const tsPath = resolved.replace(/\.js$/, '.ts');
     if (fs.existsSync(tsPath)) {
       return tsPath;

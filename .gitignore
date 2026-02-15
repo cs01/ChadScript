@@ -10,6 +10,10 @@ src-js/
 
 # Generated files
 src/codegen/stdlib/embedded-dts.ts
+lib/*.js
+lib/*.js.map
+lib/*.d.ts
+lib/*.d.ts.map
 
 # Compiled binaries and LLVM IR
 *.ll

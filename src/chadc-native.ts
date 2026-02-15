@@ -1,4 +1,5 @@
 import { compileNative, setSkipSemanticAnalysis, setVerbose } from './native-compiler-lib.js';
+import { ArgumentParser } from '../lib/argparse.js';
 
 declare const fs: {
   existsSync(filename: string): boolean;
@@ -19,102 +20,53 @@ declare const child_process: {
   execSync(command: string): number;
 };
 
-function printUsage(): void {
-  console.log('chadc - compile TypeScript to native binaries via LLVM');
-  console.log('');
-  console.log('Usage: chadc [options] <input.ts> [output]');
-  console.log('');
-  console.log('Options:');
-  console.log('  -o <output>               Specify output file (default: .build/<input>)');
-  console.log('  -v, --verbose             Show compilation steps');
-  console.log('  --skip-semantic-analysis  Skip semantic analysis');
-  console.log('  --help, -h                Show this help message');
-}
+const parser = new ArgumentParser('chadc', 'compile TypeScript to native binaries via LLVM');
+parser.addFlag('verbose', 'v', 'Show compilation steps');
+parser.addFlag('skip-semantic-analysis', '', 'Skip semantic analysis');
+parser.addOption('output', 'o', 'Specify output file', '');
+parser.addPositional('input', 'Input .ts or .js file');
 
-const args = process.argv;
+parser.parse(process.argv);
 
-if (args.length < 1) {
-  printUsage();
-  process.exit(1);
-}
-
-let inputFile: string | null = null;
-let outputFile: string | null = null;
-let wantSkipSemantic = false;
-let wantVerbose = false;
-let argIdx = 0;
-while (argIdx < args.length) {
-  const arg = args[argIdx];
-  if (arg === '--help' || arg === '-h') {
-    printUsage();
-    process.exit(0);
-  } else if (arg === '--skip-semantic-analysis') {
-    wantSkipSemantic = true;
-    argIdx = argIdx + 1;
-  } else if (arg === '-v' || arg === '--verbose') {
-    wantVerbose = true;
-    argIdx = argIdx + 1;
-  } else if (arg === '-o') {
-    argIdx = argIdx + 1;
-    if (argIdx < args.length) {
-      outputFile = args[argIdx];
-      argIdx = argIdx + 1;
-    }
-  } else if (arg.substr(0, 1) === '-') {
-    console.log('Unknown option: ' + arg);
-    printUsage();
-    process.exit(1);
-  } else if (inputFile === null) {
-    inputFile = arg;
-    argIdx = argIdx + 1;
-  } else if (outputFile === null) {
-    outputFile = arg;
-    argIdx = argIdx + 1;
-  } else {
-    argIdx = argIdx + 1;
-  }
-}
-
-if (wantSkipSemantic) {
-  setSkipSemanticAnalysis(true);
-}
-
-if (wantVerbose) {
+if (parser.getFlag('verbose')) {
   setVerbose(true);
 }
 
-if (inputFile === null) {
+if (parser.getFlag('skip-semantic-analysis')) {
+  setSkipSemanticAnalysis(true);
+}
+
+const inputFile = parser.getPositional(0);
+if (inputFile.length === 0) {
   console.log('Error: No input file specified');
-  printUsage();
+  parser.printHelp();
   process.exit(1);
   throw new Error('unreachable');
 }
 
-let theInputFile: string = '';
-theInputFile = inputFile;
-
-if (!fs.existsSync(theInputFile)) {
-  console.log('Error: File not found: ' + theInputFile);
+if (!fs.existsSync(inputFile)) {
+  console.log('Error: File not found: ' + inputFile);
   process.exit(1);
   throw new Error('unreachable');
 }
 
-let inputForOutput: string = theInputFile;
+let inputForOutput: string = inputFile;
 if (inputForOutput.substr(0, 1) === '/') {
   inputForOutput = path.basename(inputForOutput);
 }
-let theOutputFile: string = '.build/' + inputForOutput;
-if (outputFile !== null) {
-  theOutputFile = outputFile;
+let outputFile: string = '.build/' + inputForOutput;
+const explicitOutput = parser.getOption('output');
+if (explicitOutput.length > 0) {
+  outputFile = explicitOutput;
 } else if (inputForOutput.substr(inputForOutput.length - 3) === '.ts') {
-  theOutputFile = '.build/' + inputForOutput.substr(0, inputForOutput.length - 3);
+  outputFile = '.build/' + inputForOutput.substr(0, inputForOutput.length - 3);
 } else if (inputForOutput.substr(inputForOutput.length - 3) === '.js') {
-  theOutputFile = '.build/' + inputForOutput.substr(0, inputForOutput.length - 3);
+  outputFile = '.build/' + inputForOutput.substr(0, inputForOutput.length - 3);
 }
 
-const outputDir = path.dirname(theOutputFile);
+const outputDir = path.dirname(outputFile);
 if (!fs.existsSync(outputDir)) {
   child_process.execSync('mkdir -p ' + outputDir);
 }
 
-compileNative(theInputFile, theOutputFile);
+compileNative(inputFile, outputFile);
