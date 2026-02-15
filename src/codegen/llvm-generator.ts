@@ -78,9 +78,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public pointerMapGen: PointerMapGenerator;
   public setGen: SetGenerator;
   public stringSetGen: StringSetGenerator;
-  private controlFlowGen: ControlFlowGenerator;
+  public controlFlowGen: ControlFlowGenerator;
   public classGen: ClassGenerator;
-  public classGenClassFields: Map<string, { name: string; fieldType: string; tsType?: string }[]>;
   public regexGen: RegexGenerator;
 
   // Method generators (public for context pattern access)
@@ -580,65 +579,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return theType || '';
   }
 
-  public classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null {
-    if (!className || !fieldName) return null;
-    const result = this.classGen.getFieldInfo(className, fieldName);
-    if (!result) return null;
-    return result;
-  }
-
-  private findClassNodeForFields(className: string): ClassNode | null {
-    const ast = this.ast;
-    if (!ast || !ast.classes) return null;
-    for (let ci = 0; ci < ast.classes.length; ci++) {
-      const c = ast.classes[ci] as ClassNode;
-      if (!c) continue;
-      if (!c.name) continue;
-      if (c.name === className) {
-        return c;
-      }
-    }
-    return null;
-  }
-
-  private getAllFieldsForClass(classNode: ClassNode): { name: string; fieldType: string; tsType?: string }[] {
-    const allFields: { name: string; fieldType: string; tsType?: string }[] = [];
-    if (classNode.extends) {
-      const parentClass = this.findClassNodeForFields(classNode.extends);
-      if (parentClass) {
-        const parentFields = this.getAllFieldsForClass(parentClass);
-        for (let i = 0; i < parentFields.length; i++) {
-          allFields.push(parentFields[i]);
-        }
-      }
-    }
-    const classFields = classNode.fields;
-    const fieldsLen = classFields.length;
-    for (let i = 0; i < fieldsLen; i++) {
-      const field = classFields[i];
-      allFields.push(field as { name: string; fieldType: string; tsType?: string });
-    }
-    return allFields;
-  }
-  public classGenGetClassFields(className: string): { name: string; fieldType: string }[] {
-    return this.classGenClassFields.get(className) || [];
-  }
-  public classGenGetFieldType(className: string, fieldName: string): string | null {
-    const info = this.classGenGetFieldInfo(className, fieldName);
-    if (info) {
-      return info.type;
-    }
-    return null;
-  }
-  public classGenGetFieldTsType(className: string, fieldName: string): string | null {
-    const info = this.classGenGetFieldInfo(className, fieldName);
-    if (info) {
-      return info.tsType || null;
-    }
-    return null;
-  }
-  public classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string { return this.classGen.generateNewExpression(className, args, params); }
-  public classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string { return this.classGen.generateMethodCall(instancePtr, className, method, args, params); }
   public hasClassGen(): boolean { return this.classGen !== null && this.classGen !== undefined; }
 
   public setCurrentFunction(name: string | null): void { this.currentFunction = name; }
@@ -731,31 +671,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public typeResolverGetClassFieldMapType(className: string, fieldName: string): { keyType: string; valueType: string } | null { return this.typeResolver ? this.typeResolver.getClassFieldMapType(className, fieldName) : null; }
   public typeResolverGetInterfaceMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | null { return this.typeResolver ? this.typeResolver.getInterfaceMetadata(name) : null; }
 
-  public stringGenCreateStringConstant(value: string): string { this.syncStateToGenerators(); return this.stringGen.doCreateStringConstant(value); }
-  public stringGenGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string { this.syncStateToGenerators(); return this.stringGen.doGenerateSubstr(strPtr, startIndex, length); }
-  public stringGenGenerateStringConcatDirect(left: string, right: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateStringConcatDirect(left, right); }
-  public stringGenGenerateRepeat(strPtr: string, count: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateRepeat(strPtr, count); }
-  public stringGenGeneratePadStart(strPtr: string, targetLength: string, padString: string): string { this.syncStateToGenerators(); return this.stringGen.doGeneratePadStart(strPtr, targetLength, padString); }
-  public stringGenGenerateSplit(strPtr: string, delimiter: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateSplit(strPtr, delimiter); }
-  public stringGenGenerateStartsWith(strPtr: string, prefix: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateStartsWith(strPtr, prefix); }
-  public stringGenGenerateEndsWith(strPtr: string, suffix: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateEndsWith(strPtr, suffix); }
-  public stringGenGenerateTrim(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateTrim(strPtr); }
-  public stringGenGenerateTrimStart(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateTrimStart(strPtr); }
-  public stringGenGenerateTrimEnd(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateTrimEnd(strPtr); }
-  public stringGenGenerateToUpperCase(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateToUpperCase(strPtr); }
-  public stringGenGenerateToLowerCase(strPtr: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateToLowerCase(strPtr); }
-  public stringGenGenerateIndexOf(strPtr: string, substring: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateIndexOf(strPtr, substring); }
-  public stringGenGenerateIncludes(strPtr: string, substring: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateIncludes(strPtr, substring); }
-  public stringGenGenerateSlice(strPtr: string, start: string, end: string | null): string { this.syncStateToGenerators(); return this.stringGen.doGenerateSlice(strPtr, start, end); }
-  public stringGenGenerateCharAt(strPtr: string, index: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateCharAt(strPtr, index); }
-  public stringGenGenerateCharCodeAt(strPtr: string, index: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateCharCodeAt(strPtr, index); }
-  public stringGenGenerateReplace(strPtr: string, search: string, replace: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateReplace(strPtr, search, replace); }
-  public stringGenGenerateReplaceAll(strPtr: string, search: string, replace: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateReplaceAll(strPtr, search, replace); }
-  public stringGenGenerateGlobalString(value: string): string { this.syncStateToGenerators(); return this.stringGen.doGenerateGlobalString(value); }
-  public stringGenGenerateStringConcat(left: Expression, right: Expression, params: string[]): string { this.syncStateToGenerators(); return this.stringGen.doGenerateStringConcat(left, right, params); }
-  public stringGenConvertNumberToString(numValue: string): string { this.syncStateToGenerators(); return this.stringGen.doConvertNumberToString(numValue); }
-
   public interfaceStructGenHasInterface(name: string): boolean { return this.interfaceStructGen ? this.interfaceStructGen.hasInterface(name) : false; }
+
+  public classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null { if (!className || !fieldName) return null; return this.classGen.getFieldInfo(className, fieldName); }
+  public classGenGetFieldType(className: string, fieldName: string): string | null { return this.classGen.getFieldType(className, fieldName); }
+  public classGenGetFieldTsType(className: string, fieldName: string): string | null { return this.classGen.getFieldTsType(className, fieldName); }
+  public classGenGetClassFields(className: string): { name: string; fieldType: string }[] { return this.classGen.getClassFields(className); }
+  public classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string { return this.classGen.generateNewExpression(className, args, params); }
+  public classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string { return this.classGen.generateMethodCall(instancePtr, className, method, args, params); }
   public interfaceStructGenGetInterfaceStruct(name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined { return this.interfaceStructGen ? this.interfaceStructGen.getInterfaceStruct(name) : undefined; }
   public interfaceStructGenGetStructSize(interfaceName: string): number { return this.interfaceStructGen ? this.interfaceStructGen.getStructSize(interfaceName) : 0; }
   public interfaceStructGenGetFieldCount(interfaceName: string): number {
@@ -1033,7 +956,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.stringSetGen = new StringSetGenerator(this);
     this.controlFlowGen = new ControlFlowGenerator(this);
     this.classGen = new ClassGenerator(this);
-    this.classGenClassFields = this.classGen.classFields;
 
     this.typeInference = new TypeInference(this as unknown as TypeInferenceContext);
 
@@ -1936,7 +1858,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (pieceType === 'i8*' || this.isStringExpression(piece)) {
         pieceStr = pieceValue;
       } else {
-        pieceStr = this.stringGenConvertNumberToString(pieceValue);
+        pieceStr = this.stringGen.doConvertNumberToString(pieceValue);
       }
       const pieceLen = this.nextTemp();
       this.emit(pieceLen + ' = call i64 @strlen(i8* ' + pieceStr + ')');

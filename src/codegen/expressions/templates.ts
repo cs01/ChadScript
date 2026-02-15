@@ -34,14 +34,14 @@ export class TemplateLiteralGenerator {
     if (expr.parts.length === 0) {
       // Empty template literal
       this.ctx.syncStateToGenerators();
-      return this.ctx.stringGenCreateStringConstant('');
+      return this.ctx.stringGen.doCreateStringConstant('');
     }
 
     if (expr.parts.length === 1) {
       const firstPart = expr.parts[0] as { type: string; value?: string };
       if (firstPart.type === 'string') {
         this.ctx.syncStateToGenerators();
-        return this.ctx.stringGenCreateStringConstant(firstPart.value || '');
+        return this.ctx.stringGen.doCreateStringConstant(firstPart.value || '');
       }
     }
 
@@ -55,7 +55,7 @@ export class TemplateLiteralGenerator {
 
       const partAsObj = part as { type: string; value?: string };
       if (partAsObj.type === 'string') {
-        partValue = this.ctx.stringGenCreateStringConstant(partAsObj.value || '');
+        partValue = this.ctx.stringGen.doCreateStringConstant(partAsObj.value || '');
       } else {
         const exprPart = part as Expression;
         const exprValue = this.ctx.generateExpression(exprPart, params);
@@ -69,7 +69,7 @@ export class TemplateLiteralGenerator {
       if (result === null) {
         result = partValue;
       } else {
-        result = this.ctx.stringGenGenerateStringConcatDirect(result, partValue);
+        result = this.ctx.stringGen.doGenerateStringConcatDirect(result, partValue);
       }
     }
 

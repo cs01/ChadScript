@@ -19,24 +19,14 @@ import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import type { InterfaceStructGenerator, InterfaceFieldInfo, InterfaceStructInfo } from '../../types/interface-struct-generator.js';
 import { stripOptional, stripNullable, tsTypeToLlvm, parseMapTypeString } from '../../infrastructure/type-system.js';
+import type { IStringGenerator, IMapGenerator, ISetGenerator, IResponseGenerator } from '../../infrastructure/generator-context.js';
 
 interface ExprBase { type: string; }
-
-interface ClassGeneratorLike {
-  getFieldInfo(className: string, fieldName: string): FieldInfo | null;
-  getClassFields(className: string): FieldInfo[];
-  getFieldType(className: string, fieldName: string): string | null;
-  getFieldTsType(className: string, fieldName: string): string | null;
-}
 
 interface FieldInfo {
   index: number;
   type: string;
   tsType?: string;
-}
-
-interface StringGeneratorLike {
-  createStringConstant(value: string): string;
 }
 
 interface MapGeneratorLike {
@@ -108,22 +98,18 @@ export interface MemberAccessGeneratorContext {
   syncStateToGenerators(): void;
   formatCodegenError(message: string, suggestion?: string): string;
   getObjectMetadata(obj: ObjectNode): ObjectMetadata;
-  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
-  classGenGetClassFields(className: string): FieldInfo[];
-  responseGenGenerateStatus(responsePtr: string): string;
-  responseGenGenerateOk(responsePtr: string): string;
-  responseGenGenerateUrl(responsePtr: string): string;
-  responseGenGenerateHeaders(responsePtr: string): string;
-  responseGenGenerateRedirected(responsePtr: string): string;
-  responseGenGenerateStatusText(responsePtr: string): string;
+  classGenGetClassFields(className: string): { name: string; fieldType: string }[];
+  readonly responseGen: IResponseGenerator;
+  readonly mapGen: IMapGenerator;
+  readonly setGen: ISetGenerator;
+  readonly interfaceStructGen?: InterfaceStructGenerator;
   generateExpression(expr: Expression, params: string[]): string;
-  stringGenCreateStringConstant(value: string): string;
+  readonly stringGen: IStringGenerator;
   interfaceStructGenHasInterface(name: string): boolean;
   interfaceStructGenGetInterfaceStruct(name: string): InterfaceStructInfo | undefined;
-  mapGenGenerateMapSize(mapPtr: string): string;
-  setGenGenerateSetSize(setPtr: string): string;
   setActualClassType(name: string, className: string): void;
   getActualClassType(name: string): string | undefined;
   setUsesJson(value: boolean): void;
@@ -293,7 +279,7 @@ export class MemberAccessGenerator {
     }
 
     if (this.isProcessPlatform(expr)) {
-      return this.ctx.stringGenCreateStringConstant(process.platform);
+      return this.ctx.stringGen.doCreateStringConstant(process.platform);
     }
 
     if (this.isProcessEnvAccess(expr)) {
@@ -398,7 +384,7 @@ export class MemberAccessGenerator {
 
   private handleProcessEnvAccess(expr: MemberAccessNode): string {
     const envVarName = expr.property;
-    const nameConst = this.ctx.stringGenCreateStringConstant(envVarName);
+    const nameConst = this.ctx.stringGen.doCreateStringConstant(envVarName);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @getenv(i8* ${nameConst})`);
     this.ctx.setVariableType(result, 'i8*');
@@ -414,10 +400,10 @@ export class MemberAccessGenerator {
     const prop = expr.property;
 
     if (prop === 'arch') {
-      return this.ctx.stringGenCreateStringConstant('x64');
+      return this.ctx.stringGen.doCreateStringConstant('x64');
     }
     if (prop === 'version') {
-      return this.ctx.stringGenCreateStringConstant('v1.0.0');
+      return this.ctx.stringGen.doCreateStringConstant('v1.0.0');
     }
     if (prop === 'pid') {
       const pidI32 = this.ctx.nextTemp();
@@ -845,8 +831,8 @@ export class MemberAccessGenerator {
   }
 
   private storeInterfaceMetadata(register: string, tsType: string): void {
-    if (this.ctx.interfaceStructGenHasInterface(tsType)) {
-      const interfaceInfo = this.ctx.interfaceStructGenGetInterfaceStruct(tsType);
+    if (this.ctx.interfaceStructGen?.hasInterface(tsType)) {
+      const interfaceInfo = this.ctx.interfaceStructGen?.getInterfaceStruct(tsType);
       if (interfaceInfo) {
         const keys: string[] = [];
         const tsTypes: string[] = [];
@@ -915,7 +901,7 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
 
     this.ctx.syncStateToGenerators();
-    const fieldNameStr = this.ctx.stringGenCreateStringConstant(expr.property);
+    const fieldNameStr = this.ctx.stringGen.doCreateStringConstant(expr.property);
 
     const fieldItem = this.ctx.nextTemp();
     this.ctx.emit(`${fieldItem} = call i8* @csyyjson_obj_get(i8* ${jsonObjPtr}, i8* ${fieldNameStr})`);
@@ -1051,7 +1037,7 @@ export class MemberAccessGenerator {
 
     this.ctx.setUsesJson(true);
     this.ctx.syncStateToGenerators();
-    const fieldNameStr = this.ctx.stringGenCreateStringConstant(expr.property);
+    const fieldNameStr = this.ctx.stringGen.doCreateStringConstant(expr.property);
     const fieldItem = this.ctx.nextTemp();
     this.ctx.emit(`${fieldItem} = call i8* @csyyjson_obj_get(i8* ${innerResult}, i8* ${fieldNameStr})`);
 
@@ -1123,7 +1109,7 @@ export class MemberAccessGenerator {
       if (this.ctx.hasJsonObjectMetadata(innerPtr)) {
         const interfaceType = this.ctx.getJsonObjectMetadataInterfaceType(innerPtr);
         if (interfaceType && interfaceType.length > 0) {
-          if (this.ctx.interfaceStructGenHasInterface(interfaceType)) {
+          if (this.ctx.interfaceStructGen?.hasInterface(interfaceType)) {
             const ifaceResult = this.accessObjectPropertyWithNamedInterface(innerPtr, expr.property, interfaceType);
             if (ifaceResult !== null) return ifaceResult;
           }
@@ -1995,7 +1981,7 @@ export class MemberAccessGenerator {
               return this.loadFieldValue(fieldPtr, classFieldInfo);
             }
           }
-          if (this.ctx.interfaceStructGenHasInterface(ifaceType)) {
+          if (this.ctx.interfaceStructGen?.hasInterface(ifaceType)) {
             const objPtrPtr = this.ctx.getVariableAlloca(varName)!;
             const objPtrRaw = this.ctx.nextTemp();
             this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${objPtrPtr}`);
@@ -2081,7 +2067,7 @@ export class MemberAccessGenerator {
     this.ctx.setUsesJson(true);
     this.ctx.syncStateToGenerators();
     const jsonObjPtr = this.ctx.generateExpression(expr.object, params);
-    const fieldNameStr = this.ctx.stringGenCreateStringConstant(expr.property);
+    const fieldNameStr = this.ctx.stringGen.doCreateStringConstant(expr.property);
 
     const fieldItem = this.ctx.nextTemp();
     this.ctx.emit(`${fieldItem} = call i8* @csyyjson_obj_get(i8* ${jsonObjPtr}, i8* ${fieldNameStr})`);
@@ -2409,12 +2395,12 @@ export class MemberAccessGenerator {
     if (exprObjType === 'variable' && this.ctx.symbolTable.isMap((expr.object as VariableNode).name)) {
       const mapPtr = this.ctx.generateExpression(expr.object, params);
       this.ctx.syncStateToGenerators();
-      return this.ctx.mapGenGenerateMapSize(mapPtr);
+      return this.ctx.mapGen.generateMapSize(mapPtr);
     }
     if (exprObjType === 'variable' && this.ctx.symbolTable.isSet((expr.object as VariableNode).name)) {
       const setPtr = this.ctx.generateExpression(expr.object, params);
       this.ctx.syncStateToGenerators();
-      return this.ctx.setGenGenerateSetSize(setPtr);
+      return this.ctx.setGen.generateSetSize(setPtr);
     }
     if (exprObjType === 'member_access') {
       const innerAccess = expr.object as MemberAccessNode;
@@ -2429,9 +2415,9 @@ export class MemberAccessGenerator {
             const ptr = this.ctx.generateExpression(expr.object, params);
             this.ctx.syncStateToGenerators();
             if (isSet) {
-              return this.ctx.setGenGenerateSetSize(ptr);
+              return this.ctx.setGen.generateSetSize(ptr);
             } else {
-              return this.ctx.mapGenGenerateMapSize(ptr);
+              return this.ctx.mapGen.generateMapSize(ptr);
             }
           }
         }
@@ -2469,17 +2455,17 @@ export class MemberAccessGenerator {
 
     this.ctx.syncStateToGenerators();
     if (expr.property === 'status') {
-      return this.ctx.responseGenGenerateStatus(responsePtr);
+      return this.ctx.responseGen.generateStatus(responsePtr);
     } else if (expr.property === 'ok') {
-      return this.ctx.responseGenGenerateOk(responsePtr);
+      return this.ctx.responseGen.generateOk(responsePtr);
     } else if (expr.property === 'url') {
-      return this.ctx.responseGenGenerateUrl(responsePtr);
+      return this.ctx.responseGen.generateUrl(responsePtr);
     } else if (expr.property === 'headers') {
-      return this.ctx.responseGenGenerateHeaders(responsePtr);
+      return this.ctx.responseGen.generateHeaders(responsePtr);
     } else if (expr.property === 'redirected') {
-      return this.ctx.responseGenGenerateRedirected(responsePtr);
+      return this.ctx.responseGen.generateRedirected(responsePtr);
     } else if (expr.property === 'statusText') {
-      return this.ctx.responseGenGenerateStatusText(responsePtr);
+      return this.ctx.responseGen.generateStatusText(responsePtr);
     }
     return null;
   }
@@ -2538,7 +2524,7 @@ export class MemberAccessGenerator {
           if (this.ctx.hasJsonObjectMetadata(innerPtr)) {
             const interfaceType = this.ctx.getJsonObjectMetadataInterfaceType(innerPtr);
             if (interfaceType) {
-              if (this.ctx.interfaceStructGenHasInterface(interfaceType)) {
+              if (this.ctx.interfaceStructGen?.hasInterface(interfaceType)) {
                 const ifaceResult = this.accessObjectPropertyWithNamedInterface(innerPtr, expr.property, interfaceType);
                 if (ifaceResult !== null) return ifaceResult;
               }
@@ -2635,7 +2621,7 @@ export class MemberAccessGenerator {
         this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${varAlloca}`);
         const ifaceType = symbolInterfaceType;
         if (ifaceType && ifaceType.length > 0) {
-          if (this.ctx.interfaceStructGenHasInterface(ifaceType)) {
+          if (this.ctx.interfaceStructGen?.hasInterface(ifaceType)) {
             const ifaceResult = this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, ifaceType);
             if (ifaceResult !== null) return ifaceResult;
           }
@@ -2801,7 +2787,7 @@ export class MemberAccessGenerator {
                   return this.loadFieldValue(fieldPtr, fieldInfo);
                 }
               }
-              if (this.ctx.interfaceStructGenHasInterface(paramInterfaceType)) {
+              if (this.ctx.interfaceStructGen?.hasInterface(paramInterfaceType)) {
                 const objPtrRaw = this.ctx.nextTemp();
                 this.ctx.emit(`${objPtrRaw} = load i8*, i8** ${paramPtr}`);
                 const ifaceResult = this.accessObjectPropertyWithNamedInterface(objPtrRaw, expr.property, paramInterfaceType);
@@ -2911,7 +2897,7 @@ export class MemberAccessGenerator {
       };
       return this.generate(syntheticExpr, params);
     } else {
-      if (assertedType.length > 0 && this.ctx.interfaceStructGenHasInterface(assertedType)) {
+      if (assertedType.length > 0 && this.ctx.interfaceStructGen?.hasInterface(assertedType)) {
         const objPtr = this.ctx.generateExpression(assertion.expression, params);
         const ifaceResult = this.accessObjectPropertyWithNamedInterface(objPtr, property, assertedType);
         if (ifaceResult !== null) return ifaceResult;
@@ -3074,7 +3060,7 @@ export class MemberAccessGenerator {
   }
 
   private accessInterfacePropertyWithNamedStruct(varName: string, property: string, interfaceType: string): string {
-    const interfaceInfo = this.ctx.interfaceStructGenGetInterfaceStruct(interfaceType);
+    const interfaceInfo = this.ctx.interfaceStructGen?.getInterfaceStruct(interfaceType);
     if (!interfaceInfo) {
       throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
     }
@@ -3144,7 +3130,7 @@ export class MemberAccessGenerator {
       }
     }
 
-    const interfaceInfo = this.ctx.interfaceStructGenGetInterfaceStruct(interfaceType);
+    const interfaceInfo = this.ctx.interfaceStructGen?.getInterfaceStruct(interfaceType);
     if (!interfaceInfo) {
       throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
     }

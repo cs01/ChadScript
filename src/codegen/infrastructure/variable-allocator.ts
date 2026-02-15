@@ -6,19 +6,6 @@ import { stripOptional, stripNullable, tsTypeToLlvm, tsTypeToLlvmJson, parseMapT
 
 interface ExprBase { type: string; }
 
-interface ClassGeneratorLike {
-  getClassFields(className: string): { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean' }[];
-  getFieldInfo(className: string, fieldName: string): FieldInfo | null;
-  thisPointer?: string | null;
-  currentClassName?: string | null;
-}
-
-interface FieldInfo {
-  index: number;
-  type: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean';
-  tsType?: string;
-}
-
 interface ArrowFunctionGeneratorLike {
   generateArrowFunction(expr: Expression | null, params: string[], returnType?: string | { paramTypes?: string[], returnType?: string }, scopeVarNames?: string[], scopeVarTypes?: string[]): string;
   getClosureInfoForLambda(lambdaName: string): ClosureInfoResult | null;
@@ -98,17 +85,9 @@ export interface VariableAllocatorContext {
   formatCodegenError(message: string, suggestion?: string): string;
   getAst(): AST | undefined;
   hasClassGen(): boolean;
-  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
-  classGenGetClassFields(className: string): { name: string; llvmType: string }[];
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
+  classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   readonly symbolTable: SymbolTable;
-  arrowFunctionGenGenerate(
-    expr: Expression,
-    params: string[],
-    typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
-    scopeVarNames: string[] | undefined,
-    scopeVarTypes: string[] | undefined
-  ): string;
-  arrowFunctionGenGetClosureInfo(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null;
   setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void;
   getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null;
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
@@ -121,6 +100,15 @@ export interface VariableAllocatorContext {
   typeResolverAreTypesCompatible(type1: string, type2: string): boolean;
   typeResolverNormalizeType(type: string): string;
   typeResolverResolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null;
+  readonly typeResolver?: TypeResolver;
+  arrowFunctionGenGenerate(
+    expr: Expression,
+    params: string[],
+    typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
+    scopeVarNames: string[] | undefined,
+    scopeVarTypes: string[] | undefined
+  ): string;
+  arrowFunctionGenGetClosureInfo(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null;
 }
 
 export class VariableAllocator {
@@ -128,7 +116,7 @@ export class VariableAllocator {
 
   private getInterface(name: string): InterfaceDeclaration | null {
     if (!name) return null;
-    const result = this.ctx.typeResolverGetInterface(name);
+    const result = this.ctx.typeResolver?.getInterface(name);
     if (result) {
       return result;
     }
@@ -166,7 +154,7 @@ export class VariableAllocator {
 
   private getTypeAlias(name: string): TypeAliasDeclaration | null {
     if (!name) return null;
-    const result = this.ctx.typeResolverGetTypeAlias(name);
+    const result = this.ctx.typeResolver?.getTypeAlias(name);
     if (result) {
       return result;
     }
@@ -698,7 +686,7 @@ export class VariableAllocator {
   }
 
   private getMapGetInterfaceType(expr: Expression): string | null {
-    const result = this.ctx.typeResolverGetMapGetInterfaceType(expr);
+    const result = this.ctx.typeResolver?.getMapGetInterfaceType(expr);
     if (result) {
       return result;
     }
@@ -724,7 +712,7 @@ export class VariableAllocator {
       if (memberExprObjBase.type !== 'this') return null;
       if (!this.ctx.getCurrentClassName()) return null;
 
-      const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), memberExpr.property);
+      const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName()!, memberExpr.property);
       if (!fieldInfoResult) return null;
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfo.tsType) return null;
@@ -909,7 +897,7 @@ export class VariableAllocator {
       const memberExpr = methodExpr.object as MemberAccessNode;
       const memberExprObjBase = memberExpr.object as ExprBase;
       if (memberExprObjBase.type === 'this' && this.ctx.getCurrentClassName() && this.ctx.hasClassGen()) {
-        const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), memberExpr.property);
+        const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName()!, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
           const mapParsed = parseMapTypeString(fieldInfo.tsType);
@@ -1717,7 +1705,7 @@ export class VariableAllocator {
 
   private getThisFieldInfo(fieldName: string): { tsType?: string } | null {
     if (!this.ctx.getCurrentClassName()) return null;
-    return this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), fieldName);
+    return this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName()!, fieldName);
   }
 
   private getTypeInfoForElementType(elementType: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
@@ -1769,8 +1757,8 @@ export class VariableAllocator {
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[]; tsTypes: string[] } {
-    const result = this.ctx.typeResolverGetUnionCommonFields(memberNames);
-    if (result.keys.length > 0) {
+    const result = this.ctx.typeResolver?.getUnionCommonFields(memberNames);
+    if (result && result.keys.length > 0) {
       return { keys: result.keys, types: result.types, tsTypes: result.types };
     }
     const interfaces: InterfaceDeclaration[] = [];

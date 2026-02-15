@@ -36,7 +36,7 @@ export class ObjectGenerator {
     }
 
     if (declaredInterfaceType) {
-      if (this.ctx.interfaceStructGenHasInterface(declaredInterfaceType)) {
+      if (this.ctx.interfaceStructGen?.hasInterface(declaredInterfaceType)) {
         return this.generateInterfaceObject(objExpr, params, declaredInterfaceType);
       }
     }
@@ -218,7 +218,7 @@ export class ObjectGenerator {
     }
 
     const structType = `%${interfaceName}`;
-    const structSize = this.ctx.interfaceStructGenGetStructSize(interfaceName);
+    const structSize = this.ctx.interfaceStructGen?.getStructSize(interfaceName);
 
     const objMem = this.nextTemp();
     this.emit(`${objMem} = call i8* @GC_malloc(i64 ${structSize})`);

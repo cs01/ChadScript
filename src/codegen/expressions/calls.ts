@@ -295,7 +295,7 @@ export class CallExpressionGenerator {
       return this.ctx.generateExpression(arg, params);
     }
     const numValue = this.ctx.generateExpression(arg, params);
-    return this.ctx.stringGenConvertNumberToString(numValue);
+    return this.ctx.stringGen.doConvertNumberToString(numValue);
   }
 
   private generateIsNaN(expr: CallNode, params: string[]): string {

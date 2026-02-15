@@ -1,6 +1,7 @@
 import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, StringNode } from '../../ast/types.js';
 
 import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
+import type { IStringGenerator, IStringMapGenerator, IMapGenerator, ISetGenerator, IStringSetGenerator, IArrayGenerator } from '../infrastructure/generator-context.js';
 
 export interface LiteralGeneratorContext {
   nextTemp(): string;
@@ -13,15 +14,19 @@ export interface LiteralGeneratorContext {
   getCurrentDeclaredMapType(): string | undefined;
   getCurrentDeclaredSetType(): string | undefined;
   classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string;
-  stringGenCreateStringConstant(value: string): string;
-  stringMapGenGenerateEmptyStringMap(): string;
-  arrayGenGenerateArrayLiteral(expr: ArrayNode, params: string[]): string;
-  mapGenGenerateMapLiteral(expr: MapNode, params: string[]): string;
-  setGenGenerateSetLiteral(expr: SetNode, params: string[]): string;
-  stringSetGenGenerateEmptyStringSet(): string;
-  regexGenGenerateRegexCompile(pattern: string, flags: string): string;
-  regexGenGenerateRegexCompileRuntime(patternPtr: string, cflags: number): string;
-  objectGenGenerateObjectLiteral(expr: Expression, params: string[]): string;
+  readonly stringGen: IStringGenerator;
+  readonly stringMapGen: IStringMapGenerator;
+  readonly arrayGen: IArrayGenerator;
+  readonly mapGen: IMapGenerator;
+  readonly setGen: ISetGenerator;
+  readonly stringSetGen: IStringSetGenerator;
+  readonly regexGen: {
+    generateRegexCompile(pattern: string, flags: string): string;
+    generateRegexCompileRuntime(patternPtr: string, cflags: number): string;
+  };
+  readonly objectGen: {
+    generateObjectLiteral(expr: Expression, params: string[]): string;
+  };
 }
 
 /**
@@ -80,7 +85,7 @@ export class LiteralExpressionGenerator {
    */
   generateString(value: string): string {
     this.ctx.syncStateToGenerators();
-    return this.ctx.stringGenCreateStringConstant(value);
+    return this.ctx.stringGen.doCreateStringConstant(value);
   }
 
   /**
@@ -88,7 +93,7 @@ export class LiteralExpressionGenerator {
    */
   generateRegex(pattern: string, flags: string): string {
     this.ctx.syncStateToGenerators();
-    return this.ctx.regexGenGenerateRegexCompile(pattern, flags);
+    return this.ctx.regexGen.generateRegexCompile(pattern, flags);
   }
 
   /**
@@ -96,7 +101,7 @@ export class LiteralExpressionGenerator {
    * ArrayGenerator uses context pattern - no sync needed! 🎯
    */
   generateArray(expr: ArrayNode, params: string[]): string {
-    return this.ctx.arrayGenGenerateArrayLiteral(expr, params);
+    return this.ctx.arrayGen.generateArrayLiteral(expr, params);
   }
 
   /**
@@ -104,7 +109,7 @@ export class LiteralExpressionGenerator {
    */
   generateObject(expr: ObjectNode, params: string[]): string {
     this.ctx.syncStateToGenerators();
-    return this.ctx.objectGenGenerateObjectLiteral(expr, params);
+    return this.ctx.objectGen.generateObjectLiteral(expr, params);
   }
 
   /**
@@ -114,18 +119,18 @@ export class LiteralExpressionGenerator {
     this.ctx.syncStateToGenerators();
 
     if (expr.keyType === 'string') {
-      return this.ctx.stringMapGenGenerateEmptyStringMap();
+      return this.ctx.stringMapGen.generateEmptyStringMap();
     }
 
     const declaredType = this.ctx.getCurrentDeclaredMapType();
     if (declaredType) {
       const mapParsed = parseMapTypeString(declaredType);
       if (mapParsed && mapParsed.keyType === 'string') {
-        return this.ctx.stringMapGenGenerateEmptyStringMap();
+        return this.ctx.stringMapGen.generateEmptyStringMap();
       }
     }
 
-    return this.ctx.mapGenGenerateMapLiteral(expr, params);
+    return this.ctx.mapGen.generateMapLiteral(expr, params);
   }
 
   /**
@@ -135,18 +140,18 @@ export class LiteralExpressionGenerator {
     this.ctx.syncStateToGenerators();
 
     if (expr.valueType === 'string') {
-      return this.ctx.stringSetGenGenerateEmptyStringSet();
+      return this.ctx.stringSetGen.generateEmptyStringSet();
     }
 
     const declaredType = this.ctx.getCurrentDeclaredSetType();
     if (declaredType) {
       const setParsed = parseSetTypeString(declaredType);
       if (setParsed && setParsed.valueType === 'string') {
-        return this.ctx.stringSetGenGenerateEmptyStringSet();
+        return this.ctx.stringSetGen.generateEmptyStringSet();
       }
     }
 
-    return this.ctx.setGenGenerateSetLiteral(expr, params);
+    return this.ctx.setGen.generateSetLiteral(expr, params);
   }
 
   /**
@@ -161,9 +166,9 @@ export class LiteralExpressionGenerator {
     }
     if (className === 'Set') {
       if (typeArgs && typeArgs.length > 0 && typeArgs[0] === 'string') {
-        return this.ctx.stringSetGenGenerateEmptyStringSet();
+        return this.ctx.stringSetGen.generateEmptyStringSet();
       }
-      return this.ctx.setGenGenerateSetLiteral({ type: 'set', values: [] }, params);
+      return this.ctx.setGen.generateSetLiteral({ type: 'set', values: [] }, params);
     }
     this.ctx.syncStateToGenerators();
     return this.ctx.classGenGenerateNewExpression(className, args, params);
@@ -196,7 +201,7 @@ export class LiteralExpressionGenerator {
 
     if (patternArg.type === 'string' && patternArg.value !== undefined) {
       this.ctx.syncStateToGenerators();
-      return this.ctx.regexGenGenerateRegexCompile(patternArg.value, flags);
+      return this.ctx.regexGen.generateRegexCompile(patternArg.value, flags);
     }
 
     const REG_EXTENDED = 1;
@@ -208,7 +213,7 @@ export class LiteralExpressionGenerator {
 
     this.ctx.syncStateToGenerators();
     const patternPtr = this.ctx.generateExpression(args[0], params);
-    return this.ctx.regexGenGenerateRegexCompileRuntime(patternPtr, cflags);
+    return this.ctx.regexGen.generateRegexCompileRuntime(patternPtr, cflags);
   }
 
   /**

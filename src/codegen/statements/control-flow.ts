@@ -1377,8 +1377,8 @@ export class ControlFlowGenerator {
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[]; tsTypes: string[] } {
-    const result = this.ctx.typeResolverGetUnionCommonFields(memberNames);
-    if (result.keys.length > 0) {
+    const result = this.ctx.typeResolver?.getUnionCommonFields(memberNames);
+    if (result && result.keys.length > 0) {
       return { keys: result.keys, types: result.types, tsTypes: result.types };
     }
 
@@ -1675,7 +1675,7 @@ export class ControlFlowGenerator {
       const memberObjBase = memberExpr.object as ExprBase;
       const className = this.ctx.getCurrentClassName();
       if (memberObjBase.type === 'this' && className) {
-        const mapTypeInfo = this.ctx.typeResolverGetClassFieldMapType(
+        const mapTypeInfo = this.ctx.typeResolver?.getClassFieldMapType(
           className,
           memberExpr.property
         );
@@ -1698,7 +1698,7 @@ export class ControlFlowGenerator {
           const memberExprObjBase = memberExpr.object as ExprBase;
           const className2 = this.ctx.getCurrentClassName();
           if (memberExprObjBase.type === 'this' && className2) {
-            const mapTypeInfo = this.ctx.typeResolverGetClassFieldMapType(
+            const mapTypeInfo = this.ctx.typeResolver?.getClassFieldMapType(
               className2,
               memberExpr.property
             );
@@ -1716,7 +1716,7 @@ export class ControlFlowGenerator {
       return { valueType };
     }
 
-    const metadata = this.ctx.typeResolverGetInterfaceMetadata(valueType);
+    const metadata = this.ctx.typeResolver?.getInterfaceMetadata(valueType);
     if (metadata) {
       return { valueType, objectMetadata: metadata };
     }
@@ -1737,7 +1737,7 @@ export class ControlFlowGenerator {
       const varName = (stmt.iterable as VariableNode).name;
       if (this.ctx.symbolTable.isMap(varName)) {
         const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
-        iterableValue = this.ctx.stringMapGenGenerateStringMapEntries(mapPtr);
+        iterableValue = this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
       } else {
         iterableValue = this.ctx.generateExpression(stmt.iterable, params);
       }
@@ -1750,7 +1750,7 @@ export class ControlFlowGenerator {
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
           const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
-          iterableValue = this.ctx.stringMapGenGenerateStringMapEntries(mapPtr);
+          iterableValue = this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
         } else {
           iterableValue = this.ctx.generateExpression(stmt.iterable, params);
         }

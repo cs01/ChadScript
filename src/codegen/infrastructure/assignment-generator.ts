@@ -12,13 +12,6 @@ import {
 import type { SymbolTable, ClassInfo, ObjectArrayMetadata } from './symbol-table.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
 
-interface ClassGeneratorLike {
-  getFieldInfo(className: string, property: string): FieldInfo | null;
-  getClassFields(className: string): { name: string; llvmType: string }[];
-  thisPointer?: string | null;
-  currentClassName?: string | null;
-}
-
 interface FieldInfo {
   index: number;
   type: string;
@@ -38,8 +31,8 @@ export interface AssignmentGeneratorContext {
   generateExpression(expr: Expression, params: string[]): string;
   getVariableAlloca(name: string): string | null;
   getVariableType(name: string): string | null;
-  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
-  classGenGetClassFields(className: string): { name: string; llvmType: string }[];
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
+  classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   getAst(): AST | undefined;
   expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
   setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void;

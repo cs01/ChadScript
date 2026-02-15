@@ -32,6 +32,10 @@ interface ExprBase { type: string; }
 export interface IClassGenContext {
   getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
   getClassFields(className: string): { name: string; fieldType: string }[];
+  getFieldType(className: string, fieldName: string): string | null;
+  getFieldTsType(className: string, fieldName: string): string | null;
+  generateNewExpression(className: string, args: Expression[], params: string[]): string;
+  generateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
   thisPointer?: string | null;
   currentClassName?: string | null;
 }
@@ -41,10 +45,175 @@ export interface IStringGenerator {
   doConvertNumberToString(numValue: string): string;
   doGenerateStringConcat(left: Expression, right: Expression, params: string[]): string;
   doGenerateStringConcatDirect(left: string, right: string): string;
+  doGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string;
+  doGenerateRepeat(strPtr: string, count: string): string;
+  doGeneratePadStart(strPtr: string, targetLength: string, padString: string): string;
+  doGenerateSplit(strPtr: string, delimiter: string): string;
+  doGenerateStartsWith(strPtr: string, prefix: string): string;
+  doGenerateEndsWith(strPtr: string, suffix: string): string;
+  doGenerateTrim(strPtr: string): string;
+  doGenerateTrimStart(strPtr: string): string;
+  doGenerateTrimEnd(strPtr: string): string;
+  doGenerateToUpperCase(strPtr: string): string;
+  doGenerateToLowerCase(strPtr: string): string;
+  doGenerateIndexOf(strPtr: string, substring: string): string;
+  doGenerateIncludes(strPtr: string, substring: string): string;
+  doGenerateSlice(strPtr: string, start: string, end: string | null): string;
+  doGenerateCharAt(strPtr: string, index: string): string;
+  doGenerateCharCodeAt(strPtr: string, index: string): string;
+  doGenerateReplace(strPtr: string, search: string, replace: string): string;
+  doGenerateReplaceAll(strPtr: string, search: string, replace: string): string;
+  doGenerateGlobalString(value: string): string;
+}
+
+export interface IResponseGenerator {
+  generateText(responsePtr: string): string;
+  generateJson(responsePtr: string): string;
+  generateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string;
+  generateStatus(responsePtr: string): string;
+  generateOk(responsePtr: string): string;
+  generateUrl(responsePtr: string): string;
+  generateHeaders(responsePtr: string): string;
+  generateRedirected(responsePtr: string): string;
+  generateStatusText(responsePtr: string): string;
+}
+
+export interface IRegexGenerator {
+  generateRegexCompile(pattern: string, flags: string): string;
+  generateRegexTest(regexPtr: string, testStr: string): string;
+  generateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string;
+  generateRegexCompileRuntime(patternPtr: string, cflags: number): string;
+}
+
+export interface IControlFlowGenerator {
+  generateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string;
+}
+
+export interface IObjectGenerator {
+  generateObjectLiteral(expr: Expression, params: string[]): string;
+}
+
+export interface IMathGenerator {
+  canHandle(expr: MethodCallNode): boolean;
+  generateMathMethod(expr: MethodCallNode, params: string[]): string;
+}
+
+export interface IPathGenerator {
+  generateResolve(expr: MethodCallNode, params: string[]): string;
+  generateDirname(expr: MethodCallNode, params: string[]): string;
+  generateBasename(expr: MethodCallNode, params: string[]): string;
+  generateJoin(expr: MethodCallNode, params: string[]): string;
+}
+
+export interface IFsGenerator {
+  canHandle(expr: MethodCallNode): boolean;
+  generateReadFileSync(expr: MethodCallNode, params: string[]): string;
+  generateWriteFileSync(expr: MethodCallNode, params: string[]): string;
+  generateAppendFileSync(expr: MethodCallNode, params: string[]): string;
+  generateExistsSync(expr: MethodCallNode, params: string[]): string;
+  generateUnlinkSync(expr: MethodCallNode, params: string[]): string;
+  generateReaddirSync(expr: MethodCallNode, params: string[]): string;
+  generateStatSync(expr: MethodCallNode, params: string[]): string;
+  generateMkdirSync(expr: MethodCallNode, params: string[]): string;
+}
+
+export interface IJsonGenerator {
+  canHandle(expr: MethodCallNode): boolean;
+  generateParse(expr: MethodCallNode, params: string[], typeParam?: string): string;
+  generateStringify(expr: MethodCallNode, params: string[]): string;
+}
+
+export interface IDateGenerator {
+  canHandle(expr: MethodCallNode): boolean;
+  generateNow(): string;
+}
+
+export interface ICryptoGenerator {
+  canHandle(expr: MethodCallNode): boolean;
+  generateSha256(expr: MethodCallNode, params: string[]): string;
+  generateMd5(expr: MethodCallNode, params: string[]): string;
+  generateSha512(expr: MethodCallNode, params: string[]): string;
+  generateRandomBytes(expr: MethodCallNode, params: string[]): string;
+}
+
+export interface ISqliteGenerator {
+  canHandle(expr: MethodCallNode): boolean;
+  generateOpen(expr: MethodCallNode, params: string[]): string;
+  generateExec(expr: MethodCallNode, params: string[]): string;
+  generateGet(expr: MethodCallNode, params: string[]): string;
+  generateAll(expr: MethodCallNode, params: string[]): string;
+  generateClose(expr: MethodCallNode, params: string[]): string;
+}
+
+export interface IArrowFunctionGenerator {
+  generateArrowFunction(
+    expr: Expression,
+    params: string[],
+    typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
+    scopeVarNames: string[] | undefined,
+    scopeVarTypes: string[] | undefined
+  ): string;
+  getClosureInfoForLambda(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | undefined;
 }
 
 export interface IStringMapGenerator {
+  generateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
+  generateStringMapGet(mapPtr: string, keyToFind: string): string;
+  generateStringMapHas(mapPtr: string, keyToFind: string): string;
+  generateStringMapClear(mapPtr: string): string;
+  generateStringMapDelete(mapPtr: string, keyToFind: string): string;
   generateStringMapEntries(mapPtr: string): string;
+  generateStringMapValues(mapPtr: string): string;
+  generateStringMapKeys(mapPtr: string): string;
+  generateEmptyStringMap(): string;
+}
+
+export interface IMapGenerator {
+  generateMapLiteral(expr: MapNode, params: string[]): string;
+  generateMapSet(expr: MethodCallNode, params: string[]): string;
+  generateMapGet(expr: MethodCallNode, params: string[]): string;
+  generateMapHas(expr: MethodCallNode, params: string[]): string;
+  generateMapDelete(expr: MethodCallNode, params: string[]): string;
+  generateMapClear(expr: MethodCallNode, params: string[]): string;
+  generateMapSize(mapPtr: string): string;
+}
+
+export interface ISetGenerator {
+  generateSetLiteral(expr: SetNode, params: string[]): string;
+  generateSetAdd(expr: MethodCallNode, params: string[]): string;
+  generateSetHas(expr: MethodCallNode, params: string[]): string;
+  generateSetDelete(expr: MethodCallNode, params: string[]): string;
+  generateSetSize(setPtr: string): string;
+}
+
+export interface IStringSetGenerator {
+  generateEmptyStringSet(): string;
+  generateStringSetAdd(setAlloca: string, valueValue: string): string;
+  generateStringSetHas(setAlloca: string, valueValue: string): string;
+}
+
+export interface IPointerMapGenerator {
+  generatePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
+  generatePointerMapGet(mapPtr: string, keyValue: string, valueType: string): string;
+  generatePointerMapClear(mapPtr: string): string;
+}
+
+export interface IArrayGenerator {
+  generateArrayLiteral(expr: ArrayNode, params: string[]): string;
+  generateArrayPush(expr: MethodCallNode, params: string[]): string;
+  generateArrayPop(expr: MethodCallNode, params: string[]): string;
+  generateArrayIncludes(expr: MethodCallNode, params: string[]): string;
+  generateArrayMap(expr: MethodCallNode, params: string[]): string;
+  generateStringArrayMap(expr: MethodCallNode, params: string[]): string;
+  generateArrayJoin(expr: MethodCallNode, params: string[]): string;
+  generateArrayFind(expr: MethodCallNode, params: string[]): string;
+  generateArraySome(expr: MethodCallNode, params: string[]): string;
+  generateArrayEvery(expr: MethodCallNode, params: string[]): string;
+  generateArrayFilter(expr: MethodCallNode, params: string[]): string;
+  generateArrayForEach(expr: MethodCallNode, params: string[]): string;
+  generateArrayReduce(expr: MethodCallNode, params: string[]): string;
+  generateArraySlice(expr: MethodCallNode, params: string[]): string;
+  generateArrayConcat(expr: MethodCallNode, params: string[]): string;
 }
 
 /**
@@ -505,14 +674,10 @@ export interface IGeneratorContext {
    * Access to class generator for field type lookups
    */
   readonly classGen: IClassGenContext;
-
-  /**
-   * ClassGen delegate methods (avoid struct layout mismatch)
-   */
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
-  classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
+  classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string;
   classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
 
@@ -529,33 +694,6 @@ export interface IGeneratorContext {
   typeResolverGetClassFieldMapType(className: string, fieldName: string): { keyType: string; valueType: string } | null;
   typeResolverGetInterfaceMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | null;
   typeResolverGetInterface(name: string): InterfaceDeclaration | null;
-
-  /**
-   * StringGen delegate methods (avoid struct layout mismatch)
-   */
-  stringGenCreateStringConstant(value: string): string;
-  stringGenGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string;
-  stringGenGenerateStringConcatDirect(left: string, right: string): string;
-  stringGenGenerateRepeat(strPtr: string, count: string): string;
-  stringGenGeneratePadStart(strPtr: string, targetLength: string, padString: string): string;
-  stringGenGenerateSplit(strPtr: string, delimiter: string): string;
-  stringGenGenerateStartsWith(strPtr: string, prefix: string): string;
-  stringGenGenerateEndsWith(strPtr: string, suffix: string): string;
-  stringGenGenerateTrim(strPtr: string): string;
-  stringGenGenerateTrimStart(strPtr: string): string;
-  stringGenGenerateTrimEnd(strPtr: string): string;
-  stringGenGenerateToUpperCase(strPtr: string): string;
-  stringGenGenerateToLowerCase(strPtr: string): string;
-  stringGenGenerateIndexOf(strPtr: string, substring: string): string;
-  stringGenGenerateIncludes(strPtr: string, substring: string): string;
-  stringGenGenerateSlice(strPtr: string, start: string, end: string | null): string;
-  stringGenGenerateCharAt(strPtr: string, index: string): string;
-  stringGenGenerateCharCodeAt(strPtr: string, index: string): string;
-  stringGenGenerateReplace(strPtr: string, search: string, replace: string): string;
-  stringGenGenerateReplaceAll(strPtr: string, search: string, replace: string): string;
-  stringGenGenerateGlobalString(value: string): string;
-  stringGenGenerateStringConcat(left: Expression, right: Expression, params: string[]): string;
-  stringGenConvertNumberToString(numValue: string): string;
 
   /**
    * InterfaceStructGen delegate methods (avoid struct layout mismatch)
@@ -638,6 +776,23 @@ export interface IGeneratorContext {
   pointerMapGenGeneratePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
   pointerMapGenGeneratePointerMapGet(mapPtr: string, keyValue: string, valueType: string): string;
   pointerMapGenGeneratePointerMapClear(mapPtr: string): string;
+
+  readonly responseGen: IResponseGenerator;
+  readonly regexGen: IRegexGenerator;
+  readonly controlFlowGen: IControlFlowGenerator;
+  readonly objectGen: IObjectGenerator;
+  readonly mathGen: IMathGenerator;
+  readonly pathGen: IPathGenerator;
+  readonly fsGen: IFsGenerator;
+  readonly jsonGen: IJsonGenerator;
+  readonly dateGen: IDateGenerator;
+  readonly cryptoGen: ICryptoGenerator;
+  readonly sqliteGen: ISqliteGenerator;
+  readonly mapGen: IMapGenerator;
+  readonly setGen: ISetGenerator;
+  readonly stringSetGen: IStringSetGenerator;
+  readonly pointerMapGen: IPointerMapGenerator;
+  readonly arrayGen: IArrayGenerator;
 
   /**
    * ResponseGen delegate methods (avoid struct layout mismatch)
@@ -1174,36 +1329,31 @@ export class MockGeneratorContext implements IGeneratorContext {
   syncStateToGenerators(): void {
   }
 
-  stringGen = {
+  stringGen: IStringGenerator = {
     doCreateStringConstant: (_value: string): string => '%0',
     doConvertNumberToString: (_numValue: string): string => '%0',
     doGenerateStringConcat: (_left: Expression, _right: Expression, _params: string[]): string => '%0',
     doGenerateStringConcatDirect: (_left: string, _right: string): string => '%0',
+    doGenerateSubstr: (_strPtr: string, _startIndex: string, _length: string | null): string => '%0',
+    doGenerateRepeat: (_strPtr: string, _count: string): string => '%0',
+    doGeneratePadStart: (_strPtr: string, _targetLength: string, _padString: string): string => '%0',
+    doGenerateSplit: (_strPtr: string, _delimiter: string): string => '%0',
+    doGenerateStartsWith: (_strPtr: string, _prefix: string): string => '%0',
+    doGenerateEndsWith: (_strPtr: string, _suffix: string): string => '%0',
+    doGenerateTrim: (_strPtr: string): string => '%0',
+    doGenerateTrimStart: (_strPtr: string): string => '%0',
+    doGenerateTrimEnd: (_strPtr: string): string => '%0',
+    doGenerateToUpperCase: (_strPtr: string): string => '%0',
+    doGenerateToLowerCase: (_strPtr: string): string => '%0',
+    doGenerateIndexOf: (_strPtr: string, _substring: string): string => '%0',
+    doGenerateIncludes: (_strPtr: string, _substring: string): string => '%0',
+    doGenerateSlice: (_strPtr: string, _start: string, _end: string | null): string => '%0',
+    doGenerateCharAt: (_strPtr: string, _index: string): string => '%0',
+    doGenerateCharCodeAt: (_strPtr: string, _index: string): string => '%0',
+    doGenerateReplace: (_strPtr: string, _search: string, _replace: string): string => '%0',
+    doGenerateReplaceAll: (_strPtr: string, _search: string, _replace: string): string => '%0',
+    doGenerateGlobalString: (_value: string): string => '%0',
   };
-
-  stringGenCreateStringConstant(_value: string): string { return '%0'; }
-  stringGenGenerateSubstr(_strPtr: string, _startIndex: string, _length: string | null): string { return '%0'; }
-  stringGenGenerateStringConcatDirect(_left: string, _right: string): string { return '%0'; }
-  stringGenGenerateRepeat(_strPtr: string, _count: string): string { return '%0'; }
-  stringGenGeneratePadStart(_strPtr: string, _targetLength: string, _padString: string): string { return '%0'; }
-  stringGenGenerateSplit(_strPtr: string, _delimiter: string): string { return '%0'; }
-  stringGenGenerateStartsWith(_strPtr: string, _prefix: string): string { return '%0'; }
-  stringGenGenerateEndsWith(_strPtr: string, _suffix: string): string { return '%0'; }
-  stringGenGenerateTrim(_strPtr: string): string { return '%0'; }
-  stringGenGenerateTrimStart(_strPtr: string): string { return '%0'; }
-  stringGenGenerateTrimEnd(_strPtr: string): string { return '%0'; }
-  stringGenGenerateToUpperCase(_strPtr: string): string { return '%0'; }
-  stringGenGenerateToLowerCase(_strPtr: string): string { return '%0'; }
-  stringGenGenerateIndexOf(_strPtr: string, _substring: string): string { return '%0'; }
-  stringGenGenerateIncludes(_strPtr: string, _substring: string): string { return '%0'; }
-  stringGenGenerateSlice(_strPtr: string, _start: string, _end: string | null): string { return '%0'; }
-  stringGenGenerateCharAt(_strPtr: string, _index: string): string { return '%0'; }
-  stringGenGenerateCharCodeAt(_strPtr: string, _index: string): string { return '%0'; }
-  stringGenGenerateReplace(_strPtr: string, _search: string, _replace: string): string { return '%0'; }
-  stringGenGenerateReplaceAll(_strPtr: string, _search: string, _replace: string): string { return '%0'; }
-  stringGenGenerateGlobalString(_value: string): string { return '%0'; }
-  stringGenGenerateStringConcat(_left: Expression, _right: Expression, _params: string[]): string { return '%0'; }
-  stringGenConvertNumberToString(_numValue: string): string { return '%0'; }
 
   interfaceStructGenHasInterface(_name: string): boolean { return false; }
   interfaceStructGenGetInterfaceStruct(_name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined { return undefined; }
@@ -1235,28 +1385,28 @@ export class MockGeneratorContext implements IGeneratorContext {
   classGen = {
     getFieldInfo: (_className: string, _fieldName: string): { index: number; type: string; tsType?: string } | null => null,
     getClassFields: (_className: string): { name: string; fieldType: string }[] => [],
+    getFieldType: (_className: string, _fieldName: string): string | null => null,
+    getFieldTsType: (_className: string, _fieldName: string): string | null => null,
+    generateNewExpression: (_className: string, _args: Expression[], _params: string[]): string => '%mock_new_result',
+    generateMethodCall: (_instancePtr: string, _className: string, _method: string, _args: Expression[], _params: string[]): string => '%mock_method_result',
   };
-  classGenGetFieldInfo(_className: string, _fieldName: string): { index: number; type: string; tsType?: string } | null {
-    return null;
-  }
-  classGenGetClassFields(_className: string): { name: string; fieldType: string }[] {
-    return [];
-  }
-  classGenGetFieldType(_className: string, _fieldName: string): string | null {
-    return null;
-  }
-  classGenGetFieldTsType(_className: string, _fieldName: string): string | null {
-    return null;
-  }
-  classGenGenerateNewExpression(_className: string, _args: Expression[], _params: string[]): string {
-    return '%mock_new_result';
-  }
-  classGenGenerateMethodCall(_instancePtr: string, _className: string, _method: string, _args: Expression[], _params: string[]): string {
-    return '%mock_method_result';
-  }
+  classGenGetFieldInfo(_className: string | null, _fieldName: string | null): { index: number; type: string; tsType?: string } | null { return null; }
+  classGenGetFieldType(_className: string, _fieldName: string): string | null { return null; }
+  classGenGetFieldTsType(_className: string, _fieldName: string): string | null { return null; }
+  classGenGetClassFields(_className: string): { name: string; fieldType: string }[] { return []; }
+  classGenGenerateNewExpression(_className: string, _args: Expression[], _params: string[]): string { return '%mock_new_result'; }
+  classGenGenerateMethodCall(_instancePtr: string, _className: string, _method: string, _args: Expression[], _params: string[]): string { return '%mock_method_result'; }
 
-  stringMapGen = {
+  stringMapGen: IStringMapGenerator = {
+    generateStringMapSet: (_mapPtr: string, _keyValue: string, _valueValue: string): string => '%mock_set_result',
+    generateStringMapGet: (_mapPtr: string, _keyToFind: string): string => '%mock_get_result',
+    generateStringMapHas: (_mapPtr: string, _keyToFind: string): string => '%mock_has_result',
+    generateStringMapClear: (_mapPtr: string): string => '%mock_clear_result',
+    generateStringMapDelete: (_mapPtr: string, _keyToFind: string): string => '%mock_delete_result',
     generateStringMapEntries: (_mapPtr: string): string => '%mock_entries',
+    generateStringMapValues: (_mapPtr: string): string => '%mock_values',
+    generateStringMapKeys: (_mapPtr: string): string => '%mock_keys',
+    generateEmptyStringMap: (): string => '%mock_empty_map',
   };
 
   stringMapGenGenerateEmptyStringMap(): string { return '%mock_empty_map'; }
@@ -1306,6 +1456,128 @@ export class MockGeneratorContext implements IGeneratorContext {
   pointerMapGenGeneratePointerMapSet(_mapPtr: string, _keyValue: string, _valueValue: string): string { return '%mock_pointer_map_set'; }
   pointerMapGenGeneratePointerMapGet(_mapPtr: string, _keyValue: string, _valueType: string): string { return '%mock_pointer_map_get'; }
   pointerMapGenGeneratePointerMapClear(_mapPtr: string): string { return '%mock_pointer_map_clear'; }
+
+  responseGen: IResponseGenerator = {
+    generateText: (_responsePtr: string): string => '%mock_response_text',
+    generateJson: (_responsePtr: string): string => '%mock_response_json',
+    generateTypedJson: (_responsePtr: string, _typeName: string, _interfaceDef: { properties: { name: string; type: string }[] }): string => '%mock_response_typed_json',
+    generateStatus: (_responsePtr: string): string => '%mock_response_status',
+    generateOk: (_responsePtr: string): string => '%mock_response_ok',
+    generateUrl: (_responsePtr: string): string => '%mock_response_url',
+    generateHeaders: (_responsePtr: string): string => '%mock_response_headers',
+    generateRedirected: (_responsePtr: string): string => '%mock_response_redirected',
+    generateStatusText: (_responsePtr: string): string => '%mock_response_status_text',
+  };
+  regexGen: IRegexGenerator = {
+    generateRegexCompile: (_pattern: string, _flags: string): string => '%mock_regex_compile',
+    generateRegexTest: (_regexPtr: string, _testStr: string): string => '%mock_regex_test',
+    generateRegexMatch: (_regexPtr: string, _testStr: string, _numGroups: number): string => '%mock_regex_match',
+    generateRegexCompileRuntime: (_patternPtr: string, _cflags: number): string => '%mock_regex_compile_runtime',
+  };
+  controlFlowGen: IControlFlowGenerator = {
+    generateLogicalOp: (_op: string, _left: Expression, _right: Expression, _params: string[]): string => '%mock_logical_op',
+  };
+  objectGen: IObjectGenerator = {
+    generateObjectLiteral: (_expr: Expression, _params: string[]): string => '%mock_object_literal',
+  };
+  mathGen: IMathGenerator = {
+    canHandle: (_expr: MethodCallNode): boolean => false,
+    generateMathMethod: (_expr: MethodCallNode, _params: string[]): string => '%mock_math_method',
+  };
+  pathGen: IPathGenerator = {
+    generateResolve: (_expr: MethodCallNode, _params: string[]): string => '%mock_path_resolve',
+    generateDirname: (_expr: MethodCallNode, _params: string[]): string => '%mock_path_dirname',
+    generateBasename: (_expr: MethodCallNode, _params: string[]): string => '%mock_path_basename',
+    generateJoin: (_expr: MethodCallNode, _params: string[]): string => '%mock_path_join',
+  };
+  fsGen: IFsGenerator = {
+    canHandle: (_expr: MethodCallNode): boolean => false,
+    generateReadFileSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_readFileSync',
+    generateWriteFileSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_writeFileSync',
+    generateAppendFileSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_appendFileSync',
+    generateExistsSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_existsSync',
+    generateUnlinkSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_unlinkSync',
+    generateReaddirSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_readdirSync',
+    generateStatSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_statSync',
+    generateMkdirSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_mkdirSync',
+  };
+  jsonGen: IJsonGenerator = {
+    canHandle: (_expr: MethodCallNode): boolean => false,
+    generateParse: (_expr: MethodCallNode, _params: string[], _typeParam?: string): string => '%mock_json_parse',
+    generateStringify: (_expr: MethodCallNode, _params: string[]): string => '%mock_json_stringify',
+  };
+  dateGen: IDateGenerator = {
+    canHandle: (_expr: MethodCallNode): boolean => false,
+    generateNow: (): string => '%mock_date_now',
+  };
+  cryptoGen: ICryptoGenerator = {
+    canHandle: (_expr: MethodCallNode): boolean => false,
+    generateSha256: (_expr: MethodCallNode, _params: string[]): string => '%mock_crypto_sha256',
+    generateMd5: (_expr: MethodCallNode, _params: string[]): string => '%mock_crypto_md5',
+    generateSha512: (_expr: MethodCallNode, _params: string[]): string => '%mock_crypto_sha512',
+    generateRandomBytes: (_expr: MethodCallNode, _params: string[]): string => '%mock_crypto_random_bytes',
+  };
+  sqliteGen: ISqliteGenerator = {
+    canHandle: (_expr: MethodCallNode): boolean => false,
+    generateOpen: (_expr: MethodCallNode, _params: string[]): string => '%mock_sqlite_open',
+    generateExec: (_expr: MethodCallNode, _params: string[]): string => '%mock_sqlite_exec',
+    generateGet: (_expr: MethodCallNode, _params: string[]): string => '%mock_sqlite_get',
+    generateAll: (_expr: MethodCallNode, _params: string[]): string => '%mock_sqlite_all',
+    generateClose: (_expr: MethodCallNode, _params: string[]): string => '%mock_sqlite_close',
+  };
+  arrowFunctionGen: IArrowFunctionGenerator = {
+    generateArrowFunction: (
+      _expr: Expression,
+      _params: string[],
+      _typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
+      _scopeVarNames: string[] | undefined,
+      _scopeVarTypes: string[] | undefined
+    ): string => '__mock_lambda',
+    getClosureInfoForLambda: (_lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | undefined => undefined,
+  };
+  mapGen: IMapGenerator = {
+    generateMapLiteral: (_expr: MapNode, _params: string[]): string => '%mock_map_literal',
+    generateMapSet: (_expr: MethodCallNode, _params: string[]): string => '%mock_map_set',
+    generateMapGet: (_expr: MethodCallNode, _params: string[]): string => '%mock_map_get',
+    generateMapHas: (_expr: MethodCallNode, _params: string[]): string => '%mock_map_has',
+    generateMapDelete: (_expr: MethodCallNode, _params: string[]): string => '%mock_map_delete',
+    generateMapClear: (_expr: MethodCallNode, _params: string[]): string => '%mock_map_clear',
+    generateMapSize: (_mapPtr: string): string => '%mock_map_size',
+  };
+  setGen: ISetGenerator = {
+    generateSetLiteral: (_expr: SetNode, _params: string[]): string => '%mock_set_literal',
+    generateSetAdd: (_expr: MethodCallNode, _params: string[]): string => '%mock_set_add',
+    generateSetHas: (_expr: MethodCallNode, _params: string[]): string => '%mock_set_has',
+    generateSetDelete: (_expr: MethodCallNode, _params: string[]): string => '%mock_set_delete',
+    generateSetSize: (_setPtr: string): string => '%mock_set_size',
+  };
+  stringSetGen: IStringSetGenerator = {
+    generateEmptyStringSet: (): string => '%mock_empty_string_set',
+    generateStringSetAdd: (_setAlloca: string, _valueValue: string): string => '%mock_string_set_add',
+    generateStringSetHas: (_setAlloca: string, _valueValue: string): string => '%mock_string_set_has',
+  };
+  pointerMapGen: IPointerMapGenerator = {
+    generatePointerMapSet: (_mapPtr: string, _keyValue: string, _valueValue: string): string => '%mock_pointer_map_set',
+    generatePointerMapGet: (_mapPtr: string, _keyValue: string, _valueType: string): string => '%mock_pointer_map_get',
+    generatePointerMapClear: (_mapPtr: string): string => '%mock_pointer_map_clear',
+  };
+  arrayGen: IArrayGenerator = {
+    generateArrayLiteral: (_expr: ArrayNode, _params: string[]): string => '%mock_array_literal',
+    generateArrayPush: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_push',
+    generateArrayPop: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_pop',
+    generateArrayIncludes: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_includes',
+    generateArrayMap: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_map',
+    generateStringArrayMap: (_expr: MethodCallNode, _params: string[]): string => '%mock_string_array_map',
+    generateArrayJoin: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_join',
+    generateArrayFind: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_find',
+    generateArraySome: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_some',
+    generateArrayEvery: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_every',
+    generateArrayFilter: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_filter',
+    generateArrayForEach: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_foreach',
+    generateArrayReduce: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_reduce',
+    generateArraySlice: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_slice',
+    generateArrayConcat: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_concat',
+  };
 
   responseGenGenerateText(_responsePtr: string): string { return '%mock_response_text'; }
   responseGenGenerateJson(_responsePtr: string): string { return '%mock_response_json'; }

@@ -1,17 +1,10 @@
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
 
-interface ClassGeneratorLike {
-  getClassFields(className: string): { name: string; fieldType: string }[];
-  thisPointer?: string | null;
-  currentClassName?: string | null;
-}
-
 export interface VariableExpressionContext {
   symbolTable: SymbolTable;
   variableTypes: Map<string, string>;
   setVariableType(name: string, type: string): void;
-  classGen: ClassGeneratorLike;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   nextTemp(): string;
   emit(instruction: string): void;
@@ -266,7 +259,7 @@ export class VariableExpressionGenerator {
         if (structName === 'Promise' || structName === 'PromiseCallback') return true;
         if (structName === 'Response' || structName === 'FetchBuffer') return true;
         if (structName.startsWith('struct.')) return true;
-        if (this.ctx.interfaceStructGenHasInterface(structName)) {
+        if (this.ctx.interfaceStructGen?.hasInterface(structName)) {
           return true;
         }
       }

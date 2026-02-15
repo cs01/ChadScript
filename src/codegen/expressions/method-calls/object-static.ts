@@ -102,7 +102,7 @@ export function generateObjectKeys(ctx: MethodCallGeneratorContext, expr: Method
   ctx.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
 
   for (let i = 0; i < fieldNames.length; i++) {
-    const strConst = ctx.stringGenCreateStringConstant(fieldNames[i]);
+    const strConst = ctx.stringGen.doCreateStringConstant(fieldNames[i]);
     const elemPtr = ctx.nextTemp();
     ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
     ctx.emit(`store i8* ${strConst}, i8** ${elemPtr}`);
@@ -266,7 +266,7 @@ export function generateObjectValues(ctx: MethodCallGeneratorContext, expr: Meth
       } else {
         const fieldVal = ctx.nextTemp();
         ctx.emit(`${fieldVal} = load double, double* ${fieldPtr}`);
-        const strVal = ctx.stringGenConvertNumberToString(fieldVal);
+        const strVal = ctx.stringGen.doConvertNumberToString(fieldVal);
         const elemPtr = ctx.nextTemp();
         ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
         ctx.emit(`store i8* ${strVal}, i8** ${elemPtr}`);
@@ -337,7 +337,7 @@ export function generateObjectEntries(ctx: MethodCallGeneratorContext, expr: Met
   ctx.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
 
   for (let i = 0; i < length; i++) {
-    const keyConst = ctx.stringGenCreateStringConstant(keys[i]);
+    const keyConst = ctx.stringGen.doCreateStringConstant(keys[i]);
     const keyElemPtr = ctx.nextTemp();
     ctx.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i * 2}`);
     ctx.emit(`store i8* ${keyConst}, i8** ${keyElemPtr}`);
@@ -352,7 +352,7 @@ export function generateObjectEntries(ctx: MethodCallGeneratorContext, expr: Met
     } else {
       const fieldVal = ctx.nextTemp();
       ctx.emit(`${fieldVal} = load double, double* ${fieldPtr}`);
-      valueStr = ctx.stringGenConvertNumberToString(fieldVal);
+      valueStr = ctx.stringGen.doConvertNumberToString(fieldVal);
     }
 
     const valElemPtr = ctx.nextTemp();

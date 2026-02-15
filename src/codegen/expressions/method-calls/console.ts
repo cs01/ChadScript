@@ -35,10 +35,10 @@ function emitArrayPrint(ctx: MethodCallGeneratorContext, useStderr: boolean, arr
   const len = ctx.nextTemp();
   ctx.emit(`${len} = load i32, i32* ${lenPtr}`);
 
-  const openBracket = ctx.stringGenCreateStringConstant('[ ');
-  const closeBracket = ctx.stringGenCreateStringConstant(' ]\n');
-  const separator = ctx.stringGenCreateStringConstant(', ');
-  const emptyArray = ctx.stringGenCreateStringConstant('[]\n');
+  const openBracket = ctx.stringGen.doCreateStringConstant('[ ');
+  const closeBracket = ctx.stringGen.doCreateStringConstant(' ]\n');
+  const separator = ctx.stringGen.doCreateStringConstant(', ');
+  const emptyArray = ctx.stringGen.doCreateStringConstant('[]\n');
 
   const isEmpty = ctx.nextTemp();
   ctx.emit(`${isEmpty} = icmp eq i32 ${len}, 0`);
@@ -109,7 +109,7 @@ function emitArrayPrint(ctx: MethodCallGeneratorContext, useStderr: boolean, arr
     ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
     emitPrintStrNoNl(ctx, useStderr, elem);
   } else {
-    const objStr = ctx.stringGenCreateStringConstant('[object Object]');
+    const objStr = ctx.stringGen.doCreateStringConstant('[object Object]');
     emitPrintStrNoNl(ctx, useStderr, objStr);
   }
 
@@ -159,7 +159,7 @@ export function generateConsoleCallInline(ctx: MethodCallGeneratorContext, expr:
 
   if (argTyped.type === 'string') {
     const strValue = argTyped.value as string;
-    const strConstPtr = ctx.stringGenCreateStringConstant(strValue + '\n');
+    const strConstPtr = ctx.stringGen.doCreateStringConstant(strValue + '\n');
     if (useStderr) {
       const stderrPtr = ctx.nextTemp();
       ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
@@ -215,7 +215,7 @@ export function generateConsoleCallInline(ctx: MethodCallGeneratorContext, expr:
       return emitPrintStr(ctx, useStderr, argValue);
     }
     if (varType && varType.endsWith('*')) {
-      const objStr = ctx.stringGenCreateStringConstant('[object Object]\n');
+      const objStr = ctx.stringGen.doCreateStringConstant('[object Object]\n');
       return emitPrintStrNoNl(ctx, useStderr, objStr);
     }
 

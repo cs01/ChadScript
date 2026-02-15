@@ -117,7 +117,7 @@ export class ResponseGenerator {
     typeName: string,
     interfaceDef: InterfaceDefInfo
   ): string {
-    const alreadyDefined = this.ctx.interfaceStructGenHasInterface(typeName);
+    const alreadyDefined = this.ctx.interfaceStructGen?.hasInterface(typeName);
 
     if (!this.generatedStructs.has(typeName) && !alreadyDefined) {
       this.generateJsonStruct(typeName, interfaceDef);

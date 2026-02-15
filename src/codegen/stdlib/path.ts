@@ -141,7 +141,7 @@ export class PathGenerator {
     }
 
     let result = this.ctx.generateExpression(expr.args[0], params);
-    const slash = this.ctx.stringGenCreateStringConstant('/');
+    const slash = this.ctx.stringGen.doCreateStringConstant('/');
 
     for (let i = 1; i < expr.args.length; i++) {
       const part = this.ctx.generateExpression(expr.args[i], params);

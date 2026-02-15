@@ -1,11 +1,8 @@
 import { Expression } from '../../../ast/types.js';
+import type { IStringGenerator } from '../../infrastructure/generator-context.js';
 
 interface ControlFlowGeneratorLike {
   generateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string;
-}
-
-interface StringGeneratorLike {
-  generateStringConcat(left: Expression, right: Expression, params: string[]): string;
 }
 
 export interface BinaryExpressionGeneratorContext {
@@ -19,10 +16,8 @@ export interface BinaryExpressionGeneratorContext {
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   controlFlowGen: ControlFlowGeneratorLike;
-  stringGen: StringGeneratorLike;
+  readonly stringGen: IStringGenerator;
   generateExpression(expr: Expression, params: string[]): string;
-  stringGenGenerateStringConcat(left: Expression, right: Expression, params: string[]): string;
-  controlFlowGenGenerateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string;
 }
 
 /**
@@ -44,13 +39,13 @@ export class BinaryExpressionGenerator {
     // Logical operators need short-circuit evaluation
     if (op === '&&' || op === '||') {
       this.ctx.syncStateToGenerators();
-      return this.ctx.controlFlowGenGenerateLogicalOp(op, left, right, params);
+      return this.ctx.controlFlowGen.generateLogicalOp(op, left, right, params);
     }
 
     // Check for string concatenation (+ with at least one string operand)
     if (op === '+' && (this.ctx.isStringExpression(left) || this.ctx.isStringExpression(right))) {
       this.ctx.syncStateToGenerators();
-      return this.ctx.stringGenGenerateStringConcat(left, right, params);
+      return this.ctx.stringGen.doGenerateStringConcat(left, right, params);
     }
 
     const leftValue = this.ctx.generateExpression(left, params);

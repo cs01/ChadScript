@@ -2426,7 +2426,7 @@ export class ArrayGenerator {
     if (expr.args.length === 1) {
       separator = this.ctx.generateExpression(expr.args[0], params);
     } else {
-      separator = this.ctx.stringGenCreateStringConstant(',');
+      separator = this.ctx.stringGen.doCreateStringConstant(',');
     }
 
     let isStringArray = false;

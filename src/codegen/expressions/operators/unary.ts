@@ -1,5 +1,6 @@
 import { Expression, MemberAccessNode, VariableNode } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
+import type { IStringGenerator } from '../../infrastructure/generator-context.js';
 
 interface ExprBase { type: string; }
 
@@ -14,7 +15,7 @@ interface UnaryExpressionContext {
   hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   generateExpression(expr: Expression, params: string[]): string;
-  stringGenCreateStringConstant(value: string): string;
+  readonly stringGen: IStringGenerator;
   readonly symbolTable: SymbolTable;
 }
 
@@ -207,7 +208,7 @@ export class UnaryExpressionGenerator {
       typeString = 'object';
     }
 
-    const strPtr = this.ctx.stringGenCreateStringConstant(typeString);
+    const strPtr = this.ctx.stringGen.doCreateStringConstant(typeString);
     this.ctx.setVariableType(strPtr, 'i8*');
     return strPtr;
   }

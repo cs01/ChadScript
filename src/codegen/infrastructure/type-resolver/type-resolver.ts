@@ -1,7 +1,7 @@
 import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode, CommonField, FunctionParameter, MethodCallNode, StringNode } from '../../../ast/types.js';
 import { SymbolTable, ObjectMetadata, SymbolKind, Symbol as SymbolEntry, MapMetadata, ObjectArrayMetadata } from '../symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
-import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo, ClassGeneratorLike } from './types.js';
+import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo } from './types.js';
 import { ResolvedType, createResolvedType, parseTypeString, stripOptional, tsTypeToLlvm, tsTypeToLlvmJson, parseMapTypeString, parseSetTypeString, parseArrayTypeString } from '../type-system.js';
 
 interface ExprBase { type: string; }
@@ -23,9 +23,8 @@ export interface TypeResolverContext {
   currentClassName?: string | null;
   getCurrentClassName(): string | null;
   currentFunction?: string | null;
-  classGen?: ClassGeneratorLike;
+  classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   hasClassGen(): boolean;
-  classGenGetFieldInfo(className: string | null, fieldName: string | null): FieldInfo | null;
 }
 
 interface BuiltinAstType {
@@ -410,7 +409,7 @@ export class TypeResolver {
       const memberObjBase = member.object as ExprBase;
       if (memberObjBase.type === 'this') {
         if (this.ctx.getCurrentClassName() && this.ctx.hasClassGen()) {
-          const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), member.property);
+          const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName()!, member.property);
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
             return fieldInfo.tsType;

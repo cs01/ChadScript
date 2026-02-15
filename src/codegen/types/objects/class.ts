@@ -1011,7 +1011,7 @@ export class ClassGenerator {
         types.push(this.fieldTypeToLlvm(f.type));
         tsTypes.push(f.type);
       }
-      const isInterfaceStruct = this.ctx.interfaceStructGenHasInterface(tsType);
+      const isInterfaceStruct = this.ctx.interfaceStructGen?.hasInterface(tsType);
       this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local',
         createObjectMetadataWithInterfaceAndPointerAlloca({ keys, types, tsTypes }, tsType, !!isInterfaceStruct));
       return;

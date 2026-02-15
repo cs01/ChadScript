@@ -16,7 +16,7 @@ export class JsonGenerator {
   }
 
   private getInterfaceFields(typeName: string): JsonInterfaceDef | null {
-    if (!this.ctx.interfaceStructGenHasInterface(typeName)) {
+    if (!this.ctx.interfaceStructGen?.hasInterface(typeName)) {
       return null;
     }
     const fieldCount = this.ctx.interfaceStructGenGetFieldCount(typeName);
@@ -201,7 +201,7 @@ export class JsonGenerator {
       return;
     }
 
-    if (this.ctx.interfaceStructGenHasInterface(typeName)) {
+    if (this.ctx.interfaceStructGen?.hasInterface(typeName)) {
       return;
     }
 
@@ -216,7 +216,7 @@ export class JsonGenerator {
       } else if (fieldType === 'boolean') {
         fieldTypes.push('double');
       } else {
-        if (this.ctx.interfaceStructGenHasInterface(fieldType)) {
+        if (this.ctx.interfaceStructGen?.hasInterface(fieldType)) {
           fieldTypes.push(`%${fieldType}*`);
         } else {
           fieldTypes.push('i8*');
@@ -376,7 +376,7 @@ export class JsonGenerator {
   }
 
   private stringifyInterface(arg: Expression, params: string[], interfaceType: string): string {
-    if (!this.ctx.interfaceStructGenHasInterface(interfaceType)) {
+    if (!this.ctx.interfaceStructGen?.hasInterface(interfaceType)) {
       return this.stringifyNumber(arg, params);
     }
     const fieldCount = this.ctx.interfaceStructGenGetFieldCount(interfaceType);

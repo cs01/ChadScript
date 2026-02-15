@@ -2,8 +2,8 @@ import { Expression, IndexAccessNode, IndexAccessAssignmentNode, MemberAccessNod
 
 interface ExprBase { type: string; }
 interface ObjectMetaBasic { keys: string[]; types: string[]; }
-interface StringGenLike { createStringConstant(value: string): string; }
-import type { Symbol as SymbolEntry, SymbolTable } from '../../infrastructure/symbol-table.js';
+import type { SymbolTable } from '../../infrastructure/symbol-table.js';
+import type { IStringGenerator } from '../../infrastructure/generator-context.js';
 
 export interface IndexAccessGeneratorContext {
   nextTemp(): string;
@@ -18,7 +18,7 @@ export interface IndexAccessGeneratorContext {
   getVariableAlloca(name: string): string | undefined;
   generateExpression(expr: Expression, params: string[]): string;
   isStringExpression(expr: Expression): boolean;
-  stringGenCreateStringConstant(value: string): string;
+  readonly stringGen: IStringGenerator;
 }
 
 /**
@@ -580,7 +580,7 @@ export class IndexAccessGenerator {
     for (let i = 0; i < objMeta.keys.length; i++) {
       const key = objMeta.keys[i]!;
       const fieldType = objMeta.types[i]!;
-      const keyStr = this.ctx.stringGenCreateStringConstant(key);
+      const keyStr = this.ctx.stringGen.doCreateStringConstant(key);
       const cmpResult = this.ctx.nextTemp();
       this.ctx.emit(`${cmpResult} = call i32 @strcmp(i8* ${keyValue}, i8* ${keyStr})`);
       const isMatch = this.ctx.nextTemp();
