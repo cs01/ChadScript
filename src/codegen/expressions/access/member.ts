@@ -192,6 +192,31 @@ export class MemberAccessGenerator {
     return null;
   }
 
+  private findClassStructurallyMatchingInterface(interfaceName: string): string | null {
+    const props = this.ctx.getInterfaceProperties(interfaceName);
+    if (!props || props.keys.length === 0) return null;
+    const classCount = this.ctx.getClassesCount();
+    let bestMatch: string | null = null;
+    let bestCount = 0;
+    for (let i = 0; i < classCount; i++) {
+      const cls = this.ctx.getAstClassAt(i);
+      if (!cls || !cls.name) continue;
+      if (cls.name.indexOf('Mock') !== -1 || cls.name.indexOf('Test') !== -1) continue;
+      let matchCount = 0;
+      for (let k = 0; k < props.keys.length; k++) {
+        if (this.ctx.classGenGetFieldInfo(cls.name, props.keys[k])) {
+          matchCount++;
+        }
+      }
+      if (matchCount > bestCount) {
+        bestCount = matchCount;
+        bestMatch = cls.name;
+      }
+    }
+    if (bestMatch && bestCount >= 3) return bestMatch;
+    return null;
+  }
+
   private getInterfaceFromAST(name: string): InterfaceInfo | null {
     const baseName = this.extractBaseTypeName(name);
     const props = this.ctx.getInterfaceProperties(baseName);
@@ -806,6 +831,11 @@ export class MemberAccessGenerator {
             const concreteClass = this.findClassImplementingInterface(tsType);
             if (concreteClass) {
               this.ctx.setActualClassType(value, concreteClass);
+            } else {
+              const structuralMatch = this.findClassStructurallyMatchingInterface(tsType);
+              if (structuralMatch) {
+                this.ctx.setActualClassType(value, structuralMatch);
+              }
             }
           }
         }
@@ -1074,6 +1104,19 @@ export class MemberAccessGenerator {
           const fieldPtr = this.ctx.nextTemp();
           this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${actualClass}_struct, %${actualClass}_struct* ${castPtr}, i32 0, i32 ${fieldInfo.index}`);
           const result = this.loadFieldValue(fieldPtr, fieldInfo, actualClass, expr.property);
+          if (result && !this.ctx.getActualClassType(result)) {
+            const fieldTsType = this.ctx.classGenGetFieldTsType(actualClass, expr.property);
+            if (fieldTsType) {
+              const classCount = this.ctx.getClassesCount();
+              for (let ci = 0; ci < classCount; ci++) {
+                const cls = this.ctx.getAstClassAt(ci);
+                if (cls && cls.name === fieldTsType) {
+                  this.ctx.setActualClassType(result, fieldTsType);
+                  break;
+                }
+              }
+            }
+          }
           return result;
         }
       }
