@@ -1,39 +1,57 @@
 // ============================================
+// SOURCE LOCATION
+// ============================================
+
+export interface SourceLocation {
+  file: string;
+  line: number;
+  column: number;
+  offset: number;
+}
+
+// ============================================
 // AST NODE TYPES
 // ============================================
 
 export interface NumberNode {
   type: 'number';
   value: number;
+  loc?: SourceLocation;
 }
 
 export interface StringNode {
   type: 'string';
   value: string;
+  loc?: SourceLocation;
 }
 
 export interface BooleanNode {
   type: 'boolean';
   value: boolean;
+  loc?: SourceLocation;
 }
 
 export interface NullNode {
   type: 'null';
+  loc?: SourceLocation;
 }
 
 export interface UndefinedNode {
   type: 'undefined';
+  loc?: SourceLocation;
 }
 
 export interface RegexNode {
   type: 'regex';
   pattern: string;
   flags: string;
+  loc?: SourceLocation;
 }
 
 export interface VariableNode {
   type: 'variable';
   name: string;
+  loc?: SourceLocation;
 }
 
 export interface MemberAccessNode {
@@ -41,17 +59,20 @@ export interface MemberAccessNode {
   object: Expression;
   property: string;
   optional?: boolean;
+  loc?: SourceLocation;
 }
 
 export interface IndexAccessNode {
   type: 'index_access';
   object: Expression;
   index: Expression;
+  loc?: SourceLocation;
 }
 
 export interface ArrayNode {
   type: 'array';
   elements: Expression[];
+  loc?: SourceLocation;
 }
 
 export interface ObjectProperty {
@@ -67,6 +88,7 @@ export interface CommonField {
 export interface ObjectNode {
   type: 'object';
   properties: ObjectProperty[];
+  loc?: SourceLocation;
 }
 
 export interface MapEntry {
@@ -79,12 +101,14 @@ export interface MapNode {
   entries: MapEntry[];
   keyType?: string;
   valueType?: string;
+  loc?: SourceLocation;
 }
 
 export interface SetNode {
   type: 'set';
   values: Expression[];
   valueType?: string;
+  loc?: SourceLocation;
 }
 
 export interface BinaryNode {
@@ -92,12 +116,14 @@ export interface BinaryNode {
   op: string;
   left: Expression;
   right: Expression;
+  loc?: SourceLocation;
 }
 
 export interface CallNode {
   type: 'call';
   name: string;
   args: Expression[];
+  loc?: SourceLocation;
 }
 
 export interface MethodCallNode {
@@ -107,6 +133,7 @@ export interface MethodCallNode {
   args: Expression[];
   typeParameter?: string; // Generic type parameter like <JsonTestResponse>
   pos?: number; // Source position for error reporting
+  loc?: SourceLocation;
 }
 
 export interface NewNode {
@@ -114,25 +141,30 @@ export interface NewNode {
   className: string;
   args: Expression[];
   typeArgs?: string[];
+  loc?: SourceLocation;
 }
 
 export interface ThisNode {
   type: 'this';
+  loc?: SourceLocation;
 }
 
 export interface SuperNode {
   type: 'super';
+  loc?: SourceLocation;
 }
 
 export interface UnaryNode {
   type: 'unary';
   op: string;
   operand: Expression;
+  loc?: SourceLocation;
 }
 
 export interface TemplateLiteralNode {
   type: 'template_literal';
   parts: (string | Expression)[];
+  loc?: SourceLocation;
 }
 
 export interface ArrowFunctionNode {
@@ -141,11 +173,13 @@ export interface ArrowFunctionNode {
   body: Expression | BlockStatement;
   async?: boolean;
   captures?: { name: string; llvmType: string }[];
+  loc?: SourceLocation;
 }
 
 export interface AwaitExpressionNode {
   type: 'await';
   argument: Expression;
+  loc?: SourceLocation;
 }
 
 export interface ConditionalExpressionNode {
@@ -153,6 +187,7 @@ export interface ConditionalExpressionNode {
   condition: Expression;
   consequent: Expression;
   alternate: Expression;
+  loc?: SourceLocation;
 }
 
 export interface MemberAccessAssignmentNode {
@@ -160,6 +195,7 @@ export interface MemberAccessAssignmentNode {
   object: Expression;
   property: string;
   value: Expression;
+  loc?: SourceLocation;
 }
 
 export interface IndexAccessAssignmentNode {
@@ -167,17 +203,20 @@ export interface IndexAccessAssignmentNode {
   object: Expression;
   index: Expression;
   value: Expression;
+  loc?: SourceLocation;
 }
 
 export interface TypeAssertionNode {
   type: 'type_assertion';
   expression: Expression;
   assertedType: string;
+  loc?: SourceLocation;
 }
 
 export interface SpreadElementNode {
   type: 'spread_element';
   argument: Expression;
+  loc?: SourceLocation;
 }
 
 export type Expression = NumberNode | StringNode | BooleanNode | NullNode | UndefinedNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode | AwaitExpressionNode | MemberAccessAssignmentNode | IndexAccessAssignmentNode | TypeAssertionNode | SpreadElementNode;
@@ -189,6 +228,7 @@ export interface VariableDeclaration {
   value: Expression | null;
   declaredType?: string;  // Optional TypeScript type annotation (e.g., "string[]", "number")
   line?: number;
+  loc?: SourceLocation;
 }
 
 export interface AssignmentStatement {
@@ -196,16 +236,19 @@ export interface AssignmentStatement {
   name: string;
   value: Expression;
   line?: number;
+  loc?: SourceLocation;
 }
 
 export interface BlockStatement {
   type: 'block';
   statements: Statement[];
+  loc?: SourceLocation;
 }
 
 export interface ReturnStatement {
   type: 'return';
   value: Expression;
+  loc?: SourceLocation;
 }
 
 export interface IfStatement {
@@ -213,12 +256,14 @@ export interface IfStatement {
   condition: Expression;
   thenBlock: BlockStatement;
   elseBlock: BlockStatement | null;
+  loc?: SourceLocation;
 }
 
 export interface WhileStatement {
   type: 'while';
   condition: Expression;
   body: BlockStatement;
+  loc?: SourceLocation;
 }
 
 export interface ForStatement {
@@ -227,6 +272,7 @@ export interface ForStatement {
   condition: Expression | null;
   update: AssignmentStatement | Expression | null;
   body: BlockStatement;
+  loc?: SourceLocation;
 }
 
 export interface ForOfStatement {
@@ -236,19 +282,23 @@ export interface ForOfStatement {
   destructuredNames?: string[];
   iterable: Expression;
   body: BlockStatement;
+  loc?: SourceLocation;
 }
 
 export interface BreakStatement {
   type: 'break';
+  loc?: SourceLocation;
 }
 
 export interface ContinueStatement {
   type: 'continue';
+  loc?: SourceLocation;
 }
 
 export interface ThrowStatement {
   type: 'throw';
   argument: Expression;
+  loc?: SourceLocation;
 }
 
 export interface TryStatement {
@@ -256,6 +306,7 @@ export interface TryStatement {
   tryBlock: BlockStatement;
   catchClause: { param: string; body: BlockStatement } | null;
   finallyBlock: BlockStatement | null;
+  loc?: SourceLocation;
 }
 
 export interface SwitchCase {
@@ -267,6 +318,7 @@ export interface SwitchStatement {
   type: 'switch';
   discriminant: Expression;
   cases: SwitchCase[];
+  loc?: SourceLocation;
 }
 
 export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | ForOfStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | SwitchStatement | BlockStatement | Expression;
@@ -289,6 +341,7 @@ export interface FunctionNode {
   typeParameters?: string[];
   async?: boolean;
   parameters?: FunctionParameter[];
+  loc?: SourceLocation;
 }
 
 export interface ClassMethod {
@@ -314,6 +367,7 @@ export interface ClassNode {
   implements?: string[];
   fields: ClassField[];  // Explicit field declarations
   methods: ClassMethod[];
+  loc?: SourceLocation;
 }
 
 export interface ImportSpecifier {

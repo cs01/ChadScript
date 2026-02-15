@@ -18,7 +18,7 @@
  * ```
  */
 
-import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode, InterfaceDeclaration, FunctionNode, ClassNode, TypeAliasDeclaration } from '../../ast/types.js';
+import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode, InterfaceDeclaration, FunctionNode, ClassNode, TypeAliasDeclaration, SourceLocation } from '../../ast/types.js';
 import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
@@ -26,6 +26,7 @@ import type { ResolvedType } from './type-system.js';
 import type { InterfaceStructGenerator, InterfaceStructInfo, InterfaceFieldInfo } from '../types/interface-struct-generator.js';
 import type { TypeGuardInfo } from './type-resolver/types.js';
 import type { JsonObjectMeta } from '../expressions/access/member.js';
+import type { DiagnosticEngine } from '../../diagnostics/engine.js';
 
 interface ExprBase { type: string; }
 
@@ -385,6 +386,11 @@ export interface IGeneratorContext {
    * Access to symbol table for variable lookups
    */
   readonly symbolTable: SymbolTable;
+
+  /**
+   * Diagnostic engine for structured error/warning reporting
+   */
+  readonly diagnostics?: DiagnosticEngine;
 
 
   /**
@@ -748,6 +754,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public output: string[] = [];
   public allocaInstructions: string[] = [];
   public symbolTable: SymbolTable;
+  public diagnostics?: DiagnosticEngine;
   public variableTypes: Map<string, string>;
   public actualClassTypes: Map<string, string>;
   public jsonObjectMetadata: Map<string, JsonObjectMeta>;

@@ -8,6 +8,7 @@ import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructur
 import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getStringHashHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
 import { TypeResolver, TypeResolverContext, TypeGuardInfo } from './infrastructure/type-resolver/index.js';
 import { stripOptional, stripNullable, tsTypeToLlvmJson } from './infrastructure/type-system.js';
+import { DiagnosticEngine } from '../diagnostics/engine.js';
 import { IGeneratorContext, IArrowFunctionGenerator } from './infrastructure/generator-context.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
@@ -141,6 +142,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   // JSON object metadata for tracking parsed JSON structures
   public jsonObjectMetadata: Map<string, JsonObjectMeta>;
+
+  // Diagnostic engine for structured error/warning reporting
+  public diagnostics: DiagnosticEngine;
 
   // Helper: Format nice compiler errors (public for context pattern access)
   public formatCodegenError(message: string, suggestion?: string, pos?: number): string {
@@ -797,6 +801,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.typeChecker = typeChecker;
     this.sourceCode = options.sourceCode || '';
     this.filename = options.filename || '';
+
+    this.diagnostics = new DiagnosticEngine();
+    this.diagnostics.setSourceCode(this.sourceCode);
+    this.diagnostics.setFilename(this.filename);
 
     const enumNames: string[] = [];
     if (ast.enums) {
