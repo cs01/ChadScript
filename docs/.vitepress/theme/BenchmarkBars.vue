@@ -3,6 +3,15 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 
 const tab = ref('startup')
 
+function formatVal(value, metric) {
+  if (metric === 'ms') {
+    return value < 10 ? value.toFixed(1) + 'ms' : Math.round(value) + 'ms'
+  }
+  if (value < 0.1) return Math.round(value * 1000) + 'ms'
+  if (value < 1) return value.toFixed(3) + 's'
+  return value.toFixed(2) + 's'
+}
+
 const langMeta = {
   c:          { name: 'C',          color: 'c' },
   chadscript: { name: 'ChadScript', color: 'chad', hero: true },
@@ -93,10 +102,11 @@ function transformJson(json) {
     const bench = json.benchmarks[key]
     if (!bench) continue
     const entries = Object.entries(bench.results)
+    const lowerBetter = bench.lower_is_better
+    entries.sort(([, a], [, b]) => lowerBetter ? a.value - b.value : b.value - a.value)
     const values = entries.map(([, r]) => r.value)
     const maxVal = Math.max(...values)
     const minVal = Math.min(...values)
-    const lowerBetter = bench.lower_is_better
     const layout = key === 'sqlite' ? 'vertical' : 'horizontal'
     const metric = lowerBetter ? 'Smaller = faster.' : 'Taller = more throughput.'
 
@@ -107,7 +117,7 @@ function transformJson(json) {
       const speed = lowerBetter ? 1.5 + (r.value / minVal) * 1.5 : 1.5 + (maxVal / r.value) * 1.5
       return {
         name: meta.name,
-        val: r.label,
+        val: formatVal(r.value, bench.metric),
         w,
         h,
         color: meta.color,
