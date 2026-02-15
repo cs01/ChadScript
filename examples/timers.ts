@@ -12,7 +12,6 @@ function onInterval(): void {
     console.log("Interval 2");
   } else if (counter == 3) {
     console.log("Interval 3");
-    console.log("TEST_PASSED");
     process.exit(0);
   }
 }

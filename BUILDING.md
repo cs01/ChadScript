@@ -66,9 +66,9 @@ export CHADSCRIPT_TREESITTER_PATH=/path/to/tree-sitter
 ChadScript can compile its own compiler to a native binary:
 
 ```bash
-chadc src/native-compiler.ts -o /tmp/chad-stage0
+chadc src/chadc-native.ts -o /tmp/chad-stage0
 
-/tmp/chad-stage0 src/native-compiler.ts -o /tmp/chad-stage1
+/tmp/chad-stage0 src/chadc-native.ts -o /tmp/chad-stage1
 ```
 
 The Stage 1 binary is a standalone native compiler that needs no Node.js runtime.

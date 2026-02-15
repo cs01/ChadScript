@@ -44,7 +44,7 @@ function compileHttpProgram(): { success: boolean; binaryPath: string; error?: s
   console.log('Compiling HTTP program...');
 
   try {
-    execSync(`node dist/index.js ${sourceFile}`, {
+    execSync(`node dist/chadc-node.js ${sourceFile}`, {
       cwd: PROJECT_ROOT,
       stdio: 'pipe',
       encoding: 'utf8',

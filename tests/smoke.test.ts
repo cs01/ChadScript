@@ -139,7 +139,7 @@ describe('Smoke Tests', { concurrency: 8 }, () => {
       } catch (err) {}
 
       try {
-        await execAsync(`node dist/index.js ${fixturePath}`);
+        await execAsync(`node dist/chadc-node.js ${fixturePath}`);
 
         // Verify executable was generated (intermediate files are cleaned up by default)
         assert.ok(fsSync.existsSync(exeFile), `Executable should exist at ${exeFile}`);

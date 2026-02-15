@@ -56,6 +56,8 @@ function notFoundHandler(req: Request): Response {
 // --- Router ---
 
 function handleRequest(req: Request): Response {
+  console.log(req.method + " " + req.path);
+
   // GET routes
   if (req.method == "GET") {
     if (req.path == "/") return homeHandler(req);

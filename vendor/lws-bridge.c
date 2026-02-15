@@ -321,6 +321,8 @@ int lws_bridge_serve(int port, lws_bridge_http_handler http_handler,
     g_http_handler = http_handler;
     g_ws_handler = ws_handler;
 
+    lws_set_log_level(0, NULL);
+
     struct lws_context_creation_info info;
     memset(&info, 0, sizeof(info));
     info.port = port;

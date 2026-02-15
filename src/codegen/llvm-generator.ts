@@ -172,13 +172,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       error += `${lineNumStr.padStart(lineNumWidth)} | ${lineContent}` + '\n';
       error += `${' '.repeat(lineNumWidth)} | ${' '.repeat(col)}^` + '\n';
 
-      if (suggestion) {
+      if (suggestion && suggestion.length > 0) {
         error += `${' '.repeat(lineNumWidth)} |` + '\n';
         error += `${' '.repeat(lineNumWidth)} = help: ${suggestion}` + '\n';
       }
     } else {
       error = `error: ${message}` + '\n';
-      if (suggestion) {
+      if (suggestion && suggestion.length > 0) {
         error += `  help: ${suggestion}` + '\n';
       }
     }

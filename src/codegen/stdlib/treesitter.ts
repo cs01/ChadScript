@@ -1,6 +1,6 @@
 export class TreeSitterGenerator {
   generateDeclarations(): string {
-    let ir = '; Tree-sitter bridge function declarations (implemented in treesitter-bridge.c)\n';
+    let ir = '; Tree-sitter bridge function declarations (implemented in c_bridges/treesitter-bridge.c)\n';
     ir += '; These C wrappers handle struct passing ABI correctly on all platforms\n\n';
 
     ir += 'declare %TSTree* @__ts_parse_source(i8*, i32)\n';

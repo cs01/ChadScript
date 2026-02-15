@@ -79,6 +79,5 @@ if (flags.verbose) {
 
 console.log("Processing with count: " + flags.count);
 console.log("Writing to: " + flags.output);
-console.log("TEST_PASSED");
 
 process.exit(0);

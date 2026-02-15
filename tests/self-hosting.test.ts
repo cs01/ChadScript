@@ -115,7 +115,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
     before(() => {
       assert.ok(
         fsSync.existsSync(CHADC),
-        `Native compiler not found at ${CHADC} — build it first with: npm run build && node dist/index.js src/native-compiler.ts -o .build/chadc`
+        `Native compiler not found at ${CHADC} — build it first with: npm run build && node dist/chadc-node.js src/chadc-native.ts -o .build/chadc`
       );
       fsSync.mkdirSync(outDir, { recursive: true });
     });
@@ -129,11 +129,11 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
   });
 
   describe('Self-hosting chain', { timeout: 600000 }, () => {
-    it('Node.js → Stage 0: compile native-compiler.ts', async () => {
+    it('Node.js → Stage 0: compile chadc-native.ts', async () => {
       if (fsSync.existsSync(STAGE0)) fsSync.unlinkSync(STAGE0);
 
       await execAsync(
-        `node dist/index.js src/native-compiler.ts -o ${STAGE0}`,
+        `node dist/chadc-node.js src/chadc-native.ts -o ${STAGE0}`,
         { timeout: 180000 }
       );
 
@@ -162,7 +162,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       if (fsSync.existsSync(STAGE1)) fsSync.unlinkSync(STAGE1);
 
       await execWithRetry(
-        `${STAGE0} -v src/native-compiler.ts -o ${STAGE1}`,
+        `${STAGE0} -v src/chadc-native.ts -o ${STAGE1}`,
         { timeout: 180000, env: NATIVE_ENV }
       );
 
@@ -191,7 +191,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       if (fsSync.existsSync(STAGE2)) fsSync.unlinkSync(STAGE2);
 
       await execWithRetry(
-        `${STAGE1} -v src/native-compiler.ts -o ${STAGE2}`,
+        `${STAGE1} -v src/chadc-native.ts -o ${STAGE2}`,
         { timeout: 180000, env: NATIVE_ENV }
       );
 
@@ -220,7 +220,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       if (fsSync.existsSync(STAGE3)) fsSync.unlinkSync(STAGE3);
 
       await execWithRetry(
-        `${STAGE2} -v src/native-compiler.ts -o ${STAGE3}`,
+        `${STAGE2} -v src/chadc-native.ts -o ${STAGE3}`,
         { timeout: 180000, env: NATIVE_ENV }
       );
 

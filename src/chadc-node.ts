@@ -5,13 +5,8 @@ import { LogLevel, logger } from './utils/logger.js';
 import * as path from 'path';
 import * as fs from 'fs';
 
-// ============================================
-// CLI ENTRY POINT
-// ============================================
-
 const args = process.argv.slice(2);
 
-// Parse flags
 let logLevel = LogLevel.Normal;
 const fileArgs: string[] = [];
 let skipNextArg = false;
@@ -74,14 +69,9 @@ if (fileArgs.length < 1) {
 }
 
 const inputFile = fileArgs[0];
-
-// Default output: .build/<input-path-without-extension>
-// Example: examples/hello.ts -> .build/examples/hello
-//          tests/fixtures/foo.js -> .build/tests/fixtures/foo
 const defaultOutput = path.join('.build', inputFile.replace(/\.(js|ts)$/, ''));
 const outputFile = outputArg || fileArgs[1] || defaultOutput;
 
-// Ensure .build directory structure exists
 const outputDir = path.dirname(outputFile);
 if (!fs.existsSync(outputDir)) {
   fs.mkdirSync(outputDir, { recursive: true });

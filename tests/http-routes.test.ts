@@ -115,7 +115,7 @@ describe('HTTP Route Isolation Tests', { concurrency: 1 }, () => {
     await fs.mkdir('tests/fixtures/network', { recursive: true });
     await fs.writeFile(SERVER_SOURCE, SERVER_CODE);
 
-    await execAsync(`node dist/index.js ${SERVER_SOURCE}`, { timeout: 60000 });
+    await execAsync(`node dist/chadc-node.js ${SERVER_SOURCE}`, { timeout: 60000 });
     assert.ok(fsSync.existsSync(SERVER_BINARY), 'Server binary should exist');
   });
 

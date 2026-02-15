@@ -42,7 +42,7 @@ describe('Examples Integration', { concurrency: 1 }, () => {
         } catch {}
 
         try {
-          const compileResult = await execAsync(`node dist/index.js ${sourcePath}`, { timeout: 60000 });
+          const compileResult = await execAsync(`node dist/chadc-node.js ${sourcePath}`, { timeout: 60000 });
           assert.ok(fsSync.existsSync(exeFile), `binary should exist at ${exeFile}`);
 
           const args = example.args ? example.args.join(' ') : '';
@@ -80,7 +80,7 @@ describe('Examples Integration', { concurrency: 1 }, () => {
         } catch {}
 
         try {
-          await execAsync(`node dist/index.js ${sourcePath}`, { timeout: 60000 });
+          await execAsync(`node dist/chadc-node.js ${sourcePath}`, { timeout: 60000 });
           assert.ok(fsSync.existsSync(exeFile), `binary should exist at ${exeFile}`);
         } finally {
           try {

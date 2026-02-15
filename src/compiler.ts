@@ -226,7 +226,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
 
     const bridgeObj = path.join(buildDir, 'treesitter-bridge.o');
     if (!fs.existsSync(bridgeObj)) {
-      const bridgeSrc = path.join(process.cwd(), 'src', 'treesitter-bridge.c');
+      const bridgeSrc = path.join(process.cwd(), 'c_bridges', 'treesitter-bridge.c');
       const tsLibInclude = path.join(process.cwd(), TREESITTER_LIB_PATH, 'lib', 'include');
       const compileBridge = `clang -c -O2 -fPIC -I ${tsLibInclude} ${bridgeSrc} -o ${bridgeObj}`;
       logger.info(`  Compiling tree-sitter bridge...`);

@@ -58,7 +58,7 @@ export interface MethodCallGeneratorContext {
   isObjectArrayExpression(expr: Expression): boolean;
   isRegexExpression(expr: Expression): boolean;
   isPromiseExpression(expr: Expression): boolean;
-  formatCodegenError(message: string, suggestion: string, pos?: number): string;
+  formatCodegenError(message: string, suggestion?: string, pos?: number): string;
   mangleUserName(name: string): string;
   symbolTable: SymbolTable;
   variableTypes: Map<string, string>;
@@ -1000,7 +1000,7 @@ export class MethodCallGenerator {
       ? `Method '${method}' on '${objectDescription}' is not supported.`
       : `Method '${method}' is not supported.`;
 
-    throw new Error(this.ctx.formatCodegenError(errorMsg, suggestion || '', pos));
+    throw new Error(this.ctx.formatCodegenError(errorMsg, suggestion, pos));
   }
 
   private isLikelyResponseExpression(expr: MethodCallNode): boolean {

@@ -76,13 +76,13 @@ jobs:
           TS_INCLUDE=node_modules/tree-sitter-typescript
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/parser.c -o build/tree-sitter-typescript-parser.o
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
-          clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include src/treesitter-bridge.c -o build/treesitter-bridge.o
+          clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
       - name: Build native chadc
-        run: node dist/index.js src/native-compiler.ts -o .build/chadc
+        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc
 
       - name: Build native chad
-        run: node dist/index.js src/chad-native.ts -o .build/chad
+        run: node dist/chadc-node.js src/chad-native.ts -o .build/chad
 
       - name: Sign macOS binaries
         if: runner.os == 'macOS'

@@ -3,13 +3,13 @@
   "version": "0.1.0",
   "description": "A JavaScript to native code compiler using LLVM",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/chadc-node.js",
   "bin": {
-    "chad": "./dist/chad.js",
-    "chadc": "./dist/index.js"
+    "chad": "./dist/chad-node.js",
+    "chadc": "./dist/chadc-node.js"
   },
   "scripts": {
-    "compile": "tsx src/index.ts",
+    "compile": "tsx src/chadc-node.ts",
     "prebuild": "node scripts/embed-dts.js",
     "build": "tsc",
     "test": "node scripts/test.js",
