@@ -27,6 +27,7 @@ import type { InterfaceStructGenerator, InterfaceStructInfo, InterfaceFieldInfo 
 import type { TypeGuardInfo } from './type-resolver/types.js';
 import type { JsonObjectMeta } from '../expressions/access/member.js';
 import type { DiagnosticEngine } from '../../diagnostics/engine.js';
+import type { TypeContext } from './type-context.js';
 
 interface ExprBase { type: string; }
 
@@ -392,6 +393,11 @@ export interface IGeneratorContext {
    */
   readonly diagnostics?: DiagnosticEngine;
 
+  /**
+   * Type context for canonical interned type objects
+   */
+  readonly typeContext?: TypeContext;
+
 
   /**
    * Access to global string constants
@@ -755,6 +761,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public allocaInstructions: string[] = [];
   public symbolTable: SymbolTable;
   public diagnostics?: DiagnosticEngine;
+  public typeContext?: TypeContext;
   public variableTypes: Map<string, string>;
   public actualClassTypes: Map<string, string>;
   public jsonObjectMetadata: Map<string, JsonObjectMeta>;

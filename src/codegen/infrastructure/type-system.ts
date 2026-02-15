@@ -26,6 +26,8 @@ export interface ResolvedType {
   qualifiers: TypeQualifiers;
   arrayDepth: number;
   typeParams?: ResolvedType[];
+  id?: number;
+  cachedLlvmType?: string;
 }
 
 const DEFAULT_QUALIFIERS: TypeQualifiers = { isNullable: false, isOptional: false };

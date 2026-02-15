@@ -9,6 +9,7 @@ import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getS
 import { TypeResolver, TypeResolverContext, TypeGuardInfo } from './infrastructure/type-resolver/index.js';
 import { stripOptional, stripNullable, tsTypeToLlvmJson } from './infrastructure/type-system.js';
 import { DiagnosticEngine } from '../diagnostics/engine.js';
+import { TypeContext } from './infrastructure/type-context.js';
 import { IGeneratorContext, IArrowFunctionGenerator } from './infrastructure/generator-context.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
@@ -145,6 +146,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   // Diagnostic engine for structured error/warning reporting
   public diagnostics: DiagnosticEngine;
+
+  // Type context for canonical interned type objects
+  public typeContext: TypeContext;
 
   // Helper: Format nice compiler errors (public for context pattern access)
   public formatCodegenError(message: string, suggestion?: string, pos?: number): string {
@@ -805,6 +809,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.diagnostics = new DiagnosticEngine();
     this.diagnostics.setSourceCode(this.sourceCode);
     this.diagnostics.setFilename(this.filename);
+
+    this.typeContext = new TypeContext();
 
     const enumNames: string[] = [];
     if (ast.enums) {
