@@ -1,5 +1,6 @@
-import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode, VariableNode, MemberAccessNode, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode, VariableNode, MemberAccessNode, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, SourceLocation, Statement, ReturnStatement } from '../ast/types.js';
 import { checkUnsafeUnionType } from '../codegen/infrastructure/type-system.js';
+import { DiagnosticEngine, DIAG_ERROR, DIAG_WARNING } from '../diagnostics/engine.js';
 
 type SymbolType = 'number' | 'string' | 'boolean' | 'null' | 'undefined' | 'array<number>' | 'array<string>' | 'object' | 'class' | 'unknown';
 
@@ -43,10 +44,17 @@ export class SemanticAnalyzer {
   private symbols: Map<string, TypedSymbol>;
   private errors: AnalysisError[] = [];
   private currentFunction: string = '';
+  private diagnosticEngine: DiagnosticEngine;
+  private suppressWarnings: boolean = false;
 
   constructor(ast: AST) {
     this.ast = ast;
     this.symbols = new Map();
+    this.diagnosticEngine = new DiagnosticEngine();
+  }
+
+  setSuppressWarnings(value: boolean): void {
+    this.suppressWarnings = value;
   }
 
   /**
@@ -159,7 +167,6 @@ export class SemanticAnalyzer {
 
     this.checkFunctionUnionTypes(func.name, func.paramTypes, func.returnType);
 
-    // Add parameters to symbol table (scoped to function)
     for (let _pi = 0; _pi < func.params.length; _pi++) {
       const param = func.params[_pi];
       const paramType = func.paramTypes ? func.paramTypes[_pi] : undefined;
@@ -172,8 +179,18 @@ export class SemanticAnalyzer {
       });
     }
 
-    // Analyze function body
     this.analyzeBlock(func.body);
+
+    if (!this.suppressWarnings && func.returnType && func.returnType !== 'void') {
+      if (!this.blockAlwaysReturns(func.body)) {
+        const funcAny = func as { loc?: SourceLocation };
+        this.diagnosticEngine.warning(
+          'function \'' + func.name + '\' may not return a value on all paths',
+          funcAny.loc,
+          'add a return statement at the end'
+        );
+      }
+    }
   }
 
   private analyzeClass(classNode: ClassNode): void {
@@ -249,26 +266,43 @@ export class SemanticAnalyzer {
 
   private analyzeBlock(block: BlockStatement): void {
     if (!block || !block.statements) return;
+    let hasTerminator = false;
     for (let _bi = 0; _bi < block.statements.length; _bi++) {
       const stmt = block.statements[_bi];
-      if (stmt.type === 'variable_declaration') {
+
+      if (hasTerminator && !this.suppressWarnings) {
+        const stmtAny = stmt as { loc?: SourceLocation };
+        this.diagnosticEngine.warning(
+          'unreachable code after return/throw/break/continue',
+          stmtAny.loc,
+          'remove this unreachable statement'
+        );
+        break;
+      }
+
+      const stmtType = stmt.type;
+      if (stmtType === 'return' || stmtType === 'throw' || stmtType === 'break' || stmtType === 'continue') {
+        hasTerminator = true;
+      }
+
+      if (stmtType === 'variable_declaration') {
         this.analyzeVariableDeclaration(stmt);
-      } else if (stmt.type === 'assignment') {
+      } else if (stmtType === 'assignment') {
         this.analyzeAssignment(stmt);
-      } else if (stmt.type === 'if') {
+      } else if (stmtType === 'if') {
         const ifStmt = stmt as IfStatement;
         if (ifStmt.thenBlock) this.analyzeBlock(ifStmt.thenBlock);
         if (ifStmt.elseBlock) this.analyzeBlock(ifStmt.elseBlock);
-      } else if (stmt.type === 'while') {
+      } else if (stmtType === 'while') {
         const whileStmt = stmt as WhileStatement;
         if (whileStmt.body) this.analyzeBlock(whileStmt.body);
-      } else if (stmt.type === 'for') {
+      } else if (stmtType === 'for') {
         const forStmt = stmt as ForStatement;
         if (forStmt.init && forStmt.init.type === 'variable_declaration') {
           this.analyzeVariableDeclaration(forStmt.init as VariableDeclaration);
         }
         if (forStmt.body) this.analyzeBlock(forStmt.body);
-      } else if (stmt.type === 'for_of') {
+      } else if (stmtType === 'for_of') {
         const forOfStmt = stmt as ForOfStatement;
         if (forOfStmt.variableName) {
           const iterableType = this.inferExpressionType(forOfStmt.iterable);
@@ -288,11 +322,16 @@ export class SemanticAnalyzer {
           });
         }
         if (forOfStmt.body) this.analyzeBlock(forOfStmt.body);
-      } else if (stmt.type === 'try') {
+      } else if (stmtType === 'try') {
         const tryStmt = stmt as TryStatement;
         if (tryStmt.tryBlock) this.analyzeBlock(tryStmt.tryBlock);
         if (tryStmt.catchClause && tryStmt.catchClause.body) this.analyzeBlock(tryStmt.catchClause.body);
         if (tryStmt.finallyBlock) this.analyzeBlock(tryStmt.finallyBlock);
+      } else if (stmtType === 'return') {
+        const retStmt = stmt as ReturnStatement;
+        if (retStmt.value) {
+          this.inferExpressionType(retStmt.value);
+        }
       }
     }
   }
@@ -630,28 +669,55 @@ export class SemanticAnalyzer {
     };
   }
 
+  private blockAlwaysReturns(block: BlockStatement): boolean {
+    if (!block || !block.statements) return false;
+    for (let i = 0; i < block.statements.length; i++) {
+      const stmt = block.statements[i];
+      const t = stmt.type;
+      if (t === 'return' || t === 'throw') return true;
+      if (t === 'if') {
+        const ifStmt = stmt as IfStatement;
+        if (ifStmt.elseBlock) {
+          if (this.blockAlwaysReturns(ifStmt.thenBlock) && this.blockAlwaysReturns(ifStmt.elseBlock)) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   /**
    * Format errors for display
    */
   formatErrors(): string {
-    if (this.errors.length === 0) {
-      return '';
+    let output = '';
+
+    if (this.errors.length > 0) {
+      output += 'Semantic Analysis Errors:\n\n';
+
+      for (let i = 0; i < this.errors.length; i++) {
+        const error = this.errors[i] as AnalysisError;
+        output += '  error: ' + error.message + '\n';
+        if (error.location) {
+          output += '    location: ' + error.location + '\n';
+        }
+        if (error.suggestion) {
+          output += '    help: ' + error.suggestion + '\n';
+        }
+        output += '\n';
+      }
     }
 
-    let output = '✗ Semantic Analysis Errors:\n\n';
-
-    for (let i = 0; i < this.errors.length; i++) {
-      const error = this.errors[i] as AnalysisError;
-      output += `  • ${error.message}` + '\n';
-      if (error.location) {
-        output += `    Location: ${error.location}` + '\n';
-      }
-      if (error.suggestion) {
-        output += `    ℹ ${error.suggestion}` + '\n';
-      }
-      output += '\n';
+    const diagOutput = this.diagnosticEngine.format();
+    if (diagOutput) {
+      output += diagOutput;
     }
 
     return output;
+  }
+
+  getDiagnosticEngine(): DiagnosticEngine {
+    return this.diagnosticEngine;
   }
 }
