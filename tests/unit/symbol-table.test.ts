@@ -422,4 +422,90 @@ describe('SymbolTable', () => {
       assert.match(output, /Class: Person/);
     });
   });
+
+  describe('hierarchical scopes', () => {
+    it('should push and pop scopes', () => {
+      const table = new SymbolTable();
+      table.define('x', SymbolKind.Number, 'double', '%1', 'local');
+
+      table.pushScope('block');
+      table.define('y', SymbolKind.Number, 'double', '%2', 'local');
+
+      assert.strictEqual(table.has('x'), true);
+      assert.strictEqual(table.has('y'), true);
+
+      table.popScope();
+
+      assert.strictEqual(table.has('x'), true);
+      assert.strictEqual(table.has('y'), false);
+    });
+
+    it('should support nested scopes', () => {
+      const table = new SymbolTable();
+      table.define('a', SymbolKind.Number, 'double', '%1', 'local');
+
+      table.pushScope('block');
+      table.define('b', SymbolKind.Number, 'double', '%2', 'local');
+
+      table.pushScope('block');
+      table.define('c', SymbolKind.Number, 'double', '%3', 'local');
+
+      assert.strictEqual(table.has('a'), true);
+      assert.strictEqual(table.has('b'), true);
+      assert.strictEqual(table.has('c'), true);
+
+      table.popScope();
+      assert.strictEqual(table.has('a'), true);
+      assert.strictEqual(table.has('b'), true);
+      assert.strictEqual(table.has('c'), false);
+
+      table.popScope();
+      assert.strictEqual(table.has('a'), true);
+      assert.strictEqual(table.has('b'), false);
+      assert.strictEqual(table.has('c'), false);
+    });
+
+    it('should not pop below global scope', () => {
+      const table = new SymbolTable();
+      table.define('x', SymbolKind.Number, 'double', '%1', 'global');
+      table.popScope();
+      assert.strictEqual(table.has('x'), true);
+    });
+
+    it('should preserve globals when popping scopes', () => {
+      const table = new SymbolTable();
+      table.define('g', SymbolKind.Number, 'double', '@g', 'global');
+
+      table.pushScope('block');
+      table.define('x', SymbolKind.Number, 'double', '%1', 'local');
+      table.popScope();
+
+      assert.strictEqual(table.has('g'), true);
+      assert.strictEqual(table.has('x'), false);
+    });
+
+    it('lookupLocal should only find symbols in current scope', () => {
+      const table = new SymbolTable();
+      table.define('outer', SymbolKind.Number, 'double', '%1', 'local');
+
+      table.pushScope('block');
+      table.define('inner', SymbolKind.Number, 'double', '%2', 'local');
+
+      assert.ok(table.lookupLocal('inner'));
+      assert.strictEqual(table.lookupLocal('outer'), undefined);
+      assert.ok(table.lookup('outer'));
+    });
+
+    it('should support closure capture across scopes', () => {
+      const table = new SymbolTable();
+      table.define('x', SymbolKind.Number, 'double', '%1', 'local');
+
+      table.pushScope('block');
+      table.define('y', SymbolKind.String, 'i8*', '%2', 'local');
+
+      const scopeVars = table.getScopeVarsForClosure();
+      assert.strictEqual(scopeVars.get('x'), 'double');
+      assert.strictEqual(scopeVars.get('y'), 'i8*');
+    });
+  });
 });

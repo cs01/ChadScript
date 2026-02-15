@@ -413,12 +413,62 @@ export class SymbolTable {
   private symbolKeysCount: number = 0;
   private narrowedTypes: Map<string, ObjectMetadata[]>;
   private interfaceTypes: Map<string, string>;
+  private scopeNames: string[];
+  private scopeNamesCount: number = 0;
+  private scopeBoundaries: number[];
+  private scopeBoundariesCount: number = 0;
 
   constructor() {
     this.symbols = new Map();
     this.symbolKeys = [];
     this.narrowedTypes = new Map();
     this.interfaceTypes = new Map();
+    this.scopeNames = [];
+    this.scopeBoundaries = [];
+  }
+
+  pushScope(kind: string): void {
+    this.scopeBoundaries.push(this.scopeNamesCount);
+    this.scopeBoundariesCount++;
+  }
+
+  popScope(): void {
+    if (this.scopeBoundariesCount === 0) return;
+    this.scopeBoundariesCount--;
+    const boundary = this.scopeBoundaries[this.scopeBoundariesCount];
+    this.scopeBoundaries.length = this.scopeBoundariesCount;
+    for (let i = this.scopeNamesCount - 1; i >= boundary; i--) {
+      const name = this.scopeNames[i];
+      this.symbols.delete(name);
+      this.interfaceTypes.delete(name);
+    }
+    this.scopeNamesCount = boundary;
+    this.scopeNames.length = boundary;
+    let writeIdx = 0;
+    const count = this.symbolKeysCount;
+    for (let readIdx = 0; readIdx < count; readIdx++) {
+      const key = this.symbolKeys[readIdx];
+      if (!key) continue;
+      if (this.symbols.has(key)) {
+        if (writeIdx !== readIdx) {
+          this.symbolKeys[writeIdx] = key;
+        }
+        writeIdx++;
+      }
+    }
+    this.symbolKeysCount = writeIdx;
+  }
+
+  lookupLocal(name: string): Symbol | undefined {
+    if (!name) return undefined;
+    if (this.scopeBoundariesCount === 0) return this.symbols.get(name);
+    const boundary = this.scopeBoundaries[this.scopeBoundariesCount - 1];
+    for (let i = boundary; i < this.scopeNamesCount; i++) {
+      if (this.scopeNames[i] === name) {
+        return this.symbols.get(name);
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -486,6 +536,10 @@ export class SymbolTable {
       this.symbolKeysCount++;
     }
     this.symbols.set(name, symbol);
+    if (scope === 'local' && this.scopeBoundariesCount > 0) {
+      this.scopeNames.push(name);
+      this.scopeNamesCount++;
+    }
   }
 
   defineWithMetadata(
@@ -534,6 +588,10 @@ export class SymbolTable {
       this.symbolKeysCount++;
     }
     this.symbols.set(name, symbol);
+    if (scope === 'local' && this.scopeBoundariesCount > 0) {
+      this.scopeNames.push(name);
+      this.scopeNamesCount++;
+    }
   }
 
   /**
