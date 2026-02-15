@@ -1,10 +1,8 @@
 import { SourceLocation } from '../ast/types.js';
 
-export const DiagnosticSeverity = {
-  Error: 0,
-  Warning: 1,
-  Note: 2
-} as const;
+export const DIAG_ERROR = 0;
+export const DIAG_WARNING = 1;
+export const DIAG_NOTE = 2;
 
 export interface Diagnostic {
   severity: number;
@@ -28,7 +26,7 @@ export class DiagnosticEngine {
 
   error(message: string, loc?: SourceLocation, suggestion?: string): void {
     this.diagnostics.push({
-      severity: DiagnosticSeverity.Error,
+      severity: DIAG_ERROR,
       message,
       loc,
       suggestion
@@ -37,7 +35,7 @@ export class DiagnosticEngine {
 
   warning(message: string, loc?: SourceLocation, suggestion?: string): void {
     this.diagnostics.push({
-      severity: DiagnosticSeverity.Warning,
+      severity: DIAG_WARNING,
       message,
       loc,
       suggestion
@@ -46,7 +44,7 @@ export class DiagnosticEngine {
 
   note(message: string, loc?: SourceLocation, suggestion?: string): void {
     this.diagnostics.push({
-      severity: DiagnosticSeverity.Note,
+      severity: DIAG_NOTE,
       message,
       loc,
       suggestion
@@ -55,7 +53,7 @@ export class DiagnosticEngine {
 
   hasErrors(): boolean {
     for (let i = 0; i < this.diagnostics.length; i++) {
-      if (this.diagnostics[i].severity === DiagnosticSeverity.Error) {
+      if (this.diagnostics[i].severity === DIAG_ERROR) {
         return true;
       }
     }
@@ -64,7 +62,7 @@ export class DiagnosticEngine {
 
   hasWarnings(): boolean {
     for (let i = 0; i < this.diagnostics.length; i++) {
-      if (this.diagnostics[i].severity === DiagnosticSeverity.Warning) {
+      if (this.diagnostics[i].severity === DIAG_WARNING) {
         return true;
       }
     }
@@ -78,7 +76,7 @@ export class DiagnosticEngine {
   getErrors(): Diagnostic[] {
     const result: Diagnostic[] = [];
     for (let i = 0; i < this.diagnostics.length; i++) {
-      if (this.diagnostics[i].severity === DiagnosticSeverity.Error) {
+      if (this.diagnostics[i].severity === DIAG_ERROR) {
         result.push(this.diagnostics[i]);
       }
     }
@@ -88,7 +86,7 @@ export class DiagnosticEngine {
   getWarnings(): Diagnostic[] {
     const result: Diagnostic[] = [];
     for (let i = 0; i < this.diagnostics.length; i++) {
-      if (this.diagnostics[i].severity === DiagnosticSeverity.Warning) {
+      if (this.diagnostics[i].severity === DIAG_WARNING) {
         result.push(this.diagnostics[i]);
       }
     }
@@ -100,8 +98,8 @@ export class DiagnosticEngine {
   }
 
   private severityLabel(severity: number): string {
-    if (severity === DiagnosticSeverity.Error) return 'error';
-    if (severity === DiagnosticSeverity.Warning) return 'warning';
+    if (severity === DIAG_ERROR) return 'error';
+    if (severity === DIAG_WARNING) return 'warning';
     return 'note';
   }
 

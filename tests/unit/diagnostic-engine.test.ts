@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { DiagnosticEngine, DiagnosticSeverity } from '../../src/diagnostics/engine.js';
+import { DiagnosticEngine, DIAG_ERROR, DIAG_WARNING, DIAG_NOTE } from '../../src/diagnostics/engine.js';
 import { SourceLocation } from '../../src/ast/types.js';
 
 describe('DiagnosticEngine', () => {
@@ -93,8 +93,8 @@ describe('DiagnosticEngine', () => {
   });
 
   it('should use correct severity constants', () => {
-    assert.strictEqual(DiagnosticSeverity.Error, 0);
-    assert.strictEqual(DiagnosticSeverity.Warning, 1);
-    assert.strictEqual(DiagnosticSeverity.Note, 2);
+    assert.strictEqual(DIAG_ERROR, 0);
+    assert.strictEqual(DIAG_WARNING, 1);
+    assert.strictEqual(DIAG_NOTE, 2);
   });
 });
