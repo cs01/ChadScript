@@ -98,7 +98,7 @@ export function handlePromiseThen(ctx: MethodCallGeneratorContext, expr: MethodC
       const callback = expr.args[0] as Expression;
       const callbackBase = callback as ExprBase;
       if (callbackBase.type === 'arrow_function') {
-        const callbackName = ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+        const callbackName = ctx.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
         onRejected = `@${ctx.mangleUserName(callbackName)}`;
       } else if (callbackBase.type === 'variable') {
         onRejected = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
@@ -109,7 +109,7 @@ export function handlePromiseThen(ctx: MethodCallGeneratorContext, expr: MethodC
       const callback = expr.args[0] as Expression;
       const callbackBase = callback as ExprBase;
       if (callbackBase.type === 'arrow_function') {
-        const callbackName = ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+        const callbackName = ctx.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
         onFulfilled = `@${ctx.mangleUserName(callbackName)}`;
       } else if (callbackBase.type === 'variable') {
         onFulfilled = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
@@ -119,7 +119,7 @@ export function handlePromiseThen(ctx: MethodCallGeneratorContext, expr: MethodC
       const callback = expr.args[1] as Expression;
       const callbackBase = callback as ExprBase;
       if (callbackBase.type === 'arrow_function') {
-        const callbackName = ctx.arrowFunctionGenGenerate(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+        const callbackName = ctx.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
         onRejected = `@${ctx.mangleUserName(callbackName)}`;
       } else if (callbackBase.type === 'variable') {
         onRejected = `@${ctx.mangleUserName((callback as VariableNode).name)}`;

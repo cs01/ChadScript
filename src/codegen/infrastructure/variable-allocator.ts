@@ -101,14 +101,7 @@ export interface VariableAllocatorContext {
   typeResolverNormalizeType(type: string): string;
   typeResolverResolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null;
   readonly typeResolver?: TypeResolver;
-  arrowFunctionGenGenerate(
-    expr: Expression,
-    params: string[],
-    typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
-    scopeVarNames: string[] | undefined,
-    scopeVarTypes: string[] | undefined
-  ): string;
-  arrowFunctionGenGetClosureInfo(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null;
+  readonly arrowFunctionGen: ArrowFunctionGeneratorLike;
 }
 
 export class VariableAllocator {
@@ -1464,9 +1457,9 @@ export class VariableAllocator {
     if (!stmt.value) return;
     const scopeVarsResult = this.ctx.symbolTable.getScopeVarsArraysForClosure();
     const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
-    const lambdaName = this.ctx.arrowFunctionGenGenerate(stmt.value, params, undefined, scopeVarsTyped.names, scopeVarsTyped.types);
+    const lambdaName = this.ctx.arrowFunctionGen.generateArrowFunction(stmt.value, params, undefined, scopeVarsTyped.names, scopeVarsTyped.types);
 
-    const closureInfoResult = this.ctx.arrowFunctionGenGetClosureInfo(lambdaName);
+    const closureInfoResult = this.ctx.arrowFunctionGen.getClosureInfoForLambda(lambdaName);
     const closureInfo = closureInfoResult as ClosureInfoResult;
 
     if (closureInfoResult && closureInfo.captures.length > 0) {

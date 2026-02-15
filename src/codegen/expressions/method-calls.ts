@@ -91,13 +91,7 @@ export interface MethodCallGeneratorContext {
   classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
   typeResolverGetThisFieldMapKeyType(expr: Expression): string | null;
   typeResolverGetThisFieldSetValueType(expr: Expression): string | null;
-  arrowFunctionGenGenerate(
-    expr: Expression,
-    params: string[],
-    typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
-    scopeVarNames: string[] | undefined,
-    scopeVarTypes: string[] | undefined
-  ): string;
+  readonly arrowFunctionGen: IArrowFunctionGenerator;
   getActualClassType(name: string): string | undefined;
   findClassImplementingInterface(interfaceName: string): string | null;
   readonly stringGen: IStringGenerator;

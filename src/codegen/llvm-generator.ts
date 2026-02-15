@@ -8,7 +8,7 @@ import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructur
 import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getStringHashHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
 import { TypeResolver, TypeResolverContext, TypeGuardInfo } from './infrastructure/type-resolver/index.js';
 import { stripOptional, stripNullable, tsTypeToLlvmJson } from './infrastructure/type-system.js';
-import { IGeneratorContext } from './infrastructure/generator-context.js';
+import { IGeneratorContext, IArrowFunctionGenerator } from './infrastructure/generator-context.js';
 import { ArrayGenerator } from './types/collections/array.js';
 import { StringGenerator } from './types/collections/string.js';
 import { ObjectGenerator } from './types/objects/object.js';
@@ -91,6 +91,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public dateGen: DateGenerator;
   public fsGen: FilesystemGenerator;
   public responseGen: ResponseGenerator;
+  public arrowFunctionGen!: IArrowFunctionGenerator;
   public cryptoGen: CryptoGenerator;
   public sqliteGen: SqliteGenerator;
   private runtimeGen: RuntimeGenerator;
@@ -706,122 +707,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return info.fields[fieldIndex].llvmType;
   }
 
-  public stringMapGenGenerateEmptyStringMap(): string { this.syncStateToGenerators(); return this.stringMapGen.generateEmptyStringMap(); }
-  public stringMapGenGenerateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue); }
-  public stringMapGenGenerateStringMapGet(mapPtr: string, keyToFind: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapGet(mapPtr, keyToFind); }
-  public stringMapGenGenerateStringMapHas(mapPtr: string, keyToFind: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapHas(mapPtr, keyToFind); }
-  public stringMapGenGenerateStringMapClear(mapPtr: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapClear(mapPtr); }
-  public stringMapGenGenerateStringMapDelete(mapPtr: string, keyToFind: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapDelete(mapPtr, keyToFind); }
-  public stringMapGenGenerateStringMapEntries(mapPtr: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapEntries(mapPtr); }
-  public stringMapGenGenerateStringMapValues(mapPtr: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapValues(mapPtr); }
-  public stringMapGenGenerateStringMapKeys(mapPtr: string): string { this.syncStateToGenerators(); return this.stringMapGen.generateStringMapKeys(mapPtr); }
-
-  public arrayGenGenerateArrayLiteral(expr: ArrayNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayLiteral(expr, params); }
-  public arrayGenGenerateArrayPush(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayPush(expr, params); }
-  public arrayGenGenerateArrayPop(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayPop(expr, params); }
-  public arrayGenGenerateArrayIncludes(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayIncludes(expr, params); }
-  public arrayGenGenerateArrayMap(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayMap(expr, params); }
-  public arrayGenGenerateStringArrayMap(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateStringArrayMap(expr, params); }
-  public arrayGenGenerateArrayJoin(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayJoin(expr, params); }
-  public arrayGenGenerateArrayFind(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayFind(expr, params); }
-  public arrayGenGenerateArraySome(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArraySome(expr, params); }
-  public arrayGenGenerateArrayEvery(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayEvery(expr, params); }
-  public arrayGenGenerateArrayFilter(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayFilter(expr, params); }
-  public arrayGenGenerateArrayForEach(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayForEach(expr, params); }
-  public arrayGenGenerateArrayReduce(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayReduce(expr, params); }
-  public arrayGenGenerateArraySlice(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArraySlice(expr, params); }
-  public arrayGenGenerateArrayConcat(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.arrayGen.generateArrayConcat(expr, params); }
-
-  public mapGenGenerateMapLiteral(expr: MapNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapLiteral(expr, params); }
-  public mapGenGenerateMapSet(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapSet(expr, params); }
-  public mapGenGenerateMapGet(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapGet(expr, params); }
-  public mapGenGenerateMapHas(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapHas(expr, params); }
-  public mapGenGenerateMapDelete(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapDelete(expr, params); }
-  public mapGenGenerateMapClear(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mapGen.generateMapClear(expr, params); }
-  public mapGenGenerateMapSize(mapPtr: string): string { this.syncStateToGenerators(); return this.mapGen.generateMapSize(mapPtr); }
-
-  public setGenGenerateSetLiteral(expr: SetNode, params: string[]): string { this.syncStateToGenerators(); return this.setGen.generateSetLiteral(expr, params); }
-  public setGenGenerateSetAdd(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.setGen.generateSetAdd(expr, params); }
-  public setGenGenerateSetHas(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.setGen.generateSetHas(expr, params); }
-  public setGenGenerateSetDelete(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.setGen.generateSetDelete(expr, params); }
-  public setGenGenerateSetSize(setPtr: string): string { this.syncStateToGenerators(); return this.setGen.generateSetSize(setPtr); }
-
-  public stringSetGenGenerateEmptyStringSet(): string { this.syncStateToGenerators(); return this.stringSetGen.generateEmptyStringSet(); }
-  public stringSetGenGenerateStringSetAdd(setAlloca: string, valueValue: string): string { this.syncStateToGenerators(); return this.stringSetGen.generateStringSetAdd(setAlloca, valueValue); }
-  public stringSetGenGenerateStringSetHas(setAlloca: string, valueValue: string): string { this.syncStateToGenerators(); return this.stringSetGen.generateStringSetHas(setAlloca, valueValue); }
-
-  public pointerMapGenGeneratePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string { this.syncStateToGenerators(); return this.pointerMapGen.generatePointerMapSet(mapPtr, keyValue, valueValue); }
-  public pointerMapGenGeneratePointerMapGet(mapPtr: string, keyValue: string, valueType: string): string { this.syncStateToGenerators(); return this.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, valueType); }
-  public pointerMapGenGeneratePointerMapClear(mapPtr: string): string { this.syncStateToGenerators(); return this.pointerMapGen.generatePointerMapClear(mapPtr); }
-
-  public responseGenGenerateText(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateText(responsePtr); }
-  public responseGenGenerateJson(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateJson(responsePtr); }
-  public responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string { this.syncStateToGenerators(); return this.responseGen.generateTypedJson(responsePtr, typeName, interfaceDef); }
-  public responseGenGenerateStatus(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateStatus(responsePtr); }
-  public responseGenGenerateOk(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateOk(responsePtr); }
-  public responseGenGenerateUrl(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateUrl(responsePtr); }
-  public responseGenGenerateHeaders(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateHeaders(responsePtr); }
-  public responseGenGenerateRedirected(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateRedirected(responsePtr); }
-  public responseGenGenerateStatusText(responsePtr: string): string { this.syncStateToGenerators(); return this.responseGen.generateStatusText(responsePtr); }
-
-  public regexGenGenerateRegexCompile(pattern: string, flags: string): string { this.syncStateToGenerators(); return this.regexGen.generateRegexCompile(pattern, flags); }
-  public regexGenGenerateRegexTest(regexPtr: string, testStr: string): string { this.syncStateToGenerators(); return this.regexGen.generateRegexTest(regexPtr, testStr); }
-  public regexGenGenerateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string { this.syncStateToGenerators(); return this.regexGen.generateRegexMatch(regexPtr, testStr, numGroups); }
-  public regexGenGenerateRegexCompileRuntime(patternPtr: string, cflags: number): string { this.syncStateToGenerators(); return this.regexGen.generateRegexCompileRuntime(patternPtr, cflags); }
-
-  public controlFlowGenGenerateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string { this.syncStateToGenerators(); return this.controlFlowGen.generateLogicalOp(op, left, right, params); }
-
-  public objectGenGenerateObjectLiteral(expr: Expression, params: string[]): string { this.syncStateToGenerators(); return this.objectGen.generateObjectLiteral(expr, params); }
-
-  public mathGenCanHandle(expr: MethodCallNode): boolean { return this.mathGen.canHandle(expr); }
-  public mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.mathGen.generateMathMethod(expr, params); }
-
-  public pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateResolve(expr, params); }
-  public pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateDirname(expr, params); }
-  public pathGenGenerateBasename(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateBasename(expr, params); }
-  public pathGenGenerateJoin(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.pathGen.generateJoin(expr, params); }
-
-  public fsGenCanHandle(expr: MethodCallNode): boolean { return this.fsGen.canHandle(expr); }
-  public fsGenReadFileSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateReadFileSync(expr, params); }
-  public fsGenWriteFileSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateWriteFileSync(expr, params); }
-  public fsGenAppendFileSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateAppendFileSync(expr, params); }
-  public fsGenExistsSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateExistsSync(expr, params); }
-  public fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateUnlinkSync(expr, params); }
-  public fsGenReaddirSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateReaddirSync(expr, params); }
-  public fsGenStatSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateStatSync(expr, params); }
-  public fsGenMkdirSync(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.fsGen.generateMkdirSync(expr, params); }
-
-  public jsonGenCanHandle(expr: MethodCallNode): boolean { return this.jsonGen.canHandle(expr); }
-  public jsonGenGenerateParse(expr: MethodCallNode, params: string[], typeParam?: string): string { this.syncStateToGenerators(); return this.jsonGen.generateParse(expr, params, typeParam); }
-  public jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.jsonGen.generateStringify(expr, params); }
-
-  public dateGenCanHandle(expr: MethodCallNode): boolean { return this.dateGen.canHandle(expr); }
-  public dateGenGenerateNow(): string { this.syncStateToGenerators(); return this.dateGen.generateNow(); }
-
-  public cryptoGenCanHandle(expr: MethodCallNode): boolean { return this.cryptoGen.canHandle(expr); }
-  public cryptoGenSha256(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.cryptoGen.generateSha256(expr, params); }
-  public cryptoGenMd5(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.cryptoGen.generateMd5(expr, params); }
-  public cryptoGenSha512(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.cryptoGen.generateSha512(expr, params); }
-  public cryptoGenRandomBytes(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.cryptoGen.generateRandomBytes(expr, params); }
-
-  public sqliteGenCanHandle(expr: MethodCallNode): boolean { return this.sqliteGen.canHandle(expr); }
-  public sqliteGenOpen(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.sqliteGen.generateOpen(expr, params); }
-  public sqliteGenExec(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.sqliteGen.generateExec(expr, params); }
-  public sqliteGenGet(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.sqliteGen.generateGet(expr, params); }
-  public sqliteGenAll(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.sqliteGen.generateAll(expr, params); }
-  public sqliteGenClose(expr: MethodCallNode, params: string[]): string { this.syncStateToGenerators(); return this.sqliteGen.generateClose(expr, params); }
-
-  public arrowFunctionGenGenerate(expr: Expression, params: string[], typeHints: { paramTypes?: string[]; returnType?: string } | undefined, scopeVarNames: string[] | undefined, scopeVarTypes: string[] | undefined): string {
-    this.syncStateToGenerators();
-    return this.exprGen.arrowFunctionGen.generateArrowFunction(expr as ArrowFunctionNode, params, typeHints, scopeVarNames, scopeVarTypes);
-  }
-
-  public arrowFunctionGenGetClosureInfo(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null {
-    const result = this.exprGen.arrowFunctionGen.getClosureInfoForLambda(lambdaName);
-    if (!result) return null;
-    return result;
-  }
-
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
     if (!objExpr || objExpr.type !== 'object') {
@@ -945,6 +830,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     // Initialize expression generator with context pattern
     this.exprGen = new ExpressionGenerator(this);
+    this.arrowFunctionGen = this.exprGen.arrowFunctionGen as unknown as IArrowFunctionGenerator;
 
     // All generators now use context pattern! 🎉
     this.arrayGen = new ArrayGenerator(this);

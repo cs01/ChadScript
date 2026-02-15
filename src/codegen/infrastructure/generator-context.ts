@@ -711,71 +711,8 @@ export interface IGeneratorContext {
    */
   readonly stringMapGen: IStringMapGenerator;
 
-  /**
-   * StringMapGen delegate methods (avoid struct layout mismatch)
-   */
-  stringMapGenGenerateEmptyStringMap(): string;
-  stringMapGenGenerateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
-  stringMapGenGenerateStringMapGet(mapPtr: string, keyToFind: string): string;
-  stringMapGenGenerateStringMapHas(mapPtr: string, keyToFind: string): string;
-  stringMapGenGenerateStringMapClear(mapPtr: string): string;
-  stringMapGenGenerateStringMapDelete(mapPtr: string, keyToFind: string): string;
-  stringMapGenGenerateStringMapEntries(mapPtr: string): string;
-  stringMapGenGenerateStringMapValues(mapPtr: string): string;
-  stringMapGenGenerateStringMapKeys(mapPtr: string): string;
-
-  /**
-   * ArrayGen delegate methods (avoid struct layout mismatch)
-   */
-  arrayGenGenerateArrayLiteral(expr: ArrayNode, params: string[]): string;
-  arrayGenGenerateArrayPush(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArrayPop(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArrayIncludes(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArrayMap(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateStringArrayMap(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArrayJoin(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArrayFind(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArraySome(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArrayEvery(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArrayFilter(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArrayForEach(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArrayReduce(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArraySlice(expr: MethodCallNode, params: string[]): string;
-  arrayGenGenerateArrayConcat(expr: MethodCallNode, params: string[]): string;
-
-  /**
-   * MapGen delegate methods (avoid struct layout mismatch)
-   */
-  mapGenGenerateMapLiteral(expr: MapNode, params: string[]): string;
-  mapGenGenerateMapSet(expr: MethodCallNode, params: string[]): string;
-  mapGenGenerateMapGet(expr: MethodCallNode, params: string[]): string;
-  mapGenGenerateMapHas(expr: MethodCallNode, params: string[]): string;
-  mapGenGenerateMapDelete(expr: MethodCallNode, params: string[]): string;
-  mapGenGenerateMapClear(expr: MethodCallNode, params: string[]): string;
-  mapGenGenerateMapSize(mapPtr: string): string;
-
-  /**
-   * SetGen delegate methods (avoid struct layout mismatch)
-   */
-  setGenGenerateSetLiteral(expr: SetNode, params: string[]): string;
-  setGenGenerateSetAdd(expr: MethodCallNode, params: string[]): string;
-  setGenGenerateSetHas(expr: MethodCallNode, params: string[]): string;
-  setGenGenerateSetDelete(expr: MethodCallNode, params: string[]): string;
-  setGenGenerateSetSize(setPtr: string): string;
-
-  /**
-   * StringSetGen delegate methods (avoid struct layout mismatch)
-   */
-  stringSetGenGenerateEmptyStringSet(): string;
-  stringSetGenGenerateStringSetAdd(setAlloca: string, valueValue: string): string;
-  stringSetGenGenerateStringSetHas(setAlloca: string, valueValue: string): string;
-
-  /**
-   * PointerMapGen delegate methods (avoid struct layout mismatch)
-   */
-  pointerMapGenGeneratePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string;
-  pointerMapGenGeneratePointerMapGet(mapPtr: string, keyValue: string, valueType: string): string;
-  pointerMapGenGeneratePointerMapClear(mapPtr: string): string;
+  readonly pointerMapGen: IPointerMapGenerator;
+  readonly arrayGen: IArrayGenerator;
 
   readonly responseGen: IResponseGenerator;
   readonly regexGen: IRegexGenerator;
@@ -788,101 +725,8 @@ export interface IGeneratorContext {
   readonly dateGen: IDateGenerator;
   readonly cryptoGen: ICryptoGenerator;
   readonly sqliteGen: ISqliteGenerator;
-  readonly mapGen: IMapGenerator;
-  readonly setGen: ISetGenerator;
-  readonly stringSetGen: IStringSetGenerator;
-  readonly pointerMapGen: IPointerMapGenerator;
-  readonly arrayGen: IArrayGenerator;
 
-  /**
-   * ResponseGen delegate methods (avoid struct layout mismatch)
-   */
-  responseGenGenerateText(responsePtr: string): string;
-  responseGenGenerateJson(responsePtr: string): string;
-  responseGenGenerateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string;
-  responseGenGenerateStatus(responsePtr: string): string;
-  responseGenGenerateOk(responsePtr: string): string;
-  responseGenGenerateUrl(responsePtr: string): string;
-  responseGenGenerateHeaders(responsePtr: string): string;
-  responseGenGenerateRedirected(responsePtr: string): string;
-  responseGenGenerateStatusText(responsePtr: string): string;
-
-  /**
-   * RegexGen delegate methods (avoid struct layout mismatch)
-   */
-  regexGenGenerateRegexCompile(pattern: string, flags: string): string;
-  regexGenGenerateRegexTest(regexPtr: string, testStr: string): string;
-  regexGenGenerateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string;
-  regexGenGenerateRegexCompileRuntime(patternPtr: string, cflags: number): string;
-
-  /**
-   * ControlFlowGen delegate methods (avoid struct layout mismatch)
-   */
-  controlFlowGenGenerateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string;
-
-  /**
-   * ObjectGen delegate methods (avoid struct layout mismatch)
-   */
-  objectGenGenerateObjectLiteral(expr: Expression, params: string[]): string;
-
-  /**
-   * MathGen delegate methods (avoid struct layout mismatch)
-   */
-  mathGenCanHandle(expr: MethodCallNode): boolean;
-  mathGenGenerateMathMethod(expr: MethodCallNode, params: string[]): string;
-
-  /**
-   * PathGen delegate methods (avoid struct layout mismatch)
-   */
-  pathGenGenerateResolve(expr: MethodCallNode, params: string[]): string;
-  pathGenGenerateDirname(expr: MethodCallNode, params: string[]): string;
-  pathGenGenerateBasename(expr: MethodCallNode, params: string[]): string;
-  pathGenGenerateJoin(expr: MethodCallNode, params: string[]): string;
-
-  /**
-   * FsGen delegate methods (avoid struct layout mismatch)
-   */
-  fsGenCanHandle(expr: MethodCallNode): boolean;
-  fsGenReadFileSync(expr: MethodCallNode, params: string[]): string;
-  fsGenWriteFileSync(expr: MethodCallNode, params: string[]): string;
-  fsGenAppendFileSync(expr: MethodCallNode, params: string[]): string;
-  fsGenExistsSync(expr: MethodCallNode, params: string[]): string;
-  fsGenUnlinkSync(expr: MethodCallNode, params: string[]): string;
-  fsGenReaddirSync(expr: MethodCallNode, params: string[]): string;
-  fsGenStatSync(expr: MethodCallNode, params: string[]): string;
-  fsGenMkdirSync(expr: MethodCallNode, params: string[]): string;
-
-  /**
-   * JsonGen delegate methods (avoid struct layout mismatch)
-   */
-  jsonGenCanHandle(expr: MethodCallNode): boolean;
-  jsonGenGenerateParse(expr: MethodCallNode, params: string[], typeParam?: string): string;
-  jsonGenGenerateStringify(expr: MethodCallNode, params: string[]): string;
-
-  dateGenCanHandle(expr: MethodCallNode): boolean;
-  dateGenGenerateNow(): string;
-
-  cryptoGenCanHandle(expr: MethodCallNode): boolean;
-  cryptoGenSha256(expr: MethodCallNode, params: string[]): string;
-  cryptoGenMd5(expr: MethodCallNode, params: string[]): string;
-  cryptoGenSha512(expr: MethodCallNode, params: string[]): string;
-  cryptoGenRandomBytes(expr: MethodCallNode, params: string[]): string;
-
-  sqliteGenCanHandle(expr: MethodCallNode): boolean;
-  sqliteGenOpen(expr: MethodCallNode, params: string[]): string;
-  sqliteGenExec(expr: MethodCallNode, params: string[]): string;
-  sqliteGenGet(expr: MethodCallNode, params: string[]): string;
-  sqliteGenAll(expr: MethodCallNode, params: string[]): string;
-  sqliteGenClose(expr: MethodCallNode, params: string[]): string;
-
-  arrowFunctionGenGenerate(
-    expr: Expression,
-    params: string[],
-    typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
-    scopeVarNames: string[] | undefined,
-    scopeVarTypes: string[] | undefined
-  ): string;
-  arrowFunctionGenGetClosureInfo(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null;
+  readonly arrowFunctionGen: IArrowFunctionGenerator;
 }
 
 /**
@@ -1409,54 +1253,6 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateEmptyStringMap: (): string => '%mock_empty_map',
   };
 
-  stringMapGenGenerateEmptyStringMap(): string { return '%mock_empty_map'; }
-  stringMapGenGenerateStringMapSet(_mapPtr: string, _keyValue: string, _valueValue: string): string { return '%mock_set_result'; }
-  stringMapGenGenerateStringMapGet(_mapPtr: string, _keyToFind: string): string { return '%mock_get_result'; }
-  stringMapGenGenerateStringMapHas(_mapPtr: string, _keyToFind: string): string { return '%mock_has_result'; }
-  stringMapGenGenerateStringMapClear(_mapPtr: string): string { return '%mock_clear_result'; }
-  stringMapGenGenerateStringMapDelete(_mapPtr: string, _keyToFind: string): string { return '%mock_delete_result'; }
-  stringMapGenGenerateStringMapEntries(_mapPtr: string): string { return '%mock_entries'; }
-  stringMapGenGenerateStringMapValues(_mapPtr: string): string { return '%mock_values'; }
-  stringMapGenGenerateStringMapKeys(_mapPtr: string): string { return '%mock_keys'; }
-
-  arrayGenGenerateArrayLiteral(_expr: ArrayNode, _params: string[]): string { return '%mock_array_literal'; }
-  arrayGenGenerateArrayPush(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_push'; }
-  arrayGenGenerateArrayPop(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_pop'; }
-  arrayGenGenerateArrayIncludes(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_includes'; }
-  arrayGenGenerateArrayMap(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_map'; }
-  arrayGenGenerateStringArrayMap(_expr: MethodCallNode, _params: string[]): string { return '%mock_string_array_map'; }
-  arrayGenGenerateArrayJoin(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_join'; }
-  arrayGenGenerateArrayFind(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_find'; }
-  arrayGenGenerateArraySome(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_some'; }
-  arrayGenGenerateArrayEvery(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_every'; }
-  arrayGenGenerateArrayFilter(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_filter'; }
-  arrayGenGenerateArrayForEach(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_foreach'; }
-  arrayGenGenerateArrayReduce(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_reduce'; }
-  arrayGenGenerateArraySlice(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_slice'; }
-  arrayGenGenerateArrayConcat(_expr: MethodCallNode, _params: string[]): string { return '%mock_array_concat'; }
-
-  mapGenGenerateMapLiteral(_expr: MapNode, _params: string[]): string { return '%mock_map_literal'; }
-  mapGenGenerateMapSet(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_set'; }
-  mapGenGenerateMapGet(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_get'; }
-  mapGenGenerateMapHas(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_has'; }
-  mapGenGenerateMapDelete(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_delete'; }
-  mapGenGenerateMapClear(_expr: MethodCallNode, _params: string[]): string { return '%mock_map_clear'; }
-  mapGenGenerateMapSize(_mapPtr: string): string { return '%mock_map_size'; }
-
-  setGenGenerateSetLiteral(_expr: SetNode, _params: string[]): string { return '%mock_set_literal'; }
-  setGenGenerateSetAdd(_expr: MethodCallNode, _params: string[]): string { return '%mock_set_add'; }
-  setGenGenerateSetHas(_expr: MethodCallNode, _params: string[]): string { return '%mock_set_has'; }
-  setGenGenerateSetDelete(_expr: MethodCallNode, _params: string[]): string { return '%mock_set_delete'; }
-  setGenGenerateSetSize(_setPtr: string): string { return '%mock_set_size'; }
-
-  stringSetGenGenerateEmptyStringSet(): string { return '%mock_empty_string_set'; }
-  stringSetGenGenerateStringSetAdd(_setAlloca: string, _valueValue: string): string { return '%mock_string_set_add'; }
-  stringSetGenGenerateStringSetHas(_setAlloca: string, _valueValue: string): string { return '%mock_string_set_has'; }
-
-  pointerMapGenGeneratePointerMapSet(_mapPtr: string, _keyValue: string, _valueValue: string): string { return '%mock_pointer_map_set'; }
-  pointerMapGenGeneratePointerMapGet(_mapPtr: string, _keyValue: string, _valueType: string): string { return '%mock_pointer_map_get'; }
-  pointerMapGenGeneratePointerMapClear(_mapPtr: string): string { return '%mock_pointer_map_clear'; }
-
   responseGen: IResponseGenerator = {
     generateText: (_responsePtr: string): string => '%mock_response_text',
     generateJson: (_responsePtr: string): string => '%mock_response_json',
@@ -1578,72 +1374,6 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateArraySlice: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_slice',
     generateArrayConcat: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_concat',
   };
-
-  responseGenGenerateText(_responsePtr: string): string { return '%mock_response_text'; }
-  responseGenGenerateJson(_responsePtr: string): string { return '%mock_response_json'; }
-  responseGenGenerateTypedJson(_responsePtr: string, _typeName: string, _interfaceDef: { properties: { name: string; type: string }[] }): string { return '%mock_response_typed_json'; }
-  responseGenGenerateStatus(_responsePtr: string): string { return '%mock_response_status'; }
-  responseGenGenerateOk(_responsePtr: string): string { return '%mock_response_ok'; }
-  responseGenGenerateUrl(_responsePtr: string): string { return '%mock_response_url'; }
-  responseGenGenerateHeaders(_responsePtr: string): string { return '%mock_response_headers'; }
-  responseGenGenerateRedirected(_responsePtr: string): string { return '%mock_response_redirected'; }
-  responseGenGenerateStatusText(_responsePtr: string): string { return '%mock_response_status_text'; }
-
-  regexGenGenerateRegexCompile(_pattern: string, _flags: string): string { return '%mock_regex_compile'; }
-  regexGenGenerateRegexTest(_regexPtr: string, _testStr: string): string { return '%mock_regex_test'; }
-  regexGenGenerateRegexMatch(_regexPtr: string, _testStr: string, _numGroups: number): string { return '%mock_regex_match'; }
-  regexGenGenerateRegexCompileRuntime(_patternPtr: string, _cflags: number): string { return '%mock_regex_compile_runtime'; }
-
-  controlFlowGenGenerateLogicalOp(_op: string, _left: Expression, _right: Expression, _params: string[]): string { return '%mock_logical_op'; }
-
-  objectGenGenerateObjectLiteral(_expr: Expression, _params: string[]): string { return '%mock_object_literal'; }
-
-  mathGenCanHandle(_expr: MethodCallNode): boolean { return false; }
-  mathGenGenerateMathMethod(_expr: MethodCallNode, _params: string[]): string { return '%mock_math_method'; }
-
-  pathGenGenerateResolve(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_resolve'; }
-  pathGenGenerateDirname(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_dirname'; }
-  pathGenGenerateBasename(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_basename'; }
-  pathGenGenerateJoin(_expr: MethodCallNode, _params: string[]): string { return '%mock_path_join'; }
-
-  fsGenCanHandle(_expr: MethodCallNode): boolean { return false; }
-  fsGenReadFileSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_readFileSync'; }
-  fsGenWriteFileSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_writeFileSync'; }
-  fsGenAppendFileSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_appendFileSync'; }
-  fsGenExistsSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_existsSync'; }
-  fsGenUnlinkSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_unlinkSync'; }
-  fsGenReaddirSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_readdirSync'; }
-  fsGenStatSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_statSync'; }
-  fsGenMkdirSync(_expr: MethodCallNode, _params: string[]): string { return '%mock_fs_mkdirSync'; }
-
-  jsonGenCanHandle(_expr: MethodCallNode): boolean { return false; }
-  jsonGenGenerateParse(_expr: MethodCallNode, _params: string[], _typeParam?: string): string { return '%mock_json_parse'; }
-  jsonGenGenerateStringify(_expr: MethodCallNode, _params: string[]): string { return '%mock_json_stringify'; }
-
-  dateGenCanHandle(_expr: MethodCallNode): boolean { return false; }
-  dateGenGenerateNow(): string { return '%mock_date_now'; }
-
-  cryptoGenCanHandle(_expr: MethodCallNode): boolean { return false; }
-  cryptoGenSha256(_expr: MethodCallNode, _params: string[]): string { return '%mock_crypto_sha256'; }
-  cryptoGenMd5(_expr: MethodCallNode, _params: string[]): string { return '%mock_crypto_md5'; }
-  cryptoGenSha512(_expr: MethodCallNode, _params: string[]): string { return '%mock_crypto_sha512'; }
-  cryptoGenRandomBytes(_expr: MethodCallNode, _params: string[]): string { return '%mock_crypto_random_bytes'; }
-
-  sqliteGenCanHandle(_expr: MethodCallNode): boolean { return false; }
-  sqliteGenOpen(_expr: MethodCallNode, _params: string[]): string { return '%mock_sqlite_open'; }
-  sqliteGenExec(_expr: MethodCallNode, _params: string[]): string { return '%mock_sqlite_exec'; }
-  sqliteGenGet(_expr: MethodCallNode, _params: string[]): string { return '%mock_sqlite_get'; }
-  sqliteGenAll(_expr: MethodCallNode, _params: string[]): string { return '%mock_sqlite_all'; }
-  sqliteGenClose(_expr: MethodCallNode, _params: string[]): string { return '%mock_sqlite_close'; }
-
-  arrowFunctionGenGenerate(
-    _expr: Expression,
-    _params: string[],
-    _typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
-    _scopeVarNames: string[] | undefined,
-    _scopeVarTypes: string[] | undefined
-  ): string { return '__mock_lambda'; }
-  arrowFunctionGenGetClosureInfo(_lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | null { return null; }
 
   resolveImportAlias(localName: string): string {
     return localName;
