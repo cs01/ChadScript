@@ -20,6 +20,16 @@ const langMeta = {
   node:       { name: 'Node.js',    color: 'node' },
 }
 
+const tabOrder = ['startup', 'fibonacci', 'json', 'sqlite', 'matmul', 'montecarlo', 'sieve', 'sorting', 'nbody', 'stringops', 'fileio', 'binarytrees', 'http', 'http_keepalive', 'websocket']
+
+const tabLabels = {
+  startup: 'Cold Start', matmul: 'Matrix Multiply', fibonacci: 'Fibonacci',
+  json: 'JSON', sqlite: 'SQLite', montecarlo: 'Monte Carlo', sieve: 'Sieve',
+  sorting: 'Quicksort', nbody: 'N-Body', stringops: 'Strings', fileio: 'File I/O',
+  binarytrees: 'Binary Trees', http: 'HTTP', http_keepalive: 'HTTP Keep-Alive',
+  websocket: 'WebSocket',
+}
+
 const featuredNotes = {
   startup: 'ChadScript only links what you use \u2014 a hello-world binary has near-zero startup overhead. Go must initialize its runtime and GC. Bun/Node bootstrap their JS engines.',
   sqlite: 'ChadScript calls SQLite\u2019s C API directly \u2014 no FFI bridge, no marshaling. 1.9x faster than Bun, 2.4x faster than Node.',
@@ -30,6 +40,7 @@ const featuredNotes = {
 
 const defaultBenchmarks = {
   startup: {
+    name: 'Cold Start',
     layout: 'horizontal',
     desc: "Time to print ‘Hello, World!’ and exit. Average of 50 runs.",
     metric: 'Smaller = faster.',
@@ -42,20 +53,8 @@ const defaultBenchmarks = {
     ],
     note: featuredNotes.startup || '',
   },
-  matmul: {
-    layout: 'horizontal',
-    desc: "512×512 double-precision matrix multiply.",
-    metric: 'Smaller = faster.',
-    items: [
-      { name: 'Go', val: '0.429s', w: 68, h: 100, color: 'go', d: 0, speed: 3 },
-      { name: 'C', val: '0.430s', w: 68, h: 100, color: 'c', d: 0.12, speed: 3 },
-      { name: 'ChadScript', val: '0.457s', w: 72, h: 94, color: 'chad', d: 0.24, speed: 3.1, hero: true },
-      { name: 'Bun', val: '0.583s', w: 92, h: 74, color: 'bun', d: 0.36, speed: 3.5 },
-      { name: 'Node.js', val: '0.633s', w: 100, h: 68, color: 'node', d: 0.48, speed: 3.7 },
-    ],
-    note: featuredNotes.matmul || '',
-  },
   fibonacci: {
+    name: 'Fibonacci',
     layout: 'horizontal',
     desc: "fib(42) naive recursion.",
     metric: 'Smaller = faster.',
@@ -69,6 +68,7 @@ const defaultBenchmarks = {
     note: featuredNotes.fibonacci || '',
   },
   json: {
+    name: 'JSON',
     layout: 'horizontal',
     desc: "Parse 10K JSON objects, stringify back.",
     metric: 'Smaller = faster.',
@@ -82,6 +82,7 @@ const defaultBenchmarks = {
     note: featuredNotes.json || '',
   },
   sqlite: {
+    name: 'SQLite',
     layout: 'vertical',
     desc: "100K SELECT queries on a 100-row in-memory table.",
     metric: 'Smaller = faster.',
@@ -97,13 +98,18 @@ const defaultBenchmarks = {
 
 function transformJson(json) {
   const result = {}
-  const featured = ['startup', 'matmul', 'fibonacci', 'json', 'sqlite']
-  for (const key of featured) {
+  for (const key of Object.keys(json.benchmarks)) {
     const bench = json.benchmarks[key]
     if (!bench) continue
     const entries = Object.entries(bench.results)
     const lowerBetter = bench.lower_is_better
     entries.sort(([, a], [, b]) => lowerBetter ? a.value - b.value : b.value - a.value)
+
+    const chadIdx = entries.findIndex(([lang]) => lang === 'chadscript')
+    if (chadIdx === -1) continue
+    if (chadIdx > 1) continue
+    if (chadIdx === 1 && entries[0][0] !== 'c') continue
+
     const values = entries.map(([, r]) => r.value)
     const maxVal = Math.max(...values)
     const minVal = Math.min(...values)
@@ -128,6 +134,7 @@ function transformJson(json) {
     })
 
     result[key] = {
+      name: bench.name,
       layout,
       desc: bench.desc,
       metric,
@@ -141,6 +148,12 @@ function transformJson(json) {
 const benchmarks = ref(defaultBenchmarks)
 
 const current = computed(() => benchmarks.value[tab.value])
+
+const tabList = computed(() =>
+  tabOrder
+    .filter(key => key in benchmarks.value)
+    .map(key => ({ key, label: benchmarks.value[key].name || tabLabels[key] || key }))
+)
 
 let frameId = 0
 
@@ -183,6 +196,10 @@ onMounted(async () => {
       const json = await resp.json()
       if (json.benchmarks) {
         benchmarks.value = transformJson(json)
+        if (!benchmarks.value[tab.value]) {
+          const first = tabOrder.find(k => k in benchmarks.value)
+          if (first) tab.value = first
+        }
         await nextTick()
         animateBalls()
       }
@@ -201,11 +218,10 @@ onBeforeUnmount(() => cancelAnimationFrame(frameId))
 <template>
 <div>
   <div class="bench-tabs">
-    <button :class="{ active: tab === 'startup' }" @click="tab = 'startup'">Cold Start</button>
-    <button :class="{ active: tab === 'matmul' }" @click="tab = 'matmul'">Matrix Multiply</button>
-    <button :class="{ active: tab === 'fibonacci' }" @click="tab = 'fibonacci'">Fibonacci</button>
-    <button :class="{ active: tab === 'json' }" @click="tab = 'json'">JSON</button>
-    <button :class="{ active: tab === 'sqlite' }" @click="tab = 'sqlite'">SQLite</button>
+    <button v-for="t in tabList" :key="t.key"
+            :class="{ active: tab === t.key }" @click="tab = t.key">
+      {{ t.label }}
+    </button>
   </div>
 
   <div class="bench-panel">

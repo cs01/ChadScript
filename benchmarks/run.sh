@@ -210,6 +210,42 @@ assemble_json() {
     bench_lower[binarytrees]="true"
     bench_lower[json]="true"
 
+    for benchfile in "$JSON_DIR"/*.json; do
+        [ -f "$benchfile" ] || continue
+        local bkey
+        bkey=$(basename "$benchfile" .json)
+        local blower="${bench_lower[$bkey]:-true}"
+
+        local chad_val
+        chad_val=$(grep '^chadscript|' "$benchfile" | head -1 | cut -d'|' -f2)
+        if [ -z "$chad_val" ]; then
+            rm "$benchfile"
+            continue
+        fi
+
+        local dominated=false
+        while IFS='|' read -r lang value label; do
+            [ "$lang" = "chadscript" ] && continue
+            [ "$lang" = "c" ] && continue
+            if [ "$blower" = "true" ]; then
+                if [ "$(echo "$value < $chad_val" | bc -l)" = "1" ]; then
+                    dominated=true
+                    break
+                fi
+            else
+                if [ "$(echo "$value > $chad_val" | bc -l)" = "1" ]; then
+                    dominated=true
+                    break
+                fi
+            fi
+        done < "$benchfile"
+
+        if [ "$dominated" = true ]; then
+            echo "  Filtered: ${bench_names[$bkey]:-$bkey} (ChadScript not 1st or 2nd behind C)"
+            rm "$benchfile"
+        fi
+    done
+
     echo "{" > "$outfile"
     echo "  \"timestamp\": \"$timestamp\"," >> "$outfile"
     echo "  \"benchmarks\": {" >> "$outfile"
