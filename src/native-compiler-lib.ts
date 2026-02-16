@@ -161,7 +161,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const yyjsonDir = isInstalled ? installedLibDir : './vendor/yyjson';
   if (generator.getUsesJson()) { linkLibs = '-L' + yyjsonDir + ' -lyyjson ' + linkLibs; }
   const uvDir = isInstalled ? installedLibDir : './vendor/libuv/build';
-  if (generator.getUsesTimers() || generator.getUsesPromises() || generator.getUsesCurl()) { linkLibs = '-L' + uvDir + ' -luv ' + linkLibs; }
+  if (generator.getUsesTimers() || generator.getUsesPromises() || generator.getUsesCurl() || generator.getUsesUvHrtime()) { linkLibs = '-L' + uvDir + ' -luv ' + linkLibs; }
   if (generator.getUsesCurl()) { linkLibs = '-lcurl ' + linkLibs; }
   if (generator.getUsesCrypto()) { linkLibs = '-lcrypto ' + linkLibs; }
   if (generator.getUsesSqlite()) { linkLibs = '-lsqlite3 ' + linkLibs; }

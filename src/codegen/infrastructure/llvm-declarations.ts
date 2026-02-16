@@ -131,8 +131,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += 'declare i32 @chdir(i8*)\n';
   ir += 'declare void @abort()\n';
   ir += 'declare i32 @kill(i32, i32)\n';
-  ir += '%struct.timespec = type { i64, i64 }\n';
-  ir += 'declare i32 @clock_gettime(i32, %struct.timespec*)\n';
+  ir += 'declare i64 @uv_hrtime()\n';
   ir += 'declare i32 @isatty(i32)\n';
   ir += '\n';
 

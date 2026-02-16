@@ -118,6 +118,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesPromises: number = 0;
   public usesSqlite: number = 0;
   public usesCurl: number = 0;
+  public usesUvHrtime: number = 0;
   public usesCrypto: number = 0;
   public usesJson: number = 0;
   public usesMongoose: number = 0;
@@ -738,6 +739,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesSqlite(): boolean { return this.usesSqlite !== 0; }
   public setUsesCurl(value: boolean): void { this.usesCurl = value ? 1 : 0; }
   public getUsesCurl(): boolean { return this.usesCurl !== 0; }
+  public setUsesUvHrtime(value: boolean): void { this.usesUvHrtime = value ? 1 : 0; }
+  public getUsesUvHrtime(): boolean { return this.usesUvHrtime !== 0; }
   public setUsesCrypto(value: boolean): void { this.usesCrypto = value ? 1 : 0; }
   public getUsesCrypto(): boolean { return this.usesCrypto !== 0; }
   public setUsesJson(value: boolean): void { this.usesJson = value ? 1 : 0; }
@@ -917,6 +920,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesPromises = 0;
     this.usesSqlite = 0;
     this.usesCurl = 0;
+    this.usesUvHrtime = 0;
     this.usesCrypto = 0;
     this.usesJson = 0;
     this.usesMongoose = 0;
@@ -1682,7 +1686,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       irParts.push('\n');
     }
 
-    const needsLibuv = this.usesTimers || this.usesPromises || this.usesCurl;
+    const needsLibuv = this.usesTimers || this.usesPromises || this.usesCurl || this.usesUvHrtime;
     const needsPromise = this.usesPromises || this.usesCurl;
 
     const finalParts: string[] = [];

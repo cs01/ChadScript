@@ -210,7 +210,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const platformLibs = isMac ? '' : ' -lm -ldl -lrt';
   let linkLibs = `-L${BDWGC_PATH} -lgc -lpthread` + platformLibs;
   if (generator.usesJson) { linkLibs += ` -L${YYJSON_PATH} -lyyjson`; }
-  if (generator.usesTimers || generator.usesPromises || generator.usesCurl) { linkLibs += ` -L${LIBUV_PATH} -luv`; }
+  if (generator.usesTimers || generator.usesPromises || generator.usesCurl || generator.usesUvHrtime) { linkLibs += ` -L${LIBUV_PATH} -luv`; }
   if (generator.usesCurl) { linkLibs += ' -lcurl'; }
   if (generator.usesCrypto) { linkLibs += ' -lcrypto'; }
   if (generator.usesSqlite) { linkLibs += ' -lsqlite3'; }

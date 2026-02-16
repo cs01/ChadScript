@@ -85,6 +85,7 @@ export interface MethodCallGeneratorContext {
   setUsesPromises(value: boolean): void;
   setUsesSqlite(value: boolean): void;
   setUsesCurl(value: boolean): void;
+  setUsesUvHrtime(value: boolean): void;
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;

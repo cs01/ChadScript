@@ -59,27 +59,14 @@ export function handleProcessKill(ctx: MethodCallGeneratorContext, expr: MethodC
 }
 
 export function handleProcessUptime(ctx: MethodCallGeneratorContext): string {
-  const tsPtr = ctx.nextTemp();
-  ctx.emit(`${tsPtr} = alloca %struct.timespec`);
-  const callResult = ctx.nextTemp();
-  ctx.emit(`${callResult} = call i32 @clock_gettime(i32 1, %struct.timespec* ${tsPtr})`);
-  const secPtr = ctx.nextTemp();
-  ctx.emit(`${secPtr} = getelementptr inbounds %struct.timespec, %struct.timespec* ${tsPtr}, i32 0, i32 0`);
-  const sec = ctx.nextTemp();
-  ctx.emit(`${sec} = load i64, i64* ${secPtr}`);
-  const nsecPtr = ctx.nextTemp();
-  ctx.emit(`${nsecPtr} = getelementptr inbounds %struct.timespec, %struct.timespec* ${tsPtr}, i32 0, i32 1`);
-  const nsec = ctx.nextTemp();
-  ctx.emit(`${nsec} = load i64, i64* ${nsecPtr}`);
-  const secDouble = ctx.nextTemp();
-  ctx.emit(`${secDouble} = sitofp i64 ${sec} to double`);
-  const nsecDouble = ctx.nextTemp();
-  ctx.emit(`${nsecDouble} = sitofp i64 ${nsec} to double`);
-  const nsecSec = ctx.nextTemp();
-  ctx.emit(`${nsecSec} = fdiv fast double ${nsecDouble}, 1000000000.0`);
-  const total = ctx.nextTemp();
-  ctx.emit(`${total} = fadd fast double ${secDouble}, ${nsecSec}`);
-  return total;
+  ctx.setUsesUvHrtime(true);
+  const ns = ctx.nextTemp();
+  ctx.emit(`${ns} = call i64 @uv_hrtime()`);
+  const nsDouble = ctx.nextTemp();
+  ctx.emit(`${nsDouble} = uitofp i64 ${ns} to double`);
+  const seconds = ctx.nextTemp();
+  ctx.emit(`${seconds} = fdiv fast double ${nsDouble}, 1000000000.0`);
+  return seconds;
 }
 
 export function handleProcessSyscallI32(ctx: MethodCallGeneratorContext, funcName: string): string {

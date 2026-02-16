@@ -653,6 +653,7 @@ export interface IGeneratorContext {
   setUsesTreeSitter(value: boolean): void;
   setUsesSqlite(value: boolean): void;
   setUsesCurl(value: boolean): void;
+  setUsesUvHrtime(value: boolean): void;
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
@@ -801,6 +802,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesTimers: number = 0;
   public usesSqlite: number = 0;
   public usesCurl: number = 0;
+  public usesUvHrtime: number = 0;
   public usesCrypto: number = 0;
   public usesJson: number = 0;
   public usesMongoose: number = 0;
@@ -921,6 +923,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   setUsesTreeSitter(_value: boolean): void { }
   setUsesSqlite(value: boolean): void { this.usesSqlite = value ? 1 : 0; }
   setUsesCurl(value: boolean): void { this.usesCurl = value ? 1 : 0; }
+  setUsesUvHrtime(value: boolean): void { this.usesUvHrtime = value ? 1 : 0; }
   setUsesCrypto(value: boolean): void { this.usesCrypto = value ? 1 : 0; }
   setUsesJson(value: boolean): void { this.usesJson = value ? 1 : 0; }
   setUsesMongoose(value: boolean): void { this.usesMongoose = value ? 1 : 0; }
