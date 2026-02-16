@@ -85,7 +85,7 @@ export class CallExpressionGenerator {
     // Returns a Promise that resolves to a Response object
     if (expr.name === 'fetch') {
       if (expr.args.length < 1) {
-        throw new Error('fetch() requires at least 1 argument (URL)');
+        return this.ctx.emitError('fetch() requires at least 1 argument (URL)', expr.loc);
       }
       const urlValue = this.ctx.generateExpression(expr.args[0], params);
       const temp = this.ctx.nextTemp();
@@ -214,7 +214,7 @@ export class CallExpressionGenerator {
 
   private generateParseInt(expr: CallNode, params: string[]): string {
     if (expr.args.length < 1 || expr.args.length > 2) {
-      throw new Error('parseInt() requires 1 or 2 arguments (string, radix?)');
+      return this.ctx.emitError('parseInt() requires 1 or 2 arguments (string, radix?)', expr.loc);
     }
 
     this.ctx.syncStateToGenerators();
@@ -251,7 +251,7 @@ export class CallExpressionGenerator {
 
   private generateParseFloat(expr: CallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('parseFloat() requires exactly 1 argument (string)');
+      return this.ctx.emitError('parseFloat() requires exactly 1 argument (string)', expr.loc);
     }
 
     this.ctx.syncStateToGenerators();
@@ -266,7 +266,7 @@ export class CallExpressionGenerator {
 
   private generateNumber(expr: CallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('Number() requires exactly 1 argument');
+      return this.ctx.emitError('Number() requires exactly 1 argument', expr.loc);
     }
 
     this.ctx.syncStateToGenerators();
@@ -285,7 +285,7 @@ export class CallExpressionGenerator {
 
   private generateString(expr: CallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('String() requires exactly 1 argument');
+      return this.ctx.emitError('String() requires exactly 1 argument', expr.loc);
     }
 
     this.ctx.syncStateToGenerators();
@@ -300,7 +300,7 @@ export class CallExpressionGenerator {
 
   private generateIsNaN(expr: CallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('isNaN() requires exactly 1 argument');
+      return this.ctx.emitError('isNaN() requires exactly 1 argument', expr.loc);
     }
 
     this.ctx.syncStateToGenerators();
@@ -573,7 +573,7 @@ export class CallExpressionGenerator {
   private generateClosureCall(expr: CallNode, params: string[]): string {
     const closureMetadata = this.ctx.symbolTable.getClosureMetadata(expr.name);
     if (!closureMetadata) {
-      throw new Error(`Closure metadata not found for: ${expr.name}`);
+      return this.ctx.emitError(`Closure metadata not found for: ${expr.name}`, expr.loc);
     }
 
     const lambdaName = closureMetadata.lambdaName;
@@ -604,14 +604,14 @@ export class CallExpressionGenerator {
 
   private generateSetTimeout(expr: CallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      throw new Error('setTimeout() requires 2 arguments (callback, delay_ms)');
+      return this.ctx.emitError('setTimeout() requires 2 arguments (callback, delay_ms)', expr.loc);
     }
 
     this.ctx.setUsesTimers(true);
 
     const callbackArg = expr.args[0];
     if (callbackArg.type !== 'variable') {
-      throw new Error('setTimeout() callback must be a function reference');
+      return this.ctx.emitError('setTimeout() callback must be a function reference', expr.loc);
     }
     const callbackName = (callbackArg as VariableNode).name;
 
@@ -629,14 +629,14 @@ export class CallExpressionGenerator {
 
   private generateSetInterval(expr: CallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      throw new Error('setInterval() requires 2 arguments (callback, interval_ms)');
+      return this.ctx.emitError('setInterval() requires 2 arguments (callback, interval_ms)', expr.loc);
     }
 
     this.ctx.setUsesTimers(true);
 
     const callbackArg = expr.args[0];
     if (callbackArg.type !== 'variable') {
-      throw new Error('setInterval() callback must be a function reference');
+      return this.ctx.emitError('setInterval() callback must be a function reference', expr.loc);
     }
     const callbackName = (callbackArg as VariableNode).name;
 
@@ -654,7 +654,7 @@ export class CallExpressionGenerator {
 
   private generateClearTimer(expr: CallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('clearTimeout/clearInterval requires 1 argument (timer_id)');
+      return this.ctx.emitError('clearTimeout/clearInterval requires 1 argument (timer_id)', expr.loc);
     }
 
     const timerIdValue = this.ctx.generateExpression(expr.args[0], params);
@@ -831,15 +831,15 @@ export class CallExpressionGenerator {
   private generateSuperCall(expr: CallNode, params: string[]): string {
     const thisPtr = this.ctx.getThisPointer();
     if (!thisPtr) {
-      throw new Error('super() called outside of class constructor');
+      return this.ctx.emitError('super() called outside of class constructor', expr.loc);
     }
     const currentClassName = this.ctx.getCurrentClassName();
     if (!currentClassName) {
-      throw new Error('super() called outside of class context');
+      return this.ctx.emitError('super() called outside of class context', expr.loc);
     }
     const ast = this.ctx.getAst();
     if (!ast || !ast.classes) {
-      throw new Error('super() called but no classes defined');
+      return this.ctx.emitError('super() called but no classes defined', expr.loc);
     }
     let currentClass: ClassNode | null = null;
     for (let i = 0; i < ast.classes.length; i++) {
@@ -850,7 +850,7 @@ export class CallExpressionGenerator {
       }
     }
     if (!currentClass || !currentClass.extends) {
-      throw new Error(`super() called but current class ${currentClassName} has no parent class`);
+      return this.ctx.emitError(`super() called but current class ${currentClassName} has no parent class`, expr.loc);
     }
     const parentClassName = currentClass.extends;
     const parentStructType = `%${parentClassName}_struct*`;
