@@ -543,13 +543,8 @@ export class TypeInference {
   }
 
   isObjectExpression(expr: Expression): boolean {
-    const e = expr as ExprBase;
-    if (e.type === 'object') {
-      return true;
-    }
-    if (e.type === 'variable') {
-      return this.ctx.symbolTable.isObject((expr as VariableNode).name);
-    }
+    const resolved = this.resolveExpressionType(expr);
+    if (resolved && resolved.base === 'object') return true;
     return false;
   }
 
@@ -803,29 +798,18 @@ export class TypeInference {
   }
 
   isMapExpression(expr: Expression): boolean {
-    const e = expr as ExprBase;
-    if (e.type === 'map') {
-      return true;
-    }
-    if (e.type === 'variable') {
-      return this.ctx.symbolTable.isMap((expr as VariableNode).name);
-    }
+    const resolved = this.resolveExpressionType(expr);
+    if (resolved && resolved.base.startsWith('Map<')) return true;
     return false;
   }
 
   isSetExpression(expr: Expression): boolean {
+    const resolved = this.resolveExpressionType(expr);
+    if (resolved && resolved.base.startsWith('Set<')) return true;
     const e = expr as ExprBase;
-    if (e.type === 'set') {
-      return true;
-    }
     if (e.type === 'new') {
       const newExpr = expr as NewNode;
-      if (newExpr.className === 'Set') {
-        return true;
-      }
-    }
-    if (e.type === 'variable') {
-      return this.ctx.symbolTable.isSet((expr as VariableNode).name);
+      if (newExpr.className === 'Set') return true;
     }
     return false;
   }
@@ -1148,18 +1132,12 @@ export class TypeInference {
   }
 
   isRegexExpression(expr: Expression): boolean {
+    const resolved = this.resolveExpressionType(expr);
+    if (resolved && resolved.base === 'RegExp') return true;
     const e = expr as ExprBase;
-    if (e.type === 'regex') {
-      return true;
-    }
     if (e.type === 'new') {
       const newExpr = expr as NewNode;
-      if (newExpr.className === 'RegExp') {
-        return true;
-      }
-    }
-    if (e.type === 'variable') {
-      return this.ctx.symbolTable.isRegex((expr as VariableNode).name);
+      if (newExpr.className === 'RegExp') return true;
     }
     return false;
   }
@@ -1242,13 +1220,8 @@ export class TypeInference {
   }
 
   isResponseExpression(expr: Expression): boolean {
-    const e = expr as ExprBase;
-    if (e.type === 'variable') {
-      const varType = this.ctx.symbolTable.getType((expr as VariableNode).name);
-      if (varType === '%__FetchResponse*') {
-        return true;
-      }
-    }
+    const resolved = this.resolveExpressionType(expr);
+    if (resolved && resolved.base === 'Response') return true;
     return false;
   }
 
