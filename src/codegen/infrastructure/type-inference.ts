@@ -123,6 +123,48 @@ export class TypeInference {
       const className = this.ctx.getCurrentClassName();
       if (className) return this.ctx.typeContext.getClassType(className);
     }
+    if (e.type === 'binary') {
+      const binExpr = expr as BinaryNode;
+      if (binExpr.op === '===' || binExpr.op === '!==' || binExpr.op === '==' ||
+          binExpr.op === '!=' || binExpr.op === '<' || binExpr.op === '>' ||
+          binExpr.op === '<=' || binExpr.op === '>=' || binExpr.op === 'instanceof' ||
+          binExpr.op === 'in') {
+        return this.ctx.typeContext.booleanType;
+      }
+      if (binExpr.op === '+') {
+        const leftResolved = this.resolveExpressionType(binExpr.left);
+        if (leftResolved && leftResolved.base === 'string' && leftResolved.arrayDepth === 0) {
+          return this.ctx.typeContext.stringType;
+        }
+        const rightResolved = this.resolveExpressionType(binExpr.right);
+        if (rightResolved && rightResolved.base === 'string' && rightResolved.arrayDepth === 0) {
+          return this.ctx.typeContext.stringType;
+        }
+        return this.ctx.typeContext.numberType;
+      }
+      if (binExpr.op === '-' || binExpr.op === '*' || binExpr.op === '/' ||
+          binExpr.op === '%' || binExpr.op === '**' || binExpr.op === '<<' ||
+          binExpr.op === '>>' || binExpr.op === '>>>' || binExpr.op === '&' ||
+          binExpr.op === '|' || binExpr.op === '^') {
+        return this.ctx.typeContext.numberType;
+      }
+    }
+    if (e.type === 'conditional') {
+      const condExpr = expr as ConditionalExpressionNode;
+      const consequentResolved = this.resolveExpressionType(condExpr.consequent);
+      if (consequentResolved) return consequentResolved;
+      const alternateResolved = this.resolveExpressionType(condExpr.alternate);
+      if (alternateResolved) return alternateResolved;
+    }
+    if (e.type === 'index_access') {
+      const indexExpr = expr as IndexAccessNode;
+      const objResolved = this.resolveExpressionType(indexExpr.object);
+      if (objResolved && objResolved.arrayDepth > 0) {
+        if (objResolved.base === 'string' || objResolved.base === 'number' || objResolved.base === 'boolean') {
+          return this.ctx.typeContext.resolve(objResolved.base);
+        }
+      }
+    }
     return null;
   }
 
