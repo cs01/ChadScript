@@ -164,6 +164,9 @@ export class TypeInference {
           return this.ctx.typeContext.resolve(objResolved.base);
         }
       }
+      if (objResolved && objResolved.base === 'string' && objResolved.arrayDepth === 0) {
+        return this.ctx.typeContext.stringType;
+      }
     }
     return null;
   }
@@ -360,6 +363,20 @@ export class TypeInference {
             if (mapMeta.valueType === 'string') return this.ctx.typeContext.stringType;
             if (this.getClass(mapMeta.valueType)) return this.ctx.typeContext.getClassType(mapMeta.valueType);
             return this.ctx.typeContext.resolve(mapMeta.valueType);
+          }
+        }
+      }
+      if (objBase.type === 'member_access') {
+        const memberAccess = expr.object as MemberAccessNode;
+        const memberAccessObjBase = memberAccess.object as ExprBase;
+        if (memberAccessObjBase.type === 'this' && this.ctx.getCurrentClassName() && this.ctx.hasClassGen()) {
+          const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), memberAccess.property);
+          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+          if (fieldInfoResult && fieldInfo.tsType) {
+            const mapParsed = parseMapTypeString(fieldInfo.tsType);
+            if (mapParsed) {
+              return this.ctx.typeContext.resolve(mapParsed.valueType);
+            }
           }
         }
       }
@@ -1199,7 +1216,7 @@ export class TypeInference {
 
     if (e.type === 'binary') {
       const binaryExpr = expr as BinaryNode;
-      if (binaryExpr.op === '+' || binaryExpr.op === '||') {
+      if (binaryExpr.op === '||') {
         return this.isStringExpression(binaryExpr.left) || this.isStringExpression(binaryExpr.right);
       }
     }
@@ -1257,30 +1274,6 @@ export class TypeInference {
           !this.isArrayExpression(methodExpr.object) && !this.isStringArrayExpression(methodExpr.object)) {
         return true;
       }
-      if (methodExpr.method === 'get') {
-        const methodObjBase = methodExpr.object as ExprBase;
-        if (methodObjBase.type === 'variable' &&
-            this.ctx.symbolTable.isMap((methodExpr.object as VariableNode).name)) {
-          const mapMeta = this.ctx.symbolTable.getMapMetadata((methodExpr.object as VariableNode).name);
-          if (mapMeta && mapMeta.valueType === 'string') {
-            return true;
-          }
-        }
-        if (methodObjBase.type === 'member_access') {
-          const memberAccess = methodExpr.object as MemberAccessNode;
-          const memberAccessObjBase = memberAccess.object as ExprBase;
-          if (memberAccessObjBase.type === 'this' && this.ctx.getCurrentClassName() && this.ctx.hasClassGen()) {
-            const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), memberAccess.property);
-            const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-            if (fieldInfoResult && fieldInfo.tsType) {
-              const mapParsed = parseMapTypeString(fieldInfo.tsType);
-              if (mapParsed && mapParsed.keyType === 'string' && mapParsed.valueType === 'string') {
-                return true;
-              }
-            }
-          }
-        }
-      }
     }
     if (e.type === 'conditional') {
       const condExpr = expr as ConditionalExpressionNode;
@@ -1313,34 +1306,6 @@ export class TypeInference {
       if (newExpr.className === 'Promise') return false;
       if (newExpr.className === 'RegExp') return false;
       return true;
-    }
-    if (e.type === 'method_call') {
-      const methodExpr = expr as MethodCallNode;
-      if (methodExpr.method === 'get') {
-        const methodObjBase = methodExpr.object as ExprBase;
-        if (methodObjBase.type === 'variable') {
-          const varName = (methodExpr.object as VariableNode).name;
-          if (this.ctx.symbolTable.isMap(varName)) {
-            const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
-            if (mapMeta && mapMeta.valueType && this.getClass(mapMeta.valueType)) {
-              return true;
-            }
-          }
-        } else if (methodObjBase.type === 'member_access') {
-          const memberExpr = methodExpr.object as MemberAccessNode;
-          const memberExprObjBase = memberExpr.object as ExprBase;
-          if (memberExprObjBase.type === 'this' && this.ctx.getCurrentClassName() && this.ctx.hasClassGen()) {
-            const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), memberExpr.property);
-            const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-            if (fieldInfoResult && fieldInfo.tsType) {
-              const mapParsed = parseMapTypeString(fieldInfo.tsType);
-              if (mapParsed && mapParsed.valueType && this.getClass(mapParsed.valueType)) {
-                return true;
-              }
-            }
-          }
-        }
-      }
     }
     return false;
   }

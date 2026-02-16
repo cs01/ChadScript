@@ -109,11 +109,15 @@ All 19 common node types now use the resolved path. Only `binary` and `condition
 
 Fixed in Step 4. `resolveMemberAccessType()` now checks TS type metadata for `i8*` fields and handles `%StringArray*`/`%Array*`/`%ObjectArray*` property types directly. `member_access` added to safe node type list.
 
-### B. binary/conditional Branch Selection
+### B. binary/conditional Branch Selection — BLOCKED
 
 `resolveExpressionType()` for `binary` `||` and `conditional` nodes picks the first non-null resolved branch. This can select the wrong type (e.g., `ast ? ast.classes || [] : []` resolves the alternate `[]` to `number[]` instead of the actual object array type).
 
-**Fix:** For `||`, check if either operand is an empty array literal `[]` and prefer the other operand's type. For conditional, require both branches to agree or return null.
+**Attempted fix:** Adding empty-array preference to `||` (prefer non-empty operand's type when other is `[]`) and conditional (prefer non-empty branch). The resolution logic itself works correctly. However, adding it causes an intermittent segfault in Stage 1 self-hosting.
+
+**Root cause of blocker:** `resolveExpressionType()` is called by predicates like `isObjectExpression(expr)` for ALL expression types at the top (line 944). When `resolveExpressionType` newly returns a non-null type for `||` expressions, it changes predicate behavior — specifically `isObjectExpression` can now return true for `x || []` when `x` is an object, where it previously returned false. This preempts the `isPointerOrExpression` allocation path (which generates `i8*` storage) with `allocateObject` (which generates different metadata). The type mismatch between expected and generated IR types causes the segfault.
+
+**Fix:** Cannot resolve without first decoupling the VariableAllocator from the `isPointerOrExpression` pattern. The `allocatePointer` path needs to be merged into the resolved-type dispatch or the `isObjectExpression` predicate needs to NOT call `resolveExpressionType` for binary nodes. Alternatively, the predicate-based allocation could be eliminated entirely by making the VariableAllocator generate correct IR for all types from `ResolvedType` alone, but that's the full Step 8 migration.
 
 ### C. SymbolKind Still Independent of ResolvedType
 
@@ -144,30 +148,48 @@ Three sub-problems:
 
 ## Next Steps (Recommended Order)
 
-### Step 5: Fix binary/conditional Branch Selection (Gap B)
+### Step 5: Fix binary/conditional Branch Selection (Gap B) — BLOCKED
 
-**Why next:** The last two node types not in the safe list. Adding them would mean ALL node types use `resolveExpressionType()`, eliminating the predicate fallback entirely.
+**Status:** Blocked by predicate coupling. Adding `||` empty-array resolution to `resolveExpressionType` changes behavior of `isObjectExpression` (which calls `resolveExpressionType` for all expression types), causing `allocateObject` to preempt `allocatePointer` for `memberAccess || []` patterns. Results in intermittent segfault in Stage 1.
 
-**What to do:**
-- For `||`, check if either operand is an empty array literal `[]` and prefer the other operand's type
-- For conditional, require both branches to agree or return null
-- Add `binary` and `conditional` to the safe node type list
-- Test with full self-hosting chain
+**Prerequisite:** Either refactor `isObjectExpression` to not call `resolveExpressionType` for binary nodes, or eliminate the `isPointerOrExpression` / `allocatePointer` code path by teaching `allocateObjectArray` to handle `i8*` expressions correctly.
 
-### Step 6: Native Map Return-Type Tracking (Gap D.1)
+### Step 6: Native Map/Set Return-Type Tracking (Gap D.1) — PARTIAL ✓
 
-**Why next:** Unblocks cleaner sema bridge (Gap E) and expression caching.
+**What was done:**
+- Added resolved-type fallback to `allocateMap()` and `allocateSet()` in `VariableAllocator`
+- When `stmt.declaredType` and literal/constructor checks both fail, falls back to `resolveExpressionType(stmt.value)` and parses the `Map<K,V>` or `Set<V>` base type string
+- Guarded: only fires when `stmt.value.type` is NOT `'new'` or `'map'`/`'set'` — prevents resolveExpressionType's default types (e.g., `Map<string,string>` for untyped `new Map()`) from overriding the correct generic `%Map*` allocation
 
-**What to do:**
-- In `method-calls.ts`, when generating a method call, record the return type
-- When the result is assigned to a variable, propagate the return type so `.get()` dispatch works
-- This lets `SemaSymbolData` use Maps directly instead of parallel arrays
+**What remains (Gap D.1 full fix):**
+- Method return-type tracking in `method-calls.ts` — when a function returns a Map/Set, the call site doesn't propagate the type info for `.get()`/`.set()` dispatch
+- This is still needed for `SemaSymbolData` cleanup (Gap E.3)
 
-### Step 7: Expression Type Caching
+**Gap D.2 (object-keyed Maps):** Still open. Needs pointer hash support.
 
-**Why next:** With VariableAllocator migrated and SymbolTable carrying ResolvedType, caching becomes both possible and impactful.
+### Step 7: Expression Type Caching — BLOCKED
 
-**What to do:** Add AST node integer IDs for `Map<number, ResolvedType>` caching (works with native compiler's string-key limitation), or wait for Gap D.2 (object-keyed Maps) and use `Map<Expression, ResolvedType>`.
+**Status:** Two approaches attempted and both blocked:
+
+1. **`loc.offset` keyed cache** — `SourceLocation.offset` is never populated by the parser (transformer doesn't set `loc` on any AST node). All offsets are `undefined`, causing every expression to collide on the same cache key. Result: 6 test failures with LLVM IR type mismatches.
+
+2. **`Map<Expression, ResolvedType>` with object reference keys** — ChadScript's native compiler only supports string-keyed and number-keyed Maps (`%StringMap`, `%NumberMap`). Object/pointer-keyed Maps don't exist. This approach can't self-host.
+
+**Prerequisite:** Either add AST node integer IDs during parsing (`nodeId: number` counter in transformer), or populate `loc.offset` from tree-sitter's `startIndex` during transformation. The former is cleaner since it guarantees uniqueness without depending on source positions.
+
+**Impact:** Low priority. The architecture win is already achieved — `resolveExpressionType()` centralizes type resolution, eliminating the 13 independent AST walks. Caching would only improve performance for expressions resolved multiple times (recursive calls within binary/conditional/index_access), which are already O(1) for most node types.
+
+### Step 7b: Predicate Dead Code Cleanup ✓
+
+Expanded `resolveExpressionType` coverage and removed dead fallback code from predicates:
+
+1. **String indexing** — `index_access` handler now resolves `str[i]` to `stringType` when the object is a string (base='string', arrayDepth=0). Previously only handled arrays.
+
+2. **Map.get on member_access receivers** — `resolveMethodCallType` now handles `this.myMap.get(key)` by parsing the class field's tsType for Map type info. Previously only handled direct variable receivers.
+
+3. **Dead code removed:**
+   - `isStringExpression`: removed `+` from binary fallback (resolve always returns non-null for `+`), removed `method_call.get` block (both variable and `this.field` cases now handled by resolveMethodCallType)
+   - `isClassInstanceExpression`: removed `method_call.get` block (both variable Map and `this.field` Map cases now handled by resolveMethodCallType)
 
 ### Step 8: Sema as Type Authority (Gap E)
 
