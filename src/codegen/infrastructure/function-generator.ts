@@ -48,6 +48,7 @@ export interface FunctionGeneratorContext {
   getOutput(): string[];
   clearOutput(): void;
   pushOutput(line: string): void;
+  lastInstructionIsTerminator(): boolean;
   createEmptyStringConstant(): string;
   mangleUserName(name: string): string;
   getSubprogramDbgRef(): string;
@@ -453,9 +454,7 @@ export class FunctionGenerator {
     }
 
     const lastInstruction: string = outputLen > 0 ? ctxOutput[outputLen - 1].trim() : '';
-    const hasTerminator = lastInstruction.startsWith('ret ') ||
-                          lastInstruction.startsWith('br ') ||
-                          lastInstruction.startsWith('unreachable');
+    const hasTerminator = this.ctx.lastInstructionIsTerminator();
 
     if (!hasTerminator) {
       if (func.async) {

@@ -533,6 +533,15 @@ export interface IGeneratorContext {
    */
   getLastInstruction(): string;
 
+  lastInstructionIsTerminator(): boolean;
+
+  emitRet(type: string, value: string): void;
+  emitRetVoid(): void;
+  emitBr(label: string): void;
+  emitBrCond(cond: string, thenLabel: string, elseLabel: string): void;
+  emitUnreachable(): void;
+  emitLabel(name: string): void;
+
   getOutput(): string[];
   clearOutput(): void;
   pushOutput(line: string): void;
@@ -758,6 +767,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   private labelCount = 0;
   private stringCount = 0;
   public output: string[] = [];
+  public outputIsTerminator: boolean[] = [];
   public allocaInstructions: string[] = [];
   public symbolTable: SymbolTable;
   public diagnostics?: DiagnosticEngine;
@@ -1116,6 +1126,46 @@ export class MockGeneratorContext implements IGeneratorContext {
       }
     }
     this.output.push(instruction);
+    this.outputIsTerminator.push(this.classifyTerminator(instruction));
+  }
+
+  private classifyTerminator(instruction: string): boolean {
+    const trimmed = instruction.trim();
+    return trimmed.startsWith('ret ') ||
+           trimmed === 'ret void' ||
+           trimmed.startsWith('br ') ||
+           trimmed.startsWith('unreachable') ||
+           trimmed.startsWith('switch ');
+  }
+
+  lastInstructionIsTerminator(): boolean {
+    const len = this.outputIsTerminator.length;
+    if (len === 0) return false;
+    return this.outputIsTerminator[len - 1];
+  }
+
+  emitRet(type: string, value: string): void {
+    this.emit(`ret ${type} ${value}`);
+  }
+
+  emitRetVoid(): void {
+    this.emit('ret void');
+  }
+
+  emitBr(label: string): void {
+    this.emit(`br label %${label}`);
+  }
+
+  emitBrCond(cond: string, thenLabel: string, elseLabel: string): void {
+    this.emit(`br i1 ${cond}, label %${thenLabel}, label %${elseLabel}`);
+  }
+
+  emitUnreachable(): void {
+    this.emit('unreachable');
+  }
+
+  emitLabel(name: string): void {
+    this.emit(`${name}:`);
   }
 
   getOutput(): string[] {
@@ -1124,10 +1174,12 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   clearOutput(): void {
     this.output = [];
+    this.outputIsTerminator = [];
   }
 
   pushOutput(line: string): void {
     this.output.push(line);
+    this.outputIsTerminator.push(this.classifyTerminator(line));
   }
 
   getOutputLength(): number {
@@ -1142,16 +1194,21 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   setOutputLine(index: number, line: string): void {
     const newOutput: string[] = [];
+    const newIsTerminator: boolean[] = [];
     for (let i = 0; i < this.output.length; i++) {
       if (i === index) {
         newOutput.push(line);
+        newIsTerminator.push(this.classifyTerminator(line));
       } else {
         newOutput.push(this.output[i]);
+        newIsTerminator.push(this.outputIsTerminator[i]);
       }
     }
     this.output.length = 0;
+    this.outputIsTerminator.length = 0;
     for (let i = 0; i < newOutput.length; i++) {
       this.output.push(newOutput[i]);
+      this.outputIsTerminator.push(newIsTerminator[i]);
     }
   }
 
@@ -1434,6 +1491,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.labelCount = 0;
     this.stringCount = 0;
     this.output = [];
+    this.outputIsTerminator = [];
     this.variableTypes.clear();
     this.currentLabel = 'entry';
   }

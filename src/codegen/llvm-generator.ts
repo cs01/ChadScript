@@ -763,22 +763,27 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getAllocaInstructions(): string[] { return this.allocaInstructions; }
   public clearAllocaInstructions(): void { this.allocaInstructions.length = 0; }
   public getOutput(): string[] { return this.output; }
-  public clearOutput(): void { this.output.length = 0; this.stringBuilderSlen.clear(); this.stringBuilderScap.clear(); }
-  public pushOutput(line: string): void { this.output.push(line); }
+  public clearOutput(): void { this.output.length = 0; this.outputIsTerminator.length = 0; this.stringBuilderSlen.clear(); this.stringBuilderScap.clear(); }
+  public pushOutput(line: string): void { this.output.push(line); this.outputIsTerminator.push(this.classifyTerminator(line)); }
   public getOutputLength(): number { return this.output.length; }
   public getOutputLine(index: number): string { return this.output[index] || ''; }
   public setOutputLine(index: number, line: string): void {
     const newOutput: string[] = [];
+    const newIsTerminator: boolean[] = [];
     for (let i = 0; i < this.output.length; i++) {
       if (i === index) {
         newOutput.push(line);
+        newIsTerminator.push(this.classifyTerminator(line));
       } else {
         newOutput.push(this.output[i]);
+        newIsTerminator.push(this.outputIsTerminator[i]);
       }
     }
     this.output.length = 0;
+    this.outputIsTerminator.length = 0;
     for (let i = 0; i < newOutput.length; i++) {
       this.output.push(newOutput[i]);
+      this.outputIsTerminator.push(newIsTerminator[i]);
     }
   }
   public getGlobalStringsLength(): number { return this.globalStrings.length; }
@@ -1069,6 +1074,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.labelCounter = 0;
     this.currentLabel = 'entry';
     this.output.length = 0;
+    this.outputIsTerminator.length = 0;
     this.outputCount = 0;
     this.thisPointer = null;
     this.currentClassName = null;

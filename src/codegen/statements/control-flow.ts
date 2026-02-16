@@ -104,10 +104,7 @@ export class ControlFlowGenerator {
     }
 
     const lastInstruction = this.ctx.getLastInstruction();
-    const thenHasTerminator = lastInstruction.startsWith('ret ') ||
-                              lastInstruction.startsWith('br ') ||
-                              lastInstruction.startsWith('unreachable') ||
-                              lastInstruction.startsWith('switch ');
+    const thenHasTerminator = this.ctx.lastInstructionIsTerminator();
     if (!thenHasTerminator) {
       this.emit(`br label %${mergeLabel}`);
     }
@@ -118,10 +115,7 @@ export class ControlFlowGenerator {
       this.ctx.setCurrentLabel(elseLabel);
       this.ctx.generateBlock(ifStmt.elseBlock, params);
       const lastInstruction = this.ctx.getLastInstruction();
-      elseHasTerminator = lastInstruction.startsWith('ret ') ||
-                                lastInstruction.startsWith('br ') ||
-                                lastInstruction.startsWith('unreachable') ||
-                                lastInstruction.startsWith('switch ');
+      elseHasTerminator = this.ctx.lastInstructionIsTerminator();
       if (!elseHasTerminator) {
         this.emit(`br label %${mergeLabel}`);
       }
@@ -168,10 +162,7 @@ export class ControlFlowGenerator {
     this.loopContinueLabels.pop();
     this.loopBreakLabels.pop();
     const lastInstruction = this.ctx.getLastInstruction();
-    const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
-                              lastInstruction.startsWith('br ') ||
-                              lastInstruction.startsWith('unreachable') ||
-                              lastInstruction.startsWith('switch ');
+    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
     if (!bodyHasTerminator) {
       this.emit(`br label %${condLabel}`);
     }
@@ -244,10 +235,7 @@ export class ControlFlowGenerator {
     this.loopBreakLabels.pop();
     // Check if the LAST instruction is a terminator
     const lastInstruction = this.ctx.getLastInstruction();
-    const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
-                              lastInstruction.startsWith('br ') ||
-                              lastInstruction.startsWith('unreachable') ||
-                              lastInstruction.startsWith('switch ');
+    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
     if (!bodyHasTerminator) {
       this.emit(`br label %${updateLabel}`);
     }
@@ -401,10 +389,7 @@ export class ControlFlowGenerator {
 
     // Check if body has terminator
     const lastInstruction = this.ctx.getLastInstruction();
-    const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
-                              lastInstruction.startsWith('br ') ||
-                              lastInstruction.startsWith('unreachable') ||
-                              lastInstruction.startsWith('switch ');
+    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
     if (!bodyHasTerminator) {
       this.emit(`br label %${updateLabel}`);
     }
@@ -1221,10 +1206,7 @@ export class ControlFlowGenerator {
     this.loopBreakLabels.pop();
 
     const lastInstruction = this.ctx.getLastInstruction();
-    const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
-                              lastInstruction.startsWith('br ') ||
-                              lastInstruction.startsWith('unreachable') ||
-                              lastInstruction.startsWith('switch ');
+    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
     if (!bodyHasTerminator) {
       this.emit(`br label %${updateLabel}`);
     }
@@ -1841,10 +1823,7 @@ export class ControlFlowGenerator {
     this.loopBreakLabels.pop();
 
     const lastInstruction = this.ctx.getLastInstruction();
-    const bodyHasTerminator = lastInstruction.startsWith('ret ') ||
-                              lastInstruction.startsWith('br ') ||
-                              lastInstruction.startsWith('unreachable') ||
-                              lastInstruction.startsWith('switch ');
+    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
     if (!bodyHasTerminator) {
       this.emit(`br label %${updateLabel}`);
     }

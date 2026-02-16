@@ -15,6 +15,7 @@ export class BaseGenerator {
   public labelCounter: number = 0;
   public stringCounter: number = 0;
   public output: string[];
+  public outputIsTerminator: boolean[] = [];
   public outputCount: number = 0;
   public allocaInstructions: string[]; // Collected allocas to hoist to entry block
   public globalStrings: string[];
@@ -62,6 +63,7 @@ export class BaseGenerator {
     this.labelCounter = 0;
     this.currentLabel = 'entry';
     this.output.length = 0;
+    this.outputIsTerminator.length = 0;
     this.outputCount = 0;
     this.allocaInstructions.length = 0;
     this.thisPointer = null;
@@ -213,10 +215,12 @@ export class BaseGenerator {
         this.allocaInstructions.push(dbgInstruction);
       } else {
         this.output.push(dbgInstruction);
+        this.outputIsTerminator.push(false);
         this.outputCount++;
       }
     } else {
       this.output.push(dbgInstruction);
+      this.outputIsTerminator.push(this.classifyTerminator(dbgInstruction));
       this.outputCount++;
     }
     if (dbgInstruction.trim().endsWith(':')) {
@@ -415,6 +419,45 @@ export class BaseGenerator {
   // Push a global string constant
   pushGlobalString(str: string): void {
     this.globalStrings.push(str);
+  }
+
+  protected classifyTerminator(instruction: string): boolean {
+    const trimmed = instruction.trim();
+    return trimmed.startsWith('ret ') ||
+           trimmed === 'ret void' ||
+           trimmed.startsWith('br ') ||
+           trimmed.startsWith('unreachable') ||
+           trimmed.startsWith('switch ');
+  }
+
+  lastInstructionIsTerminator(): boolean {
+    const len = this.outputIsTerminator.length;
+    if (len === 0) return false;
+    return this.outputIsTerminator[len - 1];
+  }
+
+  emitRet(type: string, value: string): void {
+    this.emit(`ret ${type} ${value}`);
+  }
+
+  emitRetVoid(): void {
+    this.emit('ret void');
+  }
+
+  emitBr(label: string): void {
+    this.emit(`br label %${label}`);
+  }
+
+  emitBrCond(cond: string, thenLabel: string, elseLabel: string): void {
+    this.emit(`br i1 ${cond}, label %${thenLabel}, label %${elseLabel}`);
+  }
+
+  emitUnreachable(): void {
+    this.emit('unreachable');
+  }
+
+  emitLabel(name: string): void {
+    this.emit(`${name}:`);
   }
 
   // ============================================
