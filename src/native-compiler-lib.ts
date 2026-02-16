@@ -1,6 +1,6 @@
 import { parseSource } from './parser-native/index.js';
 import { transformTree } from './parser-native/transformer.js';
-import { LLVMGenerator, LLVMGeneratorOptions } from './codegen/llvm-generator.js';
+import { LLVMGenerator, LLVMGeneratorOptions, SemaSymbolData } from './codegen/llvm-generator.js';
 import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
 import { AST, ImportDeclaration } from './ast/types.js';
 
@@ -66,6 +66,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const compiledFiles: string[] = [];
   const mergedAST = compileMultiFile(inputFile, compiledFiles);
 
+  let semaSymbols: SemaSymbolData | undefined = undefined;
   if (skipSemanticAnalysis) {
     if (verbose) { console.log('Skipping semantic analysis (--skip-semantic-analysis)'); }
   } else {
@@ -79,13 +80,38 @@ export function compileNative(inputFile: string, outputFile: string): void {
       process.exit(1);
     }
 
+    const semaData: SemaSymbolData = {
+      names: [],
+      types: [],
+      llvmTypes: [],
+      schemaKeys: [],
+      schemaTypes: [],
+    };
+    for (let tsi = 0; tsi < mergedAST.topLevelStatements.length; tsi++) {
+      const stmt = mergedAST.topLevelStatements[tsi];
+      if (stmt.type === 'variable_declaration') {
+        const declName = (stmt as { name?: string }).name;
+        if (declName) {
+          const symType = analyzer.getSymbolTypeByName(declName);
+          if (symType !== 'unknown') {
+            semaData.names.push(declName);
+            semaData.types.push(symType);
+            semaData.llvmTypes.push(analyzer.getSymbolLlvmTypeByName(declName));
+            semaData.schemaKeys.push(analyzer.getSymbolSchemaKeysByName(declName));
+            semaData.schemaTypes.push(analyzer.getSymbolSchemaTypesByName(declName));
+          }
+        }
+      }
+    }
+    semaSymbols = semaData;
     if (verbose) { console.log('Semantic analysis passed'); }
   }
 
   if (verbose) { console.log('Generating LLVM IR...'); }
   const generatorOptions: LLVMGeneratorOptions = {
     sourceCode: '',
-    filename: inputFile
+    filename: inputFile,
+    analyzedSymbols: semaSymbols,
   };
   const generator = new LLVMGenerator(mergedAST, null, generatorOptions);
   const irParts = generator.generateParts();

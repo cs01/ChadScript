@@ -2,9 +2,9 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { parseWithTSAPI } from './parser-ts/index.js';
-import { LLVMGenerator, LLVMGeneratorOptions } from './codegen/llvm-generator.js';
+import { LLVMGenerator, LLVMGeneratorOptions, SemaSymbolData } from './codegen/llvm-generator.js';
 import { TypeChecker } from './typescript/type-checker.js';
-import { SemanticAnalyzer } from './analysis/semantic-analyzer.js';
+import { SemanticAnalyzer, TypedSymbol } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
 import { LogLevel, logger } from './utils/logger.js';
 
@@ -101,6 +101,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const mergedAST = compileMultiFile(inputFile, compiledFiles, fileContentKeys, fileContentValues, inputFile);
 
   // Run semantic analysis to catch type errors early (unless skipped)
+  let analyzedSymbols: SemaSymbolData | undefined = undefined;
   if (!skipSemanticAnalysis) {
     logger.info('Running semantic analysis...');
     const analyzer = new SemanticAnalyzer(mergedAST);
@@ -112,6 +113,22 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
       throw new Error('Semantic analysis failed. Fix the errors above and try again.');
     }
 
+    const symMap = analyzer.getSymbols();
+    const semaData: SemaSymbolData = {
+      names: [],
+      types: [],
+      llvmTypes: [],
+      schemaKeys: [],
+      schemaTypes: [],
+    };
+    symMap.forEach((sym: TypedSymbol, _k: string) => {
+      semaData.names.push(sym.name);
+      semaData.types.push(sym.type);
+      semaData.llvmTypes.push(sym.llvmType);
+      semaData.schemaKeys.push(sym.schemaKeys);
+      semaData.schemaTypes.push(sym.schemaTypes);
+    });
+    analyzedSymbols = semaData;
     logger.info('✓ Semantic analysis passed');
   } else {
     logger.info('Skipping semantic analysis (--skip-semantic-analysis)');
@@ -154,6 +171,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     filename: inputFile,
     debugInfo,
     debugFilename: debugInfo ? path.resolve(inputFile) : undefined,
+    analyzedSymbols,
   };
   const generator = new LLVMGenerator(mergedAST, typeChecker, generatorOptions);
   const llvmIR = generator.generate();

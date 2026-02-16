@@ -1,6 +1,6 @@
 import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode, ArrowFunctionNode, UnaryNode, IndexAccessNode, AwaitExpressionNode, BinaryNode, SourceLocation } from '../ast/types.js';
 import { BaseGenerator, SymbolKind, SymbolTable } from './infrastructure/base-generator.js';
-import { MapMetadata, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, ObjectMetadata } from './infrastructure/symbol-table.js';
+import { MapMetadata, SymbolMetadata, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, ObjectMetadata } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
 import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/function-generator.js';
@@ -39,11 +39,20 @@ import type { TypeChecker } from '../typescript/type-checker.js';
 import { InterfaceStructGenerator } from './types/interface-struct-generator.js';
 import { JsonObjectMeta } from './expressions/access/member.js';
 
+export interface SemaSymbolData {
+  names: string[];
+  types: string[];
+  llvmTypes: string[];
+  schemaKeys: (string[] | undefined)[];
+  schemaTypes: (string[] | undefined)[];
+}
+
 export interface LLVMGeneratorOptions {
   sourceCode?: string;
   filename?: string;
   debugInfo?: boolean;
   debugFilename?: string;
+  analyzedSymbols?: SemaSymbolData;
 }
 
 // ============================================
@@ -151,6 +160,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   // Type context for canonical interned type objects
   public typeContext: TypeContext;
+
+  // Pre-analyzed symbols from semantic analysis (parallel arrays for self-hosting compat)
+  private semaSymbolNames: string[];
+  private semaSymbolTypes: string[];
+  private semaSymbolLlvmTypes: string[];
+  private semaSymbolSchemaKeys: (string[] | undefined)[];
+  private semaSymbolSchemaTypes: (string[] | undefined)[];
+  private semaSymbolCount: number;
 
   // Debug info emitter (null when debug info is disabled)
   private debugInfoEmitter: number = 0;
@@ -926,6 +943,20 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     this.typeContext = new TypeContext();
     this.symbolTable = new SymbolTable(this.typeContext);
+    this.semaSymbolNames = [];
+    this.semaSymbolTypes = [];
+    this.semaSymbolLlvmTypes = [];
+    this.semaSymbolSchemaKeys = [];
+    this.semaSymbolSchemaTypes = [];
+    this.semaSymbolCount = 0;
+    if (options.analyzedSymbols) {
+      this.semaSymbolNames = options.analyzedSymbols.names;
+      this.semaSymbolTypes = options.analyzedSymbols.types;
+      this.semaSymbolLlvmTypes = options.analyzedSymbols.llvmTypes;
+      this.semaSymbolSchemaKeys = options.analyzedSymbols.schemaKeys;
+      this.semaSymbolSchemaTypes = options.analyzedSymbols.schemaTypes;
+      this.semaSymbolCount = this.semaSymbolNames.length;
+    }
 
     if (options.debugInfo && this.filename) {
       const dbgFile = options.debugFilename || this.filename;
@@ -988,6 +1019,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     this.assignmentGen = new AssignmentGenerator(this as unknown as AssignmentGeneratorContext);
 
+    this.prePopulateFromSema();
+
     const importsCount = ast.imports.length;
     if (importsCount > 0) {
       this.buildImportAliasMap(ast.imports, importsCount);
@@ -1010,6 +1043,88 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             this.setImportAlias(spec.name, spec.original);
           }
         }
+      }
+    }
+  }
+
+  private prePopulateFromSema(): void {
+    if (this.semaSymbolCount === 0) return;
+
+    const topLevelNames: string[] = [];
+    for (let i = 0; i < this.topLevelStatementsCount; i++) {
+      const stmt = this.ast.topLevelStatements[i];
+      if (stmt.type === 'variable_declaration') {
+        const decl = stmt as VariableDeclaration;
+        if (decl.name) {
+          topLevelNames.push(decl.name);
+        }
+      }
+    }
+
+    for (let ti = 0; ti < topLevelNames.length; ti++) {
+      const name = topLevelNames[ti];
+      if (name === 'console' || name === 'process' || name === 'Math' || name === 'JSON' || name === 'Date') continue;
+
+      let semaIdx = -1;
+      for (let si = 0; si < this.semaSymbolCount; si++) {
+        if (this.semaSymbolNames[si] === name) {
+          semaIdx = si;
+          break;
+        }
+      }
+      if (semaIdx === -1) continue;
+
+      const stype = this.semaSymbolTypes[semaIdx];
+      if (stype === 'null' || stype === 'undefined' || stype === 'unknown') continue;
+
+      let kind: number = -1;
+      let llvmType = '';
+
+      if (stype === 'number') {
+        kind = SymbolKind.Number;
+        llvmType = 'double';
+      } else if (stype === 'string') {
+        kind = SymbolKind.String;
+        llvmType = 'i8*';
+      } else if (stype === 'boolean') {
+        kind = SymbolKind.Boolean;
+        llvmType = 'double';
+      } else if (stype === 'array<number>') {
+        kind = SymbolKind.Array;
+        llvmType = '%Array*';
+      } else if (stype === 'array<string>') {
+        kind = SymbolKind.StringArray;
+        llvmType = '%StringArray*';
+      } else if (stype === 'object') {
+        kind = SymbolKind.Object;
+        llvmType = 'i8*';
+      } else if (stype === 'class') {
+        kind = SymbolKind.Class;
+        llvmType = 'i8*';
+      }
+
+      if (kind === -1) continue;
+
+      const schemaKeys = this.semaSymbolSchemaKeys[semaIdx];
+      const schemaTypes = this.semaSymbolSchemaTypes[semaIdx];
+      if (stype === 'object' && schemaKeys && schemaTypes) {
+        const metadata: SymbolMetadata = {
+          objectMetadata: { keys: schemaKeys, types: schemaTypes },
+          classMetadata: undefined,
+          arrayMetadata: undefined,
+          objectArrayMetadata: undefined,
+          closureMetadata: undefined,
+          mapMetadata: undefined,
+          setMetadata: undefined,
+          isPointerAlloca: undefined,
+          interfaceType: undefined,
+          resolvedType: undefined,
+          unionType: undefined,
+          unionMembers: undefined
+        };
+        this.symbolTable.defineWithMetadata(name, kind, llvmType, '', 'global', metadata);
+      } else {
+        this.symbolTable.define(name, kind, llvmType, '', 'global');
       }
     }
   }

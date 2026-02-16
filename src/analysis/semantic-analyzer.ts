@@ -129,6 +129,30 @@ export class SemanticAnalyzer {
     return this.symbols;
   }
 
+  getSymbolTypeByName(name: string): string {
+    const sym = this.symbols.get(name);
+    if (!sym) return 'unknown';
+    return sym.type;
+  }
+
+  getSymbolLlvmTypeByName(name: string): string {
+    const sym = this.symbols.get(name);
+    if (!sym) return 'double';
+    return sym.llvmType;
+  }
+
+  getSymbolSchemaKeysByName(name: string): string[] | undefined {
+    const sym = this.symbols.get(name);
+    if (!sym) return undefined;
+    return sym.schemaKeys;
+  }
+
+  getSymbolSchemaTypesByName(name: string): string[] | undefined {
+    const sym = this.symbols.get(name);
+    if (!sym) return undefined;
+    return sym.schemaTypes;
+  }
+
   private inferDeclaredType(declaredType: string | undefined): { type: SymbolType; llvmType: string } {
     if (!declaredType) return { type: 'number', llvmType: 'double' };
     if (declaredType === 'string') return { type: 'string', llvmType: 'i8*' };
