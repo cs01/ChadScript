@@ -56,6 +56,16 @@ export class TypeInference {
     if (e.type === 'variable') {
       return this.resolveVariableType((expr as VariableNode).name);
     }
+    if (e.type === 'new') {
+      const newExpr = expr as NewNode;
+      if (newExpr.className === 'Map') return this.ctx.typeContext.getMapType('string', 'string');
+      if (newExpr.className === 'Set') return this.ctx.typeContext.getSetType('string');
+      if (newExpr.className === 'RegExp') return this.ctx.typeContext.resolve('RegExp');
+      if (newExpr.className === 'Promise') return this.ctx.typeContext.resolve('Promise');
+      const cls = this.getClass(newExpr.className);
+      if (cls) return this.ctx.typeContext.getClassType(newExpr.className);
+      return null;
+    }
     if (e.type === 'array') {
       const arrayExpr = expr as ArrayNode;
       const elements = arrayExpr.elements || [];
@@ -806,11 +816,6 @@ export class TypeInference {
   isSetExpression(expr: Expression): boolean {
     const resolved = this.resolveExpressionType(expr);
     if (resolved && resolved.base.startsWith('Set<')) return true;
-    const e = expr as ExprBase;
-    if (e.type === 'new') {
-      const newExpr = expr as NewNode;
-      if (newExpr.className === 'Set') return true;
-    }
     return false;
   }
 
@@ -1134,28 +1139,27 @@ export class TypeInference {
   isRegexExpression(expr: Expression): boolean {
     const resolved = this.resolveExpressionType(expr);
     if (resolved && resolved.base === 'RegExp') return true;
-    const e = expr as ExprBase;
-    if (e.type === 'new') {
-      const newExpr = expr as NewNode;
-      if (newExpr.className === 'RegExp') return true;
-    }
     return false;
   }
 
   isClassInstanceExpression(expr: Expression): boolean {
+    const resolved = this.resolveExpressionType(expr);
+    if (resolved) {
+      if (resolved.base === 'Promise' || resolved.base === 'RegExp') return false;
+      if (resolved.base === 'string' || resolved.base === 'number' || resolved.base === 'boolean' ||
+          resolved.base === 'void' || resolved.base === 'null' || resolved.base === 'unknown' ||
+          resolved.base === 'object' || resolved.base === 'Response') return false;
+      if (resolved.base.startsWith('Map<') || resolved.base.startsWith('Set<')) return false;
+      if (resolved.arrayDepth > 0) return false;
+      const cls = this.getClass(resolved.base);
+      if (cls) return true;
+    }
     const e = expr as ExprBase;
     if (e.type === 'new') {
       const newExpr = expr as NewNode;
-      if (newExpr.className === 'Promise') {
-        return false;
-      }
-      if (newExpr.className === 'RegExp') {
-        return false;
-      }
+      if (newExpr.className === 'Promise') return false;
+      if (newExpr.className === 'RegExp') return false;
       return true;
-    }
-    if (e.type === 'variable') {
-      return this.ctx.symbolTable.isClass((expr as VariableNode).name);
     }
     if (e.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
@@ -1189,10 +1193,9 @@ export class TypeInference {
   }
 
   isPromiseExpression(expr: Expression): boolean {
+    const resolved = this.resolveExpressionType(expr);
+    if (resolved && resolved.base === 'Promise') return true;
     const e = expr as ExprBase;
-    if (e.type === 'new' && (expr as NewNode).className === 'Promise') {
-      return true;
-    }
     if (e.type === 'call' && (expr as CallNode).name === 'fetch') {
       return true;
     }
@@ -1205,10 +1208,6 @@ export class TypeInference {
       if (methodExpr.method === 'then' || methodExpr.method === 'catch') {
         return this.isPromiseExpression(methodExpr.object);
       }
-    }
-    if (e.type === 'variable') {
-      const varType = this.ctx.symbolTable.getType((expr as VariableNode).name);
-      return varType === '%Promise*';
     }
     if (e.type === 'call') {
       const func = this.getFunction((expr as CallNode).name);
