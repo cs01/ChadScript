@@ -169,6 +169,17 @@ export class TypeInference {
   }
 
   private resolveVariableType(name: string): ResolvedType | null {
+    const varType = this.ctx.symbolTable.getType(name);
+    if (varType) {
+      if (varType === '%StringArray*' || varType === '%StringArray') return this.ctx.typeContext.getArrayType('string');
+      if (varType === '%Array*' || varType === '%Array') return this.ctx.typeContext.getArrayType('number');
+      if (varType === '%ObjectArray*') return this.ctx.typeContext.getArrayType('object');
+      if (varType === '%StringMap*') return this.ctx.typeContext.getMapType('string', 'string');
+      if (varType === '%StringSet*') return this.ctx.typeContext.getSetType('string');
+      if (varType === '%Promise*') return this.ctx.typeContext.resolve('Promise');
+      if (varType === '%__FetchResponse*') return this.ctx.typeContext.resolve('Response');
+      if (varType === 'double') return this.ctx.typeContext.numberType;
+    }
     if (this.ctx.symbolTable.isString(name)) return this.ctx.typeContext.stringType;
     if (this.ctx.symbolTable.isNumberArray(name)) return this.ctx.typeContext.getArrayType('number');
     if (this.ctx.symbolTable.isMap(name)) return this.ctx.typeContext.getMapType('string', 'string');
@@ -181,21 +192,12 @@ export class TypeInference {
       if (className) return this.ctx.typeContext.getClassType(className);
     }
     if (this.ctx.symbolTable.isObjectArray(name)) return this.ctx.typeContext.getArrayType('object');
-    const varType = this.ctx.symbolTable.getType(name);
     if (varType) {
       if (varType === 'i8*') {
         const ifaceType = this.ctx.symbolTable.getInterfaceType(name);
         if (ifaceType && ifaceType.length > 0) return this.ctx.typeContext.getInterfaceType(ifaceType);
         return this.ctx.typeContext.stringType;
       }
-      if (varType === 'double') return this.ctx.typeContext.numberType;
-      if (varType === '%Array*' || varType === '%Array') return this.ctx.typeContext.getArrayType('number');
-      if (varType === '%StringArray*' || varType === '%StringArray') return this.ctx.typeContext.getArrayType('string');
-      if (varType === '%ObjectArray*') return this.ctx.typeContext.getArrayType('object');
-      if (varType === '%Promise*') return this.ctx.typeContext.resolve('Promise');
-      if (varType === '%__FetchResponse*') return this.ctx.typeContext.resolve('Response');
-      if (varType === '%StringMap*') return this.ctx.typeContext.getMapType('string', 'string');
-      if (varType === '%StringSet*') return this.ctx.typeContext.getSetType('string');
       if (varType.startsWith('%') && varType.endsWith('*')) {
         const typeName = varType.substring(1, varType.length - 1);
         if (this.getInterface(typeName)) return this.ctx.typeContext.getInterfaceType(typeName);
@@ -799,13 +801,8 @@ export class TypeInference {
       }
     }
     if (e.type === 'variable') {
-      const varExpr = expr as VariableNode;
-      const isNumArr = this.ctx.symbolTable.isNumberArray(varExpr.name);
-      const varType = this.ctx.symbolTable.getType(varExpr.name);
-      if (isNumArr) {
-        return true;
-      }
-      if (varType === '%Array*' || varType === '%Array') {
+      const resolved = this.resolveExpressionType(expr);
+      if (resolved && resolved.arrayDepth > 0 && (resolved.base === 'number' || resolved.base === 'boolean')) {
         return true;
       }
       return false;
@@ -1652,8 +1649,8 @@ export class TypeInference {
       return this.isStringArrayExpression(assertion.expression);
     }
     if (e.type === 'variable') {
-      const varType = this.ctx.symbolTable.getType((expr as VariableNode).name);
-      if (varType === '%StringArray*' || varType === '%StringArray') {
+      const resolved = this.resolveExpressionType(expr);
+      if (resolved && resolved.arrayDepth > 0 && resolved.base === 'string') {
         return true;
       }
       return false;
