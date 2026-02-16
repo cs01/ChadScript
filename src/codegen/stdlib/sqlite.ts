@@ -18,7 +18,7 @@ export class SqliteGenerator {
 
   generateOpen(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('sqlite.open() requires 1 argument (database path)');
+      return this.ctx.emitError('sqlite.open() requires 1 argument (database path)', expr.loc);
     }
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -40,7 +40,7 @@ export class SqliteGenerator {
 
   generateExec(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      throw new Error('sqlite.exec() requires 2 arguments (db, sql)');
+      return this.ctx.emitError('sqlite.exec() requires 2 arguments (db, sql)', expr.loc);
     }
 
     const dbPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -61,7 +61,7 @@ export class SqliteGenerator {
 
   generateGet(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      throw new Error('sqlite.get() requires 2 arguments (db, sql)');
+      return this.ctx.emitError('sqlite.get() requires 2 arguments (db, sql)', expr.loc);
     }
 
     const dbPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -84,7 +84,7 @@ export class SqliteGenerator {
 
   generateAll(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      throw new Error('sqlite.all() requires 2 arguments (db, sql)');
+      return this.ctx.emitError('sqlite.all() requires 2 arguments (db, sql)', expr.loc);
     }
 
     const dbPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -107,7 +107,7 @@ export class SqliteGenerator {
 
   generateClose(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('sqlite.close() requires 1 argument (db)');
+      return this.ctx.emitError('sqlite.close() requires 1 argument (db)', expr.loc);
     }
 
     const dbPtr = this.ctx.generateExpression(expr.args[0], params);

@@ -30,7 +30,7 @@ export class CryptoGenerator {
 
   private generateHash(expr: MethodCallNode, params: string[], evpFunc: string): string {
     if (expr.args.length < 1) {
-      throw new Error(`crypto.${expr.method}() requires 1 argument`);
+      return this.ctx.emitError(`crypto.${expr.method}() requires 1 argument`, expr.loc);
     }
 
     const inputPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -75,7 +75,7 @@ export class CryptoGenerator {
 
   generateRandomBytes(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('crypto.randomBytes() requires 1 argument (number of bytes)');
+      return this.ctx.emitError('crypto.randomBytes() requires 1 argument (number of bytes)', expr.loc);
     }
 
     const countDouble = this.ctx.generateExpression(expr.args[0], params);

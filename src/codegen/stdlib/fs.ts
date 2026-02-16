@@ -36,7 +36,7 @@ export class FilesystemGenerator {
    */
   generateReadFileSync(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('fs.readFileSync() requires at least 1 argument (filename)');
+      return this.ctx.emitError('fs.readFileSync() requires at least 1 argument (filename)', expr.loc);
     }
 
     const filenamePtr = this.ctx.generateExpression(expr.args[0], params);
@@ -114,7 +114,7 @@ export class FilesystemGenerator {
    */
   generateWriteFileSync(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      throw new Error('fs.writeFileSync() requires at least 2 arguments (filename, data)');
+      return this.ctx.emitError('fs.writeFileSync() requires at least 2 arguments (filename, data)', expr.loc);
     }
 
     const filenamePtr = this.ctx.generateExpression(expr.args[0], params);
@@ -168,7 +168,7 @@ export class FilesystemGenerator {
 
   generateAppendFileSync(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      throw new Error('fs.appendFileSync() requires at least 2 arguments (filename, data)');
+      return this.ctx.emitError('fs.appendFileSync() requires at least 2 arguments (filename, data)', expr.loc);
     }
 
     const filenamePtr = this.ctx.generateExpression(expr.args[0], params);
@@ -217,7 +217,7 @@ export class FilesystemGenerator {
    */
   generateExistsSync(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('fs.existsSync() requires 1 argument (filename)');
+      return this.ctx.emitError('fs.existsSync() requires 1 argument (filename)', expr.loc);
     }
 
     const filenamePtr = this.ctx.generateExpression(expr.args[0], params);
@@ -263,7 +263,7 @@ export class FilesystemGenerator {
    */
   generateUnlinkSync(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('fs.unlinkSync() requires 1 argument (filename)');
+      return this.ctx.emitError('fs.unlinkSync() requires 1 argument (filename)', expr.loc);
     }
 
     const filenamePtr = this.ctx.generateExpression(expr.args[0], params);
@@ -277,7 +277,7 @@ export class FilesystemGenerator {
 
   generateMkdirSync(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('fs.mkdirSync() requires at least 1 argument (path)');
+      return this.ctx.emitError('fs.mkdirSync() requires at least 1 argument (path)', expr.loc);
     }
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -295,7 +295,7 @@ export class FilesystemGenerator {
 
   generateReaddirSync(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('fs.readdirSync() requires 1 argument (path)');
+      return this.ctx.emitError('fs.readdirSync() requires 1 argument (path)', expr.loc);
     }
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -309,7 +309,7 @@ export class FilesystemGenerator {
 
   generateStatSync(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('fs.statSync() requires 1 argument (path)');
+      return this.ctx.emitError('fs.statSync() requires 1 argument (path)', expr.loc);
     }
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);

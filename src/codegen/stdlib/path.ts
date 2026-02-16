@@ -33,7 +33,7 @@ export class PathGenerator {
    */
   generateResolve(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('path.resolve() requires at least 1 argument');
+      return this.ctx.emitError('path.resolve() requires at least 1 argument', expr.loc);
     }
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -81,7 +81,7 @@ export class PathGenerator {
    */
   generateDirname(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('path.dirname() requires 1 argument');
+      return this.ctx.emitError('path.dirname() requires 1 argument', expr.loc);
     }
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -105,7 +105,7 @@ export class PathGenerator {
 
   generateBasename(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('path.basename() requires 1 argument');
+      return this.ctx.emitError('path.basename() requires 1 argument', expr.loc);
     }
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -137,7 +137,7 @@ export class PathGenerator {
 
   generateJoin(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('path.join() requires at least 1 argument');
+      return this.ctx.emitError('path.join() requires at least 1 argument', expr.loc);
     }
 
     let result = this.ctx.generateExpression(expr.args[0], params);

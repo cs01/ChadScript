@@ -42,7 +42,7 @@ export class JsonGenerator {
 
   generateParse(expr: MethodCallNode, params: string[], typeParam?: string): string {
     if (expr.args.length < 1) {
-      throw new Error('JSON.parse() requires 1 argument (JSON string)');
+      return this.ctx.emitError('JSON.parse() requires 1 argument (JSON string)', expr.loc);
     }
 
     if (!typeParam) {
@@ -55,7 +55,7 @@ export class JsonGenerator {
 
     const interfaceDef = this.getInterfaceFields(typeParam);
     if (!interfaceDef) {
-      throw new Error(`JSON.parse<${typeParam}>: Interface '${typeParam}' not found`);
+      return this.ctx.emitError(`JSON.parse<${typeParam}>: Interface '${typeParam}' not found`, expr.loc);
     }
 
     this.generateJsonStruct(typeParam, interfaceDef);
@@ -335,7 +335,7 @@ export class JsonGenerator {
 
   generateStringify(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('JSON.stringify() requires 1 argument');
+      return this.ctx.emitError('JSON.stringify() requires 1 argument', expr.loc);
     }
 
     const arg = expr.args[0];
