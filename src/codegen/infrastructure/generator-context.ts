@@ -657,6 +657,8 @@ export interface IGeneratorContext {
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
+  setUsesTestRunner(value: boolean): void;
+  getUsesTestRunner(): boolean;
 
   currentDeclaredInterfaceType: string | undefined;
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
@@ -806,6 +808,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesCrypto: number = 0;
   public usesJson: number = 0;
   public usesMongoose: number = 0;
+  public usesTestRunner: number = 0;
   public currentFunction: string | null = null;
   public currentDeclaredInterfaceType: string | undefined = undefined;
 
@@ -927,6 +930,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   setUsesCrypto(value: boolean): void { this.usesCrypto = value ? 1 : 0; }
   setUsesJson(value: boolean): void { this.usesJson = value ? 1 : 0; }
   setUsesMongoose(value: boolean): void { this.usesMongoose = value ? 1 : 0; }
+  setUsesTestRunner(value: boolean): void { this.usesTestRunner = value ? 1 : 0; }
+  getUsesTestRunner(): boolean { return this.usesTestRunner !== 0; }
   setCurrentDeclaredInterfaceType(type: string | undefined): void { this.currentDeclaredInterfaceType = type; }
   getCurrentDeclaredInterfaceType(): string | undefined { return this.currentDeclaredInterfaceType; }
   setExpectedCallbackParamType(type: string | null): void { this.expectedCallbackParamType = type; }

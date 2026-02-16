@@ -122,6 +122,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesCrypto: number = 0;
   public usesJson: number = 0;
   public usesMongoose: number = 0;
+  public usesTestRunner: number = 0;
   public usesStringBuilder: number = 0;
   private stringBuilderSlen: Map<string, string> = new Map();
   private stringBuilderScap: Map<string, string> = new Map();
@@ -747,6 +748,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesJson(): boolean { return this.usesJson !== 0; }
   public setUsesMongoose(value: boolean): void { this.usesMongoose = value ? 1 : 0; }
   public getUsesMongoose(): boolean { return this.usesMongoose !== 0; }
+  public setUsesTestRunner(value: boolean): void { this.usesTestRunner = value ? 1 : 0; }
+  public getUsesTestRunner(): boolean { return this.usesTestRunner !== 0; }
   public setCurrentDeclaredInterfaceType(type: string | undefined): void { this.currentDeclaredInterfaceType = type; }
   public getCurrentDeclaredInterfaceType(): string | undefined { return this.currentDeclaredInterfaceType; }
   public setExpectedCallbackParamType(type: string | null): void { this.expectedCallbackParamType = type; }
@@ -924,6 +927,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesCrypto = 0;
     this.usesJson = 0;
     this.usesMongoose = 0;
+    this.usesTestRunner = 0;
 
     this.ast = ast;
 
@@ -1721,7 +1725,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push('\n');
     }
 
-    finalParts.push(getLLVMDeclarations({ curl: this.usesCurl !== 0, crypto: this.usesCrypto !== 0, sqlite: this.usesSqlite !== 0 }));
+    finalParts.push(getLLVMDeclarations({ curl: this.usesCurl !== 0, crypto: this.usesCrypto !== 0, sqlite: this.usesSqlite !== 0, testRunner: this.usesTestRunner !== 0 }));
 
     if (this.usesCurl) {
       const fetchRuntime = this.runtimeGen.generateFetchRuntime();

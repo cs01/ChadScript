@@ -2,6 +2,7 @@ export interface DeclConfig {
   curl?: boolean;
   crypto?: boolean;
   sqlite?: boolean;
+  testRunner?: boolean;
 }
 
 export function getLLVMDeclarations(config?: DeclConfig): string {
@@ -193,6 +194,18 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += '\n';
   }
 
+  if (config && config.testRunner) {
+  ir += '; Test runner format strings\n';
+  ir += '@.str.test_pass = private unnamed_addr constant [12 x i8] c"  PASS: %s\\0A\\00", align 1\n';
+  ir += '@.str.test_fail = private unnamed_addr constant [12 x i8] c"  FAIL: %s\\0A\\00", align 1\n';
+  ir += '@.str.test_summary = private unnamed_addr constant [34 x i8] c"\\0A%d passed, %d failed (%d total)\\0A\\00", align 1\n';
+  ir += '@.str.assert_eq_num = private unnamed_addr constant [31 x i8] c"    expected %.15g, got %.15g\\0A\\00", align 1\n';
+  ir += '@.str.assert_eq_str = private unnamed_addr constant [25 x i8] c"    expected %s, got %s\\0A\\00", align 1\n';
+  ir += '@.str.assert_fail_msg = private unnamed_addr constant [8 x i8] c"    %s\\0A\\00", align 1\n';
+  ir += '@.str.assert_falsy = private unnamed_addr constant [20 x i8] c"    value is falsy\\0A\\00", align 1\n';
+  ir += '\n';
+  }
+
   return ir;
 }
 
@@ -308,6 +321,11 @@ export function getGlobalVariables(): string {
   ir += '@__argv = global i8** null\n';
   ir += '\n';
   ir += '@__chadscript = global double 1.0\n';
+  ir += '\n';
+  ir += '@__test_total = global i32 0\n';
+  ir += '@__test_passed = global i32 0\n';
+  ir += '@__test_failed = global i32 0\n';
+  ir += '@__test_current_failed = global i1 0\n';
   ir += '\n';
   return ir;
 }

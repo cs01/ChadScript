@@ -729,5 +729,17 @@ export const testCases: TestCase[] = [
     fixture: 'tests/fixtures/strings/string-lastindexof.ts',
     expectTestPassed: true,
     description: 'String.lastIndexOf() should find last occurrence of substring'
-  }
+  },
+  {
+    name: 'test-runner-basic',
+    fixture: 'tests/fixtures/test-runner/basic.ts',
+    expectTestPassed: true,
+    description: 'Built-in test runner with test() and assert.* (all pass)'
+  },
+  {
+    name: 'test-runner-failures',
+    fixture: 'tests/fixtures/test-runner/failures.ts',
+    expectedExitCode: 1,
+    description: 'Built-in test runner with mixed pass/fail (exit code 1)'
+  },
 ];

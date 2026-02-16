@@ -71,6 +71,14 @@ export class CallExpressionGenerator {
       return this.generateSetInterval(expr, params);
     }
 
+    // Handle test() - built-in test runner (only when called with string + arrow/function callback)
+    if (expr.name === 'test' && expr.args.length >= 2) {
+      const secondArg = expr.args[1] as { type: string };
+      if (secondArg.type === 'arrow_function' || secondArg.type === 'variable') {
+        return this.generateTest(expr, params);
+      }
+    }
+
     // Handle clearTimeout() / clearInterval() - stop timer
     if (expr.name === 'clearTimeout' || expr.name === 'clearInterval') {
       return this.generateClearTimer(expr, params);
@@ -640,6 +648,70 @@ export class CallExpressionGenerator {
     this.ctx.setVariableType(result, 'i8*');
 
     return result;
+  }
+
+  private generateTest(expr: CallNode, params: string[]): string {
+    this.ctx.setUsesTestRunner(true);
+
+    const nameValue = this.ctx.generateExpression(expr.args[0], params);
+
+    this.ctx.emit('store i1 0, i1* @__test_current_failed');
+
+    const totalPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${totalPtr} = load i32, i32* @__test_total`);
+    const totalInc = this.ctx.nextTemp();
+    this.ctx.emit(`${totalInc} = add i32 ${totalPtr}, 1`);
+    this.ctx.emit(`store i32 ${totalInc}, i32* @__test_total`);
+
+    const callbackArg = expr.args[1];
+    let callbackFn: string;
+
+    if (callbackArg.type === 'variable') {
+      callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
+    } else if (callbackArg.type === 'arrow_function') {
+      callbackFn = this.ctx.generateExpression(callbackArg, params);
+    } else {
+      return this.ctx.emitError('test() callback must be a function reference or arrow function', expr.loc);
+    }
+
+    const callResult = this.ctx.nextTemp();
+    this.ctx.emit(`${callResult} = call double @${callbackFn}()`);
+
+    const failed = this.ctx.nextTemp();
+    this.ctx.emit(`${failed} = load i1, i1* @__test_current_failed`);
+
+    const passLabel = this.ctx.nextLabel('test_pass');
+    const failLabel = this.ctx.nextLabel('test_fail');
+    const mergeLabel = this.ctx.nextLabel('test_merge');
+
+    this.ctx.emit(`br i1 ${failed}, label %${failLabel}, label %${passLabel}`);
+
+    this.ctx.emit(`${passLabel}:`);
+    this.ctx.setCurrentLabel(passLabel);
+    const passedPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${passedPtr} = load i32, i32* @__test_passed`);
+    const passedInc = this.ctx.nextTemp();
+    this.ctx.emit(`${passedInc} = add i32 ${passedPtr}, 1`);
+    this.ctx.emit(`store i32 ${passedInc}, i32* @__test_passed`);
+    const printPass = this.ctx.nextTemp();
+    this.ctx.emit(`${printPass} = call i32 (i8*, ...) @printf(i8* getelementptr([12 x i8], [12 x i8]* @.str.test_pass, i32 0, i32 0), i8* ${nameValue})`);
+    this.ctx.emit(`br label %${mergeLabel}`);
+
+    this.ctx.emit(`${failLabel}:`);
+    this.ctx.setCurrentLabel(failLabel);
+    const failedPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${failedPtr} = load i32, i32* @__test_failed`);
+    const failedInc = this.ctx.nextTemp();
+    this.ctx.emit(`${failedInc} = add i32 ${failedPtr}, 1`);
+    this.ctx.emit(`store i32 ${failedInc}, i32* @__test_failed`);
+    const printFail = this.ctx.nextTemp();
+    this.ctx.emit(`${printFail} = call i32 (i8*, ...) @printf(i8* getelementptr([12 x i8], [12 x i8]* @.str.test_fail, i32 0, i32 0), i8* ${nameValue})`);
+    this.ctx.emit(`br label %${mergeLabel}`);
+
+    this.ctx.emit(`${mergeLabel}:`);
+    this.ctx.setCurrentLabel(mergeLabel);
+
+    return '0';
   }
 
   private generateClearTimer(expr: CallNode, params: string[]): string {

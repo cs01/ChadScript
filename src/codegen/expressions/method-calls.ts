@@ -35,6 +35,7 @@ import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { IStringGenerator, IFsGenerator, IPathGenerator, IJsonGenerator, IMathGenerator, IDateGenerator, ICryptoGenerator, ISqliteGenerator, IResponseGenerator, IRegexGenerator, IArrowFunctionGenerator, IStringMapGenerator, IMapGenerator, ISetGenerator, IStringSetGenerator, IPointerMapGenerator, IArrayGenerator } from '../infrastructure/generator-context.js';
 import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
 import { generateConsoleCallInline } from './method-calls/console.js';
+import { handleAssertStrictEqual, handleAssertNotStrictEqual, handleAssertOk, handleAssertFail } from './method-calls/assert.js';
 import { generateProcessExitInline, generateProcessCwdInline, handleProcessChdir, handleProcessKill, handleProcessUptime, handleProcessSyscallI32, isProcessStdoutOrStderr, handleProcessWrite } from './method-calls/process.js';
 import { handleSubstr, handleSubstring, handleConcat, handleRepeat, handlePadStart, handleSplit, handleStartsWith, handleEndsWith, handleTrim, handleTrimStart, handleTrimEnd, handleIndexOf, handleLastIndexOf, handleStringArrayIndexOf, handleStringArrayIncludes, handleStringIncludes, handleSlice, handleReplace, handleReplaceAll, handleNumberIsFinite, handleNumberIsNaN, handleNumberIsInteger, handleNumberToString, handleNumberToFixed, handleCharAt, handleCharCodeAt, handleToUpperCase, handleToLowerCase, handleMatch } from './method-calls/string-methods.js';
 import { generateObjectKeys, generateObjectValues, generateObjectEntries } from './method-calls/object-static.js';
@@ -51,6 +52,7 @@ export interface MethodCallGeneratorContext {
   nextTemp(): string;
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
+  setCurrentLabel(label: string): void;
   generateExpression(expr: Expression, params: string[]): string;
   isStringExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
@@ -89,6 +91,7 @@ export interface MethodCallGeneratorContext {
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
+  setUsesTestRunner(value: boolean): void;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
   typeResolverGetThisFieldMapKeyType(expr: Expression): string | null;
@@ -328,6 +331,13 @@ export class MethodCallGenerator {
         if (method2 === 'log' || method2 === 'error' || method2 === 'warn' || method2 === 'debug') {
           return generateConsoleCallInline(this.ctx, expr, params);
         }
+      }
+      if (varNode.name === 'assert') {
+        this.ctx.setUsesTestRunner(true);
+        if (expr.method === 'strictEqual') return handleAssertStrictEqual(this.ctx, expr, params);
+        if (expr.method === 'notStrictEqual') return handleAssertNotStrictEqual(this.ctx, expr, params);
+        if (expr.method === 'ok') return handleAssertOk(this.ctx, expr, params);
+        if (expr.method === 'fail') return handleAssertFail(this.ctx, expr, params);
       }
     }
 

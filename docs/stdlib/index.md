@@ -25,6 +25,7 @@ ChadScript ships with a full standard library compiled to native code. No npm, n
 | [`Async`](/stdlib/async) | `async`/`await`, `Promise.all`, `Promise.race`, `setTimeout`, `setInterval` |
 | [`child_process`](/stdlib/child-process) | `execSync` |
 | [`Date`](/stdlib/date) | `Date.now()` |
+| [`test`](/stdlib/test-runner) | `test`, `assert.strictEqual`, `assert.ok`, `assert.fail` |
 | [Low-Level](/stdlib/syscalls) | `malloc`, `free`, `socket`, `bind`, `listen`, `accept`, `read`, `write`, `close` |
 
 ## Linked Libraries

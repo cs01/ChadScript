@@ -51,6 +51,7 @@ export interface FunctionGeneratorContext {
   createEmptyStringConstant(): string;
   mangleUserName(name: string): string;
   getSubprogramDbgRef(): string;
+  getUsesTestRunner(): boolean;
 }
 
 export class FunctionGenerator {
@@ -755,7 +756,19 @@ export class FunctionGenerator {
       ir += outputStr;
     }
 
-    ir += '  ret i32 0\n';
+    if (this.ctx.getUsesTestRunner()) {
+      ir += '  ; Test runner summary\n';
+      ir += '  %__tr_passed = load i32, i32* @__test_passed\n';
+      ir += '  %__tr_failed = load i32, i32* @__test_failed\n';
+      ir += '  %__tr_total = load i32, i32* @__test_total\n';
+      ir += '  %__tr_fmt = getelementptr [34 x i8], [34 x i8]* @.str.test_summary, i32 0, i32 0\n';
+      ir += '  call i32 (i8*, ...) @printf(i8* %__tr_fmt, i32 %__tr_passed, i32 %__tr_failed, i32 %__tr_total)\n';
+      ir += '  %__tr_has_fail = icmp ne i32 %__tr_failed, 0\n';
+      ir += '  %__tr_exit = select i1 %__tr_has_fail, i32 1, i32 0\n';
+      ir += '  ret i32 %__tr_exit\n';
+    } else {
+      ir += '  ret i32 0\n';
+    }
     ir += '}\n';
 
     return ir;
