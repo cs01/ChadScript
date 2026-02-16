@@ -144,6 +144,22 @@ export function tsTypeToLlvm(tsType: string): string {
   return 'i8*';
 }
 
+export function resolvedTypeToLlvm(rt: ResolvedType): string {
+  if (rt.cachedLlvmType) return rt.cachedLlvmType;
+  if (rt.arrayDepth > 0) {
+    if (rt.base === 'string') return '%StringArray*';
+    if (rt.base === 'number' || rt.base === 'boolean') return '%Array*';
+    return '%ObjectArray*';
+  }
+  if (rt.base === 'string') return 'i8*';
+  if (rt.base === 'number' || rt.base === 'boolean') return 'double';
+  if (rt.base === 'void') return 'void';
+  if (rt.base === 'null' || rt.base === 'undefined') return 'i8*';
+  if (rt.base.startsWith('Map')) return '%StringMap*';
+  if (rt.base.startsWith('Set')) return '%StringSet*';
+  return 'i8*';
+}
+
 export function tsTypeToLlvmJson(tsType: string): string {
   if (tsType === null || tsType === undefined || tsType === '') return 'i8*';
   if (tsType === 'string') return 'i8*';
