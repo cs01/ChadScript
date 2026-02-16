@@ -391,7 +391,7 @@ export class BaseGenerator {
         );
       }
       const numIndex = parseInt(indexValue, 10);
-      if (!isNaN(numIndex) && numIndex > 200) {
+      if (!isNaN(numIndex) && numIndex > 500) {
         throw new Error(
           `LLVM GEP with suspiciously large index: '${indexValue}'` + '\n' +
           `  Instruction: ${instruction}` + '\n' +
