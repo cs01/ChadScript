@@ -1145,6 +1145,13 @@ export class VariableAllocator {
       }
     }
 
+    if (!mapTypeInfoResult && stmt.value && stmt.value.type !== 'new' && stmt.value.type !== 'map') {
+      const resolved = this.ctx.resolveExpressionType(stmt.value);
+      if (resolved && resolved.base.startsWith('Map<')) {
+        mapTypeInfoResult = this.parseMapType(resolved.base);
+      }
+    }
+
     if (mapTypeInfoResult) {
       const mapTypeInfo = mapTypeInfoResult as MapTypeInfo;
       if (mapTypeInfo.keyType === 'string') {
@@ -1222,6 +1229,13 @@ export class VariableAllocator {
         if (setExpr.valueType) {
           setTypeInfoResult = { valueType: setExpr.valueType };
         }
+      }
+    }
+
+    if (!setTypeInfoResult && stmt.value && stmt.value.type !== 'new' && stmt.value.type !== 'set') {
+      const resolved = this.ctx.resolveExpressionType(stmt.value);
+      if (resolved && resolved.base.startsWith('Set<')) {
+        setTypeInfoResult = this.parseSetType(resolved.base);
       }
     }
 
