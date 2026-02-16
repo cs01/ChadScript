@@ -923,16 +923,12 @@ export class TypeInference {
       }
     }
     if (e.type === 'variable') {
-      const varName = (expr as VariableNode).name;
-      const varType = this.ctx.symbolTable.getType(varName);
-      if (varType === '%ObjectArray*') {
+      const resolved = this.resolveExpressionType(expr);
+      if (resolved && resolved.arrayDepth > 0 &&
+          resolved.base !== 'string' && resolved.base !== 'number' && resolved.base !== 'boolean') {
         return true;
       }
-      if (varType === 'i8*') {
-        if (this.ctx.symbolTable.isObjectArray(varName)) {
-          return true;
-        }
-      }
+      return false;
     }
     if (e.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
