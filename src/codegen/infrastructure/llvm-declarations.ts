@@ -198,11 +198,15 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += '; Test runner format strings\n';
   ir += '@.str.test_pass = private unnamed_addr constant [12 x i8] c"  PASS: %s\\0A\\00", align 1\n';
   ir += '@.str.test_fail = private unnamed_addr constant [12 x i8] c"  FAIL: %s\\0A\\00", align 1\n';
-  ir += '@.str.test_summary = private unnamed_addr constant [34 x i8] c"\\0A%d passed, %d failed (%d total)\\0A\\00", align 1\n';
+  ir += '@.str.test_summary = private unnamed_addr constant [39 x i8] c"\\0A%d passed, %d failed (%d total) %dms\\0A\\00", align 1\n';
   ir += '@.str.assert_eq_num = private unnamed_addr constant [31 x i8] c"    expected %.15g, got %.15g\\0A\\00", align 1\n';
   ir += '@.str.assert_eq_str = private unnamed_addr constant [25 x i8] c"    expected %s, got %s\\0A\\00", align 1\n';
   ir += '@.str.assert_fail_msg = private unnamed_addr constant [8 x i8] c"    %s\\0A\\00", align 1\n';
   ir += '@.str.assert_falsy = private unnamed_addr constant [20 x i8] c"    value is falsy\\0A\\00", align 1\n';
+  ir += '@.str.assert_deep_len = private unnamed_addr constant [39 x i8] c"    expected length %d, got length %d\\0A\\00", align 1\n';
+  ir += '@.str.assert_deep_idx = private unnamed_addr constant [31 x i8] c"    arrays differ at index %d\\0A\\00", align 1\n';
+  ir += '@.str.describe_header = private unnamed_addr constant [4 x i8] c"%s\\0A\\00", align 1\n';
+  ir += '@.str.indent_unit = private unnamed_addr constant [3 x i8] c"  \\00", align 1\n';
   ir += '\n';
   }
 
@@ -326,6 +330,7 @@ export function getGlobalVariables(): string {
   ir += '@__test_passed = global i32 0\n';
   ir += '@__test_failed = global i32 0\n';
   ir += '@__test_current_failed = global i1 0\n';
+  ir += '@__describe_depth = global i32 0\n';
   ir += '\n';
   return ir;
 }

@@ -742,4 +742,16 @@ export const testCases: TestCase[] = [
     expectedExitCode: 1,
     description: 'Built-in test runner with mixed pass/fail (exit code 1)'
   },
+  {
+    name: 'test-runner-deep-equal',
+    fixture: 'tests/fixtures/test-runner/deep-equal.ts',
+    expectTestPassed: true,
+    description: 'assert.deepEqual() for number and string arrays'
+  },
+  {
+    name: 'test-runner-describe',
+    fixture: 'tests/fixtures/test-runner/describe.ts',
+    expectTestPassed: true,
+    description: 'describe() blocks for grouping tests with indentation'
+  },
 ];

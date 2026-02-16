@@ -699,6 +699,8 @@ export class FunctionGenerator {
 
     ir += '  ; Initialize garbage collector\n';
     ir += '  call void @GC_init()\n';
+    ir += '  %__start_tv = alloca %struct.timeval\n';
+    ir += '  %__gtod_start = call i32 @gettimeofday(%struct.timeval* %__start_tv, i8* null)\n';
     ir += '\n';
 
     if (process.platform === 'darwin') {
@@ -758,11 +760,27 @@ export class FunctionGenerator {
 
     if (this.ctx.getUsesTestRunner()) {
       ir += '  ; Test runner summary\n';
+      ir += '  %__end_tv = alloca %struct.timeval\n';
+      ir += '  %__gtod_end = call i32 @gettimeofday(%struct.timeval* %__end_tv, i8* null)\n';
+      ir += '  %__start_sec_ptr = getelementptr %struct.timeval, %struct.timeval* %__start_tv, i32 0, i32 0\n';
+      ir += '  %__start_sec = load i64, i64* %__start_sec_ptr\n';
+      ir += '  %__start_usec_ptr = getelementptr %struct.timeval, %struct.timeval* %__start_tv, i32 0, i32 1\n';
+      ir += '  %__start_usec = load i64, i64* %__start_usec_ptr\n';
+      ir += '  %__end_sec_ptr = getelementptr %struct.timeval, %struct.timeval* %__end_tv, i32 0, i32 0\n';
+      ir += '  %__end_sec = load i64, i64* %__end_sec_ptr\n';
+      ir += '  %__end_usec_ptr = getelementptr %struct.timeval, %struct.timeval* %__end_tv, i32 0, i32 1\n';
+      ir += '  %__end_usec = load i64, i64* %__end_usec_ptr\n';
+      ir += '  %__diff_sec = sub i64 %__end_sec, %__start_sec\n';
+      ir += '  %__diff_usec = sub i64 %__end_usec, %__start_usec\n';
+      ir += '  %__sec_ms = mul i64 %__diff_sec, 1000\n';
+      ir += '  %__usec_ms = sdiv i64 %__diff_usec, 1000\n';
+      ir += '  %__elapsed_i64 = add i64 %__sec_ms, %__usec_ms\n';
+      ir += '  %__elapsed_ms = trunc i64 %__elapsed_i64 to i32\n';
       ir += '  %__tr_passed = load i32, i32* @__test_passed\n';
       ir += '  %__tr_failed = load i32, i32* @__test_failed\n';
       ir += '  %__tr_total = load i32, i32* @__test_total\n';
-      ir += '  %__tr_fmt = getelementptr [34 x i8], [34 x i8]* @.str.test_summary, i32 0, i32 0\n';
-      ir += '  call i32 (i8*, ...) @printf(i8* %__tr_fmt, i32 %__tr_passed, i32 %__tr_failed, i32 %__tr_total)\n';
+      ir += '  %__tr_fmt = getelementptr [39 x i8], [39 x i8]* @.str.test_summary, i32 0, i32 0\n';
+      ir += '  call i32 (i8*, ...) @printf(i8* %__tr_fmt, i32 %__tr_passed, i32 %__tr_failed, i32 %__tr_total, i32 %__elapsed_ms)\n';
       ir += '  %__tr_has_fail = icmp ne i32 %__tr_failed, 0\n';
       ir += '  %__tr_exit = select i1 %__tr_has_fail, i32 1, i32 0\n';
       ir += '  ret i32 %__tr_exit\n';

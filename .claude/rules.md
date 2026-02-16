@@ -11,13 +11,13 @@ After completing each todo:
 ## Self-Hosting Verification
 
 Before considering any feature complete, run the full self-hosting chain:
-1. `npm test` — all tests pass
-2. `npm run build && node dist/chadc-node.js src/chadc-native.ts -o .build/chadc` — rebuild Stage 0
-3. `.build/chadc examples/hello.ts -o /tmp/hello && /tmp/hello` — Stage 0 smoke test
-4. `.build/chadc src/chadc-native.ts -o /tmp/chad-stage1` — Stage 0 compiles itself (Stage 1)
-5. `/tmp/chad-stage1 examples/hello.ts -o /tmp/hello2 && /tmp/hello2` — Stage 1 smoke test
-6. `/tmp/chad-stage1 src/chadc-native.ts -o /tmp/chad-stage2` — Stage 1 compiles itself (Stage 2)
-7. `/tmp/chad-stage2 examples/hello.ts -o /tmp/hello3 && /tmp/hello3` — Stage 2 smoke test
+1. `npm run verify` — runs tests and self-hosting in parallel (preferred)
+2. `npm run verify:quick` — same but skips Stage 2 (day-to-day dev)
+
+Or manually:
+1. `npm test` — all tests pass (auto-uses native compiler if `.build/chadc` exists)
+2. `bash scripts/self-hosting.sh` — full 3-stage self-hosting
+3. `bash scripts/self-hosting.sh --quick` — skip Stage 2
 
 New features have complex side effects that may not be caught by unit tests alone. A change that passes all tests can still break self-hosting. The Stage 2 test is the true verification — it proves the compiler's output is correct enough to compile itself.
 
@@ -79,7 +79,11 @@ Tests use two conventions:
 - `expectedExitCode: N` — program exits with specific code
 
 Run tests: `npm test` or `npm run test:full` (via `node scripts/test.js`)
+Run tests + self-hosting: `npm run verify` (or `npm run verify:quick` to skip Stage 2)
 Build: `npm run build` (TypeScript → dist/)
+
+Tests auto-detect `.build/chadc` and use it instead of `node dist/chadc-node.js` (~10x faster per compile).
+`compiler.test.ts` runs at concurrency 32; `smoke.test.ts` at concurrency 8.
 
 ## Useful Patterns
 

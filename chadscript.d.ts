@@ -245,3 +245,18 @@ declare function htons(hostshort: number): number;
 declare function close(fd: number): number;
 declare function read(fd: number, buf: number, count: number): number;
 declare function write(fd: number, buf: number, count: number): number;
+
+// ============================================================================
+// Test Runner
+// ============================================================================
+
+declare namespace assert {
+  function strictEqual(actual: any, expected: any): void;
+  function notStrictEqual(actual: any, expected: any): void;
+  function deepEqual(actual: any, expected: any): void;
+  function ok(value: any): void;
+  function fail(message?: string): void;
+}
+
+declare function test(name: string, fn: () => void): void;
+declare function describe(name: string, fn: () => void): void;

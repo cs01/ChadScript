@@ -43,8 +43,18 @@ npm run build
 ## Verify
 
 ```bash
+# Quick: run tests + self-hosting Stage 0-1 in parallel
+npm run verify:quick
+
+# Full: run tests + self-hosting Stage 0-1-2 in parallel
+npm run verify
+
+# Tests only (uses native compiler if .build/chadc exists)
 npm test
-chad run examples/hello.ts
+
+# Self-hosting only
+bash scripts/self-hosting.sh          # full (3 stages)
+bash scripts/self-hosting.sh --quick  # skip Stage 2
 ```
 
 **macOS users**: If you get a security warning, run `xattr -d com.apple.quarantine ./chad` to bypass Gatekeeper.

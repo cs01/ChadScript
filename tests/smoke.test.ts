@@ -8,6 +8,8 @@ import * as path from 'node:path';
 
 const execAsync = promisify(exec);
 
+const compiler = fsSync.existsSync('.build/chadc') ? '.build/chadc' : 'node dist/chadc-node.js';
+
 interface TestCase {
   name: string;
   fixture: string;
@@ -139,7 +141,7 @@ describe('Smoke Tests', { concurrency: 8 }, () => {
       } catch (err) {}
 
       try {
-        await execAsync(`node dist/chadc-node.js ${fixturePath}`);
+        await execAsync(`${compiler} ${fixturePath}`);
 
         // Verify executable was generated (intermediate files are cleaned up by default)
         assert.ok(fsSync.existsSync(exeFile), `Executable should exist at ${exeFile}`);
