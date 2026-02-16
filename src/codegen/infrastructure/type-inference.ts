@@ -400,8 +400,22 @@ export class TypeInference {
       }
 
       const propType = this.ctx.symbolTable.getObjectPropertyType(varName, prop);
-      if (propType === 'i8*') return this.ctx.typeContext.stringType;
+      if (propType === 'i8*') {
+        const keys = this.ctx.symbolTable.getObjectMetadataKeys(varName);
+        const tsTypes = this.ctx.symbolTable.getObjectMetadataTsTypes(varName);
+        if (keys && tsTypes) {
+          for (let ki = 0; ki < keys.length; ki++) {
+            if (keys[ki] === prop && tsTypes[ki]) {
+              return this.ctx.typeContext.resolve(stripNullable(tsTypes[ki]));
+            }
+          }
+        }
+        return this.ctx.typeContext.stringType;
+      }
       if (propType === 'double') return this.ctx.typeContext.numberType;
+      if (propType === '%StringArray*') return this.ctx.typeContext.getArrayType('string');
+      if (propType === '%Array*') return this.ctx.typeContext.getArrayType('number');
+      if (propType === '%ObjectArray*') return this.ctx.typeContext.getArrayType('object');
 
       if (this.ctx.symbolTable.isClass(varName)) {
         const className = this.ctx.symbolTable.getClassName(varName);
@@ -437,8 +451,13 @@ export class TypeInference {
       const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
       if (objMeta && objMeta.keys) {
         for (let ki = 0; ki < objMeta.keys.length; ki++) {
-          if (objMeta.keys[ki] === prop && objMeta.types && objMeta.types[ki]) {
-            return this.ctx.typeContext.resolve(stripNullable(objMeta.types[ki]));
+          if (objMeta.keys[ki] === prop) {
+            if (objMeta.tsTypes && objMeta.tsTypes[ki]) {
+              return this.ctx.typeContext.resolve(stripNullable(objMeta.tsTypes[ki]));
+            }
+            if (objMeta.types && objMeta.types[ki]) {
+              return this.ctx.typeContext.resolve(stripNullable(objMeta.types[ki]));
+            }
           }
         }
       }

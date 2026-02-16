@@ -30,7 +30,8 @@ LLVMGenerator
   ├── 25+ sub-generators via IGeneratorContext
   ├── TypeContext (canonical ResolvedType intern pool)
   ├── TypeInference.resolveExpressionType() → ResolvedType
-  ├── SymbolTable (hierarchical pushScope/popScope)
+  ├── SymbolTable (hierarchical pushScope/popScope, ResolvedType cache)
+  ├── VariableAllocator (resolveExpressionType for 19 node types, predicates for 2)
   ├── prePopulateFromSema() (top-level only, currently no-op in practice)
   ├── String-based IR emission + terminator classification
   └── DWARF debug info (-g)
@@ -42,7 +43,7 @@ LLVMGenerator
 
 | Clang | ChadScript | Gap |
 |-------|-----------|-----|
-| `ASTContext`/`QualType` | `TypeContext` + `resolveExpressionType()` | Variable nodes fully migrated; method_call/member_access still have string fallbacks |
+| `ASTContext`/`QualType` | `TypeContext` + `resolveExpressionType()` | All common node types migrated; only binary/conditional still use predicates |
 | `DeclContext` | `SymbolTable.pushScope()/popScope()` | Codegen has scopes; sema has flat namespace |
 | `Sema` as type authority | `SemanticAnalyzer` | Bridge exists but codegen ignores it — re-infers everything |
 | `CodeGenModule`/`CodeGenFunction` | `LLVMGenerator`/`FunctionGenerator` | Clean |
@@ -57,6 +58,8 @@ LLVMGenerator
 6. **Structured terminator classification** — `outputIsTerminator[]` avoids re-parsing IR
 7. **Unified expression type resolution** — `resolveExpressionType()` resolves any AST node to canonical `ResolvedType`; 13 predicates rewritten as thin wrappers
 8. **Clang-style diagnostics** — `emitError`/`emitWarning` with source location carets
+9. **VariableAllocator uses ResolvedType** — 19 node types dispatch via `resolveExpressionType()` instead of 13 eager predicate calls; only binary/conditional still use predicate fallback
+10. **SymbolTable ResolvedType cache** — `resolveVariableType()` checks cached `symbol.resolvedType` first; VariableAllocator populates cache after allocation
 
 ### Deliberate Trade-offs
 
@@ -68,25 +71,55 @@ LLVMGenerator
 
 ---
 
+## Completed Steps
+
+### Step 1: VariableAllocator Migration ✓
+
+Replaced the 13 eager `is*Expression()` predicate calls with a single `resolveExpressionType()` call for safe node types. Initial safe list: variable, literals, new.
+
+### Step 2: SymbolTable ResolvedType ✓
+
+- `resolveVariableType()` checks `symbol.resolvedType` first as fast path before the priority chain
+- VariableAllocator caches `resolved` on the symbol after allocation (when `useResolved` is true, no declared type override, not null literal)
+
+### Step 3: Expand Safe Node Types ✓
+
+Added `unary`, `this`, `call`, `method_call`, `index_access`, `type_assertion` to the safe list. Only `binary`, `conditional`, and `member_access` remained unsafe.
+
+- `member_access` blocked by i8* ambiguity: `resolveMemberAccessType()` maps `getObjectPropertyType()` returning `i8*` to `stringType`, but `i8*` is also used for string arrays and other pointer types in object fields.
+- `binary`/`conditional` blocked by wrong branch selection: `||` and ternary pick the first resolved branch, which can be wrong (e.g., empty `[]` default resolves to `number[]` instead of actual object array type).
+
+### Step 4: Fix member_access Type Ambiguity ✓
+
+Fixed `resolveMemberAccessType()` to correctly resolve object field types, unblocking `member_access` in the safe node type list. Two problems fixed:
+
+1. **i8* ambiguity** — When `getObjectPropertyType()` returns `i8*`, now checks `getObjectMetadataTsTypes()` to disambiguate. If tsType is `string[]` → `getArrayType('string')`, if `number[]` → `getArrayType('number')`, etc. Only falls back to `stringType` when no tsType metadata exists.
+
+2. **LLVM struct type pass-through** — Added explicit handling for `%StringArray*`, `%Array*`, `%ObjectArray*` property types (produced by `tsTypeToLlvmJson()` allocation paths). Previously these fell through to a metadata fallback that fed LLVM type strings into `typeContext.resolve()`, producing garbage ResolvedTypes like `{ base: '%StringArray*', arrayDepth: 0 }`.
+
+3. **Metadata fallback prefers tsTypes** — The `getObjectMetadata()` fallback path now checks `objMeta.tsTypes[ki]` before `objMeta.types[ki]`, avoiding LLVM→ResolvedType translation errors.
+
+All 19 common node types now use the resolved path. Only `binary` and `conditional` remain on predicate fallback.
+
+---
+
 ## Open Gaps
 
-### A. SymbolTable Kind/Type Inconsistency
+### A. member_access Type Ambiguity — RESOLVED ✓
 
-A variable can have `SymbolKind.Object` but LLVM type `%StringArray*`. Kind and LLVM type are set independently and can disagree. `resolveVariableType()` works around this with a fragile priority ordering (unambiguous LLVM types first, then kind, then ambiguous `i8*` last).
+Fixed in Step 4. `resolveMemberAccessType()` now checks TS type metadata for `i8*` fields and handles `%StringArray*`/`%Array*`/`%ObjectArray*` property types directly. `member_access` added to safe node type list.
 
-**Fix:** Replace `SymbolKind` + LLVM type string with a single `ResolvedType` on each symbol. `SymbolKind` becomes redundant once `ResolvedType` is the authority.
+### B. binary/conditional Branch Selection
 
-### B. VariableAllocator's 13-Predicate Priority Chain
+`resolveExpressionType()` for `binary` `||` and `conditional` nodes picks the first non-null resolved branch. This can select the wrong type (e.g., `ast ? ast.classes || [] : []` resolves the alternate `[]` to `number[]` instead of the actual object array type).
 
-`VariableAllocator` calls all 13 `is*Expression()` predicates eagerly for every variable declaration, then dispatches through a 26-branch if/else chain. This is the primary consumer of `resolveExpressionType()` but doesn't use it directly yet.
+**Fix:** For `||`, check if either operand is an empty array literal `[]` and prefer the other operand's type. For conditional, require both branches to agree or return null.
 
-**Fix:** Replace the 13-predicate chain with a single `resolveExpressionType()` call + switch on `resolved.base` and `resolved.arrayDepth`.
+### C. SymbolKind Still Independent of ResolvedType
 
-### C. Predicate Fallback Logic
+`SymbolKind` and `ResolvedType` are set independently on each symbol. They agree for the resolved path, but declared-type overrides and the 2 remaining unsafe node types don't populate `resolvedType`.
 
-For `variable` nodes, predicates fully trust `resolveExpressionType()`. For `method_call`, `member_access`, `binary`, and `conditional` nodes, they still have old string-based fallback logic. The old logic has quirks (e.g., `isArrayExpression` uses `endsWith('[]')` which matches ALL array types) that cascade through the VariableAllocator priority chain.
-
-**Fix:** Can only be removed after VariableAllocator migrates (Gap B). Once VariableAllocator uses `resolveExpressionType()` directly, the predicate fallbacks become dead code.
+**Fix:** Expand resolved-type caching to cover declared-type overrides. Eventually derive `SymbolKind` from `resolvedType` and remove the independent setting.
 
 ### D. Native Compiler Map Limitations
 
@@ -111,54 +144,32 @@ Three sub-problems:
 
 ## Next Steps (Recommended Order)
 
-The gaps have clear dependencies. Here's the order that maximizes impact:
+### Step 5: Fix binary/conditional Branch Selection (Gap B)
 
-### Step 1: VariableAllocator Migration (Gap B)
-
-**Why first:** This is the payoff for Phase 3's `resolveExpressionType()` work. The 26-branch priority chain is the ugliest code in codegen and the primary consumer of all 13 predicates. Fixing it delivers immediate architectural improvement and makes Gaps A and C solvable.
+**Why next:** The last two node types not in the safe list. Adding them would mean ALL node types use `resolveExpressionType()`, eliminating the predicate fallback entirely.
 
 **What to do:**
-- In `VariableAllocator`, replace the 13 `is*Expression()` calls with one `resolveExpressionType()` call
-- Dispatch on `resolved.base` + `resolved.arrayDepth`:
-  - `string` + depth 0 → string variable
-  - `string` + depth > 0 → string array
-  - `number`/`boolean` + depth 0 → number variable
-  - `number`/`boolean` + depth > 0 → number array
-  - `Map` → map, `Set` → set, `RegExp` → regex
-  - class/interface → struct pointer
-  - object + depth > 0 → object array
-  - default → i8* (string fallback)
-- Keep old chain as dead-code fallback initially, delete once tests pass
-- `resolveExpressionType()` returning null → fall back to old chain (shrinks over time)
+- For `||`, check if either operand is an empty array literal `[]` and prefer the other operand's type
+- For conditional, require both branches to agree or return null
+- Add `binary` and `conditional` to the safe node type list
+- Test with full self-hosting chain
 
-**Risk:** Medium. The predicate quirks (e.g., `endsWith('[]')` matching all arrays) were load-bearing bugs. Need careful test verification.
+### Step 6: Native Map Return-Type Tracking (Gap D.1)
 
-### Step 2: SymbolTable ResolvedType (Gap A)
-
-**Why second:** Once VariableAllocator uses `ResolvedType`, the SymbolTable should store `ResolvedType` too — so `resolveVariableType()` becomes a direct field read instead of the fragile priority-ordering dance.
-
-**What to do:**
-- Add `resolvedType: ResolvedType` to `Symbol` (field exists but is always `undefined`)
-- When `VariableAllocator` sets a variable's type, also set `symbol.resolvedType`
-- `resolveVariableType()` checks `symbol.resolvedType` first, falls back to LLVM type string
-- Gradually make `SymbolKind` derived from `resolvedType` rather than independently set
-
-### Step 3: Native Map Return-Type Tracking (Gap D.1)
-
-**Why third:** Unblocks cleaner sema bridge (Gap E) and expression caching.
+**Why next:** Unblocks cleaner sema bridge (Gap E) and expression caching.
 
 **What to do:**
 - In `method-calls.ts`, when generating a method call, record the return type
 - When the result is assigned to a variable, propagate the return type so `.get()` dispatch works
 - This lets `SemaSymbolData` use Maps directly instead of parallel arrays
 
-### Step 4: Expression Type Caching
+### Step 7: Expression Type Caching
 
-**Why fourth:** With VariableAllocator migrated and SymbolTable carrying ResolvedType, caching becomes both possible and impactful.
+**Why next:** With VariableAllocator migrated and SymbolTable carrying ResolvedType, caching becomes both possible and impactful.
 
-**What to do:** Either add AST node integer IDs for `Map<number, ResolvedType>` caching (works with native compiler's string-key limitation), or wait for Gap D.2 (object-keyed Maps) and use `Map<Expression, ResolvedType>`.
+**What to do:** Add AST node integer IDs for `Map<number, ResolvedType>` caching (works with native compiler's string-key limitation), or wait for Gap D.2 (object-keyed Maps) and use `Map<Expression, ResolvedType>`.
 
-### Step 5: Sema as Type Authority (Gap E)
+### Step 8: Sema as Type Authority (Gap E)
 
 **Why last:** This is the big architectural shift. Needs all prior gaps resolved first — VariableAllocator must accept `ResolvedType`, SymbolTable must store it, sema must have scopes, native compiler must handle Maps properly.
 
