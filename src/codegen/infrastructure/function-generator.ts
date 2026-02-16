@@ -453,7 +453,6 @@ export class FunctionGenerator {
       }
     }
 
-    const lastInstruction: string = outputLen > 0 ? ctxOutput[outputLen - 1].trim() : '';
     const hasTerminator = this.ctx.lastInstructionIsTerminator();
 
     if (!hasTerminator) {

@@ -723,7 +723,6 @@ export class ClassGenerator {
     }
 
     // Return value based on declared return type
-    const lastInstruction = this.ctx.getOutputLength() > 0 ? this.ctx.getOutputLine(this.ctx.getOutputLength() - 1).trim() : '';
     const hasTerminator = this.ctx.lastInstructionIsTerminator();
 
     if (!hasTerminator) {

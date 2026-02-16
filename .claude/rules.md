@@ -92,6 +92,20 @@ Build: `npm run build` (TypeScript → dist/)
 - `GC_malloc_atomic(size)` — allocate GC'd memory for non-pointer data (strings)
 - `GC_malloc(size)` — allocate GC'd memory that may contain pointers
 
+## Terminator Classification
+
+LLVM basic blocks must end with exactly one terminator instruction (`ret`, `br`, `unreachable`, `switch`).
+Rather than parsing emitted strings to detect terminators, we use a parallel `outputIsTerminator: boolean[]`
+that auto-classifies every instruction at `emit()` time. Use `ctx.lastInstructionIsTerminator()` to check.
+
+**Three-way sync requirement**: The classification logic (`classifyTerminator`) exists in three places
+that must stay identical: `BaseGenerator` (protected), `MockGeneratorContext` (private), and
+`LLVMGenerator` inherits from `BaseGenerator`. If you add a new terminator (e.g., `invoke`, `indirectbr`),
+update all three.
+
+Builder methods (`emitRet`, `emitRetVoid`, `emitBr`, `emitBrCond`, `emitUnreachable`, `emitLabel`) are
+available on `BaseGenerator`, `LLVMGenerator`, and `MockGeneratorContext` for type-safe terminator emission.
+
 ## Method Dispatch Flow
 
 `method-calls.ts` → `generateMethodCall()` checks object type and method name:
