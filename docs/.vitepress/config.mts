@@ -91,12 +91,11 @@ export default defineConfig({
     ],
 
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/cs01/ChadScript' },
-      { icon: 'x', link: 'https://x.com/cs01_software' }
+      { icon: 'github', link: 'https://github.com/cs01/ChadScript' }
     ],
 
     footer: {
-      message: '<a href="https://chadsmith.dev">chadsmith.dev</a>'
+      message: '<a href="https://chadsmith.dev">chadsmith.dev</a> · <a href="https://github.com/cs01/ChadScript">GitHub</a> · <a href="https://x.com/cs01_software">X</a>'
     }
   }
 })

@@ -29,13 +29,12 @@ features:
 ## Quick Demo
 
 ```bash
-$ chad build examples/hello.ts -o /tmp/hello
-$ time /tmp/hello
+$ chad run hello.ts
 Hello from ChadScript!
 This is native code - no Node.js runtime!
-
-real	0m0.001s
 ```
+
+<IRShowcase />
 
 <ComparisonCards />
 

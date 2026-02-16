@@ -6,6 +6,7 @@ import BenchmarkBars from './BenchmarkBars.vue'
 import BenchmarkRace from './BenchmarkRace.vue'
 import HeroRotator from './HeroRotator.vue'
 import ComparisonCards from './ComparisonCards.vue'
+import IRShowcase from './IRShowcase.vue'
 import './style.css'
 
 export default {
@@ -21,5 +22,6 @@ export default {
     app.component('BenchmarkRace', BenchmarkRace)
     app.component('HeroRotator', HeroRotator)
     app.component('ComparisonCards', ComparisonCards)
+    app.component('IRShowcase', IRShowcase)
   }
 }
