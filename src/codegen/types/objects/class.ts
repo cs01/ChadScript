@@ -49,7 +49,10 @@ export class ClassGenerator {
   private fieldToLlvmType(f: ClassField): string {
     if (!f) return 'double';
     const ft = f.fieldType;
-    const ts = f.tsType;
+    let ts = f.tsType;
+    if (ts && ts.indexOf(' | ') !== -1) {
+      ts = ts.replace(/ \| undefined/g, '').replace(/ \| null/g, '').trim();
+    }
     if (ts && this.isEnumType(ts)) {
       return 'double';
     }

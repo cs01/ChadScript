@@ -791,12 +791,16 @@ export class MemberAccessGenerator {
       return value;
     } else {
       const value = this.ctx.nextTemp();
-      const classNode = this.ctx.classGenGetClassFields(tsType || '');
+      let cleanTsType = tsType || '';
+      if (cleanTsType.indexOf(' | ') !== -1) {
+        cleanTsType = cleanTsType.replace(/ \| undefined/g, '').replace(/ \| null/g, '').trim();
+      }
+      const classNode = this.ctx.classGenGetClassFields(cleanTsType);
       if (classNode.length > 0) {
-        const structType = `%${tsType}_struct*`;
+        const structType = `%${cleanTsType}_struct*`;
         this.ctx.emit(`${value} = load ${structType}, ${structType}* ${fieldPtr}, !tbaa !5`);
         this.ctx.setVariableType(value, structType);
-        this.ctx.setActualClassType(value, tsType!);
+        this.ctx.setActualClassType(value, cleanTsType);
       } else {
         this.ctx.emit(`${value} = load i8*, i8** ${fieldPtr}, !tbaa !5`);
         this.ctx.setVariableType(value, 'i8*');

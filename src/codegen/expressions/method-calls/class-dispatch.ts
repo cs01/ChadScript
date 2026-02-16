@@ -280,23 +280,27 @@ export function resolveNestedMemberAccessType(ctx: MethodCallGeneratorContext, e
       const fieldInfoResult = ctx.classGenGetFieldInfo(parentType, memberAccess.property);
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (fieldInfoResult && fieldInfo.tsType) {
+        let cleanFieldType = fieldInfo.tsType;
+        if (cleanFieldType.indexOf(' | ') !== -1) {
+          cleanFieldType = cleanFieldType.replace(/ \| undefined/g, '').replace(/ \| null/g, '').trim();
+        }
         let fieldClassExists = false;
         const classesLen4 = ctx.getAstClassesLength();
         for (let ci = 0; ci < classesLen4; ci++) {
           const cName = ctx.getAstClassNameAt(ci);
-          if (cName === fieldInfo.tsType) { fieldClassExists = true; break; }
+          if (cName === cleanFieldType) { fieldClassExists = true; break; }
         }
         if (fieldClassExists) {
-          return fieldInfo.tsType;
+          return cleanFieldType;
         }
         let fieldInterfaceExists = false;
         const interfacesLen3 = ctx.getAstInterfacesLength();
         for (let ii = 0; ii < interfacesLen3; ii++) {
           const ifaceName = ctx.getAstInterfaceNameAt(ii);
-          if (ifaceName === fieldInfo.tsType) { fieldInterfaceExists = true; break; }
+          if (ifaceName === cleanFieldType) { fieldInterfaceExists = true; break; }
         }
         if (fieldInterfaceExists) {
-          return fieldInfo.tsType;
+          return cleanFieldType;
         }
       }
       return null;
@@ -417,7 +421,10 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
       const fieldInfoResult = ctx.classGenGetFieldInfo(classNameForField, memberAccess.property);
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (fieldInfoResult && fieldInfo.tsType) {
-        const fieldClassName = fieldInfo.tsType;
+        let fieldClassName = fieldInfo.tsType;
+        if (fieldClassName.indexOf(' | ') !== -1) {
+          fieldClassName = fieldClassName.replace(/ \| undefined/g, '').replace(/ \| null/g, '').trim();
+        }
         let classExists = false;
         const classesLen = ctx.getAstClassesLength();
         for (let ci = 0; ci < classesLen; ci++) {
@@ -452,7 +459,10 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
         const fieldInfoResult = ctx.classGenGetFieldInfo(concreteClass, memberAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
-          const fieldClassName = fieldInfo.tsType;
+          let fieldClassName = fieldInfo.tsType;
+          if (fieldClassName.indexOf(' | ') !== -1) {
+            fieldClassName = fieldClassName.replace(/ \| undefined/g, '').replace(/ \| null/g, '').trim();
+          }
           const resolvedClass = findClassWithMethod(ctx, fieldClassName, method);
           if (resolvedClass) {
             instancePtr = ctx.generateExpression(expr.object, params);
@@ -471,7 +481,10 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
         const fieldInfoResult = ctx.classGenGetFieldInfo(outerClassName, memberAccess.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
         if (fieldInfoResult && fieldInfo.tsType) {
-          const fieldClassName = fieldInfo.tsType;
+          let fieldClassName = fieldInfo.tsType;
+          if (fieldClassName.indexOf(' | ') !== -1) {
+            fieldClassName = fieldClassName.replace(/ \| undefined/g, '').replace(/ \| null/g, '').trim();
+          }
           let classExists = false;
           const classesLen2 = ctx.getAstClassesLength();
           for (let ci = 0; ci < classesLen2; ci++) {
