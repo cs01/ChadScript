@@ -389,7 +389,10 @@ export class VariableAllocator {
       nodeType === 'variable' || nodeType === 'number' || nodeType === 'string' ||
       nodeType === 'boolean' || nodeType === 'null' || nodeType === 'template_literal' ||
       nodeType === 'regex' || nodeType === 'object' || nodeType === 'array' ||
-      nodeType === 'map' || nodeType === 'set' || nodeType === 'new'
+      nodeType === 'map' || nodeType === 'set' || nodeType === 'new' ||
+      nodeType === 'unary' || nodeType === 'this' || nodeType === 'call' ||
+      nodeType === 'method_call' || nodeType === 'index_access' ||
+      nodeType === 'type_assertion'
     );
 
     let isString: boolean;
