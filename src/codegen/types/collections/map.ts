@@ -174,12 +174,60 @@ export class MapGenerator {
     this.emit(`br label %${insertLabel}`);
 
     this.emit(`${insertLabel}:`);
+    const capacityFieldPtr = this.nextTemp();
+    this.emit(`${capacityFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 3`);
+    const currentCapacity = this.nextTemp();
+    this.emit(`${currentCapacity} = load i32, i32* ${capacityFieldPtr}`);
+    const needsResize = this.nextTemp();
+    this.emit(`${needsResize} = icmp sge i32 ${currentSize}, ${currentCapacity}`);
+    const resizeLabel = this.nextLabel('map_set_resize');
+    const doInsertLabel = this.nextLabel('map_set_doinsert');
+    this.emit(`br i1 ${needsResize}, label %${resizeLabel}, label %${doInsertLabel}`);
+
+    this.emit(`${resizeLabel}:`);
+    const newCapacity = this.nextTemp();
+    this.emit(`${newCapacity} = mul i32 ${currentCapacity}, 2`);
+    const newCapI64 = this.nextTemp();
+    this.emit(`${newCapI64} = zext i32 ${newCapacity} to i64`);
+    const doubleSize = this.getDoubleSize();
+    const newKeysSize = this.nextTemp();
+    this.emit(`${newKeysSize} = mul i64 ${newCapI64}, ${doubleSize}`);
+    const newKeysMem = this.nextTemp();
+    this.emit(`${newKeysMem} = call i8* @GC_malloc_atomic(i64 ${newKeysSize})`);
+    const newKeysPtr = this.nextTemp();
+    this.emit(`${newKeysPtr} = bitcast i8* ${newKeysMem} to double*`);
+    const oldKeysI8 = this.nextTemp();
+    this.emit(`${oldKeysI8} = bitcast double* ${keysPtr} to i8*`);
+    const oldCapI64 = this.nextTemp();
+    this.emit(`${oldCapI64} = zext i32 ${currentCapacity} to i64`);
+    const oldKeysSize = this.nextTemp();
+    this.emit(`${oldKeysSize} = mul i64 ${oldCapI64}, ${doubleSize}`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newKeysMem}, i8* ${oldKeysI8}, i64 ${oldKeysSize}, i1 false)`);
+    this.emit(`store double* ${newKeysPtr}, double** ${keysFieldPtr}`);
+    const newValuesSize = this.nextTemp();
+    this.emit(`${newValuesSize} = mul i64 ${newCapI64}, ${doubleSize}`);
+    const newValuesMem = this.nextTemp();
+    this.emit(`${newValuesMem} = call i8* @GC_malloc_atomic(i64 ${newValuesSize})`);
+    const newValuesPtr = this.nextTemp();
+    this.emit(`${newValuesPtr} = bitcast i8* ${newValuesMem} to double*`);
+    const oldValuesI8 = this.nextTemp();
+    this.emit(`${oldValuesI8} = bitcast double* ${valuesPtr} to i8*`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newValuesMem}, i8* ${oldValuesI8}, i64 ${oldKeysSize}, i1 false)`);
+    this.emit(`store double* ${newValuesPtr}, double** ${valuesFieldPtr}`);
+    this.emit(`store i32 ${newCapacity}, i32* ${capacityFieldPtr}`);
+    this.emit(`br label %${doInsertLabel}`);
+
+    this.emit(`${doInsertLabel}:`);
+    const insertKeysPtr = this.nextTemp();
+    this.emit(`${insertKeysPtr} = load double*, double** ${keysFieldPtr}`);
+    const insertValuesPtr = this.nextTemp();
+    this.emit(`${insertValuesPtr} = load double*, double** ${valuesFieldPtr}`);
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentSize}`);
+    this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${insertKeysPtr}, i32 ${currentSize}`);
     this.emit(`store double ${keyValue}, double* ${keyElemPtr}`);
 
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentSize}`);
+    this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${insertValuesPtr}, i32 ${currentSize}`);
     this.emit(`store double ${valueValue}, double* ${valueElemPtr}`);
 
     const newSize = this.nextTemp();
@@ -1466,12 +1514,60 @@ export class PointerMapGenerator {
     this.emit(`br label %${insertLabel}`);
 
     this.emit(`${insertLabel}:`);
+    const capacityFieldPtr = this.nextTemp();
+    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+    const currentCapacity = this.nextTemp();
+    this.emit(`${currentCapacity} = load i32, i32* ${capacityFieldPtr}`);
+    const needsResize = this.nextTemp();
+    this.emit(`${needsResize} = icmp sge i32 ${currentSize}, ${currentCapacity}`);
+    const resizeLabel = this.nextLabel('ptrmap_set_resize');
+    const doInsertLabel = this.nextLabel('ptrmap_set_doinsert');
+    this.emit(`br i1 ${needsResize}, label %${resizeLabel}, label %${doInsertLabel}`);
+
+    this.emit(`${resizeLabel}:`);
+    const newCapacity = this.nextTemp();
+    this.emit(`${newCapacity} = mul i32 ${currentCapacity}, 2`);
+    const newCapI64 = this.nextTemp();
+    this.emit(`${newCapI64} = zext i32 ${newCapacity} to i64`);
+    const ptrSize = 8;
+    const newKeysSize = this.nextTemp();
+    this.emit(`${newKeysSize} = mul i64 ${newCapI64}, ${ptrSize}`);
+    const newKeysMem = this.nextTemp();
+    this.emit(`${newKeysMem} = call i8* @GC_malloc(i64 ${newKeysSize})`);
+    const newKeysPtr = this.nextTemp();
+    this.emit(`${newKeysPtr} = bitcast i8* ${newKeysMem} to i8**`);
+    const oldKeysI8 = this.nextTemp();
+    this.emit(`${oldKeysI8} = bitcast i8** ${keysPtr} to i8*`);
+    const oldCapI64 = this.nextTemp();
+    this.emit(`${oldCapI64} = zext i32 ${currentCapacity} to i64`);
+    const oldKeysSize = this.nextTemp();
+    this.emit(`${oldKeysSize} = mul i64 ${oldCapI64}, ${ptrSize}`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newKeysMem}, i8* ${oldKeysI8}, i64 ${oldKeysSize}, i1 false)`);
+    this.emit(`store i8** ${newKeysPtr}, i8*** ${keysFieldPtr}`);
+    const newValuesSize = this.nextTemp();
+    this.emit(`${newValuesSize} = mul i64 ${newCapI64}, ${ptrSize}`);
+    const newValuesMem = this.nextTemp();
+    this.emit(`${newValuesMem} = call i8* @GC_malloc(i64 ${newValuesSize})`);
+    const newValuesPtr = this.nextTemp();
+    this.emit(`${newValuesPtr} = bitcast i8* ${newValuesMem} to i8**`);
+    const oldValuesI8 = this.nextTemp();
+    this.emit(`${oldValuesI8} = bitcast i8** ${valuesPtr} to i8*`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newValuesMem}, i8* ${oldValuesI8}, i64 ${oldKeysSize}, i1 false)`);
+    this.emit(`store i8** ${newValuesPtr}, i8*** ${valuesFieldPtr}`);
+    this.emit(`store i32 ${newCapacity}, i32* ${capacityFieldPtr}`);
+    this.emit(`br label %${doInsertLabel}`);
+
+    this.emit(`${doInsertLabel}:`);
+    const insertKeysPtr = this.nextTemp();
+    this.emit(`${insertKeysPtr} = load i8**, i8*** ${keysFieldPtr}`);
+    const insertValuesPtr = this.nextTemp();
+    this.emit(`${insertValuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentSize}`);
+    this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${insertKeysPtr}, i32 ${currentSize}`);
     this.emit(`store i8* ${keyValue}, i8** ${keyElemPtr}`);
 
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${currentSize}`);
+    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${insertValuesPtr}, i32 ${currentSize}`);
     this.emit(`store i8* ${valueValue}, i8** ${valueElemPtr}`);
 
     const newSize = this.nextTemp();
