@@ -1176,147 +1176,17 @@ export class TypeInference {
   }
 
   isStringExpression(expr: Expression): boolean {
-    if (!expr) {
-      return false;
-    }
+    if (!expr) return false;
     const e = expr as ExprBase;
-    if (!e.type) {
-      return false;
-    }
-    if (e.type === 'string') {
-      return true;
-    }
-    if (e.type === 'template_literal') {
-      return true;
-    }
-    if (e.type === 'unary' && (expr as UnaryNode).op === 'typeof') {
-      return true;
-    }
-    if (e.type === 'type_assertion') {
-      const assertion = expr as TypeAssertionNode;
-      if (assertion.assertedType === 'string') {
-        return true;
-      }
-      return this.isStringExpression(assertion.expression);
-    }
-    if (e.type === 'call') {
-      const callExpr = expr as CallNode;
-      if (callExpr.name === '__ts_node_type' || callExpr.name === '__ts_node_text') {
-        return true;
-      }
-    }
-    if (e.type === 'variable') {
-      const varName = (expr as VariableNode).name;
-      if (this.ctx.symbolTable.isString(varName)) {
-        return true;
-      }
-      const varType = this.ctx.symbolTable.getType(varName);
-      if (varType === 'i8*') {
-        if (this.ctx.symbolTable.isClass(varName) || this.ctx.symbolTable.isObject(varName)) {
-          return false;
-        }
-        const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
-        if (ifaceType && ifaceType.length > 0) {
-          return false;
-        }
-        return true;
-      }
-      return false;
-    }
+    if (!e.type) return false;
+    const resolved = this.resolveExpressionType(expr);
+    if (resolved && resolved.base === 'string' && resolved.arrayDepth === 0) return true;
+    if (resolved) return false;
+
     if (e.type === 'binary') {
       const binaryExpr = expr as BinaryNode;
-      if (binaryExpr.op === '+') {
+      if (binaryExpr.op === '+' || binaryExpr.op === '||') {
         return this.isStringExpression(binaryExpr.left) || this.isStringExpression(binaryExpr.right);
-      }
-      if (binaryExpr.op === '||') {
-        return this.isStringExpression(binaryExpr.left) || this.isStringExpression(binaryExpr.right);
-      }
-    }
-    if (e.type === 'member_access') {
-      const memberExpr = expr as MemberAccessNode;
-      if (!memberExpr.object) {
-        return false;
-      }
-      const objBase = memberExpr.object as ExprBase;
-      if (!objBase.type) {
-        return false;
-      }
-      if (objBase.type === 'variable') {
-        const varName = (memberExpr.object as VariableNode).name;
-        if (varName === 'process' && memberExpr.property === 'platform') {
-          return true;
-        }
-        if (varName === 'process' && (memberExpr.property === 'arch' || memberExpr.property === 'version' || memberExpr.property === 'execPath' || memberExpr.property === 'argv0')) {
-          return true;
-        }
-        const propType = this.ctx.symbolTable.getObjectPropertyType(varName, memberExpr.property);
-        if (propType === 'i8*') {
-          return true;
-        }
-        const varType = this.ctx.symbolTable.getType(varName);
-        if (varType && varType.startsWith('%') && varType.endsWith('*') &&
-            varType.indexOf('Array') === -1 && varType.indexOf('Response') === -1 &&
-            varType.indexOf('Map') === -1 && varType.indexOf('Set') === -1) {
-          const structTypeName = varType.substring(1, varType.length - 1);
-          const prop = this.getInterfaceProperty(structTypeName, memberExpr.property);
-          if (prop && isStringType(prop.type)) {
-            return true;
-          }
-        }
-        const ifaceType4 = this.ctx.symbolTable.getInterfaceType(varName);
-        if (ifaceType4 && ifaceType4.length > 0) {
-          const prop = this.getInterfaceProperty(ifaceType4, memberExpr.property);
-          if (prop && isStringType(prop.type)) {
-            return true;
-          }
-        }
-        if (this.ctx.symbolTable.isClass(varName)) {
-          const className = this.ctx.symbolTable.getClassName(varName);
-          if (className) {
-            const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
-            if (fieldType === 'string') {
-              return true;
-            }
-          }
-        }
-      }
-      if (objBase.type === 'this') {
-        const className = this.ctx.getCurrentClassName();
-        if (className) {
-          const fieldType = this.ctx.classGenGetFieldType(className, memberExpr.property);
-          if (fieldType === 'string') {
-            return true;
-          }
-        }
-      }
-      if (objBase.type === 'type_assertion') {
-        const assertExpr = memberExpr.object as TypeAssertionNode;
-        const assertedType = assertExpr.assertedType;
-        const prop = this.getInterfaceProperty(assertedType, memberExpr.property);
-        if (prop && isStringType(prop.type)) {
-          return true;
-        }
-      }
-      if (objBase.type === 'member_access') {
-        const nestedMemberEnv = memberExpr.object as MemberAccessNode;
-        const nestedObjBaseEnv = nestedMemberEnv.object as ExprBase;
-        if (nestedObjBaseEnv.type === 'variable' &&
-            (nestedMemberEnv.object as VariableNode).name === 'process' &&
-            nestedMemberEnv.property === 'env') {
-          return true;
-        }
-        const nestedMemberTsType = this.resolveNestedMemberAccessTsType(memberExpr.object as MemberAccessNode);
-        if (nestedMemberTsType) {
-          const fieldProp = this.getInterfaceProperty(nestedMemberTsType, memberExpr.property);
-          if (fieldProp && isStringType(fieldProp.type)) {
-            return true;
-          }
-        } else {
-          const nestedMember = memberExpr.object as MemberAccessNode;
-          if (nestedMember.property === 'classMetadata' && memberExpr.property === 'className') {
-            return true;
-          }
-        }
       }
     }
     if (e.type === 'index_access') {
@@ -1367,119 +1237,32 @@ export class TypeInference {
         }
       }
     }
-    if (e.type === 'call') {
-      const funcExpr = expr as CallNode;
-      if (funcExpr.name === 'String') {
-        return true;
-      }
-      if (funcExpr.name) {
-        const func = this.getFunction(funcExpr.name);
-        if (func && func.returnType === 'string') {
-          return true;
-        }
-      }
-    }
     if (e.type === 'method_call') {
       const methodExpr = expr as MethodCallNode;
-      const methodObjBase = methodExpr.object as ExprBase;
-      if (methodObjBase.type === 'variable' &&
-          (methodExpr.object as VariableNode).name === 'fs' &&
-          methodExpr.method === 'readFileSync') {
-        return true;
-      }
-      const stringPathMethods = ['resolve', 'dirname', 'join', 'basename', 'normalize', 'extname', 'relative'];
-      if (methodObjBase.type === 'variable' &&
-          (methodExpr.object as VariableNode).name === 'path' &&
-          stringPathMethods.indexOf(methodExpr.method) !== -1) {
-        return true;
-      }
-      if (methodObjBase.type === 'variable' &&
-          (methodExpr.object as VariableNode).name === 'JSON' &&
-          methodExpr.method === 'stringify') {
-        return true;
-      }
-      if (methodObjBase.type === 'variable' &&
-          (methodExpr.object as VariableNode).name === 'crypto' &&
-          (methodExpr.method === 'sha256' || methodExpr.method === 'md5' || methodExpr.method === 'sha512' || methodExpr.method === 'randomBytes')) {
-        return true;
-      }
-      if (methodObjBase.type === 'variable' &&
-          (methodExpr.object as VariableNode).name === 'sqlite' &&
-          methodExpr.method === 'get') {
-        return true;
-      }
-      if (methodExpr.method === 'substr' || methodExpr.method === 'substring' ||
-          methodExpr.method === 'repeat' ||
-          methodExpr.method === 'padStart' || methodExpr.method === 'charAt' ||
-          methodExpr.method === 'trim' || methodExpr.method === 'trimStart' || methodExpr.method === 'trimEnd' ||
-          methodExpr.method === 'replace' || methodExpr.method === 'replaceAll' ||
-          methodExpr.method === 'toUpperCase' || methodExpr.method === 'toLowerCase' ||
-          methodExpr.method === 'toString' ||
-          methodExpr.method === 'text' || methodExpr.method === 'getVariableType') {
-        return true;
-      }
       if ((methodExpr.method === 'slice' || methodExpr.method === 'concat') &&
           !this.isArrayExpression(methodExpr.object) && !this.isStringArrayExpression(methodExpr.object)) {
         return true;
       }
-      if (methodObjBase.type === 'variable' && this.ctx.symbolTable.isClass((methodExpr.object as VariableNode).name)) {
-        const className = this.ctx.symbolTable.getClassName((methodExpr.object as VariableNode).name);
-        if (className) {
-          const method = this.getClassMethod(className, methodExpr.method);
-          if (method && method.returnType) {
-            if (this.returnTypeIsString(method.returnType)) {
-              return true;
-            }
-          }
-        }
-      }
-      if (methodObjBase.type === 'this') {
-        const className = this.ctx.getCurrentClassName();
-        if (className) {
-          const method = this.getClassMethod(className, methodExpr.method);
-          if (method && method.returnType) {
-            if (this.returnTypeIsString(method.returnType)) {
-              return true;
-            }
-          }
-        }
-      }
-      if (methodObjBase.type === 'member_access') {
-        const memberAccess = methodExpr.object as MemberAccessNode;
-        const fieldClassName = this.resolveClassNameFromExpression(memberAccess);
-        if (fieldClassName) {
-          const method = this.getClassMethod(fieldClassName, methodExpr.method);
-          if (method && method.returnType) {
-            if (this.returnTypeIsString(method.returnType)) {
-              return true;
-            }
-          }
-        }
-        const interfaceType = this.resolveInterfaceTypeFromExpression(memberAccess);
-        if (interfaceType) {
-          const methodReturnType = this.getInterfaceMethodReturnType(interfaceType, methodExpr.method);
-          if (methodReturnType && this.returnTypeIsString(methodReturnType)) {
+      if (methodExpr.method === 'get') {
+        const methodObjBase = methodExpr.object as ExprBase;
+        if (methodObjBase.type === 'variable' &&
+            this.ctx.symbolTable.isMap((methodExpr.object as VariableNode).name)) {
+          const mapMeta = this.ctx.symbolTable.getMapMetadata((methodExpr.object as VariableNode).name);
+          if (mapMeta && mapMeta.valueType === 'string') {
             return true;
           }
         }
-      }
-      if (methodExpr.method === 'get' && methodObjBase.type === 'variable' &&
-          this.ctx.symbolTable.isMap((methodExpr.object as VariableNode).name)) {
-        const mapMeta = this.ctx.symbolTable.getMapMetadata((methodExpr.object as VariableNode).name);
-        if (mapMeta && mapMeta.valueType === 'string') {
-          return true;
-        }
-      }
-      if (methodExpr.method === 'get' && methodObjBase.type === 'member_access') {
-        const memberAccess = methodExpr.object as MemberAccessNode;
-        const memberAccessObjBase = memberAccess.object as ExprBase;
-        if (memberAccessObjBase.type === 'this' && this.ctx.getCurrentClassName() && this.ctx.hasClassGen()) {
-          const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), memberAccess.property);
-          const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-          if (fieldInfoResult && fieldInfo.tsType) {
-            const mapParsed = parseMapTypeString(fieldInfo.tsType);
-            if (mapParsed && mapParsed.keyType === 'string' && mapParsed.valueType === 'string') {
-              return true;
+        if (methodObjBase.type === 'member_access') {
+          const memberAccess = methodExpr.object as MemberAccessNode;
+          const memberAccessObjBase = memberAccess.object as ExprBase;
+          if (memberAccessObjBase.type === 'this' && this.ctx.getCurrentClassName() && this.ctx.hasClassGen()) {
+            const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName(), memberAccess.property);
+            const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
+            if (fieldInfoResult && fieldInfo.tsType) {
+              const mapParsed = parseMapTypeString(fieldInfo.tsType);
+              if (mapParsed && mapParsed.keyType === 'string' && mapParsed.valueType === 'string') {
+                return true;
+              }
             }
           }
         }
