@@ -116,6 +116,9 @@ export class TypeInference {
     if (e.type === 'method_call') {
       return this.resolveMethodCallType(expr as MethodCallNode);
     }
+    if (e.type === 'member_access') {
+      return this.resolveMemberAccessType(expr as MemberAccessNode);
+    }
     if (e.type === 'this') {
       const className = this.ctx.getCurrentClassName();
       if (className) return this.ctx.typeContext.getClassType(className);
@@ -313,6 +316,128 @@ export class TypeInference {
             return this.ctx.typeContext.resolve(mapMeta.valueType);
           }
         }
+      }
+    }
+
+    return null;
+  }
+
+  private resolveMemberAccessType(expr: MemberAccessNode): ResolvedType | null {
+    if (!expr.object) return null;
+    const objBase = expr.object as ExprBase;
+    if (!objBase.type) return null;
+    const prop = expr.property;
+
+    if (objBase.type === 'variable') {
+      const varName = (expr.object as VariableNode).name;
+
+      if (varName === 'process') {
+        if (prop === 'platform' || prop === 'arch' || prop === 'version' ||
+            prop === 'execPath' || prop === 'argv0') {
+          return this.ctx.typeContext.stringType;
+        }
+        if (prop === 'argv') return this.ctx.typeContext.getArrayType('string');
+        if (prop === 'exitCode' || prop === 'pid') return this.ctx.typeContext.numberType;
+      }
+
+      if (varName === 'Math') {
+        if (prop === 'PI' || prop === 'E' || prop === 'LN2' || prop === 'LN10' ||
+            prop === 'SQRT2') {
+          return this.ctx.typeContext.numberType;
+        }
+      }
+
+      if (varName === 'Number') {
+        if (prop === 'MAX_SAFE_INTEGER' || prop === 'MIN_SAFE_INTEGER' || prop === 'MAX_VALUE') {
+          return this.ctx.typeContext.numberType;
+        }
+      }
+
+      const propType = this.ctx.symbolTable.getObjectPropertyType(varName, prop);
+      if (propType === 'i8*') return this.ctx.typeContext.stringType;
+      if (propType === 'double') return this.ctx.typeContext.numberType;
+
+      if (this.ctx.symbolTable.isClass(varName)) {
+        const className = this.ctx.symbolTable.getClassName(varName);
+        if (className) {
+          const fieldType = this.ctx.classGenGetFieldType(className, prop);
+          if (fieldType) return this.ctx.typeContext.resolve(fieldType);
+          const tsType = this.ctx.classGenGetFieldTsType(className, prop);
+          if (tsType) return this.ctx.typeContext.resolve(stripNullable(tsType));
+        }
+      }
+
+      const varType = this.ctx.symbolTable.getType(varName);
+      if (varType && varType.startsWith('%') && varType.endsWith('*') &&
+          varType.indexOf('Array') === -1 && varType.indexOf('Response') === -1 &&
+          varType.indexOf('Map') === -1 && varType.indexOf('Set') === -1) {
+        const structTypeName = varType.substring(1, varType.length - 1);
+        const ifaceProp = this.getInterfaceProperty(structTypeName, prop);
+        if (ifaceProp) return this.ctx.typeContext.resolve(stripNullable(ifaceProp.type));
+      }
+
+      const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
+      if (ifaceType && ifaceType.length > 0) {
+        const ifaceProp = this.getInterfaceProperty(ifaceType, prop);
+        if (ifaceProp) return this.ctx.typeContext.resolve(stripNullable(ifaceProp.type));
+      }
+
+      const paramType = this.getParameterType(varName);
+      if (paramType) {
+        const fieldType = this.getFieldTypeFromType(paramType, prop);
+        if (fieldType) return this.ctx.typeContext.resolve(stripNullable(fieldType));
+      }
+
+      const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
+      if (objMeta && objMeta.keys) {
+        for (let ki = 0; ki < objMeta.keys.length; ki++) {
+          if (objMeta.keys[ki] === prop && objMeta.types && objMeta.types[ki]) {
+            return this.ctx.typeContext.resolve(stripNullable(objMeta.types[ki]));
+          }
+        }
+      }
+    }
+
+    if (objBase.type === 'this') {
+      const className = this.ctx.getCurrentClassName();
+      if (className) {
+        const fieldType = this.ctx.classGenGetFieldType(className, prop);
+        if (fieldType) return this.ctx.typeContext.resolve(fieldType);
+        const tsType = this.ctx.classGenGetFieldTsType(className, prop);
+        if (tsType) return this.ctx.typeContext.resolve(stripNullable(tsType));
+      }
+    }
+
+    if (objBase.type === 'type_assertion') {
+      const assertion = expr.object as TypeAssertionNode;
+      if (assertion.assertedType) {
+        const fieldType = this.getFieldTypeFromType(assertion.assertedType, prop);
+        if (fieldType) return this.ctx.typeContext.resolve(stripNullable(fieldType));
+      }
+    }
+
+    if (objBase.type === 'member_access') {
+      const nestedMember = expr.object as MemberAccessNode;
+      const nestedObjBase = nestedMember.object as ExprBase;
+      if (nestedObjBase.type === 'variable' &&
+          (nestedMember.object as VariableNode).name === 'process' &&
+          nestedMember.property === 'env') {
+        return this.ctx.typeContext.stringType;
+      }
+      if (nestedObjBase.type === 'this') {
+        const className = this.ctx.getCurrentClassName();
+        if (className) {
+          const fieldTsType = this.ctx.classGenGetFieldTsType(className, nestedMember.property);
+          if (fieldTsType) {
+            const fieldType = this.getFieldTypeFromType(fieldTsType, prop);
+            if (fieldType) return this.ctx.typeContext.resolve(stripNullable(fieldType));
+          }
+        }
+      }
+      const nestedType = this.resolveNestedMemberAccessTsType(nestedMember);
+      if (nestedType) {
+        const fieldType = this.getFieldTypeFromType(nestedType, prop);
+        if (fieldType) return this.ctx.typeContext.resolve(stripNullable(fieldType));
       }
     }
 
