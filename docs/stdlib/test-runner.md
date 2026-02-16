@@ -64,3 +64,44 @@ Unconditionally fail the current test, with an optional message.
 ```typescript
 assert.fail("not implemented yet");
 ```
+
+## `assert.deepEqual()`
+
+Compare two arrays element-by-element. Works with `number[]` and `string[]`.
+
+```typescript
+const a: number[] = [1, 2, 3];
+const b: number[] = [1, 2, 3];
+assert.deepEqual(a, b);
+
+const x: string[] = ["hello", "world"];
+const y: string[] = ["hello", "world"];
+assert.deepEqual(x, y);
+```
+
+On failure, prints either `expected length <n>, got length <m>` or `arrays differ at index <i>` to stderr.
+
+## `describe()`
+
+Group related tests with a label. Nesting is supported and indentation is applied automatically.
+
+```typescript
+describe("math", () => {
+  test("addition", () => {
+    assert.strictEqual(1 + 1, 2);
+  });
+  test("subtraction", () => {
+    assert.strictEqual(5 - 3, 2);
+  });
+});
+```
+
+Output:
+
+```
+math
+    PASS: addition
+    PASS: subtraction
+
+2 passed, 0 failed (2 total) 0ms
+```

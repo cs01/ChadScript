@@ -79,6 +79,13 @@ export class CallExpressionGenerator {
       }
     }
 
+    if (expr.name === 'describe' && expr.args.length >= 2) {
+      const secondArg = expr.args[1] as { type: string };
+      if (secondArg.type === 'arrow_function' || secondArg.type === 'variable') {
+        return this.generateDescribe(expr, params);
+      }
+    }
+
     // Handle clearTimeout() / clearInterval() - stop timer
     if (expr.name === 'clearTimeout' || expr.name === 'clearInterval') {
       return this.generateClearTimer(expr, params);
@@ -650,6 +657,43 @@ export class CallExpressionGenerator {
     return result;
   }
 
+  private emitIndentPrintf(prefix: string): void {
+    const depth = this.ctx.nextTemp();
+    this.ctx.emit(`${depth} = load i32, i32* @__describe_depth`);
+    const hasDepth = this.ctx.nextTemp();
+    this.ctx.emit(`${hasDepth} = icmp sgt i32 ${depth}, 0`);
+    const preLabel = this.ctx.nextLabel(`${prefix}_pre`);
+    const loopLabel = this.ctx.nextLabel(`${prefix}_loop`);
+    const bodyLabel = this.ctx.nextLabel(`${prefix}_body`);
+    const doneLabel = this.ctx.nextLabel(`${prefix}_done`);
+    this.ctx.emit(`br i1 ${hasDepth}, label %${preLabel}, label %${doneLabel}`);
+
+    this.ctx.emit(`${preLabel}:`);
+    this.ctx.setCurrentLabel(preLabel);
+    this.ctx.emit(`br label %${loopLabel}`);
+
+    this.ctx.emit(`${loopLabel}:`);
+    this.ctx.setCurrentLabel(loopLabel);
+    const idx = `%__indent_idx_${loopLabel}`;
+    const nextIdx = `%__indent_next_${loopLabel}`;
+    this.ctx.emit(`${idx} = phi i32 [ 0, %${preLabel} ], [ ${nextIdx}, %${bodyLabel} ]`);
+    const cmp = this.ctx.nextTemp();
+    this.ctx.emit(`${cmp} = icmp slt i32 ${idx}, ${depth}`);
+    this.ctx.emit(`br i1 ${cmp}, label %${bodyLabel}, label %${doneLabel}`);
+
+    this.ctx.emit(`${bodyLabel}:`);
+    this.ctx.setCurrentLabel(bodyLabel);
+    const fmt = this.ctx.nextTemp();
+    this.ctx.emit(`${fmt} = getelementptr [3 x i8], [3 x i8]* @.str.indent_unit, i32 0, i32 0`);
+    const printResult = this.ctx.nextTemp();
+    this.ctx.emit(`${printResult} = call i32 (i8*, ...) @printf(i8* ${fmt})`);
+    this.ctx.emit(`${nextIdx} = add i32 ${idx}, 1`);
+    this.ctx.emit(`br label %${loopLabel}`);
+
+    this.ctx.emit(`${doneLabel}:`);
+    this.ctx.setCurrentLabel(doneLabel);
+  }
+
   private generateTest(expr: CallNode, params: string[]): string {
     this.ctx.setUsesTestRunner(true);
 
@@ -693,6 +737,7 @@ export class CallExpressionGenerator {
     const passedInc = this.ctx.nextTemp();
     this.ctx.emit(`${passedInc} = add i32 ${passedPtr}, 1`);
     this.ctx.emit(`store i32 ${passedInc}, i32* @__test_passed`);
+    this.emitIndentPrintf('test_pass_indent');
     const printPass = this.ctx.nextTemp();
     this.ctx.emit(`${printPass} = call i32 (i8*, ...) @printf(i8* getelementptr([12 x i8], [12 x i8]* @.str.test_pass, i32 0, i32 0), i8* ${nameValue})`);
     this.ctx.emit(`br label %${mergeLabel}`);
@@ -704,12 +749,54 @@ export class CallExpressionGenerator {
     const failedInc = this.ctx.nextTemp();
     this.ctx.emit(`${failedInc} = add i32 ${failedPtr}, 1`);
     this.ctx.emit(`store i32 ${failedInc}, i32* @__test_failed`);
+    this.emitIndentPrintf('test_fail_indent');
     const printFail = this.ctx.nextTemp();
     this.ctx.emit(`${printFail} = call i32 (i8*, ...) @printf(i8* getelementptr([12 x i8], [12 x i8]* @.str.test_fail, i32 0, i32 0), i8* ${nameValue})`);
     this.ctx.emit(`br label %${mergeLabel}`);
 
     this.ctx.emit(`${mergeLabel}:`);
     this.ctx.setCurrentLabel(mergeLabel);
+
+    return '0';
+  }
+
+  private generateDescribe(expr: CallNode, params: string[]): string {
+    this.ctx.setUsesTestRunner(true);
+
+    const nameValue = this.ctx.generateExpression(expr.args[0], params);
+
+    this.emitIndentPrintf('describe_indent');
+
+    const headerFmt = this.ctx.nextTemp();
+    this.ctx.emit(`${headerFmt} = getelementptr [4 x i8], [4 x i8]* @.str.describe_header, i32 0, i32 0`);
+    const headerPrint = this.ctx.nextTemp();
+    this.ctx.emit(`${headerPrint} = call i32 (i8*, ...) @printf(i8* ${headerFmt}, i8* ${nameValue})`);
+
+    const oldDepth = this.ctx.nextTemp();
+    this.ctx.emit(`${oldDepth} = load i32, i32* @__describe_depth`);
+    const newDepth = this.ctx.nextTemp();
+    this.ctx.emit(`${newDepth} = add i32 ${oldDepth}, 1`);
+    this.ctx.emit(`store i32 ${newDepth}, i32* @__describe_depth`);
+
+    const callbackArg = expr.args[1];
+    let callbackFn: string;
+
+    if (callbackArg.type === 'variable') {
+      callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
+    } else if (callbackArg.type === 'arrow_function') {
+      callbackFn = this.ctx.generateExpression(callbackArg, params);
+    } else {
+      return this.ctx.emitError('describe() callback must be a function reference or arrow function', expr.loc);
+    }
+
+    const callResult = this.ctx.nextTemp();
+    this.ctx.emit(`${callResult} = call double @${callbackFn}()`);
+
+    const restoredDepth = this.ctx.nextTemp();
+    this.ctx.emit(`${restoredDepth} = load i32, i32* @__describe_depth`);
+    const decDepth = this.ctx.nextTemp();
+    this.ctx.emit(`${decDepth} = sub i32 ${restoredDepth}, 1`);
+    this.ctx.emit(`store i32 ${decDepth}, i32* @__describe_depth`);
 
     return '0';
   }

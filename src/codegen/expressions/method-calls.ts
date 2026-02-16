@@ -35,7 +35,7 @@ import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { IStringGenerator, IFsGenerator, IPathGenerator, IJsonGenerator, IMathGenerator, IDateGenerator, ICryptoGenerator, ISqliteGenerator, IResponseGenerator, IRegexGenerator, IArrowFunctionGenerator, IStringMapGenerator, IMapGenerator, ISetGenerator, IStringSetGenerator, IPointerMapGenerator, IArrayGenerator } from '../infrastructure/generator-context.js';
 import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
 import { generateConsoleCallInline } from './method-calls/console.js';
-import { handleAssertStrictEqual, handleAssertNotStrictEqual, handleAssertOk, handleAssertFail } from './method-calls/assert.js';
+import { handleAssertStrictEqual, handleAssertNotStrictEqual, handleAssertOk, handleAssertDeepEqual, handleAssertFail } from './method-calls/assert.js';
 import { generateProcessExitInline, generateProcessCwdInline, handleProcessChdir, handleProcessKill, handleProcessUptime, handleProcessSyscallI32, isProcessStdoutOrStderr, handleProcessWrite } from './method-calls/process.js';
 import { handleSubstr, handleSubstring, handleConcat, handleRepeat, handlePadStart, handleSplit, handleStartsWith, handleEndsWith, handleTrim, handleTrimStart, handleTrimEnd, handleIndexOf, handleLastIndexOf, handleStringArrayIndexOf, handleStringArrayIncludes, handleStringIncludes, handleSlice, handleReplace, handleReplaceAll, handleNumberIsFinite, handleNumberIsNaN, handleNumberIsInteger, handleNumberToString, handleNumberToFixed, handleCharAt, handleCharCodeAt, handleToUpperCase, handleToLowerCase, handleMatch } from './method-calls/string-methods.js';
 import { generateObjectKeys, generateObjectValues, generateObjectEntries } from './method-calls/object-static.js';
@@ -337,6 +337,7 @@ export class MethodCallGenerator {
         if (expr.method === 'strictEqual') return handleAssertStrictEqual(this.ctx, expr, params);
         if (expr.method === 'notStrictEqual') return handleAssertNotStrictEqual(this.ctx, expr, params);
         if (expr.method === 'ok') return handleAssertOk(this.ctx, expr, params);
+        if (expr.method === 'deepEqual') return handleAssertDeepEqual(this.ctx, expr, params);
         if (expr.method === 'fail') return handleAssertFail(this.ctx, expr, params);
       }
     }
