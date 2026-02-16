@@ -6,6 +6,11 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 RESET='\033[0m'
 
+QUICK=false
+if [[ "${1:-}" == "--quick" ]]; then
+  QUICK=true
+fi
+
 step() { echo -e "\n${BOLD}==> $1${RESET}"; }
 pass() { echo -e "${GREEN}    ✓ $1${RESET}"; }
 fail() { echo -e "${RED}    ✗ $1${RESET}"; exit 1; }
@@ -35,6 +40,7 @@ OUTPUT=$("$TMPDIR/hello1" 2>&1)
 [[ "$OUTPUT" == *"Hello from ChadScript"* ]] || fail "stage 1 smoke test"
 pass "smoke test"
 
+if [[ "$QUICK" == "false" ]]; then
 step "Stage 2: Stage 1 compiles itself"
 "$TMPDIR/chad-stage1" src/chadc-native.ts -o "$TMPDIR/chad-stage2" || fail "stage 2 build"
 pass "built stage2"
@@ -43,5 +49,8 @@ pass "built stage2"
 OUTPUT=$("$TMPDIR/hello2" 2>&1)
 [[ "$OUTPUT" == *"Hello from ChadScript"* ]] || fail "stage 2 smoke test"
 pass "smoke test"
+else
+echo -e "\n${BOLD}==> Skipping Stage 2 (--quick)${RESET}"
+fi
 
 echo -e "\n${GREEN}${BOLD}Self-hosting chain PASSED${RESET}"

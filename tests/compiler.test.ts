@@ -10,8 +10,10 @@ import { testCases } from './test-fixtures';
 
 const execAsync = promisify(exec);
 
+const compiler = fsSync.existsSync('.build/chadc') ? '.build/chadc' : 'node dist/chadc-node.js';
+
 describe('ChadScript Compiler', () => {
-  describe('Compilation and Execution', { concurrency: 8 }, () => {
+  describe('Compilation and Execution', { concurrency: 32 }, () => {
     for (const testCase of testCases) {
       it(testCase.description, async () => {
         const fixturePath = testCase.fixture; // Use relative path, not resolved
@@ -33,7 +35,7 @@ describe('ChadScript Compiler', () => {
 
         try {
           // Compile the fixture (no console.log to avoid parallel output issues)
-          await execAsync(`node dist/chadc-node.js ${fixturePath}`);
+          await execAsync(`${compiler} ${fixturePath}`);
 
           // Verify executable was generated (intermediate files are cleaned up by default)
           assert.ok(
@@ -140,7 +142,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`node dist/chadc-node.js ${fixturePath}`);
+        await execAsync(`${compiler} ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -173,7 +175,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`node dist/chadc-node.js ${fixturePath}`);
+        await execAsync(`${compiler} ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -208,7 +210,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`node dist/chadc-node.js ${fixturePath}`);
+        await execAsync(`${compiler} ${fixturePath}`);
 
         // Run and capture output
         const { stdout, stderr } = await execAsync(`./${exeFile}`);
@@ -239,7 +241,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`node dist/chadc-node.js ${fixturePath}`);
+        await execAsync(`${compiler} ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -266,7 +268,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`node dist/chadc-node.js ${fixturePath}`);
+        await execAsync(`${compiler} ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -293,7 +295,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`node dist/chadc-node.js ${fixturePath}`);
+        await execAsync(`${compiler} ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -322,7 +324,7 @@ describe('ChadScript Compiler', () => {
 
       try {
         // Compile
-        await execAsync(`node dist/chadc-node.js ${fixturePath}`);
+        await execAsync(`${compiler} ${fixturePath}`);
 
         // Run and capture output
         const { stdout } = await execAsync(`./${exeFile}`);
@@ -350,7 +352,7 @@ describe('ChadScript Compiler', () => {
       const exeFile = path.join(outputDir, baseName);
 
       try {
-        await execAsync(`node dist/chadc-node.js ${fixturePath}`);
+        await execAsync(`${compiler} ${fixturePath}`);
         const { stdout } = await execAsync(`./${exeFile}`);
         assert.ok(stdout.includes('TEST_PASSED'), 'JSON.parse() with boolean fields test should pass');
       } finally {
@@ -371,7 +373,7 @@ describe('ChadScript Compiler', () => {
       const exeFile = path.join(outputDir, baseName);
 
       try {
-        await execAsync(`node dist/chadc-node.js ${fixturePath}`);
+        await execAsync(`${compiler} ${fixturePath}`);
         const { stdout } = await execAsync(`./${exeFile}`);
         assert.ok(stdout.includes('TEST_PASSED'), 'JSON safe parse test should pass');
       } finally {
@@ -389,7 +391,7 @@ describe('ChadScript Compiler', () => {
   describe('Error Handling', () => {
     it('should handle missing input file', async () => {
       await assert.rejects(async () => {
-        await execAsync('node dist/chadc-node.js nonexistent.js');
+        await execAsync(`${compiler} nonexistent.js`);
       }, 'Should throw error for missing file');
     });
 
@@ -398,7 +400,7 @@ describe('ChadScript Compiler', () => {
       await fs.writeFile(fixture, 'function add(x: any, y: any): number { return x + y; }\nprocess.exit(add(5, 7));');
       try {
         await assert.rejects(async () => {
-          await execAsync(`node dist/chadc-node.js ${fixture} -o /tmp/test-reject-any`);
+          await execAsync(`${compiler} ${fixture} -o /tmp/test-reject-any`);
         }, (err: any) => {
           assert.ok(err.stderr.includes("'any' is not allowed") || err.message.includes("'any' is not allowed"),
             `Expected error about 'any' type, got: ${err.stderr || err.message}`);
@@ -415,7 +417,7 @@ describe('ChadScript Compiler', () => {
       await fs.writeFile(fixture, 'function add(x: unknown, y: unknown): number { return x + y; }\nprocess.exit(add(5, 7));');
       try {
         await assert.rejects(async () => {
-          await execAsync(`node dist/chadc-node.js ${fixture} -o /tmp/test-reject-unknown`);
+          await execAsync(`${compiler} ${fixture} -o /tmp/test-reject-unknown`);
         }, (err: any) => {
           assert.ok(err.stderr.includes("'unknown' is not allowed") || err.message.includes("'unknown' is not allowed"),
             `Expected error about 'unknown' type, got: ${err.stderr || err.message}`);
@@ -477,7 +479,7 @@ await main();
         const exeFile = '/tmp/test-response-properties';
         try { if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile); } catch {}
 
-        await execAsync(`node dist/chadc-node.js ${fixture} -o ${exeFile}`);
+        await execAsync(`${compiler} ${fixture} -o ${exeFile}`);
         assert.ok(fsSync.existsSync(exeFile), `Executable should exist at ${exeFile}`);
 
         const result = await execAsync(exeFile);

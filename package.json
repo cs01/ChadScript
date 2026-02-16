@@ -20,7 +20,9 @@
     "check-progress": "node --import tsx scripts/check-progress.ts",
     "examples": "node scripts/run-examples.js",
     "typecheck": "tsc --noEmit",
-    "check": "tsc --noEmit && npm run test:fast"
+    "check": "tsc --noEmit && npm run test:fast",
+    "verify": "bash scripts/verify.sh",
+    "verify:quick": "bash scripts/verify.sh --quick"
   },
   "keywords": [
     "compiler",
