@@ -16,10 +16,29 @@
 
 import { Expression, TemplateLiteralNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
-import { convertNumberToString } from '../types/collections/string/constants.js';
+import { createStringConstant, convertNumberToString } from '../types/collections/string/constants.js';
 
 export class TemplateLiteralGenerator {
   constructor(private ctx: IGeneratorContext) {}
+
+  private booleanToString(boolValue: string): string {
+    const trueStr = createStringConstant(this.ctx, 'true');
+    const falseStr = createStringConstant(this.ctx, 'false');
+    const cmp = this.ctx.nextTemp();
+    this.ctx.emit(`${cmp} = fcmp one double ${boolValue}, 0.0`);
+    const selected = this.ctx.nextTemp();
+    this.ctx.emit(`${selected} = select i1 ${cmp}, i8* ${trueStr}, i8* ${falseStr}`);
+    return selected;
+  }
+
+  private nullSafeString(strValue: string): string {
+    const nullStr = createStringConstant(this.ctx, 'null');
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq i8* ${strValue}, null`);
+    const safe = this.ctx.nextTemp();
+    this.ctx.emit(`${safe} = select i1 ${isNull}, i8* ${nullStr}, i8* ${strValue}`);
+    return safe;
+  }
 
   /**
    * Generate code for template literal expression
@@ -58,9 +77,12 @@ export class TemplateLiteralGenerator {
         partValue = this.ctx.stringGen.doCreateStringConstant(partAsObj.value || '');
       } else {
         const exprPart = part as Expression;
+        const exprPartObj = exprPart as { type: string };
         const exprValue = this.ctx.generateExpression(exprPart, params);
-        if (this.ctx.isStringExpression(exprPart) || this.ctx.getVariableType(exprValue) === 'i8*') {
-          partValue = exprValue;
+        if (exprPartObj.type === 'boolean') {
+          partValue = this.booleanToString(exprValue);
+        } else if (this.ctx.isStringExpression(exprPart) || this.ctx.getVariableType(exprValue) === 'i8*') {
+          partValue = this.nullSafeString(exprValue);
         } else {
           partValue = convertNumberToString(this.ctx, exprValue);
         }
