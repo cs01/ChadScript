@@ -10,7 +10,6 @@ export interface BinaryExpressionGeneratorContext {
   nextLabel(prefix: string): string;
   getCurrentLabel(): string;
   emit(instruction: string): void;
-  syncStateToGenerators(): void;
   isStringExpression(expr: Expression): boolean;
   variableTypes: Map<string, string>;
   getVariableType(name: string): string | undefined;

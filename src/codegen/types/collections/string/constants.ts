@@ -98,5 +98,28 @@ export function convertNumberToString(ctx: IGeneratorContext, numValue: string):
   const copyResult = ctx.nextTemp();
   ctx.emit(`${copyResult} = call i8* @strcpy(i8* ${heapPtr}, i8* ${bufferPtr})`);
 
+  ctx.setVariableType(heapPtr, 'i8*');
+  return heapPtr;
+}
+
+export function convertNumberToFixed(ctx: IGeneratorContext, numValue: string, precisionValue: string): string {
+  const precisionI32 = ctx.nextTemp();
+  ctx.emit(`${precisionI32} = fptosi double ${precisionValue} to i32`);
+  const bufferSize = ctx.nextTemp();
+  ctx.emit(`${bufferSize} = alloca [64 x i8], align 1`);
+  const bufferPtr = ctx.nextTemp();
+  ctx.emit(`${bufferPtr} = getelementptr inbounds [64 x i8], [64 x i8]* ${bufferSize}, i64 0, i64 0`);
+  const formatStr = createStringConstant(ctx, '%.*f');
+  const snprintfResult = ctx.nextTemp();
+  ctx.emit(`${snprintfResult} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufferPtr}, i64 64, i8* ${formatStr}, i32 ${precisionI32}, double ${numValue})`);
+  const strLen = ctx.nextTemp();
+  ctx.emit(`${strLen} = call i64 @strlen(i8* ${bufferPtr})`);
+  const heapSize = ctx.nextTemp();
+  ctx.emit(`${heapSize} = add i64 ${strLen}, 1`);
+  const heapPtr = ctx.nextTemp();
+  ctx.emit(`${heapPtr} = call i8* @GC_malloc_atomic(i64 ${heapSize})`);
+  const copyResult2 = ctx.nextTemp();
+  ctx.emit(`${copyResult2} = call i8* @strcpy(i8* ${heapPtr}, i8* ${bufferPtr})`);
+  ctx.setVariableType(heapPtr, 'i8*');
   return heapPtr;
 }

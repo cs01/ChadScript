@@ -607,7 +607,6 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
       ctx.emitError(`Method ${method} not found in class ${className}`, expr.loc);
     }
 
-    ctx.syncStateToGenerators();
     const instanceClass = isInterfaceClass ? resolvedClass : className;
     return ctx.classGenGenerateMethodCall(instancePtr, instanceClass, method, expr.args, params);
   }
@@ -620,7 +619,6 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
         className = actualClass;
         const resolvedClass = findClassWithMethod(ctx, actualClass, method);
         if (resolvedClass) {
-          ctx.syncStateToGenerators();
           return ctx.classGenGenerateMethodCall(instancePtr, resolvedClass, method, expr.args, params);
         }
       }

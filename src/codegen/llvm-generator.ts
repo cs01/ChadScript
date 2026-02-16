@@ -922,6 +922,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.diagnostics = new DiagnosticEngine();
     this.diagnostics.setSourceCode(this.sourceCode);
     this.diagnostics.setFilename(this.filename);
+    if (typeof process !== 'undefined' && process.stderr && process.stderr.isTTY) {
+      this.diagnostics.setColor(true);
+    }
 
     this.typeContext = new TypeContext();
 

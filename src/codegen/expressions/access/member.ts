@@ -96,7 +96,6 @@ export interface MemberAccessGeneratorContext {
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   getVariableAlloca(name: string): string | undefined;
-  syncStateToGenerators(): void;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void;
   getObjectMetadata(obj: ObjectNode): ObjectMetadata;

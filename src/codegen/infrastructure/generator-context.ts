@@ -45,6 +45,7 @@ export interface IClassGenContext {
 export interface IStringGenerator {
   doCreateStringConstant(value: string): string;
   doConvertNumberToString(numValue: string): string;
+  doConvertNumberToFixed(numValue: string, precisionValue: string): string;
   doGenerateStringConcat(left: Expression, right: Expression, params: string[]): string;
   doGenerateStringConcatDirect(left: string, right: string): string;
   doGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string;
@@ -1254,12 +1255,10 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.currentLabel = label;
   }
 
-  syncStateToGenerators(): void {
-  }
-
   stringGen: IStringGenerator = {
     doCreateStringConstant: (_value: string): string => '%0',
     doConvertNumberToString: (_numValue: string): string => '%0',
+    doConvertNumberToFixed: (_numValue: string, _precisionValue: string): string => '%0',
     doGenerateStringConcat: (_left: Expression, _right: Expression, _params: string[]): string => '%0',
     doGenerateStringConcatDirect: (_left: string, _right: string): string => '%0',
     doGenerateSubstr: (_strPtr: string, _startIndex: string, _length: string | null): string => '%0',

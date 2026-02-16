@@ -6,7 +6,6 @@ import type { IStringGenerator, IStringMapGenerator, IMapGenerator, ISetGenerato
 export interface LiteralGeneratorContext {
   nextTemp(): string;
   emit(instruction: string): void;
-  syncStateToGenerators(): void;
   generateExpression(expr: Expression, params: string[]): string;
   setVariableType(name: string, type: string): void;
   setUsesPromises(value: boolean): void;

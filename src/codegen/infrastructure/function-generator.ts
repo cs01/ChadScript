@@ -13,7 +13,6 @@ interface LiftedFunction extends FunctionNode {
 
 export interface FunctionGeneratorContext {
   reset(): void;
-  syncStateToGenerators(): void;
   nextTemp(): string;
   emit(instruction: string): void;
   setCurrentLabel(label: string): void;

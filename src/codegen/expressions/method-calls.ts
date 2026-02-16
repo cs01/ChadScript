@@ -36,7 +36,7 @@ import type { IStringGenerator, IFsGenerator, IPathGenerator, IJsonGenerator, IM
 import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
 import { generateConsoleCallInline } from './method-calls/console.js';
 import { generateProcessExitInline, generateProcessCwdInline, handleProcessChdir, handleProcessKill, handleProcessUptime, handleProcessSyscallI32, isProcessStdoutOrStderr, handleProcessWrite } from './method-calls/process.js';
-import { handleSubstr, handleSubstring, handleConcat, handleRepeat, handlePadStart, handleSplit, handleStartsWith, handleEndsWith, handleTrim, handleTrimStart, handleTrimEnd, handleIndexOf, handleLastIndexOf, handleStringArrayIndexOf, handleStringArrayIncludes, handleStringIncludes, handleSlice, handleReplace, handleReplaceAll, handleNumberIsFinite, handleNumberIsNaN, handleNumberIsInteger, handleNumberToString, handleCharAt, handleCharCodeAt, handleToUpperCase, handleToLowerCase, handleMatch } from './method-calls/string-methods.js';
+import { handleSubstr, handleSubstring, handleConcat, handleRepeat, handlePadStart, handleSplit, handleStartsWith, handleEndsWith, handleTrim, handleTrimStart, handleTrimEnd, handleIndexOf, handleLastIndexOf, handleStringArrayIndexOf, handleStringArrayIncludes, handleStringIncludes, handleSlice, handleReplace, handleReplaceAll, handleNumberIsFinite, handleNumberIsNaN, handleNumberIsInteger, handleNumberToString, handleNumberToFixed, handleCharAt, handleCharCodeAt, handleToUpperCase, handleToLowerCase, handleMatch } from './method-calls/string-methods.js';
 import { generateObjectKeys, generateObjectValues, generateObjectEntries } from './method-calls/object-static.js';
 import { handlePromiseStaticMethods, handlePromiseThen } from './method-calls/promise-handlers.js';
 import { handleClassMethods, handleObjectMethods, getInterfaceFromAST } from './method-calls/class-dispatch.js';
@@ -52,7 +52,6 @@ export interface MethodCallGeneratorContext {
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
   generateExpression(expr: Expression, params: string[]): string;
-  syncStateToGenerators(): void;
   isStringExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
   isStringArrayExpression(expr: Expression): boolean;
@@ -609,6 +608,9 @@ export class MethodCallGenerator {
       if (!this.ctx.isStringExpression(expr.object) && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object)) {
         return handleNumberToString(this.ctx, expr, params);
       }
+    }
+    if (method === 'toFixed') {
+      return handleNumberToFixed(this.ctx, expr, params);
     }
     if (method === 'match') {
       if (this.ctx.isStringExpression(expr.object)) {

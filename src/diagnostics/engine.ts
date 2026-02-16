@@ -4,6 +4,13 @@ export const DIAG_ERROR = 0;
 export const DIAG_WARNING = 1;
 export const DIAG_NOTE = 2;
 
+const BOLD = '\x1b[1m';
+const RED = '\x1b[31m';
+const YELLOW = '\x1b[33m';
+const CYAN = '\x1b[36m';
+const GREEN = '\x1b[32m';
+const RESET = '\x1b[0m';
+
 export interface Diagnostic {
   severity: number;
   message: string;
@@ -15,6 +22,7 @@ export class DiagnosticEngine {
   private diagnostics: Diagnostic[] = [];
   private sourceCode: string = '';
   private filename: string = '<input>';
+  private colorEnabled: boolean = false;
 
   setSourceCode(code: string): void {
     this.sourceCode = code;
@@ -22,6 +30,10 @@ export class DiagnosticEngine {
 
   setFilename(name: string): void {
     this.filename = name;
+  }
+
+  setColor(enabled: boolean): void {
+    this.colorEnabled = enabled;
   }
 
   error(message: string, loc?: SourceLocation, suggestion?: string): void {
@@ -103,9 +115,27 @@ export class DiagnosticEngine {
     return 'note';
   }
 
+  private coloredSeverity(severity: number): string {
+    const label = this.severityLabel(severity);
+    if (!this.colorEnabled) return label;
+    if (severity === DIAG_ERROR) return BOLD + RED + label + RESET;
+    if (severity === DIAG_WARNING) return BOLD + YELLOW + label + RESET;
+    return BOLD + CYAN + label + RESET;
+  }
+
+  private bold(text: string): string {
+    if (!this.colorEnabled) return text;
+    return BOLD + text + RESET;
+  }
+
+  private green(text: string): string {
+    if (!this.colorEnabled) return text;
+    return GREEN + text + RESET;
+  }
+
   formatDiagnostic(diag: Diagnostic): string {
     let output = '';
-    const label = this.severityLabel(diag.severity);
+    const label = this.coloredSeverity(diag.severity);
 
     if (diag.loc && this.sourceCode) {
       const lineNum = diag.loc.line;
@@ -115,26 +145,26 @@ export class DiagnosticEngine {
       const lineNumStr = String(lineNum);
       const lineNumWidth = lineNumStr.length > 2 ? lineNumStr.length : 2;
 
-      output += this.filename + ':' + lineNum + ':' + (col + 1) + ': ' + label + ': ' + diag.message + '\n';
+      output += this.bold(this.filename + ':' + lineNum + ':' + (col + 1) + ':') + ' ' + label + ': ' + this.bold(diag.message) + '\n';
       output += ' '.repeat(lineNumWidth) + ' |' + '\n';
 
       const lineContent = allLines[lineNum - 1] || '';
       output += lineNumStr.padStart(lineNumWidth) + ' | ' + lineContent + '\n';
-      output += ' '.repeat(lineNumWidth) + ' | ' + ' '.repeat(col) + '^' + '\n';
+      output += ' '.repeat(lineNumWidth) + ' | ' + ' '.repeat(col) + this.green('^') + '\n';
 
       if (diag.suggestion) {
         output += ' '.repeat(lineNumWidth) + ' |' + '\n';
-        output += ' '.repeat(lineNumWidth) + ' = help: ' + diag.suggestion + '\n';
+        output += ' '.repeat(lineNumWidth) + ' = ' + this.bold('help:') + ' ' + diag.suggestion + '\n';
       }
     } else if (diag.loc) {
-      output += this.filename + ':' + diag.loc.line + ':' + (diag.loc.column + 1) + ': ' + label + ': ' + diag.message + '\n';
+      output += this.bold(this.filename + ':' + diag.loc.line + ':' + (diag.loc.column + 1) + ':') + ' ' + label + ': ' + this.bold(diag.message) + '\n';
       if (diag.suggestion) {
-        output += '  help: ' + diag.suggestion + '\n';
+        output += '  ' + this.bold('help:') + ' ' + diag.suggestion + '\n';
       }
     } else {
-      output += label + ': ' + diag.message + '\n';
+      output += label + ': ' + this.bold(diag.message) + '\n';
       if (diag.suggestion) {
-        output += '  help: ' + diag.suggestion + '\n';
+        output += '  ' + this.bold('help:') + ' ' + diag.suggestion + '\n';
       }
     }
 

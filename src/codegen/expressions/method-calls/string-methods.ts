@@ -10,7 +10,6 @@ function convertToI32(ctx: MethodCallGeneratorContext, value: string): string {
 }
 
 export function handleSubstr(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
@@ -25,7 +24,6 @@ export function handleSubstr(ctx: MethodCallGeneratorContext, expr: MethodCallNo
 }
 
 export function handleSubstring(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
@@ -47,7 +45,6 @@ export function handleSubstring(ctx: MethodCallGeneratorContext, expr: MethodCal
 }
 
 export function handleConcat(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   const ptrType = ctx.getVariableType(strPtr);
@@ -95,7 +92,6 @@ export function handleConcat(ctx: MethodCallGeneratorContext, expr: MethodCallNo
 }
 
 export function handleRepeat(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -108,7 +104,6 @@ export function handleRepeat(ctx: MethodCallGeneratorContext, expr: MethodCallNo
 }
 
 export function handlePadStart(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
@@ -125,7 +120,6 @@ export function handlePadStart(ctx: MethodCallGeneratorContext, expr: MethodCall
 }
 
 export function handleSplit(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -137,7 +131,6 @@ export function handleSplit(ctx: MethodCallGeneratorContext, expr: MethodCallNod
 }
 
 export function handleStartsWith(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   let strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
@@ -160,7 +153,6 @@ export function handleStartsWith(ctx: MethodCallGeneratorContext, expr: MethodCa
 }
 
 export function handleEndsWith(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -172,7 +164,6 @@ export function handleEndsWith(ctx: MethodCallGeneratorContext, expr: MethodCall
 }
 
 export function handleTrim(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 0) {
@@ -183,7 +174,6 @@ export function handleTrim(ctx: MethodCallGeneratorContext, expr: MethodCallNode
 }
 
 export function handleTrimStart(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 0) {
@@ -194,7 +184,6 @@ export function handleTrimStart(ctx: MethodCallGeneratorContext, expr: MethodCal
 }
 
 export function handleTrimEnd(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 0) {
@@ -205,7 +194,6 @@ export function handleTrimEnd(ctx: MethodCallGeneratorContext, expr: MethodCallN
 }
 
 export function handleIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -217,7 +205,6 @@ export function handleIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallN
 }
 
 export function handleLastIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -229,7 +216,6 @@ export function handleLastIndexOf(ctx: MethodCallGeneratorContext, expr: MethodC
 }
 
 export function handleStringArrayIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const arrayPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -333,7 +319,6 @@ export function handleStringArrayIncludes(ctx: MethodCallGeneratorContext, expr:
 }
 
 export function handleStringIncludes(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   const ptrType = ctx.getVariableType(strPtr);
@@ -373,7 +358,6 @@ export function handleStringIncludes(ctx: MethodCallGeneratorContext, expr: Meth
 }
 
 export function handleSlice(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   const ptrType = ctx.getVariableType(strPtr);
@@ -428,7 +412,6 @@ export function handleSlice(ctx: MethodCallGeneratorContext, expr: MethodCallNod
 }
 
 export function handleReplace(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 2) {
@@ -456,7 +439,6 @@ export function handleReplace(ctx: MethodCallGeneratorContext, expr: MethodCallN
 }
 
 export function handleReplaceAll(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 2) {
@@ -506,13 +488,20 @@ export function handleNumberIsInteger(ctx: MethodCallGeneratorContext, expr: Met
 }
 
 export function handleNumberToString(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const numValue = ctx.generateExpression(expr.object, params);
   return ctx.stringGen.doConvertNumberToString(numValue);
 }
 
+export function handleNumberToFixed(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+  if (expr.args.length < 1) {
+    return ctx.emitError('toFixed() requires 1 argument (digits)', expr.loc);
+  }
+  const numValue = ctx.generateExpression(expr.object, params);
+  const precisionValue = ctx.generateExpression(expr.args[0], params);
+  return ctx.stringGen.doConvertNumberToFixed(numValue, precisionValue);
+}
+
 export function handleCharAt(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -526,7 +515,6 @@ export function handleCharAt(ctx: MethodCallGeneratorContext, expr: MethodCallNo
 }
 
 export function handleCharCodeAt(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -540,19 +528,16 @@ export function handleCharCodeAt(ctx: MethodCallGeneratorContext, expr: MethodCa
 }
 
 export function handleToUpperCase(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
   return ctx.stringGen.doGenerateToUpperCase(strPtr);
 }
 
 export function handleToLowerCase(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
   return ctx.stringGen.doGenerateToLowerCase(strPtr);
 }
 
 export function handleMatch(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
-  ctx.syncStateToGenerators();
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
