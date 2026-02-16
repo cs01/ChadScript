@@ -1,4 +1,4 @@
-import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, InterfaceField, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode, CallNode, CommonField, BinaryNode, MapNode, SetNode, AwaitExpressionNode } from '../../ast/types.js';
+import { Expression, NewNode, AST, VariableDeclaration, InterfaceDeclaration, InterfaceField, ObjectNode, IndexAccessNode, MemberAccessNode, VariableNode, TypeAliasDeclaration, TypeAssertionNode, MethodCallNode, CallNode, CommonField, BinaryNode, MapNode, SetNode, AwaitExpressionNode, SourceLocation } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, ClosureMetadata, SetMetadata, Symbol as SymbolEntry, ObjectArrayMetadata, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createObjectMetadata, createObjectMetadataWithInterface, createObjectMetadataWithPointerAlloca, createObjectMetadataWithInterfaceAndPointerAlloca, createClassMetadata, createClosureMetadataSymbol, createMapMetadataSymbol, createSetMetadataSymbol, createObjectArrayMetadataSymbol, createUnionMetadata, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import { TypeResolver, UnionCommonFields } from './type-resolver/index.js';
@@ -82,7 +82,8 @@ export interface VariableAllocatorContext {
   getMethodCallArrayReturn(expr: Expression): string | null;
   getJSONParseInterface(expr: Expression): string | null;
   getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] };
-  formatCodegenError(message: string, suggestion?: string): string;
+  emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
+  emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void;
   getAst(): AST | undefined;
   hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;

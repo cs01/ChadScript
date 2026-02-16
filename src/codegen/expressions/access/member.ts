@@ -14,6 +14,7 @@ import {
   IndexAccessNode,
   TypeAssertionNode,
   FunctionParameter,
+  SourceLocation,
 } from '../../../ast/types.js';
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
@@ -96,7 +97,8 @@ export interface MemberAccessGeneratorContext {
   setVariableType(name: string, type: string): void;
   getVariableAlloca(name: string): string | undefined;
   syncStateToGenerators(): void;
-  formatCodegenError(message: string, suggestion?: string): string;
+  emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
+  emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void;
   getObjectMetadata(obj: ObjectNode): ObjectMetadata;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
@@ -3034,9 +3036,9 @@ export class MemberAccessGenerator {
     const propIndex = metadata.keys.indexOf(property);
     if (propIndex === -1) {
       const varType = this.ctx.getVariableType(varName) || 'unknown';
-      throw new Error(this.ctx.formatCodegenError(
+      this.ctx.emitError(
         `Property '${property}' not found on object '${varName}' (llvmType=${varType}, keys=${metadata.keys.length}). Available properties: ${metadata.keys.join(', ')}`
-      ));
+      );
     }
 
     const propType = metadata.types[propIndex];
@@ -3089,9 +3091,9 @@ export class MemberAccessGenerator {
         const f = fields[i] as { name: string; tsType: string; llvmType: string };
         fieldNames.push(f.name);
       }
-      throw new Error(this.ctx.formatCodegenError(
+      this.ctx.emitError(
         `Property '${property}' not found on interface '${interfaceType}'. Available properties: ${fieldNames.join(', ')}`
-      ));
+      );
     }
 
     const structType = `%${interfaceType}`;
@@ -3178,9 +3180,9 @@ export class MemberAccessGenerator {
   private accessObjectProperty(objPtr: string, property: string, keys: string[], types: string[], _tsTypes?: string[]): string {
     const propIndex = keys.indexOf(property);
     if (propIndex === -1) {
-      throw new Error(this.ctx.formatCodegenError(
+      this.ctx.emitError(
         `Property '${property}' not found. Available properties: ${keys.join(', ')}`
-      ));
+      );
     }
 
     const propType = types[propIndex];

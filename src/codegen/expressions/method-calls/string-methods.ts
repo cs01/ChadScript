@@ -14,7 +14,7 @@ export function handleSubstr(ctx: MethodCallGeneratorContext, expr: MethodCallNo
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
-    throw new Error(`substr() expects 1 or 2 arguments, got ${expr.args.length}`);
+    return ctx.emitError(`substr() expects 1 or 2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   const startIndexDouble = ctx.generateExpression(expr.args[0], params);
@@ -29,7 +29,7 @@ export function handleSubstring(ctx: MethodCallGeneratorContext, expr: MethodCal
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
-    throw new Error(`substring() expects 1 or 2 arguments, got ${expr.args.length}`);
+    return ctx.emitError(`substring() expects 1 or 2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   const startIndexDouble = ctx.generateExpression(expr.args[0], params);
@@ -81,7 +81,7 @@ export function handleConcat(ctx: MethodCallGeneratorContext, expr: MethodCallNo
   }
 
   if (expr.args.length < 1) {
-    throw new Error(`concat() expects at least 1 argument, got ${expr.args.length}`);
+    return ctx.emitError(`concat() expects at least 1 argument, got ${expr.args.length}`, expr.loc);
   }
 
   let result = strPtr;
@@ -99,7 +99,7 @@ export function handleRepeat(ctx: MethodCallGeneratorContext, expr: MethodCallNo
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    throw new Error(`repeat() expects 1 argument, got ${expr.args.length}`);
+    return ctx.emitError(`repeat() expects 1 argument, got ${expr.args.length}`, expr.loc);
   }
 
   const countDouble = ctx.generateExpression(expr.args[0], params);
@@ -112,7 +112,7 @@ export function handlePadStart(ctx: MethodCallGeneratorContext, expr: MethodCall
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
-    throw new Error(`padStart() expects 1 or 2 arguments, got ${expr.args.length}`);
+    return ctx.emitError(`padStart() expects 1 or 2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   const targetLengthDouble = ctx.generateExpression(expr.args[0], params);
@@ -129,7 +129,7 @@ export function handleSplit(ctx: MethodCallGeneratorContext, expr: MethodCallNod
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    throw new Error(`split() expects 1 argument, got ${expr.args.length}`);
+    return ctx.emitError(`split() expects 1 argument, got ${expr.args.length}`, expr.loc);
   }
 
   const delimiter = ctx.generateExpression(expr.args[0], params);
@@ -141,7 +141,7 @@ export function handleStartsWith(ctx: MethodCallGeneratorContext, expr: MethodCa
   let strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
-    throw new Error(`startsWith() expects 1-2 arguments, got ${expr.args.length}`);
+    return ctx.emitError(`startsWith() expects 1-2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   if (expr.args.length === 2) {
@@ -164,7 +164,7 @@ export function handleEndsWith(ctx: MethodCallGeneratorContext, expr: MethodCall
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    throw new Error(`endsWith() expects 1 argument, got ${expr.args.length}`);
+    return ctx.emitError(`endsWith() expects 1 argument, got ${expr.args.length}`, expr.loc);
   }
 
   const suffix = ctx.generateExpression(expr.args[0], params);
@@ -176,7 +176,7 @@ export function handleTrim(ctx: MethodCallGeneratorContext, expr: MethodCallNode
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 0) {
-    throw new Error(`trim() expects 0 arguments, got ${expr.args.length}`);
+    return ctx.emitError(`trim() expects 0 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   return ctx.stringGen.doGenerateTrim(strPtr);
@@ -187,7 +187,7 @@ export function handleTrimStart(ctx: MethodCallGeneratorContext, expr: MethodCal
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 0) {
-    throw new Error(`trimStart() expects 0 arguments, got ${expr.args.length}`);
+    return ctx.emitError(`trimStart() expects 0 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   return ctx.stringGen.doGenerateTrimStart(strPtr);
@@ -198,7 +198,7 @@ export function handleTrimEnd(ctx: MethodCallGeneratorContext, expr: MethodCallN
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 0) {
-    throw new Error(`trimEnd() expects 0 arguments, got ${expr.args.length}`);
+    return ctx.emitError(`trimEnd() expects 0 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   return ctx.stringGen.doGenerateTrimEnd(strPtr);
@@ -209,7 +209,7 @@ export function handleIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallN
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    throw new Error(`indexOf() expects 1 argument, got ${expr.args.length}`);
+    return ctx.emitError(`indexOf() expects 1 argument, got ${expr.args.length}`, expr.loc);
   }
 
   const substring = ctx.generateExpression(expr.args[0], params);
@@ -221,7 +221,7 @@ export function handleLastIndexOf(ctx: MethodCallGeneratorContext, expr: MethodC
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    throw new Error(`lastIndexOf() expects 1 argument, got ${expr.args.length}`);
+    return ctx.emitError(`lastIndexOf() expects 1 argument, got ${expr.args.length}`, expr.loc);
   }
 
   const substring = ctx.generateExpression(expr.args[0], params);
@@ -233,7 +233,7 @@ export function handleStringArrayIndexOf(ctx: MethodCallGeneratorContext, expr: 
   const arrayPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    throw new Error(`indexOf() expects 1 argument, got ${expr.args.length}`);
+    return ctx.emitError(`indexOf() expects 1 argument, got ${expr.args.length}`, expr.loc);
   }
 
   const searchValue = ctx.generateExpression(expr.args[0], params);
@@ -365,7 +365,7 @@ export function handleStringIncludes(ctx: MethodCallGeneratorContext, expr: Meth
   }
 
   if (expr.args.length !== 1) {
-    throw new Error(`includes() expects 1 argument, got ${expr.args.length}`);
+    return ctx.emitError(`includes() expects 1 argument, got ${expr.args.length}`, expr.loc);
   }
 
   const substring = ctx.generateExpression(expr.args[0], params);
@@ -405,7 +405,7 @@ export function handleSlice(ctx: MethodCallGeneratorContext, expr: MethodCallNod
   }
 
   if (expr.args.length > 2) {
-    throw new Error(`slice() expects 0-2 arguments, got ${expr.args.length}`);
+    return ctx.emitError(`slice() expects 0-2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   let startDouble: string;
@@ -432,7 +432,7 @@ export function handleReplace(ctx: MethodCallGeneratorContext, expr: MethodCallN
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 2) {
-    throw new Error(`replace() expects 2 arguments, got ${expr.args.length}`);
+    return ctx.emitError(`replace() expects 2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   const searchArg = expr.args[0];
@@ -460,7 +460,7 @@ export function handleReplaceAll(ctx: MethodCallGeneratorContext, expr: MethodCa
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 2) {
-    throw new Error(`replaceAll() expects 2 arguments, got ${expr.args.length}`);
+    return ctx.emitError(`replaceAll() expects 2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   const searchStr = ctx.generateExpression(expr.args[0], params);
@@ -516,7 +516,7 @@ export function handleCharAt(ctx: MethodCallGeneratorContext, expr: MethodCallNo
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    throw new Error('charAt() expects 1 argument, got ' + expr.args.length);
+    return ctx.emitError('charAt() expects 1 argument, got ' + expr.args.length, expr.loc);
   }
 
   const indexDouble = ctx.generateExpression(expr.args[0], params);
@@ -530,7 +530,7 @@ export function handleCharCodeAt(ctx: MethodCallGeneratorContext, expr: MethodCa
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    throw new Error('charCodeAt() expects 1 argument, got ' + expr.args.length);
+    return ctx.emitError('charCodeAt() expects 1 argument, got ' + expr.args.length, expr.loc);
   }
 
   const indexDouble = ctx.generateExpression(expr.args[0], params);
@@ -556,7 +556,7 @@ export function handleMatch(ctx: MethodCallGeneratorContext, expr: MethodCallNod
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    throw new Error('match() expects 1 argument (a regex), got ' + expr.args.length);
+    return ctx.emitError('match() expects 1 argument (a regex), got ' + expr.args.length, expr.loc);
   }
 
   const regexArg = expr.args[0];
