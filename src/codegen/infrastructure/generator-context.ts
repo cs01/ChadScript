@@ -18,7 +18,7 @@
  * ```
  */
 
-import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode, InterfaceDeclaration, FunctionNode, ClassNode, TypeAliasDeclaration, SourceLocation } from '../../ast/types.js';
+import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode, InterfaceDeclaration, FunctionNode, ClassNode, TypeAliasDeclaration, SourceLocation, VariableDeclaration } from '../../ast/types.js';
 import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { TypeResolver } from './type-resolver/index.js';
@@ -393,6 +393,17 @@ export interface IGeneratorContext {
    * Diagnostic engine for structured error/warning reporting
    */
   readonly diagnostics?: DiagnosticEngine;
+
+  /**
+   * Emit a structured codegen error with optional source location and suggestion.
+   * Always throws — return type is `never` so callers can write `return ctx.emitError(...)`.
+   */
+  emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
+
+  /**
+   * Emit a structured codegen warning with optional source location and suggestion.
+   */
+  emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void;
 
   /**
    * Type context for canonical interned type objects
@@ -822,6 +833,13 @@ export class MockGeneratorContext implements IGeneratorContext {
     if (this.output.length === 0) return '';
     const last = this.output[this.output.length - 1];
     return last ? last.trim() : '';
+  }
+
+  emitError(message: string, _loc?: SourceLocation, _suggestion?: string): never {
+    throw new Error(message);
+  }
+
+  emitWarning(_message: string, _loc?: SourceLocation, _suggestion?: string): void {
   }
 
   getExpressionType(expr: Expression): ResolvedType | undefined {

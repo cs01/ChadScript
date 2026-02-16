@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode, ArrowFunctionNode, UnaryNode, IndexAccessNode, AwaitExpressionNode, BinaryNode } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode, ArrowFunctionNode, UnaryNode, IndexAccessNode, AwaitExpressionNode, BinaryNode, SourceLocation } from '../ast/types.js';
 import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
 import { MapMetadata, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, ObjectMetadata } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
@@ -317,6 +317,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     return error;
+  }
+
+  public emitError(message: string, loc?: SourceLocation, suggestion?: string): never {
+    this.diagnostics.error(message, loc, suggestion);
+    const formatted = this.diagnostics.formatDiagnostic(
+      this.diagnostics.getDiagnostics()[this.diagnostics.getDiagnostics().length - 1]
+    );
+    throw new Error(formatted);
+  }
+
+  public emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void {
+    this.diagnostics.warning(message, loc, suggestion);
   }
 
   private extractInlineInterfaceType(returnType: string): string | null {
