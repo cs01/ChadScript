@@ -283,42 +283,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return result;
   }
 
-  // Helper: Format nice compiler errors (public for context pattern access)
-  public formatCodegenError(message: string, suggestion?: string, pos?: number): string {
-    let error = '';
-
-    // If we have source code and position, show the line with arrow
-    if (this.sourceCode && pos !== undefined) {
-      const lines = this.sourceCode.substring(0, pos).split('\n');
-      const lineNum = lines.length;
-      const col = lines[lines.length - 1].length;
-      const allLines = this.sourceCode.split('\n');
-
-      const lineNumStr = String(lineNum);
-      const lineNumWidth = lineNumStr.length > 2 ? lineNumStr.length : 2;
-
-      const filename = this.filename || '<input>';
-      error += `${filename}:${lineNum}:${col + 1}: error: ${message}` + '\n';
-      error += `${' '.repeat(lineNumWidth)} |` + '\n';
-
-      const lineContent = allLines[lineNum - 1] || '';
-      error += `${lineNumStr.padStart(lineNumWidth)} | ${lineContent}` + '\n';
-      error += `${' '.repeat(lineNumWidth)} | ${' '.repeat(col)}^` + '\n';
-
-      if (suggestion && suggestion.length > 0) {
-        error += `${' '.repeat(lineNumWidth)} |` + '\n';
-        error += `${' '.repeat(lineNumWidth)} = help: ${suggestion}` + '\n';
-      }
-    } else {
-      error = `error: ${message}` + '\n';
-      if (suggestion && suggestion.length > 0) {
-        error += `  help: ${suggestion}` + '\n';
-      }
-    }
-
-    return error;
-  }
-
   public emitError(message: string, loc?: SourceLocation, suggestion?: string): never {
     this.diagnostics.error(message, loc, suggestion);
     const formatted = this.diagnostics.formatDiagnostic(
@@ -2388,13 +2352,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   // Generate HTTP server - creates a TCP server that parses HTTP and calls handler
   public generateHttpServe(expr: CallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      throw new Error('httpServe() requires at least 2 arguments: port and handler function');
+      return this.emitError('httpServe() requires at least 2 arguments: port and handler function', expr.loc);
     }
 
     const portValue = this.generateExpression(expr.args[0], params);
     const handlerArg = expr.args[1];
     if (handlerArg.type !== 'variable') {
-      throw new Error('httpServe() handler must be a function reference');
+      return this.emitError('httpServe() handler must be a function reference', expr.loc);
     }
     const handlerName = (handlerArg as VariableNode).name;
 
@@ -2405,7 +2369,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (expr.args.length >= 3) {
       const wsHandlerArg = expr.args[2];
       if (wsHandlerArg.type !== 'variable') {
-        throw new Error('httpServe() WebSocket handler must be a function reference');
+        return this.emitError('httpServe() WebSocket handler must be a function reference', expr.loc);
       }
       const wsHandlerName = (wsHandlerArg as VariableNode).name;
       this.wsHandlers.push(wsHandlerName);
@@ -2425,7 +2389,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public generateWsBroadcast(expr: CallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('wsBroadcast() requires 1 argument: message string');
+      return this.emitError('wsBroadcast() requires 1 argument: message string', expr.loc);
     }
     const msgValue = this.generateExpression(expr.args[0], params);
     const len = this.nextTemp();
@@ -2446,11 +2410,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return null;
   }
 
-  // Sync state to sub-generators - share Maps/arrays by reference
-  // Note: Counters are already shared via bound methods (nextTemp, nextLabel, nextString)
-  // Note: ALL generators now use context pattern - no state syncing needed! 🎉
   public syncStateToGenerators() {
-    // No generators left to sync - all use context pattern!
-    // This method kept for backward compatibility but is now a no-op
   }
+
 }
