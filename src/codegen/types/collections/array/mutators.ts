@@ -10,6 +10,7 @@ interface ArrayMutatorContext {
   setVariableType(name: string, type: string): void;
   getDoubleSize(): string;
   generateExpression(expr: Expression, params: string[]): string;
+  ensureDouble(value: string): string;
 }
 
 /**
@@ -353,7 +354,8 @@ function generateIntArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value:
   // Store value at current length index
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentLen}`);
-  gen.emit(`store double ${value}, double* ${elemPtr}, !tbaa !4`);
+  const dblValue = gen.ensureDouble(value);
+  gen.emit(`store double ${dblValue}, double* ${elemPtr}, !tbaa !4`);
 
   // Increment length
   const newLen = gen.nextTemp();

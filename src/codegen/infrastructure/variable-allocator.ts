@@ -105,6 +105,7 @@ export interface VariableAllocatorContext {
   typeResolverResolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null;
   readonly typeResolver?: TypeResolver;
   readonly arrowFunctionGen: ArrowFunctionGeneratorLike;
+  ensureDouble(value: string): string;
 }
 
 export class VariableAllocator {
@@ -262,6 +263,9 @@ export class VariableAllocator {
         const loadedValue = this.ctx.nextTemp();
         this.ctx.emit(`${loadedValue} = load ${llvmType}, ${llvmType}* ${value}`);
         this.ctx.emit(`store ${llvmType} ${loadedValue}, ${llvmType}* ${globalPtr}`);
+      } else if (llvmType === 'double') {
+        const coerced = this.ctx.ensureDouble(value);
+        this.ctx.emit(`store double ${coerced}, double* ${globalPtr}`);
       } else {
         this.ctx.emit(`store ${llvmType} ${value}, ${llvmType}* ${globalPtr}`);
       }
@@ -1528,6 +1532,10 @@ export class VariableAllocator {
       if (valueType === 'i32') {
         const converted = this.ctx.nextTemp();
         this.ctx.emit(`${converted} = sitofp i32 ${value} to double`);
+        this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
+      } else if (valueType === 'i64') {
+        const converted = this.ctx.nextTemp();
+        this.ctx.emit(`${converted} = sitofp i64 ${value} to double`);
         this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
       } else {
         this.ctx.emit(`store double ${value}, double* ${allocaReg}`);

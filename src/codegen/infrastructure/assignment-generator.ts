@@ -42,6 +42,7 @@ export interface AssignmentGeneratorContext {
   getCurrentClassName(): string | null;
   readonly symbolTable: SymbolTable;
   getInterfaceProperties(name: string): { keys: string[]; types: string[] } | null;
+  ensureDouble(value: string): string;
 }
 
 export class AssignmentGenerator {
@@ -163,10 +164,11 @@ export class AssignmentGenerator {
     this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${propIndex}`);
 
     if (propType === 'i1') {
-      this.ctx.emit(`store double ${value}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+    } else if (propType === 'double') {
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
     } else {
-      const tbaaStore = propType === 'double' ? '!tbaa !4' : '!tbaa !5';
-      this.ctx.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}, ${tbaaStore}`);
+      this.ctx.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}, !tbaa !5`);
     }
   }
 
@@ -233,12 +235,12 @@ export class AssignmentGenerator {
         this.storeFieldValueDirect(fieldType, fieldTsType, fieldPtr, value, memberAccessValue);
       } else {
         this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 ${fieldIndex}`);
-        this.ctx.emit(`store double ${value}, double* ${fieldPtr}, !tbaa !4`);
+        this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
       }
     } else if (fields.length === 0) {
       const fieldPtr = this.ctx.nextTemp();
       this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 0`);
-      this.ctx.emit(`store double ${value}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
     } else {
       throw new Error(`Field '${property}' not found in class ${className}. Did you forget to declare it with a type annotation?`);
     }
@@ -254,12 +256,12 @@ export class AssignmentGenerator {
     if (fiTsType) {
       const enumResult = this.isEnumType(fiTsType);
       if (enumResult) {
-        this.ctx.emit(`store double ${value}, double* ${fieldPtr}, !tbaa !4`);
+        this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
         return;
       }
     }
     if (fiType === null || fiType === undefined) {
-      this.ctx.emit(`store double ${value}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
       return;
     }
 
@@ -294,7 +296,7 @@ export class AssignmentGenerator {
     } else if (fiType.endsWith('[]')) {
       this.ctx.emit(`store %Array* ${value}, %Array** ${fieldPtr}, !tbaa !5`);
     } else if (fiType === 'boolean') {
-      this.ctx.emit(`store double ${value}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<string,')) {
       this.ctx.emit(`store %StringMap* ${value}, %StringMap** ${fieldPtr}, !tbaa !5`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<')) {
@@ -306,7 +308,7 @@ export class AssignmentGenerator {
     } else if (hasTsType && fiTsType && fiTsType !== 'number' && fiTsType !== 'boolean' && !this.isEnumType(fiTsType)) {
       this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}, !tbaa !5`);
     } else {
-      this.ctx.emit(`store double ${value}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
     }
   }
 
@@ -320,7 +322,7 @@ export class AssignmentGenerator {
     const fiType = fi.type;
 
     if (fiType === null || fiType === undefined) {
-      this.ctx.emit(`store double ${value}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
       return;
     }
 
@@ -356,7 +358,7 @@ export class AssignmentGenerator {
     } else if (fiType.endsWith('[]')) {
       this.ctx.emit(`store %Array* ${value}, %Array** ${fieldPtr}, !tbaa !5`);
     } else if (fiType === 'boolean') {
-      this.ctx.emit(`store double ${value}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<string,')) {
       this.ctx.emit(`store %StringMap* ${value}, %StringMap** ${fieldPtr}, !tbaa !5`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith('Map<')) {
@@ -368,7 +370,7 @@ export class AssignmentGenerator {
     } else if (hasTsType && fiTsType && fiTsType !== 'number' && fiTsType !== 'boolean' && !this.isEnumType(fiTsType)) {
       this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}, !tbaa !5`);
     } else {
-      this.ctx.emit(`store double ${value}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
     }
   }
 
@@ -392,6 +394,9 @@ export class AssignmentGenerator {
     if (indexType === 'double' || indexType === undefined) {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    } else if (indexType === 'i64') {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
     }
 
     const structTypeFields = elementInfo.types.join(', ');
@@ -420,8 +425,11 @@ export class AssignmentGenerator {
     this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${elemTyped}, i32 0, i32 ${propIndex}`);
 
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
-    const tbaaStore = propType === 'double' ? '!tbaa !4' : '!tbaa !5';
-    this.ctx.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}, ${tbaaStore}`);
+    if (propType === 'double') {
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+    } else {
+      this.ctx.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}, !tbaa !5`);
+    }
   }
 
   private getObjectArrayElementInfoForAssignment(arrayExpr: Expression): { keys: string[]; types: string[]; tsTypes: string[] } | null {
@@ -470,8 +478,9 @@ export class AssignmentGenerator {
     const arrayPtr = this.ctx.generateExpression(arrayExpr, params);
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
 
+    const dblVal = this.ctx.ensureDouble(value);
     const valueI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${valueI32} = fptosi double ${value} to i32`);
+    this.ctx.emit(`${valueI32} = fptosi double ${dblVal} to i32`);
 
     let arrayType = '%StringArray';
     const currentClass = this.ctx.getCurrentClassName();

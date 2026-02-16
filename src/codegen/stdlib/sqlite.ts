@@ -134,9 +134,10 @@ export class SqliteGenerator {
       const resolvedType = this.ctx.getVariableType(val);
 
       let strVal: string;
-      if (resolvedType === 'double') {
+      if (resolvedType === 'double' || resolvedType === 'i64') {
+        const dblVal = this.ctx.ensureDouble(val);
         strVal = this.ctx.nextTemp();
-        this.ctx.emit(`${strVal} = call i8* @__double_to_string(double ${val})`);
+        this.ctx.emit(`${strVal} = call i8* @__double_to_string(double ${dblVal})`);
       } else {
         strVal = val;
       }

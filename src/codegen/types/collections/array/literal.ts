@@ -13,6 +13,7 @@ interface ArrayLiteralContext {
   setVariableType(name: string, type: string): void;
   generateExpression(expr: Expression, params: string[]): string;
   getExpectedArrayElementType(): string | null;
+  ensureDouble(value: string): string;
 }
 
 /**
@@ -222,9 +223,10 @@ export function generateArrayLiteral(
     // Store each element
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const elemValue = (i === 0 && firstElemValue) ? firstElemValue : gen.generateExpression(arrExpr.elements[i], params);
+      const dblElem = gen.ensureDouble(elemValue);
       const elemPtr = gen.nextTemp();
       gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
-      gen.emit(`store double ${elemValue}, double* ${elemPtr}`);
+      gen.emit(`store double ${dblElem}, double* ${elemPtr}`);
     }
 
     // Store data pointer in array struct (field 0)

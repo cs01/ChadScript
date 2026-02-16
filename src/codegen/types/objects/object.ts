@@ -140,6 +140,9 @@ export class ObjectGenerator {
         const valPtr = this.nextTemp();
         this.emit(`${valPtr} = inttoptr i64 ${valI64} to ${field.llvmType}`);
         this.emit(`store ${field.llvmType} ${valPtr}, ${field.llvmType}* ${fieldPtr}`);
+      } else if (field.llvmType === 'double') {
+        const dblValue = this.ctx.ensureDouble(field.value);
+        this.emit(`store double ${dblValue}, double* ${fieldPtr}`);
       } else {
         this.emit(`store ${field.llvmType} ${field.value}, ${field.llvmType}* ${fieldPtr}`);
       }
@@ -200,16 +203,20 @@ export class ObjectGenerator {
           const i1Value = this.nextTemp();
           this.emit(`${i1Value} = fcmp one double ${valueReg}, 0.0`);
           finalValue = i1Value;
-        } else if (fieldLlvmType === 'double' && valueType.indexOf('*') !== -1) {
-          const isTreeSitterType = valueType === '%TSNode*' || valueType === '%TSTree*' || valueType === '%TSParser*' || valueType === '%TSLanguage*';
-          if (!isTreeSitterType) {
-            const cmpNull = this.nextTemp();
-            this.emit(`${cmpNull} = icmp ne ${valueType} ${valueReg}, null`);
-            const zext = this.nextTemp();
-            this.emit(`${zext} = zext i1 ${cmpNull} to i32`);
-            const asDouble = this.nextTemp();
-            this.emit(`${asDouble} = sitofp i32 ${zext} to double`);
-            finalValue = asDouble;
+        } else if (fieldLlvmType === 'double') {
+          if (valueType.indexOf('*') !== -1) {
+            const isTreeSitterType = valueType === '%TSNode*' || valueType === '%TSTree*' || valueType === '%TSParser*' || valueType === '%TSLanguage*';
+            if (!isTreeSitterType) {
+              const cmpNull = this.nextTemp();
+              this.emit(`${cmpNull} = icmp ne ${valueType} ${valueReg}, null`);
+              const zext = this.nextTemp();
+              this.emit(`${zext} = zext i1 ${cmpNull} to i32`);
+              const asDouble = this.nextTemp();
+              this.emit(`${asDouble} = sitofp i32 ${zext} to double`);
+              finalValue = asDouble;
+            }
+          } else {
+            finalValue = this.ctx.ensureDouble(valueReg);
           }
         }
       }
@@ -237,6 +244,9 @@ export class ObjectGenerator {
         const valPtr = this.nextTemp();
         this.emit(`${valPtr} = inttoptr i64 ${valI64} to ${field.llvmType}`);
         this.emit(`store ${field.llvmType} ${valPtr}, ${field.llvmType}* ${fieldPtr}`);
+      } else if (field.llvmType === 'double') {
+        const dblValue = this.ctx.ensureDouble(field.value);
+        this.emit(`store double ${dblValue}, double* ${fieldPtr}`);
       } else {
         this.emit(`store ${field.llvmType} ${field.value}, ${field.llvmType}* ${fieldPtr}`);
       }
@@ -270,7 +280,7 @@ export class ObjectGenerator {
         llvmType = '%StringSet*';
       } else if (generatedType === '%Set' || generatedType === '%Set*') {
         llvmType = '%Set*';
-      } else if (generatedType && generatedType !== 'double') {
+      } else if (generatedType && generatedType !== 'double' && generatedType !== 'i64') {
         llvmType = generatedType;
       } else if (prop.value.type === 'string' || this.ctx.isStringExpression(prop.value)) {
         llvmType = 'i8*';
@@ -293,6 +303,8 @@ export class ObjectGenerator {
         const i1Value = this.nextTemp();
         this.emit(`${i1Value} = fcmp one double ${valueReg}, 0.0`);
         finalValue = i1Value;
+      } else if (llvmType === 'double') {
+        finalValue = this.ctx.ensureDouble(valueReg);
       }
 
       fieldTypes.push({ key, llvmType, value: finalValue });

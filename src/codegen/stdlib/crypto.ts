@@ -79,9 +79,10 @@ export class CryptoGenerator {
     }
 
     const countDouble = this.ctx.generateExpression(expr.args[0], params);
+    const dblCount = this.ctx.ensureDouble(countDouble);
 
     const countI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${countI32} = fptosi double ${countDouble} to i32`);
+    this.ctx.emit(`${countI32} = fptosi double ${dblCount} to i32`);
 
     const countI64 = this.ctx.nextTemp();
     this.ctx.emit(`${countI64} = sext i32 ${countI32} to i64`);

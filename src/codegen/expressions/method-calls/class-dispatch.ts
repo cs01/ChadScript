@@ -694,7 +694,11 @@ export function handleObjectMethods(ctx: MethodCallGeneratorContext, expr: Metho
     const arg = expr.args[i];
     const result = ctx.generateExpression(arg, params);
     const paramType = paramTypes[i] || 'double';
-    argParts.push(paramType + ' ' + result);
+    if (paramType === 'double') {
+      argParts.push('double ' + ctx.ensureDouble(result));
+    } else {
+      argParts.push(paramType + ' ' + result);
+    }
   }
   const args = argParts.join(', ');
 

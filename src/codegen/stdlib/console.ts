@@ -128,6 +128,7 @@ export class ConsoleGenerator {
    * Generate code to print a number value
    */
   private generateNumberPrint(method: string, argValue: string): string {
+    const dblValue = this.ctx.ensureDouble(argValue);
     const formatStr = this.ctx.createStringConstant('%.15g\n');
     const temp = this.ctx.nextTemp();
 
@@ -135,11 +136,11 @@ export class ConsoleGenerator {
       // fprintf(stderr, "%g\n", value)
       this.ctx.emit(`${temp} = load i8*, i8** @stderr`);
       const temp2 = this.ctx.nextTemp();
-      this.ctx.emit(`${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, double ${argValue})`);
+      this.ctx.emit(`${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, double ${dblValue})`);
       return temp2;
     } else {
       // printf("%g\n", value)
-      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, double ${argValue})`);
+      this.ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${formatStr}, double ${dblValue})`);
       const flushTemp = this.ctx.nextTemp();
       this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* null)`);
       return temp;

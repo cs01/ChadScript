@@ -92,12 +92,12 @@ export class MapGenerator {
       // Store key
       const keyElemPtr = this.nextTemp();
       this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${i}`);
-      this.emit(`store double ${keyValue}, double* ${keyElemPtr}`);
+      this.emit(`store double ${this.ctx.ensureDouble(keyValue)}, double* ${keyElemPtr}`);
 
       // Store value
       const valueElemPtr = this.nextTemp();
       this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${i}`);
-      this.emit(`store double ${valueValue}, double* ${valueElemPtr}`);
+      this.emit(`store double ${this.ctx.ensureDouble(valueValue)}, double* ${valueElemPtr}`);
     }
 
     this.ctx.setVariableType(mapPtr, '%Map*');
@@ -152,8 +152,9 @@ export class MapGenerator {
     this.emit(`${keyElemPtrSearch} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
     const keyAtIndex = this.nextTemp();
     this.emit(`${keyAtIndex} = load double, double* ${keyElemPtrSearch}`);
+    const dblKeyValue = this.ctx.ensureDouble(keyValue);
     const keyMatch = this.nextTemp();
-    this.emit(`${keyMatch} = fcmp oeq double ${keyAtIndex}, ${keyValue}`);
+    this.emit(`${keyMatch} = fcmp oeq double ${keyAtIndex}, ${dblKeyValue}`);
     this.emit(`br i1 ${keyMatch}, label %${foundLabel}, label %${searchLoopLabel}_next`);
 
     this.emit(`${searchLoopLabel}_next:`);
@@ -167,7 +168,7 @@ export class MapGenerator {
     this.emit(`${foundIdx} = load i32, i32* ${indexReg}`);
     const valueElemPtrFound = this.nextTemp();
     this.emit(`${valueElemPtrFound} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${foundIdx}`);
-    this.emit(`store double ${valueValue}, double* ${valueElemPtrFound}`);
+    this.emit(`store double ${this.ctx.ensureDouble(valueValue)}, double* ${valueElemPtrFound}`);
     this.emit(`br label %${endLabel}`);
 
     this.emit(`${notFoundLabel}:`);
@@ -224,11 +225,11 @@ export class MapGenerator {
     this.emit(`${insertValuesPtr} = load double*, double** ${valuesFieldPtr}`);
     const keyElemPtr = this.nextTemp();
     this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${insertKeysPtr}, i32 ${currentSize}`);
-    this.emit(`store double ${keyValue}, double* ${keyElemPtr}`);
+    this.emit(`store double ${this.ctx.ensureDouble(keyValue)}, double* ${keyElemPtr}`);
 
     const valueElemPtr = this.nextTemp();
     this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${insertValuesPtr}, i32 ${currentSize}`);
-    this.emit(`store double ${valueValue}, double* ${valueElemPtr}`);
+    this.emit(`store double ${this.ctx.ensureDouble(valueValue)}, double* ${valueElemPtr}`);
 
     const newSize = this.nextTemp();
     this.emit(`${newSize} = add i32 ${currentSize}, 1`);
@@ -297,8 +298,9 @@ export class MapGenerator {
     this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
     const keyValue = this.nextTemp();
     this.emit(`${keyValue} = load double, double* ${keyElemPtr}`);
+    const dblKeyToFind = this.ctx.ensureDouble(keyToFind);
     const keyMatch = this.nextTemp();
-    this.emit(`${keyMatch} = fcmp oeq double ${keyValue}, ${keyToFind}`);
+    this.emit(`${keyMatch} = fcmp oeq double ${keyValue}, ${dblKeyToFind}`);
     this.emit(`br i1 ${keyMatch}, label %${foundLabel}, label %${loopLabel}_next`);
 
     this.emit(`${foundLabel}:`);
@@ -372,8 +374,9 @@ export class MapGenerator {
     this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
     const keyValue = this.nextTemp();
     this.emit(`${keyValue} = load double, double* ${keyElemPtr}`);
+    const dblKeyToFind = this.ctx.ensureDouble(keyToFind);
     const keyMatch = this.nextTemp();
-    this.emit(`${keyMatch} = fcmp oeq double ${keyValue}, ${keyToFind}`);
+    this.emit(`${keyMatch} = fcmp oeq double ${keyValue}, ${dblKeyToFind}`);
     this.emit(`br i1 ${keyMatch}, label %${foundLabel}, label %${loopLabel}_next`);
 
     this.emit(`${foundLabel}:`);
@@ -461,8 +464,9 @@ export class MapGenerator {
     this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
     const keyValue = this.nextTemp();
     this.emit(`${keyValue} = load double, double* ${keyElemPtr}`);
+    const dblKeyToFind = this.ctx.ensureDouble(keyToFind);
     const keyMatch = this.nextTemp();
-    this.emit(`${keyMatch} = fcmp oeq double ${keyValue}, ${keyToFind}`);
+    this.emit(`${keyMatch} = fcmp oeq double ${keyValue}, ${dblKeyToFind}`);
     this.emit(`br i1 ${keyMatch}, label %${foundLabel}, label %${loopLabel}_next`);
 
     this.emit(`${foundLabel}:`);

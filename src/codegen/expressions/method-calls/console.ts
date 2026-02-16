@@ -26,7 +26,8 @@ function emitPrintStrNoNl(ctx: MethodCallGeneratorContext, useStderr: boolean, v
 }
 
 function emitPrintNumNoNl(ctx: MethodCallGeneratorContext, useStderr: boolean, value: string): string {
-  return emitPrint(ctx, useStderr, `i8* getelementptr([6 x i8], [6 x i8]* @.str.numfmt_no_nl, i32 0, i32 0)`, `, double ${value}`);
+  const dbl = ctx.ensureDouble(value);
+  return emitPrint(ctx, useStderr, `i8* getelementptr([6 x i8], [6 x i8]* @.str.numfmt_no_nl, i32 0, i32 0)`, `, double ${dbl}`);
 }
 
 function emitArrayPrint(ctx: MethodCallGeneratorContext, useStderr: boolean, arrayPtr: string, arrayType: 'Array' | 'StringArray' | 'ObjectArray'): string {
@@ -175,17 +176,18 @@ export function generateConsoleCallInline(ctx: MethodCallGeneratorContext, expr:
     }
   } else if (argTyped.type === 'number') {
     const argValue = ctx.generateExpression(arg as Expression, params);
+    const dblValue = ctx.ensureDouble(argValue);
     if (useStderr) {
       const stderrPtr = ctx.nextTemp();
       ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
       const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+      ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${dblValue})`);
       const flushTemp = ctx.nextTemp();
       ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
       return temp;
     } else {
       const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+      ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${dblValue})`);
       return temp;
     }
   } else {
@@ -220,16 +222,18 @@ export function generateConsoleCallInline(ctx: MethodCallGeneratorContext, expr:
     }
 
     if (useStderr) {
+      const dblValue = ctx.ensureDouble(argValue);
       const stderrPtr = ctx.nextTemp();
       ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
       const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+      ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${dblValue})`);
       const flushTemp = ctx.nextTemp();
       ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
       return temp;
     } else {
+      const dblValue = ctx.ensureDouble(argValue);
       const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${argValue})`);
+      ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${dblValue})`);
       return temp;
     }
   }

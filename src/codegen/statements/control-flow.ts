@@ -208,18 +208,25 @@ export class ControlFlowGenerator {
           throw new Error('Variable declaration in for loop must have an initializer');
         }
         const value = this.ctx.generateExpression(initVarDecl.value, params);
+        const dblValue = this.ctx.ensureDouble(value);
         const allocaReg = this.ctx.nextAllocaReg(initVarDecl.name);
         this.ctx.defineVariable(initVarDecl.name, allocaReg, 'double', SymbolKind.Number, 'local');
         this.emit(`${allocaReg} = alloca double`);
-        this.emit(`store double ${value}, double* ${allocaReg}`);
+        this.emit(`store double ${dblValue}, double* ${allocaReg}`);
       } else if (initBase.type === 'assignment') {
         const initAssign = forStmt.init as { type: string; name: string; value: Expression };
-        const value = this.ctx.generateExpression(initAssign.value, params);
+        let value = this.ctx.generateExpression(initAssign.value, params);
         const allocaReg = this.ctx.getVariableAlloca(initAssign.name);
         if (!allocaReg) {
           throw new Error(`Variable ${initAssign.name} not found`);
         }
         const varType = this.ctx.getVariableType(initAssign.name) || 'double';
+        const valType = this.ctx.getVariableType(value);
+        if (varType === 'double' && valType === 'i64') {
+          value = this.ctx.ensureDouble(value);
+        } else if (varType === 'i64' && valType === 'double') {
+          value = this.ctx.ensureI64(value);
+        }
         this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
       }
     }
@@ -268,12 +275,18 @@ export class ControlFlowGenerator {
         if (!updateName) {
           throw new Error('Assignment update has no name');
         }
-        const value = this.ctx.generateExpression(updateTyped.value, params);
+        let value = this.ctx.generateExpression(updateTyped.value, params);
         const allocaReg = this.ctx.getVariableAlloca(updateName);
         if (!allocaReg) {
           throw new Error(`Variable ${updateName} not found in update`);
         }
         const varType = this.ctx.getVariableType(updateName) || 'double';
+        const valType = this.ctx.getVariableType(value);
+        if (varType === 'double' && valType === 'i64') {
+          value = this.ctx.ensureDouble(value);
+        } else if (varType === 'i64' && valType === 'double') {
+          value = this.ctx.ensureI64(value);
+        }
         this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
       } else {
         // It's an expression (like i++)
@@ -1360,6 +1373,21 @@ export class ControlFlowGenerator {
 
   private coerceToTypeNoPhi(value: string, fromType: string, toType: string): string {
     if (fromType === toType) return value;
+    if (toType === 'double' && fromType === 'i64') {
+      const coerced = this.nextTemp();
+      this.emit(`${coerced} = sitofp i64 ${value} to double`);
+      return coerced;
+    }
+    if (toType === 'i64' && fromType === 'double') {
+      const coerced = this.nextTemp();
+      this.emit(`${coerced} = fptosi double ${value} to i64`);
+      return coerced;
+    }
+    if (toType.indexOf('*') !== -1 && fromType === 'i64') {
+      const coerced = this.nextTemp();
+      this.emit(`${coerced} = inttoptr i64 ${value} to ${toType}`);
+      return coerced;
+    }
     if (toType.indexOf('*') !== -1 && fromType === 'double') {
       const cmp = this.nextTemp();
       this.emit(`${cmp} = fcmp one double ${value}, 0.0`);
@@ -1925,8 +1953,10 @@ export class ControlFlowGenerator {
           const nextLabel = (checkIndex < testCaseCount - 1) ? checkLabels[checkIndex] : defaultLabel;
           this.emit(`br i1 ${cmpResult}, label %${caseLabels[i]}, label %${nextLabel}`);
         } else {
+          const dblDiscriminant = this.ctx.ensureDouble(discriminantValue);
+          const dblTest = this.ctx.ensureDouble(testValue);
           const cmpResult = this.nextTemp();
-          this.emit(`${cmpResult} = fcmp oeq double ${discriminantValue}, ${testValue}`);
+          this.emit(`${cmpResult} = fcmp oeq double ${dblDiscriminant}, ${dblTest}`);
           const nextLabel = (checkIndex < testCaseCount - 1) ? checkLabels[checkIndex] : defaultLabel;
           this.emit(`br i1 ${cmpResult}, label %${caseLabels[i]}, label %${nextLabel}`);
         }

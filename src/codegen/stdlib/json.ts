@@ -453,13 +453,14 @@ export class JsonGenerator {
 
   private stringifyNumber(arg: Expression, params: string[]): string {
     const numValue = this.ctx.generateExpression(arg, params);
+    const dblValue = this.ctx.ensureDouble(numValue);
 
     const buffer = this.ctx.nextTemp();
     this.ctx.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 30)`);
 
     const formatStr = this.ctx.createStringConstant('%f');
     const sprintfResult = this.ctx.nextTemp();
-    this.ctx.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${numValue})`);
+    this.ctx.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${dblValue})`);
 
     this.ctx.setVariableType(buffer, 'i8*');
     return buffer;

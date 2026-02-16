@@ -7,8 +7,9 @@ export function generateProcessExitInline(ctx: MethodCallGeneratorContext, expr:
   if (expr.args.length > 0) {
     const arg = expr.args[0];
     const exprResult = ctx.generateExpression(arg as Expression, params);
+    const dblResult = ctx.ensureDouble(exprResult);
     const intTemp = ctx.nextTemp();
-    ctx.emit(`${intTemp} = fptosi double ${exprResult} to i32`);
+    ctx.emit(`${intTemp} = fptosi double ${dblResult} to i32`);
     ctx.emit(`call void @exit(i32 ${intTemp})`);
   } else {
     ctx.emit(`call void @exit(i32 0)`);
@@ -42,14 +43,16 @@ export function handleProcessKill(ctx: MethodCallGeneratorContext, expr: MethodC
     return ctx.emitError('process.kill() requires at least 1 argument', expr.loc);
   }
   const pidValue = ctx.generateExpression(expr.args[0], params);
+  const dblPid = ctx.ensureDouble(pidValue);
   const pidI32 = ctx.nextTemp();
-  ctx.emit(`${pidI32} = fptosi double ${pidValue} to i32`);
+  ctx.emit(`${pidI32} = fptosi double ${dblPid} to i32`);
 
   let sigI32 = '15';
   if (expr.args.length >= 2) {
     const sigValue = ctx.generateExpression(expr.args[1], params);
+    const dblSig = ctx.ensureDouble(sigValue);
     const sigTemp = ctx.nextTemp();
-    ctx.emit(`${sigTemp} = fptosi double ${sigValue} to i32`);
+    ctx.emit(`${sigTemp} = fptosi double ${dblSig} to i32`);
     sigI32 = sigTemp;
   }
 
@@ -108,7 +111,7 @@ export function handleProcessWrite(ctx: MethodCallGeneratorContext, expr: Method
       ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([3 x i8], [3 x i8]* @.str.strfmt_no_nl, i32 0, i32 0), i8* ${argValue})`);
     } else {
       const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([6 x i8], [6 x i8]* @.str.numfmt_no_nl, i32 0, i32 0), double ${argValue})`);
+      ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([6 x i8], [6 x i8]* @.str.numfmt_no_nl, i32 0, i32 0), double ${ctx.ensureDouble(argValue)})`);
     }
     const flushTemp = ctx.nextTemp();
     ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
@@ -118,7 +121,7 @@ export function handleProcessWrite(ctx: MethodCallGeneratorContext, expr: Method
       ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([3 x i8], [3 x i8]* @.str.strfmt_no_nl, i32 0, i32 0), i8* ${argValue})`);
     } else {
       const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([6 x i8], [6 x i8]* @.str.numfmt_no_nl, i32 0, i32 0), double ${argValue})`);
+      ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([6 x i8], [6 x i8]* @.str.numfmt_no_nl, i32 0, i32 0), double ${ctx.ensureDouble(argValue)})`);
     }
     const flushTemp = ctx.nextTemp();
     ctx.emit(`${flushTemp} = call i32 @fflush(i8* null)`);

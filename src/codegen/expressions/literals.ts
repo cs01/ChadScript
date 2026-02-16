@@ -8,11 +8,13 @@ export interface LiteralGeneratorContext {
   emit(instruction: string): void;
   generateExpression(expr: Expression, params: string[]): string;
   setVariableType(name: string, type: string): void;
+  getVariableType(name: string): string | undefined;
   setUsesPromises(value: boolean): void;
   getThisPointer(): string | null;
   getCurrentDeclaredMapType(): string | undefined;
   getCurrentDeclaredSetType(): string | undefined;
   classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string;
+  ensureDouble(value: string): string;
   readonly stringGen: IStringGenerator;
   readonly stringMapGen: IStringMapGenerator;
   readonly arrayGen: IArrayGenerator;
@@ -53,10 +55,11 @@ export class LiteralExpressionGenerator {
   generateNumber(value: number): string {
     const isInteger = (value % 1 === 0);
 
-    if (isInteger && value >= -2147483648 && value <= 2147483647) {
+    if (isInteger && value >= -9007199254740991 && value <= 9007199254740991) {
       const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = sitofp i32 ${value} to double`);
-      this.ctx.setVariableType(temp, 'double');
+      const intStr = value.toFixed(0);
+      this.ctx.emit(`${temp} = add i64 ${intStr}, 0`);
+      this.ctx.setVariableType(temp, 'i64');
       return temp;
     } else {
       const s = String(value);
@@ -74,8 +77,8 @@ export class LiteralExpressionGenerator {
   generateBoolean(value: boolean): string {
     const boolValue = value ? 1 : 0;
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = sitofp i32 ${boolValue} to double`);
-    this.ctx.setVariableType(temp, 'double');
+    this.ctx.emit(`${temp} = add i64 ${boolValue}, 0`);
+    this.ctx.setVariableType(temp, 'i64');
     return temp;
   }
 

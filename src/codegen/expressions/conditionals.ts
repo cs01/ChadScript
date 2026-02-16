@@ -43,6 +43,9 @@ export class ConditionalExpressionGenerator {
       this.emit(`${condDouble} = sitofp i32 ${condValue} to double`);
       condBool = this.nextTemp();
       this.emit(`${condBool} = fcmp one double ${condDouble}, 0.0`);
+    } else if (condValueType === 'i64') {
+      condBool = this.nextTemp();
+      this.emit(`${condBool} = icmp ne i64 ${condValue}, 0`);
     } else {
       condBool = this.nextTemp();
       this.emit(`${condBool} = fcmp one double ${condValue}, 0.0`);
@@ -86,6 +89,8 @@ export class ConditionalExpressionGenerator {
       resultType = 'i8*';
     } else if (trueType === 'double' || falseType === 'double') {
       resultType = 'double';
+    } else if (trueType === 'i64' || falseType === 'i64') {
+      resultType = 'i64';
     } else {
       resultType = 'i32';
     }
@@ -95,12 +100,20 @@ export class ConditionalExpressionGenerator {
     if (resultType === 'double' && trueType === 'i32') {
       trueVal = this.nextTemp();
       this.emit(`${trueVal} = sitofp i32 ${trueValue} to double`);
+    } else if (resultType === 'double' && trueType === 'i64') {
+      trueVal = this.nextTemp();
+      this.emit(`${trueVal} = sitofp i64 ${trueValue} to double`);
     } else if (resultType === 'i8*' && trueType === 'double') {
       trueVal = this.nextTemp();
       this.emit(`${trueVal} = call i8* @__double_to_string(double ${trueValue})`);
     } else if (resultType === 'i8*' && trueType === 'i32') {
       const asDouble = this.nextTemp();
       this.emit(`${asDouble} = sitofp i32 ${trueValue} to double`);
+      trueVal = this.nextTemp();
+      this.emit(`${trueVal} = call i8* @__double_to_string(double ${asDouble})`);
+    } else if (resultType === 'i8*' && trueType === 'i64') {
+      const asDouble = this.nextTemp();
+      this.emit(`${asDouble} = sitofp i64 ${trueValue} to double`);
       trueVal = this.nextTemp();
       this.emit(`${trueVal} = call i8* @__double_to_string(double ${asDouble})`);
     } else if (resultType === 'i8*' && trueType && trueType !== 'i8*' && trueType.indexOf('*') !== -1) {
@@ -114,12 +127,20 @@ export class ConditionalExpressionGenerator {
     if (resultType === 'double' && falseType === 'i32') {
       falseVal = this.nextTemp();
       this.emit(`${falseVal} = sitofp i32 ${falseValue} to double`);
+    } else if (resultType === 'double' && falseType === 'i64') {
+      falseVal = this.nextTemp();
+      this.emit(`${falseVal} = sitofp i64 ${falseValue} to double`);
     } else if (resultType === 'i8*' && falseType === 'double') {
       falseVal = this.nextTemp();
       this.emit(`${falseVal} = call i8* @__double_to_string(double ${falseValue})`);
     } else if (resultType === 'i8*' && falseType === 'i32') {
       const asDouble = this.nextTemp();
       this.emit(`${asDouble} = sitofp i32 ${falseValue} to double`);
+      falseVal = this.nextTemp();
+      this.emit(`${falseVal} = call i8* @__double_to_string(double ${asDouble})`);
+    } else if (resultType === 'i8*' && falseType === 'i64') {
+      const asDouble = this.nextTemp();
+      this.emit(`${asDouble} = sitofp i64 ${falseValue} to double`);
       falseVal = this.nextTemp();
       this.emit(`${falseVal} = call i8* @__double_to_string(double ${asDouble})`);
     } else if (resultType === 'i8*' && falseType && falseType !== 'i8*' && falseType.indexOf('*') !== -1) {

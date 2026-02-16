@@ -83,8 +83,9 @@ export function convertNumberToString(ctx: IGeneratorContext, numValue: string):
 
   const formatStr = createStringConstant(ctx, '%.15g');
 
+  const dblValue = ctx.ensureDouble(numValue);
   const snprintfResult = ctx.nextTemp();
-  ctx.emit(`${snprintfResult} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufferPtr}, i64 48, i8* ${formatStr}, double ${numValue})`);
+  ctx.emit(`${snprintfResult} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufferPtr}, i64 48, i8* ${formatStr}, double ${dblValue})`);
 
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${bufferPtr})`);
@@ -103,15 +104,17 @@ export function convertNumberToString(ctx: IGeneratorContext, numValue: string):
 }
 
 export function convertNumberToFixed(ctx: IGeneratorContext, numValue: string, precisionValue: string): string {
+  const dblPrecision = ctx.ensureDouble(precisionValue);
   const precisionI32 = ctx.nextTemp();
-  ctx.emit(`${precisionI32} = fptosi double ${precisionValue} to i32`);
+  ctx.emit(`${precisionI32} = fptosi double ${dblPrecision} to i32`);
   const bufferSize = ctx.nextTemp();
   ctx.emit(`${bufferSize} = alloca [64 x i8], align 1`);
   const bufferPtr = ctx.nextTemp();
   ctx.emit(`${bufferPtr} = getelementptr inbounds [64 x i8], [64 x i8]* ${bufferSize}, i64 0, i64 0`);
   const formatStr = createStringConstant(ctx, '%.*f');
+  const dblNumValue = ctx.ensureDouble(numValue);
   const snprintfResult = ctx.nextTemp();
-  ctx.emit(`${snprintfResult} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufferPtr}, i64 64, i8* ${formatStr}, i32 ${precisionI32}, double ${numValue})`);
+  ctx.emit(`${snprintfResult} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufferPtr}, i64 64, i8* ${formatStr}, i32 ${precisionI32}, double ${dblNumValue})`);
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${bufferPtr})`);
   const heapSize = ctx.nextTemp();

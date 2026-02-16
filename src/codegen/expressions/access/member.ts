@@ -1575,6 +1575,9 @@ export class MemberAccessGenerator {
     if (indexType === 'double' || indexType === undefined) {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    } else if (indexType === 'i64') {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
     }
 
     const structTypeFields = elementInfo.types.join(', ');

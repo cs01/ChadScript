@@ -1899,7 +1899,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       throw new Error(`Unknown variable: ${stmtName}`);
     }
     const varType = this.getVariableType(stmtName) || 'double';
-    this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
+    const valueType = this.getVariableType(value);
+    let coercedValue = value;
+    if (varType === 'double' && valueType === 'i64') {
+      coercedValue = this.ensureDouble(value);
+    } else if (varType === 'i64' && valueType === 'double') {
+      coercedValue = this.ensureI64(value);
+    }
+    this.emit(`store ${varType} ${coercedValue}, ${varType}* ${allocaReg}`);
   }
 
   private getAssignmentName(stmt: AssignmentStatement): string {
@@ -1960,7 +1967,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       throw new Error(`Unknown variable: ${stmtName}`);
     }
     const varType = this.getVariableType(stmtName) || 'double';
-    this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
+    const valueType = this.getVariableType(value);
+    let coercedValue = value;
+    if (varType === 'double' && valueType === 'i64') {
+      coercedValue = this.ensureDouble(value);
+    } else if (varType === 'i64' && valueType === 'double') {
+      coercedValue = this.ensureI64(value);
+    }
+    this.emit(`store ${varType} ${coercedValue}, ${varType}* ${allocaReg}`);
   }
 
   private flattenStringAppendChain(varName: string, expr: BinaryNode): Expression[] | null {
@@ -2205,6 +2219,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             if (valueType === 'i32') {
               const converted = this.nextTemp();
               this.emit(`${converted} = sitofp i32 ${lastValue} to double`);
+              lastValue = converted;
+            } else if (valueType === 'i64') {
+              const converted = this.nextTemp();
+              this.emit(`${converted} = sitofp i64 ${lastValue} to double`);
               lastValue = converted;
             } else if (valueType === 'i8*' || lastValue === 'null') {
               lastValue = '0.0';
@@ -2493,8 +2511,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     // Convert port from double to i32
+    const dblPort = this.ensureDouble(portValue);
     const portI32 = this.nextTemp();
-    this.emit(`${portI32} = fptosi double ${portValue} to i32`);
+    this.emit(`${portI32} = fptosi double ${dblPort} to i32`);
 
     // Call the runtime http_serve function
     // Handler now takes a single Request object (i8*) and returns Response object (i8*)

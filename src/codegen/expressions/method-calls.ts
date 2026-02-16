@@ -116,6 +116,8 @@ export interface MethodCallGeneratorContext {
   readonly pointerMapGen: IPointerMapGenerator;
   readonly arrayGen: IArrayGenerator;
   readonly typeResolver?: { getThisFieldMapKeyType(expr: Expression): string | null; getThisFieldSetValueType(expr: Expression): string | null };
+  ensureDouble(value: string): string;
+  ensureI64(value: string): string;
 }
 
 export class MethodCallGenerator {
@@ -381,8 +383,9 @@ export class MethodCallGenerator {
           return this.ctx.emitError('tty.isatty() requires 1 argument (fd)', expr.loc);
         }
         const fdValue = this.ctx.generateExpression(expr.args[0], params);
+        const dblFd = this.ctx.ensureDouble(fdValue);
         const fdInt = this.nextTemp();
-        this.ctx.emit(`${fdInt} = fptosi double ${fdValue} to i32`);
+        this.ctx.emit(`${fdInt} = fptosi double ${dblFd} to i32`);
         const rawResult = this.nextTemp();
         this.ctx.emit(`${rawResult} = call i32 @isatty(i32 ${fdInt})`);
         const boolResult = this.nextTemp();

@@ -83,12 +83,14 @@ export function handleAssertNotStrictEqual(ctx: MethodCallGeneratorContext, expr
 function handleNumberEquality(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[], expectEqual: boolean): string {
   const actual = ctx.generateExpression(expr.args[0], params);
   const expected = ctx.generateExpression(expr.args[1], params);
+  const dblActual = ctx.ensureDouble(actual);
+  const dblExpected = ctx.ensureDouble(expected);
 
   const cmp = ctx.nextTemp();
   if (expectEqual) {
-    ctx.emit(`${cmp} = fcmp oeq double ${actual}, ${expected}`);
+    ctx.emit(`${cmp} = fcmp oeq double ${dblActual}, ${dblExpected}`);
   } else {
-    ctx.emit(`${cmp} = fcmp one double ${actual}, ${expected}`);
+    ctx.emit(`${cmp} = fcmp one double ${dblActual}, ${dblExpected}`);
   }
 
   const passLabel = ctx.nextLabel('assert_pass');
@@ -100,7 +102,7 @@ function handleNumberEquality(ctx: MethodCallGeneratorContext, expr: MethodCallN
   ctx.emit(`${failLabel}:`);
   ctx.setCurrentLabel(failLabel);
   setCurrentFailed(ctx);
-  emitStderrPrint(ctx, 'i8* getelementptr([31 x i8], [31 x i8]* @.str.assert_eq_num, i32 0, i32 0)', `, double ${expected}, double ${actual}`);
+  emitStderrPrint(ctx, 'i8* getelementptr([31 x i8], [31 x i8]* @.str.assert_eq_num, i32 0, i32 0)', `, double ${dblExpected}, double ${dblActual}`);
   ctx.emit(`br label %${mergeLabel}`);
 
   ctx.emit(`${passLabel}:`);
@@ -220,8 +222,9 @@ export function handleAssertOk(ctx: MethodCallGeneratorContext, expr: MethodCall
     cmp = ctx.nextTemp();
     ctx.emit(`${cmp} = phi i1 [ 0, %${isNullLabel} ], [ ${notEmpty}, %${notNullLabel} ]`);
   } else {
+    const dblValue = ctx.ensureDouble(value);
     cmp = ctx.nextTemp();
-    ctx.emit(`${cmp} = fcmp one double ${value}, 0.0`);
+    ctx.emit(`${cmp} = fcmp one double ${dblValue}, 0.0`);
   }
 
   const passLabel = ctx.nextLabel('assert_pass');

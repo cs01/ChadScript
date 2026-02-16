@@ -79,8 +79,9 @@ export class MathGenerator {
       return this.ctx.emitError('Math.sqrt() requires 1 argument', expr.loc);
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.sqrt.f64(double ${arg})`);
+    this.ctx.emit(`${result} = call double @llvm.sqrt.f64(double ${dblArg})`);
     return result;
   }
 
@@ -93,8 +94,10 @@ export class MathGenerator {
     }
     const base = this.ctx.generateExpression(expr.args[0], params);
     const exp = this.ctx.generateExpression(expr.args[1], params);
+    const dblBase = this.ctx.ensureDouble(base);
+    const dblExp = this.ctx.ensureDouble(exp);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.pow.f64(double ${base}, double ${exp})`);
+    this.ctx.emit(`${result} = call double @llvm.pow.f64(double ${dblBase}, double ${dblExp})`);
     return result;
   }
 
@@ -106,8 +109,9 @@ export class MathGenerator {
       return this.ctx.emitError('Math.floor() requires 1 argument', expr.loc);
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.floor.f64(double ${arg})`);
+    this.ctx.emit(`${result} = call double @llvm.floor.f64(double ${dblArg})`);
     return result;
   }
 
@@ -119,8 +123,9 @@ export class MathGenerator {
       return this.ctx.emitError('Math.ceil() requires 1 argument', expr.loc);
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.ceil.f64(double ${arg})`);
+    this.ctx.emit(`${result} = call double @llvm.ceil.f64(double ${dblArg})`);
     return result;
   }
 
@@ -132,8 +137,9 @@ export class MathGenerator {
       return this.ctx.emitError('Math.round() requires 1 argument', expr.loc);
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.round.f64(double ${arg})`);
+    this.ctx.emit(`${result} = call double @llvm.round.f64(double ${dblArg})`);
     return result;
   }
 
@@ -145,8 +151,9 @@ export class MathGenerator {
       return this.ctx.emitError('Math.abs() requires 1 argument', expr.loc);
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.fabs.f64(double ${arg})`);
+    this.ctx.emit(`${result} = call double @llvm.fabs.f64(double ${dblArg})`);
     return result;
   }
 
@@ -156,8 +163,10 @@ export class MathGenerator {
     }
     const a = this.ctx.generateExpression(expr.args[0], params);
     const b = this.ctx.generateExpression(expr.args[1], params);
+    const dblA = this.ctx.ensureDouble(a);
+    const dblB = this.ctx.ensureDouble(b);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.maxnum.f64(double ${a}, double ${b})`);
+    this.ctx.emit(`${result} = call double @llvm.maxnum.f64(double ${dblA}, double ${dblB})`);
     return result;
   }
 
@@ -167,8 +176,10 @@ export class MathGenerator {
     }
     const a = this.ctx.generateExpression(expr.args[0], params);
     const b = this.ctx.generateExpression(expr.args[1], params);
+    const dblA = this.ctx.ensureDouble(a);
+    const dblB = this.ctx.ensureDouble(b);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @llvm.minnum.f64(double ${a}, double ${b})`);
+    this.ctx.emit(`${result} = call double @llvm.minnum.f64(double ${dblA}, double ${dblB})`);
     return result;
   }
 }

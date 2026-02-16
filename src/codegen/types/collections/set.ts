@@ -75,9 +75,10 @@ export class SetGenerator {
       const valueValue = this.ctx.generateExpression(setExpr.values[i] as Expression, params);
 
       // Store value
+      const dblSetVal = this.ctx.ensureDouble(valueValue);
       const valueElemPtr = this.nextTemp();
       this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${actualIndex}`);
-      this.emit(`store double ${valueValue}, double* ${valueElemPtr}`);
+      this.emit(`store double ${dblSetVal}, double* ${valueElemPtr}`);
       actualIndex++;
     }
 
@@ -120,7 +121,7 @@ export class SetGenerator {
     // Store value at index = currentSize
     const valueElemPtr = this.nextTemp();
     this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentSize}`);
-    this.emit(`store double ${valueToAdd}, double* ${valueElemPtr}`);
+    this.emit(`store double ${this.ctx.ensureDouble(valueToAdd)}, double* ${valueElemPtr}`);
 
     // Increment size
     const newSize = this.nextTemp();
@@ -181,8 +182,9 @@ export class SetGenerator {
     this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentIndex}`);
     const currentValue = this.nextTemp();
     this.emit(`${currentValue} = load double, double* ${valueElemPtr}`);
+    const dblValueToFind = this.ctx.ensureDouble(valueToFind);
     const valueMatch = this.nextTemp();
-    this.emit(`${valueMatch} = fcmp oeq double ${currentValue}, ${valueToFind}`);
+    this.emit(`${valueMatch} = fcmp oeq double ${currentValue}, ${dblValueToFind}`);
     this.emit(`br i1 ${valueMatch}, label %${foundLabel}, label %${loopLabel}_next`);
 
     this.emit(`${foundLabel}:`);

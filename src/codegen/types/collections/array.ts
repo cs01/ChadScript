@@ -218,9 +218,10 @@ export class ArrayGenerator {
 
       for (let i = 0; i < arrExpr.elements.length; i++) {
         const elemValue = (i === 0 && firstElemValue) ? firstElemValue : this.ctx.generateExpression(arrExpr.elements[i], params);
+        const dblElemValue = this.ctx.ensureDouble(elemValue);
         const elemPtr = this.nextTemp();
         this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
-        this.emit(`store double ${elemValue}, double* ${elemPtr}`);
+        this.emit(`store double ${dblElemValue}, double* ${elemPtr}`);
       }
 
       const dataPtrField = this.nextTemp();
@@ -405,11 +406,12 @@ export class ArrayGenerator {
         this.emit(`${endLabel}:`);
       } else {
         const value = this.ctx.generateExpression(arrExpr.elements[i], params);
+        const dblVal = this.ctx.ensureDouble(value);
         const curOffset = this.nextTemp();
         this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
         const elemPtr = this.nextTemp();
         this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${curOffset}`);
-        this.emit(`store double ${value}, double* ${elemPtr}`);
+        this.emit(`store double ${dblVal}, double* ${elemPtr}`);
         const nextOffset = this.nextTemp();
         this.emit(`${nextOffset} = add i32 ${curOffset}, 1`);
         this.emit(`store i32 ${nextOffset}, i32* ${offsetPtr}`);
@@ -700,7 +702,8 @@ export class ArrayGenerator {
     this.emit(`${dataPtr} = load double*, double** ${dataPtrField2}, !tbaa !5`);
     const elemPtr = this.nextTemp();
     this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentLen}`);
-    this.emit(`store double ${value}, double* ${elemPtr}, !tbaa !4`);
+    const dblValue = this.ctx.ensureDouble(value);
+    this.emit(`store double ${dblValue}, double* ${elemPtr}, !tbaa !4`);
     const newLen = this.nextTemp();
     this.emit(`${newLen} = add i32 ${currentLen}, 1`);
     this.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
@@ -1939,7 +1942,8 @@ export class ArrayGenerator {
 
     if (expr.args.length === 2) {
       const initVal = this.ctx.generateExpression(expr.args[1], params);
-      this.emit(`store double ${initVal}, double* ${accPtr}`);
+      const dblInit = this.ctx.ensureDouble(initVal);
+      this.emit(`store double ${dblInit}, double* ${accPtr}`);
       this.emit(`store i32 0, i32* ${counterPtr}`);
     } else {
       const firstElemPtr = this.nextTemp();
@@ -2313,8 +2317,9 @@ export class ArrayGenerator {
     this.emit(`${elem} = load double, double* ${elemPtr}`);
 
     // Compare with search value
+    const dblSearchValue = this.ctx.ensureDouble(searchValue);
     const isEqual = this.nextTemp();
-    this.emit(`${isEqual} = fcmp oeq double ${elem}, ${searchValue}`);
+    this.emit(`${isEqual} = fcmp oeq double ${elem}, ${dblSearchValue}`);
     this.emit(`br i1 ${isEqual}, label %${foundLabel}, label %${loopLabel}`);
 
     // Found - return 1
@@ -2770,15 +2775,17 @@ export class ArrayGenerator {
     let startI32 = '0';
     if (expr.args.length >= 1) {
       const startDouble = this.ctx.generateExpression(expr.args[0], params);
+      const dblStart = this.ctx.ensureDouble(startDouble);
       startI32 = this.nextTemp();
-      this.emit(`${startI32} = fptosi double ${startDouble} to i32`);
+      this.emit(`${startI32} = fptosi double ${dblStart} to i32`);
     }
 
     let endI32 = length;
     if (expr.args.length >= 2) {
       const endDouble = this.ctx.generateExpression(expr.args[1], params);
+      const dblEnd = this.ctx.ensureDouble(endDouble);
       endI32 = this.nextTemp();
-      this.emit(`${endI32} = fptosi double ${endDouble} to i32`);
+      this.emit(`${endI32} = fptosi double ${dblEnd} to i32`);
     }
 
     const sliceLen = this.nextTemp();
@@ -2849,15 +2856,17 @@ export class ArrayGenerator {
     let startI32 = '0';
     if (expr.args.length >= 1) {
       const startDouble = this.ctx.generateExpression(expr.args[0], params);
+      const dblStart = this.ctx.ensureDouble(startDouble);
       startI32 = this.nextTemp();
-      this.emit(`${startI32} = fptosi double ${startDouble} to i32`);
+      this.emit(`${startI32} = fptosi double ${dblStart} to i32`);
     }
 
     let endI32 = length;
     if (expr.args.length >= 2) {
       const endDouble = this.ctx.generateExpression(expr.args[1], params);
+      const dblEnd = this.ctx.ensureDouble(endDouble);
       endI32 = this.nextTemp();
-      this.emit(`${endI32} = fptosi double ${endDouble} to i32`);
+      this.emit(`${endI32} = fptosi double ${dblEnd} to i32`);
     }
 
     const sliceLen = this.nextTemp();

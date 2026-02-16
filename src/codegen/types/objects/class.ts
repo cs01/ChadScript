@@ -849,7 +849,11 @@ export class ClassGenerator {
         const arg = args[ai];
         const val = this.ctx.generateExpression(arg, params);
         const argType = ai < paramLLVMTypes.length ? paramLLVMTypes[ai] : 'double';
-        argParts.push(argType + ' ' + val);
+        if (argType === 'double') {
+          argParts.push(argType + ' ' + this.ctx.ensureDouble(val));
+        } else {
+          argParts.push(argType + ' ' + val);
+        }
       } else {
         const argType = ai < paramLLVMTypes.length ? paramLLVMTypes[ai] : 'double';
         const defaultVal = argType === 'double' ? '0.0' : 'null';
@@ -908,7 +912,11 @@ export class ClassGenerator {
           }
         }
 
-        argParts.push(argType + ' ' + val);
+        if (argType === 'double') {
+          argParts.push(argType + ' ' + this.ctx.ensureDouble(val));
+        } else {
+          argParts.push(argType + ' ' + val);
+        }
       } else {
         let argType = 'double';
         if (ai < paramLLVMTypes.length) {

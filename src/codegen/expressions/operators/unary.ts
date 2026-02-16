@@ -15,6 +15,7 @@ interface UnaryExpressionContext {
   hasClassGen(): boolean;
   classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
   generateExpression(expr: Expression, params: string[]): string;
+  ensureDouble(value: string): string;
   readonly stringGen: IStringGenerator;
   readonly symbolTable: SymbolTable;
 }
@@ -67,6 +68,22 @@ export class UnaryExpressionGenerator {
       throw new Error(`Cannot find alloca for variable: ${varName}`);
     }
 
+    const varLlvmType = this.ctx.getVariableType(varName) || 'double';
+    if (varLlvmType === 'i64') {
+      const originalValue = this.ctx.nextTemp();
+      this.ctx.emit(`${originalValue} = load i64, i64* ${allocaReg}`);
+      this.ctx.setVariableType(originalValue, 'i64');
+
+      const delta = op === 'post++' ? 1 : -1;
+      const newValue = this.ctx.nextTemp();
+      this.ctx.emit(`${newValue} = add i64 ${originalValue}, ${delta}`);
+      this.ctx.setVariableType(newValue, 'i64');
+
+      this.ctx.emit(`store i64 ${newValue}, i64* ${allocaReg}`);
+
+      return originalValue;
+    }
+
     const originalValue = this.ctx.nextTemp();
     this.ctx.emit(`${originalValue} = load double, double* ${allocaReg}`);
     this.ctx.setVariableType(originalValue, 'double');
@@ -95,6 +112,22 @@ export class UnaryExpressionGenerator {
       throw new Error(`Cannot find alloca for variable: ${varName}`);
     }
 
+    const varLlvmType = this.ctx.getVariableType(varName) || 'double';
+    if (varLlvmType === 'i64') {
+      const originalValue = this.ctx.nextTemp();
+      this.ctx.emit(`${originalValue} = load i64, i64* ${allocaReg}`);
+      this.ctx.setVariableType(originalValue, 'i64');
+
+      const delta = op === '++' ? 1 : -1;
+      const newValue = this.ctx.nextTemp();
+      this.ctx.emit(`${newValue} = add i64 ${originalValue}, ${delta}`);
+      this.ctx.setVariableType(newValue, 'i64');
+
+      this.ctx.emit(`store i64 ${newValue}, i64* ${allocaReg}`);
+
+      return newValue;
+    }
+
     const originalValue = this.ctx.nextTemp();
     this.ctx.emit(`${originalValue} = load double, double* ${allocaReg}`);
 
@@ -112,7 +145,10 @@ export class UnaryExpressionGenerator {
     const operandType = this.ctx.getVariableType(operand);
     let cmpResult: string;
 
-    if (operandType === 'double' || (operand.indexOf('.') !== -1 && !operand.startsWith('%'))) {
+    if (operandType === 'i64') {
+      cmpResult = this.ctx.nextTemp();
+      this.ctx.emit(`${cmpResult} = icmp eq i64 ${operand}, 0`);
+    } else if (operandType === 'double' || (operand.indexOf('.') !== -1 && !operand.startsWith('%'))) {
       cmpResult = this.ctx.nextTemp();
       this.ctx.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);
     } else if (operandType && operandType.indexOf('*') !== -1) {
@@ -128,17 +164,23 @@ export class UnaryExpressionGenerator {
       this.ctx.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);
     }
 
-    const i32Result = this.ctx.nextTemp();
-    this.ctx.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = sitofp i32 ${i32Result} to double`);
-    this.ctx.setVariableType(result, 'double');
-    return result;
+    const i64Result = this.ctx.nextTemp();
+    this.ctx.emit(`${i64Result} = zext i1 ${cmpResult} to i64`);
+    this.ctx.setVariableType(i64Result, 'i64');
+    return i64Result;
   }
 
   private generateNegation(operand: string): string {
+    const operandType = this.ctx.getVariableType(operand);
+    if (operandType === 'i64') {
+      const result = this.ctx.nextTemp();
+      this.ctx.emit(`${result} = sub i64 0, ${operand}`);
+      this.ctx.setVariableType(result, 'i64');
+      return result;
+    }
+    const dblOperand = this.ctx.ensureDouble(operand);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = fneg double ${operand}`);
+    this.ctx.emit(`${result} = fneg double ${dblOperand}`);
     return result;
   }
 
@@ -197,13 +239,11 @@ export class UnaryExpressionGenerator {
         typeString = 'undefined';
       } else if (this.ctx.symbolTable.isString(varName)) {
         typeString = 'string';
-      } else if (operandType === 'double') {
-        typeString = 'number';
+      } else if (operandType === 'double' || operandType === 'i64') {        typeString = 'number';
       } else {
         typeString = 'object';
       }
-    } else if (operandType === 'double') {
-      typeString = 'number';
+    } else if (operandType === 'double' || operandType === 'i64') {      typeString = 'number';
     } else {
       typeString = 'object';
     }

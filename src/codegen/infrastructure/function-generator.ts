@@ -52,6 +52,7 @@ export interface FunctionGeneratorContext {
   mangleUserName(name: string): string;
   getSubprogramDbgRef(): string;
   getUsesTestRunner(): boolean;
+  ensureDouble(value: string): string;
 }
 
 export class FunctionGenerator {
@@ -666,7 +667,8 @@ export class FunctionGenerator {
     this.ctx.emit(`${noArgLabel}:`);
     if (paramInfo.defaultValue) {
       const defaultReg = this.ctx.generateExpression(paramInfo.defaultValue, params);
-      this.ctx.emit(`store ${llvmType} ${defaultReg}, ${ptrType} ${allocaReg}`);
+      const coerced = llvmType === 'double' ? this.ctx.ensureDouble(defaultReg) : defaultReg;
+      this.ctx.emit(`store ${llvmType} ${coerced}, ${ptrType} ${allocaReg}`);
     } else {
       const defaultVal = this.getDefaultValue(llvmType);
       this.ctx.emit(`store ${llvmType} ${defaultVal}, ${ptrType} ${allocaReg}`);

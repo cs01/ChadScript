@@ -4,8 +4,15 @@ import type { MethodCallGeneratorContext } from '../method-calls.js';
 interface ExprBase { type: string; }
 
 function convertToI32(ctx: MethodCallGeneratorContext, value: string): string {
+  const vt = ctx.getVariableType(value);
+  if (vt === 'i64') {
+    const temp = ctx.nextTemp();
+    ctx.emit(`${temp} = trunc i64 ${value} to i32`);
+    return temp;
+  }
+  const dbl = ctx.ensureDouble(value);
   const temp = ctx.nextTemp();
-  ctx.emit(`${temp} = fptosi double ${value} to i32`);
+  ctx.emit(`${temp} = fptosi double ${dbl} to i32`);
   return temp;
 }
 
@@ -139,8 +146,7 @@ export function handleStartsWith(ctx: MethodCallGeneratorContext, expr: MethodCa
 
   if (expr.args.length === 2) {
     const position = ctx.generateExpression(expr.args[1], params);
-    const posI32 = ctx.nextTemp();
-    ctx.emit(`${posI32} = fptosi double ${position} to i32`);
+    const posI32 = convertToI32(ctx, position);
     const posI64 = ctx.nextTemp();
     ctx.emit(`${posI64} = sext i32 ${posI32} to i64`);
     const offsetPtr = ctx.nextTemp();
@@ -398,14 +404,12 @@ export function handleSlice(ctx: MethodCallGeneratorContext, expr: MethodCallNod
   } else {
     startDouble = '0.0';
   }
-  const startI32 = ctx.nextTemp();
-  ctx.emit(`${startI32} = fptosi double ${startDouble} to i32`);
+  const startI32 = convertToI32(ctx, startDouble);
 
   let endI32: string | null = null;
   if (expr.args.length === 2) {
     const endDouble = ctx.generateExpression(expr.args[1], params);
-    endI32 = ctx.nextTemp();
-    ctx.emit(`${endI32} = fptosi double ${endDouble} to i32`);
+    endI32 = convertToI32(ctx, endDouble);
   }
 
   return ctx.stringGen.doGenerateSlice(strPtr, startI32, endI32);
@@ -452,12 +456,13 @@ export function handleReplaceAll(ctx: MethodCallGeneratorContext, expr: MethodCa
 
 export function handleNumberIsFinite(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
   const value = ctx.generateExpression(expr.args[0], params);
+  const dblValue = ctx.ensureDouble(value);
   const isOrdered = ctx.nextTemp();
-  ctx.emit(`${isOrdered} = fcmp ord double ${value}, 0.0`);
+  ctx.emit(`${isOrdered} = fcmp ord double ${dblValue}, 0.0`);
   const posInf = ctx.nextTemp();
-  ctx.emit(`${posInf} = fcmp one double ${value}, 0x7FF0000000000000`);
+  ctx.emit(`${posInf} = fcmp one double ${dblValue}, 0x7FF0000000000000`);
   const negInf = ctx.nextTemp();
-  ctx.emit(`${negInf} = fcmp one double ${value}, 0xFFF0000000000000`);
+  ctx.emit(`${negInf} = fcmp one double ${dblValue}, 0xFFF0000000000000`);
   const notInf = ctx.nextTemp();
   ctx.emit(`${notInf} = and i1 ${posInf}, ${negInf}`);
   const isFinite = ctx.nextTemp();
@@ -469,8 +474,9 @@ export function handleNumberIsFinite(ctx: MethodCallGeneratorContext, expr: Meth
 
 export function handleNumberIsNaN(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
   const value = ctx.generateExpression(expr.args[0], params);
+  const dblValue = ctx.ensureDouble(value);
   const isNaN = ctx.nextTemp();
-  ctx.emit(`${isNaN} = fcmp uno double ${value}, ${value}`);
+  ctx.emit(`${isNaN} = fcmp uno double ${dblValue}, ${dblValue}`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = uitofp i1 ${isNaN} to double`);
   return result;
@@ -478,10 +484,11 @@ export function handleNumberIsNaN(ctx: MethodCallGeneratorContext, expr: MethodC
 
 export function handleNumberIsInteger(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
   const value = ctx.generateExpression(expr.args[0], params);
+  const dblValue = ctx.ensureDouble(value);
   const truncated = ctx.nextTemp();
-  ctx.emit(`${truncated} = call double @llvm.trunc.f64(double ${value})`);
+  ctx.emit(`${truncated} = call double @llvm.trunc.f64(double ${dblValue})`);
   const isInt = ctx.nextTemp();
-  ctx.emit(`${isInt} = fcmp oeq double ${value}, ${truncated}`);
+  ctx.emit(`${isInt} = fcmp oeq double ${dblValue}, ${truncated}`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = uitofp i1 ${isInt} to double`);
   return result;
@@ -509,8 +516,7 @@ export function handleCharAt(ctx: MethodCallGeneratorContext, expr: MethodCallNo
   }
 
   const indexDouble = ctx.generateExpression(expr.args[0], params);
-  const indexI32 = ctx.nextTemp();
-  ctx.emit(indexI32 + ' = fptosi double ' + indexDouble + ' to i32');
+  const indexI32 = convertToI32(ctx, indexDouble);
   return ctx.stringGen.doGenerateCharAt(strPtr, indexI32);
 }
 
@@ -522,8 +528,7 @@ export function handleCharCodeAt(ctx: MethodCallGeneratorContext, expr: MethodCa
   }
 
   const indexDouble = ctx.generateExpression(expr.args[0], params);
-  const indexI32 = ctx.nextTemp();
-  ctx.emit(indexI32 + ' = fptosi double ' + indexDouble + ' to i32');
+  const indexI32 = convertToI32(ctx, indexDouble);
   return ctx.stringGen.doGenerateCharCodeAt(strPtr, indexI32);
 }
 

@@ -47,13 +47,13 @@ export class ProcessGenerator {
       : '0.0';
 
     // Convert double to i32 for exit code (truncates decimal)
+    const dblExit = this.ctx.ensureDouble(exitCodeDouble);
     const exitCode = this.ctx.nextTemp();
     if (exitCodeDouble === '0.0') {
       // Optimization: Use constant 0 directly
       this.ctx.emit(`${exitCode} = add i32 0, 0`);
     } else {
-      // Convert double to i32
-      this.ctx.emit(`${exitCode} = fptosi double ${exitCodeDouble} to i32`);
+      this.ctx.emit(`${exitCode} = fptosi double ${dblExit} to i32`);
     }
 
     // Flush stdout before exiting to ensure all output is printed

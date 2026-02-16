@@ -14,6 +14,8 @@ export interface BinaryExpressionGeneratorContext {
   variableTypes: Map<string, string>;
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
+  ensureDouble(value: string): string;
+  ensureI64(value: string): string;
   controlFlowGen: ControlFlowGeneratorLike;
   readonly stringGen: IStringGenerator;
   generateExpression(expr: Expression, params: string[]): string;
@@ -100,6 +102,8 @@ export class BinaryExpressionGenerator {
       const asDouble = this.ctx.nextTemp();
       this.ctx.emit(`${asDouble} = sitofp i64 ${asInt} to double`);
       left = asDouble;
+    } else {
+      left = this.ctx.ensureDouble(left);
     }
 
     if (rightType === 'i8*' || (rightType && rightType.indexOf('*') !== -1)) {
@@ -108,6 +112,8 @@ export class BinaryExpressionGenerator {
       const asDouble = this.ctx.nextTemp();
       this.ctx.emit(`${asDouble} = sitofp i64 ${asInt} to double`);
       right = asDouble;
+    } else {
+      right = this.ctx.ensureDouble(right);
     }
 
     const temp = this.ctx.nextTemp();
@@ -134,6 +140,8 @@ export class BinaryExpressionGenerator {
       const asDouble = this.ctx.nextTemp();
       this.ctx.emit(`${asDouble} = sitofp i64 ${asInt} to double`);
       left = asDouble;
+    } else {
+      left = this.ctx.ensureDouble(left);
     }
 
     if (rightType === 'i8*' || (rightType && rightType.indexOf('*') !== -1)) {
@@ -142,6 +150,8 @@ export class BinaryExpressionGenerator {
       const asDouble = this.ctx.nextTemp();
       this.ctx.emit(`${asDouble} = sitofp i64 ${asInt} to double`);
       right = asDouble;
+    } else {
+      right = this.ctx.ensureDouble(right);
     }
 
     const leftIsKnown = this.isKnownInteger(leftExpr);
@@ -218,31 +228,35 @@ export class BinaryExpressionGenerator {
   }
 
   private generateBitwise(_op: string, llvmOp: string, left: string, right: string): string {
-    // Bitwise operators: convert double -> i64 -> operate -> double
     const leftType = this.ctx.getVariableType(left);
     const rightType = this.ctx.getVariableType(right);
 
-    const leftInt = this.ctx.nextTemp();
-    if (leftType === 'i8*' || (leftType && leftType.indexOf('*') !== -1)) {
+    let leftInt: string;
+    if (leftType === 'i64') {
+      leftInt = left;
+    } else if (leftType === 'i8*' || (leftType && leftType.indexOf('*') !== -1)) {
+      leftInt = this.ctx.nextTemp();
       this.ctx.emit(`${leftInt} = ptrtoint ${leftType} ${left} to i64`);
     } else {
+      leftInt = this.ctx.nextTemp();
       this.ctx.emit(`${leftInt} = fptosi double ${left} to i64`);
     }
 
-    const rightInt = this.ctx.nextTemp();
-    if (rightType === 'i8*' || (rightType && rightType.indexOf('*') !== -1)) {
+    let rightInt: string;
+    if (rightType === 'i64') {
+      rightInt = right;
+    } else if (rightType === 'i8*' || (rightType && rightType.indexOf('*') !== -1)) {
+      rightInt = this.ctx.nextTemp();
       this.ctx.emit(`${rightInt} = ptrtoint ${rightType} ${right} to i64`);
     } else {
+      rightInt = this.ctx.nextTemp();
       this.ctx.emit(`${rightInt} = fptosi double ${right} to i64`);
     }
 
     const resultInt = this.ctx.nextTemp();
     this.ctx.emit(`${resultInt} = ${llvmOp} i64 ${leftInt}, ${rightInt}`);
-
-    const resultDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${resultDouble} = sitofp i64 ${resultInt} to double`);
-    this.ctx.setVariableType(resultDouble, 'double');
-    return resultDouble;
+    this.ctx.setVariableType(resultInt, 'i64');
+    return resultInt;
   }
 
   private generateComparison(op: string, cond: string, leftValue: string, rightValue: string, leftExpr: Expression, rightExpr: Expression): string {
@@ -388,6 +402,8 @@ export class BinaryExpressionGenerator {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = sitofp i64 ${asInt} to double`);
       leftDouble = temp;
+    } else {
+      leftDouble = this.ctx.ensureDouble(left);
     }
 
     if (rightType === 'i32') {
@@ -400,6 +416,8 @@ export class BinaryExpressionGenerator {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = sitofp i64 ${asInt} to double`);
       rightDouble = temp;
+    } else {
+      rightDouble = this.ctx.ensureDouble(right);
     }
 
     const cmpResult = this.ctx.nextTemp();
@@ -429,6 +447,10 @@ export class BinaryExpressionGenerator {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = inttoptr i64 ${asInt} to i8*`);
       leftPtr = temp;
+    } else if (leftType === 'i64') {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = inttoptr i64 ${left} to i8*`);
+      leftPtr = temp;
     }
     if (rightType !== 'i8*' && rightType.indexOf('*') !== -1) {
       const temp = this.ctx.nextTemp();
@@ -439,6 +461,10 @@ export class BinaryExpressionGenerator {
       this.ctx.emit(`${asInt} = bitcast double ${right} to i64`);
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = inttoptr i64 ${asInt} to i8*`);
+      rightPtr = temp;
+    } else if (rightType === 'i64') {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = inttoptr i64 ${right} to i8*`);
       rightPtr = temp;
     }
     let cond = '';

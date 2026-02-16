@@ -21,7 +21,7 @@ export function handlePromiseStaticMethods(ctx: MethodCallGeneratorContext, expr
         ctx.emit(`${allocMem} = call i8* @GC_malloc(i64 8)`);
         const doublePtr = ctx.nextTemp();
         ctx.emit(`${doublePtr} = bitcast i8* ${allocMem} to double*`);
-        ctx.emit(`store double ${value}, double* ${doublePtr}`);
+        ctx.emit(`store double ${ctx.ensureDouble(value)}, double* ${doublePtr}`);
         valuePtr = allocMem;
       }
     } else {
@@ -45,7 +45,7 @@ export function handlePromiseStaticMethods(ctx: MethodCallGeneratorContext, expr
         ctx.emit(`${allocMem} = call i8* @GC_malloc(i64 8)`);
         const doublePtr = ctx.nextTemp();
         ctx.emit(`${doublePtr} = bitcast i8* ${allocMem} to double*`);
-        ctx.emit(`store double ${reason}, double* ${doublePtr}`);
+        ctx.emit(`store double ${ctx.ensureDouble(reason)}, double* ${doublePtr}`);
         reasonPtr = allocMem;
       }
     } else {
