@@ -52,20 +52,17 @@ export class TemplateLiteralGenerator {
     // parts array contains strings and expressions interspersed
     if (expr.parts.length === 0) {
       // Empty template literal
-      this.ctx.syncStateToGenerators();
       return this.ctx.stringGen.doCreateStringConstant('');
     }
 
     if (expr.parts.length === 1) {
       const firstPart = expr.parts[0] as { type: string; value?: string };
       if (firstPart.type === 'string') {
-        this.ctx.syncStateToGenerators();
         return this.ctx.stringGen.doCreateStringConstant(firstPart.value || '');
       }
     }
 
     // Build result by concatenating parts
-    this.ctx.syncStateToGenerators();
     let result: string | null = null;
 
     for (let _tpi = 0; _tpi < expr.parts.length; _tpi++) {

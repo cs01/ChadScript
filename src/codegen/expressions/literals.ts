@@ -84,7 +84,6 @@ export class LiteralExpressionGenerator {
    * Generate string literal (delegates to StringGenerator)
    */
   generateString(value: string): string {
-    this.ctx.syncStateToGenerators();
     return this.ctx.stringGen.doCreateStringConstant(value);
   }
 
@@ -92,7 +91,6 @@ export class LiteralExpressionGenerator {
    * Generate regex literal (delegates to RegexGenerator)
    */
   generateRegex(pattern: string, flags: string): string {
-    this.ctx.syncStateToGenerators();
     return this.ctx.regexGen.generateRegexCompile(pattern, flags);
   }
 
@@ -108,7 +106,6 @@ export class LiteralExpressionGenerator {
    * Generate object literal (delegates to ObjectGenerator)
    */
   generateObject(expr: ObjectNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
     return this.ctx.objectGen.generateObjectLiteral(expr, params);
   }
 
@@ -116,7 +113,6 @@ export class LiteralExpressionGenerator {
    * Generate Map literal (delegates to MapGenerator or StringMapGenerator)
    */
   generateMap(expr: MapNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
 
     if (expr.keyType === 'string') {
       return this.ctx.stringMapGen.generateEmptyStringMap();
@@ -137,7 +133,6 @@ export class LiteralExpressionGenerator {
    * Generate Set literal (delegates to SetGenerator or StringSetGenerator)
    */
   generateSet(expr: SetNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
 
     if (expr.valueType === 'string') {
       return this.ctx.stringSetGen.generateEmptyStringSet();
@@ -170,7 +165,6 @@ export class LiteralExpressionGenerator {
       }
       return this.ctx.setGen.generateSetLiteral({ type: 'set', values: [] }, params);
     }
-    this.ctx.syncStateToGenerators();
     return this.ctx.classGenGenerateNewExpression(className, args, params);
   }
 
@@ -200,7 +194,6 @@ export class LiteralExpressionGenerator {
     }
 
     if (patternArg.type === 'string' && patternArg.value !== undefined) {
-      this.ctx.syncStateToGenerators();
       return this.ctx.regexGen.generateRegexCompile(patternArg.value, flags);
     }
 
@@ -211,7 +204,6 @@ export class LiteralExpressionGenerator {
     if (flags.indexOf('i') !== -1) cflags = cflags | REG_ICASE;
     if (flags.indexOf('m') !== -1) cflags = cflags | REG_NEWLINE;
 
-    this.ctx.syncStateToGenerators();
     const patternPtr = this.ctx.generateExpression(args[0], params);
     return this.ctx.regexGen.generateRegexCompileRuntime(patternPtr, cflags);
   }

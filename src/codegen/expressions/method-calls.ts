@@ -504,7 +504,6 @@ export class MethodCallGenerator {
       const isLikelyResponse = this.isLikelyResponseExpression(expr);
       if (isLikelyResponse) {
         try {
-          this.ctx.syncStateToGenerators();
           let responsePtr = this.ctx.generateExpression(expr.object, params);
 
           const objType = this.ctx.getVariableType(responsePtr);
@@ -621,7 +620,6 @@ export class MethodCallGenerator {
     if (method === 'set' || method === 'get' || method === 'has' || method === 'clear' || method === 'delete' || method === 'entries' || method === 'values' || method === 'keys') {
       const varName = this.getVariableName(expr.object);
       if (varName && this.ctx.symbolTable.isMap(varName)) {
-        this.ctx.syncStateToGenerators();
         const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
 
         if (mapMeta && mapMeta.keyType === 'string') {
@@ -670,7 +668,6 @@ export class MethodCallGenerator {
       if (varName) {
         const paramMapKeyType = this.getParameterMapKeyType(varName);
         if (paramMapKeyType) {
-          this.ctx.syncStateToGenerators();
           const mapPtr = this.ctx.generateExpression(expr.object, params);
           if (paramMapKeyType === 'string') {
             if (method === 'set') {
@@ -758,7 +755,6 @@ export class MethodCallGenerator {
     if (method === 'add' || method === 'has' || method === 'delete') {
       const varName = this.getVariableName(expr.object);
       if (varName && this.ctx.symbolTable.isSet(varName)) {
-        this.ctx.syncStateToGenerators();
         const setValueType = this.ctx.symbolTable.getSetValueType(varName);
 
         if (setValueType && setValueType === 'string') {
@@ -870,7 +866,6 @@ export class MethodCallGenerator {
       return this.ctx.emitError('execSync() requires 1 argument (command)', expr.loc);
     }
 
-    this.ctx.syncStateToGenerators();
 
     // Get command argument
     const commandPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -887,7 +882,6 @@ export class MethodCallGenerator {
       return this.ctx.emitError('JSON.stringify() requires 1 argument', expr.loc);
     }
 
-    this.ctx.syncStateToGenerators();
 
     const arg = expr.args[0];
 
@@ -928,7 +922,6 @@ export class MethodCallGenerator {
   }
 
   private handleRegexTest(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
     const regexPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length !== 1) {
@@ -940,7 +933,6 @@ export class MethodCallGenerator {
   }
 
   private handleRegexExec(expr: MethodCallNode, params: string[]): string {
-    this.ctx.syncStateToGenerators();
 
     if (expr.args.length !== 1) {
       return this.ctx.emitError(`exec() expects 1 argument, got ${expr.args.length}`, expr.loc);

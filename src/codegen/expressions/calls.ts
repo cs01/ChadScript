@@ -217,8 +217,6 @@ export class CallExpressionGenerator {
       return this.ctx.emitError('parseInt() requires 1 or 2 arguments (string, radix?)', expr.loc);
     }
 
-    this.ctx.syncStateToGenerators();
-
     // Get the string argument
     const strValue = this.ctx.generateExpression(expr.args[0], params);
 
@@ -254,8 +252,6 @@ export class CallExpressionGenerator {
       return this.ctx.emitError('parseFloat() requires exactly 1 argument (string)', expr.loc);
     }
 
-    this.ctx.syncStateToGenerators();
-
     const strValue = this.ctx.generateExpression(expr.args[0], params);
     const nullPtr = this.ctx.nextTemp();
     this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
@@ -268,8 +264,6 @@ export class CallExpressionGenerator {
     if (expr.args.length !== 1) {
       return this.ctx.emitError('Number() requires exactly 1 argument', expr.loc);
     }
-
-    this.ctx.syncStateToGenerators();
 
     const arg = expr.args[0];
     if (this.ctx.isStringExpression(arg)) {
@@ -288,8 +282,6 @@ export class CallExpressionGenerator {
       return this.ctx.emitError('String() requires exactly 1 argument', expr.loc);
     }
 
-    this.ctx.syncStateToGenerators();
-
     const arg = expr.args[0];
     if (this.ctx.isStringExpression(arg)) {
       return this.ctx.generateExpression(arg, params);
@@ -302,8 +294,6 @@ export class CallExpressionGenerator {
     if (expr.args.length !== 1) {
       return this.ctx.emitError('isNaN() requires exactly 1 argument', expr.loc);
     }
-
-    this.ctx.syncStateToGenerators();
 
     const arg = expr.args[0];
     let doubleValue: string;

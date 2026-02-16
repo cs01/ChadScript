@@ -63,7 +63,6 @@ export class FunctionGenerator {
 
   generate(func: FunctionNode): string {
     this.ctx.reset();
-    this.ctx.syncStateToGenerators();
     const ctx = this.ctx;
     const funcName = func.name || '';
     this.ctx.setCurrentFunction(funcName);
@@ -666,7 +665,6 @@ export class FunctionGenerator {
 
     this.ctx.emit(`${noArgLabel}:`);
     if (paramInfo.defaultValue) {
-      this.ctx.syncStateToGenerators();
       const defaultReg = this.ctx.generateExpression(paramInfo.defaultValue, params);
       this.ctx.emit(`store ${llvmType} ${defaultReg}, ${ptrType} ${allocaReg}`);
     } else {

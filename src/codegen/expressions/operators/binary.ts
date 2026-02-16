@@ -38,13 +38,11 @@ export class BinaryExpressionGenerator {
   generate(op: string, left: Expression, right: Expression, params: string[]): string {
     // Logical operators need short-circuit evaluation
     if (op === '&&' || op === '||') {
-      this.ctx.syncStateToGenerators();
       return this.ctx.controlFlowGen.generateLogicalOp(op, left, right, params);
     }
 
     // Check for string concatenation (+ with at least one string operand)
     if (op === '+' && (this.ctx.isStringExpression(left) || this.ctx.isStringExpression(right))) {
-      this.ctx.syncStateToGenerators();
       return this.ctx.stringGen.doGenerateStringConcat(left, right, params);
     }
 
@@ -281,7 +279,6 @@ export class BinaryExpressionGenerator {
   }
 
   private generateStringComparison(op: string, left: string, right: string): string {
-    this.ctx.syncStateToGenerators();
 
     const leftType = this.ctx.getVariableType(left);
     const rightType = this.ctx.getVariableType(right);

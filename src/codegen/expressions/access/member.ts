@@ -906,7 +906,6 @@ export class MemberAccessGenerator {
     const jsonObjPtr = this.ctx.nextTemp();
     this.ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
 
-    this.ctx.syncStateToGenerators();
     const fieldNameStr = this.ctx.stringGen.doCreateStringConstant(expr.property);
 
     const fieldItem = this.ctx.nextTemp();
@@ -1042,7 +1041,6 @@ export class MemberAccessGenerator {
     if (!nestedMetaKeys) return null;
 
     this.ctx.setUsesJson(true);
-    this.ctx.syncStateToGenerators();
     const fieldNameStr = this.ctx.stringGen.doCreateStringConstant(expr.property);
     const fieldItem = this.ctx.nextTemp();
     this.ctx.emit(`${fieldItem} = call i8* @csyyjson_obj_get(i8* ${innerResult}, i8* ${fieldNameStr})`);
@@ -2071,7 +2069,6 @@ export class MemberAccessGenerator {
     if ((methodCall.object as VariableNode).name !== 'JSON') return null;
 
     this.ctx.setUsesJson(true);
-    this.ctx.syncStateToGenerators();
     const jsonObjPtr = this.ctx.generateExpression(expr.object, params);
     const fieldNameStr = this.ctx.stringGen.doCreateStringConstant(expr.property);
 
@@ -2400,12 +2397,10 @@ export class MemberAccessGenerator {
     }
     if (exprObjType === 'variable' && this.ctx.symbolTable.isMap((expr.object as VariableNode).name)) {
       const mapPtr = this.ctx.generateExpression(expr.object, params);
-      this.ctx.syncStateToGenerators();
       return this.ctx.mapGen.generateMapSize(mapPtr);
     }
     if (exprObjType === 'variable' && this.ctx.symbolTable.isSet((expr.object as VariableNode).name)) {
       const setPtr = this.ctx.generateExpression(expr.object, params);
-      this.ctx.syncStateToGenerators();
       return this.ctx.setGen.generateSetSize(setPtr);
     }
     if (exprObjType === 'member_access') {
@@ -2419,7 +2414,6 @@ export class MemberAccessGenerator {
           const isSet = fieldInfo.tsType.startsWith('Set<') || fieldInfo.tsType.indexOf('Set<') !== -1;
           if (isMap || isSet) {
             const ptr = this.ctx.generateExpression(expr.object, params);
-            this.ctx.syncStateToGenerators();
             if (isSet) {
               return this.ctx.setGen.generateSetSize(ptr);
             } else {
@@ -2459,7 +2453,6 @@ export class MemberAccessGenerator {
       this.ctx.emit(`${responsePtr} = load %__FetchResponse*, %__FetchResponse** ${varPtr}`);
     }
 
-    this.ctx.syncStateToGenerators();
     if (expr.property === 'status') {
       return this.ctx.responseGen.generateStatus(responsePtr);
     } else if (expr.property === 'ok') {
