@@ -113,6 +113,9 @@ export class TypeInference {
         }
       }
     }
+    if (e.type === 'method_call') {
+      return this.resolveMethodCallType(expr as MethodCallNode);
+    }
     if (e.type === 'this') {
       const className = this.ctx.getCurrentClassName();
       if (className) return this.ctx.typeContext.getClassType(className);
@@ -158,6 +161,161 @@ export class TypeInference {
     if (paramType) {
       return this.ctx.typeContext.resolve(stripNullable(paramType));
     }
+    return null;
+  }
+
+  private resolveMethodCallType(expr: MethodCallNode): ResolvedType | null {
+    const method = expr.method;
+    const objBase = expr.object as ExprBase;
+
+    if (method === 'trim' || method === 'toLowerCase' || method === 'toUpperCase' ||
+        method === 'replace' || method === 'replaceAll' || method === 'repeat' ||
+        method === 'padStart' || method === 'padEnd' || method === 'charAt' ||
+        method === 'substr' || method === 'substring' || method === 'toString' ||
+        method === 'text' || method === 'trimStart' || method === 'trimEnd' ||
+        method === 'toFixed' || method === 'normalize' || method === 'at' ||
+        method === 'getVariableType') {
+      return this.ctx.typeContext.stringType;
+    }
+
+    if (method === 'join') return this.ctx.typeContext.stringType;
+
+    if (method === 'split') return this.ctx.typeContext.getArrayType('string');
+
+    if (method === 'indexOf' || method === 'lastIndexOf' || method === 'search' ||
+        method === 'charCodeAt' || method === 'codePointAt' || method === 'localeCompare') {
+      return this.ctx.typeContext.numberType;
+    }
+
+    if (method === 'startsWith' || method === 'endsWith' || method === 'test' ||
+        method === 'has' || method === 'delete' || method === 'every' || method === 'some') {
+      return this.ctx.typeContext.booleanType;
+    }
+
+    if (method === 'match' || method === 'exec') {
+      return this.ctx.typeContext.getArrayType('string');
+    }
+
+    if (method === 'then' || method === 'catch') {
+      if (this.isPromiseExpression(expr.object)) return this.ctx.typeContext.resolve('Promise');
+    }
+
+    if (objBase.type === 'variable') {
+      const varName = (expr.object as VariableNode).name;
+
+      if (varName === 'fs' && method === 'readFileSync') return this.ctx.typeContext.stringType;
+      if (varName === 'fs' && method === 'readdirSync') return this.ctx.typeContext.getArrayType('string');
+
+      if (varName === 'path') {
+        if (method === 'resolve' || method === 'dirname' || method === 'join' ||
+            method === 'basename' || method === 'normalize' || method === 'extname' ||
+            method === 'relative') {
+          return this.ctx.typeContext.stringType;
+        }
+      }
+
+      if (varName === 'JSON' && method === 'stringify') return this.ctx.typeContext.stringType;
+
+      if (varName === 'crypto') {
+        if (method === 'sha256' || method === 'md5' || method === 'sha512' || method === 'randomBytes') {
+          return this.ctx.typeContext.stringType;
+        }
+      }
+
+      if (varName === 'sqlite' && method === 'get') return this.ctx.typeContext.stringType;
+      if (varName === 'sqlite' && method === 'all') return this.ctx.typeContext.getArrayType('string');
+
+      if (varName === 'Object' && method === 'keys') return this.ctx.typeContext.getArrayType('string');
+      if (varName === 'Object' && method === 'entries') return this.ctx.typeContext.getArrayType('string');
+
+      if (varName === 'Promise') return this.ctx.typeContext.resolve('Promise');
+
+      if (varName === 'Array' && method === 'from') return this.ctx.typeContext.getArrayType('number');
+
+      if (this.ctx.symbolTable.isClass(varName)) {
+        const className = this.ctx.symbolTable.getClassName(varName);
+        if (className) {
+          const classMethod = this.getClassMethod(className, method);
+          if (classMethod && classMethod.returnType) {
+            return this.ctx.typeContext.resolve(stripNullable(classMethod.returnType));
+          }
+        }
+      }
+
+      const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
+      if (ifaceType && ifaceType.length > 0) {
+        const methodReturnType = this.getInterfaceMethodReturnType(ifaceType, method);
+        if (methodReturnType) {
+          return this.ctx.typeContext.resolve(stripNullable(methodReturnType));
+        }
+      }
+    }
+
+    if (objBase.type === 'this') {
+      const className = this.ctx.getCurrentClassName();
+      if (className) {
+        const classMethod = this.getClassMethod(className, method);
+        if (classMethod && classMethod.returnType) {
+          return this.ctx.typeContext.resolve(stripNullable(classMethod.returnType));
+        }
+      }
+    }
+
+    if (objBase.type === 'member_access') {
+      const memberAccess = expr.object as MemberAccessNode;
+      const fieldClassName = this.resolveClassNameFromExpression(memberAccess);
+      if (fieldClassName) {
+        const classMethod = this.getClassMethod(fieldClassName, method);
+        if (classMethod && classMethod.returnType) {
+          return this.ctx.typeContext.resolve(stripNullable(classMethod.returnType));
+        }
+      }
+      const interfaceType = this.resolveInterfaceTypeFromExpression(memberAccess);
+      if (interfaceType) {
+        const methodReturnType = this.getInterfaceMethodReturnType(interfaceType, method);
+        if (methodReturnType) {
+          return this.ctx.typeContext.resolve(stripNullable(methodReturnType));
+        }
+      }
+    }
+
+    if (method === 'slice' || method === 'concat') {
+      const objResolved = this.resolveExpressionType(expr.object);
+      if (objResolved) return objResolved;
+    }
+
+    if (method === 'filter' || method === 'map' || method === 'sort' || method === 'reverse' ||
+        method === 'flat' || method === 'flatMap') {
+      const objResolved = this.resolveExpressionType(expr.object);
+      if (objResolved && objResolved.arrayDepth > 0) return objResolved;
+    }
+
+    if (method === 'values' || method === 'entries') {
+      if (objBase.type === 'variable' && (expr.object as VariableNode).name === 'Object') {
+        return null;
+      }
+      const objResolved = this.resolveExpressionType(expr.object);
+      if (objResolved && objResolved.arrayDepth > 0) return objResolved;
+    }
+
+    if (method === 'push' || method === 'pop' || method === 'unshift' || method === 'shift') {
+      return this.ctx.typeContext.numberType;
+    }
+
+    if (method === 'get') {
+      if (objBase.type === 'variable') {
+        const varName = (expr.object as VariableNode).name;
+        if (this.ctx.symbolTable.isMap(varName)) {
+          const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
+          if (mapMeta && mapMeta.valueType) {
+            if (mapMeta.valueType === 'string') return this.ctx.typeContext.stringType;
+            if (this.getClass(mapMeta.valueType)) return this.ctx.typeContext.getClassType(mapMeta.valueType);
+            return this.ctx.typeContext.resolve(mapMeta.valueType);
+          }
+        }
+      }
+    }
+
     return null;
   }
 
