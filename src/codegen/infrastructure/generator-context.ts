@@ -668,12 +668,6 @@ export interface IGeneratorContext {
   getCurrentFunction(): string | null;
 
   /**
-   * Sync state from parent generator to all sub-generators.
-   * Called before operations that need current variable tracking state.
-   */
-  syncStateToGenerators(): void;
-
-  /**
    * String generator for string operations
    */
   readonly stringGen: IStringGenerator;
