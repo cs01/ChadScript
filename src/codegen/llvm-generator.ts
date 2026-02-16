@@ -8,6 +8,7 @@ import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructur
 import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getStringHashHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
 import { TypeResolver, TypeResolverContext, TypeGuardInfo } from './infrastructure/type-resolver/index.js';
 import { stripOptional, stripNullable, tsTypeToLlvmJson } from './infrastructure/type-system.js';
+import type { ResolvedType } from './infrastructure/type-system.js';
 import { DiagnosticEngine } from '../diagnostics/engine.js';
 import { TypeContext } from './infrastructure/type-context.js';
 import { IGeneratorContext, IArrowFunctionGenerator } from './infrastructure/generator-context.js';
@@ -2287,6 +2288,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public isArrayExpression(expr: Expression): boolean {
     return this.typeInference.isArrayExpression(expr);
+  }
+
+  public resolveExpressionType(expr: Expression): ResolvedType | null {
+    return this.typeInference.resolveExpressionType(expr);
   }
 
   public isObjectArrayExpression(expr: Expression): boolean {

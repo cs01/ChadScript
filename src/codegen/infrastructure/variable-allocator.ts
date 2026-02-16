@@ -3,6 +3,7 @@ import { SymbolKind, SymbolTable, ObjectMetadata, MapMetadata, ClassMetadata, Cl
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import { TypeResolver, UnionCommonFields } from './type-resolver/index.js';
 import { stripOptional, stripNullable, tsTypeToLlvm, tsTypeToLlvmJson, parseMapTypeString, parseSetTypeString, parseArrayTypeString } from './type-system.js';
+import type { ResolvedType } from './type-system.js';
 
 interface ExprBase { type: string; }
 
@@ -57,6 +58,7 @@ export interface VariableAllocatorContext {
   defineVariable(name: string, allocaReg: string, llvmType: string, kind: number, scope: string): void;
   defineVariableWithMetadata(name: string, allocaReg: string, llvmType: string, kind: number, scope: string, metadata: SymbolMetadata): void;
   generateExpression(expr: Expression, params: string[]): string;
+  resolveExpressionType(expr: Expression): ResolvedType | null;
   isStringExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
   isStringArrayExpression(expr: Expression): boolean;
@@ -107,6 +109,17 @@ export interface VariableAllocatorContext {
 
 export class VariableAllocator {
   constructor(private ctx: VariableAllocatorContext) {}
+
+  private isKnownClass(name: string): boolean {
+    if (!name) return false;
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) return false;
+    for (let i = 0; i < ast.classes.length; i++) {
+      const cls = ast.classes[i];
+      if (cls && cls.name === name) return true;
+    }
+    return false;
+  }
 
   private getInterface(name: string): InterfaceDeclaration | null {
     if (!name) return null;
@@ -369,33 +382,80 @@ export class VariableAllocator {
     }
 
     const stmtDeclaredType: string = stmt.declaredType || '';
-    const isString = this.ctx.isStringExpression(stmtValue);
-    let isStringArray = this.ctx.isStringArrayExpression(stmtValue);
     const strippedDeclType = stripNullable(stmtDeclaredType);
+    const resolved = this.ctx.resolveExpressionType(stmtValue);
+    const nodeType = (stmtValue as ExprBase).type;
+    const useResolved = resolved !== null && (
+      nodeType === 'variable' || nodeType === 'number' || nodeType === 'string' ||
+      nodeType === 'boolean' || nodeType === 'null' || nodeType === 'template_literal' ||
+      nodeType === 'regex' || nodeType === 'object' || nodeType === 'array' ||
+      nodeType === 'map' || nodeType === 'set' || nodeType === 'new'
+    );
+
+    let isString: boolean;
+    let isStringArray: boolean;
+    let isObjectArray: boolean;
+    let isArray: boolean;
+    let isMap: boolean;
+    let isSet: boolean;
+    let isRegex: boolean;
+    let isPromise: boolean;
+    let isClassInstance: boolean;
+    let isResponse: boolean;
+    let isObject: boolean;
+
+    if (useResolved) {
+      const base = resolved!.base;
+      const depth = resolved!.arrayDepth;
+      isString = base === 'string' && depth === 0;
+      isStringArray = base === 'string' && depth > 0;
+      isObjectArray = depth > 0 && base !== 'string' && base !== 'number' && base !== 'boolean';
+      isArray = depth > 0 && (base === 'number' || base === 'boolean');
+      isMap = base === 'Map' || base.startsWith('Map<');
+      isSet = base === 'Set' || base.startsWith('Set<');
+      isRegex = base === 'RegExp';
+      isPromise = base === 'Promise';
+      isResponse = base === 'Response';
+      isObject = base === 'object' && depth === 0;
+      isClassInstance = !isPromise && !isRegex && depth === 0 &&
+                        base !== 'string' && base !== 'number' && base !== 'boolean' &&
+                        base !== 'void' && base !== 'null' && base !== 'unknown' &&
+                        base !== 'object' && base !== 'Response' &&
+                        !base.startsWith('Map') && !base.startsWith('Set') &&
+                        this.isKnownClass(base);
+    } else {
+      isString = this.ctx.isStringExpression(stmtValue);
+      isStringArray = this.ctx.isStringArrayExpression(stmtValue);
+      isObjectArray = this.ctx.isObjectArrayExpression(stmtValue);
+      isArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(stmtValue);
+      isMap = this.ctx.isMapExpression(stmtValue);
+      isSet = this.ctx.isSetExpression(stmtValue);
+      isRegex = this.ctx.isRegexExpression(stmtValue);
+      isPromise = this.ctx.isPromiseExpression(stmtValue);
+      isClassInstance = !isPromise && this.ctx.isClassInstanceExpression(stmtValue);
+      isResponse = this.ctx.isResponseExpression(stmtValue);
+      isObject = this.ctx.isObjectExpression(stmtValue);
+    }
+
     if (!isStringArray && strippedDeclType === 'string[]') {
       isStringArray = true;
     }
-    let isObjectArray = this.ctx.isObjectArrayExpression(stmtValue);
     if (!isObjectArray && strippedDeclType && strippedDeclType.endsWith('[]') &&
         strippedDeclType !== 'string[]' && strippedDeclType !== 'number[]' && strippedDeclType !== 'boolean[]') {
       isObjectArray = true;
     }
-    const isArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(stmtValue);
-    const isJSONObject = this.ctx.isJSONParseExpression(stmtValue);
-    const isObject = !isJSONObject && this.ctx.isObjectExpression(stmtValue);
-    let isMap = this.ctx.isMapExpression(stmtValue);
     if (!isMap && stmtDeclaredType.startsWith('Map<')) {
       isMap = true;
     }
-    let isSet = this.ctx.isSetExpression(stmtValue);
     if (!isSet && (stmtDeclaredType === 'Set' || stmtDeclaredType.startsWith('Set<'))) {
       isSet = true;
     }
-    const isRegex = this.ctx.isRegexExpression(stmtValue);
-    const isPromise = this.ctx.isPromiseExpression(stmtValue);
+
+    const isJSONObject = this.ctx.isJSONParseExpression(stmtValue);
+    if (isObject && isJSONObject) {
+      isObject = false;
+    }
     const isAwait = this.ctx.isAwaitExpression(stmtValue);
-    const isClassInstance = !isPromise && this.ctx.isClassInstanceExpression(stmtValue);
-    const isResponse = this.ctx.isResponseExpression(stmtValue);
     const typedJsonInterface = this.ctx.getTypedJsonInterface(stmtValue);
     const functionInterfaceReturn = this.ctx.getFunctionCallInterfaceReturn(stmtValue);
     const methodInterfaceReturn = this.ctx.getMethodCallInterfaceReturn(stmtValue);
