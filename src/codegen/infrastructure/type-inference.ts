@@ -364,8 +364,8 @@ export class TypeInference {
 
   isBooleanExpression(expr: Expression | null | undefined): boolean {
     if (expr === null || expr === undefined) return false;
-    const e = expr as ExprBase;
-    if (e.type === 'boolean') return true;
+    const resolved = this.resolveExpressionType(expr);
+    if (resolved && resolved.base === 'boolean') return true;
     return false;
   }
 
