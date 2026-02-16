@@ -1,4 +1,4 @@
-import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode, VariableNode, MemberAccessNode, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, SourceLocation, Statement, ReturnStatement } from '../ast/types.js';
+import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode, VariableNode, MemberAccessNode, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, SourceLocation, Statement, ReturnStatement, MapNode, SetNode } from '../ast/types.js';
 import { checkUnsafeUnionType } from '../codegen/infrastructure/type-system.js';
 import { DiagnosticEngine, DIAG_ERROR, DIAG_WARNING } from '../diagnostics/engine.js';
 
@@ -177,6 +177,8 @@ export class SemanticAnalyzer {
       return;
     }
 
+    this.checkUntypedGenericConstructor(stmt);
+
     const inferredType = this.inferExpressionType(stmt.value, stmt.declaredType);
     if (!inferredType) return;
     const symbolEntry = {
@@ -185,6 +187,35 @@ export class SemanticAnalyzer {
       llvmType: inferredType.llvmType,
     };
     this.symbols.set(stmt.name, symbolEntry);
+  }
+
+  private checkUntypedGenericConstructor(stmt: VariableDeclaration): void {
+    if (!stmt.value) return;
+    const valType = (stmt.value as { type: string }).type;
+
+    if (valType === 'map') {
+      const mapNode = stmt.value as MapNode;
+      if (!mapNode.keyType || !mapNode.valueType) {
+        const hasDeclaredMapType = stmt.declaredType !== undefined && stmt.declaredType.indexOf('Map<') !== -1;
+        if (!hasDeclaredMapType) {
+          this.errors.push({
+            message: 'Map constructor requires explicit type parameters: use new Map<KeyType, ValueType>() or add a declared type',
+          });
+        }
+      }
+    }
+
+    if (valType === 'set') {
+      const setNode = stmt.value as SetNode;
+      if (!setNode.valueType) {
+        const hasDeclaredSetType = stmt.declaredType !== undefined && stmt.declaredType.indexOf('Set<') !== -1;
+        if (!hasDeclaredSetType) {
+          this.errors.push({
+            message: 'Set constructor requires explicit type parameters: use new Set<ValueType>() or add a declared type',
+          });
+        }
+      }
+    }
   }
 
   private analyzeFunction(func: FunctionNode): void {

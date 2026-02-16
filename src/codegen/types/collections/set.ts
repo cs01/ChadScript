@@ -60,7 +60,7 @@ export class SetGenerator {
     this.emit(`store i32 ${initialCapacity}, i32* ${capacityFieldPtr}`);
 
     // Populate initial values (with deduplication)
-    const seen = new Set();
+    const seen: Set<number> = new Set();
     let actualIndex = 0;
     for (let i = 0; i < setExpr.values.length; i++) {
       const valueExprTyped = setExpr.values[i] as { type: string; value: number };

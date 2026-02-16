@@ -385,7 +385,8 @@ export class ClosureAnalyzer {
       }
     } else if (exprType === 'arrow_function') {
       const e = expr as { type: string; params: string[]; body: Expression | BlockStatement };
-      const nestedDeclared = new Set(this.declaredVars);
+      const savedDeclaredVars = this.declaredVars;
+      this.declaredVars = new Set();
       for (let _ppi = 0; _ppi < e.params.length; _ppi++) {
         this.declaredVars.add(e.params[_ppi]);
       }
@@ -395,7 +396,7 @@ export class ClosureAnalyzer {
       } else {
         this.walkExpression(e.body as Expression);
       }
-      this.declaredVars = nestedDeclared;
+      this.declaredVars = savedDeclaredVars;
     } else if (exprType === 'conditional') {
       const e = expr as { type: string; condition: Expression; consequent: Expression; alternate: Expression };
       this.walkExpression(e.condition);

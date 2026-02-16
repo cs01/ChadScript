@@ -111,6 +111,11 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
       const errorOutput = analyzer.formatErrors();
       console.error(errorOutput);
       throw new Error('Semantic analysis failed. Fix the errors above and try again.');
+    } else {
+      const diagOutput = analyzer.formatErrors();
+      if (diagOutput) {
+        console.error(diagOutput);
+      }
     }
 
     const symMap = analyzer.getSymbols();

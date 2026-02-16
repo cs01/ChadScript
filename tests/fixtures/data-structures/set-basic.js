@@ -1,6 +1,6 @@
 // Test basic Set operations
 function testSet() {
-  const s = new Set();
+  const s = new Set<number>();
   s.add(10);
   s.add(20);
   s.add(30);

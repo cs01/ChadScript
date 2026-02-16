@@ -1,6 +1,6 @@
 // Test basic Map operations
 function testMap() {
-  const m = new Map();
+  const m = new Map<number, number>();
   m.set(1, 10);
   m.set(2, 20);
   m.set(3, 30);
