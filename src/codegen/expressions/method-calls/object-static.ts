@@ -50,13 +50,13 @@ function getObjectFieldInfo(ctx: MethodCallGeneratorContext, name: string): { ke
 
 export function generateObjectKeys(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
   if (expr.args.length === 0) {
-    throw new Error('Object.keys() requires 1 argument');
+    return ctx.emitError('Object.keys() requires 1 argument', expr.loc);
   }
 
   const arg = expr.args[0];
   const argBase = arg as ExprBase;
   if (argBase.type !== 'variable') {
-    throw new Error('Object.keys() argument must be a variable');
+    return ctx.emitError('Object.keys() argument must be a variable', expr.loc);
   }
   const name = (arg as VariableNode).name;
 
@@ -80,7 +80,7 @@ export function generateObjectKeys(ctx: MethodCallGeneratorContext, expr: Method
   }
 
   if (fieldNames.length === 0) {
-    throw new Error(`Object.keys(): cannot determine fields for '${name}'`);
+    return ctx.emitError(`Object.keys(): cannot determine fields for '${name}'`, expr.loc);
   }
 
   const length = fieldNames.length;
@@ -126,19 +126,19 @@ export function generateObjectKeys(ctx: MethodCallGeneratorContext, expr: Method
 
 export function generateObjectValues(ctx: MethodCallGeneratorContext, expr: MethodCallNode, _params: string[]): string {
   if (expr.args.length === 0) {
-    throw new Error('Object.values() requires 1 argument');
+    return ctx.emitError('Object.values() requires 1 argument', expr.loc);
   }
 
   const arg = expr.args[0];
   const argBase = arg as ExprBase;
   if (argBase.type !== 'variable') {
-    throw new Error('Object.values() argument must be a variable');
+    return ctx.emitError('Object.values() argument must be a variable', expr.loc);
   }
   const name = (arg as VariableNode).name;
 
   const info = getObjectFieldInfo(ctx, name);
   if (!info) {
-    throw new Error(`Object.values(): cannot determine fields for '${name}'`);
+    return ctx.emitError(`Object.values(): cannot determine fields for '${name}'`, expr.loc);
   }
 
   const keys = info.keys;
@@ -292,19 +292,19 @@ export function generateObjectValues(ctx: MethodCallGeneratorContext, expr: Meth
 
 export function generateObjectEntries(ctx: MethodCallGeneratorContext, expr: MethodCallNode, _params: string[]): string {
   if (expr.args.length === 0) {
-    throw new Error('Object.entries() requires 1 argument');
+    return ctx.emitError('Object.entries() requires 1 argument', expr.loc);
   }
 
   const arg = expr.args[0];
   const argBase = arg as ExprBase;
   if (argBase.type !== 'variable') {
-    throw new Error('Object.entries() argument must be a variable');
+    return ctx.emitError('Object.entries() argument must be a variable', expr.loc);
   }
   const name = (arg as VariableNode).name;
 
   const info = getObjectFieldInfo(ctx, name);
   if (!info) {
-    throw new Error(`Object.entries(): cannot determine fields for '${name}'`);
+    return ctx.emitError(`Object.entries(): cannot determine fields for '${name}'`, expr.loc);
   }
 
   const keys = info.keys;

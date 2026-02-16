@@ -59,7 +59,7 @@ export function handlePromiseStaticMethods(ctx: MethodCallGeneratorContext, expr
 
   if (method === 'all') {
     if (expr.args.length < 1) {
-      throw new Error('Promise.all() requires 1 argument (array of promises)');
+      return ctx.emitError('Promise.all() requires 1 argument (array of promises)', expr.loc);
     }
     const promisesArray = ctx.generateExpression(expr.args[0], params);
     const result = ctx.nextTemp();
@@ -70,7 +70,7 @@ export function handlePromiseStaticMethods(ctx: MethodCallGeneratorContext, expr
 
   if (method === 'race') {
     if (expr.args.length < 1) {
-      throw new Error('Promise.race() requires 1 argument (array of promises)');
+      return ctx.emitError('Promise.race() requires 1 argument (array of promises)', expr.loc);
     }
     const promisesArray = ctx.generateExpression(expr.args[0], params);
     const result = ctx.nextTemp();
@@ -79,7 +79,7 @@ export function handlePromiseStaticMethods(ctx: MethodCallGeneratorContext, expr
     return result;
   }
 
-  throw new Error(`Unsupported Promise static method: ${method}`);
+  return ctx.emitError(`Unsupported Promise static method: ${method}`, expr.loc);
 }
 
 export function handlePromiseThen(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[], isCatch: boolean): string {

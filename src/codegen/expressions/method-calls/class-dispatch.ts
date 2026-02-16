@@ -386,7 +386,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
   } else if (exprObjBase.type === 'this') {
     const thisPtr = ctx.getThisPointer();
     if (!thisPtr) {
-      throw new Error(`this.${method}() called outside of class method`);
+      ctx.emitError(`this.${method}() called outside of class method`, expr.loc);
     }
     instancePtr = thisPtr;
     if (ctx.getCurrentClassName()) {
@@ -394,7 +394,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
     } else {
       const classesLen5 = ctx.getAstClassesLength();
       if (classesLen5 === 0) {
-        throw new Error(`Method ${method} not found in any class - no AST`);
+        ctx.emitError(`Method ${method} not found in any class - no AST`, expr.loc);
       }
       let classWithMethodResult: ClassNode | null = null;
       for (let ci = 0; ci < classesLen5; ci++) {
@@ -409,7 +409,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
       }
       const classWithMethod = classWithMethodResult as ClassNode;
       if (!classWithMethodResult) {
-        throw new Error(`Method ${method} not found in any class`);
+        ctx.emitError(`Method ${method} not found in any class`, expr.loc);
       }
       className = classWithMethod.name;
     }
@@ -550,10 +550,10 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
   } else if (exprObjBase.type === 'super') {
     const thisPtr = ctx.getThisPointer();
     if (!thisPtr) {
-      throw new Error('super.method() called outside of class method');
+      ctx.emitError('super.method() called outside of class method', expr.loc);
     }
     if (!ctx.getCurrentClassName()) {
-      throw new Error('super.method() called outside of class context');
+      ctx.emitError('super.method() called outside of class context', expr.loc);
     }
     let currentClassResult: ClassNode | null = null;
     const classesLen6 = ctx.getAstClassesLength();
@@ -566,7 +566,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
     }
     const currentClass = currentClassResult as ClassNode;
     if (!currentClassResult || !currentClass.extends) {
-      throw new Error(`super.method() called but current class ${ctx.getCurrentClassName()} has no parent class`);
+      ctx.emitError(`super.method() called but current class ${ctx.getCurrentClassName()} has no parent class`, expr.loc);
     }
     instancePtr = thisPtr;
     className = currentClass.extends;
@@ -604,7 +604,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
       }
     }
     if (!resolvedClass) {
-      throw new Error(`Method ${method} not found in class ${className}`);
+      ctx.emitError(`Method ${method} not found in class ${className}`, expr.loc);
     }
 
     ctx.syncStateToGenerators();
@@ -667,7 +667,7 @@ export function handleObjectMethods(ctx: MethodCallGeneratorContext, expr: Metho
     }
   }
   if (!funcExists) {
-    throw new Error(`Function ${method} not found for object method call`);
+    ctx.emitError(`Function ${method} not found for object method call`, expr.loc);
   }
 
   // Get function type from AST for correct parameter/return types

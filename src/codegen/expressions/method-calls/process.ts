@@ -29,7 +29,7 @@ export function generateProcessCwdInline(ctx: MethodCallGeneratorContext): strin
 
 export function handleProcessChdir(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
   if (expr.args.length === 0) {
-    throw new Error('process.chdir() requires 1 argument');
+    return ctx.emitError('process.chdir() requires 1 argument', expr.loc);
   }
   const dirValue = ctx.generateExpression(expr.args[0], params);
   const result = ctx.nextTemp();
@@ -39,7 +39,7 @@ export function handleProcessChdir(ctx: MethodCallGeneratorContext, expr: Method
 
 export function handleProcessKill(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
   if (expr.args.length < 1) {
-    throw new Error('process.kill() requires at least 1 argument');
+    return ctx.emitError('process.kill() requires at least 1 argument', expr.loc);
   }
   const pidValue = ctx.generateExpression(expr.args[0], params);
   const pidI32 = ctx.nextTemp();
