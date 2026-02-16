@@ -723,5 +723,11 @@ export const testCases: TestCase[] = [
     fixture: 'tests/fixtures/strings/string-builder-loop.ts',
     expectTestPassed: true,
     description: 'String builder with let re-declaration inside a loop should not segfault'
+  },
+  {
+    name: 'string-lastindexof',
+    fixture: 'tests/fixtures/strings/string-lastindexof.ts',
+    expectTestPassed: true,
+    description: 'String.lastIndexOf() should find last occurrence of substring'
   }
 ];

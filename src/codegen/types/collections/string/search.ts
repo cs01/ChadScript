@@ -102,6 +102,55 @@ export function generateIndexOf(ctx: IGeneratorContext, strPtr: string, substrin
   return result;
 }
 
+export function generateLastIndexOf(ctx: IGeneratorContext, strPtr: string, substring: string): string {
+  const lastPosPtr = ctx.nextTemp();
+  ctx.emit(`${lastPosPtr} = alloca i32`);
+  ctx.emit(`store i32 -1, i32* ${lastPosPtr}`);
+
+  const curPtrStorage = ctx.nextTemp();
+  ctx.emit(`${curPtrStorage} = alloca i8*`);
+  ctx.emit(`store i8* ${strPtr}, i8** ${curPtrStorage}`);
+
+  const strPtrInt = ctx.nextTemp();
+  ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
+
+  const loopLabel = ctx.nextLabel('lastindexof_loop');
+  const foundLabel = ctx.nextLabel('lastindexof_found');
+  const endLabel = ctx.nextLabel('lastindexof_end');
+
+  ctx.emit(`br label %${loopLabel}`);
+
+  ctx.emit(`${loopLabel}:`);
+  const curPtr = ctx.nextTemp();
+  ctx.emit(`${curPtr} = load i8*, i8** ${curPtrStorage}`);
+  const foundPtr = ctx.nextTemp();
+  ctx.emit(`${foundPtr} = call i8* @strstr(i8* ${curPtr}, i8* ${substring})`);
+  const isNull = ctx.nextTemp();
+  ctx.emit(`${isNull} = icmp eq i8* ${foundPtr}, null`);
+  ctx.emit(`br i1 ${isNull}, label %${endLabel}, label %${foundLabel}`);
+
+  ctx.emit(`${foundLabel}:`);
+  const foundPtrInt = ctx.nextTemp();
+  ctx.emit(`${foundPtrInt} = ptrtoint i8* ${foundPtr} to i64`);
+  const indexI64 = ctx.nextTemp();
+  ctx.emit(`${indexI64} = sub i64 ${foundPtrInt}, ${strPtrInt}`);
+  const indexI32 = ctx.nextTemp();
+  ctx.emit(`${indexI32} = trunc i64 ${indexI64} to i32`);
+  ctx.emit(`store i32 ${indexI32}, i32* ${lastPosPtr}`);
+  const advancedPtr = ctx.nextTemp();
+  ctx.emit(`${advancedPtr} = getelementptr inbounds i8, i8* ${foundPtr}, i64 1`);
+  ctx.emit(`store i8* ${advancedPtr}, i8** ${curPtrStorage}`);
+  ctx.emit(`br label %${loopLabel}`);
+
+  ctx.emit(`${endLabel}:`);
+  const resultI32 = ctx.nextTemp();
+  ctx.emit(`${resultI32} = load i32, i32* ${lastPosPtr}`);
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
+
+  return result;
+}
+
 export function generateIncludes(ctx: IGeneratorContext, strPtr: string, substring: string): string {
   const foundPtr = ctx.nextTemp();
   ctx.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${substring})`);

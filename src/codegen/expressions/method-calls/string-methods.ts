@@ -216,6 +216,18 @@ export function handleIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallN
   return ctx.stringGen.doGenerateIndexOf(strPtr, substring);
 }
 
+export function handleLastIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+  ctx.syncStateToGenerators();
+  const strPtr = ctx.generateExpression(expr.object, params);
+
+  if (expr.args.length !== 1) {
+    throw new Error(`lastIndexOf() expects 1 argument, got ${expr.args.length}`);
+  }
+
+  const substring = ctx.generateExpression(expr.args[0], params);
+  return ctx.stringGen.doGenerateLastIndexOf(strPtr, substring);
+}
+
 export function handleStringArrayIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
   ctx.syncStateToGenerators();
   const arrayPtr = ctx.generateExpression(expr.object, params);
