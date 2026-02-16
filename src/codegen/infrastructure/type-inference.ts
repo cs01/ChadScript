@@ -86,6 +86,37 @@ export class TypeInference {
       if (this.isStringExpression(elements[0])) return this.ctx.typeContext.getArrayType('string');
       return this.ctx.typeContext.getArrayType('number');
     }
+    if (e.type === 'unary') {
+      const unaryExpr = expr as UnaryNode;
+      if (unaryExpr.op === 'typeof') return this.ctx.typeContext.stringType;
+      if (unaryExpr.op === '!') return this.ctx.typeContext.booleanType;
+      if (unaryExpr.op === '-' || unaryExpr.op === '+' || unaryExpr.op === '~') return this.ctx.typeContext.numberType;
+    }
+    if (e.type === 'type_assertion') {
+      const assertion = expr as TypeAssertionNode;
+      if (assertion.assertedType) {
+        return this.ctx.typeContext.resolve(stripNullable(assertion.assertedType));
+      }
+    }
+    if (e.type === 'call') {
+      const callExpr = expr as CallNode;
+      if (callExpr.name === 'String') return this.ctx.typeContext.stringType;
+      if (callExpr.name === 'Number') return this.ctx.typeContext.numberType;
+      if (callExpr.name === 'Boolean') return this.ctx.typeContext.booleanType;
+      if (callExpr.name === 'fetch') return this.ctx.typeContext.resolve('Promise');
+      if (callExpr.name === '__ts_node_type' || callExpr.name === '__ts_node_text') return this.ctx.typeContext.stringType;
+      if (callExpr.name) {
+        const func = this.getFunction(callExpr.name);
+        if (func) {
+          if (func.async) return this.ctx.typeContext.resolve('Promise');
+          if (func.returnType) return this.ctx.typeContext.resolve(stripNullable(func.returnType));
+        }
+      }
+    }
+    if (e.type === 'this') {
+      const className = this.ctx.getCurrentClassName();
+      if (className) return this.ctx.typeContext.getClassType(className);
+    }
     return null;
   }
 
