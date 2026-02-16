@@ -50,6 +50,10 @@ export class ControlFlowGenerator {
       const condBool = this.nextTemp();
       this.emit(`${condBool} = icmp ne i32 ${value}, 0`);
       return condBool;
+    } else if (valueType === 'i64') {
+      const condBool = this.nextTemp();
+      this.emit(`${condBool} = icmp ne i64 ${value}, 0`);
+      return condBool;
     } else {
       // Unknown type - assume double for temp registers
       if (value.startsWith('%')) {

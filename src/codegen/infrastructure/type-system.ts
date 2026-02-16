@@ -1,4 +1,4 @@
-type NumericKind = 'integer' | 'float';
+export type NumericKind = 'integer' | 'float';
 
 export function stripOptional(name: string): string {
   if (!name) return '';
@@ -113,11 +113,11 @@ function parseGenericParams(paramsStr: string): ResolvedType[] {
   return params;
 }
 
-function createIntegerType(): ResolvedType {
+export function createIntegerType(): ResolvedType {
   return createResolvedType('number', { numericKind: 'integer' });
 }
 
-function createFloatType(): ResolvedType {
+export function createFloatType(): ResolvedType {
   return createResolvedType('number', { numericKind: 'float' });
 }
 
@@ -152,6 +152,7 @@ export function resolvedTypeToLlvm(rt: ResolvedType): string {
     return '%ObjectArray*';
   }
   if (rt.base === 'string') return 'i8*';
+  if (rt.base === 'number' && rt.qualifiers.numericKind === 'integer') return 'i64';
   if (rt.base === 'number' || rt.base === 'boolean') return 'double';
   if (rt.base === 'void') return 'void';
   if (rt.base === 'null' || rt.base === 'undefined') return 'i8*';

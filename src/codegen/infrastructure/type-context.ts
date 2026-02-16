@@ -1,4 +1,4 @@
-import { ResolvedType, createResolvedType } from './type-system.js';
+import { ResolvedType, createResolvedType, createIntegerType } from './type-system.js';
 
 export class TypeContext {
   private nextId: number = 1;
@@ -7,6 +7,7 @@ export class TypeContext {
   private internKeysCount: number = 0;
 
   public numberType: ResolvedType;
+  public integerType: ResolvedType;
   public stringType: ResolvedType;
   public booleanType: ResolvedType;
   public voidType: ResolvedType;
@@ -18,6 +19,10 @@ export class TypeContext {
     this.internKeys = [];
 
     this.numberType = this.intern('number', 'double');
+    const intType = createIntegerType();
+    intType.id = this.nextId++;
+    intType.cachedLlvmType = 'i64';
+    this.integerType = intType;
     this.stringType = this.intern('string', 'i8*');
     this.booleanType = this.intern('boolean', 'double');
     this.voidType = this.intern('void', 'void');

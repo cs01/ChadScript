@@ -758,6 +758,9 @@ export interface IGeneratorContext {
   readonly sqliteGen: ISqliteGenerator;
 
   readonly arrowFunctionGen: IArrowFunctionGenerator;
+
+  ensureDouble(value: string): string;
+  ensureI64(value: string): string;
 }
 
 /**
@@ -1470,6 +1473,28 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   resolveImportAlias(localName: string): string {
     return localName;
+  }
+
+  ensureDouble(value: string): string {
+    const vt = this.getVariableType(value);
+    if (vt === 'i64') {
+      const temp = this.nextTemp();
+      this.emit(`${temp} = sitofp i64 ${value} to double`);
+      this.setVariableType(temp, 'double');
+      return temp;
+    }
+    return value;
+  }
+
+  ensureI64(value: string): string {
+    const vt = this.getVariableType(value);
+    if (vt === 'double') {
+      const temp = this.nextTemp();
+      this.emit(`${temp} = fptosi double ${value} to i64`);
+      this.setVariableType(temp, 'i64');
+      return temp;
+    }
+    return value;
   }
 
   mangleUserName(name: string): string {

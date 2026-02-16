@@ -559,4 +559,26 @@ export class BaseGenerator {
   isArrayVariable(name: string): boolean {
     return this.symbolTable.isArray(name);
   }
+
+  ensureDouble(value: string): string {
+    const vt = this.getVariableType(value);
+    if (vt === 'i64') {
+      const temp = this.nextTemp();
+      this.emit(`${temp} = sitofp i64 ${value} to double`);
+      this.setVariableType(temp, 'double');
+      return temp;
+    }
+    return value;
+  }
+
+  ensureI64(value: string): string {
+    const vt = this.getVariableType(value);
+    if (vt === 'double') {
+      const temp = this.nextTemp();
+      this.emit(`${temp} = fptosi double ${value} to i64`);
+      this.setVariableType(temp, 'i64');
+      return temp;
+    }
+    return value;
+  }
 }
