@@ -4,6 +4,8 @@ import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { ClassGenerator } from '../types/objects/class.js';
 import type { TypeResolver } from './type-resolver/index.js';
 import { stripNullable, parseMapTypeString } from './type-system.js';
+import type { ResolvedType } from './type-system.js';
+import type { TypeContext } from './type-context.js';
 
 interface ExprBase { type: string; }
 
@@ -16,6 +18,7 @@ function isStringType(t: string): boolean {
 
 export interface TypeInferenceContext {
   symbolTable: SymbolTable;
+  typeContext: TypeContext;
   getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null;
   currentClassName: string | null;
   getCurrentClassName(): string | null;
@@ -36,6 +39,42 @@ export interface TypeInferenceContext {
 
 export class TypeInference {
   constructor(private ctx: TypeInferenceContext) {}
+
+  resolveExpressionType(expr: Expression): ResolvedType | null {
+    if (!expr) return null;
+    const e = expr as ExprBase;
+    if (!e.type) return null;
+    if (e.type === 'number') return this.ctx.typeContext.numberType;
+    if (e.type === 'string') return this.ctx.typeContext.stringType;
+    if (e.type === 'template_literal') return this.ctx.typeContext.stringType;
+    if (e.type === 'boolean') return this.ctx.typeContext.booleanType;
+    if (e.type === 'null') return this.ctx.typeContext.nullType;
+    if (e.type === 'regex') return this.ctx.typeContext.resolve('RegExp');
+    if (e.type === 'object') return this.ctx.typeContext.resolve('object');
+    if (e.type === 'map') return this.ctx.typeContext.getMapType('string', 'string');
+    if (e.type === 'set') return this.ctx.typeContext.getSetType('string');
+    if (e.type === 'array') {
+      const arrayExpr = expr as ArrayNode;
+      const elements = arrayExpr.elements || [];
+      if (elements.length === 0) {
+        const expected = this.ctx.getExpectedArrayElementType();
+        if (expected === 'string') return this.ctx.typeContext.getArrayType('string');
+        return this.ctx.typeContext.getArrayType('number');
+      }
+      const firstElem = elements[0] as ExprBase;
+      if (firstElem.type === 'string') return this.ctx.typeContext.getArrayType('string');
+      if (firstElem.type === 'number') return this.ctx.typeContext.getArrayType('number');
+      if (firstElem.type === 'variable') {
+        const varName = (elements[0] as VariableNode).name;
+        if (this.ctx.symbolTable.isString(varName)) return this.ctx.typeContext.getArrayType('string');
+        const varType = this.ctx.symbolTable.getType(varName);
+        if (varType === 'i8*') return this.ctx.typeContext.getArrayType('string');
+      }
+      if (this.isStringExpression(elements[0])) return this.ctx.typeContext.getArrayType('string');
+      return this.ctx.typeContext.getArrayType('number');
+    }
+    return null;
+  }
 
   private getInterface(name: string): InterfaceDeclaration | null {
     const result = this.ctx.typeResolverGetInterface(name);
