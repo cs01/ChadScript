@@ -169,6 +169,8 @@ export class TypeInference {
   }
 
   private resolveVariableType(name: string): ResolvedType | null {
+    const cached = this.ctx.symbolTable.getResolvedType(name);
+    if (cached) return cached;
     const varType = this.ctx.symbolTable.getType(name);
     if (varType) {
       if (varType === '%StringArray*' || varType === '%StringArray') return this.ctx.typeContext.getArrayType('string');

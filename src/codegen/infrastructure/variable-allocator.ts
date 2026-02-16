@@ -523,6 +523,10 @@ export class VariableAllocator {
       this.allocateNumeric(stmt, params);
     }
 
+    if (useResolved && resolved && !stmt.declaredType && !isNull) {
+      this.ctx.symbolTable.setResolvedType(stmt.name, resolved);
+    }
+
     this.ctx.setExpectedArrayElementType(null);
   }
 
