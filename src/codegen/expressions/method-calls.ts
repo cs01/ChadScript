@@ -29,6 +29,7 @@ import {
   FunctionNode,
   MemberAccessNode,
   InterfaceDeclaration,
+  SourceLocation,
 } from '../../ast/types.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { IStringGenerator, IFsGenerator, IPathGenerator, IJsonGenerator, IMathGenerator, IDateGenerator, ICryptoGenerator, ISqliteGenerator, IResponseGenerator, IRegexGenerator, IArrowFunctionGenerator, IStringMapGenerator, IMapGenerator, ISetGenerator, IStringSetGenerator, IPointerMapGenerator, IArrayGenerator } from '../infrastructure/generator-context.js';
@@ -58,7 +59,8 @@ export interface MethodCallGeneratorContext {
   isObjectArrayExpression(expr: Expression): boolean;
   isRegexExpression(expr: Expression): boolean;
   isPromiseExpression(expr: Expression): boolean;
-  formatCodegenError(message: string, suggestion?: string, pos?: number): string;
+  emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
+  emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void;
   mangleUserName(name: string): string;
   symbolTable: SymbolTable;
   variableTypes: Map<string, string>;
@@ -262,14 +264,14 @@ export class MethodCallGenerator {
     // Handle Array.from() - returns the argument as-is since our iterators already produce arrays
     if (this.isVariableWithName(expr.object, 'Array') && method === 'from') {
       if (expr.args.length === 0) {
-        throw new Error('Array.from() requires at least 1 argument');
+        return this.ctx.emitError('Array.from() requires at least 1 argument', expr.loc);
       }
       return this.ctx.generateExpression(expr.args[0], params);
     }
 
     if (this.isVariableWithName(expr.object, 'Array') && method === 'isArray') {
       if (expr.args.length === 0) {
-        throw new Error('Array.isArray() requires at least 1 argument');
+        return this.ctx.emitError('Array.isArray() requires at least 1 argument', expr.loc);
       }
       const arg = expr.args[0];
       const isArray = this.ctx.isArrayExpression(arg) || this.ctx.isStringArrayExpression(arg) || this.ctx.isObjectArrayExpression(arg);
@@ -290,21 +292,21 @@ export class MethodCallGenerator {
 
     if (this.isVariableWithName(expr.object, 'Number') && method === 'isFinite') {
       if (expr.args.length === 0) {
-        throw new Error('Number.isFinite() requires at least 1 argument');
+        return this.ctx.emitError('Number.isFinite() requires at least 1 argument', expr.loc);
       }
       return handleNumberIsFinite(this.ctx, expr, params);
     }
 
     if (this.isVariableWithName(expr.object, 'Number') && method === 'isNaN') {
       if (expr.args.length === 0) {
-        throw new Error('Number.isNaN() requires at least 1 argument');
+        return this.ctx.emitError('Number.isNaN() requires at least 1 argument', expr.loc);
       }
       return handleNumberIsNaN(this.ctx, expr, params);
     }
 
     if (this.isVariableWithName(expr.object, 'Number') && method === 'isInteger') {
       if (expr.args.length === 0) {
-        throw new Error('Number.isInteger() requires at least 1 argument');
+        return this.ctx.emitError('Number.isInteger() requires at least 1 argument', expr.loc);
       }
       return handleNumberIsInteger(this.ctx, expr, params);
     }
@@ -365,7 +367,7 @@ export class MethodCallGenerator {
       }
       if (varNode.name === 'tty' && expr.method === 'isatty') {
         if (expr.args.length === 0) {
-          throw new Error('tty.isatty() requires 1 argument (fd)');
+          return this.ctx.emitError('tty.isatty() requires 1 argument (fd)', expr.loc);
         }
         const fdValue = this.ctx.generateExpression(expr.args[0], params);
         const fdInt = this.nextTemp();
@@ -659,7 +661,7 @@ export class MethodCallGenerator {
         } else if (method === 'delete') {
           return this.ctx.mapGen.generateMapDelete(expr, params);
         } else if (method === 'entries' || method === 'values' || method === 'keys') {
-          throw new Error(`Map.${method}() only supported for Map<string, *> types`);
+          return this.ctx.emitError(`Map.${method}() only supported for Map<string, *> types`, expr.loc);
         } else {
           return this.ctx.mapGen.generateMapClear(expr, params);
         }
@@ -704,7 +706,7 @@ export class MethodCallGenerator {
             } else if (method === 'clear') {
               return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
             } else {
-              throw new Error(`Map.${method}() not supported for Map<${paramMapKeyType}, *> parameter types`);
+              return this.ctx.emitError(`Map.${method}() not supported for Map<${paramMapKeyType}, *> parameter types`, expr.loc);
             }
           }
         }
@@ -746,7 +748,7 @@ export class MethodCallGenerator {
           } else if (method === 'clear') {
             return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
           } else {
-            throw new Error(`Map.${method}() not supported for Map<${thisFieldMapKeyType}, *> types`);
+            return this.ctx.emitError(`Map.${method}() not supported for Map<${thisFieldMapKeyType}, *> types`, expr.loc);
           }
         }
       }
@@ -769,7 +771,7 @@ export class MethodCallGenerator {
               const valueValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringSetGen.generateStringSetHas(setAlloca, valueValue);
             } else {
-              throw new Error('Set.delete() not yet implemented for Set<string>');
+              return this.ctx.emitError('Set.delete() not yet implemented for Set<string>', expr.loc);
             }
           }
         }
@@ -794,7 +796,7 @@ export class MethodCallGenerator {
             const valueValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringSetGen.generateStringSetHas(setPtr, valueValue);
           } else {
-            throw new Error('Set.delete() not yet implemented for Set<string>');
+            return this.ctx.emitError('Set.delete() not yet implemented for Set<string>', expr.loc);
           }
         }
       }
@@ -865,7 +867,7 @@ export class MethodCallGenerator {
 
   private handleExecSync(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('execSync() requires 1 argument (command)');
+      return this.ctx.emitError('execSync() requires 1 argument (command)', expr.loc);
     }
 
     this.ctx.syncStateToGenerators();
@@ -882,7 +884,7 @@ export class MethodCallGenerator {
 
   private handleJsonStringify(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      throw new Error('JSON.stringify() requires 1 argument');
+      return this.ctx.emitError('JSON.stringify() requires 1 argument', expr.loc);
     }
 
     this.ctx.syncStateToGenerators();
@@ -930,7 +932,7 @@ export class MethodCallGenerator {
     const regexPtr = this.ctx.generateExpression(expr.object, params);
 
     if (expr.args.length !== 1) {
-      throw new Error(`test() expects 1 argument, got ${expr.args.length}`);
+      return this.ctx.emitError(`test() expects 1 argument, got ${expr.args.length}`, expr.loc);
     }
 
     const testStr = this.ctx.generateExpression(expr.args[0], params);
@@ -941,7 +943,7 @@ export class MethodCallGenerator {
     this.ctx.syncStateToGenerators();
 
     if (expr.args.length !== 1) {
-      throw new Error(`exec() expects 1 argument, got ${expr.args.length}`);
+      return this.ctx.emitError(`exec() expects 1 argument, got ${expr.args.length}`, expr.loc);
     }
 
     const strPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -968,10 +970,8 @@ export class MethodCallGenerator {
 
   private throwUnsupportedMethodError(method: string, _objectType?: string, methodCallExpr?: MethodCallNode): never {
     let objectDescription = '';
-    let pos: number | undefined = undefined;
 
     if (methodCallExpr) {
-      pos = methodCallExpr.pos;
       const expr = methodCallExpr.object;
       if (expr) {
         const e = expr as ExprBase;
@@ -1003,7 +1003,7 @@ export class MethodCallGenerator {
       ? `Method '${method}' on '${objectDescription}' is not supported.`
       : `Method '${method}' is not supported.`;
 
-    throw new Error(this.ctx.formatCodegenError(errorMsg, suggestion, pos));
+    this.ctx.emitError(errorMsg, methodCallExpr ? methodCallExpr.loc : undefined, suggestion);
   }
 
   private isLikelyResponseExpression(expr: MethodCallNode): boolean {
