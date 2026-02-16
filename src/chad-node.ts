@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize } from './compiler.js';
+import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize, setDebugInfo } from './compiler.js';
 import { LogLevel, logger } from './utils/logger.js';
 import { runInit } from './codegen/stdlib/init-templates.js';
 import * as path from 'path';
@@ -39,6 +39,7 @@ function printHelp(): void {
   console.log('  --skip-semantic-analysis    Skip semantic analysis');
   console.log('  --keep-temps                Keep intermediate files (.ll, .o)');
   console.log('  -fsanitize=address          Build with AddressSanitizer');
+  console.log('  -g                          Emit DWARF debug info for source-level debugging');
   console.log('  -h, --help                  Show this help message');
   console.log('  --version                   Show version');
   console.log('');
@@ -120,6 +121,8 @@ for (let i = 0; i < subArgs.length; i++) {
     setKeepTemps(true);
   } else if (arg === '-fsanitize=address' || arg === '--sanitize=address') {
     setSanitize('address');
+  } else if (arg === '-g') {
+    setDebugInfo(true);
   } else if (arg === '-o') {
     if (i + 1 < subArgs.length) {
       outputArg = subArgs[i + 1];

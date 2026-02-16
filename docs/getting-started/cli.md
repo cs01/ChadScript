@@ -50,7 +50,11 @@ chad clean
 | `-v`, `--verbose` | Show compilation steps |
 | `--debug` | Show internal debugging info |
 | `--trace` | Show everything (AST, IR, variable tracking) |
-| `--target <triple>` | Cross-compile target (planned) — e.g. `x86_64-linux-gnu`, `aarch64-linux-gnu` |
+| `-g` | Emit DWARF debug info for source-level debugging with gdb/lldb |
+| `--emit-llvm`, `-S` | Output LLVM IR only (no binary) |
+| `--keep-temps` | Keep intermediate files (`.ll`, `.o`) |
+| `-fsanitize=address` | Build with AddressSanitizer (ASAN) |
+| `--skip-semantic-analysis` | Skip semantic analysis |
 
 ## Direct Compiler
 

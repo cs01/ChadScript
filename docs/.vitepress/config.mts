@@ -35,7 +35,8 @@ export default defineConfig({
           { text: 'Introduction', link: '/' },
           { text: 'Installation', link: '/getting-started/installation' },
           { text: 'Quick Start', link: '/getting-started/quickstart' },
-          { text: 'CLI Reference', link: '/getting-started/cli' }
+          { text: 'CLI Reference', link: '/getting-started/cli' },
+          { text: 'Debugging', link: '/getting-started/debugging' }
         ]
       },
       {
