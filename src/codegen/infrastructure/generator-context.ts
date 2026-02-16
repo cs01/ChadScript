@@ -27,7 +27,7 @@ import type { InterfaceStructGenerator, InterfaceStructInfo, InterfaceFieldInfo 
 import type { TypeGuardInfo } from './type-resolver/types.js';
 import type { JsonObjectMeta } from '../expressions/access/member.js';
 import type { DiagnosticEngine } from '../../diagnostics/engine.js';
-import type { TypeContext } from './type-context.js';
+import { TypeContext } from './type-context.js';
 
 interface ExprBase { type: string; }
 
@@ -409,7 +409,7 @@ export interface IGeneratorContext {
   /**
    * Type context for canonical interned type objects
    */
-  readonly typeContext?: TypeContext;
+  readonly typeContext: TypeContext;
 
 
   /**
@@ -778,7 +778,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public allocaInstructions: string[] = [];
   public symbolTable: SymbolTable;
   public diagnostics?: DiagnosticEngine;
-  public typeContext?: TypeContext;
+  public typeContext: TypeContext;
   public variableTypes: Map<string, string>;
   public actualClassTypes: Map<string, string>;
   public jsonObjectMetadata: Map<string, JsonObjectMeta>;
@@ -808,7 +808,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   public currentDeclaredInterfaceType: string | undefined = undefined;
 
   constructor() {
-    this.symbolTable = new SymbolTable();
+    this.typeContext = new TypeContext();
+    this.symbolTable = new SymbolTable(this.typeContext);
     this.variableTypes = new Map();
     this.actualClassTypes = new Map();
     this.jsonObjectMetadata = new Map();

@@ -12,6 +12,7 @@
  */
 
 import type { ResolvedType } from './type-system.js';
+import type { TypeContext } from './type-context.js';
 
 /**
  * Symbol kind for different variable types
@@ -417,14 +418,16 @@ export class SymbolTable {
   private scopeNamesCount: number = 0;
   private scopeBoundaries: number[];
   private scopeBoundariesCount: number = 0;
+  private typeContext: TypeContext | null;
 
-  constructor() {
+  constructor(typeContext?: TypeContext) {
     this.symbols = new Map();
     this.symbolKeys = [];
     this.narrowedTypes = new Map();
     this.interfaceTypes = new Map();
     this.scopeNames = [];
     this.scopeBoundaries = [];
+    this.typeContext = typeContext || null;
   }
 
   pushScope(kind: string): void {
@@ -1255,7 +1258,7 @@ export class SymbolTable {
    * Clone symbol table (useful for nested scopes)
    */
   clone(): SymbolTable {
-    const cloned = new SymbolTable();
+    const cloned = new SymbolTable(this.typeContext || undefined);
     cloned.symbols = new Map(this.symbols);
     return cloned;
   }

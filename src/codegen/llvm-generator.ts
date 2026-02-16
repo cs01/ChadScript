@@ -1,5 +1,5 @@
 import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode, ArrowFunctionNode, UnaryNode, IndexAccessNode, AwaitExpressionNode, BinaryNode, SourceLocation } from '../ast/types.js';
-import { BaseGenerator, SymbolKind } from './infrastructure/base-generator.js';
+import { BaseGenerator, SymbolKind, SymbolTable } from './infrastructure/base-generator.js';
 import { MapMetadata, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, ObjectMetadata } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
@@ -922,11 +922,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.diagnostics = new DiagnosticEngine();
     this.diagnostics.setSourceCode(this.sourceCode);
     this.diagnostics.setFilename(this.filename);
-    if (typeof process !== 'undefined' && process.stderr && process.stderr.isTTY) {
-      this.diagnostics.setColor(true);
-    }
+    this.diagnostics.setColor(true);
 
     this.typeContext = new TypeContext();
+    this.symbolTable = new SymbolTable(this.typeContext);
 
     if (options.debugInfo && this.filename) {
       const dbgFile = options.debugFilename || this.filename;
@@ -1038,6 +1037,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   mangleUserName(name: string): string {
     if (name.startsWith('__')) return name;
     return `_cs_${name}`;
+  }
+
+  createEmptyStringConstant(): string {
+    return this.stringGen.doCreateStringConstant('');
   }
 
   getSubprogramDbgRef(): string {

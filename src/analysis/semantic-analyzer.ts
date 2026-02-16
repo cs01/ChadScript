@@ -51,9 +51,7 @@ export class SemanticAnalyzer {
     this.ast = ast;
     this.symbols = new Map();
     this.diagnosticEngine = new DiagnosticEngine();
-    if (typeof process !== 'undefined' && process.stderr && process.stderr.isTTY) {
-      this.diagnosticEngine.setColor(true);
-    }
+    this.diagnosticEngine.setColor(true);
   }
 
   setSuppressWarnings(value: boolean): void {
