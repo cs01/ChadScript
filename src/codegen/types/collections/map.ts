@@ -1426,8 +1426,10 @@ export class PointerMapGenerator {
     this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentIndex}`);
     const keyValue = this.nextTemp();
     this.emit(`${keyValue} = load i8*, i8** ${keyElemPtr}`);
+    const keyCmp = this.nextTemp();
+    this.emit(`${keyCmp} = call i32 @strcmp(i8* ${keyValue}, i8* ${keyToFind})`);
     const keyMatch = this.nextTemp();
-    this.emit(`${keyMatch} = icmp eq i8* ${keyValue}, ${keyToFind}`);
+    this.emit(`${keyMatch} = icmp eq i32 ${keyCmp}, 0`);
     this.emit(`br i1 ${keyMatch}, label %${foundLabel}, label %${loopLabel}_next`);
 
     this.emit(`${foundLabel}:`);
@@ -1492,8 +1494,10 @@ export class PointerMapGenerator {
     this.emit(`${keyElemPtrSearch} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentIndex}`);
     const keyAtIndex = this.nextTemp();
     this.emit(`${keyAtIndex} = load i8*, i8** ${keyElemPtrSearch}`);
+    const keyCmp = this.nextTemp();
+    this.emit(`${keyCmp} = call i32 @strcmp(i8* ${keyAtIndex}, i8* ${keyValue})`);
     const keyMatch = this.nextTemp();
-    this.emit(`${keyMatch} = icmp eq i8* ${keyAtIndex}, ${keyValue}`);
+    this.emit(`${keyMatch} = icmp eq i32 ${keyCmp}, 0`);
     this.emit(`br i1 ${keyMatch}, label %${foundLabel}, label %${searchLoopLabel}_next`);
 
     this.emit(`${searchLoopLabel}_next:`);
