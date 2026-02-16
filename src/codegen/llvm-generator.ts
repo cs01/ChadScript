@@ -777,7 +777,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
     return lines.join('\n');
   }
-  public createEmptyStringConstant(): string { this.syncStateToGenerators(); return this.stringGen.doCreateStringConstant(''); }
 
   public typeResolverGetInterface(name: string): InterfaceDeclaration | null { return this.typeResolver ? this.typeResolver.getInterface(name) : null; }
   public typeResolverGetInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null { return this.typeResolver ? this.typeResolver.getInterfaceProperty(interfaceName, propName) : null; }
@@ -1475,7 +1474,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const classNode = this.ast.classes[classIdx];
       if (!classNode) continue;
       if (!classNode.name) continue;
-      this.syncStateToGenerators();
       const classIr = this.classGen.generateClass(classNode);
       if (classIr) {
         irParts.push(classIr);
@@ -1986,7 +1984,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (this.currentFunctionReturnType === 'void') {
             this.emit(`ret void`);
           } else if (this.currentFunctionReturnType === 'i8*') {
-            this.syncStateToGenerators();
             const emptyStr = this.stringGen.doCreateStringConstant('');
             this.emit(`ret i8* ${emptyStr}`);
           } else if (this.currentFunctionReturnType && this.currentFunctionReturnType.indexOf('*') !== -1) {
@@ -2092,35 +2089,26 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         }
         hasTerminator = true;
       } else if (stmtType === 'if') {
-        this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateIfStatement(stmtRaw as Statement, params);
         // Don't need to sync back - counters are already shared via bound methods
       } else if (stmtType === 'while') {
-        this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateWhileStatement(stmtRaw as Statement, params);
       } else if (stmtType === 'for') {
-        this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateForStatement(stmtRaw as Statement, params);
       } else if (stmtType === 'for_of') {
-        this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateForOfStatement(stmtRaw as Statement, params);
       } else if (stmtType === 'break') {
-        this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateBreakStatement();
         hasTerminator = true;  // break generates 'br', which is a terminator
       } else if (stmtType === 'continue') {
-        this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateContinueStatement();
         hasTerminator = true;  // continue generates 'br', which is a terminator
       } else if (stmtType === 'throw') {
-        this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateThrowStatement(stmtRaw as Statement, params);
         hasTerminator = true;  // throw generates 'unreachable', which is a terminator
       } else if (stmtType === 'try') {
-        this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateTryStatement(stmtRaw as Statement, params);
       } else if (stmtType === 'switch') {
-        this.syncStateToGenerators();
         lastValue = this.controlFlowGen.generateSwitchStatement(stmtRaw as Statement, params);
       } else if (stmtType === 'block') {
         lastValue = this.generateBlock(stmtRaw as BlockStatement, params);
@@ -2317,21 +2305,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (itemType === 'variable_declaration') {
       this.allocateVariable(item as VariableDeclaration, []);
     } else if (itemType === 'if') {
-      this.syncStateToGenerators();
       this.controlFlowGen.generateIfStatement(item as IfStatement, []);
     } else if (itemType === 'while') {
-      this.syncStateToGenerators();
       this.controlFlowGen.generateWhileStatement(item as WhileStatement, []);
     } else if (itemType === 'for') {
-      this.syncStateToGenerators();
       this.controlFlowGen.generateForStatement(item as ForStatement, []);
     } else if (itemType === 'for_of') {
-      this.syncStateToGenerators();
       this.controlFlowGen.generateForOfStatement(item as ForOfStatement, []);
     } else if (itemType === 'assignment') {
       this.generateBlock({ type: 'block', statements: [item as AssignmentStatement] }, []);
     } else if (itemType === 'throw') {
-      this.syncStateToGenerators();
       this.controlFlowGen.generateThrowStatement(item as Statement, []);
     } else {
       this.generateExpression(item as Expression, []);
@@ -2409,8 +2392,4 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
     return null;
   }
-
-  public syncStateToGenerators() {
-  }
-
 }
