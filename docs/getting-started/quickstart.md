@@ -39,15 +39,14 @@ curl http://localhost:3000
 ## CLI Tool
 
 ```typescript
-const filename = process.argv[0];
-const content = fs.readFileSync(filename);
+const content = fs.readFileSync("README.md");
 const words = content.split(" ");
 console.log("Words: ");
 console.log(words.length);
 ```
 
 ```bash
-$ chad run word-count.ts -- README.md
+$ chad run word-count.ts
 Words:
 142
 ```

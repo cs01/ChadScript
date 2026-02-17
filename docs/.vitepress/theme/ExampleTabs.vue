@@ -29,21 +29,21 @@ httpServe(3000, handleRequest);`,
   {
     label: 'File I/O',
     file: 'word-count.ts',
-    code: `const filename = process.argv[0];
-const content = fs.readFileSync(filename);
+    code: `const content = fs.readFileSync("README.md");
 const lines = content.split("\\n");
-console.log(lines.length);`,
-    run: '$ chad run word-count.ts -- README.md',
-    output: `61`,
+console.log(lines.length + " lines");`,
+    run: '$ chad run word-count.ts',
+    output: `61 lines`,
   },
   {
     label: 'SQLite',
     file: 'query.ts',
-    code: `const db = new Database("app.db");
-db.exec("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)");
-db.exec("INSERT INTO users (name) VALUES ('Alice')");
-const rows = db.query("SELECT * FROM users");
-console.log(JSON.stringify(rows));`,
+    code: `const db = sqlite.open("app.db");
+sqlite.exec(db, "CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, name TEXT)");
+sqlite.exec(db, "INSERT INTO users (name) VALUES ('Alice')");
+const rows = sqlite.all(db, "SELECT * FROM users");
+console.log(rows);
+sqlite.close(db);`,
     run: '$ chad run query.ts',
     output: `[{"id":1,"name":"Alice"}]`,
   },
@@ -70,11 +70,11 @@ const keywords = new Set([
 ])
 
 const types = new Set([
-  'Request', 'Response', 'Database', 'string', 'number', 'boolean', 'void',
+  'Request', 'Response', 'HttpRequest', 'HttpResponse', 'string', 'number', 'boolean', 'void',
 ])
 
 const builtins = new Set([
-  'console', 'process', 'fs', 'JSON', 'httpServe', 'fetch',
+  'console', 'process', 'fs', 'JSON', 'sqlite', 'httpServe', 'fetch',
 ])
 
 function highlight(code: string): string {
