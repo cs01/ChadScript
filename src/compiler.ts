@@ -246,7 +246,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     linkLibs = `-L/usr/local/lib ` + linkLibs;
   }
   const lwsBridgeObj = generator.usesMongoose ? `${LWS_BRIDGE_PATH}/lws-bridge.o` : '';
-  const regexBridgeObj = `${LWS_BRIDGE_PATH}/regex-bridge.o`;
+  const regexBridgeObj = generator.usesRegex ? `${LWS_BRIDGE_PATH}/regex-bridge.o` : '';
   let extraObjs = '';
 
   if (generator.getUsesTreeSitter()) {

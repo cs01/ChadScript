@@ -123,6 +123,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesCrypto: number = 0;
   public usesJson: number = 0;
   public usesMongoose: number = 0;
+  public usesRegex: number = 0;
   public usesTestRunner: number = 0;
   public usesStringBuilder: number = 0;
   private stringBuilderSlen: Map<string, string> = new Map();
@@ -753,6 +754,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesJson(): boolean { return this.usesJson !== 0; }
   public setUsesMongoose(value: boolean): void { this.usesMongoose = value ? 1 : 0; }
   public getUsesMongoose(): boolean { return this.usesMongoose !== 0; }
+  public setUsesRegex(value: boolean): void { this.usesRegex = value ? 1 : 0; }
+  public getUsesRegex(): boolean { return this.usesRegex !== 0; }
   public setUsesTestRunner(value: boolean): void { this.usesTestRunner = value ? 1 : 0; }
   public getUsesTestRunner(): boolean { return this.usesTestRunner !== 0; }
   public setCurrentDeclaredInterfaceType(type: string | undefined): void { this.currentDeclaredInterfaceType = type; }
@@ -932,6 +935,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesCrypto = 0;
     this.usesJson = 0;
     this.usesMongoose = 0;
+    this.usesRegex = 0;
     this.usesTestRunner = 0;
 
     this.ast = ast;

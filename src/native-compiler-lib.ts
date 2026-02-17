@@ -182,7 +182,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   if (generator.getUsesSqlite()) { linkLibs = '-lsqlite3 ' + linkLibs; }
   if (generator.getUsesMongoose()) { linkLibs = '-L' + LWS_PATH + '/lib -lwebsockets -lz -lzstd ' + linkLibs; }
   const lwsBridgeObj = generator.getUsesMongoose() ? LWS_BRIDGE_PATH + '/lws-bridge.o' : '';
-  const regexBridgeObj = LWS_BRIDGE_PATH + '/regex-bridge.o';
+  const regexBridgeObj = generator.getUsesRegex() ? LWS_BRIDGE_PATH + '/regex-bridge.o' : '';
   if (isMac) {
     if (generator.getUsesCrypto()) { linkLibs = '-L/opt/homebrew/opt/openssl/lib -L/usr/local/opt/openssl/lib ' + linkLibs; }
     if (generator.getUsesSqlite()) { linkLibs = '-L/opt/homebrew/opt/sqlite/lib -L/usr/local/opt/sqlite/lib ' + linkLibs; }

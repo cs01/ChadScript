@@ -27,6 +27,7 @@ export class RegexGenerator {
   // Compile a regex pattern and return a pointer to the compiled regex
   // Returns a pointer to regex_t struct (i8*)
   generateRegexCompile(pattern: string, flags: string): string {
+    this.ctx.setUsesRegex(true);
     let escaped = '';
     let byteCount = 0;
     for (let i = 0; i < pattern.length; i++) {
@@ -111,6 +112,7 @@ export class RegexGenerator {
   }
 
   generateRegexCompileRuntime(patternPtr: string, cflags: number): string {
+    this.ctx.setUsesRegex(true);
     const regexPtr = this.nextTemp();
     this.emit(`${regexPtr} = call i8* @cs_regex_alloc()`);
 
