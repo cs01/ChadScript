@@ -96,6 +96,14 @@ export class BinaryExpressionGenerator {
     const leftType = this.ctx.getVariableType(left);
     const rightType = this.ctx.getVariableType(right);
 
+    if (leftType === 'i64' && rightType === 'i64' && _op !== '/') {
+      const i64Op = _op === '+' ? 'add' : _op === '-' ? 'sub' : 'mul';
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = ${i64Op} i64 ${left}, ${right}`);
+      this.ctx.setVariableType(temp, 'i64');
+      return temp;
+    }
+
     if (leftType === 'i8*' || (leftType && leftType.indexOf('*') !== -1)) {
       const asInt = this.ctx.nextTemp();
       this.ctx.emit(`${asInt} = ptrtoint ${leftType} ${left} to i64`);
@@ -133,6 +141,13 @@ export class BinaryExpressionGenerator {
   private generateModulo(left: string, right: string, leftExpr: Expression, rightExpr: Expression): string {
     const leftType = this.ctx.getVariableType(left);
     const rightType = this.ctx.getVariableType(right);
+
+    if (leftType === 'i64' && rightType === 'i64') {
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = srem i64 ${left}, ${right}`);
+      this.ctx.setVariableType(temp, 'i64');
+      return temp;
+    }
 
     if (leftType === 'i8*' || (leftType && leftType.indexOf('*') !== -1)) {
       const asInt = this.ctx.nextTemp();
@@ -388,6 +403,18 @@ export class BinaryExpressionGenerator {
   private generateNumericComparison(cond: string, left: string, right: string): string {
     const leftType = this.ctx.getVariableType(left);
     const rightType = this.ctx.getVariableType(right);
+
+    if (leftType === 'i64' && rightType === 'i64') {
+      const icmpCond = cond === 'olt' ? 'slt' : cond === 'ogt' ? 'sgt' :
+                       cond === 'ole' ? 'sle' : cond === 'oge' ? 'sge' :
+                       cond === 'oeq' ? 'eq' : 'ne';
+      const cmpResult = this.ctx.nextTemp();
+      this.ctx.emit(`${cmpResult} = icmp ${icmpCond} i64 ${left}, ${right}`);
+      const i64Result = this.ctx.nextTemp();
+      this.ctx.emit(`${i64Result} = zext i1 ${cmpResult} to i64`);
+      this.ctx.setVariableType(i64Result, 'i64');
+      return i64Result;
+    }
 
     let leftDouble = left;
     let rightDouble = right;
