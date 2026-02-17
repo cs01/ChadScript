@@ -9,12 +9,16 @@ mkdir -p "$VENDOR_DIR"
 
 # --- bdwgc (Boehm GC) ---
 if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
+  IS_MUSL=false
+  if ls /lib/ld-musl-* >/dev/null 2>&1; then IS_MUSL=true; fi
+
   SYSTEM_LIBGC=""
-  if ldd --version 2>&1 | grep -qi musl; then
+  if [ "$IS_MUSL" = true ]; then
     for p in /usr/lib/libgc.a /usr/local/lib/libgc.a; do
       if [ -f "$p" ]; then SYSTEM_LIBGC="$p"; break; fi
     done
   fi
+
   if [ -n "$SYSTEM_LIBGC" ]; then
     echo "==> Using system libgc (musl-compatible): $SYSTEM_LIBGC"
     mkdir -p "$VENDOR_DIR/bdwgc"
@@ -27,10 +31,11 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
       git clone --depth 1 https://github.com/ivmai/bdwgc.git
     fi
     cd bdwgc
-    ./autogen.sh
-    ./configure --enable-static --disable-shared --with-pic --with-libatomic-ops=none
+    mkdir -p build && cd build
+    cmake .. -DCMAKE_C_FLAGS="-fPIC" -DBUILD_SHARED_LIBS=OFF \
+      -Denable_cplusplus=OFF -Denable_docs=OFF -Dwithout_libatomic_ops=ON
     make -j"$NPROC"
-    cp .libs/libgc.a . 2>/dev/null || true
+    cp libgc.a "$VENDOR_DIR/bdwgc/"
     echo "  -> $VENDOR_DIR/bdwgc/libgc.a"
   fi
 else
