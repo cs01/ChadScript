@@ -617,6 +617,12 @@ export const testCases: TestCase[] = [
     description: 'Array element assignment arr[i] = value with computed indices'
   },
   {
+    name: 'object-array-assignment',
+    fixture: 'tests/fixtures/arrays/object-array-assignment.ts',
+    expectTestPassed: true,
+    description: 'Object array element assignment items[i] = { ... }'
+  },
+  {
     name: 'rest-params',
     fixture: 'tests/fixtures/functions/rest-params.ts',
     expectTestPassed: true,

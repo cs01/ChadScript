@@ -512,10 +512,13 @@ export class IndexAccessGenerator {
   generateAssignment(expr: IndexAccessAssignmentNode, params: string[]): string {
     const value = this.ctx.generateExpression(expr.value, params);
     const isStringArray = this.ctx.isStringArrayExpression(expr.object);
-    const isNumericArray = !isStringArray && this.ctx.isArrayExpression(expr.object);
+    const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
+    const isNumericArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(expr.object);
 
     if (isStringArray) {
       return this.generateStringArrayAssignment(expr, value, params);
+    } else if (isObjectArray) {
+      return this.generateObjectArrayAssignment(expr, value, params);
     } else if (isNumericArray) {
       return this.generateNumericArrayAssignment(expr, value, params);
     } else {
@@ -546,6 +549,37 @@ export class IndexAccessGenerator {
 
     const elementPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elementPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i64 ${indexI64}`);
+
+    this.ctx.emit(`store i8* ${value}, i8** ${elementPtr}, !tbaa !5`);
+
+    return value;
+  }
+
+  private generateObjectArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
+    const arrayPtr = this.ctx.generateExpression(expr.object, params);
+
+    const dataFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+    const data = this.ctx.nextTemp();
+    this.ctx.emit(`${data} = load i8*, i8** ${dataFieldPtr}`);
+    const dataAsPtrs = this.ctx.nextTemp();
+    this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${data} to i8**`);
+
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
+    const indexType = this.ctx.getVariableType(indexDouble);
+    let index = indexDouble;
+    if (indexType === 'double') {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    } else if (indexType === 'i64') {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+    }
+    const indexI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
+
+    const elementPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elementPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i64 ${indexI64}`);
 
     this.ctx.emit(`store i8* ${value}, i8** ${elementPtr}, !tbaa !5`);
 
