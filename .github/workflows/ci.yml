@@ -21,7 +21,7 @@ jobs:
             llvm18 llvm18-dev clang18 lld \
             cmake make gcc g++ musl-dev \
             autoconf automake libtool \
-            linux-headers git bash zstd-dev zlib-dev
+            linux-headers git bash zstd-dev zlib-dev sqlite-dev
           ln -sf /usr/lib/llvm18/bin/llc /usr/bin/llc
           ln -sf /usr/lib/llvm18/bin/opt /usr/bin/opt
           ln -sf /usr/bin/clang-18 /usr/bin/clang
@@ -211,6 +211,56 @@ jobs:
         with:
           name: chadscript-macos-arm64
           path: chadscript-macos-arm64.tar.gz
+
+  test-artifact:
+    needs: [build-linux, build-macos]
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: chadscript-linux-x64
+          - os: macos-latest
+            artifact: chadscript-macos-arm64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Install LLVM (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y llvm clang
+
+      - name: Install LLVM (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install llvm
+          echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+
+      - name: Extract and install
+        run: |
+          mkdir -p ~/.chadscript
+          tar -xzf ${{ matrix.artifact }}.tar.gz -C ~/.chadscript
+          echo "$HOME/.chadscript" >> $GITHUB_PATH
+
+      - name: Verify binary
+        run: |
+          file ~/.chadscript/chad
+          file ~/.chadscript/chadc
+          ls -la ~/.chadscript/lib/
+
+      - name: Smoke test - hello world
+        run: |
+          echo 'console.log("Hello from release artifact!");' > /tmp/hello.ts
+          chad run /tmp/hello.ts
+
+      - name: Smoke test - compile to binary
+        run: |
+          echo 'process.exit(42);' > /tmp/exit42.ts
+          chadc /tmp/exit42.ts -o /tmp/exit42
+          /tmp/exit42 || [ $? -eq 42 ]
 
   pre-release:
     needs: [build-linux, build-macos]

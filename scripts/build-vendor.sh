@@ -19,7 +19,11 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
     cd bdwgc
   fi
   ./autogen.sh
-  ./configure --enable-static --disable-shared --with-pic
+  BDWGC_CFLAGS=""
+  if ldd --version 2>&1 | grep -qi musl; then
+    BDWGC_CFLAGS="-DUSE_MMAP -D_GNU_SOURCE"
+  fi
+  ./configure --enable-static --disable-shared --with-pic CFLAGS="$BDWGC_CFLAGS"
   make -j"$NPROC"
   cp .libs/libgc.a . 2>/dev/null || true
   echo "  -> $VENDOR_DIR/bdwgc/libgc.a"
