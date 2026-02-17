@@ -164,6 +164,12 @@ export class TypeInference {
           binExpr.op === '|' || binExpr.op === '^') {
         return this.ctx.typeContext.numberType;
       }
+      if (binExpr.op === '||' || binExpr.op === '??') {
+        const leftResolved = this.resolveExpressionType(binExpr.left);
+        if (leftResolved) return leftResolved;
+        const rightResolved = this.resolveExpressionType(binExpr.right);
+        if (rightResolved) return rightResolved;
+      }
     }
     if (e.type === 'conditional') {
       const condExpr = expr as ConditionalExpressionNode;

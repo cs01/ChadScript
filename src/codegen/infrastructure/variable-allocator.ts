@@ -405,7 +405,8 @@ export class VariableAllocator {
       nodeType === 'map' || nodeType === 'set' || nodeType === 'new' ||
       nodeType === 'unary' || nodeType === 'this' || nodeType === 'call' ||
       nodeType === 'method_call' || nodeType === 'index_access' ||
-      nodeType === 'type_assertion' || nodeType === 'member_access'
+      nodeType === 'type_assertion' || nodeType === 'member_access' ||
+      nodeType === 'binary' || nodeType === 'conditional'
     );
 
     let isString: boolean;
