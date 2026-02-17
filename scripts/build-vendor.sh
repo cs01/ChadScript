@@ -9,45 +9,26 @@ mkdir -p "$VENDOR_DIR"
 
 # --- bdwgc (Boehm GC) ---
 if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
-  IS_MUSL=false
-  if ls /lib/ld-musl-* >/dev/null 2>&1; then IS_MUSL=true; fi
-
-  SYSTEM_LIBGC=""
-  if [ "$IS_MUSL" = true ]; then
-    for p in /usr/lib/libgc.a /usr/local/lib/libgc.a; do
-      if [ -f "$p" ]; then SYSTEM_LIBGC="$p"; break; fi
-    done
-    if [ -z "$SYSTEM_LIBGC" ]; then
-      SYSTEM_LIBGC=$(find /usr/lib /usr/local/lib -name "libgc.a" 2>/dev/null | head -1)
-    fi
+  echo "==> Building bdwgc..."
+  cd "$VENDOR_DIR"
+  if [ ! -d bdwgc ]; then
+    git clone --depth 1 https://github.com/ivmai/bdwgc.git
   fi
-
-  if [ -n "$SYSTEM_LIBGC" ]; then
-    echo "==> Using system libgc (musl-compatible): $SYSTEM_LIBGC"
-    mkdir -p "$VENDOR_DIR/bdwgc"
-    cp "$SYSTEM_LIBGC" "$VENDOR_DIR/bdwgc/"
-    echo "  -> $VENDOR_DIR/bdwgc/libgc.a (system)"
+  cd bdwgc
+  mkdir -p build && cd build
+  cmake .. \
+    -DCMAKE_C_FLAGS="-fPIC -DGC_BUILTIN_ATOMIC -DUSE_MMAP_ANON" \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DBUILD_TESTING=OFF \
+    -Denable_cplusplus=OFF -Denable_docs=OFF -Dwithout_libatomic_ops=ON
+  make -j"$NPROC"
+  mkdir -p "$VENDOR_DIR/bdwgc"
+  if [ -f libgc.a ]; then
+    cp libgc.a "$VENDOR_DIR/bdwgc/"
   else
-    echo "==> Building bdwgc..."
-    cd "$VENDOR_DIR"
-    if [ ! -d bdwgc ]; then
-      git clone --depth 1 https://github.com/ivmai/bdwgc.git
-    fi
-    cd bdwgc
-    mkdir -p build && cd build
-    cmake .. \
-      -DCMAKE_C_FLAGS="-fPIC -DGC_BUILTIN_ATOMIC -DUSE_MMAP_ANON" \
-      -DBUILD_SHARED_LIBS=OFF \
-      -DBUILD_TESTING=OFF \
-      -Denable_cplusplus=OFF -Denable_docs=OFF -Dwithout_libatomic_ops=ON
-    make -j"$NPROC"
-    if [ -f libgc.a ]; then
-      cp libgc.a "$VENDOR_DIR/bdwgc/"
-    else
-      ar rcs "$VENDOR_DIR/bdwgc/libgc.a" CMakeFiles/gc.dir/extra/gc.c.o
-    fi
-    echo "  -> $VENDOR_DIR/bdwgc/libgc.a"
+    ar rcs "$VENDOR_DIR/bdwgc/libgc.a" CMakeFiles/gc.dir/extra/gc.c.o
   fi
+  echo "  -> $VENDOR_DIR/bdwgc/libgc.a"
 else
   echo "==> bdwgc already built, skipping"
 fi
