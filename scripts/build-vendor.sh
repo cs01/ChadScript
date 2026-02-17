@@ -26,7 +26,7 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
   if [ -f libgc.a ]; then
     cp libgc.a "$VENDOR_DIR/bdwgc/"
   else
-    ar rcs "$VENDOR_DIR/bdwgc/libgc.a" CMakeFiles/gc.dir/extra/gc.c.o
+    find CMakeFiles/gc.dir -name "*.o" -exec ar rcs "$VENDOR_DIR/bdwgc/libgc.a" {} +
   fi
   echo "  -> $VENDOR_DIR/bdwgc/libgc.a"
 else
