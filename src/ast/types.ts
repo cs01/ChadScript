@@ -359,6 +359,7 @@ export interface ClassField {
   name: string;
   fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean';  // Primitive types and arrays
   tsType?: string;  // Original TypeScript type (e.g., 'AST', 'Expression') for interface-typed fields
+  initializer?: Expression;
 }
 
 export interface ClassNode {

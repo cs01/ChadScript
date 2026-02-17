@@ -2141,6 +2141,7 @@ function transformClassDeclaration(node: TreeSitterNode): ClassNode | null {
 function transformClassField(node: TreeSitterNode): ClassField | null {
   const nameNode = getChildByFieldName(node, 'name');
   const typeNode = getChildByFieldName(node, 'type');
+  const valueNode = getChildByFieldName(node, 'value');
 
   if (!nameNode) return null;
 
@@ -2161,7 +2162,11 @@ function transformClassField(node: TreeSitterNode): ClassField | null {
     }
   }
 
-  return { name, fieldType, tsType };
+  const result: ClassField = { name, fieldType, tsType };
+  if (valueNode) {
+    result.initializer = transformExpression(valueNode);
+  }
+  return result;
 }
 
 function transformClassMethod(node: TreeSitterNode): ClassMethod | null {

@@ -109,7 +109,7 @@ export function transformClassDeclaration(
 
   for (const member of node.members) {
     if (ts.isPropertyDeclaration(member)) {
-      const field = transformPropertyDeclaration(member);
+      const field = transformPropertyDeclaration(member, checker);
       if (field) {
         fields.push(field);
       }
@@ -147,7 +147,7 @@ export function transformClassDeclaration(
   };
 }
 
-function transformPropertyDeclaration(node: ts.PropertyDeclaration): ClassField | null {
+function transformPropertyDeclaration(node: ts.PropertyDeclaration, checker: ts.TypeChecker | undefined): ClassField | null {
   if (!ts.isIdentifier(node.name)) return null;
 
   const name = node.name.text;
@@ -178,7 +178,11 @@ function transformPropertyDeclaration(node: ts.PropertyDeclaration): ClassField 
     }
   }
 
-  return { name, fieldType, tsType };
+  const result: ClassField = { name, fieldType, tsType };
+  if (node.initializer) {
+    result.initializer = transformExpression(node.initializer, checker);
+  }
+  return result;
 }
 
 function transformMethodDeclaration(

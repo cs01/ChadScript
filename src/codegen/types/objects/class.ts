@@ -9,7 +9,7 @@ import { stripOptional, tsTypeToLlvm } from '../../infrastructure/type-system.js
 
 export class ClassGenerator {
   // Track class structures: className -> ALL fields (including inherited)
-  public classFields: Map<string, { name: string; fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean'; tsType?: string }[]>;
+  public classFields: Map<string, ClassField[]>;
 
   constructor(private ctx: IGeneratorContext) {
     this.classFields = new Map();
@@ -361,7 +361,7 @@ export class ClassGenerator {
         console.log('WARNING: constructor for ' + className + ' returned falsy');
       }
     } else {
-      const defaultCtorIr = this.generateDefaultConstructorFromTypes(className, fieldLlvmTypes);
+      const defaultCtorIr = this.generateDefaultConstructorFromTypes(className, fieldLlvmTypes, allFields);
       if (defaultCtorIr) {
         parts.push(defaultCtorIr);
         parts.push('\n');
@@ -514,6 +514,34 @@ export class ClassGenerator {
       }
     }
 
+    for (let fi = 0; fi < fields.length; fi++) {
+      const classField = fields[fi];
+      if (!classField) continue;
+      if (!classField.initializer) continue;
+      const initType = classField.initializer.type;
+      if (initType !== 'string' && initType !== 'number' && initType !== 'boolean' && initType !== 'null' && initType !== 'array' && initType !== 'new' && initType !== 'unary') continue;
+      const initResult = this.ctx.generateExpression(classField.initializer, constructor.params);
+      if (initResult) {
+        const fieldPtr = this.nextTemp();
+        const llvmType = this.fieldToLlvmType(classField);
+        this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${objPtr}, i32 0, i32 ${fi}`);
+        const resultType = this.ctx.getVariableType(initResult) || 'double';
+        if (resultType !== llvmType && llvmType === 'double' && resultType === 'i1') {
+          const conv = this.nextTemp();
+          this.emit(`${conv} = zext i1 ${initResult} to i32`);
+          const conv2 = this.nextTemp();
+          this.emit(`${conv2} = sitofp i32 ${conv} to double`);
+          this.emit(`store double ${conv2}, double* ${fieldPtr}`);
+        } else if (resultType !== llvmType) {
+          const cast = this.nextTemp();
+          this.emit(`${cast} = bitcast ${resultType} ${initResult} to ${llvmType}`);
+          this.emit(`store ${llvmType} ${cast}, ${llvmType}* ${fieldPtr}`);
+        } else {
+          this.emit(`store ${llvmType} ${initResult}, ${llvmType}* ${fieldPtr}`);
+        }
+      }
+    }
+
     this.ctx.generateBlock(constructor.body, constructor.params);
 
     const deferredAllocas = this.ctx.getAllocaInstructions();
@@ -551,10 +579,10 @@ export class ClassGenerator {
       if (!f) continue;
       fieldLlvmTypes.push(this.fieldToLlvmType(f));
     }
-    return this.generateDefaultConstructorFromTypes(className, fieldLlvmTypes);
+    return this.generateDefaultConstructorFromTypes(className, fieldLlvmTypes, allFields);
   }
 
-  private generateDefaultConstructorFromTypes(className: string, fieldLlvmTypes: string[]): string {
+  private generateDefaultConstructorFromTypes(className: string, fieldLlvmTypes: string[], classFields?: ClassField[]): string {
     const structType = `%${className}_struct*`;
     let ir = `define ${structType} @${this.ctx.mangleUserName(className)}_constructor() {` + '\n';
     ir += 'entry:\n';
@@ -590,6 +618,38 @@ export class ClassGenerator {
       this.emit(`${objMem} = call i8* @GC_malloc(i64 ${sizeReg})`);
       objPtr = this.nextTemp();
       this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
+    }
+
+    if (classFields) {
+      this.ctx.setThisPointer(objPtr);
+      this.ctx.setCurrentClassName(className);
+      for (let fi = 0; fi < classFields.length; fi++) {
+        const cf = classFields[fi];
+        if (!cf) continue;
+        if (!cf.initializer) continue;
+        const initType = cf.initializer.type;
+        if (initType !== 'string' && initType !== 'number' && initType !== 'boolean' && initType !== 'null' && initType !== 'array' && initType !== 'new' && initType !== 'unary') continue;
+        const initResult = this.ctx.generateExpression(cf.initializer, []);
+        if (initResult) {
+          const fieldPtr = this.nextTemp();
+          const llvmType = fieldLlvmTypes[fi];
+          this.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${objPtr}, i32 0, i32 ${fi}`);
+          const resultType = this.ctx.getVariableType(initResult) || 'double';
+          if (resultType !== llvmType && llvmType === 'double' && resultType === 'i1') {
+            const conv = this.nextTemp();
+            this.emit(`${conv} = zext i1 ${initResult} to i32`);
+            const conv2 = this.nextTemp();
+            this.emit(`${conv2} = sitofp i32 ${conv} to double`);
+            this.emit(`store double ${conv2}, double* ${fieldPtr}`);
+          } else if (resultType !== llvmType) {
+            const cast = this.nextTemp();
+            this.emit(`${cast} = bitcast ${resultType} ${initResult} to ${llvmType}`);
+            this.emit(`store ${llvmType} ${cast}, ${llvmType}* ${fieldPtr}`);
+          } else {
+            this.emit(`store ${llvmType} ${initResult}, ${llvmType}* ${fieldPtr}`);
+          }
+        }
+      }
     }
 
     if (this.ctx.getOutputLength() > 0) {
