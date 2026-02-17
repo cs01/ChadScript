@@ -1,4 +1,4 @@
-import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField, SwitchStatement } from '../../ast/types.js';
+import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField, SwitchStatement, SourceLocation } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, SymbolMetadata } from './symbol-table.js';
 import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
@@ -53,6 +53,7 @@ export interface FunctionGeneratorContext {
   getSubprogramDbgRef(): string;
   getUsesTestRunner(): boolean;
   ensureDouble(value: string): string;
+  emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
 }
 
 export class FunctionGenerator {
@@ -87,10 +88,10 @@ export class FunctionGenerator {
     if (funcIsAsync) {
       const asyncRetType = func.returnType || '';
       if (asyncRetType === 'any') {
-        throw new Error(`Async function '${funcName}' has return type 'any' — async functions must have an explicit Promise<T> return type (e.g., Promise<void>, Promise<string>)`);
+        this.ctx.emitError('Async function \'' + funcName + '\' has return type \'any\' — async functions must have an explicit Promise<T> return type (e.g., Promise<void>, Promise<string>)');
       }
       if (asyncRetType !== '' && !asyncRetType.startsWith('Promise<')) {
-        throw new Error(`Async function '${funcName}' has return type '${asyncRetType}' — async functions must return Promise<T> (e.g., Promise<void>, Promise<${asyncRetType}>)`);
+        this.ctx.emitError('Async function \'' + funcName + '\' has return type \'' + asyncRetType + '\' — async functions must return Promise<T> (e.g., Promise<void>, Promise<' + asyncRetType + '>)');
       }
       returnType = '%Promise*';
       this.ctx.setCurrentFunctionReturnType('%Promise*');

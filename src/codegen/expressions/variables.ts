@@ -1,5 +1,6 @@
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
+import type { SourceLocation } from '../../ast/types.js';
 
 export interface VariableExpressionContext {
   symbolTable: SymbolTable;
@@ -14,6 +15,7 @@ export interface VariableExpressionContext {
   interfaceStructGenHasInterface(name: string): boolean;
   getAstFunctionsLength(): number;
   getAstFunctionNameAt(index: number): string | null;
+  emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
 }
 
 interface ClassMeta {
@@ -150,7 +152,7 @@ export class VariableExpressionGenerator {
 
     // Load regular variable with proper type from variableTypes map
     if (!name) {
-      throw new Error(`Variable expression has no name property`);
+      return this.ctx.emitError('Variable expression has no name property');
     }
 
     // Handle __chadscript global
@@ -177,7 +179,7 @@ export class VariableExpressionGenerator {
       }
     }
 
-    throw new Error(`Unknown variable: ${name}`);
+    return this.ctx.emitError('Unknown variable: ' + name);
   }
 
   private loadClassInstance(_name: string, classMeta: ClassMeta): string {

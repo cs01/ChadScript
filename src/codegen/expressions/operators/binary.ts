@@ -1,4 +1,4 @@
-import { Expression } from '../../../ast/types.js';
+import { Expression, SourceLocation } from '../../../ast/types.js';
 import type { IStringGenerator } from '../../infrastructure/generator-context.js';
 
 interface ControlFlowGeneratorLike {
@@ -19,6 +19,7 @@ export interface BinaryExpressionGeneratorContext {
   controlFlowGen: ControlFlowGeneratorLike;
   readonly stringGen: IStringGenerator;
   generateExpression(expr: Expression, params: string[]): string;
+  emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
 }
 
 /**
@@ -88,7 +89,7 @@ export class BinaryExpressionGenerator {
     } else if (cmpMap[op]) {
       return this.generateComparison(op, cmpMap[op], leftValue, rightValue, left, right);
     } else {
-      throw new Error(`Unknown operator: ${op}`);
+      return this.ctx.emitError('Unknown operator: ' + op, undefined, 'supported operators: +, -, *, /, %, **, ==, !=, <, >, <=, >=, &&, ||, ??');
     }
   }
 

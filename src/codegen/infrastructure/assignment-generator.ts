@@ -8,6 +8,7 @@ import {
   AST,
   ClassNode,
   AssignmentStatement,
+  SourceLocation,
 } from '../../ast/types.js';
 import type { SymbolTable, ClassInfo, ObjectArrayMetadata } from './symbol-table.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
@@ -43,6 +44,7 @@ export interface AssignmentGeneratorContext {
   readonly symbolTable: SymbolTable;
   getInterfaceProperties(name: string): { keys: string[]; types: string[] } | null;
   ensureDouble(value: string): string;
+  emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
 }
 
 export class AssignmentGenerator {
@@ -65,7 +67,7 @@ export class AssignmentGenerator {
       return;
     }
     if (valueType !== 'member_access_assignment') {
-      throw new Error('Invalid member access assignment format');
+      this.ctx.emitError('Invalid member access assignment format');
     }
     const memberAccessValue = stmtValue as MemberAccessAssignmentNode;
 
@@ -94,7 +96,7 @@ export class AssignmentGenerator {
     } else if (objType === 'this') {
       const thisPtr = this.ctx.getThisPointer();
       if (!thisPtr) {
-        throw new Error('this.field = value used outside of class method or constructor');
+        this.ctx.emitError('this.field = value used outside of class method or constructor');
       }
       className = this.ctx.getCurrentClassName();
       if (!className) {
@@ -147,7 +149,7 @@ export class AssignmentGenerator {
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
     const propIndex = objMeta.keys.indexOf(property);
     if (propIndex === -1) {
-      throw new Error(`Unknown property: ${property} on object ${object.name}. Available properties: ${objMeta.keys.join(', ')}`);
+      this.ctx.emitError('Unknown property: ' + property + ' on object ' + object.name + '. Available properties: ' + objMeta.keys.join(', '));
     }
     const propType = objMeta.types[propIndex];
     const structType = `{ ${objMeta.types.join(', ')} }`;
@@ -222,7 +224,7 @@ export class AssignmentGenerator {
     }
 
     if (!instancePtr) {
-      throw new Error(`Cannot determine class instance for field assignment on ${objType}`);
+      this.ctx.emitError('Cannot determine class instance for field assignment on ' + objType);
     }
 
     const fields = this.ctx.classGenGetClassFields(className);
@@ -241,7 +243,7 @@ export class AssignmentGenerator {
       this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 0`);
       this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
     } else {
-      throw new Error(`Field '${property}' not found in class ${className}. Did you forget to declare it with a type annotation?`);
+      this.ctx.emitError('Field \'' + property + '\' not found in class ' + className + '. Did you forget to declare it with a type annotation?');
     }
   }
 

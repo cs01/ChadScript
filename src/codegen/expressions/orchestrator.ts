@@ -20,6 +20,7 @@ interface ExpressionOrchestratorContext {
   setUsesPromises(value: boolean): void;
   getExpectedCallbackParamType(): string | null;
   getExpectedCallbackReturnType(): string | null;
+  emitWarning(message: string, loc?: { line: number; column: number }, suggestion?: string): void;
 }
 
 /**
@@ -217,6 +218,7 @@ export class ExpressionGenerator {
       return this.indexAccessGen.generateAssignment(expr as IndexAccessAssignmentNode, params);
     }
 
+    this.ctx.emitWarning('unsupported expression type: ' + exprTyped.type, (expr as { loc?: { line: number; column: number } }).loc, 'this expression will evaluate to null');
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
     this.ctx.setVariableType(temp, 'i8*');
