@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration, InterfaceField, BinaryNode, TypeAssertionNode, UnaryNode } from '../../ast/types.js';
+import { Expression, MethodCallNode, AST, MemberAccessNode, IndexAccessNode, CallNode, ArrayNode, NewNode, FunctionNode, ClassNode, ClassMethod, VariableNode, ConditionalExpressionNode, InterfaceDeclaration, InterfaceField, BinaryNode, TypeAssertionNode, UnaryNode, MapNode, SetNode } from '../../ast/types.js';
 import { SymbolTable, SymbolKind } from './symbol-table.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { ClassGenerator } from '../types/objects/class.js';
@@ -51,15 +51,31 @@ export class TypeInference {
     if (e.type === 'null') return this.ctx.typeContext.nullType;
     if (e.type === 'regex') return this.ctx.typeContext.resolve('RegExp');
     if (e.type === 'object') return this.ctx.typeContext.resolve('object');
-    if (e.type === 'map') return this.ctx.typeContext.getMapType('string', 'string');
-    if (e.type === 'set') return this.ctx.typeContext.getSetType('string');
+    if (e.type === 'map') {
+      const mapExpr = expr as MapNode;
+      const keyType = mapExpr.keyType || 'string';
+      const valueType = mapExpr.valueType || 'string';
+      return this.ctx.typeContext.getMapType(keyType, valueType);
+    }
+    if (e.type === 'set') {
+      const setExpr = expr as SetNode;
+      const valType = setExpr.valueType || 'string';
+      return this.ctx.typeContext.getSetType(valType);
+    }
     if (e.type === 'variable') {
       return this.resolveVariableType((expr as VariableNode).name);
     }
     if (e.type === 'new') {
       const newExpr = expr as NewNode;
-      if (newExpr.className === 'Map') return this.ctx.typeContext.getMapType('string', 'string');
-      if (newExpr.className === 'Set') return this.ctx.typeContext.getSetType('string');
+      if (newExpr.className === 'Map') {
+        const kType = (newExpr.typeArgs && newExpr.typeArgs.length > 0) ? newExpr.typeArgs[0] : 'string';
+        const vType = (newExpr.typeArgs && newExpr.typeArgs.length > 1) ? newExpr.typeArgs[1] : 'string';
+        return this.ctx.typeContext.getMapType(kType, vType);
+      }
+      if (newExpr.className === 'Set') {
+        const valType = (newExpr.typeArgs && newExpr.typeArgs.length > 0) ? newExpr.typeArgs[0] : 'number';
+        return this.ctx.typeContext.getSetType(valType);
+      }
       if (newExpr.className === 'RegExp') return this.ctx.typeContext.resolve('RegExp');
       if (newExpr.className === 'Promise') return this.ctx.typeContext.resolve('Promise');
       const cls = this.getClass(newExpr.className);

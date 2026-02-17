@@ -472,6 +472,12 @@ export const testCases: TestCase[] = [
     description: 'Set with add/has operations should work'
   },
   {
+    name: 'set-type-args',
+    fixture: 'tests/fixtures/collections/set-type-args.ts',
+    expectTestPassed: true,
+    description: 'Set with explicit type args should infer correct types'
+  },
+  {
     name: 'strict-equality',
     fixture: 'tests/fixtures/comparisons/strict-equality.js',
     expectedExitCode: 15,

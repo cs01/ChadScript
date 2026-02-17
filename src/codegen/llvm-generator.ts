@@ -1,6 +1,6 @@
 import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode, ArrowFunctionNode, UnaryNode, IndexAccessNode, AwaitExpressionNode, BinaryNode, SourceLocation } from '../ast/types.js';
 import { BaseGenerator, SymbolKind, SymbolTable } from './infrastructure/base-generator.js';
-import { MapMetadata, SymbolMetadata, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, ObjectMetadata } from './infrastructure/symbol-table.js';
+import { MapMetadata, SymbolMetadata, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, createSetMetadataSymbol, ObjectMetadata } from './infrastructure/symbol-table.js';
 import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
 import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
 import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/function-generator.js';
@@ -1391,6 +1391,30 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           kind = SymbolKind.Map;
           defaultValue = 'zeroinitializer';
         } else if (isSet) {
+          let isStringSet = false;
+          if (stmt.declaredType) {
+            if (stmt.declaredType.indexOf('Set<string') !== -1) {
+              isStringSet = true;
+            }
+          }
+          if (!isStringSet && stmt.value) {
+            const resolved = this.typeInference.resolveExpressionType(stmt.value);
+            if (resolved && resolved.base === 'Set<string>') {
+              isStringSet = true;
+            }
+          }
+          if (isStringSet) {
+            llvmType = '%StringSet';
+            kind = SymbolKind.Set;
+            defaultValue = 'zeroinitializer';
+            ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+            this.globalVariables.set(name, { llvmType, kind, initialized: false });
+            this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createSetMetadataSymbol({
+              valueType: 'string',
+              llvmValueType: 'i8*'
+            }));
+            continue;
+          }
           llvmType = '%Set';
           kind = SymbolKind.Set;
           defaultValue = 'zeroinitializer';
