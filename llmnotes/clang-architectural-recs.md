@@ -72,6 +72,14 @@ No viable cache key exists. `loc.offset` is never populated by the parser (all `
 
 ## Open Gaps
 
+### Class Field Default Initializers
+
+`name: string = "hello"` in a class body is silently ignored — the field stays null/zero. Only constructor-body assignments work. This affects any class using TypeScript-style inline field initialization.
+
+**Root cause:** Class codegen (`class.ts`) generates the constructor but only handles `this.x = ...` assignments from the constructor body — it doesn't process the `= initializer` from field declarations.
+
+**Workaround:** Use explicit constructor assignments.
+
 ### SymbolKind / ResolvedType Divergence
 
 `SymbolKind` and `ResolvedType` are set independently per symbol. They agree for the resolved path, but declared-type overrides and the 2 remaining unsafe node types don't populate `resolvedType`.
@@ -120,7 +128,5 @@ These constraints affect any code that must compile through the native compiler:
 - `switch` IS supported
 - No `Map.get()`/`.set()` on return values — only on known fields or `new Map()`
 - No `includes()` — use `indexOf() !== -1`
-- Adding new methods to classes can cause segfaults (vtable/dispatch issues)
-- Can't dispatch methods on object fields (`this.engine.hasErrors()` segfaults)
+- Class field default initializers (`name: string = "hello"`) are ignored — use constructor-body assignments (`this.name = "hello"`)
 - Constructor type args (`new Set<string>()`) behave differently from declared types (`const x: Set<string> = new Set()`) — the former can segfault
-- Adding code to `native-compiler-lib.ts` success path can cause Stage 1 segfaults
