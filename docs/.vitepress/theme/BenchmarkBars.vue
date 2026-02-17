@@ -41,7 +41,7 @@ const featuredNotes = {
 const defaultBenchmarks = {
   startup: {
     layout: 'horizontal',
-    desc: "Time to print ‘Hello, World!’ and exit. Average of 50 runs.",
+    desc: "Time to print 'Hello, World!' and exit. Average of 50 runs.",
     metric: 'Smaller = faster.',
     items: [
       { name: 'ChadScript', val: '1.0ms', w: 2, h: 100, color: 'chad', d: 0, speed: 3, hero: true },
@@ -52,35 +52,22 @@ const defaultBenchmarks = {
     ],
     note: featuredNotes.startup || '',
   },
-  matmul: {
+  montecarlo: {
     layout: 'horizontal',
-    desc: "512×512 double-precision matrix multiply.",
+    desc: "100M Monte Carlo samples to estimate Pi.",
     metric: 'Smaller = faster.',
     items: [
-      { name: 'Go', val: '0.455s', w: 61, h: 100, color: 'go', d: 0, speed: 3 },
-      { name: 'C', val: '0.459s', w: 62, h: 99, color: 'c', d: 0.12, speed: 3 },
-      { name: 'Bun', val: '0.629s', w: 85, h: 72, color: 'bun', d: 0.24, speed: 3.6 },
-      { name: 'Node.js', val: '0.660s', w: 89, h: 69, color: 'node', d: 0.36, speed: 3.7 },
-      { name: 'ChadScript', val: '0.744s', w: 100, h: 61, color: 'chad', d: 0.48, speed: 4, hero: true },
+      { name: 'C', val: '0.868s', w: 5, h: 100, color: 'c', d: 0, speed: 3 },
+      { name: 'Go', val: '0.918s', w: 6, h: 95, color: 'go', d: 0.12, speed: 3.1 },
+      { name: 'ChadScript', val: '1.01s', w: 6, h: 86, color: 'chad', d: 0.24, speed: 3.2, hero: true },
+      { name: 'Node.js', val: '3.46s', w: 21, h: 25, color: 'node', d: 0.36, speed: 7.5 },
+      { name: 'Bun', val: '16.4s', w: 100, h: 5, color: 'bun', d: 0.48, speed: 29.8 },
     ],
-    note: featuredNotes.matmul || '',
-  },
-  fibonacci: {
-    layout: 'horizontal',
-    desc: "fib(42) naive recursion.",
-    metric: 'Smaller = faster.',
-    items: [
-      { name: 'C', val: '0.976s', w: 21, h: 100, color: 'c', d: 0, speed: 3 },
-      { name: 'ChadScript', val: '1.59s', w: 34, h: 61, color: 'chad', d: 0.12, speed: 3.9, hero: true },
-      { name: 'Go', val: '1.75s', w: 37, h: 56, color: 'go', d: 0.24, speed: 4.2 },
-      { name: 'Bun', val: '2.76s', w: 59, h: 35, color: 'bun', d: 0.36, speed: 5.7 },
-      { name: 'Node.js', val: '4.68s', w: 100, h: 21, color: 'node', d: 0.48, speed: 8.7 },
-    ],
-    note: featuredNotes.fibonacci || '',
+    note: featuredNotes.montecarlo || '',
   },
   sqlite: {
     layout: 'vertical',
-    desc: "100K SELECT queries on a 100-row in-memory table.",
+    desc: "100K SELECT queries on an in-memory table with 100 rows.",
     metric: 'Smaller = faster.',
     items: [
       { name: 'C', val: '0.235s', h: 100, color: 'c', d: 0, speed: 3 },
@@ -89,6 +76,19 @@ const defaultBenchmarks = {
       { name: 'Node.js', val: '0.702s', h: 33, color: 'node', d: 0.36, speed: 6 },
     ],
     note: featuredNotes.sqlite || '',
+  },
+  binarytrees: {
+    layout: 'horizontal',
+    desc: "Build/check/discard binary trees of depth 18.",
+    metric: 'Smaller = faster.',
+    items: [
+      { name: 'Bun', val: '1.40s', w: 33, h: 100, color: 'bun', d: 0, speed: 3 },
+      { name: 'C', val: '2.01s', w: 48, h: 70, color: 'c', d: 0.12, speed: 3.6 },
+      { name: 'Node.js', val: '2.16s', w: 52, h: 65, color: 'node', d: 0.24, speed: 3.8 },
+      { name: 'ChadScript', val: '2.73s', w: 65, h: 51, color: 'chad', d: 0.36, speed: 4.4, hero: true },
+      { name: 'Go', val: '4.19s', w: 100, h: 33, color: 'go', d: 0.48, speed: 6 },
+    ],
+    note: featuredNotes.binarytrees || '',
   },
 }
 

@@ -24,7 +24,7 @@ const langMeta = {
   node:       { name: 'Node.js',    color: 'node' },
 };
 
-const featuredOrder = ['startup', 'matmul', 'fibonacci', 'json', 'sqlite'];
+const featuredOrder = ['startup', 'montecarlo', 'sqlite', 'binarytrees'];
 
 function formatVal(value, metric) {
   if (metric === 'ms') {
