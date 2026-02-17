@@ -19,10 +19,17 @@ export interface Diagnostic {
 }
 
 export class DiagnosticEngine {
-  private diagnostics: Diagnostic[] = [];
-  private sourceCode: string = '';
-  private filename: string = '<input>';
-  private colorEnabled: boolean = false;
+  private diagnostics: Diagnostic[];
+  private sourceCode: string;
+  private filename: string;
+  private colorEnabled: boolean;
+
+  constructor() {
+    this.diagnostics = [];
+    this.sourceCode = '';
+    this.filename = '<input>';
+    this.colorEnabled = false;
+  }
 
   setSourceCode(code: string): void {
     this.sourceCode = code;

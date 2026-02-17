@@ -245,12 +245,12 @@ export function compileMultiFile(entryFile: string, compiledFiles: string[]): AS
     mergedAST.interfaces = mergedAST.interfaces.concat(importedAST.interfaces);
     mergedAST.typeAliases = mergedAST.typeAliases.concat(importedAST.typeAliases);
     mergedAST.enums = mergedAST.enums.concat(importedAST.enums);
-    mergedAST.topLevelStatements = mergedAST.topLevelStatements.concat(importedAST.topLevelStatements);
+    mergedAST.topLevelStatements = importedAST.topLevelStatements.concat(mergedAST.topLevelStatements);
     if (importedAST.topLevelItems) {
-      mergedAST.topLevelItems = (mergedAST.topLevelItems || []).concat(importedAST.topLevelItems);
+      mergedAST.topLevelItems = importedAST.topLevelItems.concat(mergedAST.topLevelItems || []);
     }
     if (importedAST.topLevelItemTypes) {
-      mergedAST.topLevelItemTypes = (mergedAST.topLevelItemTypes || []).concat(importedAST.topLevelItemTypes);
+      mergedAST.topLevelItemTypes = importedAST.topLevelItemTypes.concat(mergedAST.topLevelItemTypes || []);
     }
     i = i + 1;
   }
