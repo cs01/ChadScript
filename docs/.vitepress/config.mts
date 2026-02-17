@@ -22,7 +22,7 @@ export default defineConfig({
     },
 
     nav: [
-      { text: 'Guide', link: '/getting-started/installation' },
+      { text: 'Get Started', link: '/getting-started/installation' },
       { text: 'API', link: '/stdlib/' },
       { text: 'Benchmarks', link: '/benchmarks' },
       { text: 'Language', link: '/language/architecture' }

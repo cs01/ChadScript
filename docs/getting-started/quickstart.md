@@ -1,34 +1,6 @@
 # Quick Start
 
-## Run Your First Program
-
-```bash
-chad run examples/hello.ts
-```
-
-This compiles and runs in one step — perfect for getting started.
-
-## Compile and Run Separately
-
-```bash
-chad build examples/hello.ts
-.build/examples/hello
-```
-
-## Hello World
-
-Create a file `hello.ts`:
-
-```typescript
-console.log("Hello from ChadScript!");
-```
-
-Compile and run it:
-
-```bash
-chad build hello.ts -o hello
-./hello
-```
+See [Installation](/getting-started/installation) for setup and your first program.
 
 ## HTTP Server
 

@@ -32,6 +32,27 @@ Most programs don't need any of these.
 xattr -d com.apple.quarantine ~/.chadscript/chad
 ```
 
+## Your First Program
+
+Create a file `hello.ts`:
+
+```typescript
+console.log("Hello from ChadScript!");
+```
+
+Run it directly:
+
+```bash
+chad run hello.ts
+```
+
+Or compile to a standalone binary:
+
+```bash
+chad build hello.ts -o hello
+./hello
+```
+
 ## Build from Source
 
 See [BUILDING.md](https://github.com/cs01/ChadScript/blob/main/BUILDING.md) for full instructions.
@@ -43,3 +64,9 @@ bash scripts/build-vendor.sh
 npm run build
 npm test
 ```
+
+## Next Steps
+
+- Browse the [Standard Library](/stdlib/) for all available APIs
+- See [CLI Reference](/getting-started/cli) for all compiler options
+- Check [Benchmarks](/benchmarks) to see how ChadScript performs
