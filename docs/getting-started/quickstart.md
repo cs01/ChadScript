@@ -1,10 +1,23 @@
-# Quick Start
+# Examples
 
-See [Installation](/getting-started/installation) for setup and your first program.
+## Hello World
+
+```typescript
+console.log("Hello from ChadScript!");
+```
+
+```bash
+chad run hello.ts
+```
+
+Or compile to a standalone binary:
+
+```bash
+chad build hello.ts -o hello
+./hello
+```
 
 ## HTTP Server
-
-ChadScript can build a native HTTP server in a single file:
 
 ```typescript
 function handleRequest(req: Request): Response {
@@ -24,8 +37,6 @@ curl http://localhost:3000
 ```
 
 ## CLI Tool
-
-Read files, parse arguments, process text:
 
 ```typescript
 const filename = process.argv[0];
