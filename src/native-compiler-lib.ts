@@ -25,6 +25,7 @@ declare const path: {
 declare const process: {
   exit(code: number): void;
   argv: string[];
+  argv0: string;
   platform: string;
 };
 
@@ -59,7 +60,7 @@ export function setVerbose(value: boolean): void {
 }
 
 export function compileNative(inputFile: string, outputFile: string): void {
-  const execDir = path.dirname(path.resolve(process.argv[0]));
+  const execDir = path.dirname(path.resolve(process.argv0));
   const installedLibDir = execDir + '/lib';
   const isInstalled = fs.existsSync(installedLibDir + '/libgc.a');
 
