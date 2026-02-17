@@ -140,12 +140,13 @@ export class DiagnosticEngine {
     if (diag.loc && this.sourceCode) {
       const lineNum = diag.loc.line;
       const col = diag.loc.column;
+      const displayFile = diag.loc.file || this.filename;
       const allLines = this.sourceCode.split('\n');
 
       const lineNumStr = String(lineNum);
       const lineNumWidth = lineNumStr.length > 2 ? lineNumStr.length : 2;
 
-      output += this.bold(this.filename + ':' + lineNum + ':' + (col + 1) + ':') + ' ' + label + ': ' + this.bold(diag.message) + '\n';
+      output += this.bold(displayFile + ':' + lineNum + ':' + (col + 1) + ':') + ' ' + label + ': ' + this.bold(diag.message) + '\n';
       output += ' '.repeat(lineNumWidth) + ' |' + '\n';
 
       const lineContent = allLines[lineNum - 1] || '';
@@ -157,7 +158,8 @@ export class DiagnosticEngine {
         output += ' '.repeat(lineNumWidth) + ' = ' + this.bold('help:') + ' ' + diag.suggestion + '\n';
       }
     } else if (diag.loc) {
-      output += this.bold(this.filename + ':' + diag.loc.line + ':' + (diag.loc.column + 1) + ':') + ' ' + label + ': ' + this.bold(diag.message) + '\n';
+      const displayFile = diag.loc.file || this.filename;
+      output += this.bold(displayFile + ':' + diag.loc.line + ':' + (diag.loc.column + 1) + ':') + ' ' + label + ': ' + this.bold(diag.message) + '\n';
       if (diag.suggestion) {
         output += '  ' + this.bold('help:') + ' ' + diag.suggestion + '\n';
       }

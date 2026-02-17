@@ -2096,7 +2096,6 @@ export class MemberAccessGenerator {
     if (propIndex === -1) {
       const objDesc = exprObjType === 'variable' ? (expr.object as VariableNode).name : 'literal';
       throw new Error(`Unknown property: ${expr.property} on object ${objDesc}. Available properties: ${keys.join(', ')}`);
-      return null;
     }
 
     const propType = types[propIndex];

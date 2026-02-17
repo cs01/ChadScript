@@ -14,6 +14,7 @@ export function generateProcessExitInline(ctx: MethodCallGeneratorContext, expr:
   } else {
     ctx.emit(`call void @exit(i32 0)`);
   }
+  ctx.emit('unreachable');
   return '0';
 }
 

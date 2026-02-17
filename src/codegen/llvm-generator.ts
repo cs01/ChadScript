@@ -2263,6 +2263,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       } else {
         // Expression statement
         lastValue = this.generateExpression(stmtRaw as Expression, params);
+        if (this.lastInstructionIsTerminator()) {
+          hasTerminator = true;
+        }
       }
     }
 

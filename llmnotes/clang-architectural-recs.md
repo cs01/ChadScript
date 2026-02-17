@@ -116,8 +116,7 @@ Track return types through method calls in `method-calls.ts` so that `functionRe
 
 These constraints affect any code that must compile through the native compiler:
 
-- No `for...of`, no `?.`, no `??`, no destructuring
-- `switch` IS supported
+- `switch`, `for...of`, `?.`, `??`, destructuring all supported
 - No `Map.get()`/`.set()` on return values — only on known fields or `new Map()`
 - No `includes()` — use `indexOf() !== -1`
 - Class field default initializers work for simple types (literals, `new`, arrays, unary) — complex initializers (object literals, arrow functions) are not yet supported

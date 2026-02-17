@@ -70,7 +70,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   }
   ir += '\n';
 
-  ir += 'declare void @exit(i32)\n';
+  ir += 'declare void @exit(i32) noreturn\n';
   ir += 'declare i32 @fflush(i8*)\n';
   if (isMac) {
     ir += '@__stdoutp = external global i8*\n';

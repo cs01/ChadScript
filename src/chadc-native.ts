@@ -12,7 +12,7 @@ declare const path: {
 };
 
 declare const process: {
-  exit(code: number): void;
+  exit(code: number): never;
   argv: string[];
 };
 
@@ -41,13 +41,11 @@ if (inputFile.length === 0) {
   console.log('Error: No input file specified');
   parser.printHelp();
   process.exit(1);
-  throw new Error('unreachable');
 }
 
 if (!fs.existsSync(inputFile)) {
   console.log('Error: File not found: ' + inputFile);
   process.exit(1);
-  throw new Error('unreachable');
 }
 
 let inputForOutput: string = inputFile;
