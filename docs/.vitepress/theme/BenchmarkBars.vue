@@ -20,14 +20,13 @@ const langMeta = {
   node:       { name: 'Node.js',    color: 'node' },
 }
 
-const tabOrder = ['startup', 'montecarlo', 'sqlite', 'fibonacci', 'json', 'matmul', 'binarytrees', 'sieve', 'sorting', 'nbody', 'stringops', 'fileio', 'http', 'http_keepalive', 'websocket']
+const tabOrder = ['startup', 'sqlite', 'fibonacci', 'json', 'nbody', 'montecarlo', 'sieve', 'sorting', 'matmul', 'binarytrees', 'stringops', 'fileio']
 
 const tabLabels = {
   startup: 'Cold Start', matmul: 'Matrix Multiply', fibonacci: 'Fibonacci',
   json: 'JSON', sqlite: 'SQLite', montecarlo: 'Monte Carlo', sieve: 'Sieve',
   sorting: 'Quicksort', nbody: 'N-Body', stringops: 'Strings', fileio: 'File I/O',
-  binarytrees: 'Binary Trees', http: 'HTTP', http_keepalive: 'HTTP Keep-Alive',
-  websocket: 'WebSocket',
+  binarytrees: 'Binary Trees',
 }
 
 const featuredNotes = {
