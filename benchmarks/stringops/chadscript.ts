@@ -14,12 +14,13 @@ function run(): void {
 
   const parts = big.split(DELIM);
 
+  const upper: string[] = [];
   let j = 0;
   while (j < parts.length) {
-    parts[j] = parts[j].toUpperCase();
+    upper.push(parts[j].toUpperCase());
     j = j + 1;
   }
-  const result = parts.join(DELIM);
+  const result = upper.join(DELIM);
 
   const elapsed = (Date.now() - start) / 1000;
   console.log("Strings:  " + COUNT);
