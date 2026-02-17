@@ -8,6 +8,7 @@ build/
 .build/
 src-js/
 src/**/*.js
+c_bridges/*.o
 
 # Generated files
 src/codegen/stdlib/embedded-dts.ts
@@ -70,12 +71,7 @@ roadmap/
 llmnotes/
 
 # Accidental/temporary files
-vendor/*
-!vendor/lws-bridge.c
-!vendor/lws-bridge.h
-!vendor/yyjson/
-vendor/yyjson/*
-!vendor/yyjson/yyjson-bridge.c
+vendor/
 
 # Scripts that are local/private
 ralph.sh

@@ -1,33 +1,14 @@
 # ChadScript
 
+**[Documentation](https://cs01.github.io/ChadScript/)** · **[Benchmarks](https://cs01.github.io/ChadScript/benchmarks)** · **[GitHub Releases](https://github.com/cs01/ChadScript/releases)**
+
 **A native compiler for TypeScript — no interpreter, no runtime, no VM.**
 
 Your code goes through a full compilation pipeline: parse, type-check, emit LLVM IR, and link into a standalone native binary.
 
-**[Documentation](https://cs01.github.io/ChadScript/)** · **[Benchmarks](https://cs01.github.io/ChadScript/benchmarks)** · **[GitHub Releases](https://github.com/cs01/ChadScript/releases)**
+ChadScript is self-hosting - the compiler is written in TypeScript and compiles itself into a native binary that doesn't need any JavaScript runtime or Node.js.
 
-## Install
-
-Download the latest binary from [GitHub Releases](https://github.com/cs01/ChadScript/releases) and add it to your PATH.
-
-You'll also need LLVM and a few system libraries:
-
-```bash
-# Ubuntu / Debian
-sudo apt-get install llvm clang libcurl4-openssl-dev libssl-dev libsqlite3-dev
-
-# macOS
-brew install llvm openssl sqlite
-```
-
-## Get Started
-
-```bash
-chad init
-```
-
-This creates a `hello.ts` starter file and sets up type definitions for your editor:
-
+## Demo
 ```ts
 // hello.ts
 console.log("Hello from ChadScript!");
@@ -47,13 +28,17 @@ chad build hello.ts -o hello
 ./hello
 ```
 
-ChadScript is self-hosting — the compiler is written in TypeScript and compiles itself into a native binary that needs no Node.js runtime.
+## Install
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | sh
+```
+
+Requires LLVM (`brew install llvm` / `apt install llvm clang`).
 
 ## Documentation
 
-Full API reference, stdlib docs, and language guide: **[cs01.github.io/ChadScript](https://cs01.github.io/ChadScript/)**
-
-To build from source, see [BUILDING.md](BUILDING.md).
+Learn more at **[cs01.github.io/ChadScript](https://cs01.github.io/ChadScript/)**
 
 ## License
 

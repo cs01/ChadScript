@@ -2,6 +2,7 @@
 set -euo pipefail
 
 VENDOR_DIR="$(cd "$(dirname "$0")/.." && pwd)/vendor"
+C_BRIDGES_DIR="$(cd "$(dirname "$0")/.." && pwd)/c_bridges"
 NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
 
 mkdir -p "$VENDOR_DIR"
@@ -54,8 +55,8 @@ else
 fi
 
 # --- lws-bridge ---
-LWS_BRIDGE_SRC="$VENDOR_DIR/lws-bridge.c"
-LWS_BRIDGE_OBJ="$VENDOR_DIR/lws-bridge.o"
+LWS_BRIDGE_SRC="$C_BRIDGES_DIR/lws-bridge.c"
+LWS_BRIDGE_OBJ="$C_BRIDGES_DIR/lws-bridge.o"
 if [ ! -f "$LWS_BRIDGE_OBJ" ] || [ "$LWS_BRIDGE_SRC" -nt "$LWS_BRIDGE_OBJ" ]; then
   echo "==> Building lws-bridge..."
   EXTRA_CFLAGS=""
@@ -90,7 +91,7 @@ if [ ! -f "$VENDOR_DIR/yyjson/libyyjson.a" ]; then
   fi
   cd yyjson
   cc -c -O2 -fPIC yyjson.c -o yyjson.o
-  cc -c -O2 -fPIC yyjson-bridge.c -o yyjson-bridge.o
+  cc -c -O2 -fPIC "$C_BRIDGES_DIR/yyjson-bridge.c" -o yyjson-bridge.o
   ar rcs libyyjson.a yyjson.o yyjson-bridge.o
   echo "  -> $VENDOR_DIR/yyjson/libyyjson.a"
 else

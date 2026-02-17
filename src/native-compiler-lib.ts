@@ -30,6 +30,18 @@ declare const process: {
 
 declare function __gc_disable(): void;
 
+function findLLVMTool(name: string): string {
+  const homebrewArm = '/opt/homebrew/opt/llvm/bin/' + name;
+  const homebrewIntel = '/usr/local/opt/llvm/bin/' + name;
+  if (fs.existsSync(homebrewArm)) {
+    return homebrewArm;
+  }
+  if (fs.existsSync(homebrewIntel)) {
+    return homebrewIntel;
+  }
+  return name;
+}
+
 export let skipSemanticAnalysis = false;
 export let emitLLVMOnly = false;
 export let verbose = false;
@@ -53,7 +65,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
 
   const BDWGC_PATH = isInstalled ? installedLibDir : './vendor/bdwgc';
   const LWS_PATH = isInstalled ? installedLibDir : './vendor/libwebsockets/build';
-  const LWS_BRIDGE_PATH = isInstalled ? installedLibDir : './vendor';
+  const LWS_BRIDGE_PATH = isInstalled ? installedLibDir : './c_bridges';
   const CHADSCRIPT_PATH = '.';
 
   if (verbose) {
@@ -135,10 +147,13 @@ export function compileNative(inputFile: string, outputFile: string): void {
 
   const objFile = outputFile + '.o';
   const optFile = irFile.replace('.ll', '.opt.bc');
-  const optCmd = 'opt -O2 -mcpu=native ' + irFile + ' -o ' + optFile;
+  const optTool = findLLVMTool('opt');
+  const llcTool = findLLVMTool('llc');
+  const clangTool = findLLVMTool('clang');
+  const optCmd = optTool + ' -O2 -mcpu=native ' + irFile + ' -o ' + optFile;
   if (verbose) { console.log('Running: ' + optCmd); }
   child_process.execSync(optCmd);
-  const llcCmd = 'llc -O2 -mcpu=native -filetype=obj ' + optFile + ' -o ' + objFile;
+  const llcCmd = llcTool + ' -O2 -mcpu=native -filetype=obj ' + optFile + ' -o ' + objFile;
   if (verbose) { console.log('Running: ' + llcCmd); }
   child_process.execSync(llcCmd);
   if (!fs.existsSync(objFile)) {
@@ -173,7 +188,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     if (generator.getUsesMongoose()) { linkLibs = '-L/opt/homebrew/opt/zstd/lib -L/usr/local/opt/zstd/lib ' + linkLibs; }
     linkLibs = '-L/usr/local/lib ' + linkLibs;
   }
-  const linkCmd = 'clang ' + objFile + ' ' + lwsBridgeObj + ' ' + treeSitterObjs + ' -o ' + outputFile + noPie + ' ' + linkLibs;
+  const linkCmd = clangTool + ' ' + objFile + ' ' + lwsBridgeObj + ' ' + treeSitterObjs + ' -o ' + outputFile + noPie + ' ' + linkLibs;
   if (verbose) { console.log('Running: ' + linkCmd); }
   child_process.execSync(linkCmd);
   if (!fs.existsSync(outputFile)) {

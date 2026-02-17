@@ -8,6 +8,30 @@ import { SemanticAnalyzer, TypedSymbol } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
 import { LogLevel, logger } from './utils/logger.js';
 
+function findLLVMTool(name: string): string {
+  const candidates = [
+    '/opt/homebrew/opt/llvm/bin/' + name,
+    '/usr/local/opt/llvm/bin/' + name,
+  ];
+  try {
+    return execSync('which ' + name, { stdio: 'pipe', encoding: 'utf8' }).trim();
+  } catch (e) {
+    // bare name not in PATH — check Homebrew locations
+  }
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error(
+    'chad: error: ' + name + ' not found\n' +
+    'Install LLVM:\n' +
+    '  macOS: brew install llvm\n' +
+    '  Ubuntu/Debian: sudo apt-get install llvm clang\n' +
+    '  Fedora: sudo dnf install llvm clang'
+  );
+}
+
 let skipSemanticAnalysis = false;
 let keepTemps = false;
 let emitLLVMOnly = false;
@@ -37,7 +61,7 @@ export function setDebugInfo(value: boolean): void {
 // External library paths - check env vars, then use vendor/
 const BDWGC_PATH = process.env.CHADSCRIPT_BDWGC_PATH || './vendor/bdwgc';
 const LWS_PATH = process.env.CHADSCRIPT_LWS_PATH || './vendor/libwebsockets/build';
-const LWS_BRIDGE_PATH = process.env.CHADSCRIPT_LWS_BRIDGE_PATH || './vendor';
+const LWS_BRIDGE_PATH = process.env.CHADSCRIPT_LWS_BRIDGE_PATH || './c_bridges';
 const YYJSON_PATH = process.env.CHADSCRIPT_YYJSON_PATH || './vendor/yyjson';
 const LIBUV_PATH = process.env.CHADSCRIPT_LIBUV_PATH || './vendor/libuv/build';
 const TREESITTER_LIB_PATH = process.env.CHADSCRIPT_TREESITTER_PATH || './vendor/tree-sitter';
@@ -61,24 +85,13 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   logger.info(`InstalledDir: ${process.cwd()}`);
 
   // Check for required build tools
-  let llcPath: string;
+  const llcPath = findLLVMTool('llc');
+  const optPath = findLLVMTool('opt');
   let linkerPath: string;
   let useClang = true;
 
   try {
-    llcPath = execSync('which llc', { stdio: 'pipe', encoding: 'utf8' }).trim();
-  } catch (error) {
-    throw new Error(
-      'chad: error: llc (LLVM compiler) not found in PATH\n' +
-      'Install LLVM:\n' +
-      '  macOS: brew install llvm && export PATH="/opt/homebrew/opt/llvm/bin:$PATH"\n' +
-      '  Ubuntu/Debian: sudo apt-get install llvm\n' +
-      '  RHEL/Fedora: sudo yum install llvm'
-    );
-  }
-
-  try {
-    linkerPath = execSync('which clang', { stdio: 'pipe', encoding: 'utf8' }).trim();
+    linkerPath = findLLVMTool('clang');
   } catch (error) {
     try {
       linkerPath = execSync('which gcc', { stdio: 'pipe', encoding: 'utf8' }).trim();
@@ -197,15 +210,15 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const llcStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   let compileCmd: string;
   if (sanitize) {
-    compileCmd = `clang -c${sanitizeFlags} ${irFile} -o ${objFile}`;
+    compileCmd = `${linkerPath} -c${sanitizeFlags} ${irFile} -o ${objFile}`;
   } else if (debugInfo) {
-    compileCmd = `llc -O0 -filetype=obj ${irFile} -o ${objFile}`;
+    compileCmd = `${llcPath} -O0 -filetype=obj ${irFile} -o ${objFile}`;
   } else {
     const optFile = irFile.replace('.ll', '.opt.bc');
-    const optCmd = `opt -O2 -mcpu=native ${irFile} -o ${optFile}`;
+    const optCmd = `${optPath} -O2 -mcpu=native ${irFile} -o ${optFile}`;
     logger.info(` ${optCmd}`);
     execSync(optCmd, { stdio: llcStdio });
-    compileCmd = `llc -O2 -mcpu=native -filetype=obj ${optFile} -o ${objFile}`;
+    compileCmd = `${llcPath} -O2 -mcpu=native -filetype=obj ${optFile} -o ${objFile}`;
   }
   logger.info(` ${compileCmd}`);
   execSync(compileCmd, { stdio: llcStdio });
@@ -244,14 +257,14 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
 
     if (!fs.existsSync(tsParserObj)) {
       const parserSrc = path.join(tsInclude, 'parser.c');
-      const compileParser = `clang -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${parserSrc} -o ${tsParserObj}`;
+      const compileParser = `${linkerPath} -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${parserSrc} -o ${tsParserObj}`;
       logger.info(`  Compiling tree-sitter parser...`);
       execSync(compileParser, { stdio: 'pipe' });
     }
 
     if (!fs.existsSync(tsScannerObj)) {
       const scannerSrc = path.join(tsInclude, 'scanner.c');
-      const compileScanner = `clang -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${scannerSrc} -o ${tsScannerObj}`;
+      const compileScanner = `${linkerPath} -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${scannerSrc} -o ${tsScannerObj}`;
       logger.info(`  Compiling tree-sitter scanner...`);
       execSync(compileScanner, { stdio: 'pipe' });
     }
@@ -260,7 +273,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     if (!fs.existsSync(bridgeObj)) {
       const bridgeSrc = path.join(process.cwd(), 'c_bridges', 'treesitter-bridge.c');
       const tsLibInclude = path.join(process.cwd(), TREESITTER_LIB_PATH, 'lib', 'include');
-      const compileBridge = `clang -c -O2 -fPIC -I ${tsLibInclude} ${bridgeSrc} -o ${bridgeObj}`;
+      const compileBridge = `${linkerPath} -c -O2 -fPIC -I ${tsLibInclude} ${bridgeSrc} -o ${bridgeObj}`;
       logger.info(`  Compiling tree-sitter bridge...`);
       execSync(compileBridge, { stdio: 'pipe' });
     }
@@ -269,7 +282,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     linkLibs += ` ${TREESITTER_LIB_PATH}/libtree-sitter.a`;
   }
 
-  let linker = useClang ? 'clang' : 'gcc';
+  let linker = useClang ? linkerPath : 'gcc';
   if (sanitize) {
     linker = 'gcc';
   }

@@ -1,36 +1,35 @@
 # Installation
 
-## Download a Release
-
-Download the latest release from [GitHub Releases](https://github.com/cs01/ChadScript/releases), extract it, and add it to your PATH.
-
-## System Dependencies
-
-ChadScript compiles to native code via LLVM and links against several system libraries. You'll need:
-
-### Ubuntu / Debian
+## Quick Install
 
 ```bash
-sudo apt-get install llvm clang libcurl4-openssl-dev libssl-dev libsqlite3-dev
+curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | sh
 ```
 
-### RHEL / Fedora
+This downloads a pre-built binary for your platform and installs it to `~/.chadscript/`.
+
+## Prerequisites
+
+ChadScript compiles your TypeScript to native code via LLVM. **LLVM is the only required dependency** — everything else is bundled in the release:
+
+- **macOS**: `brew install llvm`
+- **Ubuntu/Debian**: `sudo apt install llvm clang`
+- **Fedora**: `sudo dnf install llvm clang`
+
+If your program uses certain features, you'll also need the corresponding system library installed on the machine where you compile:
+
+| Feature | Package |
+|---------|---------|
+| `fetch()` / HTTP client | libcurl |
+| `crypto` | openssl |
+| `sqlite` | sqlite3 |
+
+Most programs don't need any of these.
+
+**macOS Gatekeeper**: If you get a quarantine warning on the downloaded binary:
 
 ```bash
-sudo dnf install llvm clang libcurl-devel openssl-devel sqlite-devel
-```
-
-### macOS
-
-```bash
-brew install llvm openssl sqlite
-export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
-```
-
-**Security Note**: If you get a Gatekeeper warning when running the downloaded `chad` binary, bypass it with:
-
-```bash
-xattr -d com.apple.quarantine /path/to/chad
+xattr -d com.apple.quarantine ~/.chadscript/chad
 ```
 
 ## Build from Source
@@ -42,13 +41,5 @@ git clone https://github.com/cs01/ChadScript && cd ChadScript
 npm install
 bash scripts/build-vendor.sh
 npm run build
-```
-
-`scripts/build-vendor.sh` clones and builds static archives for libgc, cJSON, libuv, tree-sitter, and libwebsockets into `vendor/`. It's idempotent — re-running skips already-built libraries.
-
-## Verify
-
-```bash
 npm test
-chad run examples/hello.ts
 ```

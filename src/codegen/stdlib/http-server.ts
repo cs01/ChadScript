@@ -2,7 +2,7 @@
  * HTTP Server Runtime Generator (libwebsockets via C bridge)
  *
  * Generates LLVM IR declarations and runtime code for the HTTP/WebSocket
- * server. Uses a C bridge (vendor/lws-bridge.c) that wraps libwebsockets,
+ * server. Uses a C bridge (c_bridges/lws-bridge.c) that wraps libwebsockets,
  * providing HTTP keep-alive, HTTP/2 (h2c), and WebSocket support.
  *
  * The C bridge exposes a simple API:
