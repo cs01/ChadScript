@@ -172,6 +172,13 @@ export const testCases: TestCase[] = [
     args: ['testarg']
   },
   {
+    name: 'process-argv-multi',
+    fixture: 'tests/fixtures/builtins/process-argv-multi.ts',
+    expectTestPassed: true,
+    description: 'process.argv should handle multiple arguments and process.argv0 should be non-empty',
+    args: ['hello', 'world', '42']
+  },
+  {
     name: 'fs-readFileSync',
     fixture: 'tests/fixtures/builtins/fs-readfile-test.ts',
     expectTestPassed: true,

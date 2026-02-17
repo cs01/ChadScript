@@ -82,7 +82,7 @@ if (command === 'init') {
   if (fs.existsSync('tsconfig.json')) {
     console.log('  skip tsconfig.json (already exists)');
   } else {
-    fs.writeFileSync('tsconfig.json', '{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "ES2020",\n    "lib": ["ES2020"],\n    "noEmit": true,\n    "skipLibCheck": true,\n    "strict": false\n  },\n  "files": ["chadscript.d.ts"]\n}\n');
+    fs.writeFileSync('tsconfig.json', '{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "ES2020",\n    "lib": ["ES2020"],\n    "noEmit": true,\n    "skipLibCheck": true,\n    "strict": true\n  }\n}\n');
     console.log('  created tsconfig.json');
   }
   if (fs.existsSync('hello.ts')) {

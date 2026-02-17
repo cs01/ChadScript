@@ -8,9 +8,8 @@ const TSCONFIG_CONTENT = `{
     "lib": ["ES2020"],
     "noEmit": true,
     "skipLibCheck": true,
-    "strict": false
-  },
-  "files": ["chadscript.d.ts"]
+    "strict": true
+  }
 }
 `;
 
