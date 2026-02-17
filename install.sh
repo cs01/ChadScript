@@ -67,9 +67,26 @@ main() {
   mkdir -p "$INSTALL_DIR"
   tar -xzf "$TMPDIR/$TARBALL" -C "$INSTALL_DIR"
 
+  mv "$INSTALL_DIR/chad" "$INSTALL_DIR/chad.bin"
+  mv "$INSTALL_DIR/chadc" "$INSTALL_DIR/chadc.bin"
+
+  cat > "$INSTALL_DIR/chad" << 'WRAPPER'
+#!/bin/sh
+DIR=$(cd "$(dirname "$(command -v "$0")")" && pwd)
+exec "$DIR/chad.bin" "$@"
+WRAPPER
+  chmod +x "$INSTALL_DIR/chad"
+
+  cat > "$INSTALL_DIR/chadc" << 'WRAPPER'
+#!/bin/sh
+DIR=$(cd "$(dirname "$(command -v "$0")")" && pwd)
+exec "$DIR/chadc.bin" "$@"
+WRAPPER
+  chmod +x "$INSTALL_DIR/chadc"
+
   if [ "$OS_TAG" = "macos" ]; then
-    xattr -d com.apple.quarantine "$INSTALL_DIR/chad" 2>/dev/null || true
-    xattr -d com.apple.quarantine "$INSTALL_DIR/chadc" 2>/dev/null || true
+    xattr -d com.apple.quarantine "$INSTALL_DIR/chad.bin" 2>/dev/null || true
+    xattr -d com.apple.quarantine "$INSTALL_DIR/chadc.bin" 2>/dev/null || true
   fi
 
   add_to_path

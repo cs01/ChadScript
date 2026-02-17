@@ -351,8 +351,8 @@ jobs:
 
       - name: Verify binary
         run: |
-          file ~/.chadscript/chad
-          file ~/.chadscript/chadc
+          file ~/.chadscript/chad.bin
+          file ~/.chadscript/chadc.bin
           ls -la ~/.chadscript/lib/
 
       - name: Smoke test - hello world
