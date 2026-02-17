@@ -24,8 +24,6 @@ If your program uses certain features, you'll also need the corresponding system
 | `crypto` | openssl |
 | `sqlite` | sqlite3 |
 
-Most programs don't need any of these.
-
 **macOS Gatekeeper**: If you get a quarantine warning on the downloaded binary:
 
 ```bash
