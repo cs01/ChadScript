@@ -20,7 +20,7 @@ chad build hello.ts -o hello
 ## HTTP Server
 
 ```typescript
-function handleRequest(req: Request): Response {
+function handleRequest(req: HttpRequest): HttpResponse {
   if (req.path == "/") {
     return { status: 200, body: "<h1>Hello from ChadScript</h1>" };
   }

@@ -4,10 +4,10 @@ Built-in HTTP server with websocket support compiled to native code via libwebso
 
 ## `httpServe(port, handler)`
 
-Start an HTTP server on the given port. The handler function receives a `Request` and returns a `Response`.
+Start an HTTP server on the given port. The handler function receives an `HttpRequest` and returns an `HttpResponse`.
 
 ```typescript
-function handleRequest(req: Request): Response {
+function handleRequest(req: HttpRequest): HttpResponse {
   if (req.path == "/") {
     return { status: 200, body: "Hello!" };
   }
@@ -48,7 +48,7 @@ Send a message to all connected WebSocket clients. Only available when a wsHandl
 wsBroadcast("hello everyone");
 ```
 
-## Request Object
+## HttpRequest Object
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -57,7 +57,7 @@ wsBroadcast("hello everyone");
 | `body` | `string` | Request body |
 | `contentType` | `string` | Content-Type header value |
 
-## Response Object
+## HttpResponse Object
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -76,15 +76,15 @@ wsBroadcast("hello everyone");
 A full HTTP server with routing:
 
 ```typescript
-function homeHandler(req: Request): Response {
+function homeHandler(req: HttpRequest): HttpResponse {
   return { status: 200, body: "<h1>Hello from ChadScript</h1>" };
 }
 
-function jsonHandler(req: Request): Response {
+function jsonHandler(req: HttpRequest): HttpResponse {
   return { status: 200, body: '{"message":"hello","count":42}' };
 }
 
-function handleRequest(req: Request): Response {
+function handleRequest(req: HttpRequest): HttpResponse {
   if (req.method == "GET") {
     if (req.path == "/") return homeHandler(req);
     if (req.path == "/json") return jsonHandler(req);
@@ -112,14 +112,14 @@ interface WsEvent {
   event: string;
 }
 
-interface Request {
+interface HttpRequest {
   method: string;
   path: string;
   body: string;
   contentType: string;
 }
 
-interface Response {
+interface HttpResponse {
   status: number;
   body: string;
 }
@@ -132,7 +132,7 @@ function wsHandler(event: WsEvent): string {
   return "";
 }
 
-function handleRequest(req: Request): Response {
+function handleRequest(req: HttpRequest): HttpResponse {
   return { status: 200, body: "<h1>WebSocket Chat</h1>" };
 }
 

@@ -3,14 +3,14 @@ interface WsEvent {
   event: string;
 }
 
-interface Request {
+interface HttpRequest {
   method: string;
   path: string;
   body: string;
   contentType: string;
 }
 
-interface Response {
+interface HttpResponse {
   status: number;
   body: string;
 }
@@ -23,7 +23,7 @@ function wsHandler(event: WsEvent): string {
   return "";
 }
 
-function handleRequest(req: Request): Response {
+function handleRequest(req: HttpRequest): HttpResponse {
   if (req.path == "/") {
     const html = "<!DOCTYPE html><html><body><h1>WebSocket Chat</h1><script>const ws=new WebSocket('ws://'+location.host+'/ws');ws.onmessage=e=>document.body.innerHTML+='<p>'+e.data+'</p>';document.onkeydown=e=>{if(e.key==='Enter'){ws.send(prompt('Message:'));}};</script></body></html>";
     return { status: 200, body: html };

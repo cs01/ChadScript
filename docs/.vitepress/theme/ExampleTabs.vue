@@ -15,7 +15,7 @@ const examples = [
   {
     label: 'HTTP Server',
     file: 'server.ts',
-    code: `function handleRequest(req: Request): Response {
+    code: `function handleRequest(req: HttpRequest): HttpResponse {
   if (req.path == "/") {
     return { status: 200, body: "Hello, world!" };
   }
