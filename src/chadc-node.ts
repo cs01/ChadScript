@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize, setDebugInfo } from './compiler.js';
+import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize, setDebugInfo, setStaticLink } from './compiler.js';
 import { LogLevel, logger } from './utils/logger.js';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -34,6 +34,8 @@ for (let i = 0; i < args.length; i++) {
     setSanitize('address');
   } else if (arg === '-g') {
     setDebugInfo(true);
+  } else if (arg === '--static') {
+    setStaticLink(true);
   } else if (arg === '-o') {
     if (i + 1 < args.length) {
       outputArg = args[i + 1];
@@ -53,6 +55,7 @@ for (let i = 0; i < args.length; i++) {
     console.log('  --keep-temps     Keep intermediate files (.ll, .o)');
     console.log('  -fsanitize=address  Build with AddressSanitizer (ASAN)');
     console.log('  -g                 Emit DWARF debug info for source-level debugging');
+    console.log('  --static           Produce a fully static binary (Linux only)');
     console.log('  -h, --help       Show this help message');
     console.log('');
     console.log('Examples:');

@@ -37,6 +37,7 @@ let keepTemps = false;
 let emitLLVMOnly = false;
 let sanitize: string | null = null;
 let debugInfo = false;
+let staticLink = false;
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -56,6 +57,10 @@ export function setSanitize(value: string): void {
 
 export function setDebugInfo(value: boolean): void {
   debugInfo = value;
+}
+
+export function setStaticLink(value: boolean): void {
+  staticLink = value;
 }
 
 // External library paths - check env vars, then use vendor/
@@ -288,7 +293,8 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   }
   const noPie = isMac ? '' : ' -no-pie';
   const debugFlag = debugInfo ? ' -g' : '';
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${sanitizeFlags} ${linkLibs}`;
+  const staticFlag = (staticLink && !isMac) ? ' -static' : '';
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });

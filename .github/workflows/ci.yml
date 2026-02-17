@@ -8,15 +8,112 @@ on:
     branches: [main]
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            artifact: chadscript-linux-x64
-          - os: macos-latest
-            artifact: chadscript-macos-arm64
-    runs-on: ${{ matrix.os }}
+  build-linux:
+    runs-on: ubuntu-latest
+    container: node:22-alpine
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apk add --no-cache \
+            llvm18 llvm18-dev clang18 lld \
+            cmake make gcc g++ musl-dev \
+            autoconf automake libtool \
+            linux-headers git bash zstd-dev zlib-dev
+          ln -sf /usr/lib/llvm18/bin/llc /usr/bin/llc
+          ln -sf /usr/lib/llvm18/bin/opt /usr/bin/opt
+          ln -sf /usr/bin/clang-18 /usr/bin/clang
+          clang --version 2>&1 | head -2
+          llc --version 2>&1 | head -4
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build vendor libraries
+        run: bash scripts/build-vendor.sh
+
+      - name: Build compiler
+        run: npm run build
+
+      - name: Verify vendor libraries
+        run: |
+          fail=0
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/libwebsockets/build/lib/libwebsockets.a c_bridges/lws-bridge.o; do
+            if [ ! -f "$lib" ]; then
+              echo "MISSING: $lib"
+              fail=1
+            else
+              echo "OK: $lib"
+            fi
+          done
+          if [ "$fail" -eq 1 ]; then
+            echo "Vendor library build incomplete - aborting before tests"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build tree-sitter TypeScript objects
+        run: |
+          mkdir -p build
+          TS_SRC=node_modules/tree-sitter-typescript/typescript/src
+          TS_INCLUDE=node_modules/tree-sitter-typescript
+          clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/parser.c -o build/tree-sitter-typescript-parser.o
+          clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
+          clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
+
+      - name: Build native chadc (static)
+        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc --static
+
+      - name: Build native chad (static)
+        run: node dist/chadc-node.js src/chad-native.ts -o .build/chad --static
+
+      - name: Verify static binary
+        run: |
+          file .build/chad
+          ldd .build/chad 2>&1 && echo "WARNING: not fully static" || echo "OK: static binary"
+
+      - name: Smoke test native chadc
+        run: |
+          .build/chadc examples/hello.ts -o /tmp/hello
+          /tmp/hello
+
+      - name: Smoke test native chad
+        run: |
+          .build/chad build examples/hello.ts -o /tmp/hello2
+          /tmp/hello2
+
+      - name: Run self-hosting tests
+        run: node --import tsx --test tests/self-hosting.test.ts
+        timeout-minutes: 15
+
+      - name: Package release artifact
+        run: |
+          mkdir -p release/lib
+          cp .build/chad release/
+          cp .build/chadc release/
+          cp build/tree-sitter-typescript-parser.o release/lib/
+          cp build/tree-sitter-typescript-scanner.o release/lib/
+          cp build/treesitter-bridge.o release/lib/
+          cp vendor/tree-sitter/libtree-sitter.a release/lib/
+          cp vendor/bdwgc/libgc.a release/lib/
+          cp vendor/yyjson/libyyjson.a release/lib/
+          cp vendor/libuv/build/libuv.a release/lib/
+          cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
+          cp c_bridges/lws-bridge.o release/lib/
+          tar -czf chadscript-linux-x64.tar.gz -C release chad chadc lib
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chadscript-linux-x64
+          path: chadscript-linux-x64.tar.gz
+
+  build-macos:
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -25,17 +122,7 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install system dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y llvm clang libcurl4-openssl-dev cmake autoconf automake libtool gdb libzstd-dev zlib1g-dev
-          echo "--- LLVM/Clang versions ---"
-          llc --version 2>&1 | head -4
-          clang --version 2>&1 | head -2
-
-      - name: Install system dependencies (macOS)
-        if: runner.os == 'macOS'
+      - name: Install system dependencies
         run: |
           brew install llvm cmake autoconf automake libtool zstd
           echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
@@ -85,7 +172,6 @@ jobs:
         run: node dist/chadc-node.js src/chad-native.ts -o .build/chad
 
       - name: Sign macOS binaries
-        if: runner.os == 'macOS'
         run: |
           codesign --sign - --force .build/chad
           codesign --sign - --force .build/chadc
@@ -118,16 +204,16 @@ jobs:
           cp vendor/libuv/build/libuv.a release/lib/
           cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
           cp c_bridges/lws-bridge.o release/lib/
-          tar -czf ${{ matrix.artifact }}.tar.gz -C release chad chadc lib
+          tar -czf chadscript-macos-arm64.tar.gz -C release chad chadc lib
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: ${{ matrix.artifact }}.tar.gz
+          name: chadscript-macos-arm64
+          path: chadscript-macos-arm64.tar.gz
 
   pre-release:
-    needs: build
+    needs: [build-linux, build-macos]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -157,7 +243,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
 
   release:
-    needs: build
+    needs: [build-linux, build-macos]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
