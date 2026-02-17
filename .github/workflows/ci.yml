@@ -21,7 +21,7 @@ jobs:
             llvm18 llvm18-dev clang18 lld \
             cmake make gcc g++ musl-dev \
             autoconf automake libtool \
-            linux-headers git bash zstd-dev zlib-dev sqlite-dev
+            linux-headers git bash zstd-dev zlib-dev sqlite-dev file
           ln -sf /usr/lib/llvm18/bin/llc /usr/bin/llc
           ln -sf /usr/lib/llvm18/bin/opt /usr/bin/opt
           ln -sf /usr/bin/clang-18 /usr/bin/clang
