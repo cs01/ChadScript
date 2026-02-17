@@ -28,6 +28,13 @@ jobs:
           clang --version 2>&1 | head -2
           llc --version 2>&1 | head -4
 
+      - name: Verify system libgc
+        run: |
+          echo "System libgc locations:"
+          find /usr/lib /usr/local/lib -name "libgc*" 2>/dev/null || echo "  none found"
+          echo "musl check:"
+          ls /lib/ld-musl-* 2>/dev/null && echo "  musl detected" || echo "  not musl"
+
       - name: Install npm dependencies
         run: npm install
 

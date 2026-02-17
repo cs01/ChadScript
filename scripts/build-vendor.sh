@@ -35,11 +35,17 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
     fi
     cd bdwgc
     mkdir -p build && cd build
-    cmake .. -DCMAKE_C_FLAGS="-fPIC -DGC_BUILTIN_ATOMIC" -DBUILD_SHARED_LIBS=OFF \
+    cmake .. \
+      -DCMAKE_C_FLAGS="-fPIC -DGC_BUILTIN_ATOMIC -DUSE_MMAP_ANON" \
+      -DBUILD_SHARED_LIBS=OFF \
       -DBUILD_TESTING=OFF \
       -Denable_cplusplus=OFF -Denable_docs=OFF -Dwithout_libatomic_ops=ON
     make -j"$NPROC"
-    cp libgc.a "$VENDOR_DIR/bdwgc/"
+    if [ -f libgc.a ]; then
+      cp libgc.a "$VENDOR_DIR/bdwgc/"
+    else
+      ar rcs "$VENDOR_DIR/bdwgc/libgc.a" CMakeFiles/gc.dir/extra/gc.c.o
+    fi
     echo "  -> $VENDOR_DIR/bdwgc/libgc.a"
   fi
 else
