@@ -91,7 +91,7 @@ if [ ! -f "$VENDOR_DIR/yyjson/libyyjson.a" ]; then
   fi
   cd yyjson
   cc -c -O2 -fPIC yyjson.c -o yyjson.o
-  cc -c -O2 -fPIC "$C_BRIDGES_DIR/yyjson-bridge.c" -o yyjson-bridge.o
+  cc -c -O2 -fPIC -I"$VENDOR_DIR/yyjson" "$C_BRIDGES_DIR/yyjson-bridge.c" -o yyjson-bridge.o
   ar rcs libyyjson.a yyjson.o yyjson-bridge.o
   echo "  -> $VENDOR_DIR/yyjson/libyyjson.a"
 else
