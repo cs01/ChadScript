@@ -35,7 +35,7 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
     fi
     cd bdwgc
     mkdir -p build && cd build
-    cmake .. -DCMAKE_C_FLAGS="-fPIC" -DBUILD_SHARED_LIBS=OFF \
+    cmake .. -DCMAKE_C_FLAGS="-fPIC -DGC_BUILTIN_ATOMIC" -DBUILD_SHARED_LIBS=OFF \
       -DBUILD_TESTING=OFF \
       -Denable_cplusplus=OFF -Denable_docs=OFF -Dwithout_libatomic_ops=ON
     make -j"$NPROC"

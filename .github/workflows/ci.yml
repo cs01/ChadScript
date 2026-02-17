@@ -56,7 +56,7 @@ jobs:
       - name: Run tests
         run: npm test
         env:
-          GC_INITIAL_HEAP_SIZE: '16777216'
+          GC_INITIAL_HEAP_SIZE: '268435456'
 
       - name: Build tree-sitter TypeScript objects
         run: |
@@ -83,20 +83,20 @@ jobs:
           .build/chadc examples/hello.ts -o /tmp/hello
           /tmp/hello
         env:
-          GC_INITIAL_HEAP_SIZE: '16777216'
+          GC_INITIAL_HEAP_SIZE: '268435456'
 
       - name: Smoke test native chad
         run: |
           .build/chad build examples/hello.ts -o /tmp/hello2
           /tmp/hello2
         env:
-          GC_INITIAL_HEAP_SIZE: '16777216'
+          GC_INITIAL_HEAP_SIZE: '268435456'
 
       - name: Run self-hosting tests
         run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
         env:
-          GC_INITIAL_HEAP_SIZE: '16777216'
+          GC_INITIAL_HEAP_SIZE: '268435456'
 
       - name: Package release artifact
         run: |
