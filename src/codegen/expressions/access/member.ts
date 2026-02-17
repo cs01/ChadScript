@@ -2226,6 +2226,10 @@ export class MemberAccessGenerator {
       return this.getArrayLength(expr.object, params, '%ObjectArray');
     }
 
+    if (exprObjType === 'variable' && this.ctx.symbolTable.isUint8Array((expr.object as VariableNode).name)) {
+      return this.getArrayLength(expr.object, params, '%Uint8Array');
+    }
+
     if (this.isProcessArgvLength(expr)) {
       const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
       return this.getStringArrayLength(stringArrayPtr);

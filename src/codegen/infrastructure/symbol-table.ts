@@ -33,7 +33,8 @@ export enum SymbolKind {
   JSON,
   ProcessArgv,
   Closure,
-  Pointer
+  Pointer,
+  Uint8Array
 }
 
 /**
@@ -1027,6 +1028,15 @@ export class SymbolTable {
     if (!symbol) { return false; }
     const k = symbol.kind;
     const m = SymbolKind.ObjectArray;
+    if (k === m) { return true; }
+    return false;
+  }
+
+  isUint8Array(name: string): boolean {
+    const symbol = this.symbols.get(name);
+    if (!symbol) { return false; }
+    const k = symbol.kind;
+    const m = SymbolKind.Uint8Array;
     if (k === m) { return true; }
     return false;
   }

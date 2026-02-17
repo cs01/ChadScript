@@ -66,14 +66,14 @@ const defaultBenchmarks = {
     note: featuredNotes.montecarlo || '',
   },
   sqlite: {
-    layout: 'vertical',
+    layout: 'horizontal',
     desc: "100K SELECT queries on an in-memory table with 100 rows.",
     metric: 'Smaller = faster.',
     items: [
-      { name: 'C', val: '0.235s', h: 100, color: 'c', d: 0, speed: 3 },
-      { name: 'ChadScript', val: '0.302s', h: 78, color: 'chad', d: 0.12, speed: 3.4, hero: true },
-      { name: 'Bun', val: '0.554s', h: 42, color: 'bun', d: 0.24, speed: 5 },
-      { name: 'Node.js', val: '0.702s', h: 33, color: 'node', d: 0.36, speed: 6 },
+      { name: 'C', val: '0.235s', w: 34, h: 100, color: 'c', d: 0, speed: 3 },
+      { name: 'ChadScript', val: '0.302s', w: 43, h: 78, color: 'chad', d: 0.12, speed: 3.4, hero: true },
+      { name: 'Bun', val: '0.554s', w: 79, h: 42, color: 'bun', d: 0.24, speed: 5 },
+      { name: 'Node.js', val: '0.702s', w: 100, h: 33, color: 'node', d: 0.36, speed: 6 },
     ],
     note: featuredNotes.sqlite || '',
   },
@@ -96,7 +96,7 @@ function transformJson(json) {
     const values = entries.map(([, r]) => r.value)
     const maxVal = Math.max(...values)
     const minVal = Math.min(...values)
-    const layout = key === 'sqlite' ? 'vertical' : 'horizontal'
+    const layout = 'horizontal'
     const metric = lowerBetter ? 'Smaller = faster.' : 'Taller = more throughput.'
 
     const items = entries.map(([lang, r], idx) => {

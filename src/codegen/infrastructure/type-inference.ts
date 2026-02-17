@@ -1313,7 +1313,7 @@ export class TypeInference {
   isClassInstanceExpression(expr: Expression): boolean {
     const resolved = this.resolveExpressionType(expr);
     if (resolved) {
-      if (resolved.base === 'Promise' || resolved.base === 'RegExp') return false;
+      if (resolved.base === 'Promise' || resolved.base === 'RegExp' || resolved.base === 'Uint8Array') return false;
       if (resolved.base === 'string' || resolved.base === 'number' || resolved.base === 'boolean' ||
           resolved.base === 'void' || resolved.base === 'null' || resolved.base === 'unknown' ||
           resolved.base === 'object' || resolved.base === 'Response') return false;
@@ -1327,7 +1327,23 @@ export class TypeInference {
       const newExpr = expr as NewNode;
       if (newExpr.className === 'Promise') return false;
       if (newExpr.className === 'RegExp') return false;
+      if (newExpr.className === 'Uint8Array') return false;
       return true;
+    }
+    return false;
+  }
+
+  isUint8ArrayExpression(expr: Expression): boolean {
+    const resolved = this.resolveExpressionType(expr);
+    if (resolved && resolved.base === 'Uint8Array' && resolved.arrayDepth === 0) return true;
+    const e = expr as ExprBase;
+    if (e.type === 'new') {
+      const newExpr = expr as NewNode;
+      if (newExpr.className === 'Uint8Array') return true;
+    }
+    if (e.type === 'variable') {
+      const varName = (expr as VariableNode).name;
+      if (this.ctx.symbolTable.isUint8Array(varName)) return true;
     }
     return false;
   }

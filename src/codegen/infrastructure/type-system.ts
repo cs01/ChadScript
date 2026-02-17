@@ -129,6 +129,7 @@ export function tsTypeToLlvm(tsType: string): string {
   if (tsType === 'void') return 'void';
   if (tsType === 'string[]') return '%StringArray*';
   if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
+  if (tsType === 'Uint8Array') return '%Uint8Array*';
   if (tsType.endsWith('[]')) return '%ObjectArray*';
   if (tsType.startsWith('Set<')) return '%StringSet*';
   if (tsType.startsWith('Map<')) return '%StringMap*';
@@ -152,6 +153,7 @@ export function resolvedTypeToLlvm(rt: ResolvedType): string {
     return '%ObjectArray*';
   }
   if (rt.base === 'string') return 'i8*';
+  if (rt.base === 'Uint8Array' && rt.arrayDepth === 0) return '%Uint8Array*';
   if (rt.base === 'number' && rt.qualifiers.numericKind === 'integer') return 'i64';
   if (rt.base === 'number' || rt.base === 'boolean') return 'double';
   if (rt.base === 'void') return 'void';
@@ -315,6 +317,7 @@ export function mapParamTypeToLLVM(
   if (paramType === 'number' || paramType === 'boolean') return 'double';
   if (paramType === 'string[]') return '%StringArray*';
   if (paramType === 'number[]' || paramType === 'boolean[]') return '%Array*';
+  if (paramType === 'Uint8Array') return '%Uint8Array*';
   if (paramType.endsWith('[]')) return '%ObjectArray*';
   if (paramType.startsWith('Set<')) return '%StringSet*';
   if (paramType.startsWith('Map<')) return '%StringMap*';
@@ -330,6 +333,7 @@ export function mapReturnTypeToLLVM(
   if (returnType === 'void') return 'void';
   if (returnType === 'string[]') return '%StringArray*';
   if (returnType === 'number[]' || returnType === 'boolean[]') return '%Array*';
+  if (returnType === 'Uint8Array') return '%Uint8Array*';
   if (returnType.endsWith('[]')) return '%ObjectArray*';
   if (returnType !== '' && returnType !== 'number' && returnType !== 'boolean' && !returnIsEnum) return 'i8*';
   return 'double';

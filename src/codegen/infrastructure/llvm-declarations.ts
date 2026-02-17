@@ -11,6 +11,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += '%Array = type { double*, i32, i32 }\n';
   ir += '%ObjectArray = type { i8*, i32, i32 }\n';
   ir += '%StringArray = type { i8**, i32, i32 }\n';
+  ir += '%Uint8Array = type { i8*, i32, i32 }\n';
   ir += '%Map = type { double*, double*, i32, i32 }\n';
   ir += '%StringMap = type { i8**, i8**, i32, i32 }\n';
   ir += '%Set = type { double*, i32, i32 }\n';
@@ -41,6 +42,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += 'declare double @strtod(i8*, i8**)\n';
   ir += 'declare i8* @strstr(i8*, i8*)\n';
   ir += 'declare void @llvm.memcpy.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n';
+  ir += 'declare void @llvm.memset.p0i8.i64(i8*, i8, i64, i1)\n';
   ir += '\n';
 
   ir += 'declare double @llvm.sqrt.f64(double)\n';

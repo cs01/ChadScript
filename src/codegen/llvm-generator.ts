@@ -1317,6 +1317,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const isSet = this.typeInference.isSetExpression(stmt.value);
         const isRegex = this.typeInference.isRegexExpression(stmt.value);
         const isClassInstance = this.typeInference.isClassInstanceExpression(stmt.value);
+        const isUint8Array = this.typeInference.isUint8ArrayExpression(stmt.value);
         const isBoolean = this.typeInference.isBooleanExpression(stmt.value);
         const isJSONParse = this.typeInference.isJSONParseExpression(stmt.value);
 
@@ -1426,6 +1427,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           llvmType = 'i8*';
           kind = SymbolKind.Regex;
           defaultValue = 'null';
+        } else if (isUint8Array) {
+          llvmType = '%Uint8Array*';
+          kind = SymbolKind.Uint8Array;
+          defaultValue = 'null';
+          ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+          this.globalVariables.set(name, { llvmType, kind, initialized: false });
+          this.defineVariable(name, `@${name}`, llvmType, kind, 'global');
+          continue;
         } else if (isClassInstance) {
           const className = (stmt.value as NewNode).className;
           const fields = this.classGen ? (this.classGen.getClassFields(className) || []) : [];
@@ -2383,6 +2392,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public isClassInstanceExpression(expr: Expression): boolean {
     return this.typeInference.isClassInstanceExpression(expr);
+  }
+
+  public isUint8ArrayExpression(expr: Expression): boolean {
+    return this.typeInference.isUint8ArrayExpression(expr);
   }
 
   public isPromiseExpression(expr: Expression): boolean {

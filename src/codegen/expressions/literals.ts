@@ -167,6 +167,9 @@ export class LiteralExpressionGenerator {
       }
       return this.ctx.setGen.generateSetLiteral({ type: 'set', values: [] }, params);
     }
+    if (className === 'Uint8Array') {
+      return this.generateNewUint8Array(args, params);
+    }
     return this.ctx.classGenGenerateNewExpression(className, args, params);
   }
 
@@ -208,6 +211,47 @@ export class LiteralExpressionGenerator {
 
     const patternPtr = this.ctx.generateExpression(args[0], params);
     return this.ctx.regexGen.generateRegexCompileRuntime(patternPtr, cflags);
+  }
+
+  private generateNewUint8Array(args: Expression[], params: string[]): string {
+    if (args.length < 1) {
+      throw new Error('new Uint8Array() requires a size argument');
+    }
+
+    const sizeValue = this.ctx.generateExpression(args[0], params);
+    const sizeDouble = this.ctx.ensureDouble(sizeValue);
+
+    const sizeI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${sizeI32} = fptosi double ${sizeDouble} to i32`);
+
+    const sizeI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${sizeI64} = sext i32 ${sizeI32} to i64`);
+
+    const structSize = this.ctx.nextTemp();
+    this.ctx.emit(`${structSize} = add i64 0, 12`);
+    const structRaw = this.ctx.nextTemp();
+    this.ctx.emit(`${structRaw} = call i8* @GC_malloc(i64 ${structSize})`);
+    const structPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${structPtr} = bitcast i8* ${structRaw} to %Uint8Array*`);
+
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = call i8* @GC_malloc_atomic(i64 ${sizeI64})`);
+    this.ctx.emit(`call void @llvm.memset.p0i8.i64(i8* ${dataPtr}, i8 0, i64 ${sizeI64}, i1 false)`);
+
+    const dataFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 0`);
+    this.ctx.emit(`store i8* ${dataPtr}, i8** ${dataFieldPtr}`);
+
+    const lenFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${lenFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 1`);
+    this.ctx.emit(`store i32 ${sizeI32}, i32* ${lenFieldPtr}`);
+
+    const capFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${capFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 2`);
+    this.ctx.emit(`store i32 ${sizeI32}, i32* ${capFieldPtr}`);
+
+    this.ctx.setVariableType(structPtr, '%Uint8Array*');
+    return structPtr;
   }
 
   /**

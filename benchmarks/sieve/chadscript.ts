@@ -1,10 +1,10 @@
 const LIMIT = 10000000;
 
 function sieve(): void {
-  const flags: number[] = [];
+  const flags = new Uint8Array(LIMIT + 1);
   let i = 0;
   while (i <= LIMIT) {
-    flags.push(1);
+    flags[i] = 1;
     i = i + 1;
   }
 

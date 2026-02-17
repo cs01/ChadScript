@@ -69,6 +69,7 @@ export interface VariableAllocatorContext {
   isSetExpression(expr: Expression): boolean;
   isRegexExpression(expr: Expression): boolean;
   isClassInstanceExpression(expr: Expression): boolean;
+  isUint8ArrayExpression(expr: Expression): boolean;
   isPromiseExpression(expr: Expression): boolean;
   isResponseExpression(expr: Expression): boolean;
   isJSONParseExpression(expr: Expression): boolean;
@@ -418,6 +419,7 @@ export class VariableAllocator {
     let isRegex: boolean;
     let isPromise: boolean;
     let isClassInstance: boolean;
+    let isUint8Array: boolean;
     let isResponse: boolean;
     let isObject: boolean;
 
@@ -432,6 +434,7 @@ export class VariableAllocator {
       isSet = base === 'Set' || base.startsWith('Set<');
       isRegex = base === 'RegExp';
       isPromise = base === 'Promise';
+      isUint8Array = base === 'Uint8Array' && depth === 0;
       isResponse = base === 'Response';
       isObject = base === 'object' && depth === 0;
       isClassInstance = !isPromise && !isRegex && depth === 0 &&
@@ -449,6 +452,7 @@ export class VariableAllocator {
       isSet = this.ctx.isSetExpression(stmtValue);
       isRegex = this.ctx.isRegexExpression(stmtValue);
       isPromise = this.ctx.isPromiseExpression(stmtValue);
+      isUint8Array = this.ctx.isUint8ArrayExpression(stmtValue);
       isClassInstance = !isPromise && this.ctx.isClassInstanceExpression(stmtValue);
       isResponse = this.ctx.isResponseExpression(stmtValue);
       isObject = this.ctx.isObjectExpression(stmtValue);
@@ -466,6 +470,9 @@ export class VariableAllocator {
     }
     if (!isSet && (stmtDeclaredType === 'Set' || stmtDeclaredType.startsWith('Set<'))) {
       isSet = true;
+    }
+    if (!isUint8Array && strippedDeclType === 'Uint8Array') {
+      isUint8Array = true;
     }
 
     const isJSONObject = this.ctx.isJSONParseExpression(stmtValue);
@@ -504,6 +511,8 @@ export class VariableAllocator {
       this.allocateAwaitResult(stmt, params);
     } else if (isPromise) {
       this.allocatePromise(stmt, params);
+    } else if (isUint8Array) {
+      this.allocateUint8Array(stmt, params);
     } else if (isClassInstance) {
       this.allocateClassInstance(stmt, params);
     } else if (typedJsonInterface) {
@@ -1323,6 +1332,15 @@ export class VariableAllocator {
       pointerValue = typedPtr;
     }
     this.ctx.emit(`store %Array* ${pointerValue}, %Array** ${allocaReg}`);
+  }
+
+  private allocateUint8Array(stmt: VariableDeclaration, params: string[]): void {
+    const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+    this.ctx.defineVariable(stmt.name, allocaReg, '%Uint8Array*', SymbolKind.Uint8Array, 'local');
+    this.ctx.emit(`${allocaReg} = alloca %Uint8Array*`);
+
+    const value = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.emit(`store %Uint8Array* ${value}, %Uint8Array** ${allocaReg}`);
   }
 
   private allocateObjectArray(stmt: VariableDeclaration, params: string[]): void {

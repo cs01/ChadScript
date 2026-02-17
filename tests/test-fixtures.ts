@@ -778,4 +778,10 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: 'describe() blocks for grouping tests with indentation'
   },
+  {
+    name: 'uint8array-basic',
+    fixture: 'tests/fixtures/typed-arrays/uint8array-basic.ts',
+    expectTestPassed: true,
+    description: 'Uint8Array constructor, index read/write, and .length'
+  },
 ];

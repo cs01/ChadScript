@@ -134,6 +134,14 @@ export class VariableExpressionGenerator {
       return allocaReg;
     }
 
+    if (this.ctx.symbolTable.isUint8Array(name)) {
+      const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
+      const temp = this.ctx.nextTemp();
+      this.ctx.emit(`${temp} = load %Uint8Array*, %Uint8Array** ${allocaReg}, !tbaa !5`);
+      this.ctx.setVariableType(temp, '%Uint8Array*');
+      return temp;
+    }
+
     // Check if it's a string variable
     if (this.ctx.symbolTable.isString(name)) {
       const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
@@ -255,7 +263,7 @@ export class VariableExpressionGenerator {
       if (baseName.startsWith('%')) {
         const structName = baseName.slice(1);
         if (structName.endsWith('_struct')) return true;
-        if (structName === 'Array' || structName === 'StringArray' || structName === 'ObjectArray') return true;
+        if (structName === 'Array' || structName === 'StringArray' || structName === 'ObjectArray' || structName === 'Uint8Array') return true;
         if (structName === 'Map' || structName === 'StringMap' || structName === 'PointerMap') return true;
         if (structName === 'Set' || structName === 'StringSet') return true;
         if (structName === 'Promise' || structName === 'PromiseCallback') return true;

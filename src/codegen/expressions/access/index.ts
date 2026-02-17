@@ -15,6 +15,7 @@ export interface IndexAccessGeneratorContext {
   isStringArrayExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
   isObjectArrayExpression(expr: Expression): boolean;
+  isUint8ArrayExpression(expr: Expression): boolean;
   getVariableAlloca(name: string): string | undefined;
   generateExpression(expr: Expression, params: string[]): string;
   isStringExpression(expr: Expression): boolean;
@@ -75,12 +76,15 @@ export class IndexAccessGenerator {
     // Determine if we're indexing into a string array, numeric array, or object array
     const isStringArray = this.ctx.isStringArrayExpression(expr.object);
     const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
-    const isNumericArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(expr.object);
+    const isUint8Array = !isStringArray && !isObjectArray && this.ctx.isUint8ArrayExpression(expr.object);
+    const isNumericArray = !isStringArray && !isObjectArray && !isUint8Array && this.ctx.isArrayExpression(expr.object);
 
     if (isStringArray) {
       return this.generateStringArrayIndex(expr, params);
     } else if (isObjectArray) {
       return this.generateObjectArrayIndex(expr, params);
+    } else if (isUint8Array) {
+      return this.generateUint8ArrayIndex(expr, params);
     } else if (isNumericArray) {
       return this.generateNumericArrayIndex(expr, params);
     }
@@ -269,6 +273,69 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
     this.ctx.setVariableType(elem, 'i8*');
     return elem;
+  }
+
+  private generateUint8ArrayIndex(expr: IndexAccessNode, params: string[]): string {
+    const arrayPtr = this.ctx.generateExpression(expr.object, params);
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
+
+    const indexType = this.ctx.getVariableType(indexDouble);
+    let index = indexDouble;
+    if (indexType === 'double') {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    } else if (indexType === 'i64') {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+    }
+
+    const dataFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = load i8*, i8** ${dataFieldPtr}, !tbaa !5`);
+
+    const elemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elemPtr} = getelementptr inbounds i8, i8* ${dataPtr}, i32 ${index}`);
+    const byteVal = this.ctx.nextTemp();
+    this.ctx.emit(`${byteVal} = load i8, i8* ${elemPtr}`);
+    const intVal = this.ctx.nextTemp();
+    this.ctx.emit(`${intVal} = zext i8 ${byteVal} to i32`);
+    const dblVal = this.ctx.nextTemp();
+    this.ctx.emit(`${dblVal} = sitofp i32 ${intVal} to double`);
+    this.ctx.setVariableType(dblVal, 'double');
+    return dblVal;
+  }
+
+  private generateUint8ArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
+    const arrayPtr = this.ctx.generateExpression(expr.object, params);
+
+    const dataFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`);
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = load i8*, i8** ${dataFieldPtr}, !tbaa !5`);
+
+    const indexDouble = this.ctx.generateExpression(expr.index, params);
+    const indexType = this.ctx.getVariableType(indexDouble);
+    let index = indexDouble;
+    if (indexType === 'double') {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
+    } else if (indexType === 'i64') {
+      index = this.ctx.nextTemp();
+      this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
+    }
+
+    const dblValue = this.ctx.ensureDouble(value);
+    const intValue = this.ctx.nextTemp();
+    this.ctx.emit(`${intValue} = fptosi double ${dblValue} to i32`);
+    const byteValue = this.ctx.nextTemp();
+    this.ctx.emit(`${byteValue} = trunc i32 ${intValue} to i8`);
+
+    const elemPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${elemPtr} = getelementptr inbounds i8, i8* ${dataPtr}, i32 ${index}`);
+    this.ctx.emit(`store i8 ${byteValue}, i8* ${elemPtr}`);
+
+    return value;
   }
 
   private generateStringCharIndex(expr: IndexAccessNode, params: string[]): string {
@@ -513,12 +580,15 @@ export class IndexAccessGenerator {
     const value = this.ctx.generateExpression(expr.value, params);
     const isStringArray = this.ctx.isStringArrayExpression(expr.object);
     const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
-    const isNumericArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(expr.object);
+    const isUint8Array = !isStringArray && !isObjectArray && this.ctx.isUint8ArrayExpression(expr.object);
+    const isNumericArray = !isStringArray && !isObjectArray && !isUint8Array && this.ctx.isArrayExpression(expr.object);
 
     if (isStringArray) {
       return this.generateStringArrayAssignment(expr, value, params);
     } else if (isObjectArray) {
       return this.generateObjectArrayAssignment(expr, value, params);
+    } else if (isUint8Array) {
+      return this.generateUint8ArrayAssignment(expr, value, params);
     } else if (isNumericArray) {
       return this.generateNumericArrayAssignment(expr, value, params);
     } else {
