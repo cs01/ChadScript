@@ -9,24 +9,27 @@ mkdir -p "$VENDOR_DIR"
 
 # --- bdwgc (Boehm GC) ---
 if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
-  echo "==> Building bdwgc..."
-  cd "$VENDOR_DIR"
-  if [ ! -d bdwgc ]; then
-    git clone --depth 1 https://github.com/ivmai/bdwgc.git
-    cd bdwgc
-    git clone --depth 1 https://github.com/ivmai/libatomic_ops.git
+  if ldd --version 2>&1 | grep -qi musl && [ -f /usr/lib/libgc.a ]; then
+    echo "==> Using system libgc (musl-compatible)..."
+    mkdir -p "$VENDOR_DIR/bdwgc"
+    cp /usr/lib/libgc.a "$VENDOR_DIR/bdwgc/"
+    echo "  -> $VENDOR_DIR/bdwgc/libgc.a (system)"
   else
-    cd bdwgc
+    echo "==> Building bdwgc..."
+    cd "$VENDOR_DIR"
+    if [ ! -d bdwgc ]; then
+      git clone --depth 1 https://github.com/ivmai/bdwgc.git
+      cd bdwgc
+      git clone --depth 1 https://github.com/ivmai/libatomic_ops.git
+    else
+      cd bdwgc
+    fi
+    ./autogen.sh
+    ./configure --enable-static --disable-shared --with-pic
+    make -j"$NPROC"
+    cp .libs/libgc.a . 2>/dev/null || true
+    echo "  -> $VENDOR_DIR/bdwgc/libgc.a"
   fi
-  ./autogen.sh
-  BDWGC_CFLAGS=""
-  if ldd --version 2>&1 | grep -qi musl; then
-    BDWGC_CFLAGS="-DUSE_MMAP -D_GNU_SOURCE"
-  fi
-  ./configure --enable-static --disable-shared --with-pic CFLAGS="$BDWGC_CFLAGS"
-  make -j"$NPROC"
-  cp .libs/libgc.a . 2>/dev/null || true
-  echo "  -> $VENDOR_DIR/bdwgc/libgc.a"
 else
   echo "==> bdwgc already built, skipping"
 fi
