@@ -20,7 +20,7 @@ const langMeta = {
   node:       { name: 'Node.js',    color: 'node' },
 }
 
-const tabOrder = ['startup', 'fibonacci', 'json', 'sqlite', 'matmul', 'montecarlo', 'sieve', 'sorting', 'nbody', 'stringops', 'fileio', 'binarytrees', 'http', 'http_keepalive', 'websocket']
+const tabOrder = ['startup', 'montecarlo', 'sqlite', 'binarytrees', 'fibonacci', 'json', 'matmul', 'sieve', 'sorting', 'nbody', 'stringops', 'fileio', 'http', 'http_keepalive', 'websocket']
 
 const tabLabels = {
   startup: 'Cold Start', matmul: 'Matrix Multiply', fibonacci: 'Fibonacci',
@@ -191,7 +191,7 @@ onMounted(async () => {
     if (resp.ok) {
       const json = await resp.json()
       if (json.benchmarks) {
-        benchmarks.value = transformJson(json)
+        benchmarks.value = { ...defaultBenchmarks, ...transformJson(json) }
         if (!benchmarks.value[tab.value]) {
           const first = tabOrder.find(k => k in benchmarks.value)
           if (first) tab.value = first
