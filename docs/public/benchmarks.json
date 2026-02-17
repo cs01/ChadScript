@@ -1,31 +1,31 @@
 {
-  "timestamp": "2026-02-14T23:30:41Z",
+  "timestamp": "2026-02-16T06:00:00Z",
   "benchmarks": {
-    "binarytrees": {
-      "name": "Binary Trees",
-      "desc": "Build/check/discard binary trees of depth 18.",
-      "metric": "s",
+    "startup": {
+      "name": "Cold Start",
+      "desc": "Time to print \u2018Hello, World!\u2019 and exit. Average of 50 runs.",
+      "metric": "ms",
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 2.057,
-          "label": "2.057s"
+          "value": 1.6,
+          "label": "1.6ms"
         },
         "chadscript": {
-          "value": 2.553255,
-          "label": "2.553255s"
+          "value": 1.0,
+          "label": "1.0ms"
         },
         "go": {
-          "value": 4.145,
-          "label": "4.145s"
-        },
-        "node": {
-          "value": 2.263,
-          "label": "2.263s"
+          "value": 3.6,
+          "label": "3.6ms"
         },
         "bun": {
-          "value": 1.517,
-          "label": "1.517s"
+          "value": 17.3,
+          "label": "17.3ms"
+        },
+        "node": {
+          "value": 54.2,
+          "label": "54.2ms"
         }
       }
     },
@@ -36,108 +36,24 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 1.004,
-          "label": "1.004s"
+          "value": 0.976,
+          "label": "0.976s"
         },
         "chadscript": {
-          "value": 1.48776499804688,
-          "label": "1.48776499804688s"
+          "value": 1.590062,
+          "label": "1.590s"
         },
         "go": {
-          "value": 1.672,
-          "label": "1.672s"
+          "value": 1.752,
+          "label": "1.752s"
         },
         "node": {
-          "value": 4.365,
-          "label": "4.365s"
+          "value": 4.682,
+          "label": "4.682s"
         },
         "bun": {
-          "value": 2.885,
-          "label": "2.885s"
-        }
-      }
-    },
-    "fileio": {
-      "name": "File I/O",
-      "desc": "Write and read ~100MB to /tmp.",
-      "metric": "s",
-      "lower_is_better": true,
-      "results": {
-        "c": {
-          "value": 0.164,
-          "label": "0.164s"
-        },
-        "chadscript": {
-          "value": 0.341544,
-          "label": "0.341544s"
-        },
-        "go": {
-          "value": 0.141,
-          "label": "0.141s"
-        },
-        "node": {
-          "value": 0.571,
-          "label": "0.571s"
-        },
-        "bun": {
-          "value": 0.261,
-          "label": "0.261s"
-        }
-      }
-    },
-    "json": {
-      "name": "JSON Parse/Stringify",
-      "desc": "Parse 10K JSON objects, stringify back.",
-      "metric": "s",
-      "lower_is_better": true,
-      "results": {
-        "c": {
-          "value": 0.007,
-          "label": "0.007s"
-        },
-        "chadscript": {
-          "value": 0.008432,
-          "label": "0.008432s"
-        },
-        "go": {
-          "value": 0.042,
-          "label": "0.042s"
-        },
-        "node": {
-          "value": 0.02,
-          "label": "0.020s"
-        },
-        "bun": {
-          "value": 0.009,
-          "label": "0.009s"
-        }
-      }
-    },
-    "matmul": {
-      "name": "Matrix Multiply",
-      "desc": "512\u00d7512 double-precision matrix multiply.",
-      "metric": "s",
-      "lower_is_better": true,
-      "results": {
-        "c": {
-          "value": 0.43,
-          "label": "0.430s"
-        },
-        "chadscript": {
-          "value": 0.456953,
-          "label": "0.456953s"
-        },
-        "go": {
-          "value": 0.429,
-          "label": "0.429s"
-        },
-        "node": {
-          "value": 0.633,
-          "label": "0.633s"
-        },
-        "bun": {
-          "value": 0.583,
-          "label": "0.583s"
+          "value": 2.764,
+          "label": "2.764s"
         }
       }
     },
@@ -148,24 +64,52 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.924,
-          "label": "0.924s"
+          "value": 0.868,
+          "label": "0.868s"
         },
         "chadscript": {
-          "value": 2.509721,
-          "label": "2.509721s"
+          "value": 1.00817,
+          "label": "1.008s"
         },
         "go": {
-          "value": 0.89,
-          "label": "0.890s"
+          "value": 0.918,
+          "label": "0.918s"
         },
         "node": {
-          "value": 3.449,
-          "label": "3.449s"
+          "value": 3.457,
+          "label": "3.457s"
         },
         "bun": {
-          "value": 15.664,
-          "label": "15.664s"
+          "value": 16.39,
+          "label": "16.390s"
+        }
+      }
+    },
+    "matmul": {
+      "name": "Matrix Multiply",
+      "desc": "512\u00d7512 double-precision matrix multiply.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.459,
+          "label": "0.459s"
+        },
+        "chadscript": {
+          "value": 0.743961,
+          "label": "0.744s"
+        },
+        "go": {
+          "value": 0.455,
+          "label": "0.455s"
+        },
+        "node": {
+          "value": 0.66,
+          "label": "0.660s"
+        },
+        "bun": {
+          "value": 0.629,
+          "label": "0.629s"
         }
       }
     },
@@ -176,24 +120,24 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 4.117,
-          "label": "4.117s"
+          "value": 4.137,
+          "label": "4.137s"
         },
         "chadscript": {
-          "value": 6.711515,
-          "label": "6.711515s"
+          "value": 6.238037,
+          "label": "6.238s"
         },
         "go": {
-          "value": 5.933,
-          "label": "5.933s"
+          "value": 5.778,
+          "label": "5.778s"
         },
         "node": {
-          "value": 7.116,
-          "label": "7.116s"
+          "value": 7.713,
+          "label": "7.713s"
         },
         "bun": {
-          "value": 9.372,
-          "label": "9.372s"
+          "value": 9.424,
+          "label": "9.424s"
         }
       }
     },
@@ -208,20 +152,20 @@
           "label": "0.041s"
         },
         "chadscript": {
-          "value": 0.283603,
-          "label": "0.283603s"
+          "value": 0.246193,
+          "label": "0.246s"
         },
         "go": {
-          "value": 0.049,
-          "label": "0.049s"
+          "value": 0.046,
+          "label": "0.046s"
         },
         "node": {
-          "value": 0.09,
-          "label": "0.090s"
+          "value": 0.073,
+          "label": "0.073s"
         },
         "bun": {
-          "value": 0.067,
-          "label": "0.067s"
+          "value": 0.064,
+          "label": "0.064s"
         }
       }
     },
@@ -232,76 +176,52 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.201,
-          "label": "0.201s"
+          "value": 0.21,
+          "label": "0.210s"
         },
         "chadscript": {
-          "value": 0.304954,
-          "label": "0.304954s"
+          "value": 0.293031,
+          "label": "0.293s"
         },
         "go": {
-          "value": 0.216,
-          "label": "0.216s"
+          "value": 0.214,
+          "label": "0.214s"
         },
         "node": {
-          "value": 0.31,
-          "label": "0.310s"
+          "value": 0.292,
+          "label": "0.292s"
         },
         "bun": {
-          "value": 0.242,
-          "label": "0.242s"
+          "value": 0.267,
+          "label": "0.267s"
         }
       }
     },
-    "sqlite": {
-      "name": "SQLite",
-      "desc": "100K SELECT queries on a 100-row in-memory table.",
+    "binarytrees": {
+      "name": "Binary Trees",
+      "desc": "Build/check/discard binary trees of depth 18.",
       "metric": "s",
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.241,
-          "label": "0.241s"
+          "value": 2.005,
+          "label": "2.005s"
         },
         "chadscript": {
-          "value": 0.413759,
-          "label": "0.413759s"
-        },
-        "node": {
-          "value": 0.801,
-          "label": "0.801s"
-        },
-        "bun": {
-          "value": 0.637,
-          "label": "0.637s"
-        }
-      }
-    },
-    "startup": {
-      "name": "Cold Start",
-      "desc": "Time to print \u2018Hello, World!\u2019 and exit. Average of 50 runs.",
-      "metric": "ms",
-      "lower_is_better": true,
-      "results": {
-        "c": {
-          "value": 1.7,
-          "label": "1.7ms"
-        },
-        "chadscript": {
-          "value": 1.9,
-          "label": "1.9ms"
+          "value": 2.729945,
+          "label": "2.730s"
         },
         "go": {
-          "value": 3.7,
-          "label": "3.7ms"
-        },
-        "bun": {
-          "value": 18.6,
-          "label": "18.6ms"
+          "value": 4.188,
+          "label": "4.188s"
         },
         "node": {
-          "value": 53.6,
-          "label": "53.6ms"
+          "value": 2.163,
+          "label": "2.163s"
+        },
+        "bun": {
+          "value": 1.4,
+          "label": "1.400s"
         }
       }
     },
@@ -312,24 +232,76 @@
       "lower_is_better": true,
       "results": {
         "c": {
-          "value": 0.012,
-          "label": "0.012s"
+          "value": 0.024,
+          "label": "0.024s"
         },
         "chadscript": {
-          "value": 0.074468,
-          "label": "0.074468s"
+          "value": 0.065097,
+          "label": "0.065s"
         },
         "go": {
-          "value": 0.028,
-          "label": "0.028s"
+          "value": 0.033,
+          "label": "0.033s"
         },
         "node": {
-          "value": 0.079,
-          "label": "0.079s"
+          "value": 0.062,
+          "label": "0.062s"
         },
         "bun": {
-          "value": 0.045,
-          "label": "0.045s"
+          "value": 0.041,
+          "label": "0.041s"
+        }
+      }
+    },
+    "fileio": {
+      "name": "File I/O",
+      "desc": "Write and read ~100MB to /tmp.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.129,
+          "label": "0.129s"
+        },
+        "chadscript": {
+          "value": 0.287831,
+          "label": "0.288s"
+        },
+        "go": {
+          "value": 0.129,
+          "label": "0.129s"
+        },
+        "node": {
+          "value": 0.521,
+          "label": "0.521s"
+        },
+        "bun": {
+          "value": 0.245,
+          "label": "0.245s"
+        }
+      }
+    },
+    "sqlite": {
+      "name": "SQLite",
+      "desc": "100K SELECT queries on a 100-row in-memory table.",
+      "metric": "s",
+      "lower_is_better": true,
+      "results": {
+        "c": {
+          "value": 0.235,
+          "label": "0.235s"
+        },
+        "chadscript": {
+          "value": 0.302349,
+          "label": "0.302s"
+        },
+        "node": {
+          "value": 0.702,
+          "label": "0.702s"
+        },
+        "bun": {
+          "value": 0.554,
+          "label": "0.554s"
         }
       }
     }
