@@ -128,6 +128,19 @@ describe('HTTP Route Isolation Tests', { concurrency: 1 }, () => {
     try { await fs.unlink(SERVER_BINARY + '.ll'); } catch {}
   });
 
+  async function waitForServer(maxAttempts = 50): Promise<void> {
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const resp = await fetch(`http://127.0.0.1:${PORT}/`);
+        await resp.text();
+        return;
+      } catch {
+        await sleep(100);
+      }
+    }
+    throw new Error(`Server not ready after ${maxAttempts * 100}ms`);
+  }
+
   async function startServer(): Promise<ChildProcess> {
     if (serverProcess?.pid && isProcessAlive(serverProcess.pid)) {
       try { process.kill(-serverProcess.pid, 'SIGTERM'); } catch {}
@@ -139,9 +152,8 @@ describe('HTTP Route Isolation Tests', { concurrency: 1 }, () => {
       stdio: ['ignore', 'pipe', 'pipe']
     });
 
-    await sleep(1000);
-
     assert.ok(serverProcess.pid, 'Server should have a PID');
+    await waitForServer();
     assert.ok(isProcessAlive(serverProcess.pid), 'Server should be alive after start');
 
     return serverProcess;
