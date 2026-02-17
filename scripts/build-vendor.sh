@@ -9,10 +9,16 @@ mkdir -p "$VENDOR_DIR"
 
 # --- bdwgc (Boehm GC) ---
 if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
-  if ldd --version 2>&1 | grep -qi musl && [ -f /usr/lib/libgc.a ]; then
-    echo "==> Using system libgc (musl-compatible)..."
+  SYSTEM_LIBGC=""
+  if ldd --version 2>&1 | grep -qi musl; then
+    for p in /usr/lib/libgc.a /usr/local/lib/libgc.a; do
+      if [ -f "$p" ]; then SYSTEM_LIBGC="$p"; break; fi
+    done
+  fi
+  if [ -n "$SYSTEM_LIBGC" ]; then
+    echo "==> Using system libgc (musl-compatible): $SYSTEM_LIBGC"
     mkdir -p "$VENDOR_DIR/bdwgc"
-    cp /usr/lib/libgc.a "$VENDOR_DIR/bdwgc/"
+    cp "$SYSTEM_LIBGC" "$VENDOR_DIR/bdwgc/"
     echo "  -> $VENDOR_DIR/bdwgc/libgc.a (system)"
   else
     echo "==> Building bdwgc..."
