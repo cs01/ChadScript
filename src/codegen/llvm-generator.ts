@@ -158,6 +158,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   // JSON object metadata for tracking parsed JSON structures
   public jsonObjectMetadata: Map<string, JsonObjectMeta>;
 
+  private i64EligibleVars: string[] = [];
+
   // Diagnostic engine for structured error/warning reporting
   public diagnostics: DiagnosticEngine;
 
@@ -725,6 +727,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getCurrentFunctionReturnType(): string { return this.currentFunctionReturnType; }
   public setCurrentFunctionTsReturnType(type: string | undefined): void { this.currentFunctionTsReturnType = type; }
   public getCurrentFunctionTsReturnType(): string | undefined { return this.currentFunctionTsReturnType; }
+  public getI64EligibleVars(): string[] { return this.i64EligibleVars; }
+  public setI64EligibleVars(vars: string[]): void { this.i64EligibleVars = vars; }
   public setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void { this.expectedArrayElementType = type; }
   public getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null { return this.expectedArrayElementType; }
   public setCurrentDeclaredMapType(type: string | undefined): void { this.currentDeclaredMapType = type; }
@@ -1927,8 +1931,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     let coercedValue = value;
     if (varType === 'double' && valueType === 'i64') {
       coercedValue = this.ensureDouble(value);
-    } else if (varType === 'i64' && valueType === 'double') {
-      coercedValue = this.ensureI64(value);
+    } else if (varType === 'i64' && valueType !== 'i64') {
+      if (valueType === 'double' || !valueType) {
+        const temp = this.nextTemp();
+        this.emit(`${temp} = fptosi double ${value} to i64`);
+        this.setVariableType(temp, 'i64');
+        coercedValue = temp;
+      }
     }
     this.emit(`store ${varType} ${coercedValue}, ${varType}* ${allocaReg}`);
   }
@@ -1995,8 +2004,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     let coercedValue = value;
     if (varType === 'double' && valueType === 'i64') {
       coercedValue = this.ensureDouble(value);
-    } else if (varType === 'i64' && valueType === 'double') {
-      coercedValue = this.ensureI64(value);
+    } else if (varType === 'i64' && valueType !== 'i64') {
+      if (valueType === 'double' || !valueType) {
+        const temp = this.nextTemp();
+        this.emit(`${temp} = fptosi double ${value} to i64`);
+        this.setVariableType(temp, 'i64');
+        coercedValue = temp;
+      }
     }
     this.emit(`store ${varType} ${coercedValue}, ${varType}* ${allocaReg}`);
   }

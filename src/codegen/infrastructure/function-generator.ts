@@ -1,4 +1,4 @@
-import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField, SwitchStatement, SourceLocation } from '../../ast/types.js';
+import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField, SwitchStatement, SourceLocation, Statement } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, SymbolMetadata } from './symbol-table.js';
 import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
@@ -6,6 +6,7 @@ import type { StringGenerator } from '../types/collections/string.js';
 import type { ControlFlowGenerator } from '../statements/control-flow.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
 import { stripOptional, tsTypeToLlvm, mapParamTypeToLLVM } from './type-system.js';
+import { findI64EligibleVariables } from './integer-analysis.js';
 
 interface LiftedFunction extends FunctionNode {
   closureInfo?: ClosureInfo;
@@ -54,6 +55,7 @@ export interface FunctionGeneratorContext {
   getUsesTestRunner(): boolean;
   ensureDouble(value: string): string;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
+  setI64EligibleVars(vars: string[]): void;
 }
 
 export class FunctionGenerator {
@@ -379,7 +381,12 @@ export class FunctionGenerator {
       this.ctx.emit(`${resultPromise} = call %Promise* @__Promise_new()`);
     }
 
+    const eligible = findI64EligibleVariables(funcBody.statements);
+    this.ctx.setI64EligibleVars(eligible);
+
     const result = this.ctx.generateBlock(funcBody, funcParams);
+
+    this.ctx.setI64EligibleVars([]);
 
     const deferredAllocas = this.ctx.getAllocaInstructions();
     if (deferredAllocas.length > 0) {
@@ -723,6 +730,19 @@ export class FunctionGenerator {
     const topLevelStatementsCount = this.ctx.getTopLevelStatementsCount();
     const topLevelExpressionsCount = this.ctx.getTopLevelExpressionsCount();
 
+    const topLevelStmts: Statement[] = [];
+    if (topLevelItemsCount > 0) {
+      for (let i = 0; i < topLevelItemsCount; i++) {
+        topLevelStmts.push(this.ctx.getTopLevelItem(i) as unknown as Statement);
+      }
+    } else {
+      for (let i = 0; i < topLevelStatementsCount; i++) {
+        topLevelStmts.push(this.ctx.getTopLevelStatement(i) as unknown as Statement);
+      }
+    }
+    const mainEligible: string[] = [];
+    this.ctx.setI64EligibleVars(mainEligible);
+
     if (topLevelItemsCount > 0) {
       for (let itemIdx = 0; itemIdx < topLevelItemsCount; itemIdx++) {
         this.ctx.processTopLevelItem(itemIdx);
@@ -737,6 +757,8 @@ export class FunctionGenerator {
         this.ctx.generateExpression(expr as Expression, []);
       }
     }
+
+    this.ctx.setI64EligibleVars([]);
 
     const deferredAllocas = this.ctx.getAllocaInstructions();
     if (deferredAllocas.length > 0) {

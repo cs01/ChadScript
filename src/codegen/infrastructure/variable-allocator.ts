@@ -106,6 +106,7 @@ export interface VariableAllocatorContext {
   readonly typeResolver?: TypeResolver;
   readonly arrowFunctionGen: ArrowFunctionGeneratorLike;
   ensureDouble(value: string): string;
+  getI64EligibleVars(): string[];
 }
 
 export class VariableAllocator {
@@ -118,6 +119,14 @@ export class VariableAllocator {
     for (let i = 0; i < ast.classes.length; i++) {
       const cls = ast.classes[i];
       if (cls && cls.name === name) return true;
+    }
+    return false;
+  }
+
+  private isI64Eligible(name: string): boolean {
+    const eligible = this.ctx.getI64EligibleVars();
+    for (let i = 0; i < eligible.length; i++) {
+      if (eligible[i] === name) return true;
     }
     return false;
   }
@@ -1527,18 +1536,24 @@ export class VariableAllocator {
       this.ctx.emit(`store ${valueType} ${value}, ${valueType}* ${allocaReg}`);
     } else {
       const allocaReg = this.ctx.nextAllocaReg(stmt.name);
-      this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
-      this.ctx.emit(`${allocaReg} = alloca double`);
-      if (valueType === 'i32') {
-        const converted = this.ctx.nextTemp();
-        this.ctx.emit(`${converted} = sitofp i32 ${value} to double`);
-        this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
-      } else if (valueType === 'i64') {
-        const converted = this.ctx.nextTemp();
-        this.ctx.emit(`${converted} = sitofp i64 ${value} to double`);
-        this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
+      if (valueType === 'i64') {
+        this.ctx.defineVariable(stmt.name, allocaReg, 'i64', SymbolKind.Number, 'local');
+        this.ctx.emit(`${allocaReg} = alloca i64`);
+        this.ctx.emit(`store i64 ${value}, i64* ${allocaReg}`);
       } else {
-        this.ctx.emit(`store double ${value}, double* ${allocaReg}`);
+        this.ctx.defineVariable(stmt.name, allocaReg, 'double', SymbolKind.Number, 'local');
+        this.ctx.emit(`${allocaReg} = alloca double`);
+        if (valueType === 'i32') {
+          const converted = this.ctx.nextTemp();
+          this.ctx.emit(`${converted} = sitofp i32 ${value} to double`);
+          this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
+        } else if (valueType === 'i64') {
+          const converted = this.ctx.nextTemp();
+          this.ctx.emit(`${converted} = sitofp i64 ${value} to double`);
+          this.ctx.emit(`store double ${converted}, double* ${allocaReg}`);
+        } else {
+          this.ctx.emit(`store double ${value}, double* ${allocaReg}`);
+        }
       }
     }
   }
