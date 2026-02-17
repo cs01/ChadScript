@@ -19,13 +19,10 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
     cd "$VENDOR_DIR"
     if [ ! -d bdwgc ]; then
       git clone --depth 1 https://github.com/ivmai/bdwgc.git
-      cd bdwgc
-      git clone --depth 1 https://github.com/ivmai/libatomic_ops.git
-    else
-      cd bdwgc
     fi
+    cd bdwgc
     ./autogen.sh
-    ./configure --enable-static --disable-shared --with-pic
+    ./configure --enable-static --disable-shared --with-pic --with-libatomic-ops=none
     make -j"$NPROC"
     cp .libs/libgc.a . 2>/dev/null || true
     echo "  -> $VENDOR_DIR/bdwgc/libgc.a"
