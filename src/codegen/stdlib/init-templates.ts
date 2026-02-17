@@ -15,7 +15,6 @@ const TSCONFIG_CONTENT = `{
 `;
 
 const HELLO_CONTENT = `console.log("Hello from ChadScript!");
-process.exit(0);
 `;
 
 export function runInit(): void {

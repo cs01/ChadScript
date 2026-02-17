@@ -57,7 +57,6 @@ function setup() {
   }
   rotatingEl.textContent = phrases[0]
   rotatingEl.style.minWidth = maxWidth + 'px'
-  rotatingEl.style.whiteSpace = ''
 
   scheduleNext()
   return true

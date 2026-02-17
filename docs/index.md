@@ -3,7 +3,7 @@ layout: home
 hero:
   name: ChadScript
   text: TypeScript to Native Binaries
-  tagline: "Compile high-performance apps directly from TypeScript to native binaries that run as fast as C."
+  tagline: "A native compiler for TypeScript — no interpreter, no runtime, no VM."
   actions:
     - theme: brand
       text: Get Started
@@ -26,46 +26,6 @@ features:
 
 <HeroRotator />
 
-## Quick Demo
-
-```bash
-$ chad run hello.ts
-Hello from ChadScript!
-This is native code - no Node.js runtime!
-```
+<ExampleTabs />
 
 <IRShowcase />
-
-<ComparisonCards />
-
-<div class="benchmark-cta">
-  <a href="/benchmarks" class="benchmark-link">See benchmarks →</a>
-</div>
-
-<style>
-.benchmark-cta {
-  text-align: center;
-  margin-top: 2rem;
-}
-
-.benchmark-link {
-  display: inline-block;
-  padding: 10px 28px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #fff;
-  background: transparent;
-  border: 2px solid var(--vp-c-brand-1);
-  text-decoration: none;
-  transition: all 0.2s ease;
-}
-
-.benchmark-link:hover {
-  color: #1a1a2e;
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
-  border-color: transparent;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
-}
-</style>

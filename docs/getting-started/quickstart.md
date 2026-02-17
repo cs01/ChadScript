@@ -21,7 +21,6 @@ Create a file `hello.ts`:
 
 ```typescript
 console.log("Hello from ChadScript!");
-process.exit(0);
 ```
 
 Compile and run it:
@@ -65,8 +64,9 @@ console.log(words.length);
 ```
 
 ```bash
-chad build word-count.ts
-.build/word-count README.md
+$ chad run word-count.ts -- README.md
+Words:
+142
 ```
 
 ## Next Steps

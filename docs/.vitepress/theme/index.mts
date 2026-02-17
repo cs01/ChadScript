@@ -7,13 +7,16 @@ import BenchmarkRace from './BenchmarkRace.vue'
 import HeroRotator from './HeroRotator.vue'
 import ComparisonCards from './ComparisonCards.vue'
 import IRShowcase from './IRShowcase.vue'
+import ExampleTabs from './ExampleTabs.vue'
+import HeroBenchmarks from './HeroBenchmarks.vue'
 import './style.css'
 
 export default {
   extends: DefaultTheme,
   Layout() {
     return h(DefaultTheme.Layout, null, {
-      'doc-before': () => h(CopyMarkdown)
+      'doc-before': () => h(CopyMarkdown),
+      'home-hero-image': () => h(HeroBenchmarks),
     })
   },
   enhanceApp({ app }) {
@@ -23,5 +26,7 @@ export default {
     app.component('HeroRotator', HeroRotator)
     app.component('ComparisonCards', ComparisonCards)
     app.component('IRShowcase', IRShowcase)
+    app.component('ExampleTabs', ExampleTabs)
+    app.component('HeroBenchmarks', HeroBenchmarks)
   }
 }

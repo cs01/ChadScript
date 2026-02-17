@@ -2,7 +2,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 
 const activeHighlight = ref<string | null>(null)
-const steps = [null, 'log1', 'log2', 'exit'] as const
+const steps = [null, 'log1', 'log2'] as const
 let stepIndex = 0
 let timer: ReturnType<typeof setInterval> | null = null
 let hovering = false
@@ -45,7 +45,7 @@ onUnmounted(() => {
 <template>
   <div class="ir-showcase">
     <h2 class="ir-heading">What's Under the Hood</h2>
-    <p class="ir-subheading">Your TypeScript compiles to LLVM IR — the same backend as clang, Rust, and Swift — then to a native binary. No interpreter. No JIT. No runtime.</p>
+    <p class="ir-subheading">Your TypeScript is parsed, type-checked, and lowered to LLVM IR — then compiled and linked into a standalone native binary. No interpreter. No JIT. Just native machine code.</p>
 
     <div class="ir-columns">
       <div class="ir-panel ir-panel-ts">
@@ -64,13 +64,7 @@ onUnmounted(() => {
   :class="{ 'ir-active': activeHighlight === 'log2' }"
   @mouseenter="onHover('log2')"
   @mouseleave="onLeave"
-><span class="ir-builtin">console</span>.<span class="ir-fn">log</span>(<span class="ir-str">"This is native code!"</span>);</span>
-<span
-  class="ir-line"
-  :class="{ 'ir-active': activeHighlight === 'exit' }"
-  @mouseenter="onHover('exit')"
-  @mouseleave="onLeave"
-><span class="ir-builtin">process</span>.<span class="ir-fn">exit</span>(<span class="ir-num">0</span>);</span></code></pre>
+><span class="ir-builtin">console</span>.<span class="ir-fn">log</span>(<span class="ir-str">"This is native code!"</span>);</span></code></pre>
       </div>
 
       <div class="ir-arrow">
@@ -115,19 +109,9 @@ onUnmounted(() => {
   @mouseleave="onLeave"
 >  %2 = getelementptr [22 x i8], [22 x i8]* <span class="ir-global">@.str.1</span>, i64 0, i64 0
   <span class="ir-kw">call</span> i32 @<span class="ir-fn">printf</span>(i8* %2)</span>
-<span
-  class="ir-line"
-  :class="{ 'ir-active': activeHighlight === 'exit' }"
-  @mouseenter="onHover('exit')"
-  @mouseleave="onLeave"
->  <span class="ir-kw">call</span> void @<span class="ir-fn">exit</span>(i32 0)</span>
   ret i32 0
 }</code></pre>
       </div>
-    </div>
-
-    <div class="ir-legend">
-      <span class="ir-legend-item">Watch each line trace from TypeScript to native code</span>
     </div>
   </div>
 </template>
@@ -230,12 +214,27 @@ onUnmounted(() => {
 .ir-line {
   display: inline;
   border-radius: 3px;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  transition: box-shadow 0.3s ease;
+  background: transparent;
 }
 
 .ir-line.ir-active {
-  background: rgba(245, 158, 11, 0.12);
+  animation: ir-flash 0.8s ease-out forwards;
   box-shadow: inset 3px 0 0 var(--vp-c-brand-1);
+}
+
+@keyframes ir-flash {
+  0% {
+    background: rgba(245, 158, 11, 0.75);
+    box-shadow: inset 3px 0 0 var(--vp-c-brand-1), 0 0 12px rgba(245, 158, 11, 0.5);
+  }
+  30% {
+    background: rgba(245, 158, 11, 0.4);
+  }
+  100% {
+    background: rgba(245, 158, 11, 0.12);
+    box-shadow: inset 3px 0 0 var(--vp-c-brand-1);
+  }
 }
 
 .ir-str { color: #a5d6a7; }
@@ -262,17 +261,6 @@ onUnmounted(() => {
   color: var(--vp-c-text-3);
   white-space: nowrap;
   margin-top: 4px;
-}
-
-.ir-legend {
-  text-align: center;
-  margin-top: 1rem;
-}
-
-.ir-legend-item {
-  font-size: 0.8rem;
-  color: var(--vp-c-text-3);
-  font-style: italic;
 }
 
 @media (max-width: 768px) {
