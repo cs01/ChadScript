@@ -202,10 +202,10 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     compileCmd = `llc -O0 -filetype=obj ${irFile} -o ${objFile}`;
   } else {
     const optFile = irFile.replace('.ll', '.opt.bc');
-    const optCmd = `opt -O2 ${irFile} -o ${optFile}`;
+    const optCmd = `opt -O2 -mcpu=native ${irFile} -o ${optFile}`;
     logger.info(` ${optCmd}`);
     execSync(optCmd, { stdio: llcStdio });
-    compileCmd = `llc -O2 -filetype=obj ${optFile} -o ${objFile}`;
+    compileCmd = `llc -O2 -mcpu=native -filetype=obj ${optFile} -o ${objFile}`;
   }
   logger.info(` ${compileCmd}`);
   execSync(compileCmd, { stdio: llcStdio });

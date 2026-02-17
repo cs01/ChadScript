@@ -4,27 +4,22 @@ const DELIM = ",";
 function run(): void {
   const start = Date.now();
 
-  let big = "";
+  const pieces: string[] = [];
   let i = 0;
   while (i < COUNT) {
-    if (i > 0) {
-      big = big + DELIM;
-    }
-    big = big + "item" + i;
+    pieces.push("item" + i);
     i = i + 1;
   }
+  const big = pieces.join(DELIM);
 
   const parts = big.split(DELIM);
 
-  let result = "";
   let j = 0;
   while (j < parts.length) {
-    if (j > 0) {
-      result = result + DELIM;
-    }
-    result = result + parts[j].toUpperCase();
+    parts[j] = parts[j].toUpperCase();
     j = j + 1;
   }
+  const result = parts.join(DELIM);
 
   const elapsed = (Date.now() - start) / 1000;
   console.log("Strings:  " + COUNT);

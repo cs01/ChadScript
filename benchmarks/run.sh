@@ -341,40 +341,40 @@ echo "  ChadScript Binary Trees built"
 $CHAD "$DIR/json/chadscript.ts" -o /tmp/bench-json-chad
 echo "  ChadScript JSON built"
 
-clang -O2 -o /tmp/bench-startup-c "$DIR/startup/hello.c"
+clang -O2 -march=native -o /tmp/bench-startup-c "$DIR/startup/hello.c"
 echo "  C startup built"
 
-clang -O2 -o /tmp/bench-sqlite-c "$DIR/sqlite/bench.c" -lsqlite3
+clang -O2 -march=native -o /tmp/bench-sqlite-c "$DIR/sqlite/bench.c" -lsqlite3
 echo "  C SQLite built"
 
-clang -O2 -o /tmp/bench-matmul-c "$DIR/matmul/bench.c"
+clang -O2 -march=native -o /tmp/bench-matmul-c "$DIR/matmul/bench.c"
 echo "  C Matmul built"
 
-clang -O2 -o /tmp/bench-montecarlo-c "$DIR/montecarlo/bench.c"
+clang -O2 -march=native -o /tmp/bench-montecarlo-c "$DIR/montecarlo/bench.c"
 echo "  C Monte Carlo built"
 
-clang -O2 -o /tmp/bench-fibonacci-c "$DIR/fibonacci/fib.c"
+clang -O2 -march=native -o /tmp/bench-fibonacci-c "$DIR/fibonacci/fib.c"
 echo "  C Fibonacci built"
 
-clang -O2 -o /tmp/bench-sieve-c "$DIR/sieve/bench.c"
+clang -O2 -march=native -o /tmp/bench-sieve-c "$DIR/sieve/bench.c"
 echo "  C Sieve built"
 
-clang -O2 -o /tmp/bench-sorting-c "$DIR/sorting/bench.c" -lm
+clang -O2 -march=native -o /tmp/bench-sorting-c "$DIR/sorting/bench.c" -lm
 echo "  C Sorting built"
 
-clang -O2 -o /tmp/bench-nbody-c "$DIR/nbody/bench.c" -lm
+clang -O2 -march=native -o /tmp/bench-nbody-c "$DIR/nbody/bench.c" -lm
 echo "  C N-Body built"
 
-clang -O2 -o /tmp/bench-stringops-c "$DIR/stringops/bench.c"
+clang -O2 -march=native -o /tmp/bench-stringops-c "$DIR/stringops/bench.c"
 echo "  C String Ops built"
 
-clang -O2 -o /tmp/bench-fileio-c "$DIR/fileio/bench.c"
+clang -O2 -march=native -o /tmp/bench-fileio-c "$DIR/fileio/bench.c"
 echo "  C File I/O built"
 
-clang -O2 -o /tmp/bench-binarytrees-c "$DIR/binarytrees/bench.c"
+clang -O2 -march=native -o /tmp/bench-binarytrees-c "$DIR/binarytrees/bench.c"
 echo "  C Binary Trees built"
 
-clang -O2 -I "$DIR/../vendor/yyjson" -o /tmp/bench-json-c "$DIR/json/bench.c" "$DIR/../vendor/yyjson/libyyjson.a"
+clang -O2 -march=native -I "$DIR/../vendor/yyjson" -o /tmp/bench-json-c "$DIR/json/bench.c" "$DIR/../vendor/yyjson/libyyjson.a"
 echo "  C JSON built"
 
 go build -o /tmp/bench-startup-go "$DIR/startup/hello.go"
@@ -423,7 +423,7 @@ echo "  Cold Start  (avg of ${STARTUP_RUNS} runs)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_startup "C (clang -O2)" "c" /tmp/bench-startup-c
+bench_startup "C (clang -O2 -march=native)" "c" /tmp/bench-startup-c
 bench_startup "ChadScript" "chadscript" /tmp/bench-startup-chad
 bench_startup "Go" "go" /tmp/bench-startup-go
 bench_startup "Bun" "bun" bun "$DIR/startup/bun.mjs"
@@ -435,7 +435,7 @@ echo "  SQLite  (100 rows, 100K queries, in-memory)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "sqlite" "c" "C (clang -O2)" "Time:" /tmp/bench-sqlite-c
+bench_compute "sqlite" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-sqlite-c
 bench_compute "sqlite" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-sqlite-chad
 bench_compute "sqlite" "node" "Node.js $(node --version)" "Time:" node --experimental-sqlite "$DIR/sqlite/node.mjs"
 bench_compute "sqlite" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/sqlite/bun.mjs"
@@ -445,7 +445,7 @@ echo "  Matrix Multiply  (512x512, double precision)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "matmul" "c" "C (clang -O2)" "Time:" /tmp/bench-matmul-c
+bench_compute "matmul" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-matmul-c
 bench_compute "matmul" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-matmul-chad
 bench_compute "matmul" "go" "Go" "Time:" /tmp/bench-matmul-go
 bench_compute "matmul" "node" "Node.js $(node --version)" "Time:" node "$DIR/matmul/node.mjs"
@@ -456,7 +456,7 @@ echo "  Monte Carlo Pi  (100M samples, deterministic LCG)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "montecarlo" "c" "C (clang -O2)" "Time:" /tmp/bench-montecarlo-c
+bench_compute "montecarlo" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-montecarlo-c
 bench_compute "montecarlo" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-montecarlo-chad
 bench_compute "montecarlo" "go" "Go" "Time:" /tmp/bench-montecarlo-go
 bench_compute "montecarlo" "node" "Node.js $(node --version)" "Time:" node "$DIR/montecarlo/node.mjs"
@@ -467,7 +467,7 @@ echo "  Fibonacci  (fib(42), naive recursion)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "fibonacci" "c" "C (clang -O2)" "Time:" /tmp/bench-fibonacci-c
+bench_compute "fibonacci" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-fibonacci-c
 bench_compute "fibonacci" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-fibonacci-chad
 bench_compute "fibonacci" "go" "Go" "Time:" /tmp/bench-fibonacci-go
 bench_compute "fibonacci" "node" "Node.js $(node --version)" "Time:" node "$DIR/fibonacci/node.mjs"
@@ -478,7 +478,7 @@ echo "  Sieve of Eratosthenes  (primes up to 10M)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "sieve" "c" "C (clang -O2)" "Time:" /tmp/bench-sieve-c
+bench_compute "sieve" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-sieve-c
 bench_compute "sieve" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-sieve-chad
 bench_compute "sieve" "go" "Go" "Time:" /tmp/bench-sieve-go
 bench_compute "sieve" "node" "Node.js $(node --version)" "Time:" node "$DIR/sieve/node.mjs"
@@ -489,7 +489,7 @@ echo "  Quicksort  (2M doubles, deterministic LCG)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "sorting" "c" "C (clang -O2)" "Time:" /tmp/bench-sorting-c
+bench_compute "sorting" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-sorting-c
 bench_compute "sorting" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-sorting-chad
 bench_compute "sorting" "go" "Go" "Time:" /tmp/bench-sorting-go
 bench_compute "sorting" "node" "Node.js $(node --version)" "Time:" node "$DIR/sorting/node.mjs"
@@ -500,7 +500,7 @@ echo "  N-Body Simulation  (5 bodies, 50M steps)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "nbody" "c" "C (clang -O2)" "Time:" /tmp/bench-nbody-c
+bench_compute "nbody" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-nbody-c
 bench_compute "nbody" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-nbody-chad
 bench_compute "nbody" "go" "Go" "Time:" /tmp/bench-nbody-go
 bench_compute "nbody" "node" "Node.js $(node --version)" "Time:" node "$DIR/nbody/node.mjs"
@@ -511,7 +511,7 @@ echo "  String Manipulation  (100K strings)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "stringops" "c" "C (clang -O2)" "Time:" /tmp/bench-stringops-c
+bench_compute "stringops" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-stringops-c
 bench_compute "stringops" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-stringops-chad
 bench_compute "stringops" "go" "Go" "Time:" /tmp/bench-stringops-go
 bench_compute "stringops" "node" "Node.js $(node --version)" "Time:" node "$DIR/stringops/node.mjs"
@@ -522,7 +522,7 @@ echo "  File I/O  (write + read ~100MB)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "fileio" "c" "C (clang -O2)" "Time:" /tmp/bench-fileio-c
+bench_compute "fileio" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-fileio-c
 bench_compute "fileio" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-fileio-chad
 bench_compute "fileio" "go" "Go" "Time:" /tmp/bench-fileio-go
 bench_compute "fileio" "node" "Node.js $(node --version)" "Time:" node "$DIR/fileio/node.mjs"
@@ -533,7 +533,7 @@ echo "  Binary Trees  (depth 18, GC pressure)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "binarytrees" "c" "C (clang -O2)" "Time:" /tmp/bench-binarytrees-c
+bench_compute "binarytrees" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-binarytrees-c
 bench_compute "binarytrees" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-binarytrees-chad
 bench_compute "binarytrees" "go" "Go" "Time:" /tmp/bench-binarytrees-go
 bench_compute "binarytrees" "node" "Node.js $(node --version)" "Time:" node "$DIR/binarytrees/node.mjs"
@@ -544,7 +544,7 @@ echo "  JSON Parse/Stringify  (10K objects)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-bench_compute "json" "c" "C (clang -O2, yyjson)" "Time:" /tmp/bench-json-c
+bench_compute "json" "c" "C (clang -O2 -march=native, yyjson)" "Time:" /tmp/bench-json-c
 bench_compute "json" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-json-chad
 bench_compute "json" "go" "Go" "Time:" /tmp/bench-json-go
 bench_compute "json" "node" "Node.js $(node --version)" "Time:" node "$DIR/json/node.mjs"

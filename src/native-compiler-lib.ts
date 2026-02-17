@@ -135,10 +135,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
 
   const objFile = outputFile + '.o';
   const optFile = irFile.replace('.ll', '.opt.bc');
-  const optCmd = 'opt -O2 ' + irFile + ' -o ' + optFile;
+  const optCmd = 'opt -O2 -mcpu=native ' + irFile + ' -o ' + optFile;
   if (verbose) { console.log('Running: ' + optCmd); }
   child_process.execSync(optCmd);
-  const llcCmd = 'llc -O2 -filetype=obj ' + optFile + ' -o ' + objFile;
+  const llcCmd = 'llc -O2 -mcpu=native -filetype=obj ' + optFile + ' -o ' + objFile;
   if (verbose) { console.log('Running: ' + llcCmd); }
   child_process.execSync(llcCmd);
   if (!fs.existsSync(objFile)) {

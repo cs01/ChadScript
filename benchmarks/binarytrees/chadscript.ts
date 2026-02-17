@@ -4,14 +4,13 @@ const MAX_DEPTH = 18;
 interface TreeNode {
   left: TreeNode;
   right: TreeNode;
-  item: number;
 }
 
 function makeTree(depth: number): TreeNode {
   if (depth === 0) {
-    return { left: null, right: null, item: 0 };
+    return { left: null, right: null };
   }
-  return { left: makeTree(depth - 1), right: makeTree(depth - 1), item: 0 };
+  return { left: makeTree(depth - 1), right: makeTree(depth - 1) };
 }
 
 function checkTree(node: TreeNode): number {
