@@ -16,13 +16,9 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
   fi
   cd bdwgc
 
-  # Patch gcconfig.h to force mmap-only allocation and compiler atomics.
-  # CMAKE_C_FLAGS can be overwritten by bdwgc's cmake, so we inject the
-  # defines directly into the source to guarantee they take effect.
-  # USE_MMAP_ANON prevents the sbrk/mmap address split that causes a
-  # heap expansion overflow on musl (the expansion size wraps to -4096).
+  # Ensure compiler atomics are used (avoids libatomic_ops dependency)
   if ! grep -q 'CHADSCRIPT_PATCHED' include/private/gcconfig.h; then
-    { printf '/* CHADSCRIPT_PATCHED */\n#ifndef USE_MMAP_ANON\n#define USE_MMAP_ANON 1\n#endif\n#ifndef GC_BUILTIN_ATOMIC\n#define GC_BUILTIN_ATOMIC 1\n#endif\n'; cat include/private/gcconfig.h; } > /tmp/gcconfig_patched.h
+    { printf '/* CHADSCRIPT_PATCHED */\n#ifndef GC_BUILTIN_ATOMIC\n#define GC_BUILTIN_ATOMIC 1\n#endif\n'; cat include/private/gcconfig.h; } > /tmp/gcconfig_patched.h
     mv /tmp/gcconfig_patched.h include/private/gcconfig.h
   fi
 

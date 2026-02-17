@@ -8,7 +8,7 @@ on:
     branches: [main]
 
 jobs:
-  build-linux:
+  build-linux-musl:
     runs-on: ubuntu-latest
     container: node:22-alpine
 
@@ -89,6 +89,107 @@ jobs:
       - name: Run self-hosting tests
         run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
+
+      - name: Package release artifact
+        run: |
+          mkdir -p release/lib
+          cp .build/chad release/
+          cp .build/chadc release/
+          cp build/tree-sitter-typescript-parser.o release/lib/
+          cp build/tree-sitter-typescript-scanner.o release/lib/
+          cp build/treesitter-bridge.o release/lib/
+          cp vendor/tree-sitter/libtree-sitter.a release/lib/
+          cp vendor/bdwgc/libgc.a release/lib/
+          cp vendor/yyjson/libyyjson.a release/lib/
+          cp vendor/libuv/build/libuv.a release/lib/
+          cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
+          cp c_bridges/lws-bridge.o release/lib/
+          cp c_bridges/regex-bridge.o release/lib/
+          tar -czf chadscript-linux-musl-x64.tar.gz -C release chad chadc lib
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chadscript-linux-musl-x64
+          path: chadscript-linux-musl-x64.tar.gz
+
+  build-linux-glibc:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install system dependencies
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee /etc/apt/sources.list.d/llvm-18.list
+          sudo apt-get update
+          sudo apt-get install -y llvm-18 llvm-18-dev clang-18 lld-18 \
+            cmake make gcc g++ \
+            autoconf automake libtool \
+            libzstd-dev zlib1g-dev libsqlite3-dev
+          sudo ln -sf /usr/bin/llc-18 /usr/bin/llc
+          sudo ln -sf /usr/bin/opt-18 /usr/bin/opt
+          sudo ln -sf /usr/bin/clang-18 /usr/bin/clang
+          clang --version 2>&1 | head -2
+          llc --version 2>&1 | head -4
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build vendor libraries
+        run: bash scripts/build-vendor.sh
+
+      - name: Build compiler
+        run: npm run build
+
+      - name: Verify vendor libraries
+        run: |
+          fail=0
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/libwebsockets/build/lib/libwebsockets.a c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
+            if [ ! -f "$lib" ]; then
+              echo "MISSING: $lib"
+              fail=1
+            else
+              echo "OK: $lib ($(wc -c < "$lib") bytes)"
+            fi
+          done
+          if [ "$fail" -eq 1 ]; then
+            echo "Vendor library build incomplete - aborting before tests"
+            exit 1
+          fi
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build tree-sitter TypeScript objects
+        run: |
+          mkdir -p build
+          TS_SRC=node_modules/tree-sitter-typescript/typescript/src
+          TS_INCLUDE=node_modules/tree-sitter-typescript
+          clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/parser.c -o build/tree-sitter-typescript-parser.o
+          clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
+          clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
+
+      - name: Build native chadc
+        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc
+
+      - name: Build native chad
+        run: node dist/chadc-node.js src/chad-native.ts -o .build/chad
+
+      - name: Smoke test native chadc
+        run: |
+          .build/chadc examples/hello.ts -o /tmp/hello
+          /tmp/hello
+
+      - name: Smoke test native chad
+        run: |
+          .build/chad build examples/hello.ts -o /tmp/hello2
+          /tmp/hello2
 
       - name: Package release artifact
         run: |
@@ -215,7 +316,7 @@ jobs:
           path: chadscript-macos-arm64.tar.gz
 
   test-artifact:
-    needs: [build-linux, build-macos]
+    needs: [build-linux-musl, build-linux-glibc, build-macos]
     strategy:
       matrix:
         include:
@@ -266,7 +367,7 @@ jobs:
           /tmp/exit42 || [ $? -eq 42 ]
 
   pre-release:
-    needs: [build-linux, build-macos]
+    needs: [build-linux-musl, build-linux-glibc, build-macos]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -296,7 +397,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
 
   release:
-    needs: [build-linux, build-macos]
+    needs: [build-linux-musl, build-linux-glibc, build-macos]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

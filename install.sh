@@ -4,6 +4,20 @@ set -e
 REPO="cs01/ChadScript"
 INSTALL_DIR="$HOME/.chadscript"
 
+detect_libc() {
+  if [ "$(uname -s)" != "Linux" ]; then
+    echo ""
+    return
+  fi
+  if ls /lib/ld-musl-* >/dev/null 2>&1; then
+    echo "musl"
+  elif ldd --version 2>&1 | grep -qi musl; then
+    echo "musl"
+  else
+    echo "glibc"
+  fi
+}
+
 main() {
   OS=$(uname -s)
   ARCH=$(uname -m)
@@ -26,10 +40,15 @@ main() {
       ;;
   esac
 
-  TARBALL="chadscript-${OS_TAG}-${ARCH_TAG}.tar.gz"
+  LIBC=$(detect_libc)
+  if [ "$LIBC" = "musl" ]; then
+    TARBALL="chadscript-linux-musl-${ARCH_TAG}.tar.gz"
+  else
+    TARBALL="chadscript-${OS_TAG}-${ARCH_TAG}.tar.gz"
+  fi
   URL="${CHADSCRIPT_URL:-https://github.com/${REPO}/releases/download/latest/${TARBALL}}"
 
-  echo "Downloading ChadScript (${OS_TAG}-${ARCH_TAG})..."
+  echo "Downloading ChadScript (${OS_TAG}-${ARCH_TAG}${LIBC:+, $LIBC})..."
   echo "  $URL"
 
   TMPDIR=$(mktemp -d)
