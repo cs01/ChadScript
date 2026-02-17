@@ -17,6 +17,9 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
     for p in /usr/lib/libgc.a /usr/local/lib/libgc.a; do
       if [ -f "$p" ]; then SYSTEM_LIBGC="$p"; break; fi
     done
+    if [ -z "$SYSTEM_LIBGC" ]; then
+      SYSTEM_LIBGC=$(find /usr/lib /usr/local/lib -name "libgc.a" 2>/dev/null | head -1)
+    fi
   fi
 
   if [ -n "$SYSTEM_LIBGC" ]; then
@@ -33,6 +36,7 @@ if [ ! -f "$VENDOR_DIR/bdwgc/libgc.a" ]; then
     cd bdwgc
     mkdir -p build && cd build
     cmake .. -DCMAKE_C_FLAGS="-fPIC" -DBUILD_SHARED_LIBS=OFF \
+      -DBUILD_TESTING=OFF \
       -Denable_cplusplus=OFF -Denable_docs=OFF -Dwithout_libatomic_ops=ON
     make -j"$NPROC"
     cp libgc.a "$VENDOR_DIR/bdwgc/"

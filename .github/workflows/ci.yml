@@ -45,7 +45,7 @@ jobs:
               echo "MISSING: $lib"
               fail=1
             else
-              echo "OK: $lib"
+              echo "OK: $lib ($(wc -c < "$lib") bytes)"
             fi
           done
           if [ "$fail" -eq 1 ]; then
@@ -55,6 +55,8 @@ jobs:
 
       - name: Run tests
         run: npm test
+        env:
+          GC_INITIAL_HEAP_SIZE: '16777216'
 
       - name: Build tree-sitter TypeScript objects
         run: |
@@ -80,15 +82,21 @@ jobs:
         run: |
           .build/chadc examples/hello.ts -o /tmp/hello
           /tmp/hello
+        env:
+          GC_INITIAL_HEAP_SIZE: '16777216'
 
       - name: Smoke test native chad
         run: |
           .build/chad build examples/hello.ts -o /tmp/hello2
           /tmp/hello2
+        env:
+          GC_INITIAL_HEAP_SIZE: '16777216'
 
       - name: Run self-hosting tests
         run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
+        env:
+          GC_INITIAL_HEAP_SIZE: '16777216'
 
       - name: Package release artifact
         run: |
