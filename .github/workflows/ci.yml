@@ -131,7 +131,7 @@ jobs:
           sudo apt-get install -y llvm-18 llvm-18-dev clang-18 lld-18 \
             cmake make gcc g++ \
             autoconf automake libtool \
-            libzstd-dev zlib1g-dev libsqlite3-dev
+            libzstd-dev zlib1g-dev libsqlite3-dev libcurl4-openssl-dev
           sudo ln -sf /usr/bin/llc-18 /usr/bin/llc
           sudo ln -sf /usr/bin/opt-18 /usr/bin/opt
           sudo ln -sf /usr/bin/clang-18 /usr/bin/clang
