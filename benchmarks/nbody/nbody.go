@@ -11,7 +11,7 @@ const (
 	SolarMass    = 4.0 * PI * PI
 	DaysPerYear  = 365.24
 	NBodies      = 5
-	Steps        = 50000000
+	Steps        = 25000000
 	DT           = 0.01
 )
 

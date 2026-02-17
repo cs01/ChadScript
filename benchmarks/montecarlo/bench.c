@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#define SAMPLES 100000000
+#define SAMPLES 50000000
 
 int main(void) {
     long seed = 42;

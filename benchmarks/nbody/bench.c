@@ -6,7 +6,7 @@
 #define SOLAR_MASS (4.0 * PI * PI)
 #define DAYS_PER_YEAR 365.24
 #define N_BODIES 5
-#define STEPS 50000000
+#define STEPS 25000000
 #define DT 0.01
 
 typedef struct {

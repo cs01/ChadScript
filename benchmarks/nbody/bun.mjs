@@ -2,7 +2,7 @@ const PI = 3.141592653589793;
 const SOLAR_MASS = 4.0 * PI * PI;
 const DAYS_PER_YEAR = 365.24;
 const N_BODIES = 5;
-const STEPS = 50000000;
+const STEPS = 25000000;
 const DT = 0.01;
 
 const bodies = [

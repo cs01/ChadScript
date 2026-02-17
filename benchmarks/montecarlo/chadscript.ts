@@ -1,4 +1,4 @@
-const SAMPLES = 100000000;
+const SAMPLES = 50000000;
 
 function montecarlo(): void {
   let seed = 42;

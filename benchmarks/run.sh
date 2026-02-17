@@ -314,12 +314,6 @@ echo "  ChadScript Monte Carlo built"
 $CHAD "$DIR/fibonacci/chadscript.ts" -o /tmp/bench-fibonacci-chad
 echo "  ChadScript Fibonacci built"
 
-$CHAD "$DIR/http/chadscript.ts" -o /tmp/bench-http-chad
-echo "  ChadScript HTTP server built"
-
-$CHAD "$DIR/websocket/chadscript.ts" -o /tmp/bench-ws-chad
-echo "  ChadScript WebSocket server built"
-
 $CHAD "$DIR/sieve/chadscript.ts" -o /tmp/bench-sieve-chad
 echo "  ChadScript Sieve built"
 
@@ -389,12 +383,6 @@ echo "  Go Monte Carlo built"
 go build -o /tmp/bench-fibonacci-go "$DIR/fibonacci/fib.go"
 echo "  Go Fibonacci built"
 
-go build -o /tmp/bench-http-go "$DIR/http/go_server.go"
-echo "  Go HTTP server built"
-
-go build -o /tmp/bench-ws-go "$DIR/websocket/go_server.go"
-echo "  Go WebSocket server built"
-
 go build -o /tmp/bench-sieve-go "$DIR/sieve/sieve.go"
 echo "  Go Sieve built"
 
@@ -452,7 +440,7 @@ bench_compute "matmul" "node" "Node.js $(node --version)" "Time:" node "$DIR/mat
 bench_compute "matmul" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/matmul/bun.mjs"
 
 echo "═══════════════════════════════════════════════════"
-echo "  Monte Carlo Pi  (100M samples, deterministic LCG)"
+echo "  Monte Carlo Pi  (50M samples, deterministic LCG)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
@@ -496,7 +484,7 @@ bench_compute "sorting" "node" "Node.js $(node --version)" "Time:" node "$DIR/so
 bench_compute "sorting" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/sorting/bun.mjs"
 
 echo "═══════════════════════════════════════════════════"
-echo "  N-Body Simulation  (5 bodies, 50M steps)"
+echo "  N-Body Simulation  (5 bodies, 25M steps)"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
@@ -549,36 +537,6 @@ bench_compute "json" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-json-
 bench_compute "json" "go" "Go" "Time:" /tmp/bench-json-go
 bench_compute "json" "node" "Node.js $(node --version)" "Time:" node "$DIR/json/node.mjs"
 bench_compute "json" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/json/bun.mjs"
-
-echo "═══════════════════════════════════════════════════"
-echo "  HTTP Server  (hello world, 100 concurrent, ${BENCH_DURATION})"
-echo "═══════════════════════════════════════════════════"
-echo ""
-
-bench_http_server "ChadScript (native)" "chadscript" "http" "" /tmp/bench-http-chad
-bench_http_server "Go (net/http)" "go" "http" "" /tmp/bench-http-go
-bench_http_server "Bun $(bun --version)" "bun" "http" "" bun "$DIR/http/bun.mjs"
-bench_http_server "Node.js $(node --version)" "node" "http" "" node "$DIR/http/node.mjs"
-
-echo "═══════════════════════════════════════════════════"
-echo "  HTTP Keep-Alive  (hello world, 100 concurrent, ${BENCH_DURATION})"
-echo "═══════════════════════════════════════════════════"
-echo ""
-
-bench_http_server "ChadScript (native)" "chadscript" "http_keepalive" "-keepalive" /tmp/bench-http-chad
-bench_http_server "Go (net/http)" "go" "http_keepalive" "-keepalive" /tmp/bench-http-go
-bench_http_server "Bun $(bun --version)" "bun" "http_keepalive" "-keepalive" bun "$DIR/http/bun.mjs"
-bench_http_server "Node.js $(node --version)" "node" "http_keepalive" "-keepalive" node "$DIR/http/node.mjs"
-
-echo "═══════════════════════════════════════════════════"
-echo "  WebSocket  (echo, 32 clients, ${BENCH_DURATION})"
-echo "═══════════════════════════════════════════════════"
-echo ""
-
-bench_ws_server "ChadScript (native)" "chadscript" /tmp/bench-ws-chad
-bench_ws_server "Go (x/net/websocket)" "go" /tmp/bench-ws-go
-bench_ws_server "Bun $(bun --version)" "bun" bun "$DIR/websocket/bun.mjs"
-bench_ws_server "Node.js $(node --version)" "node" node "$DIR/websocket/node.mjs"
 
 assemble_json "$JSON_OUT"
 echo ""

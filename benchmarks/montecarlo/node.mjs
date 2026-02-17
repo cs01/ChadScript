@@ -1,4 +1,4 @@
-const SAMPLES = 100000000;
+const SAMPLES = 50000000;
 
 let seed = 42;
 let inside = 0;
