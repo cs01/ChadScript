@@ -68,6 +68,8 @@ interface InterfaceInfo {
 export interface MemberAccessGeneratorContext {
   nextTemp(): string;
   nextLabel(prefix: string): string;
+  getCurrentLabel(): string;
+  setCurrentLabel(label: string): void;
   emit(instruction: string): void;
   readonly symbolTable: SymbolTable;
   getAst(): AST | undefined;
@@ -265,6 +267,10 @@ export class MemberAccessGenerator {
   }
 
   generate(expr: MemberAccessNode, params: string[]): string {
+    if (expr.optional) {
+      return this.generateOptionalChain(expr, params);
+    }
+
     if (!expr.property || expr.property === '') {
       return this.ctx.generateExpression(expr.object, params);
     }
@@ -357,6 +363,66 @@ export class MemberAccessGenerator {
 
     // Handle TypeScript parameter property access
     return this.handleParameterPropertyAccess(expr, params);
+  }
+
+  private generateOptionalChain(expr: MemberAccessNode, params: string[]): string {
+    const objValue = this.ctx.generateExpression(expr.object, params);
+    const objType = this.ctx.getVariableType(objValue) || 'double';
+
+    if (objType === 'double' || objType === 'i32' || objType === 'i64' || objType === 'i1') {
+      const nonOptExpr: MemberAccessNode = {
+        type: 'member_access',
+        object: expr.object,
+        property: expr.property,
+        loc: expr.loc,
+      };
+      return this.generate(nonOptExpr, params);
+    }
+
+    const isValidLlvmType = !objType.startsWith('%{') && !objType.includes('|') && !objType.includes(':');
+    const checkType = isValidLlvmType ? objType : 'i8*';
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq ${checkType} ${objValue}, null`);
+
+    const accessLabel = this.ctx.nextLabel('opt_access');
+    const nullLabel = this.ctx.nextLabel('opt_null');
+    const endLabel = this.ctx.nextLabel('opt_end');
+
+    this.ctx.emit(`br i1 ${isNull}, label %${nullLabel}, label %${accessLabel}`);
+
+    this.ctx.emit(`${accessLabel}:`);
+    this.ctx.setCurrentLabel(accessLabel);
+    const nonOptExpr: MemberAccessNode = {
+      type: 'member_access',
+      object: expr.object,
+      property: expr.property,
+      loc: expr.loc,
+    };
+    const accessResult = this.generate(nonOptExpr, params);
+    const accessType = this.ctx.getVariableType(accessResult) || 'double';
+    const accessEndLabel = this.ctx.getCurrentLabel();
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${nullLabel}:`);
+    this.ctx.setCurrentLabel(nullLabel);
+    let nullValue: string;
+    if (accessType === 'double') {
+      nullValue = '0.0';
+    } else if (accessType === 'i1') {
+      nullValue = 'false';
+    } else if (accessType === 'i32') {
+      nullValue = '0';
+    } else {
+      nullValue = 'null';
+    }
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${endLabel}:`);
+    this.ctx.setCurrentLabel(endLabel);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = phi ${accessType} [ ${accessResult}, %${accessEndLabel} ], [ ${nullValue}, %${nullLabel} ]`);
+    this.ctx.setVariableType(result, accessType);
+    return result;
   }
 
   private isProcessArgv(expr: MemberAccessNode): boolean {

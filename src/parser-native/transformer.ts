@@ -642,11 +642,21 @@ function transformMemberExpression(node: TreeSitterNode): MemberAccessNode {
   const objNode = getChildByFieldName(node, 'object');
   const propNode = getChildByFieldName(node, 'property');
 
+  let isOptional = false;
+  if (objNode) {
+    const objEnd = (objNode as NodeBase).endIndex;
+    const propStart = propNode ? (propNode as NodeBase).startIndex : (node as NodeBase).endIndex;
+    const operatorText = (node as NodeBase).source.substring(objEnd, propStart);
+    if (operatorText.indexOf('?.') !== -1) {
+      isOptional = true;
+    }
+  }
+
   return {
     type: 'member_access',
     object: objNode ? transformExpression(objNode) : { type: 'variable', name: 'undefined' },
     property: propNode ? (propNode as NodeBase).text : '',
-    optional: false,
+    optional: isOptional || undefined,
   };
 }
 

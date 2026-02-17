@@ -99,6 +99,12 @@ export const testCases: TestCase[] = [
     description: 'Nullish coalescing operator (??) returns right operand only for null/undefined'
   },
   {
+    name: 'optional-chaining',
+    fixture: 'tests/fixtures/typescript/optional-chaining.ts',
+    expectTestPassed: true,
+    description: 'Optional chaining (?.) returns undefined for null objects instead of crashing'
+  },
+  {
     name: 'imports-main',
     fixture: 'tests/fixtures/imports-exports/imports-main.js',
     expectedExitCode: 19,
