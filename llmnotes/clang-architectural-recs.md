@@ -27,7 +27,7 @@ LLVMGenerator
   ├── TypeContext (canonical ResolvedType intern pool)
   ├── TypeInference.resolveExpressionType() → ResolvedType
   ├── SymbolTable (hierarchical scopes, ResolvedType cache)
-  ├── VariableAllocator (resolved path for 19 node types, predicate fallback for 2)
+  ├── VariableAllocator (resolved path for all node types, no predicate fallback)
   └── String-based IR emission + terminator classification
     ↓
 .ll → opt → llc → clang → Binary
@@ -44,14 +44,6 @@ LLVMGenerator
 ---
 
 ## Blocked Items
-
-### binary/conditional in VariableAllocator
-
-`binary` (`||`) and `conditional` (`?:`) are the last 2 node types still using predicate fallback instead of `resolveExpressionType()` dispatch.
-
-**Why blocked:** Resolving `||` changes `isObjectExpression` behavior (it calls `resolveExpressionType` at the top for all types). When `x || []` newly resolves to object, `allocateObject` preempts `allocatePointer`, causing IR type mismatches and Stage 1 segfaults.
-
-**To unblock:** Decouple `isObjectExpression` from `resolveExpressionType` for binary nodes, OR eliminate the `isPointerOrExpression` / `allocatePointer` code path entirely.
 
 ### Expression Type Caching
 
@@ -74,7 +66,7 @@ No viable cache key exists. `loc.offset` is never populated by the parser (all `
 
 ### SymbolKind / ResolvedType Divergence
 
-`SymbolKind` and `ResolvedType` are set independently per symbol. They agree for the resolved path, but declared-type overrides and the 2 remaining unsafe node types don't populate `resolvedType`.
+`SymbolKind` and `ResolvedType` are set independently per symbol. They agree for the resolved path, but declared-type overrides don't populate `resolvedType`. Predicates have been eliminated from the allocation path (VariableAllocator and global declarations in LLVMGenerator both use `resolveExpressionType()` exclusively). Remaining predicate consumers: method-calls.ts, binary.ts, templates.ts, console.ts.
 
 **Fix:** Derive `SymbolKind` from `resolvedType`. Expand caching to cover declared-type overrides.
 
@@ -90,25 +82,21 @@ Sema exports symbols → `prePopulateFromSema()` pre-seeds SymbolTable → codeg
 
 ## Next Steps
 
-### 1. Unblock binary/conditional (highest impact)
-
-Refactor `isObjectExpression` to not call `resolveExpressionType` for binary nodes, or merge `allocatePointer` into resolved-type dispatch. This gets the last 2 node types off predicate fallback and into the unified path.
-
-### 2. Predicate elimination
-
-Once all node types use the resolved path, the `is*Expression()` predicates become dead code. Remove them and have `VariableAllocator` dispatch entirely on `ResolvedType`.
-
-### 3. AST node IDs (parser change)
+### 1. AST node IDs (parser change)
 
 Add `nodeId: number` to AST nodes during parsing (simple counter in transformer). Unblocks expression type caching and any future per-node annotation (sema types, source maps, etc.).
 
-### 4. Scope-aware sema
+### 2. Scope-aware sema
 
 Give `SemanticAnalyzer` a scope stack parallel to SymbolTable. Make codegen consult sema before re-inferring types. Eventually sema annotates AST nodes directly and codegen stops inferring.
 
-### 5. Map return-type tracking
+### 3. Map return-type tracking
 
 Track return types through method calls in `method-calls.ts` so that `functionReturningMap().get()` works. Unblocks `SemaSymbolData` cleanup and sema bridge improvements.
+
+### 4. Eliminate remaining predicate consumers
+
+Migrate method-calls.ts, binary.ts, templates.ts, and console.ts to use `resolveExpressionType()` instead of `is*Expression()` predicates. Once complete, the predicate methods in `TypeInference` become dead code.
 
 ---
 

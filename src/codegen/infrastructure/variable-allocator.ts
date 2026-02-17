@@ -59,21 +59,8 @@ export interface VariableAllocatorContext {
   defineVariableWithMetadata(name: string, allocaReg: string, llvmType: string, kind: number, scope: string, metadata: SymbolMetadata): void;
   generateExpression(expr: Expression, params: string[]): string;
   resolveExpressionType(expr: Expression): ResolvedType | null;
-  isStringExpression(expr: Expression): boolean;
-  isArrayExpression(expr: Expression): boolean;
-  isStringArrayExpression(expr: Expression): boolean;
-  isObjectArrayExpression(expr: Expression): boolean;
   getObjectArrayElementType(expr: Expression): string | null;
-  isObjectExpression(expr: Expression): boolean;
-  isMapExpression(expr: Expression): boolean;
-  isSetExpression(expr: Expression): boolean;
-  isRegexExpression(expr: Expression): boolean;
-  isClassInstanceExpression(expr: Expression): boolean;
-  isUint8ArrayExpression(expr: Expression): boolean;
-  isPromiseExpression(expr: Expression): boolean;
-  isResponseExpression(expr: Expression): boolean;
   isJSONParseExpression(expr: Expression): boolean;
-  isAwaitExpression(expr: Expression): boolean;
   getVariableType(name: string): string | undefined;
   setCurrentDeclaredMapType(type: string | undefined): void;
   getCurrentDeclaredMapType(): string | undefined;
@@ -399,16 +386,6 @@ export class VariableAllocator {
     const strippedDeclType = stripNullable(stmtDeclaredType);
     const resolved = this.ctx.resolveExpressionType(stmtValue);
     const nodeType = (stmtValue as ExprBase).type;
-    const useResolved = resolved !== null && (
-      nodeType === 'variable' || nodeType === 'number' || nodeType === 'string' ||
-      nodeType === 'boolean' || nodeType === 'null' || nodeType === 'template_literal' ||
-      nodeType === 'regex' || nodeType === 'object' || nodeType === 'array' ||
-      nodeType === 'map' || nodeType === 'set' || nodeType === 'new' ||
-      nodeType === 'unary' || nodeType === 'this' || nodeType === 'call' ||
-      nodeType === 'method_call' || nodeType === 'index_access' ||
-      nodeType === 'type_assertion' || nodeType === 'member_access' ||
-      nodeType === 'binary' || nodeType === 'conditional'
-    );
 
     let isString: boolean;
     let isStringArray: boolean;
@@ -423,9 +400,9 @@ export class VariableAllocator {
     let isResponse: boolean;
     let isObject: boolean;
 
-    if (useResolved) {
-      const base = resolved!.base;
-      const depth = resolved!.arrayDepth;
+    if (resolved) {
+      const base = resolved.base;
+      const depth = resolved.arrayDepth;
       isString = base === 'string' && depth === 0;
       isStringArray = base === 'string' && depth > 0;
       isObjectArray = depth > 0 && base !== 'string' && base !== 'number' && base !== 'boolean';
@@ -444,18 +421,18 @@ export class VariableAllocator {
                         !base.startsWith('Map') && !base.startsWith('Set') &&
                         this.isKnownClass(base);
     } else {
-      isString = this.ctx.isStringExpression(stmtValue);
-      isStringArray = this.ctx.isStringArrayExpression(stmtValue);
-      isObjectArray = this.ctx.isObjectArrayExpression(stmtValue);
-      isArray = !isStringArray && !isObjectArray && this.ctx.isArrayExpression(stmtValue);
-      isMap = this.ctx.isMapExpression(stmtValue);
-      isSet = this.ctx.isSetExpression(stmtValue);
-      isRegex = this.ctx.isRegexExpression(stmtValue);
-      isPromise = this.ctx.isPromiseExpression(stmtValue);
-      isUint8Array = this.ctx.isUint8ArrayExpression(stmtValue);
-      isClassInstance = !isPromise && this.ctx.isClassInstanceExpression(stmtValue);
-      isResponse = this.ctx.isResponseExpression(stmtValue);
-      isObject = this.ctx.isObjectExpression(stmtValue);
+      isString = false;
+      isStringArray = false;
+      isObjectArray = false;
+      isArray = false;
+      isMap = false;
+      isSet = false;
+      isRegex = false;
+      isPromise = false;
+      isUint8Array = false;
+      isClassInstance = false;
+      isResponse = false;
+      isObject = false;
     }
 
     if (!isStringArray && strippedDeclType === 'string[]') {
@@ -479,7 +456,7 @@ export class VariableAllocator {
     if (isObject && isJSONObject) {
       isObject = false;
     }
-    const isAwait = this.ctx.isAwaitExpression(stmtValue);
+    const isAwait = nodeType === 'await';
     const typedJsonInterface = this.ctx.getTypedJsonInterface(stmtValue);
     const functionInterfaceReturn = this.ctx.getFunctionCallInterfaceReturn(stmtValue);
     const methodInterfaceReturn = this.ctx.getMethodCallInterfaceReturn(stmtValue);
@@ -549,7 +526,7 @@ export class VariableAllocator {
       this.allocateNumeric(stmt, params);
     }
 
-    if (useResolved && resolved && !stmt.declaredType && !isNull) {
+    if (resolved && !stmt.declaredType && !isNull) {
       this.ctx.symbolTable.setResolvedType(stmt.name, resolved);
     }
 

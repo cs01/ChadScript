@@ -1301,24 +1301,45 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
         }
 
-        const isString = this.isStringExpression(stmt.value);
-        let isStringArray = this.isStringArrayExpression(stmt.value);
+        const resolved = this.typeInference.resolveExpressionType(stmt.value);
+        let isString = false;
+        let isStringArray = false;
+        let isObjectArray = false;
+        let isArray = false;
+        let isObject = false;
+        let isMap = false;
+        let isSet = false;
+        let isRegex = false;
+        let isClassInstance = false;
+        let isUint8Array = false;
+        let isBoolean = false;
+        if (resolved) {
+          const base = resolved.base;
+          const depth = resolved.arrayDepth;
+          isString = base === 'string' && depth === 0;
+          isStringArray = base === 'string' && depth > 0;
+          isObjectArray = depth > 0 && base !== 'string' && base !== 'number' && base !== 'boolean';
+          isArray = depth > 0 && (base === 'number' || base === 'boolean');
+          isMap = base === 'Map' || base.startsWith('Map<');
+          isSet = base === 'Set' || base.startsWith('Set<');
+          isRegex = base === 'RegExp';
+          isObject = base === 'object' && depth === 0;
+          isBoolean = base === 'boolean' && depth === 0;
+          isUint8Array = base === 'Uint8Array' && depth === 0;
+          isClassInstance = !isRegex && depth === 0 &&
+                            base !== 'string' && base !== 'number' && base !== 'boolean' &&
+                            base !== 'void' && base !== 'null' && base !== 'unknown' &&
+                            base !== 'object' && base !== 'Promise' && base !== 'Response' &&
+                            !base.startsWith('Map') && !base.startsWith('Set') &&
+                            this.isKnownClass(base);
+        }
         if (!isStringArray && stmt.declaredType === 'string[]') {
           isStringArray = true;
         }
-        let isObjectArray = this.typeInference.isObjectArrayExpression(stmt.value);
         if (!isObjectArray && stmt.declaredType && stmt.declaredType.endsWith('[]') &&
             stmt.declaredType !== 'string[]' && stmt.declaredType !== 'number[]' && stmt.declaredType !== 'boolean[]') {
           isObjectArray = true;
         }
-        const isArray = !isStringArray && !isObjectArray && this.isArrayExpression(stmt.value);
-        const isObject = this.isObjectExpression(stmt.value);
-        const isMap = this.typeInference.isMapExpression(stmt.value);
-        const isSet = this.typeInference.isSetExpression(stmt.value);
-        const isRegex = this.typeInference.isRegexExpression(stmt.value);
-        const isClassInstance = this.typeInference.isClassInstanceExpression(stmt.value);
-        const isUint8Array = this.typeInference.isUint8ArrayExpression(stmt.value);
-        const isBoolean = this.typeInference.isBooleanExpression(stmt.value);
         const isJSONParse = this.typeInference.isJSONParseExpression(stmt.value);
 
         let llvmType: string = '';
@@ -2408,6 +2429,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public isResponseExpression(expr: Expression): boolean {
     return this.typeInference.isResponseExpression(expr);
+  }
+
+  private isKnownClass(name: string): boolean {
+    if (!name) return false;
+    if (!this.ast || !this.ast.classes) return false;
+    for (let i = 0; i < this.ast.classes.length; i++) {
+      const cls = this.ast.classes[i];
+      if (cls && cls.name === name) return true;
+    }
+    return false;
   }
 
   public getTypedJsonInterface(expr: Expression): string | null {
