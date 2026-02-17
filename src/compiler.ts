@@ -230,8 +230,8 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
 
   // Link to executable - only link libraries that the program actually uses
   const isMac = process.platform === 'darwin';
-  const platformLibs = isMac ? '' : ' -lm -ldl -lrt';
-  let linkLibs = `-L${BDWGC_PATH} -lgc -lpthread` + platformLibs;
+  const platformLibs = isMac ? '' : ' -lm -ldl -lrt -lpthread';
+  let linkLibs = `-L${BDWGC_PATH} -lgc` + platformLibs;
   if (generator.usesJson) { linkLibs += ` -L${YYJSON_PATH} -lyyjson`; }
   if (generator.usesTimers || generator.usesPromises || generator.usesCurl || generator.usesUvHrtime) { linkLibs += ` -L${LIBUV_PATH} -luv`; }
   if (generator.usesCurl) { linkLibs += ' -lcurl'; }
