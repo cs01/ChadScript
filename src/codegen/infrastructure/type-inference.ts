@@ -826,7 +826,7 @@ export class TypeInference {
     }
     if (e.type === 'binary') {
       const binExpr = expr as BinaryNode;
-      if (binExpr.op === '||') {
+      if (binExpr.op === '||' || binExpr.op === '??') {
         const leftIsArray = this.isArrayExpression(binExpr.left);
         const rightIsArray = this.isArrayExpression(binExpr.right);
         const rightBase = binExpr.right as ExprBase;
@@ -953,7 +953,7 @@ export class TypeInference {
     const e = expr as ExprBase;
     if (e.type === 'binary') {
       const binExpr = expr as BinaryNode;
-      if (binExpr.op === '||') {
+      if (binExpr.op === '||' || binExpr.op === '??') {
         const rightBase = binExpr.right as ExprBase;
         if (rightBase.type === 'array') {
           return this.isObjectArrayExpression(binExpr.left);
@@ -1113,7 +1113,7 @@ export class TypeInference {
     const e = expr as ExprBase;
     if (e.type === 'binary') {
       const binExpr = expr as BinaryNode;
-      if (binExpr.op === '||') {
+      if (binExpr.op === '||' || binExpr.op === '??') {
         return this.getObjectArrayElementType(binExpr.left);
       }
     }
@@ -1216,7 +1216,7 @@ export class TypeInference {
 
     if (e.type === 'binary') {
       const binaryExpr = expr as BinaryNode;
-      if (binaryExpr.op === '||') {
+      if (binaryExpr.op === '||' || binaryExpr.op === '??') {
         return this.isStringExpression(binaryExpr.left) || this.isStringExpression(binaryExpr.right);
       }
     }
@@ -1612,7 +1612,7 @@ export class TypeInference {
     const e = expr as ExprBase;
     if (e.type === 'binary') {
       const binExpr = expr as BinaryNode;
-      if (binExpr.op === '||') {
+      if (binExpr.op === '||' || binExpr.op === '??') {
         const leftIsStringArray = this.isStringArrayExpression(binExpr.left);
         const rightBase = binExpr.right as ExprBase;
         if (leftIsStringArray && rightBase.type === 'array') {

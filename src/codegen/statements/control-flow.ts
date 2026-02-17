@@ -70,6 +70,24 @@ export class ControlFlowGenerator {
     }
   }
 
+  private convertToNonNullish(value: string, valueType: string): string {
+    if (valueType === 'i1' || valueType === 'double' || valueType === 'i32' || valueType === 'i64') {
+      const condBool = this.nextTemp();
+      this.emit(`${condBool} = icmp eq i32 1, 1`);
+      return condBool;
+    }
+    if (valueType && valueType.indexOf('*') !== -1) {
+      const isValidLlvmType = !valueType.startsWith('%{') && !valueType.includes('|') && !valueType.includes(':');
+      const llvmType = isValidLlvmType ? valueType : 'i8*';
+      const condBool = this.nextTemp();
+      this.emit(`${condBool} = icmp ne ${llvmType} ${value}, null`);
+      return condBool;
+    }
+    const condBool = this.nextTemp();
+    this.emit(`${condBool} = icmp eq i32 1, 1`);
+    return condBool;
+  }
+
   generateIfStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== 'if') {
       throw new Error('Expected if statement');
@@ -1284,13 +1302,18 @@ export class ControlFlowGenerator {
   generateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string {
     const leftValue = this.ctx.generateExpression(left, params);
     const leftType = this.ctx.getVariableType(leftValue) || 'double';
-    const leftBool = this.convertToBool(leftValue);
+    let leftBool: string;
+    if (op === '??') {
+      leftBool = this.convertToNonNullish(leftValue, leftType);
+    } else {
+      leftBool = this.convertToBool(leftValue);
+    }
 
     const evalRightLabel = this.nextLabel('logop_eval_right');
     const endLabel = this.nextLabel('logop_end');
     const leftCoerceLabel = this.nextLabel('logop_left_coerce');
 
-    if (op === '||') {
+    if (op === '||' || op === '??') {
       this.emit(`br i1 ${leftBool}, label %${leftCoerceLabel}, label %${evalRightLabel}`);
     } else {
       this.emit(`br i1 ${leftBool}, label %${evalRightLabel}, label %${leftCoerceLabel}`);

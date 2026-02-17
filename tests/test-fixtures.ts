@@ -93,6 +93,12 @@ export const testCases: TestCase[] = [
     description: 'Logical operators: testOr(0, 5) should return 5'
   },
   {
+    name: 'nullish-coalescing',
+    fixture: 'tests/fixtures/logical/nullish-coalescing.ts',
+    expectTestPassed: true,
+    description: 'Nullish coalescing operator (??) returns right operand only for null/undefined'
+  },
+  {
     name: 'imports-main',
     fixture: 'tests/fixtures/imports-exports/imports-main.js',
     expectedExitCode: 19,

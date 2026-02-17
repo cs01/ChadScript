@@ -36,7 +36,7 @@ export class BinaryExpressionGenerator {
 
   generate(op: string, left: Expression, right: Expression, params: string[]): string {
     // Logical operators need short-circuit evaluation
-    if (op === '&&' || op === '||') {
+    if (op === '&&' || op === '||' || op === '??') {
       return this.ctx.controlFlowGen.generateLogicalOp(op, left, right, params);
     }
 
