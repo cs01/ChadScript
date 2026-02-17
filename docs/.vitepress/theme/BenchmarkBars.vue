@@ -20,7 +20,7 @@ const langMeta = {
   node:       { name: 'Node.js',    color: 'node' },
 }
 
-const tabOrder = ['startup', 'montecarlo', 'sqlite', 'binarytrees', 'fibonacci', 'json', 'matmul', 'sieve', 'sorting', 'nbody', 'stringops', 'fileio', 'http', 'http_keepalive', 'websocket']
+const tabOrder = ['startup', 'montecarlo', 'sqlite', 'fibonacci', 'json', 'matmul', 'binarytrees', 'sieve', 'sorting', 'nbody', 'stringops', 'fileio', 'http', 'http_keepalive', 'websocket']
 
 const tabLabels = {
   startup: 'Cold Start', matmul: 'Matrix Multiply', fibonacci: 'Fibonacci',
@@ -76,19 +76,6 @@ const defaultBenchmarks = {
       { name: 'Node.js', val: '0.702s', h: 33, color: 'node', d: 0.36, speed: 6 },
     ],
     note: featuredNotes.sqlite || '',
-  },
-  binarytrees: {
-    layout: 'horizontal',
-    desc: "Build/check/discard binary trees of depth 18.",
-    metric: 'Smaller = faster.',
-    items: [
-      { name: 'Bun', val: '1.40s', w: 33, h: 100, color: 'bun', d: 0, speed: 3 },
-      { name: 'C', val: '2.01s', w: 48, h: 70, color: 'c', d: 0.12, speed: 3.6 },
-      { name: 'Node.js', val: '2.16s', w: 52, h: 65, color: 'node', d: 0.24, speed: 3.8 },
-      { name: 'ChadScript', val: '2.73s', w: 65, h: 51, color: 'chad', d: 0.36, speed: 4.4, hero: true },
-      { name: 'Go', val: '4.19s', w: 100, h: 33, color: 'go', d: 0.48, speed: 6 },
-    ],
-    note: featuredNotes.binarytrees || '',
   },
 }
 
