@@ -119,3 +119,31 @@ available on `BaseGenerator`, `LLVMGenerator`, and `MockGeneratorContext` for ty
 4. Array methods (push, pop, map, filter, find, etc.)
 5. Map/Set methods
 6. Class/interface method dispatch (vtable lookup)
+
+## Codegen Quick Rules
+
+1. **Hoist allocas to entry block** — never in conditional branches
+2. **Store pointers as `i8*`** — `double` loses 64-bit precision
+3. **Check class before interface** — try `findClassImplementingInterface()` BEFORE `interfaceStructGen.hasInterface()`
+4. **Load array values in objects** — load the value, don't pass the alloca
+5. **Type cast field order must match object literal order** — not TypeScript interface order
+6. **`ret void` not `unreachable`** at end of void functions
+7. **Class structs: boolean is `i1`; Interface structs: boolean is `double`**
+
+## Patterns That Crash Native Code
+
+1. **`new` in class field initializers is silently dropped** — codegen only emits type-based defaults. Move `new` calls to constructors. When removing a `new X()` initializer, you MUST add a constructor init.
+2. **Optional chaining (`?.`) compiles to direct access** — ChadScript doesn't implement `?.`. Use explicit null checks.
+3. **Type assertions must match real struct field order AND count** — `as { type, left, right }` on a struct that's `{ type, op, left, right }` causes GEP to read wrong fields. Fields must be a PREFIX of the real struct in EXACT order.
+
+## Stage 0 Compatibility
+
+Stage 0 can't handle `props[i].name` (array-of-objects field access). Use struct-of-arrays instead:
+```typescript
+// CRASHES: { name: string; type: string }[]
+// WORKS:  { keys: string[]; types: string[] }  — then access props.keys[i]
+```
+
+## Async/Await Type Tracking
+
+`allocateAwaitResult` in `variable-allocator.ts` must inspect the awaited expression to determine the correct SymbolKind. Default is `i8*`/string, but `Promise.all()` resolves to `%ObjectArray*`. For each new async API that resolves to a specific type, add a detection case to `allocateAwaitResult`.
