@@ -86,7 +86,7 @@ export class RegexGenerator {
     );
 
     const regexPtr = this.nextTemp();
-    this.emit(`${regexPtr} = call i8* @GC_malloc(i64 64)`);
+    this.emit(`${regexPtr} = call i8* @cs_regex_alloc()`);
 
     const REG_EXTENDED = 1;
     const REG_ICASE = 2;
@@ -99,10 +99,9 @@ export class RegexGenerator {
       cflags = cflags | REG_NEWLINE;
     }
 
-    // Call regcomp(regex_t *preg, const char *pattern, int cflags)
     const compileResult = this.nextTemp();
     this.emit(
-      `${compileResult} = call i32 @regcomp(i8* ${regexPtr}, i8* ${patternPtr}, i32 ${cflags})`
+      `${compileResult} = call i32 @cs_regex_compile(i8* ${regexPtr}, i8* ${patternPtr}, i32 ${cflags})`
     );
 
     // For simplicity, we're not checking the compile result
@@ -113,11 +112,11 @@ export class RegexGenerator {
 
   generateRegexCompileRuntime(patternPtr: string, cflags: number): string {
     const regexPtr = this.nextTemp();
-    this.emit(`${regexPtr} = call i8* @GC_malloc(i64 64)`);
+    this.emit(`${regexPtr} = call i8* @cs_regex_alloc()`);
 
     const compileResult = this.nextTemp();
     this.emit(
-      `${compileResult} = call i32 @regcomp(i8* ${regexPtr}, i8* ${patternPtr}, i32 ${cflags})`
+      `${compileResult} = call i32 @cs_regex_compile(i8* ${regexPtr}, i8* ${patternPtr}, i32 ${cflags})`
     );
 
     return regexPtr;
@@ -126,11 +125,9 @@ export class RegexGenerator {
   // Test if a string matches a regex pattern
   // Returns double: 1.0 if match, 0.0 if no match (JavaScript semantics)
   generateRegexTest(regexPtr: string, testStr: string): string {
-    // Call regexec(regex_t *preg, const char *string, size_t nmatch, regmatch_t pmatch[], int eflags)
-    // We pass NULL for pmatch and 0 for nmatch since we don't need match positions
     const execResult = this.nextTemp();
     this.emit(
-      `${execResult} = call i32 @regexec(i8* ${regexPtr}, i8* ${testStr}, i64 0, i8* null, i32 0)`
+      `${execResult} = call i32 @cs_regex_exec(i8* ${regexPtr}, i8* ${testStr}, i32 0, i8* null, i32 0)`
     );
 
     // regexec returns 0 on match, non-zero on no match
@@ -151,22 +148,17 @@ export class RegexGenerator {
 
   // Clean up regex resources
   generateRegexFree(regexPtr: string): void {
-    // Call regfree(regex_t *preg) - GC will handle the memory
-    this.emit(`call void @regfree(i8* ${regexPtr})`);
+    this.emit(`call void @cs_regex_free(i8* ${regexPtr})`);
   }
 
   generateRegexMatch(regexPtr: string, testStr: string, numGroups: number): string {
     const MAX_GROUPS = numGroups + 1;
-    const isMac = process.platform === 'darwin';
-    const regmatchSize = isMac ? 16 : 8;
-    const regoffType = isMac ? 'i64' : 'i32';
-    const pmatchSize = MAX_GROUPS * regmatchSize;
 
     const pmatchPtr = this.nextTemp();
-    this.emit(`${pmatchPtr} = call i8* @GC_malloc(i64 ${pmatchSize})`);
+    this.emit(`${pmatchPtr} = call i8* @cs_pmatch_alloc(i32 ${MAX_GROUPS})`);
 
     const execResult = this.nextTemp();
-    this.emit(`${execResult} = call i32 @regexec(i8* ${regexPtr}, i8* ${testStr}, i64 ${MAX_GROUPS}, i8* ${pmatchPtr}, i32 0)`);
+    this.emit(`${execResult} = call i32 @cs_regex_exec(i8* ${regexPtr}, i8* ${testStr}, i32 ${MAX_GROUPS}, i8* ${pmatchPtr}, i32 0)`);
 
     const isNoMatch = this.nextTemp();
     this.emit(`${isNoMatch} = icmp ne i32 ${execResult}, 0`);
@@ -205,50 +197,30 @@ export class RegexGenerator {
     this.emit(`${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${typedArrayPtr}, i32 0, i32 2`);
     this.emit(`store i32 ${MAX_GROUPS}, i32* ${capPtr}`);
 
-    const typedPmatch = this.nextTemp();
-    this.emit(`${typedPmatch} = bitcast i8* ${pmatchPtr} to ${regoffType}*`);
-
     for (let i = 0; i < MAX_GROUPS; i++) {
-      const rmSoPtr = this.nextTemp();
-      this.emit(`${rmSoPtr} = getelementptr inbounds ${regoffType}, ${regoffType}* ${typedPmatch}, i64 ${i * 2}`);
-      const rmSoRaw = this.nextTemp();
-      this.emit(`${rmSoRaw} = load ${regoffType}, ${regoffType}* ${rmSoPtr}`);
+      const rmSo = this.nextTemp();
+      this.emit(`${rmSo} = call i64 @cs_pmatch_start(i8* ${pmatchPtr}, i32 ${i})`);
 
-      const rmEoPtr = this.nextTemp();
-      this.emit(`${rmEoPtr} = getelementptr inbounds ${regoffType}, ${regoffType}* ${typedPmatch}, i64 ${i * 2 + 1}`);
-      const rmEoRaw = this.nextTemp();
-      this.emit(`${rmEoRaw} = load ${regoffType}, ${regoffType}* ${rmEoPtr}`);
-
-      const rmSo = isMac ? this.nextTemp() : rmSoRaw;
-      const rmEo = isMac ? this.nextTemp() : rmEoRaw;
-      if (isMac) {
-        this.emit(`${rmSo} = trunc i64 ${rmSoRaw} to i32`);
-        this.emit(`${rmEo} = trunc i64 ${rmEoRaw} to i32`);
-      }
+      const rmEo = this.nextTemp();
+      this.emit(`${rmEo} = call i64 @cs_pmatch_end(i8* ${pmatchPtr}, i32 ${i})`);
 
       const matchLen = this.nextTemp();
-      this.emit(`${matchLen} = sub i32 ${rmEo}, ${rmSo}`);
-
-      const matchLenI64 = this.nextTemp();
-      this.emit(`${matchLenI64} = sext i32 ${matchLen} to i64`);
+      this.emit(`${matchLen} = sub i64 ${rmEo}, ${rmSo}`);
 
       const matchLenPlus1 = this.nextTemp();
-      this.emit(`${matchLenPlus1} = add i64 ${matchLenI64}, 1`);
+      this.emit(`${matchLenPlus1} = add i64 ${matchLen}, 1`);
 
       const substrPtr = this.nextTemp();
       this.emit(`${substrPtr} = call i8* @GC_malloc_atomic(i64 ${matchLenPlus1})`);
 
-      const rmSoI64 = this.nextTemp();
-      this.emit(`${rmSoI64} = sext i32 ${rmSo} to i64`);
-
       const srcPtr = this.nextTemp();
-      this.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${testStr}, i64 ${rmSoI64}`);
+      this.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${testStr}, i64 ${rmSo}`);
 
       const strncpyResult = this.nextTemp();
-      this.emit(`${strncpyResult} = call i8* @strncpy(i8* ${substrPtr}, i8* ${srcPtr}, i64 ${matchLenI64})`);
+      this.emit(`${strncpyResult} = call i8* @strncpy(i8* ${substrPtr}, i8* ${srcPtr}, i64 ${matchLen})`);
 
       const nullPos = this.nextTemp();
-      this.emit(`${nullPos} = getelementptr inbounds i8, i8* ${substrPtr}, i64 ${matchLenI64}`);
+      this.emit(`${nullPos} = getelementptr inbounds i8, i8* ${substrPtr}, i64 ${matchLen}`);
       this.emit(`store i8 0, i8* ${nullPos}`);
 
       const elemPtr = this.nextTemp();

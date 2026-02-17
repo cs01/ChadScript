@@ -94,6 +94,17 @@ else
   echo "==> lws-bridge already built, skipping"
 fi
 
+# --- regex-bridge ---
+REGEX_BRIDGE_SRC="$C_BRIDGES_DIR/regex-bridge.c"
+REGEX_BRIDGE_OBJ="$C_BRIDGES_DIR/regex-bridge.o"
+if [ ! -f "$REGEX_BRIDGE_OBJ" ] || [ "$REGEX_BRIDGE_SRC" -nt "$REGEX_BRIDGE_OBJ" ]; then
+  echo "==> Building regex-bridge..."
+  cc -c -O2 -fPIC "$REGEX_BRIDGE_SRC" -o "$REGEX_BRIDGE_OBJ"
+  echo "  -> $REGEX_BRIDGE_OBJ"
+else
+  echo "==> regex-bridge already built, skipping"
+fi
+
 # --- yyjson ---
 if [ ! -f "$VENDOR_DIR/yyjson/libyyjson.a" ]; then
   echo "==> Building yyjson..."

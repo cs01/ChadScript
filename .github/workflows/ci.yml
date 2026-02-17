@@ -40,7 +40,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/libwebsockets/build/lib/libwebsockets.a c_bridges/lws-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/libwebsockets/build/lib/libwebsockets.a c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -55,8 +55,6 @@ jobs:
 
       - name: Run tests
         run: npm test
-        env:
-          GC_INITIAL_HEAP_SIZE: '268435456'
 
       - name: Build tree-sitter TypeScript objects
         run: |
@@ -82,21 +80,15 @@ jobs:
         run: |
           .build/chadc examples/hello.ts -o /tmp/hello
           /tmp/hello
-        env:
-          GC_INITIAL_HEAP_SIZE: '268435456'
 
       - name: Smoke test native chad
         run: |
           .build/chad build examples/hello.ts -o /tmp/hello2
           /tmp/hello2
-        env:
-          GC_INITIAL_HEAP_SIZE: '268435456'
 
       - name: Run self-hosting tests
         run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
-        env:
-          GC_INITIAL_HEAP_SIZE: '268435456'
 
       - name: Package release artifact
         run: |
@@ -112,6 +104,7 @@ jobs:
           cp vendor/libuv/build/libuv.a release/lib/
           cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
           cp c_bridges/lws-bridge.o release/lib/
+          cp c_bridges/regex-bridge.o release/lib/
           tar -czf chadscript-linux-x64.tar.gz -C release chad chadc lib
 
       - name: Upload artifact
@@ -148,7 +141,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/libwebsockets/build/lib/libwebsockets.a c_bridges/lws-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/libwebsockets/build/lib/libwebsockets.a c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -212,6 +205,7 @@ jobs:
           cp vendor/libuv/build/libuv.a release/lib/
           cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
           cp c_bridges/lws-bridge.o release/lib/
+          cp c_bridges/regex-bridge.o release/lib/
           tar -czf chadscript-macos-arm64.tar.gz -C release chad chadc lib
 
       - name: Upload artifact

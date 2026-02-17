@@ -56,9 +56,13 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += 'declare double @llvm.minnum.f64(double, double)\n';
   ir += '\n';
 
-  ir += 'declare i32 @regcomp(i8*, i8*, i32)\n';
-  ir += 'declare i32 @regexec(i8*, i8*, i64, i8*, i32)\n';
-  ir += 'declare void @regfree(i8*)\n';
+  ir += 'declare i8* @cs_regex_alloc()\n';
+  ir += 'declare i32 @cs_regex_compile(i8*, i8*, i32)\n';
+  ir += 'declare i8* @cs_pmatch_alloc(i32)\n';
+  ir += 'declare i32 @cs_regex_exec(i8*, i8*, i32, i8*, i32)\n';
+  ir += 'declare i64 @cs_pmatch_start(i8*, i32)\n';
+  ir += 'declare i64 @cs_pmatch_end(i8*, i32)\n';
+  ir += 'declare void @cs_regex_free(i8*)\n';
   ir += '\n';
 
   ir += 'declare i32 @printf(i8*, ...)\n';

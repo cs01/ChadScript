@@ -246,6 +246,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     linkLibs = `-L/usr/local/lib ` + linkLibs;
   }
   const lwsBridgeObj = generator.usesMongoose ? `${LWS_BRIDGE_PATH}/lws-bridge.o` : '';
+  const regexBridgeObj = `${LWS_BRIDGE_PATH}/regex-bridge.o`;
   let extraObjs = '';
 
   if (generator.getUsesTreeSitter()) {
@@ -294,7 +295,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const noPie = isMac ? '' : ' -no-pie';
   const debugFlag = debugInfo ? ' -g' : '';
   const staticFlag = (staticLink && !isMac) ? ' -static' : '';
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${sanitizeFlags} ${linkLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });
