@@ -78,6 +78,7 @@ export class TypeInference {
       }
       if (newExpr.className === 'RegExp') return this.ctx.typeContext.resolve('RegExp');
       if (newExpr.className === 'Promise') return this.ctx.typeContext.resolve('Promise');
+      if (newExpr.className === 'Uint8Array') return this.ctx.typeContext.resolve('Uint8Array');
       const cls = this.getClass(newExpr.className);
       if (cls) return this.ctx.typeContext.getClassType(newExpr.className);
       return null;
