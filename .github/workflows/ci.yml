@@ -224,6 +224,8 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - uses: actions/checkout@v4
+
       - name: Install LLVM (Linux)
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y llvm clang
@@ -239,10 +241,9 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
 
-      - name: Extract and install
+      - name: Install via install.sh
         run: |
-          mkdir -p ~/.chadscript
-          tar -xzf ${{ matrix.artifact }}.tar.gz -C ~/.chadscript
+          CHADSCRIPT_URL="file://$(pwd)/${{ matrix.artifact }}.tar.gz" bash install.sh
           echo "$HOME/.chadscript" >> $GITHUB_PATH
 
       - name: Verify binary

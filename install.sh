@@ -27,7 +27,7 @@ main() {
   esac
 
   TARBALL="chadscript-${OS_TAG}-${ARCH_TAG}.tar.gz"
-  URL="https://github.com/${REPO}/releases/download/latest/${TARBALL}"
+  URL="${CHADSCRIPT_URL:-https://github.com/${REPO}/releases/download/latest/${TARBALL}}"
 
   echo "Downloading ChadScript (${OS_TAG}-${ARCH_TAG})..."
   echo "  $URL"
