@@ -46,6 +46,7 @@ onMounted(() => {
 <style scoped>
 .hero-bench {
   width: 360px;
+  margin: 2.5rem auto 0;
   padding: 22px 24px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
