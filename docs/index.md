@@ -27,9 +27,9 @@ features:
 
 <HeroBenchmarks />
 
-<ExampleTabs />
-
 <IRShowcase />
+
+<ExampleTabs />
 
 <div class="cta-section">
 
@@ -41,7 +41,6 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
 
 <div class="cta-buttons">
   <a href="/ChadScript/getting-started/installation" class="cta-button primary">Get Started →</a>
-  <a href="/ChadScript/benchmarks" class="cta-button secondary">See Benchmarks</a>
 </div>
 
 </div>
@@ -78,8 +77,14 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
   opacity: 0.85;
 }
 .cta-button.primary {
-  background: var(--vp-c-brand-1);
-  color: var(--vp-c-white);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--vp-c-text-1);
+}
+.cta-button.primary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  opacity: 1;
 }
 .cta-button.secondary {
   border: 1px solid var(--vp-c-divider);

@@ -2,12 +2,20 @@ import { defineConfig } from 'vitepress'
 import fs from 'node:fs'
 import path from 'node:path'
 
+const llvmGrammar = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, 'llvm.tmLanguage.json'), 'utf-8')
+)
+
 export default defineConfig({
   title: 'ChadScript',
   description: 'Compile TypeScript to native binaries via LLVM',
 
   base: '/ChadScript/',
   appearance: 'dark',
+
+  markdown: {
+    languages: [llvmGrammar],
+  },
 
   transformPageData(pageData) {
     const mdPath = path.resolve(__dirname, '..', pageData.relativePath)

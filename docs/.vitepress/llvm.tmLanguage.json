@@ -1,0 +1,18 @@
+{
+  "name": "llvm",
+  "scopeName": "source.llvm",
+  "patterns": [
+    { "match": ";.*$", "name": "comment.line.llvm" },
+    { "match": "\\b(define|declare|global|constant|private|internal|external|unnamed_addr|align|to|nuw|nsw|exact|inbounds|volatile|tail|musttail|notail)\\b", "name": "keyword.other.llvm" },
+    { "match": "\\b(ret|br|switch|invoke|resume|unreachable|call|alloca|load|store|getelementptr|extractvalue|insertvalue|extractelement|insertelement|shufflevector|phi|select|icmp|fcmp|add|sub|mul|udiv|sdiv|urem|srem|fadd|fsub|fmul|fdiv|frem|shl|lshr|ashr|and|or|xor|trunc|zext|sext|fptrunc|fpext|fptoui|fptosi|uitofp|sitofp|ptrtoint|inttoptr|bitcast|addrspacecast)\\b", "name": "keyword.control.llvm" },
+    { "match": "\\b(i1|i8|i16|i32|i64|i128|float|double|void|label|metadata|token|ptr)\\b", "name": "storage.type.llvm" },
+    { "match": "\\b(eq|ne|ugt|uge|ult|ule|sgt|sge|slt|sle|oeq|ogt|oge|olt|ole|one|ord|ueq|une|uno|true|false|null|zeroinitializer|undef|poison)\\b", "name": "constant.language.llvm" },
+    { "match": "@[a-zA-Z$._][a-zA-Z$._0-9]*", "name": "entity.name.function.llvm" },
+    { "match": "%[a-zA-Z$._][a-zA-Z$._0-9]*", "name": "variable.other.llvm" },
+    { "match": "%[0-9]+", "name": "variable.other.llvm" },
+    { "match": "\\b-?[0-9]+\\.?[0-9]*([eE][+-]?[0-9]+)?\\b", "name": "constant.numeric.llvm" },
+    { "match": "c\"[^\"]*\"", "name": "string.quoted.double.llvm" },
+    { "match": "\"[^\"]*\"", "name": "string.quoted.double.llvm" },
+    { "match": "^[a-zA-Z$._][a-zA-Z$._0-9]*:", "name": "entity.name.label.llvm" }
+  ]
+}
