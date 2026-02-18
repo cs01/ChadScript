@@ -244,7 +244,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     if (generator.usesSqlite) { linkLibs = `-L${brewPrefix}/sqlite/lib ` + linkLibs; }
     if (generator.usesMongoose) { linkLibs = `-L${brewPrefix}/zstd/lib ` + linkLibs; }
     const sdkPath = execSync('xcrun --show-sdk-path', { stdio: 'pipe', encoding: 'utf8' }).trim();
-    linkLibs = `-isysroot ${sdkPath} -L/usr/local/lib ` + linkLibs;
+    linkLibs = `-Wl,-syslibroot,${sdkPath} -L/usr/local/lib ` + linkLibs;
   }
   const lwsBridgeObj = generator.usesMongoose ? `${LWS_BRIDGE_PATH}/lws-bridge.o` : '';
   const regexBridgeObj = generator.usesRegex ? `${LWS_BRIDGE_PATH}/regex-bridge.o` : '';

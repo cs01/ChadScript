@@ -6,21 +6,22 @@ INSTALL_DIR="$HOME/.chadscript"
 VERSION="0.1.0"
 
 if [ -t 1 ]; then
-  BOLD='\033[1m'
-  DIM='\033[2m'
-  GREEN='\033[32m'
-  CYAN='\033[36m'
-  YELLOW='\033[33m'
-  RED='\033[31m'
-  RESET='\033[0m'
+  ESC=$(printf '\033')
+  BOLD="${ESC}[1m"
+  DIM="${ESC}[2m"
+  GREEN="${ESC}[32m"
+  CYAN="${ESC}[36m"
+  YELLOW="${ESC}[33m"
+  RED="${ESC}[31m"
+  RESET="${ESC}[0m"
 else
   BOLD='' DIM='' GREEN='' CYAN='' YELLOW='' RED='' RESET=''
 fi
 
-info()    { printf "${CYAN}info${RESET} %s\n" "$1"; }
-success() { printf "${GREEN}  ✓${RESET} %s\n" "$1"; }
-warn()    { printf "${YELLOW}warn${RESET} %s\n" "$1"; }
-err()     { printf "${RED}error${RESET} %s\n" "$1" >&2; exit 1; }
+info()    { printf "%s\n" "${CYAN}info${RESET} $1"; }
+success() { printf "%s\n" "${GREEN}  ✓${RESET} $1"; }
+warn()    { printf "%s\n" "${YELLOW}warn${RESET} $1"; }
+err()     { printf "%s\n" "${RED}error${RESET} $1" >&2; exit 1; }
 
 detect_libc() {
   if [ "$(uname -s)" != "Linux" ]; then
@@ -135,7 +136,9 @@ WRAPPER
   printf "\n"
   printf "  Then try:\n"
   printf "\n"
-  printf "    ${CYAN}chad run examples/hello.ts${RESET}\n"
+  printf "    ${CYAN}mkdir myproject && cd myproject${RESET}\n"
+  printf "    ${CYAN}chad init${RESET}\n"
+  printf "    ${CYAN}chad run hello.ts${RESET}\n"
   printf "\n"
 }
 
