@@ -297,6 +297,7 @@ export class TypeInference {
         }
       }
 
+      if (varName === 'sqlite' && method === 'open') return this.ctx.typeContext.stringType;
       if (varName === 'sqlite' && method === 'get') return this.ctx.typeContext.stringType;
       if (varName === 'sqlite' && method === 'all') return this.ctx.typeContext.getArrayType('string');
 
