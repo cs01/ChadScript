@@ -38,13 +38,13 @@ export function generateArrayPush(
     const varNode = expr.object as VariableNode;
     const varName = varNode.name;
     const varType = gen.getVariableType(varName);
-    isStringArray = varType === '%StringArray*';
-    isObjectArray = varType === '%ObjectArray*';
+    isStringArray = varType === '%StringArray*' || varType === '%StringArray';
+    isObjectArray = varType === '%ObjectArray*' || varType === '%ObjectArray';
   }
   if (!isStringArray && !isObjectArray) {
     const ptrType = gen.getVariableType(arrayPtr);
-    if (ptrType === '%StringArray*') isStringArray = true;
-    else if (ptrType === '%ObjectArray*') isObjectArray = true;
+    if (ptrType === '%StringArray*' || ptrType === '%StringArray') isStringArray = true;
+    else if (ptrType === '%ObjectArray*' || ptrType === '%ObjectArray') isObjectArray = true;
   }
 
   if (isStringArray) {
@@ -87,12 +87,12 @@ export function generateArrayPop(
     const varNode = expr.object as VariableNode;
     const varName = varNode.name;
     const varType = gen.getVariableType(varName);
-    isStringArray = varType === '%StringArray*';
+    isStringArray = varType === '%StringArray*' || varType === '%StringArray';
     isPointerArray = varType === 'i8*';
   }
   if (!isStringArray && !isPointerArray) {
     const ptrType = gen.getVariableType(arrayPtr);
-    if (ptrType === '%StringArray*') isStringArray = true;
+    if (ptrType === '%StringArray*' || ptrType === '%StringArray') isStringArray = true;
     else if (ptrType === 'i8*') isPointerArray = true;
   }
 

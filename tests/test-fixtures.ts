@@ -203,6 +203,12 @@ export const testCases: TestCase[] = [
     description: 'console.log should print arrays correctly'
   },
   {
+    name: 'console-multi-arg',
+    fixture: 'tests/fixtures/builtins/console-multi-arg.ts',
+    expectTestPassed: true,
+    description: 'console.log should handle multiple comma-separated arguments'
+  },
+  {
     name: 'parseint',
     fixture: 'tests/fixtures/builtins/parseint.js',
     expectTestPassed: true,
@@ -387,6 +393,12 @@ export const testCases: TestCase[] = [
     fixture: 'tests/fixtures/arrays/array-foreach.js',
     expectedExitCode: 10,
     description: 'Array .forEach() should call function for each element'
+  },
+  {
+    name: 'string-array-foreach',
+    fixture: 'tests/fixtures/arrays/string-array-foreach.ts',
+    expectTestPassed: true,
+    description: 'forEach on string[] should pass string elements to callback'
   },
   {
     name: 'array-slice',

@@ -1,7 +1,7 @@
 import { Expression, MethodCallNode } from '../../../ast/types.js';
 import type { MethodCallGeneratorContext } from '../method-calls.js';
 
-function emitPrint(ctx: MethodCallGeneratorContext, useStderr: boolean, fmtRef: string, args: string): string {
+function emitPrint(ctx: MethodCallGeneratorContext, useStderr: boolean, fmtRef: string, args: string): void {
   if (useStderr) {
     const stderrPtr = ctx.nextTemp();
     ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
@@ -9,37 +9,41 @@ function emitPrint(ctx: MethodCallGeneratorContext, useStderr: boolean, fmtRef: 
     ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, ${fmtRef}${args})`);
     const flushTemp = ctx.nextTemp();
     ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
-    return temp;
   } else {
     const temp = ctx.nextTemp();
     ctx.emit(`${temp} = call i32 (i8*, ...) @printf(${fmtRef}${args})`);
-    return temp;
   }
 }
 
-function emitPrintStr(ctx: MethodCallGeneratorContext, useStderr: boolean, value: string): string {
-  return emitPrint(ctx, useStderr, `i8* getelementptr([4 x i8], [4 x i8]* @.str.strfmt, i32 0, i32 0)`, `, i8* ${value}`);
+function emitPrintStrNoNl(ctx: MethodCallGeneratorContext, useStderr: boolean, value: string): void {
+  emitPrint(ctx, useStderr, `i8* getelementptr([3 x i8], [3 x i8]* @.str.strfmt_no_nl, i32 0, i32 0)`, `, i8* ${value}`);
 }
 
-function emitPrintStrNoNl(ctx: MethodCallGeneratorContext, useStderr: boolean, value: string): string {
-  return emitPrint(ctx, useStderr, `i8* getelementptr([3 x i8], [3 x i8]* @.str.strfmt_no_nl, i32 0, i32 0)`, `, i8* ${value}`);
-}
-
-function emitPrintNumNoNl(ctx: MethodCallGeneratorContext, useStderr: boolean, value: string): string {
+function emitPrintNumNoNl(ctx: MethodCallGeneratorContext, useStderr: boolean, value: string): void {
   const dbl = ctx.ensureDouble(value);
-  return emitPrint(ctx, useStderr, `i8* getelementptr([6 x i8], [6 x i8]* @.str.numfmt_no_nl, i32 0, i32 0)`, `, double ${dbl}`);
+  emitPrint(ctx, useStderr, `i8* getelementptr([6 x i8], [6 x i8]* @.str.numfmt_no_nl, i32 0, i32 0)`, `, double ${dbl}`);
 }
 
-function emitArrayPrint(ctx: MethodCallGeneratorContext, useStderr: boolean, arrayPtr: string, arrayType: 'Array' | 'StringArray' | 'ObjectArray'): string {
+function emitPrintSpace(ctx: MethodCallGeneratorContext, useStderr: boolean): void {
+  const spaceRef = `i8* getelementptr([2 x i8], [2 x i8]* @.str.space, i32 0, i32 0)`;
+  emitPrint(ctx, useStderr, spaceRef, '');
+}
+
+function emitPrintNewline(ctx: MethodCallGeneratorContext, useStderr: boolean): void {
+  const nlRef = `i8* getelementptr([2 x i8], [2 x i8]* @.str.newline, i32 0, i32 0)`;
+  emitPrint(ctx, useStderr, nlRef, '');
+}
+
+function emitArrayPrint(ctx: MethodCallGeneratorContext, useStderr: boolean, arrayPtr: string, arrayType: 'Array' | 'StringArray' | 'ObjectArray'): void {
   const lenPtr = ctx.nextTemp();
   ctx.emit(`${lenPtr} = getelementptr inbounds %${arrayType}, %${arrayType}* ${arrayPtr}, i32 0, i32 1`);
   const len = ctx.nextTemp();
   ctx.emit(`${len} = load i32, i32* ${lenPtr}`);
 
   const openBracket = ctx.stringGen.doCreateStringConstant('[ ');
-  const closeBracket = ctx.stringGen.doCreateStringConstant(' ]\n');
+  const closeBracket = ctx.stringGen.doCreateStringConstant(' ]');
   const separator = ctx.stringGen.doCreateStringConstant(', ');
-  const emptyArray = ctx.stringGen.doCreateStringConstant('[]\n');
+  const emptyArray = ctx.stringGen.doCreateStringConstant('[]');
 
   const isEmpty = ctx.nextTemp();
   ctx.emit(`${isEmpty} = icmp eq i32 ${len}, 0`);
@@ -131,8 +135,62 @@ function emitArrayPrint(ctx: MethodCallGeneratorContext, useStderr: boolean, arr
   ctx.emit(`br label %${doneLabel}`);
 
   ctx.emit(`${doneLabel}:`);
+}
 
-  return '0';
+function emitSingleArg(ctx: MethodCallGeneratorContext, useStderr: boolean, arg: Expression, params: string[]): void {
+  const argTyped = arg as { type: string; value: string | number };
+
+  if (argTyped.type === 'string') {
+    const strValue = argTyped.value as string;
+    const strConstPtr = ctx.stringGen.doCreateStringConstant(strValue);
+    emitPrintStrNoNl(ctx, useStderr, strConstPtr);
+    return;
+  }
+
+  if (argTyped.type === 'number') {
+    const argValue = ctx.generateExpression(arg, params);
+    emitPrintNumNoNl(ctx, useStderr, argValue);
+    return;
+  }
+
+  const argValue = ctx.generateExpression(arg, params);
+
+  const isString = ctx.isStringExpression(arg);
+  if (isString) {
+    emitPrintStrNoNl(ctx, useStderr, argValue);
+    return;
+  }
+
+  const isArray = ctx.isArrayExpression(arg);
+  if (isArray) {
+    emitArrayPrint(ctx, useStderr, argValue, 'Array');
+    return;
+  }
+
+  const isStringArray = ctx.isStringArrayExpression(arg);
+  if (isStringArray) {
+    emitArrayPrint(ctx, useStderr, argValue, 'StringArray');
+    return;
+  }
+
+  const isObjectArray = ctx.isObjectArrayExpression(arg);
+  if (isObjectArray) {
+    emitArrayPrint(ctx, useStderr, argValue, 'ObjectArray');
+    return;
+  }
+
+  const varType = ctx.getVariableType(argValue);
+  if (varType === 'i8*') {
+    emitPrintStrNoNl(ctx, useStderr, argValue);
+    return;
+  }
+  if (varType && varType.endsWith('*')) {
+    const objStr = ctx.stringGen.doCreateStringConstant('[object Object]');
+    emitPrintStrNoNl(ctx, useStderr, objStr);
+    return;
+  }
+
+  emitPrintNumNoNl(ctx, useStderr, argValue);
 }
 
 export function generateConsoleCallInline(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
@@ -140,101 +198,17 @@ export function generateConsoleCallInline(ctx: MethodCallGeneratorContext, expr:
   const useStderr = method === 'error' || method === 'warn';
 
   if (expr.args.length === 0) {
-    if (useStderr) {
-      const stderrPtr = ctx.nextTemp();
-      ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
-      const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([2 x i8], [2 x i8]* @.str.newline, i32 0, i32 0))`);
-      const flushTemp = ctx.nextTemp();
-      ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
-      return temp;
-    } else {
-      const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([2 x i8], [2 x i8]* @.str.newline, i32 0, i32 0))`);
-      return temp;
-    }
+    emitPrintNewline(ctx, useStderr);
+    return '0.0';
   }
 
-  const arg = expr.args[0];
-  const argTyped = arg as { type: string; value: string | number };
-
-  if (argTyped.type === 'string') {
-    const strValue = argTyped.value as string;
-    const strConstPtr = ctx.stringGen.doCreateStringConstant(strValue + '\n');
-    if (useStderr) {
-      const stderrPtr = ctx.nextTemp();
-      ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
-      const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* ${strConstPtr})`);
-      const flushTemp = ctx.nextTemp();
-      ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
-      return temp;
-    } else {
-      const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* ${strConstPtr})`);
-      return temp;
+  for (let i = 0; i < expr.args.length; i++) {
+    if (i > 0) {
+      emitPrintSpace(ctx, useStderr);
     }
-  } else if (argTyped.type === 'number') {
-    const argValue = ctx.generateExpression(arg as Expression, params);
-    const dblValue = ctx.ensureDouble(argValue);
-    if (useStderr) {
-      const stderrPtr = ctx.nextTemp();
-      ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
-      const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${dblValue})`);
-      const flushTemp = ctx.nextTemp();
-      ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
-      return temp;
-    } else {
-      const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${dblValue})`);
-      return temp;
-    }
-  } else {
-    const argValue = ctx.generateExpression(arg as Expression, params);
-    const isString = ctx.isStringExpression(arg as Expression);
-    if (isString) {
-      return emitPrintStr(ctx, useStderr, argValue);
-    }
-
-    const isArray = ctx.isArrayExpression(arg as Expression);
-    if (isArray) {
-      return emitArrayPrint(ctx, useStderr, argValue, 'Array');
-    }
-
-    const isStringArray = ctx.isStringArrayExpression(arg as Expression);
-    if (isStringArray) {
-      return emitArrayPrint(ctx, useStderr, argValue, 'StringArray');
-    }
-
-    const isObjectArray = ctx.isObjectArrayExpression(arg as Expression);
-    if (isObjectArray) {
-      return emitArrayPrint(ctx, useStderr, argValue, 'ObjectArray');
-    }
-
-    const varType = ctx.getVariableType(argValue);
-    if (varType === 'i8*') {
-      return emitPrintStr(ctx, useStderr, argValue);
-    }
-    if (varType && varType.endsWith('*')) {
-      const objStr = ctx.stringGen.doCreateStringConstant('[object Object]\n');
-      return emitPrintStrNoNl(ctx, useStderr, objStr);
-    }
-
-    if (useStderr) {
-      const dblValue = ctx.ensureDouble(argValue);
-      const stderrPtr = ctx.nextTemp();
-      ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
-      const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${dblValue})`);
-      const flushTemp = ctx.nextTemp();
-      ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
-      return temp;
-    } else {
-      const dblValue = ctx.ensureDouble(argValue);
-      const temp = ctx.nextTemp();
-      ctx.emit(`${temp} = call i32 (i8*, ...) @printf(i8* getelementptr([7 x i8], [7 x i8]* @.str.numfmt, i32 0, i32 0), double ${dblValue})`);
-      return temp;
-    }
+    emitSingleArg(ctx, useStderr, expr.args[i] as Expression, params);
   }
+  emitPrintNewline(ctx, useStderr);
+
+  return '0.0';
 }
