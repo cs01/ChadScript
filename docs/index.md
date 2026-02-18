@@ -27,9 +27,9 @@ features:
 
 <HeroBenchmarks />
 
-<IRShowcase />
-
 <ExampleTabs />
+
+<IRShowcase />
 
 <div class="cta-section">
 
