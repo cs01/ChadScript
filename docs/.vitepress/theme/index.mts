@@ -16,7 +16,6 @@ export default {
   Layout() {
     return h(DefaultTheme.Layout, null, {
       'doc-before': () => h(CopyMarkdown),
-      'home-hero-image': () => h(HeroBenchmarks),
     })
   },
   enhanceApp({ app }) {
