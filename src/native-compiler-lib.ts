@@ -188,7 +188,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     if (generator.getUsesCrypto()) { linkLibs = '-L/opt/homebrew/opt/openssl/lib -L/usr/local/opt/openssl/lib ' + linkLibs; }
     if (generator.getUsesSqlite()) { linkLibs = '-L/opt/homebrew/opt/sqlite/lib -L/usr/local/opt/sqlite/lib ' + linkLibs; }
     if (generator.getUsesMongoose()) { linkLibs = '-L/opt/homebrew/opt/zstd/lib -L/usr/local/opt/zstd/lib ' + linkLibs; }
-    linkLibs = '-L/usr/local/lib ' + linkLibs;
+    linkLibs = '-isysroot $(xcrun --show-sdk-path) -L/usr/local/lib ' + linkLibs;
   }
   const linkCmd = clangTool + ' ' + objFile + ' ' + lwsBridgeObj + ' ' + regexBridgeObj + ' ' + treeSitterObjs + ' -o ' + outputFile + noPie + ' ' + linkLibs;
   if (verbose) { console.log('Running: ' + linkCmd); }

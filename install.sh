@@ -3,6 +3,24 @@ set -e
 
 REPO="cs01/ChadScript"
 INSTALL_DIR="$HOME/.chadscript"
+VERSION="0.1.0"
+
+if [ -t 1 ]; then
+  BOLD='\033[1m'
+  DIM='\033[2m'
+  GREEN='\033[32m'
+  CYAN='\033[36m'
+  YELLOW='\033[33m'
+  RED='\033[31m'
+  RESET='\033[0m'
+else
+  BOLD='' DIM='' GREEN='' CYAN='' YELLOW='' RED='' RESET=''
+fi
+
+info()    { printf "${CYAN}info${RESET} %s\n" "$1"; }
+success() { printf "${GREEN}  ✓${RESET} %s\n" "$1"; }
+warn()    { printf "${YELLOW}warn${RESET} %s\n" "$1"; }
+err()     { printf "${RED}error${RESET} %s\n" "$1" >&2; exit 1; }
 
 detect_libc() {
   if [ "$(uname -s)" != "Linux" ]; then
@@ -19,25 +37,23 @@ detect_libc() {
 }
 
 main() {
+  printf "\n"
+  printf "${BOLD}  ChadScript Installer${RESET} ${DIM}v${VERSION}${RESET}\n"
+  printf "\n"
+
   OS=$(uname -s)
   ARCH=$(uname -m)
 
   case "$OS" in
     Linux)  OS_TAG="linux" ;;
     Darwin) OS_TAG="macos" ;;
-    *)
-      echo "Unsupported OS: $OS"
-      exit 1
-      ;;
+    *)      err "Unsupported OS: $OS" ;;
   esac
 
   case "$ARCH" in
     x86_64|amd64)  ARCH_TAG="x64" ;;
     arm64|aarch64) ARCH_TAG="arm64" ;;
-    *)
-      echo "Unsupported architecture: $ARCH"
-      exit 1
-      ;;
+    *)             err "Unsupported architecture: $ARCH" ;;
   esac
 
   LIBC=$(detect_libc)
@@ -48,9 +64,10 @@ main() {
   fi
   URL="${CHADSCRIPT_URL:-https://github.com/${REPO}/releases/download/latest/${TARBALL}}"
 
-  echo "Downloading ChadScript (${OS_TAG}-${ARCH_TAG}${LIBC:+, $LIBC})..."
-  echo "  $URL"
+  PLATFORM="${OS_TAG}-${ARCH_TAG}${LIBC:+ ($LIBC)}"
+  info "Platform: ${BOLD}${PLATFORM}${RESET}"
 
+  info "Downloading ${DIM}${URL}${RESET}"
   TMPDIR=$(mktemp -d)
   trap 'rm -rf "$TMPDIR"' EXIT
 
@@ -59,11 +76,11 @@ main() {
   elif command -v wget >/dev/null 2>&1; then
     wget -q "$URL" -O "$TMPDIR/$TARBALL"
   else
-    echo "Error: curl or wget is required"
-    exit 1
+    err "curl or wget is required"
   fi
+  success "Downloaded"
 
-  echo "Installing to $INSTALL_DIR..."
+  info "Installing to ${BOLD}${INSTALL_DIR}${RESET}"
   mkdir -p "$INSTALL_DIR"
   tar -xzf "$TMPDIR/$TARBALL" -C "$INSTALL_DIR"
 
@@ -89,23 +106,44 @@ WRAPPER
     xattr -d com.apple.quarantine "$INSTALL_DIR/chadc.bin" 2>/dev/null || true
   fi
 
+  success "Installed chad and chadc"
+
   add_to_path
 
-  echo ""
-  echo "ChadScript installed to $INSTALL_DIR"
-  echo ""
-  echo "Prerequisites — install LLVM if you haven't already:"
-  case "$OS_TAG" in
-    macos) echo "  brew install llvm" ;;
-    linux) echo "  sudo apt install llvm clang   # Debian/Ubuntu"
-           echo "  sudo dnf install llvm clang   # Fedora" ;;
-  esac
-  echo ""
-  echo "Restart your shell or run:"
-  echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
-  echo ""
-  echo "Then try:"
-  echo "  chad run examples/hello.ts"
+  printf "\n"
+  printf "${GREEN}${BOLD}  ChadScript installed successfully!${RESET}\n"
+  printf "\n"
+
+  if ! check_llvm; then
+    printf "  ${YELLOW}${BOLD}Prerequisites${RESET} — LLVM is required to compile:\n"
+    printf "\n"
+    case "$OS_TAG" in
+      macos)
+        printf "    ${BOLD}brew install llvm${RESET}\n"
+        ;;
+      linux)
+        printf "    ${BOLD}sudo apt install llvm clang${RESET}   ${DIM}# Debian/Ubuntu${RESET}\n"
+        printf "    ${BOLD}sudo dnf install llvm clang${RESET}   ${DIM}# Fedora${RESET}\n"
+        ;;
+    esac
+    printf "\n"
+  fi
+
+  printf "  Restart your shell, or run:\n"
+  printf "\n"
+  printf "    ${CYAN}export PATH=\"$INSTALL_DIR:\$PATH\"${RESET}\n"
+  printf "\n"
+  printf "  Then try:\n"
+  printf "\n"
+  printf "    ${CYAN}chad run examples/hello.ts${RESET}\n"
+  printf "\n"
+}
+
+check_llvm() {
+  command -v llc >/dev/null 2>&1 && return 0
+  [ -x /opt/homebrew/opt/llvm/bin/llc ] && return 0
+  [ -x /usr/local/opt/llvm/bin/llc ] && return 0
+  return 1
 }
 
 add_to_path() {
@@ -117,14 +155,14 @@ add_to_path() {
         echo "" >> "$RC_FILE"
         echo "# ChadScript" >> "$RC_FILE"
         echo "$EXPORT_LINE" >> "$RC_FILE"
-        echo "  Added to PATH in $(basename "$RC_FILE")"
+        success "Added to PATH in $(basename "$RC_FILE")"
       fi
     fi
   done
 
   if [ ! -f "$HOME/.bashrc" ] && [ ! -f "$HOME/.zshrc" ]; then
-    echo "  Add this to your shell rc file:"
-    echo "    $EXPORT_LINE"
+    warn "Add this to your shell config:"
+    printf "    %s\n" "$EXPORT_LINE"
   fi
 }
 
