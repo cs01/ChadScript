@@ -366,8 +366,8 @@ jobs:
           chadc /tmp/exit42.ts -o /tmp/exit42
           /tmp/exit42 || [ $? -eq 42 ]
 
-  pre-release:
-    needs: [build-linux-musl, build-linux-glibc, build-macos]
+  release:
+    needs: [build-linux-musl, build-linux-glibc, build-macos, test-artifact]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -385,19 +385,19 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
 
-      - name: Create latest pre-release
+      - name: Create latest release
         run: |
           gh release create latest \
-            --prerelease \
             --title "Latest Build" \
-            --notes "Automated pre-release from main branch. Download native binaries below." \
+            --notes "Automated release from ${GITHUB_REF_NAME} branch. Download native binaries below." \
+            --latest \
             artifacts/**/*.tar.gz
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
 
-  release:
-    needs: [build-linux-musl, build-linux-glibc, build-macos]
+  tagged-release:
+    needs: [build-linux-musl, build-linux-glibc, build-macos, test-artifact]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
