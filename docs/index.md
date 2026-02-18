@@ -19,9 +19,13 @@ features:
     details: Write the TypeScript you already know. Classes, interfaces, async/await, generics - it all works.
   - title: Batteries Included
     details: HTTP servers, file I/O, JSON, crypto, SQLite, regex, async - all compiled to native code. No npm required.
+  - title: Zero-Cost C Interop
+    details: C libraries like SQLite and OpenSSL are called directly through LLVM IR — no FFI boundary, no marshaling, no overhead. Same cost as a native function call.
 ---
 
 <HeroRotator />
+
+<HeroBenchmarks />
 
 <ExampleTabs />
 
