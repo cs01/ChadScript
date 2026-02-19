@@ -19,7 +19,7 @@ import {
 import type { SymbolTable } from '../../infrastructure/symbol-table.js';
 import type { TypeChecker } from '../../../typescript/type-checker.js';
 import type { InterfaceStructGenerator, InterfaceFieldInfo, InterfaceStructInfo } from '../../types/interface-struct-generator.js';
-import { stripOptional, stripNullable, tsTypeToLlvm, parseMapTypeString } from '../../infrastructure/type-system.js';
+import { stripOptional, stripNullable, tsTypeToLlvm, parseMapTypeString, canonicalTypeToLlvm } from '../../infrastructure/type-system.js';
 import type { IStringGenerator, IMapGenerator, ISetGenerator, IResponseGenerator } from '../../infrastructure/generator-context.js';
 import {
   isProcessArgv,
@@ -610,7 +610,7 @@ export class MemberAccessGenerator {
           for (let pi = 0; pi < nestedProps.length; pi++) {
             const p = nestedProps[pi] as { name: string; type: string };
             keys.push(stripOptional(p.name));
-            types.push(this.convertTsType(p.type));
+            types.push(tsTypeToLlvm(p.type));
             tsTypes.push(p.type);
           }
           this.ctx.setJsonObjectMetadata(value, { keys, types, tsTypes, interfaceType: undefined });
@@ -888,7 +888,7 @@ export class MemberAccessGenerator {
           const f = interfaceDef.fields[i] as { name: string; type: string };
           keys.push(stripOptional(f.name));
           tsTypes.push(f.type);
-          types.push(this.convertTsType(f.type));
+          types.push(tsTypeToLlvm(f.type));
         }
       }
       this.ctx.setJsonObjectMetadata(register, { keys, types, tsTypes, interfaceType: undefined });
@@ -913,7 +913,7 @@ export class MemberAccessGenerator {
             const f = inlineFields[i] as InterfaceField;
             keys.push(f.name);
             tsTypes.push(f.type);
-            types.push(this.convertTsType(f.type));
+            types.push(tsTypeToLlvm(f.type));
           }
           this.ctx.setJsonObjectMetadata(register, { keys, types, tsTypes, interfaceType: undefined });
         }
@@ -929,21 +929,11 @@ export class MemberAccessGenerator {
     return handleNestedInterfaceField(this.ctx, fieldItem, tsType);
   }
 
-  private convertTsType(t: string): string {
-    return tsTypeToLlvm(t);
-  }
-
   private interfaceTsTypeToLlvm(t: string): string {
-    if (t === 'string') return 'i8*';
-    if (t === 'number') return 'double';
-    if (t === 'boolean') return 'double';
-    if (t === 'string[]') return '%StringArray*';
-    if (t === 'number[]' || t === 'boolean[]') return '%Array*';
-    if (t.endsWith('[]')) return '%ObjectArray*';
     const baseName = this.extractBaseTypeName(t);
     const props = this.ctx.getInterfaceProperties(baseName);
-    if (props && props.keys.length > 0) return `%${baseName}*`;
-    return 'i8*';
+    const isInterface = props !== null && props.keys.length > 0;
+    return canonicalTypeToLlvm(t, 'struct_field', false, isInterface, '');
   }
 
   private extractJsonFieldValue(fieldItem: string): string {
@@ -1308,7 +1298,7 @@ export class MemberAccessGenerator {
       const innerPtr = this.ctx.generateExpression(expr.object, params);
       const propField = ifInfoProps[propIndex] as InterfaceProperty;
       const propType = propField.type;
-      const llvmType = this.convertTsType(propType);
+      const llvmType = tsTypeToLlvm(propType);
 
       const fieldPtr = this.ctx.nextTemp();
       this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${fieldInfo.tsType}, %${fieldInfo.tsType}* ${innerPtr}, i32 0, i32 ${propIndex}`);
@@ -1350,7 +1340,7 @@ export class MemberAccessGenerator {
     if (propIndex === -1) return null;
 
     const innerPtr = this.ctx.generateExpression(expr.object, params);
-    const llvmType = this.convertTsType(propTsType || 'i8*');
+    const llvmType = tsTypeToLlvm(propTsType || 'i8*');
 
     const fieldPtr = this.ctx.nextTemp();
     this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${fieldInfo.tsType}, %${fieldInfo.tsType}* ${innerPtr}, i32 0, i32 ${propIndex}`);
@@ -1604,7 +1594,7 @@ export class MemberAccessGenerator {
       const p = taProps[i] as InterfaceProperty;
       keys.push(stripOptional(p.name));
       tsTypes.push(p.type);
-      types.push(this.convertTsType(p.type));
+      types.push(tsTypeToLlvm(p.type));
     }
     return { keys, types, tsTypes };
   }
@@ -1972,11 +1962,11 @@ export class MemberAccessGenerator {
     }
 
     const propField = interfaceDef.fields[propIndex] as { name: string; type: string };
-    const propType = this.convertTsType(propField.type);
+    const propType = tsTypeToLlvm(propField.type);
     const structTypes: string[] = [];
     for (let i = 0; i < interfaceDef.fields.length; i++) {
       const field = interfaceDef.fields[i] as { name: string; type: string };
-      structTypes.push(this.convertTsType(field.type));
+      structTypes.push(tsTypeToLlvm(field.type));
     }
     const structType = `{ ${structTypes.join(', ')} }`;
 
@@ -2476,12 +2466,12 @@ export class MemberAccessGenerator {
     if (fieldIndex === -1) return null;
 
     const field = fields[fieldIndex] as { name: string; type: string };
-    const fieldLlvmType = this.convertTsType(field.type);
+    const fieldLlvmType = tsTypeToLlvm(field.type);
 
     const types: string[] = [];
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i] as { name: string; type: string };
-      types.push(this.convertTsType(f.type));
+      types.push(tsTypeToLlvm(f.type));
     }
     const structType = `{ ${types.join(', ')} }`;
 
