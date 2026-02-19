@@ -3,6 +3,7 @@ export interface DeclConfig {
   crypto?: boolean;
   sqlite?: boolean;
   testRunner?: boolean;
+  targetOS?: string;
 }
 
 export function getLLVMDeclarations(config?: DeclConfig): string {
@@ -67,7 +68,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
 
   ir += 'declare i32 @printf(i8*, ...)\n';
   ir += 'declare i32 @fprintf(i8*, i8*, ...)\n';
-  const isMac = process.platform === 'darwin';
+  const isMac = (config && config.targetOS) ? config.targetOS === 'darwin' : process.platform === 'darwin';
   if (isMac) {
     ir += '@__stderrp = external global i8*\n';
     ir += '@stderr = internal global i8* null\n';

@@ -116,6 +116,8 @@ export interface MemberAccessGeneratorContext {
   setActualClassType(name: string, className: string): void;
   getActualClassType(name: string): string | undefined;
   setUsesJson(value: boolean): void;
+  getTargetOS?(): string;
+  getTargetArch?(): string;
 }
 
 /**
@@ -286,7 +288,8 @@ export class MemberAccessGenerator {
     }
 
     if (this.isProcessPlatform(expr)) {
-      return this.ctx.stringGen.doCreateStringConstant(process.platform);
+      const platformStr = (this.ctx.getTargetOS ? this.ctx.getTargetOS() : null) || process.platform;
+      return this.ctx.stringGen.doCreateStringConstant(platformStr);
     }
 
     if (this.isProcessEnvAccess(expr)) {
@@ -467,7 +470,8 @@ export class MemberAccessGenerator {
     const prop = expr.property;
 
     if (prop === 'arch') {
-      return this.ctx.stringGen.doCreateStringConstant('x64');
+      const archStr = (this.ctx.getTargetArch ? this.ctx.getTargetArch() : null) || 'x64';
+      return this.ctx.stringGen.doCreateStringConstant(archStr);
     }
     if (prop === 'version') {
       return this.ctx.stringGen.doCreateStringConstant('v1.0.0');

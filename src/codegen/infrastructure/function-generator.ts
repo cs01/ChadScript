@@ -56,6 +56,7 @@ export interface FunctionGeneratorContext {
   ensureDouble(value: string): string;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   setI64EligibleVars(vars: string[]): void;
+  getTargetOS?(): string;
 }
 
 export class FunctionGenerator {
@@ -713,7 +714,8 @@ export class FunctionGenerator {
     ir += '  %__gtod_start = call i32 @gettimeofday(%struct.timeval* %__start_tv, i8* null)\n';
     ir += '\n';
 
-    if (process.platform === 'darwin') {
+    const effectiveOS = (this.ctx.getTargetOS ? this.ctx.getTargetOS() : null) || process.platform;
+    if (effectiveOS === 'darwin') {
       ir += '  %__stderr_val = load i8*, i8** @__stderrp\n';
       ir += '  store i8* %__stderr_val, i8** @stderr\n';
       ir += '  %__stdout_val = load i8*, i8** @__stdoutp\n';

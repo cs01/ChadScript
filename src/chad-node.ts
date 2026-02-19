@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize, setDebugInfo } from './compiler.js';
+import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize, setDebugInfo, setTarget } from './compiler.js';
 import { LogLevel, logger } from './utils/logger.js';
 import { runInit } from './codegen/stdlib/init-templates.js';
 import * as path from 'path';
@@ -40,6 +40,7 @@ function printHelp(): void {
   console.log('  --keep-temps                Keep intermediate files (.ll, .o)');
   console.log('  -fsanitize=address          Build with AddressSanitizer');
   console.log('  -g                          Emit DWARF debug info for source-level debugging');
+  console.log('  --target <triple>           Cross-compile for target (e.g., macos-arm64, linux-x64)');
   console.log('  -h, --help                  Show this help message');
   console.log('  --version                   Show version');
   console.log('');
@@ -123,6 +124,11 @@ for (let i = 0; i < subArgs.length; i++) {
     setSanitize('address');
   } else if (arg === '-g') {
     setDebugInfo(true);
+  } else if (arg === '--target') {
+    if (i + 1 < subArgs.length) {
+      setTarget(subArgs[i + 1]);
+      skipNextArg = true;
+    }
   } else if (arg === '-o') {
     if (i + 1 < subArgs.length) {
       outputArg = subArgs[i + 1];

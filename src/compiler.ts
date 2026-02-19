@@ -7,6 +7,7 @@ import { TypeChecker } from './typescript/type-checker.js';
 import { SemanticAnalyzer, TypedSymbol } from './analysis/semantic-analyzer.js';
 import { AST } from './ast/types.js';
 import { LogLevel, logger } from './utils/logger.js';
+import { TargetInfo, resolveTarget, getHostTarget, isCrossCompiling } from './target.js';
 
 function findLLVMTool(name: string): string {
   const candidates = [
@@ -39,6 +40,7 @@ let sanitize: string | null = null;
 let debugInfo = false;
 let staticLink = false;
 let targetCpu = 'native';
+let targetOverride: TargetInfo | null = null;
 
 export function setTargetCpu(value: string): void {
   targetCpu = value;
@@ -68,6 +70,10 @@ export function setStaticLink(value: boolean): void {
   staticLink = value;
 }
 
+export function setTarget(value: string): void {
+  targetOverride = resolveTarget(value);
+}
+
 // External library paths - check env vars, then use vendor/
 const BDWGC_PATH = process.env.CHADSCRIPT_BDWGC_PATH || './vendor/bdwgc';
 const LWS_PATH = process.env.CHADSCRIPT_LWS_PATH || './vendor/libwebsockets/build';
@@ -85,13 +91,19 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   // Set the global logger level
   logger.setLevel(logLevel);
 
+  const target = targetOverride || getHostTarget();
+  const crossCompiling = isCrossCompiling(target);
+
   // Get version from package.json
   const packageJsonPath = path.join(process.cwd(), 'package.json');
   const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
   const version = packageJson.version;
 
   logger.info(`ChadScript compiler version ${version}`);
-  logger.info(`Target: ${process.arch}-${process.platform}`);
+  logger.info(`Target: ${target.archString}-${target.platformString}`);
+  if (crossCompiling) {
+    logger.info(`Cross-compiling for ${target.triple}`);
+  }
   logger.info(`InstalledDir: ${process.cwd()}`);
 
   // Check for required build tools
@@ -200,6 +212,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     debugInfo,
     debugFilename: debugInfo ? path.resolve(inputFile) : undefined,
     analyzedSymbols,
+    target,
   };
   const generator = new LLVMGenerator(mergedAST, typeChecker, generatorOptions);
   const llvmIR = generator.generate();
@@ -218,24 +231,27 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   const objFile = outputFile + '.o';
   const sanitizeFlags = sanitize ? ` -fsanitize=${sanitize}` : '';
   const llcStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
+  const cpuFlag = crossCompiling ? `-mcpu=${target.cpu}` : `-mcpu=${targetCpu}`;
+  const tripleFlag = crossCompiling ? ` -mtriple=${target.triple}` : '';
   let compileCmd: string;
   if (sanitize) {
     compileCmd = `${linkerPath} -c${sanitizeFlags} ${irFile} -o ${objFile}`;
   } else if (debugInfo) {
-    compileCmd = `${llcPath} -O0 -filetype=obj ${irFile} -o ${objFile}`;
+    compileCmd = `${llcPath} -O0${tripleFlag} -filetype=obj ${irFile} -o ${objFile}`;
   } else {
     const optFile = irFile.replace('.ll', '.opt.bc');
-    const optCmd = `${optPath} -O2 -mcpu=${targetCpu} ${irFile} -o ${optFile}`;
+    const optCmd = `${optPath} -O2 ${cpuFlag}${tripleFlag} ${irFile} -o ${optFile}`;
     logger.info(` ${optCmd}`);
     execSync(optCmd, { stdio: llcStdio });
-    compileCmd = `${llcPath} -O2 -mcpu=${targetCpu} -filetype=obj ${optFile} -o ${objFile}`;
+    compileCmd = `${llcPath} -O2 ${cpuFlag}${tripleFlag} -filetype=obj ${optFile} -o ${objFile}`;
   }
   logger.info(` ${compileCmd}`);
   execSync(compileCmd, { stdio: llcStdio });
 
   // Link to executable - only link libraries that the program actually uses
-  const isMac = process.platform === 'darwin';
-  const platformLibs = isMac ? '' : ' -lm -ldl -lrt -lpthread';
+  const targetIsMac = target.os === 'darwin';
+  const hostIsMac = process.platform === 'darwin';
+  const platformLibs = targetIsMac ? '' : ' -lm -ldl -lrt -lpthread';
   let linkLibs = `-L${BDWGC_PATH} -lgc` + platformLibs;
   if (generator.usesJson) { linkLibs += ` -L${YYJSON_PATH} -lyyjson`; }
   if (generator.usesTimers || generator.usesPromises || generator.usesCurl || generator.usesUvHrtime) { linkLibs += ` -L${LIBUV_PATH} -luv`; }
@@ -243,7 +259,7 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   if (generator.usesCrypto) { linkLibs += ' -lcrypto'; }
   if (generator.usesSqlite) { linkLibs += ' -lsqlite3'; }
   if (generator.usesMongoose) { linkLibs += ` -L${LWS_PATH}/lib -lwebsockets -lz -lzstd`; }
-  if (isMac) {
+  if (targetIsMac && hostIsMac) {
     const brewPrefix = process.arch === 'arm64' ? '/opt/homebrew/opt' : '/usr/local/opt';
     if (generator.usesCrypto) { linkLibs = `-L${brewPrefix}/openssl/lib ` + linkLibs; }
     if (generator.usesSqlite) { linkLibs = `-L${brewPrefix}/sqlite/lib ` + linkLibs; }
@@ -298,10 +314,11 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
   if (sanitize) {
     linker = 'gcc';
   }
-  const noPie = isMac ? '' : ' -no-pie';
+  const noPie = targetIsMac ? '' : ' -no-pie';
   const debugFlag = debugInfo ? ' -g' : '';
-  const staticFlag = (staticLink && !isMac) ? ' -static' : '';
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${sanitizeFlags} ${linkLibs}`;
+  const staticFlag = (staticLink && !targetIsMac) ? ' -static' : '';
+  const crossTarget = crossCompiling ? ` --target=${target.triple}` : '';
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? 'inherit' : 'pipe';
   execSync(linkCmd, { stdio: linkStdio });

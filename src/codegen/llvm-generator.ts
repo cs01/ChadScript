@@ -39,6 +39,7 @@ import { ExpressionGenerator } from './expressions/orchestrator.js';
 import type { TypeChecker } from '../typescript/type-checker.js';
 import { InterfaceStructGenerator } from './types/interface-struct-generator.js';
 import { JsonObjectMeta } from './expressions/access/member.js';
+import type { TargetInfo } from '../target.js';
 
 export interface SemaSymbolData {
   names: string[];
@@ -54,6 +55,7 @@ export interface LLVMGeneratorOptions {
   debugInfo?: boolean;
   debugFilename?: string;
   analyzedSymbols?: SemaSymbolData;
+  target?: TargetInfo;
 }
 
 // ============================================
@@ -166,6 +168,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   // Type context for canonical interned type objects
   public typeContext: TypeContext;
+
+  public targetInfo: TargetInfo | undefined;
 
   // Pre-analyzed symbols from semantic analysis (parallel arrays for self-hosting compat)
   private semaSymbolNames: string[];
@@ -748,6 +752,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesCurl(): boolean { return this.usesCurl !== 0; }
   public setUsesUvHrtime(value: boolean): void { this.usesUvHrtime = value ? 1 : 0; }
   public getUsesUvHrtime(): boolean { return this.usesUvHrtime !== 0; }
+
+  public getTargetOS(): string {
+    return this.targetInfo ? this.targetInfo.os : process.platform;
+  }
+
+  public getTargetArch(): string {
+    return this.targetInfo ? this.targetInfo.archString : process.arch;
+  }
   public setUsesCrypto(value: boolean): void { this.usesCrypto = value ? 1 : 0; }
   public getUsesCrypto(): boolean { return this.usesCrypto !== 0; }
   public setUsesJson(value: boolean): void { this.usesJson = value ? 1 : 0; }
@@ -952,6 +964,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.typeChecker = typeChecker;
     this.sourceCode = options.sourceCode || '';
     this.filename = options.filename || '';
+    this.targetInfo = options.target;
 
     this.diagnostics = new DiagnosticEngine();
     this.diagnostics.setSourceCode(this.sourceCode);
@@ -1758,6 +1771,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     const finalParts: string[] = [];
 
+    if (this.targetInfo) {
+      finalParts.push('target triple = "' + this.targetInfo.triple + '"\n');
+      finalParts.push('target datalayout = "' + this.targetInfo.dataLayout + '"\n');
+      finalParts.push('\n');
+    }
+
     finalParts.push('; Tree-sitter type definitions\n');
     finalParts.push('%TSParser = type opaque\n');
     finalParts.push('%TSTree = type opaque\n');
@@ -1788,7 +1807,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push('\n');
     }
 
-    finalParts.push(getLLVMDeclarations({ curl: this.usesCurl !== 0, crypto: this.usesCrypto !== 0, sqlite: this.usesSqlite !== 0, testRunner: this.usesTestRunner !== 0 }));
+    finalParts.push(getLLVMDeclarations({ curl: this.usesCurl !== 0, crypto: this.usesCrypto !== 0, sqlite: this.usesSqlite !== 0, testRunner: this.usesTestRunner !== 0, targetOS: this.getTargetOS() }));
 
     if (this.usesCurl) {
       const fetchRuntime = this.runtimeGen.generateFetchRuntime();
