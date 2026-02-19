@@ -8,7 +8,7 @@ import * as path from 'node:path';
 
 const execAsync = promisify(exec);
 
-const compiler = fsSync.existsSync('.build/chadc') ? '.build/chadc' : 'node dist/chadc-node.js';
+const compiler = fsSync.existsSync('.build/chad') ? '.build/chad build' : 'node dist/chad-node.js build';
 
 interface TestCase {
   name: string;

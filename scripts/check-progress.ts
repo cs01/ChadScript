@@ -49,7 +49,7 @@ function compileCliProgram(): { success: boolean; error?: string } {
   }
 
   try {
-    execSync(`node dist/chadc-node.js ${sourceFile}`, {
+    execSync(`node dist/chad-node.js build ${sourceFile}`, {
       cwd: PROJECT_ROOT,
       stdio: 'pipe',
       encoding: 'utf8',

@@ -33,7 +33,7 @@ testSocket();
 
     try {
       // Compile
-      await execAsync(`node dist/chadc-node.js ${testFile}`);
+      await execAsync(`node dist/chad-node.js build ${testFile}`);
 
       // Run
       const { stdout, stderr } = await execAsync('.build/tests/fixtures/tcp-test-socket');
@@ -93,7 +93,7 @@ testTcpClient();
       await fs.writeFile(clientFile, clientCode);
 
       // Compile and run
-      await execAsync(`node dist/chadc-node.js ${clientFile}`);
+      await execAsync(`node dist/chad-node.js build ${clientFile}`);
       const { stdout } = await execAsync('.build/tests/fixtures/tcp-client');
 
       assert.ok(!stdout.includes('Socket failed'), 'Socket creation should work');
@@ -135,7 +135,7 @@ testTcpClient();
     try {
       // Compile the fetch test fixture
       const testFile = 'tests/fixtures/network/fetch-integration-test.ts';
-      await execAsync(`node dist/chadc-node.js ${testFile}`);
+      await execAsync(`node dist/chad-node.js build ${testFile}`);
 
       // Run the compiled program
       const { stdout, stderr } = await execAsync('.build/tests/fixtures/network/fetch-integration-test');
@@ -171,7 +171,7 @@ testTcpClient();
 
     try {
       const testFile = 'tests/fixtures/network/promise-all-fetch-test.ts';
-      await execAsync(`node dist/chadc-node.js ${testFile}`);
+      await execAsync(`node dist/chad-node.js build ${testFile}`);
       const { stdout } = await execAsync('.build/tests/fixtures/network/promise-all-fetch-test');
       assert.ok(stdout.includes('TEST_PASSED'), 'Promise.all + fetch test should pass');
     } finally {
@@ -191,7 +191,7 @@ testTcpClient();
 
     try {
       const testFile = 'tests/fixtures/network/async-fetch-test.ts';
-      await execAsync(`node dist/chadc-node.js ${testFile}`);
+      await execAsync(`node dist/chad-node.js build ${testFile}`);
       const { stdout } = await execAsync('.build/tests/fixtures/network/async-fetch-test');
       assert.ok(stdout.includes('TEST_PASSED'), 'async fetch test should pass');
     } finally {
@@ -214,7 +214,7 @@ testTcpClient();
 
     try {
       const testFile = 'tests/fixtures/network/promise-all-concurrent.ts';
-      await execAsync(`node dist/chadc-node.js ${testFile}`);
+      await execAsync(`node dist/chad-node.js build ${testFile}`);
       const { stdout } = await execAsync('.build/tests/fixtures/network/promise-all-concurrent');
       assert.ok(stdout.includes('TEST_PASSED'), 'Promise.all concurrent test should pass');
     } finally {
@@ -224,7 +224,7 @@ testTcpClient();
 
   it('should run Promise.race with resolved promises', async () => {
     const testFile = 'tests/fixtures/network/promise-race-test.ts';
-    await execAsync(`node dist/chadc-node.js ${testFile}`);
+    await execAsync(`node dist/chad-node.js build ${testFile}`);
     const { stdout } = await execAsync('.build/tests/fixtures/network/promise-race-test');
     assert.ok(stdout.includes('TEST_PASSED'), 'Promise.race test should pass');
   });
@@ -260,7 +260,7 @@ httpServe(9997, handleRequest);
     await fs.writeFile(testFile, testCode);
 
     try {
-      await execAsync(`node dist/chadc-node.js ${testFile}`);
+      await execAsync(`node dist/chad-node.js build ${testFile}`);
 
       const serverProcess = spawn('.build/tests/fixtures/network/http-server-test', [], {
         detached: true,

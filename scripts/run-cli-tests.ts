@@ -34,7 +34,7 @@ function compileCliProgram(): { success: boolean; binaryPath: string; error?: st
   console.log(`Output: ${binaryPath}`);
 
   try {
-    execSync(`node dist/chadc-node.js ${sourceFile}`, {
+    execSync(`node dist/chad-node.js build ${sourceFile}`, {
       cwd: PROJECT_ROOT,
       stdio: 'pipe',
       encoding: 'utf8',

@@ -3,7 +3,7 @@ set -e
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(dirname "$DIR")"
-CHAD="$REPO/.build/chadc"
+CHAD="$REPO/.build/chad"
 STARTUP_RUNS=50
 HTTP_BENCH="$DIR/tools/httpbench"
 WS_BENCH="$DIR/tools/wsbench"
@@ -303,40 +303,40 @@ echo ""
 
 echo "--- Building ---"
 
-$CHAD "$DIR/startup/chadscript.ts" -o /tmp/bench-startup-chad
+$CHAD build "$DIR/startup/chadscript.ts" -o /tmp/bench-startup-chad
 echo "  ChadScript startup built"
 
-$CHAD "$DIR/sqlite/chadscript.ts" -o /tmp/bench-sqlite-chad
+$CHAD build "$DIR/sqlite/chadscript.ts" -o /tmp/bench-sqlite-chad
 echo "  ChadScript SQLite built"
 
-$CHAD "$DIR/matmul/chadscript.ts" -o /tmp/bench-matmul-chad
+$CHAD build "$DIR/matmul/chadscript.ts" -o /tmp/bench-matmul-chad
 echo "  ChadScript Matmul built"
 
-$CHAD "$DIR/montecarlo/chadscript.ts" -o /tmp/bench-montecarlo-chad
+$CHAD build "$DIR/montecarlo/chadscript.ts" -o /tmp/bench-montecarlo-chad
 echo "  ChadScript Monte Carlo built"
 
-$CHAD "$DIR/fibonacci/chadscript.ts" -o /tmp/bench-fibonacci-chad
+$CHAD build "$DIR/fibonacci/chadscript.ts" -o /tmp/bench-fibonacci-chad
 echo "  ChadScript Fibonacci built"
 
-$CHAD "$DIR/sieve/chadscript.ts" -o /tmp/bench-sieve-chad
+$CHAD build "$DIR/sieve/chadscript.ts" -o /tmp/bench-sieve-chad
 echo "  ChadScript Sieve built"
 
-$CHAD "$DIR/sorting/chadscript.ts" -o /tmp/bench-sorting-chad
+$CHAD build "$DIR/sorting/chadscript.ts" -o /tmp/bench-sorting-chad
 echo "  ChadScript Sorting built"
 
-$CHAD "$DIR/nbody/chadscript.ts" -o /tmp/bench-nbody-chad
+$CHAD build "$DIR/nbody/chadscript.ts" -o /tmp/bench-nbody-chad
 echo "  ChadScript N-Body built"
 
-$CHAD "$DIR/stringops/chadscript.ts" -o /tmp/bench-stringops-chad
+$CHAD build "$DIR/stringops/chadscript.ts" -o /tmp/bench-stringops-chad
 echo "  ChadScript String Ops built"
 
-$CHAD "$DIR/fileio/chadscript.ts" -o /tmp/bench-fileio-chad
+$CHAD build "$DIR/fileio/chadscript.ts" -o /tmp/bench-fileio-chad
 echo "  ChadScript File I/O built"
 
-$CHAD "$DIR/binarytrees/chadscript.ts" -o /tmp/bench-binarytrees-chad
+$CHAD build "$DIR/binarytrees/chadscript.ts" -o /tmp/bench-binarytrees-chad
 echo "  ChadScript Binary Trees built"
 
-$CHAD "$DIR/json/chadscript.ts" -o /tmp/bench-json-chad
+$CHAD build "$DIR/json/chadscript.ts" -o /tmp/bench-json-chad
 echo "  ChadScript JSON built"
 
 $CHAD "$DIR/stringsearch/chadscript.ts" -o /tmp/bench-stringsearch-chad

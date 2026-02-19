@@ -49,7 +49,7 @@ npm run verify:quick
 # Full: run tests + self-hosting Stage 0-1-2 in parallel
 npm run verify
 
-# Tests only (uses native compiler if .build/chadc exists)
+# Tests only (uses native compiler if .build/chad exists)
 npm test
 
 # Self-hosting only
@@ -76,9 +76,9 @@ export CHADSCRIPT_TREESITTER_PATH=/path/to/tree-sitter
 ChadScript can compile its own compiler to a native binary:
 
 ```bash
-chadc src/chadc-native.ts -o /tmp/chad-stage0
+chad build src/chad-native.ts -o /tmp/chad-stage0
 
-/tmp/chad-stage0 src/chadc-native.ts -o /tmp/chad-stage1
+/tmp/chad-stage0 build src/chad-native.ts -o /tmp/chad-stage1
 ```
 
 The Stage 1 binary is a standalone native compiler that needs no Node.js runtime.

@@ -33,6 +33,7 @@ parser.addSubcommand('clean', 'Remove the .build directory');
 
 parser.addFlag('version', '', 'Show version');
 parser.addScopedOption('output', 'o', 'Specify output file', '', 'build,run,ir');
+parser.addScopedFlag('verbose', 'v', 'Show compilation steps', 'build,run,ir');
 parser.addScopedFlag('skip-semantic-analysis', '', 'Skip semantic analysis', 'build,run,ir');
 parser.addScopedOption('target-cpu', '', 'Set LLVM target CPU', 'native', 'build,run,ir');
 parser.addPositional('input', 'Input .ts or .js file');

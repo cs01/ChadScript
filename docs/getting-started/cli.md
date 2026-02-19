@@ -55,14 +55,3 @@ chad clean
 | `--keep-temps` | Keep intermediate files (`.ll`, `.o`) |
 | `-fsanitize=address` | Build with AddressSanitizer (ASAN) |
 | `--skip-semantic-analysis` | Skip semantic analysis |
-
-## Direct Compiler
-
-The bare compiler is also available as `chadc`:
-
-```bash
-chadc hello.ts              # same as chad build hello.ts
-chadc hello.ts -o myapp     # same as chad build hello.ts -o myapp
-```
-
-`chadc` is the compiler binary itself. The `chad` wrapper adds convenience commands like `run`, `ir`, and `clean`.

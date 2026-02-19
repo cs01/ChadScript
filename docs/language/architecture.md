@@ -91,13 +91,14 @@ ChadScript is self-hosting — the compiler (~45k lines of TypeScript across ~70
 
 ```bash
 # Stage 0: Node.js compiles the compiler to a native binary
-chadc src/chadc-native.ts -o chad-stage0
+# Stage 0: Node.js compiles the compiler to a native binary
+chad build src/chad-native.ts -o chad-stage0
 
 # Stage 1: The native binary compiles itself (no Node.js needed)
-./chad-stage0 src/chadc-native.ts -o chad-stage1
+./chad-stage0 build src/chad-native.ts -o chad-stage1
 
 # Stage 2: Verify correctness (Stage 1 output == Stage 2 output)
-./chad-stage1 src/chadc-native.ts -o chad-stage2
+./chad-stage1 build src/chad-native.ts -o chad-stage2
 ```
 
 The Stage 2 binary proves the compiler's output is correct enough to reproduce itself.

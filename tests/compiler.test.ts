@@ -10,11 +10,8 @@ import { testCases } from './test-fixtures';
 
 const execAsync = promisify(exec);
 
-const compiler = process.env.CHADC_COMPILER || '.build/chadc';
-if (!process.env.CHADC_COMPILER && !fsSync.existsSync('.build/chadc')) {
-  throw new Error('Native compiler not found at .build/chadc — run npm test to build it first');
-}
-const compilerLabel = process.env.CHADC_COMPILER ? 'node' : 'native';
+const compiler = fsSync.existsSync('.build/chad') ? '.build/chad build' : 'node dist/chad-node.js build';
+const compilerLabel = fsSync.existsSync('.build/chad') ? 'native' : 'node';
 
 describe(`ChadScript Compiler (${compilerLabel})`, () => {
   describe('Compilation and Execution', { concurrency: 32 }, () => {
@@ -114,7 +111,7 @@ describe(`ChadScript Compiler (${compilerLabel})`, () => {
 
       try {
         // Compile with --keep-temps to preserve .ll file for inspection
-        await execAsync(`node dist/chadc-node.js --keep-temps ${fixturePath}`);
+        await execAsync(`node dist/chad-node.js build --keep-temps ${fixturePath}`);
 
         // Read and verify LLVM IR
         const llContent = await fs.readFile(llFile, 'utf-8');
@@ -557,7 +554,7 @@ await main();
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
       try {
-        await execAsync(`node dist/chadc-node.js --emit-llvm --target linux-x64 ${fixture}`);
+        await execAsync(`node dist/chad-node.js ir --target linux-x64 ${fixture}`);
         const ir = await fs.readFile(llFile, 'utf-8');
         assert.ok(ir.includes('@stderr = external global i8*'), 'Linux target should use external stderr');
         assert.ok(!ir.includes('__stderrp'), 'Linux target should not use __stderrp');
@@ -573,7 +570,7 @@ await main();
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
       try {
-        await execAsync(`node dist/chadc-node.js --emit-llvm --target macos-arm64 ${fixture}`);
+        await execAsync(`node dist/chad-node.js ir --target macos-arm64 ${fixture}`);
         const ir = await fs.readFile(llFile, 'utf-8');
         assert.ok(ir.includes('@__stderrp = external global i8*'), 'macOS target should use __stderrp');
         assert.ok(ir.includes('@__stdoutp = external global i8*'), 'macOS target should use __stdoutp');
@@ -589,7 +586,7 @@ await main();
       const llFile = path.join(outputDir, `${baseName}.ll`);
 
       try {
-        await execAsync(`node dist/chadc-node.js --emit-llvm --target macos-arm64 ${fixture}`);
+        await execAsync(`node dist/chad-node.js ir --target macos-arm64 ${fixture}`);
         const ir = await fs.readFile(llFile, 'utf-8');
         assert.ok(ir.includes('target triple = "aarch64-apple-darwin"'), 'Should contain target triple');
         assert.ok(ir.includes('target datalayout = "'), 'Should contain target datalayout');
@@ -605,7 +602,7 @@ await main();
       const llFile = '/tmp/test-cross-platform.ll';
 
       try {
-        await execAsync(`node dist/chadc-node.js --emit-llvm --target macos-arm64 ${fixture} -o /tmp/test-cross-platform`);
+        await execAsync(`node dist/chad-node.js ir --target macos-arm64 ${fixture} -o /tmp/test-cross-platform`);
         const ir = await fs.readFile(llFile, 'utf-8');
         assert.ok(ir.includes('darwin'), 'Cross-compiled IR should contain darwin platform string');
         assert.ok(ir.includes('arm64'), 'Cross-compiled IR should contain arm64 arch string');

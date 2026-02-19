@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-NATIVE_COMPILER=".build/src/chadc-native"
+NATIVE_COMPILER=".build/src/chad-native"
 BENCH_DIR="/tmp/chadscript-benchmarks"
 RESULTS_FILE="$BENCH_DIR/results.txt"
 ITERATIONS=5
@@ -84,7 +84,7 @@ echo "" | tee -a "$RESULTS_FILE"
 
 echo "Building native compiler WITHOUT __gc_disable()..." | tee -a "$RESULTS_FILE"
 python3 - << 'PYEOF'
-with open('src/chadc-native.ts', 'r') as f:
+with open('src/chad-native.ts', 'r') as f:
     content = f.read()
 content = content.replace('  __gc_disable();\n', '  // __gc_disable(); // BENCHMARK: removed\n')
 with open('src/native-compiler-no-gc-disable.ts', 'w') as f:
@@ -113,7 +113,7 @@ echo "" | tee -a "$RESULTS_FILE"
 
 echo "Building native compiler with generate() instead of generateParts()..." | tee -a "$RESULTS_FILE"
 python3 - << 'PYEOF'
-with open('src/chadc-native.ts', 'r') as f:
+with open('src/chad-native.ts', 'r') as f:
     content = f.read()
 
 old_block = """  const irParts = generator.generateParts();
@@ -167,7 +167,7 @@ for fixture in "${FIXTURES[@]}"; do
     name=$(basename "$fixture" | sed 's/\.[^.]*$//')
     rm -f "$BENCH_DIR/tsx-$name" "$BENCH_DIR/tsx-$name.ll" "$BENCH_DIR/tsx-$name.o"
     start=$(date +%s%N)
-    if timeout 60 npx tsx src/chadc-node.ts "$fixture" -o "$BENCH_DIR/tsx-$name" --skip-semantic-analysis > /dev/null 2>&1; then
+    if timeout 60 npx tsx src/chad-node.ts build "$fixture" -o "$BENCH_DIR/tsx-$name" --skip-semantic-analysis > /dev/null 2>&1; then
       end=$(date +%s%N)
       elapsed_ms=$(( (end - start) / 1000000 ))
       echo "tsx/$name: ${elapsed_ms}ms" | tee -a "$RESULTS_FILE"

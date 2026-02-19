@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize, setDebugInfo, setTarget } from './compiler.js';
+import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize, setDebugInfo, setTarget, setTargetCpu, setStaticLink } from './compiler.js';
 import { LogLevel, logger } from './utils/logger.js';
 import { runInit } from './codegen/stdlib/init-templates.js';
 import * as path from 'path';
@@ -41,6 +41,8 @@ function printHelp(): void {
   console.log('  -fsanitize=address          Build with AddressSanitizer');
   console.log('  -g                          Emit DWARF debug info for source-level debugging');
   console.log('  --target <triple>           Cross-compile for target (e.g., macos-arm64, linux-x64)');
+  console.log('  --target-cpu <cpu>          Set LLVM target CPU (default: native)');
+  console.log('  --static                    Link statically');
   console.log('  -h, --help                  Show this help message');
   console.log('  --version                   Show version');
   console.log('');
@@ -129,6 +131,15 @@ for (let i = 0; i < subArgs.length; i++) {
       setTarget(subArgs[i + 1]);
       skipNextArg = true;
     }
+  } else if (arg.startsWith('--target-cpu=')) {
+    setTargetCpu(arg.split('=')[1]);
+  } else if (arg === '--target-cpu') {
+    if (i + 1 < subArgs.length) {
+      setTargetCpu(subArgs[i + 1]);
+      skipNextArg = true;
+    }
+  } else if (arg === '--static') {
+    setStaticLink(true);
   } else if (arg === '-o') {
     if (i + 1 < subArgs.length) {
       outputArg = subArgs[i + 1];
