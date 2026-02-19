@@ -162,113 +162,102 @@ export type MemberAccessHandlerFn = (expr: MemberAccessNode, ctx: MemberAccessGe
 /**
  * MemberAccessGenerator
  *
- * Handles property access expressions:
- * - process.argv (special case)
- * - Class instance properties (this.field, instance.field)
- * - JSON object properties
- * - Regular object properties
- * - Array/String .length property
- * - Map/Set .size property
- * - TypeScript interface-based property access
+ * Handles property access expressions via a priority-ordered dispatch chain.
+ * Each handler returns string | null (null = didn't handle, try next).
+ *
+ * Handler order (priority):
+ *  1. Enum member access
+ *  2. Typed JSON struct access
+ *  3. process.argv / process.platform / process.env / process.simple
+ *  4. Class property access
+ *  5. JSON property access (variable flagged as JSON)
+ *  6. Chained access (member_access: interface, class field, nested JSON)
+ *  7. Index access (arr[i].property)
+ *  8. Type assertion access ((expr as Type).property)
+ *  9. Method call result access (map.get(key).property)
+ * 10. Object property access
+ * 11. .length property
+ * 12. .size property (Map/Set)
+ * 13. Response properties
+ * 14. Stat properties
+ * 15. Parameter property access (fallback)
  */
 export class MemberAccessGenerator {
-  private handlers: MemberAccessHandlerFn[];
+  constructor(private ctx: MemberAccessGeneratorContext) {}
 
-  constructor(private ctx: MemberAccessGeneratorContext) {
-    this.handlers = this.buildHandlers();
-  }
+  private dispatchHandlers(expr: MemberAccessNode, params: string[]): string | null {
+    let result: string | null;
 
-  private buildHandlers(): MemberAccessHandlerFn[] {
-    const handlers: MemberAccessHandlerFn[] = [];
+    result = this.handleEnumMemberAccess(expr);
+    if (result !== null) return result;
 
-    handlers.push((expr, ctx, _params) => this.handleEnumMemberAccess(expr));
+    result = this.handleTypedJsonStructAccess(expr);
+    if (result !== null) return result;
 
-    handlers.push((expr, ctx, _params) => this.handleTypedJsonStructAccess(expr));
+    if (isProcessArgv(expr)) return this.handleProcessArgv();
 
-    handlers.push((expr, ctx, _params) => {
-      if (isProcessArgv(expr)) return this.handleProcessArgv();
-      return null;
-    });
+    if (isProcessPlatform(expr)) {
+      const platformStr = this.ctx.getTargetOS() || process.platform;
+      return this.ctx.stringGen.doCreateStringConstant(platformStr);
+    }
 
-    handlers.push((expr, ctx, _params) => {
-      if (isProcessPlatform(expr)) {
-        const platformStr = ctx.getTargetOS() || process.platform;
-        return ctx.stringGen.doCreateStringConstant(platformStr);
-      }
-      return null;
-    });
+    if (isProcessEnvAccess(expr)) return this.handleProcessEnvAccess(expr);
 
-    handlers.push((expr, ctx, _params) => {
-      if (isProcessEnvAccess(expr)) return this.handleProcessEnvAccess(expr);
-      return null;
-    });
+    result = handleProcessSimpleProperty(this.ctx, expr);
+    if (result !== null) return result;
 
-    handlers.push((expr, ctx, _params) => handleProcessSimpleProperty(ctx, expr));
+    result = this.handleClassPropertyAccess(expr, params);
+    if (result !== null) return result;
 
-    handlers.push((expr, ctx, params) => this.handleClassPropertyAccess(expr, params));
+    const exprObjBase = expr.object as ExprBase;
+    const exprObjType = exprObjBase ? exprObjBase.type : null;
+    if (exprObjType === null || exprObjType === undefined) return '0.0';
 
-    handlers.push((expr, ctx, params) => {
-      const exprObjBase = expr.object as ExprBase;
-      const exprObjType = exprObjBase ? exprObjBase.type : null;
-      if (exprObjType === null || exprObjType === undefined) return '0.0';
-      if (exprObjType === 'variable' && ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
-        return this.handleJsonPropertyAccess(expr, params);
-      }
-      return null;
-    });
+    if (exprObjType === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
+      return this.handleJsonPropertyAccess(expr, params);
+    }
 
-    handlers.push((expr, ctx, params) => {
-      const exprObjBase = expr.object as ExprBase;
-      const exprObjType = exprObjBase ? exprObjBase.type : null;
-      if (exprObjType === 'member_access') {
-        const chainedResult = this.handleChainedInterfaceAccess(expr, params);
-        if (chainedResult !== null) return chainedResult;
-        const classFieldChainResult = this.handleClassFieldChainedAccess(expr, params);
-        if (classFieldChainResult !== null) return classFieldChainResult;
-        const nestedResult = this.handleNestedJsonAccess(expr, params);
-        if (nestedResult !== null) return nestedResult;
-      }
-      return null;
-    });
+    if (exprObjType === 'member_access') {
+      result = this.handleChainedInterfaceAccess(expr, params);
+      if (result !== null) return result;
+      result = this.handleClassFieldChainedAccess(expr, params);
+      if (result !== null) return result;
+      result = this.handleNestedJsonAccess(expr, params);
+      if (result !== null) return result;
+    }
 
-    handlers.push((expr, ctx, params) => {
-      const exprObjBase = expr.object as ExprBase;
-      const exprObjType = exprObjBase ? exprObjBase.type : null;
-      if (exprObjType === 'index_access') return this.handleIndexAccessPropertyAccess(expr, params);
-      return null;
-    });
+    if (exprObjType === 'index_access') {
+      result = this.handleIndexAccessPropertyAccess(expr, params);
+      if (result !== null) return result;
+    }
 
-    handlers.push((expr, ctx, params) => {
-      const exprObjBase = expr.object as ExprBase;
-      const exprObjType = exprObjBase ? exprObjBase.type : null;
-      if (exprObjType === 'type_assertion') return this.handleTypeAssertionPropertyAccess(expr, params);
-      return null;
-    });
+    if (exprObjType === 'type_assertion') {
+      result = this.handleTypeAssertionPropertyAccess(expr, params);
+      if (result !== null) return result;
+    }
 
-    handlers.push((expr, ctx, params) => {
-      const exprObjBase = expr.object as ExprBase;
-      const exprObjType = exprObjBase ? exprObjBase.type : null;
-      if (exprObjType === 'method_call') return this.handleMethodCallResultPropertyAccess(expr, params);
-      return null;
-    });
+    if (exprObjType === 'method_call') {
+      result = this.handleMethodCallResultPropertyAccess(expr, params);
+      if (result !== null) return result;
+    }
 
-    handlers.push((expr, ctx, params) => this.handleObjectPropertyAccess(expr, params));
+    result = this.handleObjectPropertyAccess(expr, params);
+    if (result !== null) return result;
 
-    handlers.push((expr, ctx, params) => {
-      if (expr.property === 'length') return this.handleLengthProperty(expr, params);
-      return null;
-    });
+    if (expr.property === 'length') return this.handleLengthProperty(expr, params);
 
-    handlers.push((expr, ctx, params) => {
-      if (expr.property === 'size') return this.handleSizeProperty(expr, params);
-      return null;
-    });
+    if (expr.property === 'size') {
+      result = this.handleSizeProperty(expr, params);
+      if (result !== null) return result;
+    }
 
-    handlers.push((expr, ctx, _params) => this.handleResponseProperty(expr));
+    result = this.handleResponseProperty(expr);
+    if (result !== null) return result;
 
-    handlers.push((expr, ctx, _params) => this.handleStatProperty(expr));
+    result = this.handleStatProperty(expr);
+    if (result !== null) return result;
 
-    return handlers;
+    return null;
   }
 
   private hasObjectInfo(name: string): boolean {
@@ -413,10 +402,8 @@ export class MemberAccessGenerator {
       return this.ctx.generateExpression(expr.object, params);
     }
 
-    for (let i = 0; i < this.handlers.length; i++) {
-      const result = this.handlers[i](expr, this.ctx, params);
-      if (result !== null) return result;
-    }
+    const result = this.dispatchHandlers(expr, params);
+    if (result !== null) return result;
 
     return this.handleParameterPropertyAccess(expr, params);
   }
