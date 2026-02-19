@@ -76,6 +76,11 @@ export function handleProcessSimpleProperty(ctx: MemberAccessGeneratorContext, e
   return null;
 }
 
+export function handleProcessPlatform(ctx: MemberAccessGeneratorContext): string {
+  const platformStr = ctx.getTargetOS() || process.platform;
+  return ctx.stringGen.doCreateStringConstant(platformStr);
+}
+
 export function handleProcessArgv(ctx: MemberAccessGeneratorContext): string {
   const sizePtr = ctx.nextTemp();
   ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
