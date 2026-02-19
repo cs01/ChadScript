@@ -928,6 +928,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private usesTreeSitter: boolean = false;
   public sourceCode: string = '';
   public filename: string = '';
+  private exportedNames: Set<string> = new Set();
 
   constructor(ast: AST, typeChecker: TypeChecker | null, options: LLVMGeneratorOptions) {
     super();
@@ -953,6 +954,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesTestRunner = 0;
 
     this.ast = ast;
+
+    this.exportedNames = new Set();
+    if (ast.exports) {
+      for (let ei = 0; ei < ast.exports.length; ei++) {
+        const exp = ast.exports[ei];
+        if (exp && exp.declaration && exp.declaration.name) {
+          this.exportedNames.add(exp.declaration.name);
+        }
+      }
+    }
 
     // Cache all counts BEFORE storing - empty arrays become garbage after assignment
     this.topLevelStatementsCount = ast.topLevelStatements.length;
@@ -1182,9 +1193,38 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return original || localName;
   }
 
-  mangleUserName(name: string): string {
+  mangleUserName(name: string, sourceFile?: string): string {
     if (name.startsWith('__')) return name;
+    if (sourceFile && sourceFile.length > 0 && !this.exportedNames.has(name)) {
+      const slug = this.fileSlug(sourceFile);
+      return `_cs_${slug}_${name}`;
+    }
     return `_cs_${name}`;
+  }
+
+  private fileSlug(sourceFile: string): string {
+    let start = 0;
+    for (let i = 0; i < sourceFile.length; i++) {
+      if (sourceFile[i] === '/' || sourceFile[i] === '\\') {
+        start = i + 1;
+      }
+    }
+    let end = sourceFile.length;
+    const dotIdx = sourceFile.lastIndexOf('.');
+    if (dotIdx > start) {
+      end = dotIdx;
+    }
+    let slug = sourceFile.substring(start, end);
+    let result = '';
+    for (let i = 0; i < slug.length; i++) {
+      const ch = slug[i];
+      if (ch === '-' || ch === '.') {
+        result += '_';
+      } else {
+        result += ch;
+      }
+    }
+    return result;
   }
 
   createEmptyStringConstant(): string {

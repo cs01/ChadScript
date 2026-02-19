@@ -50,7 +50,7 @@ export interface FunctionGeneratorContext {
   pushOutput(line: string): void;
   lastInstructionIsTerminator(): boolean;
   createEmptyStringConstant(): string;
-  mangleUserName(name: string): string;
+  mangleUserName(name: string, sourceFile?: string): string;
   getSubprogramDbgRef(): string;
   getUsesTestRunner(): boolean;
   ensureDouble(value: string): string;

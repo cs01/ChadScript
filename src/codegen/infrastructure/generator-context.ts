@@ -719,7 +719,7 @@ export interface IGeneratorContext {
    */
   resolveImportAlias(localName: string): string;
 
-  mangleUserName(name: string): string;
+  mangleUserName(name: string, sourceFile?: string): string;
 
   /**
    * Access to class generator for field type lookups
@@ -1570,7 +1570,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     return value;
   }
 
-  mangleUserName(name: string): string {
+  mangleUserName(name: string, _sourceFile?: string): string {
     if (name.startsWith('__')) return name;
     return `_cs_${name}`;
   }
