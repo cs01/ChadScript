@@ -101,7 +101,7 @@ export class EmbedGenerator {
     }
 
     const relPath = (expr.args[0] as StringLiteralNode).value;
-    const absPath = path.join(this.entryDir, relPath);
+    const absPath = path.resolve(this.entryDir, relPath);
 
     if (!fs.existsSync(absPath)) {
       return this.ctx.emitError('ChadScript.embedFile(): file not found: ' + absPath, expr.loc);
@@ -135,7 +135,7 @@ export class EmbedGenerator {
     }
 
     const relPath = (expr.args[0] as StringLiteralNode).value;
-    const absPath = path.join(this.entryDir, relPath);
+    const absPath = path.resolve(this.entryDir, relPath);
 
     if (!fs.existsSync(absPath)) {
       return this.ctx.emitError('ChadScript.embedDir(): directory not found: ' + absPath, expr.loc);
