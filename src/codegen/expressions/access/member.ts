@@ -42,6 +42,11 @@ import {
   getArrayLengthFromPtr as _getArrayLengthFromPtr,
   getStringLength as _getStringLength,
 } from './property-handlers.js';
+import {
+  parseInlineObjectTypeForAssertion as _parseInlineObjectTypeForAssertion,
+  splitByTopLevelSemicolon as _splitByTopLevelSemicolon,
+  findTopLevelColon as _findTopLevelColon,
+} from './type-assertion-access.js';
 
 interface ExprBase { type: string; }
 
@@ -2690,65 +2695,15 @@ export class MemberAccessGenerator {
   }
 
   private parseInlineObjectTypeForAssertion(typeStr: string): InterfaceField[] | null {
-    if (!typeStr.startsWith('{') || !typeStr.endsWith('}')) {
-      return null;
-    }
-    const inner = typeStr.slice(1, typeStr.length - 1).trim();
-    if (inner.length === 0) {
-      return [];
-    }
-    const fields: InterfaceField[] = [];
-    const parts = this.splitByTopLevelSemicolon(inner);
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i].trim();
-      if (!part) continue;
-      const colonIdx = this.findTopLevelColon(part);
-      if (colonIdx === -1) continue;
-      const name = part.slice(0, colonIdx).trim();
-      const fieldType = part.slice(colonIdx + 1).trim();
-      fields.push({ name, type: fieldType });
-    }
-    return fields;
+    return _parseInlineObjectTypeForAssertion(typeStr);
   }
 
   private splitByTopLevelSemicolon(str: string): string[] {
-    const parts: string[] = [];
-    let depth = 0;
-    let current = '';
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charAt(i);
-      if (char === '{' || char === '(' || char === '<' || char === '[') {
-        depth++;
-        current += char;
-      } else if (char === '}' || char === ')' || char === '>' || char === ']') {
-        depth--;
-        current += char;
-      } else if (char === ';' && depth === 0) {
-        parts.push(current);
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    if (current.trim()) {
-      parts.push(current);
-    }
-    return parts;
+    return _splitByTopLevelSemicolon(str);
   }
 
   private findTopLevelColon(str: string): number {
-    let depth = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charAt(i);
-      if (char === '{' || char === '(' || char === '<' || char === '[') {
-        depth++;
-      } else if (char === '}' || char === ')' || char === '>' || char === ']') {
-        depth--;
-      } else if (char === ':' && depth === 0) {
-        return i;
-      }
-    }
-    return -1;
+    return _findTopLevelColon(str);
   }
 
   private accessObjectWithMetadata(varName: string, property: string, metadata: ObjectMetadata): string {
