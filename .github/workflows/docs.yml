@@ -1,8 +1,9 @@
-name: Deploy Docs
+name: Docs
 
 on:
   push:
-    branches: [dev]
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -11,12 +12,11 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/dev' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,6 +38,7 @@ jobs:
           path: docs/.vitepress/dist
 
   deploy:
+    if: github.ref == 'refs/heads/main'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
