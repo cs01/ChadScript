@@ -260,3 +260,13 @@ declare namespace assert {
 
 declare function test(name: string, fn: () => void): void;
 declare function describe(name: string, fn: () => void): void;
+
+// ============================================================================
+// Compile-Time File Embedding
+// ============================================================================
+
+declare namespace ChadScript {
+  function embedFile(path: string): string;
+  function embedDir(path: string): void;
+  function getEmbeddedFile(key: string): string;
+}
