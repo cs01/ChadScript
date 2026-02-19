@@ -1,4 +1,4 @@
-import { Expression, ObjectNode, ObjectProperty, InterfaceField } from '../../../ast/types.js';
+import { Expression, ObjectNode, ObjectProperty } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import type { InterfaceStructGenerator } from '../interface-struct-generator.js';
 import { tsTypeToLlvm } from '../../infrastructure/type-system.js';
@@ -88,7 +88,7 @@ export class ObjectGenerator {
     const orderedFields: { key: string; llvmType: string; value: string }[] = [];
 
     for (let fieldIdx = 0; fieldIdx < fields.length; fieldIdx++) {
-      const field = fields[fieldIdx] as InterfaceField;
+      const field = fields[fieldIdx] as { name: string; type: string };
       const llvmType = this.tsTypeToLlvm(field.type);
       const valueExpr = propMap.get(field.name);
       let finalValue: string;

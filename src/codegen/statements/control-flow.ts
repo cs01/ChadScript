@@ -490,7 +490,7 @@ export class ControlFlowGenerator {
         for (let i = 0; i < fields.length; i++) {
           const fRaw = fields[i];
           if (!fRaw) continue;
-          const f = fRaw as InterfaceField;
+          const f = fRaw as { name: string; type: string };
           if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
@@ -521,7 +521,7 @@ export class ControlFlowGenerator {
       for (let i = 0; i < ifaceTyped.fields.length; i++) {
         const fRaw = ifaceTyped.fields[i];
         if (!fRaw) continue;
-        const f = fRaw as InterfaceField;
+        const f = fRaw as { name: string; type: string };
         if (!f.name || !f.type) continue;
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
@@ -583,7 +583,7 @@ export class ControlFlowGenerator {
     for (let i = 0; i < ifaceTyped.fields.length; i++) {
       const fRaw = ifaceTyped.fields[i];
       if (!fRaw) continue;
-      const f = fRaw as InterfaceField;
+      const f = fRaw as { name: string; type: string };
       if (!f.name) continue;
       if (f.name === fieldName) {
         return f.type;
@@ -636,7 +636,7 @@ export class ControlFlowGenerator {
                 for (let i = 0; i < fields.length; i++) {
                   const fRaw = fields[i];
                   if (!fRaw) continue;
-                  const f = fRaw as InterfaceField;
+                  const f = fRaw as { name: string; type: string };
                   if (!f.name || !f.type) continue;
                   elementKeys.push(f.name);
                   elementTsTypes.push(f.type);
@@ -670,7 +670,7 @@ export class ControlFlowGenerator {
               const elementTypes: string[] = [];
               const elementTsTypes: string[] = [];
               for (let i = 0; i < fields.length; i++) {
-                const f = fields[i] as InterfaceField;
+                const f = fields[i] as { name: string; type: string };
                 elementKeys.push(f.name);
                 elementTsTypes.push(f.type);
                 if (f.type === 'string') {
@@ -700,7 +700,7 @@ export class ControlFlowGenerator {
               for (let i = 0; i < elemIfaceTyped.fields.length; i++) {
                 const fRaw = elemIfaceTyped.fields[i];
                 if (!fRaw) continue;
-                const f = fRaw as InterfaceField;
+                const f = fRaw as { name: string; type: string };
                 if (!f.name || !f.type) continue;
                 elementKeys.push(f.name);
                 elementTsTypes.push(f.type);
@@ -785,7 +785,7 @@ export class ControlFlowGenerator {
         for (let i = 0; i < ifaceTyped.fields.length; i++) {
           const fRaw = ifaceTyped.fields[i];
           if (!fRaw) continue;
-          const f = fRaw as InterfaceField;
+          const f = fRaw as { name: string; type: string };
           if (!f.name) continue;
           const fieldName = f.name.replace('?', '');
           if (fieldName === ma.property) {
@@ -817,15 +817,15 @@ export class ControlFlowGenerator {
     for (let i = 0; i < ifaceTyped.fields.length; i++) {
       const fRaw = ifaceTyped.fields[i];
       if (!fRaw) continue;
-      const f = fRaw as InterfaceField;
+      const f = fRaw as { name: string; type: string };
       if (!f.name) continue;
       const fieldName = f.name.replace('?', '');
       if (fieldName === propName) {
-        fieldDefResult = f as InterfaceField;
+        fieldDefResult = f as { name: string; type: string };
         break;
       }
     }
-    const fieldDef = fieldDefResult as InterfaceField;
+    const fieldDef = fieldDefResult as { name: string; type: string };
     if (!fieldDefResult || !fieldDef.type.endsWith('[]')) {
       return null;
     }
@@ -841,7 +841,7 @@ export class ControlFlowGenerator {
         for (let i = 0; i < fields.length; i++) {
           const fRaw = fields[i];
           if (!fRaw) continue;
-          const f = fRaw as InterfaceField;
+          const f = fRaw as { name: string; type: string };
           if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
@@ -883,7 +883,7 @@ export class ControlFlowGenerator {
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
       for (let i = 0; i < elementIfaceTyped.fields.length; i++) {
-        const f = elementIfaceTyped.fields[i] as InterfaceField;
+        const f = elementIfaceTyped.fields[i] as { name: string; type: string };
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
         if (f.type === 'string') {
@@ -929,7 +929,7 @@ export class ControlFlowGenerator {
         for (let i = 0; i < fields.length; i++) {
           const fRaw = fields[i];
           if (!fRaw) continue;
-          const f = fRaw as InterfaceField;
+          const f = fRaw as { name: string; type: string };
           if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
@@ -964,7 +964,7 @@ export class ControlFlowGenerator {
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
       for (let i = 0; i < elementIfaceTyped.fields.length; i++) {
-        const f = elementIfaceTyped.fields[i] as InterfaceField;
+        const f = elementIfaceTyped.fields[i] as { name: string; type: string };
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
         if (f.type === 'string') {
@@ -1055,13 +1055,13 @@ export class ControlFlowGenerator {
     const firstFields = new Map<string, string>();
     const firstInterface = memberInterfaces[0] as { name: string; extends: string[]; fields: { name: string; type: string }[] };
     for (let i = 0; i < firstInterface.fields.length; i++) {
-      const f = firstInterface.fields[i] as InterfaceField;
+      const f = firstInterface.fields[i] as { name: string; type: string };
       firstFields.set(f.name, f.type);
     }
 
     const commonFields: CommonField[] = [];
     for (let _ffi = 0; _ffi < firstInterface.fields.length; _ffi++) {
-      const firstField = firstInterface.fields[_ffi] as InterfaceField;
+      const firstField = firstInterface.fields[_ffi] as { name: string; type: string };
       const fieldName = firstField.name;
       const fieldType = firstField.type;
       let isCommon = true;
@@ -1070,13 +1070,13 @@ export class ControlFlowGenerator {
         const otherIface = memberInterfaces[i] as { name: string; extends: string[]; fields: { name: string; type: string }[] };
         let otherFieldResult: InterfaceField | null = null;
         for (let j = 0; j < otherIface.fields.length; j++) {
-          const f = otherIface.fields[j] as InterfaceField;
+          const f = otherIface.fields[j] as { name: string; type: string };
           if (f.name === fieldName) {
             otherFieldResult = f;
             break;
           }
         }
-        const otherField = otherFieldResult as InterfaceField;
+        const otherField = otherFieldResult as { name: string; type: string };
         if (!otherFieldResult) {
           isCommon = false;
           break;
@@ -1518,13 +1518,13 @@ export class ControlFlowGenerator {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as InterfaceField;
+      const field = firstFields[fi] as { name: string; type: string };
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const ifaceTyped = interfaces[ii] as { fields: { name: string; type: string }[] };
         let found = false;
         for (let fj = 0; fj < ifaceTyped.fields.length; fj++) {
-          const f = ifaceTyped.fields[fj] as InterfaceField;
+          const f = ifaceTyped.fields[fj] as { name: string; type: string };
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;
             break;
@@ -1651,7 +1651,7 @@ export class ControlFlowGenerator {
     const currentKeys: string[] = objMeta.keys as string[];
     const ifaceKeys: string[] = [];
     for (let fi = 0; fi < iface.fields.length; fi++) {
-      const f = iface.fields[fi] as InterfaceField;
+      const f = iface.fields[fi] as { name: string; type: string };
       ifaceKeys.push(f.name);
     }
     let isCompatible = true;
@@ -1667,7 +1667,7 @@ export class ControlFlowGenerator {
     const types: string[] = [];
     const tsTypes: string[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as InterfaceField;
+      const f = iface.fields[i] as { name: string; type: string };
       keys.push(stripOptional(f.name));
       types.push(this.fieldTypeToLlvm(f.type));
       tsTypes.push(f.type);
@@ -1689,7 +1689,7 @@ export class ControlFlowGenerator {
 
   private checkDiscriminant(ifaceName: string, fields: { name: string; type: string }[], discriminantValue: string): string | null {
     for (let i = 0; i < fields.length; i++) {
-      const f = fields[i] as InterfaceField;
+      const f = fields[i] as { name: string; type: string };
       if (f.name === 'type') {
         const fieldType = f.type;
         if (fieldType === `'${discriminantValue}'` || fieldType === `"${discriminantValue}"`) {

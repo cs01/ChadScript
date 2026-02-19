@@ -1,4 +1,4 @@
-import { Expression, ClassNode, ClassMethod, ClassField, VariableNode, InterfaceDeclaration, CommonField, InterfaceField } from '../../../ast/types.js';
+import { Expression, ClassNode, ClassMethod, ClassField, VariableNode, InterfaceDeclaration, CommonField } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind, createObjectMetadata, createObjectMetadataWithInterfaceAndPointerAlloca, createClassMetadata } from '../../infrastructure/symbol-table.js';
 import { stripOptional, tsTypeToLlvm } from '../../infrastructure/type-system.js';
@@ -1076,7 +1076,7 @@ export class ClassGenerator {
       const types: string[] = [];
       const tsTypes: string[] = [];
       for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-        const f = interfaceDef.fields[fi] as InterfaceField;
+        const f = interfaceDef.fields[fi] as { name: string; type: string };
         keys.push(stripOptional(f.name));
         types.push(this.fieldTypeToLlvm(f.type));
         tsTypes.push(f.type);
@@ -1132,7 +1132,7 @@ export class ClassGenerator {
         const types: string[] = [];
         const tsTypes: string[] = [];
         for (let fi = 0; fi < inlineFields.length; fi++) {
-          const f = inlineFields[fi] as InterfaceField;
+          const f = inlineFields[fi] as { name: string; type: string };
           keys.push(stripOptional(f.name));
           types.push(this.fieldTypeToLlvm(f.type));
           tsTypes.push(f.type);
@@ -1228,13 +1228,13 @@ export class ClassGenerator {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as InterfaceField;
+      const field = firstFields[fi] as { name: string; type: string };
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const ifaceTyped = interfaces[ii] as { name: string; extends: string[]; fields: { name: string; type: string }[]; methods: { name: string }[] };
         let found = false;
         for (let fj = 0; fj < ifaceTyped.fields.length; fj++) {
-          const f = ifaceTyped.fields[fj] as InterfaceField;
+          const f = ifaceTyped.fields[fj] as { name: string; type: string };
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;
             break;

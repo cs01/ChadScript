@@ -577,7 +577,7 @@ export class TypeInference {
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as InterfaceField;
+      const f = iface.fields[i] as { name: string; type: string };
       let fieldName = f.name;
       if (fieldName.endsWith('?')) {
         fieldName = fieldName.slice(0, -1);
@@ -746,7 +746,7 @@ export class TypeInference {
     if (iface) {
       const field = this.getInterfaceProperty(typeName, fieldName);
       if (field) {
-        const fieldTyped = field as InterfaceField;
+        const fieldTyped = field as { name: string; type: string };
         return fieldTyped.type;
       }
     }
@@ -764,7 +764,7 @@ export class TypeInference {
     if (inner.length === 0) return null;
     const fields = this.parseInlineObjectFields(inner);
     for (let i = 0; i < fields.length; i++) {
-      const field = fields[i] as InterfaceField;
+      const field = fields[i] as { name: string; type: string };
       const cleanName = field.name.replace(/\?$/, '');
       if (cleanName === fieldName) {
         return field.type;
