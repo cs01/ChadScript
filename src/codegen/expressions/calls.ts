@@ -582,13 +582,15 @@ export class CallExpressionGenerator {
       }
     }
 
+    const calleeSourceFile = funcResult ? func.sourceFile : undefined;
+
     if (returnType === 'void') {
-      this.ctx.emit(`call void @${this.ctx.mangleUserName(resolvedFuncName)}(${argsList.join(', ')})`);
+      this.ctx.emit(`call void @${this.ctx.mangleUserName(resolvedFuncName, calleeSourceFile)}(${argsList.join(', ')})`);
       return '0';
     }
 
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = call ${returnType} @${this.ctx.mangleUserName(resolvedFuncName)}(${argsList.join(', ')})`);
+    this.ctx.emit(`${temp} = call ${returnType} @${this.ctx.mangleUserName(resolvedFuncName, calleeSourceFile)}(${argsList.join(', ')})`);
     this.ctx.setVariableType(temp, returnType);
 
     return temp;

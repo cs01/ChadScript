@@ -74,7 +74,6 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
       }
       const func = transformFunctionDeclaration(funcDecl, checker);
       if (func) {
-        func.sourceFile = currentSourceFile ? currentSourceFile.fileName : '';
         ast.functions.push(func);
       }
       break;
@@ -84,7 +83,6 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
       const classDecl = node as ts.ClassDeclaration;
       const cls = transformClassDeclaration(classDecl, checker);
       if (cls) {
-        cls.sourceFile = currentSourceFile ? currentSourceFile.fileName : '';
         ast.classes.push(cls);
       }
       break;
@@ -236,13 +234,11 @@ function handleExportedDeclaration(node: ts.Statement, ast: AST, checker: ts.Typ
   if (ts.isFunctionDeclaration(node) && hasExportModifier(node)) {
     const func = transformFunctionDeclaration(node, checker);
     if (func) {
-      func.sourceFile = currentSourceFile ? currentSourceFile.fileName : '';
       ast.exports.push({ type: 'export', declaration: func });
     }
   } else if (ts.isClassDeclaration(node) && hasExportModifier(node)) {
     const cls = transformClassDeclaration(node, checker);
     if (cls) {
-      cls.sourceFile = currentSourceFile ? currentSourceFile.fileName : '';
       ast.exports.push({ type: 'export', declaration: cls });
     }
   }

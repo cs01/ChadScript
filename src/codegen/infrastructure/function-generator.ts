@@ -200,7 +200,7 @@ export class FunctionGenerator {
       }
     }
 
-    let ir = `define ${returnType} @${this.ctx.mangleUserName(funcName)}(`;
+    let ir = `define ${returnType} @${this.ctx.mangleUserName(funcName, func.sourceFile)}(`;
     const paramStrings: string[] = [];
     if (hasClosure) {
       paramStrings.push('i8* %__env');
