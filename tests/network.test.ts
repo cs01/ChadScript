@@ -61,7 +61,7 @@ testSocket();
     });
 
     await new Promise<void>((resolve) => {
-      server.listen(9876, '127.0.0.1', resolve);
+      server.listen(0, '127.0.0.1', resolve);
     });
 
     try {

@@ -803,4 +803,25 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: 'Uint8Array constructor, index read/write, and .length'
   },
+  {
+    name: 'argparse-subcommand-basic',
+    fixture: 'tests/fixtures/argparse/subcommand-basic.ts',
+    expectTestPassed: true,
+    description: 'ArgumentParser subcommand dispatch with flags and options',
+    args: ['build', 'hello.ts', '-o', 'out']
+  },
+  {
+    name: 'argparse-double-dash',
+    fixture: 'tests/fixtures/argparse/double-dash.ts',
+    expectTestPassed: true,
+    description: 'ArgumentParser -- separator puts remaining args into restArgs',
+    args: ['run', 'hello.ts', '--', 'arg1', 'arg2']
+  },
+  {
+    name: 'argparse-equals-syntax',
+    fixture: 'tests/fixtures/argparse/equals-syntax.ts',
+    expectTestPassed: true,
+    description: 'ArgumentParser --key=value option syntax',
+    args: ['--target-cpu=x86-64', 'build', 'hello.ts']
+  },
 ];
