@@ -503,6 +503,18 @@ export const testCases: TestCase[] = [
     description: 'Set with add/has operations should work'
   },
   {
+    name: 'set-overflow',
+    fixture: 'tests/fixtures/data-structures/set-overflow.ts',
+    expectTestPassed: true,
+    description: 'Set with >4 elements should grow buffer correctly'
+  },
+  {
+    name: 'string-set-overflow',
+    fixture: 'tests/fixtures/data-structures/string-set-overflow.ts',
+    expectTestPassed: true,
+    description: 'StringSet with >4 elements should grow buffer correctly'
+  },
+  {
     name: 'set-type-args',
     fixture: 'tests/fixtures/collections/set-type-args.ts',
     expectTestPassed: true,
