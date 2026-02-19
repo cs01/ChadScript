@@ -10,14 +10,10 @@ interface StringLiteralNode {
   value: string;
 }
 
-interface EmbeddedFile {
-  key: string;
-  globalStrId: string;
-  globalStrLen: number;
-}
-
 export class EmbedGenerator {
-  private embeddedFiles: EmbeddedFile[] = [];
+  private embeddedKeys: string[] = [];
+  private embeddedStrIds: string[] = [];
+  private embeddedStrLens: number[] = [];
   private entryDir: string;
   private _lastStrId: string = '';
   private _lastLen: number = 0;
@@ -27,7 +23,7 @@ export class EmbedGenerator {
   }
 
   hasEmbeddedFiles(): boolean {
-    return this.embeddedFiles.length > 0;
+    return this.embeddedKeys.length > 0;
   }
 
   private escapeForLLVM(value: string): string {
@@ -105,7 +101,7 @@ export class EmbedGenerator {
     }
 
     const relPath = (expr.args[0] as StringLiteralNode).value;
-    const absPath = path.resolve(this.entryDir, relPath);
+    const absPath = path.join(this.entryDir, relPath);
 
     if (!fs.existsSync(absPath)) {
       return this.ctx.emitError('ChadScript.embedFile(): file not found: ' + absPath, expr.loc);
@@ -121,7 +117,9 @@ export class EmbedGenerator {
     this.ctx.setVariableType(ptrReg, 'i8*');
 
     const key = path.basename(relPath);
-    this.embeddedFiles.push({ key, globalStrId: strId, globalStrLen: len });
+    this.embeddedKeys.push(key);
+    this.embeddedStrIds.push(strId);
+    this.embeddedStrLens.push(len);
 
     return ptrReg;
   }
@@ -137,7 +135,7 @@ export class EmbedGenerator {
     }
 
     const relPath = (expr.args[0] as StringLiteralNode).value;
-    const absPath = path.resolve(this.entryDir, relPath);
+    const absPath = path.join(this.entryDir, relPath);
 
     if (!fs.existsSync(absPath)) {
       return this.ctx.emitError('ChadScript.embedDir(): directory not found: ' + absPath, expr.loc);
@@ -159,7 +157,9 @@ export class EmbedGenerator {
         const content = fs.readFileSync(fullPath, 'utf-8');
         this.createGlobalStringDirect(content);
         const key = fullPath.substring(baseDir.length + 1);
-        this.embeddedFiles.push({ key, globalStrId: this._lastStrId, globalStrLen: this._lastLen });
+        this.embeddedKeys.push(key);
+        this.embeddedStrIds.push(this._lastStrId);
+        this.embeddedStrLens.push(this._lastLen);
       }
     }
   }
@@ -179,14 +179,14 @@ export class EmbedGenerator {
   }
 
   generateLookupFunction(): string {
-    if (this.embeddedFiles.length === 0) {
+    if (this.embeddedKeys.length === 0) {
       return '';
     }
 
     const keyStrIds: string[] = [];
     const keyLens: number[] = [];
-    for (let i = 0; i < this.embeddedFiles.length; i++) {
-      this.createGlobalStringDirect(this.embeddedFiles[i].key);
+    for (let i = 0; i < this.embeddedKeys.length; i++) {
+      this.createGlobalStringDirect(this.embeddedKeys[i]);
       keyStrIds.push(this._lastStrId);
       keyLens.push(this._lastLen);
     }
@@ -198,19 +198,20 @@ export class EmbedGenerator {
     ir += 'define i8* @__cs_get_embedded_file(i8* %key) {\n';
     ir += 'entry:\n';
 
-    for (let i = 0; i < this.embeddedFiles.length; i++) {
-      const file = this.embeddedFiles[i];
+    for (let i = 0; i < this.embeddedKeys.length; i++) {
+      const contentStrId = this.embeddedStrIds[i];
+      const contentStrLen = this.embeddedStrLens[i];
 
       ir += '  %key_ptr_' + i + ' = getelementptr inbounds [' + keyLens[i] + ' x i8], [' + keyLens[i] + ' x i8]* ' + keyStrIds[i] + ', i64 0, i64 0\n';
       ir += '  %cmp_' + i + ' = call i32 @strcmp(i8* %key, i8* %key_ptr_' + i + ')\n';
       ir += '  %is_' + i + ' = icmp eq i32 %cmp_' + i + ', 0\n';
       const foundLabel = 'found' + i;
-      const nextLabel = i < this.embeddedFiles.length - 1 ? 'check' + (i + 1) : 'notfound';
+      const nextLabel = i < this.embeddedKeys.length - 1 ? 'check' + (i + 1) : 'notfound';
       ir += '  br i1 %is_' + i + ', label %' + foundLabel + ', label %' + nextLabel + '\n';
       ir += foundLabel + ':\n';
-      ir += '  %content_ptr_' + i + ' = getelementptr inbounds [' + file.globalStrLen + ' x i8], [' + file.globalStrLen + ' x i8]* ' + file.globalStrId + ', i64 0, i64 0\n';
+      ir += '  %content_ptr_' + i + ' = getelementptr inbounds [' + contentStrLen + ' x i8], [' + contentStrLen + ' x i8]* ' + contentStrId + ', i64 0, i64 0\n';
       ir += '  ret i8* %content_ptr_' + i + '\n';
-      if (i < this.embeddedFiles.length - 1) {
+      if (i < this.embeddedKeys.length - 1) {
         ir += 'check' + (i + 1) + ':\n';
       }
     }
