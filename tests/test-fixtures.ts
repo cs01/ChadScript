@@ -503,6 +503,18 @@ export const testCases: TestCase[] = [
     description: 'Set with add/has operations should work'
   },
   {
+    name: 'set-overflow',
+    fixture: 'tests/fixtures/data-structures/set-overflow.ts',
+    expectTestPassed: true,
+    description: 'Set with >4 elements should grow buffer correctly'
+  },
+  {
+    name: 'string-set-overflow',
+    fixture: 'tests/fixtures/data-structures/string-set-overflow.ts',
+    expectTestPassed: true,
+    description: 'StringSet with >4 elements should grow buffer correctly'
+  },
+  {
     name: 'set-type-args',
     fixture: 'tests/fixtures/collections/set-type-args.ts',
     expectTestPassed: true,
@@ -786,6 +798,12 @@ export const testCases: TestCase[] = [
     description: 'Named and inline type assertions should produce identical results'
   },
   {
+    name: 'nested-interface-access',
+    fixture: 'tests/fixtures/interfaces/nested-interface-access.ts',
+    expectTestPassed: true,
+    description: 'Chained interface field access (a.b.c) should work'
+  },
+  {
     name: 'interface-array-mutation',
     fixture: 'tests/fixtures/arrays/interface-array-mutation.ts',
     expectTestPassed: true,
@@ -802,6 +820,12 @@ export const testCases: TestCase[] = [
     fixture: 'tests/fixtures/strings/string-builder-loop.ts',
     expectTestPassed: true,
     description: 'String builder with let re-declaration inside a loop should not segfault'
+  },
+  {
+    name: 'string-concat-assign',
+    fixture: 'tests/fixtures/strings/string-concat-assign.ts',
+    expectTestPassed: true,
+    description: 'String += accumulation in a loop should produce correct length'
   },
   {
     name: 'string-lastindexof',
