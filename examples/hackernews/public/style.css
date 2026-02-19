@@ -1,0 +1,118 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Verdana, Geneva, sans-serif;
+  font-size: 10pt;
+  background: #f6f6ef;
+  color: #828282;
+}
+
+#header {
+  background: #ff6600;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#header .logo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  color: #000;
+}
+
+#header .logo-box {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  background: #fff;
+  color: #ff6600;
+  text-align: center;
+  font-weight: bold;
+  font-size: 13px;
+  line-height: 18px;
+  border: 1px solid #fff;
+}
+
+#header b {
+  font-size: 10pt;
+}
+
+#header .tagline {
+  color: #000;
+  font-size: 8pt;
+  margin-left: auto;
+}
+
+#content {
+  padding: 10px 8px;
+}
+
+.post {
+  display: flex;
+  align-items: baseline;
+  padding: 3px 0;
+}
+
+.rank {
+  color: #828282;
+  min-width: 28px;
+  text-align: right;
+  margin-right: 6px;
+}
+
+.upvote {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 10px solid #828282;
+  cursor: pointer;
+  margin-right: 4px;
+}
+
+.title a {
+  color: #000;
+  text-decoration: none;
+  font-size: 10pt;
+}
+
+.title a:visited {
+  color: #828282;
+}
+
+.meta {
+  font-size: 7pt;
+  color: #828282;
+  padding-left: 38px;
+  padding-bottom: 5px;
+}
+
+.meta a {
+  color: #828282;
+  text-decoration: none;
+}
+
+.meta a:hover {
+  text-decoration: underline;
+}
+
+#footer {
+  border-top: 2px solid #ff6600;
+  padding: 16px 8px;
+  text-align: center;
+  font-size: 8pt;
+  color: #828282;
+  margin-top: 20px;
+}
+
+#footer p {
+  margin: 4px 0;
+}
