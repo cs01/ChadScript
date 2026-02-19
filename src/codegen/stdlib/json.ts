@@ -4,10 +4,6 @@ interface ExprBase { type: string; }
 
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
-interface JsonInterfaceDef {
-  fields: { name: string; type: string }[];
-}
-
 export class JsonGenerator {
   private generatedStructs: Set<string>;
 
@@ -15,21 +11,12 @@ export class JsonGenerator {
     this.generatedStructs = new Set();
   }
 
-  private getInterfaceFields(typeName: string): JsonInterfaceDef | null {
-    if (!this.ctx.interfaceStructGen?.hasInterface(typeName)) {
-      return null;
+  private getFieldName(typeName: string, index: number): string {
+    let name = this.ctx.interfaceStructGenGetFieldName(typeName, index);
+    if (name.endsWith("?")) {
+      name = name.slice(0, name.length - 1);
     }
-    const fieldCount = this.ctx.interfaceStructGenGetFieldCount(typeName);
-    const fields: { name: string; type: string }[] = [];
-    for (let i = 0; i < fieldCount; i++) {
-      let name = this.ctx.interfaceStructGenGetFieldName(typeName, i);
-      if (name.endsWith("?")) {
-        name = name.slice(0, name.length - 1);
-      }
-      const tsType = this.ctx.interfaceStructGenGetFieldTsType(typeName, i);
-      fields.push({ name: name, type: tsType });
-    }
-    return { fields };
+    return name;
   }
 
   canHandle(expr: MethodCallNode): boolean {
@@ -53,13 +40,12 @@ export class JsonGenerator {
       return this.generateParseNumberArray(expr, params);
     }
 
-    const interfaceDef = this.getInterfaceFields(typeParam);
-    if (!interfaceDef) {
+    if (!this.ctx.interfaceStructGenHasInterface(typeParam)) {
       return this.ctx.emitError(`JSON.parse<${typeParam}>: Interface '${typeParam}' not found`, expr.loc);
     }
 
-    this.generateJsonStruct(typeParam, interfaceDef);
-    this.generateJsonParser(typeParam, interfaceDef);
+    this.generateJsonStruct(typeParam);
+    this.generateJsonParser(typeParam);
 
     const jsonStr = this.ctx.generateExpression(expr.args[0], params);
 
@@ -191,7 +177,7 @@ export class JsonGenerator {
     return false;
   }
 
-  private generateJsonStruct(typeName: string, interfaceDef: JsonInterfaceDef): void {
+  private generateJsonStruct(typeName: string): void {
     if (this.generatedStructs.has(typeName)) {
       return;
     }
@@ -201,14 +187,14 @@ export class JsonGenerator {
       return;
     }
 
-    if (this.ctx.interfaceStructGen?.hasInterface(typeName)) {
+    if (this.ctx.interfaceStructGenHasInterface(typeName)) {
       return;
     }
 
+    const fieldCount = this.ctx.interfaceStructGenGetFieldCount(typeName);
     const fieldTypes: string[] = [];
-    for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-      const fieldItem = interfaceDef.fields[fi] as { name: string; type: string };
-      const fieldType = fieldItem.type;
+    for (let fi = 0; fi < fieldCount; fi++) {
+      const fieldType = this.ctx.interfaceStructGenGetFieldTsType(typeName, fi);
       if (fieldType === 'string') {
         fieldTypes.push('i8*');
       } else if (fieldType === 'number') {
@@ -216,7 +202,7 @@ export class JsonGenerator {
       } else if (fieldType === 'boolean') {
         fieldTypes.push('double');
       } else {
-        if (this.ctx.interfaceStructGen?.hasInterface(fieldType)) {
+        if (this.ctx.interfaceStructGenHasInterface(fieldType)) {
           fieldTypes.push(`%${fieldType}*`);
         } else {
           fieldTypes.push('i8*');
@@ -235,34 +221,34 @@ export class JsonGenerator {
     }
   }
 
-  private generateJsonParser(typeName: string, interfaceDef: JsonInterfaceDef): void {
+  private generateJsonParser(typeName: string): void {
     const parserKey = '__parser__' + typeName;
     if (this.generatedStructs.has(parserKey)) {
       return;
     }
     this.generatedStructs.add(parserKey);
 
-    for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-      const fieldItem = interfaceDef.fields[fi] as { name: string; type: string };
-      const fieldType = fieldItem.type;
+    const fieldCount = this.ctx.interfaceStructGenGetFieldCount(typeName);
+
+    for (let fi = 0; fi < fieldCount; fi++) {
+      const fieldType = this.ctx.interfaceStructGenGetFieldTsType(typeName, fi);
       if (fieldType !== 'string' && fieldType !== 'number' && fieldType !== 'boolean') {
-        const nestedDef = this.getInterfaceFields(fieldType);
-        if (nestedDef) {
-          this.generateJsonStruct(fieldType, nestedDef);
-          this.generateJsonParser(fieldType, nestedDef);
+        if (this.ctx.interfaceStructGenHasInterface(fieldType)) {
+          this.generateJsonStruct(fieldType);
+          this.generateJsonParser(fieldType);
         }
       }
     }
 
-    const structSize = interfaceDef.fields.length * 8;
+    const structSize = fieldCount * 8;
     let parserIR = `define %${typeName}* @parse_json_${typeName}(i8* %json_str) {\n`;
     parserIR += 'entry:\n';
     parserIR += `  %struct_bytes = call i8* @GC_malloc(i64 ${structSize})\n`;
     parserIR += `  %struct_ptr = bitcast i8* %struct_bytes to %${typeName}*\n`;
 
-    for (let fieldIndex = 0; fieldIndex < interfaceDef.fields.length; fieldIndex++) {
-      const fieldEntry = interfaceDef.fields[fieldIndex] as { name: string; type: string };
-      if (fieldEntry.type === 'string') {
+    for (let fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++) {
+      const fieldType = this.ctx.interfaceStructGenGetFieldTsType(typeName, fieldIndex);
+      if (fieldType === 'string') {
         parserIR += `  %init_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
         parserIR += `  store i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.empty_str, i64 0, i64 0), i8** %init_ptr_${fieldIndex}\n`;
       }
@@ -275,8 +261,6 @@ export class JsonGenerator {
     parserIR += `json_error:\n`;
     parserIR += `  ret %${typeName}* %struct_ptr\n\n`;
 
-    const fieldCount = interfaceDef.fields.length;
-
     if (fieldCount === 0) {
       parserIR += `json_ok:\n`;
       parserIR += `  br label %json_cleanup\n\n`;
@@ -285,9 +269,8 @@ export class JsonGenerator {
       parserIR += `  br label %field_0\n\n`;
 
       for (let fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++) {
-        const fieldEntry = interfaceDef.fields[fieldIndex] as { name: string; type: string };
-        const fieldName = fieldEntry.name;
-        const fieldType = fieldEntry.type;
+        const fieldName = this.getFieldName(typeName, fieldIndex);
+        const fieldType = this.ctx.interfaceStructGenGetFieldTsType(typeName, fieldIndex);
         const nextLabel = (fieldIndex + 1 < fieldCount) ? `field_${fieldIndex + 1}` : 'json_cleanup';
         const fieldNameConst = this.ctx.nextString();
         this.ctx.pushGlobalString(fieldNameConst + ' = private unnamed_addr constant [' + (fieldName.length + 1) + ' x i8] c"' + fieldName + '\\00", align 1');
@@ -376,7 +359,7 @@ export class JsonGenerator {
   }
 
   private stringifyInterface(arg: Expression, params: string[], interfaceType: string): string {
-    if (!this.ctx.interfaceStructGen?.hasInterface(interfaceType)) {
+    if (!this.ctx.interfaceStructGenHasInterface(interfaceType)) {
       return this.stringifyNumber(arg, params);
     }
     const fieldCount = this.ctx.interfaceStructGenGetFieldCount(interfaceType);
