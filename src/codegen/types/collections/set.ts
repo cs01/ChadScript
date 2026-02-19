@@ -92,19 +92,14 @@ export class SetGenerator {
   }
 
   generateSetAdd(expr: MethodCallNode, params: string[]): string {
-    // set.add(value)
     if (expr.args.length !== 1) {
       throw new Error('Set.add() requires exactly 1 argument');
     }
 
-    // Get set pointer
     const setPtr = this.ctx.generateExpression(expr.object, params);
-
-    // Generate value
     const valueToAdd = this.ctx.generateExpression(expr.args[0], params);
+    const dblValue = this.ctx.ensureDouble(valueToAdd);
 
-    // Check if value already exists (simple linear search)
-    // Load current array and size
     const valuesFieldPtr = this.nextTemp();
     this.emit(`${valuesFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 0`);
     const valuesPtr = this.nextTemp();
@@ -115,20 +110,96 @@ export class SetGenerator {
     const currentSize = this.nextTemp();
     this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
 
-    // For simplicity, assume value doesn't exist and just add it
-    // (In production, we'd check for duplicates)
+    const dedupLoop = this.nextLabel('set_add_dedup');
+    const dedupBody = this.nextLabel('set_add_dedup_body');
+    const dedupNext = this.nextLabel('set_add_dedup_next');
+    const alreadyExists = this.nextLabel('set_add_exists');
+    const dedupDone = this.nextLabel('set_add_dedup_done');
+    const resizeLabel = this.nextLabel('set_add_resize');
+    const doInsert = this.nextLabel('set_add_insert');
+    const endLabel = this.nextLabel('set_add_end');
 
-    // Store value at index = currentSize
-    const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentSize}`);
-    this.emit(`store double ${this.ctx.ensureDouble(valueToAdd)}, double* ${valueElemPtr}`);
+    const idxReg = this.nextTemp();
+    this.emit(`${idxReg} = alloca i32`);
+    this.emit(`store i32 0, i32* ${idxReg}`);
+    this.emit(`br label %${dedupLoop}`);
 
-    // Increment size
+    this.emit(`${dedupLoop}:`);
+    const curIdx = this.nextTemp();
+    this.emit(`${curIdx} = load i32, i32* ${idxReg}`);
+    const idxCond = this.nextTemp();
+    this.emit(`${idxCond} = icmp slt i32 ${curIdx}, ${currentSize}`);
+    this.emit(`br i1 ${idxCond}, label %${dedupBody}, label %${dedupDone}`);
+
+    this.emit(`${dedupBody}:`);
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${curIdx}`);
+    const elemVal = this.nextTemp();
+    this.emit(`${elemVal} = load double, double* ${elemPtr}`);
+    const match = this.nextTemp();
+    this.emit(`${match} = fcmp oeq double ${elemVal}, ${dblValue}`);
+    this.emit(`br i1 ${match}, label %${alreadyExists}, label %${dedupNext}`);
+
+    this.emit(`${dedupNext}:`);
+    const nextIdx = this.nextTemp();
+    this.emit(`${nextIdx} = add i32 ${curIdx}, 1`);
+    this.emit(`store i32 ${nextIdx}, i32* ${idxReg}`);
+    this.emit(`br label %${dedupLoop}`);
+
+    this.emit(`${alreadyExists}:`);
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${dedupDone}:`);
+    const capFieldPtr = this.nextTemp();
+    this.emit(`${capFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 2`);
+    const currentCap = this.nextTemp();
+    this.emit(`${currentCap} = load i32, i32* ${capFieldPtr}`);
+    const needResize = this.nextTemp();
+    this.emit(`${needResize} = icmp eq i32 ${currentSize}, ${currentCap}`);
+    this.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${doInsert}`);
+
+    this.emit(`${resizeLabel}:`);
+    const isZero = this.nextTemp();
+    this.emit(`${isZero} = icmp eq i32 ${currentCap}, 0`);
+    const doubled = this.nextTemp();
+    this.emit(`${doubled} = mul i32 ${currentCap}, 2`);
+    const newCap = this.nextTemp();
+    this.emit(`${newCap} = select i1 ${isZero}, i32 4, i32 ${doubled}`);
+    const newCapI64 = this.nextTemp();
+    this.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
+    const newMemSize = this.nextTemp();
+    this.emit(`${newMemSize} = mul i64 ${newCapI64}, ${this.getDoubleSize()}`);
+    const newMem = this.nextTemp();
+    this.emit(`${newMem} = call i8* @GC_malloc_atomic(i64 ${newMemSize})`);
+    const newDataPtr = this.nextTemp();
+    this.emit(`${newDataPtr} = bitcast i8* ${newMem} to double*`);
+    const oldDataI8 = this.nextTemp();
+    this.emit(`${oldDataI8} = bitcast double* ${valuesPtr} to i8*`);
+    const newDataI8 = this.nextTemp();
+    this.emit(`${newDataI8} = bitcast double* ${newDataPtr} to i8*`);
+    const currentSizeI64 = this.nextTemp();
+    this.emit(`${currentSizeI64} = zext i32 ${currentSize} to i64`);
+    const copySize = this.nextTemp();
+    this.emit(`${copySize} = mul i64 ${currentSizeI64}, ${this.getDoubleSize()}`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySize}, i1 false)`);
+    this.emit(`store double* ${newDataPtr}, double** ${valuesFieldPtr}`);
+    this.emit(`store i32 ${newCap}, i32* ${capFieldPtr}`);
+    this.emit(`br label %${doInsert}`);
+
+    this.emit(`${doInsert}:`);
+    const dataPtrField2 = this.nextTemp();
+    this.emit(`${dataPtrField2} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 0`);
+    const dataPtr2 = this.nextTemp();
+    this.emit(`${dataPtr2} = load double*, double** ${dataPtrField2}`);
+    const insertPtr = this.nextTemp();
+    this.emit(`${insertPtr} = getelementptr inbounds double, double* ${dataPtr2}, i32 ${currentSize}`);
+    this.emit(`store double ${dblValue}, double* ${insertPtr}`);
     const newSize = this.nextTemp();
     this.emit(`${newSize} = add i32 ${currentSize}, 1`);
     this.emit(`store i32 ${newSize}, i32* ${sizeFieldPtr}`);
+    this.emit(`br label %${endLabel}`);
 
-    // Return the set (for chaining)
+    this.emit(`${endLabel}:`);
     return setPtr;
   }
 
@@ -304,14 +375,98 @@ export class StringSetGenerator {
     const currentSize = this.nextTemp();
     this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
 
-    const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${currentSize}`);
-    this.emit(`store i8* ${valueValue}, i8** ${valueElemPtr}`);
+    const dedupLoop = this.nextLabel('strset_add_dedup');
+    const dedupBody = this.nextLabel('strset_add_dedup_body');
+    const dedupNext = this.nextLabel('strset_add_dedup_next');
+    const alreadyExists = this.nextLabel('strset_add_exists');
+    const dedupDone = this.nextLabel('strset_add_dedup_done');
+    const resizeLabel = this.nextLabel('strset_add_resize');
+    const doInsert = this.nextLabel('strset_add_insert');
+    const endLabel = this.nextLabel('strset_add_end');
 
+    const idxReg = this.nextTemp();
+    this.emit(`${idxReg} = alloca i32`);
+    this.emit(`store i32 0, i32* ${idxReg}`);
+    this.emit(`br label %${dedupLoop}`);
+
+    this.emit(`${dedupLoop}:`);
+    const curIdx = this.nextTemp();
+    this.emit(`${curIdx} = load i32, i32* ${idxReg}`);
+    const idxCond = this.nextTemp();
+    this.emit(`${idxCond} = icmp slt i32 ${curIdx}, ${currentSize}`);
+    this.emit(`br i1 ${idxCond}, label %${dedupBody}, label %${dedupDone}`);
+
+    this.emit(`${dedupBody}:`);
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${curIdx}`);
+    const elemVal = this.nextTemp();
+    this.emit(`${elemVal} = load i8*, i8** ${elemPtr}`);
+    const cmpResult = this.nextTemp();
+    this.emit(`${cmpResult} = call i32 @strcmp(i8* ${elemVal}, i8* ${valueValue})`);
+    const match = this.nextTemp();
+    this.emit(`${match} = icmp eq i32 ${cmpResult}, 0`);
+    this.emit(`br i1 ${match}, label %${alreadyExists}, label %${dedupNext}`);
+
+    this.emit(`${dedupNext}:`);
+    const nextIdx = this.nextTemp();
+    this.emit(`${nextIdx} = add i32 ${curIdx}, 1`);
+    this.emit(`store i32 ${nextIdx}, i32* ${idxReg}`);
+    this.emit(`br label %${dedupLoop}`);
+
+    this.emit(`${alreadyExists}:`);
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${dedupDone}:`);
+    const capFieldPtr = this.nextTemp();
+    this.emit(`${capFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 2`);
+    const currentCap = this.nextTemp();
+    this.emit(`${currentCap} = load i32, i32* ${capFieldPtr}`);
+    const needResize = this.nextTemp();
+    this.emit(`${needResize} = icmp eq i32 ${currentSize}, ${currentCap}`);
+    this.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${doInsert}`);
+
+    this.emit(`${resizeLabel}:`);
+    const isZero = this.nextTemp();
+    this.emit(`${isZero} = icmp eq i32 ${currentCap}, 0`);
+    const doubled = this.nextTemp();
+    this.emit(`${doubled} = mul i32 ${currentCap}, 2`);
+    const newCap = this.nextTemp();
+    this.emit(`${newCap} = select i1 ${isZero}, i32 4, i32 ${doubled}`);
+    const newCapI64 = this.nextTemp();
+    this.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
+    const newMemSize = this.nextTemp();
+    this.emit(`${newMemSize} = mul i64 ${newCapI64}, ${this.getPtrSize()}`);
+    const newMem = this.nextTemp();
+    this.emit(`${newMem} = call i8* @GC_malloc(i64 ${newMemSize})`);
+    const newDataPtr = this.nextTemp();
+    this.emit(`${newDataPtr} = bitcast i8* ${newMem} to i8**`);
+    const oldDataI8 = this.nextTemp();
+    this.emit(`${oldDataI8} = bitcast i8** ${valuesPtr} to i8*`);
+    const newDataI8 = this.nextTemp();
+    this.emit(`${newDataI8} = bitcast i8** ${newDataPtr} to i8*`);
+    const currentSizeI64 = this.nextTemp();
+    this.emit(`${currentSizeI64} = zext i32 ${currentSize} to i64`);
+    const copySize = this.nextTemp();
+    this.emit(`${copySize} = mul i64 ${currentSizeI64}, ${this.getPtrSize()}`);
+    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySize}, i1 false)`);
+    this.emit(`store i8** ${newDataPtr}, i8*** ${valuesFieldPtr}`);
+    this.emit(`store i32 ${newCap}, i32* ${capFieldPtr}`);
+    this.emit(`br label %${doInsert}`);
+
+    this.emit(`${doInsert}:`);
+    const dataPtrField2 = this.nextTemp();
+    this.emit(`${dataPtrField2} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 0`);
+    const dataPtr2 = this.nextTemp();
+    this.emit(`${dataPtr2} = load i8**, i8*** ${dataPtrField2}`);
+    const insertPtr = this.nextTemp();
+    this.emit(`${insertPtr} = getelementptr inbounds i8*, i8** ${dataPtr2}, i32 ${currentSize}`);
+    this.emit(`store i8* ${valueValue}, i8** ${insertPtr}`);
     const newSize = this.nextTemp();
     this.emit(`${newSize} = add i32 ${currentSize}, 1`);
     this.emit(`store i32 ${newSize}, i32* ${sizeFieldPtr}`);
+    this.emit(`br label %${endLabel}`);
 
+    this.emit(`${endLabel}:`);
     return setPtr;
   }
 
