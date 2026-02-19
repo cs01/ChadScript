@@ -768,6 +768,12 @@ export const testCases: TestCase[] = [
     description: 'Interface struct creation, passing, and returning should work'
   },
   {
+    name: 'type-assertion-named',
+    fixture: 'tests/fixtures/types/type-assertion-named.ts',
+    expectTestPassed: true,
+    description: 'Named and inline type assertions should produce identical results'
+  },
+  {
     name: 'interface-array-mutation',
     fixture: 'tests/fixtures/arrays/interface-array-mutation.ts',
     expectTestPassed: true,

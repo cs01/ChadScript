@@ -21,6 +21,43 @@ import type { TypeChecker } from '../../../typescript/type-checker.js';
 import type { InterfaceStructGenerator, InterfaceFieldInfo, InterfaceStructInfo } from '../../types/interface-struct-generator.js';
 import { stripOptional, stripNullable, tsTypeToLlvm, parseMapTypeString } from '../../infrastructure/type-system.js';
 import type { IStringGenerator, IMapGenerator, ISetGenerator, IResponseGenerator } from '../../infrastructure/generator-context.js';
+import {
+  isProcessArgv,
+  isProcessPlatform,
+  isProcessEnvAccess,
+  handleProcessEnvAccess,
+  handleProcessSimpleProperty,
+  handleProcessArgv,
+} from './process-access.js';
+import {
+  handleLengthProperty,
+  handleMemberAccessLength,
+  handleSizeProperty,
+  handleResponseProperty,
+  handleStatProperty,
+  isProcessArgvLength,
+  getArrayLength,
+  getStringArrayLength,
+  getStringArrayLengthFromPtr,
+  getArrayLengthFromPtr,
+  getStringLength,
+} from './property-handlers.js';
+import {
+  parseInlineObjectTypeForAssertion,
+  splitByTopLevelSemicolon,
+  findTopLevelColon,
+} from './type-assertion-access.js';
+import {
+  handleJsonPropertyAccess,
+  handleNestedJsonAccess,
+  handleNestedInterfaceField,
+  extractJsonFieldValue,
+  extractNestedJsonFieldValue,
+} from './chained-access.js';
+import {
+  accessObjectWithMetadata,
+  accessObjectProperty,
+} from './struct-access.js';
 
 interface ExprBase { type: string; }
 
@@ -116,8 +153,8 @@ export interface MemberAccessGeneratorContext {
   setActualClassType(name: string, className: string): void;
   getActualClassType(name: string): string | undefined;
   setUsesJson(value: boolean): void;
-  getTargetOS?(): string;
-  getTargetArch?(): string;
+  getTargetOS(): string;
+  getTargetArch(): string;
 }
 
 /**
@@ -288,7 +325,7 @@ export class MemberAccessGenerator {
     }
 
     if (this.isProcessPlatform(expr)) {
-      const platformStr = (this.ctx.getTargetOS ? this.ctx.getTargetOS() : null) || process.platform;
+      const platformStr = this.ctx.getTargetOS() || process.platform;
       return this.ctx.stringGen.doCreateStringConstant(platformStr);
     }
 
@@ -429,76 +466,23 @@ export class MemberAccessGenerator {
   }
 
   private isProcessArgv(expr: MemberAccessNode): boolean {
-    const exprObjBase = expr.object as ExprBase;
-    return exprObjBase.type === 'variable' &&
-           (expr.object as VariableNode).name === 'process' &&
-           expr.property === 'argv';
+    return isProcessArgv(expr);
   }
 
   private isProcessPlatform(expr: MemberAccessNode): boolean {
-    const exprObjBase = expr.object as ExprBase;
-    return exprObjBase.type === 'variable' &&
-           (expr.object as VariableNode).name === 'process' &&
-           expr.property === 'platform';
+    return isProcessPlatform(expr);
   }
 
   private isProcessEnvAccess(expr: MemberAccessNode): boolean {
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'member_access') return false;
-    const innerMember = expr.object as MemberAccessNode;
-    const innerObjBase = innerMember.object as ExprBase;
-    return innerObjBase.type === 'variable' &&
-           (innerMember.object as VariableNode).name === 'process' &&
-           innerMember.property === 'env';
+    return isProcessEnvAccess(expr);
   }
 
   private handleProcessEnvAccess(expr: MemberAccessNode): string {
-    const envVarName = expr.property;
-    const nameConst = this.ctx.stringGen.doCreateStringConstant(envVarName);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @getenv(i8* ${nameConst})`);
-    this.ctx.setVariableType(result, 'i8*');
-    return result;
+    return handleProcessEnvAccess(this.ctx, expr);
   }
 
   private handleProcessSimpleProperty(expr: MemberAccessNode): string | null {
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') return null;
-    const varNode = expr.object as VariableNode;
-    if (varNode.name !== 'process') return null;
-
-    const prop = expr.property;
-
-    if (prop === 'arch') {
-      const archStr = (this.ctx.getTargetArch ? this.ctx.getTargetArch() : null) || 'x64';
-      return this.ctx.stringGen.doCreateStringConstant(archStr);
-    }
-    if (prop === 'version') {
-      return this.ctx.stringGen.doCreateStringConstant('v1.0.0');
-    }
-    if (prop === 'pid') {
-      const pidI32 = this.ctx.nextTemp();
-      this.ctx.emit(`${pidI32} = call i32 @getpid()`);
-      const pidDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${pidDouble} = sitofp i32 ${pidI32} to double`);
-      return pidDouble;
-    }
-    if (prop === 'ppid') {
-      const ppidI32 = this.ctx.nextTemp();
-      this.ctx.emit(`${ppidI32} = call i32 @getppid()`);
-      const ppidDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${ppidDouble} = sitofp i32 ${ppidI32} to double`);
-      return ppidDouble;
-    }
-    if (prop === 'execPath' || prop === 'argv0') {
-      const argvPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${argvPtr} = load i8**, i8*** @__argv`);
-      const firstArg = this.ctx.nextTemp();
-      this.ctx.emit(`${firstArg} = load i8*, i8** ${argvPtr}`);
-      this.ctx.setVariableType(firstArg, 'i8*');
-      return firstArg;
-    }
-    return null;
+    return handleProcessSimpleProperty(this.ctx, expr);
   }
 
   private handleEnumMemberAccess(expr: MemberAccessNode): string | null {
@@ -641,37 +625,7 @@ export class MemberAccessGenerator {
   }
 
   private handleProcessArgv(): string {
-    const sizePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
-    const structSize = this.ctx.nextTemp();
-    this.ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
-    const arrayMem = this.ctx.nextTemp();
-    this.ctx.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
-    const argvStruct = this.ctx.nextTemp();
-    this.ctx.emit(`${argvStruct} = bitcast i8* ${arrayMem} to %StringArray*`);
-
-    const dataField = this.ctx.nextTemp();
-    this.ctx.emit(`${dataField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 0`);
-    const argvPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${argvPtr} = load i8**, i8*** @__argv`);
-    const argvSkipFirst = this.ctx.nextTemp();
-    this.ctx.emit(`${argvSkipFirst} = getelementptr i8*, i8** ${argvPtr}, i32 1`);
-    this.ctx.emit(`store i8** ${argvSkipFirst}, i8*** ${dataField}`);
-
-    const lenField = this.ctx.nextTemp();
-    this.ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 1`);
-    const argc = this.ctx.nextTemp();
-    this.ctx.emit(`${argc} = load i32, i32* @__argc`);
-    const argcMinusOne = this.ctx.nextTemp();
-    this.ctx.emit(`${argcMinusOne} = sub i32 ${argc}, 1`);
-    this.ctx.emit(`store i32 ${argcMinusOne}, i32* ${lenField}`);
-
-    const capField = this.ctx.nextTemp();
-    this.ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 2`);
-    this.ctx.emit(`store i32 ${argcMinusOne}, i32* ${capField}`);
-
-    this.ctx.setVariableType(argvStruct, '%StringArray*');
-    return argvStruct;
+    return handleProcessArgv(this.ctx);
   }
 
   private handleClassPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
@@ -967,92 +921,12 @@ export class MemberAccessGenerator {
     }
   }
 
-  private handleJsonPropertyAccess(expr: MemberAccessNode, _params: string[]): string {
-    const varName = (expr.object as VariableNode).name;
-    this.ctx.setUsesJson(true);
-
-    if (expr.property === 'length') {
-      const jsonObjPtrPtr = this.ctx.getVariableAlloca(varName)!;
-      const jsonObjPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
-      const arraySize = this.ctx.nextTemp();
-      this.ctx.emit(`${arraySize} = call i32 @csyyjson_arr_size(i8* ${jsonObjPtr})`);
-      const sizeDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
-      this.ctx.setVariableType(sizeDouble, 'double');
-      return sizeDouble;
-    }
-
-    let tsType: string | undefined;
-    if (this.hasObjectInfo(varName)) {
-      const tsTypesArr = this.ctx.symbolTable.getObjectMetadataTsTypes(varName);
-      const keysArr = this.ctx.symbolTable.getObjectMetadataKeys(varName);
-      if (tsTypesArr && keysArr) {
-        const propIdx = keysArr.indexOf(expr.property);
-        if (propIdx !== -1) {
-          tsType = tsTypesArr[propIdx];
-        }
-      }
-    }
-
-    const jsonObjPtrPtr = this.ctx.getVariableAlloca(varName)!;
-    const jsonObjPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
-
-    const fieldNameStr = this.ctx.stringGen.doCreateStringConstant(expr.property);
-
-    const fieldItem = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldItem} = call i8* @csyyjson_obj_get(i8* ${jsonObjPtr}, i8* ${fieldNameStr})`);
-
-    if (tsType && ['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'].indexOf(tsType) === -1) {
-      return this.handleNestedInterfaceField(fieldItem, tsType);
-    }
-
-    if (tsType === 'string') {
-      const strValue = this.ctx.nextTemp();
-      this.ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
-      this.ctx.setVariableType(strValue, 'i8*');
-      return strValue;
-    } else if (tsType === 'number') {
-      const numValue = this.ctx.nextTemp();
-      this.ctx.emit(`${numValue} = call double @csyyjson_get_num(i8* ${fieldItem})`);
-      this.ctx.setVariableType(numValue, 'double');
-      return numValue;
-    } else if (tsType === 'boolean') {
-      const boolValue = this.ctx.nextTemp();
-      this.ctx.emit(`${boolValue} = call i32 @csyyjson_is_true(i8* ${fieldItem})`);
-      const boolAsDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${boolAsDouble} = sitofp i32 ${boolValue} to double`);
-      this.ctx.setVariableType(boolAsDouble, 'double');
-      return boolAsDouble;
-    } else if (tsType === 'string[]' || tsType === 'number[]' || tsType === 'boolean[]') {
-      this.ctx.setVariableType(fieldItem, 'i8*');
-      return fieldItem;
-    }
-
-    return this.extractJsonFieldValue(fieldItem);
+  private handleJsonPropertyAccess(expr: MemberAccessNode, params: string[]): string {
+    return handleJsonPropertyAccess(this.ctx, expr, params);
   }
 
   private handleNestedInterfaceField(fieldItem: string, tsType: string): string {
-    const baseType = stripNullable(tsType);
-    const nestedInterfaceDefResult = this.getInterfaceDecl(baseType);
-    const nestedInterfaceDef = nestedInterfaceDefResult as InterfaceDeclaration;
-    if (nestedInterfaceDefResult) {
-      const keys: string[] = [];
-      const tsTypes: string[] = [];
-      const types: string[] = [];
-      if (nestedInterfaceDef.fields) {
-        for (let i = 0; i < nestedInterfaceDef.fields.length; i++) {
-          const f = nestedInterfaceDef.fields[i] as { name: string; type: string };
-          keys.push(stripOptional(f.name));
-          tsTypes.push(f.type);
-          types.push(this.convertTsType(f.type));
-        }
-      }
-      this.ctx.setJsonObjectMetadata(fieldItem, { keys, types, tsTypes, interfaceType: undefined });
-    }
-    this.ctx.setVariableType(fieldItem, 'i8*');
-    return fieldItem;
+    return handleNestedInterfaceField(this.ctx, fieldItem, tsType);
   }
 
   private convertTsType(t: string): string {
@@ -1065,112 +939,19 @@ export class MemberAccessGenerator {
     if (t === 'boolean') return 'double';
     if (t === 'string[]') return '%StringArray*';
     if (t === 'number[]' || t === 'boolean[]') return '%Array*';
-    if (t.endsWith('[]')) return '%Array*';
-    const interfaceInfo = this.getInterfaceFromAST(t);
-    if (interfaceInfo) return `%${t}*`;
+    if (t.endsWith('[]')) return '%ObjectArray*';
+    const baseName = this.extractBaseTypeName(t);
+    const props = this.ctx.getInterfaceProperties(baseName);
+    if (props && props.keys.length > 0) return `%${baseName}*`;
     return 'i8*';
   }
 
   private extractJsonFieldValue(fieldItem: string): string {
-    const fieldExists = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldExists} = icmp ne i8* ${fieldItem}, null`);
-
-    const hasFieldLabel = this.ctx.nextLabel('json_has_field');
-    const noFieldLabel = this.ctx.nextLabel('json_no_field');
-    const fieldEndLabel = this.ctx.nextLabel('json_field_end');
-
-    this.ctx.emit(`br i1 ${fieldExists}, label %${hasFieldLabel}, label %${noFieldLabel}`);
-    this.ctx.emit(`${hasFieldLabel}:`);
-
-    const isNumber = this.ctx.nextTemp();
-    this.ctx.emit(`${isNumber} = call i32 @csyyjson_is_num(i8* ${fieldItem})`);
-    const isNumBool = this.ctx.nextTemp();
-    this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
-
-    const numberLabel = this.ctx.nextLabel('json_number');
-    const stringLabel = this.ctx.nextLabel('json_string');
-
-    this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
-
-    this.ctx.emit(`${numberLabel}:`);
-    const numValueDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${numValueDouble} = call double @csyyjson_get_num(i8* ${fieldItem})`);
-    const numAsStr = this.ctx.nextTemp();
-    this.ctx.emit(`${numAsStr} = call i8* @__double_to_string(double ${numValueDouble})`);
-    this.ctx.emit(`br label %${fieldEndLabel}`);
-
-    this.ctx.emit(`${stringLabel}:`);
-    const strValue = this.ctx.nextTemp();
-    this.ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
-    this.ctx.emit(`br label %${fieldEndLabel}`);
-
-    this.ctx.emit(`${noFieldLabel}:`);
-    this.ctx.emit(`br label %${fieldEndLabel}`);
-
-    this.ctx.emit(`${fieldEndLabel}:`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi i8* [ ${numAsStr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ], [ null, %${noFieldLabel} ]`);
-
-    this.ctx.setVariableType(result, 'i8*');
-    return result;
+    return extractJsonFieldValue(this.ctx, fieldItem);
   }
 
   private handleNestedJsonAccess(expr: MemberAccessNode, params: string[]): string | null {
-    if (expr.property === 'length') return null;
-
-    const innerResult = this.ctx.generateExpression(expr.object, params);
-
-    const innerType = this.ctx.getVariableType(innerResult);
-    if (innerType === '%Array*' || innerType === '%StringArray*' || innerType === '%ObjectArray*') {
-      return null;
-    }
-    if (innerType && innerType.startsWith('%') && innerType.endsWith('*') && innerType !== '%__FetchResponse*' && innerType.indexOf('Map') === -1 && innerType.indexOf('Set') === -1) {
-      return null;
-    }
-
-    if (!this.ctx.hasJsonObjectMetadata(innerResult)) return null;
-    const nestedMetaKeys = this.ctx.getJsonObjectMetadataKeys(innerResult);
-    const nestedMetaTsTypes = this.ctx.getJsonObjectMetadataTsTypes(innerResult);
-    if (!nestedMetaKeys) return null;
-
-    this.ctx.setUsesJson(true);
-    const fieldNameStr = this.ctx.stringGen.doCreateStringConstant(expr.property);
-    const fieldItem = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldItem} = call i8* @csyyjson_obj_get(i8* ${innerResult}, i8* ${fieldNameStr})`);
-
-    const propIdx = nestedMetaKeys.indexOf(expr.property);
-    let tsType: string | undefined;
-    if (propIdx !== -1 && nestedMetaTsTypes) {
-      tsType = nestedMetaTsTypes[propIdx];
-    }
-
-    if (tsType && ['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'].indexOf(tsType) === -1) {
-      return this.handleNestedInterfaceField(fieldItem, tsType);
-    }
-
-    if (tsType === 'string') {
-      const strValue = this.ctx.nextTemp();
-      this.ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
-      this.ctx.setVariableType(strValue, 'i8*');
-      return strValue;
-    } else if (tsType === 'number') {
-      const numValue = this.ctx.nextTemp();
-      this.ctx.emit(`${numValue} = call double @csyyjson_get_num(i8* ${fieldItem})`);
-      this.ctx.setVariableType(numValue, 'double');
-      return numValue;
-    } else if (tsType === 'boolean') {
-      const boolValue = this.ctx.nextTemp();
-      this.ctx.emit(`${boolValue} = call i32 @csyyjson_is_true(i8* ${fieldItem})`);
-      const boolAsDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${boolAsDouble} = sitofp i32 ${boolValue} to double`);
-      this.ctx.setVariableType(boolAsDouble, 'double');
-      return boolAsDouble;
-    } else if (tsType === 'string[]' || tsType === 'number[]' || tsType === 'boolean[]') {
-      this.ctx.setVariableType(fieldItem, 'i8*');
-      return fieldItem;
-    }
-
-    return this.extractNestedJsonFieldValue(fieldItem);
+    return handleNestedJsonAccess(this.ctx, expr, params);
   }
 
   private handleChainedInterfaceAccess(expr: MemberAccessNode, params: string[]): string | null {
@@ -2012,35 +1793,7 @@ export class MemberAccessGenerator {
   }
 
   private extractNestedJsonFieldValue(fieldItem: string): string {
-    const isNumber = this.ctx.nextTemp();
-    this.ctx.emit(`${isNumber} = call i32 @csyyjson_is_num(i8* ${fieldItem})`);
-    const isNumBool = this.ctx.nextTemp();
-    this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
-
-    const numberLabel = this.ctx.nextLabel('json_number');
-    const stringLabel = this.ctx.nextLabel('json_string');
-    const fieldEndLabel = this.ctx.nextLabel('json_field_end');
-
-    this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
-
-    this.ctx.emit(`${numberLabel}:`);
-    const numValueDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${numValueDouble} = call double @csyyjson_get_num(i8* ${fieldItem})`);
-    const numAsStr = this.ctx.nextTemp();
-    this.ctx.emit(`${numAsStr} = call i8* @__double_to_string(double ${numValueDouble})`);
-    this.ctx.emit(`br label %${fieldEndLabel}`);
-
-    this.ctx.emit(`${stringLabel}:`);
-    const strValue = this.ctx.nextTemp();
-    this.ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
-    this.ctx.emit(`br label %${fieldEndLabel}`);
-
-    this.ctx.emit(`${fieldEndLabel}:`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi i8* [ ${numAsStr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ]`);
-
-    this.ctx.setVariableType(result, 'i8*');
-    return result;
+    return extractNestedJsonFieldValue(this.ctx, fieldItem);
   }
 
   private handleObjectPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
@@ -2241,354 +1994,47 @@ export class MemberAccessGenerator {
   }
 
   private handleLengthProperty(expr: MemberAccessNode, params: string[]): string {
-    const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase.type;
-    if (exprObjType === null || exprObjType === undefined) {
-      return '0.0';
-    }
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isNumberArray((expr.object as VariableNode).name)) {
-      return this.getArrayLength(expr.object, params, '%Array');
-    }
-
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isObjectArray((expr.object as VariableNode).name)) {
-      return this.getArrayLength(expr.object, params, '%ObjectArray');
-    }
-
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isUint8Array((expr.object as VariableNode).name)) {
-      return this.getArrayLength(expr.object, params, '%Uint8Array');
-    }
-
-    if (this.isProcessArgvLength(expr)) {
-      const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-      return this.getStringArrayLength(stringArrayPtr);
-    }
-
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isStringArray((expr.object as VariableNode).name)) {
-      const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-      return this.getStringArrayLength(stringArrayPtr);
-    }
-
-    if (exprObjType === 'member_access') {
-      const result = this.handleMemberAccessLength(expr, params);
-      if (result !== null) return result;
-      const arrayPtr = this.ctx.generateExpression(expr.object, params);
-      const arrayType = this.ctx.getVariableType(arrayPtr);
-      if (arrayType === 'i8*') {
-        const innerAccess = expr.object as MemberAccessNode;
-        const innerObjBase = innerAccess.object as ExprBase;
-        if (innerObjBase.type === 'variable') {
-          const innerVarName = (innerAccess.object as VariableNode).name;
-          if (this.ctx.symbolTable.isObject(innerVarName) && !this.ctx.symbolTable.isJSON(innerVarName)) {
-            const objArrayPtr = this.ctx.nextTemp();
-            this.ctx.emit(`${objArrayPtr} = bitcast i8* ${arrayPtr} to %ObjectArray*`);
-            return this.getArrayLengthFromPtr(objArrayPtr, '%ObjectArray');
-          }
-        }
-        return this.getStringLength(expr.object, params);
-      }
-      if (arrayType === '%StringArray*') {
-        return this.getStringArrayLengthFromPtr(arrayPtr);
-      }
-      if (arrayType === '%Array*') {
-        return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-      }
-      return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
-    }
-
-    if (exprObjType === 'variable') {
-      const objPtr = this.ctx.generateExpression(expr.object, params);
-      const ptrType = this.ctx.getVariableType(objPtr);
-      if (ptrType === '%StringArray*') {
-        return this.getStringArrayLengthFromPtr(objPtr);
-      }
-      if (ptrType === '%Array*') {
-        return this.getArrayLengthFromPtr(objPtr, '%Array');
-      }
-      if (ptrType === '%ObjectArray*') {
-        return this.getArrayLengthFromPtr(objPtr, '%ObjectArray');
-      }
-    }
-
-    return this.getStringLength(expr.object, params);
+    return handleLengthProperty(this.ctx, expr, params);
   }
 
   private isProcessArgvLength(expr: MemberAccessNode): boolean {
-    const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase.type;
-    if (exprObjType === null || exprObjType === undefined) return false;
-    if (exprObjType !== 'member_access') return false;
-    const innerAccess = expr.object as MemberAccessNode;
-    const innerAccessObjBase = innerAccess.object as ExprBase;
-    return innerAccessObjBase.type === 'variable' &&
-           (innerAccess.object as VariableNode).name === 'process' &&
-           innerAccess.property === 'argv';
+    return isProcessArgvLength(expr);
   }
 
   private getArrayLength(obj: Expression, params: string[], arrayType: string): string {
-    const arrayPtr = this.ctx.generateExpression(obj, params);
-    const lenPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`);
-    const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
-    const len = this.ctx.nextTemp();
-    this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.setVariableType(len, 'double');
-    return len;
+    return getArrayLength(this.ctx, obj, params, arrayType);
   }
 
   private getStringArrayLength(stringArrayPtr: string): string {
-    const lenPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 1`);
-    const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
-    const len = this.ctx.nextTemp();
-    this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.setVariableType(len, 'double');
-    return len;
+    return getStringArrayLength(this.ctx, stringArrayPtr);
   }
 
   private getStringArrayLengthFromPtr(ptr: string): string {
-    const ptrType = this.ctx.getVariableType(ptr);
-    let typedPtr = ptr;
-    if (ptrType !== '%StringArray*') {
-      typedPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${typedPtr} = bitcast i8* ${ptr} to %StringArray*`);
-    }
-    return this.getStringArrayLength(typedPtr);
+    return getStringArrayLengthFromPtr(this.ctx, ptr);
   }
 
   private handleMemberAccessLength(expr: MemberAccessNode, params: string[]): string | null {
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'member_access') return null;
-    const innerAccess = expr.object as MemberAccessNode;
-
-    const innerAccessObjBase = innerAccess.object as ExprBase;
-    if (innerAccessObjBase.type === 'variable' && this.ctx.symbolTable.isClass((innerAccess.object as VariableNode).name)) {
-      const classMeta = this.ctx.symbolTable.getClassInfo((innerAccess.object as VariableNode).name);
-      if (classMeta) {
-        const fieldInfoResult = this.ctx.classGenGetFieldInfo(classMeta.className, innerAccess.property);
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-        if (fieldInfoResult && fieldInfo.type === 'string[]') {
-          const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getStringArrayLength(stringArrayPtr);
-        } else if (fieldInfoResult && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
-          const arrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-        } else if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.endsWith('[]')) {
-          const arrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-        }
-      }
-    } else if (innerAccessObjBase.type === 'variable') {
-      const varName = (innerAccess.object as VariableNode).name;
-      if (params.indexOf(varName) !== -1) {
-        const paramInterfaceType = this.getParameterTypeFromAST(varName);
-        if (paramInterfaceType && paramInterfaceType.length > 0) {
-          const fieldType = this.getInterfaceFieldType(paramInterfaceType, innerAccess.property);
-          if (fieldType) {
-            if (fieldType === 'string') {
-              return this.getStringLength(expr.object, params);
-            } else if (fieldType === 'string[]') {
-              const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-              return this.getStringArrayLength(stringArrayPtr);
-            } else if (fieldType.endsWith('[]')) {
-              const arrayPtr = this.ctx.generateExpression(expr.object, params);
-              return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
-            }
-          }
-        }
-      }
-      const symbolIfaceType = this.ctx.symbolTable.getInterfaceType(varName);
-      if (symbolIfaceType && symbolIfaceType.length > 0) {
-        const fieldType = this.getInterfaceFieldType(symbolIfaceType, innerAccess.property);
-        if (fieldType) {
-          if (fieldType === 'string') {
-            return this.getStringLength(expr.object, params);
-          } else if (fieldType === 'string[]') {
-            const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-            return this.getStringArrayLength(stringArrayPtr);
-          } else if (fieldType.endsWith('[]')) {
-            const arrayPtr = this.ctx.generateExpression(expr.object, params);
-            return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
-          }
-        }
-      }
-      const arrayPtr = this.ctx.generateExpression(expr.object, params);
-      const arrayType = this.ctx.getVariableType(arrayPtr);
-      if (arrayType === '%StringArray*') {
-        return this.getStringArrayLength(arrayPtr);
-      } else if (arrayType === '%Array*') {
-        return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-      } else if (arrayType === '%ObjectArray*') {
-        return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
-      }
-      if (this.ctx.symbolTable.isJSON(varName)) {
-        const arraySize = this.ctx.nextTemp();
-        this.ctx.emit(`${arraySize} = call i32 @csyyjson_arr_size(i8* ${arrayPtr})`);
-        const sizeDouble = this.ctx.nextTemp();
-        this.ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
-        this.ctx.setVariableType(sizeDouble, 'double');
-        return sizeDouble;
-      }
-      if (this.ctx.symbolTable.isObject(varName)) {
-        const objArrayPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${objArrayPtr} = bitcast i8* ${arrayPtr} to %ObjectArray*`);
-        return this.getArrayLengthFromPtr(objArrayPtr, '%ObjectArray');
-      }
-    } else if (innerAccessObjBase.type === 'this') {
-      const className = this.ctx.getCurrentClassName();
-      if (className) {
-        const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, innerAccess.property);
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-        if (fieldInfoResult && fieldInfo.type === 'string[]') {
-          const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getStringArrayLength(stringArrayPtr);
-        } else if (fieldInfoResult && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
-          const arrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-        } else if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.endsWith('[]')) {
-          const arrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-        }
-      }
-    } else if (innerAccessObjBase.type === 'member_access') {
-      const arrayPtr = this.ctx.generateExpression(expr.object, params);
-      const arrayType = this.ctx.getVariableType(arrayPtr);
-      if (arrayType === '%StringArray*') {
-        return this.getStringArrayLength(arrayPtr);
-      } else if (arrayType === '%Array*') {
-        return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-      } else if (arrayType === '%ObjectArray*') {
-        return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
-      }
-    }
-    return null;
+    return handleMemberAccessLength(this.ctx, expr, params);
   }
 
   private getArrayLengthFromPtr(arrayPtr: string, arrayType: string): string {
-    const lenPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`);
-    const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
-    const len = this.ctx.nextTemp();
-    this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.setVariableType(len, 'double');
-    return len;
+    return getArrayLengthFromPtr(this.ctx, arrayPtr, arrayType);
   }
 
   private getStringLength(obj: Expression, params: string[]): string {
-    const objPtr = this.ctx.generateExpression(obj, params);
-    const lenI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI64} = call i64 @strlen(i8* ${objPtr})`);
-    const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
-    const len = this.ctx.nextTemp();
-    this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.setVariableType(len, 'double');
-    return len;
+    return getStringLength(this.ctx, obj, params);
   }
 
   private handleSizeProperty(expr: MemberAccessNode, params: string[]): string | null {
-    const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase.type;
-    if (exprObjType === null || exprObjType === undefined) {
-      return null;
-    }
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isMap((expr.object as VariableNode).name)) {
-      const mapPtr = this.ctx.generateExpression(expr.object, params);
-      return this.ctx.mapGen.generateMapSize(mapPtr);
-    }
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isSet((expr.object as VariableNode).name)) {
-      const setPtr = this.ctx.generateExpression(expr.object, params);
-      return this.ctx.setGen.generateSetSize(setPtr);
-    }
-    if (exprObjType === 'member_access') {
-      const innerAccess = expr.object as MemberAccessNode;
-      const innerObjBase = innerAccess.object as ExprBase;
-      const classNameForLookup = this.ctx.getCurrentClassName();
-      if (innerObjBase.type === 'this' && classNameForLookup) {
-        const fieldInfo = this.ctx.classGenGetFieldInfo(classNameForLookup, innerAccess.property);
-        if (fieldInfo && fieldInfo.tsType) {
-          const isMap = fieldInfo.tsType.startsWith('Map<') || fieldInfo.tsType.indexOf('Map<') !== -1;
-          const isSet = fieldInfo.tsType.startsWith('Set<') || fieldInfo.tsType.indexOf('Set<') !== -1;
-          if (isMap || isSet) {
-            const ptr = this.ctx.generateExpression(expr.object, params);
-            if (isSet) {
-              return this.ctx.setGen.generateSetSize(ptr);
-            } else {
-              return this.ctx.mapGen.generateMapSize(ptr);
-            }
-          }
-        }
-      }
-    }
-    return null;
+    return handleSizeProperty(this.ctx, expr, params);
   }
 
   private handleResponseProperty(expr: MemberAccessNode): string | null {
-    if (expr.property !== 'status' && expr.property !== 'ok' && expr.property !== 'url' && expr.property !== 'statusText' && expr.property !== 'redirected' && expr.property !== 'headers') return null;
-    const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase.type;
-    if (exprObjType === null || exprObjType === undefined) return null;
-    if (exprObjType !== 'variable') return null;
-
-    const varName = (expr.object as VariableNode).name;
-    const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
-    if (ifaceType) return null;
-    if (this.hasObjectInfo(varName)) return null;
-    const varType = this.ctx.getVariableType(varName);
-    if (varType !== '%__FetchResponse*' && varType !== 'i8*') return null;
-
-    const varPtr = this.ctx.getVariableAlloca(varName);
-    let responsePtr: string;
-
-    if (varType === 'i8*') {
-      const i8Ptr = this.ctx.nextTemp();
-      this.ctx.emit(`${i8Ptr} = load i8*, i8** ${varPtr}`);
-      responsePtr = this.ctx.nextTemp();
-      this.ctx.emit(`${responsePtr} = bitcast i8* ${i8Ptr} to %__FetchResponse*`);
-    } else {
-      responsePtr = this.ctx.nextTemp();
-      this.ctx.emit(`${responsePtr} = load %__FetchResponse*, %__FetchResponse** ${varPtr}`);
-    }
-
-    if (expr.property === 'status') {
-      return this.ctx.responseGen.generateStatus(responsePtr);
-    } else if (expr.property === 'ok') {
-      return this.ctx.responseGen.generateOk(responsePtr);
-    } else if (expr.property === 'url') {
-      return this.ctx.responseGen.generateUrl(responsePtr);
-    } else if (expr.property === 'headers') {
-      return this.ctx.responseGen.generateHeaders(responsePtr);
-    } else if (expr.property === 'redirected') {
-      return this.ctx.responseGen.generateRedirected(responsePtr);
-    } else if (expr.property === 'statusText') {
-      return this.ctx.responseGen.generateStatusText(responsePtr);
-    }
-    return null;
+    return handleResponseProperty(this.ctx, expr);
   }
 
   private handleStatProperty(expr: MemberAccessNode): string | null {
-    if (expr.property !== 'size') return null;
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') return null;
-    const varName = (expr.object as VariableNode).name;
-    const varType = this.ctx.getVariableType(varName);
-    if (varType !== '%StatResult*' && varType !== 'i8*') return null;
-    const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
-    if (ifaceType) return null;
-    if (this.hasObjectInfo(varName)) return null;
-    const varPtr = this.ctx.getVariableAlloca(varName);
-    const raw = this.ctx.nextTemp();
-    this.ctx.emit(`${raw} = load i8*, i8** ${varPtr}`);
-    const statPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${statPtr} = bitcast i8* ${raw} to double*`);
-    const fieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${statPtr}, i64 0`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = load double, double* ${fieldPtr}`);
-    this.ctx.setVariableType(result, 'double');
-    return result;
+    return handleStatProperty(this.ctx, expr);
   }
 
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {
@@ -3059,98 +2505,19 @@ export class MemberAccessGenerator {
   }
 
   private parseInlineObjectTypeForAssertion(typeStr: string): InterfaceField[] | null {
-    if (!typeStr.startsWith('{') || !typeStr.endsWith('}')) {
-      return null;
-    }
-    const inner = typeStr.slice(1, typeStr.length - 1).trim();
-    if (inner.length === 0) {
-      return [];
-    }
-    const fields: InterfaceField[] = [];
-    const parts = this.splitByTopLevelSemicolon(inner);
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i].trim();
-      if (!part) continue;
-      const colonIdx = this.findTopLevelColon(part);
-      if (colonIdx === -1) continue;
-      const name = part.slice(0, colonIdx).trim();
-      const fieldType = part.slice(colonIdx + 1).trim();
-      fields.push({ name, type: fieldType });
-    }
-    return fields;
+    return parseInlineObjectTypeForAssertion(typeStr);
   }
 
   private splitByTopLevelSemicolon(str: string): string[] {
-    const parts: string[] = [];
-    let depth = 0;
-    let current = '';
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charAt(i);
-      if (char === '{' || char === '(' || char === '<' || char === '[') {
-        depth++;
-        current += char;
-      } else if (char === '}' || char === ')' || char === '>' || char === ']') {
-        depth--;
-        current += char;
-      } else if (char === ';' && depth === 0) {
-        parts.push(current);
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    if (current.trim()) {
-      parts.push(current);
-    }
-    return parts;
+    return splitByTopLevelSemicolon(str);
   }
 
   private findTopLevelColon(str: string): number {
-    let depth = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charAt(i);
-      if (char === '{' || char === '(' || char === '<' || char === '[') {
-        depth++;
-      } else if (char === '}' || char === ')' || char === '>' || char === ']') {
-        depth--;
-      } else if (char === ':' && depth === 0) {
-        return i;
-      }
-    }
-    return -1;
+    return findTopLevelColon(str);
   }
 
   private accessObjectWithMetadata(varName: string, property: string, metadata: ObjectMetadata): string {
-    const propIndex = metadata.keys.indexOf(property);
-    if (propIndex === -1) {
-      const varType = this.ctx.getVariableType(varName) || 'unknown';
-      this.ctx.emitError(
-        `Property '${property}' not found on object '${varName}' (llvmType=${varType}, keys=${metadata.keys.length}). Available properties: ${metadata.keys.join(', ')}`
-      );
-    }
-
-    const propType = metadata.types[propIndex];
-    const structType = `{ ${metadata.types.join(', ')} }`;
-
-    const varPtr = this.ctx.getVariableAlloca(varName);
-    if (!varPtr) {
-      throw new Error(`Variable ${varName} not found in symbol table`);
-    }
-
-    const objPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${objPtr} = load i8*, i8** ${varPtr}`);
-
-    const typedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
-
-    const fieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${propIndex}`);
-
-    const value = this.ctx.nextTemp();
-    this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
-    this.ctx.setVariableType(value, propType);
-
-    return value;
+    return accessObjectWithMetadata(this.ctx, varName, property, metadata);
   }
 
   private accessInterfacePropertyWithNamedStruct(varName: string, property: string, interfaceType: string): string {
@@ -3224,6 +2591,22 @@ export class MemberAccessGenerator {
       }
     }
 
+    const objMeta = this.ctx.getJsonObjectMetadata(objPtr);
+    if (objMeta) {
+      const checkInfo = this.ctx.interfaceStructGen?.getInterfaceStruct(interfaceType);
+      if (checkInfo) {
+        const checkFields = checkInfo.fields as InterfaceFieldInfo[];
+        if (objMeta.keys.length !== checkFields.length) {
+          return null;
+        }
+        for (let li = 0; li < objMeta.keys.length; li++) {
+          if (objMeta.keys[li] !== (checkFields[li] as InterfaceFieldInfo).name) {
+            return null;
+          }
+        }
+      }
+    }
+
     const interfaceInfo = this.ctx.interfaceStructGen?.getInterfaceStruct(interfaceType);
     if (!interfaceInfo) {
       throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
@@ -3266,26 +2649,6 @@ export class MemberAccessGenerator {
   }
 
   private accessObjectProperty(objPtr: string, property: string, keys: string[], types: string[], _tsTypes?: string[]): string {
-    const propIndex = keys.indexOf(property);
-    if (propIndex === -1) {
-      this.ctx.emitError(
-        `Property '${property}' not found. Available properties: ${keys.join(', ')}`
-      );
-    }
-
-    const propType = types[propIndex];
-    const structType = `{ ${types.join(', ')} }`;
-
-    const typedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
-
-    const fieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${propIndex}`);
-
-    const value = this.ctx.nextTemp();
-    this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
-    this.ctx.setVariableType(value, propType);
-
-    return value;
+    return accessObjectProperty(this.ctx, objPtr, property, keys, types, _tsTypes);
   }
 }
