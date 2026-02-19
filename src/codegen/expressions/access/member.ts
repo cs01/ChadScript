@@ -29,6 +29,19 @@ import {
   handleProcessSimpleProperty as _handleProcessSimpleProperty,
   handleProcessArgv as _handleProcessArgv,
 } from './process-access.js';
+import {
+  handleLengthProperty as _handleLengthProperty,
+  handleMemberAccessLength as _handleMemberAccessLength,
+  handleSizeProperty as _handleSizeProperty,
+  handleResponseProperty as _handleResponseProperty,
+  handleStatProperty as _handleStatProperty,
+  isProcessArgvLength as _isProcessArgvLength,
+  getArrayLength as _getArrayLength,
+  getStringArrayLength as _getStringArrayLength,
+  getStringArrayLengthFromPtr as _getStringArrayLengthFromPtr,
+  getArrayLengthFromPtr as _getArrayLengthFromPtr,
+  getStringLength as _getStringLength,
+} from './property-handlers.js';
 
 interface ExprBase { type: string; }
 
@@ -2166,354 +2179,47 @@ export class MemberAccessGenerator {
   }
 
   private handleLengthProperty(expr: MemberAccessNode, params: string[]): string {
-    const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase.type;
-    if (exprObjType === null || exprObjType === undefined) {
-      return '0.0';
-    }
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isNumberArray((expr.object as VariableNode).name)) {
-      return this.getArrayLength(expr.object, params, '%Array');
-    }
-
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isObjectArray((expr.object as VariableNode).name)) {
-      return this.getArrayLength(expr.object, params, '%ObjectArray');
-    }
-
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isUint8Array((expr.object as VariableNode).name)) {
-      return this.getArrayLength(expr.object, params, '%Uint8Array');
-    }
-
-    if (this.isProcessArgvLength(expr)) {
-      const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-      return this.getStringArrayLength(stringArrayPtr);
-    }
-
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isStringArray((expr.object as VariableNode).name)) {
-      const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-      return this.getStringArrayLength(stringArrayPtr);
-    }
-
-    if (exprObjType === 'member_access') {
-      const result = this.handleMemberAccessLength(expr, params);
-      if (result !== null) return result;
-      const arrayPtr = this.ctx.generateExpression(expr.object, params);
-      const arrayType = this.ctx.getVariableType(arrayPtr);
-      if (arrayType === 'i8*') {
-        const innerAccess = expr.object as MemberAccessNode;
-        const innerObjBase = innerAccess.object as ExprBase;
-        if (innerObjBase.type === 'variable') {
-          const innerVarName = (innerAccess.object as VariableNode).name;
-          if (this.ctx.symbolTable.isObject(innerVarName) && !this.ctx.symbolTable.isJSON(innerVarName)) {
-            const objArrayPtr = this.ctx.nextTemp();
-            this.ctx.emit(`${objArrayPtr} = bitcast i8* ${arrayPtr} to %ObjectArray*`);
-            return this.getArrayLengthFromPtr(objArrayPtr, '%ObjectArray');
-          }
-        }
-        return this.getStringLength(expr.object, params);
-      }
-      if (arrayType === '%StringArray*') {
-        return this.getStringArrayLengthFromPtr(arrayPtr);
-      }
-      if (arrayType === '%Array*') {
-        return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-      }
-      return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
-    }
-
-    if (exprObjType === 'variable') {
-      const objPtr = this.ctx.generateExpression(expr.object, params);
-      const ptrType = this.ctx.getVariableType(objPtr);
-      if (ptrType === '%StringArray*') {
-        return this.getStringArrayLengthFromPtr(objPtr);
-      }
-      if (ptrType === '%Array*') {
-        return this.getArrayLengthFromPtr(objPtr, '%Array');
-      }
-      if (ptrType === '%ObjectArray*') {
-        return this.getArrayLengthFromPtr(objPtr, '%ObjectArray');
-      }
-    }
-
-    return this.getStringLength(expr.object, params);
+    return _handleLengthProperty(this.ctx, expr, params);
   }
 
   private isProcessArgvLength(expr: MemberAccessNode): boolean {
-    const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase.type;
-    if (exprObjType === null || exprObjType === undefined) return false;
-    if (exprObjType !== 'member_access') return false;
-    const innerAccess = expr.object as MemberAccessNode;
-    const innerAccessObjBase = innerAccess.object as ExprBase;
-    return innerAccessObjBase.type === 'variable' &&
-           (innerAccess.object as VariableNode).name === 'process' &&
-           innerAccess.property === 'argv';
+    return _isProcessArgvLength(expr);
   }
 
   private getArrayLength(obj: Expression, params: string[], arrayType: string): string {
-    const arrayPtr = this.ctx.generateExpression(obj, params);
-    const lenPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`);
-    const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
-    const len = this.ctx.nextTemp();
-    this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.setVariableType(len, 'double');
-    return len;
+    return _getArrayLength(this.ctx, obj, params, arrayType);
   }
 
   private getStringArrayLength(stringArrayPtr: string): string {
-    const lenPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 1`);
-    const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
-    const len = this.ctx.nextTemp();
-    this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.setVariableType(len, 'double');
-    return len;
+    return _getStringArrayLength(this.ctx, stringArrayPtr);
   }
 
   private getStringArrayLengthFromPtr(ptr: string): string {
-    const ptrType = this.ctx.getVariableType(ptr);
-    let typedPtr = ptr;
-    if (ptrType !== '%StringArray*') {
-      typedPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${typedPtr} = bitcast i8* ${ptr} to %StringArray*`);
-    }
-    return this.getStringArrayLength(typedPtr);
+    return _getStringArrayLengthFromPtr(this.ctx, ptr);
   }
 
   private handleMemberAccessLength(expr: MemberAccessNode, params: string[]): string | null {
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'member_access') return null;
-    const innerAccess = expr.object as MemberAccessNode;
-
-    const innerAccessObjBase = innerAccess.object as ExprBase;
-    if (innerAccessObjBase.type === 'variable' && this.ctx.symbolTable.isClass((innerAccess.object as VariableNode).name)) {
-      const classMeta = this.ctx.symbolTable.getClassInfo((innerAccess.object as VariableNode).name);
-      if (classMeta) {
-        const fieldInfoResult = this.ctx.classGenGetFieldInfo(classMeta.className, innerAccess.property);
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-        if (fieldInfoResult && fieldInfo.type === 'string[]') {
-          const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getStringArrayLength(stringArrayPtr);
-        } else if (fieldInfoResult && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
-          const arrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-        } else if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.endsWith('[]')) {
-          const arrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-        }
-      }
-    } else if (innerAccessObjBase.type === 'variable') {
-      const varName = (innerAccess.object as VariableNode).name;
-      if (params.indexOf(varName) !== -1) {
-        const paramInterfaceType = this.getParameterTypeFromAST(varName);
-        if (paramInterfaceType && paramInterfaceType.length > 0) {
-          const fieldType = this.getInterfaceFieldType(paramInterfaceType, innerAccess.property);
-          if (fieldType) {
-            if (fieldType === 'string') {
-              return this.getStringLength(expr.object, params);
-            } else if (fieldType === 'string[]') {
-              const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-              return this.getStringArrayLength(stringArrayPtr);
-            } else if (fieldType.endsWith('[]')) {
-              const arrayPtr = this.ctx.generateExpression(expr.object, params);
-              return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
-            }
-          }
-        }
-      }
-      const symbolIfaceType = this.ctx.symbolTable.getInterfaceType(varName);
-      if (symbolIfaceType && symbolIfaceType.length > 0) {
-        const fieldType = this.getInterfaceFieldType(symbolIfaceType, innerAccess.property);
-        if (fieldType) {
-          if (fieldType === 'string') {
-            return this.getStringLength(expr.object, params);
-          } else if (fieldType === 'string[]') {
-            const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-            return this.getStringArrayLength(stringArrayPtr);
-          } else if (fieldType.endsWith('[]')) {
-            const arrayPtr = this.ctx.generateExpression(expr.object, params);
-            return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
-          }
-        }
-      }
-      const arrayPtr = this.ctx.generateExpression(expr.object, params);
-      const arrayType = this.ctx.getVariableType(arrayPtr);
-      if (arrayType === '%StringArray*') {
-        return this.getStringArrayLength(arrayPtr);
-      } else if (arrayType === '%Array*') {
-        return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-      } else if (arrayType === '%ObjectArray*') {
-        return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
-      }
-      if (this.ctx.symbolTable.isJSON(varName)) {
-        const arraySize = this.ctx.nextTemp();
-        this.ctx.emit(`${arraySize} = call i32 @csyyjson_arr_size(i8* ${arrayPtr})`);
-        const sizeDouble = this.ctx.nextTemp();
-        this.ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
-        this.ctx.setVariableType(sizeDouble, 'double');
-        return sizeDouble;
-      }
-      if (this.ctx.symbolTable.isObject(varName)) {
-        const objArrayPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${objArrayPtr} = bitcast i8* ${arrayPtr} to %ObjectArray*`);
-        return this.getArrayLengthFromPtr(objArrayPtr, '%ObjectArray');
-      }
-    } else if (innerAccessObjBase.type === 'this') {
-      const className = this.ctx.getCurrentClassName();
-      if (className) {
-        const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, innerAccess.property);
-        const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-        if (fieldInfoResult && fieldInfo.type === 'string[]') {
-          const stringArrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getStringArrayLength(stringArrayPtr);
-        } else if (fieldInfoResult && (fieldInfo.type === 'number[]' || fieldInfo.type === 'boolean[]')) {
-          const arrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-        } else if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.endsWith('[]')) {
-          const arrayPtr = this.ctx.generateExpression(expr.object, params);
-          return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-        }
-      }
-    } else if (innerAccessObjBase.type === 'member_access') {
-      const arrayPtr = this.ctx.generateExpression(expr.object, params);
-      const arrayType = this.ctx.getVariableType(arrayPtr);
-      if (arrayType === '%StringArray*') {
-        return this.getStringArrayLength(arrayPtr);
-      } else if (arrayType === '%Array*') {
-        return this.getArrayLengthFromPtr(arrayPtr, '%Array');
-      } else if (arrayType === '%ObjectArray*') {
-        return this.getArrayLengthFromPtr(arrayPtr, '%ObjectArray');
-      }
-    }
-    return null;
+    return _handleMemberAccessLength(this.ctx, expr, params);
   }
 
   private getArrayLengthFromPtr(arrayPtr: string, arrayType: string): string {
-    const lenPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`);
-    const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
-    const len = this.ctx.nextTemp();
-    this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.setVariableType(len, 'double');
-    return len;
+    return _getArrayLengthFromPtr(this.ctx, arrayPtr, arrayType);
   }
 
   private getStringLength(obj: Expression, params: string[]): string {
-    const objPtr = this.ctx.generateExpression(obj, params);
-    const lenI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI64} = call i64 @strlen(i8* ${objPtr})`);
-    const lenI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${lenI32} = trunc i64 ${lenI64} to i32`);
-    const len = this.ctx.nextTemp();
-    this.ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
-    this.ctx.setVariableType(len, 'double');
-    return len;
+    return _getStringLength(this.ctx, obj, params);
   }
 
   private handleSizeProperty(expr: MemberAccessNode, params: string[]): string | null {
-    const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase.type;
-    if (exprObjType === null || exprObjType === undefined) {
-      return null;
-    }
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isMap((expr.object as VariableNode).name)) {
-      const mapPtr = this.ctx.generateExpression(expr.object, params);
-      return this.ctx.mapGen.generateMapSize(mapPtr);
-    }
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isSet((expr.object as VariableNode).name)) {
-      const setPtr = this.ctx.generateExpression(expr.object, params);
-      return this.ctx.setGen.generateSetSize(setPtr);
-    }
-    if (exprObjType === 'member_access') {
-      const innerAccess = expr.object as MemberAccessNode;
-      const innerObjBase = innerAccess.object as ExprBase;
-      const classNameForLookup = this.ctx.getCurrentClassName();
-      if (innerObjBase.type === 'this' && classNameForLookup) {
-        const fieldInfo = this.ctx.classGenGetFieldInfo(classNameForLookup, innerAccess.property);
-        if (fieldInfo && fieldInfo.tsType) {
-          const isMap = fieldInfo.tsType.startsWith('Map<') || fieldInfo.tsType.indexOf('Map<') !== -1;
-          const isSet = fieldInfo.tsType.startsWith('Set<') || fieldInfo.tsType.indexOf('Set<') !== -1;
-          if (isMap || isSet) {
-            const ptr = this.ctx.generateExpression(expr.object, params);
-            if (isSet) {
-              return this.ctx.setGen.generateSetSize(ptr);
-            } else {
-              return this.ctx.mapGen.generateMapSize(ptr);
-            }
-          }
-        }
-      }
-    }
-    return null;
+    return _handleSizeProperty(this.ctx, expr, params);
   }
 
   private handleResponseProperty(expr: MemberAccessNode): string | null {
-    if (expr.property !== 'status' && expr.property !== 'ok' && expr.property !== 'url' && expr.property !== 'statusText' && expr.property !== 'redirected' && expr.property !== 'headers') return null;
-    const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase.type;
-    if (exprObjType === null || exprObjType === undefined) return null;
-    if (exprObjType !== 'variable') return null;
-
-    const varName = (expr.object as VariableNode).name;
-    const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
-    if (ifaceType) return null;
-    if (this.hasObjectInfo(varName)) return null;
-    const varType = this.ctx.getVariableType(varName);
-    if (varType !== '%__FetchResponse*' && varType !== 'i8*') return null;
-
-    const varPtr = this.ctx.getVariableAlloca(varName);
-    let responsePtr: string;
-
-    if (varType === 'i8*') {
-      const i8Ptr = this.ctx.nextTemp();
-      this.ctx.emit(`${i8Ptr} = load i8*, i8** ${varPtr}`);
-      responsePtr = this.ctx.nextTemp();
-      this.ctx.emit(`${responsePtr} = bitcast i8* ${i8Ptr} to %__FetchResponse*`);
-    } else {
-      responsePtr = this.ctx.nextTemp();
-      this.ctx.emit(`${responsePtr} = load %__FetchResponse*, %__FetchResponse** ${varPtr}`);
-    }
-
-    if (expr.property === 'status') {
-      return this.ctx.responseGen.generateStatus(responsePtr);
-    } else if (expr.property === 'ok') {
-      return this.ctx.responseGen.generateOk(responsePtr);
-    } else if (expr.property === 'url') {
-      return this.ctx.responseGen.generateUrl(responsePtr);
-    } else if (expr.property === 'headers') {
-      return this.ctx.responseGen.generateHeaders(responsePtr);
-    } else if (expr.property === 'redirected') {
-      return this.ctx.responseGen.generateRedirected(responsePtr);
-    } else if (expr.property === 'statusText') {
-      return this.ctx.responseGen.generateStatusText(responsePtr);
-    }
-    return null;
+    return _handleResponseProperty(this.ctx, expr);
   }
 
   private handleStatProperty(expr: MemberAccessNode): string | null {
-    if (expr.property !== 'size') return null;
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') return null;
-    const varName = (expr.object as VariableNode).name;
-    const varType = this.ctx.getVariableType(varName);
-    if (varType !== '%StatResult*' && varType !== 'i8*') return null;
-    const ifaceType = this.ctx.symbolTable.getInterfaceType(varName);
-    if (ifaceType) return null;
-    if (this.hasObjectInfo(varName)) return null;
-    const varPtr = this.ctx.getVariableAlloca(varName);
-    const raw = this.ctx.nextTemp();
-    this.ctx.emit(`${raw} = load i8*, i8** ${varPtr}`);
-    const statPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${statPtr} = bitcast i8* ${raw} to double*`);
-    const fieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${statPtr}, i64 0`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = load double, double* ${fieldPtr}`);
-    this.ctx.setVariableType(result, 'double');
-    return result;
+    return _handleStatProperty(this.ctx, expr);
   }
 
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {
