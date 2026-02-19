@@ -26,6 +26,17 @@ export class CallExpressionGenerator {
     return null;
   }
 
+  private getClassSourceFile(className: string): string | undefined {
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) return undefined;
+    for (let i = 0; i < ast.classes.length; i++) {
+      const c = ast.classes[i] as ClassNode;
+      if (!c || !c.name) continue;
+      if (c.name === className) return c.sourceFile;
+    }
+    return undefined;
+  }
+
   /**
    * Generate function call expression
    * @param expr - Call expression node
@@ -641,12 +652,13 @@ export class CallExpressionGenerator {
       return this.ctx.emitError('setTimeout() callback must be a function reference', expr.loc);
     }
     const callbackName = (callbackArg as VariableNode).name;
+    const callbackFunc = this.getFunctionFromAST(callbackName);
 
     const delayValue = this.ctx.generateExpression(expr.args[1], params);
     const dblDelay = this.ctx.ensureDouble(delayValue);
 
     const callbackPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${callbackPtr} = bitcast void ()* @${this.ctx.mangleUserName(callbackName)} to void ()*`);
+    this.ctx.emit(`${callbackPtr} = bitcast void ()* @${this.ctx.mangleUserName(callbackName, callbackFunc ? callbackFunc.sourceFile : undefined)} to void ()*`);
 
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__setTimeout(void ()* ${callbackPtr}, double ${dblDelay})`);
@@ -667,12 +679,13 @@ export class CallExpressionGenerator {
       return this.ctx.emitError('setInterval() callback must be a function reference', expr.loc);
     }
     const callbackName = (callbackArg as VariableNode).name;
+    const callbackFunc = this.getFunctionFromAST(callbackName);
 
     const intervalValue = this.ctx.generateExpression(expr.args[1], params);
     const dblInterval = this.ctx.ensureDouble(intervalValue);
 
     const callbackPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${callbackPtr} = bitcast void ()* @${this.ctx.mangleUserName(callbackName)} to void ()*`);
+    this.ctx.emit(`${callbackPtr} = bitcast void ()* @${this.ctx.mangleUserName(callbackName, callbackFunc ? callbackFunc.sourceFile : undefined)} to void ()*`);
 
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__setInterval(void ()* ${callbackPtr}, double ${dblInterval})`);
@@ -735,7 +748,9 @@ export class CallExpressionGenerator {
     let callbackFn: string;
 
     if (callbackArg.type === 'variable') {
-      callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
+      const cbName = (callbackArg as VariableNode).name;
+      const cbFunc = this.getFunctionFromAST(cbName);
+      callbackFn = this.ctx.mangleUserName(cbName, cbFunc ? cbFunc.sourceFile : undefined);
     } else if (callbackArg.type === 'arrow_function') {
       callbackFn = this.ctx.generateExpression(callbackArg, params);
     } else {
@@ -806,7 +821,9 @@ export class CallExpressionGenerator {
     let callbackFn: string;
 
     if (callbackArg.type === 'variable') {
-      callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
+      const cbName = (callbackArg as VariableNode).name;
+      const cbFunc = this.getFunctionFromAST(cbName);
+      callbackFn = this.ctx.mangleUserName(cbName, cbFunc ? cbFunc.sourceFile : undefined);
     } else if (callbackArg.type === 'arrow_function') {
       callbackFn = this.ctx.generateExpression(callbackArg, params);
     } else {
@@ -1041,11 +1058,12 @@ export class CallExpressionGenerator {
       argsWithTypesParts.push('i8* ' + argValues[ai]);
     }
     const argsWithTypes = argsWithTypesParts.join(', ');
+    const parentSourceFile = this.getClassSourceFile(parentClassName);
     const parentObj = this.ctx.nextTemp();
     if (argValues.length === 0) {
-      this.ctx.emit(`${parentObj} = call ${parentStructType} @${this.ctx.mangleUserName(parentClassName)}_constructor()`);
+      this.ctx.emit(`${parentObj} = call ${parentStructType} @${this.ctx.mangleUserName(parentClassName, parentSourceFile)}_constructor()`);
     } else {
-      this.ctx.emit(`${parentObj} = call ${parentStructType} @${this.ctx.mangleUserName(parentClassName)}_constructor(${argsWithTypes})`);
+      this.ctx.emit(`${parentObj} = call ${parentStructType} @${this.ctx.mangleUserName(parentClassName, parentSourceFile)}_constructor(${argsWithTypes})`);
     }
 
     const parentFields = this.ctx.classGenGetClassFields(parentClassName);

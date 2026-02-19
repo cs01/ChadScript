@@ -1227,6 +1227,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return result;
   }
 
+  private getFunctionSourceFile(name: string): string | undefined {
+    if (!this.ast || !this.ast.functions) return undefined;
+    for (let i = 0; i < this.ast.functions.length; i++) {
+      const fn = this.ast.functions[i] as { name: string; sourceFile?: string };
+      if (fn.name === name) return fn.sourceFile;
+    }
+    return undefined;
+  }
+
   createEmptyStringConstant(): string {
     return this.stringGen.doCreateStringConstant('');
   }
@@ -1762,8 +1771,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (this.httpHandlers.length > 0) {
       irParts.push('\n');
       const wsHandler = this.wsHandlers.length > 0 ? this.wsHandlers[0] : undefined;
-      const mangledHttpHandler = this.mangleUserName(this.httpHandlers[0]);
-      const mangledWsHandler = wsHandler ? this.mangleUserName(wsHandler) : undefined;
+      const httpHandlerSourceFile = this.getFunctionSourceFile(this.httpHandlers[0]);
+      const mangledHttpHandler = this.mangleUserName(this.httpHandlers[0], httpHandlerSourceFile);
+      const wsHandlerSourceFile = wsHandler ? this.getFunctionSourceFile(wsHandler) : undefined;
+      const mangledWsHandler = wsHandler ? this.mangleUserName(wsHandler, wsHandlerSourceFile) : undefined;
       const httpServe = this.httpServerGen.generateHttpServeFunction(mangledWsHandler);
       if (httpServe) { irParts.push(httpServe); }
       irParts.push('\n');
@@ -2682,7 +2693,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     // Call the runtime http_serve function
     // Handler now takes a single Request object (i8*) and returns Response object (i8*)
     const temp = this.nextTemp();
-    this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*)* @${this.mangleUserName(handlerName)})`);
+    this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*)* @${this.mangleUserName(handlerName, this.getFunctionSourceFile(handlerName))})`);
 
     return temp;
   }
