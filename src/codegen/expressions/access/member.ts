@@ -47,6 +47,13 @@ import {
   splitByTopLevelSemicolon as _splitByTopLevelSemicolon,
   findTopLevelColon as _findTopLevelColon,
 } from './type-assertion-access.js';
+import {
+  handleJsonPropertyAccess as _handleJsonPropertyAccess,
+  handleNestedJsonAccess as _handleNestedJsonAccess,
+  handleNestedInterfaceField as _handleNestedInterfaceField,
+  extractJsonFieldValue as _extractJsonFieldValue,
+  extractNestedJsonFieldValue as _extractNestedJsonFieldValue,
+} from './chained-access.js';
 
 interface ExprBase { type: string; }
 
@@ -910,92 +917,12 @@ export class MemberAccessGenerator {
     }
   }
 
-  private handleJsonPropertyAccess(expr: MemberAccessNode, _params: string[]): string {
-    const varName = (expr.object as VariableNode).name;
-    this.ctx.setUsesJson(true);
-
-    if (expr.property === 'length') {
-      const jsonObjPtrPtr = this.ctx.getVariableAlloca(varName)!;
-      const jsonObjPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
-      const arraySize = this.ctx.nextTemp();
-      this.ctx.emit(`${arraySize} = call i32 @csyyjson_arr_size(i8* ${jsonObjPtr})`);
-      const sizeDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
-      this.ctx.setVariableType(sizeDouble, 'double');
-      return sizeDouble;
-    }
-
-    let tsType: string | undefined;
-    if (this.hasObjectInfo(varName)) {
-      const tsTypesArr = this.ctx.symbolTable.getObjectMetadataTsTypes(varName);
-      const keysArr = this.ctx.symbolTable.getObjectMetadataKeys(varName);
-      if (tsTypesArr && keysArr) {
-        const propIdx = keysArr.indexOf(expr.property);
-        if (propIdx !== -1) {
-          tsType = tsTypesArr[propIdx];
-        }
-      }
-    }
-
-    const jsonObjPtrPtr = this.ctx.getVariableAlloca(varName)!;
-    const jsonObjPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
-
-    const fieldNameStr = this.ctx.stringGen.doCreateStringConstant(expr.property);
-
-    const fieldItem = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldItem} = call i8* @csyyjson_obj_get(i8* ${jsonObjPtr}, i8* ${fieldNameStr})`);
-
-    if (tsType && ['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'].indexOf(tsType) === -1) {
-      return this.handleNestedInterfaceField(fieldItem, tsType);
-    }
-
-    if (tsType === 'string') {
-      const strValue = this.ctx.nextTemp();
-      this.ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
-      this.ctx.setVariableType(strValue, 'i8*');
-      return strValue;
-    } else if (tsType === 'number') {
-      const numValue = this.ctx.nextTemp();
-      this.ctx.emit(`${numValue} = call double @csyyjson_get_num(i8* ${fieldItem})`);
-      this.ctx.setVariableType(numValue, 'double');
-      return numValue;
-    } else if (tsType === 'boolean') {
-      const boolValue = this.ctx.nextTemp();
-      this.ctx.emit(`${boolValue} = call i32 @csyyjson_is_true(i8* ${fieldItem})`);
-      const boolAsDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${boolAsDouble} = sitofp i32 ${boolValue} to double`);
-      this.ctx.setVariableType(boolAsDouble, 'double');
-      return boolAsDouble;
-    } else if (tsType === 'string[]' || tsType === 'number[]' || tsType === 'boolean[]') {
-      this.ctx.setVariableType(fieldItem, 'i8*');
-      return fieldItem;
-    }
-
-    return this.extractJsonFieldValue(fieldItem);
+  private handleJsonPropertyAccess(expr: MemberAccessNode, params: string[]): string {
+    return _handleJsonPropertyAccess(this.ctx, expr, params);
   }
 
   private handleNestedInterfaceField(fieldItem: string, tsType: string): string {
-    const baseType = stripNullable(tsType);
-    const nestedInterfaceDefResult = this.getInterfaceDecl(baseType);
-    const nestedInterfaceDef = nestedInterfaceDefResult as InterfaceDeclaration;
-    if (nestedInterfaceDefResult) {
-      const keys: string[] = [];
-      const tsTypes: string[] = [];
-      const types: string[] = [];
-      if (nestedInterfaceDef.fields) {
-        for (let i = 0; i < nestedInterfaceDef.fields.length; i++) {
-          const f = nestedInterfaceDef.fields[i] as { name: string; type: string };
-          keys.push(stripOptional(f.name));
-          tsTypes.push(f.type);
-          types.push(this.convertTsType(f.type));
-        }
-      }
-      this.ctx.setJsonObjectMetadata(fieldItem, { keys, types, tsTypes, interfaceType: undefined });
-    }
-    this.ctx.setVariableType(fieldItem, 'i8*');
-    return fieldItem;
+    return _handleNestedInterfaceField(this.ctx, fieldItem, tsType);
   }
 
   private convertTsType(t: string): string {
@@ -1015,105 +942,11 @@ export class MemberAccessGenerator {
   }
 
   private extractJsonFieldValue(fieldItem: string): string {
-    const fieldExists = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldExists} = icmp ne i8* ${fieldItem}, null`);
-
-    const hasFieldLabel = this.ctx.nextLabel('json_has_field');
-    const noFieldLabel = this.ctx.nextLabel('json_no_field');
-    const fieldEndLabel = this.ctx.nextLabel('json_field_end');
-
-    this.ctx.emit(`br i1 ${fieldExists}, label %${hasFieldLabel}, label %${noFieldLabel}`);
-    this.ctx.emit(`${hasFieldLabel}:`);
-
-    const isNumber = this.ctx.nextTemp();
-    this.ctx.emit(`${isNumber} = call i32 @csyyjson_is_num(i8* ${fieldItem})`);
-    const isNumBool = this.ctx.nextTemp();
-    this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
-
-    const numberLabel = this.ctx.nextLabel('json_number');
-    const stringLabel = this.ctx.nextLabel('json_string');
-
-    this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
-
-    this.ctx.emit(`${numberLabel}:`);
-    const numValueDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${numValueDouble} = call double @csyyjson_get_num(i8* ${fieldItem})`);
-    const numAsStr = this.ctx.nextTemp();
-    this.ctx.emit(`${numAsStr} = call i8* @__double_to_string(double ${numValueDouble})`);
-    this.ctx.emit(`br label %${fieldEndLabel}`);
-
-    this.ctx.emit(`${stringLabel}:`);
-    const strValue = this.ctx.nextTemp();
-    this.ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
-    this.ctx.emit(`br label %${fieldEndLabel}`);
-
-    this.ctx.emit(`${noFieldLabel}:`);
-    this.ctx.emit(`br label %${fieldEndLabel}`);
-
-    this.ctx.emit(`${fieldEndLabel}:`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi i8* [ ${numAsStr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ], [ null, %${noFieldLabel} ]`);
-
-    this.ctx.setVariableType(result, 'i8*');
-    return result;
+    return _extractJsonFieldValue(this.ctx, fieldItem);
   }
 
   private handleNestedJsonAccess(expr: MemberAccessNode, params: string[]): string | null {
-    if (expr.property === 'length') return null;
-
-    const innerResult = this.ctx.generateExpression(expr.object, params);
-
-    const innerType = this.ctx.getVariableType(innerResult);
-    if (innerType === '%Array*' || innerType === '%StringArray*' || innerType === '%ObjectArray*') {
-      return null;
-    }
-    if (innerType && innerType.startsWith('%') && innerType.endsWith('*') && innerType !== '%__FetchResponse*' && innerType.indexOf('Map') === -1 && innerType.indexOf('Set') === -1) {
-      return null;
-    }
-
-    if (!this.ctx.hasJsonObjectMetadata(innerResult)) return null;
-    const nestedMetaKeys = this.ctx.getJsonObjectMetadataKeys(innerResult);
-    const nestedMetaTsTypes = this.ctx.getJsonObjectMetadataTsTypes(innerResult);
-    if (!nestedMetaKeys) return null;
-
-    this.ctx.setUsesJson(true);
-    const fieldNameStr = this.ctx.stringGen.doCreateStringConstant(expr.property);
-    const fieldItem = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldItem} = call i8* @csyyjson_obj_get(i8* ${innerResult}, i8* ${fieldNameStr})`);
-
-    const propIdx = nestedMetaKeys.indexOf(expr.property);
-    let tsType: string | undefined;
-    if (propIdx !== -1 && nestedMetaTsTypes) {
-      tsType = nestedMetaTsTypes[propIdx];
-    }
-
-    if (tsType && ['string', 'number', 'boolean', 'string[]', 'number[]', 'boolean[]'].indexOf(tsType) === -1) {
-      return this.handleNestedInterfaceField(fieldItem, tsType);
-    }
-
-    if (tsType === 'string') {
-      const strValue = this.ctx.nextTemp();
-      this.ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
-      this.ctx.setVariableType(strValue, 'i8*');
-      return strValue;
-    } else if (tsType === 'number') {
-      const numValue = this.ctx.nextTemp();
-      this.ctx.emit(`${numValue} = call double @csyyjson_get_num(i8* ${fieldItem})`);
-      this.ctx.setVariableType(numValue, 'double');
-      return numValue;
-    } else if (tsType === 'boolean') {
-      const boolValue = this.ctx.nextTemp();
-      this.ctx.emit(`${boolValue} = call i32 @csyyjson_is_true(i8* ${fieldItem})`);
-      const boolAsDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${boolAsDouble} = sitofp i32 ${boolValue} to double`);
-      this.ctx.setVariableType(boolAsDouble, 'double');
-      return boolAsDouble;
-    } else if (tsType === 'string[]' || tsType === 'number[]' || tsType === 'boolean[]') {
-      this.ctx.setVariableType(fieldItem, 'i8*');
-      return fieldItem;
-    }
-
-    return this.extractNestedJsonFieldValue(fieldItem);
+    return _handleNestedJsonAccess(this.ctx, expr, params);
   }
 
   private handleChainedInterfaceAccess(expr: MemberAccessNode, params: string[]): string | null {
@@ -1955,35 +1788,7 @@ export class MemberAccessGenerator {
   }
 
   private extractNestedJsonFieldValue(fieldItem: string): string {
-    const isNumber = this.ctx.nextTemp();
-    this.ctx.emit(`${isNumber} = call i32 @csyyjson_is_num(i8* ${fieldItem})`);
-    const isNumBool = this.ctx.nextTemp();
-    this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
-
-    const numberLabel = this.ctx.nextLabel('json_number');
-    const stringLabel = this.ctx.nextLabel('json_string');
-    const fieldEndLabel = this.ctx.nextLabel('json_field_end');
-
-    this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
-
-    this.ctx.emit(`${numberLabel}:`);
-    const numValueDouble = this.ctx.nextTemp();
-    this.ctx.emit(`${numValueDouble} = call double @csyyjson_get_num(i8* ${fieldItem})`);
-    const numAsStr = this.ctx.nextTemp();
-    this.ctx.emit(`${numAsStr} = call i8* @__double_to_string(double ${numValueDouble})`);
-    this.ctx.emit(`br label %${fieldEndLabel}`);
-
-    this.ctx.emit(`${stringLabel}:`);
-    const strValue = this.ctx.nextTemp();
-    this.ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
-    this.ctx.emit(`br label %${fieldEndLabel}`);
-
-    this.ctx.emit(`${fieldEndLabel}:`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi i8* [ ${numAsStr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ]`);
-
-    this.ctx.setVariableType(result, 'i8*');
-    return result;
+    return _extractNestedJsonFieldValue(this.ctx, fieldItem);
   }
 
   private handleObjectPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
