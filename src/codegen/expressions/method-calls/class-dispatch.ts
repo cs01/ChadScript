@@ -28,7 +28,7 @@ export function getInterfaceFromAST(ctx: MethodCallGeneratorContext, name: strin
       if (!ifaceItem) continue;
       const properties: { name: string; type: string }[] = [];
       for (let j = 0; j < ifaceItem.fields.length; j++) {
-        const field = ifaceItem.fields[j] as { name: string; type: string };
+        const field = ifaceItem.fields[j] as InterfaceField;
         properties.push({ name: field.name, type: field.type });
       }
       return { properties };
@@ -311,13 +311,13 @@ export function resolveNestedMemberAccessType(ctx: MethodCallGeneratorContext, e
     if (interfaceDeclResult) {
       let fieldResult: InterfaceField | null = null;
       for (let i = 0; i < interfaceDecl.fields.length; i++) {
-        const f = interfaceDecl.fields[i] as { name: string; type: string };
+        const f = interfaceDecl.fields[i] as InterfaceField;
         if (f.name === memberAccess.property) {
           fieldResult = f;
           break;
         }
       }
-      const field = fieldResult as { name: string; type: string };
+      const field = fieldResult as InterfaceField;
       if (fieldResult) {
         let fieldType = field.type;
         if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
@@ -517,7 +517,7 @@ export function handleClassMethods(ctx: MethodCallGeneratorContext, expr: Method
           if (interfaceDeclResult) {
             const interfaceDecl = interfaceDeclResult as InterfaceDeclaration;
             for (let i = 0; i < interfaceDecl.fields.length; i++) {
-              const f = interfaceDecl.fields[i] as { name: string; type: string };
+              const f = interfaceDecl.fields[i] as InterfaceField;
               if (f.name === memberAccess.property) {
                 let fieldType = f.type;
                 if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {

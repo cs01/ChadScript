@@ -349,7 +349,7 @@ export class TypeResolver {
     const types: string[] = [];
     const tsTypes: string[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as { name: string; type: string };
+      const f = iface.fields[i] as InterfaceField;
       keys.push(stripOptional(f.name));
       types.push(this.convertTsType(f.type));
       tsTypes.push(f.type);
@@ -364,7 +364,7 @@ export class TypeResolver {
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as { name: string; type: string };
+      const f = iface.fields[i] as InterfaceField;
       if (!f || !f.name) {
         continue;
       }
@@ -380,7 +380,7 @@ export class TypeResolver {
     if (!iface) return null;
     const properties: { name: string; type: string }[] = [];
     for (let i = 0; i < iface.fields.length; i++) {
-      const f = iface.fields[i] as { name: string; type: string };
+      const f = iface.fields[i] as InterfaceField;
       properties.push({ name: f.name, type: f.type });
     }
     return { properties };
@@ -520,13 +520,13 @@ export class TypeResolver {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as { name: string; type: string };
+      const field = firstFields[fi] as InterfaceField;
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
         const iface = interfaces[ii] as InterfaceDeclaration;
         let hasMatch = false;
         for (let jj = 0; jj < iface.fields.length; jj++) {
-          const f = iface.fields[jj] as { name: string; type: string };
+          const f = iface.fields[jj] as InterfaceField;
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             hasMatch = true;
             break;
@@ -768,7 +768,7 @@ export class TypeResolver {
     field: string
   ): string | null {
     for (let i = 0; i < fields.length; i++) {
-      const f = fields[i] as { name: string; type: string };
+      const f = fields[i] as InterfaceField;
       if (f.name === field) {
         if (f.type === `'${value}'` || f.type === `"${value}"`) {
           return ifaceName;
@@ -843,14 +843,14 @@ export class TypeResolver {
         const iface = ifaceDecl as InterfaceDeclaration;
         let field: { name: string; type: string } | null = null;
         for (let i = 0; i < iface.fields.length; i++) {
-          const f = iface.fields[i] as { name: string; type: string };
+          const f = iface.fields[i] as InterfaceField;
           if (f.name === memberExpr.property) {
             field = f;
             break;
           }
         }
         if (field) {
-          const fieldTyped = field as { name: string; type: string };
+          const fieldTyped = field as InterfaceField;
           const mapParsed = parseMapTypeString(fieldTyped.type);
           if (mapParsed) {
             return { fieldName: memberExpr.property, keyType: mapParsed.keyType, valueType: mapParsed.valueType };
@@ -900,14 +900,14 @@ export class TypeResolver {
       const iface = ifaceDecl as InterfaceDeclaration;
       let field: { name: string; type: string } | null = null;
       for (let i = 0; i < iface.fields.length; i++) {
-        const f = iface.fields[i] as { name: string; type: string };
+        const f = iface.fields[i] as InterfaceField;
         if (f.name === memberExpr.property) {
           field = f;
           break;
         }
       }
       if (field) {
-        const fieldTyped = field as { name: string; type: string };
+        const fieldTyped = field as InterfaceField;
         let fieldType = fieldTyped.type;
         if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
           fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
@@ -996,14 +996,14 @@ export class TypeResolver {
         const iface = ifaceDecl as InterfaceDeclaration;
         let field: { name: string; type: string } | null = null;
         for (let i = 0; i < iface.fields.length; i++) {
-          const f = iface.fields[i] as { name: string; type: string };
+          const f = iface.fields[i] as InterfaceField;
           if (f.name === memberExpr.property) {
             field = f;
             break;
           }
         }
         if (field) {
-          const fieldTyped = field as { name: string; type: string };
+          const fieldTyped = field as InterfaceField;
           const mapParsed = parseMapTypeString(fieldTyped.type);
           if (mapParsed) {
             return mapParsed.keyType;

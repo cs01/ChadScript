@@ -1,4 +1,4 @@
-import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField, SwitchStatement, SourceLocation, Statement } from '../../ast/types.js';
+import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField, SwitchStatement, SourceLocation, Statement, InterfaceField } from '../../ast/types.js';
 import { SymbolKind, SymbolTable, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, SymbolMetadata } from './symbol-table.js';
 import type { ClosureInfo } from './closure-analyzer.js';
 import type { TypeChecker } from '../../typescript/type-checker.js';
@@ -267,7 +267,7 @@ export class FunctionGenerator {
             const keys: string[] = [];
             const types: string[] = [];
             for (let j = 0; j < interfaceDefFields.length; j++) {
-              const field = interfaceDefFields[j] as { name: string; type: string };
+              const field = interfaceDefFields[j] as InterfaceField;
               if (!field || !field.name) continue;
               const fieldName = stripOptional(field.name);
               keys.push(fieldName);
@@ -626,7 +626,7 @@ export class FunctionGenerator {
     const commonFields: CommonField[] = [];
 
     for (let fi = 0; fi < firstFields.length; fi++) {
-      const field = firstFields[fi] as { name: string; type: string };
+      const field = firstFields[fi] as InterfaceField;
       if (!field || !field.name) continue;
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
@@ -637,7 +637,7 @@ export class FunctionGenerator {
         }
         let found = false;
         for (let fj = 0; fj < ifaceTyped.fields.length; fj++) {
-          const f = ifaceTyped.fields[fj] as { name: string; type: string };
+          const f = ifaceTyped.fields[fj] as InterfaceField;
           if (!f || !f.name) continue;
           if (f.name === field.name && this.areTypesCompatible(f.type, field.type)) {
             found = true;

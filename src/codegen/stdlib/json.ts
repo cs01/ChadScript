@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode } from '../../ast/types.js';
+import { Expression, MethodCallNode, InterfaceField } from '../../ast/types.js';
 
 interface ExprBase { type: string; }
 
@@ -207,7 +207,7 @@ export class JsonGenerator {
 
     const fieldTypes: string[] = [];
     for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-      const fieldItem = interfaceDef.fields[fi] as { name: string; type: string };
+      const fieldItem = interfaceDef.fields[fi] as InterfaceField;
       const fieldType = fieldItem.type;
       if (fieldType === 'string') {
         fieldTypes.push('i8*');
@@ -243,7 +243,7 @@ export class JsonGenerator {
     this.generatedStructs.add(parserKey);
 
     for (let fi = 0; fi < interfaceDef.fields.length; fi++) {
-      const fieldItem = interfaceDef.fields[fi] as { name: string; type: string };
+      const fieldItem = interfaceDef.fields[fi] as InterfaceField;
       const fieldType = fieldItem.type;
       if (fieldType !== 'string' && fieldType !== 'number' && fieldType !== 'boolean') {
         const nestedDef = this.getInterfaceFields(fieldType);
@@ -261,7 +261,7 @@ export class JsonGenerator {
     parserIR += `  %struct_ptr = bitcast i8* %struct_bytes to %${typeName}*\n`;
 
     for (let fieldIndex = 0; fieldIndex < interfaceDef.fields.length; fieldIndex++) {
-      const fieldEntry = interfaceDef.fields[fieldIndex] as { name: string; type: string };
+      const fieldEntry = interfaceDef.fields[fieldIndex] as InterfaceField;
       if (fieldEntry.type === 'string') {
         parserIR += `  %init_ptr_${fieldIndex} = getelementptr inbounds %${typeName}, %${typeName}* %struct_ptr, i32 0, i32 ${fieldIndex}\n`;
         parserIR += `  store i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.empty_str, i64 0, i64 0), i8** %init_ptr_${fieldIndex}\n`;
@@ -285,7 +285,7 @@ export class JsonGenerator {
       parserIR += `  br label %field_0\n\n`;
 
       for (let fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++) {
-        const fieldEntry = interfaceDef.fields[fieldIndex] as { name: string; type: string };
+        const fieldEntry = interfaceDef.fields[fieldIndex] as InterfaceField;
         const fieldName = fieldEntry.name;
         const fieldType = fieldEntry.type;
         const nextLabel = (fieldIndex + 1 < fieldCount) ? `field_${fieldIndex + 1}` : 'json_cleanup';
