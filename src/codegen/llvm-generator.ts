@@ -1769,6 +1769,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       irParts.push('\n');
     }
 
+    if (this.embedGen.hasEmbeddedFiles()) {
+      irParts.push(this.embedGen.generateLookupFunction());
+    }
+
     const needsLibuv = this.usesTimers || this.usesPromises || this.usesCurl || this.usesUvHrtime;
     const needsPromise = this.usesPromises || this.usesCurl;
 
@@ -1855,10 +1859,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push(this.sqliteGen.generateSqliteExecWithParamsHelper());
       finalParts.push(this.sqliteGen.generateSqliteGetWithParamsHelper());
       finalParts.push(this.sqliteGen.generateSqliteAllWithParamsHelper());
-    }
-
-    if (this.embedGen.hasEmbeddedFiles()) {
-      finalParts.push(this.embedGen.generateLookupFunction());
     }
 
     if (this.usesStringBuilder) {

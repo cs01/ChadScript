@@ -12,7 +12,8 @@ interface StringLiteralNode {
 
 interface EmbeddedFile {
   key: string;
-  contentPtr: string;
+  globalStrId: string;
+  globalStrLen: number;
 }
 
 export class EmbedGenerator {
@@ -25,6 +26,64 @@ export class EmbedGenerator {
 
   hasEmbeddedFiles(): boolean {
     return this.embeddedFiles.length > 0;
+  }
+
+  private escapeAndMeasure(value: string): { escaped: string; byteCount: number } {
+    let escaped = '';
+    let byteCount = 0;
+    for (let i = 0; i < value.length; i++) {
+      const ch = value[i];
+      const code = value.charCodeAt(i);
+      if (ch === '\\') {
+        escaped += '\\5C';
+        byteCount += 1;
+      } else if (ch === '\n') {
+        escaped += '\\0A';
+        byteCount += 1;
+      } else if (ch === '\r') {
+        escaped += '\\0D';
+        byteCount += 1;
+      } else if (ch === '\t') {
+        escaped += '\\09';
+        byteCount += 1;
+      } else if (ch === '"') {
+        escaped += '\\22';
+        byteCount += 1;
+      } else if (code < 32 || code > 126) {
+        if (code < 128) {
+          escaped += '\\' + this.byteToHex(code);
+          byteCount += 1;
+        } else if (code < 0x800) {
+          escaped += '\\' + this.byteToHex(0xC0 | (code >> 6));
+          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          byteCount += 2;
+        } else {
+          escaped += '\\' + this.byteToHex(0xE0 | (code >> 12));
+          escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
+          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          byteCount += 3;
+        }
+      } else {
+        escaped += ch;
+        byteCount += 1;
+      }
+    }
+    return { escaped, byteCount };
+  }
+
+  private byteToHex(b: number): string {
+    const hexChars = '0123456789ABCDEF';
+    const hi = hexChars.charAt((b >> 4) & 0xF);
+    const lo = hexChars.charAt(b & 0xF);
+    return hi + lo;
+  }
+
+  private createGlobalStringDirect(value: string): { strId: string; len: number } {
+    const strId = this.ctx.nextString();
+    const { escaped, byteCount } = this.escapeAndMeasure(value);
+    const len = byteCount + 1;
+    this.ctx.pushGlobalString(strId + ' = private unnamed_addr constant [' + len + ' x i8] c"' + escaped + '\\00", align 1');
+    return { strId, len };
   }
 
   generateEmbedFile(expr: MethodCallNode, _params: string[]): string {
@@ -45,13 +104,16 @@ export class EmbedGenerator {
     }
 
     const content = fs.readFileSync(absPath, 'utf-8');
-    const contentPtr = this.ctx.createStringConstant(content);
-    this.ctx.setVariableType(contentPtr, 'i8*');
+    const { strId, len } = this.createGlobalStringDirect(content);
+
+    const ptrReg = this.ctx.nextTemp();
+    this.ctx.emit(ptrReg + ' = getelementptr inbounds [' + len + ' x i8], [' + len + ' x i8]* ' + strId + ', i64 0, i64 0');
+    this.ctx.setVariableType(ptrReg, 'i8*');
 
     const key = nodePath.basename(relPath);
-    this.embeddedFiles.push({ key, contentPtr });
+    this.embeddedFiles.push({ key, globalStrId: strId, globalStrLen: len });
 
-    return contentPtr;
+    return ptrReg;
   }
 
   generateEmbedDir(expr: MethodCallNode, _params: string[]): string {
@@ -86,10 +148,9 @@ export class EmbedGenerator {
         this.walkDir(fullPath, baseDir);
       } else {
         const content = fs.readFileSync(fullPath, 'utf-8');
-        const contentPtr = this.ctx.createStringConstant(content);
-        this.ctx.setVariableType(contentPtr, 'i8*');
+        const { strId, len } = this.createGlobalStringDirect(content);
         const relKey = nodePath.relative(baseDir, fullPath);
-        this.embeddedFiles.push({ key: relKey, contentPtr });
+        this.embeddedFiles.push({ key: relKey, globalStrId: strId, globalStrLen: len });
       }
     }
   }
@@ -113,30 +174,37 @@ export class EmbedGenerator {
       return '';
     }
 
+    const keyGlobals: { strId: string; len: number }[] = [];
+    for (let i = 0; i < this.embeddedFiles.length; i++) {
+      keyGlobals.push(this.createGlobalStringDirect(this.embeddedFiles[i].key));
+    }
+    const emptyGlobal = this.createGlobalStringDirect('');
+
     let ir = '';
     ir += 'define i8* @__cs_get_embedded_file(i8* %key) {\n';
     ir += 'entry:\n';
 
     for (let i = 0; i < this.embeddedFiles.length; i++) {
       const file = this.embeddedFiles[i];
-      const keyPtr = this.ctx.createStringConstant(file.key);
-      const cmpReg = this.ctx.nextTemp();
-      ir += `  ${cmpReg} = call i32 @strcmp(i8* %key, i8* ${keyPtr})\n`;
-      const isEqReg = this.ctx.nextTemp();
-      ir += `  ${isEqReg} = icmp eq i32 ${cmpReg}, 0\n`;
+      const keyG = keyGlobals[i];
+
+      ir += `  %key_ptr_${i} = getelementptr inbounds [${keyG.len} x i8], [${keyG.len} x i8]* ${keyG.strId}, i64 0, i64 0\n`;
+      ir += `  %cmp_${i} = call i32 @strcmp(i8* %key, i8* %key_ptr_${i})\n`;
+      ir += `  %is_${i} = icmp eq i32 %cmp_${i}, 0\n`;
       const foundLabel = `found${i}`;
       const nextLabel = i < this.embeddedFiles.length - 1 ? `check${i + 1}` : 'notfound';
-      ir += `  br i1 ${isEqReg}, label %${foundLabel}, label %${nextLabel}\n`;
+      ir += `  br i1 %is_${i}, label %${foundLabel}, label %${nextLabel}\n`;
       ir += `${foundLabel}:\n`;
-      ir += `  ret i8* ${file.contentPtr}\n`;
+      ir += `  %content_ptr_${i} = getelementptr inbounds [${file.globalStrLen} x i8], [${file.globalStrLen} x i8]* ${file.globalStrId}, i64 0, i64 0\n`;
+      ir += `  ret i8* %content_ptr_${i}\n`;
       if (i < this.embeddedFiles.length - 1) {
         ir += `check${i + 1}:\n`;
       }
     }
 
     ir += 'notfound:\n';
-    const emptyPtr = this.ctx.createStringConstant('');
-    ir += `  ret i8* ${emptyPtr}\n`;
+    ir += `  %empty_ptr = getelementptr inbounds [${emptyGlobal.len} x i8], [${emptyGlobal.len} x i8]* ${emptyGlobal.strId}, i64 0, i64 0\n`;
+    ir += `  ret i8* %empty_ptr\n`;
     ir += '}\n\n';
 
     return ir;

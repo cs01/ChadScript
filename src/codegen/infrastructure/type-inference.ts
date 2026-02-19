@@ -306,6 +306,10 @@ export class TypeInference {
 
       if (varName === 'Promise') return this.ctx.typeContext.resolve('Promise');
 
+      if (varName === 'ChadScript') {
+        if (method === 'embedFile' || method === 'getEmbeddedFile') return this.ctx.typeContext.stringType;
+      }
+
       if (varName === 'Array' && method === 'from') return this.ctx.typeContext.getArrayType('number');
 
       if (this.ctx.symbolTable.isClass(varName)) {
