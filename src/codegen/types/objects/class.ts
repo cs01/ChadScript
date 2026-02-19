@@ -1,7 +1,7 @@
 import { Expression, ClassNode, ClassMethod, ClassField, VariableNode, InterfaceDeclaration, CommonField } from '../../../ast/types.js';
 import { IGeneratorContext } from '../../infrastructure/generator-context.js';
 import { SymbolKind, createObjectMetadata, createObjectMetadataWithInterfaceAndPointerAlloca, createClassMetadata } from '../../infrastructure/symbol-table.js';
-import { stripOptional, tsTypeToLlvm } from '../../infrastructure/type-system.js';
+import { stripOptional, canonicalTypeToLlvm } from '../../infrastructure/type-system.js';
 
 // ============================================
 // CLASS GENERATOR - Class and instance operations
@@ -971,10 +971,7 @@ export class ClassGenerator {
     if (!tsType || tsType.length === 0) {
       return 'double';
     }
-    if (this.isEnumType(tsType)) {
-      return 'double';
-    }
-    return tsTypeToLlvm(tsType);
+    return canonicalTypeToLlvm(tsType, 'default', this.isEnumType(tsType), false, '');
   }
 
   private isEnumType(typeName: string): boolean {

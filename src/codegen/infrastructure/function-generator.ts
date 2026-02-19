@@ -5,7 +5,7 @@ import type { TypeChecker } from '../../typescript/type-checker.js';
 import type { StringGenerator } from '../types/collections/string.js';
 import type { ControlFlowGenerator } from '../statements/control-flow.js';
 import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
-import { stripOptional, tsTypeToLlvm, mapParamTypeToLLVM } from './type-system.js';
+import { stripOptional, tsTypeToLlvm, mapParamTypeToLLVM, canonicalTypeToLlvm } from './type-system.js';
 import { findI64EligibleVariables } from './integer-analysis.js';
 
 interface LiftedFunction extends FunctionNode {
@@ -271,7 +271,7 @@ export class FunctionGenerator {
               if (!field || !field.name) continue;
               const fieldName = stripOptional(field.name);
               keys.push(fieldName);
-              types.push(this.convertTsTypeForField(fieldName, field.type));
+              types.push(canonicalTypeToLlvm(field.type, 'default', this.ctx.isEnumType(field.type), false, fieldName));
             }
             this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types }, paramTypes[i]));
           } else if (typeAliasCommonProps && typeAliasCommonProps.keys.length > 0) {
@@ -571,23 +571,6 @@ export class FunctionGenerator {
     return this.ctx.isEnumType(typeName);
   }
 
-  private convertTsType(tsType: string): string {
-    if (this.isEnumType(tsType)) {
-      return 'double';
-    }
-    return tsTypeToLlvm(tsType);
-  }
-
-  private convertTsTypeForField(fieldName: string, tsType: string): string {
-    if (fieldName === 'nodePtr' || fieldName === 'treePtr') {
-      return 'i8*';
-    }
-    if (this.isEnumType(tsType)) {
-      return 'double';
-    }
-    return tsTypeToLlvm(tsType);
-  }
-
   private llvmTypeToSymbolKind(llvmType: string): number {
     if (llvmType === 'double') return SymbolKind.Number;
     if (llvmType === 'i8*') return SymbolKind.String;
@@ -659,7 +642,7 @@ export class FunctionGenerator {
     for (let i = 0; i < commonFields.length; i++) {
       const cf = commonFields[i] as CommonField;
       keys.push(stripOptional(cf.name));
-      types.push(this.convertTsType(cf.type));
+      types.push(canonicalTypeToLlvm(cf.type, 'default', this.ctx.isEnumType(cf.type), false, ''));
     }
 
     return { keys, types };
