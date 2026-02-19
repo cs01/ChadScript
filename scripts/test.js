@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn, execSync } from 'child_process';
 import * as path from 'path';
+import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -12,6 +13,17 @@ try {
 } catch (error) {
   console.error('Build failed');
   process.exit(1);
+}
+
+const chadc = path.join(projectRoot, '.build', 'chadc');
+if (!fs.existsSync(chadc)) {
+  console.log('Building native compiler (.build/chadc)...');
+  try {
+    execSync('node dist/chadc-node.js src/chadc-native.ts -o .build/chadc', { cwd: projectRoot, stdio: 'inherit' });
+  } catch (error) {
+    console.error('Native compiler build failed');
+    process.exit(1);
+  }
 }
 
 const args = process.argv.slice(2);
