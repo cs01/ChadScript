@@ -21,6 +21,14 @@ import type { TypeChecker } from '../../../typescript/type-checker.js';
 import type { InterfaceStructGenerator, InterfaceFieldInfo, InterfaceStructInfo } from '../../types/interface-struct-generator.js';
 import { stripOptional, stripNullable, tsTypeToLlvm, parseMapTypeString } from '../../infrastructure/type-system.js';
 import type { IStringGenerator, IMapGenerator, ISetGenerator, IResponseGenerator } from '../../infrastructure/generator-context.js';
+import {
+  isProcessArgv as _isProcessArgv,
+  isProcessPlatform as _isProcessPlatform,
+  isProcessEnvAccess as _isProcessEnvAccess,
+  handleProcessEnvAccess as _handleProcessEnvAccess,
+  handleProcessSimpleProperty as _handleProcessSimpleProperty,
+  handleProcessArgv as _handleProcessArgv,
+} from './process-access.js';
 
 interface ExprBase { type: string; }
 
@@ -429,76 +437,23 @@ export class MemberAccessGenerator {
   }
 
   private isProcessArgv(expr: MemberAccessNode): boolean {
-    const exprObjBase = expr.object as ExprBase;
-    return exprObjBase.type === 'variable' &&
-           (expr.object as VariableNode).name === 'process' &&
-           expr.property === 'argv';
+    return _isProcessArgv(expr);
   }
 
   private isProcessPlatform(expr: MemberAccessNode): boolean {
-    const exprObjBase = expr.object as ExprBase;
-    return exprObjBase.type === 'variable' &&
-           (expr.object as VariableNode).name === 'process' &&
-           expr.property === 'platform';
+    return _isProcessPlatform(expr);
   }
 
   private isProcessEnvAccess(expr: MemberAccessNode): boolean {
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'member_access') return false;
-    const innerMember = expr.object as MemberAccessNode;
-    const innerObjBase = innerMember.object as ExprBase;
-    return innerObjBase.type === 'variable' &&
-           (innerMember.object as VariableNode).name === 'process' &&
-           innerMember.property === 'env';
+    return _isProcessEnvAccess(expr);
   }
 
   private handleProcessEnvAccess(expr: MemberAccessNode): string {
-    const envVarName = expr.property;
-    const nameConst = this.ctx.stringGen.doCreateStringConstant(envVarName);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @getenv(i8* ${nameConst})`);
-    this.ctx.setVariableType(result, 'i8*');
-    return result;
+    return _handleProcessEnvAccess(this.ctx, expr);
   }
 
   private handleProcessSimpleProperty(expr: MemberAccessNode): string | null {
-    const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') return null;
-    const varNode = expr.object as VariableNode;
-    if (varNode.name !== 'process') return null;
-
-    const prop = expr.property;
-
-    if (prop === 'arch') {
-      const archStr = (this.ctx.getTargetArch ? this.ctx.getTargetArch() : null) || 'x64';
-      return this.ctx.stringGen.doCreateStringConstant(archStr);
-    }
-    if (prop === 'version') {
-      return this.ctx.stringGen.doCreateStringConstant('v1.0.0');
-    }
-    if (prop === 'pid') {
-      const pidI32 = this.ctx.nextTemp();
-      this.ctx.emit(`${pidI32} = call i32 @getpid()`);
-      const pidDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${pidDouble} = sitofp i32 ${pidI32} to double`);
-      return pidDouble;
-    }
-    if (prop === 'ppid') {
-      const ppidI32 = this.ctx.nextTemp();
-      this.ctx.emit(`${ppidI32} = call i32 @getppid()`);
-      const ppidDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${ppidDouble} = sitofp i32 ${ppidI32} to double`);
-      return ppidDouble;
-    }
-    if (prop === 'execPath' || prop === 'argv0') {
-      const argvPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${argvPtr} = load i8**, i8*** @__argv`);
-      const firstArg = this.ctx.nextTemp();
-      this.ctx.emit(`${firstArg} = load i8*, i8** ${argvPtr}`);
-      this.ctx.setVariableType(firstArg, 'i8*');
-      return firstArg;
-    }
-    return null;
+    return _handleProcessSimpleProperty(this.ctx, expr);
   }
 
   private handleEnumMemberAccess(expr: MemberAccessNode): string | null {
@@ -641,37 +596,7 @@ export class MemberAccessGenerator {
   }
 
   private handleProcessArgv(): string {
-    const sizePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
-    const structSize = this.ctx.nextTemp();
-    this.ctx.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
-    const arrayMem = this.ctx.nextTemp();
-    this.ctx.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
-    const argvStruct = this.ctx.nextTemp();
-    this.ctx.emit(`${argvStruct} = bitcast i8* ${arrayMem} to %StringArray*`);
-
-    const dataField = this.ctx.nextTemp();
-    this.ctx.emit(`${dataField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 0`);
-    const argvPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${argvPtr} = load i8**, i8*** @__argv`);
-    const argvSkipFirst = this.ctx.nextTemp();
-    this.ctx.emit(`${argvSkipFirst} = getelementptr i8*, i8** ${argvPtr}, i32 1`);
-    this.ctx.emit(`store i8** ${argvSkipFirst}, i8*** ${dataField}`);
-
-    const lenField = this.ctx.nextTemp();
-    this.ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 1`);
-    const argc = this.ctx.nextTemp();
-    this.ctx.emit(`${argc} = load i32, i32* @__argc`);
-    const argcMinusOne = this.ctx.nextTemp();
-    this.ctx.emit(`${argcMinusOne} = sub i32 ${argc}, 1`);
-    this.ctx.emit(`store i32 ${argcMinusOne}, i32* ${lenField}`);
-
-    const capField = this.ctx.nextTemp();
-    this.ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 2`);
-    this.ctx.emit(`store i32 ${argcMinusOne}, i32* ${capField}`);
-
-    this.ctx.setVariableType(argvStruct, '%StringArray*');
-    return argvStruct;
+    return _handleProcessArgv(this.ctx);
   }
 
   private handleClassPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
