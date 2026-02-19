@@ -524,7 +524,7 @@ export class CallExpressionGenerator {
       for (let i = 0; i < func.paramTypes.length; i++) {
         const p = func.paramTypes[i] as string;
         const paramName = func.params[i] || '';
-        paramTypes.push(mapParamTypeToLLVM(p, paramName, this.ctx.isEnumType(stripNullable(p)), false));
+        paramTypes.push(mapParamTypeToLLVM(p, paramName, this.ctx.isEnumType(stripNullable(p)), this.ctx.interfaceStructGenHasInterface(stripNullable(p))));
       }
     } else {
       const funcNode = this.getFunctionFromAST(expr.name);
