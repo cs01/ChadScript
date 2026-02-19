@@ -307,7 +307,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
     for (const tc of testCases) {
       const todo = STAGE1_TODO.has(tc.name) ? 'Stage 1 codegen limitation' : undefined;
       it(`[stage1] ${tc.name}: ${tc.description}`, { todo }, async () => {
-        await runFixture(STAGE1, tc, outDir);
+        await runFixture(`${STAGE1} build`, tc, outDir);
       });
     }
   });
@@ -326,7 +326,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
     for (const tc of testCases) {
       const todo = STAGE1_TODO.has(tc.name) ? 'Stage 2 codegen limitation' : undefined;
       it(`[stage2] ${tc.name}: ${tc.description}`, { todo }, async () => {
-        await runFixture(STAGE2, tc, outDir);
+        await runFixture(`${STAGE2} build`, tc, outDir);
       });
     }
   });
