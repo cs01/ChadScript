@@ -122,7 +122,7 @@ export function createFloatType(): ResolvedType {
 }
 
 export function tsTypeToLlvm(tsType: string): string {
-  return canonicalTypeToLlvm(tsType, { mode: 'default' });
+  return canonicalTypeToLlvm(tsType, 'default', false, false, '');
 }
 
 export function resolvedTypeToLlvm(rt: ResolvedType): string {
@@ -145,28 +145,21 @@ export function resolvedTypeToLlvm(rt: ResolvedType): string {
 
 export type TypeMappingMode = 'default' | 'param' | 'return' | 'struct_field' | 'json';
 
-export interface TypeMappingOptions {
-  mode: TypeMappingMode;
-  isEnum?: boolean;
-  isInterface?: boolean;
-  fieldName?: string;
-}
-
-export function canonicalTypeToLlvm(tsType: string, options: TypeMappingOptions): string {
+export function canonicalTypeToLlvm(tsType: string, mode: string, isEnum: boolean, isInterface: boolean, fieldName: string): string {
   if (tsType === null || tsType === undefined || tsType === '') {
-    if (options.mode === 'return') return 'double';
+    if (mode === 'return') return 'double';
     return 'i8*';
   }
 
-  if (options.fieldName === 'nodePtr' || options.fieldName === 'treePtr') return 'i8*';
+  if (fieldName === 'nodePtr' || fieldName === 'treePtr') return 'i8*';
 
-  if (options.mode === 'param') {
+  if (mode === 'param') {
     if (tsType === 'any' || tsType === 'unknown') {
       throw new Error(`Parameter type '${tsType}' is not allowed — add explicit type annotations or fix the parser`);
     }
   }
 
-  if (options.isEnum) return 'double';
+  if (isEnum) return 'double';
 
   if (tsType === 'string') return 'i8*';
   if (tsType === 'number' || tsType === 'boolean') return 'double';
@@ -184,20 +177,20 @@ export function canonicalTypeToLlvm(tsType: string, options: TypeMappingOptions)
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i].trim();
       if (part === 'null' || part === 'undefined') continue;
-      return canonicalTypeToLlvm(part, options);
+      return canonicalTypeToLlvm(part, mode, isEnum, isInterface, fieldName);
     }
   }
 
-  if (options.isInterface && (options.mode === 'param' || options.mode === 'struct_field')) {
+  if (isInterface && (mode === 'param' || mode === 'struct_field')) {
     return `%${tsType}*`;
   }
 
-  if (options.mode === 'return') {
+  if (mode === 'return') {
     if (tsType !== 'number' && tsType !== 'boolean') return 'i8*';
     return 'double';
   }
 
-  if (options.mode === 'json') {
+  if (mode === 'json') {
     return 'i8*';
   }
 
@@ -205,7 +198,7 @@ export function canonicalTypeToLlvm(tsType: string, options: TypeMappingOptions)
 }
 
 export function tsTypeToLlvmJson(tsType: string): string {
-  return canonicalTypeToLlvm(tsType, { mode: 'json' });
+  return canonicalTypeToLlvm(tsType, 'json', false, false, '');
 }
 
 export function checkUnsafeUnionType(typeStr: string): string | null {
@@ -343,14 +336,14 @@ export function mapParamTypeToLLVM(
   paramIsEnum: boolean,
   paramIsInterface: boolean
 ): string {
-  return canonicalTypeToLlvm(paramType, { mode: 'param', isEnum: paramIsEnum, isInterface: paramIsInterface, fieldName: paramName });
+  return canonicalTypeToLlvm(paramType, 'param', paramIsEnum, paramIsInterface, paramName);
 }
 
 export function mapReturnTypeToLLVM(
   returnType: string,
   returnIsEnum: boolean
 ): string {
-  return canonicalTypeToLlvm(returnType, { mode: 'return', isEnum: returnIsEnum });
+  return canonicalTypeToLlvm(returnType, 'return', returnIsEnum, false, '');
 }
 
 function parseGenericTypeString(s: string): { base: string; params: string } | null {
