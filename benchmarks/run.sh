@@ -158,6 +158,7 @@ assemble_json() {
     bench_names[fileio]="File I/O"
     bench_names[binarytrees]="Binary Trees"
     bench_names[json]="JSON Parse/Stringify"
+    bench_names[stringsearch]="String Search"
 
     declare -A bench_descs
     bench_descs[startup]="Time to print 'Hello, World!' and exit. Average of ${STARTUP_RUNS} runs."
@@ -175,6 +176,7 @@ assemble_json() {
     bench_descs[fileio]="Write and read ~100MB to /tmp."
     bench_descs[binarytrees]="Build/check/discard binary trees of depth 18."
     bench_descs[json]="Parse 10K JSON objects, stringify back."
+    bench_descs[stringsearch]="Recursive directory search for 'console.log' in src/. Small corpus (~30 files); grep/ripgrep advantages (mmap, SIMD, parallelism) shine on larger codebases."
 
     declare -A bench_metrics
     bench_metrics[startup]="ms"
@@ -192,6 +194,7 @@ assemble_json() {
     bench_metrics[fileio]="s"
     bench_metrics[binarytrees]="s"
     bench_metrics[json]="s"
+    bench_metrics[stringsearch]="s"
 
     declare -A bench_lower
     bench_lower[startup]="true"
@@ -209,6 +212,7 @@ assemble_json() {
     bench_lower[fileio]="true"
     bench_lower[binarytrees]="true"
     bench_lower[json]="true"
+    bench_lower[stringsearch]="true"
 
     for benchfile in "$JSON_DIR"/*.json; do
         [ -f "$benchfile" ] || continue
@@ -335,6 +339,9 @@ echo "  ChadScript Binary Trees built"
 $CHAD "$DIR/json/chadscript.ts" -o /tmp/bench-json-chad
 echo "  ChadScript JSON built"
 
+$CHAD "$DIR/stringsearch/chadscript.ts" -o /tmp/bench-stringsearch-chad
+echo "  ChadScript String Search built"
+
 clang -O2 -march=native -o /tmp/bench-startup-c "$DIR/startup/hello.c"
 echo "  C startup built"
 
@@ -371,6 +378,9 @@ echo "  C Binary Trees built"
 clang -O2 -march=native -I "$DIR/../vendor/yyjson" -o /tmp/bench-json-c "$DIR/json/bench.c" "$DIR/../vendor/yyjson/libyyjson.a"
 echo "  C JSON built"
 
+clang -O2 -march=native -o /tmp/bench-stringsearch-c "$DIR/stringsearch/bench.c"
+echo "  C String Search built"
+
 go build -o /tmp/bench-startup-go "$DIR/startup/hello.go"
 echo "  Go startup built"
 
@@ -403,6 +413,9 @@ echo "  Go Binary Trees built"
 
 go build -o /tmp/bench-json-go "$DIR/json/json_bench.go"
 echo "  Go JSON built"
+
+go build -o /tmp/bench-stringsearch-go "$DIR/stringsearch/stringsearch.go"
+echo "  Go String Search built"
 
 echo ""
 
@@ -537,6 +550,19 @@ bench_compute "json" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-json-
 bench_compute "json" "go" "Go" "Time:" /tmp/bench-json-go
 bench_compute "json" "node" "Node.js $(node --version)" "Time:" node "$DIR/json/node.mjs"
 bench_compute "json" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/json/bun.mjs"
+
+echo "═══════════════════════════════════════════════════"
+echo "  String Search  (recursive, 'console.log' in src/)"
+echo "═══════════════════════════════════════════════════"
+echo ""
+
+bench_compute "stringsearch" "c" "C (clang -O2 -march=native)" "Time:" /tmp/bench-stringsearch-c
+bench_compute "stringsearch" "chadscript" "ChadScript (native)" "Time:" /tmp/bench-stringsearch-chad
+bench_compute "stringsearch" "go" "Go" "Time:" /tmp/bench-stringsearch-go
+bench_compute "stringsearch" "node" "Node.js $(node --version)" "Time:" node "$DIR/stringsearch/node.mjs"
+bench_compute "stringsearch" "bun" "Bun $(bun --version)" "Time:" bun "$DIR/stringsearch/bun.mjs"
+bench_compute "stringsearch" "grep" "grep -r (GNU)" "Time:" bash "$DIR/stringsearch/grep.sh"
+bench_compute "stringsearch" "ripgrep" "ripgrep (rg)" "Time:" bash "$DIR/stringsearch/rg.sh"
 
 assemble_json "$JSON_OUT"
 echo ""
