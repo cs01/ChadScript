@@ -22,20 +22,28 @@ sqlite.exec(db, "INSERT INTO users VALUES (1, 'Alice')");
 
 ## `sqlite.get(db, sql)`
 
-Execute a query and return the first column of the first row as a string.
+Execute a query and return the first row as a string. Multi-column results are pipe-separated.
 
 ```typescript
 const name = sqlite.get(db, "SELECT name FROM users WHERE id = 1");
 // "Alice"
+
+const row = sqlite.get(db, "SELECT id, name FROM users WHERE id = 1");
+// "1|Alice"
 ```
 
 ## `sqlite.all(db, sql)`
 
-Execute a query and return the first column of all rows as a string array.
+Execute a query and return all rows as a string array. Multi-column results are pipe-separated.
 
 ```typescript
 const names = sqlite.all(db, "SELECT name FROM users ORDER BY id");
 // ["Alice", "Bob"]
+
+const rows = sqlite.all(db, "SELECT id, name FROM users ORDER BY id");
+// ["1|Alice", "2|Bob"]
+const parts = rows[0].split('|');
+// parts[0] = "1", parts[1] = "Alice"
 ```
 
 ## `sqlite.close(db)`
@@ -64,7 +72,7 @@ sqlite.close(db);
 ```
 
 ::: tip
-`get` and `all` return only the first column. Select the specific column you need in your SQL query.
+Multi-column queries return pipe-separated values. Use `.split('|')` to access individual columns.
 :::
 
 ## Native Implementation

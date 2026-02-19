@@ -36,19 +36,25 @@ export class PathGenerator {
       return this.ctx.emitError('path.resolve() requires at least 1 argument', expr.loc);
     }
 
-    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+    let pathPtr = this.ctx.generateExpression(expr.args[0], params);
 
-    // Allocate buffer for resolved path (PATH_MAX = 4096)
+    if (expr.args.length > 1) {
+      const slash = this.ctx.stringGen.doCreateStringConstant('/');
+      for (let i = 1; i < expr.args.length; i++) {
+        const part = this.ctx.generateExpression(expr.args[i], params);
+        const withSlash = this.ctx.stringGen.doGenerateStringConcatDirect(pathPtr, slash);
+        pathPtr = this.ctx.stringGen.doGenerateStringConcatDirect(withSlash, part);
+      }
+    }
+
     const bufferSize = this.ctx.nextTemp();
     this.ctx.emit(`${bufferSize} = add i64 0, 4096`);
     const buffer = this.ctx.nextTemp();
     this.ctx.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
 
-    // Call realpath: realpath(path, buffer)
     const resolvedPtr = this.ctx.nextTemp();
     this.ctx.emit(`${resolvedPtr} = call i8* @realpath(i8* ${pathPtr}, i8* ${buffer})`);
 
-    // If realpath returns NULL, return the original path
     const isNull = this.ctx.nextTemp();
     this.ctx.emit(`${isNull} = icmp eq i8* ${resolvedPtr}, null`);
 
@@ -58,15 +64,12 @@ export class PathGenerator {
 
     this.ctx.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
 
-    // Success: return resolved path
     this.ctx.emit(`${successLabel}:`);
     this.ctx.emit(`br label %${endLabel}`);
 
-    // Failure: GC will handle cleanup, return original path
     this.ctx.emit(`${failLabel}:`);
     this.ctx.emit(`br label %${endLabel}`);
 
-    // End: phi node
     this.ctx.emit(`${endLabel}:`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi i8* [ ${resolvedPtr}, %${successLabel} ], [ ${pathPtr}, %${failLabel} ]`);
@@ -145,11 +148,8 @@ export class PathGenerator {
 
     for (let i = 1; i < expr.args.length; i++) {
       const part = this.ctx.generateExpression(expr.args[i], params);
-      const withSlash = this.ctx.nextTemp();
-      this.ctx.emit(`${withSlash} = call i8* @__string_concat(i8* ${result}, i8* ${slash})`);
-      const joined = this.ctx.nextTemp();
-      this.ctx.emit(`${joined} = call i8* @__string_concat(i8* ${withSlash}, i8* ${part})`);
-      result = joined;
+      const withSlash = this.ctx.stringGen.doGenerateStringConcatDirect(result, slash);
+      result = this.ctx.stringGen.doGenerateStringConcatDirect(withSlash, part);
     }
 
     this.ctx.setVariableType(result, 'i8*');

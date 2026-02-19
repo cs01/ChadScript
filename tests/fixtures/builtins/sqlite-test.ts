@@ -55,6 +55,42 @@ function testSqlite(): void {
     process.exit(1);
   }
 
+  const row = sqlite.get(db, "SELECT id, name FROM users WHERE id = 1");
+  if (row !== "1|Alice") {
+    console.log("FAIL: multi-col get expected '1|Alice', got:");
+    console.log(row);
+    process.exit(1);
+  }
+
+  const rows = sqlite.all(db, "SELECT id, name FROM users ORDER BY id");
+  if (rows.length !== 4) {
+    console.log("FAIL: multi-col all expected 4 rows, got:");
+    console.log(rows.length);
+    process.exit(1);
+  }
+  if (rows[0] !== "1|Alice") {
+    console.log("FAIL: multi-col row 0 expected '1|Alice', got:");
+    console.log(rows[0]);
+    process.exit(1);
+  }
+  if (rows[1] !== "2|Bob") {
+    console.log("FAIL: multi-col row 1 expected '2|Bob', got:");
+    console.log(rows[1]);
+    process.exit(1);
+  }
+
+  const parts = rows[0].split('|');
+  if (parts[0] !== "1") {
+    console.log("FAIL: split id expected '1', got:");
+    console.log(parts[0]);
+    process.exit(1);
+  }
+  if (parts[1] !== "Alice") {
+    console.log("FAIL: split name expected 'Alice', got:");
+    console.log(parts[1]);
+    process.exit(1);
+  }
+
   sqlite.close(db);
   console.log("TEST_PASSED");
 }

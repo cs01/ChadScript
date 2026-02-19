@@ -153,8 +153,23 @@ do_response: {
         g_http_handler(&req, &resp);
 
         const char *resp_ct = "text/plain";
-        if (resp.body && resp.body[0] == '<') resp_ct = "text/html";
-        else if (resp.body && (resp.body[0] == '{' || resp.body[0] == '[')) resp_ct = "application/json";
+        const char *dot = strrchr(req.path, '.');
+        if (dot) {
+            if (!strcmp(dot, ".css")) resp_ct = "text/css";
+            else if (!strcmp(dot, ".js")) resp_ct = "text/javascript";
+            else if (!strcmp(dot, ".json")) resp_ct = "application/json";
+            else if (!strcmp(dot, ".html") || !strcmp(dot, ".htm")) resp_ct = "text/html";
+            else if (!strcmp(dot, ".svg")) resp_ct = "image/svg+xml";
+            else if (!strcmp(dot, ".png")) resp_ct = "image/png";
+            else if (!strcmp(dot, ".jpg") || !strcmp(dot, ".jpeg")) resp_ct = "image/jpeg";
+            else if (!strcmp(dot, ".woff2")) resp_ct = "font/woff2";
+            else if (!strcmp(dot, ".wasm")) resp_ct = "application/wasm";
+            else if (resp.body && resp.body[0] == '<') resp_ct = "text/html";
+            else if (resp.body && (resp.body[0] == '{' || resp.body[0] == '[')) resp_ct = "application/json";
+        } else {
+            if (resp.body && resp.body[0] == '<') resp_ct = "text/html";
+            else if (resp.body && (resp.body[0] == '{' || resp.body[0] == '[')) resp_ct = "application/json";
+        }
 
         size_t body_len = resp.body_len > 0 ? (size_t)resp.body_len : (resp.body ? strlen(resp.body) : 0);
 

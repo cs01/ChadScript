@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hacker News</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <div id="header">
+    <a href="/" class="logo">
+      <span class="logo-box">Y</span>
+      <b>Hacker News</b>
+    </a>
+    <span class="tagline">Served by a ChadScript native binary</span>
+  </div>
+  <div id="content">
+    <!-- posts injected server-side -->
+    {{POSTS}}
+  </div>
+  <div id="footer">
+    <p>Powered by ChadScript &mdash; compiled from TypeScript to a native ELF binary via LLVM.</p>
+    <p>HTML, CSS, and data are all embedded in a single binary. Zero runtime dependencies.</p>
+  </div>
+</body>
+</html>

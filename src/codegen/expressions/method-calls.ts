@@ -32,7 +32,7 @@ import {
   SourceLocation,
 } from '../../ast/types.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
-import type { IStringGenerator, IFsGenerator, IPathGenerator, IJsonGenerator, IMathGenerator, IDateGenerator, ICryptoGenerator, ISqliteGenerator, IResponseGenerator, IRegexGenerator, IArrowFunctionGenerator, IStringMapGenerator, IMapGenerator, ISetGenerator, IStringSetGenerator, IPointerMapGenerator, IArrayGenerator } from '../infrastructure/generator-context.js';
+import type { IStringGenerator, IFsGenerator, IPathGenerator, IJsonGenerator, IMathGenerator, IDateGenerator, ICryptoGenerator, ISqliteGenerator, IResponseGenerator, IRegexGenerator, IArrowFunctionGenerator, IStringMapGenerator, IMapGenerator, ISetGenerator, IStringSetGenerator, IPointerMapGenerator, IArrayGenerator, IEmbedGenerator } from '../infrastructure/generator-context.js';
 import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
 import { generateConsoleCallInline } from './method-calls/console.js';
 import { handleAssertStrictEqual, handleAssertNotStrictEqual, handleAssertOk, handleAssertDeepEqual, handleAssertFail } from './method-calls/assert.js';
@@ -115,6 +115,7 @@ export interface MethodCallGeneratorContext {
   readonly stringSetGen: IStringSetGenerator;
   readonly pointerMapGen: IPointerMapGenerator;
   readonly arrayGen: IArrayGenerator;
+  readonly embedGen: IEmbedGenerator;
   readonly typeResolver?: { getThisFieldMapKeyType(expr: Expression): string | null; getThisFieldSetValueType(expr: Expression): string | null };
   ensureDouble(value: string): string;
   ensureI64(value: string): string;
@@ -264,6 +265,18 @@ export class MethodCallGenerator {
     // Handle Promise static methods (Promise.resolve, Promise.reject, Promise.all)
     if (this.isVariableWithName(expr.object, 'Promise')) {
       return handlePromiseStaticMethods(this.ctx, expr, params);
+    }
+
+    // Handle ChadScript.embedFile/embedDir/getEmbeddedFile
+    if (this.isVariableWithName(expr.object, 'ChadScript')) {
+      if (method === 'embedFile') {
+        return this.ctx.embedGen.generateEmbedFile(expr, params);
+      } else if (method === 'embedDir') {
+        return this.ctx.embedGen.generateEmbedDir(expr, params);
+      } else if (method === 'getEmbeddedFile') {
+        return this.ctx.embedGen.generateGetEmbeddedFile(expr, params);
+      }
+      return this.ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
     }
 
     // Handle Array.from() - returns the argument as-is since our iterators already produce arrays
@@ -510,6 +523,41 @@ export class MethodCallGenerator {
       const isRegex = this.ctx.isRegexExpression(expr.object);
       if (isRegex) {
         return this.handleRegexExec(expr, params);
+      }
+    }
+
+    if (method === 'isFile' || method === 'isDirectory') {
+      let statI8Ptr: string | null = null;
+
+      if (objBase2.type === 'variable') {
+        const varName = (expr.object as VariableNode).name;
+        const varType = this.ctx.getVariableType(varName);
+        if (varType === '%StatResult*') {
+          const varPtr = this.ctx.symbolTable.getAlloca(varName);
+          if (varPtr) {
+            const raw = this.nextTemp();
+            this.emit(`${raw} = load i8*, i8** ${varPtr}`);
+            statI8Ptr = raw;
+          }
+        }
+      } else {
+        const objVal = this.ctx.generateExpression(expr.object, params);
+        const objType = this.ctx.getVariableType(objVal);
+        if (objType === '%StatResult*') {
+          statI8Ptr = objVal;
+        }
+      }
+
+      if (statI8Ptr) {
+        const statPtr = this.nextTemp();
+        this.emit(`${statPtr} = bitcast i8* ${statI8Ptr} to double*`);
+        const fieldIdx = method === 'isFile' ? 1 : 2;
+        const fieldPtr = this.nextTemp();
+        this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${statPtr}, i64 ${fieldIdx}`);
+        const result = this.nextTemp();
+        this.emit(`${result} = load double, double* ${fieldPtr}`);
+        this.ctx.setVariableType(result, 'double');
+        return result;
       }
     }
 

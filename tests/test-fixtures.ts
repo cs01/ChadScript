@@ -842,4 +842,16 @@ export const testCases: TestCase[] = [
     description: 'ArgumentParser --key=value option syntax',
     args: ['--target-cpu=x86-64', 'build', 'hello.ts']
   },
+  {
+    name: 'embed-file',
+    fixture: 'tests/fixtures/builtins/embed-file.ts',
+    expectTestPassed: true,
+    description: 'ChadScript.embedFile() embeds file content at compile time'
+  },
+  {
+    name: 'embed-dir',
+    fixture: 'tests/fixtures/builtins/embed-dir.ts',
+    expectTestPassed: true,
+    description: 'ChadScript.embedDir() + getEmbeddedFile() for directory embedding'
+  },
 ];

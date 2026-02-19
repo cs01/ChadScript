@@ -263,7 +263,8 @@ export class TypeInference {
     }
 
     if (method === 'startsWith' || method === 'endsWith' || method === 'test' ||
-        method === 'has' || method === 'delete' || method === 'every' || method === 'some') {
+        method === 'has' || method === 'delete' || method === 'every' || method === 'some' ||
+        method === 'isFile' || method === 'isDirectory') {
       return this.ctx.typeContext.booleanType;
     }
 
@@ -305,6 +306,10 @@ export class TypeInference {
       if (varName === 'Object' && method === 'entries') return this.ctx.typeContext.getArrayType('string');
 
       if (varName === 'Promise') return this.ctx.typeContext.resolve('Promise');
+
+      if (varName === 'ChadScript') {
+        if (method === 'embedFile' || method === 'getEmbeddedFile') return this.ctx.typeContext.stringType;
+      }
 
       if (varName === 'Array' && method === 'from') return this.ctx.typeContext.getArrayType('number');
 

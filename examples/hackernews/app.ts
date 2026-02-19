@@ -1,0 +1,81 @@
+interface HttpRequest {
+  method: string;
+  path: string;
+  body: string;
+  contentType: string;
+}
+
+interface HttpResponse {
+  status: number;
+  body: string;
+}
+
+ChadScript.embedDir('./public');
+
+const db = sqlite.open(":memory:");
+sqlite.exec(db, "CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, url TEXT, points INTEGER)");
+
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('Show HN: ChadScript - TypeScript to native compiler via LLVM', 'https://github.com/cs01/ChadScript', 342)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('Why we moved from Node.js to native binaries', 'https://example.com/native', 287)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('LLVM IR is surprisingly readable', 'https://llvm.org/docs/LangRef.html', 256)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('SQLite is the only database you need', 'https://sqlite.org', 234)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('Single-binary deployments changed everything', 'https://example.com/single-binary', 198)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('The Boehm GC: garbage collection for C programs', 'https://hboehm.info/gc/', 176)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('Zero-cost TypeScript: no runtime overhead', 'https://example.com/zero-cost', 165)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('libwebsockets: lightweight C WebSocket library', 'https://libwebsockets.org', 154)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('Self-hosting compilers: the ultimate test', 'https://example.com/self-hosting', 143)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('Compile-time file embedding in native languages', 'https://example.com/embed', 132)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('Why I stopped using Docker for simple services', 'https://example.com/no-docker', 121)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('libuv: the event loop behind Node.js', 'https://libuv.org', 110)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('Tree-sitter for building parsers', 'https://tree-sitter.github.io', 98)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('Ask HN: What is your deploy strategy for side projects?', 'https://news.ycombinator.com', 87)");
+sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES ('Building a compiler is easier than you think', 'https://example.com/compiler-easy', 76)");
+
+function renderPosts(): string {
+  const rows = sqlite.all(db, "SELECT id, title, url, points FROM posts ORDER BY points DESC");
+  let html = '';
+  for (let i = 0; i < rows.length; i++) {
+    const parts = rows[i].split('|');
+    const id = parts[0];
+    const title = parts[1];
+    const url = parts[2];
+    const points = parts[3];
+    const rank = i + 1;
+    html = html + '<div class="post"><span class="rank">' + rank + '.</span>';
+    html = html + '<form method="POST" action="/upvote/' + id + '" style="display:inline">';
+    html = html + '<button type="submit" class="upvote" title="upvote"></button></form>';
+    html = html + '<span class="title"><a href="' + url + '">' + title + '</a></span></div>';
+    html = html + '<div class="meta">' + points + ' points</div>';
+  }
+  return html;
+}
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  console.log(req.method + " " + req.path);
+
+  if (req.method === "GET" && req.path === "/") {
+    const template = ChadScript.getEmbeddedFile('index.html');
+    const posts = renderPosts();
+    const body = template.replace('{{POSTS}}', posts);
+    return { status: 200, body: body };
+  }
+
+  if (req.method === "GET" && req.path === "/style.css") {
+    const css = ChadScript.getEmbeddedFile('style.css');
+    return { status: 200, body: css };
+  }
+
+  if (req.method === "POST" && req.path.startsWith("/upvote/")) {
+    const idStr = req.path.substring(8, req.path.length);
+    sqlite.exec(db, "UPDATE posts SET points = points + 1 WHERE id = " + idStr);
+    const redirectHtml = '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/"></head><body>Redirecting...</body></html>';
+    return { status: 200, body: redirectHtml };
+  }
+
+  return { status: 404, body: "Not Found" };
+}
+
+console.log("Hacker News clone starting on http://localhost:3000");
+console.log("All HTML/CSS embedded in the binary at compile time");
+console.log("SQLite database running in-memory");
+httpServe(3000, handleRequest);
