@@ -52,11 +52,11 @@ function getExprType(expr: Expression | null | undefined): string {
   return (expr as ExprBase).type;
 }
 
-export function transformTree(tree: TreeSitterTree): AST {
-  return transformProgram(tree.rootNode);
+export function transformTree(tree: TreeSitterTree, sourceFile?: string): AST {
+  return transformProgram(tree.rootNode, sourceFile || '');
 }
 
-function transformProgram(node: TreeSitterNode): AST {
+function transformProgram(node: TreeSitterNode, sourceFile: string): AST {
   const ast: AST = {
     imports: [],
     functions: [],
@@ -79,14 +79,14 @@ function transformProgram(node: TreeSitterNode): AST {
       i = i + 1;
       continue;
     }
-    transformTopLevelNode(child, ast);
+    transformTopLevelNode(child, ast, sourceFile);
     i = i + 1;
   }
 
   return ast;
 }
 
-function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
+function transformTopLevelNode(node: TreeSitterNode, ast: AST, sourceFile: string): void {
   switch (node.type) {
     case 'import_statement':
       const importDecl = transformImportStatement(node);
@@ -98,6 +98,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
     case 'function_declaration':
       const func = transformFunctionDeclaration(node);
       if (func) {
+        func.sourceFile = sourceFile;
         ast.functions.push(func);
       }
       break;
@@ -105,6 +106,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
     case 'class_declaration':
       const cls = transformClassDeclaration(node);
       if (cls) {
+        cls.sourceFile = sourceFile;
         ast.classes.push(cls);
       }
       break;
@@ -199,7 +201,7 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
       break;
 
     case 'export_statement':
-      handleExportStatement(node, ast);
+      handleExportStatement(node, ast, sourceFile);
       break;
   }
 }
@@ -242,7 +244,7 @@ function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
   }
 }
 
-function handleExportStatement(node: TreeSitterNode, ast: AST): void {
+function handleExportStatement(node: TreeSitterNode, ast: AST, sourceFile: string): void {
   const nodeText = (node as NodeBase).text;
   const isTypeOnly = nodeText.startsWith('export type ') || nodeText.startsWith('export type{');
 
@@ -257,12 +259,14 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
     if (c.type === 'function_declaration') {
       const func = transformFunctionDeclaration(child);
       if (func) {
+        func.sourceFile = sourceFile;
         ast.functions.push(func);
         ast.exports.push({ type: 'export', declaration: func });
       }
     } else if (c.type === 'class_declaration') {
       const cls = transformClassDeclaration(child);
       if (cls) {
+        cls.sourceFile = sourceFile;
         ast.classes.push(cls);
         ast.exports.push({ type: 'export', declaration: cls });
       }

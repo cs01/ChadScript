@@ -343,6 +343,7 @@ export interface FunctionNode {
   async?: boolean;
   parameters?: FunctionParameter[];
   loc?: SourceLocation;
+  sourceFile?: string;
 }
 
 export interface ClassMethod {
@@ -367,9 +368,10 @@ export interface ClassNode {
   name: string;
   extends?: string;
   implements?: string[];
-  fields: ClassField[];  // Explicit field declarations
+  fields: ClassField[];
   methods: ClassMethod[];
   loc?: SourceLocation;
+  sourceFile?: string;
 }
 
 export interface ImportSpecifier {

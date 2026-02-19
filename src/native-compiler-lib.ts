@@ -220,7 +220,7 @@ export function compileMultiFile(entryFile: string, compiledFiles: string[]): AS
   if (verbose) { console.log('Parsing: ' + absPath); }
   const code = fs.readFileSync(absPath);
   const tree = parseSource(code);
-  const ast = transformTree(tree);
+  const ast = transformTree(tree, absPath);
 
   const mergedAST: AST = {
     imports: [],
