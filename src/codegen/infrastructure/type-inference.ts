@@ -263,7 +263,8 @@ export class TypeInference {
     }
 
     if (method === 'startsWith' || method === 'endsWith' || method === 'test' ||
-        method === 'has' || method === 'delete' || method === 'every' || method === 'some') {
+        method === 'has' || method === 'delete' || method === 'every' || method === 'some' ||
+        method === 'isFile' || method === 'isDirectory') {
       return this.ctx.typeContext.booleanType;
     }
 

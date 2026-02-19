@@ -145,11 +145,8 @@ export class PathGenerator {
 
     for (let i = 1; i < expr.args.length; i++) {
       const part = this.ctx.generateExpression(expr.args[i], params);
-      const withSlash = this.ctx.nextTemp();
-      this.ctx.emit(`${withSlash} = call i8* @__string_concat(i8* ${result}, i8* ${slash})`);
-      const joined = this.ctx.nextTemp();
-      this.ctx.emit(`${joined} = call i8* @__string_concat(i8* ${withSlash}, i8* ${part})`);
-      result = joined;
+      const withSlash = this.ctx.stringGen.doGenerateStringConcatDirect(result, slash);
+      result = this.ctx.stringGen.doGenerateStringConcatDirect(withSlash, part);
     }
 
     this.ctx.setVariableType(result, 'i8*');

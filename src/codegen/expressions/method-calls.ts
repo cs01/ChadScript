@@ -526,6 +526,41 @@ export class MethodCallGenerator {
       }
     }
 
+    if (method === 'isFile' || method === 'isDirectory') {
+      let statI8Ptr: string | null = null;
+
+      if (objBase2.type === 'variable') {
+        const varName = (expr.object as VariableNode).name;
+        const varType = this.ctx.getVariableType(varName);
+        if (varType === '%StatResult*') {
+          const varPtr = this.ctx.symbolTable.getAlloca(varName);
+          if (varPtr) {
+            const raw = this.nextTemp();
+            this.emit(`${raw} = load i8*, i8** ${varPtr}`);
+            statI8Ptr = raw;
+          }
+        }
+      } else {
+        const objVal = this.ctx.generateExpression(expr.object, params);
+        const objType = this.ctx.getVariableType(objVal);
+        if (objType === '%StatResult*') {
+          statI8Ptr = objVal;
+        }
+      }
+
+      if (statI8Ptr) {
+        const statPtr = this.nextTemp();
+        this.emit(`${statPtr} = bitcast i8* ${statI8Ptr} to double*`);
+        const fieldIdx = method === 'isFile' ? 1 : 2;
+        const fieldPtr = this.nextTemp();
+        this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${statPtr}, i64 ${fieldIdx}`);
+        const result = this.nextTemp();
+        this.emit(`${result} = load double, double* ${fieldPtr}`);
+        this.ctx.setVariableType(result, 'double');
+        return result;
+      }
+    }
+
     // Handle Response methods (from fetch())
     if (method === 'text' || method === 'json') {
       const isLikelyResponse = this.isLikelyResponseExpression(expr);

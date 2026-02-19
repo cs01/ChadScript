@@ -2545,7 +2545,7 @@ export class MemberAccessGenerator {
   }
 
   private handleStatProperty(expr: MemberAccessNode): string | null {
-    if (expr.property !== 'size' && expr.property !== 'isFile' && expr.property !== 'isDirectory') return null;
+    if (expr.property !== 'size') return null;
     const exprObjBase = expr.object as ExprBase;
     if (exprObjBase.type !== 'variable') return null;
     const varName = (expr.object as VariableNode).name;
@@ -2559,12 +2559,8 @@ export class MemberAccessGenerator {
     this.ctx.emit(`${raw} = load i8*, i8** ${varPtr}`);
     const statPtr = this.ctx.nextTemp();
     this.ctx.emit(`${statPtr} = bitcast i8* ${raw} to double*`);
-    let fieldIdx = 0;
-    if (expr.property === 'size') fieldIdx = 0;
-    else if (expr.property === 'isFile') fieldIdx = 1;
-    else if (expr.property === 'isDirectory') fieldIdx = 2;
     const fieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${statPtr}, i64 ${fieldIdx}`);
+    this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${statPtr}, i64 0`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = load double, double* ${fieldPtr}`);
     this.ctx.setVariableType(result, 'double');

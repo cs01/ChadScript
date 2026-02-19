@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import * as nodePath from 'path';
+import * as path from 'path';
 import { MethodCallNode } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 
@@ -21,7 +21,7 @@ export class EmbedGenerator {
   private entryDir: string;
 
   constructor(private ctx: IGeneratorContext, filename: string) {
-    this.entryDir = filename ? nodePath.dirname(nodePath.resolve(filename)) : process.cwd();
+    this.entryDir = filename ? path.dirname(path.resolve(filename)) : process.cwd();
   }
 
   hasEmbeddedFiles(): boolean {
@@ -97,10 +97,10 @@ export class EmbedGenerator {
     }
 
     const relPath = (expr.args[0] as StringLiteralNode).value;
-    const absPath = nodePath.resolve(this.entryDir, relPath);
+    const absPath = path.resolve(this.entryDir, relPath);
 
     if (!fs.existsSync(absPath)) {
-      return this.ctx.emitError(`ChadScript.embedFile(): file not found: ${absPath}`, expr.loc);
+      return this.ctx.emitError('ChadScript.embedFile(): file not found: ' + absPath, expr.loc);
     }
 
     const content = fs.readFileSync(absPath, 'utf-8');
@@ -110,7 +110,7 @@ export class EmbedGenerator {
     this.ctx.emit(ptrReg + ' = getelementptr inbounds [' + len + ' x i8], [' + len + ' x i8]* ' + strId + ', i64 0, i64 0');
     this.ctx.setVariableType(ptrReg, 'i8*');
 
-    const key = nodePath.basename(relPath);
+    const key = path.basename(relPath);
     this.embeddedFiles.push({ key, globalStrId: strId, globalStrLen: len });
 
     return ptrReg;
@@ -127,10 +127,10 @@ export class EmbedGenerator {
     }
 
     const relPath = (expr.args[0] as StringLiteralNode).value;
-    const absPath = nodePath.resolve(this.entryDir, relPath);
+    const absPath = path.resolve(this.entryDir, relPath);
 
     if (!fs.existsSync(absPath)) {
-      return this.ctx.emitError(`ChadScript.embedDir(): directory not found: ${absPath}`, expr.loc);
+      return this.ctx.emitError('ChadScript.embedDir(): directory not found: ' + absPath, expr.loc);
     }
 
     this.walkDir(absPath, absPath);
@@ -142,15 +142,14 @@ export class EmbedGenerator {
     const entries = fs.readdirSync(dirPath);
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i];
-      const fullPath = nodePath.join(dirPath, entry);
-      const stat = fs.statSync(fullPath);
-      if (stat.isDirectory()) {
+      const fullPath = path.join(dirPath, entry);
+      if (fs.statSync(fullPath).isDirectory()) {
         this.walkDir(fullPath, baseDir);
       } else {
         const content = fs.readFileSync(fullPath, 'utf-8');
         const { strId, len } = this.createGlobalStringDirect(content);
-        const relKey = nodePath.relative(baseDir, fullPath);
-        this.embeddedFiles.push({ key: relKey, globalStrId: strId, globalStrLen: len });
+        const key = fullPath.substring(baseDir.length + 1);
+        this.embeddedFiles.push({ key, globalStrId: strId, globalStrLen: len });
       }
     }
   }
@@ -163,7 +162,7 @@ export class EmbedGenerator {
     const keyPtr = this.ctx.generateExpression(expr.args[0], params);
 
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__cs_get_embedded_file(i8* ${keyPtr})`);
+    this.ctx.emit(result + ' = call i8* @__cs_get_embedded_file(i8* ' + keyPtr + ')');
     this.ctx.setVariableType(result, 'i8*');
 
     return result;
@@ -188,23 +187,23 @@ export class EmbedGenerator {
       const file = this.embeddedFiles[i];
       const keyG = keyGlobals[i];
 
-      ir += `  %key_ptr_${i} = getelementptr inbounds [${keyG.len} x i8], [${keyG.len} x i8]* ${keyG.strId}, i64 0, i64 0\n`;
-      ir += `  %cmp_${i} = call i32 @strcmp(i8* %key, i8* %key_ptr_${i})\n`;
-      ir += `  %is_${i} = icmp eq i32 %cmp_${i}, 0\n`;
-      const foundLabel = `found${i}`;
-      const nextLabel = i < this.embeddedFiles.length - 1 ? `check${i + 1}` : 'notfound';
-      ir += `  br i1 %is_${i}, label %${foundLabel}, label %${nextLabel}\n`;
-      ir += `${foundLabel}:\n`;
-      ir += `  %content_ptr_${i} = getelementptr inbounds [${file.globalStrLen} x i8], [${file.globalStrLen} x i8]* ${file.globalStrId}, i64 0, i64 0\n`;
-      ir += `  ret i8* %content_ptr_${i}\n`;
+      ir += '  %key_ptr_' + i + ' = getelementptr inbounds [' + keyG.len + ' x i8], [' + keyG.len + ' x i8]* ' + keyG.strId + ', i64 0, i64 0\n';
+      ir += '  %cmp_' + i + ' = call i32 @strcmp(i8* %key, i8* %key_ptr_' + i + ')\n';
+      ir += '  %is_' + i + ' = icmp eq i32 %cmp_' + i + ', 0\n';
+      const foundLabel = 'found' + i;
+      const nextLabel = i < this.embeddedFiles.length - 1 ? 'check' + (i + 1) : 'notfound';
+      ir += '  br i1 %is_' + i + ', label %' + foundLabel + ', label %' + nextLabel + '\n';
+      ir += foundLabel + ':\n';
+      ir += '  %content_ptr_' + i + ' = getelementptr inbounds [' + file.globalStrLen + ' x i8], [' + file.globalStrLen + ' x i8]* ' + file.globalStrId + ', i64 0, i64 0\n';
+      ir += '  ret i8* %content_ptr_' + i + '\n';
       if (i < this.embeddedFiles.length - 1) {
-        ir += `check${i + 1}:\n`;
+        ir += 'check' + (i + 1) + ':\n';
       }
     }
 
     ir += 'notfound:\n';
-    ir += `  %empty_ptr = getelementptr inbounds [${emptyGlobal.len} x i8], [${emptyGlobal.len} x i8]* ${emptyGlobal.strId}, i64 0, i64 0\n`;
-    ir += `  ret i8* %empty_ptr\n`;
+    ir += '  %empty_ptr = getelementptr inbounds [' + emptyGlobal.len + ' x i8], [' + emptyGlobal.len + ' x i8]* ' + emptyGlobal.strId + ', i64 0, i64 0\n';
+    ir += '  ret i8* %empty_ptr\n';
     ir += '}\n\n';
 
     return ir;

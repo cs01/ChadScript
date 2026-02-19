@@ -68,7 +68,7 @@ declare namespace fs {
   function existsSync(filename: string): boolean;
   function unlinkSync(filename: string): number;
   function readdirSync(path: string): string[];
-  function statSync(path: string): { size: number; isFile: boolean; isDirectory: boolean };
+  function statSync(path: string): { size: number; isFile(): boolean; isDirectory(): boolean };
 }
 
 // ============================================================================
