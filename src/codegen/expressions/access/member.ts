@@ -157,6 +157,8 @@ export interface MemberAccessGeneratorContext {
   getTargetArch(): string;
 }
 
+export type MemberAccessHandlerFn = (expr: MemberAccessNode, ctx: MemberAccessGeneratorContext, params: string[]) => string | null;
+
 /**
  * MemberAccessGenerator
  *
@@ -170,7 +172,104 @@ export interface MemberAccessGeneratorContext {
  * - TypeScript interface-based property access
  */
 export class MemberAccessGenerator {
-  constructor(private ctx: MemberAccessGeneratorContext) {}
+  private handlers: MemberAccessHandlerFn[];
+
+  constructor(private ctx: MemberAccessGeneratorContext) {
+    this.handlers = this.buildHandlers();
+  }
+
+  private buildHandlers(): MemberAccessHandlerFn[] {
+    const handlers: MemberAccessHandlerFn[] = [];
+
+    handlers.push((expr, ctx, _params) => this.handleEnumMemberAccess(expr));
+
+    handlers.push((expr, ctx, _params) => this.handleTypedJsonStructAccess(expr));
+
+    handlers.push((expr, ctx, _params) => {
+      if (isProcessArgv(expr)) return this.handleProcessArgv();
+      return null;
+    });
+
+    handlers.push((expr, ctx, _params) => {
+      if (isProcessPlatform(expr)) {
+        const platformStr = ctx.getTargetOS() || process.platform;
+        return ctx.stringGen.doCreateStringConstant(platformStr);
+      }
+      return null;
+    });
+
+    handlers.push((expr, ctx, _params) => {
+      if (isProcessEnvAccess(expr)) return this.handleProcessEnvAccess(expr);
+      return null;
+    });
+
+    handlers.push((expr, ctx, _params) => handleProcessSimpleProperty(ctx, expr));
+
+    handlers.push((expr, ctx, params) => this.handleClassPropertyAccess(expr, params));
+
+    handlers.push((expr, ctx, params) => {
+      const exprObjBase = expr.object as ExprBase;
+      const exprObjType = exprObjBase ? exprObjBase.type : null;
+      if (exprObjType === null || exprObjType === undefined) return '0.0';
+      if (exprObjType === 'variable' && ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
+        return this.handleJsonPropertyAccess(expr, params);
+      }
+      return null;
+    });
+
+    handlers.push((expr, ctx, params) => {
+      const exprObjBase = expr.object as ExprBase;
+      const exprObjType = exprObjBase ? exprObjBase.type : null;
+      if (exprObjType === 'member_access') {
+        const chainedResult = this.handleChainedInterfaceAccess(expr, params);
+        if (chainedResult !== null) return chainedResult;
+        const classFieldChainResult = this.handleClassFieldChainedAccess(expr, params);
+        if (classFieldChainResult !== null) return classFieldChainResult;
+        const nestedResult = this.handleNestedJsonAccess(expr, params);
+        if (nestedResult !== null) return nestedResult;
+      }
+      return null;
+    });
+
+    handlers.push((expr, ctx, params) => {
+      const exprObjBase = expr.object as ExprBase;
+      const exprObjType = exprObjBase ? exprObjBase.type : null;
+      if (exprObjType === 'index_access') return this.handleIndexAccessPropertyAccess(expr, params);
+      return null;
+    });
+
+    handlers.push((expr, ctx, params) => {
+      const exprObjBase = expr.object as ExprBase;
+      const exprObjType = exprObjBase ? exprObjBase.type : null;
+      if (exprObjType === 'type_assertion') return this.handleTypeAssertionPropertyAccess(expr, params);
+      return null;
+    });
+
+    handlers.push((expr, ctx, params) => {
+      const exprObjBase = expr.object as ExprBase;
+      const exprObjType = exprObjBase ? exprObjBase.type : null;
+      if (exprObjType === 'method_call') return this.handleMethodCallResultPropertyAccess(expr, params);
+      return null;
+    });
+
+    handlers.push((expr, ctx, params) => this.handleObjectPropertyAccess(expr, params));
+
+    handlers.push((expr, ctx, params) => {
+      if (expr.property === 'length') return this.handleLengthProperty(expr, params);
+      return null;
+    });
+
+    handlers.push((expr, ctx, params) => {
+      if (expr.property === 'size') return this.handleSizeProperty(expr, params);
+      return null;
+    });
+
+    handlers.push((expr, ctx, _params) => this.handleResponseProperty(expr));
+
+    handlers.push((expr, ctx, _params) => this.handleStatProperty(expr));
+
+    return handlers;
+  }
 
   private hasObjectInfo(name: string): boolean {
     if (!this.ctx.symbolTable.isObject(name) && !this.ctx.symbolTable.isJSON(name)) return false;
@@ -314,94 +413,11 @@ export class MemberAccessGenerator {
       return this.ctx.generateExpression(expr.object, params);
     }
 
-    const enumResult = this.handleEnumMemberAccess(expr);
-    if (enumResult !== null) return enumResult;
-
-    const typedJsonResult = this.handleTypedJsonStructAccess(expr);
-    if (typedJsonResult !== null) return typedJsonResult;
-
-    if (this.isProcessArgv(expr)) {
-      return this.handleProcessArgv();
+    for (let i = 0; i < this.handlers.length; i++) {
+      const result = this.handlers[i](expr, this.ctx, params);
+      if (result !== null) return result;
     }
 
-    if (this.isProcessPlatform(expr)) {
-      const platformStr = this.ctx.getTargetOS() || process.platform;
-      return this.ctx.stringGen.doCreateStringConstant(platformStr);
-    }
-
-    if (this.isProcessEnvAccess(expr)) {
-      return this.handleProcessEnvAccess(expr);
-    }
-
-    const processSimple = this.handleProcessSimpleProperty(expr);
-    if (processSimple !== null) return processSimple;
-
-    const classResult = this.handleClassPropertyAccess(expr, params);
-    if (classResult !== null) return classResult;
-
-    const exprObjBase = expr.object as ExprBase;
-    const exprObjType = exprObjBase ? exprObjBase.type : null;
-    if (exprObjType === null || exprObjType === undefined) {
-      return '0.0';
-    }
-
-    if (exprObjType === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
-      return this.handleJsonPropertyAccess(expr, params);
-    }
-
-    // Handle nested JSON object access
-    if (exprObjType === 'member_access') {
-      const chainedResult = this.handleChainedInterfaceAccess(expr, params);
-      if (chainedResult !== null) return chainedResult;
-
-      const classFieldChainResult = this.handleClassFieldChainedAccess(expr, params);
-      if (classFieldChainResult !== null) return classFieldChainResult;
-
-      const nestedResult = this.handleNestedJsonAccess(expr, params);
-      if (nestedResult !== null) return nestedResult;
-    }
-
-    // Handle indexed access to object array elements (e.g., arr[i].property)
-    if (exprObjType === 'index_access') {
-      const indexResult = this.handleIndexAccessPropertyAccess(expr, params);
-      if (indexResult !== null) return indexResult;
-    }
-
-    // Handle type assertion property access (e.g., (expr as Type).property)
-    if (exprObjType === 'type_assertion') {
-      const assertResult = this.handleTypeAssertionPropertyAccess(expr, params);
-      if (assertResult !== null) return assertResult;
-    }
-
-    // Handle method call result property access (e.g., map.get(key)?.property)
-    if (exprObjType === 'method_call') {
-      const methodResult = this.handleMethodCallResultPropertyAccess(expr, params);
-      if (methodResult !== null) return methodResult;
-    }
-
-    // Handle regular object property access
-    const objResult = this.handleObjectPropertyAccess(expr, params);
-    if (objResult !== null) return objResult;
-
-    // Handle .length property
-    if (expr.property === 'length') {
-      return this.handleLengthProperty(expr, params);
-    }
-
-    // Handle .size property (Map/Set)
-    if (expr.property === 'size') {
-      const sizeResult = this.handleSizeProperty(expr, params);
-      if (sizeResult !== null) return sizeResult;
-    }
-
-    // Handle Response properties
-    const responseResult = this.handleResponseProperty(expr);
-    if (responseResult !== null) return responseResult;
-
-    const statResult = this.handleStatProperty(expr);
-    if (statResult !== null) return statResult;
-
-    // Handle TypeScript parameter property access
     return this.handleParameterPropertyAccess(expr, params);
   }
 
