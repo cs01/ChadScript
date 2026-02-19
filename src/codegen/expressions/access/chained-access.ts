@@ -4,18 +4,18 @@ import type { MemberAccessGeneratorContext } from './member.js';
 
 interface ExprBase { type: string; }
 
-function hasObjectInfo(ctx: MemberAccessGeneratorContext, name: string): boolean {
+function hasObjectInfoChained(ctx: MemberAccessGeneratorContext, name: string): boolean {
   if (!ctx.symbolTable.isObject(name) && !ctx.symbolTable.isJSON(name)) return false;
   return ctx.symbolTable.getObjectMetadataKeys(name) !== undefined;
 }
 
-function getInterfaceDecl(ctx: MemberAccessGeneratorContext, name: string): InterfaceDeclaration | null {
+function getInterfaceDeclForChained(ctx: MemberAccessGeneratorContext, name: string): InterfaceDeclaration | null {
   return ctx.getInterfaceDeclByName(name);
 }
 
 export function handleNestedInterfaceField(ctx: MemberAccessGeneratorContext, fieldItem: string, tsType: string): string {
   const baseType = stripNullable(tsType);
-  const nestedInterfaceDefResult = getInterfaceDecl(ctx, baseType);
+  const nestedInterfaceDefResult = getInterfaceDeclForChained(ctx, baseType);
   const nestedInterfaceDef = nestedInterfaceDefResult as InterfaceDeclaration;
   if (nestedInterfaceDefResult) {
     const keys: string[] = [];
@@ -128,7 +128,7 @@ export function handleJsonPropertyAccess(ctx: MemberAccessGeneratorContext, expr
   }
 
   let tsType: string | undefined;
-  if (hasObjectInfo(ctx, varName)) {
+  if (hasObjectInfoChained(ctx, varName)) {
     const tsTypesArr = ctx.symbolTable.getObjectMetadataTsTypes(varName);
     const keysArr = ctx.symbolTable.getObjectMetadataKeys(varName);
     if (tsTypesArr && keysArr) {

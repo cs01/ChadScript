@@ -45,7 +45,7 @@ export function handleProcessSimpleProperty(ctx: MemberAccessGeneratorContext, e
   const prop = expr.property;
 
   if (prop === 'arch') {
-    const archStr = (ctx.getTargetArch ? ctx.getTargetArch() : null) || 'x64';
+    const archStr = ctx.getTargetArch() || 'x64';
     return ctx.stringGen.doCreateStringConstant(archStr);
   }
   if (prop === 'version') {

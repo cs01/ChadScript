@@ -22,38 +22,42 @@ import type { InterfaceStructGenerator, InterfaceFieldInfo, InterfaceStructInfo 
 import { stripOptional, stripNullable, tsTypeToLlvm, parseMapTypeString } from '../../infrastructure/type-system.js';
 import type { IStringGenerator, IMapGenerator, ISetGenerator, IResponseGenerator } from '../../infrastructure/generator-context.js';
 import {
-  isProcessArgv as _isProcessArgv,
-  isProcessPlatform as _isProcessPlatform,
-  isProcessEnvAccess as _isProcessEnvAccess,
-  handleProcessEnvAccess as _handleProcessEnvAccess,
-  handleProcessSimpleProperty as _handleProcessSimpleProperty,
-  handleProcessArgv as _handleProcessArgv,
+  isProcessArgv,
+  isProcessPlatform,
+  isProcessEnvAccess,
+  handleProcessEnvAccess,
+  handleProcessSimpleProperty,
+  handleProcessArgv,
 } from './process-access.js';
 import {
-  handleLengthProperty as _handleLengthProperty,
-  handleMemberAccessLength as _handleMemberAccessLength,
-  handleSizeProperty as _handleSizeProperty,
-  handleResponseProperty as _handleResponseProperty,
-  handleStatProperty as _handleStatProperty,
-  isProcessArgvLength as _isProcessArgvLength,
-  getArrayLength as _getArrayLength,
-  getStringArrayLength as _getStringArrayLength,
-  getStringArrayLengthFromPtr as _getStringArrayLengthFromPtr,
-  getArrayLengthFromPtr as _getArrayLengthFromPtr,
-  getStringLength as _getStringLength,
+  handleLengthProperty,
+  handleMemberAccessLength,
+  handleSizeProperty,
+  handleResponseProperty,
+  handleStatProperty,
+  isProcessArgvLength,
+  getArrayLength,
+  getStringArrayLength,
+  getStringArrayLengthFromPtr,
+  getArrayLengthFromPtr,
+  getStringLength,
 } from './property-handlers.js';
 import {
-  parseInlineObjectTypeForAssertion as _parseInlineObjectTypeForAssertion,
-  splitByTopLevelSemicolon as _splitByTopLevelSemicolon,
-  findTopLevelColon as _findTopLevelColon,
+  parseInlineObjectTypeForAssertion,
+  splitByTopLevelSemicolon,
+  findTopLevelColon,
 } from './type-assertion-access.js';
 import {
-  handleJsonPropertyAccess as _handleJsonPropertyAccess,
-  handleNestedJsonAccess as _handleNestedJsonAccess,
-  handleNestedInterfaceField as _handleNestedInterfaceField,
-  extractJsonFieldValue as _extractJsonFieldValue,
-  extractNestedJsonFieldValue as _extractNestedJsonFieldValue,
+  handleJsonPropertyAccess,
+  handleNestedJsonAccess,
+  handleNestedInterfaceField,
+  extractJsonFieldValue,
+  extractNestedJsonFieldValue,
 } from './chained-access.js';
+import {
+  accessObjectWithMetadata,
+  accessObjectProperty,
+} from './struct-access.js';
 
 interface ExprBase { type: string; }
 
@@ -149,8 +153,8 @@ export interface MemberAccessGeneratorContext {
   setActualClassType(name: string, className: string): void;
   getActualClassType(name: string): string | undefined;
   setUsesJson(value: boolean): void;
-  getTargetOS?(): string;
-  getTargetArch?(): string;
+  getTargetOS(): string;
+  getTargetArch(): string;
 }
 
 /**
@@ -321,7 +325,7 @@ export class MemberAccessGenerator {
     }
 
     if (this.isProcessPlatform(expr)) {
-      const platformStr = (this.ctx.getTargetOS ? this.ctx.getTargetOS() : null) || process.platform;
+      const platformStr = this.ctx.getTargetOS() || process.platform;
       return this.ctx.stringGen.doCreateStringConstant(platformStr);
     }
 
@@ -462,23 +466,23 @@ export class MemberAccessGenerator {
   }
 
   private isProcessArgv(expr: MemberAccessNode): boolean {
-    return _isProcessArgv(expr);
+    return isProcessArgv(expr);
   }
 
   private isProcessPlatform(expr: MemberAccessNode): boolean {
-    return _isProcessPlatform(expr);
+    return isProcessPlatform(expr);
   }
 
   private isProcessEnvAccess(expr: MemberAccessNode): boolean {
-    return _isProcessEnvAccess(expr);
+    return isProcessEnvAccess(expr);
   }
 
   private handleProcessEnvAccess(expr: MemberAccessNode): string {
-    return _handleProcessEnvAccess(this.ctx, expr);
+    return handleProcessEnvAccess(this.ctx, expr);
   }
 
   private handleProcessSimpleProperty(expr: MemberAccessNode): string | null {
-    return _handleProcessSimpleProperty(this.ctx, expr);
+    return handleProcessSimpleProperty(this.ctx, expr);
   }
 
   private handleEnumMemberAccess(expr: MemberAccessNode): string | null {
@@ -621,7 +625,7 @@ export class MemberAccessGenerator {
   }
 
   private handleProcessArgv(): string {
-    return _handleProcessArgv(this.ctx);
+    return handleProcessArgv(this.ctx);
   }
 
   private handleClassPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
@@ -918,11 +922,11 @@ export class MemberAccessGenerator {
   }
 
   private handleJsonPropertyAccess(expr: MemberAccessNode, params: string[]): string {
-    return _handleJsonPropertyAccess(this.ctx, expr, params);
+    return handleJsonPropertyAccess(this.ctx, expr, params);
   }
 
   private handleNestedInterfaceField(fieldItem: string, tsType: string): string {
-    return _handleNestedInterfaceField(this.ctx, fieldItem, tsType);
+    return handleNestedInterfaceField(this.ctx, fieldItem, tsType);
   }
 
   private convertTsType(t: string): string {
@@ -935,18 +939,19 @@ export class MemberAccessGenerator {
     if (t === 'boolean') return 'double';
     if (t === 'string[]') return '%StringArray*';
     if (t === 'number[]' || t === 'boolean[]') return '%Array*';
-    if (t.endsWith('[]')) return '%Array*';
-    const interfaceInfo = this.getInterfaceFromAST(t);
-    if (interfaceInfo) return `%${t}*`;
+    if (t.endsWith('[]')) return '%ObjectArray*';
+    const baseName = this.extractBaseTypeName(t);
+    const props = this.ctx.getInterfaceProperties(baseName);
+    if (props && props.keys.length > 0) return `%${baseName}*`;
     return 'i8*';
   }
 
   private extractJsonFieldValue(fieldItem: string): string {
-    return _extractJsonFieldValue(this.ctx, fieldItem);
+    return extractJsonFieldValue(this.ctx, fieldItem);
   }
 
   private handleNestedJsonAccess(expr: MemberAccessNode, params: string[]): string | null {
-    return _handleNestedJsonAccess(this.ctx, expr, params);
+    return handleNestedJsonAccess(this.ctx, expr, params);
   }
 
   private handleChainedInterfaceAccess(expr: MemberAccessNode, params: string[]): string | null {
@@ -1788,7 +1793,7 @@ export class MemberAccessGenerator {
   }
 
   private extractNestedJsonFieldValue(fieldItem: string): string {
-    return _extractNestedJsonFieldValue(this.ctx, fieldItem);
+    return extractNestedJsonFieldValue(this.ctx, fieldItem);
   }
 
   private handleObjectPropertyAccess(expr: MemberAccessNode, params: string[]): string | null {
@@ -1989,47 +1994,47 @@ export class MemberAccessGenerator {
   }
 
   private handleLengthProperty(expr: MemberAccessNode, params: string[]): string {
-    return _handleLengthProperty(this.ctx, expr, params);
+    return handleLengthProperty(this.ctx, expr, params);
   }
 
   private isProcessArgvLength(expr: MemberAccessNode): boolean {
-    return _isProcessArgvLength(expr);
+    return isProcessArgvLength(expr);
   }
 
   private getArrayLength(obj: Expression, params: string[], arrayType: string): string {
-    return _getArrayLength(this.ctx, obj, params, arrayType);
+    return getArrayLength(this.ctx, obj, params, arrayType);
   }
 
   private getStringArrayLength(stringArrayPtr: string): string {
-    return _getStringArrayLength(this.ctx, stringArrayPtr);
+    return getStringArrayLength(this.ctx, stringArrayPtr);
   }
 
   private getStringArrayLengthFromPtr(ptr: string): string {
-    return _getStringArrayLengthFromPtr(this.ctx, ptr);
+    return getStringArrayLengthFromPtr(this.ctx, ptr);
   }
 
   private handleMemberAccessLength(expr: MemberAccessNode, params: string[]): string | null {
-    return _handleMemberAccessLength(this.ctx, expr, params);
+    return handleMemberAccessLength(this.ctx, expr, params);
   }
 
   private getArrayLengthFromPtr(arrayPtr: string, arrayType: string): string {
-    return _getArrayLengthFromPtr(this.ctx, arrayPtr, arrayType);
+    return getArrayLengthFromPtr(this.ctx, arrayPtr, arrayType);
   }
 
   private getStringLength(obj: Expression, params: string[]): string {
-    return _getStringLength(this.ctx, obj, params);
+    return getStringLength(this.ctx, obj, params);
   }
 
   private handleSizeProperty(expr: MemberAccessNode, params: string[]): string | null {
-    return _handleSizeProperty(this.ctx, expr, params);
+    return handleSizeProperty(this.ctx, expr, params);
   }
 
   private handleResponseProperty(expr: MemberAccessNode): string | null {
-    return _handleResponseProperty(this.ctx, expr);
+    return handleResponseProperty(this.ctx, expr);
   }
 
   private handleStatProperty(expr: MemberAccessNode): string | null {
-    return _handleStatProperty(this.ctx, expr);
+    return handleStatProperty(this.ctx, expr);
   }
 
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {
@@ -2500,48 +2505,19 @@ export class MemberAccessGenerator {
   }
 
   private parseInlineObjectTypeForAssertion(typeStr: string): InterfaceField[] | null {
-    return _parseInlineObjectTypeForAssertion(typeStr);
+    return parseInlineObjectTypeForAssertion(typeStr);
   }
 
   private splitByTopLevelSemicolon(str: string): string[] {
-    return _splitByTopLevelSemicolon(str);
+    return splitByTopLevelSemicolon(str);
   }
 
   private findTopLevelColon(str: string): number {
-    return _findTopLevelColon(str);
+    return findTopLevelColon(str);
   }
 
   private accessObjectWithMetadata(varName: string, property: string, metadata: ObjectMetadata): string {
-    const propIndex = metadata.keys.indexOf(property);
-    if (propIndex === -1) {
-      const varType = this.ctx.getVariableType(varName) || 'unknown';
-      this.ctx.emitError(
-        `Property '${property}' not found on object '${varName}' (llvmType=${varType}, keys=${metadata.keys.length}). Available properties: ${metadata.keys.join(', ')}`
-      );
-    }
-
-    const propType = metadata.types[propIndex];
-    const structType = `{ ${metadata.types.join(', ')} }`;
-
-    const varPtr = this.ctx.getVariableAlloca(varName);
-    if (!varPtr) {
-      throw new Error(`Variable ${varName} not found in symbol table`);
-    }
-
-    const objPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${objPtr} = load i8*, i8** ${varPtr}`);
-
-    const typedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
-
-    const fieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${propIndex}`);
-
-    const value = this.ctx.nextTemp();
-    this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
-    this.ctx.setVariableType(value, propType);
-
-    return value;
+    return accessObjectWithMetadata(this.ctx, varName, property, metadata);
   }
 
   private accessInterfacePropertyWithNamedStruct(varName: string, property: string, interfaceType: string): string {
@@ -2673,26 +2649,6 @@ export class MemberAccessGenerator {
   }
 
   private accessObjectProperty(objPtr: string, property: string, keys: string[], types: string[], _tsTypes?: string[]): string {
-    const propIndex = keys.indexOf(property);
-    if (propIndex === -1) {
-      this.ctx.emitError(
-        `Property '${property}' not found. Available properties: ${keys.join(', ')}`
-      );
-    }
-
-    const propType = types[propIndex];
-    const structType = `{ ${types.join(', ')} }`;
-
-    const typedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
-
-    const fieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${propIndex}`);
-
-    const value = this.ctx.nextTemp();
-    this.ctx.emit(`${value} = load ${propType}, ${propType}* ${fieldPtr}`);
-    this.ctx.setVariableType(value, propType);
-
-    return value;
+    return accessObjectProperty(this.ctx, objPtr, property, keys, types, _tsTypes);
   }
 }
