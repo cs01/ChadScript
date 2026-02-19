@@ -1,4 +1,4 @@
-import { compileNative, setSkipSemanticAnalysis, setEmitLLVMOnly } from './native-compiler-lib.js';
+import { compileNative, setSkipSemanticAnalysis, setEmitLLVMOnly, setTargetCpu } from './native-compiler-lib.js';
 import { getDtsContent } from './codegen/stdlib/embedded-dts.js';
 
 declare const fs: {
@@ -38,6 +38,7 @@ function printHelp(): void {
   console.log('Options:');
   console.log('  -o <output>                 Specify output file');
   console.log('  --skip-semantic-analysis    Skip semantic analysis');
+  console.log('  --target-cpu=CPU            Set LLVM target CPU (default: native)');
   console.log('  -h, --help                  Show this help message');
   console.log('  --version                   Show version');
   console.log('');
@@ -131,6 +132,9 @@ while (argIdx < args.length) {
     process.exit(0);
   } else if (arg === '--skip-semantic-analysis') {
     setSkipSemanticAnalysis(true);
+    argIdx = argIdx + 1;
+  } else if (arg.substr(0, 13) === '--target-cpu=') {
+    setTargetCpu(arg.substr(13));
     argIdx = argIdx + 1;
   } else if (arg === '-o') {
     argIdx = argIdx + 1;

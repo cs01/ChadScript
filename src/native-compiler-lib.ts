@@ -46,6 +46,7 @@ function findLLVMTool(name: string): string {
 export let skipSemanticAnalysis = false;
 export let emitLLVMOnly = false;
 export let verbose = false;
+export let targetCpu = 'native';
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -57,6 +58,10 @@ export function setEmitLLVMOnly(value: boolean): void {
 
 export function setVerbose(value: boolean): void {
   verbose = value;
+}
+
+export function setTargetCpu(value: string): void {
+  targetCpu = value;
 }
 
 export function compileNative(inputFile: string, outputFile: string): void {
@@ -151,10 +156,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const optTool = findLLVMTool('opt');
   const llcTool = findLLVMTool('llc');
   const clangTool = findLLVMTool('clang');
-  const optCmd = optTool + ' -O2 -mcpu=native ' + irFile + ' -o ' + optFile;
+  const optCmd = optTool + ' -O2 -mcpu=' + targetCpu + ' ' + irFile + ' -o ' + optFile;
   if (verbose) { console.log('Running: ' + optCmd); }
   child_process.execSync(optCmd);
-  const llcCmd = llcTool + ' -O2 -mcpu=native -filetype=obj ' + optFile + ' -o ' + objFile;
+  const llcCmd = llcTool + ' -O2 -mcpu=' + targetCpu + ' -filetype=obj ' + optFile + ' -o ' + objFile;
   if (verbose) { console.log('Running: ' + llcCmd); }
   child_process.execSync(llcCmd);
   if (!fs.existsSync(objFile)) {
