@@ -17,7 +17,8 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += '%StringMap = type { i8**, i8**, i32, i32 }\n';
   ir += '%Set = type { double*, i32, i32 }\n';
   ir += '%StringSet = type { i8**, i32, i32 }\n';
-  ir += '%struct.timeval = type { i64, i64 }\n\n';
+  ir += '%struct.timeval = type { i64, i64 }\n';
+  ir += '%ExceptionFrame = type { [200 x i8], i8*, i8* }\n\n';
 
   ir += 'declare i8* @malloc(i64)\n';
   ir += 'declare i8* @calloc(i64, i64)\n';
@@ -78,6 +79,8 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += '\n';
 
   ir += 'declare void @exit(i32) noreturn\n';
+  ir += 'declare i32 @setjmp(i8*) returns_twice\n';
+  ir += 'declare void @longjmp(i8*, i32) noreturn\n';
   ir += 'declare i32 @fflush(i8*)\n';
   if (isMac) {
     ir += '@__stdoutp = external global i8*\n';
@@ -339,6 +342,8 @@ export function getGlobalVariables(): string {
   ir += '@__test_failed = global i32 0\n';
   ir += '@__test_current_failed = global i1 0\n';
   ir += '@__describe_depth = global i32 0\n';
+  ir += '@__exception_stack = global i8* null\n';
+  ir += '@__exception_message = global i8* null\n';
   ir += '\n';
   return ir;
 }
