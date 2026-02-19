@@ -19,6 +19,8 @@ interface EmbeddedFile {
 export class EmbedGenerator {
   private embeddedFiles: EmbeddedFile[] = [];
   private entryDir: string;
+  private _lastStrId: string = '';
+  private _lastLen: number = 0;
 
   constructor(private ctx: IGeneratorContext, filename: string) {
     this.entryDir = filename ? path.dirname(path.resolve(filename)) : process.cwd();
@@ -28,47 +30,52 @@ export class EmbedGenerator {
     return this.embeddedFiles.length > 0;
   }
 
-  private escapeAndMeasure(value: string): { escaped: string; byteCount: number } {
+  private escapeForLLVM(value: string): string {
     let escaped = '';
-    let byteCount = 0;
     for (let i = 0; i < value.length; i++) {
       const ch = value[i];
       const code = value.charCodeAt(i);
       if (ch === '\\') {
         escaped += '\\5C';
-        byteCount += 1;
       } else if (ch === '\n') {
         escaped += '\\0A';
-        byteCount += 1;
       } else if (ch === '\r') {
         escaped += '\\0D';
-        byteCount += 1;
       } else if (ch === '\t') {
         escaped += '\\09';
-        byteCount += 1;
       } else if (ch === '"') {
         escaped += '\\22';
-        byteCount += 1;
       } else if (code < 32 || code > 126) {
         if (code < 128) {
           escaped += '\\' + this.byteToHex(code);
-          byteCount += 1;
         } else if (code < 0x800) {
           escaped += '\\' + this.byteToHex(0xC0 | (code >> 6));
           escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
-          byteCount += 2;
         } else {
           escaped += '\\' + this.byteToHex(0xE0 | (code >> 12));
           escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
           escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
-          byteCount += 3;
         }
       } else {
         escaped += ch;
-        byteCount += 1;
       }
     }
-    return { escaped, byteCount };
+    return escaped;
+  }
+
+  private countUtf8Bytes(value: string): number {
+    let count = 0;
+    for (let i = 0; i < value.length; i++) {
+      const code = value.charCodeAt(i);
+      if (code < 128) {
+        count += 1;
+      } else if (code < 0x800) {
+        count += 2;
+      } else {
+        count += 3;
+      }
+    }
+    return count;
   }
 
   private byteToHex(b: number): string {
@@ -78,12 +85,13 @@ export class EmbedGenerator {
     return hi + lo;
   }
 
-  private createGlobalStringDirect(value: string): { strId: string; len: number } {
+  private createGlobalStringDirect(value: string): void {
     const strId = this.ctx.nextString();
-    const { escaped, byteCount } = this.escapeAndMeasure(value);
-    const len = byteCount + 1;
+    const escaped = this.escapeForLLVM(value);
+    const len = this.countUtf8Bytes(value) + 1;
     this.ctx.pushGlobalString(strId + ' = private unnamed_addr constant [' + len + ' x i8] c"' + escaped + '\\00", align 1');
-    return { strId, len };
+    this._lastStrId = strId;
+    this._lastLen = len;
   }
 
   generateEmbedFile(expr: MethodCallNode, _params: string[]): string {
@@ -104,7 +112,9 @@ export class EmbedGenerator {
     }
 
     const content = fs.readFileSync(absPath, 'utf-8');
-    const { strId, len } = this.createGlobalStringDirect(content);
+    this.createGlobalStringDirect(content);
+    const strId = this._lastStrId;
+    const len = this._lastLen;
 
     const ptrReg = this.ctx.nextTemp();
     this.ctx.emit(ptrReg + ' = getelementptr inbounds [' + len + ' x i8], [' + len + ' x i8]* ' + strId + ', i64 0, i64 0');
@@ -147,9 +157,9 @@ export class EmbedGenerator {
         this.walkDir(fullPath, baseDir);
       } else {
         const content = fs.readFileSync(fullPath, 'utf-8');
-        const { strId, len } = this.createGlobalStringDirect(content);
+        this.createGlobalStringDirect(content);
         const key = fullPath.substring(baseDir.length + 1);
-        this.embeddedFiles.push({ key, globalStrId: strId, globalStrLen: len });
+        this.embeddedFiles.push({ key, globalStrId: this._lastStrId, globalStrLen: this._lastLen });
       }
     }
   }
@@ -173,11 +183,16 @@ export class EmbedGenerator {
       return '';
     }
 
-    const keyGlobals: { strId: string; len: number }[] = [];
+    const keyStrIds: string[] = [];
+    const keyLens: number[] = [];
     for (let i = 0; i < this.embeddedFiles.length; i++) {
-      keyGlobals.push(this.createGlobalStringDirect(this.embeddedFiles[i].key));
+      this.createGlobalStringDirect(this.embeddedFiles[i].key);
+      keyStrIds.push(this._lastStrId);
+      keyLens.push(this._lastLen);
     }
-    const emptyGlobal = this.createGlobalStringDirect('');
+    this.createGlobalStringDirect('');
+    const emptyStrId = this._lastStrId;
+    const emptyLen = this._lastLen;
 
     let ir = '';
     ir += 'define i8* @__cs_get_embedded_file(i8* %key) {\n';
@@ -185,9 +200,8 @@ export class EmbedGenerator {
 
     for (let i = 0; i < this.embeddedFiles.length; i++) {
       const file = this.embeddedFiles[i];
-      const keyG = keyGlobals[i];
 
-      ir += '  %key_ptr_' + i + ' = getelementptr inbounds [' + keyG.len + ' x i8], [' + keyG.len + ' x i8]* ' + keyG.strId + ', i64 0, i64 0\n';
+      ir += '  %key_ptr_' + i + ' = getelementptr inbounds [' + keyLens[i] + ' x i8], [' + keyLens[i] + ' x i8]* ' + keyStrIds[i] + ', i64 0, i64 0\n';
       ir += '  %cmp_' + i + ' = call i32 @strcmp(i8* %key, i8* %key_ptr_' + i + ')\n';
       ir += '  %is_' + i + ' = icmp eq i32 %cmp_' + i + ', 0\n';
       const foundLabel = 'found' + i;
@@ -202,7 +216,7 @@ export class EmbedGenerator {
     }
 
     ir += 'notfound:\n';
-    ir += '  %empty_ptr = getelementptr inbounds [' + emptyGlobal.len + ' x i8], [' + emptyGlobal.len + ' x i8]* ' + emptyGlobal.strId + ', i64 0, i64 0\n';
+    ir += '  %empty_ptr = getelementptr inbounds [' + emptyLen + ' x i8], [' + emptyLen + ' x i8]* ' + emptyStrId + ', i64 0, i64 0\n';
     ir += '  ret i8* %empty_ptr\n';
     ir += '}\n\n';
 
