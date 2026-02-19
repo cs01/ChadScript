@@ -207,6 +207,10 @@ jobs:
           .build/chad build examples/hello.ts -o /tmp/hello2
           /tmp/hello2
 
+      - name: Run self-hosting tests
+        run: node --import tsx --test tests/self-hosting.test.ts
+        timeout-minutes: 15
+
       - name: Package release artifact
         run: |
           mkdir -p release/lib
