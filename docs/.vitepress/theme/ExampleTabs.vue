@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 
 const activeTab = ref(0)
 const copied = ref(false)
+const cmdText = ref('')
+const showOutput = ref(false)
+const containerRef = ref<HTMLElement | null>(null)
+let isVisible = false
 
 const examples = [
   {
@@ -99,6 +103,8 @@ function highlight(code: string): string {
 const highlightedCode = computed(() => highlight(examples[activeTab.value].code))
 
 let copyTimeout: ReturnType<typeof setTimeout> | null = null
+let typeTimeouts: ReturnType<typeof setTimeout>[] = []
+let observer: IntersectionObserver | null = null
 
 function copyCode() {
   const code = examples[activeTab.value].code
@@ -107,10 +113,59 @@ function copyCode() {
   if (copyTimeout) clearTimeout(copyTimeout)
   copyTimeout = setTimeout(() => { copied.value = false }, 1500)
 }
+
+function runTypewriter(text: string) {
+  typeTimeouts.forEach(t => clearTimeout(t))
+  typeTimeouts = []
+  cmdText.value = ''
+  showOutput.value = false
+
+  const cmdPart = text.slice(2)
+  let i = 0
+  function tick() {
+    if (i < cmdPart.length) {
+      cmdText.value = cmdPart.slice(0, i + 1)
+      i++
+      const t = setTimeout(tick, 40)
+      typeTimeouts.push(t)
+    } else {
+      const t = setTimeout(() => { showOutput.value = true }, 150)
+      typeTimeouts.push(t)
+    }
+  }
+  const t = setTimeout(tick, 300)
+  typeTimeouts.push(t)
+}
+
+watch(activeTab, () => {
+  runTypewriter(examples[activeTab.value].run)
+})
+
+onMounted(() => {
+  nextTick(() => {
+    if (!containerRef.value) return
+    observer = new IntersectionObserver(
+      (entries) => {
+        const wasVisible = isVisible
+        isVisible = entries[0].isIntersecting
+        if (isVisible && !wasVisible) {
+          runTypewriter(examples[activeTab.value].run)
+        }
+      },
+      { threshold: 0.3 }
+    )
+    observer.observe(containerRef.value)
+  })
+})
+
+onUnmounted(() => {
+  if (observer) observer.disconnect()
+  typeTimeouts.forEach(t => clearTimeout(t))
+})
 </script>
 
 <template>
-  <div class="example-tabs">
+  <div class="example-tabs" ref="containerRef">
     <h2 class="example-heading">Examples</h2>
     <div class="tab-bar">
       <button
@@ -129,8 +184,8 @@ function copyCode() {
       </div>
       <pre class="panel-code"><code v-html="highlightedCode"></code></pre>
       <div class="panel-terminal">
-        <div class="terminal-line terminal-cmd">{{ examples[activeTab].run }}</div>
-        <div class="terminal-line terminal-out">{{ examples[activeTab].output }}</div>
+        <div class="terminal-line terminal-cmd"><span class="terminal-prompt">$</span> {{ cmdText }}<span v-if="!showOutput" class="cursor">|</span></div>
+        <div v-if="showOutput" class="terminal-line terminal-out">{{ examples[activeTab].output }}</div>
       </div>
     </div>
   </div>
@@ -262,12 +317,26 @@ function copyCode() {
   line-height: 1.6;
 }
 
+.terminal-prompt {
+  color: var(--vp-c-brand-1);
+}
+
 .terminal-cmd {
-  color: var(--vp-c-text-2);
+  color: var(--vp-c-text-1);
 }
 
 .terminal-out {
   color: var(--vp-c-text-3);
+}
+
+.cursor {
+  color: var(--vp-c-brand-1);
+  animation: blink 0.6s step-end infinite;
+  font-weight: 300;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
 }
 
 @media (max-width: 768px) {

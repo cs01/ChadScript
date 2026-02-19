@@ -19,13 +19,17 @@ features:
     details: Write the TypeScript you already know. Classes, interfaces, async/await, generics - it all works.
   - title: Batteries Included
     details: HTTP servers, file I/O, JSON, crypto, SQLite, regex, async - all compiled to native code. No npm required.
+  - title: Zero-Cost C Interop
+    details: C libraries like SQLite and OpenSSL are called directly through LLVM IR — no FFI boundary, no marshaling, no overhead. Same cost as a native function call.
 ---
 
 <HeroRotator />
 
-<ExampleTabs />
+<HeroBenchmarks />
 
 <IRShowcase />
+
+<ExampleTabs />
 
 <div class="cta-section">
 
@@ -37,7 +41,6 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
 
 <div class="cta-buttons">
   <a href="/ChadScript/getting-started/installation" class="cta-button primary">Get Started →</a>
-  <a href="/ChadScript/benchmarks" class="cta-button secondary">See Benchmarks</a>
 </div>
 
 </div>
@@ -74,8 +77,14 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
   opacity: 0.85;
 }
 .cta-button.primary {
-  background: var(--vp-c-brand-1);
-  color: var(--vp-c-white);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--vp-c-text-1);
+}
+.cta-button.primary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  opacity: 1;
 }
 .cta-button.secondary {
   border: 1px solid var(--vp-c-divider);
