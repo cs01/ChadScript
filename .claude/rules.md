@@ -15,7 +15,7 @@ Before considering any feature complete, run the full self-hosting chain:
 2. `npm run verify:quick` — same but skips Stage 2 (day-to-day dev)
 
 Or manually:
-1. `npm test` — all tests pass (auto-uses native compiler if `.build/chadc` exists)
+1. `npm test` — all tests pass (auto-uses native compiler if `.build/chad` exists)
 2. `bash scripts/self-hosting.sh` — full 3-stage self-hosting
 3. `bash scripts/self-hosting.sh --quick` — skip Stage 2
 
@@ -82,7 +82,7 @@ Run tests: `npm test` or `npm run test:full` (via `node scripts/test.js`)
 Run tests + self-hosting: `npm run verify` (or `npm run verify:quick` to skip Stage 2)
 Build: `npm run build` (TypeScript → dist/)
 
-Tests auto-detect `.build/chadc` and use it instead of `node dist/chadc-node.js` (~10x faster per compile).
+Tests auto-detect `.build/chad` and use it instead of `node dist/chad-node.js` (~10x faster per compile).
 `compiler.test.ts` runs at concurrency 32; `smoke.test.ts` at concurrency 8.
 
 ## Useful Patterns

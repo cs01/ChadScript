@@ -39,7 +39,7 @@ jobs:
 
       - name: Cross-compile hello.ts for macOS arm64
         run: |
-          node dist/chadc-node.js --keep-temps --target macos-arm64 --emit-llvm examples/hello.ts -o .build/hello-macos
+          node dist/chad-node.js ir --keep-temps --target macos-arm64 examples/hello.ts -o .build/hello-macos
           llc -mtriple=aarch64-apple-darwin -filetype=obj .build/hello-macos.ll -o .build/hello-macos.o
 
       - name: Verify object file format
@@ -87,7 +87,7 @@ jobs:
 
       - name: Cross-compile hello.ts for Linux x64
         run: |
-          node dist/chadc-node.js --keep-temps --target linux-x64 --emit-llvm examples/hello.ts -o .build/hello-linux
+          node dist/chad-node.js ir --keep-temps --target linux-x64 examples/hello.ts -o .build/hello-linux
           llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj .build/hello-linux.ll -o .build/hello-linux.o
 
       - name: Verify object file format

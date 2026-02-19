@@ -62,37 +62,18 @@ jobs:
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
-      - name: Build native compiler for tests
-        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc
-
-      - name: Smoke test native compiler
-        run: |
-          .build/chadc examples/hello.ts -o /tmp/hello
-          /tmp/hello
-
-      - name: Run tests
-        run: npm test
-
-      - name: Rebuild native chadc (static release)
-        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc --static --target-cpu=x86-64
-
-      - name: Build native chad (static release)
-        run: node dist/chadc-node.js src/chad-native.ts -o .build/chad --static --target-cpu=x86-64
+      - name: Build native chad (static)
+        run: node dist/chad-node.js build src/chad-native.ts -o .build/chad --static --target-cpu=x86-64
 
       - name: Verify static binary
         run: |
           file .build/chad
           ldd .build/chad 2>&1 && echo "WARNING: not fully static" || echo "OK: static binary"
 
-      - name: Smoke test native chadc
-        run: |
-          .build/chadc examples/hello.ts -o /tmp/hello
-          /tmp/hello
-
       - name: Smoke test native chad
         run: |
-          .build/chad build examples/hello.ts -o /tmp/hello2
-          /tmp/hello2
+          .build/chad build examples/hello.ts -o /tmp/hello
+          /tmp/hello
 
       - name: Run self-hosting tests
         run: node --import tsx --test tests/self-hosting.test.ts
@@ -102,7 +83,6 @@ jobs:
         run: |
           mkdir -p release/lib
           cp .build/chad release/
-          cp .build/chadc release/
           cp build/tree-sitter-typescript-parser.o release/lib/
           cp build/tree-sitter-typescript-scanner.o release/lib/
           cp build/treesitter-bridge.o release/lib/
@@ -113,7 +93,7 @@ jobs:
           cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
           cp c_bridges/lws-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
-          tar -czf chadscript-linux-musl-x64.tar.gz -C release chad chadc lib
+          tar -czf chadscript-linux-musl-x64.tar.gz -C release chad lib
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -180,32 +160,13 @@ jobs:
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
-      - name: Build native compiler for tests
-        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc
-
-      - name: Smoke test native compiler
-        run: |
-          .build/chadc examples/hello.ts -o /tmp/hello
-          /tmp/hello
-
-      - name: Run tests
-        run: npm test
-
-      - name: Rebuild native chadc (release)
-        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc --target-cpu=x86-64
-
-      - name: Build native chad (release)
-        run: node dist/chadc-node.js src/chad-native.ts -o .build/chad --target-cpu=x86-64
-
-      - name: Smoke test native chadc
-        run: |
-          .build/chadc examples/hello.ts -o /tmp/hello
-          /tmp/hello
+      - name: Build native chad
+        run: node dist/chad-node.js build src/chad-native.ts -o .build/chad --target-cpu=x86-64
 
       - name: Smoke test native chad
         run: |
-          .build/chad build examples/hello.ts -o /tmp/hello2
-          /tmp/hello2
+          .build/chad build examples/hello.ts -o /tmp/hello
+          /tmp/hello
 
       - name: Run self-hosting tests
         run: node --import tsx --test tests/self-hosting.test.ts
@@ -215,7 +176,6 @@ jobs:
         run: |
           mkdir -p release/lib
           cp .build/chad release/
-          cp .build/chadc release/
           cp build/tree-sitter-typescript-parser.o release/lib/
           cp build/tree-sitter-typescript-scanner.o release/lib/
           cp build/treesitter-bridge.o release/lib/
@@ -226,7 +186,7 @@ jobs:
           cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
           cp c_bridges/lws-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
-          tar -czf chadscript-linux-x64.tar.gz -C release chad chadc lib
+          tar -czf chadscript-linux-x64.tar.gz -C release chad lib
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -284,40 +244,17 @@ jobs:
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
-      - name: Build native compiler for tests
-        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc
-
-      - name: Sign native compiler
-        run: codesign --sign - --force .build/chadc
-
-      - name: Smoke test native compiler
-        run: |
-          .build/chadc examples/hello.ts -o /tmp/hello
-          /tmp/hello
-
-      - name: Run tests
-        run: npm test
-
-      - name: Rebuild native chadc (release)
-        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc
-
-      - name: Build native chad (release)
-        run: node dist/chadc-node.js src/chad-native.ts -o .build/chad
+      - name: Build native chad
+        run: node dist/chad-node.js build src/chad-native.ts -o .build/chad
 
       - name: Sign macOS binaries
         run: |
           codesign --sign - --force .build/chad
-          codesign --sign - --force .build/chadc
-
-      - name: Smoke test native chadc
-        run: |
-          .build/chadc examples/hello.ts -o /tmp/hello
-          /tmp/hello
 
       - name: Smoke test native chad
         run: |
-          .build/chad build examples/hello.ts -o /tmp/hello2
-          /tmp/hello2
+          .build/chad build examples/hello.ts -o /tmp/hello
+          /tmp/hello
 
       - name: Run self-hosting tests
         run: node --import tsx --test tests/self-hosting.test.ts
@@ -327,7 +264,6 @@ jobs:
         run: |
           mkdir -p release/lib
           cp .build/chad release/
-          cp .build/chadc release/
           cp build/tree-sitter-typescript-parser.o release/lib/
           cp build/tree-sitter-typescript-scanner.o release/lib/
           cp build/treesitter-bridge.o release/lib/
@@ -338,7 +274,7 @@ jobs:
           cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
           cp c_bridges/lws-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
-          tar -czf chadscript-macos-arm64.tar.gz -C release chad chadc lib
+          tar -czf chadscript-macos-arm64.tar.gz -C release chad lib
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -383,7 +319,6 @@ jobs:
       - name: Verify binary
         run: |
           file ~/.chadscript/chad.bin
-          file ~/.chadscript/chadc.bin
           ls -la ~/.chadscript/lib/
 
       - name: Smoke test - hello world
@@ -394,7 +329,7 @@ jobs:
       - name: Smoke test - compile to binary
         run: |
           echo 'process.exit(42);' > /tmp/exit42.ts
-          chadc /tmp/exit42.ts -o /tmp/exit42
+          chad build /tmp/exit42.ts -o /tmp/exit42
           /tmp/exit42 || [ $? -eq 42 ]
 
   release:

@@ -9,7 +9,7 @@ import { testCases, TestCase } from './test-fixtures';
 
 const execAsync = promisify(exec);
 
-const CHADC = '.build/chadc';
+const CHAD = '.build/chad';
 const STAGE0 = '/tmp/chad-stage0';
 const STAGE1 = '/tmp/chad-stage1';
 const STAGE2 = '/tmp/chad-stage2';
@@ -107,31 +107,31 @@ async function runFixture(compiler: string, tc: TestCase, outDir: string): Promi
 }
 
 describe('Self-Hosting', { timeout: 600000 }, () => {
-  describe('Stage 0 (chadc): all fixtures', { concurrency: 4 }, () => {
+  describe('Stage 0 (chad): all fixtures', { concurrency: 4 }, () => {
     const outDir = path.join(FIXTURE_OUT_DIR, 'stage0');
 
     before(() => {
       assert.ok(
-        fsSync.existsSync(CHADC),
-        `Native compiler not found at ${CHADC} — build it first with: npm run build && node dist/chadc-node.js src/chadc-native.ts -o .build/chadc`
+        fsSync.existsSync(CHAD),
+        `Native compiler not found at ${CHAD} — build it first with: npm run build && node dist/chad-node.js build src/chad-native.ts -o .build/chad`
       );
       fsSync.mkdirSync(outDir, { recursive: true });
     });
 
     for (const tc of testCases) {
       const todo = STAGE0_TODO.has(tc.name) ? 'Stage 0 codegen limitation' : undefined;
-      it(`[chadc] ${tc.name}: ${tc.description}`, { todo }, async () => {
-        await runFixture(CHADC, tc, outDir);
+      it(`[chad] ${tc.name}: ${tc.description}`, { todo }, async () => {
+        await runFixture(`${CHAD} build`, tc, outDir);
       });
     }
   });
 
   describe('Self-hosting chain', { timeout: 600000 }, () => {
-    it('Node.js → Stage 0: compile chadc-native.ts', async () => {
+    it('Node.js → Stage 0: compile chad-native.ts', async () => {
       if (fsSync.existsSync(STAGE0)) fsSync.unlinkSync(STAGE0);
 
       await execAsync(
-        `node dist/chadc-node.js src/chadc-native.ts -o ${STAGE0}`,
+        `node dist/chad-node.js build src/chad-native.ts -o ${STAGE0}`,
         { timeout: 180000 }
       );
 
@@ -145,7 +145,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
 
       const outBinary = '/tmp/hello-stage0';
       try {
-        await execAsync(`${STAGE0} examples/hello.ts -o ${outBinary}`, { timeout: 30000, env: NATIVE_ENV });
+        await execAsync(`${STAGE0} build examples/hello.ts -o ${outBinary}`, { timeout: 30000, env: NATIVE_ENV });
         assert.ok(fsSync.existsSync(outBinary), 'Stage 0 should produce output binary');
 
         const { stdout } = await execAsync(outBinary, { timeout: 10000 });
@@ -160,7 +160,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       if (fsSync.existsSync(STAGE1)) fsSync.unlinkSync(STAGE1);
 
       await execWithRetry(
-        `${STAGE0} -v src/chadc-native.ts -o ${STAGE1}`,
+        `${STAGE0} build -v src/chad-native.ts -o ${STAGE1}`,
         { timeout: 180000, env: NATIVE_ENV }
       );
 
@@ -174,7 +174,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
 
       const outBinary = '/tmp/hello-stage1';
       try {
-        await execAsync(`${STAGE1} examples/hello.ts -o ${outBinary}`, { timeout: 30000, env: NATIVE_ENV });
+        await execAsync(`${STAGE1} build examples/hello.ts -o ${outBinary}`, { timeout: 30000, env: NATIVE_ENV });
         assert.ok(fsSync.existsSync(outBinary), 'Stage 1 should produce output binary');
 
         const { stdout } = await execAsync(outBinary, { timeout: 10000 });
@@ -189,7 +189,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       if (fsSync.existsSync(STAGE2)) fsSync.unlinkSync(STAGE2);
 
       await execWithRetry(
-        `${STAGE1} -v src/chadc-native.ts -o ${STAGE2}`,
+        `${STAGE1} build -v src/chad-native.ts -o ${STAGE2}`,
         { timeout: 180000, env: NATIVE_ENV }
       );
 
@@ -203,7 +203,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
 
       const outBinary = '/tmp/hello-stage2';
       try {
-        await execAsync(`${STAGE2} examples/hello.ts -o ${outBinary}`, { timeout: 30000, env: NATIVE_ENV });
+        await execAsync(`${STAGE2} build examples/hello.ts -o ${outBinary}`, { timeout: 30000, env: NATIVE_ENV });
         assert.ok(fsSync.existsSync(outBinary), 'Stage 2 should produce output binary');
 
         const { stdout } = await execAsync(outBinary, { timeout: 10000 });
@@ -218,7 +218,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       if (fsSync.existsSync(STAGE3)) fsSync.unlinkSync(STAGE3);
 
       await execWithRetry(
-        `${STAGE2} -v src/chadc-native.ts -o ${STAGE3}`,
+        `${STAGE2} build -v src/chad-native.ts -o ${STAGE3}`,
         { timeout: 180000, env: NATIVE_ENV }
       );
 
@@ -232,7 +232,7 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
 
       const outBinary = '/tmp/hello-stage3';
       try {
-        await execAsync(`${STAGE3} examples/hello.ts -o ${outBinary}`, { timeout: 30000, env: NATIVE_ENV });
+        await execAsync(`${STAGE3} build examples/hello.ts -o ${outBinary}`, { timeout: 30000, env: NATIVE_ENV });
         assert.ok(fsSync.existsSync(outBinary), 'Stage 3 should produce output binary');
 
         const { stdout } = await execAsync(outBinary, { timeout: 10000 });
@@ -253,8 +253,8 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       const s2LL = '/tmp/bootstrap-s2.ll';
 
       try {
-        await execAsync(`${STAGE1} ${testFile} -o ${s1Out}`, { timeout: 30000, env: NATIVE_ENV });
-        await execAsync(`${STAGE2} ${testFile} -o ${s2Out}`, { timeout: 30000, env: NATIVE_ENV });
+        await execAsync(`${STAGE1} build ${testFile} -o ${s1Out}`, { timeout: 30000, env: NATIVE_ENV });
+        await execAsync(`${STAGE2} build ${testFile} -o ${s2Out}`, { timeout: 30000, env: NATIVE_ENV });
 
         const ll1 = await fs.readFile(s1LL, 'utf-8');
         const ll2 = await fs.readFile(s2LL, 'utf-8');
@@ -278,8 +278,8 @@ describe('Self-Hosting', { timeout: 600000 }, () => {
       const s3LL = '/tmp/bootstrap-s3.ll';
 
       try {
-        await execAsync(`${STAGE2} ${testFile} -o ${s2Out}`, { timeout: 30000, env: NATIVE_ENV });
-        await execAsync(`${STAGE3} ${testFile} -o ${s3Out}`, { timeout: 30000, env: NATIVE_ENV });
+        await execAsync(`${STAGE2} build ${testFile} -o ${s2Out}`, { timeout: 30000, env: NATIVE_ENV });
+        await execAsync(`${STAGE3} build ${testFile} -o ${s3Out}`, { timeout: 30000, env: NATIVE_ENV });
 
         const ll2 = await fs.readFile(s2LL, 'utf-8');
         const ll3 = await fs.readFile(s3LL, 'utf-8');
