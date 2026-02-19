@@ -78,8 +78,7 @@ interface CatchHandler {
 interface TryNode {
   type: string;
   tryBlock: BlockStatement;
-  catchParam: string | null;
-  catchBody: BlockStatement | null;
+  catchClause: { param: string; body: BlockStatement } | null;
   finallyBlock: BlockStatement | null;
 }
 
@@ -323,10 +322,10 @@ export class ClosureAnalyzer {
       this.walkExpression(s.iterable);
       this.walkBlock(s.body);
     } else if (stmtType === 'try') {
-      const tryStmt = stmt as { type: string; tryBlock: BlockStatement; catchParam: string | null; catchBody: BlockStatement | null; finallyBlock: BlockStatement | null };
+      const tryStmt = stmt as { type: string; tryBlock: BlockStatement; catchClause: { param: string; body: BlockStatement } | null; finallyBlock: BlockStatement | null };
       this.walkBlock(tryStmt.tryBlock);
-      if (tryStmt.catchBody !== null) {
-        this.walkBlock(tryStmt.catchBody);
+      if (tryStmt.catchClause !== null) {
+        this.walkBlock(tryStmt.catchClause.body);
       }
       if (tryStmt.finallyBlock !== null) {
         this.walkBlock(tryStmt.finallyBlock);
