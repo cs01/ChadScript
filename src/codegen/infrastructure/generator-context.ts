@@ -555,6 +555,14 @@ export interface IGeneratorContext {
   emitUnreachable(): void;
   emitLabel(name: string): void;
 
+  emitCall(retType: string, func: string, args: string): string;
+  emitCallVoid(func: string, args: string): void;
+  emitLoad(type: string, ptr: string): string;
+  emitStore(type: string, value: string, ptr: string): void;
+  emitGep(baseType: string, ptr: string, indices: string): string;
+  emitIcmp(pred: string, type: string, lhs: string, rhs: string): string;
+  emitBitcast(value: string, fromType: string, toType: string): string;
+
   getOutput(): string[];
   clearOutput(): void;
   pushOutput(line: string): void;
@@ -1198,6 +1206,48 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   emitLabel(name: string): void {
     this.emit(`${name}:`);
+  }
+
+  emitCall(retType: string, func: string, args: string): string {
+    const temp = this.nextTemp();
+    this.emit(`${temp} = call ${retType} ${func}(${args})`);
+    this.setVariableType(temp, retType);
+    return temp;
+  }
+
+  emitCallVoid(func: string, args: string): void {
+    this.emit(`call void ${func}(${args})`);
+  }
+
+  emitLoad(type: string, ptr: string): string {
+    const temp = this.nextTemp();
+    this.emit(`${temp} = load ${type}, ${type}* ${ptr}`);
+    this.setVariableType(temp, type);
+    return temp;
+  }
+
+  emitStore(type: string, value: string, ptr: string): void {
+    this.emit(`store ${type} ${value}, ${type}* ${ptr}`);
+  }
+
+  emitGep(baseType: string, ptr: string, indices: string): string {
+    const temp = this.nextTemp();
+    this.emit(`${temp} = getelementptr ${baseType}, ${baseType}* ${ptr}, ${indices}`);
+    return temp;
+  }
+
+  emitIcmp(pred: string, type: string, lhs: string, rhs: string): string {
+    const temp = this.nextTemp();
+    this.emit(`${temp} = icmp ${pred} ${type} ${lhs}, ${rhs}`);
+    this.setVariableType(temp, 'i1');
+    return temp;
+  }
+
+  emitBitcast(value: string, fromType: string, toType: string): string {
+    const temp = this.nextTemp();
+    this.emit(`${temp} = bitcast ${fromType} ${value} to ${toType}`);
+    this.setVariableType(temp, toType);
+    return temp;
   }
 
   getOutput(): string[] {

@@ -19,18 +19,13 @@ export class DateGenerator {
     const tvAlloca = this.ctx.nextTemp();
     this.ctx.emit(`${tvAlloca} = alloca %struct.timeval`);
 
-    const callResult = this.ctx.nextTemp();
-    this.ctx.emit(`${callResult} = call i32 @gettimeofday(%struct.timeval* ${tvAlloca}, i8* null)`);
+    this.ctx.emitCall('i32', '@gettimeofday', `%struct.timeval* ${tvAlloca}, i8* null`);
 
-    const secPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${secPtr} = getelementptr %struct.timeval, %struct.timeval* ${tvAlloca}, i32 0, i32 0`);
-    const secVal = this.ctx.nextTemp();
-    this.ctx.emit(`${secVal} = load i64, i64* ${secPtr}`);
+    const secPtr = this.ctx.emitGep('%struct.timeval', tvAlloca, 'i32 0, i32 0');
+    const secVal = this.ctx.emitLoad('i64', secPtr);
 
-    const usecPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${usecPtr} = getelementptr %struct.timeval, %struct.timeval* ${tvAlloca}, i32 0, i32 1`);
-    const usecVal = this.ctx.nextTemp();
-    this.ctx.emit(`${usecVal} = load i64, i64* ${usecPtr}`);
+    const usecPtr = this.ctx.emitGep('%struct.timeval', tvAlloca, 'i32 0, i32 1');
+    const usecVal = this.ctx.emitLoad('i64', usecPtr);
 
     const secDouble = this.ctx.nextTemp();
     this.ctx.emit(`${secDouble} = sitofp i64 ${secVal} to double`);
