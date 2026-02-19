@@ -10,12 +10,13 @@ import { testCases } from './test-fixtures';
 
 const execAsync = promisify(exec);
 
-if (!fsSync.existsSync('.build/chadc')) {
+const compiler = process.env.CHADC_COMPILER || '.build/chadc';
+if (!process.env.CHADC_COMPILER && !fsSync.existsSync('.build/chadc')) {
   throw new Error('Native compiler not found at .build/chadc — run npm test to build it first');
 }
-const compiler = '.build/chadc';
+const compilerLabel = process.env.CHADC_COMPILER ? 'node' : 'native';
 
-describe('ChadScript Compiler', () => {
+describe(`ChadScript Compiler (${compilerLabel})`, () => {
   describe('Compilation and Execution', { concurrency: 32 }, () => {
     for (const testCase of testCases) {
       it(testCase.description, async () => {

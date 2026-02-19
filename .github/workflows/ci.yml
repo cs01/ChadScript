@@ -53,9 +53,6 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests
-        run: npm test
-
       - name: Build tree-sitter TypeScript objects
         run: |
           mkdir -p build
@@ -65,10 +62,21 @@ jobs:
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
-      - name: Build native chadc (static)
+      - name: Build native compiler for tests
+        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc
+
+      - name: Smoke test native compiler
+        run: |
+          .build/chadc examples/hello.ts -o /tmp/hello
+          /tmp/hello
+
+      - name: Run tests
+        run: npm test
+
+      - name: Rebuild native chadc (static release)
         run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc --static --target-cpu=x86-64
 
-      - name: Build native chad (static)
+      - name: Build native chad (static release)
         run: node dist/chadc-node.js src/chad-native.ts -o .build/chad --static --target-cpu=x86-64
 
       - name: Verify static binary
@@ -163,9 +171,6 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests
-        run: npm test
-
       - name: Build tree-sitter TypeScript objects
         run: |
           mkdir -p build
@@ -175,10 +180,21 @@ jobs:
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
-      - name: Build native chadc
+      - name: Build native compiler for tests
+        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc
+
+      - name: Smoke test native compiler
+        run: |
+          .build/chadc examples/hello.ts -o /tmp/hello
+          /tmp/hello
+
+      - name: Run tests
+        run: npm test
+
+      - name: Rebuild native chadc (release)
         run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc --target-cpu=x86-64
 
-      - name: Build native chad
+      - name: Build native chad (release)
         run: node dist/chadc-node.js src/chad-native.ts -o .build/chad --target-cpu=x86-64
 
       - name: Smoke test native chadc
@@ -255,9 +271,6 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests
-        run: npm test
-
       - name: Build tree-sitter TypeScript objects
         run: |
           mkdir -p build
@@ -267,10 +280,24 @@ jobs:
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
-      - name: Build native chadc
+      - name: Build native compiler for tests
         run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc
 
-      - name: Build native chad
+      - name: Sign native compiler
+        run: codesign --sign - --force .build/chadc
+
+      - name: Smoke test native compiler
+        run: |
+          .build/chadc examples/hello.ts -o /tmp/hello
+          /tmp/hello
+
+      - name: Run tests
+        run: npm test
+
+      - name: Rebuild native chadc (release)
+        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc
+
+      - name: Build native chad (release)
         run: node dist/chadc-node.js src/chad-native.ts -o .build/chad
 
       - name: Sign macOS binaries

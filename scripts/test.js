@@ -45,5 +45,18 @@ const child = spawn('node', nodeArgs, {
 });
 
 child.on('exit', (code) => {
-  process.exit(code);
+  if (code !== 0 || args.length > 0) {
+    process.exit(code);
+    return;
+  }
+
+  console.log('\nRe-running compiler tests with Node.js compiler...');
+  const child2 = spawn('node', ['--import', 'tsx', '--test', 'tests/compiler.test.ts'], {
+    stdio: 'inherit',
+    shell: false,
+    env: { ...process.env, CHADC_COMPILER: 'node dist/chadc-node.js' }
+  });
+  child2.on('exit', (code2) => {
+    process.exit(code2);
+  });
 });
