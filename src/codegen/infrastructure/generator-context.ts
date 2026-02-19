@@ -149,6 +149,14 @@ export interface ISqliteGenerator {
   generateClose(expr: MethodCallNode, params: string[]): string;
 }
 
+export interface IEmbedGenerator {
+  generateEmbedFile(expr: MethodCallNode, params: string[]): string;
+  generateEmbedDir(expr: MethodCallNode, params: string[]): string;
+  generateGetEmbeddedFile(expr: MethodCallNode, params: string[]): string;
+  generateLookupFunction(): string;
+  hasEmbeddedFiles(): boolean;
+}
+
 export interface IArrowFunctionGenerator {
   generateArrowFunction(
     expr: Expression,
@@ -762,6 +770,8 @@ export interface IGeneratorContext {
   readonly sqliteGen: ISqliteGenerator;
 
   readonly arrowFunctionGen: IArrowFunctionGenerator;
+
+  readonly embedGen: IEmbedGenerator;
 
   ensureDouble(value: string): string;
   ensureI64(value: string): string;
@@ -1458,6 +1468,13 @@ export class MockGeneratorContext implements IGeneratorContext {
     generatePointerMapSet: (_mapPtr: string, _keyValue: string, _valueValue: string): string => '%mock_pointer_map_set',
     generatePointerMapGet: (_mapPtr: string, _keyValue: string, _valueType: string): string => '%mock_pointer_map_get',
     generatePointerMapClear: (_mapPtr: string): string => '%mock_pointer_map_clear',
+  };
+  embedGen: IEmbedGenerator = {
+    generateEmbedFile: (_expr: MethodCallNode, _params: string[]): string => '%mock_embed_file',
+    generateEmbedDir: (_expr: MethodCallNode, _params: string[]): string => '%mock_embed_dir',
+    generateGetEmbeddedFile: (_expr: MethodCallNode, _params: string[]): string => '%mock_get_embedded',
+    generateLookupFunction: (): string => '',
+    hasEmbeddedFiles: (): boolean => false,
   };
   arrayGen: IArrayGenerator = {
     generateArrayLiteral: (_expr: ArrayNode, _params: string[]): string => '%mock_array_literal',

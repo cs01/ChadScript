@@ -32,7 +32,7 @@ import {
   SourceLocation,
 } from '../../ast/types.js';
 import type { SymbolTable } from '../infrastructure/symbol-table.js';
-import type { IStringGenerator, IFsGenerator, IPathGenerator, IJsonGenerator, IMathGenerator, IDateGenerator, ICryptoGenerator, ISqliteGenerator, IResponseGenerator, IRegexGenerator, IArrowFunctionGenerator, IStringMapGenerator, IMapGenerator, ISetGenerator, IStringSetGenerator, IPointerMapGenerator, IArrayGenerator } from '../infrastructure/generator-context.js';
+import type { IStringGenerator, IFsGenerator, IPathGenerator, IJsonGenerator, IMathGenerator, IDateGenerator, ICryptoGenerator, ISqliteGenerator, IResponseGenerator, IRegexGenerator, IArrowFunctionGenerator, IStringMapGenerator, IMapGenerator, ISetGenerator, IStringSetGenerator, IPointerMapGenerator, IArrayGenerator, IEmbedGenerator } from '../infrastructure/generator-context.js';
 import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
 import { generateConsoleCallInline } from './method-calls/console.js';
 import { handleAssertStrictEqual, handleAssertNotStrictEqual, handleAssertOk, handleAssertDeepEqual, handleAssertFail } from './method-calls/assert.js';
@@ -115,6 +115,7 @@ export interface MethodCallGeneratorContext {
   readonly stringSetGen: IStringSetGenerator;
   readonly pointerMapGen: IPointerMapGenerator;
   readonly arrayGen: IArrayGenerator;
+  readonly embedGen: IEmbedGenerator;
   readonly typeResolver?: { getThisFieldMapKeyType(expr: Expression): string | null; getThisFieldSetValueType(expr: Expression): string | null };
   ensureDouble(value: string): string;
   ensureI64(value: string): string;
@@ -264,6 +265,18 @@ export class MethodCallGenerator {
     // Handle Promise static methods (Promise.resolve, Promise.reject, Promise.all)
     if (this.isVariableWithName(expr.object, 'Promise')) {
       return handlePromiseStaticMethods(this.ctx, expr, params);
+    }
+
+    // Handle ChadScript.embedFile/embedDir/getEmbeddedFile
+    if (this.isVariableWithName(expr.object, 'ChadScript')) {
+      if (method === 'embedFile') {
+        return this.ctx.embedGen.generateEmbedFile(expr, params);
+      } else if (method === 'embedDir') {
+        return this.ctx.embedGen.generateEmbedDir(expr, params);
+      } else if (method === 'getEmbeddedFile') {
+        return this.ctx.embedGen.generateGetEmbeddedFile(expr, params);
+      }
+      return this.ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
     }
 
     // Handle Array.from() - returns the argument as-is since our iterators already produce arrays
