@@ -1,7 +1,7 @@
 function testProcessProperties(): void {
   const arch = process.arch;
-  if (arch !== "x64") {
-    console.log("Error: expected x64");
+  if (arch !== "x64" && arch !== "arm64") {
+    console.log("Error: expected x64 or arm64, got " + arch);
     process.exit(1);
   }
 

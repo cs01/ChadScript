@@ -497,4 +497,71 @@ await main();
       }
     });
   });
+
+  describe('Cross-compilation', () => {
+    it('should emit linux stderr symbol when targeting linux', async () => {
+      const fixture = 'tests/fixtures/arithmetic/simple-add.js';
+      const outputDir = path.join('.build', path.dirname(fixture));
+      const baseName = path.basename(fixture, '.js');
+      const llFile = path.join(outputDir, `${baseName}.ll`);
+
+      try {
+        await execAsync(`node dist/chadc-node.js --emit-llvm --target linux-x64 ${fixture}`);
+        const ir = await fs.readFile(llFile, 'utf-8');
+        assert.ok(ir.includes('@stderr = external global i8*'), 'Linux target should use external stderr');
+        assert.ok(!ir.includes('__stderrp'), 'Linux target should not use __stderrp');
+      } finally {
+        try { if (fsSync.existsSync(llFile)) await fs.unlink(llFile); } catch {}
+      }
+    });
+
+    it('should emit macOS stderr symbol when targeting macOS', async () => {
+      const fixture = 'tests/fixtures/arithmetic/simple-add.js';
+      const outputDir = path.join('.build', path.dirname(fixture));
+      const baseName = path.basename(fixture, '.js');
+      const llFile = path.join(outputDir, `${baseName}.ll`);
+
+      try {
+        await execAsync(`node dist/chadc-node.js --emit-llvm --target macos-arm64 ${fixture}`);
+        const ir = await fs.readFile(llFile, 'utf-8');
+        assert.ok(ir.includes('@__stderrp = external global i8*'), 'macOS target should use __stderrp');
+        assert.ok(ir.includes('@__stdoutp = external global i8*'), 'macOS target should use __stdoutp');
+      } finally {
+        try { if (fsSync.existsSync(llFile)) await fs.unlink(llFile); } catch {}
+      }
+    });
+
+    it('should emit target triple in IR when --target is used', async () => {
+      const fixture = 'tests/fixtures/arithmetic/simple-add.js';
+      const outputDir = path.join('.build', path.dirname(fixture));
+      const baseName = path.basename(fixture, '.js');
+      const llFile = path.join(outputDir, `${baseName}.ll`);
+
+      try {
+        await execAsync(`node dist/chadc-node.js --emit-llvm --target macos-arm64 ${fixture}`);
+        const ir = await fs.readFile(llFile, 'utf-8');
+        assert.ok(ir.includes('target triple = "aarch64-apple-darwin"'), 'Should contain target triple');
+        assert.ok(ir.includes('target datalayout = "'), 'Should contain target datalayout');
+      } finally {
+        try { if (fsSync.existsSync(llFile)) await fs.unlink(llFile); } catch {}
+      }
+    });
+
+    it('should bake target platform into process.platform', async () => {
+      const fixture = '/tmp/test-cross-platform.ts';
+      const fixtureContent = 'console.log(process.platform);\nconsole.log(process.arch);\n';
+      await fs.writeFile(fixture, fixtureContent);
+      const llFile = '/tmp/test-cross-platform.ll';
+
+      try {
+        await execAsync(`node dist/chadc-node.js --emit-llvm --target macos-arm64 ${fixture} -o /tmp/test-cross-platform`);
+        const ir = await fs.readFile(llFile, 'utf-8');
+        assert.ok(ir.includes('darwin'), 'Cross-compiled IR should contain darwin platform string');
+        assert.ok(ir.includes('arm64'), 'Cross-compiled IR should contain arm64 arch string');
+      } finally {
+        try { await fs.unlink(fixture); } catch {}
+        try { await fs.unlink(llFile); } catch {}
+      }
+    });
+  });
 });

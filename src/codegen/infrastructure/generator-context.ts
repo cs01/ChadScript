@@ -632,6 +632,9 @@ export interface IGeneratorContext {
    */
   readonly typeChecker?: TypeChecker | null;
 
+  getTargetOS?(): string;
+  getTargetArch?(): string;
+
   /**
    * Consolidated type resolution (interfaces, unions, type guards)
    */
