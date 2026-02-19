@@ -38,6 +38,11 @@ let emitLLVMOnly = false;
 let sanitize: string | null = null;
 let debugInfo = false;
 let staticLink = false;
+let targetCpu = 'native';
+
+export function setTargetCpu(value: string): void {
+  targetCpu = value;
+}
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -220,10 +225,10 @@ export function compile(inputFile: string, outputFile: string, logLevel: LogLeve
     compileCmd = `${llcPath} -O0 -filetype=obj ${irFile} -o ${objFile}`;
   } else {
     const optFile = irFile.replace('.ll', '.opt.bc');
-    const optCmd = `${optPath} -O2 -mcpu=native ${irFile} -o ${optFile}`;
+    const optCmd = `${optPath} -O2 -mcpu=${targetCpu} ${irFile} -o ${optFile}`;
     logger.info(` ${optCmd}`);
     execSync(optCmd, { stdio: llcStdio });
-    compileCmd = `${llcPath} -O2 -mcpu=native -filetype=obj ${optFile} -o ${objFile}`;
+    compileCmd = `${llcPath} -O2 -mcpu=${targetCpu} -filetype=obj ${optFile} -o ${objFile}`;
   }
   logger.info(` ${compileCmd}`);
   execSync(compileCmd, { stdio: llcStdio });

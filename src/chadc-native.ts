@@ -1,4 +1,4 @@
-import { compileNative, setSkipSemanticAnalysis, setVerbose } from './native-compiler-lib.js';
+import { compileNative, setSkipSemanticAnalysis, setVerbose, setTargetCpu } from './native-compiler-lib.js';
 import { ArgumentParser } from '../lib/argparse.js';
 
 declare const fs: {
@@ -24,6 +24,7 @@ const parser = new ArgumentParser('chadc', 'compile TypeScript to native binarie
 parser.addFlag('verbose', 'v', 'Show compilation steps');
 parser.addFlag('skip-semantic-analysis', '', 'Skip semantic analysis');
 parser.addOption('output', 'o', 'Specify output file', '');
+parser.addOption('target-cpu', '', 'Set LLVM target CPU (default: native)', 'native');
 parser.addPositional('input', 'Input .ts or .js file');
 
 parser.parse(process.argv);
@@ -34,6 +35,11 @@ if (parser.getFlag('verbose')) {
 
 if (parser.getFlag('skip-semantic-analysis')) {
   setSkipSemanticAnalysis(true);
+}
+
+const cpuOpt = parser.getOption('target-cpu');
+if (cpuOpt.length > 0) {
+  setTargetCpu(cpuOpt);
 }
 
 const inputFile = parser.getPositional(0);

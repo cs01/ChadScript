@@ -66,10 +66,10 @@ jobs:
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
       - name: Build native chadc (static)
-        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc --static
+        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc --static --target-cpu=x86-64
 
       - name: Build native chad (static)
-        run: node dist/chadc-node.js src/chad-native.ts -o .build/chad --static
+        run: node dist/chadc-node.js src/chad-native.ts -o .build/chad --static --target-cpu=x86-64
 
       - name: Verify static binary
         run: |
@@ -176,10 +176,10 @@ jobs:
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
       - name: Build native chadc
-        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc
+        run: node dist/chadc-node.js src/chadc-native.ts -o .build/chadc --target-cpu=x86-64
 
       - name: Build native chad
-        run: node dist/chadc-node.js src/chad-native.ts -o .build/chad
+        run: node dist/chadc-node.js src/chad-native.ts -o .build/chad --target-cpu=x86-64
 
       - name: Smoke test native chadc
         run: |

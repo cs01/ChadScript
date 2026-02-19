@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize, setDebugInfo, setStaticLink } from './compiler.js';
+import { compile, setSkipSemanticAnalysis, setKeepTemps, setEmitLLVMOnly, setSanitize, setDebugInfo, setStaticLink, setTargetCpu } from './compiler.js';
 import { LogLevel, logger } from './utils/logger.js';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -36,6 +36,8 @@ for (let i = 0; i < args.length; i++) {
     setDebugInfo(true);
   } else if (arg === '--static') {
     setStaticLink(true);
+  } else if (arg.startsWith('--target-cpu=')) {
+    setTargetCpu(arg.split('=')[1]);
   } else if (arg === '-o') {
     if (i + 1 < args.length) {
       outputArg = args[i + 1];
@@ -56,6 +58,7 @@ for (let i = 0; i < args.length; i++) {
     console.log('  -fsanitize=address  Build with AddressSanitizer (ASAN)');
     console.log('  -g                 Emit DWARF debug info for source-level debugging');
     console.log('  --static           Produce a fully static binary (Linux only)');
+    console.log('  --target-cpu=CPU   Set LLVM target CPU (default: native)');
     console.log('  -h, --help       Show this help message');
     console.log('');
     console.log('Examples:');
