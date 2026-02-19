@@ -10,8 +10,8 @@ import { testCases } from './test-fixtures';
 
 const execAsync = promisify(exec);
 
-const compiler = fsSync.existsSync('.build/chad') ? '.build/chad build' : 'node dist/chad-node.js build';
-const compilerLabel = fsSync.existsSync('.build/chad') ? 'native' : 'node';
+const compiler = process.env.CHAD_COMPILER || (fsSync.existsSync('.build/chad') ? '.build/chad build' : 'node dist/chad-node.js build');
+const compilerLabel = process.env.CHAD_COMPILER ? 'node' : (fsSync.existsSync('.build/chad') ? 'native' : 'node');
 
 describe(`ChadScript Compiler (${compilerLabel})`, () => {
   describe('Compilation and Execution', { concurrency: 32 }, () => {

@@ -15,11 +15,11 @@ try {
   process.exit(1);
 }
 
-const chadc = path.join(projectRoot, '.build', 'chadc');
-if (!fs.existsSync(chadc)) {
-  console.log('Building native compiler (.build/chadc)...');
+const chad = path.join(projectRoot, '.build', 'chad');
+if (!fs.existsSync(chad)) {
+  console.log('Building native compiler (.build/chad)...');
   try {
-    execSync('node dist/chadc-node.js src/chadc-native.ts -o .build/chadc', { cwd: projectRoot, stdio: 'inherit' });
+    execSync('node dist/chad-node.js build src/chad-native.ts -o .build/chad', { cwd: projectRoot, stdio: 'inherit' });
   } catch (error) {
     console.error('Native compiler build failed');
     process.exit(1);
@@ -54,7 +54,7 @@ child.on('exit', (code) => {
   const child2 = spawn('node', ['--import', 'tsx', '--test', 'tests/compiler.test.ts'], {
     stdio: 'inherit',
     shell: false,
-    env: { ...process.env, CHADC_COMPILER: 'node dist/chadc-node.js' }
+    env: { ...process.env, CHAD_COMPILER: 'node dist/chad-node.js build' }
   });
   child2.on('exit', (code2) => {
     process.exit(code2);
