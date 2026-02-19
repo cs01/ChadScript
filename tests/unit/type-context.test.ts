@@ -82,7 +82,7 @@ describe('TypeContext', () => {
     const cls1 = ctx.getClassType('MyClass');
     const cls2 = ctx.getClassType('MyClass');
     assert.strictEqual(cls1, cls2);
-    assert.strictEqual(cls1.cachedLlvmType, 'i32*');
+    assert.strictEqual(cls1.cachedLlvmType, 'i8*');
   });
 
   it('should resolve type strings', () => {

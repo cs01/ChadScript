@@ -84,7 +84,7 @@ export class TypeContext {
   }
 
   getClassType(name: string): ResolvedType {
-    return this.intern(name, 'i32*');
+    return this.intern(name, 'i8*');
   }
 
   getNullableType(base: ResolvedType): ResolvedType {
