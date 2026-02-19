@@ -105,6 +105,12 @@ export const testCases: TestCase[] = [
     description: 'Optional chaining (?.) returns undefined for null objects instead of crashing'
   },
   {
+    name: 'optional-chaining-types',
+    fixture: 'tests/fixtures/types/optional-chaining.ts',
+    expectTestPassed: true,
+    description: 'Optional chaining on interfaces and strings returns correct values'
+  },
+  {
     name: 'imports-main',
     fixture: 'tests/fixtures/imports-exports/imports-main.js',
     expectedExitCode: 19,
@@ -453,6 +459,12 @@ export const testCases: TestCase[] = [
     fixture: 'tests/fixtures/classes/class-basic.js',
     expectedExitCode: 10,
     description: 'Class with constructor, methods, and this should work'
+  },
+  {
+    name: 'class-field-new',
+    fixture: 'tests/fixtures/classes/class-field-new.ts',
+    expectTestPassed: true,
+    description: 'Class field initialization with constructors works correctly'
   },
   {
     name: 'while-loop',

@@ -137,9 +137,8 @@ available on `BaseGenerator`, `LLVMGenerator`, and `MockGeneratorContext` for ty
 
 ## Patterns That Crash Native Code
 
-1. **`new` in class field initializers is silently dropped** — codegen only emits type-based defaults. Move `new` calls to constructors. When removing a `new X()` initializer, you MUST add a constructor init.
-2. **Optional chaining (`?.`) compiles to direct access** — ChadScript doesn't implement `?.`. Use explicit null checks.
-3. **Type assertions must match real struct field order AND count** — `as { type, left, right }` on a struct that's `{ type, op, left, right }` causes GEP to read wrong fields. Fields must be a PREFIX of the real struct in EXACT order.
+1. **`new` in class field initializers** — codegen handles simple `new X()` in field initializers (both explicit and default constructors), but complex nested class instantiation may have edge cases. Prefer initializing in constructors for safety.
+2. **Type assertions must match real struct field order AND count** — `as { type, left, right }` on a struct that's `{ type, op, left, right }` causes GEP to read wrong fields. Fields must be a PREFIX of the real struct in EXACT order.
 
 ## Stage 0 Compatibility
 

@@ -7,6 +7,49 @@ import type { ResolvedType } from './type-system.js';
 
 interface ExprBase { type: string; }
 
+export enum VarKind {
+  DeclaredInterface,
+  StringArray,
+  MapGetInterface,
+  FunctionInterfaceReturn,
+  MethodInterfaceReturn,
+  MethodArrayReturn,
+  MemberAccessInterface,
+  Await,
+  Promise,
+  Uint8Array,
+  ClassInstance,
+  TypedJsonInterface,
+  Response,
+  JSONObject,
+  Object,
+  Map,
+  Set,
+  ObjectArray,
+  Array,
+  Regex,
+  String,
+  ArrowFunction,
+  IndexedObjectArray,
+  ArrayMethodReturn,
+  Pointer,
+  Null,
+  Numeric
+}
+
+export interface VarClassification {
+  kind: VarKind;
+  declaredInterfaceType: string | null;
+  mapGetInterfaceType: string | null;
+  functionInterfaceReturn: string | null;
+  methodInterfaceReturn: string | null;
+  methodArrayReturn: string | null;
+  memberAccessInterfaceType: string | null;
+  typedJsonInterface: string | null;
+  indexedObjectType: { keys: string[]; types: string[]; tsTypes: string[] } | null;
+  arrayMethodReturnType: { keys: string[]; types: string[]; tsTypes: string[] } | null;
+}
+
 interface ArrowFunctionGeneratorLike {
   generateArrowFunction(expr: Expression | null, params: string[], returnType?: string | { paramTypes?: string[], returnType?: string }, scopeVarNames?: string[], scopeVarTypes?: string[]): string;
   getClosureInfoForLambda(lambdaName: string): ClosureInfoResult | null;
@@ -248,6 +291,106 @@ export class VariableAllocator {
     return hasNonPrimitive;
   }
 
+  classifyVariable(
+    isString: boolean,
+    isStringArray: boolean,
+    isObjectArray: boolean,
+    isArray: boolean,
+    isMap: boolean,
+    isSet: boolean,
+    isRegex: boolean,
+    isPromise: boolean,
+    isClassInstance: boolean,
+    isUint8Array: boolean,
+    isResponse: boolean,
+    isObject: boolean,
+    isJSONObject: boolean,
+    isAwait: boolean,
+    isArrowFunction: boolean,
+    isPointer: boolean,
+    isNull: boolean,
+    declaredInterfaceType: string | null,
+    mapGetInterfaceType: string | null,
+    functionInterfaceReturn: string | null,
+    methodInterfaceReturn: string | null,
+    methodArrayReturn: string | null,
+    memberAccessInterfaceType: string | null,
+    typedJsonInterface: string | null,
+    indexedObjectType: { keys: string[]; types: string[]; tsTypes: string[] } | null,
+    arrayMethodReturnType: { keys: string[]; types: string[]; tsTypes: string[] } | null
+  ): VarClassification {
+    let kind: VarKind;
+
+    if (declaredInterfaceType) {
+      kind = VarKind.DeclaredInterface;
+    } else if (isStringArray) {
+      kind = VarKind.StringArray;
+    } else if (mapGetInterfaceType) {
+      kind = VarKind.MapGetInterface;
+    } else if (functionInterfaceReturn) {
+      kind = VarKind.FunctionInterfaceReturn;
+    } else if (methodInterfaceReturn) {
+      kind = VarKind.MethodInterfaceReturn;
+    } else if (methodArrayReturn) {
+      kind = VarKind.MethodArrayReturn;
+    } else if (memberAccessInterfaceType) {
+      kind = VarKind.MemberAccessInterface;
+    } else if (isAwait) {
+      kind = VarKind.Await;
+    } else if (isPromise) {
+      kind = VarKind.Promise;
+    } else if (isUint8Array) {
+      kind = VarKind.Uint8Array;
+    } else if (isClassInstance) {
+      kind = VarKind.ClassInstance;
+    } else if (typedJsonInterface) {
+      kind = VarKind.TypedJsonInterface;
+    } else if (isResponse) {
+      kind = VarKind.Response;
+    } else if (isJSONObject) {
+      kind = VarKind.JSONObject;
+    } else if (isObject) {
+      kind = VarKind.Object;
+    } else if (isMap) {
+      kind = VarKind.Map;
+    } else if (isSet) {
+      kind = VarKind.Set;
+    } else if (isObjectArray) {
+      kind = VarKind.ObjectArray;
+    } else if (isArray) {
+      kind = VarKind.Array;
+    } else if (isRegex) {
+      kind = VarKind.Regex;
+    } else if (isString) {
+      kind = VarKind.String;
+    } else if (isArrowFunction) {
+      kind = VarKind.ArrowFunction;
+    } else if (indexedObjectType) {
+      kind = VarKind.IndexedObjectArray;
+    } else if (arrayMethodReturnType) {
+      kind = VarKind.ArrayMethodReturn;
+    } else if (isPointer) {
+      kind = VarKind.Pointer;
+    } else if (isNull) {
+      kind = VarKind.Null;
+    } else {
+      kind = VarKind.Numeric;
+    }
+
+    return {
+      kind,
+      declaredInterfaceType,
+      mapGetInterfaceType,
+      functionInterfaceReturn,
+      methodInterfaceReturn,
+      methodArrayReturn,
+      memberAccessInterfaceType,
+      typedJsonInterface,
+      indexedObjectType,
+      arrayMethodReturnType
+    };
+  }
+
   allocate(stmt: VariableDeclaration, params: string[]): void {
     const existingScope = this.ctx.symbolTable.getScope(stmt.name);
     if (existingScope === 'global' && stmt.value !== null) {
@@ -470,60 +613,99 @@ export class VariableAllocator {
     const isPointer = this.isPointerOrExpression(stmt.value);
     const isNull = this.isNullLiteral(stmt.value);
 
-    if (declaredInterfaceType) {
-      this.allocateDeclaredInterface(stmt, params, declaredInterfaceType);
-    } else if (isStringArray) {
-      this.allocateStringArray(stmt, params);
-    } else if (mapGetInterfaceType) {
-      this.allocateMapGetInterface(stmt, params, mapGetInterfaceType);
-    } else if (functionInterfaceReturn) {
-      this.allocateFunctionInterfaceReturn(stmt, params, functionInterfaceReturn);
-    } else if (methodInterfaceReturn) {
-      this.allocateMethodInterfaceReturn(stmt, params, methodInterfaceReturn);
-    } else if (methodArrayReturn) {
-      this.allocateMethodArrayReturn(stmt, params, methodArrayReturn);
-    } else if (memberAccessInterfaceType) {
-      this.allocateMemberAccessInterface(stmt, params, memberAccessInterfaceType);
-    } else if (isAwait) {
-      this.allocateAwaitResult(stmt, params);
-    } else if (isPromise) {
-      this.allocatePromise(stmt, params);
-    } else if (isUint8Array) {
-      this.allocateUint8Array(stmt, params);
-    } else if (isClassInstance) {
-      this.allocateClassInstance(stmt, params);
-    } else if (typedJsonInterface) {
-      this.allocateTypedJsonInterface(stmt, params, typedJsonInterface);
-    } else if (isResponse) {
-      this.allocateResponse(stmt, params);
-    } else if (isJSONObject) {
-      this.allocateJSONObject(stmt, params);
-    } else if (isObject) {
-      this.allocateObject(stmt, params);
-    } else if (isMap) {
-      this.allocateMap(stmt, params);
-    } else if (isSet) {
-      this.allocateSet(stmt, params);
-    } else if (isObjectArray) {
-      this.allocateObjectArray(stmt, params);
-    } else if (isArray) {
-      this.allocateArray(stmt, params);
-    } else if (isRegex) {
-      this.allocateRegex(stmt, params);
-    } else if (isString) {
-      this.allocateString(stmt, params);
-    } else if (isArrowFunction) {
-      this.allocateArrowFunction(stmt, params);
-    } else if (indexedObjectType) {
-      this.allocateIndexedObjectArray(stmt, params, indexedObjectType);
-    } else if (arrayMethodReturnType) {
-      this.allocateArrayMethodReturn(stmt, params, arrayMethodReturnType);
-    } else if (isPointer) {
-      this.allocatePointer(stmt, params);
-    } else if (isNull) {
-      this.allocateNullPointer(stmt);
-    } else {
-      this.allocateNumeric(stmt, params);
+    const classification = this.classifyVariable(
+      isString, isStringArray, isObjectArray, isArray,
+      isMap, isSet, isRegex, isPromise, isClassInstance,
+      isUint8Array, isResponse, isObject, isJSONObject,
+      isAwait, isArrowFunction ? true : false, isPointer, isNull,
+      declaredInterfaceType, mapGetInterfaceType,
+      functionInterfaceReturn, methodInterfaceReturn,
+      methodArrayReturn, memberAccessInterfaceType,
+      typedJsonInterface, indexedObjectType, arrayMethodReturnType
+    );
+
+    switch (classification.kind) {
+      case VarKind.DeclaredInterface:
+        this.allocateDeclaredInterface(stmt, params, classification.declaredInterfaceType!);
+        break;
+      case VarKind.StringArray:
+        this.allocateStringArray(stmt, params);
+        break;
+      case VarKind.MapGetInterface:
+        this.allocateMapGetInterface(stmt, params, classification.mapGetInterfaceType!);
+        break;
+      case VarKind.FunctionInterfaceReturn:
+        this.allocateFunctionInterfaceReturn(stmt, params, classification.functionInterfaceReturn!);
+        break;
+      case VarKind.MethodInterfaceReturn:
+        this.allocateMethodInterfaceReturn(stmt, params, classification.methodInterfaceReturn!);
+        break;
+      case VarKind.MethodArrayReturn:
+        this.allocateMethodArrayReturn(stmt, params, classification.methodArrayReturn!);
+        break;
+      case VarKind.MemberAccessInterface:
+        this.allocateMemberAccessInterface(stmt, params, classification.memberAccessInterfaceType!);
+        break;
+      case VarKind.Await:
+        this.allocateAwaitResult(stmt, params);
+        break;
+      case VarKind.Promise:
+        this.allocatePromise(stmt, params);
+        break;
+      case VarKind.Uint8Array:
+        this.allocateUint8Array(stmt, params);
+        break;
+      case VarKind.ClassInstance:
+        this.allocateClassInstance(stmt, params);
+        break;
+      case VarKind.TypedJsonInterface:
+        this.allocateTypedJsonInterface(stmt, params, classification.typedJsonInterface!);
+        break;
+      case VarKind.Response:
+        this.allocateResponse(stmt, params);
+        break;
+      case VarKind.JSONObject:
+        this.allocateJSONObject(stmt, params);
+        break;
+      case VarKind.Object:
+        this.allocateObject(stmt, params);
+        break;
+      case VarKind.Map:
+        this.allocateMap(stmt, params);
+        break;
+      case VarKind.Set:
+        this.allocateSet(stmt, params);
+        break;
+      case VarKind.ObjectArray:
+        this.allocateObjectArray(stmt, params);
+        break;
+      case VarKind.Array:
+        this.allocateArray(stmt, params);
+        break;
+      case VarKind.Regex:
+        this.allocateRegex(stmt, params);
+        break;
+      case VarKind.String:
+        this.allocateString(stmt, params);
+        break;
+      case VarKind.ArrowFunction:
+        this.allocateArrowFunction(stmt, params);
+        break;
+      case VarKind.IndexedObjectArray:
+        this.allocateIndexedObjectArray(stmt, params, classification.indexedObjectType!);
+        break;
+      case VarKind.ArrayMethodReturn:
+        this.allocateArrayMethodReturn(stmt, params, classification.arrayMethodReturnType!);
+        break;
+      case VarKind.Pointer:
+        this.allocatePointer(stmt, params);
+        break;
+      case VarKind.Null:
+        this.allocateNullPointer(stmt);
+        break;
+      case VarKind.Numeric:
+        this.allocateNumeric(stmt, params);
+        break;
     }
 
     if (resolved && !stmt.declaredType && !isNull) {

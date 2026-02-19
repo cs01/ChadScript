@@ -272,6 +272,18 @@ export class SemanticAnalyzer {
         type,
         llvmType,
       });
+
+      if (!this.suppressWarnings && field.initializer) {
+        const initBase = field.initializer as { type: string };
+        if (initBase.type === 'new') {
+          const classAny = classNode as { loc?: SourceLocation };
+          this.diagnosticEngine.warning(
+            'class \'' + classNode.name + '\' field \'' + field.name + '\' uses new in initializer',
+            classAny.loc,
+            'move the new call to the constructor body for reliable initialization'
+          );
+        }
+      }
     }
 
     const classMethods = classNode.methods || [];
