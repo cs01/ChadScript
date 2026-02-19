@@ -1,3 +1,15 @@
+interface HttpRequest {
+  method: string;
+  path: string;
+  body: string;
+  contentType: string;
+}
+
+interface HttpResponse {
+  status: number;
+  body: string;
+}
+
 ChadScript.embedDir('./public');
 
 const db = sqlite.open(":memory:");

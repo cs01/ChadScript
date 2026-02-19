@@ -69,13 +69,19 @@ body {
 
 .upvote {
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: 0;
+  height: 0;
+  border: none;
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
   border-bottom: 10px solid #828282;
+  background: none;
+  padding: 0;
   cursor: pointer;
   margin-right: 4px;
+  vertical-align: middle;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .title a {

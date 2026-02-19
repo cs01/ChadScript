@@ -1853,6 +1853,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     if (this.usesSqlite) {
+      finalParts.push(this.sqliteGen.generateSqliteRowToStringHelper());
       finalParts.push(this.sqliteGen.generateSqliteGetHelper());
       finalParts.push(this.sqliteGen.generateSqliteAllHelper());
       finalParts.push(this.sqliteGen.generateSqliteBindParamsHelper());
