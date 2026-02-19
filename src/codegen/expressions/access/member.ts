@@ -940,6 +940,30 @@ export class MemberAccessGenerator {
       this.ctx.setJsonObjectMetadata(register, { keys, types, tsTypes, interfaceType: undefined });
     } else if (tsType === 'Expression' || tsType === 'Statement') {
       this.ctx.setJsonObjectMetadata(register, { keys: ['type'], types: ['i8*'], tsTypes: ['string'], interfaceType: undefined });
+    } else {
+      let strippedType = tsType;
+      if (strippedType.includes(' | ')) {
+        const parts = strippedType.split(' | ');
+        for (let i = 0; i < parts.length; i++) {
+          const p = parts[i].trim();
+          if (p.startsWith('{')) { strippedType = p; break; }
+        }
+      }
+      if (strippedType.startsWith('{') && strippedType.endsWith('}')) {
+        const inlineFields = this.parseInlineObjectTypeForAssertion(strippedType);
+        if (inlineFields && inlineFields.length > 0) {
+          const keys: string[] = [];
+          const tsTypes: string[] = [];
+          const types: string[] = [];
+          for (let i = 0; i < inlineFields.length; i++) {
+            const f = inlineFields[i] as InterfaceField;
+            keys.push(f.name);
+            tsTypes.push(f.type);
+            types.push(this.convertTsType(f.type));
+          }
+          this.ctx.setJsonObjectMetadata(register, { keys, types, tsTypes, interfaceType: undefined });
+        }
+      }
     }
   }
 
