@@ -426,13 +426,13 @@ function transformThrowStatement(node: ts.ThrowStatement, checker: ts.TypeChecke
 function transformTryStatement(node: ts.TryStatement, checker: ts.TypeChecker | undefined): TryStatement {
   const tryBlock = transformBlock(node.tryBlock, checker);
 
-  let catchParam: string | null = null;
-  let catchBody: BlockStatement | null = null;
+  let catchClause: { param: string; body: BlockStatement } | null = null;
   if (node.catchClause) {
-    catchParam = node.catchClause.variableDeclaration && ts.isIdentifier(node.catchClause.variableDeclaration.name)
+    const param = node.catchClause.variableDeclaration && ts.isIdentifier(node.catchClause.variableDeclaration.name)
       ? node.catchClause.variableDeclaration.name.text
       : 'e';
-    catchBody = transformBlock(node.catchClause.block, checker);
+    const body = transformBlock(node.catchClause.block, checker);
+    catchClause = { param, body };
   }
 
   let finallyBlock: BlockStatement | null = null;
@@ -440,7 +440,7 @@ function transformTryStatement(node: ts.TryStatement, checker: ts.TypeChecker | 
     finallyBlock = transformBlock(node.finallyBlock, checker);
   }
 
-  return { type: 'try', tryBlock, catchParam, catchBody, finallyBlock, loc: getLoc(node) };
+  return { type: 'try', tryBlock, catchClause, finallyBlock, loc: getLoc(node) };
 }
 
 export function transformBlock(block: ts.Block, checker: ts.TypeChecker | undefined): BlockStatement {

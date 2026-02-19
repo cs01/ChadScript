@@ -1624,14 +1624,14 @@ function transformTryStatement(node: TreeSitterNode): TryStatement {
 
   const tryBlock = bodyNode ? transformStatementBlock(bodyNode) : createEmptyBlock();
 
-  let catchParam: string | null = null;
-  let catchBody: BlockStatement | null = null;
+  let catchClause: { param: string; body: BlockStatement } | null = null;
   if (handlerNode) {
     const paramNode = getChildByFieldName(handlerNode, 'parameter');
     const catchBodyNode = getChildByFieldName(handlerNode, 'body');
 
-    catchParam = paramNode ? (paramNode as NodeBase).text : 'e';
-    catchBody = catchBodyNode ? transformStatementBlock(catchBodyNode) : createEmptyBlock();
+    const param = paramNode ? (paramNode as NodeBase).text : 'e';
+    const body = catchBodyNode ? transformStatementBlock(catchBodyNode) : createEmptyBlock();
+    catchClause = { param, body };
   }
 
   let finallyBlock: BlockStatement | null = null;
@@ -1642,7 +1642,7 @@ function transformTryStatement(node: TreeSitterNode): TryStatement {
     }
   }
 
-  return { type: 'try', tryBlock, catchParam, catchBody, finallyBlock };
+  return { type: 'try', tryBlock, catchClause, finallyBlock };
 }
 
 function transformSwitchStatement(node: TreeSitterNode): BlockStatement {

@@ -304,8 +304,7 @@ export interface ThrowStatement {
 export interface TryStatement {
   type: 'try';
   tryBlock: BlockStatement;
-  catchParam: string | null;
-  catchBody: BlockStatement | null;
+  catchClause: { param: string; body: BlockStatement } | null;
   finallyBlock: BlockStatement | null;
   loc?: SourceLocation;
 }

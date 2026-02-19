@@ -1329,7 +1329,7 @@ export class ControlFlowGenerator {
     if (stmt.type !== 'try') {
       throw new Error('Expected try statement');
     }
-    const tryStmt = stmt as { type: string; tryBlock: BlockStatement; catchParam: string | null; catchBody: BlockStatement | null; finallyBlock: BlockStatement | null };
+    const tryStmt = stmt as { type: string; tryBlock: BlockStatement; catchClause: { param: string; body: BlockStatement } | null; finallyBlock: BlockStatement | null };
 
     const frameRaw = this.nextTemp();
     this.emit(`${frameRaw} = call i8* @GC_malloc(i64 216)`);
@@ -1369,8 +1369,8 @@ export class ControlFlowGenerator {
     this.ctx.setCurrentLabel(catchEntryLabel);
     this.emit(`store i8* ${prevFrame}, i8** @__exception_stack`);
 
-    if (tryStmt.catchBody) {
-      const paramName = tryStmt.catchParam;
+    if (tryStmt.catchClause) {
+      const paramName = tryStmt.catchClause.param;
       if (paramName) {
         const excMsg = this.nextTemp();
         this.emit(`${excMsg} = load i8*, i8** @__exception_message`);
@@ -1379,7 +1379,7 @@ export class ControlFlowGenerator {
         this.emit(`store i8* ${excMsg}, i8** ${paramAlloca}`);
         this.ctx.defineVariable(paramName, paramAlloca, 'i8*', SymbolKind.String, 'local');
       }
-      this.ctx.generateBlock(tryStmt.catchBody, params);
+      this.ctx.generateBlock(tryStmt.catchClause.body, params);
     }
 
     const catchHasTerminator = this.ctx.lastInstructionIsTerminator();
