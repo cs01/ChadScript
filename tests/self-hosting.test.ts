@@ -60,9 +60,7 @@ async function execWithRetry(cmd: string, opts: { timeout: number; env?: NodeJS.
 }
 
 async function runFixture(compiler: string, tc: TestCase, outDir: string): Promise<void> {
-  const ext = path.extname(tc.fixture);
-  const baseName = path.basename(tc.fixture, ext);
-  const exePath = path.join(outDir, baseName);
+  const exePath = path.join(outDir, tc.name);
 
   try {
     if (fsSync.existsSync(exePath)) await fs.unlink(exePath);
