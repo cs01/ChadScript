@@ -130,6 +130,11 @@ available on `BaseGenerator`, `LLVMGenerator`, and `MockGeneratorContext` for ty
 6. **`ret void` not `unreachable`** at end of void functions
 7. **Class structs: boolean is `i1`; Interface structs: boolean is `double`**
 
+## Code Style
+
+- One-line comments are helpful on dense codegen blocks — explain the "why" or the LLVM IR pattern, not the "what"
+- Use named AST types from `src/ast/types.ts` for type assertions instead of inline `as { ... }` structs
+
 ## Patterns That Crash Native Code
 
 1. **`new` in class field initializers is silently dropped** — codegen only emits type-based defaults. Move `new` calls to constructors. When removing a `new X()` initializer, you MUST add a constructor init.
