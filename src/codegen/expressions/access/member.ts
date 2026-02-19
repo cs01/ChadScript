@@ -28,6 +28,7 @@ import {
   handleProcessEnvAccess,
   handleProcessSimpleProperty,
   handleProcessArgv,
+  handleProcessPlatform,
 } from './process-access.js';
 import {
   handleLengthProperty,
@@ -188,22 +189,7 @@ export class MemberAccessGenerator {
   private dispatchHandlers(expr: MemberAccessNode, params: string[]): string | null {
     let result: string | null;
 
-    result = this.handleEnumMemberAccess(expr);
-    if (result !== null) return result;
-
-    result = this.handleTypedJsonStructAccess(expr);
-    if (result !== null) return result;
-
-    if (isProcessArgv(expr)) return this.handleProcessArgv();
-
-    if (isProcessPlatform(expr)) {
-      const platformStr = this.ctx.getTargetOS() || process.platform;
-      return this.ctx.stringGen.doCreateStringConstant(platformStr);
-    }
-
-    if (isProcessEnvAccess(expr)) return this.handleProcessEnvAccess(expr);
-
-    result = handleProcessSimpleProperty(this.ctx, expr);
+    result = this.dispatchSpecialValues(expr, params);
     if (result !== null) return result;
 
     result = this.handleClassPropertyAccess(expr, params);
@@ -212,6 +198,36 @@ export class MemberAccessGenerator {
     const exprObjBase = expr.object as ExprBase;
     const exprObjType = exprObjBase ? exprObjBase.type : null;
     if (exprObjType === null || exprObjType === undefined) return '0.0';
+
+    result = this.dispatchByExpressionType(expr, params, exprObjType);
+    if (result !== null) return result;
+
+    return this.dispatchPropertyHandlers(expr, params);
+  }
+
+  private dispatchSpecialValues(expr: MemberAccessNode, params: string[]): string | null {
+    let result: string | null;
+
+    result = this.handleEnumMemberAccess(expr);
+    if (result !== null) return result;
+
+    result = this.handleTypedJsonStructAccess(expr);
+    if (result !== null) return result;
+
+    if (isProcessArgv(expr)) return this.handleProcessArgv();
+
+    if (isProcessPlatform(expr)) return handleProcessPlatform(this.ctx);
+
+    if (isProcessEnvAccess(expr)) return this.handleProcessEnvAccess(expr);
+
+    result = handleProcessSimpleProperty(this.ctx, expr);
+    if (result !== null) return result;
+
+    return null;
+  }
+
+  private dispatchByExpressionType(expr: MemberAccessNode, params: string[], exprObjType: string): string | null {
+    let result: string | null;
 
     if (exprObjType === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
       return this.handleJsonPropertyAccess(expr, params);
@@ -243,6 +259,12 @@ export class MemberAccessGenerator {
 
     result = this.handleObjectPropertyAccess(expr, params);
     if (result !== null) return result;
+
+    return null;
+  }
+
+  private dispatchPropertyHandlers(expr: MemberAccessNode, params: string[]): string | null {
+    let result: string | null;
 
     if (expr.property === 'length') return this.handleLengthProperty(expr, params);
 
