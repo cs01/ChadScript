@@ -3224,6 +3224,22 @@ export class MemberAccessGenerator {
       }
     }
 
+    const objMeta = this.ctx.getJsonObjectMetadata(objPtr);
+    if (objMeta) {
+      const checkInfo = this.ctx.interfaceStructGen?.getInterfaceStruct(interfaceType);
+      if (checkInfo) {
+        const checkFields = checkInfo.fields as InterfaceFieldInfo[];
+        if (objMeta.keys.length !== checkFields.length) {
+          return null;
+        }
+        for (let li = 0; li < objMeta.keys.length; li++) {
+          if (objMeta.keys[li] !== (checkFields[li] as InterfaceFieldInfo).name) {
+            return null;
+          }
+        }
+      }
+    }
+
     const interfaceInfo = this.ctx.interfaceStructGen?.getInterfaceStruct(interfaceType);
     if (!interfaceInfo) {
       throw new Error(`Interface ${interfaceType} not found in interface struct generator`);
