@@ -1,4 +1,4 @@
-import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter, SwitchStatement, SwitchCase, StringNode } from '../../ast/types.js';
+import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter, SwitchStatement, SwitchCase, StringNode, TryStatement } from '../../ast/types.js';
 import { IGeneratorContext } from '../infrastructure/generator-context.js';
 import { SymbolKind, ObjectArrayMetadata, ObjectMetadata, createObjectMetadata, createObjectMetadataWithInterface } from '../infrastructure/symbol-table.js';
 import type { UnionCommonFields } from '../infrastructure/type-resolver/index.js';
@@ -1277,18 +1277,49 @@ export class ControlFlowGenerator {
     }
 
     const throwStmt = stmt as { type: string; argument: Expression };
+    let msgVal: string = 'null';
+
     if (throwStmt.argument) {
       const argTyped = throwStmt.argument as { type: string; className?: string; args?: Expression[] };
       if (argTyped.type === 'new' && argTyped.className === 'Error' && argTyped.args && argTyped.args.length > 0) {
         const msgArg = argTyped.args[0];
-        const msgVal = this.ctx.generateExpression(msgArg, params);
-        const stderrPtr = this.ctx.nextTemp();
-        this.emit(`${stderrPtr} = load i8*, i8** @stderr`);
-        const fprintfResult = this.ctx.nextTemp();
-        this.emit(`${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([11 x i8], [11 x i8]* @.str.throw_fmt, i32 0, i32 0), i8* ${msgVal})`);
+        msgVal = this.ctx.generateExpression(msgArg, params);
+      } else {
+        msgVal = this.ctx.generateExpression(throwStmt.argument, params);
+        const msgType = this.ctx.getVariableType(msgVal);
+        if (msgType === 'double') {
+          const buf = this.nextTemp();
+          this.emit(`${buf} = call i8* @__double_to_string(double ${msgVal})`);
+          msgVal = buf;
+        }
       }
     }
 
+    this.emit(`store i8* ${msgVal}, i8** @__exception_message`);
+
+    const framePtr = this.nextTemp();
+    this.emit(`${framePtr} = load i8*, i8** @__exception_stack`);
+    const hasHandler = this.nextTemp();
+    this.emit(`${hasHandler} = icmp ne i8* ${framePtr}, null`);
+    const doLongjmpLabel = this.nextLabel('do_longjmp');
+    const noHandlerLabel = this.nextLabel('no_handler');
+    this.emit(`br i1 ${hasHandler}, label %${doLongjmpLabel}, label %${noHandlerLabel}`);
+
+    this.emit(`${doLongjmpLabel}:`);
+    this.ctx.setCurrentLabel(doLongjmpLabel);
+    const frameTyped = this.nextTemp();
+    this.emit(`${frameTyped} = bitcast i8* ${framePtr} to %ExceptionFrame*`);
+    const bufPtr = this.nextTemp();
+    this.emit(`${bufPtr} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frameTyped}, i32 0, i32 0, i32 0`);
+    this.emit(`call void @longjmp(i8* ${bufPtr}, i32 1)`);
+    this.emit(`unreachable`);
+
+    this.emit(`${noHandlerLabel}:`);
+    this.ctx.setCurrentLabel(noHandlerLabel);
+    const stderrPtr = this.ctx.nextTemp();
+    this.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+    const fprintfResult = this.ctx.nextTemp();
+    this.emit(`${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([11 x i8], [11 x i8]* @.str.throw_fmt, i32 0, i32 0), i8* ${msgVal})`);
     this.emit(`call void @exit(i32 1)`);
     this.emit(`unreachable`);
     return '0';
@@ -1298,13 +1329,67 @@ export class ControlFlowGenerator {
     if (stmt.type !== 'try') {
       throw new Error('Expected try statement');
     }
-    const tryStmt = stmt as { type: string; tryBlock: BlockStatement; catchClause: { param: string; body: BlockStatement } | null; finallyBlock: BlockStatement | null };
+    const tryStmt = stmt as { type: string; tryBlock: BlockStatement; catchParam: string | null; catchBody: BlockStatement | null; finallyBlock: BlockStatement | null };
 
-    // For now, we'll just execute the try block and ignore catch/finally
-    // Full exception handling would require LLVM's invoke/landingpad support
+    const frameRaw = this.nextTemp();
+    this.emit(`${frameRaw} = call i8* @GC_malloc(i64 216)`);
+    const frame = this.nextTemp();
+    this.emit(`${frame} = bitcast i8* ${frameRaw} to %ExceptionFrame*`);
+
+    const prevFrame = this.nextTemp();
+    this.emit(`${prevFrame} = load i8*, i8** @__exception_stack`);
+    const prevField = this.nextTemp();
+    this.emit(`${prevField} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frame}, i32 0, i32 1`);
+    this.emit(`store i8* ${prevFrame}, i8** ${prevField}`);
+    this.emit(`store i8* ${frameRaw}, i8** @__exception_stack`);
+
+    const bufPtr = this.nextTemp();
+    this.emit(`${bufPtr} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frame}, i32 0, i32 0, i32 0`);
+    const sjVal = this.nextTemp();
+    this.emit(`${sjVal} = call i32 @setjmp(i8* ${bufPtr})`);
+    const isException = this.nextTemp();
+    this.emit(`${isException} = icmp ne i32 ${sjVal}, 0`);
+
+    const tryBodyLabel = this.nextLabel('try_body');
+    const catchEntryLabel = this.nextLabel('catch_entry');
+    const finallyLabel = this.nextLabel('finally_block');
+
+    this.emit(`br i1 ${isException}, label %${catchEntryLabel}, label %${tryBodyLabel}`);
+
+    this.emit(`${tryBodyLabel}:`);
+    this.ctx.setCurrentLabel(tryBodyLabel);
     this.ctx.generateBlock(tryStmt.tryBlock, params);
+    const tryHasTerminator = this.ctx.lastInstructionIsTerminator();
+    if (!tryHasTerminator) {
+      this.emit(`store i8* ${prevFrame}, i8** @__exception_stack`);
+      this.emit(`br label %${finallyLabel}`);
+    }
 
-    // If there's a finally block, execute it unconditionally
+    this.emit(`${catchEntryLabel}:`);
+    this.ctx.setCurrentLabel(catchEntryLabel);
+    this.emit(`store i8* ${prevFrame}, i8** @__exception_stack`);
+
+    if (tryStmt.catchBody) {
+      const paramName = tryStmt.catchParam;
+      if (paramName) {
+        const excMsg = this.nextTemp();
+        this.emit(`${excMsg} = load i8*, i8** @__exception_message`);
+        const paramAlloca = this.ctx.nextAllocaReg(paramName);
+        this.emit(`${paramAlloca} = alloca i8*`);
+        this.emit(`store i8* ${excMsg}, i8** ${paramAlloca}`);
+        this.ctx.defineVariable(paramName, paramAlloca, 'i8*', SymbolKind.String, 'local');
+      }
+      this.ctx.generateBlock(tryStmt.catchBody, params);
+    }
+
+    const catchHasTerminator = this.ctx.lastInstructionIsTerminator();
+    if (!catchHasTerminator) {
+      this.emit(`br label %${finallyLabel}`);
+    }
+
+    this.emit(`${finallyLabel}:`);
+    this.ctx.setCurrentLabel(finallyLabel);
+
     if (tryStmt.finallyBlock) {
       this.ctx.generateBlock(tryStmt.finallyBlock, params);
     }

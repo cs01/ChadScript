@@ -210,8 +210,8 @@ export class RecursiveASTVisitor {
 
   visitTryStatement(node: TryStatement): void {
     this.visitBlock(node.tryBlock);
-    if (node.catchClause) {
-      this.visitBlock(node.catchClause.body);
+    if (node.catchBody) {
+      this.visitBlock(node.catchBody);
     }
     if (node.finallyBlock) {
       this.visitBlock(node.finallyBlock);

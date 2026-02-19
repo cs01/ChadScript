@@ -2586,7 +2586,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       this.currentSubprogramId = this.dbgCreateSubprogram('main', 0);
       this.currentDebugLocId = this.dbgCreateLocation(1, 1, this.currentSubprogramId);
     }
-    const ir = this.funcGen.generateMain(this.topLevelObjectVariables);
+    let hasTry = false;
+    for (let i = 0; i < this.ast.topLevelStatements.length; i++) {
+      const stmt = this.ast.topLevelStatements[i] as { type: string };
+      if (stmt && stmt.type === 'try') {
+        hasTry = true;
+        break;
+      }
+    }
+    const ir = this.funcGen.generateMain(this.topLevelObjectVariables, hasTry);
     this.currentSubprogramId = -1;
     this.currentDebugLocId = -1;
     return ir;

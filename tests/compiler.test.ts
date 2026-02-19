@@ -209,18 +209,65 @@ describe('ChadScript Compiler', () => {
       const exeFile = path.join(outputDir, baseName);
 
       try {
-        // Compile
         await execAsync(`${compiler} ${fixturePath}`);
 
-        // Run and capture output
-        const { stdout, stderr } = await execAsync(`./${exeFile}`);
-        const output = stdout + stderr;
+        const { stdout } = await execAsync(`./${exeFile}`);
 
-        // Check that try block executed
-        assert.ok(output.includes('before try'), 'Should print before try');
-        assert.ok(output.includes('in try block'), 'Should print in try block');
+        assert.ok(stdout.includes('before try'), 'Should print before try');
+        assert.ok(stdout.includes('in try block'), 'Should print in try block');
+        assert.ok(stdout.includes('caught: test error'), 'Should catch the error');
+        assert.ok(stdout.includes('after try-catch'), 'Should continue after try-catch');
+        assert.ok(stdout.includes('TEST_PASSED'), 'Should print TEST_PASSED');
       } finally {
-        // Clean up
+        try {
+          const llFile = path.join(outputDir, `${baseName}.ll`);
+          if (fsSync.existsSync(llFile)) await fs.unlink(llFile);
+          if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    });
+
+    it('should run finally blocks with and without exceptions', async () => {
+      const fixturePath = 'tests/fixtures/error-handling/try-catch-finally.js';
+      const outputDir = path.join('.build', path.dirname(fixturePath));
+      const baseName = path.basename(fixturePath, '.js');
+      const exeFile = path.join(outputDir, baseName);
+
+      try {
+        await execAsync(`${compiler} ${fixturePath}`);
+
+        const { stdout } = await execAsync(`./${exeFile}`);
+
+        assert.ok(stdout.includes('try catch finally'), 'Should run try, catch, and finally on throw');
+        assert.ok(stdout.includes('try finally'), 'Should run try and finally without throw');
+        assert.ok(stdout.includes('TEST_PASSED'), 'Should print TEST_PASSED');
+      } finally {
+        try {
+          const llFile = path.join(outputDir, `${baseName}.ll`);
+          if (fsSync.existsSync(llFile)) await fs.unlink(llFile);
+          if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+    });
+
+    it('should handle nested try-catch correctly', async () => {
+      const fixturePath = 'tests/fixtures/error-handling/try-catch-nested.js';
+      const outputDir = path.join('.build', path.dirname(fixturePath));
+      const baseName = path.basename(fixturePath, '.js');
+      const exeFile = path.join(outputDir, baseName);
+
+      try {
+        await execAsync(`${compiler} ${fixturePath}`);
+
+        const { stdout } = await execAsync(`./${exeFile}`);
+
+        assert.ok(stdout.includes('outer-try inner-try inner-catch after-inner outer-catch'), 'Nested try-catch should work');
+        assert.ok(stdout.includes('TEST_PASSED'), 'Should print TEST_PASSED');
+      } finally {
         try {
           const llFile = path.join(outputDir, `${baseName}.ll`);
           if (fsSync.existsSync(llFile)) await fs.unlink(llFile);

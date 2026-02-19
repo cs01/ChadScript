@@ -213,7 +213,8 @@ export class FunctionGenerator {
       paramStrings.push(`${llvmType} %arg${i}`);
     }
     ir += paramStrings.join(', ');
-    ir += ') nounwind' + this.ctx.getSubprogramDbgRef() + ' {\n';
+    const funcAttrs = this.hasTryStatement(funcBody) ? ') noinline optnone' : ') nounwind';
+    ir += funcAttrs + this.ctx.getSubprogramDbgRef() + ' {\n';
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
 
@@ -539,6 +540,33 @@ export class FunctionGenerator {
     return false;
   }
 
+  private hasTryStatement(block: BlockStatement): boolean {
+    if (!block) return false;
+    if (!block.statements) return false;
+    for (let i = 0; i < block.statements.length; i++) {
+      const stmt = block.statements[i] as { type: string };
+      if (!stmt) continue;
+      if (stmt.type === 'try') return true;
+      if (stmt.type === 'if') {
+        const ifStmt = block.statements[i] as IfStatement;
+        if (ifStmt.thenBlock && this.hasTryStatement(ifStmt.thenBlock)) return true;
+        if (ifStmt.elseBlock && this.hasTryStatement(ifStmt.elseBlock)) return true;
+      }
+      if (stmt.type === 'while') {
+        const whileStmt = block.statements[i] as WhileStatement;
+        if (whileStmt.body && this.hasTryStatement(whileStmt.body)) return true;
+      }
+      if (stmt.type === 'for') {
+        const forStmt = block.statements[i] as ForStatement;
+        if (forStmt.body && this.hasTryStatement(forStmt.body)) return true;
+      }
+      if (stmt.type === 'block') {
+        const blockStmt = block.statements[i] as BlockStatement;
+        if (this.hasTryStatement(blockStmt)) return true;
+      }
+    }
+    return false;
+  }
   private isEnumType(typeName: string): boolean {
     return this.ctx.isEnumType(typeName);
   }
@@ -703,8 +731,9 @@ export class FunctionGenerator {
     return 'null';
   }
 
-  generateMain(topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>): string {
-    let ir = 'define i32 @main(i32 %argc, i8** %argv) nounwind' + this.ctx.getSubprogramDbgRef() + ' {\n';
+  generateMain(topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>, hasTry?: boolean): string {
+    const mainAttrs = hasTry ? 'noinline optnone' : 'nounwind';
+    let ir = 'define i32 @main(i32 %argc, i8** %argv) ' + mainAttrs + this.ctx.getSubprogramDbgRef() + ' {\n';
     ir += 'entry:\n';
     this.ctx.setCurrentLabel('entry');
 

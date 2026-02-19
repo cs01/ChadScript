@@ -541,8 +541,26 @@ export const testCases: TestCase[] = [
   {
     name: 'try-catch-throw',
     fixture: 'tests/fixtures/error-handling/try-catch-throw.js',
-    expectedExitCode: 0,
+    expectTestPassed: true,
     description: 'Try-catch-throw flow'
+  },
+  {
+    name: 'try-catch-finally',
+    fixture: 'tests/fixtures/error-handling/try-catch-finally.js',
+    expectTestPassed: true,
+    description: 'Finally blocks run with and without throw'
+  },
+  {
+    name: 'try-catch-nested',
+    fixture: 'tests/fixtures/error-handling/try-catch-nested.js',
+    expectTestPassed: true,
+    description: 'Nested try-catch blocks handle exceptions at correct level'
+  },
+  {
+    name: 'try-catch-rethrow',
+    fixture: 'tests/fixtures/error-handling/try-catch-rethrow.js',
+    expectTestPassed: true,
+    description: 'Throw inside catch propagates to outer try-catch'
   },
   {
     name: 'http-simple-test',
