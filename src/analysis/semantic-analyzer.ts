@@ -381,13 +381,15 @@ export class SemanticAnalyzer {
       } else if (stmtType === 'try') {
         const tryStmt = stmt as TryStatement;
         if (tryStmt.tryBlock) this.analyzeBlock(tryStmt.tryBlock);
-        if (tryStmt.catchClause) {
-          this.symbols.set(tryStmt.catchClause.param, {
-            name: tryStmt.catchClause.param,
+        if (tryStmt.catchParam) {
+          this.symbols.set(tryStmt.catchParam, {
+            name: tryStmt.catchParam,
             type: 'string',
             llvmType: 'i8*',
           });
-          this.analyzeBlock(tryStmt.catchClause.body);
+        }
+        if (tryStmt.catchBody) {
+          this.analyzeBlock(tryStmt.catchBody);
         }
         if (tryStmt.finallyBlock) this.analyzeBlock(tryStmt.finallyBlock);
       } else if (stmtType === 'return') {
