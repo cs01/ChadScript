@@ -810,6 +810,12 @@ export const testCases: TestCase[] = [
     description: 'Mutating fields of interface objects in arrays (arr[i].field = value) should work'
   },
   {
+    name: 'class-field-object-array',
+    fixture: 'tests/fixtures/arrays/class-field-object-array.ts',
+    expectTestPassed: true,
+    description: 'Class field object arrays (this.items[i].field read/write) should work'
+  },
+  {
     name: 'string-builder',
     fixture: 'tests/fixtures/strings/string-builder.ts',
     expectTestPassed: true,

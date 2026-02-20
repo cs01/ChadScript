@@ -1746,6 +1746,17 @@ export class MemberAccessGenerator {
           }
         }
       }
+      if (memberAccessObjBase.type === 'this') {
+        const className = this.ctx.getCurrentClassName();
+        if (className) {
+          const fieldInfo = this.ctx.classGenGetFieldInfo(className, memberAccess.property);
+          if (fieldInfo && fieldInfo.tsType && fieldInfo.tsType.endsWith('[]')) {
+            const elementType = fieldInfo.tsType.slice(0, -2);
+            const interfaceInfo = this.getInterfaceInfo(elementType);
+            if (interfaceInfo) return interfaceInfo;
+          }
+        }
+      }
     }
     if (arrayExpr.type === 'variable') {
       const varName = (arrayExpr as VariableNode).name;

@@ -468,6 +468,43 @@ export class AssignmentGenerator {
         }
       }
     }
+    if (arrayExpr.type === 'member_access') {
+      const memberAccess = arrayExpr as MemberAccessNode;
+      const memberObj = memberAccess.object as { type: string };
+      if (memberObj.type === 'this') {
+        const className = this.ctx.getCurrentClassName();
+        if (className) {
+          const fieldInfo = this.ctx.classGenGetFieldInfo(className, memberAccess.property);
+          if (fieldInfo && fieldInfo.tsType && fieldInfo.tsType.endsWith('[]')) {
+            const elementType = fieldInfo.tsType.slice(0, -2);
+            const ifaceProps = this.ctx.getInterfaceProperties(elementType);
+            if (ifaceProps) {
+              const keys: string[] = [];
+              const types: string[] = [];
+              const tsTypes: string[] = [];
+              for (let j = 0; j < ifaceProps.keys.length; j++) {
+                let fieldName = ifaceProps.keys[j];
+                if (fieldName.endsWith('?')) {
+                  fieldName = fieldName.slice(0, -1);
+                }
+                keys.push(fieldName);
+                tsTypes.push(ifaceProps.types[j]);
+                if (ifaceProps.types[j] === 'string') {
+                  types.push('i8*');
+                } else if (ifaceProps.types[j] === 'number') {
+                  types.push('double');
+                } else if (ifaceProps.types[j] === 'boolean') {
+                  types.push('double');
+                } else {
+                  types.push('i8*');
+                }
+              }
+              return { keys, types, tsTypes };
+            }
+          }
+        }
+      }
+    }
     return null;
   }
 
