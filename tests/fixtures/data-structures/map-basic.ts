@@ -5,7 +5,7 @@ function testMap() {
   m.set(2, 20);
   m.set(3, 30);
   const second = m.get(2);
-  if (second === 20){
+  if (second === 20) {
     console.log("TEST_PASSED");
   }
 }

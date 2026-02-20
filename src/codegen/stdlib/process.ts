@@ -1,8 +1,10 @@
-import { MethodCallNode } from '../../ast/types.js';
+import { MethodCallNode } from "../../ast/types.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
-import { IGeneratorContext } from '../infrastructure/generator-context.js';
+import { IGeneratorContext } from "../infrastructure/generator-context.js";
 
 /**
  * Process Method Generator
@@ -22,10 +24,10 @@ export class ProcessGenerator {
    */
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') return false;
+    if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as { type: string; name: string };
-    if (varNode.name !== 'process') return false;
-    return expr.method === 'exit';
+    if (varNode.name !== "process") return false;
+    return expr.method === "exit";
   }
 
   /**
@@ -42,14 +44,13 @@ export class ProcessGenerator {
    */
   generateProcessExit(expr: MethodCallNode, params: string[]): string {
     // Get exit code argument (defaults to 0)
-    const exitCodeDouble = expr.args.length > 0
-      ? this.ctx.generateExpression(expr.args[0], params)
-      : '0.0';
+    const exitCodeDouble =
+      expr.args.length > 0 ? this.ctx.generateExpression(expr.args[0], params) : "0.0";
 
     // Convert double to i32 for exit code (truncates decimal)
     const dblExit = this.ctx.ensureDouble(exitCodeDouble);
     const exitCode = this.ctx.nextTemp();
-    if (exitCodeDouble === '0.0') {
+    if (exitCodeDouble === "0.0") {
       // Optimization: Use constant 0 directly
       this.ctx.emit(`${exitCode} = add i32 0, 0`);
     } else {
@@ -66,6 +67,6 @@ export class ProcessGenerator {
     this.ctx.emit(`call void @exit(i32 ${exitCode})`);
 
     // Return a dummy value since exit doesn't return
-    return '0';
+    return "0";
   }
 }

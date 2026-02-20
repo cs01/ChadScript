@@ -5,10 +5,10 @@ function test() {
   const arr = [10, 20, 30, 40, 50];
 
   // Array.length returns i32 but we need it as double for arithmetic
-  const length = arr.length;  // Returns 5
-  const result = length * 4;  // 5 * 4 = 20
+  const length = arr.length; // Returns 5
+  const result = length * 4; // 5 * 4 = 20
 
   return result;
 }
 
-process.exit(test());  // Should exit with 20
+process.exit(test()); // Should exit with 20

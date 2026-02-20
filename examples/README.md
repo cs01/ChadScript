@@ -14,13 +14,13 @@ chad build examples/hello.ts
 
 ## Examples
 
-| File | Description |
-|------|-------------|
-| `hello.ts` | Hello World - native execution with no runtime |
-| `timers.ts` | setTimeout/setInterval async timers |
-| `http-server.ts` | HTTP server with Request/Response routing |
-| `cli-parser-demo.ts` | CLI argument parsing with flags and options |
-| `word-count.ts` | File processing - lines, words, characters |
+| File                 | Description                                    |
+| -------------------- | ---------------------------------------------- |
+| `hello.ts`           | Hello World - native execution with no runtime |
+| `timers.ts`          | setTimeout/setInterval async timers            |
+| `http-server.ts`     | HTTP server with Request/Response routing      |
+| `cli-parser-demo.ts` | CLI argument parsing with flags and options    |
+| `word-count.ts`      | File processing - lines, words, characters     |
 
 ## Running
 

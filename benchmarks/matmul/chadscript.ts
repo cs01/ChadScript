@@ -7,7 +7,7 @@ function matmul(): void {
   let i = 0;
   while (i < N * N) {
     a.push((i % N) + 0.1);
-    b.push((i / N) + 0.1);
+    b.push(i / N + 0.1);
     c.push(0);
     i = i + 1;
   }

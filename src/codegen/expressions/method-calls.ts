@@ -30,19 +30,93 @@ import {
   MemberAccessNode,
   InterfaceDeclaration,
   SourceLocation,
-} from '../../ast/types.js';
-import type { SymbolTable } from '../infrastructure/symbol-table.js';
-import type { IStringGenerator, IFsGenerator, IPathGenerator, IJsonGenerator, IMathGenerator, IDateGenerator, ICryptoGenerator, ISqliteGenerator, IResponseGenerator, IRegexGenerator, IArrowFunctionGenerator, IStringMapGenerator, IMapGenerator, ISetGenerator, IStringSetGenerator, IPointerMapGenerator, IArrayGenerator, IEmbedGenerator } from '../infrastructure/generator-context.js';
-import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
-import { generateConsoleCallInline } from './method-calls/console.js';
-import { handleAssertStrictEqual, handleAssertNotStrictEqual, handleAssertOk, handleAssertDeepEqual, handleAssertFail } from './method-calls/assert.js';
-import { generateProcessExitInline, generateProcessCwdInline, handleProcessChdir, handleProcessKill, handleProcessUptime, handleProcessSyscallI32, isProcessStdoutOrStderr, handleProcessWrite } from './method-calls/process.js';
-import { handleSubstr, handleSubstring, handleConcat, handleRepeat, handlePadStart, handleSplit, handleStartsWith, handleEndsWith, handleTrim, handleTrimStart, handleTrimEnd, handleIndexOf, handleLastIndexOf, handleStringArrayIndexOf, handleStringArrayIncludes, handleStringIncludes, handleSlice, handleReplace, handleReplaceAll, handleNumberIsFinite, handleNumberIsNaN, handleNumberIsInteger, handleNumberToString, handleNumberToFixed, handleCharAt, handleCharCodeAt, handleToUpperCase, handleToLowerCase, handleMatch } from './method-calls/string-methods.js';
-import { generateObjectKeys, generateObjectValues, generateObjectEntries } from './method-calls/object-static.js';
-import { handlePromiseStaticMethods, handlePromiseThen } from './method-calls/promise-handlers.js';
-import { handleClassMethods, handleObjectMethods, getInterfaceFromAST } from './method-calls/class-dispatch.js';
+} from "../../ast/types.js";
+import type { SymbolTable } from "../infrastructure/symbol-table.js";
+import type {
+  IStringGenerator,
+  IFsGenerator,
+  IPathGenerator,
+  IJsonGenerator,
+  IMathGenerator,
+  IDateGenerator,
+  ICryptoGenerator,
+  ISqliteGenerator,
+  IResponseGenerator,
+  IRegexGenerator,
+  IArrowFunctionGenerator,
+  IStringMapGenerator,
+  IMapGenerator,
+  ISetGenerator,
+  IStringSetGenerator,
+  IPointerMapGenerator,
+  IArrayGenerator,
+  IEmbedGenerator,
+} from "../infrastructure/generator-context.js";
+import { parseMapTypeString, parseSetTypeString } from "../infrastructure/type-system.js";
+import { generateConsoleCallInline } from "./method-calls/console.js";
+import {
+  handleAssertStrictEqual,
+  handleAssertNotStrictEqual,
+  handleAssertOk,
+  handleAssertDeepEqual,
+  handleAssertFail,
+} from "./method-calls/assert.js";
+import {
+  generateProcessExitInline,
+  generateProcessCwdInline,
+  handleProcessChdir,
+  handleProcessKill,
+  handleProcessUptime,
+  handleProcessSyscallI32,
+  isProcessStdoutOrStderr,
+  handleProcessWrite,
+} from "./method-calls/process.js";
+import {
+  handleSubstr,
+  handleSubstring,
+  handleConcat,
+  handleRepeat,
+  handlePadStart,
+  handleSplit,
+  handleStartsWith,
+  handleEndsWith,
+  handleTrim,
+  handleTrimStart,
+  handleTrimEnd,
+  handleIndexOf,
+  handleLastIndexOf,
+  handleStringArrayIndexOf,
+  handleStringArrayIncludes,
+  handleStringIncludes,
+  handleSlice,
+  handleReplace,
+  handleReplaceAll,
+  handleNumberIsFinite,
+  handleNumberIsNaN,
+  handleNumberIsInteger,
+  handleNumberToString,
+  handleNumberToFixed,
+  handleCharAt,
+  handleCharCodeAt,
+  handleToUpperCase,
+  handleToLowerCase,
+  handleMatch,
+} from "./method-calls/string-methods.js";
+import {
+  generateObjectKeys,
+  generateObjectValues,
+  generateObjectEntries,
+} from "./method-calls/object-static.js";
+import { handlePromiseStaticMethods, handlePromiseThen } from "./method-calls/promise-handlers.js";
+import {
+  handleClassMethods,
+  handleObjectMethods,
+  getInterfaceFromAST,
+} from "./method-calls/class-dispatch.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
 interface InterfaceDefInfo {
   properties: { name: string; type: string }[];
@@ -92,8 +166,17 @@ export interface MethodCallGeneratorContext {
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
   setUsesTestRunner(value: boolean): void;
-  classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
-  classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
+  classGenGetFieldInfo(
+    className: string | null,
+    fieldName: string | null,
+  ): { index: number; type: string; tsType?: string } | null;
+  classGenGenerateMethodCall(
+    instancePtr: string,
+    className: string,
+    method: string,
+    args: Expression[],
+    params: string[],
+  ): string;
   typeResolverGetThisFieldMapKeyType(expr: Expression): string | null;
   typeResolverGetThisFieldSetValueType(expr: Expression): string | null;
   readonly arrowFunctionGen: IArrowFunctionGenerator;
@@ -116,7 +199,10 @@ export interface MethodCallGeneratorContext {
   readonly pointerMapGen: IPointerMapGenerator;
   readonly arrayGen: IArrayGenerator;
   readonly embedGen: IEmbedGenerator;
-  readonly typeResolver?: { getThisFieldMapKeyType(expr: Expression): string | null; getThisFieldSetValueType(expr: Expression): string | null };
+  readonly typeResolver?: {
+    getThisFieldMapKeyType(expr: Expression): string | null;
+    getThisFieldSetValueType(expr: Expression): string | null;
+  };
   ensureDouble(value: string): string;
   ensureI64(value: string): string;
 }
@@ -130,7 +216,7 @@ export class MethodCallGenerator {
     }
     const e = expr as ExprBase;
     const eType = e.type;
-    if (eType !== 'variable') {
+    if (eType !== "variable") {
       return false;
     }
     const varExpr = expr as VariableNode;
@@ -140,7 +226,7 @@ export class MethodCallGenerator {
 
   private getVariableName(expr: Expression): string | null {
     const e = expr as ExprBase;
-    if (e.type === 'variable') {
+    if (e.type === "variable") {
       return (expr as VariableNode).name;
     }
     return null;
@@ -205,14 +291,17 @@ export class MethodCallGenerator {
     }
 
     const e2 = expr as ExprBase;
-    if (e2.type !== 'member_access') return null;
+    if (e2.type !== "member_access") return null;
     const memberExpr = expr as MemberAccessNode;
 
     const objBase = memberExpr.object as ExprBase;
-    if (objBase.type === 'this') {
+    if (objBase.type === "this") {
       const classNameForLookup = this.ctx.getCurrentClassName();
       if (!classNameForLookup) return null;
-      const fieldInfoResult = this.ctx.classGenGetFieldInfo(classNameForLookup, memberExpr.property);
+      const fieldInfoResult = this.ctx.classGenGetFieldInfo(
+        classNameForLookup,
+        memberExpr.property,
+      );
       const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
       if (!fieldInfoResult || !fieldInfo.tsType) return null;
 
@@ -231,10 +320,10 @@ export class MethodCallGenerator {
     }
 
     const e = expr as ExprBase;
-    if (e.type !== 'member_access') return null;
+    if (e.type !== "member_access") return null;
     const memberExpr = expr as MemberAccessNode;
     const objBase = memberExpr.object as ExprBase;
-    if (objBase.type !== 'this') return null;
+    if (objBase.type !== "this") return null;
 
     const classNameForSet = this.ctx.getCurrentClassName();
     if (!classNameForSet) return null;
@@ -248,8 +337,12 @@ export class MethodCallGenerator {
   }
 
   // Helper methods delegate to context
-  private nextTemp(): string { return this.ctx.nextTemp(); }
-  private emit(instruction: string): void { this.ctx.emit(instruction); }
+  private nextTemp(): string {
+    return this.ctx.nextTemp();
+  }
+  private emit(instruction: string): void {
+    this.ctx.emit(instruction);
+  }
 
   /**
    * Generate code for method call expression
@@ -263,137 +356,141 @@ export class MethodCallGenerator {
     const method = expr.method;
 
     // Handle Promise static methods (Promise.resolve, Promise.reject, Promise.all)
-    if (this.isVariableWithName(expr.object, 'Promise')) {
+    if (this.isVariableWithName(expr.object, "Promise")) {
       return handlePromiseStaticMethods(this.ctx, expr, params);
     }
 
     // Handle ChadScript.embedFile/embedDir/getEmbeddedFile
-    if (this.isVariableWithName(expr.object, 'ChadScript')) {
-      if (method === 'embedFile') {
+    if (this.isVariableWithName(expr.object, "ChadScript")) {
+      if (method === "embedFile") {
         return this.ctx.embedGen.generateEmbedFile(expr, params);
-      } else if (method === 'embedDir') {
+      } else if (method === "embedDir") {
         return this.ctx.embedGen.generateEmbedDir(expr, params);
-      } else if (method === 'getEmbeddedFile') {
+      } else if (method === "getEmbeddedFile") {
         return this.ctx.embedGen.generateGetEmbeddedFile(expr, params);
       }
       return this.ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
     }
 
     // Handle Array.from() - returns the argument as-is since our iterators already produce arrays
-    if (this.isVariableWithName(expr.object, 'Array') && method === 'from') {
+    if (this.isVariableWithName(expr.object, "Array") && method === "from") {
       if (expr.args.length === 0) {
-        return this.ctx.emitError('Array.from() requires at least 1 argument', expr.loc);
+        return this.ctx.emitError("Array.from() requires at least 1 argument", expr.loc);
       }
       return this.ctx.generateExpression(expr.args[0], params);
     }
 
-    if (this.isVariableWithName(expr.object, 'Array') && method === 'isArray') {
+    if (this.isVariableWithName(expr.object, "Array") && method === "isArray") {
       if (expr.args.length === 0) {
-        return this.ctx.emitError('Array.isArray() requires at least 1 argument', expr.loc);
+        return this.ctx.emitError("Array.isArray() requires at least 1 argument", expr.loc);
       }
       const arg = expr.args[0];
-      const isArray = this.ctx.isArrayExpression(arg) || this.ctx.isStringArrayExpression(arg) || this.ctx.isObjectArrayExpression(arg);
-      return isArray ? '1.0' : '0.0';
+      const isArray =
+        this.ctx.isArrayExpression(arg) ||
+        this.ctx.isStringArrayExpression(arg) ||
+        this.ctx.isObjectArrayExpression(arg);
+      return isArray ? "1.0" : "0.0";
     }
 
-    if (this.isVariableWithName(expr.object, 'Object') && method === 'keys') {
+    if (this.isVariableWithName(expr.object, "Object") && method === "keys") {
       return generateObjectKeys(this.ctx, expr, params);
     }
 
-    if (this.isVariableWithName(expr.object, 'Object') && method === 'values') {
+    if (this.isVariableWithName(expr.object, "Object") && method === "values") {
       return generateObjectValues(this.ctx, expr, params);
     }
 
-    if (this.isVariableWithName(expr.object, 'Object') && method === 'entries') {
+    if (this.isVariableWithName(expr.object, "Object") && method === "entries") {
       return generateObjectEntries(this.ctx, expr, params);
     }
 
-    if (this.isVariableWithName(expr.object, 'Number') && method === 'isFinite') {
+    if (this.isVariableWithName(expr.object, "Number") && method === "isFinite") {
       if (expr.args.length === 0) {
-        return this.ctx.emitError('Number.isFinite() requires at least 1 argument', expr.loc);
+        return this.ctx.emitError("Number.isFinite() requires at least 1 argument", expr.loc);
       }
       return handleNumberIsFinite(this.ctx, expr, params);
     }
 
-    if (this.isVariableWithName(expr.object, 'Number') && method === 'isNaN') {
+    if (this.isVariableWithName(expr.object, "Number") && method === "isNaN") {
       if (expr.args.length === 0) {
-        return this.ctx.emitError('Number.isNaN() requires at least 1 argument', expr.loc);
+        return this.ctx.emitError("Number.isNaN() requires at least 1 argument", expr.loc);
       }
       return handleNumberIsNaN(this.ctx, expr, params);
     }
 
-    if (this.isVariableWithName(expr.object, 'Number') && method === 'isInteger') {
+    if (this.isVariableWithName(expr.object, "Number") && method === "isInteger") {
       if (expr.args.length === 0) {
-        return this.ctx.emitError('Number.isInteger() requires at least 1 argument', expr.loc);
+        return this.ctx.emitError("Number.isInteger() requires at least 1 argument", expr.loc);
       }
       return handleNumberIsInteger(this.ctx, expr, params);
     }
 
     // Handle Promise instance methods (.then, .catch)
-    if (method === 'then' || method === 'catch') {
+    if (method === "then" || method === "catch") {
       const isPromise = this.ctx.isPromiseExpression(expr.object);
       if (isPromise) {
-        return handlePromiseThen(this.ctx, expr, params, method === 'catch');
+        return handlePromiseThen(this.ctx, expr, params, method === "catch");
       }
     }
 
     // Handle console.log and console.error - inline check to avoid cross-class property access
     const objBase2 = expr.object as ExprBase;
-    if (objBase2.type === 'variable') {
+    if (objBase2.type === "variable") {
       const varNode = expr.object as VariableNode;
-      if (varNode.name === 'console') {
+      if (varNode.name === "console") {
         const method2 = expr.method;
-        if (method2 === 'log' || method2 === 'error' || method2 === 'warn' || method2 === 'debug') {
+        if (method2 === "log" || method2 === "error" || method2 === "warn" || method2 === "debug") {
           return generateConsoleCallInline(this.ctx, expr, params);
         }
       }
-      if (varNode.name === 'assert') {
+      if (varNode.name === "assert") {
         this.ctx.setUsesTestRunner(true);
-        if (expr.method === 'strictEqual') return handleAssertStrictEqual(this.ctx, expr, params);
-        if (expr.method === 'notStrictEqual') return handleAssertNotStrictEqual(this.ctx, expr, params);
-        if (expr.method === 'ok') return handleAssertOk(this.ctx, expr, params);
-        if (expr.method === 'deepEqual') return handleAssertDeepEqual(this.ctx, expr, params);
-        if (expr.method === 'fail') return handleAssertFail(this.ctx, expr, params);
+        if (expr.method === "strictEqual") return handleAssertStrictEqual(this.ctx, expr, params);
+        if (expr.method === "notStrictEqual")
+          return handleAssertNotStrictEqual(this.ctx, expr, params);
+        if (expr.method === "ok") return handleAssertOk(this.ctx, expr, params);
+        if (expr.method === "deepEqual") return handleAssertDeepEqual(this.ctx, expr, params);
+        if (expr.method === "fail") return handleAssertFail(this.ctx, expr, params);
       }
     }
 
     // Handle process.exit() - inline check
-    if (objBase2.type === 'variable') {
+    if (objBase2.type === "variable") {
       const varNode = expr.object as VariableNode;
-      if (varNode.name === 'process' && expr.method === 'exit') {
+      if (varNode.name === "process" && expr.method === "exit") {
         return generateProcessExitInline(this.ctx, expr, params);
       }
-      if (varNode.name === 'process' && expr.method === 'cwd') {
+      if (varNode.name === "process" && expr.method === "cwd") {
         return generateProcessCwdInline(this.ctx);
       }
-      if (varNode.name === 'process' && expr.method === 'chdir') {
+      if (varNode.name === "process" && expr.method === "chdir") {
         return handleProcessChdir(this.ctx, expr, params);
       }
-      if (varNode.name === 'process' && expr.method === 'abort') {
+      if (varNode.name === "process" && expr.method === "abort") {
         this.ctx.emit(`call void @abort()`);
-        return '0';
+        return "0";
       }
-      if (varNode.name === 'process' && expr.method === 'kill') {
+      if (varNode.name === "process" && expr.method === "kill") {
         return handleProcessKill(this.ctx, expr, params);
       }
-      if (varNode.name === 'process' && expr.method === 'uptime') {
+      if (varNode.name === "process" && expr.method === "uptime") {
         return handleProcessUptime(this.ctx);
       }
-      if (varNode.name === 'process' && expr.method === 'getuid') {
-        return handleProcessSyscallI32(this.ctx, '@getuid');
+      if (varNode.name === "process" && expr.method === "getuid") {
+        return handleProcessSyscallI32(this.ctx, "@getuid");
       }
-      if (varNode.name === 'process' && expr.method === 'getgid') {
-        return handleProcessSyscallI32(this.ctx, '@getgid');
+      if (varNode.name === "process" && expr.method === "getgid") {
+        return handleProcessSyscallI32(this.ctx, "@getgid");
       }
-      if (varNode.name === 'process' && expr.method === 'geteuid') {
-        return handleProcessSyscallI32(this.ctx, '@geteuid');
+      if (varNode.name === "process" && expr.method === "geteuid") {
+        return handleProcessSyscallI32(this.ctx, "@geteuid");
       }
-      if (varNode.name === 'process' && expr.method === 'getegid') {
-        return handleProcessSyscallI32(this.ctx, '@getegid');
+      if (varNode.name === "process" && expr.method === "getegid") {
+        return handleProcessSyscallI32(this.ctx, "@getegid");
       }
-      if (varNode.name === 'tty' && expr.method === 'isatty') {
+      if (varNode.name === "tty" && expr.method === "isatty") {
         if (expr.args.length === 0) {
-          return this.ctx.emitError('tty.isatty() requires 1 argument (fd)', expr.loc);
+          return this.ctx.emitError("tty.isatty() requires 1 argument (fd)", expr.loc);
         }
         const fdValue = this.ctx.generateExpression(expr.args[0], params);
         const dblFd = this.ctx.ensureDouble(fdValue);
@@ -410,58 +507,58 @@ export class MethodCallGenerator {
     }
 
     // Handle fs.* methods - inline check to avoid interface dispatch issues
-    if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'fs') {
-      if (method === 'readFileSync') {
+    if (objBase2.type === "variable" && (expr.object as VariableNode).name === "fs") {
+      if (method === "readFileSync") {
         return this.ctx.fsGen.generateReadFileSync(expr, params);
-      } else if (method === 'writeFileSync') {
+      } else if (method === "writeFileSync") {
         return this.ctx.fsGen.generateWriteFileSync(expr, params);
-      } else if (method === 'appendFileSync') {
+      } else if (method === "appendFileSync") {
         return this.ctx.fsGen.generateAppendFileSync(expr, params);
-      } else if (method === 'existsSync') {
+      } else if (method === "existsSync") {
         return this.ctx.fsGen.generateExistsSync(expr, params);
-      } else if (method === 'unlinkSync') {
+      } else if (method === "unlinkSync") {
         return this.ctx.fsGen.generateUnlinkSync(expr, params);
-      } else if (method === 'readdirSync') {
+      } else if (method === "readdirSync") {
         return this.ctx.fsGen.generateReaddirSync(expr, params);
-      } else if (method === 'statSync') {
+      } else if (method === "statSync") {
         return this.ctx.fsGen.generateStatSync(expr, params);
-      } else if (method === 'mkdirSync') {
+      } else if (method === "mkdirSync") {
         return this.ctx.fsGen.generateMkdirSync(expr, params);
       }
     }
 
     // Handle path.resolve() and path.dirname() (delegated to PathGenerator)
-    if (method === 'resolve' && this.isVariableWithName(expr.object, 'path')) {
+    if (method === "resolve" && this.isVariableWithName(expr.object, "path")) {
       return this.ctx.pathGen.generateResolve(expr, params);
     }
-    if (method === 'dirname' && this.isVariableWithName(expr.object, 'path')) {
+    if (method === "dirname" && this.isVariableWithName(expr.object, "path")) {
       return this.ctx.pathGen.generateDirname(expr, params);
     }
-    if (method === 'basename' && this.isVariableWithName(expr.object, 'path')) {
+    if (method === "basename" && this.isVariableWithName(expr.object, "path")) {
       return this.ctx.pathGen.generateBasename(expr, params);
     }
-    if (method === 'join' && this.isVariableWithName(expr.object, 'path')) {
+    if (method === "join" && this.isVariableWithName(expr.object, "path")) {
       return this.ctx.pathGen.generateJoin(expr, params);
     }
 
     // Handle execSync() from child_process
-    if (method === 'execSync') {
+    if (method === "execSync") {
       const objName = this.getVariableName(expr.object);
-      if (objName === 'child_process' || objName === 'cp') {
+      if (objName === "child_process" || objName === "cp") {
         return this.handleExecSync(expr, params);
       }
     }
 
-    if (method === 'write' && isProcessStdoutOrStderr(expr)) {
+    if (method === "write" && isProcessStdoutOrStderr(expr)) {
       return handleProcessWrite(this.ctx, expr, params);
     }
 
     // Handle JSON.parse() and JSON.stringify() - inline check
-    if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'JSON') {
-      if (method === 'parse') {
+    if (objBase2.type === "variable" && (expr.object as VariableNode).name === "JSON") {
+      if (method === "parse") {
         this.ctx.setUsesJson(true);
         return this.ctx.jsonGen.generateParse(expr, params, expr.typeParameter);
-      } else if (method === 'stringify') {
+      } else if (method === "stringify") {
         return this.ctx.jsonGen.generateStringify(expr, params);
       }
     }
@@ -477,62 +574,62 @@ export class MethodCallGenerator {
     }
 
     // Handle crypto.* methods
-    if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'crypto') {
+    if (objBase2.type === "variable" && (expr.object as VariableNode).name === "crypto") {
       this.ctx.setUsesCrypto(true);
-      if (method === 'sha256') {
+      if (method === "sha256") {
         return this.ctx.cryptoGen.generateSha256(expr, params);
-      } else if (method === 'md5') {
+      } else if (method === "md5") {
         return this.ctx.cryptoGen.generateMd5(expr, params);
-      } else if (method === 'sha512') {
+      } else if (method === "sha512") {
         return this.ctx.cryptoGen.generateSha512(expr, params);
-      } else if (method === 'randomBytes') {
+      } else if (method === "randomBytes") {
         return this.ctx.cryptoGen.generateRandomBytes(expr, params);
       }
     }
 
     // Handle sqlite.* methods
-    if (objBase2.type === 'variable' && (expr.object as VariableNode).name === 'sqlite') {
+    if (objBase2.type === "variable" && (expr.object as VariableNode).name === "sqlite") {
       this.ctx.setUsesSqlite(true);
-      if (method === 'open') {
+      if (method === "open") {
         return this.ctx.sqliteGen.generateOpen(expr, params);
-      } else if (method === 'exec') {
+      } else if (method === "exec") {
         return this.ctx.sqliteGen.generateExec(expr, params);
-      } else if (method === 'get') {
+      } else if (method === "get") {
         return this.ctx.sqliteGen.generateGet(expr, params);
-      } else if (method === 'all') {
+      } else if (method === "all") {
         return this.ctx.sqliteGen.generateAll(expr, params);
-      } else if (method === 'close') {
+      } else if (method === "close") {
         return this.ctx.sqliteGen.generateClose(expr, params);
       }
     }
 
     // Handle JSON.stringify() (legacy implementation)
-    if (method === 'stringify' && this.isVariableWithName(expr.object, 'JSON')) {
+    if (method === "stringify" && this.isVariableWithName(expr.object, "JSON")) {
       return this.handleJsonStringify(expr, params);
     }
 
     // Handle regex methods
-    if (method === 'test') {
+    if (method === "test") {
       const isRegex = this.ctx.isRegexExpression(expr.object);
       if (isRegex) {
         return this.handleRegexTest(expr, params);
       }
     }
 
-    if (method === 'exec') {
+    if (method === "exec") {
       const isRegex = this.ctx.isRegexExpression(expr.object);
       if (isRegex) {
         return this.handleRegexExec(expr, params);
       }
     }
 
-    if (method === 'isFile' || method === 'isDirectory') {
+    if (method === "isFile" || method === "isDirectory") {
       let statI8Ptr: string | null = null;
 
-      if (objBase2.type === 'variable') {
+      if (objBase2.type === "variable") {
         const varName = (expr.object as VariableNode).name;
         const varType = this.ctx.getVariableType(varName);
-        if (varType === '%StatResult*') {
+        if (varType === "%StatResult*") {
           const varPtr = this.ctx.symbolTable.getAlloca(varName);
           if (varPtr) {
             const raw = this.nextTemp();
@@ -543,7 +640,7 @@ export class MethodCallGenerator {
       } else {
         const objVal = this.ctx.generateExpression(expr.object, params);
         const objType = this.ctx.getVariableType(objVal);
-        if (objType === '%StatResult*') {
+        if (objType === "%StatResult*") {
           statI8Ptr = objVal;
         }
       }
@@ -551,33 +648,35 @@ export class MethodCallGenerator {
       if (statI8Ptr) {
         const statPtr = this.nextTemp();
         this.emit(`${statPtr} = bitcast i8* ${statI8Ptr} to double*`);
-        const fieldIdx = method === 'isFile' ? 1 : 2;
+        const fieldIdx = method === "isFile" ? 1 : 2;
         const fieldPtr = this.nextTemp();
-        this.emit(`${fieldPtr} = getelementptr inbounds double, double* ${statPtr}, i64 ${fieldIdx}`);
+        this.emit(
+          `${fieldPtr} = getelementptr inbounds double, double* ${statPtr}, i64 ${fieldIdx}`,
+        );
         const result = this.nextTemp();
         this.emit(`${result} = load double, double* ${fieldPtr}`);
-        this.ctx.setVariableType(result, 'double');
+        this.ctx.setVariableType(result, "double");
         return result;
       }
     }
 
     // Handle Response methods (from fetch())
-    if (method === 'text' || method === 'json') {
+    if (method === "text" || method === "json") {
       const isLikelyResponse = this.isLikelyResponseExpression(expr);
       if (isLikelyResponse) {
         try {
           let responsePtr = this.ctx.generateExpression(expr.object, params);
 
           const objType = this.ctx.getVariableType(responsePtr);
-          if (objType === 'i8*') {
+          if (objType === "i8*") {
             const castPtr = this.ctx.nextTemp();
             this.ctx.emit(`${castPtr} = bitcast i8* ${responsePtr} to %__FetchResponse*`);
             responsePtr = castPtr;
           }
 
-          if (method === 'text') {
+          if (method === "text") {
             return this.ctx.responseGen.generateText(responsePtr);
-          } else if (method === 'json') {
+          } else if (method === "json") {
             this.ctx.setUsesJson(true);
             if (expr.typeParameter) {
               const typeName = expr.typeParameter;
@@ -596,49 +695,54 @@ export class MethodCallGenerator {
     }
 
     // Handle string methods
-    if (method === 'substr') {
+    if (method === "substr") {
       return handleSubstr(this.ctx, expr, params);
     }
-    if (method === 'substring') {
+    if (method === "substring") {
       return handleSubstring(this.ctx, expr, params);
     }
-    if (method === 'concat' && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object) && !this.ctx.isObjectArrayExpression(expr.object)) {
+    if (
+      method === "concat" &&
+      !this.ctx.isArrayExpression(expr.object) &&
+      !this.ctx.isStringArrayExpression(expr.object) &&
+      !this.ctx.isObjectArrayExpression(expr.object)
+    ) {
       return handleConcat(this.ctx, expr, params);
     }
-    if (method === 'repeat') {
+    if (method === "repeat") {
       return handleRepeat(this.ctx, expr, params);
     }
-    if (method === 'padStart') {
+    if (method === "padStart") {
       return handlePadStart(this.ctx, expr, params);
     }
-    if (method === 'split') {
+    if (method === "split") {
       return handleSplit(this.ctx, expr, params);
     }
-    if (method === 'startsWith') {
+    if (method === "startsWith") {
       return handleStartsWith(this.ctx, expr, params);
     }
-    if (method === 'endsWith') {
+    if (method === "endsWith") {
       return handleEndsWith(this.ctx, expr, params);
     }
-    if (method === 'trim') {
+    if (method === "trim") {
       return handleTrim(this.ctx, expr, params);
     }
-    if (method === 'trimStart') {
+    if (method === "trimStart") {
       return handleTrimStart(this.ctx, expr, params);
     }
-    if (method === 'trimEnd') {
+    if (method === "trimEnd") {
       return handleTrimEnd(this.ctx, expr, params);
     }
-    if (method === 'indexOf') {
+    if (method === "indexOf") {
       if (this.ctx.isStringArrayExpression(expr.object)) {
         return handleStringArrayIndexOf(this.ctx, expr, params);
       }
       return handleIndexOf(this.ctx, expr, params);
     }
-    if (method === 'lastIndexOf') {
+    if (method === "lastIndexOf") {
       return handleLastIndexOf(this.ctx, expr, params);
     }
-    if (method === 'includes') {
+    if (method === "includes") {
       if (this.ctx.isStringArrayExpression(expr.object)) {
         return handleStringArrayIncludes(this.ctx, expr, params);
       }
@@ -646,68 +750,86 @@ export class MethodCallGenerator {
         return handleStringIncludes(this.ctx, expr, params);
       }
     }
-    if (method === 'slice' && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object) && !this.ctx.isObjectArrayExpression(expr.object)) {
+    if (
+      method === "slice" &&
+      !this.ctx.isArrayExpression(expr.object) &&
+      !this.ctx.isStringArrayExpression(expr.object) &&
+      !this.ctx.isObjectArrayExpression(expr.object)
+    ) {
       return handleSlice(this.ctx, expr, params);
     }
-    if (method === 'replace') {
+    if (method === "replace") {
       return handleReplace(this.ctx, expr, params);
     }
-    if (method === 'replaceAll') {
+    if (method === "replaceAll") {
       return handleReplaceAll(this.ctx, expr, params);
     }
-    if (method === 'charAt') {
+    if (method === "charAt") {
       return handleCharAt(this.ctx, expr, params);
     }
-    if (method === 'charCodeAt') {
+    if (method === "charCodeAt") {
       return handleCharCodeAt(this.ctx, expr, params);
     }
-    if (method === 'toUpperCase') {
+    if (method === "toUpperCase") {
       return handleToUpperCase(this.ctx, expr, params);
     }
-    if (method === 'toLowerCase') {
+    if (method === "toLowerCase") {
       return handleToLowerCase(this.ctx, expr, params);
     }
-    if (method === 'toString') {
-      if (!this.ctx.isStringExpression(expr.object) && !this.ctx.isArrayExpression(expr.object) && !this.ctx.isStringArrayExpression(expr.object)) {
+    if (method === "toString") {
+      if (
+        !this.ctx.isStringExpression(expr.object) &&
+        !this.ctx.isArrayExpression(expr.object) &&
+        !this.ctx.isStringArrayExpression(expr.object)
+      ) {
         return handleNumberToString(this.ctx, expr, params);
       }
     }
-    if (method === 'toFixed') {
+    if (method === "toFixed") {
       return handleNumberToFixed(this.ctx, expr, params);
     }
-    if (method === 'match') {
+    if (method === "match") {
       if (this.ctx.isStringExpression(expr.object)) {
         return handleMatch(this.ctx, expr, params);
       }
     }
 
     // Handle Map methods
-    if (method === 'set' || method === 'get' || method === 'has' || method === 'clear' || method === 'delete' || method === 'entries' || method === 'values' || method === 'keys') {
+    if (
+      method === "set" ||
+      method === "get" ||
+      method === "has" ||
+      method === "clear" ||
+      method === "delete" ||
+      method === "entries" ||
+      method === "values" ||
+      method === "keys"
+    ) {
       const varName = this.getVariableName(expr.object);
       if (varName && this.ctx.symbolTable.isMap(varName)) {
         const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
 
-        if (mapMeta && mapMeta.keyType === 'string') {
+        if (mapMeta && mapMeta.keyType === "string") {
           const mapAlloca = this.ctx.symbolTable.getAlloca(varName);
           if (mapAlloca) {
-            if (method === 'set') {
+            if (method === "set") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const valueValue = this.ctx.generateExpression(expr.args[1], params);
               return this.ctx.stringMapGen.generateStringMapSet(mapAlloca, keyValue, valueValue);
-            } else if (method === 'get') {
+            } else if (method === "get") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapGet(mapAlloca, keyValue);
-            } else if (method === 'has') {
+            } else if (method === "has") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapHas(mapAlloca, keyValue);
-            } else if (method === 'delete') {
+            } else if (method === "delete") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapDelete(mapAlloca, keyValue);
-            } else if (method === 'entries') {
+            } else if (method === "entries") {
               return this.ctx.stringMapGen.generateStringMapEntries(mapAlloca);
-            } else if (method === 'values') {
+            } else if (method === "values") {
               return this.ctx.stringMapGen.generateStringMapValues(mapAlloca);
-            } else if (method === 'keys') {
+            } else if (method === "keys") {
               return this.ctx.stringMapGen.generateStringMapKeys(mapAlloca);
             } else {
               return this.ctx.stringMapGen.generateStringMapClear(mapAlloca);
@@ -715,16 +837,19 @@ export class MethodCallGenerator {
           }
         }
 
-        if (method === 'set') {
+        if (method === "set") {
           return this.ctx.mapGen.generateMapSet(expr, params);
-        } else if (method === 'get') {
+        } else if (method === "get") {
           return this.ctx.mapGen.generateMapGet(expr, params);
-        } else if (method === 'has') {
+        } else if (method === "has") {
           return this.ctx.mapGen.generateMapHas(expr, params);
-        } else if (method === 'delete') {
+        } else if (method === "delete") {
           return this.ctx.mapGen.generateMapDelete(expr, params);
-        } else if (method === 'entries' || method === 'values' || method === 'keys') {
-          return this.ctx.emitError(`Map.${method}() only supported for Map<string, *> types`, expr.loc);
+        } else if (method === "entries" || method === "values" || method === "keys") {
+          return this.ctx.emitError(
+            `Map.${method}() only supported for Map<string, *> types`,
+            expr.loc,
+          );
         } else {
           return this.ctx.mapGen.generateMapClear(expr, params);
         }
@@ -734,41 +859,44 @@ export class MethodCallGenerator {
         const paramMapKeyType = this.getParameterMapKeyType(varName);
         if (paramMapKeyType) {
           const mapPtr = this.ctx.generateExpression(expr.object, params);
-          if (paramMapKeyType === 'string') {
-            if (method === 'set') {
+          if (paramMapKeyType === "string") {
+            if (method === "set") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const valueValue = this.ctx.generateExpression(expr.args[1], params);
               return this.ctx.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue);
-            } else if (method === 'get') {
+            } else if (method === "get") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
-            } else if (method === 'has') {
+            } else if (method === "has") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapHas(mapPtr, keyValue);
-            } else if (method === 'delete') {
+            } else if (method === "delete") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringMapGen.generateStringMapDelete(mapPtr, keyValue);
-            } else if (method === 'clear') {
+            } else if (method === "clear") {
               return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
-            } else if (method === 'entries') {
+            } else if (method === "entries") {
               return this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
-            } else if (method === 'values') {
+            } else if (method === "values") {
               return this.ctx.stringMapGen.generateStringMapValues(mapPtr);
             } else {
               return this.ctx.stringMapGen.generateStringMapKeys(mapPtr);
             }
           } else {
-            if (method === 'set') {
+            if (method === "set") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
               const valueValue = this.ctx.generateExpression(expr.args[1], params);
               return this.ctx.pointerMapGen.generatePointerMapSet(mapPtr, keyValue, valueValue);
-            } else if (method === 'get') {
+            } else if (method === "get") {
               const keyValue = this.ctx.generateExpression(expr.args[0], params);
-              return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, 'i8*');
-            } else if (method === 'clear') {
+              return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, "i8*");
+            } else if (method === "clear") {
               return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
             } else {
-              return this.ctx.emitError(`Map.${method}() not supported for Map<${paramMapKeyType}, *> parameter types`, expr.loc);
+              return this.ctx.emitError(
+                `Map.${method}() not supported for Map<${paramMapKeyType}, *> parameter types`,
+                expr.loc,
+              );
             }
           }
         }
@@ -777,69 +905,75 @@ export class MethodCallGenerator {
       const thisFieldMapKeyType = this.getThisFieldMapKeyType(expr.object);
       if (thisFieldMapKeyType) {
         const mapPtr = this.ctx.generateExpression(expr.object, params);
-        if (thisFieldMapKeyType === 'string') {
-          if (method === 'set') {
+        if (thisFieldMapKeyType === "string") {
+          if (method === "set") {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
             const valueValue = this.ctx.generateExpression(expr.args[1], params);
             return this.ctx.stringMapGen.generateStringMapSet(mapPtr, keyValue, valueValue);
-          } else if (method === 'get') {
+          } else if (method === "get") {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringMapGen.generateStringMapGet(mapPtr, keyValue);
-          } else if (method === 'has') {
+          } else if (method === "has") {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringMapGen.generateStringMapHas(mapPtr, keyValue);
-          } else if (method === 'delete') {
+          } else if (method === "delete") {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringMapGen.generateStringMapDelete(mapPtr, keyValue);
-          } else if (method === 'entries') {
+          } else if (method === "entries") {
             return this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
-          } else if (method === 'values') {
+          } else if (method === "values") {
             return this.ctx.stringMapGen.generateStringMapValues(mapPtr);
           } else {
             return this.ctx.stringMapGen.generateStringMapClear(mapPtr);
           }
         } else {
           const mapPtr = this.ctx.generateExpression(expr.object, params);
-          if (method === 'set') {
+          if (method === "set") {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
             const valueValue = this.ctx.generateExpression(expr.args[1], params);
             return this.ctx.pointerMapGen.generatePointerMapSet(mapPtr, keyValue, valueValue);
-          } else if (method === 'get') {
+          } else if (method === "get") {
             const keyValue = this.ctx.generateExpression(expr.args[0], params);
-            return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, 'i8*');
-          } else if (method === 'clear') {
+            return this.ctx.pointerMapGen.generatePointerMapGet(mapPtr, keyValue, "i8*");
+          } else if (method === "clear") {
             return this.ctx.pointerMapGen.generatePointerMapClear(mapPtr);
           } else {
-            return this.ctx.emitError(`Map.${method}() not supported for Map<${thisFieldMapKeyType}, *> types`, expr.loc);
+            return this.ctx.emitError(
+              `Map.${method}() not supported for Map<${thisFieldMapKeyType}, *> types`,
+              expr.loc,
+            );
           }
         }
       }
     }
 
     // Handle Set methods
-    if (method === 'add' || method === 'has' || method === 'delete') {
+    if (method === "add" || method === "has" || method === "delete") {
       const varName = this.getVariableName(expr.object);
       if (varName && this.ctx.symbolTable.isSet(varName)) {
         const setValueType = this.ctx.symbolTable.getSetValueType(varName);
 
-        if (setValueType && setValueType === 'string') {
+        if (setValueType && setValueType === "string") {
           const setAlloca = this.ctx.symbolTable.getAlloca(varName);
           if (setAlloca) {
-            if (method === 'add') {
+            if (method === "add") {
               const valueValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringSetGen.generateStringSetAdd(setAlloca, valueValue);
-            } else if (method === 'has') {
+            } else if (method === "has") {
               const valueValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringSetGen.generateStringSetHas(setAlloca, valueValue);
             } else {
-              return this.ctx.emitError('Set.delete() not yet implemented for Set<string>', expr.loc);
+              return this.ctx.emitError(
+                "Set.delete() not yet implemented for Set<string>",
+                expr.loc,
+              );
             }
           }
         }
 
-        if (method === 'add') {
+        if (method === "add") {
           return this.ctx.setGen.generateSetAdd(expr, params);
-        } else if (method === 'has') {
+        } else if (method === "has") {
           return this.ctx.setGen.generateSetHas(expr, params);
         } else {
           return this.ctx.setGen.generateSetDelete(expr, params);
@@ -849,49 +983,64 @@ export class MethodCallGenerator {
       const thisFieldSetValueType = this.getThisFieldSetValueType(expr.object);
       if (thisFieldSetValueType) {
         const setPtr = this.ctx.generateExpression(expr.object, params);
-        if (thisFieldSetValueType === 'string') {
-          if (method === 'add') {
+        if (thisFieldSetValueType === "string") {
+          if (method === "add") {
             const valueValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringSetGen.generateStringSetAdd(setPtr, valueValue);
-          } else if (method === 'has') {
+          } else if (method === "has") {
             const valueValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringSetGen.generateStringSetHas(setPtr, valueValue);
           } else {
-            return this.ctx.emitError('Set.delete() not yet implemented for Set<string>', expr.loc);
+            return this.ctx.emitError("Set.delete() not yet implemented for Set<string>", expr.loc);
           }
         }
       }
     }
 
     // Handle array methods (arrayGen uses context pattern - no sync needed! 🎯)
-    if (method === 'push') {
+    if (method === "push") {
       return this.ctx.arrayGen.generateArrayPush(expr, params);
-    } else if (method === 'pop') {
+    } else if (method === "pop") {
       return this.ctx.arrayGen.generateArrayPop(expr, params);
-    } else if (method === 'includes' && this.ctx.isArrayExpression(expr.object)) {
+    } else if (method === "includes" && this.ctx.isArrayExpression(expr.object)) {
       return this.ctx.arrayGen.generateArrayIncludes(expr, params);
-    } else if (method === 'map') {
+    } else if (method === "map") {
       if (this.ctx.isStringArrayExpression(expr.object)) {
         return this.ctx.arrayGen.generateStringArrayMap(expr, params);
       }
       return this.ctx.arrayGen.generateArrayMap(expr, params);
-    } else if (method === 'join' && (this.ctx.isStringArrayExpression(expr.object) || this.ctx.isArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {
+    } else if (
+      method === "join" &&
+      (this.ctx.isStringArrayExpression(expr.object) ||
+        this.ctx.isArrayExpression(expr.object) ||
+        this.ctx.isObjectArrayExpression(expr.object))
+    ) {
       return this.ctx.arrayGen.generateArrayJoin(expr, params);
-    } else if (method === 'find') {
+    } else if (method === "find") {
       return this.ctx.arrayGen.generateArrayFind(expr, params);
-    } else if (method === 'some') {
+    } else if (method === "some") {
       return this.ctx.arrayGen.generateArraySome(expr, params);
-    } else if (method === 'every') {
+    } else if (method === "every") {
       return this.ctx.arrayGen.generateArrayEvery(expr, params);
-    } else if (method === 'filter') {
+    } else if (method === "filter") {
       return this.ctx.arrayGen.generateArrayFilter(expr, params);
-    } else if (method === 'forEach') {
+    } else if (method === "forEach") {
       return this.ctx.arrayGen.generateArrayForEach(expr, params);
-    } else if (method === 'reduce') {
+    } else if (method === "reduce") {
       return this.ctx.arrayGen.generateArrayReduce(expr, params);
-    } else if (method === 'slice' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {
+    } else if (
+      method === "slice" &&
+      (this.ctx.isArrayExpression(expr.object) ||
+        this.ctx.isStringArrayExpression(expr.object) ||
+        this.ctx.isObjectArrayExpression(expr.object))
+    ) {
       return this.ctx.arrayGen.generateArraySlice(expr, params);
-    } else if (method === 'concat' && (this.ctx.isArrayExpression(expr.object) || this.ctx.isStringArrayExpression(expr.object) || this.ctx.isObjectArrayExpression(expr.object))) {
+    } else if (
+      method === "concat" &&
+      (this.ctx.isArrayExpression(expr.object) ||
+        this.ctx.isStringArrayExpression(expr.object) ||
+        this.ctx.isObjectArrayExpression(expr.object))
+    ) {
       return this.ctx.arrayGen.generateArrayConcat(expr, params);
     }
 
@@ -908,16 +1057,19 @@ export class MethodCallGenerator {
     }
 
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const ast = this.ctx.getAst();
       if (ast && ast.imports) {
         for (let ii = 0; ii < ast.imports.length; ii++) {
           const imp = ast.imports[ii];
           if (!imp) continue;
-          const isRelative = imp.source.startsWith('./') || imp.source.startsWith('../') || imp.source.startsWith('/');
+          const isRelative =
+            imp.source.startsWith("./") ||
+            imp.source.startsWith("../") ||
+            imp.source.startsWith("/");
           if (!isRelative && imp.specifiers && imp.specifiers.indexOf(varName) !== -1) {
-            return 'null';
+            return "null";
           }
         }
       }
@@ -928,9 +1080,8 @@ export class MethodCallGenerator {
 
   private handleExecSync(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      return this.ctx.emitError('execSync() requires 1 argument (command)', expr.loc);
+      return this.ctx.emitError("execSync() requires 1 argument (command)", expr.loc);
     }
-
 
     // Get command argument
     const commandPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -944,9 +1095,8 @@ export class MethodCallGenerator {
 
   private handleJsonStringify(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      return this.ctx.emitError('JSON.stringify() requires 1 argument', expr.loc);
+      return this.ctx.emitError("JSON.stringify() requires 1 argument", expr.loc);
     }
-
 
     const arg = expr.args[0];
 
@@ -966,7 +1116,9 @@ export class MethodCallGenerator {
       // Create format string: "\"%s\""
       const formatStr = this.ctx.stringGen.doCreateStringConstant('"%s"');
       const sprintfResult = this.nextTemp();
-      this.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, i8* ${strPtr})`);
+      this.emit(
+        `${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, i8* ${strPtr})`,
+      );
 
       return buffer;
     } else {
@@ -978,9 +1130,11 @@ export class MethodCallGenerator {
       this.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 30)`);
 
       // Create format string: "%f"
-      const formatStr = this.ctx.stringGen.doCreateStringConstant('%f');
+      const formatStr = this.ctx.stringGen.doCreateStringConstant("%f");
       const sprintfResult = this.nextTemp();
-      this.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${numValue})`);
+      this.emit(
+        `${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${numValue})`,
+      );
 
       return buffer;
     }
@@ -998,7 +1152,6 @@ export class MethodCallGenerator {
   }
 
   private handleRegexExec(expr: MethodCallNode, params: string[]): string {
-
     if (expr.args.length !== 1) {
       return this.ctx.emitError(`exec() expects 1 argument, got ${expr.args.length}`, expr.loc);
     }
@@ -1009,10 +1162,10 @@ export class MethodCallGenerator {
     const regexBase = regexObj as { type: string; pattern?: string; flags?: string };
 
     let numGroups = 0;
-    if (regexBase.type === 'regex' && regexBase.pattern) {
+    if (regexBase.type === "regex" && regexBase.pattern) {
       const pattern = regexBase.pattern;
       for (let gi = 0; gi < pattern.length; gi++) {
-        if (pattern[gi] === '(') {
+        if (pattern[gi] === "(") {
           numGroups = numGroups + 1;
         }
       }
@@ -1024,23 +1177,26 @@ export class MethodCallGenerator {
     return this.ctx.regexGen.generateRegexMatch(regexPtr, strPtr, numGroups);
   }
 
-
-  private throwUnsupportedMethodError(method: string, _objectType?: string, methodCallExpr?: MethodCallNode): never {
-    let objectDescription = '';
+  private throwUnsupportedMethodError(
+    method: string,
+    _objectType?: string,
+    methodCallExpr?: MethodCallNode,
+  ): never {
+    let objectDescription = "";
 
     if (methodCallExpr) {
       const expr = methodCallExpr.object;
       if (expr) {
         const e = expr as ExprBase;
-        if (e.type === 'member_access') {
+        if (e.type === "member_access") {
           const memberExpr = expr as MemberAccessNode;
           const memberObjBase = memberExpr.object as ExprBase;
-          if (memberObjBase && memberObjBase.type === 'variable') {
+          if (memberObjBase && memberObjBase.type === "variable") {
             objectDescription = `${(memberExpr.object as VariableNode).name}.${memberExpr.property}`;
           } else {
             objectDescription = memberExpr.property;
           }
-        } else if (e.type === 'variable') {
+        } else if (e.type === "variable") {
           objectDescription = (expr as VariableNode).name;
         }
       }
@@ -1048,11 +1204,11 @@ export class MethodCallGenerator {
 
     // Simple one-line suggestions for common unsupported methods
     let suggestion: string | undefined = undefined;
-    if (method === 'isInteger') {
+    if (method === "isInteger") {
       suggestion = `Use (value % 1 === 0) instead`;
-    } else if (method === 'isNaN') {
+    } else if (method === "isNaN") {
       suggestion = `Use (value !== value) instead`;
-    } else if (method === 'includes') {
+    } else if (method === "includes") {
       suggestion = `Use indexOf(...) !== -1 instead`;
     }
 
@@ -1065,18 +1221,18 @@ export class MethodCallGenerator {
 
   private isLikelyResponseExpression(expr: MethodCallNode): boolean {
     const exprObj = expr.object as ExprBase;
-    if (exprObj.type === 'variable') {
+    if (exprObj.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.symbolTable.getType(varName);
-      if (varType === '%__FetchResponse*') return true;
+      if (varType === "%__FetchResponse*") return true;
     }
-    if (exprObj.type === 'index_access' || exprObj.type === 'member_access') {
+    if (exprObj.type === "index_access" || exprObj.type === "member_access") {
       return true;
     }
-    if (exprObj.type === 'call') {
+    if (exprObj.type === "call") {
       return true;
     }
-    if (exprObj.type === 'await') {
+    if (exprObj.type === "await") {
       return true;
     }
     return false;

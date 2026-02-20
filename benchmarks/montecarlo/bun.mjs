@@ -16,7 +16,7 @@ for (let i = 0; i < SAMPLES; i++) {
 }
 
 const elapsed = (performance.now() - start) / 1000;
-const pi = 4.0 * inside / SAMPLES;
+const pi = (4.0 * inside) / SAMPLES;
 
 console.log(`Samples:  ${SAMPLES}`);
 console.log(`Pi:       ${pi}`);

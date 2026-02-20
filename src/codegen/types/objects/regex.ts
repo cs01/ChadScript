@@ -1,4 +1,4 @@
-import { IGeneratorContext } from '../../infrastructure/generator-context.js';
+import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 
 // ============================================
 // REGEX GENERATOR - Regex operations
@@ -12,15 +12,23 @@ export class RegexGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
   // Helper methods delegate to context
-  private nextTemp(): string { return this.ctx.nextTemp(); }
-  private nextString(): string { return this.ctx.nextString(); }
-  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string): void { this.ctx.emit(instruction); }
+  private nextTemp(): string {
+    return this.ctx.nextTemp();
+  }
+  private nextString(): string {
+    return this.ctx.nextString();
+  }
+  private nextLabel(prefix: string): string {
+    return this.ctx.nextLabel(prefix);
+  }
+  private emit(instruction: string): void {
+    this.ctx.emit(instruction);
+  }
 
   private byteToHex(b: number): string {
-    const hexChars = '0123456789ABCDEF';
-    const hi = hexChars.charAt((b >> 4) & 0xF);
-    const lo = hexChars.charAt(b & 0xF);
+    const hexChars = "0123456789ABCDEF";
+    const hi = hexChars.charAt((b >> 4) & 0xf);
+    const lo = hexChars.charAt(b & 0xf);
     return hi + lo;
   }
 
@@ -28,44 +36,44 @@ export class RegexGenerator {
   // Returns a pointer to regex_t struct (i8*)
   generateRegexCompile(pattern: string, flags: string): string {
     this.ctx.setUsesRegex(true);
-    let escaped = '';
+    let escaped = "";
     let byteCount = 0;
     for (let i = 0; i < pattern.length; i++) {
       const ch = pattern[i];
       const code = pattern.charCodeAt(i);
-      if (ch === '\\') {
-        escaped += '\\5C';
+      if (ch === "\\") {
+        escaped += "\\5C";
         byteCount += 1;
-      } else if (ch === '\n') {
-        escaped += '\\0A';
+      } else if (ch === "\n") {
+        escaped += "\\0A";
         byteCount += 1;
-      } else if (ch === '\r') {
-        escaped += '\\0D';
+      } else if (ch === "\r") {
+        escaped += "\\0D";
         byteCount += 1;
-      } else if (ch === '\t') {
-        escaped += '\\09';
+      } else if (ch === "\t") {
+        escaped += "\\09";
         byteCount += 1;
       } else if (ch === '"') {
-        escaped += '\\22';
+        escaped += "\\22";
         byteCount += 1;
       } else if (code < 32 || code > 126) {
         if (code < 128) {
-          escaped += '\\' + this.byteToHex(code);
+          escaped += "\\" + this.byteToHex(code);
           byteCount += 1;
         } else if (code < 0x800) {
-          escaped += '\\' + this.byteToHex(0xC0 | (code >> 6));
-          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          escaped += "\\" + this.byteToHex(0xc0 | (code >> 6));
+          escaped += "\\" + this.byteToHex(0x80 | (code & 0x3f));
           byteCount += 2;
         } else if (code < 0x10000) {
-          escaped += '\\' + this.byteToHex(0xE0 | (code >> 12));
-          escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
-          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          escaped += "\\" + this.byteToHex(0xe0 | (code >> 12));
+          escaped += "\\" + this.byteToHex(0x80 | ((code >> 6) & 0x3f));
+          escaped += "\\" + this.byteToHex(0x80 | (code & 0x3f));
           byteCount += 3;
         } else {
-          escaped += '\\' + this.byteToHex(0xF0 | (code >> 18));
-          escaped += '\\' + this.byteToHex(0x80 | ((code >> 12) & 0x3F));
-          escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
-          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          escaped += "\\" + this.byteToHex(0xf0 | (code >> 18));
+          escaped += "\\" + this.byteToHex(0x80 | ((code >> 12) & 0x3f));
+          escaped += "\\" + this.byteToHex(0x80 | ((code >> 6) & 0x3f));
+          escaped += "\\" + this.byteToHex(0x80 | (code & 0x3f));
           byteCount += 4;
         }
       } else {
@@ -78,12 +86,17 @@ export class RegexGenerator {
     const globalName = this.nextString();
 
     this.ctx.pushGlobalString(
-      globalName + ' = private unnamed_addr constant [' + length + ' x i8] c"' + escaped + '\\00", align 1'
+      globalName +
+        " = private unnamed_addr constant [" +
+        length +
+        ' x i8] c"' +
+        escaped +
+        '\\00", align 1',
     );
 
     const patternPtr = this.nextTemp();
     this.emit(
-      `${patternPtr} = getelementptr inbounds [${length} x i8], [${length} x i8]* ${globalName}, i64 0, i64 0`
+      `${patternPtr} = getelementptr inbounds [${length} x i8], [${length} x i8]* ${globalName}, i64 0, i64 0`,
     );
 
     const regexPtr = this.nextTemp();
@@ -91,18 +104,18 @@ export class RegexGenerator {
 
     const REG_EXTENDED = 1;
     const REG_ICASE = 2;
-    const REG_NEWLINE = process.platform === 'darwin' ? 8 : 4;
+    const REG_NEWLINE = process.platform === "darwin" ? 8 : 4;
     let cflags = REG_EXTENDED;
-    if (flags.indexOf('i') !== -1) {
+    if (flags.indexOf("i") !== -1) {
       cflags = cflags | REG_ICASE;
     }
-    if (flags.indexOf('m') !== -1) {
+    if (flags.indexOf("m") !== -1) {
       cflags = cflags | REG_NEWLINE;
     }
 
     const compileResult = this.nextTemp();
     this.emit(
-      `${compileResult} = call i32 @cs_regex_compile(i8* ${regexPtr}, i8* ${patternPtr}, i32 ${cflags})`
+      `${compileResult} = call i32 @cs_regex_compile(i8* ${regexPtr}, i8* ${patternPtr}, i32 ${cflags})`,
     );
 
     // For simplicity, we're not checking the compile result
@@ -118,7 +131,7 @@ export class RegexGenerator {
 
     const compileResult = this.nextTemp();
     this.emit(
-      `${compileResult} = call i32 @cs_regex_compile(i8* ${regexPtr}, i8* ${patternPtr}, i32 ${cflags})`
+      `${compileResult} = call i32 @cs_regex_compile(i8* ${regexPtr}, i8* ${patternPtr}, i32 ${cflags})`,
     );
 
     return regexPtr;
@@ -129,7 +142,7 @@ export class RegexGenerator {
   generateRegexTest(regexPtr: string, testStr: string): string {
     const execResult = this.nextTemp();
     this.emit(
-      `${execResult} = call i32 @cs_regex_exec(i8* ${regexPtr}, i8* ${testStr}, i32 0, i8* null, i32 0)`
+      `${execResult} = call i32 @cs_regex_exec(i8* ${regexPtr}, i8* ${testStr}, i32 0, i8* null, i32 0)`,
     );
 
     // regexec returns 0 on match, non-zero on no match
@@ -143,7 +156,7 @@ export class RegexGenerator {
     // Convert to double for JavaScript semantics
     const result = this.nextTemp();
     this.emit(`${result} = sitofp i32 ${i32Result} to double`);
-    this.ctx.setVariableType(result, 'double');
+    this.ctx.setVariableType(result, "double");
 
     return result;
   }
@@ -160,14 +173,16 @@ export class RegexGenerator {
     this.emit(`${pmatchPtr} = call i8* @cs_pmatch_alloc(i32 ${MAX_GROUPS})`);
 
     const execResult = this.nextTemp();
-    this.emit(`${execResult} = call i32 @cs_regex_exec(i8* ${regexPtr}, i8* ${testStr}, i32 ${MAX_GROUPS}, i8* ${pmatchPtr}, i32 0)`);
+    this.emit(
+      `${execResult} = call i32 @cs_regex_exec(i8* ${regexPtr}, i8* ${testStr}, i32 ${MAX_GROUPS}, i8* ${pmatchPtr}, i32 0)`,
+    );
 
     const isNoMatch = this.nextTemp();
     this.emit(`${isNoMatch} = icmp ne i32 ${execResult}, 0`);
 
-    const noMatchLabel = this.nextLabel('match_nomatch');
-    const matchLabel = this.nextLabel('match_found');
-    const endLabel = this.nextLabel('match_end');
+    const noMatchLabel = this.nextLabel("match_nomatch");
+    const matchLabel = this.nextLabel("match_found");
+    const endLabel = this.nextLabel("match_end");
 
     this.emit(`br i1 ${isNoMatch}, label %${noMatchLabel}, label %${matchLabel}`);
 
@@ -188,15 +203,21 @@ export class RegexGenerator {
     this.emit(`${typedDataPtr} = bitcast i8* ${dataPtr} to i8**`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${typedArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${typedArrayPtr}, i32 0, i32 0`,
+    );
     this.emit(`store i8** ${typedDataPtr}, i8*** ${dataPtrField}`);
 
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${typedArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${typedArrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 ${MAX_GROUPS}, i32* ${lenPtr}`);
 
     const capPtr = this.nextTemp();
-    this.emit(`${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${typedArrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${typedArrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${MAX_GROUPS}, i32* ${capPtr}`);
 
     for (let i = 0; i < MAX_GROUPS; i++) {
@@ -219,7 +240,9 @@ export class RegexGenerator {
       this.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${testStr}, i64 ${rmSo}`);
 
       const strncpyResult = this.nextTemp();
-      this.emit(`${strncpyResult} = call i8* @strncpy(i8* ${substrPtr}, i8* ${srcPtr}, i64 ${matchLen})`);
+      this.emit(
+        `${strncpyResult} = call i8* @strncpy(i8* ${substrPtr}, i8* ${srcPtr}, i64 ${matchLen})`,
+      );
 
       const nullPos = this.nextTemp();
       this.emit(`${nullPos} = getelementptr inbounds i8, i8* ${substrPtr}, i64 ${matchLen}`);
@@ -235,7 +258,7 @@ export class RegexGenerator {
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
     this.emit(`${result} = phi i8* [ null, %${noMatchLabel} ], [ ${arrayPtr}, %${matchLabel} ]`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }

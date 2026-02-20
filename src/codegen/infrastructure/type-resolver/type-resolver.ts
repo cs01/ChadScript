@@ -1,10 +1,52 @@
-import { AST, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Expression, MemberAccessNode, VariableNode, IndexAccessNode, BinaryNode, FunctionNode, ClassNode, CommonField, FunctionParameter, MethodCallNode, StringNode } from '../../../ast/types.js';
-import { SymbolTable, ObjectMetadata, SymbolKind, Symbol as SymbolEntry, MapMetadata, ObjectArrayMetadata } from '../symbol-table.js';
-import type { TypeChecker } from '../../../typescript/type-checker.js';
-import { FieldInfo, MapTypeInfo, SetTypeInfo, TypeGuardInfo, UnionCommonFields, ThisFieldMapInfo, ThisFieldSetInfo } from './types.js';
-import { ResolvedType, createResolvedType, parseTypeString, stripOptional, parseMapTypeString, parseSetTypeString, parseArrayTypeString, canonicalTypeToLlvm } from '../type-system.js';
+import {
+  AST,
+  InterfaceDeclaration,
+  InterfaceField,
+  TypeAliasDeclaration,
+  Expression,
+  MemberAccessNode,
+  VariableNode,
+  IndexAccessNode,
+  BinaryNode,
+  FunctionNode,
+  ClassNode,
+  CommonField,
+  FunctionParameter,
+  MethodCallNode,
+  StringNode,
+} from "../../../ast/types.js";
+import {
+  SymbolTable,
+  ObjectMetadata,
+  SymbolKind,
+  Symbol as SymbolEntry,
+  MapMetadata,
+  ObjectArrayMetadata,
+} from "../symbol-table.js";
+import type { TypeChecker } from "../../../typescript/type-checker.js";
+import {
+  FieldInfo,
+  MapTypeInfo,
+  SetTypeInfo,
+  TypeGuardInfo,
+  UnionCommonFields,
+  ThisFieldMapInfo,
+  ThisFieldSetInfo,
+} from "./types.js";
+import {
+  ResolvedType,
+  createResolvedType,
+  parseTypeString,
+  stripOptional,
+  parseMapTypeString,
+  parseSetTypeString,
+  parseArrayTypeString,
+  canonicalTypeToLlvm,
+} from "../type-system.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
 export interface TypeResolverContext {
   ast?: AST;
@@ -23,7 +65,10 @@ export interface TypeResolverContext {
   currentClassName?: string | null;
   getCurrentClassName(): string | null;
   currentFunction?: string | null;
-  classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
+  classGenGetFieldInfo(
+    className: string | null,
+    fieldName: string | null,
+  ): { index: number; type: string; tsType?: string } | null;
   hasClassGen(): boolean;
 }
 
@@ -33,163 +78,158 @@ interface BuiltinAstType {
 }
 
 function getBuiltinAstTypeByDiscriminant(discriminant: string): BuiltinAstType | null {
-  if (discriminant === 'assignment') {
+  if (discriminant === "assignment") {
     return {
-      name: 'AssignmentStatement',
+      name: "AssignmentStatement",
       fields: [
-        { name: 'type', type: "'assignment'" },
-        { name: 'name', type: 'string' },
-        { name: 'value', type: 'Expression' }
-      ]
+        { name: "type", type: "'assignment'" },
+        { name: "name", type: "string" },
+        { name: "value", type: "Expression" },
+      ],
     };
   }
-  if (discriminant === 'variable_declaration') {
+  if (discriminant === "variable_declaration") {
     return {
-      name: 'VariableDeclaration',
+      name: "VariableDeclaration",
       fields: [
-        { name: 'type', type: "'variable_declaration'" },
-        { name: 'kind', type: "'let' | 'const'" },
-        { name: 'name', type: 'string' },
-        { name: 'value', type: 'Expression | null' },
-        { name: 'declaredType', type: 'string' }
-      ]
+        { name: "type", type: "'variable_declaration'" },
+        { name: "kind", type: "'let' | 'const'" },
+        { name: "name", type: "string" },
+        { name: "value", type: "Expression | null" },
+        { name: "declaredType", type: "string" },
+      ],
     };
   }
-  if (discriminant === 'return') {
+  if (discriminant === "return") {
     return {
-      name: 'ReturnStatement',
+      name: "ReturnStatement",
       fields: [
-        { name: 'type', type: "'return'" },
-        { name: 'value', type: 'Expression' }
-      ]
+        { name: "type", type: "'return'" },
+        { name: "value", type: "Expression" },
+      ],
     };
   }
-  if (discriminant === 'if') {
+  if (discriminant === "if") {
     return {
-      name: 'IfStatement',
+      name: "IfStatement",
       fields: [
-        { name: 'type', type: "'if'" },
-        { name: 'condition', type: 'Expression' },
-        { name: 'thenBlock', type: 'BlockStatement' },
-        { name: 'elseBlock', type: 'BlockStatement | null' }
-      ]
+        { name: "type", type: "'if'" },
+        { name: "condition", type: "Expression" },
+        { name: "thenBlock", type: "BlockStatement" },
+        { name: "elseBlock", type: "BlockStatement | null" },
+      ],
     };
   }
-  if (discriminant === 'while') {
+  if (discriminant === "while") {
     return {
-      name: 'WhileStatement',
+      name: "WhileStatement",
       fields: [
-        { name: 'type', type: "'while'" },
-        { name: 'condition', type: 'Expression' },
-        { name: 'body', type: 'BlockStatement' }
-      ]
+        { name: "type", type: "'while'" },
+        { name: "condition", type: "Expression" },
+        { name: "body", type: "BlockStatement" },
+      ],
     };
   }
-  if (discriminant === 'for') {
+  if (discriminant === "for") {
     return {
-      name: 'ForStatement',
+      name: "ForStatement",
       fields: [
-        { name: 'type', type: "'for'" },
-        { name: 'init', type: 'VariableDeclaration | AssignmentStatement | null' },
-        { name: 'condition', type: 'Expression | null' },
-        { name: 'update', type: 'AssignmentStatement | null' },
-        { name: 'body', type: 'BlockStatement' }
-      ]
+        { name: "type", type: "'for'" },
+        { name: "init", type: "VariableDeclaration | AssignmentStatement | null" },
+        { name: "condition", type: "Expression | null" },
+        { name: "update", type: "AssignmentStatement | null" },
+        { name: "body", type: "BlockStatement" },
+      ],
     };
   }
-  if (discriminant === 'for_of') {
+  if (discriminant === "for_of") {
     return {
-      name: 'ForOfStatement',
+      name: "ForOfStatement",
       fields: [
-        { name: 'type', type: "'for_of'" },
-        { name: 'variableKind', type: "'let' | 'const' | 'var'" },
-        { name: 'variableName', type: 'string' },
-        { name: 'iterable', type: 'Expression' },
-        { name: 'body', type: 'BlockStatement' }
-      ]
+        { name: "type", type: "'for_of'" },
+        { name: "variableKind", type: "'let' | 'const' | 'var'" },
+        { name: "variableName", type: "string" },
+        { name: "iterable", type: "Expression" },
+        { name: "body", type: "BlockStatement" },
+      ],
     };
   }
-  if (discriminant === 'block') {
+  if (discriminant === "block") {
     return {
-      name: 'BlockStatement',
+      name: "BlockStatement",
       fields: [
-        { name: 'type', type: "'block'" },
-        { name: 'statements', type: 'Statement[]' }
-      ]
+        { name: "type", type: "'block'" },
+        { name: "statements", type: "Statement[]" },
+      ],
     };
   }
-  if (discriminant === 'throw') {
+  if (discriminant === "throw") {
     return {
-      name: 'ThrowStatement',
+      name: "ThrowStatement",
       fields: [
-        { name: 'type', type: "'throw'" },
-        { name: 'argument', type: 'Expression' }
-      ]
+        { name: "type", type: "'throw'" },
+        { name: "argument", type: "Expression" },
+      ],
     };
   }
-  if (discriminant === 'try') {
+  if (discriminant === "try") {
     return {
-      name: 'TryStatement',
+      name: "TryStatement",
       fields: [
-        { name: 'type', type: "'try'" },
-        { name: 'block', type: 'BlockStatement' },
-        { name: 'handler', type: 'CatchClause | null' },
-        { name: 'finalizer', type: 'BlockStatement | null' }
-      ]
+        { name: "type", type: "'try'" },
+        { name: "block", type: "BlockStatement" },
+        { name: "handler", type: "CatchClause | null" },
+        { name: "finalizer", type: "BlockStatement | null" },
+      ],
     };
   }
-  if (discriminant === 'switch') {
+  if (discriminant === "switch") {
     return {
-      name: 'SwitchStatement',
+      name: "SwitchStatement",
       fields: [
-        { name: 'type', type: "'switch'" },
-        { name: 'discriminant', type: 'Expression' },
-        { name: 'cases', type: 'SwitchCase[]' }
-      ]
+        { name: "type", type: "'switch'" },
+        { name: "discriminant", type: "Expression" },
+        { name: "cases", type: "SwitchCase[]" },
+      ],
     };
   }
-  if (discriminant === 'break') {
+  if (discriminant === "break") {
     return {
-      name: 'BreakStatement',
-      fields: [
-        { name: 'type', type: "'break'" }
-      ]
+      name: "BreakStatement",
+      fields: [{ name: "type", type: "'break'" }],
     };
   }
-  if (discriminant === 'continue') {
+  if (discriminant === "continue") {
     return {
-      name: 'ContinueStatement',
-      fields: [
-        { name: 'type', type: "'continue'" }
-      ]
+      name: "ContinueStatement",
+      fields: [{ name: "type", type: "'continue'" }],
     };
   }
   return null;
 }
 
 function getBuiltinAstTypeByName(name: string): BuiltinAstType | null {
-  if (name === 'AssignmentStatement') return getBuiltinAstTypeByDiscriminant('assignment');
-  if (name === 'VariableDeclaration') return getBuiltinAstTypeByDiscriminant('variable_declaration');
-  if (name === 'ReturnStatement') return getBuiltinAstTypeByDiscriminant('return');
-  if (name === 'IfStatement') return getBuiltinAstTypeByDiscriminant('if');
-  if (name === 'WhileStatement') return getBuiltinAstTypeByDiscriminant('while');
-  if (name === 'ForStatement') return getBuiltinAstTypeByDiscriminant('for');
-  if (name === 'ForOfStatement') return getBuiltinAstTypeByDiscriminant('for_of');
-  if (name === 'BlockStatement') return getBuiltinAstTypeByDiscriminant('block');
-  if (name === 'ThrowStatement') return getBuiltinAstTypeByDiscriminant('throw');
-  if (name === 'TryStatement') return getBuiltinAstTypeByDiscriminant('try');
-  if (name === 'SwitchStatement') return getBuiltinAstTypeByDiscriminant('switch');
-  if (name === 'BreakStatement') return getBuiltinAstTypeByDiscriminant('break');
-  if (name === 'ContinueStatement') return getBuiltinAstTypeByDiscriminant('continue');
+  if (name === "AssignmentStatement") return getBuiltinAstTypeByDiscriminant("assignment");
+  if (name === "VariableDeclaration")
+    return getBuiltinAstTypeByDiscriminant("variable_declaration");
+  if (name === "ReturnStatement") return getBuiltinAstTypeByDiscriminant("return");
+  if (name === "IfStatement") return getBuiltinAstTypeByDiscriminant("if");
+  if (name === "WhileStatement") return getBuiltinAstTypeByDiscriminant("while");
+  if (name === "ForStatement") return getBuiltinAstTypeByDiscriminant("for");
+  if (name === "ForOfStatement") return getBuiltinAstTypeByDiscriminant("for_of");
+  if (name === "BlockStatement") return getBuiltinAstTypeByDiscriminant("block");
+  if (name === "ThrowStatement") return getBuiltinAstTypeByDiscriminant("throw");
+  if (name === "TryStatement") return getBuiltinAstTypeByDiscriminant("try");
+  if (name === "SwitchStatement") return getBuiltinAstTypeByDiscriminant("switch");
+  if (name === "BreakStatement") return getBuiltinAstTypeByDiscriminant("break");
+  if (name === "ContinueStatement") return getBuiltinAstTypeByDiscriminant("continue");
   return null;
 }
 
 export class TypeResolver {
-
   constructor(private ctx: TypeResolverContext) {}
 
-  clearCaches(): void {
-  }
+  clearCaches(): void {}
 
   getCompleteType(name: string): ResolvedType | null {
     const cached = this.ctx.symbolTable.getResolvedType(name);
@@ -206,14 +246,14 @@ export class TypeResolver {
       if (mapMeta) {
         const keyType = parseTypeString(mapMeta.keyType);
         const valueType = parseTypeString(mapMeta.valueType);
-        resolved = createResolvedType('Map', {}, 0, [keyType, valueType]);
+        resolved = createResolvedType("Map", {}, 0, [keyType, valueType]);
       }
     }
     if (!resolved) {
       const setValueType = this.ctx.symbolTable.getSetValueType(name);
       if (setValueType) {
         const valueType = parseTypeString(setValueType);
-        resolved = createResolvedType('Set', {}, 0, [valueType]);
+        resolved = createResolvedType("Set", {}, 0, [valueType]);
       }
     }
     if (!resolved) {
@@ -229,10 +269,10 @@ export class TypeResolver {
       }
     }
     if (!resolved && this.ctx.symbolTable.isStringArray(name)) {
-      resolved = createResolvedType('string', {}, 1);
+      resolved = createResolvedType("string", {}, 1);
     }
     if (!resolved && this.ctx.symbolTable.isBooleanArray(name)) {
-      resolved = createResolvedType('boolean', {}, 1);
+      resolved = createResolvedType("boolean", {}, 1);
     }
     if (!resolved) {
       const className = this.ctx.symbolTable.getClassName(name);
@@ -244,37 +284,40 @@ export class TypeResolver {
       const llvmType = this.ctx.symbolTable.getType(name);
       if (llvmType) {
         switch (llvmType) {
-          case 'double':
-            resolved = createResolvedType('number');
+          case "double":
+            resolved = createResolvedType("number");
             break;
-          case 'i8*':
-            resolved = createResolvedType('string');
+          case "i8*":
+            resolved = createResolvedType("string");
             break;
-          case 'i1':
-            resolved = createResolvedType('boolean');
+          case "i1":
+            resolved = createResolvedType("boolean");
             break;
-          case '%Array*':
-            resolved = createResolvedType('number', {}, 1);
+          case "%Array*":
+            resolved = createResolvedType("number", {}, 1);
             break;
-          case '%StringArray*':
-            resolved = createResolvedType('string', {}, 1);
+          case "%StringArray*":
+            resolved = createResolvedType("string", {}, 1);
             break;
-          case '%Map*':
-            resolved = createResolvedType('Map');
+          case "%Map*":
+            resolved = createResolvedType("Map");
             break;
-          case '%StringMap*':
-            resolved = createResolvedType('Map', {}, 0, [createResolvedType('string'), createResolvedType('unknown')]);
+          case "%StringMap*":
+            resolved = createResolvedType("Map", {}, 0, [
+              createResolvedType("string"),
+              createResolvedType("unknown"),
+            ]);
             break;
-          case '%Set*':
-            resolved = createResolvedType('Set');
+          case "%Set*":
+            resolved = createResolvedType("Set");
             break;
-          case '%StringSet*':
-            resolved = createResolvedType('Set', {}, 0, [createResolvedType('string')]);
+          case "%StringSet*":
+            resolved = createResolvedType("Set", {}, 0, [createResolvedType("string")]);
             break;
           default:
-            if (llvmType.startsWith('%') && llvmType.endsWith('*')) {
+            if (llvmType.startsWith("%") && llvmType.endsWith("*")) {
               const typeName = llvmType.slice(1, -1);
-              if (typeName.endsWith('_struct')) {
+              if (typeName.endsWith("_struct")) {
                 resolved = createResolvedType(typeName.slice(0, -7));
               } else {
                 resolved = createResolvedType(typeName);
@@ -292,7 +335,6 @@ export class TypeResolver {
     return resolved;
   }
 
-
   getInterface(name: string): InterfaceDeclaration | null {
     if (!name) {
       return null;
@@ -307,7 +349,7 @@ export class TypeResolver {
       const ifaceDecl: InterfaceDeclaration = {
         name: builtinType.name,
         fields: fields,
-        extends: []
+        extends: [],
       };
       return ifaceDecl;
     }
@@ -337,7 +379,7 @@ export class TypeResolver {
       for (let i = 0; i < builtinType.fields.length; i++) {
         const f = builtinType.fields[i];
         keys.push(stripOptional(f.name));
-        types.push(canonicalTypeToLlvm(f.type, 'default', this.isEnumType(f.type), false, ''));
+        types.push(canonicalTypeToLlvm(f.type, "default", this.isEnumType(f.type), false, ""));
         tsTypes.push(f.type);
       }
       return { keys, types, tsTypes };
@@ -351,7 +393,7 @@ export class TypeResolver {
     for (let i = 0; i < iface.fields.length; i++) {
       const f = iface.fields[i] as { name: string; type: string };
       keys.push(stripOptional(f.name));
-      types.push(canonicalTypeToLlvm(f.type, 'default', this.isEnumType(f.type), false, ''));
+      types.push(canonicalTypeToLlvm(f.type, "default", this.isEnumType(f.type), false, ""));
       tsTypes.push(f.type);
     }
     return { keys, types, tsTypes };
@@ -375,7 +417,9 @@ export class TypeResolver {
     return null;
   }
 
-  getInterfaceDefinition(interfaceName: string): { properties: { name: string; type: string }[] } | null {
+  getInterfaceDefinition(
+    interfaceName: string,
+  ): { properties: { name: string; type: string }[] } | null {
     const iface = this.getInterface(interfaceName);
     if (!iface) return null;
     const properties: { name: string; type: string }[] = [];
@@ -401,15 +445,18 @@ export class TypeResolver {
 
   private resolveMemberAccessObjectType(expr: Expression): string | null {
     const exprBase = expr as ExprBase;
-    if (exprBase.type === 'this') {
+    if (exprBase.type === "this") {
       return this.ctx.getCurrentClassName() || null;
     }
-    if (exprBase.type === 'member_access') {
+    if (exprBase.type === "member_access") {
       const member = expr as MemberAccessNode;
       const memberObjBase = member.object as ExprBase;
-      if (memberObjBase.type === 'this') {
+      if (memberObjBase.type === "this") {
         if (this.ctx.getCurrentClassName() && this.ctx.hasClassGen()) {
-          const fieldInfoResult = this.ctx.classGenGetFieldInfo(this.ctx.getCurrentClassName()!, member.property);
+          const fieldInfoResult = this.ctx.classGenGetFieldInfo(
+            this.ctx.getCurrentClassName()!,
+            member.property,
+          );
           const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
           if (fieldInfoResult && fieldInfo.tsType) {
             return fieldInfo.tsType;
@@ -459,7 +506,9 @@ export class TypeResolver {
     return null;
   }
 
-  getFunctionType(functionName: string): { parameters: { name: string; type: string }[]; returnType: string } | null {
+  getFunctionType(
+    functionName: string,
+  ): { parameters: { name: string; type: string }[]; returnType: string } | null {
     const func = this.getFunction(functionName);
     if (!func) return null;
     const parameters: { name: string; type: string }[] = [];
@@ -468,18 +517,18 @@ export class TypeResolver {
         const p = func.parameters[i] as FunctionParameter;
         parameters.push({
           name: p.name,
-          type: p.type || 'number'
+          type: p.type || "number",
         });
       }
     } else if (func.params && func.paramTypes) {
       for (let i = 0; i < func.params.length; i++) {
         parameters.push({
           name: func.params[i],
-          type: func.paramTypes[i] || 'number'
+          type: func.paramTypes[i] || "number",
         });
       }
     }
-    return { parameters, returnType: func.returnType || 'void' };
+    return { parameters, returnType: func.returnType || "void" };
   }
 
   getClass(name: string): ClassNode | null {
@@ -548,7 +597,7 @@ export class TypeResolver {
     for (let i = 0; i < commonFields.length; i++) {
       const f = commonFields[i] as CommonField;
       keys.push(stripOptional(f.name));
-      types.push(canonicalTypeToLlvm(f.type, 'default', this.isEnumType(f.type), false, ''));
+      types.push(canonicalTypeToLlvm(f.type, "default", this.isEnumType(f.type), false, ""));
       tsTypes.push(f.type);
     }
     return { keys, types, tsTypes };
@@ -566,14 +615,20 @@ export class TypeResolver {
     const mapParsed = parseMapTypeString(fieldInfo.tsType);
     if (!mapParsed) return null;
 
-    const keyType = mapParsed.keyType as 'string' | 'number';
+    const keyType = mapParsed.keyType as "string" | "number";
     const valueType = mapParsed.valueType;
 
     return {
       keyType,
       valueType,
-      llvmKeyType: keyType === 'string' ? 'i8*' : 'double',
-      llvmValueType: canonicalTypeToLlvm(valueType, 'default', this.isEnumType(valueType), false, '')
+      llvmKeyType: keyType === "string" ? "i8*" : "double",
+      llvmValueType: canonicalTypeToLlvm(
+        valueType,
+        "default",
+        this.isEnumType(valueType),
+        false,
+        "",
+      ),
     };
   }
 
@@ -585,48 +640,48 @@ export class TypeResolver {
     const setParsed = parseSetTypeString(fieldInfo.tsType);
     if (!setParsed) return null;
 
-    const valueType = setParsed.valueType as 'string' | 'number';
+    const valueType = setParsed.valueType as "string" | "number";
 
     return {
       valueType,
-      llvmValueType: valueType === 'string' ? 'i8*' : 'double'
+      llvmValueType: valueType === "string" ? "i8*" : "double",
     };
   }
 
   getMapGetInterfaceType(expr: Expression): string | null {
-    if (!expr || expr.type !== 'method_call') return null;
+    if (!expr || expr.type !== "method_call") return null;
     const methodCall = expr as MethodCallNode;
-    if (methodCall.method !== 'get') return null;
+    if (methodCall.method !== "get") return null;
 
     let valueType: string | null = null;
 
-    if (methodCall.object && methodCall.object.type === 'variable') {
+    if (methodCall.object && methodCall.object.type === "variable") {
       const mapName = (methodCall.object as VariableNode).name;
       if (!this.ctx.symbolTable.isMap(mapName)) return null;
 
       const mapMeta = this.ctx.symbolTable.getMapMetadata(mapName);
       if (!mapMeta) return null;
-      if (mapMeta.keyType !== 'string') return null;
+      if (mapMeta.keyType !== "string") return null;
 
       valueType = mapMeta.valueType;
-    } else if (methodCall.object && methodCall.object.type === 'member_access') {
+    } else if (methodCall.object && methodCall.object.type === "member_access") {
       const memberExpr = methodCall.object as MemberAccessNode;
       const memberExprObjBase = memberExpr.object as ExprBase;
-      if (memberExprObjBase.type !== 'this') return null;
+      if (memberExprObjBase.type !== "this") return null;
       const className = this.ctx.getCurrentClassName();
       if (!className) return null;
 
       const mapType = this.getClassFieldMapType(className, memberExpr.property);
       if (!mapType) return null;
-      if (mapType.keyType !== 'string') return null;
+      if (mapType.keyType !== "string") return null;
 
       valueType = mapType.valueType;
     }
 
     if (!valueType) return null;
-    if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') return null;
+    if (valueType === "string" || valueType === "number" || valueType === "boolean") return null;
 
-    if (valueType.endsWith('[]')) {
+    if (valueType.endsWith("[]")) {
       return valueType;
     }
 
@@ -638,15 +693,17 @@ export class TypeResolver {
 
   resolveIndexedAccessType(expr: IndexAccessNode): ObjectMetadata | null {
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'member_access') return null;
+    if (exprObjBase.type !== "member_access") return null;
 
     const memberAccess = expr.object as MemberAccessNode;
     const propertyName = memberAccess.property;
 
-    let objectInfo: { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
+    let objectInfo:
+      | { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] }
+      | undefined;
 
     const memberAccessObjBase = memberAccess.object as ExprBase;
-    if (memberAccessObjBase.type === 'variable') {
+    if (memberAccessObjBase.type === "variable") {
       const varName = (memberAccess.object as VariableNode).name;
       objectInfo = this.ctx.symbolTable.getObjectInfo(varName);
     }
@@ -669,10 +726,10 @@ export class TypeResolver {
 
   detectTypeGuard(condition: Expression): TypeGuardInfo | null {
     if (!condition) return null;
-    if (condition.type !== 'binary') return null;
+    if (condition.type !== "binary") return null;
 
     const binary = condition as BinaryNode;
-    if (binary.op !== '===' && binary.op !== '==') return null;
+    if (binary.op !== "===" && binary.op !== "==") return null;
     if (!binary.left || !binary.right) return null;
 
     const leftBase = binary.left as ExprBase;
@@ -682,11 +739,11 @@ export class TypeResolver {
     let memberAccessVar: MemberAccessNode | null = null;
     let literalValueVar: string | null = null;
 
-    if (leftBase.type === 'member_access' && rightBase.type === 'string') {
+    if (leftBase.type === "member_access" && rightBase.type === "string") {
       memberAccessVar = binary.left as MemberAccessNode;
       const stringNode = binary.right as StringNode;
       literalValueVar = stringNode.value;
-    } else if (rightBase.type === 'member_access' && leftBase.type === 'string') {
+    } else if (rightBase.type === "member_access" && leftBase.type === "string") {
       memberAccessVar = binary.right as MemberAccessNode;
       const stringNode = binary.left as StringNode;
       literalValueVar = stringNode.value;
@@ -695,9 +752,9 @@ export class TypeResolver {
     if (!memberAccessVar || !literalValueVar) return null;
     const memberAccess = memberAccessVar as MemberAccessNode;
     const literalValue = literalValueVar as string;
-    if (memberAccess.property !== 'type') return null;
+    if (memberAccess.property !== "type") return null;
     const memberAccessObjBase2 = memberAccess.object as ExprBase;
-    if (memberAccessObjBase2.type !== 'variable') return null;
+    if (memberAccessObjBase2.type !== "variable") return null;
 
     const varName = (memberAccess.object as VariableNode).name;
     const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
@@ -721,12 +778,12 @@ export class TypeResolver {
 
     return {
       varName,
-      narrowedMetadata: metadata
+      narrowedMetadata: metadata,
     };
   }
 
-  findInterfaceByDiscriminant(value: string, field: string = 'type'): string | null {
-    if (field === 'type') {
+  findInterfaceByDiscriminant(value: string, field: string = "type"): string | null {
+    if (field === "type") {
       const builtinType = getBuiltinAstTypeByDiscriminant(value);
       if (builtinType) {
         return builtinType.name;
@@ -739,12 +796,7 @@ export class TypeResolver {
       if (!ifaceName) continue;
       const iface = this.ctx.getAstInterfaceAt(i);
       if (!iface) continue;
-      const match = this.checkInterfaceForDiscriminant(
-        ifaceName,
-        iface.fields,
-        value,
-        field
-      );
+      const match = this.checkInterfaceForDiscriminant(ifaceName, iface.fields, value, field);
       if (match) return match;
     }
     return null;
@@ -754,7 +806,7 @@ export class TypeResolver {
     ifaceName: string,
     fields: InterfaceField[],
     value: string,
-    field: string
+    field: string,
   ): string | null {
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i] as { name: string; type: string };
@@ -775,8 +827,8 @@ export class TypeResolver {
   }
 
   normalizeType(typeStr: string): string {
-    if (typeStr.startsWith("'") && typeStr.endsWith("'")) return 'string';
-    if (typeStr.startsWith('"') && typeStr.endsWith('"')) return 'string';
+    if (typeStr.startsWith("'") && typeStr.endsWith("'")) return "string";
+    if (typeStr.startsWith('"') && typeStr.endsWith('"')) return "string";
     return typeStr;
   }
 
@@ -784,11 +836,11 @@ export class TypeResolver {
     const ast = this.ctx.getAst();
     if (!ast || !ast.enums) return false;
     let checkType = typeName;
-    if (checkType.indexOf(' | ') !== -1) {
-      const parts = checkType.split(' | ');
+    if (checkType.indexOf(" | ") !== -1) {
+      const parts = checkType.split(" | ");
       for (let j = 0; j < parts.length; j++) {
         const part = parts[j].trim();
-        if (part !== 'undefined' && part !== 'null') {
+        if (part !== "undefined" && part !== "null") {
           checkType = part;
           break;
         }
@@ -804,11 +856,11 @@ export class TypeResolver {
 
   getThisFieldMapType(expr: Expression): ThisFieldMapInfo | null {
     const exprBase = expr as ExprBase;
-    if (exprBase.type !== 'member_access') return null;
+    if (exprBase.type !== "member_access") return null;
     const memberExpr = expr as MemberAccessNode;
 
     const memberExprObjBase = memberExpr.object as ExprBase;
-    if (memberExprObjBase.type === 'this') {
+    if (memberExprObjBase.type === "this") {
       const fieldName = memberExpr.property;
       const currentCls = this.ctx.getCurrentClassName();
       if (!currentCls) return null;
@@ -823,7 +875,7 @@ export class TypeResolver {
       return { fieldName, keyType: mapParsed.keyType, valueType: mapParsed.valueType };
     }
 
-    if (memberExprObjBase.type === 'member_access') {
+    if (memberExprObjBase.type === "member_access") {
       const nestedType = this.resolveNestedMemberType(memberExpr.object);
       if (!nestedType) return null;
 
@@ -842,7 +894,11 @@ export class TypeResolver {
           const fieldTyped = field as { name: string; type: string };
           const mapParsed = parseMapTypeString(fieldTyped.type);
           if (mapParsed) {
-            return { fieldName: memberExpr.property, keyType: mapParsed.keyType, valueType: mapParsed.valueType };
+            return {
+              fieldName: memberExpr.property,
+              keyType: mapParsed.keyType,
+              valueType: mapParsed.valueType,
+            };
           }
         }
       }
@@ -863,7 +919,11 @@ export class TypeResolver {
           if (fieldTyped.tsType) {
             const mapParsed = parseMapTypeString(fieldTyped.tsType);
             if (mapParsed) {
-              return { fieldName: memberExpr.property, keyType: mapParsed.keyType, valueType: mapParsed.valueType };
+              return {
+                fieldName: memberExpr.property,
+                keyType: mapParsed.keyType,
+                valueType: mapParsed.valueType,
+              };
             }
           }
         }
@@ -874,11 +934,11 @@ export class TypeResolver {
   }
 
   private resolveNestedMemberType(expr: Expression): string | null {
-    if (expr.type === 'this') {
+    if (expr.type === "this") {
       return this.ctx.getCurrentClassName() || null;
     }
 
-    if (expr.type !== 'member_access') return null;
+    if (expr.type !== "member_access") return null;
     const memberExpr = expr as MemberAccessNode;
 
     const parentType = this.resolveNestedMemberType(memberExpr.object);
@@ -898,10 +958,10 @@ export class TypeResolver {
       if (field) {
         const fieldTyped = field as { name: string; type: string };
         let fieldType = fieldTyped.type;
-        if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
-          fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
+        if (fieldType.endsWith(" | null") || fieldType.endsWith(" | undefined")) {
+          fieldType = fieldType.replace(/ \| null$/, "").replace(/ \| undefined$/, "");
         }
-        if (fieldType.endsWith('?')) {
+        if (fieldType.endsWith("?")) {
           fieldType = fieldType.slice(0, -1);
         }
         return fieldType;
@@ -923,10 +983,10 @@ export class TypeResolver {
         const fieldTyped = field as { name: string; tsType: string };
         if (fieldTyped.tsType) {
           let fieldType = fieldTyped.tsType;
-          if (fieldType.endsWith(' | null') || fieldType.endsWith(' | undefined')) {
-            fieldType = fieldType.replace(/ \| null$/, '').replace(/ \| undefined$/, '');
+          if (fieldType.endsWith(" | null") || fieldType.endsWith(" | undefined")) {
+            fieldType = fieldType.replace(/ \| null$/, "").replace(/ \| undefined$/, "");
           }
-          if (fieldType.endsWith('?')) {
+          if (fieldType.endsWith("?")) {
             fieldType = fieldType.slice(0, -1);
           }
           return fieldType;
@@ -939,10 +999,10 @@ export class TypeResolver {
 
   getThisFieldSetType(expr: Expression): ThisFieldSetInfo | null {
     const exprBaseSet = expr as ExprBase;
-    if (exprBaseSet.type !== 'member_access') return null;
+    if (exprBaseSet.type !== "member_access") return null;
     const memberExpr = expr as MemberAccessNode;
     const memberExprObjBaseSet = memberExpr.object as ExprBase;
-    if (memberExprObjBaseSet.type !== 'this') return null;
+    if (memberExprObjBaseSet.type !== "this") return null;
 
     const fieldName = memberExpr.property;
     const currentClsSet = this.ctx.getCurrentClassName();
@@ -960,11 +1020,11 @@ export class TypeResolver {
 
   getThisFieldMapKeyType(expr: Expression): string | null {
     const exprBaseKey = expr as ExprBase;
-    if (exprBaseKey.type !== 'member_access') return null;
+    if (exprBaseKey.type !== "member_access") return null;
     const memberExpr = expr as MemberAccessNode;
 
     const memberExprObjBaseKey = memberExpr.object as ExprBase;
-    if (memberExprObjBaseKey.type === 'this') {
+    if (memberExprObjBaseKey.type === "this") {
       const currentClsKey = this.ctx.getCurrentClassName();
       if (!currentClsKey) return null;
       const fieldInfoResult = this.getClassFieldInfo(currentClsKey, memberExpr.property);
@@ -976,7 +1036,7 @@ export class TypeResolver {
       return mapParsed.keyType;
     }
 
-    if (memberExprObjBaseKey.type === 'member_access') {
+    if (memberExprObjBaseKey.type === "member_access") {
       const nestedType = this.resolveNestedMemberType(memberExpr.object);
       if (!nestedType) return null;
 
@@ -1028,10 +1088,10 @@ export class TypeResolver {
 
   getThisFieldSetValueType(expr: Expression): string | null {
     const exprBaseSetVal = expr as ExprBase;
-    if (exprBaseSetVal.type !== 'member_access') return null;
+    if (exprBaseSetVal.type !== "member_access") return null;
     const memberExpr = expr as MemberAccessNode;
     const memberExprObjBaseSetVal = memberExpr.object as ExprBase;
-    if (memberExprObjBaseSetVal.type !== 'this') return null;
+    if (memberExprObjBaseSetVal.type !== "this") return null;
 
     const currentClsSetVal = this.ctx.getCurrentClassName();
     if (!currentClsSetVal) return null;
@@ -1045,26 +1105,28 @@ export class TypeResolver {
   }
 
   resolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null {
-    if (!expr || expr.type !== 'method_call') return null;
+    if (!expr || expr.type !== "method_call") return null;
 
     const methodCall = expr as MethodCallNode;
     const method = methodCall.method;
 
-    if (method !== 'find') return null;
+    if (method !== "find") return null;
 
     const arrayExpr = methodCall.object as { type: string };
 
-    if (arrayExpr.type === 'member_access') {
+    if (arrayExpr.type === "member_access") {
       const memberAccess = arrayExpr as MemberAccessNode;
       const propertyName = memberAccess.property;
 
-      let objectInfo: { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined;
+      let objectInfo:
+        | { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] }
+        | undefined;
 
       const memberObj = memberAccess.object as { type: string };
-      if (memberObj.type === 'variable') {
+      if (memberObj.type === "variable") {
         const varName = (memberObj as VariableNode).name;
         objectInfo = this.ctx.symbolTable.getObjectInfo(varName);
-      } else if (memberObj.type === 'member_access' || memberObj.type === 'this') {
+      } else if (memberObj.type === "member_access" || memberObj.type === "this") {
         const arrayType = this.resolveMemberAccessArrayType(memberAccess);
         if (arrayType) {
           return this.getInterfaceMetadata(arrayType);
@@ -1088,7 +1150,7 @@ export class TypeResolver {
       return this.getInterfaceMetadata(elementType);
     }
 
-    if (arrayExpr.type === 'variable') {
+    if (arrayExpr.type === "variable") {
       const varExpr = arrayExpr as VariableNode;
       const varName = varExpr.name;
       const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
@@ -1096,7 +1158,7 @@ export class TypeResolver {
         return {
           keys: objArrayMeta.elementKeys,
           types: objArrayMeta.elementTypes,
-          tsTypes: objArrayMeta.elementTsTypes
+          tsTypes: objArrayMeta.elementTsTypes,
         };
       }
     }

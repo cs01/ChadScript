@@ -1,6 +1,6 @@
 // Main file that imports from math-lib
 
-import { add, multiply } from '../arithmetic/math-lib.js';
+import { add, multiply } from "../arithmetic/math-lib.js";
 
 function compute(x, y) {
   let sum = add(x, y);

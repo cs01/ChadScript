@@ -63,6 +63,7 @@ When adding a new test fixture:
 ## Test Execution
 
 Tests compile each fixture to a native executable and verify:
+
 - **Compilation succeeds** - LLVM IR and executable are generated
 - **Exit code matches** - The program returns the expected exit code
 - **Output is correct** (for some tests) - stdout/stderr match expectations
@@ -72,65 +73,85 @@ Compiled artifacts (.ll files and executables) are created in the same directory
 ## Categories Explained
 
 ### arithmetic/
+
 Tests for mathematical operations:
+
 - Basic arithmetic: add, subtract, multiply, divide, modulo
 - Operator precedence
 - Nested function calls
 - Math built-in functions (sqrt, pow, floor, ceil, etc.)
 
 ### arrays/
+
 Tests for array operations:
+
 - Array literals and indexing
 - Array methods: map, filter, reduce, find, some, forEach, push, pop, includes
 - String arrays (arrays of strings have a different internal representation)
 - Array initialization and safety
 
 ### strings/
+
 Tests for string operations:
+
 - String literals and concatenation
 - String methods: length, substr, substring, concat, repeat, padStart, split, trim, charAt, indexOf
 - String indexing (returns character code)
 
 ### control-flow/
+
 Tests for program control structures:
+
 - Conditional statements: if, if-else, nested conditionals
 - Ternary operator
 - Loops: while, for
 - Loop control: break, continue
 
 ### classes/
+
 Tests for object-oriented programming:
+
 - Class declarations with constructors
 - Methods and this binding
 - Inheritance and super
 - Class fields with type annotations
 
 ### objects/
+
 Tests for object literals:
+
 - Object creation and property access
 - Nested objects
 - Object methods
 - Dynamic property access
 
 ### data-structures/
+
 Tests for built-in data structures beyond arrays:
+
 - Map: set, get, has, delete, size
 - Set: add, has, delete, size
 
 ### comparisons/ & logical/
+
 Tests for boolean operations:
+
 - Comparison operators: ==, ===, !=, !==, <, >, <=, >=
 - Logical operators: &&, ||, !
 - Boolean literals: true, false
 
 ### bitwise/
+
 Tests for bitwise operations:
+
 - AND, OR, XOR
 - Left shift, right shift
 - Bitwise NOT
 
 ### builtins/
+
 Tests for built-in functions and APIs:
+
 - console.log
 - process.argv and command-line arguments
 - fs.readFileSync
@@ -138,48 +159,63 @@ Tests for built-in functions and APIs:
 - parseInt, parseFloat
 
 ### functions/
+
 Tests for advanced function features:
+
 - Function expressions
 - Arrow functions
 - Anonymous functions
 - Higher-order functions
 
 ### imports-exports/
+
 Tests for multi-file compilation:
+
 - ES6 import/export syntax
 - Relative imports
 - Cross-file function calls
 
 ### error-handling/
+
 Tests for exception handling:
+
 - try/catch/throw
 - Error propagation
 
 ### network/
+
 Tests for network operations:
+
 - TCP servers and clients
 - HTTP requests (fetch API)
 
 ### regex/
+
 Tests for regular expressions:
+
 - Pattern matching
 - String replacement
 - regex.test()
 
 ### typescript/
+
 Tests for TypeScript-specific features:
+
 - Type annotations
 - Interfaces
 - Generic types
 
 ### edge-cases/
+
 Tests for special scenarios:
+
 - Empty strings and arrays
 - Shebang handling
 - Bootstrap scenarios
 - Local variable scoping
 
 ### debugging/
+
 Development fixtures used for debugging compiler issues. These may not have corresponding test cases in the test suite.
 
 ## File Types

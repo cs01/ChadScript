@@ -1,6 +1,6 @@
-import type { SymbolTable } from '../infrastructure/symbol-table.js';
-import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
-import type { SourceLocation } from '../../ast/types.js';
+import type { SymbolTable } from "../infrastructure/symbol-table.js";
+import type { InterfaceStructGenerator } from "../types/interface-struct-generator.js";
+import type { SourceLocation } from "../../ast/types.js";
 
 export interface VariableExpressionContext {
   symbolTable: SymbolTable;
@@ -52,17 +52,17 @@ export class VariableExpressionGenerator {
    * Checks SymbolTable and loads with correct LLVM type
    */
   generate(name: string): string {
-    if (name === 'null') {
+    if (name === "null") {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
-      this.ctx.setVariableType(temp, 'i8*');
+      this.ctx.setVariableType(temp, "i8*");
       return temp;
     }
 
-    if (name === 'undefined') {
+    if (name === "undefined") {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
-      this.ctx.setVariableType(temp, 'i8*');
+      this.ctx.setVariableType(temp, "i8*");
       return temp;
     }
 
@@ -82,10 +82,10 @@ export class VariableExpressionGenerator {
     if (this.ctx.symbolTable.isMap(name)) {
       const allocaReg = this.ctx.getVariableAlloca(name)!;
       const mapMeta = this.ctx.symbolTable.getMapMetadata(name);
-      if (mapMeta && mapMeta.keyType === 'string') {
-        this.ctx.setVariableType(allocaReg, '%StringMap*');
+      if (mapMeta && mapMeta.keyType === "string") {
+        this.ctx.setVariableType(allocaReg, "%StringMap*");
       } else {
-        this.ctx.setVariableType(allocaReg, '%Map*');
+        this.ctx.setVariableType(allocaReg, "%Map*");
       }
       return allocaReg;
     }
@@ -94,10 +94,10 @@ export class VariableExpressionGenerator {
     if (this.ctx.symbolTable.isSet(name)) {
       const allocaReg = this.ctx.getVariableAlloca(name)!;
       const setValueType = this.ctx.symbolTable.getSetValueType(name);
-      if (setValueType === 'string') {
-        this.ctx.setVariableType(allocaReg, '%StringSet*');
+      if (setValueType === "string") {
+        this.ctx.setVariableType(allocaReg, "%StringSet*");
       } else {
-        this.ctx.setVariableType(allocaReg, '%Set*');
+        this.ctx.setVariableType(allocaReg, "%Set*");
       }
       return allocaReg;
     }
@@ -106,13 +106,13 @@ export class VariableExpressionGenerator {
     if (this.ctx.symbolTable.isNumberArray(name)) {
       const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
       const llvmType = this.ctx.symbolTable.getType(name);
-      if (llvmType === '%Array*') {
+      if (llvmType === "%Array*") {
         const isPointerAlloca = this.ctx.symbolTable.isPointerAlloca(name);
-        return this.loadArray(allocaReg, '%Array*', isPointerAlloca);
-      } else if (llvmType === 'i8*') {
+        return this.loadArray(allocaReg, "%Array*", isPointerAlloca);
+      } else if (llvmType === "i8*") {
         const temp = this.ctx.nextTemp();
         this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}, !tbaa !5`);
-        this.ctx.setVariableType(temp, 'i8*');
+        this.ctx.setVariableType(temp, "i8*");
         return temp;
       }
       return allocaReg;
@@ -122,13 +122,13 @@ export class VariableExpressionGenerator {
     if (this.ctx.symbolTable.isStringArray(name)) {
       const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
       const llvmType = this.ctx.symbolTable.getType(name);
-      if (llvmType === '%StringArray*') {
+      if (llvmType === "%StringArray*") {
         const isPointerAlloca = this.ctx.symbolTable.isPointerAlloca(name);
-        return this.loadArray(allocaReg, '%StringArray*', isPointerAlloca);
-      } else if (llvmType === 'i8*') {
+        return this.loadArray(allocaReg, "%StringArray*", isPointerAlloca);
+      } else if (llvmType === "i8*") {
         const temp = this.ctx.nextTemp();
         this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}, !tbaa !5`);
-        this.ctx.setVariableType(temp, 'i8*');
+        this.ctx.setVariableType(temp, "i8*");
         return temp;
       }
       return allocaReg;
@@ -138,7 +138,7 @@ export class VariableExpressionGenerator {
       const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = load %Uint8Array*, %Uint8Array** ${allocaReg}, !tbaa !5`);
-      this.ctx.setVariableType(temp, '%Uint8Array*');
+      this.ctx.setVariableType(temp, "%Uint8Array*");
       return temp;
     }
 
@@ -160,14 +160,14 @@ export class VariableExpressionGenerator {
 
     // Load regular variable with proper type from variableTypes map
     if (!name) {
-      return this.ctx.emitError('Variable expression has no name property');
+      return this.ctx.emitError("Variable expression has no name property");
     }
 
     // Handle __chadscript global
-    if (name === '__chadscript') {
+    if (name === "__chadscript") {
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = load double, double* @__chadscript, !tbaa !4`);
-      this.ctx.setVariableType(temp, 'double');
+      this.ctx.setVariableType(temp, "double");
       return temp;
     }
 
@@ -182,17 +182,17 @@ export class VariableExpressionGenerator {
       if (funcName === name) {
         const temp = this.ctx.nextTemp();
         this.ctx.emit(`${temp} = inttoptr i64 1 to i8*`);
-        this.ctx.setVariableType(temp, 'i8*');
+        this.ctx.setVariableType(temp, "i8*");
         return temp;
       }
     }
 
-    return this.ctx.emitError('Unknown variable: ' + name);
+    return this.ctx.emitError("Unknown variable: " + name);
   }
 
   private loadClassInstance(_name: string, classMeta: ClassMeta): string {
     const fields = this.ctx.classGenGetClassFields(classMeta.className);
-    const ptrType = fields.length > 0 ? `%${classMeta.className}_struct*` : 'double*';
+    const ptrType = fields.length > 0 ? `%${classMeta.className}_struct*` : "double*";
 
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = load ${ptrType}, ${ptrType}* ${classMeta.ptr}, !tbaa !5`);
@@ -203,14 +203,14 @@ export class VariableExpressionGenerator {
   private loadRegex(allocaReg: string): string {
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}, !tbaa !5`);
-    this.ctx.setVariableType(temp, 'i8*');
+    this.ctx.setVariableType(temp, "i8*");
     return temp;
   }
 
   private loadString(allocaReg: string): string {
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}, !tbaa !5`);
-    this.ctx.setVariableType(temp, 'i8*');
+    this.ctx.setVariableType(temp, "i8*");
     return temp;
   }
 
@@ -224,24 +224,28 @@ export class VariableExpressionGenerator {
   private loadObject(objectMeta: ObjectMeta, _interfaceType?: string): string {
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = load i8*, i8** ${objectMeta.ptr}, !tbaa !5`);
-    this.ctx.setVariableType(temp, 'i8*');
+    this.ctx.setVariableType(temp, "i8*");
     return temp;
   }
 
   private loadRegularVariable(name: string, allocaReg: string): string {
     const temp = this.ctx.nextTemp();
-    let varType = this.ctx.getVariableType(name) || 'double';
-    const isTreeSitterType = varType === '%TSNode*' || varType === '%TSTree*' || varType === '%TSParser*' || varType === '%TSLanguage*';
+    let varType = this.ctx.getVariableType(name) || "double";
+    const isTreeSitterType =
+      varType === "%TSNode*" ||
+      varType === "%TSTree*" ||
+      varType === "%TSParser*" ||
+      varType === "%TSLanguage*";
     if (isTreeSitterType) {
       this.ctx.emit(`${temp} = load double, double* ${allocaReg}, !tbaa !4`);
       this.ctx.setVariableType(temp, varType);
       return temp;
     }
     if (!this.isValidLlvmType(varType)) {
-      varType = 'i8*';
+      varType = "i8*";
     }
     const ptrToType = `${varType}*`;
-    const tbaaTag = varType === 'double' ? '!tbaa !4' : '!tbaa !5';
+    const tbaaTag = varType === "double" ? "!tbaa !4" : "!tbaa !5";
     this.ctx.emit(`${temp} = load ${varType}, ${ptrToType} ${allocaReg}, ${tbaaTag}`);
     this.ctx.setVariableType(temp, varType);
     return temp;
@@ -249,26 +253,40 @@ export class VariableExpressionGenerator {
 
   private isValidLlvmType(typeStr: string): boolean {
     if (!typeStr) return false;
-    if (typeStr.startsWith('%{') || typeStr.includes('|') || typeStr.includes(':')) {
+    if (typeStr.startsWith("%{") || typeStr.includes("|") || typeStr.includes(":")) {
       return false;
     }
-    if (typeStr === 'double' || typeStr === 'i1' || typeStr === 'i8' || typeStr === 'i32' || typeStr === 'i64' || typeStr === 'void') {
+    if (
+      typeStr === "double" ||
+      typeStr === "i1" ||
+      typeStr === "i8" ||
+      typeStr === "i32" ||
+      typeStr === "i64" ||
+      typeStr === "void"
+    ) {
       return true;
     }
-    if (typeStr === 'i8*' || typeStr === 'i32*' || typeStr === 'i64*' || typeStr === 'double*') {
+    if (typeStr === "i8*" || typeStr === "i32*" || typeStr === "i64*" || typeStr === "double*") {
       return true;
     }
-    if (typeStr.endsWith('*')) {
+    if (typeStr.endsWith("*")) {
       const baseName = typeStr.slice(0, -1);
-      if (baseName.startsWith('%')) {
+      if (baseName.startsWith("%")) {
         const structName = baseName.slice(1);
-        if (structName.endsWith('_struct')) return true;
-        if (structName === 'Array' || structName === 'StringArray' || structName === 'ObjectArray' || structName === 'Uint8Array') return true;
-        if (structName === 'Map' || structName === 'StringMap' || structName === 'PointerMap') return true;
-        if (structName === 'Set' || structName === 'StringSet') return true;
-        if (structName === 'Promise' || structName === 'PromiseCallback') return true;
-        if (structName === 'Response' || structName === 'FetchBuffer') return true;
-        if (structName.startsWith('struct.')) return true;
+        if (structName.endsWith("_struct")) return true;
+        if (
+          structName === "Array" ||
+          structName === "StringArray" ||
+          structName === "ObjectArray" ||
+          structName === "Uint8Array"
+        )
+          return true;
+        if (structName === "Map" || structName === "StringMap" || structName === "PointerMap")
+          return true;
+        if (structName === "Set" || structName === "StringSet") return true;
+        if (structName === "Promise" || structName === "PromiseCallback") return true;
+        if (structName === "Response" || structName === "FetchBuffer") return true;
+        if (structName.startsWith("struct.")) return true;
         if (this.ctx.interfaceStructGen?.hasInterface(structName)) {
           return true;
         }

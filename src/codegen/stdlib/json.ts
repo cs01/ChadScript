@@ -1,8 +1,10 @@
-import { Expression, MethodCallNode } from '../../ast/types.js';
+import { Expression, MethodCallNode } from "../../ast/types.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
-import { IGeneratorContext } from '../infrastructure/generator-context.js';
+import { IGeneratorContext } from "../infrastructure/generator-context.js";
 
 export class JsonGenerator {
   private generatedKeys: string[];
@@ -24,7 +26,7 @@ export class JsonGenerator {
 
   private getFieldName(typeName: string, index: number): string {
     let name = this.ctx.interfaceStructGenGetFieldName(typeName, index);
-    if (name.charAt(name.length - 1) === '?') {
+    if (name.charAt(name.length - 1) === "?") {
       name = name.substring(0, name.length - 1);
     }
     return name;
@@ -32,27 +34,30 @@ export class JsonGenerator {
 
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') return false;
+    if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as { type: string; name: string };
-    if (varNode.name !== 'JSON') return false;
-    return (expr.method === 'parse' || expr.method === 'stringify');
+    if (varNode.name !== "JSON") return false;
+    return expr.method === "parse" || expr.method === "stringify";
   }
 
   generateParse(expr: MethodCallNode, params: string[], typeParam?: string): string {
     if (expr.args.length < 1) {
-      return this.ctx.emitError('JSON.parse() requires 1 argument (JSON string)', expr.loc);
+      return this.ctx.emitError("JSON.parse() requires 1 argument (JSON string)", expr.loc);
     }
 
     if (!typeParam) {
       return this.generateUntypedParse(expr, params);
     }
 
-    if (typeParam === 'number[]') {
+    if (typeParam === "number[]") {
       return this.generateParseNumberArray(expr, params);
     }
 
     if (!this.ctx.interfaceStructGenHasInterface(typeParam)) {
-      return this.ctx.emitError(`JSON.parse<${typeParam}>: Interface '${typeParam}' not found`, expr.loc);
+      return this.ctx.emitError(
+        `JSON.parse<${typeParam}>: Interface '${typeParam}' not found`,
+        expr.loc,
+      );
     }
 
     this.generateJsonStruct(typeParam);
@@ -83,9 +88,9 @@ export class JsonGenerator {
     const isNull = this.ctx.nextTemp();
     this.ctx.emit(`${isNull} = icmp eq i8* ${jsonRoot}, null`);
 
-    const successLabel = this.ctx.nextLabel('json_arr_success');
-    const errorLabel = this.ctx.nextLabel('json_arr_error');
-    const endLabel = this.ctx.nextLabel('json_arr_end');
+    const successLabel = this.ctx.nextLabel("json_arr_success");
+    const errorLabel = this.ctx.nextLabel("json_arr_error");
+    const endLabel = this.ctx.nextLabel("json_arr_end");
 
     this.ctx.emit(`br i1 ${isNull}, label %${errorLabel}, label %${successLabel}`);
 
@@ -127,10 +132,10 @@ export class JsonGenerator {
     this.ctx.emit(`${capFieldPtr} = getelementptr %Array, %Array* ${arr}, i32 0, i32 2`);
     this.ctx.emit(`store i32 ${sizeI32}, i32* ${capFieldPtr}`);
 
-    const loopInit = this.ctx.nextLabel('json_arr_loop_init');
-    const loopCond = this.ctx.nextLabel('json_arr_loop_cond');
-    const loopBody = this.ctx.nextLabel('json_arr_loop_body');
-    const loopEnd = this.ctx.nextLabel('json_arr_loop_end');
+    const loopInit = this.ctx.nextLabel("json_arr_loop_init");
+    const loopCond = this.ctx.nextLabel("json_arr_loop_cond");
+    const loopBody = this.ctx.nextLabel("json_arr_loop_body");
+    const loopEnd = this.ctx.nextLabel("json_arr_loop_end");
 
     this.ctx.emit(`br label %${loopInit}`);
     this.ctx.emit(`${loopInit}:`);
@@ -172,8 +177,10 @@ export class JsonGenerator {
 
     this.ctx.emit(`${endLabel}:`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi %Array* [ ${nullArray}, %${errorLabel} ], [ ${arr}, %${loopEnd} ]`);
-    this.ctx.setVariableType(result, '%Array*');
+    this.ctx.emit(
+      `${result} = phi %Array* [ ${nullArray}, %${errorLabel} ], [ ${arr}, %${loopEnd} ]`,
+    );
+    this.ctx.setVariableType(result, "%Array*");
 
     return result;
   }
@@ -206,22 +213,22 @@ export class JsonGenerator {
     const fieldTypes: string[] = [];
     for (let fi = 0; fi < fieldCount; fi++) {
       const fieldType = this.ctx.interfaceStructGenGetFieldTsType(typeName, fi);
-      if (fieldType === 'string') {
-        fieldTypes.push('i8*');
-      } else if (fieldType === 'number') {
-        fieldTypes.push('double');
-      } else if (fieldType === 'boolean') {
-        fieldTypes.push('double');
+      if (fieldType === "string") {
+        fieldTypes.push("i8*");
+      } else if (fieldType === "number") {
+        fieldTypes.push("double");
+      } else if (fieldType === "boolean") {
+        fieldTypes.push("double");
       } else {
         if (this.ctx.interfaceStructGenHasInterface(fieldType)) {
           fieldTypes.push(`%${fieldType}*`);
         } else {
-          fieldTypes.push('i8*');
+          fieldTypes.push("i8*");
         }
       }
     }
 
-    const structDef = `%${typeName} = type { ${fieldTypes.join(', ')} }` + '\n';
+    const structDef = `%${typeName} = type { ${fieldTypes.join(", ")} }` + "\n";
     const newGlobalStrings: string[] = [structDef];
     for (let i = 0; i < this.ctx.getGlobalStringsLength(); i++) {
       newGlobalStrings.push(this.ctx.getGlobalStringAt(i));
@@ -233,7 +240,7 @@ export class JsonGenerator {
   }
 
   private generateJsonParser(typeName: string): void {
-    const parserKey = '__parser__' + typeName;
+    const parserKey = "__parser__" + typeName;
     if (this.hasGenerated(parserKey)) {
       return;
     }
@@ -243,7 +250,7 @@ export class JsonGenerator {
 
     for (let fi = 0; fi < fieldCount; fi++) {
       const fieldType = this.ctx.interfaceStructGenGetFieldTsType(typeName, fi);
-      if (fieldType !== 'string' && fieldType !== 'number' && fieldType !== 'boolean') {
+      if (fieldType !== "string" && fieldType !== "number" && fieldType !== "boolean") {
         if (this.ctx.interfaceStructGenHasInterface(fieldType)) {
           this.generateJsonStruct(fieldType);
           this.generateJsonParser(fieldType);
@@ -258,99 +265,213 @@ export class JsonGenerator {
       fieldNames.push(fn);
       const c = this.ctx.nextString();
       fieldNameConsts.push(c);
-      this.ctx.pushGlobalString(c + ' = private unnamed_addr constant [' + (fn.length + 1) + ' x i8] c"' + fn + '\\00", align 1\n');
+      this.ctx.pushGlobalString(
+        c +
+          " = private unnamed_addr constant [" +
+          (fn.length + 1) +
+          ' x i8] c"' +
+          fn +
+          '\\00", align 1\n',
+      );
     }
 
     const structSize = fieldCount * 8;
     const lines: string[] = [];
-    lines.push('define %' + typeName + '* @parse_json_' + typeName + '(i8* %json_str) {');
-    lines.push('entry:');
-    lines.push('  %struct_bytes = call i8* @GC_malloc(i64 ' + structSize + ')');
-    lines.push('  %struct_ptr = bitcast i8* %struct_bytes to %' + typeName + '*');
+    lines.push("define %" + typeName + "* @parse_json_" + typeName + "(i8* %json_str) {");
+    lines.push("entry:");
+    lines.push("  %struct_bytes = call i8* @GC_malloc(i64 " + structSize + ")");
+    lines.push("  %struct_ptr = bitcast i8* %struct_bytes to %" + typeName + "*");
 
     for (let fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++) {
       const fieldType = this.ctx.interfaceStructGenGetFieldTsType(typeName, fieldIndex);
-      if (fieldType === 'string') {
-        lines.push('  %init_ptr_' + fieldIndex + ' = getelementptr inbounds %' + typeName + ', %' + typeName + '* %struct_ptr, i32 0, i32 ' + fieldIndex);
-        lines.push('  store i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.empty_str, i64 0, i64 0), i8** %init_ptr_' + fieldIndex);
+      if (fieldType === "string") {
+        lines.push(
+          "  %init_ptr_" +
+            fieldIndex +
+            " = getelementptr inbounds %" +
+            typeName +
+            ", %" +
+            typeName +
+            "* %struct_ptr, i32 0, i32 " +
+            fieldIndex,
+        );
+        lines.push(
+          "  store i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.empty_str, i64 0, i64 0), i8** %init_ptr_" +
+            fieldIndex,
+        );
       }
     }
 
-    lines.push('  %json_root = call i8* @csyyjson_parse(i8* %json_str)');
-    lines.push('  %json_is_null = icmp eq i8* %json_root, null');
-    lines.push('  br i1 %json_is_null, label %json_error, label %json_ok');
-    lines.push('');
-    lines.push('json_error:');
-    lines.push('  ret %' + typeName + '* %struct_ptr');
-    lines.push('');
+    lines.push("  %json_root = call i8* @csyyjson_parse(i8* %json_str)");
+    lines.push("  %json_is_null = icmp eq i8* %json_root, null");
+    lines.push("  br i1 %json_is_null, label %json_error, label %json_ok");
+    lines.push("");
+    lines.push("json_error:");
+    lines.push("  ret %" + typeName + "* %struct_ptr");
+    lines.push("");
 
     if (fieldCount === 0) {
-      lines.push('json_ok:');
-      lines.push('  br label %json_cleanup');
-      lines.push('');
+      lines.push("json_ok:");
+      lines.push("  br label %json_cleanup");
+      lines.push("");
     } else {
-      lines.push('json_ok:');
-      lines.push('  br label %field_0');
-      lines.push('');
+      lines.push("json_ok:");
+      lines.push("  br label %field_0");
+      lines.push("");
 
       for (let fieldIndex = 0; fieldIndex < fieldCount; fieldIndex++) {
         const fieldName = fieldNames[fieldIndex];
         const fieldType = this.ctx.interfaceStructGenGetFieldTsType(typeName, fieldIndex);
-        const nextLabel = (fieldIndex + 1 < fieldCount) ? 'field_' + (fieldIndex + 1) : 'json_cleanup';
+        const nextLabel =
+          fieldIndex + 1 < fieldCount ? "field_" + (fieldIndex + 1) : "json_cleanup";
         const fnc = fieldNameConsts[fieldIndex];
         const fnLen = fieldName.length + 1;
 
-        lines.push('field_' + fieldIndex + ':');
-        lines.push('  %item_' + fieldIndex + ' = call i8* @csyyjson_obj_get(i8* %json_root, i8* getelementptr inbounds ([' + fnLen + ' x i8], [' + fnLen + ' x i8]* ' + fnc + ', i64 0, i64 0))');
-        lines.push('  %item_' + fieldIndex + '_null = icmp eq i8* %item_' + fieldIndex + ', null');
-        lines.push('  br i1 %item_' + fieldIndex + '_null, label %' + nextLabel + ', label %field_' + fieldIndex + '_extract');
-        lines.push('');
+        lines.push("field_" + fieldIndex + ":");
+        lines.push(
+          "  %item_" +
+            fieldIndex +
+            " = call i8* @csyyjson_obj_get(i8* %json_root, i8* getelementptr inbounds ([" +
+            fnLen +
+            " x i8], [" +
+            fnLen +
+            " x i8]* " +
+            fnc +
+            ", i64 0, i64 0))",
+        );
+        lines.push("  %item_" + fieldIndex + "_null = icmp eq i8* %item_" + fieldIndex + ", null");
+        lines.push(
+          "  br i1 %item_" +
+            fieldIndex +
+            "_null, label %" +
+            nextLabel +
+            ", label %field_" +
+            fieldIndex +
+            "_extract",
+        );
+        lines.push("");
 
-        if (fieldType === 'string') {
-          lines.push('field_' + fieldIndex + '_extract:');
-          lines.push('  %temp_str_' + fieldIndex + ' = call i8* @csyyjson_get_str(i8* %item_' + fieldIndex + ')');
-          lines.push('  %str_' + fieldIndex + '_null = icmp eq i8* %temp_str_' + fieldIndex + ', null');
-          lines.push('  br i1 %str_' + fieldIndex + '_null, label %' + nextLabel + ', label %field_' + fieldIndex + '_store');
-          lines.push('');
-          lines.push('field_' + fieldIndex + '_store:');
-          lines.push('  %value_' + fieldIndex + ' = call i8* @strdup(i8* %temp_str_' + fieldIndex + ')');
-          lines.push('  %field_ptr_' + fieldIndex + ' = getelementptr inbounds %' + typeName + ', %' + typeName + '* %struct_ptr, i32 0, i32 ' + fieldIndex);
-          lines.push('  store i8* %value_' + fieldIndex + ', i8** %field_ptr_' + fieldIndex);
-          lines.push('  br label %' + nextLabel);
-          lines.push('');
-        } else if (fieldType === 'number' || fieldType === 'boolean') {
-          lines.push('field_' + fieldIndex + '_extract:');
-          lines.push('  %value_' + fieldIndex + ' = call double @csyyjson_get_num(i8* %item_' + fieldIndex + ')');
-          lines.push('  %field_ptr_' + fieldIndex + ' = getelementptr inbounds %' + typeName + ', %' + typeName + '* %struct_ptr, i32 0, i32 ' + fieldIndex);
-          lines.push('  store double %value_' + fieldIndex + ', double* %field_ptr_' + fieldIndex);
-          lines.push('  br label %' + nextLabel);
-          lines.push('');
+        if (fieldType === "string") {
+          lines.push("field_" + fieldIndex + "_extract:");
+          lines.push(
+            "  %temp_str_" +
+              fieldIndex +
+              " = call i8* @csyyjson_get_str(i8* %item_" +
+              fieldIndex +
+              ")",
+          );
+          lines.push(
+            "  %str_" + fieldIndex + "_null = icmp eq i8* %temp_str_" + fieldIndex + ", null",
+          );
+          lines.push(
+            "  br i1 %str_" +
+              fieldIndex +
+              "_null, label %" +
+              nextLabel +
+              ", label %field_" +
+              fieldIndex +
+              "_store",
+          );
+          lines.push("");
+          lines.push("field_" + fieldIndex + "_store:");
+          lines.push(
+            "  %value_" + fieldIndex + " = call i8* @strdup(i8* %temp_str_" + fieldIndex + ")",
+          );
+          lines.push(
+            "  %field_ptr_" +
+              fieldIndex +
+              " = getelementptr inbounds %" +
+              typeName +
+              ", %" +
+              typeName +
+              "* %struct_ptr, i32 0, i32 " +
+              fieldIndex,
+          );
+          lines.push("  store i8* %value_" + fieldIndex + ", i8** %field_ptr_" + fieldIndex);
+          lines.push("  br label %" + nextLabel);
+          lines.push("");
+        } else if (fieldType === "number" || fieldType === "boolean") {
+          lines.push("field_" + fieldIndex + "_extract:");
+          lines.push(
+            "  %value_" +
+              fieldIndex +
+              " = call double @csyyjson_get_num(i8* %item_" +
+              fieldIndex +
+              ")",
+          );
+          lines.push(
+            "  %field_ptr_" +
+              fieldIndex +
+              " = getelementptr inbounds %" +
+              typeName +
+              ", %" +
+              typeName +
+              "* %struct_ptr, i32 0, i32 " +
+              fieldIndex,
+          );
+          lines.push("  store double %value_" + fieldIndex + ", double* %field_ptr_" + fieldIndex);
+          lines.push("  br label %" + nextLabel);
+          lines.push("");
         } else {
-          lines.push('field_' + fieldIndex + '_extract:');
-          lines.push('  %nested_str_' + fieldIndex + ' = call i8* @csyyjson_val_write(i8* %item_' + fieldIndex + ')');
-          lines.push('  %value_' + fieldIndex + ' = call %' + fieldType + '* @parse_json_' + fieldType + '(i8* %nested_str_' + fieldIndex + ')');
-          lines.push('  %field_ptr_' + fieldIndex + ' = getelementptr inbounds %' + typeName + ', %' + typeName + '* %struct_ptr, i32 0, i32 ' + fieldIndex);
-          lines.push('  store %' + fieldType + '* %value_' + fieldIndex + ', %' + fieldType + '** %field_ptr_' + fieldIndex);
-          lines.push('  br label %' + nextLabel);
-          lines.push('');
+          lines.push("field_" + fieldIndex + "_extract:");
+          lines.push(
+            "  %nested_str_" +
+              fieldIndex +
+              " = call i8* @csyyjson_val_write(i8* %item_" +
+              fieldIndex +
+              ")",
+          );
+          lines.push(
+            "  %value_" +
+              fieldIndex +
+              " = call %" +
+              fieldType +
+              "* @parse_json_" +
+              fieldType +
+              "(i8* %nested_str_" +
+              fieldIndex +
+              ")",
+          );
+          lines.push(
+            "  %field_ptr_" +
+              fieldIndex +
+              " = getelementptr inbounds %" +
+              typeName +
+              ", %" +
+              typeName +
+              "* %struct_ptr, i32 0, i32 " +
+              fieldIndex,
+          );
+          lines.push(
+            "  store %" +
+              fieldType +
+              "* %value_" +
+              fieldIndex +
+              ", %" +
+              fieldType +
+              "** %field_ptr_" +
+              fieldIndex,
+          );
+          lines.push("  br label %" + nextLabel);
+          lines.push("");
         }
       }
     }
 
-    lines.push('json_cleanup:');
-    lines.push('  call void @csyyjson_free(i8* %json_root)');
-    lines.push('  ret %' + typeName + '* %struct_ptr');
-    lines.push('}');
-    lines.push('');
+    lines.push("json_cleanup:");
+    lines.push("  call void @csyyjson_free(i8* %json_root)");
+    lines.push("  ret %" + typeName + "* %struct_ptr");
+    lines.push("}");
+    lines.push("");
 
     for (let li = 0; li < lines.length; li++) {
-      this.ctx.pushGlobalString(lines[li] + '\n');
+      this.ctx.pushGlobalString(lines[li] + "\n");
     }
   }
 
   generateStringify(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      return this.ctx.emitError('JSON.stringify() requires 1 argument', expr.loc);
+      return this.ctx.emitError("JSON.stringify() requires 1 argument", expr.loc);
     }
 
     const arg = expr.args[0];
@@ -368,14 +489,18 @@ export class JsonGenerator {
   }
 
   private resolveInterfaceType(arg: Expression): string | null {
-    if (arg.type === 'variable') {
+    if (arg.type === "variable") {
       const varNode = arg as { type: string; name: string };
-      return this.ctx.symbolTable.getInterfaceType(varNode.name) || this.ctx.symbolTable.getRawInterfaceType(varNode.name) || null;
+      return (
+        this.ctx.symbolTable.getInterfaceType(varNode.name) ||
+        this.ctx.symbolTable.getRawInterfaceType(varNode.name) ||
+        null
+      );
     }
-    if (arg.type === 'index_access') {
+    if (arg.type === "index_access") {
       const indexAccess = arg as { type: string; object: Expression; index: Expression };
       const objExpr = indexAccess.object;
-      if (objExpr && objExpr.type === 'variable') {
+      if (objExpr && objExpr.type === "variable") {
         const varObj = objExpr as { type: string; name: string };
         const arrayName = varObj.name;
         if (arrayName) {
@@ -403,7 +528,7 @@ export class JsonGenerator {
     for (let i = 0; i < fieldCount; i++) {
       fieldTypes.push(this.ctx.interfaceStructGenGetFieldLlvmType(interfaceType, i));
     }
-    const structType = `{ ${fieldTypes.join(', ')} }`;
+    const structType = `{ ${fieldTypes.join(", ")} }`;
 
     const objPtr = this.ctx.generateExpression(arg, params);
 
@@ -420,30 +545,38 @@ export class JsonGenerator {
       const fieldName = this.ctx.interfaceStructGenGetFieldName(interfaceType, i);
       const fieldTsType = this.ctx.interfaceStructGenGetFieldTsType(interfaceType, i);
       const fieldPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
+      this.ctx.emit(
+        `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`,
+      );
 
       const nameConst = this.ctx.createStringConstant(fieldName);
 
-      if (fieldTsType === 'string') {
+      if (fieldTsType === "string") {
         const val = this.ctx.nextTemp();
         this.ctx.emit(`${val} = load i8*, i8** ${fieldPtr}`);
-        this.ctx.emit(`call void @csyyjson_obj_add_str(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i8* ${val})`);
-      } else if (fieldTsType === 'boolean') {
+        this.ctx.emit(
+          `call void @csyyjson_obj_add_str(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i8* ${val})`,
+        );
+      } else if (fieldTsType === "boolean") {
         const val = this.ctx.nextTemp();
         this.ctx.emit(`${val} = load double, double* ${fieldPtr}`);
         const boolInt = this.ctx.nextTemp();
         this.ctx.emit(`${boolInt} = fptosi double ${val} to i32`);
-        this.ctx.emit(`call void @csyyjson_obj_add_bool(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolInt})`);
+        this.ctx.emit(
+          `call void @csyyjson_obj_add_bool(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolInt})`,
+        );
       } else {
         const val = this.ctx.nextTemp();
         this.ctx.emit(`${val} = load double, double* ${fieldPtr}`);
-        this.ctx.emit(`call void @csyyjson_obj_add_num(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, double ${val})`);
+        this.ctx.emit(
+          `call void @csyyjson_obj_add_num(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, double ${val})`,
+        );
       }
     }
 
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @csyyjson_stringify(i8* ${jsonDoc})`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
@@ -460,9 +593,11 @@ export class JsonGenerator {
 
     const formatStr = this.ctx.createStringConstant('"%s"');
     const sprintfResult = this.ctx.nextTemp();
-    this.ctx.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, i8* ${strPtr})`);
+    this.ctx.emit(
+      `${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, i8* ${strPtr})`,
+    );
 
-    this.ctx.setVariableType(buffer, 'i8*');
+    this.ctx.setVariableType(buffer, "i8*");
     return buffer;
   }
 
@@ -473,11 +608,13 @@ export class JsonGenerator {
     const buffer = this.ctx.nextTemp();
     this.ctx.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 30)`);
 
-    const formatStr = this.ctx.createStringConstant('%f');
+    const formatStr = this.ctx.createStringConstant("%f");
     const sprintfResult = this.ctx.nextTemp();
-    this.ctx.emit(`${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${dblValue})`);
+    this.ctx.emit(
+      `${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${dblValue})`,
+    );
 
-    this.ctx.setVariableType(buffer, 'i8*');
+    this.ctx.setVariableType(buffer, "i8*");
     return buffer;
   }
 }

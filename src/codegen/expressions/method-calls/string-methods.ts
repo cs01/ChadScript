@@ -1,11 +1,19 @@
-import { Expression, MethodCallNode, MemberAccessNode, VariableNode, RegexNode } from '../../../ast/types.js';
-import type { MethodCallGeneratorContext } from '../method-calls.js';
+import {
+  Expression,
+  MethodCallNode,
+  MemberAccessNode,
+  VariableNode,
+  RegexNode,
+} from "../../../ast/types.js";
+import type { MethodCallGeneratorContext } from "../method-calls.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
 function convertToI32(ctx: MethodCallGeneratorContext, value: string): string {
   const vt = ctx.getVariableType(value);
-  if (vt === 'i64') {
+  if (vt === "i64") {
     const temp = ctx.nextTemp();
     ctx.emit(`${temp} = trunc i64 ${value} to i32`);
     return temp;
@@ -16,7 +24,11 @@ function convertToI32(ctx: MethodCallGeneratorContext, value: string): string {
   return temp;
 }
 
-export function handleSubstr(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleSubstr(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
@@ -25,12 +37,17 @@ export function handleSubstr(ctx: MethodCallGeneratorContext, expr: MethodCallNo
 
   const startIndexDouble = ctx.generateExpression(expr.args[0], params);
   const startIndex = convertToI32(ctx, startIndexDouble);
-  const length = expr.args.length === 2 ? convertToI32(ctx, ctx.generateExpression(expr.args[1], params)) : null;
+  const length =
+    expr.args.length === 2 ? convertToI32(ctx, ctx.generateExpression(expr.args[1], params)) : null;
 
   return ctx.stringGen.doGenerateSubstr(strPtr, startIndex, length);
 }
 
-export function handleSubstring(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleSubstring(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
@@ -51,19 +68,29 @@ export function handleSubstring(ctx: MethodCallGeneratorContext, expr: MethodCal
   return ctx.stringGen.doGenerateSubstr(strPtr, startIndex, length);
 }
 
-export function handleConcat(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleConcat(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   const ptrType = ctx.getVariableType(strPtr);
-  if (ptrType && (ptrType === '%Array*' || ptrType === '%StringArray*' || ptrType === '%ObjectArray*' || ptrType.endsWith('Array*'))) {
+  if (
+    ptrType &&
+    (ptrType === "%Array*" ||
+      ptrType === "%StringArray*" ||
+      ptrType === "%ObjectArray*" ||
+      ptrType.endsWith("Array*"))
+  ) {
     const exprObjBase = expr.object as ExprBase;
     let details = `Expression type: ${exprObjBase.type}`;
-    if (exprObjBase.type === 'member_access') {
+    if (exprObjBase.type === "member_access") {
       const memberExpr = expr.object as MemberAccessNode;
       const objBase = memberExpr.object as ExprBase;
       details += `, property: ${memberExpr.property}`;
       details += `, object base type: ${objBase.type}`;
-      if (objBase.type === 'variable') {
+      if (objBase.type === "variable") {
         const varName = (memberExpr.object as VariableNode).name;
         const isClass = ctx.symbolTable.isClass(varName);
         const symbolType = ctx.symbolTable.getType(varName);
@@ -78,9 +105,9 @@ export function handleConcat(ctx: MethodCallGeneratorContext, expr: MethodCallNo
     }
     throw new Error(
       `concat() was dispatched to string handler but received an array type '${ptrType}'.\n` +
-      `  This indicates isArrayExpression/isStringArrayExpression/isObjectArrayExpression failed to detect the array.\n` +
-      `  ${details}\n` +
-      `  Check type tracking for this expression.`
+        `  This indicates isArrayExpression/isStringArrayExpression/isObjectArrayExpression failed to detect the array.\n` +
+        `  ${details}\n` +
+        `  Check type tracking for this expression.`,
     );
   }
 
@@ -98,7 +125,11 @@ export function handleConcat(ctx: MethodCallGeneratorContext, expr: MethodCallNo
   return result;
 }
 
-export function handleRepeat(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleRepeat(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -110,7 +141,11 @@ export function handleRepeat(ctx: MethodCallGeneratorContext, expr: MethodCallNo
   return ctx.stringGen.doGenerateRepeat(strPtr, count);
 }
 
-export function handlePadStart(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handlePadStart(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
@@ -119,14 +154,19 @@ export function handlePadStart(ctx: MethodCallGeneratorContext, expr: MethodCall
 
   const targetLengthDouble = ctx.generateExpression(expr.args[0], params);
   const targetLength = convertToI32(ctx, targetLengthDouble);
-  const padString = expr.args.length === 2
-    ? ctx.generateExpression(expr.args[1], params)
-    : ctx.stringGen.doCreateStringConstant(' ');
+  const padString =
+    expr.args.length === 2
+      ? ctx.generateExpression(expr.args[1], params)
+      : ctx.stringGen.doCreateStringConstant(" ");
 
   return ctx.stringGen.doGeneratePadStart(strPtr, targetLength, padString);
 }
 
-export function handleSplit(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleSplit(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -137,7 +177,11 @@ export function handleSplit(ctx: MethodCallGeneratorContext, expr: MethodCallNod
   return ctx.stringGen.doGenerateSplit(strPtr, delimiter);
 }
 
-export function handleStartsWith(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleStartsWith(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   let strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length < 1 || expr.args.length > 2) {
@@ -158,7 +202,11 @@ export function handleStartsWith(ctx: MethodCallGeneratorContext, expr: MethodCa
   return ctx.stringGen.doGenerateStartsWith(strPtr, prefix);
 }
 
-export function handleEndsWith(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleEndsWith(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -169,7 +217,11 @@ export function handleEndsWith(ctx: MethodCallGeneratorContext, expr: MethodCall
   return ctx.stringGen.doGenerateEndsWith(strPtr, suffix);
 }
 
-export function handleTrim(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleTrim(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 0) {
@@ -179,7 +231,11 @@ export function handleTrim(ctx: MethodCallGeneratorContext, expr: MethodCallNode
   return ctx.stringGen.doGenerateTrim(strPtr);
 }
 
-export function handleTrimStart(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleTrimStart(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 0) {
@@ -189,7 +245,11 @@ export function handleTrimStart(ctx: MethodCallGeneratorContext, expr: MethodCal
   return ctx.stringGen.doGenerateTrimStart(strPtr);
 }
 
-export function handleTrimEnd(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleTrimEnd(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 0) {
@@ -199,7 +259,11 @@ export function handleTrimEnd(ctx: MethodCallGeneratorContext, expr: MethodCallN
   return ctx.stringGen.doGenerateTrimEnd(strPtr);
 }
 
-export function handleIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleIndexOf(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -210,7 +274,11 @@ export function handleIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallN
   return ctx.stringGen.doGenerateIndexOf(strPtr, substring);
 }
 
-export function handleLastIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleLastIndexOf(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -221,7 +289,11 @@ export function handleLastIndexOf(ctx: MethodCallGeneratorContext, expr: MethodC
   return ctx.stringGen.doGenerateLastIndexOf(strPtr, substring);
 }
 
-export function handleStringArrayIndexOf(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleStringArrayIndexOf(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const arrayPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
@@ -230,11 +302,11 @@ export function handleStringArrayIndexOf(ctx: MethodCallGeneratorContext, expr: 
 
   const searchValue = ctx.generateExpression(expr.args[0], params);
 
-  const checkLabel = ctx.nextLabel('indexof_check');
-  const bodyLabel = ctx.nextLabel('indexof_body');
-  const foundLabel = ctx.nextLabel('indexof_found');
-  const notfoundLabel = ctx.nextLabel('indexof_notfound');
-  const endLabel = ctx.nextLabel('indexof_end');
+  const checkLabel = ctx.nextLabel("indexof_check");
+  const bodyLabel = ctx.nextLabel("indexof_body");
+  const foundLabel = ctx.nextLabel("indexof_found");
+  const notfoundLabel = ctx.nextLabel("indexof_notfound");
+  const endLabel = ctx.nextLabel("indexof_end");
 
   const arrIsNull = ctx.nextTemp();
   ctx.emit(`${arrIsNull} = icmp eq %StringArray* ${arrayPtr}, null`);
@@ -242,12 +314,16 @@ export function handleStringArrayIndexOf(ctx: MethodCallGeneratorContext, expr: 
 
   ctx.emit(`${checkLabel}_arrvalid:`);
   const lenPtr = ctx.nextTemp();
-  ctx.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+  ctx.emit(
+    `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+  );
   const length = ctx.nextTemp();
   ctx.emit(`${length} = load i32, i32* ${lenPtr}`);
 
   const dataPtrField = ctx.nextTemp();
-  ctx.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+  ctx.emit(
+    `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+  );
   const dataPtr = ctx.nextTemp();
   ctx.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
@@ -308,11 +384,15 @@ export function handleStringArrayIndexOf(ctx: MethodCallGeneratorContext, expr: 
 
   const result = ctx.nextTemp();
   ctx.emit(`${result} = sitofp i32 ${resultI32} to double`);
-  ctx.setVariableType(result, 'double');
+  ctx.setVariableType(result, "double");
   return result;
 }
 
-export function handleStringArrayIncludes(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleStringArrayIncludes(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const indexResult = handleStringArrayIndexOf(ctx, expr, params);
   const cmp = ctx.nextTemp();
   ctx.emit(`${cmp} = fcmp oge double ${indexResult}, 0.0`);
@@ -320,38 +400,48 @@ export function handleStringArrayIncludes(ctx: MethodCallGeneratorContext, expr:
   ctx.emit(`${cmpI32} = zext i1 ${cmp} to i32`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = sitofp i32 ${cmpI32} to double`);
-  ctx.setVariableType(result, 'double');
+  ctx.setVariableType(result, "double");
   return result;
 }
 
-export function handleStringIncludes(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleStringIncludes(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   const ptrType = ctx.getVariableType(strPtr);
-  if (ptrType && (ptrType === '%Array*' || ptrType === '%StringArray*' || ptrType === '%ObjectArray*' || ptrType.endsWith('Array*'))) {
+  if (
+    ptrType &&
+    (ptrType === "%Array*" ||
+      ptrType === "%StringArray*" ||
+      ptrType === "%ObjectArray*" ||
+      ptrType.endsWith("Array*"))
+  ) {
     throw new Error(
       `includes() was dispatched to string handler but received an array type '${ptrType}'.\n` +
-      `  This indicates isArrayExpression/isStringArrayExpression failed to detect the array.\n` +
-      `  Expression type: ${expr.object.type}\n` +
-      `  Check type tracking for this expression.`
+        `  This indicates isArrayExpression/isStringArrayExpression failed to detect the array.\n` +
+        `  Expression type: ${expr.object.type}\n` +
+        `  Check type tracking for this expression.`,
     );
   }
 
-  if (!ptrType || ptrType === 'unknown') {
+  if (!ptrType || ptrType === "unknown") {
     const exprObjBase = expr.object as ExprBase;
     let details = `Expression type: ${exprObjBase.type}`;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       details += `, variable: ${(expr.object as VariableNode).name}`;
-    } else if (exprObjBase.type === 'method_call') {
+    } else if (exprObjBase.type === "method_call") {
       const mc = expr.object as MethodCallNode;
       details += `, method: ${mc.method}`;
     }
     throw new Error(
       `includes() called on expression with unknown type.\n` +
-      `  Result register: ${strPtr}, type: ${ptrType || 'undefined'}\n` +
-      `  ${details}\n` +
-      `  If this is an array, isArrayExpression/isStringArrayExpression is not detecting it.\n` +
-      `  Fix type tracking to ensure proper dispatch.`
+        `  Result register: ${strPtr}, type: ${ptrType || "undefined"}\n` +
+        `  ${details}\n` +
+        `  If this is an array, isArrayExpression/isStringArrayExpression is not detecting it.\n` +
+        `  Fix type tracking to ensure proper dispatch.`,
     );
   }
 
@@ -363,34 +453,44 @@ export function handleStringIncludes(ctx: MethodCallGeneratorContext, expr: Meth
   return ctx.stringGen.doGenerateIncludes(strPtr, substring);
 }
 
-export function handleSlice(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleSlice(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   const ptrType = ctx.getVariableType(strPtr);
-  if (ptrType && (ptrType === '%Array*' || ptrType === '%StringArray*' || ptrType === '%ObjectArray*' || ptrType.endsWith('Array*'))) {
+  if (
+    ptrType &&
+    (ptrType === "%Array*" ||
+      ptrType === "%StringArray*" ||
+      ptrType === "%ObjectArray*" ||
+      ptrType.endsWith("Array*"))
+  ) {
     throw new Error(
       `slice() was dispatched to string handler but received an array type '${ptrType}'.\n` +
-      `  This indicates isArrayExpression/isStringArrayExpression/isObjectArrayExpression failed to detect the array.\n` +
-      `  Expression type: ${expr.object.type}\n` +
-      `  Check type tracking for this expression.`
+        `  This indicates isArrayExpression/isStringArrayExpression/isObjectArrayExpression failed to detect the array.\n` +
+        `  Expression type: ${expr.object.type}\n` +
+        `  Check type tracking for this expression.`,
     );
   }
 
-  if (!ptrType || ptrType === 'unknown') {
+  if (!ptrType || ptrType === "unknown") {
     const exprObjBase = expr.object as ExprBase;
     let details = `Expression type: ${exprObjBase.type}`;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       details += `, variable: ${(expr.object as VariableNode).name}`;
-    } else if (exprObjBase.type === 'method_call') {
+    } else if (exprObjBase.type === "method_call") {
       const mc = expr.object as MethodCallNode;
       details += `, method: ${mc.method}`;
     }
     throw new Error(
       `slice() called on expression with unknown type.\n` +
-      `  Result register: ${strPtr}, type: ${ptrType || 'undefined'}\n` +
-      `  ${details}\n` +
-      `  If this is an array, isArrayExpression/isStringArrayExpression/isObjectArrayExpression is not detecting it.\n` +
-      `  Fix type tracking to ensure proper dispatch.`
+        `  Result register: ${strPtr}, type: ${ptrType || "undefined"}\n` +
+        `  ${details}\n` +
+        `  If this is an array, isArrayExpression/isStringArrayExpression/isObjectArrayExpression is not detecting it.\n` +
+        `  Fix type tracking to ensure proper dispatch.`,
     );
   }
 
@@ -402,7 +502,7 @@ export function handleSlice(ctx: MethodCallGeneratorContext, expr: MethodCallNod
   if (expr.args.length >= 1) {
     startDouble = ctx.generateExpression(expr.args[0], params);
   } else {
-    startDouble = '0.0';
+    startDouble = "0.0";
   }
   const startI32 = convertToI32(ctx, startDouble);
 
@@ -415,7 +515,11 @@ export function handleSlice(ctx: MethodCallGeneratorContext, expr: MethodCallNod
   return ctx.stringGen.doGenerateSlice(strPtr, startI32, endI32);
 }
 
-export function handleReplace(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleReplace(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 2) {
@@ -425,9 +529,9 @@ export function handleReplace(ctx: MethodCallGeneratorContext, expr: MethodCallN
   const searchArg = expr.args[0];
   const replaceArg = expr.args[1];
 
-  if (searchArg.type === 'regex') {
+  if (searchArg.type === "regex") {
     const regexNode = searchArg as { pattern: string; flags: string };
-    const isGlobal = regexNode.flags.indexOf('g') !== -1;
+    const isGlobal = regexNode.flags.indexOf("g") !== -1;
     const searchStr = ctx.stringGen.doGenerateGlobalString(regexNode.pattern);
     const replaceStr = ctx.generateExpression(replaceArg, params);
     if (isGlobal) {
@@ -442,7 +546,11 @@ export function handleReplace(ctx: MethodCallGeneratorContext, expr: MethodCallN
   return ctx.stringGen.doGenerateReplace(strPtr, searchStr, replaceStr);
 }
 
-export function handleReplaceAll(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleReplaceAll(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 2) {
@@ -454,7 +562,11 @@ export function handleReplaceAll(ctx: MethodCallGeneratorContext, expr: MethodCa
   return ctx.stringGen.doGenerateReplaceAll(strPtr, searchStr, replaceStr);
 }
 
-export function handleNumberIsFinite(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleNumberIsFinite(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const value = ctx.generateExpression(expr.args[0], params);
   const dblValue = ctx.ensureDouble(value);
   const isOrdered = ctx.nextTemp();
@@ -472,7 +584,11 @@ export function handleNumberIsFinite(ctx: MethodCallGeneratorContext, expr: Meth
   return result;
 }
 
-export function handleNumberIsNaN(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleNumberIsNaN(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const value = ctx.generateExpression(expr.args[0], params);
   const dblValue = ctx.ensureDouble(value);
   const isNaN = ctx.nextTemp();
@@ -482,7 +598,11 @@ export function handleNumberIsNaN(ctx: MethodCallGeneratorContext, expr: MethodC
   return result;
 }
 
-export function handleNumberIsInteger(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleNumberIsInteger(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const value = ctx.generateExpression(expr.args[0], params);
   const dblValue = ctx.ensureDouble(value);
   const truncated = ctx.nextTemp();
@@ -494,25 +614,37 @@ export function handleNumberIsInteger(ctx: MethodCallGeneratorContext, expr: Met
   return result;
 }
 
-export function handleNumberToString(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleNumberToString(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const numValue = ctx.generateExpression(expr.object, params);
   return ctx.stringGen.doConvertNumberToString(numValue);
 }
 
-export function handleNumberToFixed(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleNumberToFixed(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   if (expr.args.length < 1) {
-    return ctx.emitError('toFixed() requires 1 argument (digits)', expr.loc);
+    return ctx.emitError("toFixed() requires 1 argument (digits)", expr.loc);
   }
   const numValue = ctx.generateExpression(expr.object, params);
   const precisionValue = ctx.generateExpression(expr.args[0], params);
   return ctx.stringGen.doConvertNumberToFixed(numValue, precisionValue);
 }
 
-export function handleCharAt(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleCharAt(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    return ctx.emitError('charAt() expects 1 argument, got ' + expr.args.length, expr.loc);
+    return ctx.emitError("charAt() expects 1 argument, got " + expr.args.length, expr.loc);
   }
 
   const indexDouble = ctx.generateExpression(expr.args[0], params);
@@ -520,11 +652,15 @@ export function handleCharAt(ctx: MethodCallGeneratorContext, expr: MethodCallNo
   return ctx.stringGen.doGenerateCharAt(strPtr, indexI32);
 }
 
-export function handleCharCodeAt(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleCharCodeAt(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    return ctx.emitError('charCodeAt() expects 1 argument, got ' + expr.args.length, expr.loc);
+    return ctx.emitError("charCodeAt() expects 1 argument, got " + expr.args.length, expr.loc);
   }
 
   const indexDouble = ctx.generateExpression(expr.args[0], params);
@@ -532,33 +668,45 @@ export function handleCharCodeAt(ctx: MethodCallGeneratorContext, expr: MethodCa
   return ctx.stringGen.doGenerateCharCodeAt(strPtr, indexI32);
 }
 
-export function handleToUpperCase(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleToUpperCase(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
   return ctx.stringGen.doGenerateToUpperCase(strPtr);
 }
 
-export function handleToLowerCase(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleToLowerCase(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
   return ctx.stringGen.doGenerateToLowerCase(strPtr);
 }
 
-export function handleMatch(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleMatch(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const strPtr = ctx.generateExpression(expr.object, params);
 
   if (expr.args.length !== 1) {
-    return ctx.emitError('match() expects 1 argument (a regex), got ' + expr.args.length, expr.loc);
+    return ctx.emitError("match() expects 1 argument (a regex), got " + expr.args.length, expr.loc);
   }
 
   const regexArg = expr.args[0];
 
-  if (regexArg.type === 'regex') {
+  if (regexArg.type === "regex") {
     const regexNode = regexArg as RegexNode;
     const pattern = regexNode.pattern;
-    const flags = regexNode.flags || '';
+    const flags = regexNode.flags || "";
 
     let numGroups = 0;
     for (let gi = 0; gi < pattern.length; gi++) {
-      if (pattern[gi] === '(') {
+      if (pattern[gi] === "(") {
         numGroups = numGroups + 1;
       }
     }

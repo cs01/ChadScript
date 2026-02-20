@@ -2,7 +2,7 @@ async function testPromiseAllFetch(): Promise<void> {
   const results = await Promise.all([
     fetch("http://127.0.0.1:19881/a"),
     fetch("http://127.0.0.1:19881/b"),
-    fetch("http://127.0.0.1:19881/c")
+    fetch("http://127.0.0.1:19881/c"),
   ]);
 
   const bodyA = results[0].text();

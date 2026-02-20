@@ -5,7 +5,7 @@ const c = new Float64Array(N * N);
 
 for (let i = 0; i < N * N; i++) {
   a[i] = (i % N) + 0.1;
-  b[i] = (i / N) + 0.1;
+  b[i] = i / N + 0.1;
 }
 
 const start = performance.now();

@@ -3,6 +3,7 @@
 ## Testing & Commit Workflow
 
 After completing each todo:
+
 1. Run unit tests
 2. If tests pass, commit the changes
 3. If tests fail, fix them before moving to the next todo
@@ -11,10 +12,12 @@ After completing each todo:
 ## Self-Hosting Verification
 
 Before considering any feature complete, run the full self-hosting chain:
+
 1. `npm run verify` — runs tests and self-hosting in parallel (preferred)
 2. `npm run verify:quick` — same but skips Stage 2 (day-to-day dev)
 
 Or manually:
+
 1. `npm test` — all tests pass (auto-uses native compiler if `.build/chad` exists)
 2. `bash scripts/self-hosting.sh` — full 3-stage self-hosting
 3. `bash scripts/self-hosting.sh --quick` — skip Stage 2
@@ -24,24 +27,25 @@ New features have complex side effects that may not be caught by unit tests alon
 # ChadScript Architecture Guide
 
 ## What It Is
+
 TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native binaries via: Parser → AST → Semantic Analysis → LLVM IR Codegen → llc (assembler) → clang (linker) → native binary.
 
 ## Key Directories
 
-| Dir | Purpose |
-|-----|---------|
-| `src/codegen/` | LLVM IR code generation (the core) |
-| `src/codegen/expressions/method-calls.ts` | Central dispatcher for all `object.method()` calls |
-| `src/codegen/types/collections/string/` | String method IR generators (manipulation.ts, search.ts, split.ts, etc.) |
-| `src/codegen/types/collections/string.ts` | `StringGenerator` facade that delegates to sub-modules |
-| `src/codegen/types/collections/array.ts` | Array method IR generators (push, pop, map, filter, etc.) |
-| `src/codegen/types/collections/array/` | Array sub-modules (mutators.ts) |
-| `src/codegen/stdlib/` | Built-in module generators (console.ts, process.ts, fs.ts, math.ts, etc.) |
-| `src/codegen/infrastructure/` | Core: generator-context.ts, symbol-table.ts, type-resolver.ts |
-| `src/codegen/llvm-generator.ts` | Main orchestrator, delegates to sub-generators |
-| `src/ast/types.ts` | AST node type definitions |
-| `tests/compiler.test.ts` | Main test suite |
-| `tests/fixtures/` | Test fixture programs organized by category |
+| Dir                                       | Purpose                                                                   |
+| ----------------------------------------- | ------------------------------------------------------------------------- |
+| `src/codegen/`                            | LLVM IR code generation (the core)                                        |
+| `src/codegen/expressions/method-calls.ts` | Central dispatcher for all `object.method()` calls                        |
+| `src/codegen/types/collections/string/`   | String method IR generators (manipulation.ts, search.ts, split.ts, etc.)  |
+| `src/codegen/types/collections/string.ts` | `StringGenerator` facade that delegates to sub-modules                    |
+| `src/codegen/types/collections/array.ts`  | Array method IR generators (push, pop, map, filter, etc.)                 |
+| `src/codegen/types/collections/array/`    | Array sub-modules (mutators.ts)                                           |
+| `src/codegen/stdlib/`                     | Built-in module generators (console.ts, process.ts, fs.ts, math.ts, etc.) |
+| `src/codegen/infrastructure/`             | Core: generator-context.ts, symbol-table.ts, type-resolver.ts             |
+| `src/codegen/llvm-generator.ts`           | Main orchestrator, delegates to sub-generators                            |
+| `src/ast/types.ts`                        | AST node type definitions                                                 |
+| `tests/compiler.test.ts`                  | Main test suite                                                           |
+| `tests/fixtures/`                         | Test fixture programs organized by category                               |
 
 ## How to Add a New String Method
 
@@ -63,18 +67,19 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 
 ## Struct Types
 
-| LLVM Type | JS Type |
-|-----------|---------|
-| `%Array = type { double*, i32, i32 }` | `number[]` (data ptr, length, capacity) |
-| `%StringArray = type { i8**, i32, i32 }` | `string[]` |
-| `%ObjectArray = type { i8*, i32, i32 }` | `object[]` |
-| `i8*` | `string` (null-terminated C string) |
-| `double` | `number` |
-| `i1` | `boolean` |
+| LLVM Type                                | JS Type                                 |
+| ---------------------------------------- | --------------------------------------- |
+| `%Array = type { double*, i32, i32 }`    | `number[]` (data ptr, length, capacity) |
+| `%StringArray = type { i8**, i32, i32 }` | `string[]`                              |
+| `%ObjectArray = type { i8*, i32, i32 }`  | `object[]`                              |
+| `i8*`                                    | `string` (null-terminated C string)     |
+| `double`                                 | `number`                                |
+| `i1`                                     | `boolean`                               |
 
 ## Test Patterns
 
 Tests use two conventions:
+
 - `expectTestPassed: true` — program prints `TEST_PASSED` to stdout, exits 0
 - `expectedExitCode: N` — program exits with specific code
 
@@ -92,7 +97,7 @@ Tests auto-detect `.build/chad` and use it instead of `node dist/chad-node.js` (
 - `ctx.emit(line)` — emit a line of LLVM IR
 - `ctx.generateExpression(expr, params)` — recursively generate an expression
 - `ctx.setVariableType(name, type)` — tell the type system what type a temp is
-- `createStringConstant(ctx, value)` — create a global string constant, returns i8*
+- `createStringConstant(ctx, value)` — create a global string constant, returns i8\*
 - `GC_malloc_atomic(size)` — allocate GC'd memory for non-pointer data (strings)
 - `GC_malloc(size)` — allocate GC'd memory that may contain pointers
 
@@ -113,6 +118,7 @@ available on `BaseGenerator`, `LLVMGenerator`, and `MockGeneratorContext` for ty
 ## Method Dispatch Flow
 
 `method-calls.ts` → `generateMethodCall()` checks object type and method name:
+
 1. Static methods first (Object.keys, Array.from, Promise.all, etc.)
 2. Built-in objects (console, process, fs, path, JSON, Math, Date)
 3. String methods (trim, indexOf, split, replace, etc.)
@@ -132,6 +138,7 @@ available on `BaseGenerator`, `LLVMGenerator`, and `MockGeneratorContext` for ty
 
 ## Code Style
 
+- Prettier auto-formats code; run `npm run format` to fix, `npm run format:check` to verify
 - One-line comments are helpful on dense codegen blocks — explain the "why" or the LLVM IR pattern, not the "what"
 - Use named AST types from `src/ast/types.ts` for type assertions instead of inline `as { ... }` structs
 
@@ -143,6 +150,7 @@ available on `BaseGenerator`, `LLVMGenerator`, and `MockGeneratorContext` for ty
 ## Stage 0 Compatibility
 
 Stage 0 can't handle `props[i].name` (array-of-objects field access). Use struct-of-arrays instead:
+
 ```typescript
 // CRASHES: { name: string; type: string }[]
 // WORKS:  { keys: string[]; types: string[] }  — then access props.keys[i]

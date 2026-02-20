@@ -1,10 +1,15 @@
-import { IGeneratorContext } from '../../../infrastructure/generator-context.js';
+import { IGeneratorContext } from "../../../infrastructure/generator-context.js";
 
 // ============================================
 // STRING MANIPULATION - Substring, slice, repeat, pad, trim operations
 // ============================================
 
-export function generateSubstr(ctx: IGeneratorContext, strPtr: string, startIndex: string, length: string | null): string {
+export function generateSubstr(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  startIndex: string,
+  length: string | null,
+): string {
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
   const strLenI32 = ctx.nextTemp();
@@ -50,7 +55,9 @@ export function generateSubstr(ctx: IGeneratorContext, strPtr: string, startInde
   const srcPtr = ctx.nextTemp();
   ctx.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${startI64}`);
 
-  ctx.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${resultPtr}, i8* ${srcPtr}, i64 ${finalLenI64}, i1 false)`);
+  ctx.emit(
+    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${resultPtr}, i8* ${srcPtr}, i64 ${finalLenI64}, i1 false)`,
+  );
 
   const nullPtr = ctx.nextTemp();
   ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${finalLenI64}`);
@@ -77,9 +84,9 @@ export function generateRepeat(ctx: IGeneratorContext, strPtr: string, count: st
 
   ctx.emit(`store i8 0, i8* ${resultPtr}`);
 
-  const loopLabel = ctx.nextLabel('repeat_loop');
-  const loopBodyLabel = ctx.nextLabel('repeat_body');
-  const loopEndLabel = ctx.nextLabel('repeat_end');
+  const loopLabel = ctx.nextLabel("repeat_loop");
+  const loopBodyLabel = ctx.nextLabel("repeat_body");
+  const loopEndLabel = ctx.nextLabel("repeat_end");
 
   const counterPtr = ctx.nextTemp();
   ctx.emit(`${counterPtr} = alloca i32`);
@@ -108,7 +115,12 @@ export function generateRepeat(ctx: IGeneratorContext, strPtr: string, count: st
   return resultPtr;
 }
 
-export function generatePadStart(ctx: IGeneratorContext, strPtr: string, targetLength: string, padString: string): string {
+export function generatePadStart(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  targetLength: string,
+  padString: string,
+): string {
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
   const strLenI32 = ctx.nextTemp();
@@ -125,9 +137,9 @@ export function generatePadStart(ctx: IGeneratorContext, strPtr: string, targetL
   const needsPadding = ctx.nextTemp();
   ctx.emit(`${needsPadding} = icmp sgt i32 ${paddingNeeded}, 0`);
 
-  const noPadLabel = ctx.nextLabel('padstart_nopad');
-  const doPadLabel = ctx.nextLabel('padstart_dopad');
-  const endLabel = ctx.nextLabel('padstart_end');
+  const noPadLabel = ctx.nextLabel("padstart_nopad");
+  const doPadLabel = ctx.nextLabel("padstart_dopad");
+  const endLabel = ctx.nextLabel("padstart_end");
 
   ctx.emit(`br i1 ${needsPadding}, label %${doPadLabel}, label %${noPadLabel}`);
 
@@ -158,9 +170,9 @@ export function generatePadStart(ctx: IGeneratorContext, strPtr: string, targetL
   const remainingPad = ctx.nextTemp();
   ctx.emit(`${remainingPad} = srem i32 ${paddingNeeded}, ${padLenI32}`);
 
-  const padLoopLabel = ctx.nextLabel('padstart_loop');
-  const padLoopBodyLabel = ctx.nextLabel('padstart_loop_body');
-  const padLoopEndLabel = ctx.nextLabel('padstart_loop_end');
+  const padLoopLabel = ctx.nextLabel("padstart_loop");
+  const padLoopBodyLabel = ctx.nextLabel("padstart_loop_body");
+  const padLoopEndLabel = ctx.nextLabel("padstart_loop_end");
 
   const padCounterPtr = ctx.nextTemp();
   ctx.emit(`${padCounterPtr} = alloca i32`);
@@ -187,13 +199,13 @@ export function generatePadStart(ctx: IGeneratorContext, strPtr: string, targetL
   const hasRemaining = ctx.nextTemp();
   ctx.emit(`${hasRemaining} = icmp sgt i32 ${remainingPad}, 0`);
 
-  const addRemainingLabel = ctx.nextLabel('padstart_add_remaining');
-  const skipRemainingLabel = ctx.nextLabel('padstart_skip_remaining');
+  const addRemainingLabel = ctx.nextLabel("padstart_add_remaining");
+  const skipRemainingLabel = ctx.nextLabel("padstart_skip_remaining");
 
   ctx.emit(`br i1 ${hasRemaining}, label %${addRemainingLabel}, label %${skipRemainingLabel}`);
 
   ctx.emit(`${addRemainingLabel}:`);
-  const remainingSubstr = generateSubstr(ctx, padString, '0', remainingPad);
+  const remainingSubstr = generateSubstr(ctx, padString, "0", remainingPad);
   const strcatRemaining = ctx.nextTemp();
   ctx.emit(`${strcatRemaining} = call i8* @strcat(i8* ${padResult}, i8* ${remainingSubstr})`);
   ctx.emit(`br label %${skipRemainingLabel}`);
@@ -206,13 +218,20 @@ export function generatePadStart(ctx: IGeneratorContext, strPtr: string, targetL
 
   ctx.emit(`${endLabel}:`);
   const result = ctx.nextTemp();
-  ctx.emit(`${result} = phi i8* [ ${noPadResult}, %${noPadLabel} ], [ ${padResult}, %${skipRemainingLabel} ]`);
-  ctx.setVariableType(result, 'i8*');
+  ctx.emit(
+    `${result} = phi i8* [ ${noPadResult}, %${noPadLabel} ], [ ${padResult}, %${skipRemainingLabel} ]`,
+  );
+  ctx.setVariableType(result, "i8*");
 
   return result;
 }
 
-export function generateSlice(ctx: IGeneratorContext, strPtr: string, startIndex: string, endIndex: string | null): string {
+export function generateSlice(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  startIndex: string,
+  endIndex: string | null,
+): string {
   const strLen = ctx.nextTemp();
   ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
   const strLenI32 = ctx.nextTemp();
@@ -225,7 +244,9 @@ export function generateSlice(ctx: IGeneratorContext, strPtr: string, startIndex
   ctx.emit(`${adjustedStart1} = add i32 ${strLenI32}, ${startIndex}`);
 
   const adjustedStart2 = ctx.nextTemp();
-  ctx.emit(`${adjustedStart2} = select i1 ${startIsNegative}, i32 ${adjustedStart1}, i32 ${startIndex}`);
+  ctx.emit(
+    `${adjustedStart2} = select i1 ${startIsNegative}, i32 ${adjustedStart1}, i32 ${startIndex}`,
+  );
 
   const startTooSmall = ctx.nextTemp();
   ctx.emit(`${startTooSmall} = icmp slt i32 ${adjustedStart2}, 0`);
@@ -281,9 +302,9 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   const isEmpty = ctx.nextTemp();
   ctx.emit(`${isEmpty} = icmp eq i32 ${strLenI32}, 0`);
 
-  const emptyLabel = ctx.nextLabel('trim_empty');
-  const notEmptyLabel = ctx.nextLabel('trim_notempty');
-  const endLabel = ctx.nextLabel('trim_end');
+  const emptyLabel = ctx.nextLabel("trim_empty");
+  const notEmptyLabel = ctx.nextLabel("trim_notempty");
+  const endLabel = ctx.nextLabel("trim_end");
 
   ctx.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
 
@@ -299,10 +320,10 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   ctx.emit(`${startPtr} = alloca i32`);
   ctx.emit(`store i32 0, i32* ${startPtr}`);
 
-  const findStartLabel = ctx.nextLabel('trim_find_start');
-  const findStartBodyLabel = ctx.nextLabel('trim_find_start_body');
-  const findStartCheckLabel = ctx.nextLabel('trim_find_start_check');
-  const findStartEndLabel = ctx.nextLabel('trim_find_start_end');
+  const findStartLabel = ctx.nextLabel("trim_find_start");
+  const findStartBodyLabel = ctx.nextLabel("trim_find_start_body");
+  const findStartCheckLabel = ctx.nextLabel("trim_find_start_check");
+  const findStartEndLabel = ctx.nextLabel("trim_find_start_end");
 
   ctx.emit(`br label %${findStartLabel}`);
 
@@ -352,8 +373,8 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   const allWhitespace = ctx.nextTemp();
   ctx.emit(`${allWhitespace} = icmp eq i32 ${finalStart}, ${strLenI32}`);
 
-  const allWSLabel = ctx.nextLabel('trim_all_ws');
-  const findEndLabel = ctx.nextLabel('trim_find_end');
+  const allWSLabel = ctx.nextLabel("trim_all_ws");
+  const findEndLabel = ctx.nextLabel("trim_find_end");
 
   ctx.emit(`br i1 ${allWhitespace}, label %${allWSLabel}, label %${findEndLabel}`);
 
@@ -370,10 +391,10 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
   ctx.emit(`${initEnd} = sub i32 ${strLenI32}, 1`);
   ctx.emit(`store i32 ${initEnd}, i32* ${endPtr}`);
 
-  const findEndLoopLabel = ctx.nextLabel('trim_find_end_loop');
-  const findEndBodyLabel = ctx.nextLabel('trim_find_end_body');
-  const findEndCheckLabel = ctx.nextLabel('trim_find_end_check');
-  const findEndEndLabel = ctx.nextLabel('trim_find_end_end');
+  const findEndLoopLabel = ctx.nextLabel("trim_find_end_loop");
+  const findEndBodyLabel = ctx.nextLabel("trim_find_end_body");
+  const findEndCheckLabel = ctx.nextLabel("trim_find_end_check");
+  const findEndEndLabel = ctx.nextLabel("trim_find_end_end");
 
   ctx.emit(`br label %${findEndLoopLabel}`);
 
@@ -430,8 +451,10 @@ export function generateTrim(ctx: IGeneratorContext, strPtr: string): string {
 
   ctx.emit(`${endLabel}:`);
   const result = ctx.nextTemp();
-  ctx.emit(`${result} = phi i8* [ ${emptyResult}, %${emptyLabel} ], [ ${allWSResult}, %${allWSLabel} ], [ ${trimmedResult}, %${findEndEndLabel} ]`);
-  ctx.setVariableType(result, 'i8*');
+  ctx.emit(
+    `${result} = phi i8* [ ${emptyResult}, %${emptyLabel} ], [ ${allWSResult}, %${allWSLabel} ], [ ${trimmedResult}, %${findEndEndLabel} ]`,
+  );
+  ctx.setVariableType(result, "i8*");
 
   return result;
 }
@@ -445,9 +468,9 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
   const isEmpty = ctx.nextTemp();
   ctx.emit(`${isEmpty} = icmp eq i32 ${strLenI32}, 0`);
 
-  const emptyLabel = ctx.nextLabel('trimstart_empty');
-  const notEmptyLabel = ctx.nextLabel('trimstart_notempty');
-  const endLabel = ctx.nextLabel('trimstart_end');
+  const emptyLabel = ctx.nextLabel("trimstart_empty");
+  const notEmptyLabel = ctx.nextLabel("trimstart_notempty");
+  const endLabel = ctx.nextLabel("trimstart_end");
 
   ctx.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
 
@@ -463,10 +486,10 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
   ctx.emit(`${startPtr} = alloca i32`);
   ctx.emit(`store i32 0, i32* ${startPtr}`);
 
-  const findStartLabel = ctx.nextLabel('trimstart_find');
-  const findStartBodyLabel = ctx.nextLabel('trimstart_find_body');
-  const findStartCheckLabel = ctx.nextLabel('trimstart_find_check');
-  const findStartEndLabel = ctx.nextLabel('trimstart_find_end');
+  const findStartLabel = ctx.nextLabel("trimstart_find");
+  const findStartBodyLabel = ctx.nextLabel("trimstart_find_body");
+  const findStartCheckLabel = ctx.nextLabel("trimstart_find_check");
+  const findStartEndLabel = ctx.nextLabel("trimstart_find_end");
 
   ctx.emit(`br label %${findStartLabel}`);
 
@@ -516,8 +539,8 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
   const allWhitespace = ctx.nextTemp();
   ctx.emit(`${allWhitespace} = icmp eq i32 ${finalStart}, ${strLenI32}`);
 
-  const allWSLabel = ctx.nextLabel('trimstart_all_ws');
-  const substrLabel = ctx.nextLabel('trimstart_substr');
+  const allWSLabel = ctx.nextLabel("trimstart_all_ws");
+  const substrLabel = ctx.nextLabel("trimstart_substr");
 
   ctx.emit(`br i1 ${allWhitespace}, label %${allWSLabel}, label %${substrLabel}`);
 
@@ -535,8 +558,10 @@ export function generateTrimStart(ctx: IGeneratorContext, strPtr: string): strin
 
   ctx.emit(`${endLabel}:`);
   const result = ctx.nextTemp();
-  ctx.emit(`${result} = phi i8* [ ${emptyResult}, %${emptyLabel} ], [ ${allWSResult}, %${allWSLabel} ], [ ${trimmedResult}, %${substrLabel} ]`);
-  ctx.setVariableType(result, 'i8*');
+  ctx.emit(
+    `${result} = phi i8* [ ${emptyResult}, %${emptyLabel} ], [ ${allWSResult}, %${allWSLabel} ], [ ${trimmedResult}, %${substrLabel} ]`,
+  );
+  ctx.setVariableType(result, "i8*");
 
   return result;
 }
@@ -550,9 +575,9 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
   const isEmpty = ctx.nextTemp();
   ctx.emit(`${isEmpty} = icmp eq i32 ${strLenI32}, 0`);
 
-  const emptyLabel = ctx.nextLabel('trimend_empty');
-  const notEmptyLabel = ctx.nextLabel('trimend_notempty');
-  const endLabel = ctx.nextLabel('trimend_end');
+  const emptyLabel = ctx.nextLabel("trimend_empty");
+  const notEmptyLabel = ctx.nextLabel("trimend_notempty");
+  const endLabel = ctx.nextLabel("trimend_end");
 
   ctx.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
 
@@ -570,10 +595,10 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
   ctx.emit(`${initEnd} = sub i32 ${strLenI32}, 1`);
   ctx.emit(`store i32 ${initEnd}, i32* ${endPtr}`);
 
-  const findEndLabel = ctx.nextLabel('trimend_find');
-  const findEndBodyLabel = ctx.nextLabel('trimend_find_body');
-  const findEndCheckLabel = ctx.nextLabel('trimend_find_check');
-  const findEndEndLabel = ctx.nextLabel('trimend_find_end');
+  const findEndLabel = ctx.nextLabel("trimend_find");
+  const findEndBodyLabel = ctx.nextLabel("trimend_find_body");
+  const findEndCheckLabel = ctx.nextLabel("trimend_find_check");
+  const findEndEndLabel = ctx.nextLabel("trimend_find_end");
 
   ctx.emit(`br label %${findEndLabel}`);
 
@@ -623,8 +648,8 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
   const allWhitespace = ctx.nextTemp();
   ctx.emit(`${allWhitespace} = icmp slt i32 ${finalEnd}, 0`);
 
-  const allWSLabel = ctx.nextLabel('trimend_all_ws');
-  const substrLabel = ctx.nextLabel('trimend_substr');
+  const allWSLabel = ctx.nextLabel("trimend_all_ws");
+  const substrLabel = ctx.nextLabel("trimend_substr");
 
   ctx.emit(`br i1 ${allWhitespace}, label %${allWSLabel}, label %${substrLabel}`);
 
@@ -637,27 +662,34 @@ export function generateTrimEnd(ctx: IGeneratorContext, strPtr: string): string 
   ctx.emit(`${substrLabel}:`);
   const trimmedLen = ctx.nextTemp();
   ctx.emit(`${trimmedLen} = add i32 ${finalEnd}, 1`);
-  const trimmedResult = generateSubstr(ctx, strPtr, '0', trimmedLen);
+  const trimmedResult = generateSubstr(ctx, strPtr, "0", trimmedLen);
   ctx.emit(`br label %${endLabel}`);
 
   ctx.emit(`${endLabel}:`);
   const result = ctx.nextTemp();
-  ctx.emit(`${result} = phi i8* [ ${emptyResult}, %${emptyLabel} ], [ ${allWSResult}, %${allWSLabel} ], [ ${trimmedResult}, %${substrLabel} ]`);
-  ctx.setVariableType(result, 'i8*');
+  ctx.emit(
+    `${result} = phi i8* [ ${emptyResult}, %${emptyLabel} ], [ ${allWSResult}, %${allWSLabel} ], [ ${trimmedResult}, %${substrLabel} ]`,
+  );
+  ctx.setVariableType(result, "i8*");
 
   return result;
 }
 
-export function generateReplace(ctx: IGeneratorContext, strPtr: string, searchPtr: string, replacePtr: string): string {
+export function generateReplace(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  searchPtr: string,
+  replacePtr: string,
+): string {
   const foundPtr = ctx.nextTemp();
   ctx.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${searchPtr})`);
 
   const isNull = ctx.nextTemp();
   ctx.emit(`${isNull} = icmp eq i8* ${foundPtr}, null`);
 
-  const foundLabel = ctx.nextLabel('replace_found');
-  const notFoundLabel = ctx.nextLabel('replace_not_found');
-  const endLabel = ctx.nextLabel('replace_end');
+  const foundLabel = ctx.nextLabel("replace_found");
+  const notFoundLabel = ctx.nextLabel("replace_not_found");
+  const endLabel = ctx.nextLabel("replace_end");
 
   ctx.emit(`br i1 ${isNull}, label %${notFoundLabel}, label %${foundLabel}`);
 
@@ -692,11 +724,15 @@ export function generateReplace(ctx: IGeneratorContext, strPtr: string, searchPt
   const prefixBytes = ctx.nextTemp();
   ctx.emit(`${prefixBytes} = sub i64 ${prefixLen}, ${strStart}`);
 
-  ctx.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${resultPtr}, i8* ${strPtr}, i64 ${prefixBytes}, i1 false)`);
+  ctx.emit(
+    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${resultPtr}, i8* ${strPtr}, i64 ${prefixBytes}, i1 false)`,
+  );
 
   const insertPos = ctx.nextTemp();
   ctx.emit(`${insertPos} = getelementptr i8, i8* ${resultPtr}, i64 ${prefixBytes}`);
-  ctx.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${insertPos}, i8* ${replacePtr}, i64 ${replaceLen}, i1 false)`);
+  ctx.emit(
+    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${insertPos}, i8* ${replacePtr}, i64 ${replaceLen}, i1 false)`,
+  );
 
   const suffixStart = ctx.nextTemp();
   ctx.emit(`${suffixStart} = getelementptr i8, i8* ${foundPtr}, i64 ${searchLen}`);
@@ -707,26 +743,35 @@ export function generateReplace(ctx: IGeneratorContext, strPtr: string, searchPt
 
   const suffixDest = ctx.nextTemp();
   ctx.emit(`${suffixDest} = getelementptr i8, i8* ${insertPos}, i64 ${replaceLen}`);
-  ctx.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${suffixDest}, i8* ${suffixStart}, i64 ${suffixLenPlus1}, i1 false)`);
+  ctx.emit(
+    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${suffixDest}, i8* ${suffixStart}, i64 ${suffixLenPlus1}, i1 false)`,
+  );
 
   ctx.emit(`br label %${endLabel}`);
 
   ctx.emit(`${endLabel}:`);
   const result = ctx.nextTemp();
-  ctx.emit(`${result} = phi i8* [ ${originalDup}, %${notFoundLabel} ], [ ${resultPtr}, %${foundLabel} ]`);
-  ctx.setVariableType(result, 'i8*');
+  ctx.emit(
+    `${result} = phi i8* [ ${originalDup}, %${notFoundLabel} ], [ ${resultPtr}, %${foundLabel} ]`,
+  );
+  ctx.setVariableType(result, "i8*");
 
   return result;
 }
 
-export function generateReplaceAll(ctx: IGeneratorContext, strPtr: string, searchPtr: string, replacePtr: string): string {
+export function generateReplaceAll(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  searchPtr: string,
+  replacePtr: string,
+): string {
   const resultPtr = ctx.nextTemp();
   ctx.emit(`${resultPtr} = alloca i8*`);
   ctx.emit(`store i8* ${strPtr}, i8** ${resultPtr}`);
 
-  const loopLabel = ctx.nextLabel('replaceall_loop');
-  const bodyLabel = ctx.nextLabel('replaceall_body');
-  const endLabel = ctx.nextLabel('replaceall_end');
+  const loopLabel = ctx.nextLabel("replaceall_loop");
+  const bodyLabel = ctx.nextLabel("replaceall_body");
+  const endLabel = ctx.nextLabel("replaceall_end");
 
   ctx.emit(`br label %${loopLabel}`);
 
@@ -747,7 +792,7 @@ export function generateReplaceAll(ctx: IGeneratorContext, strPtr: string, searc
   ctx.emit(`${endLabel}:`);
   const result = ctx.nextTemp();
   ctx.emit(`${result} = load i8*, i8** ${resultPtr}`);
-  ctx.setVariableType(result, 'i8*');
+  ctx.setVariableType(result, "i8*");
 
   return result;
 }
@@ -766,9 +811,9 @@ export function generateToUpperCase(ctx: IGeneratorContext, strPtr: string): str
   ctx.emit(`${idxPtr} = alloca i64, align 8`);
   ctx.emit(`store i64 0, i64* ${idxPtr}`);
 
-  const loopLabel = ctx.nextLabel('toupper_loop');
-  const bodyLabel = ctx.nextLabel('toupper_body');
-  const endLabel = ctx.nextLabel('toupper_end');
+  const loopLabel = ctx.nextLabel("toupper_loop");
+  const bodyLabel = ctx.nextLabel("toupper_body");
+  const endLabel = ctx.nextLabel("toupper_end");
 
   ctx.emit(`br label %${loopLabel}`);
 
@@ -811,7 +856,7 @@ export function generateToUpperCase(ctx: IGeneratorContext, strPtr: string): str
   ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${strLen}`);
   ctx.emit(`store i8 0, i8* ${nullPtr}`);
 
-  ctx.setVariableType(resultPtr, 'i8*');
+  ctx.setVariableType(resultPtr, "i8*");
   return resultPtr;
 }
 
@@ -829,9 +874,9 @@ export function generateToLowerCase(ctx: IGeneratorContext, strPtr: string): str
   ctx.emit(`${idxPtr} = alloca i64, align 8`);
   ctx.emit(`store i64 0, i64* ${idxPtr}`);
 
-  const loopLabel = ctx.nextLabel('tolower_loop');
-  const bodyLabel = ctx.nextLabel('tolower_body');
-  const endLabel = ctx.nextLabel('tolower_end');
+  const loopLabel = ctx.nextLabel("tolower_loop");
+  const bodyLabel = ctx.nextLabel("tolower_body");
+  const endLabel = ctx.nextLabel("tolower_end");
 
   ctx.emit(`br label %${loopLabel}`);
 
@@ -874,6 +919,6 @@ export function generateToLowerCase(ctx: IGeneratorContext, strPtr: string): str
   ctx.emit(`${nullPtr} = getelementptr inbounds i8, i8* ${resultPtr}, i64 ${strLen}`);
   ctx.emit(`store i8 0, i8* ${nullPtr}`);
 
-  ctx.setVariableType(resultPtr, 'i8*');
+  ctx.setVariableType(resultPtr, "i8*");
   return resultPtr;
 }

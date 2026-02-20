@@ -5,11 +5,11 @@
 // Use --verbose, --debug, or --trace flags to control output.
 
 export enum LogLevel {
-  Silent = 0,   // Only errors (for user-facing errors)
-  Normal = 1,   // Errors + warnings (default)
-  Verbose = 2,  // + Compilation stages and commands
-  Debug = 3,    // + Internal debugging info
-  Trace = 4,    // + Everything (AST dumps, IR, etc.)
+  Silent = 0, // Only errors (for user-facing errors)
+  Normal = 1, // Errors + warnings (default)
+  Verbose = 2, // + Compilation stages and commands
+  Debug = 3, // + Internal debugging info
+  Trace = 4, // + Everything (AST dumps, IR, etc.)
 }
 
 export class Logger {

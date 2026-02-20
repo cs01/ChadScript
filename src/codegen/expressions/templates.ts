@@ -14,16 +14,19 @@
  * - With interpolation: `Hello ${name}` -> concatenate "Hello " with name value
  */
 
-import { Expression, TemplateLiteralNode } from '../../ast/types.js';
-import { IGeneratorContext } from '../infrastructure/generator-context.js';
-import { createStringConstant, convertNumberToString } from '../types/collections/string/constants.js';
+import { Expression, TemplateLiteralNode } from "../../ast/types.js";
+import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import {
+  createStringConstant,
+  convertNumberToString,
+} from "../types/collections/string/constants.js";
 
 export class TemplateLiteralGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
   private booleanToString(boolValue: string): string {
-    const trueStr = createStringConstant(this.ctx, 'true');
-    const falseStr = createStringConstant(this.ctx, 'false');
+    const trueStr = createStringConstant(this.ctx, "true");
+    const falseStr = createStringConstant(this.ctx, "false");
     const cmp = this.ctx.nextTemp();
     this.ctx.emit(`${cmp} = fcmp one double ${boolValue}, 0.0`);
     const selected = this.ctx.nextTemp();
@@ -32,7 +35,7 @@ export class TemplateLiteralGenerator {
   }
 
   private nullSafeString(strValue: string): string {
-    const nullStr = createStringConstant(this.ctx, 'null');
+    const nullStr = createStringConstant(this.ctx, "null");
     const isNull = this.ctx.nextTemp();
     this.ctx.emit(`${isNull} = icmp eq i8* ${strValue}, null`);
     const safe = this.ctx.nextTemp();
@@ -52,13 +55,13 @@ export class TemplateLiteralGenerator {
     // parts array contains strings and expressions interspersed
     if (expr.parts.length === 0) {
       // Empty template literal
-      return this.ctx.stringGen.doCreateStringConstant('');
+      return this.ctx.stringGen.doCreateStringConstant("");
     }
 
     if (expr.parts.length === 1) {
       const firstPart = expr.parts[0] as { type: string; value?: string };
-      if (firstPart.type === 'string') {
-        return this.ctx.stringGen.doCreateStringConstant(firstPart.value || '');
+      if (firstPart.type === "string") {
+        return this.ctx.stringGen.doCreateStringConstant(firstPart.value || "");
       }
     }
 
@@ -70,15 +73,18 @@ export class TemplateLiteralGenerator {
       let partValue: string;
 
       const partAsObj = part as { type: string; value?: string };
-      if (partAsObj.type === 'string') {
-        partValue = this.ctx.stringGen.doCreateStringConstant(partAsObj.value || '');
+      if (partAsObj.type === "string") {
+        partValue = this.ctx.stringGen.doCreateStringConstant(partAsObj.value || "");
       } else {
         const exprPart = part as Expression;
         const exprPartObj = exprPart as { type: string };
         const exprValue = this.ctx.generateExpression(exprPart, params);
-        if (exprPartObj.type === 'boolean') {
+        if (exprPartObj.type === "boolean") {
           partValue = this.booleanToString(exprValue);
-        } else if (this.ctx.isStringExpression(exprPart) || this.ctx.getVariableType(exprValue) === 'i8*') {
+        } else if (
+          this.ctx.isStringExpression(exprPart) ||
+          this.ctx.getVariableType(exprValue) === "i8*"
+        ) {
           partValue = this.nullSafeString(exprValue);
         } else {
           partValue = convertNumberToString(this.ctx, exprValue);

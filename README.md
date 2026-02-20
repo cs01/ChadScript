@@ -9,6 +9,7 @@ Your code goes through a full compilation pipeline: parse, type-check, emit LLVM
 ChadScript is self-hosting - the compiler is written in TypeScript and compiles itself into a native binary that doesn't need any JavaScript runtime or Node.js.
 
 ## Demo
+
 ```ts
 // hello.ts
 console.log("Hello from ChadScript!");

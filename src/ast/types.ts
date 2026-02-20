@@ -14,48 +14,48 @@ export interface SourceLocation {
 // ============================================
 
 export interface NumberNode {
-  type: 'number';
+  type: "number";
   value: number;
   loc?: SourceLocation;
 }
 
 export interface StringNode {
-  type: 'string';
+  type: "string";
   value: string;
   loc?: SourceLocation;
 }
 
 export interface BooleanNode {
-  type: 'boolean';
+  type: "boolean";
   value: boolean;
   loc?: SourceLocation;
 }
 
 export interface NullNode {
-  type: 'null';
+  type: "null";
   loc?: SourceLocation;
 }
 
 export interface UndefinedNode {
-  type: 'undefined';
+  type: "undefined";
   loc?: SourceLocation;
 }
 
 export interface RegexNode {
-  type: 'regex';
+  type: "regex";
   pattern: string;
   flags: string;
   loc?: SourceLocation;
 }
 
 export interface VariableNode {
-  type: 'variable';
+  type: "variable";
   name: string;
   loc?: SourceLocation;
 }
 
 export interface MemberAccessNode {
-  type: 'member_access';
+  type: "member_access";
   object: Expression;
   property: string;
   optional?: boolean;
@@ -63,14 +63,14 @@ export interface MemberAccessNode {
 }
 
 export interface IndexAccessNode {
-  type: 'index_access';
+  type: "index_access";
   object: Expression;
   index: Expression;
   loc?: SourceLocation;
 }
 
 export interface ArrayNode {
-  type: 'array';
+  type: "array";
   elements: Expression[];
   loc?: SourceLocation;
 }
@@ -86,7 +86,7 @@ export interface CommonField {
 }
 
 export interface ObjectNode {
-  type: 'object';
+  type: "object";
   properties: ObjectProperty[];
   loc?: SourceLocation;
 }
@@ -97,7 +97,7 @@ export interface MapEntry {
 }
 
 export interface MapNode {
-  type: 'map';
+  type: "map";
   entries: MapEntry[];
   keyType?: string;
   valueType?: string;
@@ -105,14 +105,14 @@ export interface MapNode {
 }
 
 export interface SetNode {
-  type: 'set';
+  type: "set";
   values: Expression[];
   valueType?: string;
   loc?: SourceLocation;
 }
 
 export interface BinaryNode {
-  type: 'binary';
+  type: "binary";
   op: string;
   left: Expression;
   right: Expression;
@@ -120,14 +120,14 @@ export interface BinaryNode {
 }
 
 export interface CallNode {
-  type: 'call';
+  type: "call";
   name: string;
   args: Expression[];
   loc?: SourceLocation;
 }
 
 export interface MethodCallNode {
-  type: 'method_call';
+  type: "method_call";
   object: Expression;
   method: string;
   args: Expression[];
@@ -137,7 +137,7 @@ export interface MethodCallNode {
 }
 
 export interface NewNode {
-  type: 'new';
+  type: "new";
   className: string;
   args: Expression[];
   typeArgs?: string[];
@@ -145,30 +145,30 @@ export interface NewNode {
 }
 
 export interface ThisNode {
-  type: 'this';
+  type: "this";
   loc?: SourceLocation;
 }
 
 export interface SuperNode {
-  type: 'super';
+  type: "super";
   loc?: SourceLocation;
 }
 
 export interface UnaryNode {
-  type: 'unary';
+  type: "unary";
   op: string;
   operand: Expression;
   loc?: SourceLocation;
 }
 
 export interface TemplateLiteralNode {
-  type: 'template_literal';
+  type: "template_literal";
   parts: (string | Expression)[];
   loc?: SourceLocation;
 }
 
 export interface ArrowFunctionNode {
-  type: 'arrow_function';
+  type: "arrow_function";
   params: string[];
   body: Expression | BlockStatement;
   async?: boolean;
@@ -177,13 +177,13 @@ export interface ArrowFunctionNode {
 }
 
 export interface AwaitExpressionNode {
-  type: 'await';
+  type: "await";
   argument: Expression;
   loc?: SourceLocation;
 }
 
 export interface ConditionalExpressionNode {
-  type: 'conditional';
+  type: "conditional";
   condition: Expression;
   consequent: Expression;
   alternate: Expression;
@@ -191,7 +191,7 @@ export interface ConditionalExpressionNode {
 }
 
 export interface MemberAccessAssignmentNode {
-  type: 'member_access_assignment';
+  type: "member_access_assignment";
   object: Expression;
   property: string;
   value: Expression;
@@ -199,7 +199,7 @@ export interface MemberAccessAssignmentNode {
 }
 
 export interface IndexAccessAssignmentNode {
-  type: 'index_access_assignment';
+  type: "index_access_assignment";
   object: Expression;
   index: Expression;
   value: Expression;
@@ -207,32 +207,60 @@ export interface IndexAccessAssignmentNode {
 }
 
 export interface TypeAssertionNode {
-  type: 'type_assertion';
+  type: "type_assertion";
   expression: Expression;
   assertedType: string;
   loc?: SourceLocation;
 }
 
 export interface SpreadElementNode {
-  type: 'spread_element';
+  type: "spread_element";
   argument: Expression;
   loc?: SourceLocation;
 }
 
-export type Expression = NumberNode | StringNode | BooleanNode | NullNode | UndefinedNode | RegexNode | VariableNode | BinaryNode | CallNode | MethodCallNode | UnaryNode | MemberAccessNode | IndexAccessNode | ArrayNode | ObjectNode | MapNode | SetNode | NewNode | ThisNode | SuperNode | TemplateLiteralNode | ArrowFunctionNode | ConditionalExpressionNode | AwaitExpressionNode | MemberAccessAssignmentNode | IndexAccessAssignmentNode | TypeAssertionNode | SpreadElementNode;
+export type Expression =
+  | NumberNode
+  | StringNode
+  | BooleanNode
+  | NullNode
+  | UndefinedNode
+  | RegexNode
+  | VariableNode
+  | BinaryNode
+  | CallNode
+  | MethodCallNode
+  | UnaryNode
+  | MemberAccessNode
+  | IndexAccessNode
+  | ArrayNode
+  | ObjectNode
+  | MapNode
+  | SetNode
+  | NewNode
+  | ThisNode
+  | SuperNode
+  | TemplateLiteralNode
+  | ArrowFunctionNode
+  | ConditionalExpressionNode
+  | AwaitExpressionNode
+  | MemberAccessAssignmentNode
+  | IndexAccessAssignmentNode
+  | TypeAssertionNode
+  | SpreadElementNode;
 
 export interface VariableDeclaration {
-  type: 'variable_declaration';
+  type: "variable_declaration";
   kind: string;
   name: string;
   value: Expression | null;
-  declaredType?: string;  // Optional TypeScript type annotation (e.g., "string[]", "number")
+  declaredType?: string; // Optional TypeScript type annotation (e.g., "string[]", "number")
   line?: number;
   loc?: SourceLocation;
 }
 
 export interface AssignmentStatement {
-  type: 'assignment';
+  type: "assignment";
   name: string;
   value: Expression;
   line?: number;
@@ -240,19 +268,19 @@ export interface AssignmentStatement {
 }
 
 export interface BlockStatement {
-  type: 'block';
+  type: "block";
   statements: Statement[];
   loc?: SourceLocation;
 }
 
 export interface ReturnStatement {
-  type: 'return';
+  type: "return";
   value: Expression;
   loc?: SourceLocation;
 }
 
 export interface IfStatement {
-  type: 'if';
+  type: "if";
   condition: Expression;
   thenBlock: BlockStatement;
   elseBlock: BlockStatement | null;
@@ -260,14 +288,14 @@ export interface IfStatement {
 }
 
 export interface WhileStatement {
-  type: 'while';
+  type: "while";
   condition: Expression;
   body: BlockStatement;
   loc?: SourceLocation;
 }
 
 export interface ForStatement {
-  type: 'for';
+  type: "for";
   init: VariableDeclaration | AssignmentStatement | null;
   condition: Expression | null;
   update: AssignmentStatement | Expression | null;
@@ -276,7 +304,7 @@ export interface ForStatement {
 }
 
 export interface ForOfStatement {
-  type: 'for_of';
+  type: "for_of";
   variableKind: string;
   variableName: string;
   destructuredNames?: string[];
@@ -286,23 +314,23 @@ export interface ForOfStatement {
 }
 
 export interface BreakStatement {
-  type: 'break';
+  type: "break";
   loc?: SourceLocation;
 }
 
 export interface ContinueStatement {
-  type: 'continue';
+  type: "continue";
   loc?: SourceLocation;
 }
 
 export interface ThrowStatement {
-  type: 'throw';
+  type: "throw";
   argument: Expression;
   loc?: SourceLocation;
 }
 
 export interface TryStatement {
-  type: 'try';
+  type: "try";
   tryBlock: BlockStatement;
   catchParam: string | null;
   catchBody: BlockStatement | null;
@@ -316,15 +344,41 @@ export interface SwitchCase {
 }
 
 export interface SwitchStatement {
-  type: 'switch';
+  type: "switch";
   discriminant: Expression;
   cases: SwitchCase[];
   loc?: SourceLocation;
 }
 
-export type Statement = VariableDeclaration | AssignmentStatement | ReturnStatement | IfStatement | WhileStatement | ForStatement | ForOfStatement | BreakStatement | ContinueStatement | ThrowStatement | TryStatement | SwitchStatement | BlockStatement | Expression;
+export type Statement =
+  | VariableDeclaration
+  | AssignmentStatement
+  | ReturnStatement
+  | IfStatement
+  | WhileStatement
+  | ForStatement
+  | ForOfStatement
+  | BreakStatement
+  | ContinueStatement
+  | ThrowStatement
+  | TryStatement
+  | SwitchStatement
+  | BlockStatement
+  | Expression;
 
-export type TopLevelItem = VariableDeclaration | AssignmentStatement | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | ThrowStatement | CallNode | NewNode | MethodCallNode | AwaitExpressionNode;
+export type TopLevelItem =
+  | VariableDeclaration
+  | AssignmentStatement
+  | ForStatement
+  | ForOfStatement
+  | WhileStatement
+  | IfStatement
+  | TryStatement
+  | ThrowStatement
+  | CallNode
+  | NewNode
+  | MethodCallNode
+  | AwaitExpressionNode;
 
 export interface FunctionParameter {
   name: string;
@@ -346,7 +400,7 @@ export interface FunctionNode {
 }
 
 export interface ClassMethod {
-  type: 'method';
+  type: "method";
   name: string;
   params: string[];
   paramTypes?: string[];
@@ -358,8 +412,8 @@ export interface ClassMethod {
 
 export interface ClassField {
   name: string;
-  fieldType: 'double' | 'string' | 'string[]' | 'number[]' | 'boolean[]' | 'boolean';  // Primitive types and arrays
-  tsType?: string;  // Original TypeScript type (e.g., 'AST', 'Expression') for interface-typed fields
+  fieldType: "double" | "string" | "string[]" | "number[]" | "boolean[]" | "boolean"; // Primitive types and arrays
+  tsType?: string; // Original TypeScript type (e.g., 'AST', 'Expression') for interface-typed fields
   initializer?: Expression;
 }
 
@@ -367,25 +421,25 @@ export interface ClassNode {
   name: string;
   extends?: string;
   implements?: string[];
-  fields: ClassField[];  // Explicit field declarations
+  fields: ClassField[]; // Explicit field declarations
   methods: ClassMethod[];
   loc?: SourceLocation;
 }
 
 export interface ImportSpecifier {
-  name: string;       // Local name (what it's called in this file)
-  original?: string;  // Original exported name (if different from local)
+  name: string; // Local name (what it's called in this file)
+  original?: string; // Original exported name (if different from local)
 }
 
 export interface ImportDeclaration {
-  type: 'import';
-  specifiers: string[];  // ['Parser', 'compile'] - legacy format (local names only)
-  aliasedSpecifiers?: ImportSpecifier[];  // New format with original/local name tracking
-  source: string;        // './parser.js'
+  type: "import";
+  specifiers: string[]; // ['Parser', 'compile'] - legacy format (local names only)
+  aliasedSpecifiers?: ImportSpecifier[]; // New format with original/local name tracking
+  source: string; // './parser.js'
 }
 
 export interface ExportDeclaration {
-  type: 'export';
+  type: "export";
   declaration: FunctionNode | ClassNode;
 }
 
@@ -394,13 +448,23 @@ export interface AST {
   functions: FunctionNode[];
   classes: ClassNode[];
   exports: ExportDeclaration[];
-  interfaces: InterfaceDeclaration[];  // Interface definitions for JSON typing
-  typeAliases: TypeAliasDeclaration[];  // Type alias declarations (union types)
-  enums: EnumDeclaration[];  // Enum declarations (compile to integer constants)
-  topLevelStatements: (VariableDeclaration | AssignmentStatement)[];  // Top-level const/let declarations and assignments
-  topLevelExpressions: (CallNode | NewNode | MethodCallNode | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | AwaitExpressionNode)[];  // Top-level expressions and statements
-  topLevelItems?: TopLevelItem[];  // Combined ordered list of all top-level statements and expressions
-  topLevelItemTypes?: string[];  // Parallel array of type discriminators for topLevelItems
+  interfaces: InterfaceDeclaration[]; // Interface definitions for JSON typing
+  typeAliases: TypeAliasDeclaration[]; // Type alias declarations (union types)
+  enums: EnumDeclaration[]; // Enum declarations (compile to integer constants)
+  topLevelStatements: (VariableDeclaration | AssignmentStatement)[]; // Top-level const/let declarations and assignments
+  topLevelExpressions: (
+    | CallNode
+    | NewNode
+    | MethodCallNode
+    | ForStatement
+    | ForOfStatement
+    | WhileStatement
+    | IfStatement
+    | TryStatement
+    | AwaitExpressionNode
+  )[]; // Top-level expressions and statements
+  topLevelItems?: TopLevelItem[]; // Combined ordered list of all top-level statements and expressions
+  topLevelItemTypes?: string[]; // Parallel array of type discriminators for topLevelItems
 }
 
 export interface InterfaceField {
@@ -424,7 +488,7 @@ export interface InterfaceDeclaration {
 
 export interface TypeAliasDeclaration {
   name: string;
-  unionMembers: string[];  // e.g., ['NumberNode', 'StringNode', 'BinaryNode']
+  unionMembers: string[]; // e.g., ['NumberNode', 'StringNode', 'BinaryNode']
 }
 
 export interface EnumMember {
@@ -434,5 +498,5 @@ export interface EnumMember {
 
 export interface EnumDeclaration {
   name: string;
-  members: EnumMember[];  // e.g., [{ name: 'Silent', value: 0 }, { name: 'Normal', value: 1 }]
+  members: EnumMember[]; // e.g., [{ name: 'Silent', value: 0 }, { name: 'Normal', value: 1 }]
 }

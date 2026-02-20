@@ -9,10 +9,7 @@ function makeBody(x: number, y: number, vx: number, vy: number): Body {
   return { x: x, y: y, vx: vx, vy: vy };
 }
 
-const bodies: Body[] = [
-  makeBody(1.0, 2.0, 0.1, 0.2),
-  makeBody(3.0, 4.0, 0.3, 0.4)
-];
+const bodies: Body[] = [makeBody(1.0, 2.0, 0.1, 0.2), makeBody(3.0, 4.0, 0.3, 0.4)];
 
 bodies[0].vx = 9.9;
 bodies[1].vy = 8.8;

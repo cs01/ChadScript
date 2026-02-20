@@ -1,8 +1,10 @@
-import { Expression, MemberAccessNode, VariableNode, SourceLocation } from '../../../ast/types.js';
-import type { SymbolTable } from '../../infrastructure/symbol-table.js';
-import type { IStringGenerator } from '../../infrastructure/generator-context.js';
+import { Expression, MemberAccessNode, VariableNode, SourceLocation } from "../../../ast/types.js";
+import type { SymbolTable } from "../../infrastructure/symbol-table.js";
+import type { IStringGenerator } from "../../infrastructure/generator-context.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
 interface UnaryExpressionContext {
   nextTemp(): string;
@@ -13,7 +15,10 @@ interface UnaryExpressionContext {
   getThisPointer(): string | null;
   getCurrentClassName(): string | null;
   hasClassGen(): boolean;
-  classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
+  classGenGetFieldInfo(
+    className: string | null,
+    fieldName: string | null,
+  ): { index: number; type: string; tsType?: string } | null;
   generateExpression(expr: Expression, params: string[]): string;
   ensureDouble(value: string): string;
   readonly stringGen: IStringGenerator;
@@ -25,42 +30,46 @@ export class UnaryExpressionGenerator {
   constructor(private ctx: UnaryExpressionContext) {}
 
   generate(op: string, operand: Expression, params: string[]): string {
-    if (op === 'post++' || op === 'post--') {
+    if (op === "post++" || op === "post--") {
       return this.generatePostIncDec(op, operand, params);
     }
 
-    if (op === '++' || op === '--') {
+    if (op === "++" || op === "--") {
       return this.generatePreIncDec(op, operand, params);
     }
 
     const operandValue = this.ctx.generateExpression(operand, params);
 
-    if (op === '!') {
+    if (op === "!") {
       return this.generateLogicalNot(operandValue);
     }
 
-    if (op === '-') {
+    if (op === "-") {
       return this.generateNegation(operandValue);
     }
 
-    if (op === '+') {
+    if (op === "+") {
       return operandValue;
     }
 
-    if (op === 'typeof') {
+    if (op === "typeof") {
       return this.generateTypeof(operand, operandValue);
     }
 
-    return this.ctx.emitError('Unknown unary operator: ' + op, undefined, 'supported operators: !, -, +, typeof, ++, --');
+    return this.ctx.emitError(
+      "Unknown unary operator: " + op,
+      undefined,
+      "supported operators: !, -, +, typeof, ++, --",
+    );
   }
 
   private generatePostIncDec(op: string, operand: Expression, _params: string[]): string {
-    if (operand.type === 'member_access') {
+    if (operand.type === "member_access") {
       return this.generateMemberAccessIncDec(op, operand as MemberAccessNode, true);
     }
 
-    if (operand.type !== 'variable') {
-      return this.ctx.emitError('Post-increment/decrement requires a variable operand');
+    if (operand.type !== "variable") {
+      return this.ctx.emitError("Post-increment/decrement requires a variable operand");
     }
     const operandVar = operand as { type: string; name: string };
     const varName = operandVar.name;
@@ -69,16 +78,16 @@ export class UnaryExpressionGenerator {
       throw new Error(`Cannot find alloca for variable: ${varName}`);
     }
 
-    const varLlvmType = this.ctx.getVariableType(varName) || 'double';
-    if (varLlvmType === 'i64') {
+    const varLlvmType = this.ctx.getVariableType(varName) || "double";
+    if (varLlvmType === "i64") {
       const originalValue = this.ctx.nextTemp();
       this.ctx.emit(`${originalValue} = load i64, i64* ${allocaReg}`);
-      this.ctx.setVariableType(originalValue, 'i64');
+      this.ctx.setVariableType(originalValue, "i64");
 
-      const delta = op === 'post++' ? 1 : -1;
+      const delta = op === "post++" ? 1 : -1;
       const newValue = this.ctx.nextTemp();
       this.ctx.emit(`${newValue} = add i64 ${originalValue}, ${delta}`);
-      this.ctx.setVariableType(newValue, 'i64');
+      this.ctx.setVariableType(newValue, "i64");
 
       this.ctx.emit(`store i64 ${newValue}, i64* ${allocaReg}`);
 
@@ -87,9 +96,9 @@ export class UnaryExpressionGenerator {
 
     const originalValue = this.ctx.nextTemp();
     this.ctx.emit(`${originalValue} = load double, double* ${allocaReg}`);
-    this.ctx.setVariableType(originalValue, 'double');
+    this.ctx.setVariableType(originalValue, "double");
 
-    const delta = op === 'post++' ? '1.0' : '-1.0';
+    const delta = op === "post++" ? "1.0" : "-1.0";
     const newValue = this.ctx.nextTemp();
     this.ctx.emit(`${newValue} = fadd fast double ${originalValue}, ${delta}`);
 
@@ -99,12 +108,12 @@ export class UnaryExpressionGenerator {
   }
 
   private generatePreIncDec(op: string, operand: Expression, _params: string[]): string {
-    if (operand.type === 'member_access') {
+    if (operand.type === "member_access") {
       return this.generateMemberAccessIncDec(op, operand as MemberAccessNode, false);
     }
 
-    if (operand.type !== 'variable') {
-      return this.ctx.emitError('Pre-increment/decrement requires a variable operand');
+    if (operand.type !== "variable") {
+      return this.ctx.emitError("Pre-increment/decrement requires a variable operand");
     }
     const operandVarPre = operand as { type: string; name: string };
     const varName = operandVarPre.name;
@@ -113,16 +122,16 @@ export class UnaryExpressionGenerator {
       throw new Error(`Cannot find alloca for variable: ${varName}`);
     }
 
-    const varLlvmType = this.ctx.getVariableType(varName) || 'double';
-    if (varLlvmType === 'i64') {
+    const varLlvmType = this.ctx.getVariableType(varName) || "double";
+    if (varLlvmType === "i64") {
       const originalValue = this.ctx.nextTemp();
       this.ctx.emit(`${originalValue} = load i64, i64* ${allocaReg}`);
-      this.ctx.setVariableType(originalValue, 'i64');
+      this.ctx.setVariableType(originalValue, "i64");
 
-      const delta = op === '++' ? 1 : -1;
+      const delta = op === "++" ? 1 : -1;
       const newValue = this.ctx.nextTemp();
       this.ctx.emit(`${newValue} = add i64 ${originalValue}, ${delta}`);
-      this.ctx.setVariableType(newValue, 'i64');
+      this.ctx.setVariableType(newValue, "i64");
 
       this.ctx.emit(`store i64 ${newValue}, i64* ${allocaReg}`);
 
@@ -132,10 +141,10 @@ export class UnaryExpressionGenerator {
     const originalValue = this.ctx.nextTemp();
     this.ctx.emit(`${originalValue} = load double, double* ${allocaReg}`);
 
-    const delta = op === '++' ? '1.0' : '-1.0';
+    const delta = op === "++" ? "1.0" : "-1.0";
     const newValue = this.ctx.nextTemp();
     this.ctx.emit(`${newValue} = fadd fast double ${originalValue}, ${delta}`);
-    this.ctx.setVariableType(newValue, 'double');
+    this.ctx.setVariableType(newValue, "double");
 
     this.ctx.emit(`store double ${newValue}, double* ${allocaReg}`);
 
@@ -146,16 +155,19 @@ export class UnaryExpressionGenerator {
     const operandType = this.ctx.getVariableType(operand);
     let cmpResult: string;
 
-    if (operandType === 'i64') {
+    if (operandType === "i64") {
       cmpResult = this.ctx.nextTemp();
       this.ctx.emit(`${cmpResult} = icmp eq i64 ${operand}, 0`);
-    } else if (operandType === 'double' || (operand.indexOf('.') !== -1 && !operand.startsWith('%'))) {
+    } else if (
+      operandType === "double" ||
+      (operand.indexOf(".") !== -1 && !operand.startsWith("%"))
+    ) {
       cmpResult = this.ctx.nextTemp();
       this.ctx.emit(`${cmpResult} = fcmp oeq double ${operand}, 0.0`);
-    } else if (operandType && operandType.indexOf('*') !== -1) {
+    } else if (operandType && operandType.indexOf("*") !== -1) {
       cmpResult = this.ctx.nextTemp();
       this.ctx.emit(`${cmpResult} = icmp eq ${operandType} ${operand}, null`);
-    } else if (operandType === 'i32') {
+    } else if (operandType === "i32") {
       const operandDouble = this.ctx.nextTemp();
       this.ctx.emit(`${operandDouble} = sitofp i32 ${operand} to double`);
       cmpResult = this.ctx.nextTemp();
@@ -167,16 +179,16 @@ export class UnaryExpressionGenerator {
 
     const i64Result = this.ctx.nextTemp();
     this.ctx.emit(`${i64Result} = zext i1 ${cmpResult} to i64`);
-    this.ctx.setVariableType(i64Result, 'i64');
+    this.ctx.setVariableType(i64Result, "i64");
     return i64Result;
   }
 
   private generateNegation(operand: string): string {
     const operandType = this.ctx.getVariableType(operand);
-    if (operandType === 'i64') {
+    if (operandType === "i64") {
       const result = this.ctx.nextTemp();
       this.ctx.emit(`${result} = sub i64 0, ${operand}`);
-      this.ctx.setVariableType(result, 'i64');
+      this.ctx.setVariableType(result, "i64");
       return result;
     }
     const dblOperand = this.ctx.ensureDouble(operand);
@@ -185,37 +197,45 @@ export class UnaryExpressionGenerator {
     return result;
   }
 
-  private generateMemberAccessIncDec(op: string, memberExpr: MemberAccessNode, isPost: boolean): string {
+  private generateMemberAccessIncDec(
+    op: string,
+    memberExpr: MemberAccessNode,
+    isPost: boolean,
+  ): string {
     const memberExprObjBase = memberExpr.object as ExprBase;
-    if (memberExprObjBase.type !== 'this') {
-      return this.ctx.emitError('Increment/decrement on member access only supported for \'this\' fields');
+    if (memberExprObjBase.type !== "this") {
+      return this.ctx.emitError(
+        "Increment/decrement on member access only supported for 'this' fields",
+      );
     }
 
     const thisPtr = this.ctx.getThisPointer();
     const className = this.ctx.getCurrentClassName();
     if (!thisPtr || !className || !this.ctx.hasClassGen()) {
-      return this.ctx.emitError('this.field increment/decrement used outside of class method');
+      return this.ctx.emitError("this.field increment/decrement used outside of class method");
     }
 
     const fieldName = memberExpr.property;
     const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, fieldName);
     if (!fieldInfoResult) {
-      return this.ctx.emitError('Cannot find field \'' + fieldName + '\' in class ' + className);
+      return this.ctx.emitError("Cannot find field '" + fieldName + "' in class " + className);
     }
     const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
 
     const fieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${thisPtr}, i32 0, i32 ${fieldInfo.index}`);
+    this.ctx.emit(
+      `${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${thisPtr}, i32 0, i32 ${fieldInfo.index}`,
+    );
 
     const originalValue = this.ctx.nextTemp();
     this.ctx.emit(`${originalValue} = load double, double* ${fieldPtr}`);
-    this.ctx.setVariableType(originalValue, 'double');
+    this.ctx.setVariableType(originalValue, "double");
 
-    const isIncrement = op === 'post++' || op === '++';
-    const delta = isIncrement ? '1.0' : '-1.0';
+    const isIncrement = op === "post++" || op === "++";
+    const delta = isIncrement ? "1.0" : "-1.0";
     const newValue = this.ctx.nextTemp();
     this.ctx.emit(`${newValue} = fadd fast double ${originalValue}, ${delta}`);
-    this.ctx.setVariableType(newValue, 'double');
+    this.ctx.setVariableType(newValue, "double");
 
     this.ctx.emit(`store double ${newValue}, double* ${fieldPtr}`);
 
@@ -226,31 +246,33 @@ export class UnaryExpressionGenerator {
     const operandType = this.ctx.getVariableType(operandValue);
     let typeString: string;
 
-    if (operand.type === 'string') {
-      typeString = 'string';
-    } else if (operand.type === 'number') {
-      typeString = 'number';
-    } else if (operand.type === 'boolean') {
-      typeString = 'boolean';
-    } else if (operand.type === 'arrow_function') {
-      typeString = 'function';
-    } else if (operand.type === 'variable') {
+    if (operand.type === "string") {
+      typeString = "string";
+    } else if (operand.type === "number") {
+      typeString = "number";
+    } else if (operand.type === "boolean") {
+      typeString = "boolean";
+    } else if (operand.type === "arrow_function") {
+      typeString = "function";
+    } else if (operand.type === "variable") {
       const varName = (operand as VariableNode).name;
-      if (varName === 'undefined') {
-        typeString = 'undefined';
+      if (varName === "undefined") {
+        typeString = "undefined";
       } else if (this.ctx.symbolTable.isString(varName)) {
-        typeString = 'string';
-      } else if (operandType === 'double' || operandType === 'i64') {        typeString = 'number';
+        typeString = "string";
+      } else if (operandType === "double" || operandType === "i64") {
+        typeString = "number";
       } else {
-        typeString = 'object';
+        typeString = "object";
       }
-    } else if (operandType === 'double' || operandType === 'i64') {      typeString = 'number';
+    } else if (operandType === "double" || operandType === "i64") {
+      typeString = "number";
     } else {
-      typeString = 'object';
+      typeString = "object";
     }
 
     const strPtr = this.ctx.stringGen.doCreateStringConstant(typeString);
-    this.ctx.setVariableType(strPtr, 'i8*');
+    this.ctx.setVariableType(strPtr, "i8*");
     return strPtr;
   }
 }

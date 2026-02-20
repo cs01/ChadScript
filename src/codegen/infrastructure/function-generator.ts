@@ -1,12 +1,43 @@
-import { FunctionNode, BlockStatement, Expression, FunctionParameter, AST, VariableDeclaration, IfStatement, WhileStatement, ForStatement, ForOfStatement, AssignmentStatement, CommonField, SwitchStatement, SourceLocation, Statement } from '../../ast/types.js';
-import { SymbolKind, SymbolTable, createPointerAllocaMetadata, createInterfacePointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, SymbolMetadata } from './symbol-table.js';
-import type { ClosureInfo } from './closure-analyzer.js';
-import type { TypeChecker } from '../../typescript/type-checker.js';
-import type { StringGenerator } from '../types/collections/string.js';
-import type { ControlFlowGenerator } from '../statements/control-flow.js';
-import type { InterfaceStructGenerator } from '../types/interface-struct-generator.js';
-import { stripOptional, tsTypeToLlvm, mapParamTypeToLLVM, canonicalTypeToLlvm } from './type-system.js';
-import { findI64EligibleVariables } from './integer-analysis.js';
+import {
+  FunctionNode,
+  BlockStatement,
+  Expression,
+  FunctionParameter,
+  AST,
+  VariableDeclaration,
+  IfStatement,
+  WhileStatement,
+  ForStatement,
+  ForOfStatement,
+  AssignmentStatement,
+  CommonField,
+  SwitchStatement,
+  SourceLocation,
+  Statement,
+} from "../../ast/types.js";
+import {
+  SymbolKind,
+  SymbolTable,
+  createPointerAllocaMetadata,
+  createInterfacePointerAllocaMetadata,
+  createClassMetadata,
+  createObjectMetadataWithInterface,
+  createInterfaceMetadata,
+  createMapMetadataSymbol,
+  SymbolMetadata,
+} from "./symbol-table.js";
+import type { ClosureInfo } from "./closure-analyzer.js";
+import type { TypeChecker } from "../../typescript/type-checker.js";
+import type { StringGenerator } from "../types/collections/string.js";
+import type { ControlFlowGenerator } from "../statements/control-flow.js";
+import type { InterfaceStructGenerator } from "../types/interface-struct-generator.js";
+import {
+  stripOptional,
+  tsTypeToLlvm,
+  mapParamTypeToLLVM,
+  canonicalTypeToLlvm,
+} from "./type-system.js";
+import { findI64EligibleVariables } from "./integer-analysis.js";
 
 interface LiftedFunction extends FunctionNode {
   closureInfo?: ClosureInfo;
@@ -17,8 +48,21 @@ export interface FunctionGeneratorContext {
   nextTemp(): string;
   emit(instruction: string): void;
   setCurrentLabel(label: string): void;
-  defineVariable(name: string, allocaReg: string, llvmType: string, kind: number, scope: string): void;
-  defineVariableWithMetadata(name: string, allocaReg: string, llvmType: string, kind: number, scope: string, metadata: SymbolMetadata): void;
+  defineVariable(
+    name: string,
+    allocaReg: string,
+    llvmType: string,
+    kind: number,
+    scope: string,
+  ): void;
+  defineVariableWithMetadata(
+    name: string,
+    allocaReg: string,
+    llvmType: string,
+    kind: number,
+    scope: string,
+    metadata: SymbolMetadata,
+  ): void;
   generateBlock(block: BlockStatement, params: string[]): string | null;
   generateExpression(expr: Expression, params: string[]): string;
   allocateVariable(stmt: VariableDeclaration, params: string[]): void;
@@ -69,18 +113,18 @@ export class FunctionGenerator {
   generate(func: FunctionNode): string {
     this.ctx.reset();
     const ctx = this.ctx;
-    const funcName = func.name || '';
+    const funcName = func.name || "";
     this.ctx.setCurrentFunction(funcName);
     this.ctx.setIsAsyncFunction(func.async || false);
-    this.ctx.setAsyncResultPromise('');
+    this.ctx.setAsyncResultPromise("");
 
     const funcParams: string[] = func.params || [];
     const paramTypes: string[] = [];
     const paramLLVMTypes: string[] = [];
-    let returnType = 'double';
+    let returnType = "double";
     let returnTypeIsString = false;
     let returnTypeIsVoid = false;
-    this.ctx.setCurrentFunctionReturnType('double');
+    this.ctx.setCurrentFunctionReturnType("double");
 
     const hasParamTypes = func.paramTypes ? true : false;
     let paramTypesLen = 0;
@@ -89,29 +133,44 @@ export class FunctionGenerator {
     }
     const funcIsAsync = func.async ? true : false;
     if (funcIsAsync) {
-      const asyncRetType = func.returnType || '';
-      if (asyncRetType === 'any') {
-        this.ctx.emitError('Async function \'' + funcName + '\' has return type \'any\' — async functions must have an explicit Promise<T> return type (e.g., Promise<void>, Promise<string>)');
+      const asyncRetType = func.returnType || "";
+      if (asyncRetType === "any") {
+        this.ctx.emitError(
+          "Async function '" +
+            funcName +
+            "' has return type 'any' — async functions must have an explicit Promise<T> return type (e.g., Promise<void>, Promise<string>)",
+        );
       }
-      if (asyncRetType !== '' && !asyncRetType.startsWith('Promise<')) {
-        this.ctx.emitError('Async function \'' + funcName + '\' has return type \'' + asyncRetType + '\' — async functions must return Promise<T> (e.g., Promise<void>, Promise<' + asyncRetType + '>)');
+      if (asyncRetType !== "" && !asyncRetType.startsWith("Promise<")) {
+        this.ctx.emitError(
+          "Async function '" +
+            funcName +
+            "' has return type '" +
+            asyncRetType +
+            "' — async functions must return Promise<T> (e.g., Promise<void>, Promise<" +
+            asyncRetType +
+            ">)",
+        );
       }
-      returnType = '%Promise*';
-      this.ctx.setCurrentFunctionReturnType('%Promise*');
+      returnType = "%Promise*";
+      this.ctx.setCurrentFunctionReturnType("%Promise*");
     } else if (hasParamTypes && paramTypesLen > 0) {
       const entryTypes: string[] = [];
       const entryNames: string[] = [];
       for (let i = 0; i < funcParams.length; i++) {
-        entryTypes.push(func.paramTypes![i] || 'number');
-        entryNames.push(funcParams[i] || '');
+        entryTypes.push(func.paramTypes![i] || "number");
+        entryNames.push(funcParams[i] || "");
       }
       for (let i = 0; i < entryTypes.length; i++) {
         paramTypes.push(entryTypes[i]);
-        paramLLVMTypes.push(mapParamTypeToLLVM(
-          entryTypes[i], entryNames[i],
-          this.ctx.isEnumType(entryTypes[i]),
-          ctx.interfaceStructGenHasInterface(entryTypes[i])
-        ));
+        paramLLVMTypes.push(
+          mapParamTypeToLLVM(
+            entryTypes[i],
+            entryNames[i],
+            this.ctx.isEnumType(entryTypes[i]),
+            ctx.interfaceStructGenHasInterface(entryTypes[i]),
+          ),
+        );
       }
     } else {
       const hasParameters = func.parameters ? true : false;
@@ -129,36 +188,49 @@ export class FunctionGenerator {
           const entryTypes: string[] = [];
           const entryNames: string[] = [];
           for (let i = 0; i < funcParams.length; i++) {
-            const param = func.parameters![i] as { name: string; type: string; optional: boolean; defaultValue: Expression | null };
-            entryTypes.push(param ? (param.type || 'number') : 'number');
+            const param = func.parameters![i] as {
+              name: string;
+              type: string;
+              optional: boolean;
+              defaultValue: Expression | null;
+            };
+            entryTypes.push(param ? param.type || "number" : "number");
             entryNames.push(funcParams[i]);
           }
           for (let i = 0; i < entryTypes.length; i++) {
             paramTypes.push(entryTypes[i]);
-            paramLLVMTypes.push(mapParamTypeToLLVM(
-              entryTypes[i], entryNames[i],
-              this.ctx.isEnumType(entryTypes[i]),
-              ctx.interfaceStructGenHasInterface(entryTypes[i])
-            ));
+            paramLLVMTypes.push(
+              mapParamTypeToLLVM(
+                entryTypes[i],
+                entryNames[i],
+                this.ctx.isEnumType(entryTypes[i]),
+                ctx.interfaceStructGenHasInterface(entryTypes[i]),
+              ),
+            );
           }
         }
       }
     }
 
     if (!func.async) {
-      const theReturnType = func.returnType || '';
-      if (theReturnType === 'string') {
-        returnType = 'i8*';
+      const theReturnType = func.returnType || "";
+      if (theReturnType === "string") {
+        returnType = "i8*";
         returnTypeIsString = true;
-        this.ctx.setCurrentFunctionReturnType('i8*');
-      } else if (theReturnType === 'void') {
-        returnType = 'void';
+        this.ctx.setCurrentFunctionReturnType("i8*");
+      } else if (theReturnType === "void") {
+        returnType = "void";
         returnTypeIsVoid = true;
-        this.ctx.setCurrentFunctionReturnType('void');
+        this.ctx.setCurrentFunctionReturnType("void");
       } else if (theReturnType && this.isEnumType(theReturnType)) {
-        returnType = 'double';
-        this.ctx.setCurrentFunctionReturnType('double');
-      } else if (theReturnType && theReturnType !== '' && theReturnType !== 'number' && theReturnType !== 'boolean') {
+        returnType = "double";
+        this.ctx.setCurrentFunctionReturnType("double");
+      } else if (
+        theReturnType &&
+        theReturnType !== "" &&
+        theReturnType !== "number" &&
+        theReturnType !== "boolean"
+      ) {
         returnType = tsTypeToLlvm(theReturnType);
         this.ctx.setCurrentFunctionReturnType(returnType);
       }
@@ -166,20 +238,25 @@ export class FunctionGenerator {
     }
 
     const funcBody = func.body || { statements: [] };
-    if (!funcIsAsync && !returnTypeIsString && !returnTypeIsVoid && !this.hasReturnStatement(funcBody)) {
-      returnType = 'void';
+    if (
+      !funcIsAsync &&
+      !returnTypeIsString &&
+      !returnTypeIsVoid &&
+      !this.hasReturnStatement(funcBody)
+    ) {
+      returnType = "void";
       returnTypeIsVoid = true;
-      this.ctx.setCurrentFunctionReturnType('void');
+      this.ctx.setCurrentFunctionReturnType("void");
     }
 
     while (paramLLVMTypes.length < funcParams.length) {
-      paramTypes.push('number');
-      paramLLVMTypes.push('double');
+      paramTypes.push("number");
+      paramLLVMTypes.push("double");
     }
 
     const liftedFunc = func as LiftedFunction;
     const closureInfo = liftedFunc.closureInfo;
-    const hasClosure = closureInfo ? (closureInfo.captures.length > 0) : false;
+    const hasClosure = closureInfo ? closureInfo.captures.length > 0 : false;
     const captures = closureInfo ? closureInfo.captures : null;
     let hasOptionalParams = false;
     if (func.parameters) {
@@ -203,20 +280,20 @@ export class FunctionGenerator {
     let ir = `define ${returnType} @${this.ctx.mangleUserName(funcName)}(`;
     const paramStrings: string[] = [];
     if (hasClosure) {
-      paramStrings.push('i8* %__env');
+      paramStrings.push("i8* %__env");
     }
     if (hasOptionalParams) {
-      paramStrings.push('i32 %__argc');
+      paramStrings.push("i32 %__argc");
     }
     for (let i = 0; i < funcParams.length; i++) {
-      const llvmType = paramLLVMTypes[i] || 'double';
+      const llvmType = paramLLVMTypes[i] || "double";
       paramStrings.push(`${llvmType} %arg${i}`);
     }
-    ir += paramStrings.join(', ');
-    const funcAttrs = this.hasTryStatement(funcBody) ? ') noinline optnone' : ') nounwind';
-    ir += funcAttrs + this.ctx.getSubprogramDbgRef() + ' {\n';
-    ir += 'entry:\n';
-    this.ctx.setCurrentLabel('entry');
+    ir += paramStrings.join(", ");
+    const funcAttrs = this.hasTryStatement(funcBody) ? ") noinline optnone" : ") nounwind";
+    ir += funcAttrs + this.ctx.getSubprogramDbgRef() + " {\n";
+    ir += "entry:\n";
+    this.ctx.setCurrentLabel("entry");
 
     for (let i = 0; i < funcParams.length; i++) {
       const paramName = funcParams[i];
@@ -224,17 +301,17 @@ export class FunctionGenerator {
       const allocaReg = this.ctx.nextTemp();
       const llvmType = paramLLVMTypes[i];
       const paramInfo = func.parameters ? func.parameters[i] : null;
-      const isOptional = paramInfo ? (paramInfo.optional || paramInfo.defaultValue) : false;
+      const isOptional = paramInfo ? paramInfo.optional || paramInfo.defaultValue : false;
 
-      if (llvmType === 'i8*') {
-        if (paramTypes[i] === 'string') {
-          this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.String, 'local');
-        } else if (paramName === 'nodePtr' || paramName === 'treePtr') {
-          this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Pointer, 'local');
+      if (llvmType === "i8*") {
+        if (paramTypes[i] === "string") {
+          this.ctx.defineVariable(paramName, allocaReg, "i8*", SymbolKind.String, "local");
+        } else if (paramName === "nodePtr" || paramName === "treePtr") {
+          this.ctx.defineVariable(paramName, allocaReg, "i8*", SymbolKind.Pointer, "local");
         } else {
           const ast = this.ctx.getAst();
-          let classDefName: string = '';
-          const classes = ast ? (ast.classes || []) : [];
+          let classDefName: string = "";
+          const classes = ast ? ast.classes || [] : [];
           for (let jc = 0; jc < classes.length; jc++) {
             const cls = classes[jc] as { name: string };
             if (!cls || !cls.name) continue;
@@ -244,11 +321,15 @@ export class FunctionGenerator {
             }
           }
 
-          let interfaceDefName: string = '';
+          let interfaceDefName: string = "";
           let interfaceDefFields: { name: string; type: string }[] = [];
-          const interfaces = ast ? (ast.interfaces || []) : [];
+          const interfaces = ast ? ast.interfaces || [] : [];
           for (let ji = 0; ji < interfaces.length; ji++) {
-            const iface = interfaces[ji] as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+            const iface = interfaces[ji] as {
+              name: string;
+              extends: string[];
+              fields: { name: string; type: string }[];
+            };
             if (!iface || !iface.name) continue;
             if (iface.name === paramTypes[i]) {
               interfaceDefName = iface.name;
@@ -261,9 +342,16 @@ export class FunctionGenerator {
 
           const typeAliasCommonProps = this.ctx.getTypeAliasCommonProperties(paramTypes[i]);
 
-          if (classDefName !== '') {
-            this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Class, 'local', createClassMetadata({ className: classDefName }));
-          } else if (interfaceDefName !== '') {
+          if (classDefName !== "") {
+            this.ctx.defineVariableWithMetadata(
+              paramName,
+              allocaReg,
+              "i8*",
+              SymbolKind.Class,
+              "local",
+              createClassMetadata({ className: classDefName }),
+            );
+          } else if (interfaceDefName !== "") {
             const keys: string[] = [];
             const types: string[] = [];
             for (let j = 0; j < interfaceDefFields.length; j++) {
@@ -271,13 +359,35 @@ export class FunctionGenerator {
               if (!field || !field.name) continue;
               const fieldName = stripOptional(field.name);
               keys.push(fieldName);
-              types.push(canonicalTypeToLlvm(field.type, 'default', this.ctx.isEnumType(field.type), false, fieldName));
+              types.push(
+                canonicalTypeToLlvm(
+                  field.type,
+                  "default",
+                  this.ctx.isEnumType(field.type),
+                  false,
+                  fieldName,
+                ),
+              );
             }
-            this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface({ keys, types }, paramTypes[i]));
+            this.ctx.defineVariableWithMetadata(
+              paramName,
+              allocaReg,
+              "i8*",
+              SymbolKind.Object,
+              "local",
+              createObjectMetadataWithInterface({ keys, types }, paramTypes[i]),
+            );
           } else if (typeAliasCommonProps && typeAliasCommonProps.keys.length > 0) {
-            this.ctx.defineVariableWithMetadata(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local', createObjectMetadataWithInterface(typeAliasCommonProps, paramTypes[i]));
+            this.ctx.defineVariableWithMetadata(
+              paramName,
+              allocaReg,
+              "i8*",
+              SymbolKind.Object,
+              "local",
+              createObjectMetadataWithInterface(typeAliasCommonProps, paramTypes[i]),
+            );
           } else {
-            this.ctx.defineVariable(paramName, allocaReg, 'i8*', SymbolKind.Object, 'local');
+            this.ctx.defineVariable(paramName, allocaReg, "i8*", SymbolKind.Object, "local");
           }
         }
         this.ctx.emit(`${allocaReg} = alloca i8*`);
@@ -286,32 +396,60 @@ export class FunctionGenerator {
         } else {
           this.ctx.emit(`store i8* %arg${i}, i8** ${allocaReg}`);
         }
-      } else if (llvmType === '%StringArray*') {
-        this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%StringArray*', SymbolKind.StringArray, 'local', createPointerAllocaMetadata());
+      } else if (llvmType === "%StringArray*") {
+        this.ctx.defineVariableWithMetadata(
+          paramName,
+          allocaReg,
+          "%StringArray*",
+          SymbolKind.StringArray,
+          "local",
+          createPointerAllocaMetadata(),
+        );
         this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
         if (isOptional && hasOptionalParams) {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
         } else {
           this.ctx.emit(`store %StringArray* %arg${i}, %StringArray** ${allocaReg}`);
         }
-      } else if (llvmType === '%Array*') {
-        this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%Array*', SymbolKind.Array, 'local', createPointerAllocaMetadata());
+      } else if (llvmType === "%Array*") {
+        this.ctx.defineVariableWithMetadata(
+          paramName,
+          allocaReg,
+          "%Array*",
+          SymbolKind.Array,
+          "local",
+          createPointerAllocaMetadata(),
+        );
         this.ctx.emit(`${allocaReg} = alloca %Array*`);
         if (isOptional && hasOptionalParams) {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
         } else {
           this.ctx.emit(`store %Array* %arg${i}, %Array** ${allocaReg}`);
         }
-      } else if (llvmType === '%ObjectArray*') {
-        let elementType = '';
-        const pt = paramTypes[i] || '';
-        if (pt.endsWith('[]') && pt.length > 2) {
+      } else if (llvmType === "%ObjectArray*") {
+        let elementType = "";
+        const pt = paramTypes[i] || "";
+        if (pt.endsWith("[]") && pt.length > 2) {
           elementType = pt.substring(0, pt.length - 2);
         }
         if (elementType) {
-          this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local', createInterfacePointerAllocaMetadata(elementType));
+          this.ctx.defineVariableWithMetadata(
+            paramName,
+            allocaReg,
+            "%ObjectArray*",
+            SymbolKind.ObjectArray,
+            "local",
+            createInterfacePointerAllocaMetadata(elementType),
+          );
         } else {
-          this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%ObjectArray*', SymbolKind.ObjectArray, 'local', createPointerAllocaMetadata());
+          this.ctx.defineVariableWithMetadata(
+            paramName,
+            allocaReg,
+            "%ObjectArray*",
+            SymbolKind.ObjectArray,
+            "local",
+            createPointerAllocaMetadata(),
+          );
         }
         this.ctx.emit(`${allocaReg} = alloca %ObjectArray*`);
         if (isOptional && hasOptionalParams) {
@@ -319,25 +457,55 @@ export class FunctionGenerator {
         } else {
           this.ctx.emit(`store %ObjectArray* %arg${i}, %ObjectArray** ${allocaReg}`);
         }
-      } else if (llvmType === '%StringSet*') {
-        this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%StringSet*', SymbolKind.Set, 'local', createPointerAllocaMetadata());
+      } else if (llvmType === "%StringSet*") {
+        this.ctx.defineVariableWithMetadata(
+          paramName,
+          allocaReg,
+          "%StringSet*",
+          SymbolKind.Set,
+          "local",
+          createPointerAllocaMetadata(),
+        );
         this.ctx.emit(`${allocaReg} = alloca %StringSet*`);
         if (isOptional && hasOptionalParams) {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
         } else {
           this.ctx.emit(`store %StringSet* %arg${i}, %StringSet** ${allocaReg}`);
         }
-      } else if (llvmType === '%StringMap*') {
-        this.ctx.defineVariableWithMetadata(paramName, allocaReg, '%StringMap*', SymbolKind.Map, 'local', createMapMetadataSymbol({ keyType: 'string', valueType: 'string', llvmKeyType: 'i8*', llvmValueType: 'i8*' }));
+      } else if (llvmType === "%StringMap*") {
+        this.ctx.defineVariableWithMetadata(
+          paramName,
+          allocaReg,
+          "%StringMap*",
+          SymbolKind.Map,
+          "local",
+          createMapMetadataSymbol({
+            keyType: "string",
+            valueType: "string",
+            llvmKeyType: "i8*",
+            llvmValueType: "i8*",
+          }),
+        );
         this.ctx.emit(`${allocaReg} = alloca %StringMap*`);
         if (isOptional && hasOptionalParams) {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
         } else {
           this.ctx.emit(`store %StringMap* %arg${i}, %StringMap** ${allocaReg}`);
         }
-      } else if (llvmType.startsWith('%') && llvmType.endsWith('*') && llvmType !== '%__FetchResponse*') {
+      } else if (
+        llvmType.startsWith("%") &&
+        llvmType.endsWith("*") &&
+        llvmType !== "%__FetchResponse*"
+      ) {
         const interfaceName = llvmType.slice(1, -1);
-        this.ctx.defineVariableWithMetadata(paramName, allocaReg, llvmType, SymbolKind.Object, 'local', createInterfacePointerAllocaMetadata(interfaceName));
+        this.ctx.defineVariableWithMetadata(
+          paramName,
+          allocaReg,
+          llvmType,
+          SymbolKind.Object,
+          "local",
+          createInterfacePointerAllocaMetadata(interfaceName),
+        );
         this.ctx.emit(`${allocaReg} = alloca ${llvmType}`);
         if (isOptional && hasOptionalParams) {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
@@ -345,7 +513,7 @@ export class FunctionGenerator {
           this.ctx.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
         }
       } else {
-        this.ctx.defineVariable(paramName, allocaReg, 'double', SymbolKind.Number, 'local');
+        this.ctx.defineVariable(paramName, allocaReg, "double", SymbolKind.Number, "local");
         this.ctx.emit(`${allocaReg} = alloca double`);
         if (isOptional && hasOptionalParams) {
           this.generateOptionalParamInit(i, allocaReg, llvmType, paramInfo!, funcParams);
@@ -363,7 +531,9 @@ export class FunctionGenerator {
       for (let i = 0; i < closureInfo.captures.length; i++) {
         const capture = closureInfo.captures[i];
         const fieldPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${fieldPtr} = getelementptr ${closureInfo.envStructName}, ${closureInfo.envStructName}* ${envTyped}, i32 0, i32 ${i}`);
+        this.ctx.emit(
+          `${fieldPtr} = getelementptr ${closureInfo.envStructName}, ${closureInfo.envStructName}* ${envTyped}, i32 0, i32 ${i}`,
+        );
 
         const valueReg = this.ctx.nextTemp();
         this.ctx.emit(`${valueReg} = load ${capture.llvmType}, ${capture.llvmType}* ${fieldPtr}`);
@@ -373,7 +543,7 @@ export class FunctionGenerator {
         this.ctx.emit(`store ${capture.llvmType} ${valueReg}, ${capture.llvmType}* ${allocaReg}`);
 
         const kind = this.llvmTypeToSymbolKind(capture.llvmType);
-        this.ctx.defineVariable(capture.name, allocaReg, capture.llvmType, kind, 'local');
+        this.ctx.defineVariable(capture.name, allocaReg, capture.llvmType, kind, "local");
       }
     }
 
@@ -414,18 +584,18 @@ export class FunctionGenerator {
       const line: string = output2[i].trim();
       // Match 'ret <type>' without a value (e.g., 'ret i8*' or 'ret double')
       // Stage0-safe: avoid regex due to GC interference with libc malloc
-      if (line.startsWith('ret ')) {
+      if (line.startsWith("ret ")) {
         const rest = line.substring(4);
         let isRetTypeOnly = false;
-        let retType = '';
-        if (rest === 'i8*') {
+        let retType = "";
+        if (rest === "i8*") {
           isRetTypeOnly = true;
-          retType = 'i8*';
-        } else if (rest === 'double') {
+          retType = "i8*";
+        } else if (rest === "double") {
           isRetTypeOnly = true;
-          retType = 'double';
-        } else if (rest.startsWith('%') && (rest.endsWith('*') || rest.indexOf(' ') === -1)) {
-          const hasSpace = rest.indexOf(' ') !== -1;
+          retType = "double";
+        } else if (rest.startsWith("%") && (rest.endsWith("*") || rest.indexOf(" ") === -1)) {
+          const hasSpace = rest.indexOf(" ") !== -1;
           if (!hasSpace) {
             isRetTypeOnly = true;
             retType = rest;
@@ -433,12 +603,12 @@ export class FunctionGenerator {
         }
         if (isRetTypeOnly) {
           let defaultValue: string;
-          if (retType === 'double') {
-            defaultValue = '0.0';
-          } else if (retType === 'i8*') {
+          if (retType === "double") {
+            defaultValue = "0.0";
+          } else if (retType === "i8*") {
             defaultValue = this.ctx.createEmptyStringConstant();
           } else {
-            defaultValue = 'null';
+            defaultValue = "null";
           }
           output2[i] = `ret ${retType} ${defaultValue}`;
         }
@@ -448,18 +618,18 @@ export class FunctionGenerator {
     const ctxOutput: string[] = output2;
     const outputLen = ctxOutput.length;
     if (outputLen > 0) {
-      let indentedLines = '';
+      let indentedLines = "";
       for (let idx = 0; idx < outputLen; idx++) {
         const line: string = ctxOutput[idx];
         if (line) {
           if (indentedLines.length > 0) {
-            indentedLines = indentedLines + '\n';
+            indentedLines = indentedLines + "\n";
           }
-          indentedLines = indentedLines + '  ' + line;
+          indentedLines = indentedLines + "  " + line;
         }
       }
       if (indentedLines.length > 0) {
-        ir += indentedLines + '\n';
+        ir += indentedLines + "\n";
       }
     }
 
@@ -471,27 +641,27 @@ export class FunctionGenerator {
         this.ctx.emit(`call void @__Promise_resolve(%Promise* ${asyncPromise}, i8* null)`);
         const asyncOutput: string[] = this.ctx.getOutput();
         const asyncOutputLen = asyncOutput.length;
-        const lastLine: string = asyncOutputLen > 0 ? asyncOutput[asyncOutputLen - 1] : '';
+        const lastLine: string = asyncOutputLen > 0 ? asyncOutput[asyncOutputLen - 1] : "";
         if (lastLine) {
-          ir += '  ' + lastLine + '\n';
+          ir += "  " + lastLine + "\n";
         }
-        ir += `  ret %Promise* ${asyncPromise}` + '\n';
+        ir += `  ret %Promise* ${asyncPromise}` + "\n";
       } else if (returnTypeIsVoid) {
-        ir += '  ret void\n';
-      } else if (result !== null && result !== '' && result !== '0') {
-        ir += `  ret ${returnType} ${result}` + '\n';
+        ir += "  ret void\n";
+      } else if (result !== null && result !== "" && result !== "0") {
+        ir += `  ret ${returnType} ${result}` + "\n";
       } else {
         if (returnTypeIsString) {
           const emptyStr = this.ctx.createEmptyStringConstant();
-          ir += `  ret i8* ${emptyStr}` + '\n';
-        } else if (returnType && returnType.indexOf('*') !== -1) {
-          ir += `  ret ${returnType} null` + '\n';
+          ir += `  ret i8* ${emptyStr}` + "\n";
+        } else if (returnType && returnType.indexOf("*") !== -1) {
+          ir += `  ret ${returnType} null` + "\n";
         } else {
-          ir += `  ret ${returnType} 0.0` + '\n';
+          ir += `  ret ${returnType} 0.0` + "\n";
         }
       }
     }
-    ir += '}\n';
+    ir += "}\n";
 
     return ir;
   }
@@ -502,23 +672,23 @@ export class FunctionGenerator {
     for (let i = 0; i < block.statements.length; i++) {
       const stmt = block.statements[i] as { type: string };
       if (!stmt) continue;
-      if (stmt.type === 'return') {
+      if (stmt.type === "return") {
         return true;
       }
-      if (stmt.type === 'if') {
+      if (stmt.type === "if") {
         const ifStmt = block.statements[i] as IfStatement;
         if (ifStmt.thenBlock && this.hasReturnStatement(ifStmt.thenBlock)) return true;
         if (ifStmt.elseBlock && this.hasReturnStatement(ifStmt.elseBlock)) return true;
       }
-      if (stmt.type === 'while') {
+      if (stmt.type === "while") {
         const whileStmt = block.statements[i] as WhileStatement;
         if (whileStmt.body && this.hasReturnStatement(whileStmt.body)) return true;
       }
-      if (stmt.type === 'for') {
+      if (stmt.type === "for") {
         const forStmt = block.statements[i] as ForStatement;
         if (forStmt.body && this.hasReturnStatement(forStmt.body)) return true;
       }
-      if (stmt.type === 'switch') {
+      if (stmt.type === "switch") {
         const switchStmt = block.statements[i] as SwitchStatement;
         if (!switchStmt.cases) continue;
         for (let j = 0; j < switchStmt.cases.length; j++) {
@@ -528,11 +698,11 @@ export class FunctionGenerator {
           for (let k = 0; k < caseItem.consequent.length; k++) {
             const consequentStmt = caseItem.consequent[k] as { type: string };
             if (!consequentStmt) continue;
-            if (consequentStmt.type === 'return') return true;
+            if (consequentStmt.type === "return") return true;
           }
         }
       }
-      if (stmt.type === 'block') {
+      if (stmt.type === "block") {
         const blockStmt = block.statements[i] as BlockStatement;
         if (this.hasReturnStatement(blockStmt)) return true;
       }
@@ -546,21 +716,21 @@ export class FunctionGenerator {
     for (let i = 0; i < block.statements.length; i++) {
       const stmt = block.statements[i] as { type: string };
       if (!stmt) continue;
-      if (stmt.type === 'try') return true;
-      if (stmt.type === 'if') {
+      if (stmt.type === "try") return true;
+      if (stmt.type === "if") {
         const ifStmt = block.statements[i] as IfStatement;
         if (ifStmt.thenBlock && this.hasTryStatement(ifStmt.thenBlock)) return true;
         if (ifStmt.elseBlock && this.hasTryStatement(ifStmt.elseBlock)) return true;
       }
-      if (stmt.type === 'while') {
+      if (stmt.type === "while") {
         const whileStmt = block.statements[i] as WhileStatement;
         if (whileStmt.body && this.hasTryStatement(whileStmt.body)) return true;
       }
-      if (stmt.type === 'for') {
+      if (stmt.type === "for") {
         const forStmt = block.statements[i] as ForStatement;
         if (forStmt.body && this.hasTryStatement(forStmt.body)) return true;
       }
-      if (stmt.type === 'block') {
+      if (stmt.type === "block") {
         const blockStmt = block.statements[i] as BlockStatement;
         if (this.hasTryStatement(blockStmt)) return true;
       }
@@ -572,26 +742,30 @@ export class FunctionGenerator {
   }
 
   private llvmTypeToSymbolKind(llvmType: string): number {
-    if (llvmType === 'double') return SymbolKind.Number;
-    if (llvmType === 'i8*') return SymbolKind.String;
-    if (llvmType === '%Array*') return SymbolKind.Array;
-    if (llvmType === '%StringArray*') return SymbolKind.StringArray;
-    if (llvmType === '%Map*') return SymbolKind.Map;
-    if (llvmType === '%StringMap*') return SymbolKind.Map;
-    if (llvmType === '%Set*') return SymbolKind.Set;
-    if (llvmType === '%StringSet*') return SymbolKind.Set;
+    if (llvmType === "double") return SymbolKind.Number;
+    if (llvmType === "i8*") return SymbolKind.String;
+    if (llvmType === "%Array*") return SymbolKind.Array;
+    if (llvmType === "%StringArray*") return SymbolKind.StringArray;
+    if (llvmType === "%Map*") return SymbolKind.Map;
+    if (llvmType === "%StringMap*") return SymbolKind.Map;
+    if (llvmType === "%Set*") return SymbolKind.Set;
+    if (llvmType === "%StringSet*") return SymbolKind.Set;
     return SymbolKind.Object;
   }
 
   private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } {
     const interfaces: { name: string; fields: { name: string; type: string }[] }[] = [];
     const ast = this.ctx.getAst();
-    const astInterfaces = ast ? (ast.interfaces || []) : [];
+    const astInterfaces = ast ? ast.interfaces || [] : [];
     for (let i = 0; i < memberNames.length; i++) {
       const memberName = memberNames[i];
       if (!memberName) continue;
       for (let j = 0; j < astInterfaces.length; j++) {
-        const iface = astInterfaces[j] as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+        const iface = astInterfaces[j] as {
+          name: string;
+          extends: string[];
+          fields: { name: string; type: string }[];
+        };
         if (!iface || !iface.name) continue;
         if (iface.name === memberName) {
           interfaces.push(iface);
@@ -604,7 +778,11 @@ export class FunctionGenerator {
       return { keys: [], types: [] };
     }
 
-    const firstInterface = interfaces[0] as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+    const firstInterface = interfaces[0] as {
+      name: string;
+      extends: string[];
+      fields: { name: string; type: string }[];
+    };
     const firstFields = firstInterface.fields || [];
     const commonFields: CommonField[] = [];
 
@@ -613,7 +791,11 @@ export class FunctionGenerator {
       if (!field || !field.name) continue;
       let isCommon = true;
       for (let ii = 0; ii < interfaces.length; ii++) {
-        const ifaceTyped = interfaces[ii] as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+        const ifaceTyped = interfaces[ii] as {
+          name: string;
+          extends: string[];
+          fields: { name: string; type: string }[];
+        };
         if (!ifaceTyped.fields) {
           isCommon = false;
           break;
@@ -642,7 +824,7 @@ export class FunctionGenerator {
     for (let i = 0; i < commonFields.length; i++) {
       const cf = commonFields[i] as CommonField;
       keys.push(stripOptional(cf.name));
-      types.push(canonicalTypeToLlvm(cf.type, 'default', this.ctx.isEnumType(cf.type), false, ''));
+      types.push(canonicalTypeToLlvm(cf.type, "default", this.ctx.isEnumType(cf.type), false, ""));
     }
 
     return { keys, types };
@@ -656,8 +838,8 @@ export class FunctionGenerator {
   }
 
   private normalizeType(type: string): string {
-    if (type.startsWith("'") && type.endsWith("'")) return 'string';
-    if (type.startsWith('"') && type.endsWith('"')) return 'string';
+    if (type.startsWith("'") && type.endsWith("'")) return "string";
+    if (type.startsWith('"') && type.endsWith('"')) return "string";
     return type;
   }
 
@@ -668,7 +850,7 @@ export class FunctionGenerator {
     allocaReg: string,
     llvmType: string,
     paramInfo: FunctionParameter,
-    params: string[]
+    params: string[],
   ): void {
     const labelId = this.labelCounter++;
     const hasArgLabel = `has_arg_${labelId}`;
@@ -687,7 +869,7 @@ export class FunctionGenerator {
     this.ctx.emit(`${noArgLabel}:`);
     if (paramInfo.defaultValue) {
       const defaultReg = this.ctx.generateExpression(paramInfo.defaultValue, params);
-      const coerced = llvmType === 'double' ? this.ctx.ensureDouble(defaultReg) : defaultReg;
+      const coerced = llvmType === "double" ? this.ctx.ensureDouble(defaultReg) : defaultReg;
       this.ctx.emit(`store ${llvmType} ${coerced}, ${ptrType} ${allocaReg}`);
     } else {
       const defaultVal = this.getDefaultValue(llvmType);
@@ -699,44 +881,51 @@ export class FunctionGenerator {
   }
 
   private getLlvmPtrType(llvmType: string): string {
-    if (llvmType === 'double') return 'double*';
-    if (llvmType === 'i8*') return 'i8**';
-    if (llvmType === '%Array*') return '%Array**';
-    if (llvmType === '%StringArray*') return '%StringArray**';
+    if (llvmType === "double") return "double*";
+    if (llvmType === "i8*") return "i8**";
+    if (llvmType === "%Array*") return "%Array**";
+    if (llvmType === "%StringArray*") return "%StringArray**";
     return `${llvmType}*`;
   }
 
   private getDefaultValue(llvmType: string): string {
-    if (llvmType === 'double') return '0.0';
-    if (llvmType === 'i8*') return 'null';
-    if (llvmType === '%Array*') return 'null';
-    if (llvmType === '%StringArray*') return 'null';
-    return 'null';
+    if (llvmType === "double") return "0.0";
+    if (llvmType === "i8*") return "null";
+    if (llvmType === "%Array*") return "null";
+    if (llvmType === "%StringArray*") return "null";
+    return "null";
   }
 
-  generateMain(topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>, hasTry?: boolean): string {
-    const mainAttrs = hasTry ? 'noinline optnone' : 'nounwind';
-    let ir = 'define i32 @main(i32 %argc, i8** %argv) ' + mainAttrs + this.ctx.getSubprogramDbgRef() + ' {\n';
-    ir += 'entry:\n';
-    this.ctx.setCurrentLabel('entry');
+  generateMain(
+    topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>,
+    hasTry?: boolean,
+  ): string {
+    const mainAttrs = hasTry ? "noinline optnone" : "nounwind";
+    let ir =
+      "define i32 @main(i32 %argc, i8** %argv) " +
+      mainAttrs +
+      this.ctx.getSubprogramDbgRef() +
+      " {\n";
+    ir += "entry:\n";
+    this.ctx.setCurrentLabel("entry");
 
-    ir += '  ; Initialize garbage collector\n';
-    ir += '  call void @GC_init()\n';
-    ir += '  %__start_tv = alloca %struct.timeval\n';
-    ir += '  %__gtod_start = call i32 @gettimeofday(%struct.timeval* %__start_tv, i8* null)\n';
-    ir += '\n';
+    ir += "  ; Initialize garbage collector\n";
+    ir += "  call void @GC_init()\n";
+    ir += "  %__start_tv = alloca %struct.timeval\n";
+    ir += "  %__gtod_start = call i32 @gettimeofday(%struct.timeval* %__start_tv, i8* null)\n";
+    ir += "\n";
 
     const effectiveOS = (this.ctx.getTargetOS ? this.ctx.getTargetOS() : null) || process.platform;
-    if (effectiveOS === 'darwin') {
-      ir += '  %__stderr_val = load i8*, i8** @__stderrp\n';
-      ir += '  store i8* %__stderr_val, i8** @stderr\n';
-      ir += '  %__stdout_val = load i8*, i8** @__stdoutp\n';
-      ir += '  store i8* %__stdout_val, i8** @stdout\n';
-      ir += '\n';
+    if (effectiveOS === "darwin") {
+      ir += "  %__stderr_val = load i8*, i8** @__stderrp\n";
+      ir += "  store i8* %__stderr_val, i8** @stderr\n";
+      ir += "  %__stdout_val = load i8*, i8** @__stdoutp\n";
+      ir += "  store i8* %__stdout_val, i8** @stdout\n";
+      ir += "\n";
     }
 
-    ir += '  store i32 %argc, i32* @__argc\n';
-    ir += '  store i8** %argv, i8*** @__argv\n';
+    ir += "  store i32 %argc, i32* @__argc\n";
+    ir += "  store i8** %argv, i8*** @__argv\n";
 
     this.ctx.reset();
 
@@ -798,35 +987,40 @@ export class FunctionGenerator {
     }
 
     if (this.ctx.getUsesTestRunner()) {
-      ir += '  ; Test runner summary\n';
-      ir += '  %__end_tv = alloca %struct.timeval\n';
-      ir += '  %__gtod_end = call i32 @gettimeofday(%struct.timeval* %__end_tv, i8* null)\n';
-      ir += '  %__start_sec_ptr = getelementptr %struct.timeval, %struct.timeval* %__start_tv, i32 0, i32 0\n';
-      ir += '  %__start_sec = load i64, i64* %__start_sec_ptr\n';
-      ir += '  %__start_usec_ptr = getelementptr %struct.timeval, %struct.timeval* %__start_tv, i32 0, i32 1\n';
-      ir += '  %__start_usec = load i64, i64* %__start_usec_ptr\n';
-      ir += '  %__end_sec_ptr = getelementptr %struct.timeval, %struct.timeval* %__end_tv, i32 0, i32 0\n';
-      ir += '  %__end_sec = load i64, i64* %__end_sec_ptr\n';
-      ir += '  %__end_usec_ptr = getelementptr %struct.timeval, %struct.timeval* %__end_tv, i32 0, i32 1\n';
-      ir += '  %__end_usec = load i64, i64* %__end_usec_ptr\n';
-      ir += '  %__diff_sec = sub i64 %__end_sec, %__start_sec\n';
-      ir += '  %__diff_usec = sub i64 %__end_usec, %__start_usec\n';
-      ir += '  %__sec_ms = mul i64 %__diff_sec, 1000\n';
-      ir += '  %__usec_ms = sdiv i64 %__diff_usec, 1000\n';
-      ir += '  %__elapsed_i64 = add i64 %__sec_ms, %__usec_ms\n';
-      ir += '  %__elapsed_ms = trunc i64 %__elapsed_i64 to i32\n';
-      ir += '  %__tr_passed = load i32, i32* @__test_passed\n';
-      ir += '  %__tr_failed = load i32, i32* @__test_failed\n';
-      ir += '  %__tr_total = load i32, i32* @__test_total\n';
-      ir += '  %__tr_fmt = getelementptr [39 x i8], [39 x i8]* @.str.test_summary, i32 0, i32 0\n';
-      ir += '  call i32 (i8*, ...) @printf(i8* %__tr_fmt, i32 %__tr_passed, i32 %__tr_failed, i32 %__tr_total, i32 %__elapsed_ms)\n';
-      ir += '  %__tr_has_fail = icmp ne i32 %__tr_failed, 0\n';
-      ir += '  %__tr_exit = select i1 %__tr_has_fail, i32 1, i32 0\n';
-      ir += '  ret i32 %__tr_exit\n';
+      ir += "  ; Test runner summary\n";
+      ir += "  %__end_tv = alloca %struct.timeval\n";
+      ir += "  %__gtod_end = call i32 @gettimeofday(%struct.timeval* %__end_tv, i8* null)\n";
+      ir +=
+        "  %__start_sec_ptr = getelementptr %struct.timeval, %struct.timeval* %__start_tv, i32 0, i32 0\n";
+      ir += "  %__start_sec = load i64, i64* %__start_sec_ptr\n";
+      ir +=
+        "  %__start_usec_ptr = getelementptr %struct.timeval, %struct.timeval* %__start_tv, i32 0, i32 1\n";
+      ir += "  %__start_usec = load i64, i64* %__start_usec_ptr\n";
+      ir +=
+        "  %__end_sec_ptr = getelementptr %struct.timeval, %struct.timeval* %__end_tv, i32 0, i32 0\n";
+      ir += "  %__end_sec = load i64, i64* %__end_sec_ptr\n";
+      ir +=
+        "  %__end_usec_ptr = getelementptr %struct.timeval, %struct.timeval* %__end_tv, i32 0, i32 1\n";
+      ir += "  %__end_usec = load i64, i64* %__end_usec_ptr\n";
+      ir += "  %__diff_sec = sub i64 %__end_sec, %__start_sec\n";
+      ir += "  %__diff_usec = sub i64 %__end_usec, %__start_usec\n";
+      ir += "  %__sec_ms = mul i64 %__diff_sec, 1000\n";
+      ir += "  %__usec_ms = sdiv i64 %__diff_usec, 1000\n";
+      ir += "  %__elapsed_i64 = add i64 %__sec_ms, %__usec_ms\n";
+      ir += "  %__elapsed_ms = trunc i64 %__elapsed_i64 to i32\n";
+      ir += "  %__tr_passed = load i32, i32* @__test_passed\n";
+      ir += "  %__tr_failed = load i32, i32* @__test_failed\n";
+      ir += "  %__tr_total = load i32, i32* @__test_total\n";
+      ir += "  %__tr_fmt = getelementptr [39 x i8], [39 x i8]* @.str.test_summary, i32 0, i32 0\n";
+      ir +=
+        "  call i32 (i8*, ...) @printf(i8* %__tr_fmt, i32 %__tr_passed, i32 %__tr_failed, i32 %__tr_total, i32 %__elapsed_ms)\n";
+      ir += "  %__tr_has_fail = icmp ne i32 %__tr_failed, 0\n";
+      ir += "  %__tr_exit = select i1 %__tr_has_fail, i32 1, i32 0\n";
+      ir += "  ret i32 %__tr_exit\n";
     } else {
-      ir += '  ret i32 0\n';
+      ir += "  ret i32 0\n";
     }
-    ir += '}\n';
+    ir += "}\n";
 
     return ir;
   }

@@ -49,14 +49,18 @@ function energy(bodies: Body[]): number {
   let e = 0.0;
   let i = 0;
   while (i < N_BODIES) {
-    e = e + 0.5 * bodies[i].mass * (bodies[i].vx * bodies[i].vx + bodies[i].vy * bodies[i].vy + bodies[i].vz * bodies[i].vz);
+    e =
+      e +
+      0.5 *
+        bodies[i].mass *
+        (bodies[i].vx * bodies[i].vx + bodies[i].vy * bodies[i].vy + bodies[i].vz * bodies[i].vz);
     let j = i + 1;
     while (j < N_BODIES) {
       const dx = bodies[i].x - bodies[j].x;
       const dy = bodies[i].y - bodies[j].y;
       const dz = bodies[i].z - bodies[j].z;
       const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      e = e - bodies[i].mass * bodies[j].mass / dist;
+      e = e - (bodies[i].mass * bodies[j].mass) / dist;
       j = j + 1;
     }
     i = i + 1;
@@ -68,10 +72,42 @@ function run(): void {
   const bodies: Body[] = [];
 
   bodies.push({ x: 0.0, y: 0.0, z: 0.0, vx: 0.0, vy: 0.0, vz: 0.0, mass: SOLAR_MASS });
-  bodies.push({ x: 4.84143144246472090, y: -1.16032004402742839, z: -0.10362204447112311, vx: 0.00166007664274403694 * DAYS_PER_YEAR, vy: 0.00769901118419740425 * DAYS_PER_YEAR, vz: -0.00006904600169720200 * DAYS_PER_YEAR, mass: 0.000954791938424326609 * SOLAR_MASS });
-  bodies.push({ x: 8.34336671824457987, y: 4.12479856412430479, z: -0.40360353309630984, vx: -0.00276742510726862411 * DAYS_PER_YEAR, vy: 0.00499852801234917238 * DAYS_PER_YEAR, vz: 0.00002304172975737639 * DAYS_PER_YEAR, mass: 0.000285885980666130812 * SOLAR_MASS });
-  bodies.push({ x: 12.89436956213913200, y: -15.11115140169863400, z: -0.22330757889265573, vx: 0.00296460137564761618 * DAYS_PER_YEAR, vy: 0.00237847173959480950 * DAYS_PER_YEAR, vz: -0.00029658956854023756 * DAYS_PER_YEAR, mass: 0.0000436624404335156298 * SOLAR_MASS });
-  bodies.push({ x: 15.37969711485091650, y: -25.91931460998796400, z: 0.17925877295037118, vx: 0.00268067772490389322 * DAYS_PER_YEAR, vy: 0.00162824170038242295 * DAYS_PER_YEAR, vz: -0.00009515922545197159 * DAYS_PER_YEAR, mass: 0.0000515138902046611451 * SOLAR_MASS });
+  bodies.push({
+    x: 4.8414314424647209,
+    y: -1.16032004402742839,
+    z: -0.10362204447112311,
+    vx: 0.00166007664274403694 * DAYS_PER_YEAR,
+    vy: 0.00769901118419740425 * DAYS_PER_YEAR,
+    vz: -0.000069046001697202 * DAYS_PER_YEAR,
+    mass: 0.000954791938424326609 * SOLAR_MASS,
+  });
+  bodies.push({
+    x: 8.34336671824457987,
+    y: 4.12479856412430479,
+    z: -0.40360353309630984,
+    vx: -0.00276742510726862411 * DAYS_PER_YEAR,
+    vy: 0.00499852801234917238 * DAYS_PER_YEAR,
+    vz: 0.00002304172975737639 * DAYS_PER_YEAR,
+    mass: 0.000285885980666130812 * SOLAR_MASS,
+  });
+  bodies.push({
+    x: 12.894369562139132,
+    y: -15.111151401698634,
+    z: -0.22330757889265573,
+    vx: 0.00296460137564761618 * DAYS_PER_YEAR,
+    vy: 0.0023784717395948095 * DAYS_PER_YEAR,
+    vz: -0.00029658956854023756 * DAYS_PER_YEAR,
+    mass: 0.0000436624404335156298 * SOLAR_MASS,
+  });
+  bodies.push({
+    x: 15.3796971148509165,
+    y: -25.919314609987964,
+    z: 0.17925877295037118,
+    vx: 0.00268067772490389322 * DAYS_PER_YEAR,
+    vy: 0.00162824170038242295 * DAYS_PER_YEAR,
+    vz: -0.00009515922545197159 * DAYS_PER_YEAR,
+    mass: 0.0000515138902046611451 * SOLAR_MASS,
+  });
 
   let px = 0.0;
   let py = 0.0;

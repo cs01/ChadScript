@@ -3,7 +3,7 @@ function testMap() {
   const arr = [1, 2, 3, 4, 5];
 
   // Test with inline function expression
-  const doubled = arr.map(function(x) {
+  const doubled = arr.map(function (x) {
     return x * 2;
   });
 

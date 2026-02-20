@@ -1,8 +1,8 @@
-import * as ts from 'typescript';
-import * as path from 'path';
+import * as ts from "typescript";
+import * as path from "path";
 
-export type { TypeInfo, PropertyTypeInfo } from '../codegen/infrastructure/types.js';
-import type { TypeInfo } from '../codegen/infrastructure/types.js';
+export type { TypeInfo, PropertyTypeInfo } from "../codegen/infrastructure/types.js";
+import type { TypeInfo } from "../codegen/infrastructure/types.js";
 
 /**
  * TypeScript Type Checker Wrapper
@@ -36,14 +36,9 @@ export class TypeChecker {
     const filenames: string[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      const sf = ts.createSourceFile(
-        file.filename,
-        file.code,
-        ts.ScriptTarget.ES2015,
-        true
-      );
+      const sf = ts.createSourceFile(file.filename, file.code, ts.ScriptTarget.ES2015, true);
       this.sourceFiles.set(file.filename, sf);
-      const jsName = file.filename.replace(/\.ts$/, '.js');
+      const jsName = file.filename.replace(/\.ts$/, ".js");
       if (jsName !== file.filename) {
         this.sourceFiles.set(jsName, sf);
       }
@@ -57,11 +52,11 @@ export class TypeChecker {
       getCurrentDirectory: () => process.cwd(),
       getDirectories: () => [],
       fileExists: (fileName) => self.lookupSourceFile(fileName) !== undefined,
-      readFile: () => '',
+      readFile: () => "",
       getCanonicalFileName: (fileName) => fileName,
       useCaseSensitiveFileNames: () => true,
-      getNewLine: () => '\n',
-      getDefaultLibFileName: () => 'lib.d.ts',
+      getNewLine: () => "\n",
+      getDefaultLibFileName: () => "lib.d.ts",
     };
 
     this.program = ts.createProgram(filenames, compilerOptions, host);
@@ -79,18 +74,18 @@ export class TypeChecker {
     if (this.sourceFiles.has(fileName)) {
       result = this.sourceFiles.get(fileName);
     } else {
-      const tsName = fileName.replace(/\.js$/, '.ts');
+      const tsName = fileName.replace(/\.js$/, ".ts");
       if (tsName !== fileName && this.sourceFiles.has(tsName)) {
         result = this.sourceFiles.get(tsName);
       } else {
         for (const [key, sf] of this.sourceFiles.entries()) {
-          if (key.endsWith(fileName) || key.endsWith(fileName.replace(/\.js$/, '.ts'))) {
+          if (key.endsWith(fileName) || key.endsWith(fileName.replace(/\.js$/, ".ts"))) {
             result = sf;
             break;
           }
           const keyBase = path.basename(key);
           const fileBase = path.basename(fileName);
-          if (keyBase === fileBase || keyBase === fileBase.replace(/\.js$/, '.ts')) {
+          if (keyBase === fileBase || keyBase === fileBase.replace(/\.js$/, ".ts")) {
             result = sf;
             break;
           }
@@ -102,7 +97,9 @@ export class TypeChecker {
     return result;
   }
 
-  private findFunctionInAllFiles(functionName: string): ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration | undefined {
+  private findFunctionInAllFiles(
+    functionName: string,
+  ): ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration | undefined {
     for (const sourceFile of this.sourceFiles.values()) {
       const result = this.findFunctionInNode(sourceFile, functionName);
       if (result) {
@@ -112,8 +109,15 @@ export class TypeChecker {
     return undefined;
   }
 
-  private findFunctionInNode(node: ts.Node, functionName: string): ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration | undefined {
-    let found: ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration | undefined;
+  private findFunctionInNode(
+    node: ts.Node,
+    functionName: string,
+  ): ts.FunctionDeclaration | ts.MethodDeclaration | ts.ConstructorDeclaration | undefined {
+    let found:
+      | ts.FunctionDeclaration
+      | ts.MethodDeclaration
+      | ts.ConstructorDeclaration
+      | undefined;
 
     if (ts.isFunctionDeclaration(node) && node.name?.text === functionName) {
       return node;
@@ -121,10 +125,14 @@ export class TypeChecker {
 
     if (ts.isClassDeclaration(node)) {
       for (const member of node.members) {
-        if (ts.isConstructorDeclaration(member) && functionName === 'constructor') {
+        if (ts.isConstructorDeclaration(member) && functionName === "constructor") {
           return member;
         }
-        if (ts.isMethodDeclaration(member) && ts.isIdentifier(member.name) && member.name.text === functionName) {
+        if (
+          ts.isMethodDeclaration(member) &&
+          ts.isIdentifier(member.name) &&
+          member.name.text === functionName
+        ) {
           return member;
         }
       }
@@ -155,8 +163,8 @@ export class TypeChecker {
         return null;
       }
 
-      const param = targetFunction.parameters.find(p =>
-        ts.isIdentifier(p.name) && p.name.text === objectName
+      const param = targetFunction.parameters.find(
+        (p) => ts.isIdentifier(p.name) && p.name.text === objectName,
       );
 
       if (!param || !param.type) {
@@ -175,7 +183,7 @@ export class TypeChecker {
       const objProps = this.getObjectProperties(type);
 
       return {
-        kind: 'primitive',
+        kind: "primitive",
         llvmType,
         properties: objProps.map,
         propertyKeys: objProps.keys,
@@ -188,16 +196,16 @@ export class TypeChecker {
   /**
    * Get all properties of an object type
    */
-  private getObjectProperties(type: ts.Type): { map: Map<string, { type: string; offset: number }>; keys: string[] } {
+  private getObjectProperties(type: ts.Type): {
+    map: Map<string, { type: string; offset: number }>;
+    keys: string[];
+  } {
     const props = new Map<string, { type: string; offset: number }>();
     const keys: string[] = [];
     const properties = type.getProperties();
 
     properties.forEach((prop, index) => {
-      const propType = this.checker.getTypeOfSymbolAtLocation(
-        prop,
-        prop.valueDeclaration!
-      );
+      const propType = this.checker.getTypeOfSymbolAtLocation(prop, prop.valueDeclaration!);
       props.set(prop.name, {
         type: this.typeToLLVM(propType),
         offset: index,
@@ -214,17 +222,17 @@ export class TypeChecker {
   private typeToLLVM(type: ts.Type): string {
     // Check for string type
     if (type.flags & ts.TypeFlags.String || type.flags & ts.TypeFlags.StringLiteral) {
-      return 'i8*';
+      return "i8*";
     }
 
     // Check for number type
     if (type.flags & ts.TypeFlags.Number || type.flags & ts.TypeFlags.NumberLiteral) {
-      return 'double';
+      return "double";
     }
 
     // Check for boolean type
     if (type.flags & ts.TypeFlags.Boolean || type.flags & ts.TypeFlags.BooleanLiteral) {
-      return 'i32';
+      return "i32";
     }
 
     // Check for object type
@@ -233,15 +241,15 @@ export class TypeChecker {
 
       // Check if it's an array
       if (this.checker.isArrayType(objectType)) {
-        return '%Array*';
+        return "%Array*";
       }
 
       // Generic object
-      return 'i8*';
+      return "i8*";
     }
 
     // Default to double
-    return 'double';
+    return "double";
   }
 
   /**
@@ -255,8 +263,8 @@ export class TypeChecker {
         return null;
       }
 
-      const param = targetFunction.parameters.find(p =>
-        ts.isIdentifier(p.name) && p.name.text === paramName
+      const param = targetFunction.parameters.find(
+        (p) => ts.isIdentifier(p.name) && p.name.text === paramName,
       );
 
       if (!param || !param.type) {
@@ -267,8 +275,8 @@ export class TypeChecker {
       const objProps = this.getObjectProperties(type);
 
       return {
-        kind: 'object',
-        llvmType: 'i8*',
+        kind: "object",
+        llvmType: "i8*",
         properties: objProps.map,
         propertyKeys: objProps.keys,
       };
@@ -280,7 +288,9 @@ export class TypeChecker {
   /**
    * Get function signature (parameter and return types)
    */
-  getFunctionType(functionName: string): { parameters: { name: string; type: string }[]; returnType: string } | null {
+  getFunctionType(
+    functionName: string,
+  ): { parameters: { name: string; type: string }[]; returnType: string } | null {
     try {
       const targetFunction = this.findFunctionInAllFiles(functionName);
 
@@ -294,27 +304,33 @@ export class TypeChecker {
           continue;
         }
 
-        let paramType = 'number';
+        let paramType = "number";
         if (param.type) {
           if (ts.isArrayTypeNode(param.type)) {
             const elementTypeNode = param.type.elementType;
             if (elementTypeNode.kind === ts.SyntaxKind.StringKeyword) {
-              paramType = 'string[]';
+              paramType = "string[]";
             } else if (elementTypeNode.kind === ts.SyntaxKind.NumberKeyword) {
-              paramType = 'number[]';
+              paramType = "number[]";
             } else if (elementTypeNode.kind === ts.SyntaxKind.BooleanKeyword) {
-              paramType = 'boolean[]';
+              paramType = "boolean[]";
             } else {
-              paramType = 'object[]';
+              paramType = "object[]";
             }
           } else {
             const type = this.checker.getTypeFromTypeNode(param.type);
             if (type.flags & ts.TypeFlags.String || type.flags & ts.TypeFlags.StringLiteral) {
-              paramType = 'string';
-            } else if (type.flags & ts.TypeFlags.Number || type.flags & ts.TypeFlags.NumberLiteral) {
-              paramType = 'number';
-            } else if (type.flags & ts.TypeFlags.Boolean || type.flags & ts.TypeFlags.BooleanLiteral) {
-              paramType = 'boolean';
+              paramType = "string";
+            } else if (
+              type.flags & ts.TypeFlags.Number ||
+              type.flags & ts.TypeFlags.NumberLiteral
+            ) {
+              paramType = "number";
+            } else if (
+              type.flags & ts.TypeFlags.Boolean ||
+              type.flags & ts.TypeFlags.BooleanLiteral
+            ) {
+              paramType = "boolean";
             } else if (type.flags & ts.TypeFlags.Object) {
               paramType = this.checker.typeToString(type);
             }
@@ -327,18 +343,18 @@ export class TypeChecker {
         });
       }
 
-      let returnType = 'void';
+      let returnType = "void";
       const funcType = targetFunction as ts.FunctionDeclaration | ts.MethodDeclaration;
       if (funcType.type) {
         const type = this.checker.getTypeFromTypeNode(funcType.type);
         if (type.flags & ts.TypeFlags.String || type.flags & ts.TypeFlags.StringLiteral) {
-          returnType = 'string';
+          returnType = "string";
         } else if (type.flags & ts.TypeFlags.Number || type.flags & ts.TypeFlags.NumberLiteral) {
-          returnType = 'number';
+          returnType = "number";
         } else if (type.flags & ts.TypeFlags.Boolean || type.flags & ts.TypeFlags.BooleanLiteral) {
-          returnType = 'boolean';
+          returnType = "boolean";
         } else if (type.flags & ts.TypeFlags.Void) {
-          returnType = 'void';
+          returnType = "void";
         } else if (type.flags & ts.TypeFlags.Object) {
           returnType = this.checker.typeToString(type);
         }
@@ -354,7 +370,9 @@ export class TypeChecker {
    * Get interface definition by name
    * Returns property names and their types for code generation
    */
-  getInterfaceDefinition(interfaceName: string): { properties: { name: string; type: string }[] } | null {
+  getInterfaceDefinition(
+    interfaceName: string,
+  ): { properties: { name: string; type: string }[] } | null {
     try {
       let targetInterface: ts.InterfaceDeclaration | undefined;
 
@@ -377,14 +395,14 @@ export class TypeChecker {
       for (const member of targetInterface.members) {
         if (ts.isPropertySignature(member) && ts.isIdentifier(member.name)) {
           const propName = member.name.text;
-          let propType = 'any';
+          let propType = "any";
           const isOptional = member.questionToken !== undefined;
 
           if (member.type) {
             if (ts.isArrayTypeNode(member.type)) {
               const elementTypeNode = member.type.elementType;
               const elemText = elementTypeNode.getText();
-              propType = elemText + '[]';
+              propType = elemText + "[]";
             } else {
               const type = this.checker.getTypeFromTypeNode(member.type);
               propType = this.resolvePropertyType(type, isOptional);
@@ -403,23 +421,23 @@ export class TypeChecker {
 
   private resolvePropertyType(type: ts.Type, isOptional: boolean): string {
     if (type.flags & ts.TypeFlags.String || type.flags & ts.TypeFlags.StringLiteral) {
-      return 'string';
+      return "string";
     }
     if (type.flags & ts.TypeFlags.Number || type.flags & ts.TypeFlags.NumberLiteral) {
-      return 'number';
+      return "number";
     }
     if (type.flags & ts.TypeFlags.Boolean || type.flags & ts.TypeFlags.BooleanLiteral) {
-      return 'boolean';
+      return "boolean";
     }
 
     if (type.flags & ts.TypeFlags.Union) {
       const unionType = type as ts.UnionType;
-      const nonNullTypes = unionType.types.filter(t =>
-        !(t.flags & ts.TypeFlags.Undefined) && !(t.flags & ts.TypeFlags.Null)
+      const nonNullTypes = unionType.types.filter(
+        (t) => !(t.flags & ts.TypeFlags.Undefined) && !(t.flags & ts.TypeFlags.Null),
       );
       if (nonNullTypes.length === 1) {
         const innerType = this.resolvePropertyType(nonNullTypes[0], false);
-        return isOptional ? innerType + '?' : innerType;
+        return isOptional ? innerType + "?" : innerType;
       }
     }
 
@@ -428,35 +446,38 @@ export class TypeChecker {
         const typeArgs = this.checker.getTypeArguments(type as ts.TypeReference);
         if (typeArgs && typeArgs.length > 0) {
           const elementType = this.resolvePropertyType(typeArgs[0], false);
-          return elementType + '[]';
+          return elementType + "[]";
         }
-        return 'any[]';
+        return "any[]";
       }
-    } catch {
-    }
+    } catch {}
 
     if (type.flags & ts.TypeFlags.Object) {
       const typeName = this.checker.typeToString(type);
-      if (typeName && typeName !== 'object' && !typeName.includes('{')) {
-        if (typeName.endsWith('[]')) {
+      if (typeName && typeName !== "object" && !typeName.includes("{")) {
+        if (typeName.endsWith("[]")) {
           return typeName;
         }
-        return isOptional ? typeName + '?' : typeName;
+        return isOptional ? typeName + "?" : typeName;
       }
     }
 
-    return 'any';
+    return "any";
   }
 
-  getArrayElementInterface(objectName: string, propertyName: string, functionName: string): { interfaceName: string; properties: { name: string; type: string }[] } | null {
+  getArrayElementInterface(
+    objectName: string,
+    propertyName: string,
+    functionName: string,
+  ): { interfaceName: string; properties: { name: string; type: string }[] } | null {
     try {
       const targetFunction = this.findFunctionInAllFiles(functionName);
       if (!targetFunction) {
         return null;
       }
 
-      const param = targetFunction.parameters.find(p =>
-        ts.isIdentifier(p.name) && p.name.text === objectName
+      const param = targetFunction.parameters.find(
+        (p) => ts.isIdentifier(p.name) && p.name.text === objectName,
       );
 
       if (!param || !param.type) {
@@ -486,7 +507,7 @@ export class TypeChecker {
       if (interfaceDef) {
         return {
           interfaceName,
-          properties: interfaceDef.properties
+          properties: interfaceDef.properties,
         };
       }
 
@@ -497,17 +518,23 @@ export class TypeChecker {
           const properties: { name: string; type: string }[] = [];
           for (const p of props) {
             const pType = this.checker.getTypeOfSymbolAtLocation(p, param);
-            let propType = 'any';
+            let propType = "any";
             if (pType.flags & ts.TypeFlags.String || pType.flags & ts.TypeFlags.StringLiteral) {
-              propType = 'string';
-            } else if (pType.flags & ts.TypeFlags.Number || pType.flags & ts.TypeFlags.NumberLiteral) {
-              propType = 'number';
-            } else if (pType.flags & ts.TypeFlags.Boolean || pType.flags & ts.TypeFlags.BooleanLiteral) {
-              propType = 'boolean';
+              propType = "string";
+            } else if (
+              pType.flags & ts.TypeFlags.Number ||
+              pType.flags & ts.TypeFlags.NumberLiteral
+            ) {
+              propType = "number";
+            } else if (
+              pType.flags & ts.TypeFlags.Boolean ||
+              pType.flags & ts.TypeFlags.BooleanLiteral
+            ) {
+              propType = "boolean";
             }
             properties.push({ name: p.name, type: propType });
           }
-          return { interfaceName: '__anonymous', properties };
+          return { interfaceName: "__anonymous", properties };
         }
       }
 
@@ -517,7 +544,10 @@ export class TypeChecker {
     }
   }
 
-  getVariableArrayElementInterface(varName: string, functionName: string): { interfaceName: string; properties: { name: string; type: string }[] } | null {
+  getVariableArrayElementInterface(
+    varName: string,
+    functionName: string,
+  ): { interfaceName: string; properties: { name: string; type: string }[] } | null {
     try {
       const targetFunction = this.findFunctionInAllFiles(functionName);
       if (!targetFunction) {
@@ -526,7 +556,11 @@ export class TypeChecker {
 
       let varDecl: ts.VariableDeclaration | undefined;
       const visitNode = (node: ts.Node): void => {
-        if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.name.text === varName) {
+        if (
+          ts.isVariableDeclaration(node) &&
+          ts.isIdentifier(node.name) &&
+          node.name.text === varName
+        ) {
           varDecl = node;
         }
         if (!varDecl) {
@@ -556,7 +590,7 @@ export class TypeChecker {
       if (interfaceDef) {
         return {
           interfaceName,
-          properties: interfaceDef.properties
+          properties: interfaceDef.properties,
         };
       }
 
@@ -567,17 +601,23 @@ export class TypeChecker {
           const properties: { name: string; type: string }[] = [];
           for (const p of props) {
             const pType = this.checker.getTypeOfSymbolAtLocation(p, varDecl);
-            let propType = 'any';
+            let propType = "any";
             if (pType.flags & ts.TypeFlags.String || pType.flags & ts.TypeFlags.StringLiteral) {
-              propType = 'string';
-            } else if (pType.flags & ts.TypeFlags.Number || pType.flags & ts.TypeFlags.NumberLiteral) {
-              propType = 'number';
-            } else if (pType.flags & ts.TypeFlags.Boolean || pType.flags & ts.TypeFlags.BooleanLiteral) {
-              propType = 'boolean';
+              propType = "string";
+            } else if (
+              pType.flags & ts.TypeFlags.Number ||
+              pType.flags & ts.TypeFlags.NumberLiteral
+            ) {
+              propType = "number";
+            } else if (
+              pType.flags & ts.TypeFlags.Boolean ||
+              pType.flags & ts.TypeFlags.BooleanLiteral
+            ) {
+              propType = "boolean";
             }
             properties.push({ name: p.name, type: propType });
           }
-          return { interfaceName: '__anonymous', properties };
+          return { interfaceName: "__anonymous", properties };
         }
       }
 

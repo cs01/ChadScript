@@ -5,6 +5,7 @@ This directory contains TypeScript type definitions for ChadScript's built-in ru
 ## What's Included
 
 ### Namespaces
+
 - **`fs`** - File system operations (readFileSync, writeFileSync, existsSync, unlinkSync)
 - **`console`** - Console output (log, error)
 - **`process`** - Process utilities (exit, argv)
@@ -13,6 +14,7 @@ This directory contains TypeScript type definitions for ChadScript's built-in ru
 - **`path`** - Path utilities (resolve, dirname)
 
 ### Global Functions
+
 - **`parseInt(str, radix?)`** - Parse strings to integers
 - **`malloc(size)`** / **`free(ptr)`** - Manual memory management
 - **`socket(...)`**, **`bind(...)`**, **`listen(...)`**, **`accept(...)`** - Socket operations

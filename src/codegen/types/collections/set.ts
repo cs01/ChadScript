@@ -1,5 +1,5 @@
-import { Expression, MethodCallNode } from '../../../ast/types.js';
-import { IGeneratorContext } from '../../infrastructure/generator-context.js';
+import { Expression, MethodCallNode } from "../../../ast/types.js";
+import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 
 // ============================================
 // SET GENERATOR - Set operations
@@ -15,15 +15,23 @@ export class SetGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
   // Helper methods delegate to context
-  private nextTemp(): string { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string): void { this.ctx.emit(instruction); }
-  private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
+  private nextTemp(): string {
+    return this.ctx.nextTemp();
+  }
+  private nextLabel(prefix: string): string {
+    return this.ctx.nextLabel(prefix);
+  }
+  private emit(instruction: string): void {
+    this.ctx.emit(instruction);
+  }
+  private getDoubleSize() {
+    return 8;
+  } // sizeof(double) = 8 bytes
 
   generateSetLiteral(expr: Expression, params: string[]): string {
     const setExpr = expr as { type: string; values: Expression[] };
-    if (setExpr.type !== 'set') {
-      throw new Error('Expected set literal');
+    if (setExpr.type !== "set") {
+      throw new Error("Expected set literal");
     }
 
     // Allocate Set struct on stack
@@ -66,7 +74,7 @@ export class SetGenerator {
       const valueExprTyped = setExpr.values[i] as { type: string; value: number };
 
       // For literal numbers, we can dedupe at compile time
-      if (valueExprTyped.type === 'number') {
+      if (valueExprTyped.type === "number") {
         const numVal = valueExprTyped.value;
         if (seen.has(numVal)) continue;
         seen.add(numVal);
@@ -77,7 +85,9 @@ export class SetGenerator {
       // Store value
       const dblSetVal = this.ctx.ensureDouble(valueValue);
       const valueElemPtr = this.nextTemp();
-      this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${actualIndex}`);
+      this.emit(
+        `${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${actualIndex}`,
+      );
       this.emit(`store double ${dblSetVal}, double* ${valueElemPtr}`);
       actualIndex++;
     }
@@ -87,13 +97,13 @@ export class SetGenerator {
       this.emit(`store i32 ${actualIndex}, i32* ${sizeFieldPtr}`);
     }
 
-    this.ctx.setVariableType(setPtr, '%Set*');
+    this.ctx.setVariableType(setPtr, "%Set*");
     return setPtr;
   }
 
   generateSetAdd(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('Set.add() requires exactly 1 argument');
+      throw new Error("Set.add() requires exactly 1 argument");
     }
 
     const setPtr = this.ctx.generateExpression(expr.object, params);
@@ -110,14 +120,14 @@ export class SetGenerator {
     const currentSize = this.nextTemp();
     this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
 
-    const dedupLoop = this.nextLabel('set_add_dedup');
-    const dedupBody = this.nextLabel('set_add_dedup_body');
-    const dedupNext = this.nextLabel('set_add_dedup_next');
-    const alreadyExists = this.nextLabel('set_add_exists');
-    const dedupDone = this.nextLabel('set_add_dedup_done');
-    const resizeLabel = this.nextLabel('set_add_resize');
-    const doInsert = this.nextLabel('set_add_insert');
-    const endLabel = this.nextLabel('set_add_end');
+    const dedupLoop = this.nextLabel("set_add_dedup");
+    const dedupBody = this.nextLabel("set_add_dedup_body");
+    const dedupNext = this.nextLabel("set_add_dedup_next");
+    const alreadyExists = this.nextLabel("set_add_exists");
+    const dedupDone = this.nextLabel("set_add_dedup_done");
+    const resizeLabel = this.nextLabel("set_add_resize");
+    const doInsert = this.nextLabel("set_add_insert");
+    const endLabel = this.nextLabel("set_add_end");
 
     const idxReg = this.nextTemp();
     this.emit(`${idxReg} = alloca i32`);
@@ -181,7 +191,9 @@ export class SetGenerator {
     this.emit(`${currentSizeI64} = zext i32 ${currentSize} to i64`);
     const copySize = this.nextTemp();
     this.emit(`${copySize} = mul i64 ${currentSizeI64}, ${this.getDoubleSize()}`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySize}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySize}, i1 false)`,
+    );
     this.emit(`store double* ${newDataPtr}, double** ${valuesFieldPtr}`);
     this.emit(`store i32 ${newCap}, i32* ${capFieldPtr}`);
     this.emit(`br label %${doInsert}`);
@@ -192,7 +204,9 @@ export class SetGenerator {
     const dataPtr2 = this.nextTemp();
     this.emit(`${dataPtr2} = load double*, double** ${dataPtrField2}`);
     const insertPtr = this.nextTemp();
-    this.emit(`${insertPtr} = getelementptr inbounds double, double* ${dataPtr2}, i32 ${currentSize}`);
+    this.emit(
+      `${insertPtr} = getelementptr inbounds double, double* ${dataPtr2}, i32 ${currentSize}`,
+    );
     this.emit(`store double ${dblValue}, double* ${insertPtr}`);
     const newSize = this.nextTemp();
     this.emit(`${newSize} = add i32 ${currentSize}, 1`);
@@ -206,7 +220,7 @@ export class SetGenerator {
   generateSetHas(expr: MethodCallNode, params: string[]): string {
     // set.has(value) - returns 1 if value exists, 0 otherwise
     if (expr.args.length !== 1) {
-      throw new Error('Set.has() requires exactly 1 argument');
+      throw new Error("Set.has() requires exactly 1 argument");
     }
 
     // Get set pointer
@@ -231,10 +245,10 @@ export class SetGenerator {
     this.emit(`${resultReg} = alloca double`);
     this.emit(`store double 0.0, double* ${resultReg}`);
 
-    const loopLabel = this.nextLabel('set_has_loop');
-    const bodyLabel = this.nextLabel('set_has_body');
-    const foundLabel = this.nextLabel('set_has_found');
-    const endLabel = this.nextLabel('set_has_end');
+    const loopLabel = this.nextLabel("set_has_loop");
+    const bodyLabel = this.nextLabel("set_has_body");
+    const foundLabel = this.nextLabel("set_has_found");
+    const endLabel = this.nextLabel("set_has_end");
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -250,7 +264,9 @@ export class SetGenerator {
 
     this.emit(`${bodyLabel}:`);
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentIndex}`);
+    this.emit(
+      `${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentIndex}`,
+    );
     const currentValue = this.nextTemp();
     this.emit(`${currentValue} = load double, double* ${valueElemPtr}`);
     const dblValueToFind = this.ctx.ensureDouble(valueToFind);
@@ -282,14 +298,14 @@ export class SetGenerator {
     this.emit(`${sizeI32} = load i32, i32* ${sizeFieldPtr}`);
     const size = this.nextTemp();
     this.emit(`${size} = sitofp i32 ${sizeI32} to double`);
-    this.ctx.setVariableType(size, 'double');
+    this.ctx.setVariableType(size, "double");
     return size;
   }
 
   generateSetDelete(expr: MethodCallNode, params: string[]): string {
     // set.delete(value) - returns 1 if deleted, 0 if not found
     if (expr.args.length !== 1) {
-      throw new Error('Set.delete() requires exactly 1 argument');
+      throw new Error("Set.delete() requires exactly 1 argument");
     }
 
     // Get set pointer
@@ -327,10 +343,18 @@ export class SetGenerator {
 export class StringSetGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  private nextTemp(): string { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string): void { this.ctx.emit(instruction); }
-  private getPtrSize() { return 8; }
+  private nextTemp(): string {
+    return this.ctx.nextTemp();
+  }
+  private nextLabel(prefix: string): string {
+    return this.ctx.nextLabel(prefix);
+  }
+  private emit(instruction: string): void {
+    this.ctx.emit(instruction);
+  }
+  private getPtrSize() {
+    return 8;
+  }
 
   generateEmptyStringSet(): string {
     const setPtr = this.nextTemp();
@@ -349,40 +373,50 @@ export class StringSetGenerator {
     this.emit(`${valuesPtr} = bitcast i8* ${valuesMem} to i8**`);
 
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 0`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 0`,
+    );
     this.emit(`store i8** ${valuesPtr}, i8*** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 1`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 0, i32* ${sizeFieldPtr}`);
 
     const capacityFieldPtr = this.nextTemp();
-    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 2`);
+    this.emit(
+      `${capacityFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${initialCapacity}, i32* ${capacityFieldPtr}`);
 
-    this.ctx.setVariableType(setPtr, '%StringSet*');
+    this.ctx.setVariableType(setPtr, "%StringSet*");
     return setPtr;
   }
 
   generateStringSetAdd(setPtr: string, valueValue: string): string {
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 0`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 0`,
+    );
     const valuesPtr = this.nextTemp();
     this.emit(`${valuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 1`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 1`,
+    );
     const currentSize = this.nextTemp();
     this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
 
-    const dedupLoop = this.nextLabel('strset_add_dedup');
-    const dedupBody = this.nextLabel('strset_add_dedup_body');
-    const dedupNext = this.nextLabel('strset_add_dedup_next');
-    const alreadyExists = this.nextLabel('strset_add_exists');
-    const dedupDone = this.nextLabel('strset_add_dedup_done');
-    const resizeLabel = this.nextLabel('strset_add_resize');
-    const doInsert = this.nextLabel('strset_add_insert');
-    const endLabel = this.nextLabel('strset_add_end');
+    const dedupLoop = this.nextLabel("strset_add_dedup");
+    const dedupBody = this.nextLabel("strset_add_dedup_body");
+    const dedupNext = this.nextLabel("strset_add_dedup_next");
+    const alreadyExists = this.nextLabel("strset_add_exists");
+    const dedupDone = this.nextLabel("strset_add_dedup_done");
+    const resizeLabel = this.nextLabel("strset_add_resize");
+    const doInsert = this.nextLabel("strset_add_insert");
+    const endLabel = this.nextLabel("strset_add_end");
 
     const idxReg = this.nextTemp();
     this.emit(`${idxReg} = alloca i32`);
@@ -418,7 +452,9 @@ export class StringSetGenerator {
 
     this.emit(`${dedupDone}:`);
     const capFieldPtr = this.nextTemp();
-    this.emit(`${capFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 2`);
+    this.emit(
+      `${capFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 2`,
+    );
     const currentCap = this.nextTemp();
     this.emit(`${currentCap} = load i32, i32* ${capFieldPtr}`);
     const needResize = this.nextTemp();
@@ -448,14 +484,18 @@ export class StringSetGenerator {
     this.emit(`${currentSizeI64} = zext i32 ${currentSize} to i64`);
     const copySize = this.nextTemp();
     this.emit(`${copySize} = mul i64 ${currentSizeI64}, ${this.getPtrSize()}`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySize}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySize}, i1 false)`,
+    );
     this.emit(`store i8** ${newDataPtr}, i8*** ${valuesFieldPtr}`);
     this.emit(`store i32 ${newCap}, i32* ${capFieldPtr}`);
     this.emit(`br label %${doInsert}`);
 
     this.emit(`${doInsert}:`);
     const dataPtrField2 = this.nextTemp();
-    this.emit(`${dataPtrField2} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField2} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 0`,
+    );
     const dataPtr2 = this.nextTemp();
     this.emit(`${dataPtr2} = load i8**, i8*** ${dataPtrField2}`);
     const insertPtr = this.nextTemp();
@@ -472,12 +512,16 @@ export class StringSetGenerator {
 
   generateStringSetHas(setPtr: string, valueToFind: string): string {
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 0`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 0`,
+    );
     const valuesPtr = this.nextTemp();
     this.emit(`${valuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 1`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 1`,
+    );
     const setSize = this.nextTemp();
     this.emit(`${setSize} = load i32, i32* ${sizeFieldPtr}`);
 
@@ -485,10 +529,10 @@ export class StringSetGenerator {
     this.emit(`${resultReg} = alloca double`);
     this.emit(`store double 0.0, double* ${resultReg}`);
 
-    const loopLabel = this.nextLabel('strset_has_loop');
-    const bodyLabel = this.nextLabel('strset_has_body');
-    const foundLabel = this.nextLabel('strset_has_found');
-    const endLabel = this.nextLabel('strset_has_end');
+    const loopLabel = this.nextLabel("strset_has_loop");
+    const bodyLabel = this.nextLabel("strset_has_body");
+    const foundLabel = this.nextLabel("strset_has_found");
+    const endLabel = this.nextLabel("strset_has_end");
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -504,7 +548,9 @@ export class StringSetGenerator {
 
     this.emit(`${bodyLabel}:`);
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${currentIndex}`);
+    this.emit(
+      `${valueElemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${currentIndex}`,
+    );
     const currentValue = this.nextTemp();
     this.emit(`${currentValue} = load i8*, i8** ${valueElemPtr}`);
     const cmpResult = this.nextTemp();
@@ -526,14 +572,16 @@ export class StringSetGenerator {
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
     this.emit(`${result} = load double, double* ${resultReg}`);
-    this.ctx.setVariableType(result, 'double');
+    this.ctx.setVariableType(result, "double");
 
     return result;
   }
 
   generateStringSetSize(setPtr: string): string {
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 1`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 1`,
+    );
     const size = this.nextTemp();
     this.emit(`${size} = load i32, i32* ${sizeFieldPtr}`);
     return size;

@@ -1,4 +1,4 @@
-import * as ts from 'typescript';
+import * as ts from "typescript";
 import {
   FunctionNode,
   ClassNode,
@@ -12,34 +12,36 @@ import {
   EnumMember,
   BlockStatement,
   FunctionParameter,
-} from '../../ast/types.js';
-import { transformBlock } from './statements.js';
-import { transformExpression } from './expressions.js';
-import { getLoc } from '../transformer.js';
+} from "../../ast/types.js";
+import { transformBlock } from "./statements.js";
+import { transformExpression } from "./expressions.js";
+import { getLoc } from "../transformer.js";
 
 export function transformFunctionDeclaration(
   node: ts.FunctionDeclaration,
-  checker: ts.TypeChecker | undefined
+  checker: ts.TypeChecker | undefined,
 ): FunctionNode | null {
   if (!node.name) return null;
 
   const name = node.name.text;
-  const params = node.parameters.map(p => ts.isIdentifier(p.name) ? p.name.text : '');
+  const params = node.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ""));
 
-  const paramTypes = node.parameters.map(p => {
-    if (p.type) {
-      return extractTypeString(p.type);
-    }
-    return undefined;
-  }).filter(Boolean) as string[];
+  const paramTypes = node.parameters
+    .map((p) => {
+      if (p.type) {
+        return extractTypeString(p.type);
+      }
+      return undefined;
+    })
+    .filter(Boolean) as string[];
 
-  const parameters: FunctionParameter[] = node.parameters.map(p => {
-    const paramName = ts.isIdentifier(p.name) ? p.name.text : '';
+  const parameters: FunctionParameter[] = node.parameters.map((p) => {
+    const paramName = ts.isIdentifier(p.name) ? p.name.text : "";
     let paramType = p.type ? extractTypeString(p.type) : undefined;
     const optional = !!p.questionToken;
     const isRest = !!p.dotDotDotToken;
-    if (isRest && paramType && !paramType.endsWith('[]')) {
-      paramType = paramType + '[]';
+    if (isRest && paramType && !paramType.endsWith("[]")) {
+      paramType = paramType + "[]";
     }
     let defaultValue = undefined;
     if (p.initializer) {
@@ -55,14 +57,14 @@ export function transformFunctionDeclaration(
 
   let typeParameters: string[] | undefined;
   if (node.typeParameters && node.typeParameters.length > 0) {
-    typeParameters = node.typeParameters.map(tp => tp.name.text);
+    typeParameters = node.typeParameters.map((tp) => tp.name.text);
   }
 
   const body: BlockStatement = node.body
     ? transformBlock(node.body, checker)
-    : { type: 'block', statements: [] };
+    : { type: "block", statements: [] };
 
-  const isAsync = node.modifiers?.some(m => m.kind === ts.SyntaxKind.AsyncKeyword) || false;
+  const isAsync = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) || false;
 
   return {
     name,
@@ -79,7 +81,7 @@ export function transformFunctionDeclaration(
 
 export function transformClassDeclaration(
   node: ts.ClassDeclaration,
-  checker: ts.TypeChecker | undefined
+  checker: ts.TypeChecker | undefined,
 ): ClassNode | null {
   if (!node.name) return null;
 
@@ -125,12 +127,12 @@ export function transformClassDeclaration(
         fields.push(...result.parameterProperties);
       }
     } else if (ts.isGetAccessorDeclaration(member)) {
-      const method = transformAccessorDeclaration(member, checker, 'get');
+      const method = transformAccessorDeclaration(member, checker, "get");
       if (method) {
         methods.push(method);
       }
     } else if (ts.isSetAccessorDeclaration(member)) {
-      const method = transformAccessorDeclaration(member, checker, 'set');
+      const method = transformAccessorDeclaration(member, checker, "set");
       if (method) {
         methods.push(method);
       }
@@ -147,21 +149,24 @@ export function transformClassDeclaration(
   };
 }
 
-function transformPropertyDeclaration(node: ts.PropertyDeclaration, checker: ts.TypeChecker | undefined): ClassField | null {
+function transformPropertyDeclaration(
+  node: ts.PropertyDeclaration,
+  checker: ts.TypeChecker | undefined,
+): ClassField | null {
   if (!ts.isIdentifier(node.name)) return null;
 
   const name = node.name.text;
-  let fieldType: ClassField['fieldType'] = 'double';
+  let fieldType: ClassField["fieldType"] = "double";
   let tsType: string | undefined;
 
   if (node.type) {
     const typeStr = extractTypeString(node.type);
-    if (typeStr === 'string') fieldType = 'string';
-    else if (typeStr === 'number') fieldType = 'double';
-    else if (typeStr === 'boolean') fieldType = 'boolean';
-    else if (typeStr === 'string[]') fieldType = 'string[]';
-    else if (typeStr === 'number[]') fieldType = 'number[]';
-    else if (typeStr === 'boolean[]') fieldType = 'boolean[]';
+    if (typeStr === "string") fieldType = "string";
+    else if (typeStr === "number") fieldType = "double";
+    else if (typeStr === "boolean") fieldType = "boolean";
+    else if (typeStr === "string[]") fieldType = "string[]";
+    else if (typeStr === "number[]") fieldType = "number[]";
+    else if (typeStr === "boolean[]") fieldType = "boolean[]";
     else {
       tsType = typeStr;
     }
@@ -170,7 +175,7 @@ function transformPropertyDeclaration(node: ts.PropertyDeclaration, checker: ts.
     if (newExpr.expression && ts.isIdentifier(newExpr.expression)) {
       const className = newExpr.expression.text;
       if (newExpr.typeArguments && newExpr.typeArguments.length > 0) {
-        const args = newExpr.typeArguments.map(extractTypeString).join(', ');
+        const args = newExpr.typeArguments.map(extractTypeString).join(", ");
         tsType = `${className}<${args}>`;
       } else {
         tsType = className;
@@ -188,18 +193,18 @@ function transformPropertyDeclaration(node: ts.PropertyDeclaration, checker: ts.
 function transformMethodDeclaration(
   node: ts.MethodDeclaration,
   checker: ts.TypeChecker | undefined,
-  isConstructor: boolean
+  isConstructor: boolean,
 ): ClassMethod | null {
   if (!ts.isIdentifier(node.name)) return null;
 
   const name = node.name.text;
-  const params = node.parameters.map(p => ts.isIdentifier(p.name) ? p.name.text : '');
+  const params = node.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ""));
 
-  const paramTypes = node.parameters.map(p => {
+  const paramTypes = node.parameters.map((p) => {
     if (p.type) {
       return extractTypeString(p.type);
     }
-    return 'any';
+    return "any";
   });
 
   let returnType: string | undefined;
@@ -209,10 +214,10 @@ function transformMethodDeclaration(
 
   const body: BlockStatement = node.body
     ? transformBlock(node.body, checker)
-    : { type: 'block', statements: [] };
+    : { type: "block", statements: [] };
 
   return {
-    type: 'method',
+    type: "method",
     name,
     params,
     paramTypes,
@@ -225,37 +230,38 @@ function transformMethodDeclaration(
 
 function transformConstructorDeclaration(
   node: ts.ConstructorDeclaration,
-  checker: ts.TypeChecker | undefined
+  checker: ts.TypeChecker | undefined,
 ): { method: ClassMethod; parameterProperties: ClassField[] } | null {
-  const params = node.parameters.map(p => ts.isIdentifier(p.name) ? p.name.text : '');
+  const params = node.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ""));
 
-  const paramTypes = node.parameters.map(p => {
+  const paramTypes = node.parameters.map((p) => {
     if (p.type) {
       return extractTypeString(p.type);
     }
-    return 'any';
+    return "any";
   });
 
   const parameterProperties: ClassField[] = [];
   for (const param of node.parameters) {
-    const hasAccessModifier = param.modifiers?.some(m =>
-      m.kind === ts.SyntaxKind.PrivateKeyword ||
-      m.kind === ts.SyntaxKind.PublicKeyword ||
-      m.kind === ts.SyntaxKind.ProtectedKeyword ||
-      m.kind === ts.SyntaxKind.ReadonlyKeyword
+    const hasAccessModifier = param.modifiers?.some(
+      (m) =>
+        m.kind === ts.SyntaxKind.PrivateKeyword ||
+        m.kind === ts.SyntaxKind.PublicKeyword ||
+        m.kind === ts.SyntaxKind.ProtectedKeyword ||
+        m.kind === ts.SyntaxKind.ReadonlyKeyword,
     );
     if (hasAccessModifier && ts.isIdentifier(param.name)) {
       const name = param.name.text;
-      let fieldType: ClassField['fieldType'] = 'double';
+      let fieldType: ClassField["fieldType"] = "double";
       let tsType: string | undefined;
       if (param.type) {
         const typeStr = extractTypeString(param.type);
-        if (typeStr === 'string') fieldType = 'string';
-        else if (typeStr === 'number') fieldType = 'double';
-        else if (typeStr === 'boolean') fieldType = 'boolean';
-        else if (typeStr === 'string[]') fieldType = 'string[]';
-        else if (typeStr === 'number[]') fieldType = 'number[]';
-        else if (typeStr === 'boolean[]') fieldType = 'boolean[]';
+        if (typeStr === "string") fieldType = "string";
+        else if (typeStr === "number") fieldType = "double";
+        else if (typeStr === "boolean") fieldType = "boolean";
+        else if (typeStr === "string[]") fieldType = "string[]";
+        else if (typeStr === "number[]") fieldType = "number[]";
+        else if (typeStr === "boolean[]") fieldType = "boolean[]";
         else {
           tsType = typeStr;
         }
@@ -266,15 +272,16 @@ function transformConstructorDeclaration(
 
   const body: BlockStatement = node.body
     ? transformBlock(node.body, checker)
-    : { type: 'block', statements: [] };
+    : { type: "block", statements: [] };
 
   return {
     method: {
-      type: 'method',
-      name: 'constructor',
+      type: "method",
+      name: "constructor",
       params,
       paramTypes,
-      parameterProperties: parameterProperties.length > 0 ? parameterProperties.map(p => p.name) : undefined,
+      parameterProperties:
+        parameterProperties.length > 0 ? parameterProperties.map((p) => p.name) : undefined,
       returnType: undefined,
       body,
       isConstructor: true,
@@ -286,19 +293,19 @@ function transformConstructorDeclaration(
 function transformAccessorDeclaration(
   node: ts.GetAccessorDeclaration | ts.SetAccessorDeclaration,
   checker: ts.TypeChecker | undefined,
-  kind: 'get' | 'set'
+  kind: "get" | "set",
 ): ClassMethod | null {
   if (!ts.isIdentifier(node.name)) return null;
 
   const name = `${kind}_${node.name.text}`;
-  const params = node.parameters.map(p => ts.isIdentifier(p.name) ? p.name.text : '');
+  const params = node.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ""));
 
   const body: BlockStatement = node.body
     ? transformBlock(node.body, checker)
-    : { type: 'block', statements: [] };
+    : { type: "block", statements: [] };
 
   return {
-    type: 'method',
+    type: "method",
     name,
     params,
     paramTypes: undefined,
@@ -309,10 +316,13 @@ function transformAccessorDeclaration(
   };
 }
 
-export function transformInterfaceDeclaration(node: ts.InterfaceDeclaration): InterfaceDeclaration | null {
+export function transformInterfaceDeclaration(
+  node: ts.InterfaceDeclaration,
+): InterfaceDeclaration | null {
   const name = node.name.text;
   const fields: { name: string; type: string }[] = [];
-  const methods: { name: string; params: string[]; paramTypes: string[]; returnType: string }[] = [];
+  const methods: { name: string; params: string[]; paramTypes: string[]; returnType: string }[] =
+    [];
   const extendsClause: string[] = [];
 
   if (node.heritageClauses) {
@@ -330,13 +340,13 @@ export function transformInterfaceDeclaration(node: ts.InterfaceDeclaration): In
   for (const member of node.members) {
     if (ts.isPropertySignature(member) && ts.isIdentifier(member.name)) {
       const fieldName = member.name.text;
-      const fieldType = member.type ? extractTypeString(member.type) : 'any';
+      const fieldType = member.type ? extractTypeString(member.type) : "any";
       fields.push({ name: fieldName, type: fieldType });
     } else if (ts.isMethodSignature(member) && ts.isIdentifier(member.name)) {
       const methodName = member.name.text;
-      const params = member.parameters.map(p => ts.isIdentifier(p.name) ? p.name.text : '');
-      const paramTypes = member.parameters.map(p => p.type ? extractTypeString(p.type) : 'any');
-      const returnType = member.type ? extractTypeString(member.type) : 'void';
+      const params = member.parameters.map((p) => (ts.isIdentifier(p.name) ? p.name.text : ""));
+      const paramTypes = member.parameters.map((p) => (p.type ? extractTypeString(p.type) : "any"));
+      const returnType = member.type ? extractTypeString(member.type) : "void";
       methods.push({ name: methodName, params, paramTypes, returnType });
     }
   }
@@ -345,11 +355,13 @@ export function transformInterfaceDeclaration(node: ts.InterfaceDeclaration): In
     name,
     extends: extendsClause,
     fields,
-    methods
+    methods,
   };
 }
 
-export function transformTypeAliasDeclaration(node: ts.TypeAliasDeclaration): TypeAliasDeclaration | null {
+export function transformTypeAliasDeclaration(
+  node: ts.TypeAliasDeclaration,
+): TypeAliasDeclaration | null {
   const name = node.name.text;
   const unionMembers: string[] = [];
 
@@ -438,13 +450,13 @@ export function transformImportDeclaration(node: ts.ImportDeclaration): ImportDe
     }
   }
 
-  return { type: 'import', specifiers, aliasedSpecifiers, source };
+  return { type: "import", specifiers, aliasedSpecifiers, source };
 }
 
 export function transformExportDeclaration(
   _node: ts.ExportDeclaration,
   _ast: any,
-  _checker: ts.TypeChecker | undefined
+  _checker: ts.TypeChecker | undefined,
 ): ExportDeclaration | null {
   return null;
 }
@@ -456,7 +468,7 @@ function extractTypeString(typeNode: ts.TypeNode): string {
       : typeNode.typeName.getText();
 
     if (typeNode.typeArguments && typeNode.typeArguments.length > 0) {
-      const args = typeNode.typeArguments.map(extractTypeString).join(', ');
+      const args = typeNode.typeArguments.map(extractTypeString).join(", ");
       return `${typeName}<${args}>`;
     }
     return typeName;
@@ -464,38 +476,40 @@ function extractTypeString(typeNode: ts.TypeNode): string {
     const elem = extractTypeString(typeNode.elementType);
     return `${elem}[]`;
   } else if (typeNode.kind === ts.SyntaxKind.StringKeyword) {
-    return 'string';
+    return "string";
   } else if (typeNode.kind === ts.SyntaxKind.NumberKeyword) {
-    return 'number';
+    return "number";
   } else if (typeNode.kind === ts.SyntaxKind.BooleanKeyword) {
-    return 'boolean';
+    return "boolean";
   } else if (typeNode.kind === ts.SyntaxKind.VoidKeyword) {
-    return 'void';
+    return "void";
   } else if (typeNode.kind === ts.SyntaxKind.AnyKeyword) {
-    return 'any';
+    return "any";
   } else if (ts.isUnionTypeNode(typeNode)) {
-    return typeNode.types.map(extractTypeString).join(' | ');
+    return typeNode.types.map(extractTypeString).join(" | ");
   } else if (ts.isFunctionTypeNode(typeNode)) {
-    const params = typeNode.parameters.map(p => {
-      const pName = ts.isIdentifier(p.name) ? p.name.text : '';
-      const pType = p.type ? extractTypeString(p.type) : 'any';
-      return `${pName}: ${pType}`;
-    }).join(', ');
-    const ret = typeNode.type ? extractTypeString(typeNode.type) : 'void';
+    const params = typeNode.parameters
+      .map((p) => {
+        const pName = ts.isIdentifier(p.name) ? p.name.text : "";
+        const pType = p.type ? extractTypeString(p.type) : "any";
+        return `${pName}: ${pType}`;
+      })
+      .join(", ");
+    const ret = typeNode.type ? extractTypeString(typeNode.type) : "void";
     return `(${params}) => ${ret}`;
   } else if (ts.isTypeLiteralNode(typeNode)) {
     const members: string[] = [];
     for (const member of typeNode.members) {
       if (ts.isPropertySignature(member) && member.name && ts.isIdentifier(member.name)) {
         const propName = member.name.text;
-        const propType = member.type ? extractTypeString(member.type) : 'any';
+        const propType = member.type ? extractTypeString(member.type) : "any";
         members.push(`${propName}: ${propType}`);
       }
     }
     if (members.length > 0) {
-      return `{ ${members.join('; ')} }`;
+      return `{ ${members.join("; ")} }`;
     }
-    return 'object';
+    return "object";
   }
   return typeNode.getText();
 }

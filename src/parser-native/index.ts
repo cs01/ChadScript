@@ -10,7 +10,11 @@ declare function __ts_node_end_byte(node: number): number;
 declare function __ts_node_text(node: number, source: string): string;
 declare function __ts_node_is_null(node: number): boolean;
 declare function __ts_node_is_named(node: number): boolean;
-declare function __ts_node_child_by_field_name(node: number, field: string, fieldLen: number): number;
+declare function __ts_node_child_by_field_name(
+  node: number,
+  field: string,
+  fieldLen: number,
+): number;
 
 export interface TreeSitterNode {
   nodePtr: number;
@@ -42,7 +46,7 @@ export function createNode(nodePtr: number, source: string): TreeSitterNode {
     childCount: __ts_node_child_count(nodePtr),
     namedChildCount: __ts_node_named_child_count(nodePtr),
     isNamed: __ts_node_is_named(nodePtr),
-    isNull: __ts_node_is_null(nodePtr)
+    isNull: __ts_node_is_null(nodePtr),
   };
 }
 
@@ -68,7 +72,10 @@ export function getNamedChild(node: TreeSitterNode, index: number): TreeSitterNo
   return createNode(childPtr, node.source);
 }
 
-export function getChildByFieldName(node: TreeSitterNode, fieldName: string): TreeSitterNode | null {
+export function getChildByFieldName(
+  node: TreeSitterNode,
+  fieldName: string,
+): TreeSitterNode | null {
   const childPtr = __ts_node_child_by_field_name(node.nodePtr, fieldName, fieldName.length);
   if (__ts_node_is_null(childPtr)) {
     return null;
@@ -83,6 +90,6 @@ export function parseSource(source: string): TreeSitterTree {
   return {
     treePtr: treePtr,
     source: source,
-    rootNode: rootNode
+    rootNode: rootNode,
   };
 }

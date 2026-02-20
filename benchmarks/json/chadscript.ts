@@ -11,7 +11,9 @@ function run(): void {
   const jsonStrings: string[] = [];
   let i = 0;
   while (i < COUNT) {
-    jsonStrings.push("{\"id\":" + i + ",\"name\":\"item" + i + "\",\"value\":" + (i * 3.14) + ",\"active\":true}");
+    jsonStrings.push(
+      '{"id":' + i + ',"name":"item' + i + '","value":' + i * 3.14 + ',"active":true}',
+    );
     i = i + 1;
   }
 

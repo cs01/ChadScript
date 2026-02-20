@@ -1,9 +1,19 @@
-import { InterfaceDeclaration } from '../../ast/types.js';
-import { canonicalTypeToLlvm } from '../infrastructure/type-system.js';
+import { InterfaceDeclaration } from "../../ast/types.js";
+import { canonicalTypeToLlvm } from "../infrastructure/type-system.js";
 
 const BUILTIN_TYPES = [
-  'Array', 'StringArray', 'Map', 'StringMap', 'Set', 'StringSet',
-  'Response', 'FetchBuffer', 'Promise', 'PromiseCallback', 'PromiseAllState', 'PromiseAllContext'
+  "Array",
+  "StringArray",
+  "Map",
+  "StringMap",
+  "Set",
+  "StringSet",
+  "Response",
+  "FetchBuffer",
+  "Promise",
+  "PromiseCallback",
+  "PromiseAllState",
+  "PromiseAllContext",
 ];
 
 function isBuiltinType(name: string): boolean {
@@ -60,7 +70,7 @@ export class InterfaceStructGenerator {
       name: ifaceName,
       llvmType: structType,
       fields,
-      isBuiltinConflict
+      isBuiltinConflict,
     });
   }
 
@@ -84,7 +94,9 @@ export class InterfaceStructGenerator {
     return undefined;
   }
 
-  private getInheritedFields(iface: InterfaceDeclaration): { name: string; tsType: string; llvmType: string }[] {
+  private getInheritedFields(
+    iface: InterfaceDeclaration,
+  ): { name: string; tsType: string; llvmType: string }[] {
     const result: { name: string; tsType: string; llvmType: string }[] = [];
     const extArr = iface.extends;
     if (extArr === undefined || extArr === null) {
@@ -109,13 +121,13 @@ export class InterfaceStructGenerator {
       for (let j = 0; j < pFieldsLen; j++) {
         const f = pFields[j] as { name: string; type: string };
         let fieldName = f.name;
-        if (fieldName.endsWith('?')) {
+        if (fieldName.endsWith("?")) {
           fieldName = fieldName.slice(0, -1);
         }
         result.push({
           name: fieldName,
           tsType: f.type,
-          llvmType: this.tsTypeToLlvmForField(fieldName, f.type)
+          llvmType: this.tsTypeToLlvmForField(fieldName, f.type),
         });
       }
     }
@@ -133,38 +145,40 @@ export class InterfaceStructGenerator {
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i] as { name: string; type: string };
       let fieldName = f.name;
-      if (fieldName.endsWith('?')) {
+      if (fieldName.endsWith("?")) {
         fieldName = fieldName.slice(0, -1);
       }
       result.push({
         name: fieldName,
         tsType: f.type,
-        llvmType: this.tsTypeToLlvmForField(fieldName, f.type)
+        llvmType: this.tsTypeToLlvmForField(fieldName, f.type),
       });
     }
     return result;
   }
 
   private tsTypeToLlvmForField(fieldName: string, tsType: string): string {
-    if (tsType === null || tsType === undefined || tsType === '') {
-      return 'i8*';
+    if (tsType === null || tsType === undefined || tsType === "") {
+      return "i8*";
     }
     if (this.interfaceStructs.has(tsType)) {
-      return 'i8*';
+      return "i8*";
     }
-    const isEnum = this.enumNames !== null && this.enumNames !== undefined && this.enumNames.has(tsType);
-    return canonicalTypeToLlvm(tsType, 'default', isEnum, false, fieldName);
+    const isEnum =
+      this.enumNames !== null && this.enumNames !== undefined && this.enumNames.has(tsType);
+    return canonicalTypeToLlvm(tsType, "default", isEnum, false, fieldName);
   }
 
   private tsTypeToLlvm(tsType: string): string {
-    if (tsType === null || tsType === undefined || tsType === '') {
-      return 'i8*';
+    if (tsType === null || tsType === undefined || tsType === "") {
+      return "i8*";
     }
     if (this.interfaceStructs.has(tsType)) {
-      return 'i8*';
+      return "i8*";
     }
-    const isEnum = this.enumNames !== null && this.enumNames !== undefined && this.enumNames.has(tsType);
-    return canonicalTypeToLlvm(tsType, 'default', isEnum, false, '');
+    const isEnum =
+      this.enumNames !== null && this.enumNames !== undefined && this.enumNames.has(tsType);
+    return canonicalTypeToLlvm(tsType, "default", isEnum, false, "");
   }
 
   getInterfaceStruct(name: string): InterfaceStructInfo | undefined {
@@ -209,9 +223,9 @@ export class InterfaceStructGenerator {
   }
 
   generateStructTypeDefinitions(): string {
-    if (this.interfaceCount === 0) return '';
+    if (this.interfaceCount === 0) return "";
 
-    let ir = '; Interface struct type definitions\n';
+    let ir = "; Interface struct type definitions\n";
     let hasNonConflicting = false;
     const emittedNames: string[] = [];
 
@@ -223,12 +237,12 @@ export class InterfaceStructGenerator {
       hasNonConflicting = true;
       const info = this.interfaceStructs.get(ifaceName)!;
       const fieldTypes = this.getFieldTypesString(info);
-      ir += `%${ifaceName} = type { ${fieldTypes} }` + '\n';
+      ir += `%${ifaceName} = type { ${fieldTypes} }` + "\n";
     }
 
-    if (!hasNonConflicting) return '';
+    if (!hasNonConflicting) return "";
 
-    ir += '\n';
+    ir += "\n";
     return ir;
   }
 
@@ -238,13 +252,13 @@ export class InterfaceStructGenerator {
       const field = info.fields[i] as { name: string; tsType: string; llvmType: string };
       types.push(field.llvmType);
     }
-    return types.join(', ');
+    return types.join(", ");
   }
 
   getInlineStructType(interfaceName: string): string {
-    if (!interfaceName) return '';
+    if (!interfaceName) return "";
     const info = this.interfaceStructs.get(interfaceName);
-    if (!info) return '';
+    if (!info) return "";
     const fieldTypes = this.getFieldTypesString(info);
     return `{ ${fieldTypes} }`;
   }
@@ -256,7 +270,7 @@ export class InterfaceStructGenerator {
     let size = 0;
     for (let i = 0; i < info.fields.length; i++) {
       const field = info.fields[i] as { name: string; tsType: string; llvmType: string };
-      if (field.llvmType === 'double') size += 8;
+      if (field.llvmType === "double") size += 8;
       else size += 8;
     }
     return size;

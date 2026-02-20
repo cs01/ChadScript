@@ -1,20 +1,40 @@
-import { Expression, MethodCallNode, VariableNode } from '../../../ast/types.js';
+import { Expression, MethodCallNode, VariableNode } from "../../../ast/types.js";
 
-interface ExprBase { type: string; }
-interface ArrayExpr { type: string; elements: Expression[]; }
-interface VariableExpr { type: string; name: string; }
-interface MethodCallExpr { type: string; object: Expression; method: string; }
-interface CallExpr { type: string; name: string; }
+interface ExprBase {
+  type: string;
+}
+interface ArrayExpr {
+  type: string;
+  elements: Expression[];
+}
+interface VariableExpr {
+  type: string;
+  name: string;
+}
+interface MethodCallExpr {
+  type: string;
+  object: Expression;
+  method: string;
+}
+interface CallExpr {
+  type: string;
+  name: string;
+}
 
-import { IGeneratorContext } from '../../infrastructure/generator-context.js';
-
+import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 
 export class ArrayGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  private nextTemp(): string { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string): void { this.ctx.emit(instruction); }
+  private nextTemp(): string {
+    return this.ctx.nextTemp();
+  }
+  private nextLabel(prefix: string): string {
+    return this.ctx.nextLabel(prefix);
+  }
+  private emit(instruction: string): void {
+    this.ctx.emit(instruction);
+  }
 
   private loadArrayMeta(arrayPtr: string): { length: string; dataPtr: string } {
     const lenPtr = this.nextTemp();
@@ -30,8 +50,8 @@ export class ArrayGenerator {
 
   generateArrayLiteral(expr: Expression, params: string[]): string {
     const e = expr as ExprBase;
-    if (e.type !== 'array') {
-      throw new Error('Expected array literal');
+    if (e.type !== "array") {
+      throw new Error("Expected array literal");
     }
 
     const arrExpr = expr as ArrayExpr;
@@ -39,7 +59,7 @@ export class ArrayGenerator {
     let hasSpread = false;
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type === 'spread_element' || el.type.indexOf('spread:') === 0) {
+      if (el.type === "spread_element" || el.type.indexOf("spread:") === 0) {
         hasSpread = true;
         break;
       }
@@ -55,59 +75,59 @@ export class ArrayGenerator {
       let allStrings = true;
       for (let i = 0; i < arrExpr.elements.length; i++) {
         const el = arrExpr.elements[i] as ExprBase;
-        if (el.type !== 'string') {
+        if (el.type !== "string") {
           allStrings = false;
           break;
         }
       }
       isStringArray = allStrings;
     }
-    if (length === 0 && this.ctx.getExpectedArrayElementType() === 'string') {
+    if (length === 0 && this.ctx.getExpectedArrayElementType() === "string") {
       isStringArray = true;
     }
 
     let isPointerArray = false;
-    if (length === 0 && this.ctx.getExpectedArrayElementType() === 'pointer') {
+    if (length === 0 && this.ctx.getExpectedArrayElementType() === "pointer") {
       isPointerArray = true;
     }
     let firstElemValue: string | null = null;
     if (length > 0 && !isStringArray) {
       firstElemValue = this.ctx.generateExpression(arrExpr.elements[0], params);
       const firstElemType = this.ctx.getVariableType(firstElemValue);
-      if (firstElemType === 'i8*') {
+      if (firstElemType === "i8*") {
         isStringArray = true;
-      } else if (firstElemType && firstElemType !== 'double' && firstElemType.indexOf('*') !== -1) {
+      } else if (firstElemType && firstElemType !== "double" && firstElemType.indexOf("*") !== -1) {
         isPointerArray = true;
       }
       if (!isPointerArray && !isStringArray) {
         for (let i = 0; i < arrExpr.elements.length; i++) {
           const elem = arrExpr.elements[i];
           const el = elem as ExprBase;
-          if (el.type === 'variable') {
+          if (el.type === "variable") {
             const varExpr = elem as VariableExpr;
             const varName = varExpr.name;
             const varType = this.ctx.getVariableType(varName);
-            if (varType && (varType.indexOf('%Promise') !== -1 || varType.indexOf('*') !== -1)) {
+            if (varType && (varType.indexOf("%Promise") !== -1 || varType.indexOf("*") !== -1)) {
               isPointerArray = true;
               break;
             }
           }
-          if (el.type === 'method_call') {
+          if (el.type === "method_call") {
             const mcExpr = elem as MethodCallExpr;
             const obj = mcExpr.object;
             const objBase = obj as ExprBase;
-            if (obj && objBase.type === 'variable') {
+            if (obj && objBase.type === "variable") {
               const objVar = obj as VariableExpr;
-              if (objVar.name === 'Promise') {
+              if (objVar.name === "Promise") {
                 isPointerArray = true;
                 break;
               }
             }
           }
-          if (el.type === 'call') {
+          if (el.type === "call") {
             const callExpr = elem as CallExpr;
             const callName = callExpr.name;
-            if (callName === 'fetch') {
+            if (callName === "fetch") {
               isPointerArray = true;
               break;
             }
@@ -142,18 +162,24 @@ export class ArrayGenerator {
       }
 
       const dataPtrField = this.nextTemp();
-      this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+      this.emit(
+        `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+      );
       this.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
 
       const lenField = this.nextTemp();
-      this.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+      this.emit(
+        `${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+      );
       this.emit(`store i32 ${length}, i32* ${lenField}`);
 
       const capField = this.nextTemp();
-      this.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+      this.emit(
+        `${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`,
+      );
       this.emit(`store i32 ${length}, i32* ${capField}`);
 
-      this.ctx.setVariableType(arrayPtr, '%StringArray*');
+      this.ctx.setVariableType(arrayPtr, "%StringArray*");
       return arrayPtr;
     } else if (isPointerArray) {
       const sizePtr = this.nextTemp();
@@ -174,29 +200,40 @@ export class ArrayGenerator {
       this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
 
       for (let i = 0; i < arrExpr.elements.length; i++) {
-        const elemValue = (i === 0 && firstElemValue) ? firstElemValue : this.ctx.generateExpression(arrExpr.elements[i], params);
+        const elemValue =
+          i === 0 && firstElemValue
+            ? firstElemValue
+            : this.ctx.generateExpression(arrExpr.elements[i], params);
         const elemCast = this.nextTemp();
-        this.emit(`${elemCast} = bitcast ${this.ctx.getVariableType(elemValue) || 'i8*'} ${elemValue} to i8*`);
+        this.emit(
+          `${elemCast} = bitcast ${this.ctx.getVariableType(elemValue) || "i8*"} ${elemValue} to i8*`,
+        );
         const elemPtr = this.nextTemp();
         this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
         this.emit(`store i8* ${elemCast}, i8** ${elemPtr}`);
       }
 
       const dataPtrField = this.nextTemp();
-      this.emit(`${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+      this.emit(
+        `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+      );
       const dataPtrCast = this.nextTemp();
       this.emit(`${dataPtrCast} = bitcast i8** ${dataPtr} to i8*`);
       this.emit(`store i8* ${dataPtrCast}, i8** ${dataPtrField}`);
 
       const lenField = this.nextTemp();
-      this.emit(`${lenField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`);
+      this.emit(
+        `${lenField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+      );
       this.emit(`store i32 ${length}, i32* ${lenField}`);
 
       const capField = this.nextTemp();
-      this.emit(`${capField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`);
+      this.emit(
+        `${capField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`,
+      );
       this.emit(`store i32 ${length}, i32* ${capField}`);
 
-      this.ctx.setVariableType(arrayPtr, '%ObjectArray*');
+      this.ctx.setVariableType(arrayPtr, "%ObjectArray*");
       return arrayPtr;
     } else {
       const sizePtr = this.nextTemp();
@@ -217,7 +254,10 @@ export class ArrayGenerator {
       this.emit(`${dataPtr} = bitcast i8* ${dataMem} to double*`);
 
       for (let i = 0; i < arrExpr.elements.length; i++) {
-        const elemValue = (i === 0 && firstElemValue) ? firstElemValue : this.ctx.generateExpression(arrExpr.elements[i], params);
+        const elemValue =
+          i === 0 && firstElemValue
+            ? firstElemValue
+            : this.ctx.generateExpression(arrExpr.elements[i], params);
         const dblElemValue = this.ctx.ensureDouble(elemValue);
         const elemPtr = this.nextTemp();
         this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
@@ -225,7 +265,9 @@ export class ArrayGenerator {
       }
 
       const dataPtrField = this.nextTemp();
-      this.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+      this.emit(
+        `${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`,
+      );
       this.emit(`store double* ${dataPtr}, double** ${dataPtrField}`);
 
       const lenField = this.nextTemp();
@@ -236,7 +278,7 @@ export class ArrayGenerator {
       this.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
       this.emit(`store i32 ${length}, i32* ${capField}`);
 
-      this.ctx.setVariableType(arrayPtr, '%Array*');
+      this.ctx.setVariableType(arrayPtr, "%Array*");
       return arrayPtr;
     }
   }
@@ -245,18 +287,18 @@ export class ArrayGenerator {
     let isStringArray = false;
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type === 'string') {
+      if (el.type === "string") {
         isStringArray = true;
         break;
       }
-      if (el.type.indexOf('spread:') === 0) {
+      if (el.type.indexOf("spread:") === 0) {
         const varName = el.type.substr(7);
         const varType = this.ctx.getVariableType(varName);
-        if (varType === '%StringArray*') {
+        if (varType === "%StringArray*") {
           isStringArray = true;
           break;
         }
-      } else if (el.type === 'spread_element') {
+      } else if (el.type === "spread_element") {
       }
     }
 
@@ -267,7 +309,7 @@ export class ArrayGenerator {
     let literalCount = 0;
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type.indexOf('spread:') !== 0 && el.type !== 'spread_element') {
+      if (el.type.indexOf("spread:") !== 0 && el.type !== "spread_element") {
         literalCount = literalCount + 1;
       }
     }
@@ -275,7 +317,7 @@ export class ArrayGenerator {
     let totalLen = `${literalCount}`;
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type.indexOf('spread:') === 0) {
+      if (el.type.indexOf("spread:") === 0) {
         const varName = el.type.substr(7);
         const alloca = this.ctx.getVariableAlloca(varName);
         const arrPtr = this.nextTemp();
@@ -284,7 +326,7 @@ export class ArrayGenerator {
         const newTotal = this.nextTemp();
         this.emit(`${newTotal} = add i32 ${totalLen}, ${meta.length}`);
         totalLen = newTotal;
-      } else if (el.type === 'spread_element') {
+      } else if (el.type === "spread_element") {
         const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
         const arrPtr = this.ctx.generateExpression(spreadArg, params);
         const meta = this.loadArrayMeta(arrPtr);
@@ -318,16 +360,16 @@ export class ArrayGenerator {
 
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type.indexOf('spread:') === 0) {
+      if (el.type.indexOf("spread:") === 0) {
         const varName = el.type.substr(7);
         const alloca = this.ctx.getVariableAlloca(varName);
         const srcArrPtr = this.nextTemp();
         this.emit(`${srcArrPtr} = load %Array*, %Array** ${alloca}`);
         const srcMeta = this.loadArrayMeta(srcArrPtr);
 
-        const checkLabel = this.nextLabel('spread_check');
-        const bodyLabel = this.nextLabel('spread_body');
-        const endLabel = this.nextLabel('spread_end');
+        const checkLabel = this.nextLabel("spread_check");
+        const bodyLabel = this.nextLabel("spread_body");
+        const endLabel = this.nextLabel("spread_end");
 
         const counterPtr = this.nextTemp();
         this.emit(`${counterPtr} = alloca i32`);
@@ -343,14 +385,18 @@ export class ArrayGenerator {
 
         this.emit(`${bodyLabel}:`);
         const srcElemPtr = this.nextTemp();
-        this.emit(`${srcElemPtr} = getelementptr inbounds double, double* ${srcMeta.dataPtr}, i32 ${counter}`);
+        this.emit(
+          `${srcElemPtr} = getelementptr inbounds double, double* ${srcMeta.dataPtr}, i32 ${counter}`,
+        );
         const srcElem = this.nextTemp();
         this.emit(`${srcElem} = load double, double* ${srcElemPtr}`);
 
         const curOffset = this.nextTemp();
         this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
         const dstElemPtr = this.nextTemp();
-        this.emit(`${dstElemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${curOffset}`);
+        this.emit(
+          `${dstElemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${curOffset}`,
+        );
         this.emit(`store double ${srcElem}, double* ${dstElemPtr}`);
 
         const nextOffset = this.nextTemp();
@@ -362,14 +408,14 @@ export class ArrayGenerator {
         this.emit(`br label %${checkLabel}`);
 
         this.emit(`${endLabel}:`);
-      } else if (el.type === 'spread_element') {
+      } else if (el.type === "spread_element") {
         const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
         const srcArrPtr = this.ctx.generateExpression(spreadArg, params);
         const srcMeta = this.loadArrayMeta(srcArrPtr);
 
-        const checkLabel = this.nextLabel('spread_check');
-        const bodyLabel = this.nextLabel('spread_body');
-        const endLabel = this.nextLabel('spread_end');
+        const checkLabel = this.nextLabel("spread_check");
+        const bodyLabel = this.nextLabel("spread_body");
+        const endLabel = this.nextLabel("spread_end");
 
         const counterPtr = this.nextTemp();
         this.emit(`${counterPtr} = alloca i32`);
@@ -385,14 +431,18 @@ export class ArrayGenerator {
 
         this.emit(`${bodyLabel}:`);
         const srcElemPtr = this.nextTemp();
-        this.emit(`${srcElemPtr} = getelementptr inbounds double, double* ${srcMeta.dataPtr}, i32 ${counter}`);
+        this.emit(
+          `${srcElemPtr} = getelementptr inbounds double, double* ${srcMeta.dataPtr}, i32 ${counter}`,
+        );
         const srcElem = this.nextTemp();
         this.emit(`${srcElem} = load double, double* ${srcElemPtr}`);
 
         const curOffset = this.nextTemp();
         this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
         const dstElemPtr = this.nextTemp();
-        this.emit(`${dstElemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${curOffset}`);
+        this.emit(
+          `${dstElemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${curOffset}`,
+        );
         this.emit(`store double ${srcElem}, double* ${dstElemPtr}`);
 
         const nextOffset = this.nextTemp();
@@ -410,7 +460,9 @@ export class ArrayGenerator {
         const curOffset = this.nextTemp();
         this.emit(`${curOffset} = load i32, i32* ${offsetPtr}`);
         const elemPtr = this.nextTemp();
-        this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${curOffset}`);
+        this.emit(
+          `${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${curOffset}`,
+        );
         this.emit(`store double ${dblVal}, double* ${elemPtr}`);
         const nextOffset = this.nextTemp();
         this.emit(`${nextOffset} = add i32 ${curOffset}, 1`);
@@ -430,7 +482,7 @@ export class ArrayGenerator {
     this.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
     this.emit(`store i32 ${totalLen}, i32* ${capField}`);
 
-    this.ctx.setVariableType(arrayPtr, '%Array*');
+    this.ctx.setVariableType(arrayPtr, "%Array*");
     return arrayPtr;
   }
 
@@ -440,14 +492,14 @@ export class ArrayGenerator {
 
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type.indexOf('spread:') === 0) {
+      if (el.type.indexOf("spread:") === 0) {
         const varName = el.type.substr(7);
         const alloca = this.ctx.getVariableAlloca(varName);
         const ptr = this.nextTemp();
         this.emit(`${ptr} = load %Array*, %Array** ${alloca}`);
-        this.ctx.setVariableType(ptr, '%Array*');
+        this.ctx.setVariableType(ptr, "%Array*");
         spreadSources.push({ index: i, ptr: ptr });
-      } else if (el.type === 'spread_element') {
+      } else if (el.type === "spread_element") {
         const spreadArg = (arrExpr.elements[i] as { type: string; argument: Expression }).argument;
         const ptr = this.ctx.generateExpression(spreadArg, params);
         spreadSources.push({ index: i, ptr });
@@ -460,7 +512,9 @@ export class ArrayGenerator {
     let totalLen = `${literalValues.length}`;
     for (const src of spreadSources) {
       const lenPtr = this.nextTemp();
-      this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 1`);
+      this.emit(
+        `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 1`,
+      );
       const srcLen = this.nextTemp();
       this.emit(`${srcLen} = load i32, i32* ${lenPtr}`);
       const newTotal = this.nextTemp();
@@ -494,21 +548,25 @@ export class ArrayGenerator {
     let litIdx = 0;
     for (let i = 0; i < arrExpr.elements.length; i++) {
       const el = arrExpr.elements[i] as ExprBase;
-      if (el.type === 'spread_element' || el.type.indexOf('spread:') === 0) {
+      if (el.type === "spread_element" || el.type.indexOf("spread:") === 0) {
         const src = spreadSources[spreadIdx];
         spreadIdx++;
         const srcLenPtr = this.nextTemp();
-        this.emit(`${srcLenPtr} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 1`);
+        this.emit(
+          `${srcLenPtr} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 1`,
+        );
         const srcLen = this.nextTemp();
         this.emit(`${srcLen} = load i32, i32* ${srcLenPtr}, !tbaa !7`);
         const srcDataField = this.nextTemp();
-        this.emit(`${srcDataField} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 0`);
+        this.emit(
+          `${srcDataField} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 0`,
+        );
         const srcDataPtr = this.nextTemp();
         this.emit(`${srcDataPtr} = load i8**, i8*** ${srcDataField}, !tbaa !5`);
 
-        const checkLabel = this.nextLabel('spread_check');
-        const bodyLabel = this.nextLabel('spread_body');
-        const endLabel = this.nextLabel('spread_end');
+        const checkLabel = this.nextLabel("spread_check");
+        const bodyLabel = this.nextLabel("spread_body");
+        const endLabel = this.nextLabel("spread_end");
 
         const counterPtr = this.nextTemp();
         this.emit(`${counterPtr} = alloca i32`);
@@ -558,24 +616,30 @@ export class ArrayGenerator {
     }
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     this.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
 
     const lenField = this.nextTemp();
-    this.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 ${totalLen}, i32* ${lenField}`);
 
     const capField = this.nextTemp();
-    this.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${totalLen}, i32* ${capField}`);
 
-    this.ctx.setVariableType(arrayPtr, '%StringArray*');
+    this.ctx.setVariableType(arrayPtr, "%StringArray*");
     return arrayPtr;
   }
 
   generateArrayPush(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('push() requires exactly 1 argument');
+      throw new Error("push() requires exactly 1 argument");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
@@ -584,17 +648,17 @@ export class ArrayGenerator {
     let isStringArray = false;
     let isObjectArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varNode = expr.object as VariableNode;
       const varName = varNode.name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
-      isObjectArray = varType === '%ObjectArray*';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+      isObjectArray = varType === "%ObjectArray*";
     }
     if (!isStringArray && !isObjectArray) {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      if (ptrType === '%StringArray*') isStringArray = true;
-      else if (ptrType === '%ObjectArray*') isObjectArray = true;
+      if (ptrType === "%StringArray*") isStringArray = true;
+      else if (ptrType === "%ObjectArray*") isObjectArray = true;
     }
 
     if (isStringArray) {
@@ -602,15 +666,15 @@ export class ArrayGenerator {
     }
 
     if (isObjectArray) {
-      const valueType = this.ctx.getVariableType(value) || 'i8*';
+      const valueType = this.ctx.getVariableType(value) || "i8*";
       return this.doObjectArrayPush(arrayPtr, value, valueType);
     }
 
     const valueType = this.ctx.getVariableType(value);
-    if (valueType === 'i8*') {
+    if (valueType === "i8*") {
       return this.doStringArrayPush(arrayPtr, value);
     }
-    if (valueType && valueType.endsWith('*') && valueType !== 'double*') {
+    if (valueType && valueType.endsWith("*") && valueType !== "double*") {
       return this.doObjectArrayPush(arrayPtr, value, valueType);
     }
 
@@ -619,7 +683,7 @@ export class ArrayGenerator {
 
   generateArrayPop(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 0) {
-      throw new Error('pop() requires 0 arguments');
+      throw new Error("pop() requires 0 arguments");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
@@ -627,17 +691,17 @@ export class ArrayGenerator {
     let isStringArray = false;
     let isPointerArray = false;
     const exprObjBase2 = expr.object as ExprBase;
-    if (exprObjBase2.type === 'variable') {
+    if (exprObjBase2.type === "variable") {
       const varNode = expr.object as VariableNode;
       const varName = varNode.name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
-      isPointerArray = varType === 'i8*';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+      isPointerArray = varType === "i8*";
     }
     if (!isStringArray && !isPointerArray) {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      if (ptrType === '%StringArray*') isStringArray = true;
-      else if (ptrType === 'i8*') isPointerArray = true;
+      if (ptrType === "%StringArray*") isStringArray = true;
+      else if (ptrType === "i8*") isPointerArray = true;
     }
 
     if (isStringArray) {
@@ -660,8 +724,8 @@ export class ArrayGenerator {
     this.emit(`${currentCap} = load i32, i32* ${capPtr}`);
     const needResize = this.nextTemp();
     this.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
-    const resizeLabel = this.nextLabel('resize');
-    const continueLabel = this.nextLabel('continue');
+    const resizeLabel = this.nextLabel("resize");
+    const continueLabel = this.nextLabel("continue");
     this.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
     this.emit(`${resizeLabel}:`);
     const isZero = this.nextTemp();
@@ -691,13 +755,17 @@ export class ArrayGenerator {
     this.emit(`${currentLenI64} = zext i32 ${currentLen} to i64`);
     const copySizeI64 = this.nextTemp();
     this.emit(`${copySizeI64} = mul i64 ${currentLenI64}, ${doubleSize}`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
+    );
     this.emit(`store double* ${newDataPtr}, double** ${dataPtrField}`);
     this.emit(`store i32 ${newCap}, i32* ${capPtr}`);
     this.emit(`br label %${continueLabel}`);
     this.emit(`${continueLabel}:`);
     const dataPtrField2 = this.nextTemp();
-    this.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load double*, double** ${dataPtrField2}, !tbaa !5`);
     const elemPtr = this.nextTemp();
@@ -709,23 +777,27 @@ export class ArrayGenerator {
     this.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
     const newLenDouble = this.nextTemp();
     this.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
-    this.ctx.setVariableType(newLenDouble, 'double');
+    this.ctx.setVariableType(newLenDouble, "double");
     return newLenDouble;
   }
 
   private doStringArrayPush(arrayPtr: string, value: string): string {
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const currentLen = this.nextTemp();
     this.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
     const capPtr = this.nextTemp();
-    this.emit(`${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`,
+    );
     const currentCap = this.nextTemp();
     this.emit(`${currentCap} = load i32, i32* ${capPtr}`);
     const needResize = this.nextTemp();
     this.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
-    const resizeLabel = this.nextLabel('resize');
-    const continueLabel = this.nextLabel('continue');
+    const resizeLabel = this.nextLabel("resize");
+    const continueLabel = this.nextLabel("continue");
     this.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
     this.emit(`${resizeLabel}:`);
     const isZero = this.nextTemp();
@@ -743,7 +815,9 @@ export class ArrayGenerator {
     const newDataPtr = this.nextTemp();
     this.emit(`${newDataPtr} = bitcast i8* ${newMem} to i8**`);
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const oldDataPtr = this.nextTemp();
     this.emit(`${oldDataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
     const oldDataI8 = this.nextTemp();
@@ -754,13 +828,17 @@ export class ArrayGenerator {
     this.emit(`${copySize} = mul i32 ${currentLen}, 8`);
     const copySizeI64 = this.nextTemp();
     this.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
+    );
     this.emit(`store i8** ${newDataPtr}, i8*** ${dataPtrField}`);
     this.emit(`store i32 ${newCap}, i32* ${capPtr}`);
     this.emit(`br label %${continueLabel}`);
     this.emit(`${continueLabel}:`);
     const dataPtrField2 = this.nextTemp();
-    this.emit(`${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField2}, !tbaa !5`);
     const elemPtr = this.nextTemp();
@@ -771,23 +849,27 @@ export class ArrayGenerator {
     this.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
     const newLenDouble = this.nextTemp();
     this.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
-    this.ctx.setVariableType(newLenDouble, 'double');
+    this.ctx.setVariableType(newLenDouble, "double");
     return newLenDouble;
   }
 
   private doObjectArrayPush(arrayPtr: string, value: string, valueType: string): string {
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const currentLen = this.nextTemp();
     this.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
     const capPtr = this.nextTemp();
-    this.emit(`${capPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${capPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`,
+    );
     const currentCap = this.nextTemp();
     this.emit(`${currentCap} = load i32, i32* ${capPtr}`);
     const needResize = this.nextTemp();
     this.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
-    const resizeLabel = this.nextLabel('resize');
-    const continueLabel = this.nextLabel('continue');
+    const resizeLabel = this.nextLabel("resize");
+    const continueLabel = this.nextLabel("continue");
     this.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
     this.emit(`${resizeLabel}:`);
     const isZero = this.nextTemp();
@@ -805,7 +887,9 @@ export class ArrayGenerator {
     const newDataPtr = this.nextTemp();
     this.emit(`${newDataPtr} = bitcast i8* ${newMem} to i8**`);
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const oldDataPtrRaw = this.nextTemp();
     this.emit(`${oldDataPtrRaw} = load i8*, i8** ${dataPtrField}`);
     const oldDataPtr = this.nextTemp();
@@ -818,7 +902,9 @@ export class ArrayGenerator {
     this.emit(`${copySize} = mul i32 ${currentLen}, 8`);
     const copySizeI64 = this.nextTemp();
     this.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
+    );
     const newDataPtrAsI8 = this.nextTemp();
     this.emit(`${newDataPtrAsI8} = bitcast i8** ${newDataPtr} to i8*`);
     this.emit(`store i8* ${newDataPtrAsI8}, i8** ${dataPtrField}`);
@@ -826,7 +912,9 @@ export class ArrayGenerator {
     this.emit(`br label %${continueLabel}`);
     this.emit(`${continueLabel}:`);
     const dataPtrField2 = this.nextTemp();
-    this.emit(`${dataPtrField2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtrRaw = this.nextTemp();
     this.emit(`${dataPtrRaw} = load i8*, i8** ${dataPtrField2}`);
     const dataPtr = this.nextTemp();
@@ -841,7 +929,7 @@ export class ArrayGenerator {
     this.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
     const newLenDouble = this.nextTemp();
     this.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
-    this.ctx.setVariableType(newLenDouble, 'double');
+    this.ctx.setVariableType(newLenDouble, "double");
     return newLenDouble;
   }
 
@@ -856,8 +944,8 @@ export class ArrayGenerator {
     this.emit(`${currentCap} = load i32, i32* ${capPtr}`);
     const needResize = this.nextTemp();
     this.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
-    const resizeLabel = this.nextLabel('resize');
-    const continueLabel = this.nextLabel('continue');
+    const resizeLabel = this.nextLabel("resize");
+    const continueLabel = this.nextLabel("continue");
     this.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
     this.emit(`${resizeLabel}:`);
     const isZero = this.nextTemp();
@@ -888,7 +976,9 @@ export class ArrayGenerator {
     this.emit(`${copySize} = mul i32 ${currentLen}, 8`);
     const copySizeI64 = this.nextTemp();
     this.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
+    );
     const newDataPtrAsDouble = this.nextTemp();
     this.emit(`${newDataPtrAsDouble} = bitcast i8** ${newDataPtr} to double*`);
     this.emit(`store double* ${newDataPtrAsDouble}, double** ${dataPtrField}`);
@@ -896,7 +986,9 @@ export class ArrayGenerator {
     this.emit(`br label %${continueLabel}`);
     this.emit(`${continueLabel}:`);
     const dataPtrField2 = this.nextTemp();
-    this.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtrRaw = this.nextTemp();
     this.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField2}, !tbaa !5`);
     const dataPtr = this.nextTemp();
@@ -911,7 +1003,7 @@ export class ArrayGenerator {
     this.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
     const newLenDouble = this.nextTemp();
     this.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
-    this.ctx.setVariableType(newLenDouble, 'double');
+    this.ctx.setVariableType(newLenDouble, "double");
     return newLenDouble;
   }
 
@@ -922,9 +1014,9 @@ export class ArrayGenerator {
     this.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
     const isEmpty = this.nextTemp();
     this.emit(`${isEmpty} = icmp eq i32 ${currentLen}, 0`);
-    const emptyLabel = this.nextLabel('pop_empty');
-    const notEmptyLabel = this.nextLabel('pop_notempty');
-    const endLabel = this.nextLabel('pop_end');
+    const emptyLabel = this.nextLabel("pop_empty");
+    const notEmptyLabel = this.nextLabel("pop_notempty");
+    const endLabel = this.nextLabel("pop_end");
     this.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
     this.emit(`${emptyLabel}:`);
     this.emit(`br label %${endLabel}`);
@@ -949,14 +1041,16 @@ export class ArrayGenerator {
 
   private doStringArrayPop(arrayPtr: string): string {
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const currentLen = this.nextTemp();
     this.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
     const isEmpty = this.nextTemp();
     this.emit(`${isEmpty} = icmp eq i32 ${currentLen}, 0`);
-    const emptyLabel = this.nextLabel('pop_empty');
-    const notEmptyLabel = this.nextLabel('pop_notempty');
-    const endLabel = this.nextLabel('pop_end');
+    const emptyLabel = this.nextLabel("pop_empty");
+    const notEmptyLabel = this.nextLabel("pop_notempty");
+    const endLabel = this.nextLabel("pop_end");
     this.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
     this.emit(`${emptyLabel}:`);
     const emptyStr = this.nextTemp();
@@ -967,7 +1061,9 @@ export class ArrayGenerator {
     const lastIndex = this.nextTemp();
     this.emit(`${lastIndex} = sub i32 ${currentLen}, 1`);
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
     const elemPtr = this.nextTemp();
@@ -978,8 +1074,10 @@ export class ArrayGenerator {
     this.emit(`br label %${endLabel}`);
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
-    this.emit(`${result} = phi i8* [ ${emptyStr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.emit(
+      `${result} = phi i8* [ ${emptyStr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`,
+    );
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 
@@ -992,9 +1090,9 @@ export class ArrayGenerator {
     this.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
     const isEmpty = this.nextTemp();
     this.emit(`${isEmpty} = icmp eq i32 ${currentLen}, 0`);
-    const emptyLabel = this.nextLabel('pop_empty');
-    const notEmptyLabel = this.nextLabel('pop_notempty');
-    const endLabel = this.nextLabel('pop_end');
+    const emptyLabel = this.nextLabel("pop_empty");
+    const notEmptyLabel = this.nextLabel("pop_notempty");
+    const endLabel = this.nextLabel("pop_end");
     this.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
     this.emit(`${emptyLabel}:`);
     const nullPtr = this.nextTemp();
@@ -1017,14 +1115,16 @@ export class ArrayGenerator {
     this.emit(`br label %${endLabel}`);
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
-    this.emit(`${result} = phi i8* [ ${nullPtr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.emit(
+      `${result} = phi i8* [ ${nullPtr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`,
+    );
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 
   generateArrayFind(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('find() requires exactly 1 argument (predicate function)');
+      throw new Error("find() requires exactly 1 argument (predicate function)");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
@@ -1032,35 +1132,35 @@ export class ArrayGenerator {
     let isStringArray = false;
     let isObjectArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
       isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
-    } else if (exprObjBase.type === 'member_access') {
+    } else if (exprObjBase.type === "member_access") {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
-      if (!isStringArray && ptrType && ptrType.indexOf('*') !== -1 && ptrType !== '%Array*') {
+      isStringArray = ptrType === "%StringArray*";
+      if (!isStringArray && ptrType && ptrType.indexOf("*") !== -1 && ptrType !== "%Array*") {
         isObjectArray = true;
       }
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
+      isStringArray = ptrType === "%StringArray*";
     }
 
     const predicateArg = expr.args[0];
     let predicateFn: string;
 
-    if (predicateArg.type === 'variable') {
+    if (predicateArg.type === "variable") {
       predicateFn = this.ctx.mangleUserName((predicateArg as VariableNode).name);
-    } else if (predicateArg.type === 'arrow_function') {
+    } else if (predicateArg.type === "arrow_function") {
       if (isStringArray || isObjectArray) {
-        this.ctx.setExpectedCallbackParamType('string');
+        this.ctx.setExpectedCallbackParamType("string");
       }
       predicateFn = this.ctx.generateExpression(predicateArg, params);
       this.ctx.setExpectedCallbackParamType(null);
     } else {
-      throw new Error('find() argument must be a function name or inline function');
+      throw new Error("find() argument must be a function name or inline function");
     }
 
     if (isStringArray || isObjectArray) {
@@ -1071,11 +1171,11 @@ export class ArrayGenerator {
     const dataPtr = arrayMeta.dataPtr;
 
     // Loop setup
-    const loopLabel = this.nextLabel('find_loop');
-    const checkLabel = this.nextLabel('find_check');
-    const bodyLabel = this.nextLabel('find_body');
-    const foundLabel = this.nextLabel('find_found');
-    const endLabel = this.nextLabel('find_end');
+    const loopLabel = this.nextLabel("find_loop");
+    const checkLabel = this.nextLabel("find_check");
+    const bodyLabel = this.nextLabel("find_body");
+    const foundLabel = this.nextLabel("find_found");
+    const endLabel = this.nextLabel("find_end");
 
     // Initialize loop counter
     const counterPtr = this.nextTemp();
@@ -1136,20 +1236,24 @@ export class ArrayGenerator {
 
   private generateStringArrayFind(arrayPtr: string, predicateFn: string): string {
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
-    const loopLabel = this.nextLabel('find_loop');
-    const checkLabel = this.nextLabel('find_check');
-    const bodyLabel = this.nextLabel('find_body');
-    const foundLabel = this.nextLabel('find_found');
-    const endLabel = this.nextLabel('find_end');
+    const loopLabel = this.nextLabel("find_loop");
+    const checkLabel = this.nextLabel("find_check");
+    const bodyLabel = this.nextLabel("find_body");
+    const foundLabel = this.nextLabel("find_found");
+    const endLabel = this.nextLabel("find_end");
 
     const counterPtr = this.nextTemp();
     this.emit(`${counterPtr} = alloca i32`);
@@ -1195,13 +1299,13 @@ export class ArrayGenerator {
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
     this.emit(`${result} = load i8*, i8** ${resultPtr}`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 
   generateArraySome(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('some() requires exactly 1 argument (predicate function)');
+      throw new Error("some() requires exactly 1 argument (predicate function)");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
@@ -1209,35 +1313,35 @@ export class ArrayGenerator {
     let isStringArray = false;
     let isObjectArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
       isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
-    } else if (exprObjBase.type === 'member_access') {
+    } else if (exprObjBase.type === "member_access") {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
-      if (!isStringArray && ptrType && ptrType.indexOf('*') !== -1 && ptrType !== '%Array*') {
+      isStringArray = ptrType === "%StringArray*";
+      if (!isStringArray && ptrType && ptrType.indexOf("*") !== -1 && ptrType !== "%Array*") {
         isObjectArray = true;
       }
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
+      isStringArray = ptrType === "%StringArray*";
     }
 
     const predicateArg = expr.args[0];
     let predicateFn: string;
 
-    if (predicateArg.type === 'variable') {
+    if (predicateArg.type === "variable") {
       predicateFn = this.ctx.mangleUserName((predicateArg as VariableNode).name);
-    } else if (predicateArg.type === 'arrow_function') {
+    } else if (predicateArg.type === "arrow_function") {
       if (isStringArray || isObjectArray) {
-        this.ctx.setExpectedCallbackParamType('string');
+        this.ctx.setExpectedCallbackParamType("string");
       }
       predicateFn = this.ctx.generateExpression(predicateArg, params);
       this.ctx.setExpectedCallbackParamType(null);
     } else {
-      throw new Error('some() argument must be a function name or inline function');
+      throw new Error("some() argument must be a function name or inline function");
     }
 
     if (isStringArray || isObjectArray) {
@@ -1249,11 +1353,11 @@ export class ArrayGenerator {
     const dataPtr = arrayMeta.dataPtr;
 
     // Loop setup
-    const loopLabel = this.nextLabel('some_loop');
-    const checkLabel = this.nextLabel('some_check');
-    const bodyLabel = this.nextLabel('some_body');
-    const foundLabel = this.nextLabel('some_found');
-    const endLabel = this.nextLabel('some_end');
+    const loopLabel = this.nextLabel("some_loop");
+    const checkLabel = this.nextLabel("some_check");
+    const bodyLabel = this.nextLabel("some_body");
+    const foundLabel = this.nextLabel("some_found");
+    const endLabel = this.nextLabel("some_end");
 
     // Initialize loop counter
     const counterPtr = this.nextTemp();
@@ -1316,20 +1420,24 @@ export class ArrayGenerator {
 
   private generateStringArraySome(arrayPtr: string, predicateFn: string): string {
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
-    const loopLabel = this.nextLabel('some_loop');
-    const checkLabel = this.nextLabel('some_check');
-    const bodyLabel = this.nextLabel('some_body');
-    const foundLabel = this.nextLabel('some_found');
-    const endLabel = this.nextLabel('some_end');
+    const loopLabel = this.nextLabel("some_loop");
+    const checkLabel = this.nextLabel("some_check");
+    const bodyLabel = this.nextLabel("some_body");
+    const foundLabel = this.nextLabel("some_found");
+    const endLabel = this.nextLabel("some_end");
 
     const counterPtr = this.nextTemp();
     this.emit(`${counterPtr} = alloca i32`);
@@ -1382,7 +1490,7 @@ export class ArrayGenerator {
 
   generateArrayEvery(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('every() requires exactly 1 argument (predicate function)');
+      throw new Error("every() requires exactly 1 argument (predicate function)");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
@@ -1390,35 +1498,35 @@ export class ArrayGenerator {
     let isStringArray = false;
     let isObjectArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
       isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
-    } else if (exprObjBase.type === 'member_access') {
+    } else if (exprObjBase.type === "member_access") {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
-      if (!isStringArray && ptrType && ptrType.indexOf('*') !== -1 && ptrType !== '%Array*') {
+      isStringArray = ptrType === "%StringArray*";
+      if (!isStringArray && ptrType && ptrType.indexOf("*") !== -1 && ptrType !== "%Array*") {
         isObjectArray = true;
       }
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
+      isStringArray = ptrType === "%StringArray*";
     }
 
     const predicateArg = expr.args[0];
     let predicateFn: string;
 
-    if (predicateArg.type === 'variable') {
+    if (predicateArg.type === "variable") {
       predicateFn = this.ctx.mangleUserName((predicateArg as VariableNode).name);
-    } else if (predicateArg.type === 'arrow_function') {
+    } else if (predicateArg.type === "arrow_function") {
       if (isStringArray || isObjectArray) {
-        this.ctx.setExpectedCallbackParamType('string');
+        this.ctx.setExpectedCallbackParamType("string");
       }
       predicateFn = this.ctx.generateExpression(predicateArg, params);
       this.ctx.setExpectedCallbackParamType(null);
     } else {
-      throw new Error('every() argument must be a function name or inline function');
+      throw new Error("every() argument must be a function name or inline function");
     }
 
     if (isStringArray || isObjectArray) {
@@ -1429,11 +1537,11 @@ export class ArrayGenerator {
     const length = arrayMeta.length;
     const dataPtr = arrayMeta.dataPtr;
 
-    const loopLabel = this.nextLabel('every_loop');
-    const checkLabel = this.nextLabel('every_check');
-    const bodyLabel = this.nextLabel('every_body');
-    const failedLabel = this.nextLabel('every_failed');
-    const endLabel = this.nextLabel('every_end');
+    const loopLabel = this.nextLabel("every_loop");
+    const checkLabel = this.nextLabel("every_check");
+    const bodyLabel = this.nextLabel("every_body");
+    const failedLabel = this.nextLabel("every_failed");
+    const endLabel = this.nextLabel("every_end");
 
     const counterPtr = this.nextTemp();
     this.emit(`${counterPtr} = alloca i32`);
@@ -1486,20 +1594,24 @@ export class ArrayGenerator {
 
   private generateStringArrayEvery(arrayPtr: string, predicateFn: string): string {
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
-    const loopLabel = this.nextLabel('every_loop');
-    const checkLabel = this.nextLabel('every_check');
-    const bodyLabel = this.nextLabel('every_body');
-    const failedLabel = this.nextLabel('every_failed');
-    const endLabel = this.nextLabel('every_end');
+    const loopLabel = this.nextLabel("every_loop");
+    const checkLabel = this.nextLabel("every_check");
+    const bodyLabel = this.nextLabel("every_body");
+    const failedLabel = this.nextLabel("every_failed");
+    const endLabel = this.nextLabel("every_end");
 
     const counterPtr = this.nextTemp();
     this.emit(`${counterPtr} = alloca i32`);
@@ -1552,7 +1664,7 @@ export class ArrayGenerator {
 
   generateArrayFilter(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('filter() requires exactly 1 argument (predicate function)');
+      throw new Error("filter() requires exactly 1 argument (predicate function)");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
@@ -1560,35 +1672,35 @@ export class ArrayGenerator {
     let isStringArray = false;
     let isObjectArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
       isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
-    } else if (exprObjBase.type === 'member_access') {
+    } else if (exprObjBase.type === "member_access") {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
-      if (!isStringArray && ptrType && ptrType.indexOf('*') !== -1 && ptrType !== '%Array*') {
+      isStringArray = ptrType === "%StringArray*";
+      if (!isStringArray && ptrType && ptrType.indexOf("*") !== -1 && ptrType !== "%Array*") {
         isObjectArray = true;
       }
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
+      isStringArray = ptrType === "%StringArray*";
     }
 
     const predicateArg = expr.args[0];
     let predicateFn: string;
 
-    if (predicateArg.type === 'variable') {
+    if (predicateArg.type === "variable") {
       predicateFn = this.ctx.mangleUserName((predicateArg as VariableNode).name);
-    } else if (predicateArg.type === 'arrow_function') {
+    } else if (predicateArg.type === "arrow_function") {
       if (isStringArray || isObjectArray) {
-        this.ctx.setExpectedCallbackParamType('string');
+        this.ctx.setExpectedCallbackParamType("string");
       }
       predicateFn = this.ctx.generateExpression(predicateArg, params);
       this.ctx.setExpectedCallbackParamType(null);
     } else {
-      throw new Error('filter() argument must be a function name or inline function');
+      throw new Error("filter() argument must be a function name or inline function");
     }
 
     if (isStringArray || isObjectArray) {
@@ -1624,25 +1736,31 @@ export class ArrayGenerator {
 
     // Store data pointer in result array struct
     const resultDataPtrField = this.nextTemp();
-    this.emit(`${resultDataPtrField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${resultDataPtrField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 0`,
+    );
     this.emit(`store double* ${resultDataPtr}, double** ${resultDataPtrField}`);
 
     // Initialize length to 0
     const resultLenField = this.nextTemp();
-    this.emit(`${resultLenField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${resultLenField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 0, i32* ${resultLenField}`);
 
     // Set capacity
     const resultCapField = this.nextTemp();
-    this.emit(`${resultCapField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${resultCapField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${length}, i32* ${resultCapField}`);
 
     // Loop through original array
-    const loopLabel = this.nextLabel('filter_loop');
-    const checkLabel = this.nextLabel('filter_check');
-    const bodyLabel = this.nextLabel('filter_body');
-    const addLabel = this.nextLabel('filter_add');
-    const endLabel = this.nextLabel('filter_end');
+    const loopLabel = this.nextLabel("filter_loop");
+    const checkLabel = this.nextLabel("filter_check");
+    const bodyLabel = this.nextLabel("filter_body");
+    const addLabel = this.nextLabel("filter_add");
+    const endLabel = this.nextLabel("filter_end");
 
     // Initialize loop counter
     const counterPtr = this.nextTemp();
@@ -1683,7 +1801,9 @@ export class ArrayGenerator {
     this.emit(`${currentLen} = load i32, i32* ${resultLenField}`);
 
     const resultElemPtr = this.nextTemp();
-    this.emit(`${resultElemPtr} = getelementptr inbounds double, double* ${resultDataPtr}, i32 ${currentLen}`);
+    this.emit(
+      `${resultElemPtr} = getelementptr inbounds double, double* ${resultDataPtr}, i32 ${currentLen}`,
+    );
     this.emit(`store double ${elem}, double* ${resultElemPtr}`);
 
     const newLen = this.nextTemp();
@@ -1705,12 +1825,16 @@ export class ArrayGenerator {
 
   private generateStringArrayFilter(arrayPtr: string, predicateFn: string): string {
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
@@ -1728,22 +1852,28 @@ export class ArrayGenerator {
     this.emit(`${resultDataPtr} = bitcast i8* ${dataMem} to i8**`);
 
     const resultDataPtrField = this.nextTemp();
-    this.emit(`${resultDataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${resultDataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 0`,
+    );
     this.emit(`store i8** ${resultDataPtr}, i8*** ${resultDataPtrField}`);
 
     const resultLenField = this.nextTemp();
-    this.emit(`${resultLenField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${resultLenField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 0, i32* ${resultLenField}`);
 
     const resultCapField = this.nextTemp();
-    this.emit(`${resultCapField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${resultCapField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${length}, i32* ${resultCapField}`);
 
-    const loopLabel = this.nextLabel('filter_loop');
-    const checkLabel = this.nextLabel('filter_check');
-    const bodyLabel = this.nextLabel('filter_body');
-    const addLabel = this.nextLabel('filter_add');
-    const endLabel = this.nextLabel('filter_end');
+    const loopLabel = this.nextLabel("filter_loop");
+    const checkLabel = this.nextLabel("filter_check");
+    const bodyLabel = this.nextLabel("filter_body");
+    const addLabel = this.nextLabel("filter_add");
+    const endLabel = this.nextLabel("filter_end");
 
     const counterPtr = this.nextTemp();
     this.emit(`${counterPtr} = alloca i32`);
@@ -1777,7 +1907,9 @@ export class ArrayGenerator {
     this.emit(`${currentLen} = load i32, i32* ${resultLenField}`);
 
     const resultElemPtr = this.nextTemp();
-    this.emit(`${resultElemPtr} = getelementptr inbounds i8*, i8** ${resultDataPtr}, i32 ${currentLen}`);
+    this.emit(
+      `${resultElemPtr} = getelementptr inbounds i8*, i8** ${resultDataPtr}, i32 ${currentLen}`,
+    );
     this.emit(`store i8* ${elem}, i8** ${resultElemPtr}`);
 
     const newLen = this.nextTemp();
@@ -1792,13 +1924,13 @@ export class ArrayGenerator {
     this.emit(`br label %${checkLabel}`);
 
     this.emit(`${endLabel}:`);
-    this.ctx.setVariableType(resultArrayPtr, '%StringArray*');
+    this.ctx.setVariableType(resultArrayPtr, "%StringArray*");
     return resultArrayPtr;
   }
 
   generateArrayForEach(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('forEach() requires exactly 1 argument (callback function)');
+      throw new Error("forEach() requires exactly 1 argument (callback function)");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
@@ -1806,35 +1938,35 @@ export class ArrayGenerator {
     let isStringArray = false;
     let isObjectArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
       isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
-    } else if (exprObjBase.type === 'member_access') {
+    } else if (exprObjBase.type === "member_access") {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
-      if (!isStringArray && ptrType && ptrType.indexOf('*') !== -1 && ptrType !== '%Array*') {
+      isStringArray = ptrType === "%StringArray*";
+      if (!isStringArray && ptrType && ptrType.indexOf("*") !== -1 && ptrType !== "%Array*") {
         isObjectArray = true;
       }
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
+      isStringArray = ptrType === "%StringArray*";
     }
 
     const callbackArg = expr.args[0];
     let callbackFn: string;
 
-    if (callbackArg.type === 'variable') {
+    if (callbackArg.type === "variable") {
       callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
-    } else if (callbackArg.type === 'arrow_function') {
+    } else if (callbackArg.type === "arrow_function") {
       if (isStringArray || isObjectArray) {
-        this.ctx.setExpectedCallbackParamType('string');
+        this.ctx.setExpectedCallbackParamType("string");
       }
       callbackFn = this.ctx.generateExpression(callbackArg, params);
       this.ctx.setExpectedCallbackParamType(null);
     } else {
-      throw new Error('forEach() argument must be a function name or inline function');
+      throw new Error("forEach() argument must be a function name or inline function");
     }
 
     if (isStringArray || isObjectArray) {
@@ -1846,9 +1978,9 @@ export class ArrayGenerator {
     const dataPtr = arrayMeta.dataPtr;
 
     // Loop setup
-    const checkLabel = this.nextLabel('foreach_check');
-    const bodyLabel = this.nextLabel('foreach_body');
-    const endLabel = this.nextLabel('foreach_end');
+    const checkLabel = this.nextLabel("foreach_check");
+    const bodyLabel = this.nextLabel("foreach_body");
+    const endLabel = this.nextLabel("foreach_end");
 
     // Initialize loop counter
     const counterPtr = this.nextTemp();
@@ -1886,40 +2018,40 @@ export class ArrayGenerator {
 
     // End - forEach returns 0 (undefined-ish)
     this.emit(`${endLabel}:`);
-    return '0';
+    return "0";
   }
 
   generateArrayReduce(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1 || expr.args.length > 2) {
-      throw new Error('reduce() requires 1-2 arguments (callback, optional initialValue)');
+      throw new Error("reduce() requires 1-2 arguments (callback, optional initialValue)");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
 
     let isStringArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
+      isStringArray = ptrType === "%StringArray*";
     }
 
     const callbackArg = expr.args[0];
     let callbackFn: string;
 
-    if (callbackArg.type === 'variable') {
+    if (callbackArg.type === "variable") {
       callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
-    } else if (callbackArg.type === 'arrow_function') {
+    } else if (callbackArg.type === "arrow_function") {
       if (isStringArray) {
-        this.ctx.setExpectedCallbackParamType('string');
+        this.ctx.setExpectedCallbackParamType("string");
       }
       callbackFn = this.ctx.generateExpression(callbackArg, params);
       this.ctx.setExpectedCallbackParamType(null);
     } else {
-      throw new Error('reduce() first argument must be a function name or inline function');
+      throw new Error("reduce() first argument must be a function name or inline function");
     }
 
     if (isStringArray) {
@@ -1930,9 +2062,9 @@ export class ArrayGenerator {
     const length = arrayMeta.length;
     const dataPtr = arrayMeta.dataPtr;
 
-    const checkLabel = this.nextLabel('reduce_check');
-    const bodyLabel = this.nextLabel('reduce_body');
-    const endLabel = this.nextLabel('reduce_end');
+    const checkLabel = this.nextLabel("reduce_check");
+    const bodyLabel = this.nextLabel("reduce_body");
+    const endLabel = this.nextLabel("reduce_end");
 
     const accPtr = this.nextTemp();
     this.emit(`${accPtr} = alloca double`);
@@ -1988,20 +2120,29 @@ export class ArrayGenerator {
     return finalAcc;
   }
 
-  private generateStringArrayReduce(arrayPtr: string, callbackFn: string, expr: MethodCallNode, params: string[]): string {
+  private generateStringArrayReduce(
+    arrayPtr: string,
+    callbackFn: string,
+    expr: MethodCallNode,
+    params: string[],
+  ): string {
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
-    const checkLabel = this.nextLabel('reduce_check');
-    const bodyLabel = this.nextLabel('reduce_body');
-    const endLabel = this.nextLabel('reduce_end');
+    const checkLabel = this.nextLabel("reduce_check");
+    const bodyLabel = this.nextLabel("reduce_body");
+    const endLabel = this.nextLabel("reduce_end");
 
     const accPtr = this.nextTemp();
     this.emit(`${accPtr} = alloca i8*`);
@@ -2058,18 +2199,22 @@ export class ArrayGenerator {
 
   private generateStringArrayForEach(arrayPtr: string, callbackFn: string): string {
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
-    const checkLabel = this.nextLabel('foreach_check');
-    const bodyLabel = this.nextLabel('foreach_body');
-    const endLabel = this.nextLabel('foreach_end');
+    const checkLabel = this.nextLabel("foreach_check");
+    const bodyLabel = this.nextLabel("foreach_body");
+    const endLabel = this.nextLabel("foreach_end");
 
     const counterPtr = this.nextTemp();
     this.emit(`${counterPtr} = alloca i32`);
@@ -2100,12 +2245,12 @@ export class ArrayGenerator {
     this.emit(`br label %${checkLabel}`);
 
     this.emit(`${endLabel}:`);
-    return '0';
+    return "0";
   }
 
   generateArrayMap(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('map() requires exactly 1 argument (callback function)');
+      throw new Error("map() requires exactly 1 argument (callback function)");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
@@ -2113,39 +2258,39 @@ export class ArrayGenerator {
     let isStringArray = false;
     let isObjectArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
       isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
-    } else if (exprObjBase.type === 'member_access') {
+    } else if (exprObjBase.type === "member_access") {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
-      if (!isStringArray && ptrType && ptrType.indexOf('*') !== -1 && ptrType !== '%Array*') {
+      isStringArray = ptrType === "%StringArray*";
+      if (!isStringArray && ptrType && ptrType.indexOf("*") !== -1 && ptrType !== "%Array*") {
         isObjectArray = true;
       }
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
+      isStringArray = ptrType === "%StringArray*";
     }
 
     const callbackArg = expr.args[0];
     let callbackFn: string;
 
-    if (callbackArg.type === 'variable') {
+    if (callbackArg.type === "variable") {
       callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
-    } else if (callbackArg.type === 'arrow_function') {
+    } else if (callbackArg.type === "arrow_function") {
       if (isStringArray || isObjectArray) {
-        this.ctx.setExpectedCallbackParamType('string');
+        this.ctx.setExpectedCallbackParamType("string");
       }
       if (!isStringArray && !isObjectArray) {
-        this.ctx.setExpectedCallbackReturnType('number');
+        this.ctx.setExpectedCallbackReturnType("number");
       }
       callbackFn = this.ctx.generateExpression(callbackArg, params);
       this.ctx.setExpectedCallbackParamType(null);
       this.ctx.setExpectedCallbackReturnType(null);
     } else {
-      throw new Error('map() argument must be a function name or inline function');
+      throw new Error("map() argument must be a function name or inline function");
     }
 
     if (isStringArray || isObjectArray) {
@@ -2181,17 +2326,23 @@ export class ArrayGenerator {
 
     // Store data pointer in result array struct
     const resultDataPtrField = this.nextTemp();
-    this.emit(`${resultDataPtrField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${resultDataPtrField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 0`,
+    );
     this.emit(`store double* ${resultDataPtr}, double** ${resultDataPtrField}`);
 
     // Store length in result array struct
     const resultLenField = this.nextTemp();
-    this.emit(`${resultLenField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${resultLenField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 ${length}, i32* ${resultLenField}`);
 
     // Store capacity in result array struct
     const resultCapField = this.nextTemp();
-    this.emit(`${resultCapField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${resultCapField} = getelementptr inbounds %Array, %Array* ${resultArrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${length}, i32* ${resultCapField}`);
 
     // Loop setup
@@ -2199,9 +2350,9 @@ export class ArrayGenerator {
     this.emit(`${counterPtr} = alloca i32`);
     this.emit(`store i32 0, i32* ${counterPtr}`);
 
-    const checkLabel = this.nextLabel('map_check');
-    const bodyLabel = this.nextLabel('map_body');
-    const endLabel = this.nextLabel('map_end');
+    const checkLabel = this.nextLabel("map_check");
+    const bodyLabel = this.nextLabel("map_body");
+    const endLabel = this.nextLabel("map_end");
 
     this.emit(`br label %${checkLabel}`);
 
@@ -2228,7 +2379,9 @@ export class ArrayGenerator {
 
     // Store result in result array
     const resultElemPtr = this.nextTemp();
-    this.emit(`${resultElemPtr} = getelementptr inbounds double, double* ${resultDataPtr}, i32 ${counter}`);
+    this.emit(
+      `${resultElemPtr} = getelementptr inbounds double, double* ${resultDataPtr}, i32 ${counter}`,
+    );
     this.emit(`store double ${result}, double* ${resultElemPtr}`);
 
     // Continue loop
@@ -2245,7 +2398,7 @@ export class ArrayGenerator {
   generateArrayIncludes(expr: MethodCallNode, params: string[]): string {
     // arr.includes(value) - returns 1 if array contains value, 0 otherwise
     if (expr.args.length !== 1) {
-      throw new Error('includes() requires exactly 1 argument');
+      throw new Error("includes() requires exactly 1 argument");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
@@ -2254,13 +2407,13 @@ export class ArrayGenerator {
     // Determine if this is a string array or number array
     let isStringArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
+      isStringArray = ptrType === "%StringArray*";
     }
 
     if (isStringArray) {
@@ -2286,11 +2439,11 @@ export class ArrayGenerator {
     this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
     // Loop setup
-    const loopLabel = this.nextLabel('includes_loop');
-    const checkLabel = this.nextLabel('includes_check');
-    const bodyLabel = this.nextLabel('includes_body');
-    const foundLabel = this.nextLabel('includes_found');
-    const endLabel = this.nextLabel('includes_end');
+    const loopLabel = this.nextLabel("includes_loop");
+    const checkLabel = this.nextLabel("includes_check");
+    const bodyLabel = this.nextLabel("includes_body");
+    const foundLabel = this.nextLabel("includes_found");
+    const endLabel = this.nextLabel("includes_end");
 
     // Initialize loop counter
     const counterPtr = this.nextTemp();
@@ -2350,22 +2503,26 @@ export class ArrayGenerator {
 
     // Load array length
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
     // Load data pointer
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
     // Loop setup
-    const loopLabel = this.nextLabel('includes_loop');
-    const checkLabel = this.nextLabel('includes_check');
-    const bodyLabel = this.nextLabel('includes_body');
-    const foundLabel = this.nextLabel('includes_found');
-    const endLabel = this.nextLabel('includes_end');
+    const loopLabel = this.nextLabel("includes_loop");
+    const checkLabel = this.nextLabel("includes_check");
+    const bodyLabel = this.nextLabel("includes_body");
+    const foundLabel = this.nextLabel("includes_found");
+    const endLabel = this.nextLabel("includes_end");
 
     // Initialize loop counter
     const counterPtr = this.nextTemp();
@@ -2423,7 +2580,7 @@ export class ArrayGenerator {
 
   generateArrayJoin(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length > 1) {
-      throw new Error('join() accepts 0 or 1 arguments (separator)');
+      throw new Error("join() accepts 0 or 1 arguments (separator)");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
@@ -2431,21 +2588,21 @@ export class ArrayGenerator {
     if (expr.args.length === 1) {
       separator = this.ctx.generateExpression(expr.args[0], params);
     } else {
-      separator = this.ctx.stringGen.doCreateStringConstant(',');
+      separator = this.ctx.stringGen.doCreateStringConstant(",");
     }
 
     let isStringArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
-    } else if (exprObjBase.type === 'member_access') {
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+    } else if (exprObjBase.type === "member_access") {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
+      isStringArray = ptrType === "%StringArray*";
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
+      isStringArray = ptrType === "%StringArray*";
     }
 
     if (isStringArray) {
@@ -2470,33 +2627,37 @@ export class ArrayGenerator {
     this.emit(`${nullByte} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 0`);
     this.emit(`store i8 0, i8* ${nullByte}`);
 
-    this.ctx.setVariableType(resultBuffer, 'i8*');
+    this.ctx.setVariableType(resultBuffer, "i8*");
     return resultBuffer;
   }
 
   private generateStringArrayJoin(arrayPtr: string, separator: string): string {
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
     const sepLen = this.nextTemp();
     this.emit(`${sepLen} = call i64 @strlen(i8* ${separator})`);
 
-    const totalSizePtr = this.ctx.nextAllocaReg('join_total');
+    const totalSizePtr = this.ctx.nextAllocaReg("join_total");
     this.emit(`${totalSizePtr} = alloca i64`);
     this.emit(`store i64 0, i64* ${totalSizePtr}`);
 
-    const sizeCheckLabel = this.nextLabel('join_size_check');
-    const sizeBodyLabel = this.nextLabel('join_size_body');
-    const sizeEndLabel = this.nextLabel('join_size_end');
+    const sizeCheckLabel = this.nextLabel("join_size_check");
+    const sizeBodyLabel = this.nextLabel("join_size_body");
+    const sizeEndLabel = this.nextLabel("join_size_end");
 
-    const sizeCounterPtr = this.ctx.nextAllocaReg('join_size_idx');
+    const sizeCounterPtr = this.ctx.nextAllocaReg("join_size_idx");
     this.emit(`${sizeCounterPtr} = alloca i32`);
     this.emit(`store i32 0, i32* ${sizeCounterPtr}`);
 
@@ -2516,8 +2677,8 @@ export class ArrayGenerator {
     this.emit(`${sizeElem} = load i8*, i8** ${sizeElemPtr}`);
     const sizeElemNull = this.nextTemp();
     this.emit(`${sizeElemNull} = icmp eq i8* ${sizeElem}, null`);
-    const sizeSkipLabel = this.nextLabel('join_size_skip');
-    const sizeAddLabel = this.nextLabel('join_size_add');
+    const sizeSkipLabel = this.nextLabel("join_size_skip");
+    const sizeAddLabel = this.nextLabel("join_size_add");
     this.emit(`br i1 ${sizeElemNull}, label %${sizeSkipLabel}, label %${sizeAddLabel}`);
 
     this.emit(`${sizeAddLabel}:`);
@@ -2556,15 +2717,15 @@ export class ArrayGenerator {
     const resultBuffer = this.nextTemp();
     this.emit(`${resultBuffer} = call i8* @GC_malloc_atomic(i64 ${finalSize})`);
 
-    const offsetPtr = this.ctx.nextAllocaReg('join_offset');
+    const offsetPtr = this.ctx.nextAllocaReg("join_offset");
     this.emit(`${offsetPtr} = alloca i64`);
     this.emit(`store i64 0, i64* ${offsetPtr}`);
 
-    const checkLabel = this.nextLabel('join_check');
-    const bodyLabel = this.nextLabel('join_body');
-    const endLabel = this.nextLabel('join_end');
+    const checkLabel = this.nextLabel("join_check");
+    const bodyLabel = this.nextLabel("join_body");
+    const endLabel = this.nextLabel("join_end");
 
-    const counterPtr = this.ctx.nextAllocaReg('join_idx');
+    const counterPtr = this.ctx.nextAllocaReg("join_idx");
     this.emit(`${counterPtr} = alloca i32`);
     this.emit(`store i32 0, i32* ${counterPtr}`);
 
@@ -2586,15 +2747,15 @@ export class ArrayGenerator {
 
     const elemIsNull = this.nextTemp();
     this.emit(`${elemIsNull} = icmp eq i8* ${elem}, null`);
-    const elemSkipLabel = this.nextLabel('join_elem_skip');
-    const elemCopyLabel = this.nextLabel('join_elem_copy');
+    const elemSkipLabel = this.nextLabel("join_elem_skip");
+    const elemCopyLabel = this.nextLabel("join_elem_copy");
     this.emit(`br i1 ${elemIsNull}, label %${elemSkipLabel}, label %${elemCopyLabel}`);
 
     this.emit(`${elemCopyLabel}:`);
     const isNotFirst = this.nextTemp();
     this.emit(`${isNotFirst} = icmp sgt i32 ${counter}, 0`);
-    const addSepLabel = this.nextLabel('join_add_sep');
-    const afterSepLabel = this.nextLabel('join_after_sep');
+    const addSepLabel = this.nextLabel("join_add_sep");
+    const afterSepLabel = this.nextLabel("join_after_sep");
     this.emit(`br i1 ${isNotFirst}, label %${addSepLabel}, label %${afterSepLabel}`);
 
     this.emit(`${addSepLabel}:`);
@@ -2602,7 +2763,9 @@ export class ArrayGenerator {
     this.emit(`${sepOffset} = load i64, i64* ${offsetPtr}`);
     const sepDst = this.nextTemp();
     this.emit(`${sepDst} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${sepOffset}`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${sepDst}, i8* ${separator}, i64 ${sepLen}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${sepDst}, i8* ${separator}, i64 ${sepLen}, i1 false)`,
+    );
     const sepOffsetNew = this.nextTemp();
     this.emit(`${sepOffsetNew} = add i64 ${sepOffset}, ${sepLen}`);
     this.emit(`store i64 ${sepOffsetNew}, i64* ${offsetPtr}`);
@@ -2615,7 +2778,9 @@ export class ArrayGenerator {
     this.emit(`${elemDst} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${curOffset}`);
     const elemLength = this.nextTemp();
     this.emit(`${elemLength} = call i64 @strlen(i8* ${elem})`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${elemDst}, i8* ${elem}, i64 ${elemLength}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${elemDst}, i8* ${elem}, i64 ${elemLength}, i1 false)`,
+    );
     const newOffset = this.nextTemp();
     this.emit(`${newOffset} = add i64 ${curOffset}, ${elemLength}`);
     this.emit(`store i64 ${newOffset}, i64* ${offsetPtr}`);
@@ -2632,15 +2797,17 @@ export class ArrayGenerator {
     const finalOffset = this.nextTemp();
     this.emit(`${finalOffset} = load i64, i64* ${offsetPtr}`);
     const nullTermPtr = this.nextTemp();
-    this.emit(`${nullTermPtr} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${finalOffset}`);
+    this.emit(
+      `${nullTermPtr} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${finalOffset}`,
+    );
     this.emit(`store i8 0, i8* ${nullTermPtr}`);
-    this.ctx.setVariableType(resultBuffer, 'i8*');
+    this.ctx.setVariableType(resultBuffer, "i8*");
     return resultBuffer;
   }
 
   generateStringArrayMap(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('map() requires exactly 1 argument (callback function)');
+      throw new Error("map() requires exactly 1 argument (callback function)");
     }
 
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
@@ -2648,25 +2815,29 @@ export class ArrayGenerator {
     const callbackArg = expr.args[0];
     let callbackFn: string;
 
-    if (callbackArg.type === 'variable') {
+    if (callbackArg.type === "variable") {
       callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
-    } else if (callbackArg.type === 'arrow_function') {
-      this.ctx.setExpectedCallbackParamType('string');
-      this.ctx.setExpectedCallbackReturnType('string');
+    } else if (callbackArg.type === "arrow_function") {
+      this.ctx.setExpectedCallbackParamType("string");
+      this.ctx.setExpectedCallbackReturnType("string");
       callbackFn = this.ctx.generateExpression(callbackArg, params);
       this.ctx.setExpectedCallbackParamType(null);
       this.ctx.setExpectedCallbackReturnType(null);
     } else {
-      throw new Error('map() argument must be a function name or inline function');
+      throw new Error("map() argument must be a function name or inline function");
     }
 
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
@@ -2684,24 +2855,30 @@ export class ArrayGenerator {
     this.emit(`${resultDataPtr} = bitcast i8* ${resultMem} to i8**`);
 
     const resultDataPtrField = this.nextTemp();
-    this.emit(`${resultDataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${resultDataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 0`,
+    );
     this.emit(`store i8** ${resultDataPtr}, i8*** ${resultDataPtrField}`);
 
     const resultLenField = this.nextTemp();
-    this.emit(`${resultLenField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${resultLenField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 ${length}, i32* ${resultLenField}`);
 
     const resultCapField = this.nextTemp();
-    this.emit(`${resultCapField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${resultCapField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${length}, i32* ${resultCapField}`);
 
     const counterPtr = this.nextTemp();
     this.emit(`${counterPtr} = alloca i32`);
     this.emit(`store i32 0, i32* ${counterPtr}`);
 
-    const checkLabel = this.nextLabel('strmap_check');
-    const bodyLabel = this.nextLabel('strmap_body');
-    const endLabel = this.nextLabel('strmap_end');
+    const checkLabel = this.nextLabel("strmap_check");
+    const bodyLabel = this.nextLabel("strmap_body");
+    const endLabel = this.nextLabel("strmap_end");
 
     this.emit(`br label %${checkLabel}`);
 
@@ -2723,7 +2900,9 @@ export class ArrayGenerator {
     this.emit(`${result} = call i8* @${callbackFn}(i8* ${elem})`);
 
     const resultElemPtr = this.nextTemp();
-    this.emit(`${resultElemPtr} = getelementptr inbounds i8*, i8** ${resultDataPtr}, i32 ${counter}`);
+    this.emit(
+      `${resultElemPtr} = getelementptr inbounds i8*, i8** ${resultDataPtr}, i32 ${counter}`,
+    );
     this.emit(`store i8* ${result}, i8** ${resultElemPtr}`);
 
     const nextCounter = this.nextTemp();
@@ -2732,7 +2911,7 @@ export class ArrayGenerator {
     this.emit(`br label %${checkLabel}`);
 
     this.emit(`${endLabel}:`);
-    this.ctx.setVariableType(resultArrayPtr, '%StringArray*');
+    this.ctx.setVariableType(resultArrayPtr, "%StringArray*");
     return resultArrayPtr;
   }
 
@@ -2742,20 +2921,20 @@ export class ArrayGenerator {
     let isStringArray = false;
     let isObjectArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
       isObjectArray = this.ctx.symbolTable.isObjectArray(varName);
-    } else if (exprObjBase.type === 'member_access') {
+    } else if (exprObjBase.type === "member_access") {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
-      if (!isStringArray && ptrType && ptrType.indexOf('*') !== -1 && ptrType !== '%Array*') {
+      isStringArray = ptrType === "%StringArray*";
+      if (!isStringArray && ptrType && ptrType.indexOf("*") !== -1 && ptrType !== "%Array*") {
         isObjectArray = true;
       }
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
+      isStringArray = ptrType === "%StringArray*";
     }
 
     if (isStringArray || isObjectArray) {
@@ -2772,7 +2951,7 @@ export class ArrayGenerator {
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
-    let startI32 = '0';
+    let startI32 = "0";
     if (expr.args.length >= 1) {
       const startDouble = this.ctx.generateExpression(expr.args[0], params);
       const dblStart = this.ctx.ensureDouble(startDouble);
@@ -2810,38 +2989,57 @@ export class ArrayGenerator {
     this.emit(`${newDataPtr} = bitcast i8* ${dataMem} to double*`);
 
     const srcStartPtr = this.nextTemp();
-    this.emit(`${srcStartPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${startI32}`);
+    this.emit(
+      `${srcStartPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${startI32}`,
+    );
     const srcCast = this.nextTemp();
     this.emit(`${srcCast} = bitcast double* ${srcStartPtr} to i8*`);
     const dstCast = this.nextTemp();
     this.emit(`${dstCast} = bitcast double* ${newDataPtr} to i8*`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dstCast}, i8* ${srcCast}, i64 ${dataSize}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dstCast}, i8* ${srcCast}, i64 ${dataSize}, i1 false)`,
+    );
 
     const newDataField = this.nextTemp();
-    this.emit(`${newDataField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${newDataField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 0`,
+    );
     this.emit(`store double* ${newDataPtr}, double** ${newDataField}`);
 
     const newLenField = this.nextTemp();
-    this.emit(`${newLenField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${newLenField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 ${sliceLen}, i32* ${newLenField}`);
 
     const newCapField = this.nextTemp();
-    this.emit(`${newCapField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${newCapField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${sliceLen}, i32* ${newCapField}`);
 
-    this.ctx.setVariableType(newArrayPtr, '%Array*');
+    this.ctx.setVariableType(newArrayPtr, "%Array*");
     return newArrayPtr;
   }
 
-  private generateStringArraySlice(arrayPtr: string, expr: MethodCallNode, params: string[], isObjectArray: boolean = false): string {
-    const arrType = isObjectArray ? '%ObjectArray' : '%StringArray';
+  private generateStringArraySlice(
+    arrayPtr: string,
+    expr: MethodCallNode,
+    params: string[],
+    isObjectArray: boolean = false,
+  ): string {
+    const arrType = isObjectArray ? "%ObjectArray" : "%StringArray";
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds ${arrType}, ${arrType}* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds ${arrType}, ${arrType}* ${arrayPtr}, i32 0, i32 1`,
+    );
     const length = this.nextTemp();
     this.emit(`${length} = load i32, i32* ${lenPtr}`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds ${arrType}, ${arrType}* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds ${arrType}, ${arrType}* ${arrayPtr}, i32 0, i32 0`,
+    );
     let dataPtr: string;
     if (isObjectArray) {
       const rawDataPtr = this.nextTemp();
@@ -2853,7 +3051,7 @@ export class ArrayGenerator {
       this.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
     }
 
-    let startI32 = '0';
+    let startI32 = "0";
     if (expr.args.length >= 1) {
       const startDouble = this.ctx.generateExpression(expr.args[0], params);
       const dblStart = this.ctx.ensureDouble(startDouble);
@@ -2896,10 +3094,14 @@ export class ArrayGenerator {
     this.emit(`${srcCast} = bitcast i8** ${srcStartPtr} to i8*`);
     const dstCast = this.nextTemp();
     this.emit(`${dstCast} = bitcast i8** ${newDataPtr} to i8*`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dstCast}, i8* ${srcCast}, i64 ${dataSize}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dstCast}, i8* ${srcCast}, i64 ${dataSize}, i1 false)`,
+    );
 
     const newDataField = this.nextTemp();
-    this.emit(`${newDataField} = getelementptr inbounds ${arrType}, ${arrType}* ${newArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${newDataField} = getelementptr inbounds ${arrType}, ${arrType}* ${newArrayPtr}, i32 0, i32 0`,
+    );
     if (isObjectArray) {
       const dataAsi8 = this.nextTemp();
       this.emit(`${dataAsi8} = bitcast i8** ${newDataPtr} to i8*`);
@@ -2909,11 +3111,15 @@ export class ArrayGenerator {
     }
 
     const newLenField = this.nextTemp();
-    this.emit(`${newLenField} = getelementptr inbounds ${arrType}, ${arrType}* ${newArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${newLenField} = getelementptr inbounds ${arrType}, ${arrType}* ${newArrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 ${sliceLen}, i32* ${newLenField}`);
 
     const newCapField = this.nextTemp();
-    this.emit(`${newCapField} = getelementptr inbounds ${arrType}, ${arrType}* ${newArrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${newCapField} = getelementptr inbounds ${arrType}, ${arrType}* ${newArrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${sliceLen}, i32* ${newCapField}`);
 
     this.ctx.setVariableType(newArrayPtr, `${arrType}*`);
@@ -2926,19 +3132,19 @@ export class ArrayGenerator {
     let isStringArray = false;
     let isObjectArray = false;
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       const varType = this.ctx.getVariableType(varName);
-      isStringArray = varType === '%StringArray*' || varType === '%StringArray';
-      isObjectArray = varType === '%ObjectArray*';
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+      isObjectArray = varType === "%ObjectArray*";
     } else {
       const ptrType = this.ctx.getVariableType(arrayPtr);
-      isStringArray = ptrType === '%StringArray*';
-      isObjectArray = ptrType === '%ObjectArray*';
+      isStringArray = ptrType === "%StringArray*";
+      isObjectArray = ptrType === "%ObjectArray*";
     }
 
     if (expr.args.length !== 1) {
-      throw new Error('concat() requires exactly 1 argument');
+      throw new Error("concat() requires exactly 1 argument");
     }
 
     const otherArrayPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -2983,7 +3189,9 @@ export class ArrayGenerator {
     this.emit(`${newDataPtr} = bitcast i8* ${dataMem} to double*`);
 
     const dataPtrField1 = this.nextTemp();
-    this.emit(`${dataPtrField1} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField1} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr1 = this.nextTemp();
     this.emit(`${dataPtr1} = load double*, double** ${dataPtrField1}`);
 
@@ -2995,10 +3203,14 @@ export class ArrayGenerator {
     this.emit(`${src1} = bitcast double* ${dataPtr1} to i8*`);
     const dst1 = this.nextTemp();
     this.emit(`${dst1} = bitcast double* ${newDataPtr} to i8*`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst1}, i8* ${src1}, i64 ${size1}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst1}, i8* ${src1}, i64 ${size1}, i1 false)`,
+    );
 
     const dataPtrField2 = this.nextTemp();
-    this.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${otherArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField2} = getelementptr inbounds %Array, %Array* ${otherArrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr2 = this.nextTemp();
     this.emit(`${dataPtr2} = load double*, double** ${dataPtrField2}`);
 
@@ -3012,32 +3224,44 @@ export class ArrayGenerator {
     this.emit(`${dstOffset} = getelementptr inbounds double, double* ${newDataPtr}, i32 ${len1}`);
     const dst2 = this.nextTemp();
     this.emit(`${dst2} = bitcast double* ${dstOffset} to i8*`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst2}, i8* ${src2}, i64 ${size2}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst2}, i8* ${src2}, i64 ${size2}, i1 false)`,
+    );
 
     const newDataField = this.nextTemp();
-    this.emit(`${newDataField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${newDataField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 0`,
+    );
     this.emit(`store double* ${newDataPtr}, double** ${newDataField}`);
 
     const newLenField = this.nextTemp();
-    this.emit(`${newLenField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${newLenField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 ${totalLen}, i32* ${newLenField}`);
 
     const newCapField = this.nextTemp();
-    this.emit(`${newCapField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${newCapField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${totalLen}, i32* ${newCapField}`);
 
-    this.ctx.setVariableType(newArrayPtr, '%Array*');
+    this.ctx.setVariableType(newArrayPtr, "%Array*");
     return newArrayPtr;
   }
 
   private generateStringArrayConcat(arrayPtr: string, otherArrayPtr: string): string {
     const lenPtr1 = this.nextTemp();
-    this.emit(`${lenPtr1} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr1} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const len1 = this.nextTemp();
     this.emit(`${len1} = load i32, i32* ${lenPtr1}`);
 
     const lenPtr2 = this.nextTemp();
-    this.emit(`${lenPtr2} = getelementptr inbounds %StringArray, %StringArray* ${otherArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr2} = getelementptr inbounds %StringArray, %StringArray* ${otherArrayPtr}, i32 0, i32 1`,
+    );
     const len2 = this.nextTemp();
     this.emit(`${len2} = load i32, i32* ${lenPtr2}`);
 
@@ -3063,7 +3287,9 @@ export class ArrayGenerator {
     this.emit(`${newDataPtr} = bitcast i8* ${dataMem} to i8**`);
 
     const dataPtrField1 = this.nextTemp();
-    this.emit(`${dataPtrField1} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField1} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr1 = this.nextTemp();
     this.emit(`${dataPtr1} = load i8**, i8*** ${dataPtrField1}`);
 
@@ -3075,10 +3301,14 @@ export class ArrayGenerator {
     this.emit(`${src1} = bitcast i8** ${dataPtr1} to i8*`);
     const dst1 = this.nextTemp();
     this.emit(`${dst1} = bitcast i8** ${newDataPtr} to i8*`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst1}, i8* ${src1}, i64 ${size1}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst1}, i8* ${src1}, i64 ${size1}, i1 false)`,
+    );
 
     const dataPtrField2 = this.nextTemp();
-    this.emit(`${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${otherArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${otherArrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr2 = this.nextTemp();
     this.emit(`${dataPtr2} = load i8**, i8*** ${dataPtrField2}`);
 
@@ -3092,32 +3322,44 @@ export class ArrayGenerator {
     this.emit(`${dstOffset} = getelementptr inbounds i8*, i8** ${newDataPtr}, i32 ${len1}`);
     const dst2 = this.nextTemp();
     this.emit(`${dst2} = bitcast i8** ${dstOffset} to i8*`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst2}, i8* ${src2}, i64 ${size2}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst2}, i8* ${src2}, i64 ${size2}, i1 false)`,
+    );
 
     const newDataField = this.nextTemp();
-    this.emit(`${newDataField} = getelementptr inbounds %StringArray, %StringArray* ${newArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${newDataField} = getelementptr inbounds %StringArray, %StringArray* ${newArrayPtr}, i32 0, i32 0`,
+    );
     this.emit(`store i8** ${newDataPtr}, i8*** ${newDataField}`);
 
     const newLenField = this.nextTemp();
-    this.emit(`${newLenField} = getelementptr inbounds %StringArray, %StringArray* ${newArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${newLenField} = getelementptr inbounds %StringArray, %StringArray* ${newArrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 ${totalLen}, i32* ${newLenField}`);
 
     const newCapField = this.nextTemp();
-    this.emit(`${newCapField} = getelementptr inbounds %StringArray, %StringArray* ${newArrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${newCapField} = getelementptr inbounds %StringArray, %StringArray* ${newArrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${totalLen}, i32* ${newCapField}`);
 
-    this.ctx.setVariableType(newArrayPtr, '%StringArray*');
+    this.ctx.setVariableType(newArrayPtr, "%StringArray*");
     return newArrayPtr;
   }
 
   private generateObjectArrayConcat(arrayPtr: string, otherArrayPtr: string): string {
     const lenPtr1 = this.nextTemp();
-    this.emit(`${lenPtr1} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr1} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     const len1 = this.nextTemp();
     this.emit(`${len1} = load i32, i32* ${lenPtr1}`);
 
     const lenPtr2 = this.nextTemp();
-    this.emit(`${lenPtr2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${otherArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${otherArrayPtr}, i32 0, i32 1`,
+    );
     const len2 = this.nextTemp();
     this.emit(`${len2} = load i32, i32* ${lenPtr2}`);
 
@@ -3143,7 +3385,9 @@ export class ArrayGenerator {
     this.emit(`${newDataPtr} = bitcast i8* ${dataMem} to i8**`);
 
     const dataPtrField1 = this.nextTemp();
-    this.emit(`${dataPtrField1} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField1} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataI8_1 = this.nextTemp();
     this.emit(`${dataI8_1} = load i8*, i8** ${dataPtrField1}`);
     const dataPtr1 = this.nextTemp();
@@ -3157,10 +3401,14 @@ export class ArrayGenerator {
     this.emit(`${src1} = bitcast i8** ${dataPtr1} to i8*`);
     const dst1 = this.nextTemp();
     this.emit(`${dst1} = bitcast i8** ${newDataPtr} to i8*`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst1}, i8* ${src1}, i64 ${size1}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst1}, i8* ${src1}, i64 ${size1}, i1 false)`,
+    );
 
     const dataPtrField2 = this.nextTemp();
-    this.emit(`${dataPtrField2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${otherArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${otherArrayPtr}, i32 0, i32 0`,
+    );
     const dataI8_2 = this.nextTemp();
     this.emit(`${dataI8_2} = load i8*, i8** ${dataPtrField2}`);
     const dataPtr2 = this.nextTemp();
@@ -3176,23 +3424,31 @@ export class ArrayGenerator {
     this.emit(`${dstOffset} = getelementptr inbounds i8*, i8** ${newDataPtr}, i32 ${len1}`);
     const dst2 = this.nextTemp();
     this.emit(`${dst2} = bitcast i8** ${dstOffset} to i8*`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst2}, i8* ${src2}, i64 ${size2}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${dst2}, i8* ${src2}, i64 ${size2}, i1 false)`,
+    );
 
     const newDataField = this.nextTemp();
-    this.emit(`${newDataField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${newArrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${newDataField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${newArrayPtr}, i32 0, i32 0`,
+    );
     const newDataI8 = this.nextTemp();
     this.emit(`${newDataI8} = bitcast i8** ${newDataPtr} to i8*`);
     this.emit(`store i8* ${newDataI8}, i8** ${newDataField}`);
 
     const newLenField = this.nextTemp();
-    this.emit(`${newLenField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${newArrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${newLenField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${newArrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 ${totalLen}, i32* ${newLenField}`);
 
     const newCapField = this.nextTemp();
-    this.emit(`${newCapField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${newArrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${newCapField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${newArrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${totalLen}, i32* ${newCapField}`);
 
-    this.ctx.setVariableType(newArrayPtr, '%ObjectArray*');
+    this.ctx.setVariableType(newArrayPtr, "%ObjectArray*");
     return newArrayPtr;
   }
 }

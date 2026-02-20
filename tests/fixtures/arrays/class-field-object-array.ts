@@ -59,19 +59,35 @@ c.addItem("gamma", 30, true);
 
 let ok = true;
 
-if (c.count() !== 3) { ok = false; }
-if (c.getName(0) !== "alpha") { ok = false; }
-if (c.getValue(1) !== 20) { ok = false; }
-if (c.isActive(2) !== true) { ok = false; }
-if (c.isActive(1) !== false) { ok = false; }
+if (c.count() !== 3) {
+  ok = false;
+}
+if (c.getName(0) !== "alpha") {
+  ok = false;
+}
+if (c.getValue(1) !== 20) {
+  ok = false;
+}
+if (c.isActive(2) !== true) {
+  ok = false;
+}
+if (c.isActive(1) !== false) {
+  ok = false;
+}
 
 c.setName(0, "ALPHA");
 c.setValue(1, 99);
 c.setActive(2, false);
 
-if (c.getName(0) !== "ALPHA") { ok = false; }
-if (c.getValue(1) !== 99) { ok = false; }
-if (c.isActive(2) !== false) { ok = false; }
+if (c.getName(0) !== "ALPHA") {
+  ok = false;
+}
+if (c.getValue(1) !== 99) {
+  ok = false;
+}
+if (c.isActive(2) !== false) {
+  ok = false;
+}
 
 c.printAll();
 

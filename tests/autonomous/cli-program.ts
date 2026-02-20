@@ -1,12 +1,12 @@
-import { ArgumentParser } from '../../lib/argparse.js';
+import { ArgumentParser } from "../../lib/argparse.js";
 
-const parser = new ArgumentParser('cli-program', 'ChadScript CLI test program');
+const parser = new ArgumentParser("cli-program", "ChadScript CLI test program");
 
-parser.addFlag('verbose', 'v', 'Enable verbose output');
-parser.addFlag('debug', 'd', 'Enable debug mode');
-parser.addOption('output', 'o', 'Output file path', '');
-parser.addOption('format', 'f', 'Output format', '');
-parser.addPositional('input', 'Input file');
+parser.addFlag("verbose", "v", "Enable verbose output");
+parser.addFlag("debug", "d", "Enable debug mode");
+parser.addOption("output", "o", "Output file path", "");
+parser.addOption("format", "f", "Output format", "");
+parser.addPositional("input", "Input file");
 
 parser.parse(process.argv);
 
@@ -17,10 +17,10 @@ if (input.length == 0) {
   process.exit(1);
 }
 
-const verbose = parser.getFlag('verbose');
-const debug = parser.getFlag('debug');
-const output = parser.getOption('output');
-const format = parser.getOption('format');
+const verbose = parser.getFlag("verbose");
+const debug = parser.getFlag("debug");
+const output = parser.getOption("output");
+const format = parser.getOption("format");
 
 if (verbose) {
   console.log("Verbose mode enabled");

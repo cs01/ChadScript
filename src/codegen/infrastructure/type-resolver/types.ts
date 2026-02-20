@@ -1,4 +1,4 @@
-import { ObjectMetadata } from '../symbol-table.js';
+import { ObjectMetadata } from "../symbol-table.js";
 
 export interface FieldInfo {
   index: number;
@@ -7,14 +7,14 @@ export interface FieldInfo {
 }
 
 export interface MapTypeInfo {
-  keyType: 'string' | 'number';
+  keyType: "string" | "number";
   valueType: string;
   llvmKeyType: string;
   llvmValueType: string;
 }
 
 export interface SetTypeInfo {
-  valueType: 'string' | 'number';
+  valueType: "string" | "number";
   llvmValueType: string;
 }
 

@@ -1,4 +1,4 @@
-import * as ts from 'typescript';
+import * as ts from "typescript";
 import {
   AST,
   Expression,
@@ -19,11 +19,18 @@ import {
   MemberAccessNode,
   IndexAccessNode,
   SourceLocation,
-} from '../ast/types.js';
+} from "../ast/types.js";
 
-import { transformExpression } from './handlers/expressions.js';
-import { transformStatement } from './handlers/statements.js';
-import { transformFunctionDeclaration, transformClassDeclaration, transformInterfaceDeclaration, transformEnumDeclaration, transformTypeAliasDeclaration, transformImportDeclaration } from './handlers/declarations.js';
+import { transformExpression } from "./handlers/expressions.js";
+import { transformStatement } from "./handlers/statements.js";
+import {
+  transformFunctionDeclaration,
+  transformClassDeclaration,
+  transformInterfaceDeclaration,
+  transformEnumDeclaration,
+  transformTypeAliasDeclaration,
+  transformImportDeclaration,
+} from "./handlers/declarations.js";
 
 let currentSourceFile: ts.SourceFile | null = null;
 
@@ -34,7 +41,10 @@ export function getLoc(node: ts.Node): SourceLocation {
   return { file: sf.fileName, line: line + 1, column: character + 1, offset: pos };
 }
 
-export function transformSourceFile(sourceFile: ts.SourceFile, checker: ts.TypeChecker | undefined): AST {
+export function transformSourceFile(
+  sourceFile: ts.SourceFile,
+  checker: ts.TypeChecker | undefined,
+): AST {
   currentSourceFile = sourceFile;
   const ast: AST = {
     imports: [],
@@ -56,7 +66,11 @@ export function transformSourceFile(sourceFile: ts.SourceFile, checker: ts.TypeC
   return ast;
 }
 
-function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.TypeChecker | undefined): void {
+function transformTopLevelStatement(
+  node: ts.Statement,
+  ast: AST,
+  checker: ts.TypeChecker | undefined,
+): void {
   switch (node.kind) {
     case ts.SyntaxKind.ImportDeclaration: {
       const importDecl = transformImportDeclaration(node as ts.ImportDeclaration);
@@ -68,7 +82,7 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
 
     case ts.SyntaxKind.FunctionDeclaration: {
       const funcDecl = node as ts.FunctionDeclaration;
-      const isDeclare = funcDecl.modifiers?.some(m => m.kind === ts.SyntaxKind.DeclareKeyword);
+      const isDeclare = funcDecl.modifiers?.some((m) => m.kind === ts.SyntaxKind.DeclareKeyword);
       if (isDeclare) {
         break;
       }
@@ -125,7 +139,12 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
             specifiers.push(element.name.text);
           }
         }
-        const syntheticImport: ImportDeclaration = { type: 'import', specifiers, aliasedSpecifiers: undefined, source };
+        const syntheticImport: ImportDeclaration = {
+          type: "import",
+          specifiers,
+          aliasedSpecifiers: undefined,
+          source,
+        };
         ast.imports.push(syntheticImport);
       }
       break;
@@ -139,9 +158,9 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
 
       for (const decl of varStmt.declarationList.declarations) {
         const result = transformVariableDeclaration(decl, varStmt.declarationList.flags, checker);
-        if (result.type === 'block') {
+        if (result.type === "block") {
           for (const stmt of result.statements) {
-            if (stmt.type === 'variable_declaration') {
+            if (stmt.type === "variable_declaration") {
               ast.topLevelStatements.push(stmt);
               ast.topLevelItems!.push(stmt);
             }
@@ -158,15 +177,23 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
       const exprStmt = node as ts.ExpressionStatement;
       const expr = transformExpression(exprStmt.expression, checker);
 
-      if (expr.type === 'member_access_assignment' || expr.type === 'index_access_assignment') {
+      if (expr.type === "member_access_assignment" || expr.type === "index_access_assignment") {
         const assignment: AssignmentStatement = {
-          type: 'assignment',
-          name: expr.type === 'member_access_assignment' ? `__member_access__${expr.property}__` : '__index_access__',
+          type: "assignment",
+          name:
+            expr.type === "member_access_assignment"
+              ? `__member_access__${expr.property}__`
+              : "__index_access__",
           value: expr,
         };
         ast.topLevelStatements.push(assignment);
         ast.topLevelItems!.push(assignment);
-      } else if (expr.type === 'call' || expr.type === 'new' || expr.type === 'method_call' || expr.type === 'await') {
+      } else if (
+        expr.type === "call" ||
+        expr.type === "new" ||
+        expr.type === "method_call" ||
+        expr.type === "await"
+      ) {
         ast.topLevelExpressions.push(expr as CallNode | NewNode | MethodCallNode);
         ast.topLevelItems!.push(expr as TopLevelItem);
       } else if (isAssignmentExpression(exprStmt.expression)) {
@@ -227,19 +254,23 @@ function transformTopLevelStatement(node: ts.Statement, ast: AST, checker: ts.Ty
 function hasExportModifier(node: ts.Node): boolean {
   if (!ts.canHaveModifiers(node)) return false;
   const modifiers = ts.getModifiers(node);
-  return modifiers?.some(m => m.kind === ts.SyntaxKind.ExportKeyword) || false;
+  return modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword) || false;
 }
 
-function handleExportedDeclaration(node: ts.Statement, ast: AST, checker: ts.TypeChecker | undefined): void {
+function handleExportedDeclaration(
+  node: ts.Statement,
+  ast: AST,
+  checker: ts.TypeChecker | undefined,
+): void {
   if (ts.isFunctionDeclaration(node) && hasExportModifier(node)) {
     const func = transformFunctionDeclaration(node, checker);
     if (func) {
-      ast.exports.push({ type: 'export', declaration: func });
+      ast.exports.push({ type: "export", declaration: func });
     }
   } else if (ts.isClassDeclaration(node) && hasExportModifier(node)) {
     const cls = transformClassDeclaration(node, checker);
     if (cls) {
-      ast.exports.push({ type: 'export', declaration: cls });
+      ast.exports.push({ type: "export", declaration: cls });
     }
   }
 }
@@ -247,14 +278,19 @@ function handleExportedDeclaration(node: ts.Statement, ast: AST, checker: ts.Typ
 function isAssignmentExpression(node: ts.Node): boolean {
   if (!ts.isBinaryExpression(node)) return false;
   const op = node.operatorToken.kind;
-  return op === ts.SyntaxKind.EqualsToken ||
-         op === ts.SyntaxKind.PlusEqualsToken ||
-         op === ts.SyntaxKind.MinusEqualsToken ||
-         op === ts.SyntaxKind.AsteriskEqualsToken ||
-         op === ts.SyntaxKind.SlashEqualsToken;
+  return (
+    op === ts.SyntaxKind.EqualsToken ||
+    op === ts.SyntaxKind.PlusEqualsToken ||
+    op === ts.SyntaxKind.MinusEqualsToken ||
+    op === ts.SyntaxKind.AsteriskEqualsToken ||
+    op === ts.SyntaxKind.SlashEqualsToken
+  );
 }
 
-function transformAssignmentExpression(node: ts.BinaryExpression, checker: ts.TypeChecker | undefined): AssignmentStatement | null {
+function transformAssignmentExpression(
+  node: ts.BinaryExpression,
+  checker: ts.TypeChecker | undefined,
+): AssignmentStatement | null {
   const left = node.left;
   const right = transformExpression(node.right, checker);
 
@@ -264,19 +300,19 @@ function transformAssignmentExpression(node: ts.BinaryExpression, checker: ts.Ty
     const leftExpr = transformExpression(left, checker);
     const opStr = getCompoundOperator(op);
     if (opStr) {
-      value = { type: 'binary', op: opStr, left: leftExpr, right };
+      value = { type: "binary", op: opStr, left: leftExpr, right };
     }
   }
 
   if (ts.isIdentifier(left)) {
-    return { type: 'assignment', name: left.text, value };
+    return { type: "assignment", name: left.text, value };
   } else if (ts.isPropertyAccessExpression(left)) {
     const leftExpr = transformExpression(left, checker);
     return {
-      type: 'assignment',
+      type: "assignment",
       name: `__member_access__${left.name.text}__`,
       value: {
-        type: 'member_access_assignment',
+        type: "member_access_assignment",
         object: (leftExpr as any).object,
         property: left.name.text,
         value,
@@ -286,10 +322,10 @@ function transformAssignmentExpression(node: ts.BinaryExpression, checker: ts.Ty
     const obj = transformExpression(left.expression, checker);
     const idx = transformExpression(left.argumentExpression, checker);
     return {
-      type: 'assignment',
-      name: '__index_access__',
+      type: "assignment",
+      name: "__index_access__",
       value: {
-        type: 'index_access_assignment',
+        type: "index_access_assignment",
         object: obj,
         index: idx,
         value,
@@ -302,21 +338,26 @@ function transformAssignmentExpression(node: ts.BinaryExpression, checker: ts.Ty
 
 function getCompoundOperator(op: ts.SyntaxKind): string | null {
   switch (op) {
-    case ts.SyntaxKind.PlusEqualsToken: return '+';
-    case ts.SyntaxKind.MinusEqualsToken: return '-';
-    case ts.SyntaxKind.AsteriskEqualsToken: return '*';
-    case ts.SyntaxKind.SlashEqualsToken: return '/';
-    default: return null;
+    case ts.SyntaxKind.PlusEqualsToken:
+      return "+";
+    case ts.SyntaxKind.MinusEqualsToken:
+      return "-";
+    case ts.SyntaxKind.AsteriskEqualsToken:
+      return "*";
+    case ts.SyntaxKind.SlashEqualsToken:
+      return "/";
+    default:
+      return null;
   }
 }
 
 export function transformVariableDeclaration(
   decl: ts.VariableDeclaration,
   flags: ts.NodeFlags,
-  checker: ts.TypeChecker | undefined
+  checker: ts.TypeChecker | undefined,
 ): VariableDeclaration | BlockStatement {
   if (ts.isObjectBindingPattern(decl.name)) {
-    const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
+    const kind: "let" | "const" = flags & ts.NodeFlags.Const ? "const" : "let";
     const statements: Statement[] = [];
 
     let source: Expression | null = null;
@@ -329,24 +370,25 @@ export function transformVariableDeclaration(
       if (!ts.isIdentifier(element.name)) continue;
 
       const localName = element.name.text;
-      const propertyName = element.propertyName && ts.isIdentifier(element.propertyName)
-        ? element.propertyName.text
-        : localName;
+      const propertyName =
+        element.propertyName && ts.isIdentifier(element.propertyName)
+          ? element.propertyName.text
+          : localName;
 
       const memberAccess: MemberAccessNode = {
-        type: 'member_access',
+        type: "member_access",
         object: source!,
         property: propertyName,
       };
 
-      statements.push({ type: 'variable_declaration', kind, name: localName, value: memberAccess });
+      statements.push({ type: "variable_declaration", kind, name: localName, value: memberAccess });
     }
 
-    return { type: 'block', statements };
+    return { type: "block", statements };
   }
 
   if (ts.isArrayBindingPattern(decl.name)) {
-    const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
+    const kind: "let" | "const" = flags & ts.NodeFlags.Const ? "const" : "let";
     const statements: Statement[] = [];
 
     let source: Expression | null = null;
@@ -363,19 +405,19 @@ export function transformVariableDeclaration(
       const localName = element.name.text;
 
       const indexAccess: IndexAccessNode = {
-        type: 'index_access',
+        type: "index_access",
         object: source!,
-        index: { type: 'number', value: i },
+        index: { type: "number", value: i },
       };
 
-      statements.push({ type: 'variable_declaration', kind, name: localName, value: indexAccess });
+      statements.push({ type: "variable_declaration", kind, name: localName, value: indexAccess });
     }
 
-    return { type: 'block', statements };
+    return { type: "block", statements };
   }
 
-  const name = ts.isIdentifier(decl.name) ? decl.name.text : '';
-  const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
+  const name = ts.isIdentifier(decl.name) ? decl.name.text : "";
+  const kind: "let" | "const" = flags & ts.NodeFlags.Const ? "const" : "let";
 
   let declaredType: string | undefined;
   if (decl.type) {
@@ -387,7 +429,7 @@ export function transformVariableDeclaration(
     value = transformExpression(decl.initializer, checker);
   }
 
-  return { type: 'variable_declaration', kind, name, value, declaredType };
+  return { type: "variable_declaration", kind, name, value, declaredType };
 }
 
 function extractTypeString(typeNode: ts.TypeNode): string {
@@ -397,7 +439,7 @@ function extractTypeString(typeNode: ts.TypeNode): string {
       : typeNode.typeName.getText();
 
     if (typeNode.typeArguments && typeNode.typeArguments.length > 0) {
-      const args = typeNode.typeArguments.map(extractTypeString).join(', ');
+      const args = typeNode.typeArguments.map(extractTypeString).join(", ");
       return `${typeName}<${args}>`;
     }
     return typeName;
@@ -405,35 +447,38 @@ function extractTypeString(typeNode: ts.TypeNode): string {
     const elem = extractTypeString(typeNode.elementType);
     return `${elem}[]`;
   } else if (typeNode.kind === ts.SyntaxKind.StringKeyword) {
-    return 'string';
+    return "string";
   } else if (typeNode.kind === ts.SyntaxKind.NumberKeyword) {
-    return 'number';
+    return "number";
   } else if (typeNode.kind === ts.SyntaxKind.BooleanKeyword) {
-    return 'boolean';
+    return "boolean";
   } else if (typeNode.kind === ts.SyntaxKind.VoidKeyword) {
-    return 'void';
+    return "void";
   } else if (typeNode.kind === ts.SyntaxKind.AnyKeyword) {
-    return 'any';
+    return "any";
   } else if (ts.isUnionTypeNode(typeNode)) {
-    return typeNode.types.map(extractTypeString).join(' | ');
+    return typeNode.types.map(extractTypeString).join(" | ");
   } else if (ts.isTypeLiteralNode(typeNode)) {
     const members: string[] = [];
     for (const member of typeNode.members) {
       if (ts.isPropertySignature(member) && member.name && ts.isIdentifier(member.name)) {
         const propName = member.name.text;
-        const propType = member.type ? extractTypeString(member.type) : 'any';
+        const propType = member.type ? extractTypeString(member.type) : "any";
         members.push(`${propName}: ${propType}`);
       }
     }
     if (members.length > 0) {
-      return `{ ${members.join('; ')} }`;
+      return `{ ${members.join("; ")} }`;
     }
-    return 'object';
+    return "object";
   }
   return typeNode.getText();
 }
 
-export function transformBlock(block: ts.Block, checker: ts.TypeChecker | undefined): BlockStatement {
+export function transformBlock(
+  block: ts.Block,
+  checker: ts.TypeChecker | undefined,
+): BlockStatement {
   const statements: Statement[] = [];
   for (const stmt of block.statements) {
     const transformed = transformStatement(stmt, checker);
@@ -441,5 +486,5 @@ export function transformBlock(block: ts.Block, checker: ts.TypeChecker | undefi
       statements.push(transformed);
     }
   }
-  return { type: 'block', statements };
+  return { type: "block", statements };
 }

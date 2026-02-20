@@ -18,26 +18,56 @@
  * ```
  */
 
-import { Expression, BlockStatement, AST, CallNode, MethodCallNode, ArrayNode, MapNode, SetNode, InterfaceDeclaration, FunctionNode, ClassNode, TypeAliasDeclaration, SourceLocation, VariableDeclaration } from '../../ast/types.js';
-import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
-import type { TypeChecker } from '../../typescript/type-checker.js';
-import type { TypeResolver } from './type-resolver/index.js';
-import type { ResolvedType } from './type-system.js';
-import type { InterfaceStructGenerator, InterfaceStructInfo, InterfaceFieldInfo } from '../types/interface-struct-generator.js';
-import type { TypeGuardInfo } from './type-resolver/types.js';
-import type { JsonObjectMeta } from '../expressions/access/member.js';
-import type { DiagnosticEngine } from '../../diagnostics/engine.js';
-import { TypeContext } from './type-context.js';
+import {
+  Expression,
+  BlockStatement,
+  AST,
+  CallNode,
+  MethodCallNode,
+  ArrayNode,
+  MapNode,
+  SetNode,
+  InterfaceDeclaration,
+  FunctionNode,
+  ClassNode,
+  TypeAliasDeclaration,
+  SourceLocation,
+  VariableDeclaration,
+} from "../../ast/types.js";
+import { SymbolTable, SymbolKind, SymbolMetadata } from "./symbol-table.js";
+import type { TypeChecker } from "../../typescript/type-checker.js";
+import type { TypeResolver } from "./type-resolver/index.js";
+import type { ResolvedType } from "./type-system.js";
+import type {
+  InterfaceStructGenerator,
+  InterfaceStructInfo,
+  InterfaceFieldInfo,
+} from "../types/interface-struct-generator.js";
+import type { TypeGuardInfo } from "./type-resolver/types.js";
+import type { JsonObjectMeta } from "../expressions/access/member.js";
+import type { DiagnosticEngine } from "../../diagnostics/engine.js";
+import { TypeContext } from "./type-context.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
 export interface IClassGenContext {
-  getFieldInfo(className: string, fieldName: string): { index: number; type: string; tsType?: string } | null;
+  getFieldInfo(
+    className: string,
+    fieldName: string,
+  ): { index: number; type: string; tsType?: string } | null;
   getClassFields(className: string): { name: string; fieldType: string }[];
   getFieldType(className: string, fieldName: string): string | null;
   getFieldTsType(className: string, fieldName: string): string | null;
   generateNewExpression(className: string, args: Expression[], params: string[]): string;
-  generateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
+  generateMethodCall(
+    instancePtr: string,
+    className: string,
+    method: string,
+    args: Expression[],
+    params: string[],
+  ): string;
   thisPointer?: string | null;
   currentClassName?: string | null;
 }
@@ -73,7 +103,11 @@ export interface IStringGenerator {
 export interface IResponseGenerator {
   generateText(responsePtr: string): string;
   generateJson(responsePtr: string): string;
-  generateTypedJson(responsePtr: string, typeName: string, interfaceDef: { properties: { name: string; type: string }[] }): string;
+  generateTypedJson(
+    responsePtr: string,
+    typeName: string,
+    interfaceDef: { properties: { name: string; type: string }[] },
+  ): string;
   generateStatus(responsePtr: string): string;
   generateOk(responsePtr: string): string;
   generateUrl(responsePtr: string): string;
@@ -163,9 +197,11 @@ export interface IArrowFunctionGenerator {
     params: string[],
     typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
     scopeVarNames: string[] | undefined,
-    scopeVarTypes: string[] | undefined
+    scopeVarTypes: string[] | undefined,
   ): string;
-  getClosureInfoForLambda(lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | undefined;
+  getClosureInfoForLambda(
+    lambdaName: string,
+  ): { captures: { name: string; llvmType: string }[]; envStructName: string } | undefined;
 }
 
 export interface IStringMapGenerator {
@@ -347,7 +383,7 @@ export interface IGeneratorContext {
     llvmType: string,
     kind: number,
     scope: string,
-    metadata: SymbolMetadata
+    metadata: SymbolMetadata,
   ): void;
 
   /**
@@ -419,7 +455,6 @@ export interface IGeneratorContext {
    */
   readonly typeContext: TypeContext;
 
-
   /**
    * Access to global string constants
    */
@@ -447,9 +482,9 @@ export interface IGeneratorContext {
   /**
    * Expected array element type (for type-aware array generation)
    */
-  expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null;
-  setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void;
-  getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null;
+  expectedArrayElementType: "string" | "number" | "boolean" | "pointer" | null;
+  setExpectedArrayElementType(type: "string" | "number" | "boolean" | "pointer" | null): void;
+  getExpectedArrayElementType(): "string" | "number" | "boolean" | "pointer" | null;
 
   /**
    * Current declared map type (for type-aware map generation)
@@ -709,7 +744,9 @@ export interface IGeneratorContext {
   /**
    * Look up an interface definition by name from the AST
    */
-  getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null;
+  getInterfaceFromAST(
+    name: string,
+  ): { name: string; fields: { name: string; type: string }[] } | null;
 
   /**
    * Resolve an import alias to its original function name.
@@ -725,12 +762,21 @@ export interface IGeneratorContext {
    * Access to class generator for field type lookups
    */
   readonly classGen: IClassGenContext;
-  classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null;
+  classGenGetFieldInfo(
+    className: string | null,
+    fieldName: string | null,
+  ): { index: number; type: string; tsType?: string } | null;
   classGenGetFieldType(className: string, fieldName: string): string | null;
   classGenGetFieldTsType(className: string, fieldName: string): string | null;
   classGenGetClassFields(className: string): { name: string; fieldType: string }[];
   classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string;
-  classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string;
+  classGenGenerateMethodCall(
+    instancePtr: string,
+    className: string,
+    method: string,
+    args: Expression[],
+    params: string[],
+  ): string;
 
   /**
    * TypeResolver delegate methods (avoid chained field access in native code)
@@ -742,8 +788,13 @@ export interface IGeneratorContext {
   typeResolverFindInterfaceByDiscriminant(discriminantValue: string): string | null;
   typeResolverGetThisFieldMapKeyType(expr: Expression): string | null;
   typeResolverGetThisFieldSetValueType(expr: Expression): string | null;
-  typeResolverGetClassFieldMapType(className: string, fieldName: string): { keyType: string; valueType: string } | null;
-  typeResolverGetInterfaceMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | null;
+  typeResolverGetClassFieldMapType(
+    className: string,
+    fieldName: string,
+  ): { keyType: string; valueType: string } | null;
+  typeResolverGetInterfaceMetadata(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes?: string[] } | null;
   typeResolverGetInterface(name: string): InterfaceDeclaration | null;
 
   /**
@@ -812,9 +863,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   public jsonObjectMetadata: Map<string, JsonObjectMeta>;
   public expressionTypes: Map<Expression, ResolvedType>;
   public globalStrings: string[] = [];
-  public currentFunctionReturnType: string = 'double';
+  public currentFunctionReturnType: string = "double";
   public currentFunctionTsReturnType: string | undefined = undefined;
-  public expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null = null;
+  public expectedArrayElementType: "string" | "number" | "boolean" | "pointer" | null = null;
   public currentDeclaredMapType: string | undefined = undefined;
   public expectedCallbackParamType: string | null = null;
   public expectedCallbackReturnType: string | null = null;
@@ -822,7 +873,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public currentClassName: string | null = null;
   public ast?: AST;
   public interfaceStructGen?: InterfaceStructGenerator;
-  public currentLabel: string = 'entry';
+  public currentLabel: string = "entry";
   public typeChecker: TypeChecker | null = null;
   public typeResolver?: TypeResolver;
   public usesPromises: number = 0;
@@ -857,17 +908,16 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   getLastInstruction(): string {
-    if (this.output.length === 0) return '';
+    if (this.output.length === 0) return "";
     const last = this.output[this.output.length - 1];
-    return last ? last.trim() : '';
+    return last ? last.trim() : "";
   }
 
   emitError(message: string, _loc?: SourceLocation, _suggestion?: string): never {
     throw new Error(message);
   }
 
-  emitWarning(_message: string, _loc?: SourceLocation, _suggestion?: string): void {
-  }
+  emitWarning(_message: string, _loc?: SourceLocation, _suggestion?: string): void {}
 
   getExpressionType(expr: Expression): ResolvedType | undefined {
     return this.expressionTypes.get(expr);
@@ -921,50 +971,132 @@ export class MockGeneratorContext implements IGeneratorContext {
     return meta.interfaceType;
   }
 
-  getParameterTypeFromAST(_paramName: string): string | null { return null; }
-  findClassImplementingInterface(_interfaceName: string): string | null { return null; }
-  getInterfaceProperties(_name: string): { keys: string[]; types: string[] } | null { return null; }
-  getInterfaceDeclByName(_name: string): InterfaceDeclaration | null { return null; }
-  isTypeAlias(_name: string): boolean { return false; }
-  getTypeAliasCommonProperties(_name: string): { keys: string[]; types: string[] } | null { return null; }
-  getInterfaceFieldType(_interfaceName: string, _fieldName: string): string | null { return null; }
-  getMethodReturnType(_className: string, _methodName: string): string | null { return null; }
-  isEnumType(_name: string): boolean { return false; }
-  getEnumMemberValue(_enumName: string, _memberName: string): number { return -1; }
+  getParameterTypeFromAST(_paramName: string): string | null {
+    return null;
+  }
+  findClassImplementingInterface(_interfaceName: string): string | null {
+    return null;
+  }
+  getInterfaceProperties(_name: string): { keys: string[]; types: string[] } | null {
+    return null;
+  }
+  getInterfaceDeclByName(_name: string): InterfaceDeclaration | null {
+    return null;
+  }
+  isTypeAlias(_name: string): boolean {
+    return false;
+  }
+  getTypeAliasCommonProperties(_name: string): { keys: string[]; types: string[] } | null {
+    return null;
+  }
+  getInterfaceFieldType(_interfaceName: string, _fieldName: string): string | null {
+    return null;
+  }
+  getMethodReturnType(_className: string, _methodName: string): string | null {
+    return null;
+  }
+  isEnumType(_name: string): boolean {
+    return false;
+  }
+  getEnumMemberValue(_enumName: string, _memberName: string): number {
+    return -1;
+  }
 
-  setCurrentFunction(name: string | null): void { this.currentFunction = name; }
-  getCurrentFunction(): string | null { return this.currentFunction; }
-  setCurrentFunctionReturnType(type: string): void { this.currentFunctionReturnType = type; }
-  getCurrentFunctionReturnType(): string { return this.currentFunctionReturnType; }
-  setCurrentFunctionTsReturnType(type: string | undefined): void { this.currentFunctionTsReturnType = type; }
-  getCurrentFunctionTsReturnType(): string | undefined { return this.currentFunctionTsReturnType; }
-  setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void { this.expectedArrayElementType = type; }
-  getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null { return this.expectedArrayElementType; }
-  setCurrentDeclaredMapType(type: string | undefined): void { this.currentDeclaredMapType = type; }
-  getCurrentDeclaredMapType(): string | undefined { return this.currentDeclaredMapType; }
-  getAllocaInstructions(): string[] { return this.allocaInstructions; }
-  clearAllocaInstructions(): void { this.allocaInstructions.length = 0; }
+  setCurrentFunction(name: string | null): void {
+    this.currentFunction = name;
+  }
+  getCurrentFunction(): string | null {
+    return this.currentFunction;
+  }
+  setCurrentFunctionReturnType(type: string): void {
+    this.currentFunctionReturnType = type;
+  }
+  getCurrentFunctionReturnType(): string {
+    return this.currentFunctionReturnType;
+  }
+  setCurrentFunctionTsReturnType(type: string | undefined): void {
+    this.currentFunctionTsReturnType = type;
+  }
+  getCurrentFunctionTsReturnType(): string | undefined {
+    return this.currentFunctionTsReturnType;
+  }
+  setExpectedArrayElementType(type: "string" | "number" | "boolean" | "pointer" | null): void {
+    this.expectedArrayElementType = type;
+  }
+  getExpectedArrayElementType(): "string" | "number" | "boolean" | "pointer" | null {
+    return this.expectedArrayElementType;
+  }
+  setCurrentDeclaredMapType(type: string | undefined): void {
+    this.currentDeclaredMapType = type;
+  }
+  getCurrentDeclaredMapType(): string | undefined {
+    return this.currentDeclaredMapType;
+  }
+  getAllocaInstructions(): string[] {
+    return this.allocaInstructions;
+  }
+  clearAllocaInstructions(): void {
+    this.allocaInstructions.length = 0;
+  }
 
-  setUsesPromises(value: boolean): void { this.usesPromises = value ? 1 : 0; }
-  getUsesPromises(): boolean { return this.usesPromises !== 0; }
-  setUsesTimers(value: boolean): void { this.usesTimers = value ? 1 : 0; }
-  getUsesTimers(): boolean { return this.usesTimers !== 0; }
-  setUsesTreeSitter(_value: boolean): void { }
-  setUsesSqlite(value: boolean): void { this.usesSqlite = value ? 1 : 0; }
-  setUsesCurl(value: boolean): void { this.usesCurl = value ? 1 : 0; }
-  setUsesUvHrtime(value: boolean): void { this.usesUvHrtime = value ? 1 : 0; }
-  setUsesCrypto(value: boolean): void { this.usesCrypto = value ? 1 : 0; }
-  setUsesJson(value: boolean): void { this.usesJson = value ? 1 : 0; }
-  setUsesMongoose(value: boolean): void { this.usesMongoose = value ? 1 : 0; }
-  setUsesRegex(value: boolean): void { this.usesRegex = value ? 1 : 0; }
-  setUsesTestRunner(value: boolean): void { this.usesTestRunner = value ? 1 : 0; }
-  getUsesTestRunner(): boolean { return this.usesTestRunner !== 0; }
-  setCurrentDeclaredInterfaceType(type: string | undefined): void { this.currentDeclaredInterfaceType = type; }
-  getCurrentDeclaredInterfaceType(): string | undefined { return this.currentDeclaredInterfaceType; }
-  setExpectedCallbackParamType(type: string | null): void { this.expectedCallbackParamType = type; }
-  getExpectedCallbackParamType(): string | null { return this.expectedCallbackParamType; }
-  setExpectedCallbackReturnType(type: string | null): void { this.expectedCallbackReturnType = type; }
-  getExpectedCallbackReturnType(): string | null { return this.expectedCallbackReturnType; }
+  setUsesPromises(value: boolean): void {
+    this.usesPromises = value ? 1 : 0;
+  }
+  getUsesPromises(): boolean {
+    return this.usesPromises !== 0;
+  }
+  setUsesTimers(value: boolean): void {
+    this.usesTimers = value ? 1 : 0;
+  }
+  getUsesTimers(): boolean {
+    return this.usesTimers !== 0;
+  }
+  setUsesTreeSitter(_value: boolean): void {}
+  setUsesSqlite(value: boolean): void {
+    this.usesSqlite = value ? 1 : 0;
+  }
+  setUsesCurl(value: boolean): void {
+    this.usesCurl = value ? 1 : 0;
+  }
+  setUsesUvHrtime(value: boolean): void {
+    this.usesUvHrtime = value ? 1 : 0;
+  }
+  setUsesCrypto(value: boolean): void {
+    this.usesCrypto = value ? 1 : 0;
+  }
+  setUsesJson(value: boolean): void {
+    this.usesJson = value ? 1 : 0;
+  }
+  setUsesMongoose(value: boolean): void {
+    this.usesMongoose = value ? 1 : 0;
+  }
+  setUsesRegex(value: boolean): void {
+    this.usesRegex = value ? 1 : 0;
+  }
+  setUsesTestRunner(value: boolean): void {
+    this.usesTestRunner = value ? 1 : 0;
+  }
+  getUsesTestRunner(): boolean {
+    return this.usesTestRunner !== 0;
+  }
+  setCurrentDeclaredInterfaceType(type: string | undefined): void {
+    this.currentDeclaredInterfaceType = type;
+  }
+  getCurrentDeclaredInterfaceType(): string | undefined {
+    return this.currentDeclaredInterfaceType;
+  }
+  setExpectedCallbackParamType(type: string | null): void {
+    this.expectedCallbackParamType = type;
+  }
+  getExpectedCallbackParamType(): string | null {
+    return this.expectedCallbackParamType;
+  }
+  setExpectedCallbackReturnType(type: string | null): void {
+    this.expectedCallbackReturnType = type;
+  }
+  getExpectedCallbackReturnType(): string | null {
+    return this.expectedCallbackReturnType;
+  }
 
   getThisPointer(): string | null {
     return this.thisPointer;
@@ -994,12 +1126,12 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   isStringExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
-    return e.type === 'string';
+    return e.type === "string";
   }
 
   isArrayExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
-    return e.type === 'array';
+    return e.type === "array";
   }
 
   isStringArrayExpression(_expr: Expression): boolean {
@@ -1012,7 +1144,7 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   isObjectExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
-    return e.type === 'object';
+    return e.type === "object";
   }
 
   nextTemp(): string {
@@ -1020,7 +1152,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   nextAllocaReg(varName: string): string {
-    const safeName = varName.replace(/[^a-zA-Z0-9_]/g, '_');
+    const safeName = varName.replace(/[^a-zA-Z0-9_]/g, "_");
     return `%${safeName}.addr.${this.tempCount++}`;
   }
 
@@ -1045,52 +1177,52 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   private byteToHex(b: number): string {
-    const hexChars = '0123456789ABCDEF';
-    const hi = hexChars.charAt((b >> 4) & 0xF);
-    const lo = hexChars.charAt(b & 0xF);
+    const hexChars = "0123456789ABCDEF";
+    const hi = hexChars.charAt((b >> 4) & 0xf);
+    const lo = hexChars.charAt(b & 0xf);
     return hi + lo;
   }
 
   createStringConstant(value: string): string {
     const strId = this.nextString();
-    let escaped = '';
+    let escaped = "";
     let byteCount = 0;
     for (let i = 0; i < value.length; i++) {
       const ch = value[i];
       const code = value.charCodeAt(i);
-      if (ch === '\\') {
-        escaped += '\\5C';
+      if (ch === "\\") {
+        escaped += "\\5C";
         byteCount += 1;
-      } else if (ch === '\n') {
-        escaped += '\\0A';
+      } else if (ch === "\n") {
+        escaped += "\\0A";
         byteCount += 1;
-      } else if (ch === '\r') {
-        escaped += '\\0D';
+      } else if (ch === "\r") {
+        escaped += "\\0D";
         byteCount += 1;
-      } else if (ch === '\t') {
-        escaped += '\\09';
+      } else if (ch === "\t") {
+        escaped += "\\09";
         byteCount += 1;
       } else if (ch === '"') {
-        escaped += '\\22';
+        escaped += "\\22";
         byteCount += 1;
       } else if (code < 32 || code > 126) {
         if (code < 128) {
-          escaped += '\\' + this.byteToHex(code);
+          escaped += "\\" + this.byteToHex(code);
           byteCount += 1;
         } else if (code < 0x800) {
-          escaped += '\\' + this.byteToHex(0xC0 | (code >> 6));
-          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          escaped += "\\" + this.byteToHex(0xc0 | (code >> 6));
+          escaped += "\\" + this.byteToHex(0x80 | (code & 0x3f));
           byteCount += 2;
         } else if (code < 0x10000) {
-          escaped += '\\' + this.byteToHex(0xE0 | (code >> 12));
-          escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
-          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          escaped += "\\" + this.byteToHex(0xe0 | (code >> 12));
+          escaped += "\\" + this.byteToHex(0x80 | ((code >> 6) & 0x3f));
+          escaped += "\\" + this.byteToHex(0x80 | (code & 0x3f));
           byteCount += 3;
         } else {
-          escaped += '\\' + this.byteToHex(0xF0 | (code >> 18));
-          escaped += '\\' + this.byteToHex(0x80 | ((code >> 12) & 0x3F));
-          escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
-          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          escaped += "\\" + this.byteToHex(0xf0 | (code >> 18));
+          escaped += "\\" + this.byteToHex(0x80 | ((code >> 12) & 0x3f));
+          escaped += "\\" + this.byteToHex(0x80 | ((code >> 6) & 0x3f));
+          escaped += "\\" + this.byteToHex(0x80 | (code & 0x3f));
           byteCount += 4;
         }
       } else {
@@ -1099,10 +1231,21 @@ export class MockGeneratorContext implements IGeneratorContext {
       }
     }
     const len = byteCount + 1;
-    this.globalStrings.push(strId + ' = private unnamed_addr constant [' + len + ' x i8] c"' + escaped + '\\00", align 1');
+    this.globalStrings.push(
+      strId + " = private unnamed_addr constant [" + len + ' x i8] c"' + escaped + '\\00", align 1',
+    );
     const ptrReg = this.nextTemp();
-    this.emit(ptrReg + ' = getelementptr inbounds [' + len + ' x i8], [' + len + ' x i8]* ' + strId + ', i64 0, i64 0');
-    this.setVariableType(ptrReg, 'i8*');
+    this.emit(
+      ptrReg +
+        " = getelementptr inbounds [" +
+        len +
+        " x i8], [" +
+        len +
+        " x i8]* " +
+        strId +
+        ", i64 0, i64 0",
+    );
+    this.setVariableType(ptrReg, "i8*");
     return ptrReg;
   }
 
@@ -1122,7 +1265,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     llvmType: string,
     kind: number,
     scope: string,
-    metadata: SymbolMetadata
+    metadata: SymbolMetadata,
   ): void {
     this.symbolTable.defineWithMetadata(name, kind, llvmType, allocaReg, scope, metadata);
   }
@@ -1150,24 +1293,25 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   emit(instruction: string): void {
     // Quick validation for store instructions
-    if (instruction.startsWith('store ')) {
+    if (instruction.startsWith("store ")) {
       // Parse: "store <valueType> <value>, <ptrType> <ptr>"
       // Find first space after "store "
       const afterStore = instruction.substring(6);
-      const firstSpace = afterStore.indexOf(' ');
+      const firstSpace = afterStore.indexOf(" ");
       if (firstSpace > 0) {
         const valueType = afterStore.substring(0, firstSpace);
-        const commaPos = instruction.indexOf(',');
+        const commaPos = instruction.indexOf(",");
         if (commaPos > 0) {
           // Skip ", " (comma + space)
           const afterComma = instruction.substring(commaPos + 2);
-          const ptrTypeEnd = afterComma.indexOf(' ');
+          const ptrTypeEnd = afterComma.indexOf(" ");
           if (ptrTypeEnd > 0) {
             const ptrType = afterComma.substring(0, ptrTypeEnd);
-            if (ptrType.endsWith('*')) {
+            if (ptrType.endsWith("*")) {
               const expectedType = ptrType.substring(0, ptrType.length - 1);
               if (valueType !== expectedType) {
-                const msg = 'Type mismatch: value=' + valueType + ' ptr=' + ptrType + ' in: ' + instruction;
+                const msg =
+                  "Type mismatch: value=" + valueType + " ptr=" + ptrType + " in: " + instruction;
                 throw new Error(msg);
               }
             }
@@ -1181,11 +1325,13 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   private classifyTerminator(instruction: string): boolean {
     const trimmed = instruction.trim();
-    return trimmed.startsWith('ret ') ||
-           trimmed === 'ret void' ||
-           trimmed.startsWith('br ') ||
-           trimmed.startsWith('unreachable') ||
-           trimmed.startsWith('switch ');
+    return (
+      trimmed.startsWith("ret ") ||
+      trimmed === "ret void" ||
+      trimmed.startsWith("br ") ||
+      trimmed.startsWith("unreachable") ||
+      trimmed.startsWith("switch ")
+    );
   }
 
   lastInstructionIsTerminator(): boolean {
@@ -1199,7 +1345,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   emitRetVoid(): void {
-    this.emit('ret void');
+    this.emit("ret void");
   }
 
   emitBr(label: string): void {
@@ -1211,7 +1357,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   emitUnreachable(): void {
-    this.emit('unreachable');
+    this.emit("unreachable");
   }
 
   emitLabel(name: string): void {
@@ -1249,7 +1395,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   emitIcmp(pred: string, type: string, lhs: string, rhs: string): string {
     const temp = this.nextTemp();
     this.emit(`${temp} = icmp ${pred} ${type} ${lhs}, ${rhs}`);
-    this.setVariableType(temp, 'i1');
+    this.setVariableType(temp, "i1");
     return temp;
   }
 
@@ -1280,7 +1426,7 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   getOutputLine(index: number): string {
     const line = this.output[index];
-    if (line === undefined) return '';
+    if (line === undefined) return "";
     return line;
   }
 
@@ -1309,7 +1455,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   getGlobalStringAt(index: number): string {
-    return this.globalStrings[index] || '';
+    return this.globalStrings[index] || "";
   }
 
   clearGlobalStrings(): void {
@@ -1317,13 +1463,12 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   getOutputAsIndentedString(indent: string): string {
-    let result = '';
+    let result = "";
     for (let i = 0; i < this.output.length; i++) {
-      result += indent + this.output[i] + '\n';
+      result += indent + this.output[i] + "\n";
     }
     return result;
   }
-
 
   getCurrentLabel(): string {
     return this.currentLabel;
@@ -1334,53 +1479,83 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   stringGen: IStringGenerator = {
-    doCreateStringConstant: (_value: string): string => '%0',
-    doConvertNumberToString: (_numValue: string): string => '%0',
-    doConvertNumberToFixed: (_numValue: string, _precisionValue: string): string => '%0',
-    doGenerateStringConcat: (_left: Expression, _right: Expression, _params: string[]): string => '%0',
-    doGenerateStringConcatDirect: (_left: string, _right: string): string => '%0',
-    doGenerateSubstr: (_strPtr: string, _startIndex: string, _length: string | null): string => '%0',
-    doGenerateRepeat: (_strPtr: string, _count: string): string => '%0',
-    doGeneratePadStart: (_strPtr: string, _targetLength: string, _padString: string): string => '%0',
-    doGenerateSplit: (_strPtr: string, _delimiter: string): string => '%0',
-    doGenerateStartsWith: (_strPtr: string, _prefix: string): string => '%0',
-    doGenerateEndsWith: (_strPtr: string, _suffix: string): string => '%0',
-    doGenerateTrim: (_strPtr: string): string => '%0',
-    doGenerateTrimStart: (_strPtr: string): string => '%0',
-    doGenerateTrimEnd: (_strPtr: string): string => '%0',
-    doGenerateToUpperCase: (_strPtr: string): string => '%0',
-    doGenerateToLowerCase: (_strPtr: string): string => '%0',
-    doGenerateIndexOf: (_strPtr: string, _substring: string): string => '%0',
-    doGenerateLastIndexOf: (_strPtr: string, _substring: string): string => '%0',
-    doGenerateIncludes: (_strPtr: string, _substring: string): string => '%0',
-    doGenerateSlice: (_strPtr: string, _start: string, _end: string | null): string => '%0',
-    doGenerateCharAt: (_strPtr: string, _index: string): string => '%0',
-    doGenerateCharCodeAt: (_strPtr: string, _index: string): string => '%0',
-    doGenerateReplace: (_strPtr: string, _search: string, _replace: string): string => '%0',
-    doGenerateReplaceAll: (_strPtr: string, _search: string, _replace: string): string => '%0',
-    doGenerateGlobalString: (_value: string): string => '%0',
+    doCreateStringConstant: (_value: string): string => "%0",
+    doConvertNumberToString: (_numValue: string): string => "%0",
+    doConvertNumberToFixed: (_numValue: string, _precisionValue: string): string => "%0",
+    doGenerateStringConcat: (_left: Expression, _right: Expression, _params: string[]): string =>
+      "%0",
+    doGenerateStringConcatDirect: (_left: string, _right: string): string => "%0",
+    doGenerateSubstr: (_strPtr: string, _startIndex: string, _length: string | null): string =>
+      "%0",
+    doGenerateRepeat: (_strPtr: string, _count: string): string => "%0",
+    doGeneratePadStart: (_strPtr: string, _targetLength: string, _padString: string): string =>
+      "%0",
+    doGenerateSplit: (_strPtr: string, _delimiter: string): string => "%0",
+    doGenerateStartsWith: (_strPtr: string, _prefix: string): string => "%0",
+    doGenerateEndsWith: (_strPtr: string, _suffix: string): string => "%0",
+    doGenerateTrim: (_strPtr: string): string => "%0",
+    doGenerateTrimStart: (_strPtr: string): string => "%0",
+    doGenerateTrimEnd: (_strPtr: string): string => "%0",
+    doGenerateToUpperCase: (_strPtr: string): string => "%0",
+    doGenerateToLowerCase: (_strPtr: string): string => "%0",
+    doGenerateIndexOf: (_strPtr: string, _substring: string): string => "%0",
+    doGenerateLastIndexOf: (_strPtr: string, _substring: string): string => "%0",
+    doGenerateIncludes: (_strPtr: string, _substring: string): string => "%0",
+    doGenerateSlice: (_strPtr: string, _start: string, _end: string | null): string => "%0",
+    doGenerateCharAt: (_strPtr: string, _index: string): string => "%0",
+    doGenerateCharCodeAt: (_strPtr: string, _index: string): string => "%0",
+    doGenerateReplace: (_strPtr: string, _search: string, _replace: string): string => "%0",
+    doGenerateReplaceAll: (_strPtr: string, _search: string, _replace: string): string => "%0",
+    doGenerateGlobalString: (_value: string): string => "%0",
   };
 
-  interfaceStructGenHasInterface(_name: string): boolean { return false; }
-  interfaceStructGenGetInterfaceStruct(_name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined { return undefined; }
-  interfaceStructGenGetStructSize(_interfaceName: string): number { return 0; }
-  interfaceStructGenGetFieldCount(_interfaceName: string): number { return 0; }
-  interfaceStructGenGetFieldName(_interfaceName: string, _fieldIndex: number): string { return ''; }
-  interfaceStructGenGetFieldTsType(_interfaceName: string, _fieldIndex: number): string { return ''; }
-  interfaceStructGenGetFieldLlvmType(_interfaceName: string, _fieldIndex: number): string { return ''; }
+  interfaceStructGenHasInterface(_name: string): boolean {
+    return false;
+  }
+  interfaceStructGenGetInterfaceStruct(_name: string):
+    | {
+        name: string;
+        llvmType: string;
+        fields: { name: string; tsType: string; llvmType: string }[];
+        isBuiltinConflict: boolean;
+      }
+    | undefined {
+    return undefined;
+  }
+  interfaceStructGenGetStructSize(_interfaceName: string): number {
+    return 0;
+  }
+  interfaceStructGenGetFieldCount(_interfaceName: string): number {
+    return 0;
+  }
+  interfaceStructGenGetFieldName(_interfaceName: string, _fieldIndex: number): string {
+    return "";
+  }
+  interfaceStructGenGetFieldTsType(_interfaceName: string, _fieldIndex: number): string {
+    return "";
+  }
+  interfaceStructGenGetFieldLlvmType(_interfaceName: string, _fieldIndex: number): string {
+    return "";
+  }
 
   generateHttpServe(_expr: CallNode, _params: string[]): string {
     return this.nextTemp();
   }
 
   generateWsBroadcast(_expr: CallNode, _params: string[]): string {
-    return '0.0';
+    return "0.0";
   }
 
-  getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null {
+  getInterfaceFromAST(
+    name: string,
+  ): { name: string; fields: { name: string; type: string }[] } | null {
     if (!this.ast) return null;
     for (let i = 0; i < this.ast.interfaces.length; i++) {
-      const iface = this.ast.interfaces[i] as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+      const iface = this.ast.interfaces[i] as {
+        name: string;
+        extends: string[];
+        fields: { name: string; type: string }[];
+      };
       if (iface.name === name) {
         return iface;
       }
@@ -1389,99 +1564,152 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   classGen = {
-    getFieldInfo: (_className: string, _fieldName: string): { index: number; type: string; tsType?: string } | null => null,
+    getFieldInfo: (
+      _className: string,
+      _fieldName: string,
+    ): { index: number; type: string; tsType?: string } | null => null,
     getClassFields: (_className: string): { name: string; fieldType: string }[] => [],
     getFieldType: (_className: string, _fieldName: string): string | null => null,
     getFieldTsType: (_className: string, _fieldName: string): string | null => null,
-    generateNewExpression: (_className: string, _args: Expression[], _params: string[]): string => '%mock_new_result',
-    generateMethodCall: (_instancePtr: string, _className: string, _method: string, _args: Expression[], _params: string[]): string => '%mock_method_result',
+    generateNewExpression: (_className: string, _args: Expression[], _params: string[]): string =>
+      "%mock_new_result",
+    generateMethodCall: (
+      _instancePtr: string,
+      _className: string,
+      _method: string,
+      _args: Expression[],
+      _params: string[],
+    ): string => "%mock_method_result",
   };
-  classGenGetFieldInfo(_className: string | null, _fieldName: string | null): { index: number; type: string; tsType?: string } | null { return null; }
-  classGenGetFieldType(_className: string, _fieldName: string): string | null { return null; }
-  classGenGetFieldTsType(_className: string, _fieldName: string): string | null { return null; }
-  classGenGetClassFields(_className: string): { name: string; fieldType: string }[] { return []; }
-  classGenGenerateNewExpression(_className: string, _args: Expression[], _params: string[]): string { return '%mock_new_result'; }
-  classGenGenerateMethodCall(_instancePtr: string, _className: string, _method: string, _args: Expression[], _params: string[]): string { return '%mock_method_result'; }
+  classGenGetFieldInfo(
+    _className: string | null,
+    _fieldName: string | null,
+  ): { index: number; type: string; tsType?: string } | null {
+    return null;
+  }
+  classGenGetFieldType(_className: string, _fieldName: string): string | null {
+    return null;
+  }
+  classGenGetFieldTsType(_className: string, _fieldName: string): string | null {
+    return null;
+  }
+  classGenGetClassFields(_className: string): { name: string; fieldType: string }[] {
+    return [];
+  }
+  classGenGenerateNewExpression(
+    _className: string,
+    _args: Expression[],
+    _params: string[],
+  ): string {
+    return "%mock_new_result";
+  }
+  classGenGenerateMethodCall(
+    _instancePtr: string,
+    _className: string,
+    _method: string,
+    _args: Expression[],
+    _params: string[],
+  ): string {
+    return "%mock_method_result";
+  }
 
   stringMapGen: IStringMapGenerator = {
-    generateStringMapSet: (_mapPtr: string, _keyValue: string, _valueValue: string): string => '%mock_set_result',
-    generateStringMapGet: (_mapPtr: string, _keyToFind: string): string => '%mock_get_result',
-    generateStringMapHas: (_mapPtr: string, _keyToFind: string): string => '%mock_has_result',
-    generateStringMapClear: (_mapPtr: string): string => '%mock_clear_result',
-    generateStringMapDelete: (_mapPtr: string, _keyToFind: string): string => '%mock_delete_result',
-    generateStringMapEntries: (_mapPtr: string): string => '%mock_entries',
-    generateStringMapValues: (_mapPtr: string): string => '%mock_values',
-    generateStringMapKeys: (_mapPtr: string): string => '%mock_keys',
-    generateEmptyStringMap: (): string => '%mock_empty_map',
+    generateStringMapSet: (_mapPtr: string, _keyValue: string, _valueValue: string): string =>
+      "%mock_set_result",
+    generateStringMapGet: (_mapPtr: string, _keyToFind: string): string => "%mock_get_result",
+    generateStringMapHas: (_mapPtr: string, _keyToFind: string): string => "%mock_has_result",
+    generateStringMapClear: (_mapPtr: string): string => "%mock_clear_result",
+    generateStringMapDelete: (_mapPtr: string, _keyToFind: string): string => "%mock_delete_result",
+    generateStringMapEntries: (_mapPtr: string): string => "%mock_entries",
+    generateStringMapValues: (_mapPtr: string): string => "%mock_values",
+    generateStringMapKeys: (_mapPtr: string): string => "%mock_keys",
+    generateEmptyStringMap: (): string => "%mock_empty_map",
   };
 
   responseGen: IResponseGenerator = {
-    generateText: (_responsePtr: string): string => '%mock_response_text',
-    generateJson: (_responsePtr: string): string => '%mock_response_json',
-    generateTypedJson: (_responsePtr: string, _typeName: string, _interfaceDef: { properties: { name: string; type: string }[] }): string => '%mock_response_typed_json',
-    generateStatus: (_responsePtr: string): string => '%mock_response_status',
-    generateOk: (_responsePtr: string): string => '%mock_response_ok',
-    generateUrl: (_responsePtr: string): string => '%mock_response_url',
-    generateHeaders: (_responsePtr: string): string => '%mock_response_headers',
-    generateRedirected: (_responsePtr: string): string => '%mock_response_redirected',
-    generateStatusText: (_responsePtr: string): string => '%mock_response_status_text',
+    generateText: (_responsePtr: string): string => "%mock_response_text",
+    generateJson: (_responsePtr: string): string => "%mock_response_json",
+    generateTypedJson: (
+      _responsePtr: string,
+      _typeName: string,
+      _interfaceDef: { properties: { name: string; type: string }[] },
+    ): string => "%mock_response_typed_json",
+    generateStatus: (_responsePtr: string): string => "%mock_response_status",
+    generateOk: (_responsePtr: string): string => "%mock_response_ok",
+    generateUrl: (_responsePtr: string): string => "%mock_response_url",
+    generateHeaders: (_responsePtr: string): string => "%mock_response_headers",
+    generateRedirected: (_responsePtr: string): string => "%mock_response_redirected",
+    generateStatusText: (_responsePtr: string): string => "%mock_response_status_text",
   };
   regexGen: IRegexGenerator = {
-    generateRegexCompile: (_pattern: string, _flags: string): string => '%mock_regex_compile',
-    generateRegexTest: (_regexPtr: string, _testStr: string): string => '%mock_regex_test',
-    generateRegexMatch: (_regexPtr: string, _testStr: string, _numGroups: number): string => '%mock_regex_match',
-    generateRegexCompileRuntime: (_patternPtr: string, _cflags: number): string => '%mock_regex_compile_runtime',
+    generateRegexCompile: (_pattern: string, _flags: string): string => "%mock_regex_compile",
+    generateRegexTest: (_regexPtr: string, _testStr: string): string => "%mock_regex_test",
+    generateRegexMatch: (_regexPtr: string, _testStr: string, _numGroups: number): string =>
+      "%mock_regex_match",
+    generateRegexCompileRuntime: (_patternPtr: string, _cflags: number): string =>
+      "%mock_regex_compile_runtime",
   };
   controlFlowGen: IControlFlowGenerator = {
-    generateLogicalOp: (_op: string, _left: Expression, _right: Expression, _params: string[]): string => '%mock_logical_op',
+    generateLogicalOp: (
+      _op: string,
+      _left: Expression,
+      _right: Expression,
+      _params: string[],
+    ): string => "%mock_logical_op",
   };
   objectGen: IObjectGenerator = {
-    generateObjectLiteral: (_expr: Expression, _params: string[]): string => '%mock_object_literal',
+    generateObjectLiteral: (_expr: Expression, _params: string[]): string => "%mock_object_literal",
   };
   mathGen: IMathGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
-    generateMathMethod: (_expr: MethodCallNode, _params: string[]): string => '%mock_math_method',
+    generateMathMethod: (_expr: MethodCallNode, _params: string[]): string => "%mock_math_method",
   };
   pathGen: IPathGenerator = {
-    generateResolve: (_expr: MethodCallNode, _params: string[]): string => '%mock_path_resolve',
-    generateDirname: (_expr: MethodCallNode, _params: string[]): string => '%mock_path_dirname',
-    generateBasename: (_expr: MethodCallNode, _params: string[]): string => '%mock_path_basename',
-    generateJoin: (_expr: MethodCallNode, _params: string[]): string => '%mock_path_join',
+    generateResolve: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_resolve",
+    generateDirname: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_dirname",
+    generateBasename: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_basename",
+    generateJoin: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_join",
   };
   fsGen: IFsGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
-    generateReadFileSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_readFileSync',
-    generateWriteFileSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_writeFileSync',
-    generateAppendFileSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_appendFileSync',
-    generateExistsSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_existsSync',
-    generateUnlinkSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_unlinkSync',
-    generateReaddirSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_readdirSync',
-    generateStatSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_statSync',
-    generateMkdirSync: (_expr: MethodCallNode, _params: string[]): string => '%mock_fs_mkdirSync',
+    generateReadFileSync: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_fs_readFileSync",
+    generateWriteFileSync: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_fs_writeFileSync",
+    generateAppendFileSync: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_fs_appendFileSync",
+    generateExistsSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_existsSync",
+    generateUnlinkSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_unlinkSync",
+    generateReaddirSync: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_fs_readdirSync",
+    generateStatSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_statSync",
+    generateMkdirSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_mkdirSync",
   };
   jsonGen: IJsonGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
-    generateParse: (_expr: MethodCallNode, _params: string[], _typeParam?: string): string => '%mock_json_parse',
-    generateStringify: (_expr: MethodCallNode, _params: string[]): string => '%mock_json_stringify',
+    generateParse: (_expr: MethodCallNode, _params: string[], _typeParam?: string): string =>
+      "%mock_json_parse",
+    generateStringify: (_expr: MethodCallNode, _params: string[]): string => "%mock_json_stringify",
   };
   dateGen: IDateGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
-    generateNow: (): string => '%mock_date_now',
+    generateNow: (): string => "%mock_date_now",
   };
   cryptoGen: ICryptoGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
-    generateSha256: (_expr: MethodCallNode, _params: string[]): string => '%mock_crypto_sha256',
-    generateMd5: (_expr: MethodCallNode, _params: string[]): string => '%mock_crypto_md5',
-    generateSha512: (_expr: MethodCallNode, _params: string[]): string => '%mock_crypto_sha512',
-    generateRandomBytes: (_expr: MethodCallNode, _params: string[]): string => '%mock_crypto_random_bytes',
+    generateSha256: (_expr: MethodCallNode, _params: string[]): string => "%mock_crypto_sha256",
+    generateMd5: (_expr: MethodCallNode, _params: string[]): string => "%mock_crypto_md5",
+    generateSha512: (_expr: MethodCallNode, _params: string[]): string => "%mock_crypto_sha512",
+    generateRandomBytes: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_crypto_random_bytes",
   };
   sqliteGen: ISqliteGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
-    generateOpen: (_expr: MethodCallNode, _params: string[]): string => '%mock_sqlite_open',
-    generateExec: (_expr: MethodCallNode, _params: string[]): string => '%mock_sqlite_exec',
-    generateGet: (_expr: MethodCallNode, _params: string[]): string => '%mock_sqlite_get',
-    generateAll: (_expr: MethodCallNode, _params: string[]): string => '%mock_sqlite_all',
-    generateClose: (_expr: MethodCallNode, _params: string[]): string => '%mock_sqlite_close',
+    generateOpen: (_expr: MethodCallNode, _params: string[]): string => "%mock_sqlite_open",
+    generateExec: (_expr: MethodCallNode, _params: string[]): string => "%mock_sqlite_exec",
+    generateGet: (_expr: MethodCallNode, _params: string[]): string => "%mock_sqlite_get",
+    generateAll: (_expr: MethodCallNode, _params: string[]): string => "%mock_sqlite_all",
+    generateClose: (_expr: MethodCallNode, _params: string[]): string => "%mock_sqlite_close",
   };
   arrowFunctionGen: IArrowFunctionGenerator = {
     generateArrowFunction: (
@@ -1489,59 +1717,70 @@ export class MockGeneratorContext implements IGeneratorContext {
       _params: string[],
       _typeHints: { paramTypes?: string[]; returnType?: string } | undefined,
       _scopeVarNames: string[] | undefined,
-      _scopeVarTypes: string[] | undefined
-    ): string => '__mock_lambda',
-    getClosureInfoForLambda: (_lambdaName: string): { captures: { name: string; llvmType: string }[]; envStructName: string } | undefined => undefined,
+      _scopeVarTypes: string[] | undefined,
+    ): string => "__mock_lambda",
+    getClosureInfoForLambda: (
+      _lambdaName: string,
+    ): { captures: { name: string; llvmType: string }[]; envStructName: string } | undefined =>
+      undefined,
   };
   mapGen: IMapGenerator = {
-    generateMapLiteral: (_expr: MapNode, _params: string[]): string => '%mock_map_literal',
-    generateMapSet: (_expr: MethodCallNode, _params: string[]): string => '%mock_map_set',
-    generateMapGet: (_expr: MethodCallNode, _params: string[]): string => '%mock_map_get',
-    generateMapHas: (_expr: MethodCallNode, _params: string[]): string => '%mock_map_has',
-    generateMapDelete: (_expr: MethodCallNode, _params: string[]): string => '%mock_map_delete',
-    generateMapClear: (_expr: MethodCallNode, _params: string[]): string => '%mock_map_clear',
-    generateMapSize: (_mapPtr: string): string => '%mock_map_size',
+    generateMapLiteral: (_expr: MapNode, _params: string[]): string => "%mock_map_literal",
+    generateMapSet: (_expr: MethodCallNode, _params: string[]): string => "%mock_map_set",
+    generateMapGet: (_expr: MethodCallNode, _params: string[]): string => "%mock_map_get",
+    generateMapHas: (_expr: MethodCallNode, _params: string[]): string => "%mock_map_has",
+    generateMapDelete: (_expr: MethodCallNode, _params: string[]): string => "%mock_map_delete",
+    generateMapClear: (_expr: MethodCallNode, _params: string[]): string => "%mock_map_clear",
+    generateMapSize: (_mapPtr: string): string => "%mock_map_size",
   };
   setGen: ISetGenerator = {
-    generateSetLiteral: (_expr: SetNode, _params: string[]): string => '%mock_set_literal',
-    generateSetAdd: (_expr: MethodCallNode, _params: string[]): string => '%mock_set_add',
-    generateSetHas: (_expr: MethodCallNode, _params: string[]): string => '%mock_set_has',
-    generateSetDelete: (_expr: MethodCallNode, _params: string[]): string => '%mock_set_delete',
-    generateSetSize: (_setPtr: string): string => '%mock_set_size',
+    generateSetLiteral: (_expr: SetNode, _params: string[]): string => "%mock_set_literal",
+    generateSetAdd: (_expr: MethodCallNode, _params: string[]): string => "%mock_set_add",
+    generateSetHas: (_expr: MethodCallNode, _params: string[]): string => "%mock_set_has",
+    generateSetDelete: (_expr: MethodCallNode, _params: string[]): string => "%mock_set_delete",
+    generateSetSize: (_setPtr: string): string => "%mock_set_size",
   };
   stringSetGen: IStringSetGenerator = {
-    generateEmptyStringSet: (): string => '%mock_empty_string_set',
-    generateStringSetAdd: (_setAlloca: string, _valueValue: string): string => '%mock_string_set_add',
-    generateStringSetHas: (_setAlloca: string, _valueValue: string): string => '%mock_string_set_has',
+    generateEmptyStringSet: (): string => "%mock_empty_string_set",
+    generateStringSetAdd: (_setAlloca: string, _valueValue: string): string =>
+      "%mock_string_set_add",
+    generateStringSetHas: (_setAlloca: string, _valueValue: string): string =>
+      "%mock_string_set_has",
   };
   pointerMapGen: IPointerMapGenerator = {
-    generatePointerMapSet: (_mapPtr: string, _keyValue: string, _valueValue: string): string => '%mock_pointer_map_set',
-    generatePointerMapGet: (_mapPtr: string, _keyValue: string, _valueType: string): string => '%mock_pointer_map_get',
-    generatePointerMapClear: (_mapPtr: string): string => '%mock_pointer_map_clear',
+    generatePointerMapSet: (_mapPtr: string, _keyValue: string, _valueValue: string): string =>
+      "%mock_pointer_map_set",
+    generatePointerMapGet: (_mapPtr: string, _keyValue: string, _valueType: string): string =>
+      "%mock_pointer_map_get",
+    generatePointerMapClear: (_mapPtr: string): string => "%mock_pointer_map_clear",
   };
   embedGen: IEmbedGenerator = {
-    generateEmbedFile: (_expr: MethodCallNode, _params: string[]): string => '%mock_embed_file',
-    generateEmbedDir: (_expr: MethodCallNode, _params: string[]): string => '%mock_embed_dir',
-    generateGetEmbeddedFile: (_expr: MethodCallNode, _params: string[]): string => '%mock_get_embedded',
-    generateLookupFunction: (): string => '',
+    generateEmbedFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_embed_file",
+    generateEmbedDir: (_expr: MethodCallNode, _params: string[]): string => "%mock_embed_dir",
+    generateGetEmbeddedFile: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_get_embedded",
+    generateLookupFunction: (): string => "",
     hasEmbeddedFiles: (): boolean => false,
   };
   arrayGen: IArrayGenerator = {
-    generateArrayLiteral: (_expr: ArrayNode, _params: string[]): string => '%mock_array_literal',
-    generateArrayPush: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_push',
-    generateArrayPop: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_pop',
-    generateArrayIncludes: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_includes',
-    generateArrayMap: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_map',
-    generateStringArrayMap: (_expr: MethodCallNode, _params: string[]): string => '%mock_string_array_map',
-    generateArrayJoin: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_join',
-    generateArrayFind: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_find',
-    generateArraySome: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_some',
-    generateArrayEvery: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_every',
-    generateArrayFilter: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_filter',
-    generateArrayForEach: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_foreach',
-    generateArrayReduce: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_reduce',
-    generateArraySlice: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_slice',
-    generateArrayConcat: (_expr: MethodCallNode, _params: string[]): string => '%mock_array_concat',
+    generateArrayLiteral: (_expr: ArrayNode, _params: string[]): string => "%mock_array_literal",
+    generateArrayPush: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_push",
+    generateArrayPop: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_pop",
+    generateArrayIncludes: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_includes",
+    generateArrayMap: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_map",
+    generateStringArrayMap: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_string_array_map",
+    generateArrayJoin: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_join",
+    generateArrayFind: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_find",
+    generateArraySome: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_some",
+    generateArrayEvery: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_every",
+    generateArrayFilter: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_filter",
+    generateArrayForEach: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_foreach",
+    generateArrayReduce: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_reduce",
+    generateArraySlice: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_slice",
+    generateArrayConcat: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_concat",
   };
 
   resolveImportAlias(localName: string): string {
@@ -1550,10 +1789,10 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   ensureDouble(value: string): string {
     const vt = this.getVariableType(value);
-    if (vt === 'i64') {
+    if (vt === "i64") {
       const temp = this.nextTemp();
       this.emit(`${temp} = sitofp i64 ${value} to double`);
-      this.setVariableType(temp, 'double');
+      this.setVariableType(temp, "double");
       return temp;
     }
     return value;
@@ -1561,17 +1800,17 @@ export class MockGeneratorContext implements IGeneratorContext {
 
   ensureI64(value: string): string {
     const vt = this.getVariableType(value);
-    if (vt === 'double') {
+    if (vt === "double") {
       const temp = this.nextTemp();
       this.emit(`${temp} = fptosi double ${value} to i64`);
-      this.setVariableType(temp, 'i64');
+      this.setVariableType(temp, "i64");
       return temp;
     }
     return value;
   }
 
   mangleUserName(name: string): string {
-    if (name.startsWith('__')) return name;
+    if (name.startsWith("__")) return name;
     return `_cs_${name}`;
   }
 
@@ -1596,10 +1835,15 @@ export class MockGeneratorContext implements IGeneratorContext {
   typeResolverGetThisFieldSetValueType(_expr: Expression): string | null {
     return null;
   }
-  typeResolverGetClassFieldMapType(_className: string, _fieldName: string): { keyType: string; valueType: string } | null {
+  typeResolverGetClassFieldMapType(
+    _className: string,
+    _fieldName: string,
+  ): { keyType: string; valueType: string } | null {
     return null;
   }
-  typeResolverGetInterfaceMetadata(_name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | null {
+  typeResolverGetInterfaceMetadata(
+    _name: string,
+  ): { keys: string[]; types: string[]; tsTypes?: string[] } | null {
     return null;
   }
   typeResolverGetInterface(_name: string): InterfaceDeclaration | null {
@@ -1613,7 +1857,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     this.output = [];
     this.outputIsTerminator = [];
     this.variableTypes.clear();
-    this.currentLabel = 'entry';
+    this.currentLabel = "entry";
   }
 
   getAstInterfacesLength(): number {
@@ -1622,12 +1866,14 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   getAstInterfaceAt(index: number): InterfaceDeclaration | null {
-    if (!this.ast || !this.ast.interfaces || index < 0 || index >= this.ast.interfaces.length) return null;
+    if (!this.ast || !this.ast.interfaces || index < 0 || index >= this.ast.interfaces.length)
+      return null;
     return this.ast.interfaces[index];
   }
 
   getAstInterfaceNameAt(index: number): string | null {
-    if (!this.ast || !this.ast.interfaces || index < 0 || index >= this.ast.interfaces.length) return null;
+    if (!this.ast || !this.ast.interfaces || index < 0 || index >= this.ast.interfaces.length)
+      return null;
     const iface = this.ast.interfaces[index];
     if (!iface || !iface.name) return null;
     return iface.name;
@@ -1639,12 +1885,14 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   getAstFunctionAt(index: number): FunctionNode | null {
-    if (!this.ast || !this.ast.functions || index < 0 || index >= this.ast.functions.length) return null;
+    if (!this.ast || !this.ast.functions || index < 0 || index >= this.ast.functions.length)
+      return null;
     return this.ast.functions[index];
   }
 
   getAstFunctionNameAt(index: number): string | null {
-    if (!this.ast || !this.ast.functions || index < 0 || index >= this.ast.functions.length) return null;
+    if (!this.ast || !this.ast.functions || index < 0 || index >= this.ast.functions.length)
+      return null;
     const func = this.ast.functions[index];
     if (!func || !func.name) return null;
     return func.name;
@@ -1656,12 +1904,14 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   getAstClassAt(index: number): ClassNode | null {
-    if (!this.ast || !this.ast.classes || index < 0 || index >= this.ast.classes.length) return null;
+    if (!this.ast || !this.ast.classes || index < 0 || index >= this.ast.classes.length)
+      return null;
     return this.ast.classes[index];
   }
 
   getAstClassNameAt(index: number): string | null {
-    if (!this.ast || !this.ast.classes || index < 0 || index >= this.ast.classes.length) return null;
+    if (!this.ast || !this.ast.classes || index < 0 || index >= this.ast.classes.length)
+      return null;
     const cls = this.ast.classes[index];
     if (!cls || !cls.name) return null;
     return cls.name;
@@ -1673,19 +1923,22 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   getAstTypeAliasAt(index: number): TypeAliasDeclaration | null {
-    if (!this.ast || !this.ast.typeAliases || index < 0 || index >= this.ast.typeAliases.length) return null;
+    if (!this.ast || !this.ast.typeAliases || index < 0 || index >= this.ast.typeAliases.length)
+      return null;
     return this.ast.typeAliases[index];
   }
 
   getAstTypeAliasNameAt(index: number): string | null {
-    if (!this.ast || !this.ast.typeAliases || index < 0 || index >= this.ast.typeAliases.length) return null;
+    if (!this.ast || !this.ast.typeAliases || index < 0 || index >= this.ast.typeAliases.length)
+      return null;
     const ta = this.ast.typeAliases[index];
     if (!ta || !ta.name) return null;
     return ta.name;
   }
 
   getAstTypeAliasMembersAt(index: number): string[] | null {
-    if (!this.ast || !this.ast.typeAliases || index < 0 || index >= this.ast.typeAliases.length) return null;
+    if (!this.ast || !this.ast.typeAliases || index < 0 || index >= this.ast.typeAliases.length)
+      return null;
     const ta = this.ast.typeAliases[index];
     if (!ta || !ta.unionMembers) return null;
     return ta.unionMembers;

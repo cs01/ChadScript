@@ -1,6 +1,8 @@
-import { Expression, MethodCallNode, VariableNode } from '../../../../ast/types.js';
+import { Expression, MethodCallNode, VariableNode } from "../../../../ast/types.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
 interface ArrayMutatorContext {
   nextTemp(): string;
@@ -20,11 +22,11 @@ interface ArrayMutatorContext {
 export function generateArrayPush(
   gen: ArrayMutatorContext,
   expr: MethodCallNode,
-  params: string[]
+  params: string[],
 ): string {
   // arr.push(value) - adds value to array and returns new length
   if (expr.args.length !== 1) {
-    throw new Error('push() requires exactly 1 argument');
+    throw new Error("push() requires exactly 1 argument");
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -34,17 +36,17 @@ export function generateArrayPush(
   let isStringArray = false;
   let isObjectArray = false;
   const exprObjBase = expr.object as ExprBase;
-  if (exprObjBase.type === 'variable') {
+  if (exprObjBase.type === "variable") {
     const varNode = expr.object as VariableNode;
     const varName = varNode.name;
     const varType = gen.getVariableType(varName);
-    isStringArray = varType === '%StringArray*' || varType === '%StringArray';
-    isObjectArray = varType === '%ObjectArray*' || varType === '%ObjectArray';
+    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+    isObjectArray = varType === "%ObjectArray*" || varType === "%ObjectArray";
   }
   if (!isStringArray && !isObjectArray) {
     const ptrType = gen.getVariableType(arrayPtr);
-    if (ptrType === '%StringArray*' || ptrType === '%StringArray') isStringArray = true;
-    else if (ptrType === '%ObjectArray*' || ptrType === '%ObjectArray') isObjectArray = true;
+    if (ptrType === "%StringArray*" || ptrType === "%StringArray") isStringArray = true;
+    else if (ptrType === "%ObjectArray*" || ptrType === "%ObjectArray") isObjectArray = true;
   }
 
   if (isStringArray) {
@@ -52,15 +54,15 @@ export function generateArrayPush(
   }
 
   if (isObjectArray) {
-    const valueType = gen.getVariableType(value) || 'i8*';
+    const valueType = gen.getVariableType(value) || "i8*";
     return generateObjectArrayPush(gen, arrayPtr, value, valueType);
   }
 
   const valueType = gen.getVariableType(value);
-  if (valueType === 'i8*') {
+  if (valueType === "i8*") {
     return generateStringArrayPush(gen, arrayPtr, value);
   }
-  if (valueType && valueType.endsWith('*') && valueType !== 'double*') {
+  if (valueType && valueType.endsWith("*") && valueType !== "double*") {
     return generateObjectArrayPush(gen, arrayPtr, value, valueType);
   }
 
@@ -70,11 +72,11 @@ export function generateArrayPush(
 export function generateArrayPop(
   gen: ArrayMutatorContext,
   expr: MethodCallNode,
-  params: string[]
+  params: string[],
 ): string {
   // arr.pop() - removes and returns last element
   if (expr.args.length !== 0) {
-    throw new Error('pop() requires 0 arguments');
+    throw new Error("pop() requires 0 arguments");
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
@@ -83,17 +85,17 @@ export function generateArrayPop(
   let isStringArray = false;
   let isPointerArray = false;
   const exprObjBase2 = expr.object as ExprBase;
-  if (exprObjBase2.type === 'variable') {
+  if (exprObjBase2.type === "variable") {
     const varNode = expr.object as VariableNode;
     const varName = varNode.name;
     const varType = gen.getVariableType(varName);
-    isStringArray = varType === '%StringArray*' || varType === '%StringArray';
-    isPointerArray = varType === 'i8*';
+    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+    isPointerArray = varType === "i8*";
   }
   if (!isStringArray && !isPointerArray) {
     const ptrType = gen.getVariableType(arrayPtr);
-    if (ptrType === '%StringArray*' || ptrType === '%StringArray') isStringArray = true;
-    else if (ptrType === 'i8*') isPointerArray = true;
+    if (ptrType === "%StringArray*" || ptrType === "%StringArray") isStringArray = true;
+    else if (ptrType === "i8*") isPointerArray = true;
   }
 
   if (isStringArray) {
@@ -118,9 +120,9 @@ function generateIntArrayPop(gen: ArrayMutatorContext, arrayPtr: string): string
   const isEmpty = gen.nextTemp();
   gen.emit(`${isEmpty} = icmp eq i32 ${currentLen}, 0`);
 
-  const emptyLabel = gen.nextLabel('pop_empty');
-  const notEmptyLabel = gen.nextLabel('pop_notempty');
-  const endLabel = gen.nextLabel('pop_end');
+  const emptyLabel = gen.nextLabel("pop_empty");
+  const notEmptyLabel = gen.nextLabel("pop_notempty");
+  const endLabel = gen.nextLabel("pop_end");
 
   gen.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
 
@@ -165,7 +167,9 @@ function generateStringArrayPop(gen: ArrayMutatorContext, arrayPtr: string): str
 
   // Load current length
   const lenPtr = gen.nextTemp();
-  gen.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+  );
   const currentLen = gen.nextTemp();
   gen.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
 
@@ -173,9 +177,9 @@ function generateStringArrayPop(gen: ArrayMutatorContext, arrayPtr: string): str
   const isEmpty = gen.nextTemp();
   gen.emit(`${isEmpty} = icmp eq i32 ${currentLen}, 0`);
 
-  const emptyLabel = gen.nextLabel('pop_empty');
-  const notEmptyLabel = gen.nextLabel('pop_notempty');
-  const endLabel = gen.nextLabel('pop_end');
+  const emptyLabel = gen.nextLabel("pop_empty");
+  const notEmptyLabel = gen.nextLabel("pop_notempty");
+  const endLabel = gen.nextLabel("pop_end");
 
   gen.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
 
@@ -195,7 +199,9 @@ function generateStringArrayPop(gen: ArrayMutatorContext, arrayPtr: string): str
 
   // Get data pointer
   const dataPtrField = gen.nextTemp();
-  gen.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+  );
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
 
@@ -213,8 +219,10 @@ function generateStringArrayPop(gen: ArrayMutatorContext, arrayPtr: string): str
   // End - phi node to select result
   gen.emit(`${endLabel}:`);
   const result = gen.nextTemp();
-  gen.emit(`${result} = phi i8* [ ${emptyStr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`);
-  gen.setVariableType(result, 'i8*');
+  gen.emit(
+    `${result} = phi i8* [ ${emptyStr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`,
+  );
+  gen.setVariableType(result, "i8*");
 
   return result;
 }
@@ -231,9 +239,9 @@ function generatePointerArrayPop(gen: ArrayMutatorContext, arrayPtr: string): st
   const isEmpty = gen.nextTemp();
   gen.emit(`${isEmpty} = icmp eq i32 ${currentLen}, 0`);
 
-  const emptyLabel = gen.nextLabel('pop_empty');
-  const notEmptyLabel = gen.nextLabel('pop_notempty');
-  const endLabel = gen.nextLabel('pop_end');
+  const emptyLabel = gen.nextLabel("pop_empty");
+  const notEmptyLabel = gen.nextLabel("pop_notempty");
+  const endLabel = gen.nextLabel("pop_end");
 
   gen.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
 
@@ -265,8 +273,10 @@ function generatePointerArrayPop(gen: ArrayMutatorContext, arrayPtr: string): st
 
   gen.emit(`${endLabel}:`);
   const result = gen.nextTemp();
-  gen.emit(`${result} = phi i8* [ ${nullPtr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`);
-  gen.setVariableType(result, 'i8*');
+  gen.emit(
+    `${result} = phi i8* [ ${nullPtr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`,
+  );
+  gen.setVariableType(result, "i8*");
 
   return result;
 }
@@ -291,8 +301,8 @@ function generateIntArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value:
   gen.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
 
   // Create labels for resize and continue paths
-  const resizeLabel = gen.nextLabel('resize');
-  const continueLabel = gen.nextLabel('continue');
+  const resizeLabel = gen.nextLabel("resize");
+  const continueLabel = gen.nextLabel("continue");
 
   gen.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
 
@@ -332,7 +342,9 @@ function generateIntArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value:
   gen.emit(`${currentLenI64} = zext i32 ${currentLen} to i64`);
   const copySizeI64 = gen.nextTemp();
   gen.emit(`${copySizeI64} = mul i64 ${currentLenI64}, ${doubleSize}`);
-  gen.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
+  gen.emit(
+    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
+  );
 
   // Update pointer (GC will free old data)
   gen.emit(`store double* ${newDataPtr}, double** ${dataPtrField}`);
@@ -365,22 +377,30 @@ function generateIntArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value:
   // Return new length as double (JavaScript semantics)
   const newLenDouble = gen.nextTemp();
   gen.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
-  gen.setVariableType(newLenDouble, 'double');
+  gen.setVariableType(newLenDouble, "double");
   return newLenDouble;
 }
 
-function generateStringArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value: string): string {
+function generateStringArrayPush(
+  gen: ArrayMutatorContext,
+  arrayPtr: string,
+  value: string,
+): string {
   // Push to %StringArray (string array)
 
   // Load current length
   const lenPtr = gen.nextTemp();
-  gen.emit(`${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+  );
   const currentLen = gen.nextTemp();
   gen.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
 
   // Load current capacity
   const capPtr = gen.nextTemp();
-  gen.emit(`${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+  gen.emit(
+    `${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`,
+  );
   const currentCap = gen.nextTemp();
   gen.emit(`${currentCap} = load i32, i32* ${capPtr}`);
 
@@ -389,8 +409,8 @@ function generateStringArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
   gen.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
 
   // Create labels for resize and continue paths
-  const resizeLabel = gen.nextLabel('resize');
-  const continueLabel = gen.nextLabel('continue');
+  const resizeLabel = gen.nextLabel("resize");
+  const continueLabel = gen.nextLabel("continue");
 
   gen.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
 
@@ -416,7 +436,9 @@ function generateStringArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
 
   // Copy old data to new array
   const dataPtrField = gen.nextTemp();
-  gen.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+  );
   const oldDataPtr = gen.nextTemp();
   gen.emit(`${oldDataPtr} = load i8**, i8*** ${dataPtrField}`);
 
@@ -428,7 +450,9 @@ function generateStringArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
   gen.emit(`${copySize} = mul i32 ${currentLen}, 8`); // 8 bytes per pointer
   const copySizeI64 = gen.nextTemp();
   gen.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
-  gen.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
+  gen.emit(
+    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
+  );
 
   // Update pointer (GC will free old data)
   gen.emit(`store i8** ${newDataPtr}, i8*** ${dataPtrField}`);
@@ -443,7 +467,9 @@ function generateStringArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
 
   // Get current data pointer (may have been updated)
   const dataPtrField2 = gen.nextTemp();
-  gen.emit(`${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+  gen.emit(
+    `${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+  );
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField2}, !tbaa !5`);
 
@@ -460,11 +486,16 @@ function generateStringArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
   // Return new length as double (JavaScript semantics)
   const newLenDouble = gen.nextTemp();
   gen.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
-  gen.setVariableType(newLenDouble, 'double');
+  gen.setVariableType(newLenDouble, "double");
   return newLenDouble;
 }
 
-function generatePointerArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value: string, valueType: string): string {
+function generatePointerArrayPush(
+  gen: ArrayMutatorContext,
+  arrayPtr: string,
+  value: string,
+  valueType: string,
+): string {
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
   const currentLen = gen.nextTemp();
@@ -478,8 +509,8 @@ function generatePointerArrayPush(gen: ArrayMutatorContext, arrayPtr: string, va
   const needResize = gen.nextTemp();
   gen.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
 
-  const resizeLabel = gen.nextLabel('resize');
-  const continueLabel = gen.nextLabel('continue');
+  const resizeLabel = gen.nextLabel("resize");
+  const continueLabel = gen.nextLabel("continue");
 
   gen.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
 
@@ -515,7 +546,9 @@ function generatePointerArrayPush(gen: ArrayMutatorContext, arrayPtr: string, va
   gen.emit(`${copySize} = mul i32 ${currentLen}, 8`);
   const copySizeI64 = gen.nextTemp();
   gen.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
-  gen.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
+  gen.emit(
+    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
+  );
 
   const newDataPtrAsDouble = gen.nextTemp();
   gen.emit(`${newDataPtrAsDouble} = bitcast i8** ${newDataPtr} to double*`);
@@ -546,26 +579,35 @@ function generatePointerArrayPush(gen: ArrayMutatorContext, arrayPtr: string, va
 
   const newLenDouble = gen.nextTemp();
   gen.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
-  gen.setVariableType(newLenDouble, 'double');
+  gen.setVariableType(newLenDouble, "double");
   return newLenDouble;
 }
 
-function generateObjectArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value: string, valueType: string): string {
+function generateObjectArrayPush(
+  gen: ArrayMutatorContext,
+  arrayPtr: string,
+  value: string,
+  valueType: string,
+): string {
   const lenPtr = gen.nextTemp();
-  gen.emit(`${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`);
+  gen.emit(
+    `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
+  );
   const currentLen = gen.nextTemp();
   gen.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
 
   const capPtr = gen.nextTemp();
-  gen.emit(`${capPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`);
+  gen.emit(
+    `${capPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`,
+  );
   const currentCap = gen.nextTemp();
   gen.emit(`${currentCap} = load i32, i32* ${capPtr}`);
 
   const needResize = gen.nextTemp();
   gen.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
 
-  const resizeLabel = gen.nextLabel('resize');
-  const continueLabel = gen.nextLabel('continue');
+  const resizeLabel = gen.nextLabel("resize");
+  const continueLabel = gen.nextLabel("continue");
 
   gen.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
 
@@ -587,7 +629,9 @@ function generateObjectArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
   gen.emit(`${newDataPtr} = bitcast i8* ${newMem} to i8**`);
 
   const dataPtrField = gen.nextTemp();
-  gen.emit(`${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+  gen.emit(
+    `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+  );
   const oldDataPtrRaw = gen.nextTemp();
   gen.emit(`${oldDataPtrRaw} = load i8*, i8** ${dataPtrField}`);
   const oldDataPtr = gen.nextTemp();
@@ -601,7 +645,9 @@ function generateObjectArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
   gen.emit(`${copySize} = mul i32 ${currentLen}, 8`);
   const copySizeI64 = gen.nextTemp();
   gen.emit(`${copySizeI64} = zext i32 ${copySize} to i64`);
-  gen.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`);
+  gen.emit(
+    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
+  );
 
   const newDataPtrAsI8 = gen.nextTemp();
   gen.emit(`${newDataPtrAsI8} = bitcast i8** ${newDataPtr} to i8*`);
@@ -614,7 +660,9 @@ function generateObjectArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
   gen.emit(`${continueLabel}:`);
 
   const dataPtrField2 = gen.nextTemp();
-  gen.emit(`${dataPtrField2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+  gen.emit(
+    `${dataPtrField2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+  );
   const dataPtrRaw = gen.nextTemp();
   gen.emit(`${dataPtrRaw} = load i8*, i8** ${dataPtrField2}, !tbaa !5`);
   const dataPtr = gen.nextTemp();
@@ -632,6 +680,6 @@ function generateObjectArrayPush(gen: ArrayMutatorContext, arrayPtr: string, val
 
   const newLenDouble = gen.nextTemp();
   gen.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
-  gen.setVariableType(newLenDouble, 'double');
+  gen.setVariableType(newLenDouble, "double");
   return newLenDouble;
 }

@@ -18,16 +18,16 @@ src/codegen/
 
 ## LLVM Types
 
-| TypeScript | LLVM Type | Notes |
-|------------|-----------|-------|
-| `number` | `double` | All numerics |
-| `boolean` | `double` | 0.0 or 1.0 |
-| `string` | `i8*` | Null-terminated |
-| `number[]` | `%Array*` | Runtime struct |
-| `string[]` | `%StringArray*` | Runtime struct |
-| `Map<K,V>` | `%Map*` | Hash table |
-| `Set<T>` | `%Set*` | Hash set |
-| `ClassName` | `%ClassName_struct*` | Class instance |
+| TypeScript  | LLVM Type            | Notes           |
+| ----------- | -------------------- | --------------- |
+| `number`    | `double`             | All numerics    |
+| `boolean`   | `double`             | 0.0 or 1.0      |
+| `string`    | `i8*`                | Null-terminated |
+| `number[]`  | `%Array*`            | Runtime struct  |
+| `string[]`  | `%StringArray*`      | Runtime struct  |
+| `Map<K,V>`  | `%Map*`              | Hash table      |
+| `Set<T>`    | `%Set*`              | Hash set        |
+| `ClassName` | `%ClassName_struct*` | Class instance  |
 
 ## Adding a New Method
 

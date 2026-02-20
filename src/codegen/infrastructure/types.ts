@@ -4,7 +4,7 @@ export interface PropertyTypeInfo {
 }
 
 export interface TypeInfo {
-  kind: 'primitive' | 'object' | 'array' | 'unknown';
+  kind: "primitive" | "object" | "array" | "unknown";
   llvmType: string;
   properties?: Map<string, PropertyTypeInfo>;
   propertyKeys?: string[];
