@@ -122,27 +122,7 @@ export function createFloatType(): ResolvedType {
 }
 
 export function tsTypeToLlvm(tsType: string): string {
-  if (tsType === null || tsType === undefined || tsType === '') return 'i8*';
-  if (tsType === 'string') return 'i8*';
-  if (tsType === 'number') return 'double';
-  if (tsType === 'boolean') return 'double';
-  if (tsType === 'void') return 'void';
-  if (tsType === 'string[]') return '%StringArray*';
-  if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
-  if (tsType === 'Uint8Array') return '%Uint8Array*';
-  if (tsType.endsWith('[]')) return '%ObjectArray*';
-  if (tsType.startsWith('Set<')) return '%StringSet*';
-  if (tsType.startsWith('Map<')) return '%StringMap*';
-  if (tsType.startsWith("'") || tsType.startsWith('"')) return 'i8*';
-  if (tsType.indexOf(' | ') !== -1) {
-    const parts = tsType.split(' | ');
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i].trim();
-      if (part === 'null' || part === 'undefined') continue;
-      return tsTypeToLlvm(part);
-    }
-  }
-  return 'i8*';
+  return canonicalTypeToLlvm(tsType, 'default', false, false, '');
 }
 
 export function resolvedTypeToLlvm(rt: ResolvedType): string {
@@ -163,14 +143,62 @@ export function resolvedTypeToLlvm(rt: ResolvedType): string {
   return 'i8*';
 }
 
-export function tsTypeToLlvmJson(tsType: string): string {
-  if (tsType === null || tsType === undefined || tsType === '') return 'i8*';
+export type TypeMappingMode = 'default' | 'param' | 'return' | 'struct_field' | 'json';
+
+export function canonicalTypeToLlvm(tsType: string, mode: string, isEnum: boolean, isInterface: boolean, fieldName: string): string {
+  if (tsType === null || tsType === undefined || tsType === '') {
+    if (mode === 'return') return 'double';
+    return 'i8*';
+  }
+
+  if (fieldName === 'nodePtr' || fieldName === 'treePtr') return 'i8*';
+
+  if (mode === 'param') {
+    if (tsType === 'any' || tsType === 'unknown') {
+      throw new Error(`Parameter type '${tsType}' is not allowed — add explicit type annotations or fix the parser`);
+    }
+  }
+
+  if (isEnum) return 'double';
+
   if (tsType === 'string') return 'i8*';
-  if (tsType === 'number') return 'double';
-  if (tsType === 'boolean') return 'double';
+  if (tsType === 'number' || tsType === 'boolean') return 'double';
+  if (tsType === 'void') return 'void';
   if (tsType === 'string[]') return '%StringArray*';
-  if (tsType === 'number[]') return '%Array*';
+  if (tsType === 'number[]' || tsType === 'boolean[]') return '%Array*';
+  if (tsType === 'Uint8Array') return '%Uint8Array*';
+  if (tsType.endsWith('[]')) return '%ObjectArray*';
+  if (tsType.startsWith('Set<')) return '%StringSet*';
+  if (tsType.startsWith('Map<')) return '%StringMap*';
+  if (tsType.startsWith("'") || tsType.startsWith('"')) return 'i8*';
+
+  if (tsType.indexOf(' | ') !== -1) {
+    const parts = tsType.split(' | ');
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i].trim();
+      if (part === 'null' || part === 'undefined') continue;
+      return canonicalTypeToLlvm(part, mode, isEnum, isInterface, fieldName);
+    }
+  }
+
+  if (isInterface && (mode === 'param' || mode === 'struct_field')) {
+    return `%${tsType}*`;
+  }
+
+  if (mode === 'return') {
+    if (tsType !== 'number' && tsType !== 'boolean') return 'i8*';
+    return 'double';
+  }
+
+  if (mode === 'json') {
+    return 'i8*';
+  }
+
   return 'i8*';
+}
+
+export function tsTypeToLlvmJson(tsType: string): string {
+  return canonicalTypeToLlvm(tsType, 'json', false, false, '');
 }
 
 export function checkUnsafeUnionType(typeStr: string): string | null {
@@ -308,35 +336,14 @@ export function mapParamTypeToLLVM(
   paramIsEnum: boolean,
   paramIsInterface: boolean
 ): string {
-  if (paramName === 'nodePtr' || paramName === 'treePtr') return 'i8*';
-  if (paramType === 'any' || paramType === 'unknown') {
-    throw new Error(`Parameter type '${paramType}' is not allowed — add explicit type annotations or fix the parser`);
-  }
-  if (paramIsEnum) return 'double';
-  if (paramType === 'string') return 'i8*';
-  if (paramType === 'number' || paramType === 'boolean') return 'double';
-  if (paramType === 'string[]') return '%StringArray*';
-  if (paramType === 'number[]' || paramType === 'boolean[]') return '%Array*';
-  if (paramType === 'Uint8Array') return '%Uint8Array*';
-  if (paramType.endsWith('[]')) return '%ObjectArray*';
-  if (paramType.startsWith('Set<')) return '%StringSet*';
-  if (paramType.startsWith('Map<')) return '%StringMap*';
-  if (paramIsInterface) return `%${paramType}*`;
-  return 'i8*';
+  return canonicalTypeToLlvm(paramType, 'param', paramIsEnum, paramIsInterface, paramName);
 }
 
 export function mapReturnTypeToLLVM(
   returnType: string,
   returnIsEnum: boolean
 ): string {
-  if (returnType === 'string') return 'i8*';
-  if (returnType === 'void') return 'void';
-  if (returnType === 'string[]') return '%StringArray*';
-  if (returnType === 'number[]' || returnType === 'boolean[]') return '%Array*';
-  if (returnType === 'Uint8Array') return '%Uint8Array*';
-  if (returnType.endsWith('[]')) return '%ObjectArray*';
-  if (returnType !== '' && returnType !== 'number' && returnType !== 'boolean' && !returnIsEnum) return 'i8*';
-  return 'double';
+  return canonicalTypeToLlvm(returnType, 'return', returnIsEnum, false, '');
 }
 
 function parseGenericTypeString(s: string): { base: string; params: string } | null {

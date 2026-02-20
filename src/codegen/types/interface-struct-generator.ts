@@ -1,5 +1,5 @@
 import { InterfaceDeclaration } from '../../ast/types.js';
-import { tsTypeToLlvm } from '../infrastructure/type-system.js';
+import { canonicalTypeToLlvm } from '../infrastructure/type-system.js';
 
 const BUILTIN_TYPES = [
   'Array', 'StringArray', 'Map', 'StringMap', 'Set', 'StringSet',
@@ -146,10 +146,14 @@ export class InterfaceStructGenerator {
   }
 
   private tsTypeToLlvmForField(fieldName: string, tsType: string): string {
-    if (fieldName === 'nodePtr' || fieldName === 'treePtr') {
+    if (tsType === null || tsType === undefined || tsType === '') {
       return 'i8*';
     }
-    return this.tsTypeToLlvm(tsType);
+    if (this.interfaceStructs.has(tsType)) {
+      return 'i8*';
+    }
+    const isEnum = this.enumNames !== null && this.enumNames !== undefined && this.enumNames.has(tsType);
+    return canonicalTypeToLlvm(tsType, 'default', isEnum, false, fieldName);
   }
 
   private tsTypeToLlvm(tsType: string): string {
@@ -159,10 +163,8 @@ export class InterfaceStructGenerator {
     if (this.interfaceStructs.has(tsType)) {
       return 'i8*';
     }
-    if (this.enumNames !== null && this.enumNames !== undefined && this.enumNames.has(tsType)) {
-      return 'double';
-    }
-    return tsTypeToLlvm(tsType);
+    const isEnum = this.enumNames !== null && this.enumNames !== undefined && this.enumNames.has(tsType);
+    return canonicalTypeToLlvm(tsType, 'default', isEnum, false, '');
   }
 
   getInterfaceStruct(name: string): InterfaceStructInfo | undefined {
