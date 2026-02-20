@@ -11,9 +11,13 @@
  * 4. Generates code to load captured variables from the environment
  */
 
-import { BaseGenerator } from '../infrastructure/base-generator.js';
-import { FunctionNode, ArrowFunctionNode, BlockStatement } from '../../ast/types.js';
-import { ClosureAnalyzer, CapturedVariable, ClosureInfo } from '../infrastructure/closure-analyzer.js';
+import { BaseGenerator } from "../infrastructure/base-generator.js";
+import { FunctionNode, ArrowFunctionNode, BlockStatement } from "../../ast/types.js";
+import {
+  ClosureAnalyzer,
+  CapturedVariable,
+  ClosureInfo,
+} from "../infrastructure/closure-analyzer.js";
 
 export interface LiftedFunction extends FunctionNode {
   closureInfo?: ClosureInfo;
@@ -56,7 +60,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     _params: string[],
     typeHints?: ArrowFunctionTypeHints,
     scopeVarNames?: string[],
-    scopeVarTypes?: string[]
+    scopeVarTypes?: string[],
   ): string {
     const funcName = `__lambda_${this.anonFuncCounter++}`;
 
@@ -84,7 +88,11 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       }
     }
 
-    const hasReturnType = typeHints !== undefined && typeHints !== null && typeHints.returnType !== undefined && typeHints.returnType !== null;
+    const hasReturnType =
+      typeHints !== undefined &&
+      typeHints !== null &&
+      typeHints.returnType !== undefined &&
+      typeHints.returnType !== null;
     if (!hasReturnType) {
       const inferredReturnType = this.inferReturnTypeFromBody(expr.body);
       if (inferredReturnType) {
@@ -98,7 +106,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
 
     let closureInfo: ClosureInfo | undefined;
     let closureCaptures: CapturedVariable[] = [];
-    let closureEnvStructName: string = '';
+    let closureEnvStructName: string = "";
 
     if (scopeVarNames && scopeVarTypes) {
       const closureAnalyzer = new ClosureAnalyzer();
@@ -107,7 +115,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
         expr.body,
         scopeVarNames,
         scopeVarTypes,
-        funcName
+        funcName,
       );
       const typedResult = analyzeResult as { captures: CapturedVariable[]; envStructName: string };
       closureCaptures = typedResult.captures;
@@ -116,7 +124,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       if (closureCaptures.length > 0) {
         this.envStructDefs.push({
           name: closureEnvStructName,
-          fields: closureCaptures
+          fields: closureCaptures,
         });
 
         expr.captures = closureCaptures;
@@ -132,12 +140,12 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     }
 
     let liftedBody: BlockStatement;
-    if (expr.body.type === 'block') {
+    if (expr.body.type === "block") {
       liftedBody = expr.body as BlockStatement;
     } else {
       liftedBody = {
-        type: 'block',
-        statements: [{ type: 'return', value: expr.body }]
+        type: "block",
+        statements: [{ type: "return", value: expr.body }],
       } as BlockStatement;
     }
 
@@ -147,7 +155,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       body: liftedBody,
       returnType: liftedReturnType,
       paramTypes: liftedParamTypes,
-      closureInfo
+      closureInfo,
     };
 
     this.liftedFunctions.push(liftedFunc);
@@ -159,17 +167,17 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
    * Get LLVM IR type definitions for environment structs.
    */
   getEnvStructDefinitions(): string {
-    let ir = '';
+    let ir = "";
     for (let defIdx = 0; defIdx < this.envStructDefs.length; defIdx++) {
       const envDefRaw = this.envStructDefs[defIdx];
       const envDef = envDefRaw as { name: string; fields: CapturedVariable[] };
       const fieldTypesArr: string[] = [];
       for (let i = 0; i < envDef.fields.length; i++) {
         const envField = envDef.fields[i] as { name: string; llvmType: string };
-        fieldTypesArr.push(envField.llvmType + '*');
+        fieldTypesArr.push(envField.llvmType + "*");
       }
-      const fieldTypes = fieldTypesArr.join(', ');
-      ir += `${envDef.name} = type { ${fieldTypes} }` + '\n';
+      const fieldTypes = fieldTypesArr.join(", ");
+      ir += `${envDef.name} = type { ${fieldTypes} }` + "\n";
     }
     return ir;
   }
@@ -195,7 +203,14 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       }
     }
     if (funcResult) {
-      const func = funcResult as { name: string; params: string[]; body: BlockStatement; paramTypes: string[]; returnType: string; closureInfo: ClosureInfo };
+      const func = funcResult as {
+        name: string;
+        params: string[];
+        body: BlockStatement;
+        paramTypes: string[];
+        returnType: string;
+        closureInfo: ClosureInfo;
+      };
       return func.closureInfo;
     }
     return undefined;
@@ -216,84 +231,106 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     this.envStructDefs = [];
   }
 
-  private inferParamTypesFromBody(_params: string[], _body: ArrowFunctionNode['body']): string[] {
+  private inferParamTypesFromBody(_params: string[], _body: ArrowFunctionNode["body"]): string[] {
     return [];
   }
 
-  private inferReturnTypeFromBody(body: ArrowFunctionNode['body']): string | null {
+  private inferReturnTypeFromBody(body: ArrowFunctionNode["body"]): string | null {
     const bodyTyped = body as { type: string };
-    if (bodyTyped.type === 'object') {
-      return 'object';
+    if (bodyTyped.type === "object") {
+      return "object";
     }
-    if (bodyTyped.type === 'string' || bodyTyped.type === 'string_literal' || bodyTyped.type === 'template_literal') {
-      return 'string';
+    if (
+      bodyTyped.type === "string" ||
+      bodyTyped.type === "string_literal" ||
+      bodyTyped.type === "template_literal"
+    ) {
+      return "string";
     }
-    if (bodyTyped.type === 'binary') {
+    if (bodyTyped.type === "binary") {
       const binExpr = body as { type: string; op: string; left: unknown; right: unknown };
-      if (binExpr.op === '+') {
-        const leftType = this.inferReturnTypeFromBody(binExpr.left as ArrowFunctionNode['body']);
-        const rightType = this.inferReturnTypeFromBody(binExpr.right as ArrowFunctionNode['body']);
-        if (leftType === 'string' || rightType === 'string') {
-          return 'string';
+      if (binExpr.op === "+") {
+        const leftType = this.inferReturnTypeFromBody(binExpr.left as ArrowFunctionNode["body"]);
+        const rightType = this.inferReturnTypeFromBody(binExpr.right as ArrowFunctionNode["body"]);
+        if (leftType === "string" || rightType === "string") {
+          return "string";
         }
       }
     }
-    if (bodyTyped.type === 'array') {
-      return 'array';
+    if (bodyTyped.type === "array") {
+      return "array";
     }
-    if (bodyTyped.type === 'conditional') {
-      const condTyped = body as { type: string; condition: unknown; consequent: unknown; alternate: unknown };
+    if (bodyTyped.type === "conditional") {
+      const condTyped = body as {
+        type: string;
+        condition: unknown;
+        consequent: unknown;
+        alternate: unknown;
+      };
       const consequent = condTyped.consequent;
       const alternate = condTyped.alternate;
       if (consequent) {
         const consequentTyped = consequent as { type: string };
-        if (consequentTyped.type === 'object') {
-          return 'object';
+        if (consequentTyped.type === "object") {
+          return "object";
         }
-        if (consequentTyped.type === 'string_literal') {
-          return 'string';
+        if (consequentTyped.type === "string_literal") {
+          return "string";
         }
       }
       if (alternate) {
         const alternateTyped = alternate as { type: string };
-        if (alternateTyped.type === 'object') {
-          return 'object';
+        if (alternateTyped.type === "object") {
+          return "object";
         }
       }
     }
-    if (bodyTyped.type === 'block') {
+    if (bodyTyped.type === "block") {
       const blockTyped = body as { type: string; statements: unknown[] };
       const blockStatements = blockTyped.statements;
       if (blockStatements) {
         for (let i = 0; i < blockStatements.length; i++) {
           const stmt = blockStatements[i];
           const stmtTyped = stmt as { type: string; value: unknown };
-          if (stmtTyped.type === 'return' && stmtTyped.value) {
+          if (stmtTyped.type === "return" && stmtTyped.value) {
             const returnValue = stmtTyped.value;
             const returnValueTyped = returnValue as { type: string };
-            if (returnValueTyped.type === 'object') {
-              return 'object';
+            if (returnValueTyped.type === "object") {
+              return "object";
             }
-            if (returnValueTyped.type === 'string' || returnValueTyped.type === 'string_literal' || returnValueTyped.type === 'template_literal') {
-              return 'string';
+            if (
+              returnValueTyped.type === "string" ||
+              returnValueTyped.type === "string_literal" ||
+              returnValueTyped.type === "template_literal"
+            ) {
+              return "string";
             }
           }
-          if (stmtTyped.type === 'if') {
-            const ifStmt = stmt as { type: string; condition: unknown; thenBlock: unknown; elseBlock: unknown };
+          if (stmtTyped.type === "if") {
+            const ifStmt = stmt as {
+              type: string;
+              condition: unknown;
+              thenBlock: unknown;
+              elseBlock: unknown;
+            };
             const thenBlock = ifStmt.thenBlock as { type: string; statements: unknown[] };
             const thenBlockStatements = thenBlock ? thenBlock.statements : null;
             if (thenBlockStatements) {
               for (let j = 0; j < thenBlockStatements.length; j++) {
                 const innerStmt = thenBlockStatements[j];
                 const innerStmtTyped = innerStmt as { type: string; value: unknown };
-                if (innerStmtTyped.type === 'return' && innerStmtTyped.value) {
+                if (innerStmtTyped.type === "return" && innerStmtTyped.value) {
                   const innerReturnValue = innerStmtTyped.value;
                   const innerReturnValueTyped = innerReturnValue as { type: string };
-                  if (innerReturnValueTyped.type === 'object') {
-                    return 'object';
+                  if (innerReturnValueTyped.type === "object") {
+                    return "object";
                   }
-                  if (innerReturnValueTyped.type === 'string' || innerReturnValueTyped.type === 'string_literal' || innerReturnValueTyped.type === 'template_literal') {
-                    return 'string';
+                  if (
+                    innerReturnValueTyped.type === "string" ||
+                    innerReturnValueTyped.type === "string_literal" ||
+                    innerReturnValueTyped.type === "template_literal"
+                  ) {
+                    return "string";
                   }
                 }
               }

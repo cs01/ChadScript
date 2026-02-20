@@ -1,4 +1,4 @@
-import { IGeneratorContext } from '../../../infrastructure/generator-context.js';
+import { IGeneratorContext } from "../../../infrastructure/generator-context.js";
 
 // ============================================
 // STRING SPLIT - Complex string splitting into arrays
@@ -18,9 +18,9 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const isEmptyDelim = ctx.nextTemp();
   ctx.emit(`${isEmptyDelim} = icmp eq i32 ${delimLenI32}, 0`);
 
-  const emptyDelimLabel = ctx.nextLabel('split_empty_delim');
-  const normalSplitLabel = ctx.nextLabel('split_normal');
-  const endLabel = ctx.nextLabel('split_end');
+  const emptyDelimLabel = ctx.nextLabel("split_empty_delim");
+  const normalSplitLabel = ctx.nextLabel("split_normal");
+  const endLabel = ctx.nextLabel("split_end");
 
   ctx.emit(`br i1 ${isEmptyDelim}, label %${emptyDelimLabel}, label %${normalSplitLabel}`);
 
@@ -38,9 +38,9 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const emptyDataPtr = ctx.nextTemp();
   ctx.emit(`${emptyDataPtr} = bitcast i8* ${emptyDataMem} to i8**`);
 
-  const emptyLoopLabel = ctx.nextLabel('split_empty_loop');
-  const emptyLoopBodyLabel = ctx.nextLabel('split_empty_body');
-  const emptyLoopEndLabel = ctx.nextLabel('split_empty_end');
+  const emptyLoopLabel = ctx.nextLabel("split_empty_loop");
+  const emptyLoopBodyLabel = ctx.nextLabel("split_empty_body");
+  const emptyLoopEndLabel = ctx.nextLabel("split_empty_end");
 
   const emptyCounterPtr = ctx.nextTemp();
   ctx.emit(`${emptyCounterPtr} = alloca i32`);
@@ -71,7 +71,9 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   ctx.emit(`store i8 0, i8* ${nullPtr}`);
 
   const emptyElemPtr = ctx.nextTemp();
-  ctx.emit(`${emptyElemPtr} = getelementptr inbounds i8*, i8** ${emptyDataPtr}, i32 ${emptyCounterVal}`);
+  ctx.emit(
+    `${emptyElemPtr} = getelementptr inbounds i8*, i8** ${emptyDataPtr}, i32 ${emptyCounterVal}`,
+  );
   ctx.emit(`store i8* ${charStr}, i8** ${emptyElemPtr}`);
 
   const emptyNextCounter = ctx.nextTemp();
@@ -82,15 +84,21 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   ctx.emit(`${emptyLoopEndLabel}:`);
 
   const emptyDataField = ctx.nextTemp();
-  ctx.emit(`${emptyDataField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 0`);
+  ctx.emit(
+    `${emptyDataField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 0`,
+  );
   ctx.emit(`store i8** ${emptyDataPtr}, i8*** ${emptyDataField}`);
 
   const emptyLenField = ctx.nextTemp();
-  ctx.emit(`${emptyLenField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 1`);
+  ctx.emit(
+    `${emptyLenField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 1`,
+  );
   ctx.emit(`store i32 ${strLenI32}, i32* ${emptyLenField}`);
 
   const emptyCapField = ctx.nextTemp();
-  ctx.emit(`${emptyCapField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 2`);
+  ctx.emit(
+    `${emptyCapField} = getelementptr inbounds %StringArray, %StringArray* ${emptyArrPtr}, i32 0, i32 2`,
+  );
   ctx.emit(`store i32 ${strLenI32}, i32* ${emptyCapField}`);
 
   ctx.emit(`br label %${endLabel}`);
@@ -100,10 +108,10 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const delimLenI64 = ctx.nextTemp();
   ctx.emit(`${delimLenI64} = zext i32 ${delimLenI32} to i64`);
 
-  const countLabel = ctx.nextLabel('split_count');
-  const countBodyLabel = ctx.nextLabel('split_count_body');
-  const countCheckLabel = ctx.nextLabel('split_count_check');
-  const countEndLabel = ctx.nextLabel('split_count_end');
+  const countLabel = ctx.nextLabel("split_count");
+  const countBodyLabel = ctx.nextLabel("split_count_body");
+  const countCheckLabel = ctx.nextLabel("split_count_check");
+  const countEndLabel = ctx.nextLabel("split_count_end");
 
   const partCountPtr = ctx.nextTemp();
   ctx.emit(`${partCountPtr} = alloca i32`);
@@ -128,7 +136,9 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const checkPtr = ctx.nextTemp();
   ctx.emit(`${checkPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${scanPosI64}`);
   const cmpResult = ctx.nextTemp();
-  ctx.emit(`${cmpResult} = call i32 @strncmp(i8* ${checkPtr}, i8* ${delimiter}, i64 ${delimLenI64})`);
+  ctx.emit(
+    `${cmpResult} = call i32 @strncmp(i8* ${checkPtr}, i8* ${delimiter}, i64 ${delimLenI64})`,
+  );
   const isMatch = ctx.nextTemp();
   ctx.emit(`${isMatch} = icmp eq i32 ${cmpResult}, 0`);
 
@@ -168,11 +178,11 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const dataPtr = ctx.nextTemp();
   ctx.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
 
-  const extractLabel = ctx.nextLabel('split_extract');
-  const extractBodyLabel = ctx.nextLabel('split_extract_body');
-  const extractMatchLabel = ctx.nextLabel('split_extract_match');
-  const extractNoMatchLabel = ctx.nextLabel('split_extract_nomatch');
-  const extractEndLabel = ctx.nextLabel('split_extract_end');
+  const extractLabel = ctx.nextLabel("split_extract");
+  const extractBodyLabel = ctx.nextLabel("split_extract_body");
+  const extractMatchLabel = ctx.nextLabel("split_extract_match");
+  const extractNoMatchLabel = ctx.nextLabel("split_extract_nomatch");
+  const extractEndLabel = ctx.nextLabel("split_extract_end");
 
   const startPosPtr = ctx.nextTemp();
   ctx.emit(`${startPosPtr} = alloca i32`);
@@ -204,7 +214,9 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   const extractCheckPtr = ctx.nextTemp();
   ctx.emit(`${extractCheckPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${curPosI64}`);
   const extractCmpResult = ctx.nextTemp();
-  ctx.emit(`${extractCmpResult} = call i32 @strncmp(i8* ${extractCheckPtr}, i8* ${delimiter}, i64 ${delimLenI64})`);
+  ctx.emit(
+    `${extractCmpResult} = call i32 @strncmp(i8* ${extractCheckPtr}, i8* ${delimiter}, i64 ${delimLenI64})`,
+  );
   const extractIsMatch = ctx.nextTemp();
   ctx.emit(`${extractIsMatch} = icmp eq i32 ${extractCmpResult}, 0`);
 
@@ -229,7 +241,9 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   ctx.emit(`${startI64} = sext i32 ${startPos} to i64`);
   const srcPtr = ctx.nextTemp();
   ctx.emit(`${srcPtr} = getelementptr inbounds i8, i8* ${strPtr}, i64 ${startI64}`);
-  ctx.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${partStr}, i8* ${srcPtr}, i64 ${partLenI64}, i1 false)`);
+  ctx.emit(
+    `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${partStr}, i8* ${srcPtr}, i64 ${partLenI64}, i1 false)`,
+  );
   const nullTermPtr = ctx.nextTemp();
   ctx.emit(`${nullTermPtr} = getelementptr inbounds i8, i8* ${partStr}, i64 ${partLenI64}`);
   ctx.emit(`store i8 0, i8* ${nullTermPtr}`);
@@ -262,22 +276,30 @@ export function generateSplit(ctx: IGeneratorContext, strPtr: string, delimiter:
   ctx.emit(`${extractEndLabel}:`);
 
   const dataField = ctx.nextTemp();
-  ctx.emit(`${dataField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+  ctx.emit(
+    `${dataField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+  );
   ctx.emit(`store i8** ${dataPtr}, i8*** ${dataField}`);
 
   const lenField = ctx.nextTemp();
-  ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+  ctx.emit(
+    `${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+  );
   ctx.emit(`store i32 ${totalParts}, i32* ${lenField}`);
 
   const capField = ctx.nextTemp();
-  ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+  ctx.emit(
+    `${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`,
+  );
   ctx.emit(`store i32 ${totalParts}, i32* ${capField}`);
 
   ctx.emit(`br label %${endLabel}`);
 
   ctx.emit(`${endLabel}:`);
   const result = ctx.nextTemp();
-  ctx.emit(`${result} = phi %StringArray* [ ${emptyArrPtr}, %${emptyLoopEndLabel} ], [ ${arrayPtr}, %${extractEndLabel} ]`);
+  ctx.emit(
+    `${result} = phi %StringArray* [ ${emptyArrPtr}, %${emptyLoopEndLabel} ], [ ${arrayPtr}, %${extractEndLabel} ]`,
+  );
 
   return result;
 }

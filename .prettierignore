@@ -1,0 +1,10 @@
+dist/
+build/
+.build/
+node_modules/
+vendor/
+docs/
+*.ll
+*.o
+*.log
+package-lock.json

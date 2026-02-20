@@ -1,5 +1,5 @@
-import { Expression, MethodCallNode, MapEntry } from '../../../ast/types.js';
-import { IGeneratorContext } from '../../infrastructure/generator-context.js';
+import { Expression, MethodCallNode, MapEntry } from "../../../ast/types.js";
+import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 
 // ============================================
 // MAP GENERATOR - Map operations
@@ -16,15 +16,23 @@ export class MapGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
   // Helper methods delegate to context
-  private nextTemp(): string { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string): void { this.ctx.emit(instruction); }
-  private getDoubleSize() { return 8; } // sizeof(double) = 8 bytes
+  private nextTemp(): string {
+    return this.ctx.nextTemp();
+  }
+  private nextLabel(prefix: string): string {
+    return this.ctx.nextLabel(prefix);
+  }
+  private emit(instruction: string): void {
+    this.ctx.emit(instruction);
+  }
+  private getDoubleSize() {
+    return 8;
+  } // sizeof(double) = 8 bytes
 
   generateMapLiteral(expr: Expression, params: string[]): string {
     const mapExpr = expr as { type: string; entries: MapEntry[] };
-    if (mapExpr.type !== 'map') {
-      throw new Error('Expected map literal');
+    if (mapExpr.type !== "map") {
+      throw new Error("Expected map literal");
     }
 
     const entries = mapExpr.entries || [];
@@ -100,13 +108,13 @@ export class MapGenerator {
       this.emit(`store double ${this.ctx.ensureDouble(valueValue)}, double* ${valueElemPtr}`);
     }
 
-    this.ctx.setVariableType(mapPtr, '%Map*');
+    this.ctx.setVariableType(mapPtr, "%Map*");
     return mapPtr;
   }
 
   generateMapSet(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 2) {
-      throw new Error('Map.set() requires exactly 2 arguments');
+      throw new Error("Map.set() requires exactly 2 arguments");
     }
 
     const mapPtr = this.ctx.generateExpression(expr.object, params);
@@ -128,12 +136,12 @@ export class MapGenerator {
     const currentSize = this.nextTemp();
     this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
 
-    const searchLoopLabel = this.nextLabel('map_set_search');
-    const searchBodyLabel = this.nextLabel('map_set_body');
-    const foundLabel = this.nextLabel('map_set_found');
-    const notFoundLabel = this.nextLabel('map_set_notfound');
-    const insertLabel = this.nextLabel('map_set_insert');
-    const endLabel = this.nextLabel('map_set_end');
+    const searchLoopLabel = this.nextLabel("map_set_search");
+    const searchBodyLabel = this.nextLabel("map_set_body");
+    const foundLabel = this.nextLabel("map_set_found");
+    const notFoundLabel = this.nextLabel("map_set_notfound");
+    const insertLabel = this.nextLabel("map_set_insert");
+    const endLabel = this.nextLabel("map_set_end");
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -149,7 +157,9 @@ export class MapGenerator {
 
     this.emit(`${searchBodyLabel}:`);
     const keyElemPtrSearch = this.nextTemp();
-    this.emit(`${keyElemPtrSearch} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
+    this.emit(
+      `${keyElemPtrSearch} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`,
+    );
     const keyAtIndex = this.nextTemp();
     this.emit(`${keyAtIndex} = load double, double* ${keyElemPtrSearch}`);
     const dblKeyValue = this.ctx.ensureDouble(keyValue);
@@ -167,7 +177,9 @@ export class MapGenerator {
     const foundIdx = this.nextTemp();
     this.emit(`${foundIdx} = load i32, i32* ${indexReg}`);
     const valueElemPtrFound = this.nextTemp();
-    this.emit(`${valueElemPtrFound} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${foundIdx}`);
+    this.emit(
+      `${valueElemPtrFound} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${foundIdx}`,
+    );
     this.emit(`store double ${this.ctx.ensureDouble(valueValue)}, double* ${valueElemPtrFound}`);
     this.emit(`br label %${endLabel}`);
 
@@ -181,8 +193,8 @@ export class MapGenerator {
     this.emit(`${currentCapacity} = load i32, i32* ${capacityFieldPtr}`);
     const needsResize = this.nextTemp();
     this.emit(`${needsResize} = icmp sge i32 ${currentSize}, ${currentCapacity}`);
-    const resizeLabel = this.nextLabel('map_set_resize');
-    const doInsertLabel = this.nextLabel('map_set_doinsert');
+    const resizeLabel = this.nextLabel("map_set_resize");
+    const doInsertLabel = this.nextLabel("map_set_doinsert");
     this.emit(`br i1 ${needsResize}, label %${resizeLabel}, label %${doInsertLabel}`);
 
     this.emit(`${resizeLabel}:`);
@@ -203,7 +215,9 @@ export class MapGenerator {
     this.emit(`${oldCapI64} = zext i32 ${currentCapacity} to i64`);
     const oldKeysSize = this.nextTemp();
     this.emit(`${oldKeysSize} = mul i64 ${oldCapI64}, ${doubleSize}`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newKeysMem}, i8* ${oldKeysI8}, i64 ${oldKeysSize}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newKeysMem}, i8* ${oldKeysI8}, i64 ${oldKeysSize}, i1 false)`,
+    );
     this.emit(`store double* ${newKeysPtr}, double** ${keysFieldPtr}`);
     const newValuesSize = this.nextTemp();
     this.emit(`${newValuesSize} = mul i64 ${newCapI64}, ${doubleSize}`);
@@ -213,7 +227,9 @@ export class MapGenerator {
     this.emit(`${newValuesPtr} = bitcast i8* ${newValuesMem} to double*`);
     const oldValuesI8 = this.nextTemp();
     this.emit(`${oldValuesI8} = bitcast double* ${valuesPtr} to i8*`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newValuesMem}, i8* ${oldValuesI8}, i64 ${oldKeysSize}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newValuesMem}, i8* ${oldValuesI8}, i64 ${oldKeysSize}, i1 false)`,
+    );
     this.emit(`store double* ${newValuesPtr}, double** ${valuesFieldPtr}`);
     this.emit(`store i32 ${newCapacity}, i32* ${capacityFieldPtr}`);
     this.emit(`br label %${doInsertLabel}`);
@@ -224,11 +240,15 @@ export class MapGenerator {
     const insertValuesPtr = this.nextTemp();
     this.emit(`${insertValuesPtr} = load double*, double** ${valuesFieldPtr}`);
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${insertKeysPtr}, i32 ${currentSize}`);
+    this.emit(
+      `${keyElemPtr} = getelementptr inbounds double, double* ${insertKeysPtr}, i32 ${currentSize}`,
+    );
     this.emit(`store double ${this.ctx.ensureDouble(keyValue)}, double* ${keyElemPtr}`);
 
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${insertValuesPtr}, i32 ${currentSize}`);
+    this.emit(
+      `${valueElemPtr} = getelementptr inbounds double, double* ${insertValuesPtr}, i32 ${currentSize}`,
+    );
     this.emit(`store double ${this.ctx.ensureDouble(valueValue)}, double* ${valueElemPtr}`);
 
     const newSize = this.nextTemp();
@@ -244,7 +264,7 @@ export class MapGenerator {
   generateMapGet(expr: MethodCallNode, params: string[]): string {
     // map.get(key)
     if (expr.args.length !== 1) {
-      throw new Error('Map.get() requires exactly 1 argument');
+      throw new Error("Map.get() requires exactly 1 argument");
     }
 
     // Get map pointer
@@ -276,10 +296,10 @@ export class MapGenerator {
     this.emit(`store double 0.0, double* ${resultReg}`); // Default to 0
 
     // Generate loop to search for key
-    const loopLabel = this.nextLabel('map_has_loop');
-    const bodyLabel = this.nextLabel('map_has_body');
-    const foundLabel = this.nextLabel('map_has_found');
-    const endLabel = this.nextLabel('map_has_end');
+    const loopLabel = this.nextLabel("map_has_loop");
+    const bodyLabel = this.nextLabel("map_has_body");
+    const foundLabel = this.nextLabel("map_has_found");
+    const endLabel = this.nextLabel("map_has_end");
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -295,7 +315,9 @@ export class MapGenerator {
 
     this.emit(`${bodyLabel}:`);
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
+    this.emit(
+      `${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`,
+    );
     const keyValue = this.nextTemp();
     this.emit(`${keyValue} = load double, double* ${keyElemPtr}`);
     const dblKeyToFind = this.ctx.ensureDouble(keyToFind);
@@ -305,7 +327,9 @@ export class MapGenerator {
 
     this.emit(`${foundLabel}:`);
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentIndex}`);
+    this.emit(
+      `${valueElemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${currentIndex}`,
+    );
     const foundValue = this.nextTemp();
     this.emit(`${foundValue} = load double, double* ${valueElemPtr}`);
     this.emit(`store double ${foundValue}, double* ${resultReg}`);
@@ -327,7 +351,7 @@ export class MapGenerator {
   generateMapHas(expr: MethodCallNode, params: string[]): string {
     // map.has(key) - returns 1 if key exists, 0 otherwise
     if (expr.args.length !== 1) {
-      throw new Error('Map.has() requires exactly 1 argument');
+      throw new Error("Map.has() requires exactly 1 argument");
     }
 
     // Get map pointer
@@ -352,10 +376,10 @@ export class MapGenerator {
     this.emit(`${resultReg} = alloca double`);
     this.emit(`store double 0.0, double* ${resultReg}`);
 
-    const loopLabel = this.nextLabel('map_get_loop');
-    const bodyLabel = this.nextLabel('map_get_body');
-    const foundLabel = this.nextLabel('map_get_found');
-    const endLabel = this.nextLabel('map_get_end');
+    const loopLabel = this.nextLabel("map_get_loop");
+    const bodyLabel = this.nextLabel("map_get_body");
+    const foundLabel = this.nextLabel("map_get_found");
+    const endLabel = this.nextLabel("map_get_end");
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -371,7 +395,9 @@ export class MapGenerator {
 
     this.emit(`${bodyLabel}:`);
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
+    this.emit(
+      `${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`,
+    );
     const keyValue = this.nextTemp();
     this.emit(`${keyValue} = load double, double* ${keyElemPtr}`);
     const dblKeyToFind = this.ctx.ensureDouble(keyToFind);
@@ -410,12 +436,12 @@ export class MapGenerator {
     const sizeFieldPtr = this.nextTemp();
     this.emit(`${sizeFieldPtr} = getelementptr inbounds %Map, %Map* ${mapPtr}, i32 0, i32 2`);
     this.emit(`store i32 0, i32* ${sizeFieldPtr}`);
-    return '0.0';
+    return "0.0";
   }
 
   generateMapDelete(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      throw new Error('Map.delete() requires exactly 1 argument');
+      throw new Error("Map.delete() requires exactly 1 argument");
     }
 
     const mapPtr = this.ctx.generateExpression(expr.object, params);
@@ -440,12 +466,12 @@ export class MapGenerator {
     this.emit(`${resultReg} = alloca double`);
     this.emit(`store double 0.0, double* ${resultReg}`);
 
-    const loopLabel = this.nextLabel('map_del_loop');
-    const bodyLabel = this.nextLabel('map_del_body');
-    const foundLabel = this.nextLabel('map_del_found');
-    const shiftLabel = this.nextLabel('map_del_shift');
-    const shiftBodyLabel = this.nextLabel('map_del_shift_body');
-    const endLabel = this.nextLabel('map_del_end');
+    const loopLabel = this.nextLabel("map_del_loop");
+    const bodyLabel = this.nextLabel("map_del_body");
+    const foundLabel = this.nextLabel("map_del_found");
+    const shiftLabel = this.nextLabel("map_del_shift");
+    const shiftBodyLabel = this.nextLabel("map_del_shift_body");
+    const endLabel = this.nextLabel("map_del_end");
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -461,7 +487,9 @@ export class MapGenerator {
 
     this.emit(`${bodyLabel}:`);
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`);
+    this.emit(
+      `${keyElemPtr} = getelementptr inbounds double, double* ${keysPtr}, i32 ${currentIndex}`,
+    );
     const keyValue = this.nextTemp();
     this.emit(`${keyValue} = load double, double* ${keyElemPtr}`);
     const dblKeyToFind = this.ctx.ensureDouble(keyToFind);
@@ -525,10 +553,18 @@ export class MapGenerator {
 export class StringMapGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  private nextTemp(): string { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string): void { this.ctx.emit(instruction); }
-  private getPtrSize() { return 8; }
+  private nextTemp(): string {
+    return this.ctx.nextTemp();
+  }
+  private nextLabel(prefix: string): string {
+    return this.ctx.nextLabel(prefix);
+  }
+  private emit(instruction: string): void {
+    this.ctx.emit(instruction);
+  }
+  private getPtrSize() {
+    return 8;
+  }
 
   generateEmptyStringMap(): string {
     const sizeofPtr = this.nextTemp();
@@ -555,47 +591,63 @@ export class StringMapGenerator {
     this.emit(`${valuesPtr} = bitcast i8* ${valuesMem} to i8**`);
 
     const keysFieldPtr = this.nextTemp();
-    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
     this.emit(`store i8** ${keysPtr}, i8*** ${keysFieldPtr}`);
 
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i8** ${valuesPtr}, i8*** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 0, i32* ${sizeFieldPtr}`);
 
     const capacityFieldPtr = this.nextTemp();
-    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+    this.emit(
+      `${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
+    );
     this.emit(`store i32 ${initialCapacity}, i32* ${capacityFieldPtr}`);
 
-    this.ctx.setVariableType(mapPtr, '%StringMap*');
+    this.ctx.setVariableType(mapPtr, "%StringMap*");
     return mapPtr;
   }
 
   generateStringMapSet(mapPtr: string, keyValue: string, valueValue: string): string {
     const keysFieldPtr = this.nextTemp();
-    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`,
+    );
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
+    );
     const capacityFieldPtr = this.nextTemp();
-    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+    this.emit(
+      `${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
+    );
 
     const currentSize = this.nextTemp();
     this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
     const currentCapacity = this.nextTemp();
     this.emit(`${currentCapacity} = load i32, i32* ${capacityFieldPtr}`);
 
-    const resizeCheckLabel = this.nextLabel('strmap_set_resize_check');
-    const resizeLabel = this.nextLabel('strmap_set_resize');
-    const probeLabel = this.nextLabel('strmap_set_probe');
-    const probeBodyLabel = this.nextLabel('strmap_set_probe_body');
-    const foundLabel = this.nextLabel('strmap_set_found');
-    const insertLabel = this.nextLabel('strmap_set_insert');
-    const endLabel = this.nextLabel('strmap_set_end');
+    const resizeCheckLabel = this.nextLabel("strmap_set_resize_check");
+    const resizeLabel = this.nextLabel("strmap_set_resize");
+    const probeLabel = this.nextLabel("strmap_set_probe");
+    const probeBodyLabel = this.nextLabel("strmap_set_probe_body");
+    const foundLabel = this.nextLabel("strmap_set_found");
+    const insertLabel = this.nextLabel("strmap_set_insert");
+    const endLabel = this.nextLabel("strmap_set_end");
 
     // Check load factor: if (size+1) * 10 >= capacity * 7, resize before insertion
     const sizeP1 = this.nextTemp();
@@ -630,7 +682,9 @@ export class StringMapGenerator {
     const oldValuesPtr = this.nextTemp();
     this.emit(`${oldValuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
 
-    this.emit(`call void @__strmap_rehash(i8** ${oldKeysPtr}, i8** ${oldValuesPtr}, i32 ${currentCapacity}, i8** ${newKeysPtr}, i8** ${newValuesPtr}, i32 ${newCapacity})`);
+    this.emit(
+      `call void @__strmap_rehash(i8** ${oldKeysPtr}, i8** ${oldValuesPtr}, i32 ${currentCapacity}, i8** ${newKeysPtr}, i8** ${newValuesPtr}, i32 ${newCapacity})`,
+    );
 
     this.emit(`store i8** ${newKeysPtr}, i8*** ${keysFieldPtr}`);
     this.emit(`store i8** ${newValuesPtr}, i8*** ${valuesFieldPtr}`);
@@ -720,15 +774,21 @@ export class StringMapGenerator {
 
   generateStringMapGet(mapPtr: string, keyToFind: string): string {
     const keysFieldPtr = this.nextTemp();
-    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
     const keysPtr = this.nextTemp();
     this.emit(`${keysPtr} = load i8**, i8*** ${keysFieldPtr}`);
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`,
+    );
     const valuesPtr = this.nextTemp();
     this.emit(`${valuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
     const capacityFieldPtr = this.nextTemp();
-    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+    this.emit(
+      `${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
+    );
     const capacity = this.nextTemp();
     this.emit(`${capacity} = load i32, i32* ${capacityFieldPtr}`);
 
@@ -743,10 +803,10 @@ export class StringMapGenerator {
     const startSlot = this.nextTemp();
     this.emit(`${startSlot} = and i32 ${hash}, ${mask}`);
 
-    const probeLabel = this.nextLabel('strmap_get_probe');
-    const probeBodyLabel = this.nextLabel('strmap_get_body');
-    const foundLabel = this.nextLabel('strmap_get_found');
-    const endLabel = this.nextLabel('strmap_get_end');
+    const probeLabel = this.nextLabel("strmap_get_probe");
+    const probeBodyLabel = this.nextLabel("strmap_get_body");
+    const foundLabel = this.nextLabel("strmap_get_found");
+    const endLabel = this.nextLabel("strmap_get_end");
 
     const slotReg = this.nextTemp();
     this.emit(`${slotReg} = alloca i32`);
@@ -790,18 +850,22 @@ export class StringMapGenerator {
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
     this.emit(`${result} = load i8*, i8** ${resultReg}`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
 
   generateStringMapHas(mapPtr: string, keyToFind: string): string {
     const keysFieldPtr = this.nextTemp();
-    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
     const keysPtr = this.nextTemp();
     this.emit(`${keysPtr} = load i8**, i8*** ${keysFieldPtr}`);
     const capacityFieldPtr = this.nextTemp();
-    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+    this.emit(
+      `${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
+    );
     const capacity = this.nextTemp();
     this.emit(`${capacity} = load i32, i32* ${capacityFieldPtr}`);
 
@@ -816,10 +880,10 @@ export class StringMapGenerator {
     const startSlot = this.nextTemp();
     this.emit(`${startSlot} = and i32 ${hash}, ${mask}`);
 
-    const probeLabel = this.nextLabel('strmap_has_probe');
-    const probeBodyLabel = this.nextLabel('strmap_has_body');
-    const foundLabel = this.nextLabel('strmap_has_found');
-    const endLabel = this.nextLabel('strmap_has_end');
+    const probeLabel = this.nextLabel("strmap_has_probe");
+    const probeBodyLabel = this.nextLabel("strmap_has_body");
+    const foundLabel = this.nextLabel("strmap_has_found");
+    const endLabel = this.nextLabel("strmap_has_end");
 
     const slotReg = this.nextTemp();
     this.emit(`${slotReg} = alloca i32`);
@@ -865,7 +929,9 @@ export class StringMapGenerator {
 
   generateStringMapSize(mapPtr: string): string {
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
+    );
     const size = this.nextTemp();
     this.emit(`${size} = load i32, i32* ${sizeFieldPtr}`);
     return size;
@@ -873,11 +939,17 @@ export class StringMapGenerator {
 
   generateStringMapClear(mapPtr: string): string {
     const keysFieldPtr = this.nextTemp();
-    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`,
+    );
     const capacityFieldPtr = this.nextTemp();
-    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+    this.emit(
+      `${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
+    );
     const capacity = this.nextTemp();
     this.emit(`${capacity} = load i32, i32* ${capacityFieldPtr}`);
 
@@ -899,24 +971,34 @@ export class StringMapGenerator {
     this.emit(`store i8** ${newValuesPtr}, i8*** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 0, i32* ${sizeFieldPtr}`);
-    return '0.0';
+    return "0.0";
   }
 
   generateStringMapDelete(mapPtr: string, keyToFind: string): string {
     const keysFieldPtr = this.nextTemp();
-    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
     const keysPtr = this.nextTemp();
     this.emit(`${keysPtr} = load i8**, i8*** ${keysFieldPtr}`);
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`,
+    );
     const valuesPtr = this.nextTemp();
     this.emit(`${valuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
+    );
     const capacityFieldPtr = this.nextTemp();
-    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+    this.emit(
+      `${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
+    );
     const capacity = this.nextTemp();
     this.emit(`${capacity} = load i32, i32* ${capacityFieldPtr}`);
 
@@ -931,15 +1013,15 @@ export class StringMapGenerator {
     const startSlot = this.nextTemp();
     this.emit(`${startSlot} = and i32 ${hash}, ${mask}`);
 
-    const probeLabel = this.nextLabel('strmap_del_probe');
-    const probeBodyLabel = this.nextLabel('strmap_del_body');
-    const foundLabel = this.nextLabel('strmap_del_found');
-    const rehashLabel = this.nextLabel('strmap_del_rehash');
-    const rehashBodyLabel = this.nextLabel('strmap_del_rehash_body');
-    const rehashInsertLabel = this.nextLabel('strmap_del_rehash_insert');
-    const rehashProbeLabel = this.nextLabel('strmap_del_rehash_probe');
-    const rehashPlaceLabel = this.nextLabel('strmap_del_rehash_place');
-    const endLabel = this.nextLabel('strmap_del_end');
+    const probeLabel = this.nextLabel("strmap_del_probe");
+    const probeBodyLabel = this.nextLabel("strmap_del_body");
+    const foundLabel = this.nextLabel("strmap_del_found");
+    const rehashLabel = this.nextLabel("strmap_del_rehash");
+    const rehashBodyLabel = this.nextLabel("strmap_del_rehash_body");
+    const rehashInsertLabel = this.nextLabel("strmap_del_rehash_insert");
+    const rehashProbeLabel = this.nextLabel("strmap_del_rehash_probe");
+    const rehashPlaceLabel = this.nextLabel("strmap_del_rehash_place");
+    const endLabel = this.nextLabel("strmap_del_end");
 
     const slotReg = this.nextTemp();
     this.emit(`${slotReg} = alloca i32`);
@@ -1073,22 +1155,30 @@ export class StringMapGenerator {
 
   generateStringMapEntries(mapPtr: string): string {
     const keysFieldPtr = this.nextTemp();
-    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
     const keysPtr = this.nextTemp();
     this.emit(`${keysPtr} = load i8**, i8*** ${keysFieldPtr}`);
 
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`,
+    );
     const valuesPtr = this.nextTemp();
     this.emit(`${valuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
+    );
     const mapSize = this.nextTemp();
     this.emit(`${mapSize} = load i32, i32* ${sizeFieldPtr}`);
 
     const capacityFieldPtr = this.nextTemp();
-    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+    this.emit(
+      `${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
+    );
     const mapCapacity = this.nextTemp();
     this.emit(`${mapCapacity} = load i32, i32* ${capacityFieldPtr}`);
 
@@ -1118,10 +1208,10 @@ export class StringMapGenerator {
     this.emit(`${dataCast} = bitcast i8** ${dataPtr} to double*`);
     this.emit(`store double* ${dataCast}, double** ${dataFieldPtr}`);
 
-    const loopLabel = this.nextLabel('strmap_entries_loop');
-    const bodyLabel = this.nextLabel('strmap_entries_body');
-    const skipLabel = this.nextLabel('strmap_entries_skip');
-    const endLabel = this.nextLabel('strmap_entries_end');
+    const loopLabel = this.nextLabel("strmap_entries_loop");
+    const bodyLabel = this.nextLabel("strmap_entries_body");
+    const skipLabel = this.nextLabel("strmap_entries_skip");
+    const endLabel = this.nextLabel("strmap_entries_end");
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -1149,7 +1239,9 @@ export class StringMapGenerator {
 
     this.emit(`${bodyLabel}_store:`);
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${currentIndex}`);
+    this.emit(
+      `${valueElemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${currentIndex}`,
+    );
     const valueValue = this.nextTemp();
     this.emit(`${valueValue} = load i8*, i8** ${valueElemPtr}`);
 
@@ -1158,10 +1250,14 @@ export class StringMapGenerator {
     const entryKvPtr = this.nextTemp();
     this.emit(`${entryKvPtr} = bitcast i8* ${entryMem} to { i8*, i8* }*`);
     const keySlot = this.nextTemp();
-    this.emit(`${keySlot} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryKvPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keySlot} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryKvPtr}, i32 0, i32 0`,
+    );
     this.emit(`store i8* ${keyValue}, i8** ${keySlot}`);
     const valueSlot = this.nextTemp();
-    this.emit(`${valueSlot} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryKvPtr}, i32 0, i32 1`);
+    this.emit(
+      `${valueSlot} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryKvPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i8* ${valueValue}, i8** ${valueSlot}`);
 
     const outIdx = this.nextTemp();
@@ -1187,22 +1283,30 @@ export class StringMapGenerator {
 
   generateStringMapValues(mapPtr: string): string {
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`,
+    );
     const valuesPtr = this.nextTemp();
     this.emit(`${valuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
 
     const keysFieldPtr = this.nextTemp();
-    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
     const keysPtr = this.nextTemp();
     this.emit(`${keysPtr} = load i8**, i8*** ${keysFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
+    );
     const mapSize = this.nextTemp();
     this.emit(`${mapSize} = load i32, i32* ${sizeFieldPtr}`);
 
     const capacityFieldPtr = this.nextTemp();
-    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+    this.emit(
+      `${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
+    );
     const mapCapacity = this.nextTemp();
     this.emit(`${mapCapacity} = load i32, i32* ${capacityFieldPtr}`);
 
@@ -1232,10 +1336,10 @@ export class StringMapGenerator {
     this.emit(`${dataCast} = bitcast i8** ${dataPtr} to double*`);
     this.emit(`store double* ${dataCast}, double** ${dataFieldPtr}`);
 
-    const loopLabel = this.nextLabel('strmap_values_loop');
-    const bodyLabel = this.nextLabel('strmap_values_body');
-    const skipLabel = this.nextLabel('strmap_values_skip');
-    const endLabel = this.nextLabel('strmap_values_end');
+    const loopLabel = this.nextLabel("strmap_values_loop");
+    const bodyLabel = this.nextLabel("strmap_values_body");
+    const skipLabel = this.nextLabel("strmap_values_skip");
+    const endLabel = this.nextLabel("strmap_values_end");
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -1263,7 +1367,9 @@ export class StringMapGenerator {
 
     this.emit(`${bodyLabel}_store:`);
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${currentIndex}`);
+    this.emit(
+      `${valueElemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${currentIndex}`,
+    );
     const valueValue = this.nextTemp();
     this.emit(`${valueValue} = load i8*, i8** ${valueElemPtr}`);
 
@@ -1290,17 +1396,23 @@ export class StringMapGenerator {
 
   generateStringMapKeys(mapPtr: string): string {
     const keysFieldPtr = this.nextTemp();
-    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
     const keysPtr = this.nextTemp();
     this.emit(`${keysPtr} = load i8**, i8*** ${keysFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
+    );
     const mapSize = this.nextTemp();
     this.emit(`${mapSize} = load i32, i32* ${sizeFieldPtr}`);
 
     const capacityFieldPtr = this.nextTemp();
-    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+    this.emit(
+      `${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
+    );
     const mapCapacity = this.nextTemp();
     this.emit(`${mapCapacity} = load i32, i32* ${capacityFieldPtr}`);
 
@@ -1319,19 +1431,25 @@ export class StringMapGenerator {
     this.emit(`${dataPtr} = bitcast i8* ${dataMem} to i8**`);
 
     const dataPtrField = this.nextTemp();
-    this.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     this.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
     const lenFieldPtr = this.nextTemp();
-    this.emit(`${lenFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    this.emit(
+      `${lenFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     this.emit(`store i32 ${mapSize}, i32* ${lenFieldPtr}`);
     const capFieldPtr = this.nextTemp();
-    this.emit(`${capFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+    this.emit(
+      `${capFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 ${mapSize}, i32* ${capFieldPtr}`);
 
-    const loopLabel = this.nextLabel('strmap_keys_loop');
-    const bodyLabel = this.nextLabel('strmap_keys_body');
-    const skipLabel = this.nextLabel('strmap_keys_skip');
-    const endLabel = this.nextLabel('strmap_keys_end');
+    const loopLabel = this.nextLabel("strmap_keys_loop");
+    const bodyLabel = this.nextLabel("strmap_keys_body");
+    const skipLabel = this.nextLabel("strmap_keys_skip");
+    const endLabel = this.nextLabel("strmap_keys_end");
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -1376,7 +1494,7 @@ export class StringMapGenerator {
 
     this.emit(`${endLabel}:`);
 
-    this.ctx.setVariableType(arrayPtr, '%StringArray*');
+    this.ctx.setVariableType(arrayPtr, "%StringArray*");
     return arrayPtr;
   }
 }
@@ -1384,23 +1502,35 @@ export class StringMapGenerator {
 export class PointerMapGenerator {
   constructor(private ctx: IGeneratorContext) {}
 
-  private nextTemp(): string { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string): void { this.ctx.emit(instruction); }
+  private nextTemp(): string {
+    return this.ctx.nextTemp();
+  }
+  private nextLabel(prefix: string): string {
+    return this.ctx.nextLabel(prefix);
+  }
+  private emit(instruction: string): void {
+    this.ctx.emit(instruction);
+  }
 
   generatePointerMapGet(mapPtr: string, keyToFind: string, valueType: string): string {
     const keysFieldPtr = this.nextTemp();
-    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
     const keysPtr = this.nextTemp();
     this.emit(`${keysPtr} = load i8**, i8*** ${keysFieldPtr}`);
 
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`,
+    );
     const valuesPtr = this.nextTemp();
     this.emit(`${valuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
+    );
     const mapSize = this.nextTemp();
     this.emit(`${mapSize} = load i32, i32* ${sizeFieldPtr}`);
 
@@ -1408,10 +1538,10 @@ export class PointerMapGenerator {
     this.emit(`${resultReg} = alloca i8*`);
     this.emit(`store i8* null, i8** ${resultReg}`);
 
-    const loopLabel = this.nextLabel('ptrmap_get_loop');
-    const bodyLabel = this.nextLabel('ptrmap_get_body');
-    const foundLabel = this.nextLabel('ptrmap_get_found');
-    const endLabel = this.nextLabel('ptrmap_get_end');
+    const loopLabel = this.nextLabel("ptrmap_get_loop");
+    const bodyLabel = this.nextLabel("ptrmap_get_body");
+    const foundLabel = this.nextLabel("ptrmap_get_found");
+    const endLabel = this.nextLabel("ptrmap_get_end");
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -1438,7 +1568,9 @@ export class PointerMapGenerator {
 
     this.emit(`${foundLabel}:`);
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${currentIndex}`);
+    this.emit(
+      `${valueElemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${currentIndex}`,
+    );
     const foundValue = this.nextTemp();
     this.emit(`${foundValue} = load i8*, i8** ${valueElemPtr}`);
     this.emit(`store i8* ${foundValue}, i8** ${resultReg}`);
@@ -1453,33 +1585,39 @@ export class PointerMapGenerator {
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
     this.emit(`${result} = load i8*, i8** ${resultReg}`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
 
   generatePointerMapSet(mapPtr: string, keyValue: string, valueValue: string): string {
     const keysFieldPtr = this.nextTemp();
-    this.emit(`${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keysFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
+    );
     const keysPtr = this.nextTemp();
     this.emit(`${keysPtr} = load i8**, i8*** ${keysFieldPtr}`);
 
     const valuesFieldPtr = this.nextTemp();
-    this.emit(`${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`);
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`,
+    );
     const valuesPtr = this.nextTemp();
     this.emit(`${valuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
 
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
+    );
     const currentSize = this.nextTemp();
     this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
 
-    const searchLoopLabel = this.nextLabel('ptrmap_set_search');
-    const searchBodyLabel = this.nextLabel('ptrmap_set_body');
-    const foundLabel = this.nextLabel('ptrmap_set_found');
-    const notFoundLabel = this.nextLabel('ptrmap_set_notfound');
-    const insertLabel = this.nextLabel('ptrmap_set_insert');
-    const endLabel = this.nextLabel('ptrmap_set_end');
+    const searchLoopLabel = this.nextLabel("ptrmap_set_search");
+    const searchBodyLabel = this.nextLabel("ptrmap_set_body");
+    const foundLabel = this.nextLabel("ptrmap_set_found");
+    const notFoundLabel = this.nextLabel("ptrmap_set_notfound");
+    const insertLabel = this.nextLabel("ptrmap_set_insert");
+    const endLabel = this.nextLabel("ptrmap_set_end");
 
     const indexReg = this.nextTemp();
     this.emit(`${indexReg} = alloca i32`);
@@ -1495,7 +1633,9 @@ export class PointerMapGenerator {
 
     this.emit(`${searchBodyLabel}:`);
     const keyElemPtrSearch = this.nextTemp();
-    this.emit(`${keyElemPtrSearch} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentIndex}`);
+    this.emit(
+      `${keyElemPtrSearch} = getelementptr inbounds i8*, i8** ${keysPtr}, i32 ${currentIndex}`,
+    );
     const keyAtIndex = this.nextTemp();
     this.emit(`${keyAtIndex} = load i8*, i8** ${keyElemPtrSearch}`);
     const keyCmp = this.nextTemp();
@@ -1514,7 +1654,9 @@ export class PointerMapGenerator {
     const foundIdx = this.nextTemp();
     this.emit(`${foundIdx} = load i32, i32* ${indexReg}`);
     const valueElemPtrFound = this.nextTemp();
-    this.emit(`${valueElemPtrFound} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${foundIdx}`);
+    this.emit(
+      `${valueElemPtrFound} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${foundIdx}`,
+    );
     this.emit(`store i8* ${valueValue}, i8** ${valueElemPtrFound}`);
     this.emit(`br label %${endLabel}`);
 
@@ -1523,13 +1665,15 @@ export class PointerMapGenerator {
 
     this.emit(`${insertLabel}:`);
     const capacityFieldPtr = this.nextTemp();
-    this.emit(`${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`);
+    this.emit(
+      `${capacityFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
+    );
     const currentCapacity = this.nextTemp();
     this.emit(`${currentCapacity} = load i32, i32* ${capacityFieldPtr}`);
     const needsResize = this.nextTemp();
     this.emit(`${needsResize} = icmp sge i32 ${currentSize}, ${currentCapacity}`);
-    const resizeLabel = this.nextLabel('ptrmap_set_resize');
-    const doInsertLabel = this.nextLabel('ptrmap_set_doinsert');
+    const resizeLabel = this.nextLabel("ptrmap_set_resize");
+    const doInsertLabel = this.nextLabel("ptrmap_set_doinsert");
     this.emit(`br i1 ${needsResize}, label %${resizeLabel}, label %${doInsertLabel}`);
 
     this.emit(`${resizeLabel}:`);
@@ -1550,7 +1694,9 @@ export class PointerMapGenerator {
     this.emit(`${oldCapI64} = zext i32 ${currentCapacity} to i64`);
     const oldKeysSize = this.nextTemp();
     this.emit(`${oldKeysSize} = mul i64 ${oldCapI64}, ${ptrSize}`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newKeysMem}, i8* ${oldKeysI8}, i64 ${oldKeysSize}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newKeysMem}, i8* ${oldKeysI8}, i64 ${oldKeysSize}, i1 false)`,
+    );
     this.emit(`store i8** ${newKeysPtr}, i8*** ${keysFieldPtr}`);
     const newValuesSize = this.nextTemp();
     this.emit(`${newValuesSize} = mul i64 ${newCapI64}, ${ptrSize}`);
@@ -1560,7 +1706,9 @@ export class PointerMapGenerator {
     this.emit(`${newValuesPtr} = bitcast i8* ${newValuesMem} to i8**`);
     const oldValuesI8 = this.nextTemp();
     this.emit(`${oldValuesI8} = bitcast i8** ${valuesPtr} to i8*`);
-    this.emit(`call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newValuesMem}, i8* ${oldValuesI8}, i64 ${oldKeysSize}, i1 false)`);
+    this.emit(
+      `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newValuesMem}, i8* ${oldValuesI8}, i64 ${oldKeysSize}, i1 false)`,
+    );
     this.emit(`store i8** ${newValuesPtr}, i8*** ${valuesFieldPtr}`);
     this.emit(`store i32 ${newCapacity}, i32* ${capacityFieldPtr}`);
     this.emit(`br label %${doInsertLabel}`);
@@ -1571,11 +1719,15 @@ export class PointerMapGenerator {
     const insertValuesPtr = this.nextTemp();
     this.emit(`${insertValuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
     const keyElemPtr = this.nextTemp();
-    this.emit(`${keyElemPtr} = getelementptr inbounds i8*, i8** ${insertKeysPtr}, i32 ${currentSize}`);
+    this.emit(
+      `${keyElemPtr} = getelementptr inbounds i8*, i8** ${insertKeysPtr}, i32 ${currentSize}`,
+    );
     this.emit(`store i8* ${keyValue}, i8** ${keyElemPtr}`);
 
     const valueElemPtr = this.nextTemp();
-    this.emit(`${valueElemPtr} = getelementptr inbounds i8*, i8** ${insertValuesPtr}, i32 ${currentSize}`);
+    this.emit(
+      `${valueElemPtr} = getelementptr inbounds i8*, i8** ${insertValuesPtr}, i32 ${currentSize}`,
+    );
     this.emit(`store i8* ${valueValue}, i8** ${valueElemPtr}`);
 
     const newSize = this.nextTemp();
@@ -1590,8 +1742,10 @@ export class PointerMapGenerator {
 
   generatePointerMapClear(mapPtr: string): string {
     const sizeFieldPtr = this.nextTemp();
-    this.emit(`${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`);
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
+    );
     this.emit(`store i32 0, i32* ${sizeFieldPtr}`);
-    return '0.0';
+    return "0.0";
   }
 }

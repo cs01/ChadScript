@@ -1,20 +1,26 @@
-import { Expression, MethodCallNode, VariableNode, ArrowFunctionNode } from '../../../ast/types.js';
-import type { MethodCallGeneratorContext } from '../method-calls.js';
+import { Expression, MethodCallNode, VariableNode, ArrowFunctionNode } from "../../../ast/types.js";
+import type { MethodCallGeneratorContext } from "../method-calls.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
-export function handlePromiseStaticMethods(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handlePromiseStaticMethods(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const method = expr.method;
   ctx.setUsesPromises(true);
 
-  if (method === 'resolve') {
+  if (method === "resolve") {
     let valuePtr: string;
     if (expr.args.length > 0) {
       const value = ctx.generateExpression(expr.args[0], params);
       valuePtr = ctx.nextTemp();
       ctx.emit(`${valuePtr} = bitcast i8* null to i8*`);
-      const valueType = ctx.getVariableType(value) || 'double';
-      if (valueType === 'i8*') {
+      const valueType = ctx.getVariableType(value) || "double";
+      if (valueType === "i8*") {
         valuePtr = value;
       } else {
         const allocMem = ctx.nextTemp();
@@ -25,20 +31,20 @@ export function handlePromiseStaticMethods(ctx: MethodCallGeneratorContext, expr
         valuePtr = allocMem;
       }
     } else {
-      valuePtr = 'null';
+      valuePtr = "null";
     }
     const result = ctx.nextTemp();
     ctx.emit(`${result} = call %Promise* @__Promise_resolve_static(i8* ${valuePtr})`);
-    ctx.setVariableType(result, '%Promise*');
+    ctx.setVariableType(result, "%Promise*");
     return result;
   }
 
-  if (method === 'reject') {
+  if (method === "reject") {
     let reasonPtr: string;
     if (expr.args.length > 0) {
       const reason = ctx.generateExpression(expr.args[0], params);
-      const reasonType = ctx.getVariableType(reason) || 'double';
-      if (reasonType === 'i8*') {
+      const reasonType = ctx.getVariableType(reason) || "double";
+      if (reasonType === "i8*") {
         reasonPtr = reason;
       } else {
         const allocMem = ctx.nextTemp();
@@ -49,47 +55,52 @@ export function handlePromiseStaticMethods(ctx: MethodCallGeneratorContext, expr
         reasonPtr = allocMem;
       }
     } else {
-      reasonPtr = 'null';
+      reasonPtr = "null";
     }
     const result = ctx.nextTemp();
     ctx.emit(`${result} = call %Promise* @__Promise_reject_static(i8* ${reasonPtr})`);
-    ctx.setVariableType(result, '%Promise*');
+    ctx.setVariableType(result, "%Promise*");
     return result;
   }
 
-  if (method === 'all') {
+  if (method === "all") {
     if (expr.args.length < 1) {
-      return ctx.emitError('Promise.all() requires 1 argument (array of promises)', expr.loc);
+      return ctx.emitError("Promise.all() requires 1 argument (array of promises)", expr.loc);
     }
     const promisesArray = ctx.generateExpression(expr.args[0], params);
     const result = ctx.nextTemp();
     ctx.emit(`${result} = call %Promise* @__Promise_all(%ObjectArray* ${promisesArray})`);
-    ctx.setVariableType(result, '%Promise*');
+    ctx.setVariableType(result, "%Promise*");
     return result;
   }
 
-  if (method === 'race') {
+  if (method === "race") {
     if (expr.args.length < 1) {
-      return ctx.emitError('Promise.race() requires 1 argument (array of promises)', expr.loc);
+      return ctx.emitError("Promise.race() requires 1 argument (array of promises)", expr.loc);
     }
     const promisesArray = ctx.generateExpression(expr.args[0], params);
     const result = ctx.nextTemp();
     ctx.emit(`${result} = call %Promise* @__Promise_race(%ObjectArray* ${promisesArray})`);
-    ctx.setVariableType(result, '%Promise*');
+    ctx.setVariableType(result, "%Promise*");
     return result;
   }
 
   return ctx.emitError(`Unsupported Promise static method: ${method}`, expr.loc);
 }
 
-export function handlePromiseThen(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[], isCatch: boolean): string {
+export function handlePromiseThen(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+  isCatch: boolean,
+): string {
   ctx.setUsesPromises(true);
   const promisePtr = ctx.generateExpression(expr.object, params);
 
-  let onFulfilled = 'null';
-  let onRejected = 'null';
+  let onFulfilled = "null";
+  let onRejected = "null";
 
-  const promiseCallbackTypes = { paramTypes: ['string', 'any'], returnType: 'void' };
+  const promiseCallbackTypes = { paramTypes: ["string", "any"], returnType: "void" };
   const scopeVarsResult = ctx.symbolTable.getScopeVarsArraysForClosure();
   const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
 
@@ -97,10 +108,16 @@ export function handlePromiseThen(ctx: MethodCallGeneratorContext, expr: MethodC
     if (expr.args.length > 0) {
       const callback = expr.args[0] as Expression;
       const callbackBase = callback as ExprBase;
-      if (callbackBase.type === 'arrow_function') {
-        const callbackName = ctx.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+      if (callbackBase.type === "arrow_function") {
+        const callbackName = ctx.arrowFunctionGen.generateArrowFunction(
+          callback as ArrowFunctionNode,
+          params,
+          promiseCallbackTypes,
+          scopeVarsTyped.names,
+          scopeVarsTyped.types,
+        );
         onRejected = `@${ctx.mangleUserName(callbackName)}`;
-      } else if (callbackBase.type === 'variable') {
+      } else if (callbackBase.type === "variable") {
         onRejected = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
       }
     }
@@ -108,41 +125,55 @@ export function handlePromiseThen(ctx: MethodCallGeneratorContext, expr: MethodC
     if (expr.args.length > 0) {
       const callback = expr.args[0] as Expression;
       const callbackBase = callback as ExprBase;
-      if (callbackBase.type === 'arrow_function') {
-        const callbackName = ctx.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+      if (callbackBase.type === "arrow_function") {
+        const callbackName = ctx.arrowFunctionGen.generateArrowFunction(
+          callback as ArrowFunctionNode,
+          params,
+          promiseCallbackTypes,
+          scopeVarsTyped.names,
+          scopeVarsTyped.types,
+        );
         onFulfilled = `@${ctx.mangleUserName(callbackName)}`;
-      } else if (callbackBase.type === 'variable') {
+      } else if (callbackBase.type === "variable") {
         onFulfilled = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
       }
     }
     if (expr.args.length > 1) {
       const callback = expr.args[1] as Expression;
       const callbackBase = callback as ExprBase;
-      if (callbackBase.type === 'arrow_function') {
-        const callbackName = ctx.arrowFunctionGen.generateArrowFunction(callback as ArrowFunctionNode, params, promiseCallbackTypes, scopeVarsTyped.names, scopeVarsTyped.types);
+      if (callbackBase.type === "arrow_function") {
+        const callbackName = ctx.arrowFunctionGen.generateArrowFunction(
+          callback as ArrowFunctionNode,
+          params,
+          promiseCallbackTypes,
+          scopeVarsTyped.names,
+          scopeVarsTyped.types,
+        );
         onRejected = `@${ctx.mangleUserName(callbackName)}`;
-      } else if (callbackBase.type === 'variable') {
+      } else if (callbackBase.type === "variable") {
         onRejected = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
       }
     }
   }
 
   const onFulfilledPtr = ctx.nextTemp();
-  if (onFulfilled === 'null') {
+  if (onFulfilled === "null") {
     ctx.emit(`${onFulfilledPtr} = bitcast i8* null to void (i8*, i8*)*`);
   } else {
     ctx.emit(`${onFulfilledPtr} = bitcast void (i8*, i8*)* ${onFulfilled} to void (i8*, i8*)*`);
   }
 
   const onRejectedPtr = ctx.nextTemp();
-  if (onRejected === 'null') {
+  if (onRejected === "null") {
     ctx.emit(`${onRejectedPtr} = bitcast i8* null to void (i8*, i8*)*`);
   } else {
     ctx.emit(`${onRejectedPtr} = bitcast void (i8*, i8*)* ${onRejected} to void (i8*, i8*)*`);
   }
 
   const result = ctx.nextTemp();
-  ctx.emit(`${result} = call %Promise* @__Promise_then(%Promise* ${promisePtr}, void (i8*, i8*)* ${onFulfilledPtr}, void (i8*, i8*)* ${onRejectedPtr})`);
-  ctx.setVariableType(result, '%Promise*');
+  ctx.emit(
+    `${result} = call %Promise* @__Promise_then(%Promise* ${promisePtr}, void (i8*, i8*)* ${onFulfilledPtr}, void (i8*, i8*)* ${onRejectedPtr})`,
+  );
+  ctx.setVariableType(result, "%Promise*");
   return result;
 }

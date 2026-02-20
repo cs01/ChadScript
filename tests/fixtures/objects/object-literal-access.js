@@ -4,4 +4,3 @@ function testLiteralAccess() {
 }
 
 process.exit(testLiteralAccess());
-

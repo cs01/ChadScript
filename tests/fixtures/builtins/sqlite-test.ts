@@ -79,7 +79,7 @@ function testSqlite(): void {
     process.exit(1);
   }
 
-  const parts = rows[0].split('|');
+  const parts = rows[0].split("|");
   if (parts[0] !== "1") {
     console.log("FAIL: split id expected '1', got:");
     console.log(parts[0]);

@@ -1,6 +1,11 @@
-import { compileNative, setSkipSemanticAnalysis, setEmitLLVMOnly, setTargetCpu } from './native-compiler-lib.js';
-import { getDtsContent } from './codegen/stdlib/embedded-dts.js';
-import { ArgumentParser } from '../lib/argparse.js';
+import {
+  compileNative,
+  setSkipSemanticAnalysis,
+  setEmitLLVMOnly,
+  setTargetCpu,
+} from "./native-compiler-lib.js";
+import { getDtsContent } from "./codegen/stdlib/embedded-dts.js";
+import { ArgumentParser } from "../lib/argparse.js";
 
 declare const fs: {
   existsSync(filename: string): boolean;
@@ -22,62 +27,65 @@ declare const child_process: {
   execSync(command: string): number;
 };
 
-const VERSION = '0.1.0';
+const VERSION = "0.1.0";
 
-const parser = new ArgumentParser('chad', 'compile TypeScript to native binaries via LLVM');
-parser.addSubcommand('build', 'Compile to a native binary');
-parser.addSubcommand('run', 'Compile and run');
-parser.addSubcommand('ir', 'Emit LLVM IR only');
-parser.addSubcommand('init', 'Generate starter project');
-parser.addSubcommand('clean', 'Remove the .build directory');
+const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
+parser.addSubcommand("build", "Compile to a native binary");
+parser.addSubcommand("run", "Compile and run");
+parser.addSubcommand("ir", "Emit LLVM IR only");
+parser.addSubcommand("init", "Generate starter project");
+parser.addSubcommand("clean", "Remove the .build directory");
 
-parser.addFlag('version', '', 'Show version');
-parser.addScopedOption('output', 'o', 'Specify output file', '', 'build,run,ir');
-parser.addScopedFlag('verbose', 'v', 'Show compilation steps', 'build,run,ir');
-parser.addScopedFlag('skip-semantic-analysis', '', 'Skip semantic analysis', 'build,run,ir');
-parser.addScopedOption('target-cpu', '', 'Set LLVM target CPU', 'native', 'build,run,ir');
-parser.addPositional('input', 'Input .ts or .js file');
+parser.addFlag("version", "", "Show version");
+parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
+parser.addScopedFlag("verbose", "v", "Show compilation steps", "build,run,ir");
+parser.addScopedFlag("skip-semantic-analysis", "", "Skip semantic analysis", "build,run,ir");
+parser.addScopedOption("target-cpu", "", "Set LLVM target CPU", "native", "build,run,ir");
+parser.addPositional("input", "Input .ts or .js file");
 
 parser.parse(process.argv);
 
-if (parser.getFlag('version')) {
-  console.log('chad ' + VERSION);
+if (parser.getFlag("version")) {
+  console.log("chad " + VERSION);
   process.exit(0);
 }
 
 const command = parser.getSubcommand();
 
-if (command === 'init') {
+if (command === "init") {
   const dtsContent = getDtsContent();
-  if (fs.existsSync('chadscript.d.ts')) {
-    console.log('  skip chadscript.d.ts (already exists)');
+  if (fs.existsSync("chadscript.d.ts")) {
+    console.log("  skip chadscript.d.ts (already exists)");
   } else {
-    fs.writeFileSync('chadscript.d.ts', dtsContent);
-    console.log('  created chadscript.d.ts');
+    fs.writeFileSync("chadscript.d.ts", dtsContent);
+    console.log("  created chadscript.d.ts");
   }
-  if (fs.existsSync('tsconfig.json')) {
-    console.log('  skip tsconfig.json (already exists)');
+  if (fs.existsSync("tsconfig.json")) {
+    console.log("  skip tsconfig.json (already exists)");
   } else {
-    fs.writeFileSync('tsconfig.json', '{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "ES2020",\n    "lib": ["ES2020"],\n    "noEmit": true,\n    "skipLibCheck": true,\n    "strict": true\n  }\n}\n');
-    console.log('  created tsconfig.json');
+    fs.writeFileSync(
+      "tsconfig.json",
+      '{\n  "compilerOptions": {\n    "target": "ES2020",\n    "module": "ES2020",\n    "lib": ["ES2020"],\n    "noEmit": true,\n    "skipLibCheck": true,\n    "strict": true\n  }\n}\n',
+    );
+    console.log("  created tsconfig.json");
   }
-  if (fs.existsSync('hello.ts')) {
-    console.log('  skip hello.ts (already exists)');
+  if (fs.existsSync("hello.ts")) {
+    console.log("  skip hello.ts (already exists)");
   } else {
-    fs.writeFileSync('hello.ts', 'console.log("Hello from ChadScript!");\nprocess.exit(0);\n');
-    console.log('  created hello.ts');
+    fs.writeFileSync("hello.ts", 'console.log("Hello from ChadScript!");\nprocess.exit(0);\n');
+    console.log("  created hello.ts");
   }
-  console.log('');
-  console.log('Ready!');
-  console.log('');
-  console.log('  Try: chad run hello.ts');
+  console.log("");
+  console.log("Ready!");
+  console.log("");
+  console.log("  Try: chad run hello.ts");
   process.exit(0);
 }
 
-if (command === 'clean') {
-  if (fs.existsSync('.build')) {
-    child_process.execSync('rm -rf .build');
-    console.log('removed .build');
+if (command === "clean") {
+  if (fs.existsSync(".build")) {
+    child_process.execSync("rm -rf .build");
+    console.log("removed .build");
   }
   process.exit(0);
 }
@@ -87,65 +95,65 @@ if (command.length === 0) {
   process.exit(0);
 }
 
-if (parser.getFlag('skip-semantic-analysis')) {
+if (parser.getFlag("skip-semantic-analysis")) {
   setSkipSemanticAnalysis(true);
 }
 
-const cpuOpt = parser.getOption('target-cpu');
+const cpuOpt = parser.getOption("target-cpu");
 if (cpuOpt.length > 0) {
   setTargetCpu(cpuOpt);
 }
 
 const inputFile = parser.getPositional(0);
 if (inputFile.length === 0) {
-  console.log('chad: error: no input files');
-  console.log('Usage: chad ' + command + ' [options] <input.ts>');
+  console.log("chad: error: no input files");
+  console.log("Usage: chad " + command + " [options] <input.ts>");
   process.exit(1);
-  throw new Error('unreachable');
+  throw new Error("unreachable");
 }
 
 if (!fs.existsSync(inputFile)) {
-  console.log('chad: error: file not found: ' + inputFile);
+  console.log("chad: error: file not found: " + inputFile);
   process.exit(1);
-  throw new Error('unreachable');
+  throw new Error("unreachable");
 }
 
 let inputForOutput: string = inputFile;
-if (inputForOutput.substr(0, 1) === '/') {
+if (inputForOutput.substr(0, 1) === "/") {
   inputForOutput = path.basename(inputForOutput);
 }
-let outputFile: string = '.build/' + inputForOutput;
-const explicitOutput = parser.getOption('output');
+let outputFile: string = ".build/" + inputForOutput;
+const explicitOutput = parser.getOption("output");
 if (explicitOutput.length > 0) {
   outputFile = explicitOutput;
-} else if (inputForOutput.substr(inputForOutput.length - 3) === '.ts') {
-  outputFile = '.build/' + inputForOutput.substr(0, inputForOutput.length - 3);
-} else if (inputForOutput.substr(inputForOutput.length - 3) === '.js') {
-  outputFile = '.build/' + inputForOutput.substr(0, inputForOutput.length - 3);
+} else if (inputForOutput.substr(inputForOutput.length - 3) === ".ts") {
+  outputFile = ".build/" + inputForOutput.substr(0, inputForOutput.length - 3);
+} else if (inputForOutput.substr(inputForOutput.length - 3) === ".js") {
+  outputFile = ".build/" + inputForOutput.substr(0, inputForOutput.length - 3);
 }
 
 const outputDir = path.dirname(outputFile);
 if (!fs.existsSync(outputDir)) {
-  child_process.execSync('mkdir -p ' + outputDir);
+  child_process.execSync("mkdir -p " + outputDir);
 }
 
-if (command === 'ir') {
+if (command === "ir") {
   setEmitLLVMOnly(true);
 }
 
 compileNative(inputFile, outputFile);
 
-if (command === 'run') {
+if (command === "run") {
   const binPath = path.resolve(outputFile);
   if (!fs.existsSync(binPath)) {
-    console.log('chad: error: compilation produced no binary');
+    console.log("chad: error: compilation produced no binary");
     process.exit(1);
   }
   const rest = parser.getRestArgs();
   let runCmd = binPath;
   let ri = 0;
   while (ri < rest.length) {
-    runCmd = runCmd + ' ' + rest[ri];
+    runCmd = runCmd + " " + rest[ri];
     ri = ri + 1;
   }
   child_process.execSync(runCmd);

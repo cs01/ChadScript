@@ -1,7 +1,21 @@
-import { Expression, ArrayNode, ObjectNode, MapNode, SetNode, StringNode } from '../../ast/types.js';
+import {
+  Expression,
+  ArrayNode,
+  ObjectNode,
+  MapNode,
+  SetNode,
+  StringNode,
+} from "../../ast/types.js";
 
-import { parseMapTypeString, parseSetTypeString } from '../infrastructure/type-system.js';
-import type { IStringGenerator, IStringMapGenerator, IMapGenerator, ISetGenerator, IStringSetGenerator, IArrayGenerator } from '../infrastructure/generator-context.js';
+import { parseMapTypeString, parseSetTypeString } from "../infrastructure/type-system.js";
+import type {
+  IStringGenerator,
+  IStringMapGenerator,
+  IMapGenerator,
+  ISetGenerator,
+  IStringSetGenerator,
+  IArrayGenerator,
+} from "../infrastructure/generator-context.js";
 
 export interface LiteralGeneratorContext {
   nextTemp(): string;
@@ -53,18 +67,24 @@ export class LiteralExpressionGenerator {
    * Converts integers to double via sitofp for consistency with JavaScript semantics
    */
   generateNumber(value: number): string {
-    const isInteger = (value % 1 === 0);
+    const isInteger = value % 1 === 0;
 
     if (isInteger && value >= -9007199254740991 && value <= 9007199254740991) {
       const temp = this.ctx.nextTemp();
       const intStr = value.toFixed(0);
       this.ctx.emit(`${temp} = add i64 ${intStr}, 0`);
-      this.ctx.setVariableType(temp, 'i64');
+      this.ctx.setVariableType(temp, "i64");
       return temp;
     } else {
       const s = String(value);
-      if (!s.includes('.') && !s.includes('e') && !s.includes('E') && !s.includes('inf') && !s.includes('NaN')) {
-        return s + '.0';
+      if (
+        !s.includes(".") &&
+        !s.includes("e") &&
+        !s.includes("E") &&
+        !s.includes("inf") &&
+        !s.includes("NaN")
+      ) {
+        return s + ".0";
       }
       return s;
     }
@@ -78,7 +98,7 @@ export class LiteralExpressionGenerator {
     const boolValue = value ? 1 : 0;
     const temp = this.ctx.nextTemp();
     this.ctx.emit(`${temp} = add i64 ${boolValue}, 0`);
-    this.ctx.setVariableType(temp, 'i64');
+    this.ctx.setVariableType(temp, "i64");
     return temp;
   }
 
@@ -115,15 +135,14 @@ export class LiteralExpressionGenerator {
    * Generate Map literal (delegates to MapGenerator or StringMapGenerator)
    */
   generateMap(expr: MapNode, params: string[]): string {
-
-    if (expr.keyType === 'string') {
+    if (expr.keyType === "string") {
       return this.ctx.stringMapGen.generateEmptyStringMap();
     }
 
     const declaredType = this.ctx.getCurrentDeclaredMapType();
     if (declaredType) {
       const mapParsed = parseMapTypeString(declaredType);
-      if (mapParsed && mapParsed.keyType === 'string') {
+      if (mapParsed && mapParsed.keyType === "string") {
         return this.ctx.stringMapGen.generateEmptyStringMap();
       }
     }
@@ -135,15 +154,14 @@ export class LiteralExpressionGenerator {
    * Generate Set literal (delegates to SetGenerator or StringSetGenerator)
    */
   generateSet(expr: SetNode, params: string[]): string {
-
-    if (expr.valueType === 'string') {
+    if (expr.valueType === "string") {
       return this.ctx.stringSetGen.generateEmptyStringSet();
     }
 
     const declaredType = this.ctx.getCurrentDeclaredSetType();
     if (declaredType) {
       const setParsed = parseSetTypeString(declaredType);
-      if (setParsed && setParsed.valueType === 'string') {
+      if (setParsed && setParsed.valueType === "string") {
         return this.ctx.stringSetGen.generateEmptyStringSet();
       }
     }
@@ -154,20 +172,25 @@ export class LiteralExpressionGenerator {
   /**
    * Generate new expression (delegates to ClassGenerator or built-in types)
    */
-  generateNew(className: string, args: Expression[], params: string[], typeArgs?: string[]): string {
-    if (className === 'Promise') {
+  generateNew(
+    className: string,
+    args: Expression[],
+    params: string[],
+    typeArgs?: string[],
+  ): string {
+    if (className === "Promise") {
       return this.generateNewPromise(args, params);
     }
-    if (className === 'RegExp') {
+    if (className === "RegExp") {
       return this.generateNewRegExp(args, params);
     }
-    if (className === 'Set') {
-      if (typeArgs && typeArgs.length > 0 && typeArgs[0] === 'string') {
+    if (className === "Set") {
+      if (typeArgs && typeArgs.length > 0 && typeArgs[0] === "string") {
         return this.ctx.stringSetGen.generateEmptyStringSet();
       }
-      return this.ctx.setGen.generateSetLiteral({ type: 'set', values: [] }, params);
+      return this.ctx.setGen.generateSetLiteral({ type: "set", values: [] }, params);
     }
-    if (className === 'Uint8Array') {
+    if (className === "Uint8Array") {
       return this.generateNewUint8Array(args, params);
     }
     return this.ctx.classGenGenerateNewExpression(className, args, params);
@@ -181,33 +204,33 @@ export class LiteralExpressionGenerator {
     this.ctx.setUsesPromises(true);
     const promiseResult = this.ctx.nextTemp();
     this.ctx.emit(`${promiseResult} = call %Promise* @__Promise_new()`);
-    this.ctx.setVariableType(promiseResult, '%Promise*');
+    this.ctx.setVariableType(promiseResult, "%Promise*");
     return promiseResult;
   }
 
   generateNewRegExp(args: Expression[], params: string[]): string {
     if (args.length < 1) {
-      throw new Error('new RegExp() requires at least 1 argument');
+      throw new Error("new RegExp() requires at least 1 argument");
     }
 
     const patternArg = args[0] as { type: string; value?: string };
-    const flagsArg = args.length > 1 ? args[1] as { type: string; value?: string } : null;
+    const flagsArg = args.length > 1 ? (args[1] as { type: string; value?: string }) : null;
 
-    let flags = '';
-    if (flagsArg && flagsArg.type === 'string' && flagsArg.value !== undefined) {
+    let flags = "";
+    if (flagsArg && flagsArg.type === "string" && flagsArg.value !== undefined) {
       flags = flagsArg.value;
     }
 
-    if (patternArg.type === 'string' && patternArg.value !== undefined) {
+    if (patternArg.type === "string" && patternArg.value !== undefined) {
       return this.ctx.regexGen.generateRegexCompile(patternArg.value, flags);
     }
 
     const REG_EXTENDED = 1;
     const REG_ICASE = 2;
-    const REG_NEWLINE = process.platform === 'darwin' ? 8 : 4;
+    const REG_NEWLINE = process.platform === "darwin" ? 8 : 4;
     let cflags = REG_EXTENDED;
-    if (flags.indexOf('i') !== -1) cflags = cflags | REG_ICASE;
-    if (flags.indexOf('m') !== -1) cflags = cflags | REG_NEWLINE;
+    if (flags.indexOf("i") !== -1) cflags = cflags | REG_ICASE;
+    if (flags.indexOf("m") !== -1) cflags = cflags | REG_NEWLINE;
 
     const patternPtr = this.ctx.generateExpression(args[0], params);
     return this.ctx.regexGen.generateRegexCompileRuntime(patternPtr, cflags);
@@ -215,7 +238,7 @@ export class LiteralExpressionGenerator {
 
   private generateNewUint8Array(args: Expression[], params: string[]): string {
     if (args.length < 1) {
-      throw new Error('new Uint8Array() requires a size argument');
+      throw new Error("new Uint8Array() requires a size argument");
     }
 
     const sizeValue = this.ctx.generateExpression(args[0], params);
@@ -236,21 +259,29 @@ export class LiteralExpressionGenerator {
 
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = call i8* @GC_malloc_atomic(i64 ${sizeI64})`);
-    this.ctx.emit(`call void @llvm.memset.p0i8.i64(i8* ${dataPtr}, i8 0, i64 ${sizeI64}, i1 false)`);
+    this.ctx.emit(
+      `call void @llvm.memset.p0i8.i64(i8* ${dataPtr}, i8 0, i64 ${sizeI64}, i1 false)`,
+    );
 
     const dataFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 0`);
+    this.ctx.emit(
+      `${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 0`,
+    );
     this.ctx.emit(`store i8* ${dataPtr}, i8** ${dataFieldPtr}`);
 
     const lenFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${lenFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 1`);
+    this.ctx.emit(
+      `${lenFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 1`,
+    );
     this.ctx.emit(`store i32 ${sizeI32}, i32* ${lenFieldPtr}`);
 
     const capFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${capFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 2`);
+    this.ctx.emit(
+      `${capFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 2`,
+    );
     this.ctx.emit(`store i32 ${sizeI32}, i32* ${capFieldPtr}`);
 
-    this.ctx.setVariableType(structPtr, '%Uint8Array*');
+    this.ctx.setVariableType(structPtr, "%Uint8Array*");
     return structPtr;
   }
 
@@ -261,7 +292,7 @@ export class LiteralExpressionGenerator {
   generateThis(): string {
     const thisPtr = this.ctx.getThisPointer();
     if (!thisPtr) {
-      throw new Error('this keyword used outside of class method or constructor');
+      throw new Error("this keyword used outside of class method or constructor");
     }
     return thisPtr;
   }

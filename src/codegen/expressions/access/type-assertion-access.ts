@@ -1,20 +1,20 @@
-import { InterfaceField } from '../../../ast/types.js';
+import { InterfaceField } from "../../../ast/types.js";
 
 export function splitByTopLevelSemicolon(str: string): string[] {
   const parts: string[] = [];
   let depth = 0;
-  let current = '';
+  let current = "";
   for (let i = 0; i < str.length; i++) {
     const char = str.charAt(i);
-    if (char === '{' || char === '(' || char === '<' || char === '[') {
+    if (char === "{" || char === "(" || char === "<" || char === "[") {
       depth++;
       current += char;
-    } else if (char === '}' || char === ')' || char === '>' || char === ']') {
+    } else if (char === "}" || char === ")" || char === ">" || char === "]") {
       depth--;
       current += char;
-    } else if (char === ';' && depth === 0) {
+    } else if (char === ";" && depth === 0) {
       parts.push(current);
-      current = '';
+      current = "";
     } else {
       current += char;
     }
@@ -29,11 +29,11 @@ export function findTopLevelColon(str: string): number {
   let depth = 0;
   for (let i = 0; i < str.length; i++) {
     const char = str.charAt(i);
-    if (char === '{' || char === '(' || char === '<' || char === '[') {
+    if (char === "{" || char === "(" || char === "<" || char === "[") {
       depth++;
-    } else if (char === '}' || char === ')' || char === '>' || char === ']') {
+    } else if (char === "}" || char === ")" || char === ">" || char === "]") {
       depth--;
-    } else if (char === ':' && depth === 0) {
+    } else if (char === ":" && depth === 0) {
       return i;
     }
   }
@@ -41,7 +41,7 @@ export function findTopLevelColon(str: string): number {
 }
 
 export function parseInlineObjectTypeForAssertion(typeStr: string): InterfaceField[] | null {
-  if (!typeStr.startsWith('{') || !typeStr.endsWith('}')) {
+  if (!typeStr.startsWith("{") || !typeStr.endsWith("}")) {
     return null;
   }
   const inner = typeStr.slice(1, typeStr.length - 1).trim();

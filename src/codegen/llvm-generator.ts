@@ -1,46 +1,109 @@
-import { AST, Expression, FunctionNode, BlockStatement, NewNode, CallNode, VariableNode, VariableDeclaration, ObjectNode, ObjectProperty, MethodCallNode, InterfaceDeclaration, InterfaceField, TypeAliasDeclaration, Statement, AssignmentStatement, ImportDeclaration, ImportSpecifier, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, ClassNode, ArrayNode, MapNode, SetNode, ArrowFunctionNode, UnaryNode, IndexAccessNode, AwaitExpressionNode, BinaryNode, SourceLocation } from '../ast/types.js';
-import { BaseGenerator, SymbolKind, SymbolTable } from './infrastructure/base-generator.js';
-import { MapMetadata, SymbolMetadata, createPointerAllocaMetadata, createClassMetadata, createObjectMetadataWithInterface, createInterfaceMetadata, createMapMetadataSymbol, createSetMetadataSymbol, ObjectMetadata } from './infrastructure/symbol-table.js';
-import { TypeInference, TypeInferenceContext } from './infrastructure/type-inference.js';
-import { VariableAllocator, VariableAllocatorContext } from './infrastructure/variable-allocator.js';
-import { FunctionGenerator, FunctionGeneratorContext } from './infrastructure/function-generator.js';
-import { AssignmentGenerator, AssignmentGeneratorContext } from './infrastructure/assignment-generator.js';
-import { getLLVMDeclarations, getSafeStringHelper, getDoubleToStringHelper, getStringHashHelper, getGlobalVariables } from './infrastructure/llvm-declarations.js';
-import { TypeResolver, TypeResolverContext, TypeGuardInfo } from './infrastructure/type-resolver/index.js';
-import { stripOptional, stripNullable, tsTypeToLlvmJson } from './infrastructure/type-system.js';
-import type { ResolvedType } from './infrastructure/type-system.js';
-import { DiagnosticEngine } from '../diagnostics/engine.js';
-import { TypeContext } from './infrastructure/type-context.js';
-import { IGeneratorContext, IArrowFunctionGenerator } from './infrastructure/generator-context.js';
-import { ArrayGenerator } from './types/collections/array.js';
-import { StringGenerator } from './types/collections/string.js';
-import { ObjectGenerator } from './types/objects/object.js';
-import { MapGenerator, StringMapGenerator, PointerMapGenerator } from './types/collections/map.js';
-import { SetGenerator, StringSetGenerator } from './types/collections/set.js';
-import { ControlFlowGenerator } from './statements/control-flow.js';
-import { ClassGenerator } from './types/objects/class.js';
-import { RegexGenerator } from './types/objects/regex.js';
-import { MathGenerator } from './stdlib/math.js';
-import { ConsoleGenerator } from './stdlib/console.js';
-import { ProcessGenerator } from './stdlib/process.js';
-import { PathGenerator } from './stdlib/path.js';
-import { JsonGenerator } from './stdlib/json.js';
-import { DateGenerator } from './stdlib/date.js';
-import { FilesystemGenerator } from './stdlib/fs.js';
-import { ResponseGenerator } from './stdlib/response.js';
-import { CryptoGenerator } from './stdlib/crypto.js';
-import { SqliteGenerator } from './stdlib/sqlite.js';
-import { EmbedGenerator } from './stdlib/embed.js';
-import { RuntimeGenerator } from './runtime/runtime.js';
-import { HttpServerGenerator } from './stdlib/http-server.js';
-import { LibuvGenerator } from './stdlib/libuv.js';
-import { PromiseGenerator } from './stdlib/promise.js';
-import { TreeSitterGenerator } from './stdlib/treesitter.js';
-import { ExpressionGenerator } from './expressions/orchestrator.js';
-import type { TypeChecker } from '../typescript/type-checker.js';
-import { InterfaceStructGenerator } from './types/interface-struct-generator.js';
-import { JsonObjectMeta } from './expressions/access/member.js';
-import type { TargetInfo } from '../target.js';
+import {
+  AST,
+  Expression,
+  FunctionNode,
+  BlockStatement,
+  NewNode,
+  CallNode,
+  VariableNode,
+  VariableDeclaration,
+  ObjectNode,
+  ObjectProperty,
+  MethodCallNode,
+  InterfaceDeclaration,
+  InterfaceField,
+  TypeAliasDeclaration,
+  Statement,
+  AssignmentStatement,
+  ImportDeclaration,
+  ImportSpecifier,
+  IfStatement,
+  WhileStatement,
+  ForStatement,
+  ForOfStatement,
+  TryStatement,
+  ClassNode,
+  ArrayNode,
+  MapNode,
+  SetNode,
+  ArrowFunctionNode,
+  UnaryNode,
+  IndexAccessNode,
+  AwaitExpressionNode,
+  BinaryNode,
+  SourceLocation,
+} from "../ast/types.js";
+import { BaseGenerator, SymbolKind, SymbolTable } from "./infrastructure/base-generator.js";
+import {
+  MapMetadata,
+  SymbolMetadata,
+  createPointerAllocaMetadata,
+  createClassMetadata,
+  createObjectMetadataWithInterface,
+  createInterfaceMetadata,
+  createMapMetadataSymbol,
+  createSetMetadataSymbol,
+  ObjectMetadata,
+} from "./infrastructure/symbol-table.js";
+import { TypeInference, TypeInferenceContext } from "./infrastructure/type-inference.js";
+import {
+  VariableAllocator,
+  VariableAllocatorContext,
+} from "./infrastructure/variable-allocator.js";
+import {
+  FunctionGenerator,
+  FunctionGeneratorContext,
+} from "./infrastructure/function-generator.js";
+import {
+  AssignmentGenerator,
+  AssignmentGeneratorContext,
+} from "./infrastructure/assignment-generator.js";
+import {
+  getLLVMDeclarations,
+  getSafeStringHelper,
+  getDoubleToStringHelper,
+  getStringHashHelper,
+  getGlobalVariables,
+} from "./infrastructure/llvm-declarations.js";
+import {
+  TypeResolver,
+  TypeResolverContext,
+  TypeGuardInfo,
+} from "./infrastructure/type-resolver/index.js";
+import { stripOptional, stripNullable, tsTypeToLlvmJson } from "./infrastructure/type-system.js";
+import type { ResolvedType } from "./infrastructure/type-system.js";
+import { DiagnosticEngine } from "../diagnostics/engine.js";
+import { TypeContext } from "./infrastructure/type-context.js";
+import { IGeneratorContext, IArrowFunctionGenerator } from "./infrastructure/generator-context.js";
+import { ArrayGenerator } from "./types/collections/array.js";
+import { StringGenerator } from "./types/collections/string.js";
+import { ObjectGenerator } from "./types/objects/object.js";
+import { MapGenerator, StringMapGenerator, PointerMapGenerator } from "./types/collections/map.js";
+import { SetGenerator, StringSetGenerator } from "./types/collections/set.js";
+import { ControlFlowGenerator } from "./statements/control-flow.js";
+import { ClassGenerator } from "./types/objects/class.js";
+import { RegexGenerator } from "./types/objects/regex.js";
+import { MathGenerator } from "./stdlib/math.js";
+import { ConsoleGenerator } from "./stdlib/console.js";
+import { ProcessGenerator } from "./stdlib/process.js";
+import { PathGenerator } from "./stdlib/path.js";
+import { JsonGenerator } from "./stdlib/json.js";
+import { DateGenerator } from "./stdlib/date.js";
+import { FilesystemGenerator } from "./stdlib/fs.js";
+import { ResponseGenerator } from "./stdlib/response.js";
+import { CryptoGenerator } from "./stdlib/crypto.js";
+import { SqliteGenerator } from "./stdlib/sqlite.js";
+import { EmbedGenerator } from "./stdlib/embed.js";
+import { RuntimeGenerator } from "./runtime/runtime.js";
+import { HttpServerGenerator } from "./stdlib/http-server.js";
+import { LibuvGenerator } from "./stdlib/libuv.js";
+import { PromiseGenerator } from "./stdlib/promise.js";
+import { TreeSitterGenerator } from "./stdlib/treesitter.js";
+import { ExpressionGenerator } from "./expressions/orchestrator.js";
+import type { TypeChecker } from "../typescript/type-checker.js";
+import { InterfaceStructGenerator } from "./types/interface-struct-generator.js";
+import { JsonObjectMeta } from "./expressions/access/member.js";
+import type { TargetInfo } from "../target.js";
 
 export interface SemaSymbolData {
   names: string[];
@@ -71,10 +134,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public currentDeclaredInterfaceType: string | undefined;
   public currentDeclaredMapType: string | undefined;
   public currentDeclaredSetType: string | undefined;
-  public currentFunctionReturnType: string = 'double';
+  public currentFunctionReturnType: string = "double";
   public currentFunctionTsReturnType: string | undefined;
   public isAsyncFunction: boolean = false;
-  public asyncResultPromise: string = '';
+  public asyncResultPromise: string = "";
 
   // Top-level variables (accessible from all functions)
   private topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>;
@@ -155,10 +218,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public interfaceStructGen: InterfaceStructGenerator;
 
   // Cache for interface struct defs (used at end of generate())
-  private interfaceStructDefsCache: string = '';
+  private interfaceStructDefsCache: string = "";
 
   // Cache for class struct defs (used at end of generate())
-  private classStructDefsCache: string = '';
+  private classStructDefsCache: string = "";
 
   // JSON object metadata for tracking parsed JSON structures
   public jsonObjectMetadata: Map<string, JsonObjectMeta>;
@@ -209,13 +272,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private dbgEscape(s: string): string {
-    let result = '';
+    let result = "";
     for (let i = 0; i < s.length; i++) {
       const c = s[i];
       if (c === '"') {
         result = result + '\\"';
-      } else if (c === '\\') {
-        result = result + '\\\\';
+      } else if (c === "\\") {
+        result = result + "\\\\";
       } else {
         result = result + c;
       }
@@ -226,24 +289,36 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private dbgInit(sourceFilePath: string): void {
     let lastSlash = -1;
     for (let i = 0; i < sourceFilePath.length; i++) {
-      if (sourceFilePath.charAt(i) === '/') {
+      if (sourceFilePath.charAt(i) === "/") {
         lastSlash = i;
       }
     }
     let filename = sourceFilePath;
-    let directory = '.';
+    let directory = ".";
     if (lastSlash >= 0) {
       filename = sourceFilePath.substring(lastSlash + 1);
       directory = sourceFilePath.substring(0, lastSlash);
     }
 
     this.dbgFileId = this.dbgAlloc();
-    this.dbgSetNode(this.dbgFileId, '!' + String(this.dbgFileId) + ' = !DIFile(filename: "' + this.dbgEscape(filename) + '", directory: "' + this.dbgEscape(directory) + '")');
+    this.dbgSetNode(
+      this.dbgFileId,
+      "!" +
+        String(this.dbgFileId) +
+        ' = !DIFile(filename: "' +
+        this.dbgEscape(filename) +
+        '", directory: "' +
+        this.dbgEscape(directory) +
+        '")',
+    );
 
     this.dbgCompileUnitId = this.dbgAlloc();
 
     this.dbgSubroutineTypeId = this.dbgAlloc();
-    this.dbgSetNode(this.dbgSubroutineTypeId, '!' + String(this.dbgSubroutineTypeId) + ' = !DISubroutineType(types: !{})');
+    this.dbgSetNode(
+      this.dbgSubroutineTypeId,
+      "!" + String(this.dbgSubroutineTypeId) + " = !DISubroutineType(types: !{})",
+    );
   }
 
   private dbgCreateSubprogram(name: string, line: number): number {
@@ -252,11 +327,28 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (this.dbgSubprogramNames[i] === name) return this.dbgSubprogramIds[i];
     }
     const id = this.dbgAlloc();
-    this.dbgSetNode(id,
-      '!' + String(id) + ' = distinct !DISubprogram(name: "' + this.dbgEscape(name) + '", ' +
-      'scope: !' + String(this.dbgFileId) + ', file: !' + String(this.dbgFileId) + ', line: ' + String(line) + ', ' +
-      'type: !' + String(this.dbgSubroutineTypeId) + ', isLocal: false, isDefinition: true, ' +
-      'scopeLine: ' + String(line) + ', unit: !' + String(this.dbgCompileUnitId) + ')'
+    this.dbgSetNode(
+      id,
+      "!" +
+        String(id) +
+        ' = distinct !DISubprogram(name: "' +
+        this.dbgEscape(name) +
+        '", ' +
+        "scope: !" +
+        String(this.dbgFileId) +
+        ", file: !" +
+        String(this.dbgFileId) +
+        ", line: " +
+        String(line) +
+        ", " +
+        "type: !" +
+        String(this.dbgSubroutineTypeId) +
+        ", isLocal: false, isDefinition: true, " +
+        "scopeLine: " +
+        String(line) +
+        ", unit: !" +
+        String(this.dbgCompileUnitId) +
+        ")",
     );
     this.dbgSubprogramNames.push(name);
     this.dbgSubprogramIds.push(id);
@@ -265,12 +357,23 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   private dbgCreateLocation(line: number, column: number, scopeId: number): number {
     if (!this.debugInfoEnabled) return -1;
-    const key = String(line) + ':' + String(column) + ':' + String(scopeId);
+    const key = String(line) + ":" + String(column) + ":" + String(scopeId);
     for (let i = 0; i < this.dbgLocationKeys.length; i++) {
       if (this.dbgLocationKeys[i] === key) return this.dbgLocationIds[i];
     }
     const id = this.dbgAlloc();
-    this.dbgSetNode(id, '!' + String(id) + ' = !DILocation(line: ' + String(line) + ', column: ' + String(column) + ', scope: !' + String(scopeId) + ')');
+    this.dbgSetNode(
+      id,
+      "!" +
+        String(id) +
+        " = !DILocation(line: " +
+        String(line) +
+        ", column: " +
+        String(column) +
+        ", scope: !" +
+        String(scopeId) +
+        ")",
+    );
     this.dbgLocationKeys.push(key);
     this.dbgLocationIds.push(id);
     return id;
@@ -280,24 +383,35 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (!this.debugInfoEnabled) return;
 
     this.dbgDwarfVerId = this.dbgAlloc();
-    this.dbgSetNode(this.dbgDwarfVerId, '!' + String(this.dbgDwarfVerId) + ' = !{i32 2, !"Dwarf Version", i32 4}');
+    this.dbgSetNode(
+      this.dbgDwarfVerId,
+      "!" + String(this.dbgDwarfVerId) + ' = !{i32 2, !"Dwarf Version", i32 4}',
+    );
 
     this.dbgDebugInfoVerId = this.dbgAlloc();
-    this.dbgSetNode(this.dbgDebugInfoVerId, '!' + String(this.dbgDebugInfoVerId) + ' = !{i32 2, !"Debug Info Version", i32 3}');
+    this.dbgSetNode(
+      this.dbgDebugInfoVerId,
+      "!" + String(this.dbgDebugInfoVerId) + ' = !{i32 2, !"Debug Info Version", i32 3}',
+    );
 
-    this.dbgSetNode(this.dbgCompileUnitId,
-      '!' + String(this.dbgCompileUnitId) + ' = distinct !DICompileUnit(language: DW_LANG_C99, ' +
-      'file: !' + String(this.dbgFileId) + ', producer: "ChadScript", isOptimized: false, ' +
-      'runtimeVersion: 0, emissionKind: FullDebug)'
+    this.dbgSetNode(
+      this.dbgCompileUnitId,
+      "!" +
+        String(this.dbgCompileUnitId) +
+        " = distinct !DICompileUnit(language: DW_LANG_C99, " +
+        "file: !" +
+        String(this.dbgFileId) +
+        ', producer: "ChadScript", isOptimized: false, ' +
+        "runtimeVersion: 0, emissionKind: FullDebug)",
     );
   }
 
   private dbgGetNumberedMetadata(): string {
-    let result = '';
+    let result = "";
     for (let id = 8; id < this.dbgNextId; id++) {
       for (let i = 0; i < this.dbgNodeKeys.length; i++) {
         if (this.dbgNodeKeys[i] === id) {
-          result = result + this.dbgNodeValues[i] + '\n';
+          result = result + this.dbgNodeValues[i] + "\n";
           break;
         }
       }
@@ -306,16 +420,22 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private dbgGetNamedMetadata(): string {
-    let result = '';
-    result = result + '!llvm.dbg.cu = !{!' + String(this.dbgCompileUnitId) + '}\n';
-    result = result + '!llvm.module.flags = !{!' + String(this.dbgDwarfVerId) + ', !' + String(this.dbgDebugInfoVerId) + '}\n';
+    let result = "";
+    result = result + "!llvm.dbg.cu = !{!" + String(this.dbgCompileUnitId) + "}\n";
+    result =
+      result +
+      "!llvm.module.flags = !{!" +
+      String(this.dbgDwarfVerId) +
+      ", !" +
+      String(this.dbgDebugInfoVerId) +
+      "}\n";
     return result;
   }
 
   public emitError(message: string, loc?: SourceLocation, suggestion?: string): never {
     this.diagnostics.error(message, loc, suggestion);
     const formatted = this.diagnostics.formatDiagnostic(
-      this.diagnostics.getDiagnostics()[this.diagnostics.getDiagnostics().length - 1]
+      this.diagnostics.getDiagnostics()[this.diagnostics.getDiagnostics().length - 1],
     );
     throw new Error(formatted);
   }
@@ -325,14 +445,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private extractInlineInterfaceType(returnType: string): string | null {
-    if (returnType.startsWith('{')) {
+    if (returnType.startsWith("{")) {
       return returnType;
     }
-    if (returnType.indexOf(' | ') !== -1) {
-      const parts = returnType.split(' | ');
+    if (returnType.indexOf(" | ") !== -1) {
+      const parts = returnType.split(" | ");
       for (let i = 0; i < parts.length; i++) {
         const part = parts[i].trim();
-        if (part.startsWith('{')) {
+        if (part.startsWith("{")) {
           return part;
         }
       }
@@ -488,7 +608,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           const implName = cls.implements[j];
           if (!implName) continue;
           if (implName === interfaceName) {
-            if (cls.name.indexOf('Mock') !== -1 || cls.name.indexOf('Test') !== -1) {
+            if (cls.name.indexOf("Mock") !== -1 || cls.name.indexOf("Test") !== -1) {
               continue;
             }
             if (implementingClass !== null) {
@@ -502,15 +622,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (implementingClass) {
       return implementingClass;
     }
-    if (interfaceName.endsWith('Context') || interfaceName.endsWith('Like')) {
+    if (interfaceName.endsWith("Context") || interfaceName.endsWith("Like")) {
       for (let i = 0; i < this.ast.classes.length; i++) {
         const cls = this.ast.classes[i];
         if (!cls) continue;
         if (!cls.name) continue;
         if (cls.implements) {
           for (let j = 0; j < cls.implements.length; j++) {
-            if (cls.implements[j] === 'IGeneratorContext') {
-              if (cls.name.indexOf('Mock') === -1 && cls.name.indexOf('Test') === -1) {
+            if (cls.implements[j] === "IGeneratorContext") {
+              if (cls.name.indexOf("Mock") === -1 && cls.name.indexOf("Test") === -1) {
                 return cls.name;
               }
             }
@@ -523,8 +643,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   public getInterfaceProperties(name: string): { keys: string[]; types: string[] } | null {
     if (!this.ast || !this.ast.interfaces) return null;
-    const baseName = name.endsWith('?') ? name.slice(0, -1) : name;
-    const cleanName = baseName.indexOf(' | ') !== -1 ? baseName.split(' | ')[0] : baseName;
+    const baseName = name.endsWith("?") ? name.slice(0, -1) : name;
+    const cleanName = baseName.indexOf(" | ") !== -1 ? baseName.split(" | ")[0] : baseName;
     const keys: string[] = [];
     const types: string[] = [];
     for (let i = 0; i < this.ast.interfaces.length; i++) {
@@ -536,7 +656,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           const field = iface.fields[j] as InterfaceField;
           if (!field) continue;
           let fieldName = field.name;
-          if (fieldName.endsWith('?')) {
+          if (fieldName.endsWith("?")) {
             fieldName = fieldName.slice(0, -1);
           }
           keys.push(fieldName);
@@ -619,7 +739,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public getInterfaceFieldType(interfaceName: string, fieldName: string): string | null {
-    if (interfaceName.startsWith('{') && interfaceName.endsWith('}')) {
+    if (interfaceName.startsWith("{") && interfaceName.endsWith("}")) {
       return null;
     }
     if (!this.ast || !this.ast.interfaces) return null;
@@ -632,7 +752,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           const f = iface.fields[j] as InterfaceField;
           if (!f) continue;
           let fName = f.name;
-          if (fName.endsWith('?')) {
+          if (fName.endsWith("?")) {
             fName = fName.slice(0, -1);
           }
           if (fName === fieldName) {
@@ -698,9 +818,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public getLastInstruction(): string {
-    if (this.output.length === 0) return '';
+    if (this.output.length === 0) return "";
     const last = this.output[this.output.length - 1];
-    return last ? last.trim() : '';
+    return last ? last.trim() : "";
   }
 
   public getBlockStatementsLength(block: BlockStatement): number {
@@ -720,40 +840,96 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public getStatementType(stmt: Statement | null): string {
-    if (!stmt) return '';
+    if (!stmt) return "";
     const stmtTyped = stmt as { type: string };
     const theType = stmtTyped.type;
-    return theType || '';
+    return theType || "";
   }
 
-  public hasClassGen(): boolean { return this.classGen !== null && this.classGen !== undefined; }
+  public hasClassGen(): boolean {
+    return this.classGen !== null && this.classGen !== undefined;
+  }
 
-  public setCurrentFunction(name: string | null): void { this.currentFunction = name; }
-  public getCurrentFunction(): string | null { return this.currentFunction; }
-  public setCurrentFunctionReturnType(type: string): void { this.currentFunctionReturnType = type; }
-  public getCurrentFunctionReturnType(): string { return this.currentFunctionReturnType; }
-  public setCurrentFunctionTsReturnType(type: string | undefined): void { this.currentFunctionTsReturnType = type; }
-  public getCurrentFunctionTsReturnType(): string | undefined { return this.currentFunctionTsReturnType; }
-  public getI64EligibleVars(): string[] { return this.i64EligibleVars; }
-  public setI64EligibleVars(vars: string[]): void { this.i64EligibleVars = vars; }
-  public setExpectedArrayElementType(type: 'string' | 'number' | 'boolean' | 'pointer' | null): void { this.expectedArrayElementType = type; }
-  public getExpectedArrayElementType(): 'string' | 'number' | 'boolean' | 'pointer' | null { return this.expectedArrayElementType; }
-  public setCurrentDeclaredMapType(type: string | undefined): void { this.currentDeclaredMapType = type; }
-  public getCurrentDeclaredMapType(): string | undefined { return this.currentDeclaredMapType; }
-  public setCurrentDeclaredSetType(type: string | undefined): void { this.currentDeclaredSetType = type; }
-  public getCurrentDeclaredSetType(): string | undefined { return this.currentDeclaredSetType; }
-  public setUsesPromises(value: boolean): void { this.usesPromises = value ? 1 : 0; }
-  public getUsesPromises(): boolean { return this.usesPromises !== 0; }
-  public setUsesTimers(value: boolean): void { this.usesTimers = value ? 1 : 0; }
-  public getUsesTimers(): boolean { return this.usesTimers !== 0; }
-  public setUsesTreeSitter(value: boolean): void { this.usesTreeSitter = value; }
-  public getUsesTreeSitter(): boolean { return this.usesTreeSitter; }
-  public setUsesSqlite(value: boolean): void { this.usesSqlite = value ? 1 : 0; }
-  public getUsesSqlite(): boolean { return this.usesSqlite !== 0; }
-  public setUsesCurl(value: boolean): void { this.usesCurl = value ? 1 : 0; }
-  public getUsesCurl(): boolean { return this.usesCurl !== 0; }
-  public setUsesUvHrtime(value: boolean): void { this.usesUvHrtime = value ? 1 : 0; }
-  public getUsesUvHrtime(): boolean { return this.usesUvHrtime !== 0; }
+  public setCurrentFunction(name: string | null): void {
+    this.currentFunction = name;
+  }
+  public getCurrentFunction(): string | null {
+    return this.currentFunction;
+  }
+  public setCurrentFunctionReturnType(type: string): void {
+    this.currentFunctionReturnType = type;
+  }
+  public getCurrentFunctionReturnType(): string {
+    return this.currentFunctionReturnType;
+  }
+  public setCurrentFunctionTsReturnType(type: string | undefined): void {
+    this.currentFunctionTsReturnType = type;
+  }
+  public getCurrentFunctionTsReturnType(): string | undefined {
+    return this.currentFunctionTsReturnType;
+  }
+  public getI64EligibleVars(): string[] {
+    return this.i64EligibleVars;
+  }
+  public setI64EligibleVars(vars: string[]): void {
+    this.i64EligibleVars = vars;
+  }
+  public setExpectedArrayElementType(
+    type: "string" | "number" | "boolean" | "pointer" | null,
+  ): void {
+    this.expectedArrayElementType = type;
+  }
+  public getExpectedArrayElementType(): "string" | "number" | "boolean" | "pointer" | null {
+    return this.expectedArrayElementType;
+  }
+  public setCurrentDeclaredMapType(type: string | undefined): void {
+    this.currentDeclaredMapType = type;
+  }
+  public getCurrentDeclaredMapType(): string | undefined {
+    return this.currentDeclaredMapType;
+  }
+  public setCurrentDeclaredSetType(type: string | undefined): void {
+    this.currentDeclaredSetType = type;
+  }
+  public getCurrentDeclaredSetType(): string | undefined {
+    return this.currentDeclaredSetType;
+  }
+  public setUsesPromises(value: boolean): void {
+    this.usesPromises = value ? 1 : 0;
+  }
+  public getUsesPromises(): boolean {
+    return this.usesPromises !== 0;
+  }
+  public setUsesTimers(value: boolean): void {
+    this.usesTimers = value ? 1 : 0;
+  }
+  public getUsesTimers(): boolean {
+    return this.usesTimers !== 0;
+  }
+  public setUsesTreeSitter(value: boolean): void {
+    this.usesTreeSitter = value;
+  }
+  public getUsesTreeSitter(): boolean {
+    return this.usesTreeSitter;
+  }
+  public setUsesSqlite(value: boolean): void {
+    this.usesSqlite = value ? 1 : 0;
+  }
+  public getUsesSqlite(): boolean {
+    return this.usesSqlite !== 0;
+  }
+  public setUsesCurl(value: boolean): void {
+    this.usesCurl = value ? 1 : 0;
+  }
+  public getUsesCurl(): boolean {
+    return this.usesCurl !== 0;
+  }
+  public setUsesUvHrtime(value: boolean): void {
+    this.usesUvHrtime = value ? 1 : 0;
+  }
+  public getUsesUvHrtime(): boolean {
+    return this.usesUvHrtime !== 0;
+  }
 
   public getTargetOS(): string {
     return this.targetInfo ? this.targetInfo.os : process.platform;
@@ -762,32 +938,88 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getTargetArch(): string {
     return this.targetInfo ? this.targetInfo.archString : process.arch;
   }
-  public setUsesCrypto(value: boolean): void { this.usesCrypto = value ? 1 : 0; }
-  public getUsesCrypto(): boolean { return this.usesCrypto !== 0; }
-  public setUsesJson(value: boolean): void { this.usesJson = value ? 1 : 0; }
-  public getUsesJson(): boolean { return this.usesJson !== 0; }
-  public setUsesMongoose(value: boolean): void { this.usesMongoose = value ? 1 : 0; }
-  public getUsesMongoose(): boolean { return this.usesMongoose !== 0; }
-  public setUsesRegex(value: boolean): void { this.usesRegex = value ? 1 : 0; }
-  public getUsesRegex(): boolean { return this.usesRegex !== 0; }
-  public setUsesTestRunner(value: boolean): void { this.usesTestRunner = value ? 1 : 0; }
-  public getUsesTestRunner(): boolean { return this.usesTestRunner !== 0; }
-  public setCurrentDeclaredInterfaceType(type: string | undefined): void { this.currentDeclaredInterfaceType = type; }
-  public getCurrentDeclaredInterfaceType(): string | undefined { return this.currentDeclaredInterfaceType; }
-  public setExpectedCallbackParamType(type: string | null): void { this.expectedCallbackParamType = type; }
-  public getExpectedCallbackParamType(): string | null { return this.expectedCallbackParamType; }
-  public setExpectedCallbackReturnType(type: string | null): void { this.expectedCallbackReturnType = type; }
-  public getExpectedCallbackReturnType(): string | null { return this.expectedCallbackReturnType; }
-  public setIsAsyncFunction(value: boolean): void { this.isAsyncFunction = value; }
-  public setAsyncResultPromise(value: string): void { this.asyncResultPromise = value; }
-  public getAsyncResultPromise(): string { return this.asyncResultPromise; }
-  public getAllocaInstructions(): string[] { return this.allocaInstructions; }
-  public clearAllocaInstructions(): void { this.allocaInstructions.length = 0; }
-  public getOutput(): string[] { return this.output; }
-  public clearOutput(): void { this.output.length = 0; this.outputIsTerminator.length = 0; this.stringBuilderSlen.clear(); this.stringBuilderScap.clear(); }
-  public pushOutput(line: string): void { this.output.push(line); this.outputIsTerminator.push(this.classifyTerminator(line)); }
-  public getOutputLength(): number { return this.output.length; }
-  public getOutputLine(index: number): string { return this.output[index] || ''; }
+  public setUsesCrypto(value: boolean): void {
+    this.usesCrypto = value ? 1 : 0;
+  }
+  public getUsesCrypto(): boolean {
+    return this.usesCrypto !== 0;
+  }
+  public setUsesJson(value: boolean): void {
+    this.usesJson = value ? 1 : 0;
+  }
+  public getUsesJson(): boolean {
+    return this.usesJson !== 0;
+  }
+  public setUsesMongoose(value: boolean): void {
+    this.usesMongoose = value ? 1 : 0;
+  }
+  public getUsesMongoose(): boolean {
+    return this.usesMongoose !== 0;
+  }
+  public setUsesRegex(value: boolean): void {
+    this.usesRegex = value ? 1 : 0;
+  }
+  public getUsesRegex(): boolean {
+    return this.usesRegex !== 0;
+  }
+  public setUsesTestRunner(value: boolean): void {
+    this.usesTestRunner = value ? 1 : 0;
+  }
+  public getUsesTestRunner(): boolean {
+    return this.usesTestRunner !== 0;
+  }
+  public setCurrentDeclaredInterfaceType(type: string | undefined): void {
+    this.currentDeclaredInterfaceType = type;
+  }
+  public getCurrentDeclaredInterfaceType(): string | undefined {
+    return this.currentDeclaredInterfaceType;
+  }
+  public setExpectedCallbackParamType(type: string | null): void {
+    this.expectedCallbackParamType = type;
+  }
+  public getExpectedCallbackParamType(): string | null {
+    return this.expectedCallbackParamType;
+  }
+  public setExpectedCallbackReturnType(type: string | null): void {
+    this.expectedCallbackReturnType = type;
+  }
+  public getExpectedCallbackReturnType(): string | null {
+    return this.expectedCallbackReturnType;
+  }
+  public setIsAsyncFunction(value: boolean): void {
+    this.isAsyncFunction = value;
+  }
+  public setAsyncResultPromise(value: string): void {
+    this.asyncResultPromise = value;
+  }
+  public getAsyncResultPromise(): string {
+    return this.asyncResultPromise;
+  }
+  public getAllocaInstructions(): string[] {
+    return this.allocaInstructions;
+  }
+  public clearAllocaInstructions(): void {
+    this.allocaInstructions.length = 0;
+  }
+  public getOutput(): string[] {
+    return this.output;
+  }
+  public clearOutput(): void {
+    this.output.length = 0;
+    this.outputIsTerminator.length = 0;
+    this.stringBuilderSlen.clear();
+    this.stringBuilderScap.clear();
+  }
+  public pushOutput(line: string): void {
+    this.output.push(line);
+    this.outputIsTerminator.push(this.classifyTerminator(line));
+  }
+  public getOutputLength(): number {
+    return this.output.length;
+  }
+  public getOutputLine(index: number): string {
+    return this.output[index] || "";
+  }
   public setOutputLine(index: number, line: string): void {
     const newOutput: string[] = [];
     const newIsTerminator: boolean[] = [];
@@ -807,9 +1039,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       this.outputIsTerminator.push(newIsTerminator[i]);
     }
   }
-  public getGlobalStringsLength(): number { return this.globalStrings.length; }
-  public getGlobalStringAt(index: number): string { return this.globalStrings[index] || ''; }
-  public clearGlobalStrings(): void { this.globalStrings.length = 0; }
+  public getGlobalStringsLength(): number {
+    return this.globalStrings.length;
+  }
+  public getGlobalStringAt(index: number): string {
+    return this.globalStrings[index] || "";
+  }
+  public clearGlobalStrings(): void {
+    this.globalStrings.length = 0;
+  }
   public getOutputAsIndentedString(indent: string): string {
     const lines: string[] = [];
     for (let i = 0; i < this.output.length; i++) {
@@ -820,34 +1058,118 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         lines.push(indent);
       }
     }
-    return lines.join('\n');
+    return lines.join("\n");
   }
 
-  public typeResolverGetInterface(name: string): InterfaceDeclaration | null { return this.typeResolver ? this.typeResolver.getInterface(name) : null; }
-  public typeResolverGetInterfaceProperty(interfaceName: string, propName: string): InterfaceField | null { return this.typeResolver ? this.typeResolver.getInterfaceProperty(interfaceName, propName) : null; }
-  public typeResolverGetTypeAlias(name: string): TypeAliasDeclaration | null { return this.typeResolver ? this.typeResolver.getTypeAlias(name) : null; }
-  public typeResolverGetMapGetInterfaceType(expr: Expression): string | null { return this.typeResolver ? this.typeResolver.getMapGetInterfaceType(expr) : null; }
-  public typeResolverGetUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] } { return this.typeResolver ? this.typeResolver.getUnionCommonFields(memberNames) : { keys: [], types: [] }; }
-  public typeResolverAreTypesCompatible(type1: string, type2: string): boolean { return this.typeResolver ? this.typeResolver.areTypesCompatible(type1, type2) : false; }
-  public typeResolverNormalizeType(type: string): string { return this.typeResolver ? this.typeResolver.normalizeType(type) : type; }
-  public typeResolverResolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null { return this.typeResolver ? this.typeResolver.resolveArrayMethodReturnType(expr) : null; }
-  public typeResolverDetectTypeGuard(condition: Expression): TypeGuardInfo | null { return this.typeResolver ? this.typeResolver.detectTypeGuard(condition) : null; }
-  public typeResolverFindInterfaceByDiscriminant(discriminantValue: string): string | null { return this.typeResolver ? this.typeResolver.findInterfaceByDiscriminant(discriminantValue) : null; }
-  public typeResolverGetThisFieldMapKeyType(expr: Expression): string | null { return this.typeResolver ? this.typeResolver.getThisFieldMapKeyType(expr) : null; }
-  public typeResolverGetThisFieldSetValueType(expr: Expression): string | null { return this.typeResolver ? this.typeResolver.getThisFieldSetValueType(expr) : null; }
-  public typeResolverGetClassFieldMapType(className: string, fieldName: string): { keyType: string; valueType: string } | null { return this.typeResolver ? this.typeResolver.getClassFieldMapType(className, fieldName) : null; }
-  public typeResolverGetInterfaceMetadata(name: string): { keys: string[]; types: string[]; tsTypes?: string[] } | null { return this.typeResolver ? this.typeResolver.getInterfaceMetadata(name) : null; }
+  public typeResolverGetInterface(name: string): InterfaceDeclaration | null {
+    return this.typeResolver ? this.typeResolver.getInterface(name) : null;
+  }
+  public typeResolverGetInterfaceProperty(
+    interfaceName: string,
+    propName: string,
+  ): InterfaceField | null {
+    return this.typeResolver
+      ? this.typeResolver.getInterfaceProperty(interfaceName, propName)
+      : null;
+  }
+  public typeResolverGetTypeAlias(name: string): TypeAliasDeclaration | null {
+    return this.typeResolver ? this.typeResolver.getTypeAlias(name) : null;
+  }
+  public typeResolverGetMapGetInterfaceType(expr: Expression): string | null {
+    return this.typeResolver ? this.typeResolver.getMapGetInterfaceType(expr) : null;
+  }
+  public typeResolverGetUnionCommonFields(memberNames: string[]): {
+    keys: string[];
+    types: string[];
+  } {
+    return this.typeResolver
+      ? this.typeResolver.getUnionCommonFields(memberNames)
+      : { keys: [], types: [] };
+  }
+  public typeResolverAreTypesCompatible(type1: string, type2: string): boolean {
+    return this.typeResolver ? this.typeResolver.areTypesCompatible(type1, type2) : false;
+  }
+  public typeResolverNormalizeType(type: string): string {
+    return this.typeResolver ? this.typeResolver.normalizeType(type) : type;
+  }
+  public typeResolverResolveArrayMethodReturnType(expr: Expression): ObjectMetadata | null {
+    return this.typeResolver ? this.typeResolver.resolveArrayMethodReturnType(expr) : null;
+  }
+  public typeResolverDetectTypeGuard(condition: Expression): TypeGuardInfo | null {
+    return this.typeResolver ? this.typeResolver.detectTypeGuard(condition) : null;
+  }
+  public typeResolverFindInterfaceByDiscriminant(discriminantValue: string): string | null {
+    return this.typeResolver
+      ? this.typeResolver.findInterfaceByDiscriminant(discriminantValue)
+      : null;
+  }
+  public typeResolverGetThisFieldMapKeyType(expr: Expression): string | null {
+    return this.typeResolver ? this.typeResolver.getThisFieldMapKeyType(expr) : null;
+  }
+  public typeResolverGetThisFieldSetValueType(expr: Expression): string | null {
+    return this.typeResolver ? this.typeResolver.getThisFieldSetValueType(expr) : null;
+  }
+  public typeResolverGetClassFieldMapType(
+    className: string,
+    fieldName: string,
+  ): { keyType: string; valueType: string } | null {
+    return this.typeResolver ? this.typeResolver.getClassFieldMapType(className, fieldName) : null;
+  }
+  public typeResolverGetInterfaceMetadata(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes?: string[] } | null {
+    return this.typeResolver ? this.typeResolver.getInterfaceMetadata(name) : null;
+  }
 
-  public interfaceStructGenHasInterface(name: string): boolean { return this.interfaceStructGen ? this.interfaceStructGen.hasInterface(name) : false; }
+  public interfaceStructGenHasInterface(name: string): boolean {
+    return this.interfaceStructGen ? this.interfaceStructGen.hasInterface(name) : false;
+  }
 
-  public classGenGetFieldInfo(className: string | null, fieldName: string | null): { index: number; type: string; tsType?: string } | null { if (!className || !fieldName) return null; return this.classGen.getFieldInfo(className, fieldName); }
-  public classGenGetFieldType(className: string, fieldName: string): string | null { return this.classGen.getFieldType(className, fieldName); }
-  public classGenGetFieldTsType(className: string, fieldName: string): string | null { return this.classGen.getFieldTsType(className, fieldName); }
-  public classGenGetClassFields(className: string): { name: string; fieldType: string }[] { return this.classGen.getClassFields(className); }
-  public classGenGenerateNewExpression(className: string, args: Expression[], params: string[]): string { return this.classGen.generateNewExpression(className, args, params); }
-  public classGenGenerateMethodCall(instancePtr: string, className: string, method: string, args: Expression[], params: string[]): string { return this.classGen.generateMethodCall(instancePtr, className, method, args, params); }
-  public interfaceStructGenGetInterfaceStruct(name: string): { name: string; llvmType: string; fields: { name: string; tsType: string; llvmType: string }[]; isBuiltinConflict: boolean } | undefined { return this.interfaceStructGen ? this.interfaceStructGen.getInterfaceStruct(name) : undefined; }
-  public interfaceStructGenGetStructSize(interfaceName: string): number { return this.interfaceStructGen ? this.interfaceStructGen.getStructSize(interfaceName) : 0; }
+  public classGenGetFieldInfo(
+    className: string | null,
+    fieldName: string | null,
+  ): { index: number; type: string; tsType?: string } | null {
+    if (!className || !fieldName) return null;
+    return this.classGen.getFieldInfo(className, fieldName);
+  }
+  public classGenGetFieldType(className: string, fieldName: string): string | null {
+    return this.classGen.getFieldType(className, fieldName);
+  }
+  public classGenGetFieldTsType(className: string, fieldName: string): string | null {
+    return this.classGen.getFieldTsType(className, fieldName);
+  }
+  public classGenGetClassFields(className: string): { name: string; fieldType: string }[] {
+    return this.classGen.getClassFields(className);
+  }
+  public classGenGenerateNewExpression(
+    className: string,
+    args: Expression[],
+    params: string[],
+  ): string {
+    return this.classGen.generateNewExpression(className, args, params);
+  }
+  public classGenGenerateMethodCall(
+    instancePtr: string,
+    className: string,
+    method: string,
+    args: Expression[],
+    params: string[],
+  ): string {
+    return this.classGen.generateMethodCall(instancePtr, className, method, args, params);
+  }
+  public interfaceStructGenGetInterfaceStruct(name: string):
+    | {
+        name: string;
+        llvmType: string;
+        fields: { name: string; tsType: string; llvmType: string }[];
+        isBuiltinConflict: boolean;
+      }
+    | undefined {
+    return this.interfaceStructGen ? this.interfaceStructGen.getInterfaceStruct(name) : undefined;
+  }
+  public interfaceStructGenGetStructSize(interfaceName: string): number {
+    return this.interfaceStructGen ? this.interfaceStructGen.getStructSize(interfaceName) : 0;
+  }
   public interfaceStructGenGetFieldCount(interfaceName: string): number {
     if (!this.interfaceStructGen) return 0;
     const info = this.interfaceStructGen.getInterfaceStruct(interfaceName);
@@ -855,27 +1177,27 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return info.fields.length;
   }
   public interfaceStructGenGetFieldName(interfaceName: string, fieldIndex: number): string {
-    if (!this.interfaceStructGen) return '';
+    if (!this.interfaceStructGen) return "";
     const info = this.interfaceStructGen.getInterfaceStruct(interfaceName);
-    if (!info || fieldIndex < 0 || fieldIndex >= info.fields.length) return '';
+    if (!info || fieldIndex < 0 || fieldIndex >= info.fields.length) return "";
     return info.fields[fieldIndex].name;
   }
   public interfaceStructGenGetFieldTsType(interfaceName: string, fieldIndex: number): string {
-    if (!this.interfaceStructGen) return '';
+    if (!this.interfaceStructGen) return "";
     const info = this.interfaceStructGen.getInterfaceStruct(interfaceName);
-    if (!info || fieldIndex < 0 || fieldIndex >= info.fields.length) return '';
+    if (!info || fieldIndex < 0 || fieldIndex >= info.fields.length) return "";
     return info.fields[fieldIndex].tsType;
   }
   public interfaceStructGenGetFieldLlvmType(interfaceName: string, fieldIndex: number): string {
-    if (!this.interfaceStructGen) return '';
+    if (!this.interfaceStructGen) return "";
     const info = this.interfaceStructGen.getInterfaceStruct(interfaceName);
-    if (!info || fieldIndex < 0 || fieldIndex >= info.fields.length) return '';
+    if (!info || fieldIndex < 0 || fieldIndex >= info.fields.length) return "";
     return info.fields[fieldIndex].llvmType;
   }
 
   // Helper: Extract object literal metadata (public for context pattern access)
   public getObjectMetadata(objExpr: ObjectNode): { keys: string[]; types: string[] } {
-    if (!objExpr || objExpr.type !== 'object') {
+    if (!objExpr || objExpr.type !== "object") {
       return { keys: [], types: [] };
     }
 
@@ -892,22 +1214,22 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
       const propValue = prop.value as Expression;
       if (!propValue) {
-        llvmType = 'double';
+        llvmType = "double";
       } else {
         const propValueTyped = propValue as { type: string };
         const propValueType = propValueTyped.type;
-        if (propValueType === 'string' || this.isStringExpression(propValue)) {
-          llvmType = 'i8*';
-        } else if (propValueType === 'array' || this.isStringArrayExpression(propValue)) {
-          llvmType = this.isStringArrayExpression(propValue) ? '%StringArray*' : '%Array*';
+        if (propValueType === "string" || this.isStringExpression(propValue)) {
+          llvmType = "i8*";
+        } else if (propValueType === "array" || this.isStringArrayExpression(propValue)) {
+          llvmType = this.isStringArrayExpression(propValue) ? "%StringArray*" : "%Array*";
         } else if (this.isArrayExpression(propValue)) {
-          llvmType = '%Array*';
-        } else if (propValueType === 'map') {
-          llvmType = '%Map*';
-        } else if (propValueType === 'set') {
-          llvmType = '%Set*';
+          llvmType = "%Array*";
+        } else if (propValueType === "map") {
+          llvmType = "%Map*";
+        } else if (propValueType === "set") {
+          llvmType = "%Set*";
         } else {
-          llvmType = 'double';
+          llvmType = "double";
         }
       }
 
@@ -926,8 +1248,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private typeAliasesCount: number = 0;
 
   private usesTreeSitter: boolean = false;
-  public sourceCode: string = '';
-  public filename: string = '';
+  public sourceCode: string = "";
+  public filename: string = "";
 
   constructor(ast: AST, typeChecker: TypeChecker | null, options: LLVMGeneratorOptions) {
     super();
@@ -964,8 +1286,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     const ifaceCount = ast.interfaces.length;
     this.typeChecker = typeChecker;
-    this.sourceCode = options.sourceCode || '';
-    this.filename = options.filename || '';
+    this.sourceCode = options.sourceCode || "";
+    this.filename = options.filename || "";
     this.targetInfo = options.target;
 
     this.diagnostics = new DiagnosticEngine();
@@ -1086,7 +1408,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     const topLevelNames: string[] = [];
     for (let i = 0; i < this.topLevelStatementsCount; i++) {
       const stmt = this.ast.topLevelStatements[i];
-      if (stmt.type === 'variable_declaration') {
+      if (stmt.type === "variable_declaration") {
         const decl = stmt as VariableDeclaration;
         if (decl.name) {
           topLevelNames.push(decl.name);
@@ -1096,7 +1418,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     for (let ti = 0; ti < topLevelNames.length; ti++) {
       const name = topLevelNames[ti];
-      if (name === 'console' || name === 'process' || name === 'Math' || name === 'JSON' || name === 'Date') continue;
+      if (
+        name === "console" ||
+        name === "process" ||
+        name === "Math" ||
+        name === "JSON" ||
+        name === "Date"
+      )
+        continue;
 
       let semaIdx = -1;
       for (let si = 0; si < this.semaSymbolCount; si++) {
@@ -1108,39 +1437,39 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (semaIdx === -1) continue;
 
       const stype = this.semaSymbolTypes[semaIdx];
-      if (stype === 'null' || stype === 'undefined' || stype === 'unknown') continue;
+      if (stype === "null" || stype === "undefined" || stype === "unknown") continue;
 
       let kind: number = -1;
-      let llvmType = '';
+      let llvmType = "";
 
-      if (stype === 'number') {
+      if (stype === "number") {
         kind = SymbolKind.Number;
-        llvmType = 'double';
-      } else if (stype === 'string') {
+        llvmType = "double";
+      } else if (stype === "string") {
         kind = SymbolKind.String;
-        llvmType = 'i8*';
-      } else if (stype === 'boolean') {
+        llvmType = "i8*";
+      } else if (stype === "boolean") {
         kind = SymbolKind.Boolean;
-        llvmType = 'double';
-      } else if (stype === 'array<number>') {
+        llvmType = "double";
+      } else if (stype === "array<number>") {
         kind = SymbolKind.Array;
-        llvmType = '%Array*';
-      } else if (stype === 'array<string>') {
+        llvmType = "%Array*";
+      } else if (stype === "array<string>") {
         kind = SymbolKind.StringArray;
-        llvmType = '%StringArray*';
-      } else if (stype === 'object') {
+        llvmType = "%StringArray*";
+      } else if (stype === "object") {
         kind = SymbolKind.Object;
-        llvmType = 'i8*';
-      } else if (stype === 'class') {
+        llvmType = "i8*";
+      } else if (stype === "class") {
         kind = SymbolKind.Class;
-        llvmType = 'i8*';
+        llvmType = "i8*";
       }
 
       if (kind === -1) continue;
 
       const schemaKeys = this.semaSymbolSchemaKeys[semaIdx];
       const schemaTypes = this.semaSymbolSchemaTypes[semaIdx];
-      if (stype === 'object' && schemaKeys && schemaTypes) {
+      if (stype === "object" && schemaKeys && schemaTypes) {
         const metadata: SymbolMetadata = {
           objectMetadata: { keys: schemaKeys, types: schemaTypes },
           classMetadata: undefined,
@@ -1153,11 +1482,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           interfaceType: undefined,
           resolvedType: undefined,
           unionType: undefined,
-          unionMembers: undefined
+          unionMembers: undefined,
         };
-        this.symbolTable.defineWithMetadata(name, kind, llvmType, '', 'global', metadata);
+        this.symbolTable.defineWithMetadata(name, kind, llvmType, "", "global", metadata);
       } else {
-        this.symbolTable.define(name, kind, llvmType, '', 'global');
+        this.symbolTable.define(name, kind, llvmType, "", "global");
       }
     }
   }
@@ -1183,31 +1512,31 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   mangleUserName(name: string): string {
-    if (name.startsWith('__')) return name;
+    if (name.startsWith("__")) return name;
     return `_cs_${name}`;
   }
 
   createEmptyStringConstant(): string {
-    return this.stringGen.doCreateStringConstant('');
+    return this.stringGen.doCreateStringConstant("");
   }
 
   getSubprogramDbgRef(): string {
     if (this.debugInfoEnabled && this.currentSubprogramId >= 0) {
       return ` !dbg !${this.currentSubprogramId}`;
     }
-    return '';
+    return "";
   }
 
   reset(): void {
     this.tempCounter = 0;
     this.labelCounter = 0;
-    this.currentLabel = 'entry';
+    this.currentLabel = "entry";
     this.output.length = 0;
     this.outputIsTerminator.length = 0;
     this.outputCount = 0;
     this.thisPointer = null;
     this.currentClassName = null;
-    this.currentFunctionReturnType = 'double';
+    this.currentFunctionReturnType = "double";
     this.symbolTable.clearLocals();
     this.variableTypes.clear();
     this.expressionTypes.clear();
@@ -1268,19 +1597,25 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private generateGlobalVariableDeclarations(): string {
-    let ir = '';
+    let ir = "";
     const totalCount = this.topLevelStatementsCount;
     if (totalCount === 0) {
       return ir;
     }
     const items = this.ast.topLevelStatements;
     for (let stmtIdx = 0; stmtIdx < totalCount; stmtIdx++) {
-      const stmt = items[stmtIdx] as { type: string; kind: string; name: string; value: Expression | null; declaredType?: string };
-      if (stmt.type !== 'variable_declaration') continue;
+      const stmt = items[stmtIdx] as {
+        type: string;
+        kind: string;
+        name: string;
+        value: Expression | null;
+        declaredType?: string;
+      };
+      if (stmt.type !== "variable_declaration") continue;
       if (stmt.value !== null) {
         const name = stmt.name;
 
-        if ((stmt.value as { type: string }).type === 'call') {
+        if ((stmt.value as { type: string }).type === "call") {
           const callNode = stmt.value as { type: string; name: string };
           if (callNode.name) {
             let handled = false;
@@ -1289,27 +1624,53 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               if (!fn) continue;
               if (fn.name === callNode.name && fn.returnType) {
                 const rt = fn.returnType;
-                if (rt === 'string') {
-                  ir += `@${name} = global i8* null` + '\n';
-                  this.globalVariables.set(name, { llvmType: 'i8*', kind: SymbolKind.String, initialized: false });
-                  this.defineVariable(name, `@${name}`, 'i8*', SymbolKind.String, 'global');
+                if (rt === "string") {
+                  ir += `@${name} = global i8* null` + "\n";
+                  this.globalVariables.set(name, {
+                    llvmType: "i8*",
+                    kind: SymbolKind.String,
+                    initialized: false,
+                  });
+                  this.defineVariable(name, `@${name}`, "i8*", SymbolKind.String, "global");
                   handled = true;
                   break;
                 }
                 const iface = this.getInterfaceDeclByName(rt);
                 if (iface) {
-                  ir += `@${name} = global i8* null` + '\n';
-                  this.globalVariables.set(name, { llvmType: 'i8*', kind: SymbolKind.Object, initialized: false });
-                  this.defineVariableWithMetadata(name, `@${name}`, 'i8*', SymbolKind.Object, 'global', createInterfaceMetadata(rt));
+                  ir += `@${name} = global i8* null` + "\n";
+                  this.globalVariables.set(name, {
+                    llvmType: "i8*",
+                    kind: SymbolKind.Object,
+                    initialized: false,
+                  });
+                  this.defineVariableWithMetadata(
+                    name,
+                    `@${name}`,
+                    "i8*",
+                    SymbolKind.Object,
+                    "global",
+                    createInterfaceMetadata(rt),
+                  );
                   handled = true;
                   break;
                 }
                 if (this.isTypeAlias(rt)) {
                   const commonProps = this.getTypeAliasCommonProperties(rt);
                   if (commonProps) {
-                    ir += `@${name} = global i8* null` + '\n';
-                    this.globalVariables.set(name, { llvmType: 'i8*', kind: SymbolKind.Object, initialized: false });
-                    this.defineVariableWithMetadata(name, `@${name}`, 'i8*', SymbolKind.Object, 'global', createObjectMetadataWithInterface(commonProps, rt));
+                    ir += `@${name} = global i8* null` + "\n";
+                    this.globalVariables.set(name, {
+                      llvmType: "i8*",
+                      kind: SymbolKind.Object,
+                      initialized: false,
+                    });
+                    this.defineVariableWithMetadata(
+                      name,
+                      `@${name}`,
+                      "i8*",
+                      SymbolKind.Object,
+                      "global",
+                      createObjectMetadataWithInterface(commonProps, rt),
+                    );
                     handled = true;
                     break;
                   }
@@ -1336,46 +1697,61 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         if (resolved) {
           const base = resolved.base;
           const depth = resolved.arrayDepth;
-          isString = base === 'string' && depth === 0;
-          isStringArray = base === 'string' && depth > 0;
-          isObjectArray = depth > 0 && base !== 'string' && base !== 'number' && base !== 'boolean';
-          isArray = depth > 0 && (base === 'number' || base === 'boolean');
-          isMap = base === 'Map' || base.startsWith('Map<');
-          isSet = base === 'Set' || base.startsWith('Set<');
-          isRegex = base === 'RegExp';
-          isObject = base === 'object' && depth === 0;
-          isBoolean = base === 'boolean' && depth === 0;
-          isUint8Array = base === 'Uint8Array' && depth === 0;
-          isClassInstance = !isRegex && depth === 0 &&
-                            base !== 'string' && base !== 'number' && base !== 'boolean' &&
-                            base !== 'void' && base !== 'null' && base !== 'unknown' &&
-                            base !== 'object' && base !== 'Promise' && base !== 'Response' &&
-                            !base.startsWith('Map') && !base.startsWith('Set') &&
-                            this.isKnownClass(base);
+          isString = base === "string" && depth === 0;
+          isStringArray = base === "string" && depth > 0;
+          isObjectArray = depth > 0 && base !== "string" && base !== "number" && base !== "boolean";
+          isArray = depth > 0 && (base === "number" || base === "boolean");
+          isMap = base === "Map" || base.startsWith("Map<");
+          isSet = base === "Set" || base.startsWith("Set<");
+          isRegex = base === "RegExp";
+          isObject = base === "object" && depth === 0;
+          isBoolean = base === "boolean" && depth === 0;
+          isUint8Array = base === "Uint8Array" && depth === 0;
+          isClassInstance =
+            !isRegex &&
+            depth === 0 &&
+            base !== "string" &&
+            base !== "number" &&
+            base !== "boolean" &&
+            base !== "void" &&
+            base !== "null" &&
+            base !== "unknown" &&
+            base !== "object" &&
+            base !== "Promise" &&
+            base !== "Response" &&
+            !base.startsWith("Map") &&
+            !base.startsWith("Set") &&
+            this.isKnownClass(base);
         }
-        if (!isStringArray && stmt.declaredType === 'string[]') {
+        if (!isStringArray && stmt.declaredType === "string[]") {
           isStringArray = true;
         }
-        if (!isObjectArray && stmt.declaredType && stmt.declaredType.endsWith('[]') &&
-            stmt.declaredType !== 'string[]' && stmt.declaredType !== 'number[]' && stmt.declaredType !== 'boolean[]') {
+        if (
+          !isObjectArray &&
+          stmt.declaredType &&
+          stmt.declaredType.endsWith("[]") &&
+          stmt.declaredType !== "string[]" &&
+          stmt.declaredType !== "number[]" &&
+          stmt.declaredType !== "boolean[]"
+        ) {
           isObjectArray = true;
         }
         const isJSONParse = this.typeInference.isJSONParseExpression(stmt.value);
 
-        let llvmType: string = '';
+        let llvmType: string = "";
         let kind: number = SymbolKind.Number;
-        let defaultValue: string = '0.0';
+        let defaultValue: string = "0.0";
 
         if (isString) {
-          llvmType = 'i8*';
+          llvmType = "i8*";
           kind = SymbolKind.String;
-          defaultValue = 'null';
+          defaultValue = "null";
         } else if (isStringArray) {
-          llvmType = '%StringArray';
+          llvmType = "%StringArray";
           kind = SymbolKind.StringArray;
-          defaultValue = 'zeroinitializer';
+          defaultValue = "zeroinitializer";
         } else if (isObjectArray) {
-          let elementType = '';
+          let elementType = "";
           if (stmt.declaredType) {
             const declType = stmt.declaredType;
             const typeLen = declType.length;
@@ -1383,122 +1759,169 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               elementType = declType.substr(0, typeLen - 2);
             }
           }
-          llvmType = '%ObjectArray*';
+          llvmType = "%ObjectArray*";
           kind = SymbolKind.ObjectArray;
-          defaultValue = 'null';
-          ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+          defaultValue = "null";
+          ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
           this.globalVariables.set(name, { llvmType, kind, initialized: false });
           if (elementType) {
-            this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(elementType));
+            this.defineVariableWithMetadata(
+              name,
+              `@${name}`,
+              llvmType,
+              kind,
+              "global",
+              createInterfaceMetadata(elementType),
+            );
             this.symbolTable.setRawInterfaceType(name, elementType);
           } else {
-            this.defineVariable(name, `@${name}`, llvmType, kind, 'global');
+            this.defineVariable(name, `@${name}`, llvmType, kind, "global");
           }
           continue;
         } else if (isArray) {
-          llvmType = '%Array';
+          llvmType = "%Array";
           kind = SymbolKind.Array;
-          defaultValue = 'zeroinitializer';
+          defaultValue = "zeroinitializer";
         } else if (isObject) {
-          llvmType = 'i8*';
+          llvmType = "i8*";
           kind = SymbolKind.Object;
-          defaultValue = 'null';
+          defaultValue = "null";
           const objMeta = this.getObjectMetadata(stmt.value as ObjectNode);
           if (objMeta && objMeta.keys.length > 0) {
             const interfaceName = stmt.declaredType || undefined;
-            ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+            ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
-            this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createObjectMetadataWithInterface({ keys: objMeta.keys, types: objMeta.types }, interfaceName || ''));
+            this.defineVariableWithMetadata(
+              name,
+              `@${name}`,
+              llvmType,
+              kind,
+              "global",
+              createObjectMetadataWithInterface(
+                { keys: objMeta.keys, types: objMeta.types },
+                interfaceName || "",
+              ),
+            );
             continue;
           }
         } else if (isMap) {
           let isStringMap = false;
           if (stmt.declaredType) {
             const dt = stmt.declaredType;
-            if (dt.indexOf('Map<string') !== -1) {
+            if (dt.indexOf("Map<string") !== -1) {
               isStringMap = true;
             }
           }
           if (isStringMap) {
-            llvmType = '%StringMap';
+            llvmType = "%StringMap";
             kind = SymbolKind.Map;
-            defaultValue = 'zeroinitializer';
-            ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+            defaultValue = "zeroinitializer";
+            ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
-            this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createMapMetadataSymbol({
-              keyType: 'string',
-              valueType: 'string',
-              llvmKeyType: 'i8*',
-              llvmValueType: 'i8*'
-            }));
+            this.defineVariableWithMetadata(
+              name,
+              `@${name}`,
+              llvmType,
+              kind,
+              "global",
+              createMapMetadataSymbol({
+                keyType: "string",
+                valueType: "string",
+                llvmKeyType: "i8*",
+                llvmValueType: "i8*",
+              }),
+            );
             continue;
           }
-          llvmType = '%Map';
+          llvmType = "%Map";
           kind = SymbolKind.Map;
-          defaultValue = 'zeroinitializer';
+          defaultValue = "zeroinitializer";
         } else if (isSet) {
           let isStringSet = false;
           if (stmt.declaredType) {
-            if (stmt.declaredType.indexOf('Set<string') !== -1) {
+            if (stmt.declaredType.indexOf("Set<string") !== -1) {
               isStringSet = true;
             }
           }
           if (!isStringSet && stmt.value) {
             const resolved = this.typeInference.resolveExpressionType(stmt.value);
-            if (resolved && resolved.base === 'Set<string>') {
+            if (resolved && resolved.base === "Set<string>") {
               isStringSet = true;
             }
           }
           if (isStringSet) {
-            llvmType = '%StringSet';
+            llvmType = "%StringSet";
             kind = SymbolKind.Set;
-            defaultValue = 'zeroinitializer';
-            ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+            defaultValue = "zeroinitializer";
+            ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
-            this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createSetMetadataSymbol({
-              valueType: 'string',
-              llvmValueType: 'i8*'
-            }));
+            this.defineVariableWithMetadata(
+              name,
+              `@${name}`,
+              llvmType,
+              kind,
+              "global",
+              createSetMetadataSymbol({
+                valueType: "string",
+                llvmValueType: "i8*",
+              }),
+            );
             continue;
           }
-          llvmType = '%Set';
+          llvmType = "%Set";
           kind = SymbolKind.Set;
-          defaultValue = 'zeroinitializer';
+          defaultValue = "zeroinitializer";
         } else if (isRegex) {
-          llvmType = 'i8*';
+          llvmType = "i8*";
           kind = SymbolKind.Regex;
-          defaultValue = 'null';
+          defaultValue = "null";
         } else if (isUint8Array) {
-          llvmType = '%Uint8Array*';
+          llvmType = "%Uint8Array*";
           kind = SymbolKind.Uint8Array;
-          defaultValue = 'null';
-          ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+          defaultValue = "null";
+          ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
           this.globalVariables.set(name, { llvmType, kind, initialized: false });
-          this.defineVariable(name, `@${name}`, llvmType, kind, 'global');
+          this.defineVariable(name, `@${name}`, llvmType, kind, "global");
           continue;
         } else if (isClassInstance) {
           const className = (stmt.value as NewNode).className;
-          const fields = this.classGen ? (this.classGen.getClassFields(className) || []) : [];
-          llvmType = fields.length > 0 ? `%${className}_struct*` : 'i32*';
+          const fields = this.classGen ? this.classGen.getClassFields(className) || [] : [];
+          llvmType = fields.length > 0 ? `%${className}_struct*` : "i32*";
           kind = SymbolKind.Class;
-          defaultValue = 'null';
-          ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+          defaultValue = "null";
+          ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
           this.globalVariables.set(name, { llvmType, kind, initialized: false });
-          this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createClassMetadata({ className }));
+          this.defineVariableWithMetadata(
+            name,
+            `@${name}`,
+            llvmType,
+            kind,
+            "global",
+            createClassMetadata({ className }),
+          );
           continue;
         } else if (isBoolean) {
-          llvmType = 'double';
+          llvmType = "double";
           kind = SymbolKind.Boolean;
-          defaultValue = '0.0';
+          defaultValue = "0.0";
         } else if (isJSONParse) {
-          const interfaceName = this.typeInference.getJSONParseInterface(stmt.value as MethodCallNode);
-          if (interfaceName === 'number[]') {
-            llvmType = '%Array*';
+          const interfaceName = this.typeInference.getJSONParseInterface(
+            stmt.value as MethodCallNode,
+          );
+          if (interfaceName === "number[]") {
+            llvmType = "%Array*";
             kind = SymbolKind.Array;
-            defaultValue = 'null';
-            ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+            defaultValue = "null";
+            ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
-            this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createPointerAllocaMetadata());
+            this.defineVariableWithMetadata(
+              name,
+              `@${name}`,
+              llvmType,
+              kind,
+              "global",
+              createPointerAllocaMetadata(),
+            );
             continue;
           } else if (interfaceName) {
             let interfaceDef: InterfaceDeclaration | null = null;
@@ -1514,7 +1937,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             if (interfaceDef) {
               llvmType = `%${interfaceName}*`;
               kind = SymbolKind.JSON;
-              defaultValue = 'null';
+              defaultValue = "null";
               const keys: string[] = [];
               const tsTypes: string[] = [];
               const types: string[] = [];
@@ -1524,23 +1947,30 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                 tsTypes.push(field.type);
                 types.push(this.tsTypeToLlvmJsonWithEnums(field.type));
               }
-              ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+              ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName));
+              this.defineVariableWithMetadata(
+                name,
+                `@${name}`,
+                llvmType,
+                kind,
+                "global",
+                createObjectMetadataWithInterface({ keys, types, tsTypes }, interfaceName),
+              );
               continue;
             }
           }
-          llvmType = 'i8*';
+          llvmType = "i8*";
           kind = SymbolKind.JSON;
-          defaultValue = 'null';
+          defaultValue = "null";
         } else {
           const stmtTyped = stmt as { declaredType?: string };
           if (stmtTyped.declaredType) {
             const strippedDeclaredType = stripNullable(stmtTyped.declaredType);
-            if (strippedDeclaredType === 'string') {
-              llvmType = 'i8*';
+            if (strippedDeclaredType === "string") {
+              llvmType = "i8*";
               kind = SymbolKind.String;
-              defaultValue = 'null';
+              defaultValue = "null";
             } else {
               let foundInterface = false;
               for (let i = 0; i < this.ast.interfaces.length; i++) {
@@ -1553,74 +1983,104 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                 }
               }
               if (foundInterface) {
-                llvmType = 'i8*';
+                llvmType = "i8*";
                 kind = SymbolKind.Object;
-                defaultValue = 'null';
-                ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+                defaultValue = "null";
+                ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
                 this.globalVariables.set(name, { llvmType, kind, initialized: false });
-                this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(strippedDeclaredType));
+                this.defineVariableWithMetadata(
+                  name,
+                  `@${name}`,
+                  llvmType,
+                  kind,
+                  "global",
+                  createInterfaceMetadata(strippedDeclaredType),
+                );
                 continue;
               } else {
-                llvmType = 'double';
+                llvmType = "double";
                 kind = SymbolKind.Number;
-                defaultValue = '0.0';
+                defaultValue = "0.0";
               }
             }
           } else {
-            const funcReturnInterface = this.typeInference.getFunctionCallInterfaceReturn(stmt.value);
+            const funcReturnInterface = this.typeInference.getFunctionCallInterfaceReturn(
+              stmt.value,
+            );
             if (funcReturnInterface) {
-              llvmType = 'i8*';
+              llvmType = "i8*";
               kind = SymbolKind.Object;
-              defaultValue = 'null';
-              ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+              defaultValue = "null";
+              ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(funcReturnInterface));
+              this.defineVariableWithMetadata(
+                name,
+                `@${name}`,
+                llvmType,
+                kind,
+                "global",
+                createInterfaceMetadata(funcReturnInterface),
+              );
               continue;
             }
             const indexAccessInterface = this.typeInference.getIndexAccessElementType(stmt.value);
             if (indexAccessInterface) {
-              llvmType = 'i8*';
+              llvmType = "i8*";
               kind = SymbolKind.Object;
-              defaultValue = 'null';
-              ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+              defaultValue = "null";
+              ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
               this.globalVariables.set(name, { llvmType, kind, initialized: false });
-              this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(indexAccessInterface));
+              this.defineVariableWithMetadata(
+                name,
+                `@${name}`,
+                llvmType,
+                kind,
+                "global",
+                createInterfaceMetadata(indexAccessInterface),
+              );
               continue;
             }
-            if (stmt.value && (stmt.value as { type: string }).type === 'index_access') {
+            if (stmt.value && (stmt.value as { type: string }).type === "index_access") {
               const idxNode = stmt.value as IndexAccessNode;
               const idxObjBase = idxNode.object as { type: string };
-              if (idxObjBase && idxObjBase.type === 'variable') {
+              if (idxObjBase && idxObjBase.type === "variable") {
                 const idxObjVar = idxNode.object as VariableNode;
                 if (idxObjVar.name) {
                   const arrSym = this.symbolTable.lookup(idxObjVar.name);
                   if (arrSym && arrSym.kind === SymbolKind.ObjectArray && arrSym.interfaceType) {
-                    llvmType = 'i8*';
+                    llvmType = "i8*";
                     kind = SymbolKind.Object;
-                    defaultValue = 'null';
-                    ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+                    defaultValue = "null";
+                    ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
                     this.globalVariables.set(name, { llvmType, kind, initialized: false });
-                    this.defineVariableWithMetadata(name, `@${name}`, llvmType, kind, 'global', createInterfaceMetadata(arrSym.interfaceType));
+                    this.defineVariableWithMetadata(
+                      name,
+                      `@${name}`,
+                      llvmType,
+                      kind,
+                      "global",
+                      createInterfaceMetadata(arrSym.interfaceType),
+                    );
                     continue;
                   }
                 }
               }
             }
-            if (llvmType === '') {
-              llvmType = 'double';
+            if (llvmType === "") {
+              llvmType = "double";
               kind = SymbolKind.Number;
-              defaultValue = '0.0';
+              defaultValue = "0.0";
             }
           }
         }
 
-        ir += `@${name} = global ${llvmType} ${defaultValue}` + '\n';
+        ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
         this.globalVariables.set(name, { llvmType, kind, initialized: false });
-        this.defineVariable(name, `@${name}`, llvmType, kind, 'global');
+        this.defineVariable(name, `@${name}`, llvmType, kind, "global");
       }
     }
     if (ir.length > 0) {
-      ir += '\n';
+      ir += "\n";
     }
     return ir;
   }
@@ -1650,7 +2110,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
    */
   generate(): string {
     const parts = this.generateParts();
-    return parts.join('');
+    return parts.join("");
   }
 
   generateParts(): string[] {
@@ -1663,20 +2123,30 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.classStructDefsCache = classStructDefs;
 
     const safeStr = getSafeStringHelper();
-    if (safeStr) { irParts.push(safeStr); }
+    if (safeStr) {
+      irParts.push(safeStr);
+    }
     const dblToStr = getDoubleToStringHelper();
-    if (dblToStr) { irParts.push(dblToStr); }
+    if (dblToStr) {
+      irParts.push(dblToStr);
+    }
     const strHash = getStringHashHelper();
-    if (strHash) { irParts.push(strHash); }
+    if (strHash) {
+      irParts.push(strHash);
+    }
 
     irParts.push(this.fsGen.generateReaddirSyncHelper());
     irParts.push(this.fsGen.generateStatSyncHelper());
 
     const globalVars = getGlobalVariables();
-    if (globalVars) { irParts.push(globalVars); }
+    if (globalVars) {
+      irParts.push(globalVars);
+    }
 
     const globalVarDecls = this.generateGlobalVariableDeclarations();
-    if (globalVarDecls) { irParts.push(globalVarDecls); }
+    if (globalVarDecls) {
+      irParts.push(globalVarDecls);
+    }
 
     for (let classIdx = 0; classIdx < this.classesCount; classIdx++) {
       const classNode = this.ast.classes[classIdx];
@@ -1685,7 +2155,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const classIr = this.classGen.generateClass(classNode);
       if (classIr) {
         irParts.push(classIr);
-        irParts.push('\n');
+        irParts.push("\n");
       }
     }
 
@@ -1695,7 +2165,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const funcIr = this.generateFunction(func);
       if (funcIr) {
         userFuncParts.push(funcIr);
-        userFuncParts.push('\n');
+        userFuncParts.push("\n");
       }
     }
 
@@ -1707,7 +2177,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const liftedIr = this.generateFunction(func);
       if (liftedIr) {
         irParts.push(liftedIr);
-        irParts.push('\n');
+        irParts.push("\n");
       }
     }
 
@@ -1717,56 +2187,85 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       irParts.push(userFuncParts[ufi]);
     }
 
-    if (mainIr) { irParts.push(mainIr); }
+    if (mainIr) {
+      irParts.push(mainIr);
+    }
 
     if (this.httpHandlers.length > 0) {
-      irParts.push('\n');
+      irParts.push("\n");
       const wsHandler = this.wsHandlers.length > 0 ? this.wsHandlers[0] : undefined;
       const mangledHttpHandler = this.mangleUserName(this.httpHandlers[0]);
       const mangledWsHandler = wsHandler ? this.mangleUserName(wsHandler) : undefined;
       const httpServe = this.httpServerGen.generateHttpServeFunction(mangledWsHandler);
-      if (httpServe) { irParts.push(httpServe); }
-      irParts.push('\n');
-      const eventHandler = this.httpServerGen.generateEventHandler(mangledHttpHandler, mangledWsHandler);
-      if (eventHandler) { irParts.push(eventHandler); }
+      if (httpServe) {
+        irParts.push(httpServe);
+      }
+      irParts.push("\n");
+      const eventHandler = this.httpServerGen.generateEventHandler(
+        mangledHttpHandler,
+        mangledWsHandler,
+      );
+      if (eventHandler) {
+        irParts.push(eventHandler);
+      }
       if (wsHandler) {
-        irParts.push('\n');
+        irParts.push("\n");
         irParts.push(this.httpServerGen.generateWsBroadcastFunction());
       }
     }
 
     if (this.usesTimers) {
-      irParts.push('\n');
+      irParts.push("\n");
       const timerCb = this.libuvGen.generateTimerCallbackWrapper();
-      if (timerCb) { irParts.push(timerCb); }
+      if (timerCb) {
+        irParts.push(timerCb);
+      }
       const setTimeout = this.libuvGen.generateSetTimeout();
-      if (setTimeout) { irParts.push(setTimeout); }
+      if (setTimeout) {
+        irParts.push(setTimeout);
+      }
       const setInterval = this.libuvGen.generateSetInterval();
-      if (setInterval) { irParts.push(setInterval); }
+      if (setInterval) {
+        irParts.push(setInterval);
+      }
       const clearTimer = this.libuvGen.generateClearTimer();
-      if (clearTimer) { irParts.push(clearTimer); }
+      if (clearTimer) {
+        irParts.push(clearTimer);
+      }
       const runLoop = this.libuvGen.generateRunEventLoop();
-      if (runLoop) { irParts.push(runLoop); }
+      if (runLoop) {
+        irParts.push(runLoop);
+      }
     }
 
     if (this.usesPromises) {
-      irParts.push('\n');
+      irParts.push("\n");
       const promiseAll = this.promiseGen.generateAll();
-      if (promiseAll) { irParts.push(promiseAll); }
+      if (promiseAll) {
+        irParts.push(promiseAll);
+      }
       if (this.usesCurl) {
         const fetchCallbacks = this.libuvGen.generateFetchWorkCallbacks();
-        if (fetchCallbacks) { irParts.push(fetchCallbacks); }
+        if (fetchCallbacks) {
+          irParts.push(fetchCallbacks);
+        }
         const fetchAsync = this.libuvGen.generateFetchAsync();
-        if (fetchAsync) { irParts.push(fetchAsync); }
+        if (fetchAsync) {
+          irParts.push(fetchAsync);
+        }
       }
       const promiseAwait = this.libuvGen.generatePromiseAwait();
-      if (promiseAwait) { irParts.push(promiseAwait); }
+      if (promiseAwait) {
+        irParts.push(promiseAwait);
+      }
     }
 
     if (this.usesTreeSitter) {
       const tsDecls = this.treesitterGen.generateDeclarations();
-      if (tsDecls) { irParts.push(tsDecls); }
-      irParts.push('\n');
+      if (tsDecls) {
+        irParts.push(tsDecls);
+      }
+      irParts.push("\n");
     }
 
     if (this.embedGen.hasEmbeddedFiles()) {
@@ -1781,71 +2280,91 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (this.targetInfo) {
       finalParts.push('target triple = "' + this.targetInfo.triple + '"\n');
       finalParts.push('target datalayout = "' + this.targetInfo.dataLayout + '"\n');
-      finalParts.push('\n');
+      finalParts.push("\n");
     }
 
-    finalParts.push('; Tree-sitter type definitions\n');
-    finalParts.push('%TSParser = type opaque\n');
-    finalParts.push('%TSTree = type opaque\n');
-    finalParts.push('%TSLanguage = type opaque\n');
-    finalParts.push('%TSNode = type { [4 x i32], i8*, %TSTree* }\n');
-    finalParts.push('%TSPoint = type { i32, i32 }\n\n');
+    finalParts.push("; Tree-sitter type definitions\n");
+    finalParts.push("%TSParser = type opaque\n");
+    finalParts.push("%TSTree = type opaque\n");
+    finalParts.push("%TSLanguage = type opaque\n");
+    finalParts.push("%TSNode = type { [4 x i32], i8*, %TSTree* }\n");
+    finalParts.push("%TSPoint = type { i32, i32 }\n\n");
 
     if (this.interfaceStructDefsCache) {
       finalParts.push(this.interfaceStructDefsCache);
-      finalParts.push('\n');
+      finalParts.push("\n");
     }
 
     if (this.classStructDefsCache) {
       finalParts.push(this.classStructDefsCache);
-      finalParts.push('\n');
+      finalParts.push("\n");
     }
 
     if (envStructDefs) {
       finalParts.push(envStructDefs);
-      finalParts.push('\n');
+      finalParts.push("\n");
     }
 
     if (this.globalStrings.length > 0) {
       for (let gsi = 0; gsi < this.globalStrings.length; gsi++) {
         finalParts.push(this.globalStrings[gsi]);
-        finalParts.push('\n');
+        finalParts.push("\n");
       }
-      finalParts.push('\n');
+      finalParts.push("\n");
     }
 
-    finalParts.push(getLLVMDeclarations({ curl: this.usesCurl !== 0, crypto: this.usesCrypto !== 0, sqlite: this.usesSqlite !== 0, testRunner: this.usesTestRunner !== 0, targetOS: this.getTargetOS() }));
+    finalParts.push(
+      getLLVMDeclarations({
+        curl: this.usesCurl !== 0,
+        crypto: this.usesCrypto !== 0,
+        sqlite: this.usesSqlite !== 0,
+        testRunner: this.usesTestRunner !== 0,
+        targetOS: this.getTargetOS(),
+      }),
+    );
 
     if (this.usesCurl) {
       const fetchRuntime = this.runtimeGen.generateFetchRuntime();
-      if (fetchRuntime) { finalParts.push(fetchRuntime); }
+      if (fetchRuntime) {
+        finalParts.push(fetchRuntime);
+      }
       const statusTextRuntime = this.responseGen.generateStatusTextRuntime();
-      if (statusTextRuntime) { finalParts.push(statusTextRuntime); }
-      finalParts.push('\n');
+      if (statusTextRuntime) {
+        finalParts.push(statusTextRuntime);
+      }
+      finalParts.push("\n");
     }
 
     if (this.usesJson) {
       const jsonRuntime = this.runtimeGen.generateJSONRuntime();
-      if (jsonRuntime) { finalParts.push(jsonRuntime); }
-      finalParts.push('\n');
+      if (jsonRuntime) {
+        finalParts.push(jsonRuntime);
+      }
+      finalParts.push("\n");
     }
 
     if (this.usesMongoose) {
       const httpServerDecls = this.httpServerGen.generateDeclarations();
-      if (httpServerDecls) { finalParts.push(httpServerDecls); }
-      finalParts.push('\n');
+      if (httpServerDecls) {
+        finalParts.push(httpServerDecls);
+      }
+      finalParts.push("\n");
     }
 
     if (needsLibuv) {
       const libuvDecls = this.libuvGen.generateDeclarations(this.usesCurl !== 0);
-      if (libuvDecls) { finalParts.push(libuvDecls); }
-      finalParts.push('\n');
+      if (libuvDecls) {
+        finalParts.push(libuvDecls);
+      }
+      finalParts.push("\n");
     }
 
     if (needsPromise) {
       const promiseDecls = this.promiseGen.generateDeclarations();
-      if (promiseDecls) { finalParts.push(promiseDecls); }
-      finalParts.push('\n');
+      if (promiseDecls) {
+        finalParts.push(promiseDecls);
+      }
+      finalParts.push("\n");
     }
 
     if (this.usesCrypto) {
@@ -1870,21 +2389,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push(irParts[ipi]);
     }
 
-    finalParts.push('\n; TBAA metadata for alias analysis\n');
+    finalParts.push("\n; TBAA metadata for alias analysis\n");
     finalParts.push('!0 = !{!"ChadScript TBAA Root"}\n');
     finalParts.push('!1 = !{!"omnipotent char", !0, i64 0}\n');
     finalParts.push('!2 = !{!"double", !1, i64 0}\n');
     finalParts.push('!3 = !{!"any pointer", !1, i64 0}\n');
-    finalParts.push('!4 = !{!2, !2, i64 0}\n');
-    finalParts.push('!5 = !{!3, !3, i64 0}\n');
+    finalParts.push("!4 = !{!2, !2, i64 0}\n");
+    finalParts.push("!5 = !{!3, !3, i64 0}\n");
     finalParts.push('!6 = !{!"int", !1, i64 0}\n');
-    finalParts.push('!7 = !{!6, !6, i64 0}\n');
+    finalParts.push("!7 = !{!6, !6, i64 0}\n");
 
     if (this.debugInfoEnabled) {
       this.dbgFinalize();
-      finalParts.push('\n; Debug metadata\n');
+      finalParts.push("\n; Debug metadata\n");
       finalParts.push(this.dbgGetNumberedMetadata());
-      finalParts.push('\n');
+      finalParts.push("\n");
       finalParts.push(this.dbgGetNamedMetadata());
     }
 
@@ -1966,7 +2485,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (arrayAllocaReg) {
       if (this.symbolTable.isPointerAlloca(stmtName)) {
         const isStringArr = this.symbolTable.isStringArray(stmtName);
-        const arrayType = isStringArr ? '%StringArray' : '%Array';
+        const arrayType = isStringArr ? "%StringArray" : "%Array";
         let pointerValue = value;
         const valueType = this.getVariableType(value);
         if (valueType !== `${arrayType}*`) {
@@ -1987,16 +2506,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (!allocaReg) {
       throw new Error(`Unknown variable: ${stmtName}`);
     }
-    const varType = this.getVariableType(stmtName) || 'double';
+    const varType = this.getVariableType(stmtName) || "double";
     const valueType = this.getVariableType(value);
     let coercedValue = value;
-    if (varType === 'double' && valueType === 'i64') {
+    if (varType === "double" && valueType === "i64") {
       coercedValue = this.ensureDouble(value);
-    } else if (varType === 'i64' && valueType !== 'i64') {
-      if (valueType === 'double' || !valueType) {
+    } else if (varType === "i64" && valueType !== "i64") {
+      if (valueType === "double" || !valueType) {
         const temp = this.nextTemp();
         this.emit(`${temp} = fptosi double ${value} to i64`);
-        this.setVariableType(temp, 'i64');
+        this.setVariableType(temp, "i64");
         coercedValue = temp;
       }
     }
@@ -2011,8 +2530,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return stmt.value;
   }
 
-  private handleSimpleAssignmentWithFields(stmtName: string, stmtValue: Expression, params: string[]): void {
-    if (this.symbolTable.isString(stmtName) && stmtValue.type === 'binary') {
+  private handleSimpleAssignmentWithFields(
+    stmtName: string,
+    stmtValue: Expression,
+    params: string[],
+  ): void {
+    if (this.symbolTable.isString(stmtName) && stmtValue.type === "binary") {
       const pieces = this.flattenStringAppendChain(stmtName, stmtValue as BinaryNode);
       if (pieces) {
         this.emitStringBuilderAppend(stmtName, pieces, params);
@@ -2021,9 +2544,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     if (this.symbolTable.isObjectArray(stmtName)) {
-      this.setExpectedArrayElementType('pointer');
+      this.setExpectedArrayElementType("pointer");
     } else if (this.symbolTable.isStringArray(stmtName)) {
-      this.setExpectedArrayElementType('string');
+      this.setExpectedArrayElementType("string");
     }
     const value = this.generateExpression(stmtValue, params);
     this.setExpectedArrayElementType(null);
@@ -2039,7 +2562,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (arrayAllocaReg) {
       if (this.symbolTable.isPointerAlloca(stmtName)) {
         const isStringArr = this.symbolTable.isStringArray(stmtName);
-        const arrayType = isStringArr ? '%StringArray' : '%Array';
+        const arrayType = isStringArr ? "%StringArray" : "%Array";
         let pointerValue = value;
         const valueType = this.getVariableType(value);
         if (valueType !== `${arrayType}*`) {
@@ -2060,16 +2583,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (!allocaReg) {
       throw new Error(`Unknown variable: ${stmtName}`);
     }
-    const varType = this.getVariableType(stmtName) || 'double';
+    const varType = this.getVariableType(stmtName) || "double";
     const valueType = this.getVariableType(value);
     let coercedValue = value;
-    if (varType === 'double' && valueType === 'i64') {
+    if (varType === "double" && valueType === "i64") {
       coercedValue = this.ensureDouble(value);
-    } else if (varType === 'i64' && valueType !== 'i64') {
-      if (valueType === 'double' || !valueType) {
+    } else if (varType === "i64" && valueType !== "i64") {
+      if (valueType === "double" || !valueType) {
         const temp = this.nextTemp();
         this.emit(`${temp} = fptosi double ${value} to i64`);
-        this.setVariableType(temp, 'i64');
+        this.setVariableType(temp, "i64");
         coercedValue = temp;
       }
     }
@@ -2077,17 +2600,17 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private flattenStringAppendChain(varName: string, expr: BinaryNode): Expression[] | null {
-    if (expr.op !== '+') return null;
+    if (expr.op !== "+") return null;
     const revPieces: Expression[] = [];
     let currentBin: BinaryNode = expr;
     while (true) {
-      if (currentBin.op !== '+') return null;
+      if (currentBin.op !== "+") return null;
       revPieces.push(currentBin.right);
       const leftTyped = currentBin.left as { type: string };
       const leftType = leftTyped.type;
-      if (leftType === 'binary') {
+      if (leftType === "binary") {
         currentBin = currentBin.left as BinaryNode;
-      } else if (leftType === 'variable') {
+      } else if (leftType === "variable") {
         if ((currentBin.left as VariableNode).name !== varName) return null;
         const pieces: Expression[] = [];
         let ri = revPieces.length - 1;
@@ -2105,12 +2628,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private ensureStringBuilderAllocas(varName: string): void {
     const existing = this.stringBuilderSlen.get(varName);
     if (existing) return;
-    const slenName = '%' + this.nextLabel('SBlen');
-    const scapName = '%' + this.nextLabel('SBcap');
-    this.allocaInstructions.push(slenName + ' = alloca i64');
-    this.allocaInstructions.push('store i64 0, i64* ' + slenName);
-    this.allocaInstructions.push(scapName + ' = alloca i64');
-    this.allocaInstructions.push('store i64 0, i64* ' + scapName);
+    const slenName = "%" + this.nextLabel("SBlen");
+    const scapName = "%" + this.nextLabel("SBcap");
+    this.allocaInstructions.push(slenName + " = alloca i64");
+    this.allocaInstructions.push("store i64 0, i64* " + slenName);
+    this.allocaInstructions.push(scapName + " = alloca i64");
+    this.allocaInstructions.push("store i64 0, i64* " + scapName);
     this.stringBuilderSlen.set(varName, slenName);
     this.stringBuilderScap.set(varName, scapName);
     this.usesStringBuilder = 1;
@@ -2119,7 +2642,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private invalidateStringBuilder(varName: string): void {
     const scap = this.stringBuilderScap.get(varName);
     if (scap) {
-      this.emit('store i64 0, i64* ' + scap);
+      this.emit("store i64 0, i64* " + scap);
     }
   }
 
@@ -2131,46 +2654,64 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (!ptrAlloca || !slen || !scap) return;
 
     const currentCap = this.nextTemp();
-    this.emit(currentCap + ' = load i64, i64* ' + scap);
+    this.emit(currentCap + " = load i64, i64* " + scap);
     const isInit = this.nextTemp();
-    this.emit(isInit + ' = icmp eq i64 ' + currentCap + ', 0');
-    const initLabel = this.nextLabel('sb_init');
-    const readyLabel = this.nextLabel('sb_ready');
-    this.emit('br i1 ' + isInit + ', label %' + initLabel + ', label %' + readyLabel);
+    this.emit(isInit + " = icmp eq i64 " + currentCap + ", 0");
+    const initLabel = this.nextLabel("sb_init");
+    const readyLabel = this.nextLabel("sb_ready");
+    this.emit("br i1 " + isInit + ", label %" + initLabel + ", label %" + readyLabel);
 
-    this.emit(initLabel + ':');
+    this.emit(initLabel + ":");
     const curPtr = this.nextTemp();
-    this.emit(curPtr + ' = load i8*, i8** ' + ptrAlloca);
+    this.emit(curPtr + " = load i8*, i8** " + ptrAlloca);
     const curLen = this.nextTemp();
-    this.emit(curLen + ' = call i64 @strlen(i8* ' + curPtr + ')');
-    this.emit('store i64 ' + curLen + ', i64* ' + slen);
-    this.emit('br label %' + readyLabel);
+    this.emit(curLen + " = call i64 @strlen(i8* " + curPtr + ")");
+    this.emit("store i64 " + curLen + ", i64* " + slen);
+    this.emit("br label %" + readyLabel);
 
-    this.emit(readyLabel + ':');
+    this.emit(readyLabel + ":");
 
     for (let i = 0; i < pieces.length; i++) {
       const piece = pieces[i];
       let pieceStr: string;
       const pieceValue = this.generateExpression(piece, params);
       const pieceType = this.getVariableType(pieceValue);
-      if (pieceType === 'i8*' || this.isStringExpression(piece)) {
+      if (pieceType === "i8*" || this.isStringExpression(piece)) {
         pieceStr = pieceValue;
       } else {
         pieceStr = this.stringGen.doConvertNumberToString(pieceValue);
       }
       const pieceLen = this.nextTemp();
-      this.emit(pieceLen + ' = call i64 @strlen(i8* ' + pieceStr + ')');
-      this.emit('call void @__cs_str_builder_append(i8** ' + ptrAlloca + ', i64* ' + slen + ', i64* ' + scap + ', i8* ' + pieceStr + ', i64 ' + pieceLen + ')');
+      this.emit(pieceLen + " = call i64 @strlen(i8* " + pieceStr + ")");
+      this.emit(
+        "call void @__cs_str_builder_append(i8** " +
+          ptrAlloca +
+          ", i64* " +
+          slen +
+          ", i64* " +
+          scap +
+          ", i8* " +
+          pieceStr +
+          ", i64 " +
+          pieceLen +
+          ")",
+      );
     }
   }
 
-  private allocateVariableWithFields(stmtName: string, stmtValue: Expression | null, stmtKind: string, stmtDeclaredType: string | undefined, params: string[]): void {
+  private allocateVariableWithFields(
+    stmtName: string,
+    stmtValue: Expression | null,
+    stmtKind: string,
+    stmtDeclaredType: string | undefined,
+    params: string[],
+  ): void {
     const stmt: VariableDeclaration = {
-      type: 'variable_declaration',
-      kind: stmtKind as 'let' | 'const',
+      type: "variable_declaration",
+      kind: stmtKind as "let" | "const",
       name: stmtName,
       value: stmtValue,
-      declaredType: stmtDeclaredType
+      declaredType: stmtDeclaredType,
     };
     this.varAllocator.allocate(stmt, params);
   }
@@ -2193,7 +2734,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         const stmtLine = this.getLocLine(stmtRaw as { loc?: { line: number; column: number } });
         const stmtCol = this.getLocColumn(stmtRaw as { loc?: { line: number; column: number } });
         if (stmtLine > 0) {
-          this.currentDebugLocId = this.dbgCreateLocation(stmtLine, stmtCol, this.currentSubprogramId);
+          this.currentDebugLocId = this.dbgCreateLocation(
+            stmtLine,
+            stmtCol,
+            this.currentSubprogramId,
+          );
         }
       }
 
@@ -2202,34 +2747,37 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         continue;
       }
 
-      if (stmtType === 'variable_declaration') {
+      if (stmtType === "variable_declaration") {
         const stmt = stmtRaw as VariableDeclaration;
         this.allocateVariable(stmt, params);
-      } else if (stmtType === 'assignment') {
+      } else if (stmtType === "assignment") {
         const stmt = stmtRaw as AssignmentStatement;
         const stmtName = this.getAssignmentName(stmt);
         const stmtValue = this.getAssignmentValue(stmt);
         if (!stmtName) {
           continue;
         }
-        const isMemberAccess = stmtName.startsWith('__member_access__');
+        const isMemberAccess = stmtName.startsWith("__member_access__");
         if (isMemberAccess) {
           this.assignmentGen.generateMemberAccessAssignment(stmtRaw as AssignmentStatement, params);
-        } else if (stmtName === '__index_access__') {
+        } else if (stmtName === "__index_access__") {
           this.generateExpression(stmtValue as Expression, params);
         } else {
           this.handleSimpleAssignmentWithFields(stmtName, stmtValue as Expression, params);
         }
-      } else if (stmtType === 'return') {
+      } else if (stmtType === "return") {
         const stmt = stmtRaw as { type: string; value: Expression | null };
         if (!stmt.value) {
           // Return without value - use default based on return type
-          if (this.currentFunctionReturnType === 'void') {
+          if (this.currentFunctionReturnType === "void") {
             this.emit(`ret void`);
-          } else if (this.currentFunctionReturnType === 'i8*') {
-            const emptyStr = this.stringGen.doCreateStringConstant('');
+          } else if (this.currentFunctionReturnType === "i8*") {
+            const emptyStr = this.stringGen.doCreateStringConstant("");
             this.emit(`ret i8* ${emptyStr}`);
-          } else if (this.currentFunctionReturnType && this.currentFunctionReturnType.indexOf('*') !== -1) {
+          } else if (
+            this.currentFunctionReturnType &&
+            this.currentFunctionReturnType.indexOf("*") !== -1
+          ) {
             this.emit(`ret ${this.currentFunctionReturnType} null`);
           } else {
             this.emit(`ret ${this.currentFunctionReturnType} 0.0`);
@@ -2239,21 +2787,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         }
 
         const stmtValueBase = stmt.value as { type: string };
-        if (stmtValueBase.type === 'object' && this.currentFunctionTsReturnType) {
+        if (stmtValueBase.type === "object" && this.currentFunctionTsReturnType) {
           const inlineType = this.extractInlineInterfaceType(this.currentFunctionTsReturnType);
           if (inlineType) {
             this.currentDeclaredInterfaceType = inlineType;
           } else {
             let returnTypeName = this.currentFunctionTsReturnType;
-            if (returnTypeName.indexOf(' | ') !== -1) {
-              const parts = returnTypeName.split(' | ');
+            if (returnTypeName.indexOf(" | ") !== -1) {
+              const parts = returnTypeName.split(" | ");
               const objLit = stmt.value as ObjectNode;
               let discriminantValue: string | null = null;
               if (objLit.properties && objLit.properties.length > 0) {
                 const firstProp = objLit.properties[0];
-                if (firstProp.key === 'type' && firstProp.value) {
+                if (firstProp.key === "type" && firstProp.value) {
                   const propValue = firstProp.value as { type: string; value?: string };
-                  if (propValue.type === 'string' && propValue.value) {
+                  if (propValue.type === "string" && propValue.value) {
                     discriminantValue = propValue.value;
                   }
                 }
@@ -2261,12 +2809,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               if (discriminantValue && this.interfaceStructGen) {
                 for (let i = 0; i < parts.length; i++) {
                   const part = parts[i].trim();
-                  if (part === 'null' || part === 'undefined') continue;
+                  if (part === "null" || part === "undefined") continue;
                   const ifaceInfo = this.interfaceStructGen.getInterfaceStruct(part);
                   if (ifaceInfo && ifaceInfo.fields) {
                     const firstField = ifaceInfo.fields[0] as { name: string; tsType: string };
-                    if (firstField && firstField.name === 'type') {
-                      const expectedType = firstField.tsType.replace(/['"]/g, '');
+                    if (firstField && firstField.name === "type") {
+                      const expectedType = firstField.tsType.replace(/['"]/g, "");
                       if (expectedType === discriminantValue) {
                         returnTypeName = part;
                         break;
@@ -2280,7 +2828,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                 let bestMatch: string | null = null;
                 for (let i = 0; i < parts.length; i++) {
                   const part = parts[i].trim();
-                  if (part === 'null' || part === 'undefined') continue;
+                  if (part === "null" || part === "undefined") continue;
                   if (!bestMatch) bestMatch = part;
                   if (this.interfaceStructGen) {
                     const ifaceInfo = this.interfaceStructGen.getInterfaceStruct(part);
@@ -2303,61 +2851,65 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         lastValue = this.generateExpression(stmt.value as Expression, params);
         this.currentDeclaredInterfaceType = undefined;
 
-        if (!lastValue || lastValue === '') {
-          throw new Error(`Return statement generated empty value for function ${this.currentFunction}`);
+        if (!lastValue || lastValue === "") {
+          throw new Error(
+            `Return statement generated empty value for function ${this.currentFunction}`,
+          );
         }
 
         if (this.isAsyncFunction) {
           const valueAsPtr = this.nextTemp();
           this.emit(`${valueAsPtr} = bitcast i8* ${lastValue} to i8*`);
-          this.emit(`call void @__Promise_resolve(%Promise* ${this.asyncResultPromise}, i8* ${lastValue})`);
+          this.emit(
+            `call void @__Promise_resolve(%Promise* ${this.asyncResultPromise}, i8* ${lastValue})`,
+          );
           this.emit(`ret %Promise* ${this.asyncResultPromise}`);
         } else {
-          if (this.currentFunctionReturnType === 'double') {
+          if (this.currentFunctionReturnType === "double") {
             const valueType = this.getVariableType(lastValue);
-            if (valueType === 'i32') {
+            if (valueType === "i32") {
               const converted = this.nextTemp();
               this.emit(`${converted} = sitofp i32 ${lastValue} to double`);
               lastValue = converted;
-            } else if (valueType === 'i64') {
+            } else if (valueType === "i64") {
               const converted = this.nextTemp();
               this.emit(`${converted} = sitofp i64 ${lastValue} to double`);
               lastValue = converted;
-            } else if (valueType === 'i8*' || lastValue === 'null') {
-              lastValue = '0.0';
+            } else if (valueType === "i8*" || lastValue === "null") {
+              lastValue = "0.0";
             }
           }
 
-          if (this.currentFunctionReturnType === 'void') {
+          if (this.currentFunctionReturnType === "void") {
             this.emit(`ret void`);
           } else {
             this.emit(`ret ${this.currentFunctionReturnType} ${lastValue}`);
           }
         }
         hasTerminator = true;
-      } else if (stmtType === 'if') {
+      } else if (stmtType === "if") {
         lastValue = this.controlFlowGen.generateIfStatement(stmtRaw as Statement, params);
         // Don't need to sync back - counters are already shared via bound methods
-      } else if (stmtType === 'while') {
+      } else if (stmtType === "while") {
         lastValue = this.controlFlowGen.generateWhileStatement(stmtRaw as Statement, params);
-      } else if (stmtType === 'for') {
+      } else if (stmtType === "for") {
         lastValue = this.controlFlowGen.generateForStatement(stmtRaw as Statement, params);
-      } else if (stmtType === 'for_of') {
+      } else if (stmtType === "for_of") {
         lastValue = this.controlFlowGen.generateForOfStatement(stmtRaw as Statement, params);
-      } else if (stmtType === 'break') {
+      } else if (stmtType === "break") {
         lastValue = this.controlFlowGen.generateBreakStatement();
-        hasTerminator = true;  // break generates 'br', which is a terminator
-      } else if (stmtType === 'continue') {
+        hasTerminator = true; // break generates 'br', which is a terminator
+      } else if (stmtType === "continue") {
         lastValue = this.controlFlowGen.generateContinueStatement();
-        hasTerminator = true;  // continue generates 'br', which is a terminator
-      } else if (stmtType === 'throw') {
+        hasTerminator = true; // continue generates 'br', which is a terminator
+      } else if (stmtType === "throw") {
         lastValue = this.controlFlowGen.generateThrowStatement(stmtRaw as Statement, params);
-        hasTerminator = true;  // throw generates 'unreachable', which is a terminator
-      } else if (stmtType === 'try') {
+        hasTerminator = true; // throw generates 'unreachable', which is a terminator
+      } else if (stmtType === "try") {
         lastValue = this.controlFlowGen.generateTryStatement(stmtRaw as Statement, params);
-      } else if (stmtType === 'switch') {
+      } else if (stmtType === "switch") {
         lastValue = this.controlFlowGen.generateSwitchStatement(stmtRaw as Statement, params);
-      } else if (stmtType === 'block') {
+      } else if (stmtType === "block") {
         lastValue = this.generateBlock(stmtRaw as BlockStatement, params);
       } else {
         // Expression statement
@@ -2399,7 +2951,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       const exprLine = this.getLocLine(expr as { loc?: { line: number; column: number } });
       const exprCol = this.getLocColumn(expr as { loc?: { line: number; column: number } });
       if (exprLine > 0) {
-        this.currentDebugLocId = this.dbgCreateLocation(exprLine, exprCol, this.currentSubprogramId);
+        this.currentDebugLocId = this.dbgCreateLocation(
+          exprLine,
+          exprCol,
+          this.currentSubprogramId,
+        );
       }
     }
     const exprBase = expr as { type: string };
@@ -2455,7 +3011,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public isAwaitExpression(expr: Expression): boolean {
-    return expr.type === 'await';
+    return expr.type === "await";
   }
 
   public isResponseExpression(expr: Expression): boolean {
@@ -2473,7 +3029,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public getTypedJsonInterface(expr: Expression): string | null {
-    if (expr.type !== 'method_call') return null;
+    if (expr.type !== "method_call") return null;
     return this.typeInference.getTypedJsonInterface(expr as MethodCallNode);
   }
 
@@ -2490,7 +3046,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public getJSONParseInterface(expr: Expression): string | null {
-    if (expr.type !== 'method_call') return null;
+    if (expr.type !== "method_call") return null;
     return this.typeInference.getJSONParseInterface(expr as MethodCallNode);
   }
 
@@ -2508,7 +3064,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   private tsTypeToLlvmJsonWithEnums(tsType: string): string {
     if (this.isEnumType(tsType)) {
-      return 'double';
+      return "double";
     }
     return tsTypeToLlvmJson(tsType);
   }
@@ -2532,7 +3088,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
     const items = this.ast.topLevelItems as Expression[];
     const item = items[index];
-    if (!item) return '';
+    if (!item) return "";
     return item.type;
   }
 
@@ -2540,24 +3096,36 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return this.ast.topLevelStatements[index] as VariableDeclaration;
   }
 
-  public getTopLevelExpression(index: number): CallNode | NewNode | MethodCallNode | ForStatement | ForOfStatement | WhileStatement | IfStatement | TryStatement | UnaryNode | AwaitExpressionNode {
+  public getTopLevelExpression(
+    index: number,
+  ):
+    | CallNode
+    | NewNode
+    | MethodCallNode
+    | ForStatement
+    | ForOfStatement
+    | WhileStatement
+    | IfStatement
+    | TryStatement
+    | UnaryNode
+    | AwaitExpressionNode {
     return this.ast.topLevelExpressions[index];
   }
 
   public getOutputAsString(): string {
     if (this.output.length === 0) {
-      return '';
+      return "";
     }
     const lines: string[] = [];
     for (let i = 0; i < this.output.length; i++) {
       const line = this.output[i];
       if (line) {
-        lines.push('  ' + line);
+        lines.push("  " + line);
       } else {
-        lines.push('  ');
+        lines.push("  ");
       }
     }
-    return lines.join('\n') + '\n';
+    return lines.join("\n") + "\n";
   }
 
   public processTopLevelItem(index: number): void {
@@ -2570,19 +3138,19 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       return;
     }
     const itemType = this.getTopLevelItemType(index);
-    if (itemType === 'variable_declaration') {
+    if (itemType === "variable_declaration") {
       this.allocateVariable(item as VariableDeclaration, []);
-    } else if (itemType === 'if') {
+    } else if (itemType === "if") {
       this.controlFlowGen.generateIfStatement(item as IfStatement, []);
-    } else if (itemType === 'while') {
+    } else if (itemType === "while") {
       this.controlFlowGen.generateWhileStatement(item as WhileStatement, []);
-    } else if (itemType === 'for') {
+    } else if (itemType === "for") {
       this.controlFlowGen.generateForStatement(item as ForStatement, []);
-    } else if (itemType === 'for_of') {
+    } else if (itemType === "for_of") {
       this.controlFlowGen.generateForOfStatement(item as ForOfStatement, []);
-    } else if (itemType === 'assignment') {
-      this.generateBlock({ type: 'block', statements: [item as AssignmentStatement] }, []);
-    } else if (itemType === 'throw') {
+    } else if (itemType === "assignment") {
+      this.generateBlock({ type: "block", statements: [item as AssignmentStatement] }, []);
+    } else if (itemType === "throw") {
       this.controlFlowGen.generateThrowStatement(item as Statement, []);
     } else {
       this.generateExpression(item as Expression, []);
@@ -2591,13 +3159,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   private generateMain(): string {
     if (this.debugInfoEnabled) {
-      this.currentSubprogramId = this.dbgCreateSubprogram('main', 0);
+      this.currentSubprogramId = this.dbgCreateSubprogram("main", 0);
       this.currentDebugLocId = this.dbgCreateLocation(1, 1, this.currentSubprogramId);
     }
     let hasTry = false;
     for (let i = 0; i < this.ast.topLevelStatements.length; i++) {
       const stmt = this.ast.topLevelStatements[i] as { type: string };
-      if (stmt && stmt.type === 'try') {
+      if (stmt && stmt.type === "try") {
         hasTry = true;
         break;
       }
@@ -2611,13 +3179,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   // Generate HTTP server - creates a TCP server that parses HTTP and calls handler
   public generateHttpServe(expr: CallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      return this.emitError('httpServe() requires at least 2 arguments: port and handler function', expr.loc);
+      return this.emitError(
+        "httpServe() requires at least 2 arguments: port and handler function",
+        expr.loc,
+      );
     }
 
     const portValue = this.generateExpression(expr.args[0], params);
     const handlerArg = expr.args[1];
-    if (handlerArg.type !== 'variable') {
-      return this.emitError('httpServe() handler must be a function reference', expr.loc);
+    if (handlerArg.type !== "variable") {
+      return this.emitError("httpServe() handler must be a function reference", expr.loc);
     }
     const handlerName = (handlerArg as VariableNode).name;
 
@@ -2627,8 +3198,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     if (expr.args.length >= 3) {
       const wsHandlerArg = expr.args[2];
-      if (wsHandlerArg.type !== 'variable') {
-        return this.emitError('httpServe() WebSocket handler must be a function reference', expr.loc);
+      if (wsHandlerArg.type !== "variable") {
+        return this.emitError(
+          "httpServe() WebSocket handler must be a function reference",
+          expr.loc,
+        );
       }
       const wsHandlerName = (wsHandlerArg as VariableNode).name;
       this.wsHandlers.push(wsHandlerName);
@@ -2642,23 +3216,27 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     // Call the runtime http_serve function
     // Handler now takes a single Request object (i8*) and returns Response object (i8*)
     const temp = this.nextTemp();
-    this.emit(`${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*)* @${this.mangleUserName(handlerName)})`);
+    this.emit(
+      `${temp} = call i32 @http_serve(i32 ${portI32}, i8* (i8*)* @${this.mangleUserName(handlerName)})`,
+    );
 
     return temp;
   }
 
   public generateWsBroadcast(expr: CallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      return this.emitError('wsBroadcast() requires 1 argument: message string', expr.loc);
+      return this.emitError("wsBroadcast() requires 1 argument: message string", expr.loc);
     }
     const msgValue = this.generateExpression(expr.args[0], params);
     const len = this.nextTemp();
     this.emit(`${len} = call i64 @strlen(i8* ${msgValue})`);
     this.emit(`call void @__ws_broadcast(i8* ${msgValue}, i64 ${len})`);
-    return '0.0';
+    return "0.0";
   }
 
-  public getInterfaceFromAST(name: string): { name: string; fields: { name: string; type: string }[] } | null {
+  public getInterfaceFromAST(
+    name: string,
+  ): { name: string; fields: { name: string; type: string }[] } | null {
     for (let i = 0; i < this.ast.interfaces.length; i++) {
       const iface = this.ast.interfaces[i] as InterfaceDeclaration;
       if (!iface) continue;

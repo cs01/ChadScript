@@ -6,9 +6,9 @@ function test() {
   const str2 = "world";
 
   // String lengths need to be converted from i32 to double for arithmetic
-  const totalLength = str1.length + str2.length;  // 5 + 5 = 10
+  const totalLength = str1.length + str2.length; // 5 + 5 = 10
 
   return totalLength;
 }
 
-process.exit(test());  // Should exit with 10
+process.exit(test()); // Should exit with 10

@@ -9,4 +9,3 @@ class Counter {
 }
 
 process.exit(new Counter(10).getValue());
-

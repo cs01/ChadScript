@@ -1,8 +1,10 @@
-import { MethodCallNode } from '../../ast/types.js';
+import { MethodCallNode } from "../../ast/types.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
-import { IGeneratorContext } from '../infrastructure/generator-context.js';
+import { IGeneratorContext } from "../infrastructure/generator-context.js";
 
 /**
  * Path Method Generator
@@ -21,10 +23,10 @@ export class PathGenerator {
    */
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') return false;
+    if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as { type: string; name: string };
-    if (varNode.name !== 'path') return false;
-    return (expr.method === 'resolve' || expr.method === 'dirname' || expr.method === 'basename');
+    if (varNode.name !== "path") return false;
+    return expr.method === "resolve" || expr.method === "dirname" || expr.method === "basename";
   }
 
   /**
@@ -33,13 +35,13 @@ export class PathGenerator {
    */
   generateResolve(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      return this.ctx.emitError('path.resolve() requires at least 1 argument', expr.loc);
+      return this.ctx.emitError("path.resolve() requires at least 1 argument", expr.loc);
     }
 
     let pathPtr = this.ctx.generateExpression(expr.args[0], params);
 
     if (expr.args.length > 1) {
-      const slash = this.ctx.stringGen.doCreateStringConstant('/');
+      const slash = this.ctx.stringGen.doCreateStringConstant("/");
       for (let i = 1; i < expr.args.length; i++) {
         const part = this.ctx.generateExpression(expr.args[i], params);
         const withSlash = this.ctx.stringGen.doGenerateStringConcatDirect(pathPtr, slash);
@@ -58,9 +60,9 @@ export class PathGenerator {
     const isNull = this.ctx.nextTemp();
     this.ctx.emit(`${isNull} = icmp eq i8* ${resolvedPtr}, null`);
 
-    const successLabel = this.ctx.nextLabel('resolve_success');
-    const failLabel = this.ctx.nextLabel('resolve_fail');
-    const endLabel = this.ctx.nextLabel('resolve_end');
+    const successLabel = this.ctx.nextLabel("resolve_success");
+    const failLabel = this.ctx.nextLabel("resolve_fail");
+    const endLabel = this.ctx.nextLabel("resolve_end");
 
     this.ctx.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
 
@@ -72,8 +74,10 @@ export class PathGenerator {
 
     this.ctx.emit(`${endLabel}:`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi i8* [ ${resolvedPtr}, %${successLabel} ], [ ${pathPtr}, %${failLabel} ]`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.emit(
+      `${result} = phi i8* [ ${resolvedPtr}, %${successLabel} ], [ ${pathPtr}, %${failLabel} ]`,
+    );
+    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
@@ -84,7 +88,7 @@ export class PathGenerator {
    */
   generateDirname(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      return this.ctx.emitError('path.dirname() requires 1 argument', expr.loc);
+      return this.ctx.emitError("path.dirname() requires 1 argument", expr.loc);
     }
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -108,7 +112,7 @@ export class PathGenerator {
 
   generateBasename(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      return this.ctx.emitError('path.basename() requires 1 argument', expr.loc);
+      return this.ctx.emitError("path.basename() requires 1 argument", expr.loc);
     }
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
@@ -133,18 +137,18 @@ export class PathGenerator {
     this.ctx.emit(`${result} = call i8* @GC_malloc_atomic(i64 ${resultSize})`);
     const strdupResult = this.ctx.nextTemp();
     this.ctx.emit(`${strdupResult} = call i8* @strcpy(i8* ${result}, i8* ${basenamePtr})`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
 
   generateJoin(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      return this.ctx.emitError('path.join() requires at least 1 argument', expr.loc);
+      return this.ctx.emitError("path.join() requires at least 1 argument", expr.loc);
     }
 
     let result = this.ctx.generateExpression(expr.args[0], params);
-    const slash = this.ctx.stringGen.doCreateStringConstant('/');
+    const slash = this.ctx.stringGen.doCreateStringConstant("/");
 
     for (let i = 1; i < expr.args.length; i++) {
       const part = this.ctx.generateExpression(expr.args[i], params);
@@ -152,7 +156,7 @@ export class PathGenerator {
       result = this.ctx.stringGen.doGenerateStringConcatDirect(withSlash, part);
     }
 
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 }

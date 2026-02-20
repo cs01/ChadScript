@@ -21,7 +21,7 @@ if (item.value !== 3.14) {
 const items: Item[] = [];
 let i = 0;
 while (i < 3) {
-  const s = '{"id":' + i + ',"name":"item' + i + '","value":' + (i * 2.5) + ',"active":true}';
+  const s = '{"id":' + i + ',"name":"item' + i + '","value":' + i * 2.5 + ',"active":true}';
   items.push(JSON.parse<Item>(s));
   i = i + 1;
 }

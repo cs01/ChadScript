@@ -1,10 +1,35 @@
-import { Expression, Statement, BlockStatement, MemberAccessNode, VariableNode, BinaryNode, InterfaceDeclaration, ForOfStatement, MethodCallNode, InterfaceField, CommonField, FunctionParameter, SwitchStatement, SwitchCase, StringNode, TryStatement } from '../../ast/types.js';
-import { IGeneratorContext } from '../infrastructure/generator-context.js';
-import { SymbolKind, ObjectArrayMetadata, ObjectMetadata, createObjectMetadata, createObjectMetadataWithInterface } from '../infrastructure/symbol-table.js';
-import type { UnionCommonFields } from '../infrastructure/type-resolver/index.js';
-import { stripOptional } from '../infrastructure/type-system.js';
+import {
+  Expression,
+  Statement,
+  BlockStatement,
+  MemberAccessNode,
+  VariableNode,
+  BinaryNode,
+  InterfaceDeclaration,
+  ForOfStatement,
+  MethodCallNode,
+  InterfaceField,
+  CommonField,
+  FunctionParameter,
+  SwitchStatement,
+  SwitchCase,
+  StringNode,
+  TryStatement,
+} from "../../ast/types.js";
+import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import {
+  SymbolKind,
+  ObjectArrayMetadata,
+  ObjectMetadata,
+  createObjectMetadata,
+  createObjectMetadataWithInterface,
+} from "../infrastructure/symbol-table.js";
+import type { UnionCommonFields } from "../infrastructure/type-resolver/index.js";
+import { stripOptional } from "../infrastructure/type-system.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
 // ============================================
 // CONTROL FLOW GENERATOR - If/while/loops
@@ -20,43 +45,50 @@ export class ControlFlowGenerator {
   }
 
   // Helper methods delegate to context
-  private nextTemp(): string { return this.ctx.nextTemp(); }
-  private nextLabel(prefix: string): string { return this.ctx.nextLabel(prefix); }
-  private emit(instruction: string): void { this.ctx.emit(instruction); }
+  private nextTemp(): string {
+    return this.ctx.nextTemp();
+  }
+  private nextLabel(prefix: string): string {
+    return this.ctx.nextLabel(prefix);
+  }
+  private emit(instruction: string): void {
+    this.ctx.emit(instruction);
+  }
 
   // Helper to convert a value to boolean (i1) for branching
   private convertToBool(value: string): string {
     // Check if value is a double or i32 based on variable types
     const valueType = this.ctx.getVariableType(value);
 
-    if (valueType === 'i1') {
+    if (valueType === "i1") {
       // Value is already a boolean (i1), use it directly
       return value;
-    } else if (valueType === 'double' || (value.indexOf('.') !== -1 && !value.startsWith('%'))) {
+    } else if (valueType === "double" || (value.indexOf(".") !== -1 && !value.startsWith("%"))) {
       // Value is a double, use fcmp
       const condBool = this.nextTemp();
       this.emit(`${condBool} = fcmp one double ${value}, 0.0`);
       return condBool;
-    } else if (valueType && valueType.indexOf('*') !== -1) {
+    } else if (valueType && valueType.indexOf("*") !== -1) {
       // Value is a pointer type, check if non-null
       // Use i8* for complex types that aren't valid LLVM types
-      const isValidLlvmType = !valueType.startsWith('%{') && !valueType.includes('|') && !valueType.includes(':');
-      const llvmType = isValidLlvmType ? valueType : 'i8*';
+      const isValidLlvmType =
+        !valueType.startsWith("%{") && !valueType.includes("|") && !valueType.includes(":");
+      const llvmType = isValidLlvmType ? valueType : "i8*";
       const condBool = this.nextTemp();
       this.emit(`${condBool} = icmp ne ${llvmType} ${value}, null`);
       return condBool;
-    } else if (valueType === 'i32') {
+    } else if (valueType === "i32") {
       // Value is i32, use icmp ne for integer comparison
       const condBool = this.nextTemp();
       this.emit(`${condBool} = icmp ne i32 ${value}, 0`);
       return condBool;
-    } else if (valueType === 'i64') {
+    } else if (valueType === "i64") {
       const condBool = this.nextTemp();
       this.emit(`${condBool} = icmp ne i64 ${value}, 0`);
       return condBool;
     } else {
       // Unknown type - assume double for temp registers
-      if (value.startsWith('%')) {
+      if (value.startsWith("%")) {
         const condBool = this.nextTemp();
         this.emit(`${condBool} = fcmp one double ${value}, 0.0`);
         return condBool;
@@ -71,14 +103,20 @@ export class ControlFlowGenerator {
   }
 
   private convertToNonNullish(value: string, valueType: string): string {
-    if (valueType === 'i1' || valueType === 'double' || valueType === 'i32' || valueType === 'i64') {
+    if (
+      valueType === "i1" ||
+      valueType === "double" ||
+      valueType === "i32" ||
+      valueType === "i64"
+    ) {
       const condBool = this.nextTemp();
       this.emit(`${condBool} = icmp eq i32 1, 1`);
       return condBool;
     }
-    if (valueType && valueType.indexOf('*') !== -1) {
-      const isValidLlvmType = !valueType.startsWith('%{') && !valueType.includes('|') && !valueType.includes(':');
-      const llvmType = isValidLlvmType ? valueType : 'i8*';
+    if (valueType && valueType.indexOf("*") !== -1) {
+      const isValidLlvmType =
+        !valueType.startsWith("%{") && !valueType.includes("|") && !valueType.includes(":");
+      const llvmType = isValidLlvmType ? valueType : "i8*";
       const condBool = this.nextTemp();
       this.emit(`${condBool} = icmp ne ${llvmType} ${value}, null`);
       return condBool;
@@ -89,15 +127,20 @@ export class ControlFlowGenerator {
   }
 
   generateIfStatement(stmt: Statement, params: string[]): string {
-    if (stmt.type !== 'if') {
-      throw new Error('Expected if statement');
+    if (stmt.type !== "if") {
+      throw new Error("Expected if statement");
     }
 
-    const ifStmt = stmt as { type: string; condition: Expression; thenBlock: BlockStatement; elseBlock: BlockStatement | null };
+    const ifStmt = stmt as {
+      type: string;
+      condition: Expression;
+      thenBlock: BlockStatement;
+      elseBlock: BlockStatement | null;
+    };
 
-    const thenLabel = this.nextLabel('then');
-    const elseLabel = this.nextLabel('else');
-    const mergeLabel = this.nextLabel('merge');
+    const thenLabel = this.nextLabel("then");
+    const elseLabel = this.nextLabel("else");
+    const mergeLabel = this.nextLabel("merge");
 
     const typeGuard = this.detectTypeGuard(ifStmt.condition);
 
@@ -114,14 +157,20 @@ export class ControlFlowGenerator {
     this.ctx.setCurrentLabel(thenLabel);
 
     if (typeGuard) {
-      const tg = typeGuard as { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } };
+      const tg = typeGuard as {
+        varName: string;
+        narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] };
+      };
       this.ctx.symbolTable.narrowType(tg.varName, tg.narrowedMetadata);
     }
 
     this.ctx.generateBlock(ifStmt.thenBlock, params);
 
     if (typeGuard) {
-      const tg = typeGuard as { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } };
+      const tg = typeGuard as {
+        varName: string;
+        narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] };
+      };
       this.ctx.symbolTable.restoreType(tg.varName);
     }
 
@@ -142,27 +191,27 @@ export class ControlFlowGenerator {
     }
 
     if (ifStmt.elseBlock && thenHasTerminator && elseHasTerminator) {
-      return '0';
+      return "0";
     }
 
     // Merge point
     this.emit(`${mergeLabel}:`);
     this.ctx.setCurrentLabel(mergeLabel);
 
-    return '0';
+    return "0";
   }
 
   generateWhileStatement(stmt: Statement, params: string[]): string {
-    if (stmt.type !== 'while') {
-      throw new Error('Expected while statement');
+    if (stmt.type !== "while") {
+      throw new Error("Expected while statement");
     }
 
     const whileStmt = stmt as { type: string; condition: Expression; body: BlockStatement };
 
     // Generate unique labels
-    const condLabel = this.nextLabel('while_cond');
-    const bodyLabel = this.nextLabel('while_body');
-    const endLabel = this.nextLabel('while_end');
+    const condLabel = this.nextLabel("while_cond");
+    const bodyLabel = this.nextLabel("while_body");
+    const endLabel = this.nextLabel("while_end");
 
     // Jump to condition check
     this.emit(`br label %${condLabel}`);
@@ -189,42 +238,54 @@ export class ControlFlowGenerator {
     // End block
     this.emit(`${endLabel}:`);
 
-    return '0';
+    return "0";
   }
 
   generateForStatement(stmt: Statement, params: string[]): string {
-    if (stmt.type !== 'for') {
-      throw new Error('Expected for statement');
+    if (stmt.type !== "for") {
+      throw new Error("Expected for statement");
     }
 
-    const forStmt = stmt as { type: string; init: Statement | null; condition: Expression | null; update: Statement | null; body: BlockStatement };
+    const forStmt = stmt as {
+      type: string;
+      init: Statement | null;
+      condition: Expression | null;
+      update: Statement | null;
+      body: BlockStatement;
+    };
 
     // Generate init if present
     if (forStmt.init) {
       const initBase = forStmt.init as { type: string };
-      if (initBase.type === 'variable_declaration') {
-        const initVarDecl = forStmt.init as { type: string; kind: string; name: string; value: Expression | null; declaredType?: string };
+      if (initBase.type === "variable_declaration") {
+        const initVarDecl = forStmt.init as {
+          type: string;
+          kind: string;
+          name: string;
+          value: Expression | null;
+          declaredType?: string;
+        };
         if (!initVarDecl.value) {
-          throw new Error('Variable declaration in for loop must have an initializer');
+          throw new Error("Variable declaration in for loop must have an initializer");
         }
         const value = this.ctx.generateExpression(initVarDecl.value, params);
         const dblValue = this.ctx.ensureDouble(value);
         const allocaReg = this.ctx.nextAllocaReg(initVarDecl.name);
-        this.ctx.defineVariable(initVarDecl.name, allocaReg, 'double', SymbolKind.Number, 'local');
+        this.ctx.defineVariable(initVarDecl.name, allocaReg, "double", SymbolKind.Number, "local");
         this.emit(`${allocaReg} = alloca double`);
         this.emit(`store double ${dblValue}, double* ${allocaReg}`);
-      } else if (initBase.type === 'assignment') {
+      } else if (initBase.type === "assignment") {
         const initAssign = forStmt.init as { type: string; name: string; value: Expression };
         let value = this.ctx.generateExpression(initAssign.value, params);
         const allocaReg = this.ctx.getVariableAlloca(initAssign.name);
         if (!allocaReg) {
           throw new Error(`Variable ${initAssign.name} not found`);
         }
-        const varType = this.ctx.getVariableType(initAssign.name) || 'double';
+        const varType = this.ctx.getVariableType(initAssign.name) || "double";
         const valType = this.ctx.getVariableType(value);
-        if (varType === 'double' && valType === 'i64') {
+        if (varType === "double" && valType === "i64") {
           value = this.ctx.ensureDouble(value);
-        } else if (varType === 'i64' && valType === 'double') {
+        } else if (varType === "i64" && valType === "double") {
           value = this.ctx.ensureI64(value);
         }
         this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
@@ -232,10 +293,10 @@ export class ControlFlowGenerator {
     }
 
     // Generate unique labels
-    const condLabel = this.nextLabel('for_cond');
-    const bodyLabel = this.nextLabel('for_body');
-    const updateLabel = this.nextLabel('for_update');
-    const endLabel = this.nextLabel('for_end');
+    const condLabel = this.nextLabel("for_cond");
+    const bodyLabel = this.nextLabel("for_body");
+    const updateLabel = this.nextLabel("for_update");
+    const endLabel = this.nextLabel("for_end");
 
     // Jump to condition check
     this.emit(`br label %${condLabel}`);
@@ -270,21 +331,21 @@ export class ControlFlowGenerator {
     if (forStmt.update) {
       const updateTyped = forStmt.update as { type: string; name: string; value: Expression };
       const updateType = updateTyped.type;
-      if (updateType === 'assignment') {
+      if (updateType === "assignment") {
         const updateName = updateTyped.name;
         if (!updateName) {
-          throw new Error('Assignment update has no name');
+          throw new Error("Assignment update has no name");
         }
         let value = this.ctx.generateExpression(updateTyped.value, params);
         const allocaReg = this.ctx.getVariableAlloca(updateName);
         if (!allocaReg) {
           throw new Error(`Variable ${updateName} not found in update`);
         }
-        const varType = this.ctx.getVariableType(updateName) || 'double';
+        const varType = this.ctx.getVariableType(updateName) || "double";
         const valType = this.ctx.getVariableType(value);
-        if (varType === 'double' && valType === 'i64') {
+        if (varType === "double" && valType === "i64") {
           value = this.ctx.ensureDouble(value);
-        } else if (varType === 'i64' && valType === 'double') {
+        } else if (varType === "i64" && valType === "double") {
           value = this.ctx.ensureI64(value);
         }
         this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
@@ -298,22 +359,33 @@ export class ControlFlowGenerator {
     // End block
     this.emit(`${endLabel}:`);
 
-    return '0';
+    return "0";
   }
 
   generateForOfStatement(stmt: Statement, params: string[]): string {
-    if (stmt.type !== 'for_of') {
-      throw new Error('Expected for...of statement');
+    if (stmt.type !== "for_of") {
+      throw new Error("Expected for...of statement");
     }
 
-    const forOfStmt = stmt as { type: string; variableKind: string; variableName: string; destructuredNames: string[] | null; iterable: Expression; body: BlockStatement };
+    const forOfStmt = stmt as {
+      type: string;
+      variableKind: string;
+      variableName: string;
+      destructuredNames: string[] | null;
+      iterable: Expression;
+      body: BlockStatement;
+    };
 
     const objectArrayInfo = this.getObjectArrayInfo(forOfStmt.iterable);
     if (objectArrayInfo) {
       return this.generateObjectArrayForOf(stmt, params, objectArrayInfo);
     }
 
-    if (forOfStmt.destructuredNames && forOfStmt.destructuredNames.length === 2 && this.isMapEntriesCall(forOfStmt.iterable)) {
+    if (
+      forOfStmt.destructuredNames &&
+      forOfStmt.destructuredNames.length === 2 &&
+      this.isMapEntriesCall(forOfStmt.iterable)
+    ) {
       return this.generateMapEntriesForOf(stmt, params);
     }
 
@@ -322,46 +394,48 @@ export class ControlFlowGenerator {
     const isStringArray = this.ctx.isStringArrayExpression(forOfStmt.iterable);
     const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(forOfStmt.iterable);
     const isStringSet = this.isStringSetExpression(forOfStmt.iterable);
-    let arrayType: string = '';
-    let elementType: string = '';
+    let arrayType: string = "";
+    let elementType: string = "";
     let elementKind: number = SymbolKind.Number;
 
     if (isStringSet) {
-      arrayType = '%StringSet';
-      elementType = 'i8*';
+      arrayType = "%StringSet";
+      elementType = "i8*";
       elementKind = SymbolKind.String;
     } else if (isStringArray) {
-      arrayType = '%StringArray';
-      elementType = 'i8*';
+      arrayType = "%StringArray";
+      elementType = "i8*";
       elementKind = SymbolKind.String;
     } else if (isObjectArray) {
-      arrayType = '%ObjectArray';
-      elementType = 'i8*';
+      arrayType = "%ObjectArray";
+      elementType = "i8*";
       elementKind = SymbolKind.Object;
     } else {
-      arrayType = '%Array';
-      elementType = 'double';
+      arrayType = "%Array";
+      elementType = "double";
       elementKind = SymbolKind.Number;
     }
 
     const lenPtr = this.nextTemp();
-    this.emit(`${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 1`);
+    this.emit(
+      `${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 1`,
+    );
     const lengthI32 = this.nextTemp();
     this.emit(`${lengthI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
 
-    const indexAlloca = this.ctx.nextAllocaReg('__forof_idx');
+    const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");
     this.emit(`${indexAlloca} = alloca i32`);
     this.emit(`store i32 0, i32* ${indexAlloca}`);
 
     const elemAlloca = this.ctx.nextAllocaReg(forOfStmt.variableName);
     this.emit(`${elemAlloca} = alloca ${elementType}`);
 
-    this.ctx.defineVariable(forOfStmt.variableName, elemAlloca, elementType, elementKind, 'local');
+    this.ctx.defineVariable(forOfStmt.variableName, elemAlloca, elementType, elementKind, "local");
 
-    const condLabel = this.nextLabel('forof_cond');
-    const bodyLabel = this.nextLabel('forof_body');
-    const updateLabel = this.nextLabel('forof_update');
-    const endLabel = this.nextLabel('forof_end');
+    const condLabel = this.nextLabel("forof_cond");
+    const bodyLabel = this.nextLabel("forof_body");
+    const updateLabel = this.nextLabel("forof_update");
+    const endLabel = this.nextLabel("forof_end");
 
     // Jump to condition check
     this.emit(`br label %${condLabel}`);
@@ -381,7 +455,9 @@ export class ControlFlowGenerator {
     // Load current element from array
     // Get pointer to the data array
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 0`);
+    this.emit(
+      `${dataPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 0`,
+    );
     let dataArray: string;
     if (isStringSet || isStringArray) {
       dataArray = this.nextTemp();
@@ -403,7 +479,9 @@ export class ControlFlowGenerator {
     if (isStringSet || isStringArray || isObjectArray) {
       this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataArray}, i64 ${indexI64}`);
     } else {
-      this.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataArray}, i64 ${indexI64}`);
+      this.emit(
+        `${elemPtr} = getelementptr inbounds double, double* ${dataArray}, i64 ${indexI64}`,
+      );
     }
     const elemValue = this.nextTemp();
     this.emit(`${elemValue} = load ${elementType}, ${elementType}* ${elemPtr}`);
@@ -436,24 +514,24 @@ export class ControlFlowGenerator {
     // End block
     this.emit(`${endLabel}:`);
 
-    return '0';
+    return "0";
   }
 
   private parseInlineObjectType(typeStr: string): { name: string; type: string }[] | null {
     let str = typeStr.trim();
-    if (str.endsWith('[]')) {
+    if (str.endsWith("[]")) {
       str = str.slice(0, -2).trim();
     }
-    if (!str.startsWith('{') || !str.endsWith('}')) {
+    if (!str.startsWith("{") || !str.endsWith("}")) {
       return null;
     }
     str = str.slice(1, -1).trim();
     const fields: { name: string; type: string }[] = [];
-    const parts = str.split(';');
+    const parts = str.split(";");
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i].trim();
       if (!part) continue;
-      const colonIdx = part.indexOf(':');
+      const colonIdx = part.indexOf(":");
       if (colonIdx === -1) continue;
       const name = part.slice(0, colonIdx).trim();
       const type = part.slice(colonIdx + 1).trim();
@@ -477,11 +555,11 @@ export class ControlFlowGenerator {
       return null;
     }
     const fieldType = tsTypes[idx];
-    if (!fieldType || !fieldType.endsWith('[]')) {
+    if (!fieldType || !fieldType.endsWith("[]")) {
       return null;
     }
     const elementInterface = fieldType.slice(0, -2).trim();
-    if (elementInterface.startsWith('{')) {
+    if (elementInterface.startsWith("{")) {
       const fields = this.parseInlineObjectType(fieldType);
       if (fields) {
         const elementKeys: string[] = [];
@@ -494,27 +572,31 @@ export class ControlFlowGenerator {
           if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
-          if (f.type === 'string') {
-            elementTypes.push('i8*');
-          } else if (f.type === 'number') {
-            elementTypes.push('double');
-          } else if (f.type === 'boolean') {
-            elementTypes.push('i32');
+          if (f.type === "string") {
+            elementTypes.push("i8*");
+          } else if (f.type === "number") {
+            elementTypes.push("double");
+          } else if (f.type === "boolean") {
+            elementTypes.push("i32");
           } else {
-            elementTypes.push('i8*');
+            elementTypes.push("i8*");
           }
         }
         return {
-          elementInterfaceName: '__inline',
+          elementInterfaceName: "__inline",
           elementKeys,
           elementTypes,
-          elementTsTypes
+          elementTsTypes,
         };
       }
     }
     const iface = this.ctx.getInterfaceFromAST(elementInterface);
     if (iface) {
-      const ifaceTyped = iface as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+      const ifaceTyped = iface as {
+        name: string;
+        extends: string[];
+        fields: { name: string; type: string }[];
+      };
       const elementKeys: string[] = [];
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
@@ -525,21 +607,21 @@ export class ControlFlowGenerator {
         if (!f.name || !f.type) continue;
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
-        if (f.type === 'string') {
-          elementTypes.push('i8*');
-        } else if (f.type === 'number') {
-          elementTypes.push('double');
-        } else if (f.type === 'boolean') {
-          elementTypes.push('i32');
+        if (f.type === "string") {
+          elementTypes.push("i8*");
+        } else if (f.type === "number") {
+          elementTypes.push("double");
+        } else if (f.type === "boolean") {
+          elementTypes.push("i32");
         } else {
-          elementTypes.push('i8*');
+          elementTypes.push("i8*");
         }
       }
       return {
         elementInterfaceName: ifaceTyped.name,
         elementKeys,
         elementTypes,
-        elementTsTypes
+        elementTsTypes,
       };
     }
 
@@ -552,14 +634,14 @@ export class ControlFlowGenerator {
         for (let i = 0; i < commonProps.keys.length; i++) {
           elementKeys.push(commonProps.keys[i]);
           elementTsTypes.push(commonProps.types[i]);
-          if (commonProps.types[i] === 'string') {
-            elementTypes.push('i8*');
-          } else if (commonProps.types[i] === 'number') {
-            elementTypes.push('double');
-          } else if (commonProps.types[i] === 'boolean') {
-            elementTypes.push('i32');
+          if (commonProps.types[i] === "string") {
+            elementTypes.push("i8*");
+          } else if (commonProps.types[i] === "number") {
+            elementTypes.push("double");
+          } else if (commonProps.types[i] === "boolean") {
+            elementTypes.push("i32");
           } else {
-            elementTypes.push('i8*');
+            elementTypes.push("i8*");
           }
         }
         if (elementKeys.length > 0) {
@@ -567,7 +649,7 @@ export class ControlFlowGenerator {
             elementInterfaceName: elementInterface,
             elementKeys,
             elementTypes,
-            elementTsTypes
+            elementTsTypes,
           };
         }
       }
@@ -579,7 +661,11 @@ export class ControlFlowGenerator {
   private getInterfaceFieldType(interfaceName: string, fieldName: string): string | null {
     const iface = this.ctx.getInterfaceFromAST(interfaceName);
     if (!iface) return null;
-    const ifaceTyped = iface as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+    const ifaceTyped = iface as {
+      name: string;
+      extends: string[];
+      fields: { name: string; type: string }[];
+    };
     for (let i = 0; i < ifaceTyped.fields.length; i++) {
       const fRaw = ifaceTyped.fields[i];
       if (!fRaw) continue;
@@ -600,9 +686,9 @@ export class ControlFlowGenerator {
     if (!iterable || !iterable.type) {
       return null;
     }
-    if (iterable.type === 'binary') {
+    if (iterable.type === "binary") {
       const binaryExpr = iterable as BinaryNode;
-      if (binaryExpr.op === '||') {
+      if (binaryExpr.op === "||") {
         const leftInfo = this.getObjectArrayInfo(binaryExpr.left);
         if (leftInfo) {
           return leftInfo;
@@ -610,10 +696,10 @@ export class ControlFlowGenerator {
       }
     }
 
-    if (iterable.type === 'member_access') {
+    if (iterable.type === "member_access") {
       const memberAccess = iterable as { type: string; object: Expression; property: string };
       const memberAccessObjBase = memberAccess.object as ExprBase;
-      if (memberAccessObjBase.type === 'variable') {
+      if (memberAccessObjBase.type === "variable") {
         const varName = (memberAccess.object as VariableNode).name;
         const propName = memberAccess.property;
         const fromAST = this.getObjectArrayInfoFromAST(varName, propName);
@@ -627,7 +713,7 @@ export class ControlFlowGenerator {
           const idx = keys.indexOf(propName);
           if (idx !== -1) {
             const fieldType = tsTypes[idx];
-            if (fieldType && fieldType.endsWith('[]')) {
+            if (fieldType && fieldType.endsWith("[]")) {
               const fields = this.parseInlineObjectType(fieldType);
               if (fields) {
                 const elementKeys: string[] = [];
@@ -640,21 +726,21 @@ export class ControlFlowGenerator {
                   if (!f.name || !f.type) continue;
                   elementKeys.push(f.name);
                   elementTsTypes.push(f.type);
-                  if (f.type === 'string') {
-                    elementTypes.push('i8*');
-                  } else if (f.type === 'number') {
-                    elementTypes.push('double');
-                  } else if (f.type === 'boolean') {
-                    elementTypes.push('i32');
+                  if (f.type === "string") {
+                    elementTypes.push("i8*");
+                  } else if (f.type === "number") {
+                    elementTypes.push("double");
+                  } else if (f.type === "boolean") {
+                    elementTypes.push("i32");
                   } else {
-                    elementTypes.push('i8*');
+                    elementTypes.push("i8*");
                   }
                 }
                 return {
-                  elementInterfaceName: '__inline',
+                  elementInterfaceName: "__inline",
                   elementKeys,
                   elementTypes,
-                  elementTsTypes
+                  elementTsTypes,
                 };
               }
             }
@@ -663,7 +749,7 @@ export class ControlFlowGenerator {
         const paramTypeInfo = this.getParameterTypeFromAST(varName);
         if (paramTypeInfo) {
           const fieldType = this.getInterfaceFieldType(paramTypeInfo, propName);
-          if (fieldType && fieldType.endsWith('[]')) {
+          if (fieldType && fieldType.endsWith("[]")) {
             const fields = this.parseInlineObjectType(fieldType);
             if (fields) {
               const elementKeys: string[] = [];
@@ -673,27 +759,31 @@ export class ControlFlowGenerator {
                 const f = fields[i] as { name: string; type: string };
                 elementKeys.push(f.name);
                 elementTsTypes.push(f.type);
-                if (f.type === 'string') {
-                  elementTypes.push('i8*');
-                } else if (f.type === 'number') {
-                  elementTypes.push('double');
-                } else if (f.type === 'boolean') {
-                  elementTypes.push('i32');
+                if (f.type === "string") {
+                  elementTypes.push("i8*");
+                } else if (f.type === "number") {
+                  elementTypes.push("double");
+                } else if (f.type === "boolean") {
+                  elementTypes.push("i32");
                 } else {
-                  elementTypes.push('i8*');
+                  elementTypes.push("i8*");
                 }
               }
               return {
-                elementInterfaceName: '__inline',
+                elementInterfaceName: "__inline",
                 elementKeys,
                 elementTypes,
-                elementTsTypes
+                elementTsTypes,
               };
             }
             const elementIfaceName = fieldType.slice(0, -2).trim();
             const elemIface = this.ctx.getInterfaceFromAST(elementIfaceName);
             if (elemIface) {
-              const elemIfaceTyped = elemIface as { name: string; extends: string[]; fields: Array<{ name: string; type: string }> };
+              const elemIfaceTyped = elemIface as {
+                name: string;
+                extends: string[];
+                fields: Array<{ name: string; type: string }>;
+              };
               const elementKeys: string[] = [];
               const elementTypes: string[] = [];
               const elementTsTypes: string[] = [];
@@ -704,21 +794,21 @@ export class ControlFlowGenerator {
                 if (!f.name || !f.type) continue;
                 elementKeys.push(f.name);
                 elementTsTypes.push(f.type);
-                if (f.type === 'string') {
-                  elementTypes.push('i8*');
-                } else if (f.type === 'number') {
-                  elementTypes.push('double');
-                } else if (f.type === 'boolean') {
-                  elementTypes.push('i32');
+                if (f.type === "string") {
+                  elementTypes.push("i8*");
+                } else if (f.type === "number") {
+                  elementTypes.push("double");
+                } else if (f.type === "boolean") {
+                  elementTypes.push("i32");
                 } else {
-                  elementTypes.push('i8*');
+                  elementTypes.push("i8*");
                 }
               }
               return {
                 elementInterfaceName: elemIfaceTyped.name,
                 elementKeys,
                 elementTypes,
-                elementTsTypes
+                elementTsTypes,
               };
             }
           }
@@ -731,14 +821,14 @@ export class ControlFlowGenerator {
       }
     }
 
-    if (iterable.type === 'method_call') {
+    if (iterable.type === "method_call") {
       const methodCallInfo = this.getMethodCallArrayInfo(iterable as MethodCallNode);
       if (methodCallInfo) {
         return methodCallInfo;
       }
     }
 
-    if (iterable.type === 'variable') {
+    if (iterable.type === "variable") {
       const varName = (iterable as VariableNode).name;
       const objArrayMeta = this.ctx.symbolTable.getObjectArrayMetadata(varName);
       if (objArrayMeta) {
@@ -752,11 +842,11 @@ export class ControlFlowGenerator {
   private resolveMemberAccessChainType(expr: Expression): string | null {
     const exprBase = expr as ExprBase;
 
-    if (exprBase.type === 'this') {
+    if (exprBase.type === "this") {
       return this.ctx.getCurrentClassName() || null;
     }
 
-    if (exprBase.type === 'variable') {
+    if (exprBase.type === "variable") {
       const varName = (expr as VariableNode).name;
       if (this.ctx.symbolTable.isClass(varName)) {
         const classMeta = this.ctx.symbolTable.getClassInfo(varName);
@@ -769,7 +859,7 @@ export class ControlFlowGenerator {
       return null;
     }
 
-    if (exprBase.type === 'member_access') {
+    if (exprBase.type === "member_access") {
       const ma = expr as MemberAccessNode;
       const baseType = this.resolveMemberAccessChainType(ma.object);
       if (!baseType) return null;
@@ -787,7 +877,7 @@ export class ControlFlowGenerator {
           if (!fRaw) continue;
           const f = fRaw as { name: string; type: string };
           if (!f.name) continue;
-          const fieldName = f.name.replace('?', '');
+          const fieldName = f.name.replace("?", "");
           if (fieldName === ma.property) {
             return f.type;
           }
@@ -798,7 +888,9 @@ export class ControlFlowGenerator {
     return null;
   }
 
-  private getChainedMemberAccessArrayInfo(memberAccess: MemberAccessNode): ObjectArrayMetadata | null {
+  private getChainedMemberAccessArrayInfo(
+    memberAccess: MemberAccessNode,
+  ): ObjectArrayMetadata | null {
     const ma = memberAccess as { type: string; object: Expression; property: string };
     const propName = ma.property;
 
@@ -811,7 +903,11 @@ export class ControlFlowGenerator {
     if (!iface) {
       return null;
     }
-    const ifaceTyped = iface as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+    const ifaceTyped = iface as {
+      name: string;
+      extends: string[];
+      fields: { name: string; type: string }[];
+    };
 
     let fieldDefResult: InterfaceField | null = null;
     for (let i = 0; i < ifaceTyped.fields.length; i++) {
@@ -819,20 +915,20 @@ export class ControlFlowGenerator {
       if (!fRaw) continue;
       const f = fRaw as { name: string; type: string };
       if (!f.name) continue;
-      const fieldName = f.name.replace('?', '');
+      const fieldName = f.name.replace("?", "");
       if (fieldName === propName) {
         fieldDefResult = f as { name: string; type: string };
         break;
       }
     }
     const fieldDef = fieldDefResult as { name: string; type: string };
-    if (!fieldDefResult || !fieldDef.type.endsWith('[]')) {
+    if (!fieldDefResult || !fieldDef.type.endsWith("[]")) {
       return null;
     }
 
     const elementTypeName = fieldDef.type.slice(0, -2).trim();
 
-    if (elementTypeName.startsWith('{')) {
+    if (elementTypeName.startsWith("{")) {
       const fields = this.parseInlineObjectType(fieldDef.type);
       if (fields) {
         const elementKeys: string[] = [];
@@ -845,26 +941,26 @@ export class ControlFlowGenerator {
           if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
-          if (f.type === 'string') {
-            elementTypes.push('i8*');
-          } else if (f.type === 'number') {
-            elementTypes.push('double');
-          } else if (f.type === 'boolean') {
-            elementTypes.push('i32');
+          if (f.type === "string") {
+            elementTypes.push("i8*");
+          } else if (f.type === "number") {
+            elementTypes.push("double");
+          } else if (f.type === "boolean") {
+            elementTypes.push("i32");
           } else {
-            elementTypes.push('i8*');
+            elementTypes.push("i8*");
           }
         }
         return {
-          elementInterfaceName: '__inline',
+          elementInterfaceName: "__inline",
           elementKeys,
           elementTypes,
-          elementTsTypes
+          elementTsTypes,
         };
       }
     }
 
-    if (elementTypeName.startsWith('(') && elementTypeName.endsWith(')')) {
+    if (elementTypeName.startsWith("(") && elementTypeName.endsWith(")")) {
       const unionInfo = this.parseUnionTypeCommonProperties(elementTypeName);
       if (unionInfo) {
         return unionInfo;
@@ -878,7 +974,11 @@ export class ControlFlowGenerator {
 
     const elementIface = this.ctx.getInterfaceFromAST(elementTypeName);
     if (elementIface) {
-      const elementIfaceTyped = elementIface as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+      const elementIfaceTyped = elementIface as {
+        name: string;
+        extends: string[];
+        fields: { name: string; type: string }[];
+      };
       const elementKeys: string[] = [];
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
@@ -886,21 +986,21 @@ export class ControlFlowGenerator {
         const f = elementIfaceTyped.fields[i] as { name: string; type: string };
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
-        if (f.type === 'string') {
-          elementTypes.push('i8*');
-        } else if (f.type === 'number') {
-          elementTypes.push('double');
-        } else if (f.type === 'boolean') {
-          elementTypes.push('i32');
+        if (f.type === "string") {
+          elementTypes.push("i8*");
+        } else if (f.type === "number") {
+          elementTypes.push("double");
+        } else if (f.type === "boolean") {
+          elementTypes.push("i32");
         } else {
-          elementTypes.push('i8*');
+          elementTypes.push("i8*");
         }
       }
       return {
         elementInterfaceName: elementIfaceTyped.name,
         elementKeys,
         elementTypes,
-        elementTsTypes
+        elementTsTypes,
       };
     }
 
@@ -914,13 +1014,13 @@ export class ControlFlowGenerator {
     }
 
     const returnType = this.getMethodReturnType(objType, methodCall.method);
-    if (!returnType || !returnType.endsWith('[]')) {
+    if (!returnType || !returnType.endsWith("[]")) {
       return null;
     }
 
     const elementTypeName = returnType.slice(0, -2).trim();
 
-    if (elementTypeName.startsWith('{')) {
+    if (elementTypeName.startsWith("{")) {
       const fields = this.parseInlineObjectType(returnType);
       if (fields) {
         const elementKeys: string[] = [];
@@ -933,21 +1033,21 @@ export class ControlFlowGenerator {
           if (!f.name || !f.type) continue;
           elementKeys.push(f.name);
           elementTsTypes.push(f.type);
-          if (f.type === 'string') {
-            elementTypes.push('i8*');
-          } else if (f.type === 'number') {
-            elementTypes.push('double');
-          } else if (f.type === 'boolean') {
-            elementTypes.push('i32');
+          if (f.type === "string") {
+            elementTypes.push("i8*");
+          } else if (f.type === "number") {
+            elementTypes.push("double");
+          } else if (f.type === "boolean") {
+            elementTypes.push("i32");
           } else {
-            elementTypes.push('i8*');
+            elementTypes.push("i8*");
           }
         }
         return {
-          elementInterfaceName: '__inline',
+          elementInterfaceName: "__inline",
           elementKeys,
           elementTypes,
-          elementTsTypes
+          elementTsTypes,
         };
       }
     }
@@ -959,7 +1059,11 @@ export class ControlFlowGenerator {
 
     const elementIface = this.ctx.getInterfaceFromAST(elementTypeName);
     if (elementIface) {
-      const elementIfaceTyped = elementIface as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+      const elementIfaceTyped = elementIface as {
+        name: string;
+        extends: string[];
+        fields: { name: string; type: string }[];
+      };
       const elementKeys: string[] = [];
       const elementTypes: string[] = [];
       const elementTsTypes: string[] = [];
@@ -967,21 +1071,21 @@ export class ControlFlowGenerator {
         const f = elementIfaceTyped.fields[i] as { name: string; type: string };
         elementKeys.push(f.name);
         elementTsTypes.push(f.type);
-        if (f.type === 'string') {
-          elementTypes.push('i8*');
-        } else if (f.type === 'number') {
-          elementTypes.push('double');
-        } else if (f.type === 'boolean') {
-          elementTypes.push('i32');
+        if (f.type === "string") {
+          elementTypes.push("i8*");
+        } else if (f.type === "number") {
+          elementTypes.push("double");
+        } else if (f.type === "boolean") {
+          elementTypes.push("i32");
         } else {
-          elementTypes.push('i8*');
+          elementTypes.push("i8*");
         }
       }
       return {
         elementInterfaceName: elementIfaceTyped.name,
         elementKeys,
         elementTypes,
-        elementTsTypes
+        elementTsTypes,
       };
     }
 
@@ -1006,14 +1110,14 @@ export class ControlFlowGenerator {
     for (let i = 0; i < commonProps.keys.length; i++) {
       elementKeys.push(commonProps.keys[i]);
       elementTsTypes.push(commonProps.types[i]);
-      if (commonProps.types[i] === 'string') {
-        elementTypes.push('i8*');
-      } else if (commonProps.types[i] === 'number') {
-        elementTypes.push('double');
-      } else if (commonProps.types[i] === 'boolean') {
-        elementTypes.push('i32');
+      if (commonProps.types[i] === "string") {
+        elementTypes.push("i8*");
+      } else if (commonProps.types[i] === "number") {
+        elementTypes.push("double");
+      } else if (commonProps.types[i] === "boolean") {
+        elementTypes.push("i32");
       } else {
-        elementTypes.push('i8*');
+        elementTypes.push("i8*");
       }
     }
     if (elementKeys.length === 0) {
@@ -1023,13 +1127,13 @@ export class ControlFlowGenerator {
       elementInterfaceName: typeName,
       elementKeys,
       elementTypes,
-      elementTsTypes
+      elementTsTypes,
     };
   }
 
   private parseUnionTypeCommonProperties(unionType: string): ObjectArrayMetadata | null {
     const inner = unionType.slice(1, -1).trim();
-    const rawMembers = inner.split('|');
+    const rawMembers = inner.split("|");
     const members: string[] = [];
     for (let mi = 0; mi < rawMembers.length; mi++) {
       members.push(rawMembers[mi].trim());
@@ -1053,7 +1157,11 @@ export class ControlFlowGenerator {
     }
 
     const firstFields = new Map<string, string>();
-    const firstInterface = memberInterfaces[0] as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+    const firstInterface = memberInterfaces[0] as {
+      name: string;
+      extends: string[];
+      fields: { name: string; type: string }[];
+    };
     for (let i = 0; i < firstInterface.fields.length; i++) {
       const f = firstInterface.fields[i] as { name: string; type: string };
       firstFields.set(f.name, f.type);
@@ -1067,7 +1175,11 @@ export class ControlFlowGenerator {
       let isCommon = true;
       let resolvedType = fieldType;
       for (let i = 1; i < memberInterfaces.length; i++) {
-        const otherIface = memberInterfaces[i] as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+        const otherIface = memberInterfaces[i] as {
+          name: string;
+          extends: string[];
+          fields: { name: string; type: string }[];
+        };
         let otherFieldResult: InterfaceField | null = null;
         for (let j = 0; j < otherIface.fields.length; j++) {
           const f = otherIface.fields[j] as { name: string; type: string };
@@ -1082,12 +1194,16 @@ export class ControlFlowGenerator {
           break;
         }
         if (otherField.type !== fieldType) {
-          const bothAreLiteralStrings = this.isStringLiteralType(fieldType) && this.isStringLiteralType(otherField.type);
+          const bothAreLiteralStrings =
+            this.isStringLiteralType(fieldType) && this.isStringLiteralType(otherField.type);
           const areNullableCompatible = this.areNullableCompatible(fieldType, otherField.type);
           if (bothAreLiteralStrings) {
-            resolvedType = 'string';
+            resolvedType = "string";
           } else if (areNullableCompatible) {
-            resolvedType = this.getNullableBaseType(fieldType) || this.getNullableBaseType(otherField.type) || fieldType;
+            resolvedType =
+              this.getNullableBaseType(fieldType) ||
+              this.getNullableBaseType(otherField.type) ||
+              fieldType;
           } else {
             isCommon = false;
             break;
@@ -1095,7 +1211,7 @@ export class ControlFlowGenerator {
         }
       }
       if (isCommon) {
-        const normalizedType = this.isStringLiteralType(resolvedType) ? 'string' : resolvedType;
+        const normalizedType = this.isStringLiteralType(resolvedType) ? "string" : resolvedType;
         commonFields.push({ name: fieldName, type: normalizedType });
       }
     }
@@ -1111,22 +1227,22 @@ export class ControlFlowGenerator {
       const f = commonFields[i] as CommonField;
       elementKeys.push(f.name);
       elementTsTypes.push(f.type);
-      if (f.type === 'string') {
-        elementTypes.push('i8*');
-      } else if (f.type === 'number') {
-        elementTypes.push('double');
-      } else if (f.type === 'boolean') {
-        elementTypes.push('i32');
+      if (f.type === "string") {
+        elementTypes.push("i8*");
+      } else if (f.type === "number") {
+        elementTypes.push("double");
+      } else if (f.type === "boolean") {
+        elementTypes.push("i32");
       } else {
-        elementTypes.push('i8*');
+        elementTypes.push("i8*");
       }
     }
 
     return {
-      elementInterfaceName: '__union',
+      elementInterfaceName: "__union",
       elementKeys,
       elementTypes,
-      elementTsTypes
+      elementTsTypes,
     };
   }
 
@@ -1150,11 +1266,11 @@ export class ControlFlowGenerator {
   }
 
   private getNullableBaseType(typeStr: string): string | null {
-    if (typeStr.indexOf(' | null') !== -1) {
-      return typeStr.replace(' | null', '').trim();
+    if (typeStr.indexOf(" | null") !== -1) {
+      return typeStr.replace(" | null", "").trim();
     }
-    if (typeStr.indexOf('| null') !== -1) {
-      return typeStr.replace('| null', '').trim();
+    if (typeStr.indexOf("| null") !== -1) {
+      return typeStr.replace("| null", "").trim();
     }
     return null;
   }
@@ -1163,12 +1279,23 @@ export class ControlFlowGenerator {
     return this.ctx.getParameterTypeFromAST(paramName);
   }
 
-  private generateObjectArrayForOf(stmt: Statement, params: string[], objArrayInfo: ObjectArrayMetadata): string {
-    if (stmt.type !== 'for_of') {
-      throw new Error('Expected for...of statement');
+  private generateObjectArrayForOf(
+    stmt: Statement,
+    params: string[],
+    objArrayInfo: ObjectArrayMetadata,
+  ): string {
+    if (stmt.type !== "for_of") {
+      throw new Error("Expected for...of statement");
     }
 
-    const forOfStmt = stmt as { type: string; variableKind: string; variableName: string; destructuredNames: string[] | null; iterable: Expression; body: BlockStatement };
+    const forOfStmt = stmt as {
+      type: string;
+      variableKind: string;
+      variableName: string;
+      destructuredNames: string[] | null;
+      iterable: Expression;
+      body: BlockStatement;
+    };
 
     const iterableValue = this.ctx.generateExpression(forOfStmt.iterable, params);
 
@@ -1177,7 +1304,7 @@ export class ControlFlowGenerator {
     const lengthI32 = this.nextTemp();
     this.emit(`${lengthI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
 
-    const indexAlloca = this.ctx.nextAllocaReg('__forof_idx');
+    const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");
     this.emit(`${indexAlloca} = alloca i32`);
     this.emit(`store i32 0, i32* ${indexAlloca}`);
 
@@ -1187,18 +1314,26 @@ export class ControlFlowGenerator {
     const objectMetadata = {
       keys: objArrayInfo.elementKeys,
       types: objArrayInfo.elementTypes,
-      tsTypes: objArrayInfo.elementTsTypes
+      tsTypes: objArrayInfo.elementTsTypes,
     };
-    const hasInterfaceName = objArrayInfo.elementInterfaceName && objArrayInfo.elementInterfaceName !== '__inline';
+    const hasInterfaceName =
+      objArrayInfo.elementInterfaceName && objArrayInfo.elementInterfaceName !== "__inline";
     const metadata = hasInterfaceName
       ? createObjectMetadataWithInterface(objectMetadata, objArrayInfo.elementInterfaceName)
       : createObjectMetadata(objectMetadata);
-    this.ctx.defineVariableWithMetadata(forOfStmt.variableName, elemAlloca, 'i8*', SymbolKind.Object, 'local', metadata);
+    this.ctx.defineVariableWithMetadata(
+      forOfStmt.variableName,
+      elemAlloca,
+      "i8*",
+      SymbolKind.Object,
+      "local",
+      metadata,
+    );
 
-    const condLabel = this.nextLabel('forof_cond');
-    const bodyLabel = this.nextLabel('forof_body');
-    const updateLabel = this.nextLabel('forof_update');
-    const endLabel = this.nextLabel('forof_end');
+    const condLabel = this.nextLabel("forof_cond");
+    const bodyLabel = this.nextLabel("forof_body");
+    const updateLabel = this.nextLabel("forof_update");
+    const endLabel = this.nextLabel("forof_end");
 
     this.emit(`br label %${condLabel}`);
 
@@ -1250,44 +1385,53 @@ export class ControlFlowGenerator {
 
     this.emit(`${endLabel}:`);
 
-    return '0';
+    return "0";
   }
 
   generateBreakStatement(): string {
     if (this.loopBreakLabels.length === 0) {
-      throw new Error('break statement outside of loop');
+      throw new Error("break statement outside of loop");
     }
     const breakLabel = this.loopBreakLabels[this.loopBreakLabels.length - 1];
     this.emit(`br label %${breakLabel}`);
-    return '0';
+    return "0";
   }
 
   generateContinueStatement(): string {
     if (this.loopContinueLabels.length === 0) {
-      throw new Error('continue statement outside of loop');
+      throw new Error("continue statement outside of loop");
     }
     const continueLabel = this.loopContinueLabels[this.loopContinueLabels.length - 1];
     this.emit(`br label %${continueLabel}`);
-    return '0';
+    return "0";
   }
 
   generateThrowStatement(stmt: Statement, params: string[]): string {
-    if (stmt.type !== 'throw') {
-      throw new Error('Expected throw statement');
+    if (stmt.type !== "throw") {
+      throw new Error("Expected throw statement");
     }
 
     const throwStmt = stmt as { type: string; argument: Expression };
-    let msgVal: string = 'null';
+    let msgVal: string = "null";
 
     if (throwStmt.argument) {
-      const argTyped = throwStmt.argument as { type: string; className?: string; args?: Expression[] };
-      if (argTyped.type === 'new' && argTyped.className === 'Error' && argTyped.args && argTyped.args.length > 0) {
+      const argTyped = throwStmt.argument as {
+        type: string;
+        className?: string;
+        args?: Expression[];
+      };
+      if (
+        argTyped.type === "new" &&
+        argTyped.className === "Error" &&
+        argTyped.args &&
+        argTyped.args.length > 0
+      ) {
         const msgArg = argTyped.args[0];
         msgVal = this.ctx.generateExpression(msgArg, params);
       } else {
         msgVal = this.ctx.generateExpression(throwStmt.argument, params);
         const msgType = this.ctx.getVariableType(msgVal);
-        if (msgType === 'double') {
+        if (msgType === "double") {
           const buf = this.nextTemp();
           this.emit(`${buf} = call i8* @__double_to_string(double ${msgVal})`);
           msgVal = buf;
@@ -1301,8 +1445,8 @@ export class ControlFlowGenerator {
     this.emit(`${framePtr} = load i8*, i8** @__exception_stack`);
     const hasHandler = this.nextTemp();
     this.emit(`${hasHandler} = icmp ne i8* ${framePtr}, null`);
-    const doLongjmpLabel = this.nextLabel('do_longjmp');
-    const noHandlerLabel = this.nextLabel('no_handler');
+    const doLongjmpLabel = this.nextLabel("do_longjmp");
+    const noHandlerLabel = this.nextLabel("no_handler");
     this.emit(`br i1 ${hasHandler}, label %${doLongjmpLabel}, label %${noHandlerLabel}`);
 
     this.emit(`${doLongjmpLabel}:`);
@@ -1310,7 +1454,9 @@ export class ControlFlowGenerator {
     const frameTyped = this.nextTemp();
     this.emit(`${frameTyped} = bitcast i8* ${framePtr} to %ExceptionFrame*`);
     const bufPtr = this.nextTemp();
-    this.emit(`${bufPtr} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frameTyped}, i32 0, i32 0, i32 0`);
+    this.emit(
+      `${bufPtr} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frameTyped}, i32 0, i32 0, i32 0`,
+    );
     this.emit(`call void @longjmp(i8* ${bufPtr}, i32 1)`);
     this.emit(`unreachable`);
 
@@ -1319,17 +1465,25 @@ export class ControlFlowGenerator {
     const stderrPtr = this.ctx.nextTemp();
     this.emit(`${stderrPtr} = load i8*, i8** @stderr`);
     const fprintfResult = this.ctx.nextTemp();
-    this.emit(`${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([11 x i8], [11 x i8]* @.str.throw_fmt, i32 0, i32 0), i8* ${msgVal})`);
+    this.emit(
+      `${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([11 x i8], [11 x i8]* @.str.throw_fmt, i32 0, i32 0), i8* ${msgVal})`,
+    );
     this.emit(`call void @exit(i32 1)`);
     this.emit(`unreachable`);
-    return '0';
+    return "0";
   }
 
   generateTryStatement(stmt: Statement, params: string[]): string {
-    if (stmt.type !== 'try') {
-      throw new Error('Expected try statement');
+    if (stmt.type !== "try") {
+      throw new Error("Expected try statement");
     }
-    const tryStmt = stmt as { type: string; tryBlock: BlockStatement; catchParam: string | null; catchBody: BlockStatement | null; finallyBlock: BlockStatement | null };
+    const tryStmt = stmt as {
+      type: string;
+      tryBlock: BlockStatement;
+      catchParam: string | null;
+      catchBody: BlockStatement | null;
+      finallyBlock: BlockStatement | null;
+    };
 
     const frameRaw = this.nextTemp();
     this.emit(`${frameRaw} = call i8* @GC_malloc(i64 216)`);
@@ -1339,20 +1493,24 @@ export class ControlFlowGenerator {
     const prevFrame = this.nextTemp();
     this.emit(`${prevFrame} = load i8*, i8** @__exception_stack`);
     const prevField = this.nextTemp();
-    this.emit(`${prevField} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frame}, i32 0, i32 1`);
+    this.emit(
+      `${prevField} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frame}, i32 0, i32 1`,
+    );
     this.emit(`store i8* ${prevFrame}, i8** ${prevField}`);
     this.emit(`store i8* ${frameRaw}, i8** @__exception_stack`);
 
     const bufPtr = this.nextTemp();
-    this.emit(`${bufPtr} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frame}, i32 0, i32 0, i32 0`);
+    this.emit(
+      `${bufPtr} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frame}, i32 0, i32 0, i32 0`,
+    );
     const sjVal = this.nextTemp();
     this.emit(`${sjVal} = call i32 @setjmp(i8* ${bufPtr})`);
     const isException = this.nextTemp();
     this.emit(`${isException} = icmp ne i32 ${sjVal}, 0`);
 
-    const tryBodyLabel = this.nextLabel('try_body');
-    const catchEntryLabel = this.nextLabel('catch_entry');
-    const finallyLabel = this.nextLabel('finally_block');
+    const tryBodyLabel = this.nextLabel("try_body");
+    const catchEntryLabel = this.nextLabel("catch_entry");
+    const finallyLabel = this.nextLabel("finally_block");
 
     this.emit(`br i1 ${isException}, label %${catchEntryLabel}, label %${tryBodyLabel}`);
 
@@ -1377,7 +1535,7 @@ export class ControlFlowGenerator {
         const paramAlloca = this.ctx.nextAllocaReg(paramName);
         this.emit(`${paramAlloca} = alloca i8*`);
         this.emit(`store i8* ${excMsg}, i8** ${paramAlloca}`);
-        this.ctx.defineVariable(paramName, paramAlloca, 'i8*', SymbolKind.String, 'local');
+        this.ctx.defineVariable(paramName, paramAlloca, "i8*", SymbolKind.String, "local");
       }
       this.ctx.generateBlock(tryStmt.catchBody, params);
     }
@@ -1394,24 +1552,24 @@ export class ControlFlowGenerator {
       this.ctx.generateBlock(tryStmt.finallyBlock, params);
     }
 
-    return '0';
+    return "0";
   }
 
   generateLogicalOp(op: string, left: Expression, right: Expression, params: string[]): string {
     const leftValue = this.ctx.generateExpression(left, params);
-    const leftType = this.ctx.getVariableType(leftValue) || 'double';
+    const leftType = this.ctx.getVariableType(leftValue) || "double";
     let leftBool: string;
-    if (op === '??') {
+    if (op === "??") {
       leftBool = this.convertToNonNullish(leftValue, leftType);
     } else {
       leftBool = this.convertToBool(leftValue);
     }
 
-    const evalRightLabel = this.nextLabel('logop_eval_right');
-    const endLabel = this.nextLabel('logop_end');
-    const leftCoerceLabel = this.nextLabel('logop_left_coerce');
+    const evalRightLabel = this.nextLabel("logop_eval_right");
+    const endLabel = this.nextLabel("logop_end");
+    const leftCoerceLabel = this.nextLabel("logop_left_coerce");
 
-    if (op === '||' || op === '??') {
+    if (op === "||" || op === "??") {
       this.emit(`br i1 ${leftBool}, label %${leftCoerceLabel}, label %${evalRightLabel}`);
     } else {
       this.emit(`br i1 ${leftBool}, label %${evalRightLabel}, label %${leftCoerceLabel}`);
@@ -1420,18 +1578,18 @@ export class ControlFlowGenerator {
     this.emit(`${evalRightLabel}:`);
     const savedExpectedType = this.ctx.getExpectedArrayElementType();
     const rightTyped = right as { type: string; elements?: Expression[] };
-    if (rightTyped.type === 'array' && (!rightTyped.elements || rightTyped.elements.length === 0)) {
+    if (rightTyped.type === "array" && (!rightTyped.elements || rightTyped.elements.length === 0)) {
       if (savedExpectedType === null) {
-        if (leftType === '%StringArray*') {
-          this.ctx.setExpectedArrayElementType('string');
-        } else if (leftType === '%ObjectArray*') {
-          this.ctx.setExpectedArrayElementType('pointer');
+        if (leftType === "%StringArray*") {
+          this.ctx.setExpectedArrayElementType("string");
+        } else if (leftType === "%ObjectArray*") {
+          this.ctx.setExpectedArrayElementType("pointer");
         }
       }
     }
     const rightValue = this.ctx.generateExpression(right, params);
     this.ctx.setExpectedArrayElementType(savedExpectedType);
-    const rightType = this.ctx.getVariableType(rightValue) || 'double';
+    const rightType = this.ctx.getVariableType(rightValue) || "double";
     const resultType = this.getPhiType(leftType, rightType);
     const rightForPhi = this.coerceToTypeNoPhi(rightValue, rightType, resultType);
     const rightCoerceEndLabel = this.ctx.getCurrentLabel();
@@ -1444,36 +1602,38 @@ export class ControlFlowGenerator {
 
     this.emit(`${endLabel}:`);
     const result = this.nextTemp();
-    this.emit(`${result} = phi ${resultType} [ ${leftForPhi}, %${leftCoerceEndLabel} ], [ ${rightForPhi}, %${rightCoerceEndLabel} ]`);
+    this.emit(
+      `${result} = phi ${resultType} [ ${leftForPhi}, %${leftCoerceEndLabel} ], [ ${rightForPhi}, %${rightCoerceEndLabel} ]`,
+    );
     this.ctx.setVariableType(result, resultType);
     return result;
   }
 
   private getPhiType(type1: string, type2: string): string {
     if (type1 === type2) return type1;
-    if (type1.indexOf('*') !== -1) return type1;
-    if (type2.indexOf('*') !== -1) return type2;
-    return 'double';
+    if (type1.indexOf("*") !== -1) return type1;
+    if (type2.indexOf("*") !== -1) return type2;
+    return "double";
   }
 
   private coerceToTypeNoPhi(value: string, fromType: string, toType: string): string {
     if (fromType === toType) return value;
-    if (toType === 'double' && fromType === 'i64') {
+    if (toType === "double" && fromType === "i64") {
       const coerced = this.nextTemp();
       this.emit(`${coerced} = sitofp i64 ${value} to double`);
       return coerced;
     }
-    if (toType === 'i64' && fromType === 'double') {
+    if (toType === "i64" && fromType === "double") {
       const coerced = this.nextTemp();
       this.emit(`${coerced} = fptosi double ${value} to i64`);
       return coerced;
     }
-    if (toType.indexOf('*') !== -1 && fromType === 'i64') {
+    if (toType.indexOf("*") !== -1 && fromType === "i64") {
       const coerced = this.nextTemp();
       this.emit(`${coerced} = inttoptr i64 ${value} to ${toType}`);
       return coerced;
     }
-    if (toType.indexOf('*') !== -1 && fromType === 'double') {
+    if (toType.indexOf("*") !== -1 && fromType === "double") {
       const cmp = this.nextTemp();
       this.emit(`${cmp} = fcmp one double ${value}, 0.0`);
       const zext = this.nextTemp();
@@ -1482,7 +1642,7 @@ export class ControlFlowGenerator {
       this.emit(`${coerced} = inttoptr i64 ${zext} to ${toType}`);
       return coerced;
     }
-    if (toType.indexOf('*') !== -1 && fromType === 'i32') {
+    if (toType.indexOf("*") !== -1 && fromType === "i32") {
       const extended = this.nextTemp();
       this.emit(`${extended} = sext i32 ${value} to i64`);
       const coerced = this.nextTemp();
@@ -1492,7 +1652,11 @@ export class ControlFlowGenerator {
     return value;
   }
 
-  private getUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[]; tsTypes: string[] } {
+  private getUnionCommonFields(memberNames: string[]): {
+    keys: string[];
+    types: string[];
+    tsTypes: string[];
+  } {
     const result = this.ctx.typeResolver?.getUnionCommonFields(memberNames);
     if (result && result.keys.length > 0) {
       return { keys: result.keys, types: result.types, tsTypes: result.types };
@@ -1571,27 +1735,27 @@ export class ControlFlowGenerator {
       return result;
     }
 
-    if (type.startsWith("'") && type.endsWith("'")) return 'string';
-    if (type.startsWith('"') && type.endsWith('"')) return 'string';
+    if (type.startsWith("'") && type.endsWith("'")) return "string";
+    if (type.startsWith('"') && type.endsWith('"')) return "string";
     return type;
   }
 
   private fieldTypeToLlvm(fieldType: string): string {
-    if (fieldType === 'string') return 'i8*';
-    if (fieldType === 'number') return 'double';
-    if (fieldType === 'boolean') return 'double';
-    if (fieldType.startsWith("'") || fieldType.startsWith('"')) return 'i8*';
-    if (this.isEnumType(fieldType)) return 'double';
-    return 'i8*';
+    if (fieldType === "string") return "i8*";
+    if (fieldType === "number") return "double";
+    if (fieldType === "boolean") return "double";
+    if (fieldType.startsWith("'") || fieldType.startsWith('"')) return "i8*";
+    if (this.isEnumType(fieldType)) return "double";
+    return "i8*";
   }
 
   private isEnumType(typeName: string): boolean {
     let checkType = typeName;
-    if (checkType.indexOf(' | ') !== -1) {
-      const parts = checkType.split(' | ');
+    if (checkType.indexOf(" | ") !== -1) {
+      const parts = checkType.split(" | ");
       for (let j = 0; j < parts.length; j++) {
         const part = parts[j].trim();
-        if (part !== 'undefined' && part !== 'null') {
+        if (part !== "undefined" && part !== "null") {
           checkType = part;
           break;
         }
@@ -1600,18 +1764,29 @@ export class ControlFlowGenerator {
     return this.ctx.isEnumType(checkType);
   }
 
-  private detectTypeGuard(condition: Expression): { varName: string; narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] } } | null {
+  private detectTypeGuard(condition: Expression): {
+    varName: string;
+    narrowedMetadata: { keys: string[]; types: string[]; tsTypes?: string[] };
+  } | null {
     if (!condition) return null;
 
     const result = this.ctx.typeResolverDetectTypeGuard(condition);
     if (result) {
-      return { varName: result.varName, narrowedMetadata: { keys: result.narrowedMetadata.keys, types: result.narrowedMetadata.types, tsTypes: result.narrowedMetadata.tsTypes } };
+      return {
+        varName: result.varName,
+        narrowedMetadata: {
+          keys: result.narrowedMetadata.keys,
+          types: result.narrowedMetadata.types,
+          tsTypes: result.narrowedMetadata.tsTypes,
+        },
+      };
     }
 
-    if (condition.type !== 'binary') return null;
+    if (condition.type !== "binary") return null;
 
     const binary = condition as BinaryNode;
-    if (binary.op !== '===' && binary.op !== '==' && binary.op !== '!==' && binary.op !== '!=') return null;
+    if (binary.op !== "===" && binary.op !== "==" && binary.op !== "!==" && binary.op !== "!=")
+      return null;
     if (!binary.left || !binary.right) return null;
 
     const leftBase = binary.left as ExprBase;
@@ -1621,11 +1796,11 @@ export class ControlFlowGenerator {
     let memberAccess: MemberAccessNode | null = null;
     let literalValue: string | null = null;
 
-    if (leftBase.type === 'member_access' && rightBase.type === 'string') {
+    if (leftBase.type === "member_access" && rightBase.type === "string") {
       memberAccess = binary.left as MemberAccessNode;
       const rightStr = binary.right as StringNode;
       literalValue = rightStr.value;
-    } else if (rightBase.type === 'member_access' && leftBase.type === 'string') {
+    } else if (rightBase.type === "member_access" && leftBase.type === "string") {
       memberAccess = binary.right as MemberAccessNode;
       const leftStr = binary.left as StringNode;
       literalValue = leftStr.value;
@@ -1633,9 +1808,9 @@ export class ControlFlowGenerator {
 
     if (!memberAccess || !literalValue) return null;
     const ma = memberAccess as { type: string; object: Expression; property: string };
-    if (ma.property !== 'type') return null;
+    if (ma.property !== "type") return null;
     const maObjBase = ma.object as ExprBase;
-    if (maObjBase.type !== 'variable') return null;
+    if (maObjBase.type !== "variable") return null;
 
     const varName = (ma.object as VariableNode).name;
     const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
@@ -1646,7 +1821,11 @@ export class ControlFlowGenerator {
 
     const ifaceResult = this.getInterfaceDecl(interfaceName);
     if (!ifaceResult) return null;
-    const iface = ifaceResult as { name: string; extends: string[]; fields: { name: string; type: string }[] };
+    const iface = ifaceResult as {
+      name: string;
+      extends: string[];
+      fields: { name: string; type: string }[];
+    };
 
     const currentKeys: string[] = objMeta.keys as string[];
     const ifaceKeys: string[] = [];
@@ -1673,13 +1852,13 @@ export class ControlFlowGenerator {
       tsTypes.push(f.type);
     }
 
-    if (binary.op === '!==' || binary.op === '!=') {
+    if (binary.op === "!==" || binary.op === "!=") {
       return null;
     }
 
     return {
       varName,
-      narrowedMetadata: { keys, types, tsTypes }
+      narrowedMetadata: { keys, types, tsTypes },
     };
   }
 
@@ -1687,10 +1866,14 @@ export class ControlFlowGenerator {
     return this.ctx.typeResolverFindInterfaceByDiscriminant(discriminantValue);
   }
 
-  private checkDiscriminant(ifaceName: string, fields: { name: string; type: string }[], discriminantValue: string): string | null {
+  private checkDiscriminant(
+    ifaceName: string,
+    fields: { name: string; type: string }[],
+    discriminantValue: string,
+  ): string | null {
     for (let i = 0; i < fields.length; i++) {
       const f = fields[i] as { name: string; type: string };
-      if (f.name === 'type') {
+      if (f.name === "type") {
         const fieldType = f.type;
         if (fieldType === `'${discriminantValue}'` || fieldType === `"${discriminantValue}"`) {
           return ifaceName;
@@ -1703,23 +1886,23 @@ export class ControlFlowGenerator {
   private isStringSetExpression(expr: Expression): boolean {
     const e = expr as ExprBase;
 
-    if (e.type === 'variable') {
+    if (e.type === "variable") {
       const varName = (expr as VariableNode).name;
       if (this.ctx.symbolTable.isSet(varName)) {
         const setMeta = this.ctx.symbolTable.getSetValueType(varName);
-        return !setMeta || setMeta === 'string';
+        return !setMeta || setMeta === "string";
       }
       return false;
     }
 
-    if (e.type === 'member_access') {
+    if (e.type === "member_access") {
       const memberExpr = expr as MemberAccessNode;
       const memberObjBase = memberExpr.object as ExprBase;
       const className = this.ctx.getCurrentClassName();
-      if (memberObjBase.type === 'this' && className) {
+      if (memberObjBase.type === "this" && className) {
         const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Set<string>')) {
+        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith("Set<string>")) {
           return true;
         }
       }
@@ -1731,42 +1914,42 @@ export class ControlFlowGenerator {
   private isMapEntriesCall(expr: Expression): boolean {
     const e = expr as ExprBase;
 
-    if (e.type === 'variable') {
+    if (e.type === "variable") {
       const varName = (expr as VariableNode).name;
       return this.ctx.symbolTable.isMap(varName);
     }
 
-    if (e.type === 'member_access') {
+    if (e.type === "member_access") {
       const memberExpr = expr as MemberAccessNode;
       const memberObjBase = memberExpr.object as ExprBase;
       const className = this.ctx.getCurrentClassName();
-      if (memberObjBase.type === 'this' && className) {
+      if (memberObjBase.type === "this" && className) {
         const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
+        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith("Map<")) {
           return true;
         }
       }
     }
 
-    if (e.type !== 'method_call') return false;
+    if (e.type !== "method_call") return false;
     const methodCall = expr as MethodCallNode;
-    if (methodCall.method !== 'entries') return false;
+    if (methodCall.method !== "entries") return false;
 
     const objBase = methodCall.object as ExprBase;
-    if (objBase.type === 'variable') {
+    if (objBase.type === "variable") {
       const varName = (methodCall.object as VariableNode).name;
       return this.ctx.symbolTable.isMap(varName);
     }
 
-    if (objBase.type === 'member_access') {
+    if (objBase.type === "member_access") {
       const memberExpr = methodCall.object as MemberAccessNode;
       const memberObjBase = memberExpr.object as ExprBase;
       const className = this.ctx.getCurrentClassName();
-      if (memberObjBase.type === 'this' && className) {
+      if (memberObjBase.type === "this" && className) {
         const fieldInfoResult = this.ctx.classGenGetFieldInfo(className, memberExpr.property);
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
+        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith("Map<")) {
           return true;
         }
       }
@@ -1775,48 +1958,50 @@ export class ControlFlowGenerator {
     return false;
   }
 
-  private getMapValueTypeInfo(iterable: Expression): { valueType: string; objectMetadata?: ObjectMetadata } | null {
+  private getMapValueTypeInfo(
+    iterable: Expression,
+  ): { valueType: string; objectMetadata?: ObjectMetadata } | null {
     const e = iterable as ExprBase;
 
     let valueType: string | null = null;
 
-    if (e.type === 'variable') {
+    if (e.type === "variable") {
       const varName = (iterable as VariableNode).name;
       const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
       if (mapMeta) {
         valueType = mapMeta.valueType;
       }
-    } else if (e.type === 'member_access') {
+    } else if (e.type === "member_access") {
       const memberExpr = iterable as MemberAccessNode;
       const memberObjBase = memberExpr.object as ExprBase;
       const className = this.ctx.getCurrentClassName();
-      if (memberObjBase.type === 'this' && className) {
+      if (memberObjBase.type === "this" && className) {
         const mapTypeInfo = this.ctx.typeResolver?.getClassFieldMapType(
           className,
-          memberExpr.property
+          memberExpr.property,
         );
         if (mapTypeInfo) {
           valueType = mapTypeInfo.valueType;
         }
       }
-    } else if (e.type === 'method_call') {
+    } else if (e.type === "method_call") {
       const methodCall = iterable as MethodCallNode;
-      if (methodCall.method === 'entries') {
+      if (methodCall.method === "entries") {
         const methodCallObjBase = methodCall.object as ExprBase;
-        if (methodCallObjBase.type === 'variable') {
+        if (methodCallObjBase.type === "variable") {
           const varName = (methodCall.object as VariableNode).name;
           const mapMeta = this.ctx.symbolTable.getMapMetadata(varName);
           if (mapMeta) {
             valueType = mapMeta.valueType;
           }
-        } else if (methodCallObjBase.type === 'member_access') {
+        } else if (methodCallObjBase.type === "member_access") {
           const memberExpr = methodCall.object as MemberAccessNode;
           const memberExprObjBase = memberExpr.object as ExprBase;
           const className2 = this.ctx.getCurrentClassName();
-          if (memberExprObjBase.type === 'this' && className2) {
+          if (memberExprObjBase.type === "this" && className2) {
             const mapTypeInfo = this.ctx.typeResolver?.getClassFieldMapType(
               className2,
-              memberExpr.property
+              memberExpr.property,
             );
             if (mapTypeInfo) {
               valueType = mapTypeInfo.valueType;
@@ -1828,7 +2013,7 @@ export class ControlFlowGenerator {
 
     if (!valueType) return null;
 
-    if (valueType === 'string' || valueType === 'number') {
+    if (valueType === "string" || valueType === "number") {
       return { valueType };
     }
 
@@ -1849,7 +2034,7 @@ export class ControlFlowGenerator {
 
     let iterableValue: string;
     const iterableBase = stmt.iterable as ExprBase;
-    if (iterableBase.type === 'variable') {
+    if (iterableBase.type === "variable") {
       const varName = (stmt.iterable as VariableNode).name;
       if (this.ctx.symbolTable.isMap(varName)) {
         const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
@@ -1857,14 +2042,17 @@ export class ControlFlowGenerator {
       } else {
         iterableValue = this.ctx.generateExpression(stmt.iterable, params);
       }
-    } else if (iterableBase.type === 'member_access') {
+    } else if (iterableBase.type === "member_access") {
       const memberExpr = stmt.iterable as MemberAccessNode;
       const memberObjBase = memberExpr.object as ExprBase;
       const classNameForLookup = this.ctx.getCurrentClassName();
-      if (memberObjBase.type === 'this' && classNameForLookup) {
-        const fieldInfoResult = this.ctx.classGenGetFieldInfo(classNameForLookup, memberExpr.property);
+      if (memberObjBase.type === "this" && classNameForLookup) {
+        const fieldInfoResult = this.ctx.classGenGetFieldInfo(
+          classNameForLookup,
+          memberExpr.property,
+        );
         const fieldInfo = fieldInfoResult as { index: number; type: string; tsType: string };
-        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith('Map<')) {
+        if (fieldInfoResult && fieldInfo.tsType && fieldInfo.tsType.startsWith("Map<")) {
           const mapPtr = this.ctx.generateExpression(stmt.iterable, params);
           iterableValue = this.ctx.stringMapGen.generateStringMapEntries(mapPtr);
         } else {
@@ -1882,7 +2070,7 @@ export class ControlFlowGenerator {
     const lengthI32 = this.nextTemp();
     this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
 
-    const indexAlloca = this.ctx.nextAllocaReg('__forof_idx');
+    const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");
     this.emit(`${indexAlloca} = alloca i32`);
     this.emit(`store i32 0, i32* ${indexAlloca}`);
 
@@ -1891,23 +2079,33 @@ export class ControlFlowGenerator {
     const valueAlloca = this.ctx.nextAllocaReg(valueName);
     this.emit(`${valueAlloca} = alloca i8*`);
 
-    this.ctx.defineVariable(keyName, keyAlloca, 'i8*', SymbolKind.String, 'local');
+    this.ctx.defineVariable(keyName, keyAlloca, "i8*", SymbolKind.String, "local");
 
     if (valueTypeInfo) {
-      const vti = valueTypeInfo as { valueType: string; objectMetadata: ObjectMetadata | undefined };
+      const vti = valueTypeInfo as {
+        valueType: string;
+        objectMetadata: ObjectMetadata | undefined;
+      };
       if (vti.objectMetadata) {
-        this.ctx.defineVariableWithMetadata(valueName, valueAlloca, 'i8*', SymbolKind.Object, 'local', createObjectMetadata(vti.objectMetadata));
+        this.ctx.defineVariableWithMetadata(
+          valueName,
+          valueAlloca,
+          "i8*",
+          SymbolKind.Object,
+          "local",
+          createObjectMetadata(vti.objectMetadata),
+        );
       } else {
-        this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.String, 'local');
+        this.ctx.defineVariable(valueName, valueAlloca, "i8*", SymbolKind.String, "local");
       }
     } else {
-      this.ctx.defineVariable(valueName, valueAlloca, 'i8*', SymbolKind.String, 'local');
+      this.ctx.defineVariable(valueName, valueAlloca, "i8*", SymbolKind.String, "local");
     }
 
-    const condLabel = this.nextLabel('mapof_cond');
-    const bodyLabel = this.nextLabel('mapof_body');
-    const updateLabel = this.nextLabel('mapof_update');
-    const endLabel = this.nextLabel('mapof_end');
+    const condLabel = this.nextLabel("mapof_cond");
+    const bodyLabel = this.nextLabel("mapof_body");
+    const updateLabel = this.nextLabel("mapof_update");
+    const endLabel = this.nextLabel("mapof_end");
 
     this.emit(`br label %${condLabel}`);
 
@@ -1922,7 +2120,9 @@ export class ControlFlowGenerator {
     this.ctx.setCurrentLabel(bodyLabel);
 
     const dataFieldPtr = this.nextTemp();
-    this.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 2`);
+    this.emit(
+      `${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 2`,
+    );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}, !tbaa !5`);
     const dataCast = this.nextTemp();
@@ -1939,13 +2139,17 @@ export class ControlFlowGenerator {
     this.emit(`${entryPtr} = bitcast i8* ${entryRaw} to { i8*, i8* }*`);
 
     const keySlotPtr = this.nextTemp();
-    this.emit(`${keySlotPtr} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryPtr}, i32 0, i32 0`);
+    this.emit(
+      `${keySlotPtr} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryPtr}, i32 0, i32 0`,
+    );
     const keyVal = this.nextTemp();
     this.emit(`${keyVal} = load i8*, i8** ${keySlotPtr}`);
     this.emit(`store i8* ${keyVal}, i8** ${keyAlloca}`);
 
     const valueSlotPtr = this.nextTemp();
-    this.emit(`${valueSlotPtr} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryPtr}, i32 0, i32 1`);
+    this.emit(
+      `${valueSlotPtr} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryPtr}, i32 0, i32 1`,
+    );
     const valueVal = this.nextTemp();
     this.emit(`${valueVal} = load i8*, i8** ${valueSlotPtr}`);
     this.emit(`store i8* ${valueVal}, i8** ${valueAlloca}`);
@@ -1971,22 +2175,22 @@ export class ControlFlowGenerator {
 
     this.emit(`${endLabel}:`);
 
-    return '0';
+    return "0";
   }
 
   generateSwitchStatement(stmt: Statement, params: string[]): string {
-    if (stmt.type !== 'switch') {
-      throw new Error('Expected switch statement');
+    if (stmt.type !== "switch") {
+      throw new Error("Expected switch statement");
     }
 
     const switchStmt = stmt as SwitchStatement;
-    const endLabel = this.nextLabel('switch_end');
+    const endLabel = this.nextLabel("switch_end");
 
     const discriminantValue = this.ctx.generateExpression(switchStmt.discriminant, params);
     const discriminantType = this.ctx.getVariableType(discriminantValue);
-    const isString = discriminantType === 'i8*';
+    const isString = discriminantType === "i8*";
 
-    this.loopContinueLabels.push('');
+    this.loopContinueLabels.push("");
     this.loopBreakLabels.push(endLabel);
 
     const caseLabels: string[] = [];
@@ -1997,9 +2201,9 @@ export class ControlFlowGenerator {
       if (!caseItem) continue;
       if (caseItem.test === null) {
         defaultLabelIndex = i;
-        caseLabels.push(this.nextLabel('case_default'));
+        caseLabels.push(this.nextLabel("case_default"));
       } else {
-        caseLabels.push(this.nextLabel('case'));
+        caseLabels.push(this.nextLabel("case"));
       }
     }
 
@@ -2016,7 +2220,7 @@ export class ControlFlowGenerator {
     }
 
     for (let i = 0; i < testCaseCount; i++) {
-      checkLabels.push(this.nextLabel('check'));
+      checkLabels.push(this.nextLabel("check"));
     }
 
     let checkIndex = 0;
@@ -2035,14 +2239,14 @@ export class ControlFlowGenerator {
           this.emit(`${strCmp} = call i32 @strcmp(i8* ${discriminantValue}, i8* ${testValue})`);
           const cmpResult = this.nextTemp();
           this.emit(`${cmpResult} = icmp eq i32 ${strCmp}, 0`);
-          const nextLabel = (checkIndex < testCaseCount - 1) ? checkLabels[checkIndex] : defaultLabel;
+          const nextLabel = checkIndex < testCaseCount - 1 ? checkLabels[checkIndex] : defaultLabel;
           this.emit(`br i1 ${cmpResult}, label %${caseLabels[i]}, label %${nextLabel}`);
         } else {
           const dblDiscriminant = this.ctx.ensureDouble(discriminantValue);
           const dblTest = this.ctx.ensureDouble(testValue);
           const cmpResult = this.nextTemp();
           this.emit(`${cmpResult} = fcmp oeq double ${dblDiscriminant}, ${dblTest}`);
-          const nextLabel = (checkIndex < testCaseCount - 1) ? checkLabels[checkIndex] : defaultLabel;
+          const nextLabel = checkIndex < testCaseCount - 1 ? checkLabels[checkIndex] : defaultLabel;
           this.emit(`br i1 ${cmpResult}, label %${caseLabels[i]}, label %${nextLabel}`);
         }
         checkIndex++;
@@ -2058,18 +2262,33 @@ export class ControlFlowGenerator {
       for (let j = 0; j < caseItem.consequent.length; j++) {
         const consequentStmt = caseItem.consequent[j];
         if (!consequentStmt) continue;
-        if (consequentStmt.type === 'break') {
+        if (consequentStmt.type === "break") {
           this.emit(`br label %${endLabel}`);
-        } else if (consequentStmt.type === 'variable_declaration' || consequentStmt.type === 'return' || consequentStmt.type === 'if' || consequentStmt.type === 'assignment' || consequentStmt.type === 'throw' || consequentStmt.type === 'while' || consequentStmt.type === 'for' || consequentStmt.type === 'for_of' || consequentStmt.type === 'continue' || consequentStmt.type === 'try' || consequentStmt.type === 'switch') {
-          this.ctx.generateBlock({ type: 'block', statements: [consequentStmt] }, params);
+        } else if (
+          consequentStmt.type === "variable_declaration" ||
+          consequentStmt.type === "return" ||
+          consequentStmt.type === "if" ||
+          consequentStmt.type === "assignment" ||
+          consequentStmt.type === "throw" ||
+          consequentStmt.type === "while" ||
+          consequentStmt.type === "for" ||
+          consequentStmt.type === "for_of" ||
+          consequentStmt.type === "continue" ||
+          consequentStmt.type === "try" ||
+          consequentStmt.type === "switch"
+        ) {
+          this.ctx.generateBlock({ type: "block", statements: [consequentStmt] }, params);
         } else {
           this.ctx.generateExpression(consequentStmt as Expression, params);
         }
       }
 
       const lastStmt = caseItem.consequent[caseItem.consequent.length - 1];
-      if (!lastStmt || (lastStmt.type !== 'break' && lastStmt.type !== 'return' && lastStmt.type !== 'throw')) {
-        const nextCaseLabel = (i < switchStmt.cases.length - 1) ? caseLabels[i + 1] : endLabel;
+      if (
+        !lastStmt ||
+        (lastStmt.type !== "break" && lastStmt.type !== "return" && lastStmt.type !== "throw")
+      ) {
+        const nextCaseLabel = i < switchStmt.cases.length - 1 ? caseLabels[i + 1] : endLabel;
         this.emit(`br label %${nextCaseLabel}`);
       }
     }
@@ -2078,6 +2297,6 @@ export class ControlFlowGenerator {
     this.loopBreakLabels.pop();
     this.emit(`${endLabel}:`);
 
-    return '0';
+    return "0";
   }
 }

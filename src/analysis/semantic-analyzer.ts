@@ -1,8 +1,43 @@
-import { AST, Expression, FunctionNode, BlockStatement, VariableDeclaration, AssignmentStatement, ClassNode, ArrayNode, ObjectNode, ObjectProperty, MethodCallNode, BinaryNode, VariableNode, MemberAccessNode, IfStatement, WhileStatement, ForStatement, ForOfStatement, TryStatement, SourceLocation, Statement, ReturnStatement, MapNode, SetNode } from '../ast/types.js';
-import { checkUnsafeUnionType } from '../codegen/infrastructure/type-system.js';
-import { DiagnosticEngine, DIAG_ERROR, DIAG_WARNING } from '../diagnostics/engine.js';
+import {
+  AST,
+  Expression,
+  FunctionNode,
+  BlockStatement,
+  VariableDeclaration,
+  AssignmentStatement,
+  ClassNode,
+  ArrayNode,
+  ObjectNode,
+  ObjectProperty,
+  MethodCallNode,
+  BinaryNode,
+  VariableNode,
+  MemberAccessNode,
+  IfStatement,
+  WhileStatement,
+  ForStatement,
+  ForOfStatement,
+  TryStatement,
+  SourceLocation,
+  Statement,
+  ReturnStatement,
+  MapNode,
+  SetNode,
+} from "../ast/types.js";
+import { checkUnsafeUnionType } from "../codegen/infrastructure/type-system.js";
+import { DiagnosticEngine, DIAG_ERROR, DIAG_WARNING } from "../diagnostics/engine.js";
 
-type SymbolType = 'number' | 'string' | 'boolean' | 'null' | 'undefined' | 'array<number>' | 'array<string>' | 'object' | 'class' | 'unknown';
+type SymbolType =
+  | "number"
+  | "string"
+  | "boolean"
+  | "null"
+  | "undefined"
+  | "array<number>"
+  | "array<string>"
+  | "object"
+  | "class"
+  | "unknown";
 
 interface ExpressionBase {
   type: string;
@@ -23,13 +58,13 @@ export interface TypedSymbol {
   schemaTypes?: string[];
 }
 
-const NUMBER_SYMBOL: TypedSymbol = { name: '', type: 'number', llvmType: 'double' };
-const STRING_SYMBOL: TypedSymbol = { name: '', type: 'string', llvmType: 'i8*' };
+const NUMBER_SYMBOL: TypedSymbol = { name: "", type: "number", llvmType: "double" };
+const STRING_SYMBOL: TypedSymbol = { name: "", type: "string", llvmType: "i8*" };
 
 function lookupPropertyType(typeName: string, property: string): TypedSymbol | null {
-  if (typeName === 'string' && property === 'length') return NUMBER_SYMBOL;
-  if (typeName === 'array<number>' && property === 'length') return NUMBER_SYMBOL;
-  if (typeName === 'array<string>' && property === 'length') return NUMBER_SYMBOL;
+  if (typeName === "string" && property === "length") return NUMBER_SYMBOL;
+  if (typeName === "array<number>" && property === "length") return NUMBER_SYMBOL;
+  if (typeName === "array<string>" && property === "length") return NUMBER_SYMBOL;
   return null;
 }
 
@@ -43,7 +78,7 @@ export class SemanticAnalyzer {
   private ast: AST;
   private symbols: Map<string, TypedSymbol>;
   private errors: AnalysisError[] = [];
-  private currentFunction: string = '';
+  private currentFunction: string = "";
   private diagnosticEngine: DiagnosticEngine;
   private suppressWarnings: boolean = false;
 
@@ -64,17 +99,17 @@ export class SemanticAnalyzer {
   analyze(): boolean {
     this.errors = [];
 
-    this.symbols.set('process', { name: 'process', type: 'object', llvmType: 'i8*' });
-    this.symbols.set('console', { name: 'console', type: 'object', llvmType: 'i8*' });
-    this.symbols.set('Math', { name: 'Math', type: 'object', llvmType: 'i8*' });
-    this.symbols.set('JSON', { name: 'JSON', type: 'object', llvmType: 'i8*' });
-    this.symbols.set('Date', { name: 'Date', type: 'object', llvmType: 'i8*' });
+    this.symbols.set("process", { name: "process", type: "object", llvmType: "i8*" });
+    this.symbols.set("console", { name: "console", type: "object", llvmType: "i8*" });
+    this.symbols.set("Math", { name: "Math", type: "object", llvmType: "i8*" });
+    this.symbols.set("JSON", { name: "JSON", type: "object", llvmType: "i8*" });
+    this.symbols.set("Date", { name: "Date", type: "object", llvmType: "i8*" });
 
     if (this.ast.enums) {
       for (let _ei = 0; _ei < this.ast.enums.length; _ei++) {
         const enumNode = this.ast.enums[_ei] as { name: string };
         if (enumNode.name) {
-          this.symbols.set(enumNode.name, { name: enumNode.name, type: 'object', llvmType: 'i8*' });
+          this.symbols.set(enumNode.name, { name: enumNode.name, type: "object", llvmType: "i8*" });
         }
       }
     }
@@ -86,7 +121,7 @@ export class SemanticAnalyzer {
           for (let _ai = 0; _ai < imp.aliasedSpecifiers.length; _ai++) {
             const spec = imp.aliasedSpecifiers[_ai];
             if (spec.name) {
-              this.symbols.set(spec.name, { name: spec.name, type: 'object', llvmType: 'i8*' });
+              this.symbols.set(spec.name, { name: spec.name, type: "object", llvmType: "i8*" });
             }
           }
         }
@@ -95,9 +130,9 @@ export class SemanticAnalyzer {
 
     for (let _si = 0; _si < this.ast.topLevelStatements.length; _si++) {
       const stmt = this.ast.topLevelStatements[_si];
-      if (stmt.type === 'variable_declaration') {
+      if (stmt.type === "variable_declaration") {
         this.analyzeVariableDeclaration(stmt);
-      } else if (stmt.type === 'assignment') {
+      } else if (stmt.type === "assignment") {
         this.analyzeAssignment(stmt);
       }
     }
@@ -131,13 +166,13 @@ export class SemanticAnalyzer {
 
   getSymbolTypeByName(name: string): string {
     const sym = this.symbols.get(name);
-    if (!sym) return 'unknown';
+    if (!sym) return "unknown";
     return sym.type;
   }
 
   getSymbolLlvmTypeByName(name: string): string {
     const sym = this.symbols.get(name);
-    if (!sym) return 'double';
+    if (!sym) return "double";
     return sym.llvmType;
   }
 
@@ -153,17 +188,22 @@ export class SemanticAnalyzer {
     return sym.schemaTypes;
   }
 
-  private inferDeclaredType(declaredType: string | undefined): { type: SymbolType; llvmType: string } {
-    if (!declaredType) return { type: 'number', llvmType: 'double' };
-    if (declaredType === 'string') return { type: 'string', llvmType: 'i8*' };
-    if (declaredType === 'number' || declaredType === 'boolean') return { type: 'number', llvmType: 'double' };
-    if (declaredType === 'string[]') return { type: 'array<string>', llvmType: '%StringArray*' };
-    if (declaredType === 'number[]' || declaredType === 'boolean[]') return { type: 'array<number>', llvmType: '%Array*' };
-    if (declaredType.endsWith('| undefined') || declaredType.endsWith('| null')) {
-      const baseType = declaredType.split('|')[0].trim();
+  private inferDeclaredType(declaredType: string | undefined): {
+    type: SymbolType;
+    llvmType: string;
+  } {
+    if (!declaredType) return { type: "number", llvmType: "double" };
+    if (declaredType === "string") return { type: "string", llvmType: "i8*" };
+    if (declaredType === "number" || declaredType === "boolean")
+      return { type: "number", llvmType: "double" };
+    if (declaredType === "string[]") return { type: "array<string>", llvmType: "%StringArray*" };
+    if (declaredType === "number[]" || declaredType === "boolean[]")
+      return { type: "array<number>", llvmType: "%Array*" };
+    if (declaredType.endsWith("| undefined") || declaredType.endsWith("| null")) {
+      const baseType = declaredType.split("|")[0].trim();
       return this.inferDeclaredType(baseType);
     }
-    return { type: 'unknown', llvmType: 'double' };
+    return { type: "unknown", llvmType: "double" };
   }
 
   private analyzeVariableDeclaration(stmt: VariableDeclaration): void {
@@ -193,25 +233,29 @@ export class SemanticAnalyzer {
     if (!stmt.value) return;
     const valType = (stmt.value as { type: string }).type;
 
-    if (valType === 'map') {
+    if (valType === "map") {
       const mapNode = stmt.value as MapNode;
       if (!mapNode.keyType || !mapNode.valueType) {
-        const hasDeclaredMapType = stmt.declaredType !== undefined && stmt.declaredType.indexOf('Map<') !== -1;
+        const hasDeclaredMapType =
+          stmt.declaredType !== undefined && stmt.declaredType.indexOf("Map<") !== -1;
         if (!hasDeclaredMapType) {
           this.errors.push({
-            message: 'Map constructor requires explicit type parameters: use new Map<KeyType, ValueType>() or add a declared type',
+            message:
+              "Map constructor requires explicit type parameters: use new Map<KeyType, ValueType>() or add a declared type",
           });
         }
       }
     }
 
-    if (valType === 'set') {
+    if (valType === "set") {
       const setNode = stmt.value as SetNode;
       if (!setNode.valueType) {
-        const hasDeclaredSetType = stmt.declaredType !== undefined && stmt.declaredType.indexOf('Set<') !== -1;
+        const hasDeclaredSetType =
+          stmt.declaredType !== undefined && stmt.declaredType.indexOf("Set<") !== -1;
         if (!hasDeclaredSetType) {
           this.errors.push({
-            message: 'Set constructor requires explicit type parameters: use new Set<ValueType>() or add a declared type',
+            message:
+              "Set constructor requires explicit type parameters: use new Set<ValueType>() or add a declared type",
           });
         }
       }
@@ -237,13 +281,13 @@ export class SemanticAnalyzer {
 
     this.analyzeBlock(func.body);
 
-    if (!this.suppressWarnings && func.returnType && func.returnType !== 'void') {
+    if (!this.suppressWarnings && func.returnType && func.returnType !== "void") {
       if (!this.blockAlwaysReturns(func.body)) {
         const funcAny = func as { loc?: SourceLocation };
         this.diagnosticEngine.warning(
-          'function \'' + func.name + '\' may not return a value on all paths',
+          "function '" + func.name + "' may not return a value on all paths",
           funcAny.loc,
-          'add a return statement at the end'
+          "add a return statement at the end",
         );
       }
     }
@@ -253,18 +297,18 @@ export class SemanticAnalyzer {
     const classFields = classNode.fields || [];
     for (let _fli = 0; _fli < classFields.length; _fli++) {
       const field = classFields[_fli];
-      let llvmType = 'i32';
-      let type: SymbolType = 'number';
+      let llvmType = "i32";
+      let type: SymbolType = "number";
 
-      if (field.fieldType === 'string') {
-        llvmType = 'i8*';
-        type = 'string';
-      } else if (field.fieldType === 'string[]') {
-        llvmType = '%StringArray*';
-        type = 'array<string>';
-      } else if (field.fieldType === 'number[]' || field.fieldType === 'boolean[]') {
-        llvmType = '%Array*';
-        type = 'array<number>';
+      if (field.fieldType === "string") {
+        llvmType = "i8*";
+        type = "string";
+      } else if (field.fieldType === "string[]") {
+        llvmType = "%StringArray*";
+        type = "array<string>";
+      } else if (field.fieldType === "number[]" || field.fieldType === "boolean[]") {
+        llvmType = "%Array*";
+        type = "array<number>";
       }
 
       this.symbols.set(field.name, {
@@ -275,12 +319,12 @@ export class SemanticAnalyzer {
 
       if (!this.suppressWarnings && field.initializer) {
         const initBase = field.initializer as { type: string };
-        if (initBase.type === 'new') {
+        if (initBase.type === "new") {
           const classAny = classNode as { loc?: SourceLocation };
           this.diagnosticEngine.warning(
-            'class \'' + classNode.name + '\' field \'' + field.name + '\' uses new in initializer',
+            "class '" + classNode.name + "' field '" + field.name + "' uses new in initializer",
             classAny.loc,
-            'move the new call to the constructor body for reliable initialization'
+            "move the new call to the constructor body for reliable initialization",
           );
         }
       }
@@ -309,7 +353,11 @@ export class SemanticAnalyzer {
     }
   }
 
-  private checkFunctionUnionTypes(funcName: string, paramTypes: string[] | undefined, returnType: string | undefined): void {
+  private checkFunctionUnionTypes(
+    funcName: string,
+    paramTypes: string[] | undefined,
+    returnType: string | undefined,
+  ): void {
     if (paramTypes) {
       for (let i = 0; i < paramTypes.length; i++) {
         const warning = checkUnsafeUnionType(paramTypes[i]);
@@ -341,47 +389,52 @@ export class SemanticAnalyzer {
       if (hasTerminator && !this.suppressWarnings) {
         const stmtAny = stmt as { loc?: SourceLocation };
         this.diagnosticEngine.warning(
-          'unreachable code after return/throw/break/continue',
+          "unreachable code after return/throw/break/continue",
           stmtAny.loc,
-          'remove this unreachable statement'
+          "remove this unreachable statement",
         );
         break;
       }
 
       const stmtType = stmt.type;
-      if (stmtType === 'return' || stmtType === 'throw' || stmtType === 'break' || stmtType === 'continue') {
+      if (
+        stmtType === "return" ||
+        stmtType === "throw" ||
+        stmtType === "break" ||
+        stmtType === "continue"
+      ) {
         hasTerminator = true;
       }
 
-      if (stmtType === 'variable_declaration') {
+      if (stmtType === "variable_declaration") {
         this.analyzeVariableDeclaration(stmt);
-      } else if (stmtType === 'assignment') {
+      } else if (stmtType === "assignment") {
         this.analyzeAssignment(stmt);
-      } else if (stmtType === 'if') {
+      } else if (stmtType === "if") {
         const ifStmt = stmt as IfStatement;
         if (ifStmt.thenBlock) this.analyzeBlock(ifStmt.thenBlock);
         if (ifStmt.elseBlock) this.analyzeBlock(ifStmt.elseBlock);
-      } else if (stmtType === 'while') {
+      } else if (stmtType === "while") {
         const whileStmt = stmt as WhileStatement;
         if (whileStmt.body) this.analyzeBlock(whileStmt.body);
-      } else if (stmtType === 'for') {
+      } else if (stmtType === "for") {
         const forStmt = stmt as ForStatement;
-        if (forStmt.init && forStmt.init.type === 'variable_declaration') {
+        if (forStmt.init && forStmt.init.type === "variable_declaration") {
           this.analyzeVariableDeclaration(forStmt.init as VariableDeclaration);
         }
         if (forStmt.body) this.analyzeBlock(forStmt.body);
-      } else if (stmtType === 'for_of') {
+      } else if (stmtType === "for_of") {
         const forOfStmt = stmt as ForOfStatement;
         if (forOfStmt.variableName) {
           const iterableType = this.inferExpressionType(forOfStmt.iterable);
-          let elemType: SymbolType = 'unknown';
-          let elemLlvm = 'i8*';
-          if (iterableType.type === 'array<number>') {
-            elemType = 'number';
-            elemLlvm = 'double';
-          } else if (iterableType.type === 'array<string>') {
-            elemType = 'string';
-            elemLlvm = 'i8*';
+          let elemType: SymbolType = "unknown";
+          let elemLlvm = "i8*";
+          if (iterableType.type === "array<number>") {
+            elemType = "number";
+            elemLlvm = "double";
+          } else if (iterableType.type === "array<string>") {
+            elemType = "string";
+            elemLlvm = "i8*";
           }
           this.symbols.set(forOfStmt.variableName, {
             name: forOfStmt.variableName,
@@ -390,21 +443,21 @@ export class SemanticAnalyzer {
           });
         }
         if (forOfStmt.body) this.analyzeBlock(forOfStmt.body);
-      } else if (stmtType === 'try') {
+      } else if (stmtType === "try") {
         const tryStmt = stmt as TryStatement;
         if (tryStmt.tryBlock) this.analyzeBlock(tryStmt.tryBlock);
         if (tryStmt.catchParam) {
           this.symbols.set(tryStmt.catchParam, {
             name: tryStmt.catchParam,
-            type: 'string',
-            llvmType: 'i8*',
+            type: "string",
+            llvmType: "i8*",
           });
         }
         if (tryStmt.catchBody) {
           this.analyzeBlock(tryStmt.catchBody);
         }
         if (tryStmt.finallyBlock) this.analyzeBlock(tryStmt.finallyBlock);
-      } else if (stmtType === 'return') {
+      } else if (stmtType === "return") {
         const retStmt = stmt as ReturnStatement;
         if (retStmt.value) {
           this.inferExpressionType(retStmt.value);
@@ -414,7 +467,7 @@ export class SemanticAnalyzer {
   }
 
   private analyzeAssignment(stmt: AssignmentStatement): void {
-    if (stmt.name.startsWith('__member_access__')) {
+    if (stmt.name.startsWith("__member_access__")) {
       this.inferExpressionType(stmt.value);
       return;
     }
@@ -427,7 +480,14 @@ export class SemanticAnalyzer {
     const valueType = this.inferExpressionType(stmt.value);
     if (!valueType) return;
 
-    if (varSymbol.llvmType !== valueType.llvmType && varSymbol.type !== 'null' && valueType.type !== 'null' && varSymbol.type !== 'unknown' && valueType.type !== 'unknown' && !this.areAssignmentCompatible(varSymbol, valueType)) {
+    if (
+      varSymbol.llvmType !== valueType.llvmType &&
+      varSymbol.type !== "null" &&
+      valueType.type !== "null" &&
+      varSymbol.type !== "unknown" &&
+      valueType.type !== "unknown" &&
+      !this.areAssignmentCompatible(varSymbol, valueType)
+    ) {
       this.errors.push({
         message: `Type mismatch: Cannot assign ${valueType.type} to ${varSymbol.type}`,
         location: `${this.currentFunction}: ${stmt.name} = ...`,
@@ -437,9 +497,9 @@ export class SemanticAnalyzer {
   }
 
   private areAssignmentCompatible(target: TypedSymbol, value: TypedSymbol): boolean {
-    if (target.type === 'array<string>' && value.type === 'array<number>') return true;
-    if (target.type === 'array<number>' && value.type === 'array<string>') return true;
-    if (target.type === 'object' || value.type === 'object') return true;
+    if (target.type === "array<string>" && value.type === "array<number>") return true;
+    if (target.type === "array<number>" && value.type === "array<string>") return true;
+    if (target.type === "object" || value.type === "object") return true;
     return false;
   }
 
@@ -452,74 +512,74 @@ export class SemanticAnalyzer {
     const e = expr as ExpressionBase;
 
     // String literal
-    if (e.type === 'string') {
+    if (e.type === "string") {
       return {
-        name: '',
-        type: 'string',
-        llvmType: 'i8*',
+        name: "",
+        type: "string",
+        llvmType: "i8*",
       };
     }
 
     // Number literal
-    if (e.type === 'number') {
+    if (e.type === "number") {
       return {
-        name: '',
-        type: 'number',
-        llvmType: 'double',
+        name: "",
+        type: "number",
+        llvmType: "double",
       };
     }
 
     // Boolean literal
-    if (e.type === 'boolean') {
+    if (e.type === "boolean") {
       return {
-        name: '',
-        type: 'boolean',
-        llvmType: 'double',
+        name: "",
+        type: "boolean",
+        llvmType: "double",
       };
     }
 
     // Null literal
-    if (e.type === 'null') {
+    if (e.type === "null") {
       return {
-        name: '',
-        type: 'null',
-        llvmType: 'i8*',
+        name: "",
+        type: "null",
+        llvmType: "i8*",
       };
     }
 
     // Undefined literal
-    if (e.type === 'undefined') {
+    if (e.type === "undefined") {
       return {
-        name: '',
-        type: 'undefined',
-        llvmType: 'i8*',
+        name: "",
+        type: "undefined",
+        llvmType: "i8*",
       };
     }
 
     // Array literal - VALIDATE HOMOGENEITY HERE
-    if (e.type === 'array') {
+    if (e.type === "array") {
       const arrayExpr = expr as ArrayNode;
       const elements = arrayExpr.elements || [];
 
       if (elements.length === 0) {
-        if (declaredType === 'string[]') {
+        if (declaredType === "string[]") {
           return {
-            name: '',
-            type: 'array<string>',
-            llvmType: '%StringArray*',
+            name: "",
+            type: "array<string>",
+            llvmType: "%StringArray*",
           };
-        } else if (declaredType === 'number[]' || declaredType === 'boolean[]') {
+        } else if (declaredType === "number[]" || declaredType === "boolean[]") {
           return {
-            name: '',
-            type: 'array<number>',
-            llvmType: '%Array*',
+            name: "",
+            type: "array<number>",
+            llvmType: "%Array*",
           };
         }
 
         return {
-          name: '',
-          type: 'array<number>',
-          llvmType: '%Array*',
+          name: "",
+          type: "array<number>",
+          llvmType: "%Array*",
         };
       }
 
@@ -536,29 +596,29 @@ export class SemanticAnalyzer {
           });
 
           return {
-            name: '',
-            type: 'unknown',
-            llvmType: 'double',
+            name: "",
+            type: "unknown",
+            llvmType: "double",
           };
         }
       }
 
-      if (firstType.llvmType === 'i8*') {
+      if (firstType.llvmType === "i8*") {
         return {
-          name: '',
-          type: 'array<string>',
-          llvmType: '%StringArray*',
+          name: "",
+          type: "array<string>",
+          llvmType: "%StringArray*",
         };
       } else {
         return {
-          name: '',
-          type: 'array<number>',
-          llvmType: '%Array*',
+          name: "",
+          type: "array<number>",
+          llvmType: "%Array*",
         };
       }
     }
 
-    if (e.type === 'object') {
+    if (e.type === "object") {
       const objExpr = expr as ObjectNode;
       const keys: string[] = [];
       const types: string[] = [];
@@ -571,19 +631,19 @@ export class SemanticAnalyzer {
       }
 
       return {
-        name: '',
-        type: 'object',
-        llvmType: 'i8*',
+        name: "",
+        type: "object",
+        llvmType: "i8*",
         schemaKeys: keys,
         schemaTypes: types,
       };
     }
 
     // Variable reference - look up in symbol table
-    if (e.type === 'variable') {
+    if (e.type === "variable") {
       const varExpr = expr as VariableNode;
-      if (varExpr.name === 'null' || varExpr.name === 'undefined') {
-        return { name: varExpr.name, type: 'null', llvmType: 'i8*' };
+      if (varExpr.name === "null" || varExpr.name === "undefined") {
+        return { name: varExpr.name, type: "null", llvmType: "i8*" };
       }
       const symbol = this.symbols.get(varExpr.name);
       if (!symbol) {
@@ -593,156 +653,199 @@ export class SemanticAnalyzer {
         });
         return {
           name: varExpr.name,
-          type: 'unknown',
-          llvmType: 'double',
+          type: "unknown",
+          llvmType: "double",
         };
       }
       return symbol;
     }
 
     // Method call - special cases
-    if (e.type === 'method_call') {
+    if (e.type === "method_call") {
       const methodExpr = expr as MethodCallNode;
 
       const m = methodExpr.method;
-      if (m === 'substr' || m === 'substring' || m === 'concat' || m === 'repeat' || m === 'padStart' || m === 'charAt' || m === 'trim' || m === 'trimStart' || m === 'trimEnd' || m === 'replace' || m === 'replaceAll' || m === 'toLowerCase' || m === 'toUpperCase' || m === 'toString' || m === 'slice' || m === 'join') {
+      if (
+        m === "substr" ||
+        m === "substring" ||
+        m === "concat" ||
+        m === "repeat" ||
+        m === "padStart" ||
+        m === "charAt" ||
+        m === "trim" ||
+        m === "trimStart" ||
+        m === "trimEnd" ||
+        m === "replace" ||
+        m === "replaceAll" ||
+        m === "toLowerCase" ||
+        m === "toUpperCase" ||
+        m === "toString" ||
+        m === "slice" ||
+        m === "join"
+      ) {
         return {
-          name: '',
-          type: 'string',
-          llvmType: 'i8*',
+          name: "",
+          type: "string",
+          llvmType: "i8*",
         };
       }
 
-      if (m === 'indexOf' || m === 'lastIndexOf' || m === 'findIndex') {
+      if (m === "indexOf" || m === "lastIndexOf" || m === "findIndex") {
         return NUMBER_SYMBOL;
       }
 
-      if (m === 'includes' || m === 'startsWith' || m === 'endsWith' || m === 'has' || m === 'every' || m === 'some') {
-        return { name: '', type: 'boolean', llvmType: 'double' };
+      if (
+        m === "includes" ||
+        m === "startsWith" ||
+        m === "endsWith" ||
+        m === "has" ||
+        m === "every" ||
+        m === "some"
+      ) {
+        return { name: "", type: "boolean", llvmType: "double" };
       }
 
-      if (m === 'filter' || m === 'map') {
+      if (m === "filter" || m === "map") {
         const objType = this.inferExpressionType(methodExpr.object);
         return objType;
       }
 
-      if (m === 'split') {
+      if (m === "split") {
         return {
-          name: '',
-          type: 'array<string>',
-          llvmType: '%StringArray*',
+          name: "",
+          type: "array<string>",
+          llvmType: "%StringArray*",
         };
       }
 
       return {
-        name: '',
-        type: 'unknown',
-        llvmType: 'double',
+        name: "",
+        type: "unknown",
+        llvmType: "double",
       };
     }
 
-    if (e.type === 'member_access') {
+    if (e.type === "member_access") {
       const memberExpr = expr as MemberAccessNode;
       const objectType = this.inferExpressionType(memberExpr.object);
 
       const propType = lookupPropertyType(objectType.type, memberExpr.property);
       if (propType) return propType;
 
-      if (objectType.type === 'object' && objectType.schemaKeys) {
+      if (objectType.type === "object" && objectType.schemaKeys) {
         const sKeys = objectType.schemaKeys;
         const sTypes = objectType.schemaTypes || [];
         for (let si = 0; si < sKeys.length; si++) {
           if (sKeys[si] === memberExpr.property) {
             const fieldLlvmType = sTypes[si];
-            if (fieldLlvmType === 'i8*') return STRING_SYMBOL;
-            if (fieldLlvmType === 'double') return NUMBER_SYMBOL;
+            if (fieldLlvmType === "i8*") return STRING_SYMBOL;
+            if (fieldLlvmType === "double") return NUMBER_SYMBOL;
             break;
           }
         }
       }
 
       return {
-        name: '',
-        type: 'unknown',
-        llvmType: 'double',
+        name: "",
+        type: "unknown",
+        llvmType: "double",
       };
     }
 
-    if (e.type === 'template_literal') {
+    if (e.type === "template_literal") {
       return {
-        name: '',
-        type: 'string',
-        llvmType: 'i8*',
+        name: "",
+        type: "string",
+        llvmType: "i8*",
       };
     }
 
-    if (e.type === 'call' || e.type === 'new' || e.type === 'index_access' || e.type === 'arrow_function' || e.type === 'type_assertion' || e.type === 'await' || e.type === 'regex' || e.type === 'map' || e.type === 'set') {
+    if (
+      e.type === "call" ||
+      e.type === "new" ||
+      e.type === "index_access" ||
+      e.type === "arrow_function" ||
+      e.type === "type_assertion" ||
+      e.type === "await" ||
+      e.type === "regex" ||
+      e.type === "map" ||
+      e.type === "set"
+    ) {
       return {
-        name: '',
-        type: 'unknown',
-        llvmType: 'double',
+        name: "",
+        type: "unknown",
+        llvmType: "double",
       };
     }
 
-    if (e.type === 'unary') {
+    if (e.type === "unary") {
       return {
-        name: '',
-        type: 'number',
-        llvmType: 'double',
+        name: "",
+        type: "number",
+        llvmType: "double",
       };
     }
 
-    if (e.type === 'conditional') {
+    if (e.type === "conditional") {
       return {
-        name: '',
-        type: 'unknown',
-        llvmType: 'double',
+        name: "",
+        type: "unknown",
+        llvmType: "double",
       };
     }
 
-    if (e.type === 'binary') {
+    if (e.type === "binary") {
       const binExpr = expr as BinaryNode;
 
-      if (binExpr.op === '+') {
+      if (binExpr.op === "+") {
         const left = this.inferExpressionType(binExpr.left);
         const right = this.inferExpressionType(binExpr.right);
 
-        if (left.llvmType === 'i8*' || right.llvmType === 'i8*') {
+        if (left.llvmType === "i8*" || right.llvmType === "i8*") {
           return {
-            name: '',
-            type: 'string',
-            llvmType: 'i8*',
+            name: "",
+            type: "string",
+            llvmType: "i8*",
           };
         }
       }
 
-      if (binExpr.op === '||' || binExpr.op === '&&') {
+      if (binExpr.op === "||" || binExpr.op === "&&") {
         const left = this.inferExpressionType(binExpr.left);
         return left;
       }
 
       const op = binExpr.op;
-      if (op === '<' || op === '>' || op === '<=' || op === '>=' || op === '==' || op === '!=' || op === '===' || op === '!==') {
+      if (
+        op === "<" ||
+        op === ">" ||
+        op === "<=" ||
+        op === ">=" ||
+        op === "==" ||
+        op === "!=" ||
+        op === "===" ||
+        op === "!=="
+      ) {
         return {
-          name: '',
-          type: 'boolean',
-          llvmType: 'double',
+          name: "",
+          type: "boolean",
+          llvmType: "double",
         };
       }
 
       // Arithmetic operators return number
       return {
-        name: '',
-        type: 'number',
-        llvmType: 'double',
+        name: "",
+        type: "number",
+        llvmType: "double",
       };
     }
 
     // Default to unknown
     return {
-      name: '',
-      type: 'unknown',
-      llvmType: 'double',
+      name: "",
+      type: "unknown",
+      llvmType: "double",
     };
   }
 
@@ -751,11 +854,14 @@ export class SemanticAnalyzer {
     for (let i = 0; i < block.statements.length; i++) {
       const stmt = block.statements[i];
       const t = stmt.type;
-      if (t === 'return' || t === 'throw') return true;
-      if (t === 'if') {
+      if (t === "return" || t === "throw") return true;
+      if (t === "if") {
         const ifStmt = stmt as IfStatement;
         if (ifStmt.elseBlock) {
-          if (this.blockAlwaysReturns(ifStmt.thenBlock) && this.blockAlwaysReturns(ifStmt.elseBlock)) {
+          if (
+            this.blockAlwaysReturns(ifStmt.thenBlock) &&
+            this.blockAlwaysReturns(ifStmt.elseBlock)
+          ) {
             return true;
           }
         }
@@ -768,21 +874,21 @@ export class SemanticAnalyzer {
    * Format errors for display
    */
   formatErrors(): string {
-    let output = '';
+    let output = "";
 
     if (this.errors.length > 0) {
-      output += 'Semantic Analysis Errors:\n\n';
+      output += "Semantic Analysis Errors:\n\n";
 
       for (let i = 0; i < this.errors.length; i++) {
         const error = this.errors[i] as AnalysisError;
-        output += '  error: ' + error.message + '\n';
+        output += "  error: " + error.message + "\n";
         if (error.location) {
-          output += '    location: ' + error.location + '\n';
+          output += "    location: " + error.location + "\n";
         }
         if (error.suggestion) {
-          output += '    help: ' + error.suggestion + '\n';
+          output += "    help: " + error.suggestion + "\n";
         }
-        output += '\n';
+        output += "\n";
       }
     }
 

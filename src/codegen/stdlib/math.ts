@@ -1,8 +1,10 @@
-import { MethodCallNode } from '../../ast/types.js';
+import { MethodCallNode } from "../../ast/types.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
-import { IGeneratorContext } from '../infrastructure/generator-context.js';
+import { IGeneratorContext } from "../infrastructure/generator-context.js";
 
 /**
  * Math Method Generator
@@ -26,9 +28,9 @@ export class MathGenerator {
    */
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type !== 'variable') return false;
+    if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as { type: string; name: string };
-    if (varNode.name !== 'Math') return false;
+    if (varNode.name !== "Math") return false;
     return this.getSupportedMethods().indexOf(expr.method) !== -1;
   }
 
@@ -36,7 +38,7 @@ export class MathGenerator {
    * Get list of supported Math methods
    */
   getSupportedMethods(): string[] {
-    return ['sqrt', 'pow', 'floor', 'ceil', 'round', 'abs', 'max', 'min'];
+    return ["sqrt", "pow", "floor", "ceil", "round", "abs", "max", "min"];
   }
 
   /**
@@ -50,21 +52,21 @@ export class MathGenerator {
     const method = expr.method;
 
     switch (method) {
-      case 'sqrt':
+      case "sqrt":
         return this.generateSqrt(expr, params);
-      case 'pow':
+      case "pow":
         return this.generatePow(expr, params);
-      case 'floor':
+      case "floor":
         return this.generateFloor(expr, params);
-      case 'ceil':
+      case "ceil":
         return this.generateCeil(expr, params);
-      case 'round':
+      case "round":
         return this.generateRound(expr, params);
-      case 'abs':
+      case "abs":
         return this.generateAbs(expr, params);
-      case 'max':
+      case "max":
         return this.generateMax(expr, params);
-      case 'min':
+      case "min":
         return this.generateMin(expr, params);
       default:
         return this.ctx.emitError(`Unsupported Math method: ${method}`, expr.loc);
@@ -76,7 +78,7 @@ export class MathGenerator {
    */
   private generateSqrt(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      return this.ctx.emitError('Math.sqrt() requires 1 argument', expr.loc);
+      return this.ctx.emitError("Math.sqrt() requires 1 argument", expr.loc);
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
@@ -90,7 +92,7 @@ export class MathGenerator {
    */
   private generatePow(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 2) {
-      return this.ctx.emitError('Math.pow() requires 2 arguments', expr.loc);
+      return this.ctx.emitError("Math.pow() requires 2 arguments", expr.loc);
     }
     const base = this.ctx.generateExpression(expr.args[0], params);
     const exp = this.ctx.generateExpression(expr.args[1], params);
@@ -106,7 +108,7 @@ export class MathGenerator {
    */
   private generateFloor(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      return this.ctx.emitError('Math.floor() requires 1 argument', expr.loc);
+      return this.ctx.emitError("Math.floor() requires 1 argument", expr.loc);
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
@@ -120,7 +122,7 @@ export class MathGenerator {
    */
   private generateCeil(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      return this.ctx.emitError('Math.ceil() requires 1 argument', expr.loc);
+      return this.ctx.emitError("Math.ceil() requires 1 argument", expr.loc);
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
@@ -134,7 +136,7 @@ export class MathGenerator {
    */
   private generateRound(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      return this.ctx.emitError('Math.round() requires 1 argument', expr.loc);
+      return this.ctx.emitError("Math.round() requires 1 argument", expr.loc);
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
@@ -148,7 +150,7 @@ export class MathGenerator {
    */
   private generateAbs(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      return this.ctx.emitError('Math.abs() requires 1 argument', expr.loc);
+      return this.ctx.emitError("Math.abs() requires 1 argument", expr.loc);
     }
     const arg = this.ctx.generateExpression(expr.args[0], params);
     const dblArg = this.ctx.ensureDouble(arg);
@@ -159,7 +161,7 @@ export class MathGenerator {
 
   private generateMax(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 2) {
-      return this.ctx.emitError('Math.max() requires 2 arguments', expr.loc);
+      return this.ctx.emitError("Math.max() requires 2 arguments", expr.loc);
     }
     const a = this.ctx.generateExpression(expr.args[0], params);
     const b = this.ctx.generateExpression(expr.args[1], params);
@@ -172,7 +174,7 @@ export class MathGenerator {
 
   private generateMin(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 2) {
-      return this.ctx.emitError('Math.min() requires 2 arguments', expr.loc);
+      return this.ctx.emitError("Math.min() requires 2 arguments", expr.loc);
     }
     const a = this.ctx.generateExpression(expr.args[0], params);
     const b = this.ctx.generateExpression(expr.args[1], params);

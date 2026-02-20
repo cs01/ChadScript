@@ -7,4 +7,3 @@ console.log("  Stars: 95000");
 console.log("  Language: TypeScript");
 
 console.log("TEST_PASSED");
-

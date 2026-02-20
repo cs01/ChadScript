@@ -1,9 +1,20 @@
-import { Expression, IndexAccessNode, IndexAccessAssignmentNode, MemberAccessNode, VariableNode } from '../../../ast/types.js';
+import {
+  Expression,
+  IndexAccessNode,
+  IndexAccessAssignmentNode,
+  MemberAccessNode,
+  VariableNode,
+} from "../../../ast/types.js";
 
-interface ExprBase { type: string; }
-interface ObjectMetaBasic { keys: string[]; types: string[]; }
-import type { SymbolTable } from '../../infrastructure/symbol-table.js';
-import type { IStringGenerator } from '../../infrastructure/generator-context.js';
+interface ExprBase {
+  type: string;
+}
+interface ObjectMetaBasic {
+  keys: string[];
+  types: string[];
+}
+import type { SymbolTable } from "../../infrastructure/symbol-table.js";
+import type { IStringGenerator } from "../../infrastructure/generator-context.js";
 
 export interface IndexAccessGeneratorContext {
   nextTemp(): string;
@@ -42,15 +53,17 @@ export class IndexAccessGenerator {
    */
   generate(expr: IndexAccessNode, params: string[]): string {
     const exprObjBase = expr.object as ExprBase;
-    if (exprObjBase.type === 'member_access') {
+    if (exprObjBase.type === "member_access") {
       const memberAccess = expr.object as MemberAccessNode;
       const memberAccessObjBase = memberAccess.object as ExprBase;
-      if (memberAccessObjBase.type === 'variable' &&
-          (memberAccess.object as VariableNode).name === 'process' &&
-          memberAccess.property === 'argv') {
+      if (
+        memberAccessObjBase.type === "variable" &&
+        (memberAccess.object as VariableNode).name === "process" &&
+        memberAccess.property === "argv"
+      ) {
         return this.generateProcessArgvIndex(expr, params);
       }
-      if (memberAccessObjBase.type === 'variable') {
+      if (memberAccessObjBase.type === "variable") {
         const baseVarName = (memberAccess.object as VariableNode).name;
         const baseIfaceType = this.ctx.symbolTable.getInterfaceType(baseVarName);
         if (baseIfaceType || this.ctx.symbolTable.isObject(baseVarName)) {
@@ -62,22 +75,30 @@ export class IndexAccessGenerator {
             return this.generateObjectArrayIndex(expr, params);
           }
         }
-        if (this.ctx.symbolTable.isJSON(baseVarName) || this.ctx.symbolTable.isObject(baseVarName)) {
+        if (
+          this.ctx.symbolTable.isJSON(baseVarName) ||
+          this.ctx.symbolTable.isObject(baseVarName)
+        ) {
           return this.generateJSONMemberArrayIndex(expr, params);
         }
       }
     }
 
     // Check if it's a JSON array (from JSON.parse<number[]> or similar)
-    if (exprObjBase.type === 'variable' && this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)) {
+    if (
+      exprObjBase.type === "variable" &&
+      this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)
+    ) {
       return this.generateJSONArrayIndex(expr, params);
     }
 
     // Determine if we're indexing into a string array, numeric array, or object array
     const isStringArray = this.ctx.isStringArrayExpression(expr.object);
     const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
-    const isUint8Array = !isStringArray && !isObjectArray && this.ctx.isUint8ArrayExpression(expr.object);
-    const isNumericArray = !isStringArray && !isObjectArray && !isUint8Array && this.ctx.isArrayExpression(expr.object);
+    const isUint8Array =
+      !isStringArray && !isObjectArray && this.ctx.isUint8ArrayExpression(expr.object);
+    const isNumericArray =
+      !isStringArray && !isObjectArray && !isUint8Array && this.ctx.isArrayExpression(expr.object);
 
     if (isStringArray) {
       return this.generateStringArrayIndex(expr, params);
@@ -90,7 +111,7 @@ export class IndexAccessGenerator {
     }
 
     // Check if it's an object variable with dynamic property access
-    if (exprObjBase.type === 'variable') {
+    if (exprObjBase.type === "variable") {
       const varName = (expr.object as VariableNode).name;
       if (this.ctx.symbolTable.isObject(varName)) {
         const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
@@ -115,7 +136,9 @@ export class IndexAccessGenerator {
 
     // Extract data pointer from StringArray struct (field 0)
     const dataField = this.ctx.nextTemp();
-    this.ctx.emit(`${dataField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 0`);
+    this.ctx.emit(
+      `${dataField} = getelementptr inbounds %StringArray, %StringArray* ${argvStruct}, i32 0, i32 0`,
+    );
     const argvPtr = this.ctx.nextTemp();
     this.ctx.emit(`${argvPtr} = load i8**, i8*** ${dataField}`);
 
@@ -134,7 +157,7 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${arg} = call i8* @__safe_string(i8* ${argRaw})`);
 
     // Track this temporary register as string type
-    this.ctx.setVariableType(arg, 'i8*');
+    this.ctx.setVariableType(arg, "i8*");
 
     return arg;
   }
@@ -146,16 +169,18 @@ export class IndexAccessGenerator {
     // Convert double index to i32 for getelementptr
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType === 'double') {
+    if (indexType === "double") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === 'i64') {
+    } else if (indexType === "i64") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
     }
 
     const dataPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 0`);
+    this.ctx.emit(
+      `${dataPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 0`,
+    );
 
     const data = this.ctx.nextTemp();
     this.ctx.emit(`${data} = load i8**, i8*** ${dataPtr}, !tbaa !5`);
@@ -166,7 +191,7 @@ export class IndexAccessGenerator {
     const elem = this.ctx.nextTemp();
     this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}, !tbaa !5`);
     // Track that this loaded value is a string
-    this.ctx.setVariableType(elem, 'i8*');
+    this.ctx.setVariableType(elem, "i8*");
     return elem;
   }
 
@@ -177,10 +202,10 @@ export class IndexAccessGenerator {
     // Convert double index to i32 for getelementptr
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType === 'double') {
+    if (indexType === "double") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === 'i64') {
+    } else if (indexType === "i64") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
     }
@@ -197,7 +222,7 @@ export class IndexAccessGenerator {
     // Load double element
     const elem = this.ctx.nextTemp();
     this.ctx.emit(`${elem} = load double, double* ${elemPtr}, !tbaa !4`);
-    this.ctx.setVariableType(elem, 'double');
+    this.ctx.setVariableType(elem, "double");
     return elem;
   }
 
@@ -207,18 +232,20 @@ export class IndexAccessGenerator {
 
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType === 'double') {
+    if (indexType === "double") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === 'i64') {
+    } else if (indexType === "i64") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
     }
 
     const arrayType = this.ctx.getVariableType(arrayPtr);
-    if (arrayType === '%ObjectArray*') {
+    if (arrayType === "%ObjectArray*") {
       const dataPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+      this.ctx.emit(
+        `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+      );
 
       const data = this.ctx.nextTemp();
       this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
@@ -231,16 +258,18 @@ export class IndexAccessGenerator {
 
       const elem = this.ctx.nextTemp();
       this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
-      this.ctx.setVariableType(elem, 'i8*');
+      this.ctx.setVariableType(elem, "i8*");
       return elem;
     }
 
-    if (arrayType === 'i8*') {
+    if (arrayType === "i8*") {
       const arrayCast = this.ctx.nextTemp();
       this.ctx.emit(`${arrayCast} = bitcast i8* ${arrayPtr} to %ObjectArray*`);
 
       const dataPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayCast}, i32 0, i32 0`);
+      this.ctx.emit(
+        `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayCast}, i32 0, i32 0`,
+      );
 
       const data = this.ctx.nextTemp();
       this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
@@ -253,12 +282,14 @@ export class IndexAccessGenerator {
 
       const elem = this.ctx.nextTemp();
       this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
-      this.ctx.setVariableType(elem, 'i8*');
+      this.ctx.setVariableType(elem, "i8*");
       return elem;
     }
 
     const dataPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+    this.ctx.emit(
+      `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+    );
 
     const data = this.ctx.nextTemp();
     this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
@@ -271,7 +302,7 @@ export class IndexAccessGenerator {
 
     const elem = this.ctx.nextTemp();
     this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
-    this.ctx.setVariableType(elem, 'i8*');
+    this.ctx.setVariableType(elem, "i8*");
     return elem;
   }
 
@@ -281,16 +312,18 @@ export class IndexAccessGenerator {
 
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType === 'double') {
+    if (indexType === "double") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === 'i64') {
+    } else if (indexType === "i64") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
     }
 
     const dataFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`);
+    this.ctx.emit(
+      `${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = load i8*, i8** ${dataFieldPtr}, !tbaa !5`);
 
@@ -302,25 +335,31 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${intVal} = zext i8 ${byteVal} to i32`);
     const dblVal = this.ctx.nextTemp();
     this.ctx.emit(`${dblVal} = sitofp i32 ${intVal} to double`);
-    this.ctx.setVariableType(dblVal, 'double');
+    this.ctx.setVariableType(dblVal, "double");
     return dblVal;
   }
 
-  private generateUint8ArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
+  private generateUint8ArrayAssignment(
+    expr: IndexAccessAssignmentNode,
+    value: string,
+    params: string[],
+  ): string {
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
 
     const dataFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`);
+    this.ctx.emit(
+      `${dataFieldPtr} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = load i8*, i8** ${dataFieldPtr}, !tbaa !5`);
 
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType === 'double') {
+    if (indexType === "double") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === 'i64') {
+    } else if (indexType === "i64") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
     }
@@ -345,14 +384,16 @@ export class IndexAccessGenerator {
     // Convert double index to i32 (assume double if not explicitly i32)
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType === 'double' || !indexType) {
+    if (indexType === "double" || !indexType) {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === 'i64') {
+    } else if (indexType === "i64") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
-    } else if (indexType !== 'i32' && indexType !== 'i64') {
-      throw new Error(`String character index must be a number, got type: ${indexType}. Dynamic object property access with string keys is not yet supported.`);
+    } else if (indexType !== "i32" && indexType !== "i64") {
+      throw new Error(
+        `String character index must be a number, got type: ${indexType}. Dynamic object property access with string keys is not yet supported.`,
+      );
     }
 
     const indexI64 = this.ctx.nextTemp();
@@ -377,7 +418,7 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${nullPos} = getelementptr inbounds i8, i8* ${strBuf}, i64 1`);
     this.ctx.emit(`store i8 0, i8* ${nullPos}`);
 
-    this.ctx.setVariableType(strBuf, 'i8*');
+    this.ctx.setVariableType(strBuf, "i8*");
 
     return strBuf;
   }
@@ -393,10 +434,10 @@ export class IndexAccessGenerator {
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType === 'i64') {
+    if (indexType === "i64") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
-    } else if (indexType === 'double' || indexType === undefined) {
+    } else if (indexType === "double" || indexType === undefined) {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
     }
@@ -411,9 +452,9 @@ export class IndexAccessGenerator {
     const isObjBool = this.ctx.nextTemp();
     this.ctx.emit(`${isObjBool} = icmp ne i32 ${isObject}, 0`);
 
-    const objectLabel = this.ctx.nextLabel('json_arr_object');
-    const primitiveLabel = this.ctx.nextLabel('json_arr_primitive');
-    const objEndLabel = this.ctx.nextLabel('json_arr_obj_end');
+    const objectLabel = this.ctx.nextLabel("json_arr_object");
+    const primitiveLabel = this.ctx.nextLabel("json_arr_primitive");
+    const objEndLabel = this.ctx.nextLabel("json_arr_obj_end");
 
     this.ctx.emit(`br i1 ${isObjBool}, label %${objectLabel}, label %${primitiveLabel}`);
 
@@ -428,9 +469,9 @@ export class IndexAccessGenerator {
     const isNumBool = this.ctx.nextTemp();
     this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
 
-    const numberLabel = this.ctx.nextLabel('json_arr_number');
-    const stringLabel = this.ctx.nextLabel('json_arr_string');
-    const primEndLabel = this.ctx.nextLabel('json_arr_prim_end');
+    const numberLabel = this.ctx.nextLabel("json_arr_number");
+    const stringLabel = this.ctx.nextLabel("json_arr_string");
+    const primEndLabel = this.ctx.nextLabel("json_arr_prim_end");
 
     this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
 
@@ -453,14 +494,18 @@ export class IndexAccessGenerator {
     // Merge primitives
     this.ctx.emit(`${primEndLabel}:`);
     const primResult = this.ctx.nextTemp();
-    this.ctx.emit(`${primResult} = phi i8* [ ${numPtr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ]`);
+    this.ctx.emit(
+      `${primResult} = phi i8* [ ${numPtr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ]`,
+    );
     this.ctx.emit(`br label %${objEndLabel}`);
 
     // Final merge
     this.ctx.emit(`${objEndLabel}:`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi i8* [ ${itemPtr}, %${objectLabel} ], [ ${primResult}, %${primEndLabel} ]`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.emit(
+      `${result} = phi i8* [ ${itemPtr}, %${objectLabel} ], [ ${primResult}, %${primEndLabel} ]`,
+    );
+    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
@@ -469,23 +514,28 @@ export class IndexAccessGenerator {
     const jsonPtr = this.ctx.generateExpression(expr.object, params);
 
     const ptrType = this.ctx.getVariableType(jsonPtr);
-    if (ptrType === '%ObjectArray*' || (ptrType === 'i8*' && this.isNonJSONObjectMemberAccess(expr.object))) {
-      const arrayPtr = ptrType === 'i8*' ? this.ctx.nextTemp() : jsonPtr;
-      if (ptrType === 'i8*') {
+    if (
+      ptrType === "%ObjectArray*" ||
+      (ptrType === "i8*" && this.isNonJSONObjectMemberAccess(expr.object))
+    ) {
+      const arrayPtr = ptrType === "i8*" ? this.ctx.nextTemp() : jsonPtr;
+      if (ptrType === "i8*") {
         this.ctx.emit(`${arrayPtr} = bitcast i8* ${jsonPtr} to %ObjectArray*`);
       }
       const indexDouble = this.ctx.generateExpression(expr.index, params);
       const idxType = this.ctx.getVariableType(indexDouble);
       let index = indexDouble;
-      if (idxType === 'i64') {
+      if (idxType === "i64") {
         index = this.ctx.nextTemp();
         this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
-      } else if (idxType === 'double') {
+      } else if (idxType === "double") {
         index = this.ctx.nextTemp();
         this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
       }
       const dataPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+      this.ctx.emit(
+        `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+      );
       const data = this.ctx.nextTemp();
       this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
       const dataAsPtrs = this.ctx.nextTemp();
@@ -494,17 +544,17 @@ export class IndexAccessGenerator {
       this.ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
       const elem = this.ctx.nextTemp();
       this.ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
-      this.ctx.setVariableType(elem, 'i8*');
+      this.ctx.setVariableType(elem, "i8*");
       return elem;
     }
 
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType === 'i64') {
+    if (indexType === "i64") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
-    } else if (indexType === 'double' || indexType === undefined) {
+    } else if (indexType === "double" || indexType === undefined) {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
     }
@@ -517,9 +567,9 @@ export class IndexAccessGenerator {
     const isObjBool = this.ctx.nextTemp();
     this.ctx.emit(`${isObjBool} = icmp ne i32 ${isObject}, 0`);
 
-    const objectLabel = this.ctx.nextLabel('json_marr_object');
-    const primitiveLabel = this.ctx.nextLabel('json_marr_primitive');
-    const objEndLabel = this.ctx.nextLabel('json_marr_obj_end');
+    const objectLabel = this.ctx.nextLabel("json_marr_object");
+    const primitiveLabel = this.ctx.nextLabel("json_marr_primitive");
+    const objEndLabel = this.ctx.nextLabel("json_marr_obj_end");
 
     this.ctx.emit(`br i1 ${isObjBool}, label %${objectLabel}, label %${primitiveLabel}`);
 
@@ -532,9 +582,9 @@ export class IndexAccessGenerator {
     const isNumBool = this.ctx.nextTemp();
     this.ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
 
-    const numberLabel = this.ctx.nextLabel('json_marr_number');
-    const stringLabel = this.ctx.nextLabel('json_marr_string');
-    const primEndLabel = this.ctx.nextLabel('json_marr_prim_end');
+    const numberLabel = this.ctx.nextLabel("json_marr_number");
+    const stringLabel = this.ctx.nextLabel("json_marr_string");
+    const primEndLabel = this.ctx.nextLabel("json_marr_prim_end");
 
     this.ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
 
@@ -554,23 +604,27 @@ export class IndexAccessGenerator {
 
     this.ctx.emit(`${primEndLabel}:`);
     const primResult = this.ctx.nextTemp();
-    this.ctx.emit(`${primResult} = phi i8* [ ${numPtr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ]`);
+    this.ctx.emit(
+      `${primResult} = phi i8* [ ${numPtr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ]`,
+    );
     this.ctx.emit(`br label %${objEndLabel}`);
 
     this.ctx.emit(`${objEndLabel}:`);
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = phi i8* [ ${itemPtr}, %${objectLabel} ], [ ${primResult}, %${primEndLabel} ]`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.emit(
+      `${result} = phi i8* [ ${itemPtr}, %${objectLabel} ], [ ${primResult}, %${primEndLabel} ]`,
+    );
+    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
 
   private isNonJSONObjectMemberAccess(objExpr: Expression): boolean {
     const base = objExpr as ExprBase;
-    if (base.type !== 'member_access') return false;
+    if (base.type !== "member_access") return false;
     const memberExpr = objExpr as MemberAccessNode;
     const memberObjBase = memberExpr.object as ExprBase;
-    if (memberObjBase.type !== 'variable') return false;
+    if (memberObjBase.type !== "variable") return false;
     const varName = (memberExpr.object as VariableNode).name;
     if (this.ctx.symbolTable.isJSON(varName)) return false;
     return this.ctx.symbolTable.isObject(varName);
@@ -580,8 +634,10 @@ export class IndexAccessGenerator {
     const value = this.ctx.generateExpression(expr.value, params);
     const isStringArray = this.ctx.isStringArrayExpression(expr.object);
     const isObjectArray = !isStringArray && this.ctx.isObjectArrayExpression(expr.object);
-    const isUint8Array = !isStringArray && !isObjectArray && this.ctx.isUint8ArrayExpression(expr.object);
-    const isNumericArray = !isStringArray && !isObjectArray && !isUint8Array && this.ctx.isArrayExpression(expr.object);
+    const isUint8Array =
+      !isStringArray && !isObjectArray && this.ctx.isUint8ArrayExpression(expr.object);
+    const isNumericArray =
+      !isStringArray && !isObjectArray && !isUint8Array && this.ctx.isArrayExpression(expr.object);
 
     if (isStringArray) {
       return this.generateStringArrayAssignment(expr, value, params);
@@ -592,25 +648,31 @@ export class IndexAccessGenerator {
     } else if (isNumericArray) {
       return this.generateNumericArrayAssignment(expr, value, params);
     } else {
-      throw new Error('Index access assignment only supported for arrays');
+      throw new Error("Index access assignment only supported for arrays");
     }
   }
 
-  private generateStringArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
+  private generateStringArrayAssignment(
+    expr: IndexAccessAssignmentNode,
+    value: string,
+    params: string[],
+  ): string {
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
 
     const dataFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    this.ctx.emit(
+      `${dataFieldPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = load i8**, i8*** ${dataFieldPtr}, !tbaa !5`);
 
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType === 'double') {
+    if (indexType === "double") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === 'i64') {
+    } else if (indexType === "i64") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
     }
@@ -625,11 +687,17 @@ export class IndexAccessGenerator {
     return value;
   }
 
-  private generateObjectArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
+  private generateObjectArrayAssignment(
+    expr: IndexAccessAssignmentNode,
+    value: string,
+    params: string[],
+  ): string {
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
 
     const dataFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`);
+    this.ctx.emit(
+      `${dataFieldPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     const data = this.ctx.nextTemp();
     this.ctx.emit(`${data} = load i8*, i8** ${dataFieldPtr}`);
     const dataAsPtrs = this.ctx.nextTemp();
@@ -638,10 +706,10 @@ export class IndexAccessGenerator {
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType === 'double') {
+    if (indexType === "double") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === 'i64') {
+    } else if (indexType === "i64") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
     }
@@ -649,28 +717,36 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
 
     const elementPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${elementPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i64 ${indexI64}`);
+    this.ctx.emit(
+      `${elementPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i64 ${indexI64}`,
+    );
 
     this.ctx.emit(`store i8* ${value}, i8** ${elementPtr}, !tbaa !5`);
 
     return value;
   }
 
-  private generateNumericArrayAssignment(expr: IndexAccessAssignmentNode, value: string, params: string[]): string {
+  private generateNumericArrayAssignment(
+    expr: IndexAccessAssignmentNode,
+    value: string,
+    params: string[],
+  ): string {
     const arrayPtr = this.ctx.generateExpression(expr.object, params);
 
     const dataFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+    this.ctx.emit(
+      `${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`,
+    );
     const dataPtr = this.ctx.nextTemp();
     this.ctx.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}, !tbaa !5`);
 
     const indexDouble = this.ctx.generateExpression(expr.index, params);
     const indexType = this.ctx.getVariableType(indexDouble);
     let index = indexDouble;
-    if (indexType === 'double') {
+    if (indexType === "double") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = fptosi double ${indexDouble} to i32`);
-    } else if (indexType === 'i64') {
+    } else if (indexType === "i64") {
       index = this.ctx.nextTemp();
       this.ctx.emit(`${index} = trunc i64 ${indexDouble} to i32`);
     }
@@ -678,7 +754,9 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${indexI64} = sext i32 ${index} to i64`);
 
     const elementPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${elementPtr} = getelementptr inbounds double, double* ${dataPtr}, i64 ${indexI64}`);
+    this.ctx.emit(
+      `${elementPtr} = getelementptr inbounds double, double* ${dataPtr}, i64 ${indexI64}`,
+    );
 
     const dblValue = this.ctx.ensureDouble(value);
     this.ctx.emit(`store double ${dblValue}, double* ${elementPtr}, !tbaa !4`);
@@ -686,12 +764,16 @@ export class IndexAccessGenerator {
     return value;
   }
 
-  private generateDynamicObjectAccess(expr: IndexAccessNode, params: string[], objMeta: ObjectMetaBasic): string {
+  private generateDynamicObjectAccess(
+    expr: IndexAccessNode,
+    params: string[],
+    objMeta: ObjectMetaBasic,
+  ): string {
     const varName = (expr.object as VariableNode).name;
 
     const keyValue = this.ctx.generateExpression(expr.index, params);
     const keyType = this.ctx.getVariableType(keyValue);
-    if (keyType !== 'i8*' && !this.ctx.isStringExpression(expr.index)) {
+    if (keyType !== "i8*" && !this.ctx.isStringExpression(expr.index)) {
       throw new Error(`Dynamic object property access requires a string key, got: ${keyType}`);
     }
 
@@ -708,7 +790,7 @@ export class IndexAccessGenerator {
     this.ctx.emit(`${resultAlloca} = alloca i8*`);
     this.ctx.emit(`store i8* null, i8** ${resultAlloca}`);
 
-    const endLabel = this.ctx.nextLabel('obj_access_end');
+    const endLabel = this.ctx.nextLabel("obj_access_end");
 
     for (let i = 0; i < objMeta.keys.length; i++) {
       const key = objMeta.keys[i]!;
@@ -719,21 +801,23 @@ export class IndexAccessGenerator {
       const isMatch = this.ctx.nextTemp();
       this.ctx.emit(`${isMatch} = icmp eq i32 ${cmpResult}, 0`);
 
-      const matchLabel = this.ctx.nextLabel('obj_key_match');
-      const nextLabel = this.ctx.nextLabel('obj_key_next');
+      const matchLabel = this.ctx.nextLabel("obj_key_match");
+      const nextLabel = this.ctx.nextLabel("obj_key_next");
       this.ctx.emit(`br i1 ${isMatch}, label %${matchLabel}, label %${nextLabel}`);
 
       this.ctx.emit(`${matchLabel}:`);
       const typedPtr = this.ctx.nextTemp();
       this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
       const fieldPtr = this.ctx.nextTemp();
-      this.ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
+      this.ctx.emit(
+        `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`,
+      );
 
       let fieldValue: string;
-      if (fieldType === 'i8*') {
+      if (fieldType === "i8*") {
         fieldValue = this.ctx.nextTemp();
         this.ctx.emit(`${fieldValue} = load i8*, i8** ${fieldPtr}`);
-      } else if (fieldType === 'double') {
+      } else if (fieldType === "double") {
         const doubleVal = this.ctx.nextTemp();
         this.ctx.emit(`${doubleVal} = load double, double* ${fieldPtr}`);
         fieldValue = this.ctx.nextTemp();
@@ -754,12 +838,12 @@ export class IndexAccessGenerator {
 
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = load i8*, i8** ${resultAlloca}`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
 
   private buildStructType(types: string[]): string {
-    return '{ ' + types.join(', ') + ' }';
+    return "{ " + types.join(", ") + " }";
   }
 }

@@ -1,11 +1,64 @@
-import { AST, Expression, Statement, BlockStatement, NumberNode, StringNode, BooleanNode, NullNode, UndefinedNode, RegexNode, VariableNode, MemberAccessNode, IndexAccessNode, ArrayNode, ObjectNode, MapNode, SetNode, BinaryNode, CallNode, MethodCallNode, NewNode, ThisNode, SuperNode, UnaryNode, TemplateLiteralNode, ArrowFunctionNode, ConditionalExpressionNode, AwaitExpressionNode, MemberAccessAssignmentNode, IndexAccessAssignmentNode, TypeAssertionNode, SpreadElementNode, VariableDeclaration, AssignmentStatement, ReturnStatement, IfStatement, WhileStatement, ForStatement, ForOfStatement, BreakStatement, ContinueStatement, ThrowStatement, TryStatement, SwitchStatement, FunctionNode, ClassNode, ClassMethod, InterfaceDeclaration, EnumDeclaration, TypeAliasDeclaration, ImportDeclaration, ExportDeclaration, TopLevelItem } from './types.js';
+import {
+  AST,
+  Expression,
+  Statement,
+  BlockStatement,
+  NumberNode,
+  StringNode,
+  BooleanNode,
+  NullNode,
+  UndefinedNode,
+  RegexNode,
+  VariableNode,
+  MemberAccessNode,
+  IndexAccessNode,
+  ArrayNode,
+  ObjectNode,
+  MapNode,
+  SetNode,
+  BinaryNode,
+  CallNode,
+  MethodCallNode,
+  NewNode,
+  ThisNode,
+  SuperNode,
+  UnaryNode,
+  TemplateLiteralNode,
+  ArrowFunctionNode,
+  ConditionalExpressionNode,
+  AwaitExpressionNode,
+  MemberAccessAssignmentNode,
+  IndexAccessAssignmentNode,
+  TypeAssertionNode,
+  SpreadElementNode,
+  VariableDeclaration,
+  AssignmentStatement,
+  ReturnStatement,
+  IfStatement,
+  WhileStatement,
+  ForStatement,
+  ForOfStatement,
+  BreakStatement,
+  ContinueStatement,
+  ThrowStatement,
+  TryStatement,
+  SwitchStatement,
+  FunctionNode,
+  ClassNode,
+  ClassMethod,
+  InterfaceDeclaration,
+  EnumDeclaration,
+  TypeAliasDeclaration,
+  ImportDeclaration,
+  ExportDeclaration,
+  TopLevelItem,
+} from "./types.js";
 
 export interface ASTConsumer {
   handleAST(ast: AST): void;
 }
 
 export class RecursiveASTVisitor {
-
   visitAST(ast: AST): void {
     for (let i = 0; i < ast.imports.length; i++) {
       this.visitImportDeclaration(ast.imports[i]);
@@ -44,7 +97,13 @@ export class RecursiveASTVisitor {
       for (let i = 0; i < ast.topLevelExpressions.length; i++) {
         const expr = ast.topLevelExpressions[i];
         const e = expr as { type: string };
-        if (e.type === 'for' || e.type === 'for_of' || e.type === 'while' || e.type === 'if' || e.type === 'try') {
+        if (
+          e.type === "for" ||
+          e.type === "for_of" ||
+          e.type === "while" ||
+          e.type === "if" ||
+          e.type === "try"
+        ) {
           this.visitStatement(expr as Statement);
         } else {
           this.visitExpression(expr as Expression);
@@ -57,21 +116,17 @@ export class RecursiveASTVisitor {
   // Top-level declarations
   // ============================================
 
-  visitImportDeclaration(node: ImportDeclaration): void {
-  }
+  visitImportDeclaration(node: ImportDeclaration): void {}
 
-  visitInterfaceDeclaration(node: InterfaceDeclaration): void {
-  }
+  visitInterfaceDeclaration(node: InterfaceDeclaration): void {}
 
-  visitTypeAliasDeclaration(node: TypeAliasDeclaration): void {
-  }
+  visitTypeAliasDeclaration(node: TypeAliasDeclaration): void {}
 
-  visitEnumDeclaration(node: EnumDeclaration): void {
-  }
+  visitEnumDeclaration(node: EnumDeclaration): void {}
 
   visitExportDeclaration(node: ExportDeclaration): void {
     const decl = node.declaration;
-    if ('params' in decl) {
+    if ("params" in decl) {
       this.visitFunctionNode(decl as FunctionNode);
     } else {
       this.visitClassNode(decl as ClassNode);
@@ -107,31 +162,31 @@ export class RecursiveASTVisitor {
   visitStatement(stmt: Statement): void {
     const s = stmt as { type: string };
     const t = s.type;
-    if (t === 'variable_declaration') {
+    if (t === "variable_declaration") {
       this.visitVariableDeclaration(stmt as VariableDeclaration);
-    } else if (t === 'assignment') {
+    } else if (t === "assignment") {
       this.visitAssignmentStatement(stmt as AssignmentStatement);
-    } else if (t === 'return') {
+    } else if (t === "return") {
       this.visitReturnStatement(stmt as ReturnStatement);
-    } else if (t === 'if') {
+    } else if (t === "if") {
       this.visitIfStatement(stmt as IfStatement);
-    } else if (t === 'while') {
+    } else if (t === "while") {
       this.visitWhileStatement(stmt as WhileStatement);
-    } else if (t === 'for') {
+    } else if (t === "for") {
       this.visitForStatement(stmt as ForStatement);
-    } else if (t === 'for_of') {
+    } else if (t === "for_of") {
       this.visitForOfStatement(stmt as ForOfStatement);
-    } else if (t === 'break') {
+    } else if (t === "break") {
       this.visitBreakStatement(stmt as BreakStatement);
-    } else if (t === 'continue') {
+    } else if (t === "continue") {
       this.visitContinueStatement(stmt as ContinueStatement);
-    } else if (t === 'throw') {
+    } else if (t === "throw") {
       this.visitThrowStatement(stmt as ThrowStatement);
-    } else if (t === 'try') {
+    } else if (t === "try") {
       this.visitTryStatement(stmt as TryStatement);
-    } else if (t === 'switch') {
+    } else if (t === "switch") {
       this.visitSwitchStatement(stmt as SwitchStatement);
-    } else if (t === 'block') {
+    } else if (t === "block") {
       this.visitBlock(stmt as BlockStatement);
     } else {
       this.visitExpression(stmt as Expression);
@@ -173,7 +228,7 @@ export class RecursiveASTVisitor {
 
   visitForStatement(node: ForStatement): void {
     if (node.init) {
-      if (node.init.type === 'variable_declaration') {
+      if (node.init.type === "variable_declaration") {
         this.visitVariableDeclaration(node.init);
       } else {
         this.visitAssignmentStatement(node.init);
@@ -184,7 +239,7 @@ export class RecursiveASTVisitor {
     }
     if (node.update) {
       const u = node.update as { type: string };
-      if (u.type === 'assignment') {
+      if (u.type === "assignment") {
         this.visitAssignmentStatement(node.update as AssignmentStatement);
       } else {
         this.visitExpression(node.update as Expression);
@@ -198,11 +253,9 @@ export class RecursiveASTVisitor {
     this.visitBlock(node.body);
   }
 
-  visitBreakStatement(_node: BreakStatement): void {
-  }
+  visitBreakStatement(_node: BreakStatement): void {}
 
-  visitContinueStatement(_node: ContinueStatement): void {
-  }
+  visitContinueStatement(_node: ContinueStatement): void {}
 
   visitThrowStatement(node: ThrowStatement): void {
     this.visitExpression(node.argument);
@@ -244,61 +297,61 @@ export class RecursiveASTVisitor {
   visitExpression(expr: Expression): void {
     const e = expr as { type: string };
     const t = e.type;
-    if (t === 'number') {
+    if (t === "number") {
       this.visitNumberNode(expr as NumberNode);
-    } else if (t === 'string') {
+    } else if (t === "string") {
       this.visitStringNode(expr as StringNode);
-    } else if (t === 'boolean') {
+    } else if (t === "boolean") {
       this.visitBooleanNode(expr as BooleanNode);
-    } else if (t === 'null') {
+    } else if (t === "null") {
       this.visitNullNode(expr as NullNode);
-    } else if (t === 'undefined') {
+    } else if (t === "undefined") {
       this.visitUndefinedNode(expr as UndefinedNode);
-    } else if (t === 'regex') {
+    } else if (t === "regex") {
       this.visitRegexNode(expr as RegexNode);
-    } else if (t === 'variable') {
+    } else if (t === "variable") {
       this.visitVariableNode(expr as VariableNode);
-    } else if (t === 'member_access') {
+    } else if (t === "member_access") {
       this.visitMemberAccessNode(expr as MemberAccessNode);
-    } else if (t === 'index_access') {
+    } else if (t === "index_access") {
       this.visitIndexAccessNode(expr as IndexAccessNode);
-    } else if (t === 'array') {
+    } else if (t === "array") {
       this.visitArrayNode(expr as ArrayNode);
-    } else if (t === 'object') {
+    } else if (t === "object") {
       this.visitObjectNode(expr as ObjectNode);
-    } else if (t === 'map') {
+    } else if (t === "map") {
       this.visitMapNode(expr as MapNode);
-    } else if (t === 'set') {
+    } else if (t === "set") {
       this.visitSetNode(expr as SetNode);
-    } else if (t === 'binary') {
+    } else if (t === "binary") {
       this.visitBinaryNode(expr as BinaryNode);
-    } else if (t === 'call') {
+    } else if (t === "call") {
       this.visitCallNode(expr as CallNode);
-    } else if (t === 'method_call') {
+    } else if (t === "method_call") {
       this.visitMethodCallNode(expr as MethodCallNode);
-    } else if (t === 'new') {
+    } else if (t === "new") {
       this.visitNewNode(expr as NewNode);
-    } else if (t === 'this') {
+    } else if (t === "this") {
       this.visitThisNode(expr as ThisNode);
-    } else if (t === 'super') {
+    } else if (t === "super") {
       this.visitSuperNode(expr as SuperNode);
-    } else if (t === 'unary') {
+    } else if (t === "unary") {
       this.visitUnaryNode(expr as UnaryNode);
-    } else if (t === 'template_literal') {
+    } else if (t === "template_literal") {
       this.visitTemplateLiteralNode(expr as TemplateLiteralNode);
-    } else if (t === 'arrow_function') {
+    } else if (t === "arrow_function") {
       this.visitArrowFunctionNode(expr as ArrowFunctionNode);
-    } else if (t === 'conditional') {
+    } else if (t === "conditional") {
       this.visitConditionalExpressionNode(expr as ConditionalExpressionNode);
-    } else if (t === 'await') {
+    } else if (t === "await") {
       this.visitAwaitExpressionNode(expr as AwaitExpressionNode);
-    } else if (t === 'member_access_assignment') {
+    } else if (t === "member_access_assignment") {
       this.visitMemberAccessAssignmentNode(expr as MemberAccessAssignmentNode);
-    } else if (t === 'index_access_assignment') {
+    } else if (t === "index_access_assignment") {
       this.visitIndexAccessAssignmentNode(expr as IndexAccessAssignmentNode);
-    } else if (t === 'type_assertion') {
+    } else if (t === "type_assertion") {
       this.visitTypeAssertionNode(expr as TypeAssertionNode);
-    } else if (t === 'spread_element') {
+    } else if (t === "spread_element") {
       this.visitSpreadElementNode(expr as SpreadElementNode);
     }
   }
@@ -384,7 +437,7 @@ export class RecursiveASTVisitor {
   visitTemplateLiteralNode(node: TemplateLiteralNode): void {
     for (let i = 0; i < node.parts.length; i++) {
       const part = node.parts[i];
-      if (typeof part !== 'string') {
+      if (typeof part !== "string") {
         this.visitExpression(part);
       }
     }
@@ -393,7 +446,7 @@ export class RecursiveASTVisitor {
   visitArrowFunctionNode(node: ArrowFunctionNode): void {
     const body = node.body;
     const b = body as { type: string };
-    if (b.type === 'block') {
+    if (b.type === "block") {
       this.visitBlock(body as BlockStatement);
     } else {
       this.visitExpression(body as Expression);

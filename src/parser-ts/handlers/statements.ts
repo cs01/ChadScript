@@ -1,4 +1,4 @@
-import * as ts from 'typescript';
+import * as ts from "typescript";
 import {
   Statement,
   Expression,
@@ -14,11 +14,14 @@ import {
   TryStatement,
   IndexAccessNode,
   MemberAccessNode,
-} from '../../ast/types.js';
-import { transformExpression } from './expressions.js';
-import { getLoc } from '../transformer.js';
+} from "../../ast/types.js";
+import { transformExpression } from "./expressions.js";
+import { getLoc } from "../transformer.js";
 
-export function transformStatement(node: ts.Statement, checker: ts.TypeChecker | undefined): Statement | null {
+export function transformStatement(
+  node: ts.Statement,
+  checker: ts.TypeChecker | undefined,
+): Statement | null {
   switch (node.kind) {
     case ts.SyntaxKind.VariableStatement:
       return transformVariableStatement(node as ts.VariableStatement, checker);
@@ -45,10 +48,10 @@ export function transformStatement(node: ts.Statement, checker: ts.TypeChecker |
       return transformForInStatement(node as ts.ForInStatement, checker);
 
     case ts.SyntaxKind.BreakStatement:
-      return { type: 'break', loc: getLoc(node) };
+      return { type: "break", loc: getLoc(node) };
 
     case ts.SyntaxKind.ContinueStatement:
-      return { type: 'continue', loc: getLoc(node) };
+      return { type: "continue", loc: getLoc(node) };
 
     case ts.SyntaxKind.ThrowStatement:
       return transformThrowStatement(node as ts.ThrowStatement, checker);
@@ -70,7 +73,10 @@ export function transformStatement(node: ts.Statement, checker: ts.TypeChecker |
   }
 }
 
-function transformVariableStatement(node: ts.VariableStatement, checker: ts.TypeChecker | undefined): Statement {
+function transformVariableStatement(
+  node: ts.VariableStatement,
+  checker: ts.TypeChecker | undefined,
+): Statement {
   const declarations = node.declarationList.declarations;
   if (declarations.length === 1) {
     return transformVariableDecl(declarations[0], node.declarationList.flags, checker);
@@ -84,9 +90,9 @@ function desugarObjectDestructuring(
   decl: ts.VariableDeclaration,
   pattern: ts.ObjectBindingPattern,
   flags: ts.NodeFlags,
-  checker: ts.TypeChecker | undefined
+  checker: ts.TypeChecker | undefined,
 ): BlockStatement {
-  const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
+  const kind: "let" | "const" = flags & ts.NodeFlags.Const ? "const" : "let";
   const statements: Statement[] = [];
 
   let source: Expression | null = null;
@@ -99,29 +105,30 @@ function desugarObjectDestructuring(
     if (!ts.isIdentifier(element.name)) continue;
 
     const localName = element.name.text;
-    const propertyName = element.propertyName && ts.isIdentifier(element.propertyName)
-      ? element.propertyName.text
-      : localName;
+    const propertyName =
+      element.propertyName && ts.isIdentifier(element.propertyName)
+        ? element.propertyName.text
+        : localName;
 
     const memberAccess: MemberAccessNode = {
-      type: 'member_access',
+      type: "member_access",
       object: source!,
       property: propertyName,
     };
 
-    statements.push({ type: 'variable_declaration', kind, name: localName, value: memberAccess });
+    statements.push({ type: "variable_declaration", kind, name: localName, value: memberAccess });
   }
 
-  return { type: 'block', statements };
+  return { type: "block", statements };
 }
 
 function desugarArrayDestructuring(
   decl: ts.VariableDeclaration,
   pattern: ts.ArrayBindingPattern,
   flags: ts.NodeFlags,
-  checker: ts.TypeChecker | undefined
+  checker: ts.TypeChecker | undefined,
 ): BlockStatement {
-  const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
+  const kind: "let" | "const" = flags & ts.NodeFlags.Const ? "const" : "let";
   const statements: Statement[] = [];
 
   let source: Expression | null = null;
@@ -138,21 +145,21 @@ function desugarArrayDestructuring(
     const localName = element.name.text;
 
     const indexAccess: IndexAccessNode = {
-      type: 'index_access',
+      type: "index_access",
       object: source!,
-      index: { type: 'number', value: i },
+      index: { type: "number", value: i },
     };
 
-    statements.push({ type: 'variable_declaration', kind, name: localName, value: indexAccess });
+    statements.push({ type: "variable_declaration", kind, name: localName, value: indexAccess });
   }
 
-  return { type: 'block', statements };
+  return { type: "block", statements };
 }
 
 function transformVariableDecl(
   decl: ts.VariableDeclaration,
   flags: ts.NodeFlags,
-  checker: ts.TypeChecker | undefined
+  checker: ts.TypeChecker | undefined,
 ): VariableDeclaration | BlockStatement {
   if (ts.isObjectBindingPattern(decl.name)) {
     return desugarObjectDestructuring(decl, decl.name, flags, checker);
@@ -161,8 +168,8 @@ function transformVariableDecl(
     return desugarArrayDestructuring(decl, decl.name, flags, checker);
   }
 
-  const name = ts.isIdentifier(decl.name) ? decl.name.text : '';
-  const kind: 'let' | 'const' = (flags & ts.NodeFlags.Const) ? 'const' : 'let';
+  const name = ts.isIdentifier(decl.name) ? decl.name.text : "";
+  const kind: "let" | "const" = flags & ts.NodeFlags.Const ? "const" : "let";
 
   let declaredType: string | undefined;
   if (decl.type) {
@@ -174,7 +181,7 @@ function transformVariableDecl(
     value = transformExpression(decl.initializer, checker);
   }
 
-  return { type: 'variable_declaration', kind, name, value, declaredType, loc: getLoc(decl) };
+  return { type: "variable_declaration", kind, name, value, declaredType, loc: getLoc(decl) };
 }
 
 export function extractTypeString(typeNode: ts.TypeNode): string {
@@ -184,7 +191,7 @@ export function extractTypeString(typeNode: ts.TypeNode): string {
       : typeNode.typeName.getText();
 
     if (typeNode.typeArguments && typeNode.typeArguments.length > 0) {
-      const args = typeNode.typeArguments.map(extractTypeString).join(', ');
+      const args = typeNode.typeArguments.map(extractTypeString).join(", ");
       return `${typeName}<${args}>`;
     }
     return typeName;
@@ -192,35 +199,38 @@ export function extractTypeString(typeNode: ts.TypeNode): string {
     const elem = extractTypeString(typeNode.elementType);
     return `${elem}[]`;
   } else if (typeNode.kind === ts.SyntaxKind.StringKeyword) {
-    return 'string';
+    return "string";
   } else if (typeNode.kind === ts.SyntaxKind.NumberKeyword) {
-    return 'number';
+    return "number";
   } else if (typeNode.kind === ts.SyntaxKind.BooleanKeyword) {
-    return 'boolean';
+    return "boolean";
   } else if (typeNode.kind === ts.SyntaxKind.VoidKeyword) {
-    return 'void';
+    return "void";
   } else if (typeNode.kind === ts.SyntaxKind.AnyKeyword) {
-    return 'any';
+    return "any";
   } else if (ts.isUnionTypeNode(typeNode)) {
-    return typeNode.types.map(extractTypeString).join(' | ');
+    return typeNode.types.map(extractTypeString).join(" | ");
   } else if (ts.isTypeLiteralNode(typeNode)) {
     const members: string[] = [];
     for (const member of typeNode.members) {
       if (ts.isPropertySignature(member) && member.name && ts.isIdentifier(member.name)) {
         const propName = member.name.text;
-        const propType = member.type ? extractTypeString(member.type) : 'any';
+        const propType = member.type ? extractTypeString(member.type) : "any";
         members.push(`${propName}: ${propType}`);
       }
     }
     if (members.length > 0) {
-      return `{ ${members.join('; ')} }`;
+      return `{ ${members.join("; ")} }`;
     }
-    return 'object';
+    return "object";
   }
   return typeNode.getText();
 }
 
-function transformExpressionStatement(node: ts.ExpressionStatement, checker: ts.TypeChecker | undefined): Statement {
+function transformExpressionStatement(
+  node: ts.ExpressionStatement,
+  checker: ts.TypeChecker | undefined,
+): Statement {
   const expr = node.expression;
 
   if (ts.isBinaryExpression(expr) && isAssignmentOperator(expr.operatorToken.kind)) {
@@ -231,14 +241,19 @@ function transformExpressionStatement(node: ts.ExpressionStatement, checker: ts.
 }
 
 function isAssignmentOperator(kind: ts.SyntaxKind): boolean {
-  return kind === ts.SyntaxKind.EqualsToken ||
-         kind === ts.SyntaxKind.PlusEqualsToken ||
-         kind === ts.SyntaxKind.MinusEqualsToken ||
-         kind === ts.SyntaxKind.AsteriskEqualsToken ||
-         kind === ts.SyntaxKind.SlashEqualsToken;
+  return (
+    kind === ts.SyntaxKind.EqualsToken ||
+    kind === ts.SyntaxKind.PlusEqualsToken ||
+    kind === ts.SyntaxKind.MinusEqualsToken ||
+    kind === ts.SyntaxKind.AsteriskEqualsToken ||
+    kind === ts.SyntaxKind.SlashEqualsToken
+  );
 }
 
-function transformAssignmentExpr(node: ts.BinaryExpression, checker: ts.TypeChecker | undefined): AssignmentStatement {
+function transformAssignmentExpr(
+  node: ts.BinaryExpression,
+  checker: ts.TypeChecker | undefined,
+): AssignmentStatement {
   const left = node.left;
   const right = transformExpression(node.right, checker);
 
@@ -248,19 +263,19 @@ function transformAssignmentExpr(node: ts.BinaryExpression, checker: ts.TypeChec
     const leftExpr = transformExpression(left, checker);
     const opStr = getCompoundOperator(op);
     if (opStr) {
-      value = { type: 'binary', op: opStr, left: leftExpr, right };
+      value = { type: "binary", op: opStr, left: leftExpr, right };
     }
   }
 
   if (ts.isIdentifier(left)) {
-    return { type: 'assignment', name: left.text, value };
+    return { type: "assignment", name: left.text, value };
   } else if (ts.isPropertyAccessExpression(left)) {
     const obj = transformExpression(left.expression, checker);
     return {
-      type: 'assignment',
+      type: "assignment",
       name: `__member_access__${left.name.text}__`,
       value: {
-        type: 'member_access_assignment',
+        type: "member_access_assignment",
         object: obj,
         property: left.name.text,
         value,
@@ -270,10 +285,10 @@ function transformAssignmentExpr(node: ts.BinaryExpression, checker: ts.TypeChec
     const obj = transformExpression(left.expression, checker);
     const idx = transformExpression(left.argumentExpression, checker);
     return {
-      type: 'assignment',
-      name: '__index_access__',
+      type: "assignment",
+      name: "__index_access__",
       value: {
-        type: 'index_access_assignment',
+        type: "index_access_assignment",
         object: obj,
         index: idx,
         value,
@@ -286,22 +301,33 @@ function transformAssignmentExpr(node: ts.BinaryExpression, checker: ts.TypeChec
 
 function getCompoundOperator(op: ts.SyntaxKind): string | null {
   switch (op) {
-    case ts.SyntaxKind.PlusEqualsToken: return '+';
-    case ts.SyntaxKind.MinusEqualsToken: return '-';
-    case ts.SyntaxKind.AsteriskEqualsToken: return '*';
-    case ts.SyntaxKind.SlashEqualsToken: return '/';
-    default: return null;
+    case ts.SyntaxKind.PlusEqualsToken:
+      return "+";
+    case ts.SyntaxKind.MinusEqualsToken:
+      return "-";
+    case ts.SyntaxKind.AsteriskEqualsToken:
+      return "*";
+    case ts.SyntaxKind.SlashEqualsToken:
+      return "/";
+    default:
+      return null;
   }
 }
 
-function transformReturnStatement(node: ts.ReturnStatement, checker: ts.TypeChecker | undefined): ReturnStatement {
+function transformReturnStatement(
+  node: ts.ReturnStatement,
+  checker: ts.TypeChecker | undefined,
+): ReturnStatement {
   const value = node.expression
     ? transformExpression(node.expression, checker)
-    : { type: 'variable' as const, name: 'undefined' };
-  return { type: 'return', value, loc: getLoc(node) };
+    : { type: "variable" as const, name: "undefined" };
+  return { type: "return", value, loc: getLoc(node) };
 }
 
-function transformIfStatement(node: ts.IfStatement, checker: ts.TypeChecker | undefined): IfStatement {
+function transformIfStatement(
+  node: ts.IfStatement,
+  checker: ts.TypeChecker | undefined,
+): IfStatement {
   const condition = transformExpression(node.expression, checker);
   const thenBlock = wrapInBlock(node.thenStatement, checker);
 
@@ -309,22 +335,28 @@ function transformIfStatement(node: ts.IfStatement, checker: ts.TypeChecker | un
   if (node.elseStatement) {
     if (ts.isIfStatement(node.elseStatement)) {
       const nestedIf = transformIfStatement(node.elseStatement, checker);
-      elseBlock = { type: 'block', statements: [nestedIf] };
+      elseBlock = { type: "block", statements: [nestedIf] };
     } else {
       elseBlock = wrapInBlock(node.elseStatement, checker);
     }
   }
 
-  return { type: 'if', condition, thenBlock, elseBlock, loc: getLoc(node) };
+  return { type: "if", condition, thenBlock, elseBlock, loc: getLoc(node) };
 }
 
-function transformWhileStatement(node: ts.WhileStatement, checker: ts.TypeChecker | undefined): WhileStatement {
+function transformWhileStatement(
+  node: ts.WhileStatement,
+  checker: ts.TypeChecker | undefined,
+): WhileStatement {
   const condition = transformExpression(node.expression, checker);
   const body = wrapInBlock(node.statement, checker);
-  return { type: 'while', condition, body, loc: getLoc(node) };
+  return { type: "while", condition, body, loc: getLoc(node) };
 }
 
-function transformForStatement(node: ts.ForStatement, checker: ts.TypeChecker | undefined): ForStatement {
+function transformForStatement(
+  node: ts.ForStatement,
+  checker: ts.TypeChecker | undefined,
+): ForStatement {
   let init: VariableDeclaration | AssignmentStatement | null = null;
 
   if (node.initializer) {
@@ -336,7 +368,7 @@ function transformForStatement(node: ts.ForStatement, checker: ts.TypeChecker | 
       if (ts.isBinaryExpression(expr) && expr.operatorToken.kind === ts.SyntaxKind.EqualsToken) {
         if (ts.isIdentifier(expr.left)) {
           init = {
-            type: 'assignment',
+            type: "assignment",
             name: expr.left.text,
             value: transformExpression(expr.right, checker),
           };
@@ -352,7 +384,10 @@ function transformForStatement(node: ts.ForStatement, checker: ts.TypeChecker | 
 
   let update: AssignmentStatement | Expression | null = null;
   if (node.incrementor) {
-    if (ts.isBinaryExpression(node.incrementor) && isAssignmentOperator(node.incrementor.operatorToken.kind)) {
+    if (
+      ts.isBinaryExpression(node.incrementor) &&
+      isAssignmentOperator(node.incrementor.operatorToken.kind)
+    ) {
       update = transformAssignmentExpr(node.incrementor, checker);
     } else {
       update = transformExpression(node.incrementor, checker);
@@ -361,12 +396,15 @@ function transformForStatement(node: ts.ForStatement, checker: ts.TypeChecker | 
 
   const body = wrapInBlock(node.statement, checker);
 
-  return { type: 'for', init, condition, update, body, loc: getLoc(node) };
+  return { type: "for", init, condition, update, body, loc: getLoc(node) };
 }
 
-function transformForOfStatement(node: ts.ForOfStatement, checker: ts.TypeChecker | undefined): ForOfStatement {
-  let variableName = '';
-  let variableKind: 'let' | 'const' | 'var' = 'const';
+function transformForOfStatement(
+  node: ts.ForOfStatement,
+  checker: ts.TypeChecker | undefined,
+): ForOfStatement {
+  let variableName = "";
+  let variableKind: "let" | "const" | "var" = "const";
   let destructuredNames: string[] | undefined;
 
   if (ts.isVariableDeclarationList(node.initializer)) {
@@ -380,58 +418,84 @@ function transformForOfStatement(node: ts.ForOfStatement, checker: ts.TypeChecke
           destructuredNames.push(element.name.text);
         }
       }
-      variableName = destructuredNames[0] || '';
+      variableName = destructuredNames[0] || "";
     }
-    variableKind = (node.initializer.flags & ts.NodeFlags.Const) ? 'const' : 'let';
+    variableKind = node.initializer.flags & ts.NodeFlags.Const ? "const" : "let";
   }
 
   const iterable = transformExpression(node.expression, checker);
   const body = wrapInBlock(node.statement, checker);
 
-  return { type: 'for_of', variableKind, variableName, destructuredNames, iterable, body, loc: getLoc(node) };
+  return {
+    type: "for_of",
+    variableKind,
+    variableName,
+    destructuredNames,
+    iterable,
+    body,
+    loc: getLoc(node),
+  };
 }
 
-function transformForInStatement(node: ts.ForInStatement, checker: ts.TypeChecker | undefined): ForOfStatement {
-  let variableName = '';
-  let variableKind: 'let' | 'const' | 'var' = 'const';
+function transformForInStatement(
+  node: ts.ForInStatement,
+  checker: ts.TypeChecker | undefined,
+): ForOfStatement {
+  let variableName = "";
+  let variableKind: "let" | "const" | "var" = "const";
 
   if (ts.isVariableDeclarationList(node.initializer)) {
     const decl = node.initializer.declarations[0];
     if (ts.isIdentifier(decl.name)) {
       variableName = decl.name.text;
     }
-    variableKind = (node.initializer.flags & ts.NodeFlags.Const) ? 'const' : 'let';
+    variableKind = node.initializer.flags & ts.NodeFlags.Const ? "const" : "let";
   }
 
   const obj = transformExpression(node.expression, checker);
   const keysCall: Expression = {
-    type: 'method_call',
-    object: { type: 'variable', name: 'Object' },
-    method: 'keys',
+    type: "method_call",
+    object: { type: "variable", name: "Object" },
+    method: "keys",
     args: [obj],
   };
 
   const body = wrapInBlock(node.statement, checker);
 
-  return { type: 'for_of', variableKind, variableName, iterable: keysCall, body, loc: getLoc(node) };
+  return {
+    type: "for_of",
+    variableKind,
+    variableName,
+    iterable: keysCall,
+    body,
+    loc: getLoc(node),
+  };
 }
 
-function transformThrowStatement(node: ts.ThrowStatement, checker: ts.TypeChecker | undefined): ThrowStatement {
+function transformThrowStatement(
+  node: ts.ThrowStatement,
+  checker: ts.TypeChecker | undefined,
+): ThrowStatement {
   const argument = node.expression
     ? transformExpression(node.expression, checker)
-    : { type: 'string' as const, value: 'Error' };
-  return { type: 'throw', argument, loc: getLoc(node) };
+    : { type: "string" as const, value: "Error" };
+  return { type: "throw", argument, loc: getLoc(node) };
 }
 
-function transformTryStatement(node: ts.TryStatement, checker: ts.TypeChecker | undefined): TryStatement {
+function transformTryStatement(
+  node: ts.TryStatement,
+  checker: ts.TypeChecker | undefined,
+): TryStatement {
   const tryBlock = transformBlock(node.tryBlock, checker);
 
   let catchParam: string | null = null;
   let catchBody: BlockStatement | null = null;
   if (node.catchClause) {
-    catchParam = node.catchClause.variableDeclaration && ts.isIdentifier(node.catchClause.variableDeclaration.name)
-      ? node.catchClause.variableDeclaration.name.text
-      : 'e';
+    catchParam =
+      node.catchClause.variableDeclaration &&
+      ts.isIdentifier(node.catchClause.variableDeclaration.name)
+        ? node.catchClause.variableDeclaration.name.text
+        : "e";
     catchBody = transformBlock(node.catchClause.block, checker);
   }
 
@@ -440,10 +504,13 @@ function transformTryStatement(node: ts.TryStatement, checker: ts.TypeChecker | 
     finallyBlock = transformBlock(node.finallyBlock, checker);
   }
 
-  return { type: 'try', tryBlock, catchParam, catchBody, finallyBlock, loc: getLoc(node) };
+  return { type: "try", tryBlock, catchParam, catchBody, finallyBlock, loc: getLoc(node) };
 }
 
-export function transformBlock(block: ts.Block, checker: ts.TypeChecker | undefined): BlockStatement {
+export function transformBlock(
+  block: ts.Block,
+  checker: ts.TypeChecker | undefined,
+): BlockStatement {
   const statements: Statement[] = [];
   for (const stmt of block.statements) {
     const transformed = transformStatement(stmt, checker);
@@ -451,7 +518,7 @@ export function transformBlock(block: ts.Block, checker: ts.TypeChecker | undefi
       statements.push(transformed);
     }
   }
-  return { type: 'block', statements };
+  return { type: "block", statements };
 }
 
 function wrapInBlock(statement: ts.Statement, checker: ts.TypeChecker | undefined): BlockStatement {
@@ -460,10 +527,13 @@ function wrapInBlock(statement: ts.Statement, checker: ts.TypeChecker | undefine
   }
 
   const transformed = transformStatement(statement, checker);
-  return { type: 'block', statements: transformed ? [transformed] : [] };
+  return { type: "block", statements: transformed ? [transformed] : [] };
 }
 
-function transformSwitchToIfElse(node: ts.SwitchStatement, checker: ts.TypeChecker | undefined): IfStatement {
+function transformSwitchToIfElse(
+  node: ts.SwitchStatement,
+  checker: ts.TypeChecker | undefined,
+): IfStatement {
   const switchExpr = transformExpression(node.expression, checker);
 
   const clauses = node.caseBlock.clauses;
@@ -475,8 +545,8 @@ function transformSwitchToIfElse(node: ts.SwitchStatement, checker: ts.TypeCheck
     if (ts.isCaseClause(clause)) {
       const caseExpr = transformExpression(clause.expression, checker);
       const condition: Expression = {
-        type: 'binary',
-        op: '===',
+        type: "binary",
+        op: "===",
         left: switchExpr,
         right: caseExpr,
       };
@@ -494,8 +564,8 @@ function transformSwitchToIfElse(node: ts.SwitchStatement, checker: ts.TypeCheck
         let finalCondition: Expression = condition;
         for (let k = pendingConditions.length - 1; k >= 0; k--) {
           finalCondition = {
-            type: 'binary',
-            op: '||',
+            type: "binary",
+            op: "||",
             left: pendingConditions[k],
             right: finalCondition,
           };
@@ -503,9 +573,9 @@ function transformSwitchToIfElse(node: ts.SwitchStatement, checker: ts.TypeCheck
         pendingConditions = [];
 
         const ifStmt: IfStatement = {
-          type: 'if',
+          type: "if",
           condition: finalCondition,
-          thenBlock: { type: 'block', statements },
+          thenBlock: { type: "block", statements },
           elseBlock: null,
         };
 
@@ -513,7 +583,7 @@ function transformSwitchToIfElse(node: ts.SwitchStatement, checker: ts.TypeCheck
           result = ifStmt;
           current = ifStmt;
         } else if (current) {
-          current.elseBlock = { type: 'block', statements: [ifStmt] };
+          current.elseBlock = { type: "block", statements: [ifStmt] };
           current = ifStmt;
         }
       }
@@ -526,10 +596,17 @@ function transformSwitchToIfElse(node: ts.SwitchStatement, checker: ts.TypeCheck
       }
 
       if (current) {
-        current.elseBlock = { type: 'block', statements };
+        current.elseBlock = { type: "block", statements };
       }
     }
   }
 
-  return result || { type: 'if', condition: { type: 'boolean', value: false }, thenBlock: { type: 'block', statements: [] }, elseBlock: null };
+  return (
+    result || {
+      type: "if",
+      condition: { type: "boolean", value: false },
+      thenBlock: { type: "block", statements: [] },
+      elseBlock: null,
+    }
+  );
 }

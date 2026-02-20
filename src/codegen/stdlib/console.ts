@@ -1,8 +1,10 @@
-import { Expression, MethodCallNode, VariableNode } from '../../ast/types.js';
+import { Expression, MethodCallNode, VariableNode } from "../../ast/types.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
-import { IGeneratorContext } from '../infrastructure/generator-context.js';
+import { IGeneratorContext } from "../infrastructure/generator-context.js";
 
 /**
  * Console Method Generator
@@ -29,16 +31,17 @@ export class ConsoleGenerator {
   canHandle(expr: MethodCallNode): boolean {
     const exprObjBase = expr.object as ExprBase;
     const objType = exprObjBase.type;
-    if (objType !== 'variable') {
+    if (objType !== "variable") {
       return false;
     }
     const varNode = expr.object as VariableNode;
     const name = varNode.name;
-    if (name !== 'console') {
+    if (name !== "console") {
       return false;
     }
     const method = expr.method;
-    const result = method === 'log' || method === 'error' || method === 'warn' || method === 'debug';
+    const result =
+      method === "log" || method === "error" || method === "warn" || method === "debug";
     return result;
   }
 
@@ -64,9 +67,9 @@ export class ConsoleGenerator {
     const isString = this.ctx.isStringExpression(arg);
 
     // Check if it's a Response object (from fetch())
-    if (argTyped.type === 'variable') {
+    if (argTyped.type === "variable") {
       const varType = this.ctx.getVariableType(argTyped.name);
-      if (varType === '%__FetchResponse*') {
+      if (varType === "%__FetchResponse*") {
         return this.generateResponsePrint(method, argValue);
       }
     }
@@ -82,10 +85,10 @@ export class ConsoleGenerator {
    * Generate code to print just a newline
    */
   private generateNewline(method: string): string {
-    const formatStr = this.ctx.createStringConstant('\n');
+    const formatStr = this.ctx.createStringConstant("\n");
     const temp = this.ctx.nextTemp();
 
-    if (method === 'error' || method === 'warn') {
+    if (method === "error" || method === "warn") {
       // fprintf(stderr, "\n")
       this.ctx.emit(`${temp} = load i8*, i8** @stderr`);
       const temp2 = this.ctx.nextTemp();
@@ -104,14 +107,16 @@ export class ConsoleGenerator {
    * Generate code to print a string value
    */
   private generateStringPrint(method: string, argValue: string): string {
-    const formatStr = this.ctx.createStringConstant('%s\n');
+    const formatStr = this.ctx.createStringConstant("%s\n");
     const temp = this.ctx.nextTemp();
 
-    if (method === 'error' || method === 'warn') {
+    if (method === "error" || method === "warn") {
       // fprintf(stderr, "%s\n", value)
       this.ctx.emit(`${temp} = load i8*, i8** @stderr`);
       const temp2 = this.ctx.nextTemp();
-      this.ctx.emit(`${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, i8* ${argValue})`);
+      this.ctx.emit(
+        `${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, i8* ${argValue})`,
+      );
       const flushTemp = this.ctx.nextTemp();
       this.ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${temp})`);
       return temp2;
@@ -129,14 +134,16 @@ export class ConsoleGenerator {
    */
   private generateNumberPrint(method: string, argValue: string): string {
     const dblValue = this.ctx.ensureDouble(argValue);
-    const formatStr = this.ctx.createStringConstant('%.15g\n');
+    const formatStr = this.ctx.createStringConstant("%.15g\n");
     const temp = this.ctx.nextTemp();
 
-    if (method === 'error' || method === 'warn') {
+    if (method === "error" || method === "warn") {
       // fprintf(stderr, "%g\n", value)
       this.ctx.emit(`${temp} = load i8*, i8** @stderr`);
       const temp2 = this.ctx.nextTemp();
-      this.ctx.emit(`${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, double ${dblValue})`);
+      this.ctx.emit(
+        `${temp2} = call i32 (i8*, i8*, ...) @fprintf(i8* ${temp}, i8* ${formatStr}, double ${dblValue})`,
+      );
       return temp2;
     } else {
       // printf("%g\n", value)
@@ -151,7 +158,9 @@ export class ConsoleGenerator {
     // Extract the body field from Response* and print it as a string
     // Response = { i8* raw, i32 status, i8* body }
     const bodyPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${bodyPtr} = getelementptr %__FetchResponse, %__FetchResponse* ${argValue}, i32 0, i32 2`);
+    this.ctx.emit(
+      `${bodyPtr} = getelementptr %__FetchResponse, %__FetchResponse* ${argValue}, i32 0, i32 2`,
+    );
     const body = this.ctx.nextTemp();
     this.ctx.emit(`${body} = load i8*, i8** ${bodyPtr}`);
     return this.generateStringPrint(method, body);

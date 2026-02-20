@@ -11,4 +11,3 @@ console.log("Decimal stringify result:");
 console.log(decimalStr);
 
 console.log("TEST_PASSED");
-

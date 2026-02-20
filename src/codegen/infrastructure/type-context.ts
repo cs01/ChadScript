@@ -1,4 +1,4 @@
-import { ResolvedType, createResolvedType, createIntegerType } from './type-system.js';
+import { ResolvedType, createResolvedType, createIntegerType } from "./type-system.js";
 
 export class TypeContext {
   private nextId: number = 1;
@@ -18,30 +18,35 @@ export class TypeContext {
     this.internMap = new Map();
     this.internKeys = [];
 
-    this.numberType = this.intern('number', 'double');
+    this.numberType = this.intern("number", "double");
     const intType = createIntegerType();
     intType.id = this.nextId++;
-    intType.cachedLlvmType = 'i64';
+    intType.cachedLlvmType = "i64";
     this.integerType = intType;
-    this.stringType = this.intern('string', 'i8*');
-    this.booleanType = this.intern('boolean', 'double');
-    this.voidType = this.intern('void', 'void');
-    this.nullType = this.intern('null', 'i8*');
-    this.unknownType = this.intern('unknown', 'i8*');
+    this.stringType = this.intern("string", "i8*");
+    this.booleanType = this.intern("boolean", "double");
+    this.voidType = this.intern("void", "void");
+    this.nullType = this.intern("null", "i8*");
+    this.unknownType = this.intern("unknown", "i8*");
   }
 
   private canonicalKey(base: string, arrayDepth: number, isNullable: boolean): string {
     let key = base;
     for (let i = 0; i < arrayDepth; i++) {
-      key = key + '[]';
+      key = key + "[]";
     }
     if (isNullable) {
-      key = key + '?';
+      key = key + "?";
     }
     return key;
   }
 
-  private intern(base: string, llvmType: string, arrayDepth?: number, isNullable?: boolean): ResolvedType {
+  private intern(
+    base: string,
+    llvmType: string,
+    arrayDepth?: number,
+    isNullable?: boolean,
+  ): ResolvedType {
     const depth = arrayDepth || 0;
     const nullable = isNullable || false;
     const key = this.canonicalKey(base, depth, nullable);
@@ -60,35 +65,35 @@ export class TypeContext {
   }
 
   getArrayType(elementBase: string): ResolvedType {
-    if (elementBase === 'string') {
-      return this.intern('string', '%StringArray*', 1);
+    if (elementBase === "string") {
+      return this.intern("string", "%StringArray*", 1);
     }
-    if (elementBase === 'number' || elementBase === 'boolean') {
-      return this.intern('number', '%Array*', 1);
+    if (elementBase === "number" || elementBase === "boolean") {
+      return this.intern("number", "%Array*", 1);
     }
-    return this.intern(elementBase, '%ObjectArray*', 1);
+    return this.intern(elementBase, "%ObjectArray*", 1);
   }
 
   getMapType(keyType: string, valueType: string): ResolvedType {
-    const base = 'Map<' + keyType + ',' + valueType + '>';
-    return this.intern(base, '%StringMap*');
+    const base = "Map<" + keyType + "," + valueType + ">";
+    return this.intern(base, "%StringMap*");
   }
 
   getSetType(valueType: string): ResolvedType {
-    const base = 'Set<' + valueType + '>';
-    return this.intern(base, '%StringSet*');
+    const base = "Set<" + valueType + ">";
+    return this.intern(base, "%StringSet*");
   }
 
   getInterfaceType(name: string): ResolvedType {
-    return this.intern(name, '%' + name + '*');
+    return this.intern(name, "%" + name + "*");
   }
 
   getClassType(name: string): ResolvedType {
-    return this.intern(name, 'i8*');
+    return this.intern(name, "i8*");
   }
 
   getNullableType(base: ResolvedType): ResolvedType {
-    const llvm = base.cachedLlvmType || 'i8*';
+    const llvm = base.cachedLlvmType || "i8*";
     return this.intern(base.base, llvm, base.arrayDepth, true);
   }
 
@@ -105,26 +110,26 @@ export class TypeContext {
 
   resolve(typeStr: string): ResolvedType {
     if (!typeStr) return this.unknownType;
-    if (typeStr === 'string') return this.stringType;
-    if (typeStr === 'number') return this.numberType;
-    if (typeStr === 'boolean') return this.booleanType;
-    if (typeStr === 'void') return this.voidType;
-    if (typeStr === 'null' || typeStr === 'undefined') return this.nullType;
-    if (typeStr === 'string[]') return this.getArrayType('string');
-    if (typeStr === 'number[]') return this.getArrayType('number');
-    if (typeStr === 'boolean[]') return this.getArrayType('boolean');
-    if (typeStr.endsWith('[]')) {
+    if (typeStr === "string") return this.stringType;
+    if (typeStr === "number") return this.numberType;
+    if (typeStr === "boolean") return this.booleanType;
+    if (typeStr === "void") return this.voidType;
+    if (typeStr === "null" || typeStr === "undefined") return this.nullType;
+    if (typeStr === "string[]") return this.getArrayType("string");
+    if (typeStr === "number[]") return this.getArrayType("number");
+    if (typeStr === "boolean[]") return this.getArrayType("boolean");
+    if (typeStr.endsWith("[]")) {
       const elem = typeStr.substring(0, typeStr.length - 2);
       return this.getArrayType(elem);
     }
-    if (typeStr.startsWith('Map<')) {
+    if (typeStr.startsWith("Map<")) {
       const inner = typeStr.substring(4, typeStr.length - 1);
-      const comma = inner.indexOf(',');
+      const comma = inner.indexOf(",");
       if (comma !== -1) {
         return this.getMapType(inner.substring(0, comma).trim(), inner.substring(comma + 1).trim());
       }
     }
-    if (typeStr.startsWith('Set<')) {
+    if (typeStr.startsWith("Set<")) {
       const inner = typeStr.substring(4, typeStr.length - 1);
       return this.getSetType(inner.trim());
     }

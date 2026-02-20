@@ -1,15 +1,15 @@
-import { Expression, MethodCallNode } from '../../../ast/types.js';
-import type { MethodCallGeneratorContext } from '../method-calls.js';
+import { Expression, MethodCallNode } from "../../../ast/types.js";
+import type { MethodCallGeneratorContext } from "../method-calls.js";
 
 function emitIndentation(ctx: MethodCallGeneratorContext): void {
   const depth = ctx.nextTemp();
   ctx.emit(`${depth} = load i32, i32* @__describe_depth`);
   const hasDepth = ctx.nextTemp();
   ctx.emit(`${hasDepth} = icmp sgt i32 ${depth}, 0`);
-  const preLabel = ctx.nextLabel('assert_indent_pre');
-  const loopLabel = ctx.nextLabel('assert_indent_loop');
-  const bodyLabel = ctx.nextLabel('assert_indent_body');
-  const doneLabel = ctx.nextLabel('assert_indent_done');
+  const preLabel = ctx.nextLabel("assert_indent_pre");
+  const loopLabel = ctx.nextLabel("assert_indent_loop");
+  const bodyLabel = ctx.nextLabel("assert_indent_body");
+  const doneLabel = ctx.nextLabel("assert_indent_done");
   ctx.emit(`br i1 ${hasDepth}, label %${preLabel}, label %${doneLabel}`);
 
   ctx.emit(`${preLabel}:`);
@@ -49,12 +49,16 @@ function emitStderrPrint(ctx: MethodCallGeneratorContext, fmtRef: string, args: 
 }
 
 function setCurrentFailed(ctx: MethodCallGeneratorContext): void {
-  ctx.emit('store i1 1, i1* @__test_current_failed');
+  ctx.emit("store i1 1, i1* @__test_current_failed");
 }
 
-export function handleAssertStrictEqual(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleAssertStrictEqual(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   if (expr.args.length < 2) {
-    return ctx.emitError('assert.strictEqual() requires 2 arguments (actual, expected)', expr.loc);
+    return ctx.emitError("assert.strictEqual() requires 2 arguments (actual, expected)", expr.loc);
   }
 
   const isString = ctx.isStringExpression(expr.args[0]) || ctx.isStringExpression(expr.args[1]);
@@ -66,9 +70,16 @@ export function handleAssertStrictEqual(ctx: MethodCallGeneratorContext, expr: M
   }
 }
 
-export function handleAssertNotStrictEqual(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleAssertNotStrictEqual(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   if (expr.args.length < 2) {
-    return ctx.emitError('assert.notStrictEqual() requires 2 arguments (actual, expected)', expr.loc);
+    return ctx.emitError(
+      "assert.notStrictEqual() requires 2 arguments (actual, expected)",
+      expr.loc,
+    );
   }
 
   const isString = ctx.isStringExpression(expr.args[0]) || ctx.isStringExpression(expr.args[1]);
@@ -80,7 +91,12 @@ export function handleAssertNotStrictEqual(ctx: MethodCallGeneratorContext, expr
   }
 }
 
-function handleNumberEquality(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[], expectEqual: boolean): string {
+function handleNumberEquality(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+  expectEqual: boolean,
+): string {
   const actual = ctx.generateExpression(expr.args[0], params);
   const expected = ctx.generateExpression(expr.args[1], params);
   const dblActual = ctx.ensureDouble(actual);
@@ -93,16 +109,20 @@ function handleNumberEquality(ctx: MethodCallGeneratorContext, expr: MethodCallN
     ctx.emit(`${cmp} = fcmp one double ${dblActual}, ${dblExpected}`);
   }
 
-  const passLabel = ctx.nextLabel('assert_pass');
-  const failLabel = ctx.nextLabel('assert_fail');
-  const mergeLabel = ctx.nextLabel('assert_merge');
+  const passLabel = ctx.nextLabel("assert_pass");
+  const failLabel = ctx.nextLabel("assert_fail");
+  const mergeLabel = ctx.nextLabel("assert_merge");
 
   ctx.emit(`br i1 ${cmp}, label %${passLabel}, label %${failLabel}`);
 
   ctx.emit(`${failLabel}:`);
   ctx.setCurrentLabel(failLabel);
   setCurrentFailed(ctx);
-  emitStderrPrint(ctx, 'i8* getelementptr([31 x i8], [31 x i8]* @.str.assert_eq_num, i32 0, i32 0)', `, double ${dblExpected}, double ${dblActual}`);
+  emitStderrPrint(
+    ctx,
+    "i8* getelementptr([31 x i8], [31 x i8]* @.str.assert_eq_num, i32 0, i32 0)",
+    `, double ${dblExpected}, double ${dblActual}`,
+  );
   ctx.emit(`br label %${mergeLabel}`);
 
   ctx.emit(`${passLabel}:`);
@@ -112,10 +132,15 @@ function handleNumberEquality(ctx: MethodCallGeneratorContext, expr: MethodCallN
   ctx.emit(`${mergeLabel}:`);
   ctx.setCurrentLabel(mergeLabel);
 
-  return '0';
+  return "0";
 }
 
-function handleStringEquality(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[], expectEqual: boolean): string {
+function handleStringEquality(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+  expectEqual: boolean,
+): string {
   const actual = ctx.generateExpression(expr.args[0], params);
   const expected = ctx.generateExpression(expr.args[1], params);
 
@@ -126,9 +151,9 @@ function handleStringEquality(ctx: MethodCallGeneratorContext, expr: MethodCallN
   const eitherNull = ctx.nextTemp();
   ctx.emit(`${eitherNull} = or i1 ${leftNull}, ${rightNull}`);
 
-  const nullCheckLabel = ctx.nextLabel('assert_null_check');
-  const strcmpLabel = ctx.nextLabel('assert_strcmp');
-  const cmpDoneLabel = ctx.nextLabel('assert_cmp_done');
+  const nullCheckLabel = ctx.nextLabel("assert_null_check");
+  const strcmpLabel = ctx.nextLabel("assert_strcmp");
+  const cmpDoneLabel = ctx.nextLabel("assert_cmp_done");
 
   ctx.emit(`br i1 ${eitherNull}, label %${nullCheckLabel}, label %${strcmpLabel}`);
 
@@ -157,11 +182,13 @@ function handleStringEquality(ctx: MethodCallGeneratorContext, expr: MethodCallN
   ctx.emit(`${cmpDoneLabel}:`);
   ctx.setCurrentLabel(cmpDoneLabel);
   const cmpResult = ctx.nextTemp();
-  ctx.emit(`${cmpResult} = phi i1 [ ${nullCmp}, %${nullCheckLabel} ], [ ${strCmp}, %${strcmpLabel} ]`);
+  ctx.emit(
+    `${cmpResult} = phi i1 [ ${nullCmp}, %${nullCheckLabel} ], [ ${strCmp}, %${strcmpLabel} ]`,
+  );
 
-  const passLabel = ctx.nextLabel('assert_pass');
-  const failLabel = ctx.nextLabel('assert_fail');
-  const mergeLabel = ctx.nextLabel('assert_merge');
+  const passLabel = ctx.nextLabel("assert_pass");
+  const failLabel = ctx.nextLabel("assert_fail");
+  const mergeLabel = ctx.nextLabel("assert_merge");
 
   ctx.emit(`br i1 ${cmpResult}, label %${passLabel}, label %${failLabel}`);
 
@@ -172,7 +199,11 @@ function handleStringEquality(ctx: MethodCallGeneratorContext, expr: MethodCallN
   ctx.emit(`${safeActual} = call i8* @__safe_string(i8* ${actual})`);
   const safeExpected = ctx.nextTemp();
   ctx.emit(`${safeExpected} = call i8* @__safe_string(i8* ${expected})`);
-  emitStderrPrint(ctx, 'i8* getelementptr([25 x i8], [25 x i8]* @.str.assert_eq_str, i32 0, i32 0)', `, i8* ${safeExpected}, i8* ${safeActual}`);
+  emitStderrPrint(
+    ctx,
+    "i8* getelementptr([25 x i8], [25 x i8]* @.str.assert_eq_str, i32 0, i32 0)",
+    `, i8* ${safeExpected}, i8* ${safeActual}`,
+  );
   ctx.emit(`br label %${mergeLabel}`);
 
   ctx.emit(`${passLabel}:`);
@@ -182,12 +213,16 @@ function handleStringEquality(ctx: MethodCallGeneratorContext, expr: MethodCallN
   ctx.emit(`${mergeLabel}:`);
   ctx.setCurrentLabel(mergeLabel);
 
-  return '0';
+  return "0";
 }
 
-export function handleAssertOk(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleAssertOk(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   if (expr.args.length < 1) {
-    return ctx.emitError('assert.ok() requires 1 argument (value)', expr.loc);
+    return ctx.emitError("assert.ok() requires 1 argument (value)", expr.loc);
   }
 
   const isString = ctx.isStringExpression(expr.args[0]);
@@ -197,9 +232,9 @@ export function handleAssertOk(ctx: MethodCallGeneratorContext, expr: MethodCall
   if (isString) {
     const isNull = ctx.nextTemp();
     ctx.emit(`${isNull} = icmp eq i8* ${value}, null`);
-    const notNullLabel = ctx.nextLabel('assert_ok_notnull');
-    const isNullLabel = ctx.nextLabel('assert_ok_null');
-    const checkDoneLabel = ctx.nextLabel('assert_ok_checkdone');
+    const notNullLabel = ctx.nextLabel("assert_ok_notnull");
+    const isNullLabel = ctx.nextLabel("assert_ok_null");
+    const checkDoneLabel = ctx.nextLabel("assert_ok_checkdone");
 
     ctx.emit(`br i1 ${isNull}, label %${isNullLabel}, label %${notNullLabel}`);
 
@@ -227,16 +262,20 @@ export function handleAssertOk(ctx: MethodCallGeneratorContext, expr: MethodCall
     ctx.emit(`${cmp} = fcmp one double ${dblValue}, 0.0`);
   }
 
-  const passLabel = ctx.nextLabel('assert_pass');
-  const failLabel = ctx.nextLabel('assert_fail');
-  const mergeLabel = ctx.nextLabel('assert_merge');
+  const passLabel = ctx.nextLabel("assert_pass");
+  const failLabel = ctx.nextLabel("assert_fail");
+  const mergeLabel = ctx.nextLabel("assert_merge");
 
   ctx.emit(`br i1 ${cmp}, label %${passLabel}, label %${failLabel}`);
 
   ctx.emit(`${failLabel}:`);
   ctx.setCurrentLabel(failLabel);
   setCurrentFailed(ctx);
-  emitStderrPrint(ctx, 'i8* getelementptr([20 x i8], [20 x i8]* @.str.assert_falsy, i32 0, i32 0)', '');
+  emitStderrPrint(
+    ctx,
+    "i8* getelementptr([20 x i8], [20 x i8]* @.str.assert_falsy, i32 0, i32 0)",
+    "",
+  );
   ctx.emit(`br label %${mergeLabel}`);
 
   ctx.emit(`${passLabel}:`);
@@ -246,12 +285,16 @@ export function handleAssertOk(ctx: MethodCallGeneratorContext, expr: MethodCall
   ctx.emit(`${mergeLabel}:`);
   ctx.setCurrentLabel(mergeLabel);
 
-  return '0';
+  return "0";
 }
 
-export function handleAssertDeepEqual(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleAssertDeepEqual(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   if (expr.args.length < 2) {
-    return ctx.emitError('assert.deepEqual() requires 2 arguments (actual, expected)', expr.loc);
+    return ctx.emitError("assert.deepEqual() requires 2 arguments (actual, expected)", expr.loc);
   }
 
   if (ctx.isStringArrayExpression(expr.args[0]) || ctx.isStringArrayExpression(expr.args[1])) {
@@ -260,10 +303,14 @@ export function handleAssertDeepEqual(ctx: MethodCallGeneratorContext, expr: Met
     return emitArrayDeepEqualNumber(ctx, expr, params);
   }
 
-  return ctx.emitError('assert.deepEqual() currently only supports arrays', expr.loc);
+  return ctx.emitError("assert.deepEqual() currently only supports arrays", expr.loc);
 }
 
-function emitArrayDeepEqualNumber(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+function emitArrayDeepEqualNumber(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const actual = ctx.generateExpression(expr.args[0], params);
   const expected = ctx.generateExpression(expr.args[1], params);
 
@@ -280,16 +327,20 @@ function emitArrayDeepEqualNumber(ctx: MethodCallGeneratorContext, expr: MethodC
   const lenCmp = ctx.nextTemp();
   ctx.emit(`${lenCmp} = icmp eq i32 ${actualLen}, ${expectedLen}`);
 
-  const lenMatchLabel = ctx.nextLabel('deep_len_match');
-  const lenFailLabel = ctx.nextLabel('deep_len_fail');
-  const doneLabel = ctx.nextLabel('deep_done');
+  const lenMatchLabel = ctx.nextLabel("deep_len_match");
+  const lenFailLabel = ctx.nextLabel("deep_len_fail");
+  const doneLabel = ctx.nextLabel("deep_done");
 
   ctx.emit(`br i1 ${lenCmp}, label %${lenMatchLabel}, label %${lenFailLabel}`);
 
   ctx.emit(`${lenFailLabel}:`);
   ctx.setCurrentLabel(lenFailLabel);
   setCurrentFailed(ctx);
-  emitStderrPrint(ctx, 'i8* getelementptr([39 x i8], [39 x i8]* @.str.assert_deep_len, i32 0, i32 0)', `, i32 ${expectedLen}, i32 ${actualLen}`);
+  emitStderrPrint(
+    ctx,
+    "i8* getelementptr([39 x i8], [39 x i8]* @.str.assert_deep_len, i32 0, i32 0)",
+    `, i32 ${expectedLen}, i32 ${actualLen}`,
+  );
   ctx.emit(`br label %${doneLabel}`);
 
   ctx.emit(`${lenMatchLabel}:`);
@@ -305,11 +356,11 @@ function emitArrayDeepEqualNumber(ctx: MethodCallGeneratorContext, expr: MethodC
   const expectedData = ctx.nextTemp();
   ctx.emit(`${expectedData} = load double*, double** ${expectedDataPtr}`);
 
-  const loopHeader = ctx.nextLabel('deep_loop');
-  const loopBody = ctx.nextLabel('deep_body');
-  const loopMatch = ctx.nextLabel('deep_match');
-  const loopMismatch = ctx.nextLabel('deep_mismatch');
-  const loopEnd = ctx.nextLabel('deep_loop_end');
+  const loopHeader = ctx.nextLabel("deep_loop");
+  const loopBody = ctx.nextLabel("deep_body");
+  const loopMatch = ctx.nextLabel("deep_match");
+  const loopMismatch = ctx.nextLabel("deep_mismatch");
+  const loopEnd = ctx.nextLabel("deep_loop_end");
 
   ctx.emit(`br label %${loopHeader}`);
 
@@ -344,7 +395,11 @@ function emitArrayDeepEqualNumber(ctx: MethodCallGeneratorContext, expr: MethodC
   ctx.emit(`${loopMismatch}:`);
   ctx.setCurrentLabel(loopMismatch);
   setCurrentFailed(ctx);
-  emitStderrPrint(ctx, 'i8* getelementptr([31 x i8], [31 x i8]* @.str.assert_deep_idx, i32 0, i32 0)', `, i32 ${idx}`);
+  emitStderrPrint(
+    ctx,
+    "i8* getelementptr([31 x i8], [31 x i8]* @.str.assert_deep_idx, i32 0, i32 0)",
+    `, i32 ${idx}`,
+  );
   ctx.emit(`br label %${doneLabel}`);
 
   ctx.emit(`${loopEnd}:`);
@@ -354,10 +409,14 @@ function emitArrayDeepEqualNumber(ctx: MethodCallGeneratorContext, expr: MethodC
   ctx.emit(`${doneLabel}:`);
   ctx.setCurrentLabel(doneLabel);
 
-  return '0';
+  return "0";
 }
 
-function emitArrayDeepEqualString(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+function emitArrayDeepEqualString(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   const actual = ctx.generateExpression(expr.args[0], params);
   const expected = ctx.generateExpression(expr.args[1], params);
 
@@ -367,23 +426,29 @@ function emitArrayDeepEqualString(ctx: MethodCallGeneratorContext, expr: MethodC
   ctx.emit(`${actualLen} = load i32, i32* ${actualLenPtr}`);
 
   const expectedLenPtr = ctx.nextTemp();
-  ctx.emit(`${expectedLenPtr} = getelementptr %StringArray, %StringArray* ${expected}, i32 0, i32 1`);
+  ctx.emit(
+    `${expectedLenPtr} = getelementptr %StringArray, %StringArray* ${expected}, i32 0, i32 1`,
+  );
   const expectedLen = ctx.nextTemp();
   ctx.emit(`${expectedLen} = load i32, i32* ${expectedLenPtr}`);
 
   const lenCmp = ctx.nextTemp();
   ctx.emit(`${lenCmp} = icmp eq i32 ${actualLen}, ${expectedLen}`);
 
-  const lenMatchLabel = ctx.nextLabel('deep_len_match');
-  const lenFailLabel = ctx.nextLabel('deep_len_fail');
-  const doneLabel = ctx.nextLabel('deep_done');
+  const lenMatchLabel = ctx.nextLabel("deep_len_match");
+  const lenFailLabel = ctx.nextLabel("deep_len_fail");
+  const doneLabel = ctx.nextLabel("deep_done");
 
   ctx.emit(`br i1 ${lenCmp}, label %${lenMatchLabel}, label %${lenFailLabel}`);
 
   ctx.emit(`${lenFailLabel}:`);
   ctx.setCurrentLabel(lenFailLabel);
   setCurrentFailed(ctx);
-  emitStderrPrint(ctx, 'i8* getelementptr([39 x i8], [39 x i8]* @.str.assert_deep_len, i32 0, i32 0)', `, i32 ${expectedLen}, i32 ${actualLen}`);
+  emitStderrPrint(
+    ctx,
+    "i8* getelementptr([39 x i8], [39 x i8]* @.str.assert_deep_len, i32 0, i32 0)",
+    `, i32 ${expectedLen}, i32 ${actualLen}`,
+  );
   ctx.emit(`br label %${doneLabel}`);
 
   ctx.emit(`${lenMatchLabel}:`);
@@ -395,15 +460,17 @@ function emitArrayDeepEqualString(ctx: MethodCallGeneratorContext, expr: MethodC
   ctx.emit(`${actualData} = load i8**, i8*** ${actualDataPtr}`);
 
   const expectedDataPtr = ctx.nextTemp();
-  ctx.emit(`${expectedDataPtr} = getelementptr %StringArray, %StringArray* ${expected}, i32 0, i32 0`);
+  ctx.emit(
+    `${expectedDataPtr} = getelementptr %StringArray, %StringArray* ${expected}, i32 0, i32 0`,
+  );
   const expectedData = ctx.nextTemp();
   ctx.emit(`${expectedData} = load i8**, i8*** ${expectedDataPtr}`);
 
-  const loopHeader = ctx.nextLabel('deep_loop');
-  const loopBody = ctx.nextLabel('deep_body');
-  const loopMatch = ctx.nextLabel('deep_match');
-  const loopMismatch = ctx.nextLabel('deep_mismatch');
-  const loopEnd = ctx.nextLabel('deep_loop_end');
+  const loopHeader = ctx.nextLabel("deep_loop");
+  const loopBody = ctx.nextLabel("deep_body");
+  const loopMatch = ctx.nextLabel("deep_match");
+  const loopMismatch = ctx.nextLabel("deep_mismatch");
+  const loopEnd = ctx.nextLabel("deep_loop_end");
 
   ctx.emit(`br label %${loopHeader}`);
 
@@ -440,7 +507,11 @@ function emitArrayDeepEqualString(ctx: MethodCallGeneratorContext, expr: MethodC
   ctx.emit(`${loopMismatch}:`);
   ctx.setCurrentLabel(loopMismatch);
   setCurrentFailed(ctx);
-  emitStderrPrint(ctx, 'i8* getelementptr([31 x i8], [31 x i8]* @.str.assert_deep_idx, i32 0, i32 0)', `, i32 ${idx}`);
+  emitStderrPrint(
+    ctx,
+    "i8* getelementptr([31 x i8], [31 x i8]* @.str.assert_deep_idx, i32 0, i32 0)",
+    `, i32 ${idx}`,
+  );
   ctx.emit(`br label %${doneLabel}`);
 
   ctx.emit(`${loopEnd}:`);
@@ -450,16 +521,24 @@ function emitArrayDeepEqualString(ctx: MethodCallGeneratorContext, expr: MethodC
   ctx.emit(`${doneLabel}:`);
   ctx.setCurrentLabel(doneLabel);
 
-  return '0';
+  return "0";
 }
 
-export function handleAssertFail(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function handleAssertFail(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   setCurrentFailed(ctx);
 
   if (expr.args.length > 0) {
     const msg = ctx.generateExpression(expr.args[0], params);
-    emitStderrPrint(ctx, 'i8* getelementptr([8 x i8], [8 x i8]* @.str.assert_fail_msg, i32 0, i32 0)', `, i8* ${msg}`);
+    emitStderrPrint(
+      ctx,
+      "i8* getelementptr([8 x i8], [8 x i8]* @.str.assert_fail_msg, i32 0, i32 0)",
+      `, i8* ${msg}`,
+    );
   }
 
-  return '0';
+  return "0";
 }

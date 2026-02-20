@@ -13,7 +13,7 @@ function parseArgs(): Flags {
     verbose: false,
     output: "output.txt",
     count: 1,
-    help: false
+    help: false,
   };
 
   let i = 0;

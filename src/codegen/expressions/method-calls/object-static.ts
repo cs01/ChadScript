@@ -1,14 +1,19 @@
-import { MethodCallNode, VariableNode, InterfaceDeclaration } from '../../../ast/types.js';
-import type { MethodCallGeneratorContext } from '../method-calls.js';
-import { getInterfaceFromAST } from './class-dispatch.js';
+import { MethodCallNode, VariableNode, InterfaceDeclaration } from "../../../ast/types.js";
+import type { MethodCallGeneratorContext } from "../method-calls.js";
+import { getInterfaceFromAST } from "./class-dispatch.js";
 
-interface ExprBase { type: string; }
+interface ExprBase {
+  type: string;
+}
 
 interface InterfaceDefInfo {
   properties: { name: string; type: string }[];
 }
 
-function getObjectFieldInfo(ctx: MethodCallGeneratorContext, name: string): { keys: string[]; types: string[]; ptr: string } | null {
+function getObjectFieldInfo(
+  ctx: MethodCallGeneratorContext,
+  name: string,
+): { keys: string[]; types: string[]; ptr: string } | null {
   let fieldNames: string[] = [];
   let fieldTypes: string[] = [];
 
@@ -19,14 +24,14 @@ function getObjectFieldInfo(ctx: MethodCallGeneratorContext, name: string): { ke
       for (let i = 0; i < ifaceDef.properties.length; i++) {
         fieldNames.push(ifaceDef.properties[i].name);
         const propType = ifaceDef.properties[i].type;
-        if (propType === 'number') {
-          fieldTypes.push('double');
-        } else if (propType === 'string') {
-          fieldTypes.push('i8*');
-        } else if (propType === 'boolean') {
-          fieldTypes.push('double');
+        if (propType === "number") {
+          fieldTypes.push("double");
+        } else if (propType === "string") {
+          fieldTypes.push("i8*");
+        } else if (propType === "boolean") {
+          fieldTypes.push("double");
         } else {
-          fieldTypes.push('i8*');
+          fieldTypes.push("i8*");
         }
       }
     }
@@ -48,15 +53,19 @@ function getObjectFieldInfo(ctx: MethodCallGeneratorContext, name: string): { ke
   return { keys: fieldNames, types: fieldTypes, ptr: alloca };
 }
 
-export function generateObjectKeys(ctx: MethodCallGeneratorContext, expr: MethodCallNode, params: string[]): string {
+export function generateObjectKeys(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
   if (expr.args.length === 0) {
-    return ctx.emitError('Object.keys() requires 1 argument', expr.loc);
+    return ctx.emitError("Object.keys() requires 1 argument", expr.loc);
   }
 
   const arg = expr.args[0];
   const argBase = arg as ExprBase;
-  if (argBase.type !== 'variable') {
-    return ctx.emitError('Object.keys() argument must be a variable', expr.loc);
+  if (argBase.type !== "variable") {
+    return ctx.emitError("Object.keys() argument must be a variable", expr.loc);
   }
   const name = (arg as VariableNode).name;
 
@@ -109,30 +118,40 @@ export function generateObjectKeys(ctx: MethodCallGeneratorContext, expr: Method
   }
 
   const dataPtrField = ctx.nextTemp();
-  ctx.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+  ctx.emit(
+    `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+  );
   ctx.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
 
   const lenField = ctx.nextTemp();
-  ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+  ctx.emit(
+    `${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+  );
   ctx.emit(`store i32 ${length}, i32* ${lenField}`);
 
   const capField = ctx.nextTemp();
-  ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+  ctx.emit(
+    `${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`,
+  );
   ctx.emit(`store i32 ${length}, i32* ${capField}`);
 
-  ctx.setVariableType(arrayPtr, '%StringArray*');
+  ctx.setVariableType(arrayPtr, "%StringArray*");
   return arrayPtr;
 }
 
-export function generateObjectValues(ctx: MethodCallGeneratorContext, expr: MethodCallNode, _params: string[]): string {
+export function generateObjectValues(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  _params: string[],
+): string {
   if (expr.args.length === 0) {
-    return ctx.emitError('Object.values() requires 1 argument', expr.loc);
+    return ctx.emitError("Object.values() requires 1 argument", expr.loc);
   }
 
   const arg = expr.args[0];
   const argBase = arg as ExprBase;
-  if (argBase.type !== 'variable') {
-    return ctx.emitError('Object.values() argument must be a variable', expr.loc);
+  if (argBase.type !== "variable") {
+    return ctx.emitError("Object.values() argument must be a variable", expr.loc);
   }
   const name = (arg as VariableNode).name;
 
@@ -145,10 +164,10 @@ export function generateObjectValues(ctx: MethodCallGeneratorContext, expr: Meth
   const types = info.types;
   const ptr = info.ptr;
   const length = keys.length;
-  const structType = `{ ${types.join(', ')} }`;
+  const structType = `{ ${types.join(", ")} }`;
 
-  const allStrings = types.every(t => t === 'i8*');
-  const allNumbers = types.every(t => t === 'double');
+  const allStrings = types.every((t) => t === "i8*");
+  const allNumbers = types.every((t) => t === "double");
 
   const objPtr = ctx.nextTemp();
   ctx.emit(`${objPtr} = load i8*, i8** ${ptr}`);
@@ -174,7 +193,9 @@ export function generateObjectValues(ctx: MethodCallGeneratorContext, expr: Meth
 
     for (let i = 0; i < length; i++) {
       const fieldPtr = ctx.nextTemp();
-      ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
+      ctx.emit(
+        `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`,
+      );
       const fieldVal = ctx.nextTemp();
       ctx.emit(`${fieldVal} = load i8*, i8** ${fieldPtr}`);
       const elemPtr = ctx.nextTemp();
@@ -183,18 +204,24 @@ export function generateObjectValues(ctx: MethodCallGeneratorContext, expr: Meth
     }
 
     const dataPtrField = ctx.nextTemp();
-    ctx.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    ctx.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     ctx.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
 
     const lenField = ctx.nextTemp();
-    ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    ctx.emit(
+      `${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     ctx.emit(`store i32 ${length}, i32* ${lenField}`);
 
     const capField = ctx.nextTemp();
-    ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+    ctx.emit(
+      `${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`,
+    );
     ctx.emit(`store i32 ${length}, i32* ${capField}`);
 
-    ctx.setVariableType(arrayPtr, '%StringArray*');
+    ctx.setVariableType(arrayPtr, "%StringArray*");
     return arrayPtr;
   } else if (allNumbers) {
     const sizePtr = ctx.nextTemp();
@@ -215,7 +242,9 @@ export function generateObjectValues(ctx: MethodCallGeneratorContext, expr: Meth
 
     for (let i = 0; i < length; i++) {
       const fieldPtr = ctx.nextTemp();
-      ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
+      ctx.emit(
+        `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`,
+      );
       const fieldVal = ctx.nextTemp();
       ctx.emit(`${fieldVal} = load double, double* ${fieldPtr}`);
       const elemPtr = ctx.nextTemp();
@@ -235,7 +264,7 @@ export function generateObjectValues(ctx: MethodCallGeneratorContext, expr: Meth
     ctx.emit(`${capField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
     ctx.emit(`store i32 ${length}, i32* ${capField}`);
 
-    ctx.setVariableType(arrayPtr, '%Array*');
+    ctx.setVariableType(arrayPtr, "%Array*");
     return arrayPtr;
   } else {
     const sizePtr = ctx.nextTemp();
@@ -256,8 +285,10 @@ export function generateObjectValues(ctx: MethodCallGeneratorContext, expr: Meth
 
     for (let i = 0; i < length; i++) {
       const fieldPtr = ctx.nextTemp();
-      ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
-      if (types[i] === 'i8*') {
+      ctx.emit(
+        `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`,
+      );
+      if (types[i] === "i8*") {
         const fieldVal = ctx.nextTemp();
         ctx.emit(`${fieldVal} = load i8*, i8** ${fieldPtr}`);
         const elemPtr = ctx.nextTemp();
@@ -274,31 +305,41 @@ export function generateObjectValues(ctx: MethodCallGeneratorContext, expr: Meth
     }
 
     const dataPtrField = ctx.nextTemp();
-    ctx.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+    ctx.emit(
+      `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+    );
     ctx.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
 
     const lenField = ctx.nextTemp();
-    ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+    ctx.emit(
+      `${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+    );
     ctx.emit(`store i32 ${length}, i32* ${lenField}`);
 
     const capField = ctx.nextTemp();
-    ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+    ctx.emit(
+      `${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`,
+    );
     ctx.emit(`store i32 ${length}, i32* ${capField}`);
 
-    ctx.setVariableType(arrayPtr, '%StringArray*');
+    ctx.setVariableType(arrayPtr, "%StringArray*");
     return arrayPtr;
   }
 }
 
-export function generateObjectEntries(ctx: MethodCallGeneratorContext, expr: MethodCallNode, _params: string[]): string {
+export function generateObjectEntries(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  _params: string[],
+): string {
   if (expr.args.length === 0) {
-    return ctx.emitError('Object.entries() requires 1 argument', expr.loc);
+    return ctx.emitError("Object.entries() requires 1 argument", expr.loc);
   }
 
   const arg = expr.args[0];
   const argBase = arg as ExprBase;
-  if (argBase.type !== 'variable') {
-    return ctx.emitError('Object.entries() argument must be a variable', expr.loc);
+  if (argBase.type !== "variable") {
+    return ctx.emitError("Object.entries() argument must be a variable", expr.loc);
   }
   const name = (arg as VariableNode).name;
 
@@ -311,7 +352,7 @@ export function generateObjectEntries(ctx: MethodCallGeneratorContext, expr: Met
   const types = info.types;
   const ptr = info.ptr;
   const length = keys.length;
-  const structType = `{ ${types.join(', ')} }`;
+  const structType = `{ ${types.join(", ")} }`;
 
   const objPtr = ctx.nextTemp();
   ctx.emit(`${objPtr} = load i8*, i8** ${ptr}`);
@@ -343,10 +384,12 @@ export function generateObjectEntries(ctx: MethodCallGeneratorContext, expr: Met
     ctx.emit(`store i8* ${keyConst}, i8** ${keyElemPtr}`);
 
     const fieldPtr = ctx.nextTemp();
-    ctx.emit(`${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`);
+    ctx.emit(
+      `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`,
+    );
 
     let valueStr: string;
-    if (types[i] === 'i8*') {
+    if (types[i] === "i8*") {
       valueStr = ctx.nextTemp();
       ctx.emit(`${valueStr} = load i8*, i8** ${fieldPtr}`);
     } else {
@@ -361,17 +404,23 @@ export function generateObjectEntries(ctx: MethodCallGeneratorContext, expr: Met
   }
 
   const dataPtrField = ctx.nextTemp();
-  ctx.emit(`${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`);
+  ctx.emit(
+    `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
+  );
   ctx.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
 
   const lenField = ctx.nextTemp();
-  ctx.emit(`${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`);
+  ctx.emit(
+    `${lenField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
+  );
   ctx.emit(`store i32 ${flatLength}, i32* ${lenField}`);
 
   const capField = ctx.nextTemp();
-  ctx.emit(`${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`);
+  ctx.emit(
+    `${capField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`,
+  );
   ctx.emit(`store i32 ${flatLength}, i32* ${capField}`);
 
-  ctx.setVariableType(arrayPtr, '%StringArray*');
+  ctx.setVariableType(arrayPtr, "%StringArray*");
   return arrayPtr;
 }

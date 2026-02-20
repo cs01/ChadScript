@@ -60,25 +60,76 @@ export class ArgumentParser {
 
   // Add a boolean flag (e.g., -v, --verbose)
   addFlag(name: string, shortFlag: string, help: string): void {
-    this.args.push({ name: name, shortFlag: shortFlag, longFlag: name, help: help, isFlag: true, defaultValue: "", isPositional: false, subcommands: "" });
+    this.args.push({
+      name: name,
+      shortFlag: shortFlag,
+      longFlag: name,
+      help: help,
+      isFlag: true,
+      defaultValue: "",
+      isPositional: false,
+      subcommands: "",
+    });
   }
 
   addScopedFlag(name: string, shortFlag: string, help: string, subcommands: string): void {
-    this.args.push({ name: name, shortFlag: shortFlag, longFlag: name, help: help, isFlag: true, defaultValue: "", isPositional: false, subcommands: subcommands });
+    this.args.push({
+      name: name,
+      shortFlag: shortFlag,
+      longFlag: name,
+      help: help,
+      isFlag: true,
+      defaultValue: "",
+      isPositional: false,
+      subcommands: subcommands,
+    });
   }
 
   // Add an option that takes a value (e.g., -o file.txt, --output file.txt)
   addOption(name: string, shortFlag: string, help: string, defaultVal: string): void {
-    this.args.push({ name: name, shortFlag: shortFlag, longFlag: name, help: help, isFlag: false, defaultValue: defaultVal, isPositional: false, subcommands: "" });
+    this.args.push({
+      name: name,
+      shortFlag: shortFlag,
+      longFlag: name,
+      help: help,
+      isFlag: false,
+      defaultValue: defaultVal,
+      isPositional: false,
+      subcommands: "",
+    });
   }
 
-  addScopedOption(name: string, shortFlag: string, help: string, defaultVal: string, subcommands: string): void {
-    this.args.push({ name: name, shortFlag: shortFlag, longFlag: name, help: help, isFlag: false, defaultValue: defaultVal, isPositional: false, subcommands: subcommands });
+  addScopedOption(
+    name: string,
+    shortFlag: string,
+    help: string,
+    defaultVal: string,
+    subcommands: string,
+  ): void {
+    this.args.push({
+      name: name,
+      shortFlag: shortFlag,
+      longFlag: name,
+      help: help,
+      isFlag: false,
+      defaultValue: defaultVal,
+      isPositional: false,
+      subcommands: subcommands,
+    });
   }
 
   // Add a positional argument (e.g., filename)
   addPositional(name: string, help: string): void {
-    this.args.push({ name: name, shortFlag: "", longFlag: "", help: help, isFlag: false, defaultValue: "", isPositional: true, subcommands: "" });
+    this.args.push({
+      name: name,
+      shortFlag: "",
+      longFlag: "",
+      help: help,
+      isFlag: false,
+      defaultValue: "",
+      isPositional: true,
+      subcommands: "",
+    });
   }
 
   isArgInScope(argIndex: number, subcommand: string): boolean {
@@ -151,8 +202,11 @@ export class ArgumentParser {
   setFlagValue(argIndex: number): void {
     let flagIdx = 0;
     while (flagIdx < this.parsedFlags.length) {
-      if (this.parsedFlags[flagIdx].name.length > 0 && this.args[argIndex].name.length > 0 &&
-          this.parsedFlags[flagIdx].name === this.args[argIndex].name) {
+      if (
+        this.parsedFlags[flagIdx].name.length > 0 &&
+        this.args[argIndex].name.length > 0 &&
+        this.parsedFlags[flagIdx].name === this.args[argIndex].name
+      ) {
         this.parsedFlags[flagIdx].value = true;
       }
       flagIdx = flagIdx + 1;
@@ -162,8 +216,11 @@ export class ArgumentParser {
   setOptionValue(argIndex: number, value: string): void {
     let optIdx = 0;
     while (optIdx < this.parsedOptions.length) {
-      if (this.parsedOptions[optIdx].name.length > 0 && this.args[argIndex].name.length > 0 &&
-          this.parsedOptions[optIdx].name === this.args[argIndex].name) {
+      if (
+        this.parsedOptions[optIdx].name.length > 0 &&
+        this.args[argIndex].name.length > 0 &&
+        this.parsedOptions[optIdx].name === this.args[argIndex].name
+      ) {
         this.parsedOptions[optIdx].value = value;
       }
       optIdx = optIdx + 1;
@@ -306,7 +363,14 @@ export class ArgumentParser {
             const endsTs = cur.length >= 3 && cur.substr(cur.length - 3) === ".ts";
             const endsJs = cur.length >= 3 && cur.substr(cur.length - 3) === ".js";
             if (endsTs || endsJs) {
-              console.error(this.programName + ": error: missing command. did you mean " + this.programName + " build " + cur + "?");
+              console.error(
+                this.programName +
+                  ": error: missing command. did you mean " +
+                  this.programName +
+                  " build " +
+                  cur +
+                  "?",
+              );
             } else {
               console.error(this.programName + ": error: unknown command '" + cur + "'");
             }
@@ -368,8 +432,10 @@ export class ArgumentParser {
     let i = 0;
     while (i < this.args.length) {
       // Check length > 0 to avoid strcmp on NULL/empty strings
-      if ((this.args[i].shortFlag.length > 0 && this.args[i].shortFlag === cleanFlag) ||
-          (this.args[i].longFlag.length > 0 && this.args[i].longFlag === cleanFlag)) {
+      if (
+        (this.args[i].shortFlag.length > 0 && this.args[i].shortFlag === cleanFlag) ||
+        (this.args[i].longFlag.length > 0 && this.args[i].longFlag === cleanFlag)
+      ) {
         return i;
       }
       i = i + 1;
@@ -432,13 +498,23 @@ export class ArgumentParser {
       if (!this.args[i].isPositional) {
         if (this.args[i].shortFlag.length > 0) {
           if (!this.args[i].isFlag && this.args[i].defaultValue.length > 0) {
-            console.log("  -" + this.args[i].shortFlag + ", --" + this.args[i].longFlag + " (default: " + this.args[i].defaultValue + ")");
+            console.log(
+              "  -" +
+                this.args[i].shortFlag +
+                ", --" +
+                this.args[i].longFlag +
+                " (default: " +
+                this.args[i].defaultValue +
+                ")",
+            );
           } else {
             console.log("  -" + this.args[i].shortFlag + ", --" + this.args[i].longFlag);
           }
         } else {
           if (!this.args[i].isFlag && this.args[i].defaultValue.length > 0) {
-            console.log("  --" + this.args[i].longFlag + " (default: " + this.args[i].defaultValue + ")");
+            console.log(
+              "  --" + this.args[i].longFlag + " (default: " + this.args[i].defaultValue + ")",
+            );
           } else {
             console.log("  --" + this.args[i].longFlag);
           }
@@ -527,7 +603,9 @@ export class ArgumentParser {
     console.log("  -h, --help");
     console.log("      Show this help message and exit");
     console.log("");
-    console.log("Run '" + this.programName + " <command> --help' for more information on a command.");
+    console.log(
+      "Run '" + this.programName + " <command> --help' for more information on a command.",
+    );
   }
 
   printSubcommandHelp(subcmd: string): void {
@@ -626,13 +704,23 @@ export class ArgumentParser {
   printArgLine(i: number): void {
     if (this.args[i].shortFlag.length > 0) {
       if (!this.args[i].isFlag && this.args[i].defaultValue.length > 0) {
-        console.log("  -" + this.args[i].shortFlag + ", --" + this.args[i].longFlag + " (default: " + this.args[i].defaultValue + ")");
+        console.log(
+          "  -" +
+            this.args[i].shortFlag +
+            ", --" +
+            this.args[i].longFlag +
+            " (default: " +
+            this.args[i].defaultValue +
+            ")",
+        );
       } else {
         console.log("  -" + this.args[i].shortFlag + ", --" + this.args[i].longFlag);
       }
     } else {
       if (!this.args[i].isFlag && this.args[i].defaultValue.length > 0) {
-        console.log("  --" + this.args[i].longFlag + " (default: " + this.args[i].defaultValue + ")");
+        console.log(
+          "  --" + this.args[i].longFlag + " (default: " + this.args[i].defaultValue + ")",
+        );
       } else {
         console.log("  --" + this.args[i].longFlag);
       }

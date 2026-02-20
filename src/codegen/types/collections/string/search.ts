@@ -1,4 +1,4 @@
-import { IGeneratorContext } from '../../../infrastructure/generator-context.js';
+import { IGeneratorContext } from "../../../infrastructure/generator-context.js";
 
 // ============================================
 // STRING SEARCH - String search and query operations
@@ -60,7 +60,7 @@ export function generateCharCodeAt(ctx: IGeneratorContext, strPtr: string, index
 
   const result = ctx.nextTemp();
   ctx.emit(`${result} = sitofp i32 ${charI32} to double`);
-  ctx.setVariableType(result, 'double');
+  ctx.setVariableType(result, "double");
 
   return result;
 }
@@ -72,9 +72,9 @@ export function generateIndexOf(ctx: IGeneratorContext, strPtr: string, substrin
   const isNull = ctx.nextTemp();
   ctx.emit(`${isNull} = icmp eq i8* ${foundPtr}, null`);
 
-  const notFoundLabel = ctx.nextLabel('indexof_notfound');
-  const foundLabel = ctx.nextLabel('indexof_found');
-  const endLabel = ctx.nextLabel('indexof_end');
+  const notFoundLabel = ctx.nextLabel("indexof_notfound");
+  const foundLabel = ctx.nextLabel("indexof_found");
+  const endLabel = ctx.nextLabel("indexof_end");
 
   ctx.emit(`br i1 ${isNull}, label %${notFoundLabel}, label %${foundLabel}`);
 
@@ -102,7 +102,11 @@ export function generateIndexOf(ctx: IGeneratorContext, strPtr: string, substrin
   return result;
 }
 
-export function generateLastIndexOf(ctx: IGeneratorContext, strPtr: string, substring: string): string {
+export function generateLastIndexOf(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  substring: string,
+): string {
   const lastPosPtr = ctx.nextTemp();
   ctx.emit(`${lastPosPtr} = alloca i32`);
   ctx.emit(`store i32 -1, i32* ${lastPosPtr}`);
@@ -114,9 +118,9 @@ export function generateLastIndexOf(ctx: IGeneratorContext, strPtr: string, subs
   const strPtrInt = ctx.nextTemp();
   ctx.emit(`${strPtrInt} = ptrtoint i8* ${strPtr} to i64`);
 
-  const loopLabel = ctx.nextLabel('lastindexof_loop');
-  const foundLabel = ctx.nextLabel('lastindexof_found');
-  const endLabel = ctx.nextLabel('lastindexof_end');
+  const loopLabel = ctx.nextLabel("lastindexof_loop");
+  const foundLabel = ctx.nextLabel("lastindexof_found");
+  const endLabel = ctx.nextLabel("lastindexof_end");
 
   ctx.emit(`br label %${loopLabel}`);
 
@@ -151,7 +155,11 @@ export function generateLastIndexOf(ctx: IGeneratorContext, strPtr: string, subs
   return result;
 }
 
-export function generateIncludes(ctx: IGeneratorContext, strPtr: string, substring: string): string {
+export function generateIncludes(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  substring: string,
+): string {
   const foundPtr = ctx.nextTemp();
   ctx.emit(`${foundPtr} = call i8* @strstr(i8* ${strPtr}, i8* ${substring})`);
 
@@ -177,9 +185,9 @@ export function generateEndsWith(ctx: IGeneratorContext, strPtr: string, suffix:
   const suffixLonger = ctx.nextTemp();
   ctx.emit(`${suffixLonger} = icmp ugt i64 ${suffixLen}, ${strLen}`);
 
-  const checkLabel = ctx.nextLabel('endswith_check');
-  const falseLabel = ctx.nextLabel('endswith_false');
-  const endLabel = ctx.nextLabel('endswith_end');
+  const checkLabel = ctx.nextLabel("endswith_check");
+  const falseLabel = ctx.nextLabel("endswith_false");
+  const endLabel = ctx.nextLabel("endswith_end");
 
   ctx.emit(`br i1 ${suffixLonger}, label %${falseLabel}, label %${checkLabel}`);
 

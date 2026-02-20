@@ -11,8 +11,8 @@
  *   processArgvVariables
  */
 
-import type { ResolvedType } from './type-system.js';
-import type { TypeContext } from './type-context.js';
+import type { ResolvedType } from "./type-system.js";
+import type { TypeContext } from "./type-context.js";
 
 /**
  * Symbol kind for different variable types
@@ -34,7 +34,7 @@ export enum SymbolKind {
   ProcessArgv,
   Closure,
   Pointer,
-  Uint8Array
+  Uint8Array,
 }
 
 /**
@@ -42,8 +42,8 @@ export enum SymbolKind {
  */
 export interface ObjectMetadata {
   keys: string[];
-  types: string[];  // LLVM types for each field
-  tsTypes?: string[];  // TypeScript types for nested interface resolution
+  types: string[]; // LLVM types for each field
+  tsTypes?: string[]; // TypeScript types for nested interface resolution
 }
 
 /**
@@ -51,7 +51,7 @@ export interface ObjectMetadata {
  */
 export interface ClassMetadata {
   className: string;
-  fields?: string[];  // Field names
+  fields?: string[]; // Field names
 }
 
 /**
@@ -66,7 +66,7 @@ export interface ClassInfo {
  * Array-specific metadata
  */
 export interface ArrayMetadata {
-  elementType: 'string' | 'number' | 'boolean';
+  elementType: "string" | "number" | "boolean";
 }
 
 /**
@@ -75,36 +75,36 @@ export interface ArrayMetadata {
 export interface ObjectArrayMetadata {
   elementInterfaceName: string;
   elementKeys: string[];
-  elementTypes: string[];  // LLVM types for each field
-  elementTsTypes?: string[];  // TypeScript types for nested resolution
+  elementTypes: string[]; // LLVM types for each field
+  elementTsTypes?: string[]; // TypeScript types for nested resolution
 }
 
 /**
  * Closure-specific metadata
  */
 export interface ClosureMetadata {
-  lambdaName: string;          // The lifted function name (e.g., __lambda_0)
-  envStructName: string;       // The environment struct type name
-  envPtrRegister: string;      // Register holding the environment pointer
-  captures: { name: string; llvmType: string }[];  // Captured variables
+  lambdaName: string; // The lifted function name (e.g., __lambda_0)
+  envStructName: string; // The environment struct type name
+  envPtrRegister: string; // Register holding the environment pointer
+  captures: { name: string; llvmType: string }[]; // Captured variables
 }
 
 /**
  * Map-specific metadata for typed Maps
  */
 export interface MapMetadata {
-  keyType: 'string' | 'number';   // TypeScript key type
-  valueType: string;              // TypeScript value type (string, number, or interface name)
-  llvmKeyType: string;            // LLVM type for keys (i8* for string, double for number)
-  llvmValueType: string;          // LLVM type for values
+  keyType: "string" | "number"; // TypeScript key type
+  valueType: string; // TypeScript value type (string, number, or interface name)
+  llvmKeyType: string; // LLVM type for keys (i8* for string, double for number)
+  llvmValueType: string; // LLVM type for values
 }
 
 /**
  * Set-specific metadata for typed Sets
  */
 export interface SetMetadata {
-  valueType: 'string' | 'number'; // TypeScript value type
-  llvmValueType: string;          // LLVM type for values (i8* for string, double for number)
+  valueType: "string" | "number"; // TypeScript value type
+  llvmValueType: string; // LLVM type for values (i8* for string, double for number)
 }
 
 /**
@@ -139,11 +139,14 @@ export function createPointerAllocaMetadata(): SymbolMetadata {
     interfaceType: undefined,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
-export function createInterfacePointerAllocaMetadata(interfaceType: string, concreteClass?: string): SymbolMetadata {
+export function createInterfacePointerAllocaMetadata(
+  interfaceType: string,
+  concreteClass?: string,
+): SymbolMetadata {
   return {
     objectMetadata: undefined,
     classMetadata: undefined,
@@ -157,11 +160,14 @@ export function createInterfacePointerAllocaMetadata(interfaceType: string, conc
     concreteClass: concreteClass,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
-export function createInterfaceMetadata(interfaceType: string, concreteClass?: string): SymbolMetadata {
+export function createInterfaceMetadata(
+  interfaceType: string,
+  concreteClass?: string,
+): SymbolMetadata {
   return {
     objectMetadata: undefined,
     classMetadata: undefined,
@@ -175,7 +181,7 @@ export function createInterfaceMetadata(interfaceType: string, concreteClass?: s
     concreteClass: concreteClass,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
@@ -192,11 +198,14 @@ export function createObjectMetadata(objectMetadata: ObjectMetadata): SymbolMeta
     interfaceType: undefined,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
-export function createObjectMetadataWithInterface(objectMetadata: ObjectMetadata, interfaceType: string): SymbolMetadata {
+export function createObjectMetadataWithInterface(
+  objectMetadata: ObjectMetadata,
+  interfaceType: string,
+): SymbolMetadata {
   return {
     objectMetadata: objectMetadata,
     classMetadata: undefined,
@@ -209,11 +218,14 @@ export function createObjectMetadataWithInterface(objectMetadata: ObjectMetadata
     interfaceType: interfaceType,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
-export function createObjectMetadataWithPointerAlloca(objectMetadata: ObjectMetadata, isPointerAlloca: boolean): SymbolMetadata {
+export function createObjectMetadataWithPointerAlloca(
+  objectMetadata: ObjectMetadata,
+  isPointerAlloca: boolean,
+): SymbolMetadata {
   return {
     objectMetadata: objectMetadata,
     classMetadata: undefined,
@@ -226,11 +238,15 @@ export function createObjectMetadataWithPointerAlloca(objectMetadata: ObjectMeta
     interfaceType: undefined,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
-export function createObjectMetadataWithInterfaceAndPointerAlloca(objectMetadata: ObjectMetadata, interfaceType: string, isPointerAlloca: boolean): SymbolMetadata {
+export function createObjectMetadataWithInterfaceAndPointerAlloca(
+  objectMetadata: ObjectMetadata,
+  interfaceType: string,
+  isPointerAlloca: boolean,
+): SymbolMetadata {
   return {
     objectMetadata: objectMetadata,
     classMetadata: undefined,
@@ -243,7 +259,7 @@ export function createObjectMetadataWithInterfaceAndPointerAlloca(objectMetadata
     interfaceType: interfaceType,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
@@ -261,7 +277,7 @@ export function createClassMetadata(classMetadata: ClassMetadata): SymbolMetadat
     concreteClass: classMetadata.className,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
@@ -278,7 +294,7 @@ export function createClosureMetadataSymbol(closureMetadata: ClosureMetadata): S
     interfaceType: undefined,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
@@ -295,7 +311,7 @@ export function createMapMetadataSymbol(mapMetadata: MapMetadata): SymbolMetadat
     interfaceType: undefined,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
@@ -312,11 +328,13 @@ export function createSetMetadataSymbol(setMetadata: SetMetadata): SymbolMetadat
     interfaceType: undefined,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
-export function createObjectArrayMetadataSymbol(objectArrayMetadata: ObjectArrayMetadata): SymbolMetadata {
+export function createObjectArrayMetadataSymbol(
+  objectArrayMetadata: ObjectArrayMetadata,
+): SymbolMetadata {
   return {
     objectMetadata: undefined,
     classMetadata: undefined,
@@ -329,11 +347,15 @@ export function createObjectArrayMetadataSymbol(objectArrayMetadata: ObjectArray
     interfaceType: undefined,
     resolvedType: undefined,
     unionType: undefined,
-    unionMembers: undefined
+    unionMembers: undefined,
   };
 }
 
-export function createUnionMetadata(objectMetadata: ObjectMetadata, unionType: string, unionMembers: string[]): SymbolMetadata {
+export function createUnionMetadata(
+  objectMetadata: ObjectMetadata,
+  unionType: string,
+  unionMembers: string[],
+): SymbolMetadata {
   return {
     objectMetadata: objectMetadata,
     classMetadata: undefined,
@@ -346,7 +368,7 @@ export function createUnionMetadata(objectMetadata: ObjectMetadata, unionType: s
     interfaceType: undefined,
     resolvedType: undefined,
     unionType: unionType,
-    unionMembers: unionMembers
+    unionMembers: unionMembers,
   };
 }
 
@@ -356,9 +378,9 @@ export function createUnionMetadata(objectMetadata: ObjectMetadata, unionType: s
 export interface Symbol {
   name: string;
   kind: number;
-  llvmType: string;           // e.g., 'double', 'i8*', '%Array*'
-  allocaRegister: string;     // e.g., '%1', '%foo'
-  scope: string;  // Function-local or top-level
+  llvmType: string; // e.g., 'double', 'i8*', '%Array*'
+  allocaRegister: string; // e.g., '%1', '%foo'
+  scope: string; // Function-local or top-level
 
   // True if alloca contains a pointer (e.g., function parameter %Array** holding %Array*)
   // False if alloca contains the value directly (e.g., local %Array* pointing to %Array struct)
@@ -514,7 +536,7 @@ export class SymbolTable {
     kind: number,
     llvmType: string,
     allocaRegister: string,
-    scope: string
+    scope: string,
   ): void {
     if (!name) return;
     const symbol: Symbol = {
@@ -533,14 +555,14 @@ export class SymbolTable {
       mapMetadata: undefined,
       setMetadata: undefined,
       interfaceType: undefined,
-      concreteClass: undefined
+      concreteClass: undefined,
     };
     if (!this.symbols.has(name)) {
       this.symbolKeys.push(name);
       this.symbolKeysCount++;
     }
     this.symbols.set(name, symbol);
-    if (scope === 'local' && this.scopeBoundariesCount > 0) {
+    if (scope === "local" && this.scopeBoundariesCount > 0) {
       this.scopeNames.push(name);
       this.scopeNamesCount++;
     }
@@ -552,7 +574,7 @@ export class SymbolTable {
     llvmType: string,
     allocaRegister: string,
     scope: string,
-    metadata: SymbolMetadata
+    metadata: SymbolMetadata,
   ): void {
     if (!name) return;
     const symbol: Symbol = {
@@ -571,7 +593,7 @@ export class SymbolTable {
       mapMetadata: undefined,
       setMetadata: undefined,
       interfaceType: undefined,
-      concreteClass: undefined
+      concreteClass: undefined,
     };
     if (metadata.objectMetadata) symbol.objectMetadata = metadata.objectMetadata;
     if (metadata.classMetadata) symbol.classMetadata = metadata.classMetadata;
@@ -592,7 +614,7 @@ export class SymbolTable {
       this.symbolKeysCount++;
     }
     this.symbols.set(name, symbol);
-    if (scope === 'local' && this.scopeBoundariesCount > 0) {
+    if (scope === "local" && this.scopeBoundariesCount > 0) {
       this.scopeNames.push(name);
       this.scopeNamesCount++;
     }
@@ -668,7 +690,12 @@ export class SymbolTable {
     const symbol = this.symbols.get(name);
     if (symbol) {
       const k = symbol.kind;
-      if (k === SymbolKind.Array || k === SymbolKind.StringArray || k === SymbolKind.BooleanArray || k === SymbolKind.ObjectArray) {
+      if (
+        k === SymbolKind.Array ||
+        k === SymbolKind.StringArray ||
+        k === SymbolKind.BooleanArray ||
+        k === SymbolKind.ObjectArray
+      ) {
         return undefined;
       }
     }
@@ -786,7 +813,7 @@ export class SymbolTable {
         continue;
       }
       const symbol = this.symbols.get(name);
-      if (symbol && symbol.scope === 'local') {
+      if (symbol && symbol.scope === "local") {
         this.symbols.delete(name);
         this.interfaceTypes.delete(name);
       } else {
@@ -846,7 +873,7 @@ export class SymbolTable {
         continue;
       }
       const s = this.symbols.get(name);
-      if (s && s.scope === 'local') {
+      if (s && s.scope === "local") {
         result.push(s);
       }
     }
@@ -864,7 +891,7 @@ export class SymbolTable {
         continue;
       }
       const s = this.symbols.get(name);
-      if (s && s.scope === 'global') {
+      if (s && s.scope === "global") {
         result.push(s);
       }
     }
@@ -885,74 +912,110 @@ export class SymbolTable {
 
   isNumber(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.Number;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isString(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.String;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isBoolean(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.Boolean;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isArray(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
-    if (k === SymbolKind.Array) { return true; }
-    if (k === SymbolKind.StringArray) { return true; }
-    if (k === SymbolKind.BooleanArray) { return true; }
+    if (k === SymbolKind.Array) {
+      return true;
+    }
+    if (k === SymbolKind.StringArray) {
+      return true;
+    }
+    if (k === SymbolKind.BooleanArray) {
+      return true;
+    }
     return false;
   }
 
   isNumberArray(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.Array;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isStringArray(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.StringArray;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isBooleanArray(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.BooleanArray;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isObject(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.Object;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
@@ -971,73 +1034,105 @@ export class SymbolTable {
 
   isSet(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.Set;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isClass(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.Class;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isRegex(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.Regex;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isJSON(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.JSON;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isProcessArgv(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.ProcessArgv;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isClosure(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.Closure;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isObjectArray(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.ObjectArray;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
   isUint8Array(name: string): boolean {
     const symbol = this.symbols.get(name);
-    if (!symbol) { return false; }
+    if (!symbol) {
+      return false;
+    }
     const k = symbol.kind;
     const m = SymbolKind.Uint8Array;
-    if (k === m) { return true; }
+    if (k === m) {
+      return true;
+    }
     return false;
   }
 
@@ -1164,15 +1259,21 @@ export class SymbolTable {
   /**
    * Get object variable info (legacy objectVariables.get())
    */
-  getObjectInfo(name: string): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined {
+  getObjectInfo(
+    name: string,
+  ): { ptr: string; keys: string[]; types: string[]; tsTypes?: string[] } | undefined {
     const symbol = this.symbols.get(name);
-    if (symbol && (symbol.kind === SymbolKind.Object || symbol.kind === SymbolKind.JSON) && symbol.objectMetadata) {
+    if (
+      symbol &&
+      (symbol.kind === SymbolKind.Object || symbol.kind === SymbolKind.JSON) &&
+      symbol.objectMetadata
+    ) {
       const objMeta = symbol.objectMetadata;
       return {
         ptr: symbol.allocaRegister,
         keys: objMeta.keys,
         types: objMeta.types,
-        tsTypes: objMeta.tsTypes
+        tsTypes: objMeta.tsTypes,
       };
     }
     return undefined;
@@ -1226,7 +1327,11 @@ export class SymbolTable {
     if (!varName) return null;
     if (!propertyName) return null;
     const symbol = this.symbols.get(varName);
-    if (symbol && (symbol.kind === SymbolKind.Object || symbol.kind === SymbolKind.JSON) && symbol.objectMetadata) {
+    if (
+      symbol &&
+      (symbol.kind === SymbolKind.Object || symbol.kind === SymbolKind.JSON) &&
+      symbol.objectMetadata
+    ) {
       const objMeta = symbol.objectMetadata;
       if (!objMeta.keys) return null;
       const idx = objMeta.keys.indexOf(propertyName);
@@ -1246,7 +1351,7 @@ export class SymbolTable {
       const classMeta = symbol.classMetadata;
       return {
         ptr: symbol.allocaRegister,
-        className: classMeta.className
+        className: classMeta.className,
       };
     }
     return undefined;
@@ -1328,7 +1433,7 @@ export class SymbolTable {
    * Debug: Print all symbols
    */
   dump(): string {
-    let output = '=== Symbol Table ===\n';
+    let output = "=== Symbol Table ===\n";
     for (let i = 0; i < this.symbolKeys.length; i++) {
       const name = this.symbolKeys[i];
       if (!name) {
@@ -1336,18 +1441,20 @@ export class SymbolTable {
       }
       const symbol = this.symbols.get(name);
       if (symbol) {
-        output += `${name}: ${symbol.kind} (${symbol.llvmType}) -> ${symbol.allocaRegister} [${symbol.scope}]` + '\n';
+        output +=
+          `${name}: ${symbol.kind} (${symbol.llvmType}) -> ${symbol.allocaRegister} [${symbol.scope}]` +
+          "\n";
         if (symbol.objectMetadata) {
           const objMeta = symbol.objectMetadata;
-          output += `  Object: keys=${objMeta.keys.join(', ')}` + '\n';
+          output += `  Object: keys=${objMeta.keys.join(", ")}` + "\n";
         }
         if (symbol.classMetadata) {
           const classMeta = symbol.classMetadata;
-          output += `  Class: ${classMeta.className}` + '\n';
+          output += `  Class: ${classMeta.className}` + "\n";
         }
         if (symbol.arrayMetadata) {
           const arrMeta = symbol.arrayMetadata;
-          output += `  Array: elementType=${arrMeta.elementType}` + '\n';
+          output += `  Array: elementType=${arrMeta.elementType}` + "\n";
         }
       }
     }

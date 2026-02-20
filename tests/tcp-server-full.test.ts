@@ -1,15 +1,15 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert';
-import { exec, spawn } from 'node:child_process';
-import { promisify } from 'node:util';
-import * as net from 'node:net';
-import * as fs from 'node:fs/promises';
+import { describe, it } from "node:test";
+import assert from "node:assert";
+import { exec, spawn } from "node:child_process";
+import { promisify } from "node:util";
+import * as net from "node:net";
+import * as fs from "node:fs/promises";
 
 const execAsync = promisify(exec);
 
-describe('TCP Server Tests - Full Syscall Validation', () => {
-  it('should create and bind a TCP socket', async () => {
-    const testFile = 'tests/fixtures/tcp-bind-test.ts';
+describe("TCP Server Tests - Full Syscall Validation", () => {
+  it("should create and bind a TCP socket", async () => {
+    const testFile = "tests/fixtures/tcp-bind-test.ts";
     const testCode = `
 function testBind(): number {
   const AF_INET = 2;
@@ -48,23 +48,23 @@ testBind();
       await execAsync(`node dist/chad-node.js build ${testFile}`);
 
       // Run
-      const { stdout } = await execAsync('.build/tests/fixtures/tcp-bind-test');
+      const { stdout } = await execAsync(".build/tests/fixtures/tcp-bind-test");
 
-      assert.ok(stdout.includes('Socket created successfully'), 'Socket should be created');
-      assert.ok(stdout.includes('Socket closed successfully'), 'Socket should be closed');
+      assert.ok(stdout.includes("Socket created successfully"), "Socket should be created");
+      assert.ok(stdout.includes("Socket closed successfully"), "Socket should be closed");
     } finally {
       // Cleanup
       try {
         await fs.unlink(testFile);
-        await fs.unlink('.build/tests/fixtures/tcp-bind-test');
+        await fs.unlink(".build/tests/fixtures/tcp-bind-test");
       } catch (e) {
         // Ignore cleanup errors
       }
     }
   });
 
-  it('should validate all network syscalls are declared and linkable', async () => {
-    const testFile = 'tests/fixtures/tcp-syscalls-test.ts';
+  it("should validate all network syscalls are declared and linkable", async () => {
+    const testFile = "tests/fixtures/tcp-syscalls-test.ts";
     const testCode = `
 function testAllSyscalls(): number {
   const AF_INET = 2;
@@ -121,25 +121,28 @@ testAllSyscalls();
       await execAsync(`node dist/chad-node.js build ${testFile}`);
 
       // Run
-      const { stdout } = await execAsync('.build/tests/fixtures/tcp-syscalls-test');
+      const { stdout } = await execAsync(".build/tests/fixtures/tcp-syscalls-test");
 
-      assert.ok(stdout.includes('PASS: socket()'), 'socket() should work');
-      assert.ok(stdout.includes('PASS: htons()'), 'htons() should work');
-      assert.ok(stdout.includes('PASS: malloc()'), 'malloc() should work');
-      assert.ok(stdout.includes('All network syscalls validated!'), 'All syscalls should be available');
+      assert.ok(stdout.includes("PASS: socket()"), "socket() should work");
+      assert.ok(stdout.includes("PASS: htons()"), "htons() should work");
+      assert.ok(stdout.includes("PASS: malloc()"), "malloc() should work");
+      assert.ok(
+        stdout.includes("All network syscalls validated!"),
+        "All syscalls should be available",
+      );
     } finally {
       // Cleanup
       try {
         await fs.unlink(testFile);
-        await fs.unlink('.build/tests/fixtures/tcp-syscalls-test');
+        await fs.unlink(".build/tests/fixtures/tcp-syscalls-test");
       } catch (e) {
         // Ignore
       }
     }
   });
 
-  it('should create a simple HTTP request handler (logic only)', async () => {
-    const testFile = 'tests/fixtures/http-handler-test.ts';
+  it("should create a simple HTTP request handler (logic only)", async () => {
+    const testFile = "tests/fixtures/http-handler-test.ts";
     const testCode = `
 interface HttpRequest {
   method: number;
@@ -211,19 +214,19 @@ testHttpHandler();
       await execAsync(`node dist/chad-node.js build ${testFile}`);
 
       // Run
-      const { stdout } = await execAsync('.build/tests/fixtures/http-handler-test');
+      const { stdout } = await execAsync(".build/tests/fixtures/http-handler-test");
 
-      assert.ok(stdout.includes('PASS: GET / handler executed'), 'GET / should work');
-      assert.ok(stdout.includes('PASS: GET /health handler executed'), 'Health check should work');
-      assert.ok(stdout.includes('PASS: GET /unknown handler executed'), '404 handling should work');
-      assert.ok(stdout.includes('PASS: POST /echo handler executed'), 'POST should work');
-      assert.ok(stdout.includes('PASS: DELETE handler executed'), '405 handling should work');
-      assert.ok(stdout.includes('HTTP handler tests complete!'), 'All HTTP tests should pass');
+      assert.ok(stdout.includes("PASS: GET / handler executed"), "GET / should work");
+      assert.ok(stdout.includes("PASS: GET /health handler executed"), "Health check should work");
+      assert.ok(stdout.includes("PASS: GET /unknown handler executed"), "404 handling should work");
+      assert.ok(stdout.includes("PASS: POST /echo handler executed"), "POST should work");
+      assert.ok(stdout.includes("PASS: DELETE handler executed"), "405 handling should work");
+      assert.ok(stdout.includes("HTTP handler tests complete!"), "All HTTP tests should pass");
     } finally {
       // Cleanup
       try {
         await fs.unlink(testFile);
-        await fs.unlink('.build/tests/fixtures/http-handler-test');
+        await fs.unlink(".build/tests/fixtures/http-handler-test");
       } catch (e) {
         // Ignore
       }

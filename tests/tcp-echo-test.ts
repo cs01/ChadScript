@@ -3,8 +3,8 @@
 
 function testTcpClient(): number {
   // Socket constants
-  const AF_INET = 2;        // IPv4
-  const SOCK_STREAM = 1;    // TCP
+  const AF_INET = 2; // IPv4
+  const SOCK_STREAM = 1; // TCP
 
   // Create socket
   const sock = socket(AF_INET, SOCK_STREAM, 0);

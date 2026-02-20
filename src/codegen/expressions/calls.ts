@@ -1,6 +1,16 @@
-import { CallNode, FunctionNode, VariableNode, FunctionParameter, ClassNode } from '../../ast/types.js';
-import { IGeneratorContext } from '../infrastructure/generator-context.js';
-import { stripNullable, mapParamTypeToLLVM, mapReturnTypeToLLVM } from '../infrastructure/type-system.js';
+import {
+  CallNode,
+  FunctionNode,
+  VariableNode,
+  FunctionParameter,
+  ClassNode,
+} from "../../ast/types.js";
+import { IGeneratorContext } from "../infrastructure/generator-context.js";
+import {
+  stripNullable,
+  mapParamTypeToLLVM,
+  mapReturnTypeToLLVM,
+} from "../infrastructure/type-system.js";
 
 /**
  * CallExpressionGenerator
@@ -33,74 +43,74 @@ export class CallExpressionGenerator {
    */
   generate(expr: CallNode, params: string[]): string {
     // Handle super() constructor call
-    if (expr.name === 'super') {
+    if (expr.name === "super") {
       return this.generateSuperCall(expr, params);
     }
 
-    if (expr.name === '__gc_disable') {
-      this.ctx.emit('call void @GC_disable()');
-      return '0.0';
+    if (expr.name === "__gc_disable") {
+      this.ctx.emit("call void @GC_disable()");
+      return "0.0";
     }
 
-    if (expr.name === '__gc_enable') {
-      this.ctx.emit('call void @GC_enable()');
-      return '0.0';
+    if (expr.name === "__gc_enable") {
+      this.ctx.emit("call void @GC_enable()");
+      return "0.0";
     }
 
-    if (expr.name === 'execSync') {
+    if (expr.name === "execSync") {
       return this.generateExecSync(expr, params);
     }
 
     // Handle httpServe() special built-in function
-    if (expr.name === 'httpServe') {
+    if (expr.name === "httpServe") {
       return this.ctx.generateHttpServe(expr, params);
     }
 
     // Handle wsBroadcast() - broadcast message to all WebSocket clients
-    if (expr.name === 'wsBroadcast') {
+    if (expr.name === "wsBroadcast") {
       return this.ctx.generateWsBroadcast(expr, params);
     }
 
     // Handle setTimeout() - libuv timer (one-shot)
-    if (expr.name === 'setTimeout') {
+    if (expr.name === "setTimeout") {
       return this.generateSetTimeout(expr, params);
     }
 
     // Handle setInterval() - libuv timer (repeating)
-    if (expr.name === 'setInterval') {
+    if (expr.name === "setInterval") {
       return this.generateSetInterval(expr, params);
     }
 
     // Handle test() - built-in test runner (only when called with string + arrow/function callback)
-    if (expr.name === 'test' && expr.args.length >= 2) {
+    if (expr.name === "test" && expr.args.length >= 2) {
       const secondArg = expr.args[1] as { type: string };
-      if (secondArg.type === 'arrow_function' || secondArg.type === 'variable') {
+      if (secondArg.type === "arrow_function" || secondArg.type === "variable") {
         return this.generateTest(expr, params);
       }
     }
 
-    if (expr.name === 'describe' && expr.args.length >= 2) {
+    if (expr.name === "describe" && expr.args.length >= 2) {
       const secondArg = expr.args[1] as { type: string };
-      if (secondArg.type === 'arrow_function' || secondArg.type === 'variable') {
+      if (secondArg.type === "arrow_function" || secondArg.type === "variable") {
         return this.generateDescribe(expr, params);
       }
     }
 
     // Handle clearTimeout() / clearInterval() - stop timer
-    if (expr.name === 'clearTimeout' || expr.name === 'clearInterval') {
+    if (expr.name === "clearTimeout" || expr.name === "clearInterval") {
       return this.generateClearTimer(expr, params);
     }
 
     // Handle runEventLoop() - run libuv event loop
-    if (expr.name === 'runEventLoop') {
+    if (expr.name === "runEventLoop") {
       return this.generateRunEventLoop();
     }
 
     // Handle fetch() special built-in function
     // Returns a Promise that resolves to a Response object
-    if (expr.name === 'fetch') {
+    if (expr.name === "fetch") {
       if (expr.args.length < 1) {
-        return this.ctx.emitError('fetch() requires at least 1 argument (URL)', expr.loc);
+        return this.ctx.emitError("fetch() requires at least 1 argument (URL)", expr.loc);
       }
       const urlValue = this.ctx.generateExpression(expr.args[0], params);
       const temp = this.ctx.nextTemp();
@@ -108,118 +118,118 @@ export class CallExpressionGenerator {
       this.ctx.setUsesCurl(true);
       this.ctx.setUsesJson(true);
       this.ctx.emit(`${temp} = call %Promise* @fetch_async(i8* ${urlValue})`);
-      this.ctx.setVariableType(temp, '%Promise*');
+      this.ctx.setVariableType(temp, "%Promise*");
       return temp;
     }
 
     // Handle parseInt(str, radix?) global function
-    if (expr.name === 'parseInt') {
+    if (expr.name === "parseInt") {
       return this.generateParseInt(expr, params);
     }
 
     // Handle parseFloat(str) global function
-    if (expr.name === 'parseFloat') {
+    if (expr.name === "parseFloat") {
       return this.generateParseFloat(expr, params);
     }
 
     // Handle Number(value) global function
-    if (expr.name === 'Number') {
+    if (expr.name === "Number") {
       return this.generateNumber(expr, params);
     }
 
     // Handle String(value) global function
-    if (expr.name === 'String') {
+    if (expr.name === "String") {
       return this.generateString(expr, params);
     }
 
     // Handle isNaN(value) global function
-    if (expr.name === 'isNaN') {
+    if (expr.name === "isNaN") {
       return this.generateIsNaN(expr, params);
     }
 
     // Handle C built-in functions with proper signatures
-    if (expr.name === 'malloc') {
+    if (expr.name === "malloc") {
       return this.generateMalloc(expr, params);
     }
 
-    if (expr.name === 'free') {
+    if (expr.name === "free") {
       return this.generateFree(expr, params);
     }
 
-    if (expr.name === 'socket') {
+    if (expr.name === "socket") {
       return this.generateSocket(expr, params);
     }
 
-    if (expr.name === 'close') {
+    if (expr.name === "close") {
       return this.generateClose(expr, params);
     }
 
-    if (expr.name === 'htons') {
+    if (expr.name === "htons") {
       return this.generateHtons(expr, params);
     }
 
-    if (expr.name === 'bind') {
+    if (expr.name === "bind") {
       return this.generateBind(expr, params);
     }
 
-    if (expr.name === 'listen') {
+    if (expr.name === "listen") {
       return this.generateListen(expr, params);
     }
 
-    if (expr.name === 'accept') {
+    if (expr.name === "accept") {
       return this.generateAccept(expr, params);
     }
 
-    if (expr.name === '__ts_parse_source') {
+    if (expr.name === "__ts_parse_source") {
       this.ctx.setUsesTreeSitter(true);
       return this.generateTsParseSource(expr, params);
     }
 
-    if (expr.name === '__ts_get_root_node') {
+    if (expr.name === "__ts_get_root_node") {
       return this.generateTsGetRootNode(expr, params);
     }
 
-    if (expr.name === '__ts_node_type') {
+    if (expr.name === "__ts_node_type") {
       return this.generateTsNodeType(expr, params);
     }
 
-    if (expr.name === '__ts_node_child_count') {
+    if (expr.name === "__ts_node_child_count") {
       return this.generateTsNodeChildCount(expr, params);
     }
 
-    if (expr.name === '__ts_node_named_child_count') {
+    if (expr.name === "__ts_node_named_child_count") {
       return this.generateTsNodeNamedChildCount(expr, params);
     }
 
-    if (expr.name === '__ts_node_child') {
+    if (expr.name === "__ts_node_child") {
       return this.generateTsNodeChild(expr, params);
     }
 
-    if (expr.name === '__ts_node_named_child') {
+    if (expr.name === "__ts_node_named_child") {
       return this.generateTsNodeNamedChild(expr, params);
     }
 
-    if (expr.name === '__ts_node_text') {
+    if (expr.name === "__ts_node_text") {
       return this.generateTsNodeText(expr, params);
     }
 
-    if (expr.name === '__ts_node_is_null') {
+    if (expr.name === "__ts_node_is_null") {
       return this.generateTsNodeIsNull(expr, params);
     }
 
-    if (expr.name === '__ts_node_is_named') {
+    if (expr.name === "__ts_node_is_named") {
       return this.generateTsNodeIsNamed(expr, params);
     }
 
-    if (expr.name === '__ts_node_start_byte') {
+    if (expr.name === "__ts_node_start_byte") {
       return this.generateTsNodeStartByte(expr, params);
     }
 
-    if (expr.name === '__ts_node_end_byte') {
+    if (expr.name === "__ts_node_end_byte") {
       return this.generateTsNodeEndByte(expr, params);
     }
 
-    if (expr.name === '__ts_node_child_by_field_name') {
+    if (expr.name === "__ts_node_child_by_field_name") {
       return this.generateTsNodeChildByFieldName(expr, params);
     }
 
@@ -229,7 +239,7 @@ export class CallExpressionGenerator {
 
   private generateParseInt(expr: CallNode, params: string[]): string {
     if (expr.args.length < 1 || expr.args.length > 2) {
-      return this.ctx.emitError('parseInt() requires 1 or 2 arguments (string, radix?)', expr.loc);
+      return this.ctx.emitError("parseInt() requires 1 or 2 arguments (string, radix?)", expr.loc);
     }
 
     // Get the string argument
@@ -244,7 +254,7 @@ export class CallExpressionGenerator {
       this.ctx.emit(`${radixValue} = fptosi double ${dblRadix} to i32`);
     } else {
       // Default radix is 10
-      radixValue = '10';
+      radixValue = "10";
     }
 
     // Call strtol(str, null, radix)
@@ -253,7 +263,9 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
 
     const resultI64 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI64} = call i64 @strtol(i8* ${strValue}, i8** ${nullPtr}, i32 ${radixValue})`);
+    this.ctx.emit(
+      `${resultI64} = call i64 @strtol(i8* ${strValue}, i8** ${nullPtr}, i32 ${radixValue})`,
+    );
 
     // Convert i64 to double for compatibility with ChadScript's numeric type
     const resultDouble = this.ctx.nextTemp();
@@ -264,7 +276,7 @@ export class CallExpressionGenerator {
 
   private generateParseFloat(expr: CallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      return this.ctx.emitError('parseFloat() requires exactly 1 argument (string)', expr.loc);
+      return this.ctx.emitError("parseFloat() requires exactly 1 argument (string)", expr.loc);
     }
 
     const strValue = this.ctx.generateExpression(expr.args[0], params);
@@ -277,7 +289,7 @@ export class CallExpressionGenerator {
 
   private generateNumber(expr: CallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      return this.ctx.emitError('Number() requires exactly 1 argument', expr.loc);
+      return this.ctx.emitError("Number() requires exactly 1 argument", expr.loc);
     }
 
     const arg = expr.args[0];
@@ -294,7 +306,7 @@ export class CallExpressionGenerator {
 
   private generateString(expr: CallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      return this.ctx.emitError('String() requires exactly 1 argument', expr.loc);
+      return this.ctx.emitError("String() requires exactly 1 argument", expr.loc);
     }
 
     const arg = expr.args[0];
@@ -307,7 +319,7 @@ export class CallExpressionGenerator {
 
   private generateIsNaN(expr: CallNode, params: string[]): string {
     if (expr.args.length !== 1) {
-      return this.ctx.emitError('isNaN() requires exactly 1 argument', expr.loc);
+      return this.ctx.emitError("isNaN() requires exactly 1 argument", expr.loc);
     }
 
     const arg = expr.args[0];
@@ -334,10 +346,12 @@ export class CallExpressionGenerator {
   private generateExecSync(expr: CallNode, params: string[]): string {
     const cmdStr = this.ctx.generateExpression(expr.args[0], params);
     const modeStr = this.ctx.nextTemp();
-    this.ctx.emit(`${modeStr} = getelementptr inbounds [2 x i8], [2 x i8]* @.str.popen_mode, i64 0, i64 0`);
+    this.ctx.emit(
+      `${modeStr} = getelementptr inbounds [2 x i8], [2 x i8]* @.str.popen_mode, i64 0, i64 0`,
+    );
     const fp = this.ctx.nextTemp();
     this.ctx.emit(`${fp} = call i8* @popen(i8* ${cmdStr}, i8* ${modeStr})`);
-    const bufSize = '4096';
+    const bufSize = "4096";
     const buf = this.ctx.nextTemp();
     this.ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 ${bufSize})`);
     const bytesRead = this.ctx.nextTemp();
@@ -347,7 +361,7 @@ export class CallExpressionGenerator {
     this.ctx.emit(`store i8 0, i8* ${nullIdx}`);
     const closeResult = this.ctx.nextTemp();
     this.ctx.emit(`${closeResult} = call i32 @pclose(i8* ${fp})`);
-    this.ctx.setVariableType(buf, 'i8*');
+    this.ctx.setVariableType(buf, "i8*");
     return buf;
   }
 
@@ -373,7 +387,7 @@ export class CallExpressionGenerator {
     const ptr = this.ctx.nextTemp();
     this.ctx.emit(`${ptr} = inttoptr i64 ${ptrI64} to i8*`);
     this.ctx.emit(`call void @free(i8* ${ptr})`);
-    return '0.0';
+    return "0.0";
   }
 
   private generateSocket(expr: CallNode, params: string[]): string {
@@ -496,7 +510,7 @@ export class CallExpressionGenerator {
     }
 
     const resolvedFuncName = this.ctx.resolveImportAlias(expr.name);
-    let returnType = 'double';
+    let returnType = "double";
     let paramTypes: string[] = [];
 
     const funcResult = this.getFunctionFromAST(expr.name);
@@ -514,36 +528,58 @@ export class CallExpressionGenerator {
     }
 
     if (funcResult && func.async) {
-      returnType = '%Promise*';
+      returnType = "%Promise*";
       this.ctx.setUsesPromises(true);
     } else if (funcResult && func.paramTypes && func.paramTypes.length > 0) {
-      const normalizedReturnType = func.returnType ? stripNullable(func.returnType) : '';
+      const normalizedReturnType = func.returnType ? stripNullable(func.returnType) : "";
       if (normalizedReturnType) {
-        returnType = mapReturnTypeToLLVM(normalizedReturnType, this.ctx.isEnumType(normalizedReturnType));
+        returnType = mapReturnTypeToLLVM(
+          normalizedReturnType,
+          this.ctx.isEnumType(normalizedReturnType),
+        );
       }
       for (let i = 0; i < func.paramTypes.length; i++) {
         const p = func.paramTypes[i] as string;
-        const paramName = func.params[i] || '';
-        paramTypes.push(mapParamTypeToLLVM(p, paramName, this.ctx.isEnumType(stripNullable(p)), this.ctx.interfaceStructGenHasInterface(stripNullable(p))));
+        const paramName = func.params[i] || "";
+        paramTypes.push(
+          mapParamTypeToLLVM(
+            p,
+            paramName,
+            this.ctx.isEnumType(stripNullable(p)),
+            this.ctx.interfaceStructGenHasInterface(stripNullable(p)),
+          ),
+        );
       }
     } else {
       const funcNode = this.getFunctionFromAST(expr.name);
       if (funcNode) {
-        const normalizedRetType = funcNode.returnType ? stripNullable(funcNode.returnType) : '';
+        const normalizedRetType = funcNode.returnType ? stripNullable(funcNode.returnType) : "";
         if (normalizedRetType) {
-          returnType = mapReturnTypeToLLVM(normalizedRetType, this.ctx.isEnumType(normalizedRetType));
+          returnType = mapReturnTypeToLLVM(
+            normalizedRetType,
+            this.ctx.isEnumType(normalizedRetType),
+          );
         }
         if (funcNode.parameters) {
           for (let i = 0; i < funcNode.parameters.length; i++) {
             const p = funcNode.parameters[i] as FunctionParameter;
-            const pType = p.type || 'number';
-            paramTypes.push(mapParamTypeToLLVM(pType, p.name || '', this.ctx.isEnumType(stripNullable(pType)), false));
+            const pType = p.type || "number";
+            paramTypes.push(
+              mapParamTypeToLLVM(
+                pType,
+                p.name || "",
+                this.ctx.isEnumType(stripNullable(pType)),
+                false,
+              ),
+            );
           }
         } else if (funcNode.paramTypes) {
           for (let i = 0; i < funcNode.paramTypes.length; i++) {
             const t = funcNode.paramTypes[i];
-            const paramName = funcNode.params[i] || '';
-            paramTypes.push(mapParamTypeToLLVM(t, paramName, this.ctx.isEnumType(stripNullable(t)), false));
+            const paramName = funcNode.params[i] || "";
+            paramTypes.push(
+              mapParamTypeToLLVM(t, paramName, this.ctx.isEnumType(stripNullable(t)), false),
+            );
           }
         }
       }
@@ -555,40 +591,47 @@ export class CallExpressionGenerator {
       argsList.push(`i32 ${expr.args.length}`);
     }
 
-    const loopLimit = (func !== null && func.params !== null && func.params.length > 0) ? func.params.length : expr.args.length;
+    const loopLimit =
+      func !== null && func.params !== null && func.params.length > 0
+        ? func.params.length
+        : expr.args.length;
     for (let i = 0; i < loopLimit; i++) {
       if (i < expr.args.length) {
-        const paramType = paramTypes[i] || 'double';
+        const paramType = paramTypes[i] || "double";
         const result = this.ctx.generateExpression(expr.args[i], params);
         const resultType = this.ctx.getVariableType(result);
-        if (paramType === 'double' && resultType === 'i8*') {
+        if (paramType === "double" && resultType === "i8*") {
           argsList.push(`double 0.0`);
-        } else if (paramType === 'i8*' && resultType === 'double') {
+        } else if (paramType === "i8*" && resultType === "double") {
           const coerced = this.ctx.nextTemp();
           this.ctx.emit(`${coerced} = bitcast double ${result} to i64`);
           const coerced2 = this.ctx.nextTemp();
           this.ctx.emit(`${coerced2} = inttoptr i64 ${coerced} to i8*`);
           argsList.push(`i8* ${coerced2}`);
-        } else if (paramType === 'double' && resultType === 'i64') {
+        } else if (paramType === "double" && resultType === "i64") {
           const coerced = this.ctx.ensureDouble(result);
           argsList.push(`double ${coerced}`);
         } else {
           argsList.push(`${paramType} ${result}`);
         }
       } else {
-        const paramType = paramTypes[i] || 'double';
-        const defaultVal = paramType === 'double' ? '0.0' : 'null';
+        const paramType = paramTypes[i] || "double";
+        const defaultVal = paramType === "double" ? "0.0" : "null";
         argsList.push(`${paramType} ${defaultVal}`);
       }
     }
 
-    if (returnType === 'void') {
-      this.ctx.emit(`call void @${this.ctx.mangleUserName(resolvedFuncName)}(${argsList.join(', ')})`);
-      return '0';
+    if (returnType === "void") {
+      this.ctx.emit(
+        `call void @${this.ctx.mangleUserName(resolvedFuncName)}(${argsList.join(", ")})`,
+      );
+      return "0";
     }
 
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = call ${returnType} @${this.ctx.mangleUserName(resolvedFuncName)}(${argsList.join(', ')})`);
+    this.ctx.emit(
+      `${temp} = call ${returnType} @${this.ctx.mangleUserName(resolvedFuncName)}(${argsList.join(", ")})`,
+    );
     this.ctx.setVariableType(temp, returnType);
 
     return temp;
@@ -604,13 +647,13 @@ export class CallExpressionGenerator {
     const envPtrRegister = closureMetadata.envPtrRegister;
     const captures = closureMetadata.captures;
 
-    const returnType = 'double';
+    const returnType = "double";
 
     const argsList: string[] = [];
     if (captures && captures.length > 0) {
       argsList.push(`i8* ${envPtrRegister}`);
     } else {
-      argsList.push('i8* null');
+      argsList.push("i8* null");
     }
 
     for (let _cai = 0; _cai < expr.args.length; _cai++) {
@@ -621,7 +664,7 @@ export class CallExpressionGenerator {
     }
 
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = call ${returnType} @${lambdaName}(${argsList.join(', ')})`);
+    this.ctx.emit(`${temp} = call ${returnType} @${lambdaName}(${argsList.join(", ")})`);
     this.ctx.setVariableType(temp, returnType);
 
     return temp;
@@ -629,14 +672,14 @@ export class CallExpressionGenerator {
 
   private generateSetTimeout(expr: CallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      return this.ctx.emitError('setTimeout() requires 2 arguments (callback, delay_ms)', expr.loc);
+      return this.ctx.emitError("setTimeout() requires 2 arguments (callback, delay_ms)", expr.loc);
     }
 
     this.ctx.setUsesTimers(true);
 
     const callbackArg = expr.args[0];
-    if (callbackArg.type !== 'variable') {
-      return this.ctx.emitError('setTimeout() callback must be a function reference', expr.loc);
+    if (callbackArg.type !== "variable") {
+      return this.ctx.emitError("setTimeout() callback must be a function reference", expr.loc);
     }
     const callbackName = (callbackArg as VariableNode).name;
 
@@ -644,25 +687,32 @@ export class CallExpressionGenerator {
     const dblDelay = this.ctx.ensureDouble(delayValue);
 
     const callbackPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${callbackPtr} = bitcast void ()* @${this.ctx.mangleUserName(callbackName)} to void ()*`);
+    this.ctx.emit(
+      `${callbackPtr} = bitcast void ()* @${this.ctx.mangleUserName(callbackName)} to void ()*`,
+    );
 
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__setTimeout(void ()* ${callbackPtr}, double ${dblDelay})`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.emit(
+      `${result} = call i8* @__setTimeout(void ()* ${callbackPtr}, double ${dblDelay})`,
+    );
+    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
 
   private generateSetInterval(expr: CallNode, params: string[]): string {
     if (expr.args.length < 2) {
-      return this.ctx.emitError('setInterval() requires 2 arguments (callback, interval_ms)', expr.loc);
+      return this.ctx.emitError(
+        "setInterval() requires 2 arguments (callback, interval_ms)",
+        expr.loc,
+      );
     }
 
     this.ctx.setUsesTimers(true);
 
     const callbackArg = expr.args[0];
-    if (callbackArg.type !== 'variable') {
-      return this.ctx.emitError('setInterval() callback must be a function reference', expr.loc);
+    if (callbackArg.type !== "variable") {
+      return this.ctx.emitError("setInterval() callback must be a function reference", expr.loc);
     }
     const callbackName = (callbackArg as VariableNode).name;
 
@@ -670,11 +720,15 @@ export class CallExpressionGenerator {
     const dblInterval = this.ctx.ensureDouble(intervalValue);
 
     const callbackPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${callbackPtr} = bitcast void ()* @${this.ctx.mangleUserName(callbackName)} to void ()*`);
+    this.ctx.emit(
+      `${callbackPtr} = bitcast void ()* @${this.ctx.mangleUserName(callbackName)} to void ()*`,
+    );
 
     const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__setInterval(void ()* ${callbackPtr}, double ${dblInterval})`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.emit(
+      `${result} = call i8* @__setInterval(void ()* ${callbackPtr}, double ${dblInterval})`,
+    );
+    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
@@ -721,7 +775,7 @@ export class CallExpressionGenerator {
 
     const nameValue = this.ctx.generateExpression(expr.args[0], params);
 
-    this.ctx.emit('store i1 0, i1* @__test_current_failed');
+    this.ctx.emit("store i1 0, i1* @__test_current_failed");
 
     const totalPtr = this.ctx.nextTemp();
     this.ctx.emit(`${totalPtr} = load i32, i32* @__test_total`);
@@ -732,12 +786,15 @@ export class CallExpressionGenerator {
     const callbackArg = expr.args[1];
     let callbackFn: string;
 
-    if (callbackArg.type === 'variable') {
+    if (callbackArg.type === "variable") {
       callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
-    } else if (callbackArg.type === 'arrow_function') {
+    } else if (callbackArg.type === "arrow_function") {
       callbackFn = this.ctx.generateExpression(callbackArg, params);
     } else {
-      return this.ctx.emitError('test() callback must be a function reference or arrow function', expr.loc);
+      return this.ctx.emitError(
+        "test() callback must be a function reference or arrow function",
+        expr.loc,
+      );
     }
 
     const callResult = this.ctx.nextTemp();
@@ -746,9 +803,9 @@ export class CallExpressionGenerator {
     const failed = this.ctx.nextTemp();
     this.ctx.emit(`${failed} = load i1, i1* @__test_current_failed`);
 
-    const passLabel = this.ctx.nextLabel('test_pass');
-    const failLabel = this.ctx.nextLabel('test_fail');
-    const mergeLabel = this.ctx.nextLabel('test_merge');
+    const passLabel = this.ctx.nextLabel("test_pass");
+    const failLabel = this.ctx.nextLabel("test_fail");
+    const mergeLabel = this.ctx.nextLabel("test_merge");
 
     this.ctx.emit(`br i1 ${failed}, label %${failLabel}, label %${passLabel}`);
 
@@ -759,9 +816,11 @@ export class CallExpressionGenerator {
     const passedInc = this.ctx.nextTemp();
     this.ctx.emit(`${passedInc} = add i32 ${passedPtr}, 1`);
     this.ctx.emit(`store i32 ${passedInc}, i32* @__test_passed`);
-    this.emitIndentPrintf('test_pass_indent');
+    this.emitIndentPrintf("test_pass_indent");
     const printPass = this.ctx.nextTemp();
-    this.ctx.emit(`${printPass} = call i32 (i8*, ...) @printf(i8* getelementptr([12 x i8], [12 x i8]* @.str.test_pass, i32 0, i32 0), i8* ${nameValue})`);
+    this.ctx.emit(
+      `${printPass} = call i32 (i8*, ...) @printf(i8* getelementptr([12 x i8], [12 x i8]* @.str.test_pass, i32 0, i32 0), i8* ${nameValue})`,
+    );
     this.ctx.emit(`br label %${mergeLabel}`);
 
     this.ctx.emit(`${failLabel}:`);
@@ -771,15 +830,17 @@ export class CallExpressionGenerator {
     const failedInc = this.ctx.nextTemp();
     this.ctx.emit(`${failedInc} = add i32 ${failedPtr}, 1`);
     this.ctx.emit(`store i32 ${failedInc}, i32* @__test_failed`);
-    this.emitIndentPrintf('test_fail_indent');
+    this.emitIndentPrintf("test_fail_indent");
     const printFail = this.ctx.nextTemp();
-    this.ctx.emit(`${printFail} = call i32 (i8*, ...) @printf(i8* getelementptr([12 x i8], [12 x i8]* @.str.test_fail, i32 0, i32 0), i8* ${nameValue})`);
+    this.ctx.emit(
+      `${printFail} = call i32 (i8*, ...) @printf(i8* getelementptr([12 x i8], [12 x i8]* @.str.test_fail, i32 0, i32 0), i8* ${nameValue})`,
+    );
     this.ctx.emit(`br label %${mergeLabel}`);
 
     this.ctx.emit(`${mergeLabel}:`);
     this.ctx.setCurrentLabel(mergeLabel);
 
-    return '0';
+    return "0";
   }
 
   private generateDescribe(expr: CallNode, params: string[]): string {
@@ -787,12 +848,16 @@ export class CallExpressionGenerator {
 
     const nameValue = this.ctx.generateExpression(expr.args[0], params);
 
-    this.emitIndentPrintf('describe_indent');
+    this.emitIndentPrintf("describe_indent");
 
     const headerFmt = this.ctx.nextTemp();
-    this.ctx.emit(`${headerFmt} = getelementptr [4 x i8], [4 x i8]* @.str.describe_header, i32 0, i32 0`);
+    this.ctx.emit(
+      `${headerFmt} = getelementptr [4 x i8], [4 x i8]* @.str.describe_header, i32 0, i32 0`,
+    );
     const headerPrint = this.ctx.nextTemp();
-    this.ctx.emit(`${headerPrint} = call i32 (i8*, ...) @printf(i8* ${headerFmt}, i8* ${nameValue})`);
+    this.ctx.emit(
+      `${headerPrint} = call i32 (i8*, ...) @printf(i8* ${headerFmt}, i8* ${nameValue})`,
+    );
 
     const oldDepth = this.ctx.nextTemp();
     this.ctx.emit(`${oldDepth} = load i32, i32* @__describe_depth`);
@@ -803,12 +868,15 @@ export class CallExpressionGenerator {
     const callbackArg = expr.args[1];
     let callbackFn: string;
 
-    if (callbackArg.type === 'variable') {
+    if (callbackArg.type === "variable") {
       callbackFn = this.ctx.mangleUserName((callbackArg as VariableNode).name);
-    } else if (callbackArg.type === 'arrow_function') {
+    } else if (callbackArg.type === "arrow_function") {
       callbackFn = this.ctx.generateExpression(callbackArg, params);
     } else {
-      return this.ctx.emitError('describe() callback must be a function reference or arrow function', expr.loc);
+      return this.ctx.emitError(
+        "describe() callback must be a function reference or arrow function",
+        expr.loc,
+      );
     }
 
     const callResult = this.ctx.nextTemp();
@@ -820,25 +888,28 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${decDepth} = sub i32 ${restoredDepth}, 1`);
     this.ctx.emit(`store i32 ${decDepth}, i32* @__describe_depth`);
 
-    return '0';
+    return "0";
   }
 
   private generateClearTimer(expr: CallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      return this.ctx.emitError('clearTimeout/clearInterval requires 1 argument (timer_id)', expr.loc);
+      return this.ctx.emitError(
+        "clearTimeout/clearInterval requires 1 argument (timer_id)",
+        expr.loc,
+      );
     }
 
     const timerIdValue = this.ctx.generateExpression(expr.args[0], params);
 
     this.ctx.emit(`call void @__clearTimer(i8* ${timerIdValue})`);
 
-    return '0.0';
+    return "0.0";
   }
 
   private generateRunEventLoop(): string {
     this.ctx.setUsesTimers(true);
-    this.ctx.emit('call void @__runEventLoop()');
-    return '0.0';
+    this.ctx.emit("call void @__runEventLoop()");
+    return "0.0";
   }
 
   private generateTsParseSource(expr: CallNode, params: string[]): string {
@@ -848,10 +919,12 @@ export class CallExpressionGenerator {
     const lengthI32 = this.ctx.nextTemp();
     this.ctx.emit(`${lengthI32} = fptosi double ${dblLength} to i32`);
     const resultPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${resultPtr} = call %TSTree* @__ts_parse_source(i8* ${sourceValue}, i32 ${lengthI32})`);
+    this.ctx.emit(
+      `${resultPtr} = call %TSTree* @__ts_parse_source(i8* ${sourceValue}, i32 ${lengthI32})`,
+    );
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = bitcast %TSTree* ${resultPtr} to i8*`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 
@@ -863,7 +936,7 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${resultPtr} = call %TSNode* @__ts_get_root_node(%TSTree* ${treePtr})`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 
@@ -873,7 +946,7 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__ts_node_type(%TSNode* ${nodePtr})`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 
@@ -908,10 +981,12 @@ export class CallExpressionGenerator {
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(`${indexI32} = fptosi double ${dblIdx} to i32`);
     const resultPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${resultPtr} = call %TSNode* @__ts_node_child(%TSNode* ${nodePtr}, i32 ${indexI32})`);
+    this.ctx.emit(
+      `${resultPtr} = call %TSNode* @__ts_node_child(%TSNode* ${nodePtr}, i32 ${indexI32})`,
+    );
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 
@@ -924,10 +999,12 @@ export class CallExpressionGenerator {
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(`${indexI32} = fptosi double ${dblIdx2} to i32`);
     const resultPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${resultPtr} = call %TSNode* @__ts_node_named_child(%TSNode* ${nodePtr}, i32 ${indexI32})`);
+    this.ctx.emit(
+      `${resultPtr} = call %TSNode* @__ts_node_named_child(%TSNode* ${nodePtr}, i32 ${indexI32})`,
+    );
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 
@@ -938,7 +1015,7 @@ export class CallExpressionGenerator {
     const sourceValue = this.ctx.generateExpression(expr.args[1], params);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__ts_node_text(%TSNode* ${nodePtr}, i8* ${sourceValue})`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 
@@ -996,25 +1073,27 @@ export class CallExpressionGenerator {
     const fieldLenI32 = this.ctx.nextTemp();
     this.ctx.emit(`${fieldLenI32} = fptosi double ${dblFieldLen} to i32`);
     const resultPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${resultPtr} = call %TSNode* @__ts_node_child_by_field_name(%TSNode* ${nodePtr}, i8* ${fieldValue}, i32 ${fieldLenI32})`);
+    this.ctx.emit(
+      `${resultPtr} = call %TSNode* @__ts_node_child_by_field_name(%TSNode* ${nodePtr}, i8* ${fieldValue}, i32 ${fieldLenI32})`,
+    );
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
-    this.ctx.setVariableType(result, 'i8*');
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 
   private generateSuperCall(expr: CallNode, params: string[]): string {
     const thisPtr = this.ctx.getThisPointer();
     if (!thisPtr) {
-      return this.ctx.emitError('super() called outside of class constructor', expr.loc);
+      return this.ctx.emitError("super() called outside of class constructor", expr.loc);
     }
     const currentClassName = this.ctx.getCurrentClassName();
     if (!currentClassName) {
-      return this.ctx.emitError('super() called outside of class context', expr.loc);
+      return this.ctx.emitError("super() called outside of class context", expr.loc);
     }
     const ast = this.ctx.getAst();
     if (!ast || !ast.classes) {
-      return this.ctx.emitError('super() called but no classes defined', expr.loc);
+      return this.ctx.emitError("super() called but no classes defined", expr.loc);
     }
     let currentClass: ClassNode | null = null;
     for (let i = 0; i < ast.classes.length; i++) {
@@ -1025,7 +1104,10 @@ export class CallExpressionGenerator {
       }
     }
     if (!currentClass || !currentClass.extends) {
-      return this.ctx.emitError(`super() called but current class ${currentClassName} has no parent class`, expr.loc);
+      return this.ctx.emitError(
+        `super() called but current class ${currentClassName} has no parent class`,
+        expr.loc,
+      );
     }
     const parentClassName = currentClass.extends;
     const parentStructType = `%${parentClassName}_struct*`;
@@ -1036,14 +1118,18 @@ export class CallExpressionGenerator {
     }
     const argsWithTypesParts: string[] = [];
     for (let ai = 0; ai < argValues.length; ai++) {
-      argsWithTypesParts.push('i8* ' + argValues[ai]);
+      argsWithTypesParts.push("i8* " + argValues[ai]);
     }
-    const argsWithTypes = argsWithTypesParts.join(', ');
+    const argsWithTypes = argsWithTypesParts.join(", ");
     const parentObj = this.ctx.nextTemp();
     if (argValues.length === 0) {
-      this.ctx.emit(`${parentObj} = call ${parentStructType} @${this.ctx.mangleUserName(parentClassName)}_constructor()`);
+      this.ctx.emit(
+        `${parentObj} = call ${parentStructType} @${this.ctx.mangleUserName(parentClassName)}_constructor()`,
+      );
     } else {
-      this.ctx.emit(`${parentObj} = call ${parentStructType} @${this.ctx.mangleUserName(parentClassName)}_constructor(${argsWithTypes})`);
+      this.ctx.emit(
+        `${parentObj} = call ${parentStructType} @${this.ctx.mangleUserName(parentClassName)}_constructor(${argsWithTypes})`,
+      );
     }
 
     const parentFields = this.ctx.classGenGetClassFields(parentClassName);
@@ -1054,34 +1140,38 @@ export class CallExpressionGenerator {
 
       for (let i = 0; i < parentFields.length; i++) {
         const parentFieldPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${parentFieldPtr} = getelementptr inbounds ${parentStructType.slice(0, -1)}, ${parentStructType} ${parentObj}, i32 0, i32 ${i}`);
+        this.ctx.emit(
+          `${parentFieldPtr} = getelementptr inbounds ${parentStructType.slice(0, -1)}, ${parentStructType} ${parentObj}, i32 0, i32 ${i}`,
+        );
         const thisFieldPtr = this.ctx.nextTemp();
-        this.ctx.emit(`${thisFieldPtr} = getelementptr inbounds ${childStructType.slice(0, -1)}, ${childStructType} ${castedThis}, i32 0, i32 ${i}`);
+        this.ctx.emit(
+          `${thisFieldPtr} = getelementptr inbounds ${childStructType.slice(0, -1)}, ${childStructType} ${castedThis}, i32 0, i32 ${i}`,
+        );
         const fieldLlvmType = this.getFieldLlvmType(parentFields[i]);
         const fieldValue = this.ctx.nextTemp();
         this.ctx.emit(`${fieldValue} = load ${fieldLlvmType}, ${fieldLlvmType}* ${parentFieldPtr}`);
         this.ctx.emit(`store ${fieldLlvmType} ${fieldValue}, ${fieldLlvmType}* ${thisFieldPtr}`);
       }
     }
-    return '0';
+    return "0";
   }
 
   private getFieldLlvmType(field: { name: string; fieldType: string; tsType?: string }): string {
-    if (field.fieldType === 'string') return 'i8*';
-    if (field.fieldType === 'string[]') return '%StringArray*';
-    if (field.fieldType.endsWith('[]')) return '%Array*';
-    if (field.fieldType === 'boolean') return 'i1';
+    if (field.fieldType === "string") return "i8*";
+    if (field.fieldType === "string[]") return "%StringArray*";
+    if (field.fieldType.endsWith("[]")) return "%Array*";
+    if (field.fieldType === "boolean") return "i1";
     if (field.tsType) {
-      if (field.tsType.startsWith('Map<string,')) return '%StringMap*';
-      if (field.tsType.startsWith('Map<')) return '%Map*';
-      if (field.tsType === 'Set<string>') return '%StringSet*';
-      if (field.tsType.startsWith('Set<')) return '%Set*';
-      if (field.tsType === 'number' || field.tsType === 'boolean') return 'double';
+      if (field.tsType.startsWith("Map<string,")) return "%StringMap*";
+      if (field.tsType.startsWith("Map<")) return "%Map*";
+      if (field.tsType === "Set<string>") return "%StringSet*";
+      if (field.tsType.startsWith("Set<")) return "%Set*";
+      if (field.tsType === "number" || field.tsType === "boolean") return "double";
       const classFields = this.ctx.classGenGetClassFields(field.tsType);
       if (classFields.length > 0) {
         return `%${field.tsType}_struct*`;
       }
     }
-    return 'i8*';
+    return "i8*";
   }
 }

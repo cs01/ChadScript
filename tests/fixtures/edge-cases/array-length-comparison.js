@@ -7,10 +7,10 @@ function test() {
 
   // Array lengths must convert from i32 to double for comparison
   if (arr2.length > arr1.length) {
-    return 42;  // arr2 has 5 elements, arr1 has 3
+    return 42; // arr2 has 5 elements, arr1 has 3
   }
 
   return 0;
 }
 
-process.exit(test());  // Should exit with 42
+process.exit(test()); // Should exit with 42

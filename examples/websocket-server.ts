@@ -25,7 +25,8 @@ function wsHandler(event: WsEvent): string {
 
 function handleRequest(req: HttpRequest): HttpResponse {
   if (req.path == "/") {
-    const html = "<!DOCTYPE html><html><body><h1>WebSocket Chat</h1><script>const ws=new WebSocket('ws://'+location.host+'/ws');ws.onmessage=e=>document.body.innerHTML+='<p>'+e.data+'</p>';document.onkeydown=e=>{if(e.key==='Enter'){ws.send(prompt('Message:'));}};</script></body></html>";
+    const html =
+      "<!DOCTYPE html><html><body><h1>WebSocket Chat</h1><script>const ws=new WebSocket('ws://'+location.host+'/ws');ws.onmessage=e=>document.body.innerHTML+='<p>'+e.data+'</p>';document.onkeydown=e=>{if(e.key==='Enter'){ws.send(prompt('Message:'));}};</script></body></html>";
     return { status: 200, body: html };
   }
   return { status: 404, body: "Not Found" };

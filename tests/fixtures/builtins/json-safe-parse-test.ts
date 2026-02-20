@@ -22,7 +22,7 @@ if (missingAge.age !== 0) {
 }
 
 // Test 3: All fields missing (empty object)
-const empty = JSON.parse<SafeUser>('{}');
+const empty = JSON.parse<SafeUser>("{}");
 if (empty.name !== "") {
   throw new Error("Empty object string field should default to empty string");
 }
@@ -37,7 +37,7 @@ if (wrongTypeStr.age !== 10) {
 }
 
 // Test 5: Invalid JSON doesn't crash
-const invalid = JSON.parse<SafeUser>('not valid json at all');
+const invalid = JSON.parse<SafeUser>("not valid json at all");
 if (invalid.name !== "") {
   throw new Error("Invalid JSON string field should default to empty string");
 }

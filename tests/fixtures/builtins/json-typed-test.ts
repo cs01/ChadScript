@@ -14,4 +14,3 @@ console.log("Product Category:");
 console.log("Electronics");
 
 console.log("TEST_PASSED");
-

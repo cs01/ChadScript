@@ -1,4 +1,4 @@
-import * as path from 'path';
+import * as path from "path";
 
 const FIRST_DEBUG_METADATA_ID = 8;
 
@@ -20,12 +20,18 @@ export class DebugInfoEmitter {
     const directory = path.dirname(path.resolve(sourceFilePath));
 
     this.fileId = this.alloc();
-    this.nodeMap.set(this.fileId, `!${this.fileId} = !DIFile(filename: "${this.escape(filename)}", directory: "${this.escape(directory)}")`);
+    this.nodeMap.set(
+      this.fileId,
+      `!${this.fileId} = !DIFile(filename: "${this.escape(filename)}", directory: "${this.escape(directory)}")`,
+    );
 
     this.compileUnitId = this.alloc();
 
     this.subroutineTypeId = this.alloc();
-    this.nodeMap.set(this.subroutineTypeId, `!${this.subroutineTypeId} = !DISubroutineType(types: !{})`);
+    this.nodeMap.set(
+      this.subroutineTypeId,
+      `!${this.subroutineTypeId} = !DISubroutineType(types: !{})`,
+    );
   }
 
   createSubprogram(funcName: string, line: number): number {
@@ -33,11 +39,12 @@ export class DebugInfoEmitter {
     if (existing !== undefined) return existing;
 
     const id = this.alloc();
-    this.nodeMap.set(id,
+    this.nodeMap.set(
+      id,
       `!${id} = distinct !DISubprogram(name: "${this.escape(funcName)}", ` +
-      `scope: !${this.fileId}, file: !${this.fileId}, line: ${line}, ` +
-      `type: !${this.subroutineTypeId}, isLocal: false, isDefinition: true, ` +
-      `scopeLine: ${line}, unit: !${this.compileUnitId})`
+        `scope: !${this.fileId}, file: !${this.fileId}, line: ${line}, ` +
+        `type: !${this.subroutineTypeId}, isLocal: false, isDefinition: true, ` +
+        `scopeLine: ${line}, unit: !${this.compileUnitId})`,
     );
     this.subprogramIds.set(funcName, id);
     return id;
@@ -49,7 +56,10 @@ export class DebugInfoEmitter {
     if (existing !== undefined) return existing;
 
     const id = this.alloc();
-    this.nodeMap.set(id, `!${id} = !DILocation(line: ${line}, column: ${column}, scope: !${scopeId})`);
+    this.nodeMap.set(
+      id,
+      `!${id} = !DILocation(line: ${line}, column: ${column}, scope: !${scopeId})`,
+    );
     this.locationCache.set(key, id);
     return id;
   }
@@ -61,10 +71,11 @@ export class DebugInfoEmitter {
     const debugInfoVerId = this.alloc();
     this.nodeMap.set(debugInfoVerId, `!${debugInfoVerId} = !{i32 2, !"Debug Info Version", i32 3}`);
 
-    this.nodeMap.set(this.compileUnitId,
+    this.nodeMap.set(
+      this.compileUnitId,
       `!${this.compileUnitId} = distinct !DICompileUnit(language: DW_LANG_C99, ` +
-      `file: !${this.fileId}, producer: "ChadScript", isOptimized: false, ` +
-      `runtimeVersion: 0, emissionKind: FullDebug)`
+        `file: !${this.fileId}, producer: "ChadScript", isOptimized: false, ` +
+        `runtimeVersion: 0, emissionKind: FullDebug)`,
     );
 
     this._dwarfVerId = dwarfVerId;
@@ -75,18 +86,18 @@ export class DebugInfoEmitter {
   private _debugInfoVerId: number = -1;
 
   getNamedMetadata(): string {
-    let result = '';
+    let result = "";
     result += `!llvm.dbg.cu = !{!${this.compileUnitId}}\n`;
     result += `!llvm.module.flags = !{!${this._dwarfVerId}, !${this._debugInfoVerId}}\n`;
     return result;
   }
 
   getNumberedMetadata(): string {
-    let result = '';
+    let result = "";
     for (let id = FIRST_DEBUG_METADATA_ID; id < this.nextId; id++) {
       const node = this.nodeMap.get(id);
       if (node) {
-        result += node + '\n';
+        result += node + "\n";
       }
     }
     return result;
@@ -99,13 +110,13 @@ export class DebugInfoEmitter {
   }
 
   private escape(s: string): string {
-    let result = '';
+    let result = "";
     for (let i = 0; i < s.length; i++) {
       const c = s[i];
       if (c === '"') {
         result += '\\"';
-      } else if (c === '\\') {
-        result += '\\\\';
+      } else if (c === "\\") {
+        result += "\\\\";
       } else {
         result += c;
       }

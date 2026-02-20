@@ -9,8 +9,5 @@
     "types": [],
     "typeRoots": ["./types"]
   },
-  "include": [
-    "**/*.ts",
-    "**/*.js"
-  ]
+  "include": ["**/*.ts", "**/*.js"]
 }

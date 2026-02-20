@@ -9,21 +9,21 @@ function testNumericArray(): boolean {
   }
 
   if (sum !== 100) {
-    console.log('FAIL: numeric sum expected 100 got ' + sum);
+    console.log("FAIL: numeric sum expected 100 got " + sum);
     return false;
   }
   return true;
 }
 
 function testStringArray(): boolean {
-  const words: string[] = ['hello', 'world'];
-  let result = '';
+  const words: string[] = ["hello", "world"];
+  let result = "";
 
   for (const word of words) {
-    result = result + word + ' ';
+    result = result + word + " ";
   }
 
-  if (result !== 'hello world ') {
+  if (result !== "hello world ") {
     console.log('FAIL: string concat expected "hello world " got "' + result + '"');
     return false;
   }
@@ -42,17 +42,23 @@ function testWithBreak(): boolean {
   }
 
   if (sum !== 6) {
-    console.log('FAIL: break sum expected 6 got ' + sum);
+    console.log("FAIL: break sum expected 6 got " + sum);
     return false;
   }
   return true;
 }
 
 let passed = true;
-if (!testNumericArray()) { passed = false; }
-if (!testStringArray()) { passed = false; }
-if (!testWithBreak()) { passed = false; }
+if (!testNumericArray()) {
+  passed = false;
+}
+if (!testStringArray()) {
+  passed = false;
+}
+if (!testWithBreak()) {
+  passed = false;
+}
 
 if (passed) {
-  console.log('TEST_PASSED');
+  console.log("TEST_PASSED");
 }

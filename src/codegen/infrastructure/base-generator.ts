@@ -1,6 +1,6 @@
-import { Expression } from '../../ast/types.js';
-import { SymbolTable, SymbolKind, SymbolMetadata } from './symbol-table.js';
-import type { ResolvedType } from './type-system.js';
+import { Expression } from "../../ast/types.js";
+import { SymbolTable, SymbolKind, SymbolMetadata } from "./symbol-table.js";
+import type { ResolvedType } from "./type-system.js";
 
 // Re-export for convenience
 export { SymbolTable, SymbolKind };
@@ -20,7 +20,7 @@ export class BaseGenerator {
   public allocaInstructions: string[]; // Collected allocas to hoist to entry block
   public globalStrings: string[];
   public globalStringsCount: number = 0;
-  public currentLabel: string = 'entry'; // Track current basic block label
+  public currentLabel: string = "entry"; // Track current basic block label
 
   // Unified symbol table for named variables
   public symbolTable: SymbolTable;
@@ -38,10 +38,10 @@ export class BaseGenerator {
 
   public thisPointer: string | null = null; // Current 'this' pointer (i32*)
   public currentClassName: string | null = null; // Current class name (for super resolution)
-  public expectedArrayElementType: 'string' | 'number' | 'boolean' | 'pointer' | null = null; // Expected array element type for context-aware generation
+  public expectedArrayElementType: "string" | "number" | "boolean" | "pointer" | null = null; // Expected array element type for context-aware generation
   public expectedCallbackParamType: string | null = null; // Expected callback parameter type for lambda generation
   public expectedCallbackReturnType: string | null = null; // Expected callback return type for lambda generation
-  public currentFunctionReturnType: string = 'double'; // Current function/method return type for return statements
+  public currentFunctionReturnType: string = "double"; // Current function/method return type for return statements
 
   public debugInfoEnabled: boolean = false;
   public currentDebugLocId: number = -1;
@@ -61,14 +61,14 @@ export class BaseGenerator {
     this.tempCounter = 0;
     this.allocaCounter = 0;
     this.labelCounter = 0;
-    this.currentLabel = 'entry';
+    this.currentLabel = "entry";
     this.output.length = 0;
     this.outputIsTerminator.length = 0;
     this.outputCount = 0;
     this.allocaInstructions.length = 0;
     this.thisPointer = null;
     this.currentClassName = null;
-    this.currentFunctionReturnType = 'double';
+    this.currentFunctionReturnType = "double";
     this.symbolTable.clearLocals();
     this.variableTypes.clear();
     this.expressionTypes.clear();
@@ -85,7 +85,7 @@ export class BaseGenerator {
   // Named registers don't need to be in order like numbered ones
   // Include counter to handle same-name variables in different scopes
   nextAllocaReg(varName: string): string {
-    const safeName = varName.replace(/[^a-zA-Z0-9_]/g, '_');
+    const safeName = varName.replace(/[^a-zA-Z0-9_]/g, "_");
     const counter = this.allocaCounter++;
     return `%${safeName}.addr.${counter}`;
   }
@@ -128,52 +128,52 @@ export class BaseGenerator {
   }
 
   private byteToHex(b: number): string {
-    const hexChars = '0123456789ABCDEF';
-    const hi = hexChars.charAt((b >> 4) & 0xF);
-    const lo = hexChars.charAt(b & 0xF);
+    const hexChars = "0123456789ABCDEF";
+    const hi = hexChars.charAt((b >> 4) & 0xf);
+    const lo = hexChars.charAt(b & 0xf);
     return hi + lo;
   }
 
   createStringConstant(value: string): string {
     const strId = this.nextString();
-    let escaped = '';
+    let escaped = "";
     let byteCount = 0;
     for (let i = 0; i < value.length; i++) {
       const ch = value[i];
       const code = value.charCodeAt(i);
-      if (ch === '\\') {
-        escaped += '\\\\';
+      if (ch === "\\") {
+        escaped += "\\\\";
         byteCount += 1;
-      } else if (ch === '\n') {
-        escaped += '\\0A';
+      } else if (ch === "\n") {
+        escaped += "\\0A";
         byteCount += 1;
-      } else if (ch === '\r') {
-        escaped += '\\0D';
+      } else if (ch === "\r") {
+        escaped += "\\0D";
         byteCount += 1;
-      } else if (ch === '\t') {
-        escaped += '\\09';
+      } else if (ch === "\t") {
+        escaped += "\\09";
         byteCount += 1;
       } else if (ch === '"') {
-        escaped += '\\22';
+        escaped += "\\22";
         byteCount += 1;
       } else if (code < 32 || code > 126) {
         if (code < 128) {
-          escaped += '\\' + this.byteToHex(code);
+          escaped += "\\" + this.byteToHex(code);
           byteCount += 1;
         } else if (code < 0x800) {
-          escaped += '\\' + this.byteToHex(0xC0 | (code >> 6));
-          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          escaped += "\\" + this.byteToHex(0xc0 | (code >> 6));
+          escaped += "\\" + this.byteToHex(0x80 | (code & 0x3f));
           byteCount += 2;
         } else if (code < 0x10000) {
-          escaped += '\\' + this.byteToHex(0xE0 | (code >> 12));
-          escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
-          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          escaped += "\\" + this.byteToHex(0xe0 | (code >> 12));
+          escaped += "\\" + this.byteToHex(0x80 | ((code >> 6) & 0x3f));
+          escaped += "\\" + this.byteToHex(0x80 | (code & 0x3f));
           byteCount += 3;
         } else {
-          escaped += '\\' + this.byteToHex(0xF0 | (code >> 18));
-          escaped += '\\' + this.byteToHex(0x80 | ((code >> 12) & 0x3F));
-          escaped += '\\' + this.byteToHex(0x80 | ((code >> 6) & 0x3F));
-          escaped += '\\' + this.byteToHex(0x80 | (code & 0x3F));
+          escaped += "\\" + this.byteToHex(0xf0 | (code >> 18));
+          escaped += "\\" + this.byteToHex(0x80 | ((code >> 12) & 0x3f));
+          escaped += "\\" + this.byteToHex(0x80 | ((code >> 6) & 0x3f));
+          escaped += "\\" + this.byteToHex(0x80 | (code & 0x3f));
           byteCount += 4;
         }
       } else {
@@ -182,7 +182,9 @@ export class BaseGenerator {
       }
     }
     const len = byteCount + 1;
-    this.globalStrings.push(strId + ' = private unnamed_addr constant [' + len + ' x i8] c"' + escaped + '\\00", align 1');
+    this.globalStrings.push(
+      strId + " = private unnamed_addr constant [" + len + ' x i8] c"' + escaped + '\\00", align 1',
+    );
     return strId;
   }
 
@@ -197,20 +199,20 @@ export class BaseGenerator {
 
   // Add instruction to output
   emit(instruction: string) {
-    if (instruction.startsWith('store ')) {
+    if (instruction.startsWith("store ")) {
       this.validateStoreInstruction(instruction);
-    } else if (instruction.includes(' = phi ')) {
+    } else if (instruction.includes(" = phi ")) {
       this.validatePhiInstruction(instruction);
-    } else if (instruction.includes(' = load ')) {
+    } else if (instruction.includes(" = load ")) {
       this.validateLoadInstruction(instruction);
-    } else if (instruction.includes(' = getelementptr ')) {
+    } else if (instruction.includes(" = getelementptr ")) {
       this.validateGepInstruction(instruction);
     }
     const dbgInstruction = this.maybeAppendDbg(instruction);
-    const allocaIdx = dbgInstruction.indexOf(' = alloca ');
+    const allocaIdx = dbgInstruction.indexOf(" = alloca ");
     if (allocaIdx > 0) {
       const regName = dbgInstruction.substring(0, allocaIdx).trim();
-      const isNamedReg = regName.length > 1 && regName.charAt(1) >= 'A';
+      const isNamedReg = regName.length > 1 && regName.charAt(1) >= "A";
       if (isNamedReg) {
         this.allocaInstructions.push(dbgInstruction);
       } else {
@@ -223,7 +225,7 @@ export class BaseGenerator {
       this.outputIsTerminator.push(this.classifyTerminator(dbgInstruction));
       this.outputCount++;
     }
-    if (dbgInstruction.trim().endsWith(':')) {
+    if (dbgInstruction.trim().endsWith(":")) {
       const label = dbgInstruction.trim().slice(0, -1);
       this.currentLabel = label;
     }
@@ -233,79 +235,85 @@ export class BaseGenerator {
     if (!this.debugInfoEnabled || this.currentDebugLocId < 0) return instruction;
     const trimmed = instruction.trim();
     if (trimmed.length === 0) return instruction;
-    if (trimmed.endsWith(':')) return instruction;
-    if (trimmed.startsWith(';')) return instruction;
-    if (trimmed.indexOf('!dbg') !== -1) return instruction;
-    if (trimmed.indexOf(' = alloca ') !== -1) return instruction;
+    if (trimmed.endsWith(":")) return instruction;
+    if (trimmed.startsWith(";")) return instruction;
+    if (trimmed.indexOf("!dbg") !== -1) return instruction;
+    if (trimmed.indexOf(" = alloca ") !== -1) return instruction;
     return instruction + `, !dbg !${this.currentDebugLocId}`;
   }
 
   private validateStoreInstruction(instruction: string): void {
     const afterStore = instruction.substring(6);
-    const firstSpace = afterStore.indexOf(' ');
+    const firstSpace = afterStore.indexOf(" ");
     if (firstSpace <= 0) return;
 
     const valueType = afterStore.substring(0, firstSpace);
-    const commaPos = instruction.indexOf(',');
+    const commaPos = instruction.indexOf(",");
     if (commaPos <= 0) return;
 
     const afterComma = instruction.substring(commaPos + 2);
-    const ptrTypeEnd = afterComma.indexOf(' ');
+    const ptrTypeEnd = afterComma.indexOf(" ");
     if (ptrTypeEnd <= 0) return;
 
     const ptrType = afterComma.substring(0, ptrTypeEnd);
-    if (!ptrType.endsWith('*')) return;
+    if (!ptrType.endsWith("*")) return;
 
     const expectedType = ptrType.substring(0, ptrType.length - 1);
     if (valueType !== expectedType) {
       throw new Error(
-        `LLVM type mismatch in store: value type is '${valueType}' but pointer expects '${expectedType}'` + '\n' +
-        `  Instruction: ${instruction}` + '\n' +
-        `  This usually means an expression returned a wrong type (e.g., ptr instead of double)`
+        `LLVM type mismatch in store: value type is '${valueType}' but pointer expects '${expectedType}'` +
+          "\n" +
+          `  Instruction: ${instruction}` +
+          "\n" +
+          `  This usually means an expression returned a wrong type (e.g., ptr instead of double)`,
       );
     }
   }
 
   private validatePhiInstruction(instruction: string): void {
-    const phiIdx = instruction.indexOf(' = phi ');
+    const phiIdx = instruction.indexOf(" = phi ");
     if (phiIdx < 0) return;
 
     const afterPhi = instruction.substring(phiIdx + 7);
-    const typeEnd = afterPhi.indexOf(' ');
+    const typeEnd = afterPhi.indexOf(" ");
     if (typeEnd <= 0) return;
 
     const declaredType = afterPhi.substring(0, typeEnd);
     const branches = afterPhi.substring(typeEnd);
-    const bracketParts = branches.split('[');
+    const bracketParts = branches.split("[");
 
     for (let i = 1; i < bracketParts.length; i++) {
       const part = bracketParts[i];
-      const closeBracket = part.indexOf(']');
+      const closeBracket = part.indexOf("]");
       if (closeBracket <= 0) continue;
 
       const content = part.substring(0, closeBracket).trim();
-      const commaPos = content.indexOf(',');
+      const commaPos = content.indexOf(",");
       if (commaPos <= 0) continue;
 
       const value = content.substring(0, commaPos).trim();
 
-      if (declaredType === 'double') {
-        if (value.startsWith('@') || (value.startsWith('%') && !this.looksLikeDouble(value))) {
+      if (declaredType === "double") {
+        if (value.startsWith("@") || (value.startsWith("%") && !this.looksLikeDouble(value))) {
           const lookupType = this.variableTypes.get(value);
-          if (lookupType && lookupType !== 'double') {
+          if (lookupType && lookupType !== "double") {
             throw new Error(
-              `LLVM phi type mismatch: declared type is '${declaredType}' but branch value '${value}' has type '${lookupType}'` + '\n' +
-              `  Instruction: ${instruction}` + '\n' +
-              `  This usually means a conditional expression has mismatched branch types`
+              `LLVM phi type mismatch: declared type is '${declaredType}' but branch value '${value}' has type '${lookupType}'` +
+                "\n" +
+                `  Instruction: ${instruction}` +
+                "\n" +
+                `  This usually means a conditional expression has mismatched branch types`,
             );
           }
         }
-      } else if (declaredType.endsWith('*')) {
+      } else if (declaredType.endsWith("*")) {
         if (this.looksLikeDoubleValue(value)) {
           throw new Error(
-            `LLVM phi type mismatch: declared type is '${declaredType}' but branch value '${value}' looks like a double` + '\n' +
-            `  Instruction: ${instruction}` + '\n' +
-            `  This usually means a conditional expression has mismatched branch types`
+            `LLVM phi type mismatch: declared type is '${declaredType}' but branch value '${value}' looks like a double` +
+              "\n" +
+              `  Instruction: ${instruction}` +
+              "\n" +
+              `  This usually means a conditional expression has mismatched branch types`,
           );
         }
       }
@@ -313,17 +321,17 @@ export class BaseGenerator {
   }
 
   private looksLikeDouble(value: string): boolean {
-    if (!value.startsWith('%')) return false;
+    if (!value.startsWith("%")) return false;
     const regType = this.variableTypes.get(value);
-    return regType === 'double' || regType === undefined;
+    return regType === "double" || regType === undefined;
   }
 
   private looksLikeDoubleValue(value: string): boolean {
-    if (value === '0.0' || value === '1.0') return true;
-    if (value.includes('.') && !value.includes('%')) {
+    if (value === "0.0" || value === "1.0") return true;
+    if (value.includes(".") && !value.includes("%")) {
       for (let i = 0; i < value.length; i++) {
         const ch = value.charAt(i);
-        if (ch !== '.' && ch !== '-' && (ch < '0' || ch > '9')) {
+        if (ch !== "." && ch !== "-" && (ch < "0" || ch > "9")) {
           return false;
         }
       }
@@ -336,15 +344,15 @@ export class BaseGenerator {
     let depth = 0;
     for (let i = 0; i < str.length; i++) {
       const ch = str.charAt(i);
-      if (ch === '{') depth++;
-      else if (ch === '}') depth--;
-      else if (ch === ',' && depth === 0) return i;
+      if (ch === "{") depth++;
+      else if (ch === "}") depth--;
+      else if (ch === "," && depth === 0) return i;
     }
     return -1;
   }
 
   private validateLoadInstruction(instruction: string): void {
-    const loadIdx = instruction.indexOf(' = load ');
+    const loadIdx = instruction.indexOf(" = load ");
     if (loadIdx < 0) return;
 
     const afterLoad = instruction.substring(loadIdx + 8);
@@ -353,49 +361,55 @@ export class BaseGenerator {
 
     const loadType = afterLoad.substring(0, commaPos).trim();
     const afterComma = afterLoad.substring(commaPos + 1).trim();
-    const ptrTypeEnd = afterComma.indexOf(' ');
+    const ptrTypeEnd = afterComma.indexOf(" ");
     if (ptrTypeEnd <= 0) return;
 
     const ptrType = afterComma.substring(0, ptrTypeEnd).trim();
-    if (!ptrType.endsWith('*')) return;
+    if (!ptrType.endsWith("*")) return;
 
     const expectedType = ptrType.substring(0, ptrType.length - 1);
     if (loadType !== expectedType) {
       throw new Error(
-        `LLVM type mismatch in load: loading type '${loadType}' but pointer has type '${ptrType}' (expects '${expectedType}')` + '\n' +
-        `  Instruction: ${instruction}` + '\n' +
-        `  This usually means a variable has the wrong type or a cast is missing`
+        `LLVM type mismatch in load: loading type '${loadType}' but pointer has type '${ptrType}' (expects '${expectedType}')` +
+          "\n" +
+          `  Instruction: ${instruction}` +
+          "\n" +
+          `  This usually means a variable has the wrong type or a cast is missing`,
       );
     }
   }
 
   private validateGepInstruction(instruction: string): void {
-    const gepIdx = instruction.indexOf(' = getelementptr ');
+    const gepIdx = instruction.indexOf(" = getelementptr ");
     if (gepIdx < 0) return;
 
     const afterGep = instruction.substring(gepIdx + 17);
-    const parts = afterGep.split(',');
+    const parts = afterGep.split(",");
     if (parts.length < 2) return;
 
     for (let i = 2; i < parts.length; i++) {
       const part = parts[i].trim();
-      const spaceIdx = part.indexOf(' ');
+      const spaceIdx = part.indexOf(" ");
       if (spaceIdx <= 0) continue;
 
       const indexValue = part.substring(spaceIdx + 1).trim();
-      if (indexValue.startsWith('-')) {
+      if (indexValue.startsWith("-")) {
         throw new Error(
-          `LLVM GEP with negative index: '${indexValue}'` + '\n' +
-          `  Instruction: ${instruction}` + '\n' +
-          `  Negative GEP indices usually indicate a codegen bug`
+          `LLVM GEP with negative index: '${indexValue}'` +
+            "\n" +
+            `  Instruction: ${instruction}` +
+            "\n" +
+            `  Negative GEP indices usually indicate a codegen bug`,
         );
       }
       const numIndex = parseInt(indexValue, 10);
       if (!isNaN(numIndex) && numIndex > 500) {
         throw new Error(
-          `LLVM GEP with suspiciously large index: '${indexValue}'` + '\n' +
-          `  Instruction: ${instruction}` + '\n' +
-          `  This may indicate an incorrect field index calculation`
+          `LLVM GEP with suspiciously large index: '${indexValue}'` +
+            "\n" +
+            `  Instruction: ${instruction}` +
+            "\n" +
+            `  This may indicate an incorrect field index calculation`,
         );
       }
     }
@@ -423,11 +437,13 @@ export class BaseGenerator {
 
   protected classifyTerminator(instruction: string): boolean {
     const trimmed = instruction.trim();
-    return trimmed.startsWith('ret ') ||
-           trimmed === 'ret void' ||
-           trimmed.startsWith('br ') ||
-           trimmed.startsWith('unreachable') ||
-           trimmed.startsWith('switch ');
+    return (
+      trimmed.startsWith("ret ") ||
+      trimmed === "ret void" ||
+      trimmed.startsWith("br ") ||
+      trimmed.startsWith("unreachable") ||
+      trimmed.startsWith("switch ")
+    );
   }
 
   lastInstructionIsTerminator(): boolean {
@@ -441,7 +457,7 @@ export class BaseGenerator {
   }
 
   emitRetVoid(): void {
-    this.emit('ret void');
+    this.emit("ret void");
   }
 
   emitBr(label: string): void {
@@ -453,7 +469,7 @@ export class BaseGenerator {
   }
 
   emitUnreachable(): void {
-    this.emit('unreachable');
+    this.emit("unreachable");
   }
 
   emitLabel(name: string): void {
@@ -491,7 +507,7 @@ export class BaseGenerator {
   emitIcmp(pred: string, type: string, lhs: string, rhs: string): string {
     const temp = this.nextTemp();
     this.emit(`${temp} = icmp ${pred} ${type} ${lhs}, ${rhs}`);
-    this.setVariableType(temp, 'i1');
+    this.setVariableType(temp, "i1");
     return temp;
   }
 
@@ -513,7 +529,14 @@ export class BaseGenerator {
     this.symbolTable.define(name, kind, llvmType, allocaReg, scope);
   }
 
-  defineVariableWithMetadata(name: string, allocaReg: string, llvmType: string, kind: number, scope: string, metadata: SymbolMetadata) {
+  defineVariableWithMetadata(
+    name: string,
+    allocaReg: string,
+    llvmType: string,
+    kind: number,
+    scope: string,
+    metadata: SymbolMetadata,
+  ) {
     this.symbolTable.defineWithMetadata(name, kind, llvmType, allocaReg, scope, metadata);
   }
 
@@ -542,11 +565,13 @@ export class BaseGenerator {
    * Set type for a temporary register
    */
   setVariableType(name: string, type: string): void {
-    if (type === 'unknown') {
+    if (type === "unknown") {
       throw new Error(
-        `Cannot set type 'unknown' for register '${name}'.` + '\n' +
-        `  This indicates type inference failed somewhere in the codegen pipeline.` + '\n' +
-        `  Check the expression that produced this register and ensure type tracking is correct.`
+        `Cannot set type 'unknown' for register '${name}'.` +
+          "\n" +
+          `  This indicates type inference failed somewhere in the codegen pipeline.` +
+          "\n" +
+          `  Check the expression that produced this register and ensure type tracking is correct.`,
       );
     }
     this.variableTypes.set(name, type);
@@ -571,11 +596,13 @@ export class BaseGenerator {
    * Cache type for an expression
    */
   setExpressionType(expr: Expression, type: ResolvedType): void {
-    if (type.base === 'unknown') {
+    if (type.base === "unknown") {
       throw new Error(
-        `Cannot cache 'unknown' type for expression of type '${expr.type}'.` + '\n' +
-        `  This indicates type resolution failed.` + '\n' +
-        `  Ensure the expression's type can be determined at compile time.`
+        `Cannot cache 'unknown' type for expression of type '${expr.type}'.` +
+          "\n" +
+          `  This indicates type resolution failed.` +
+          "\n" +
+          `  Ensure the expression's type can be determined at compile time.`,
       );
     }
     this.expressionTypes.set(expr, type);
@@ -604,10 +631,10 @@ export class BaseGenerator {
 
   ensureDouble(value: string): string {
     const vt = this.getVariableType(value);
-    if (vt === 'i64') {
+    if (vt === "i64") {
       const temp = this.nextTemp();
       this.emit(`${temp} = sitofp i64 ${value} to double`);
-      this.setVariableType(temp, 'double');
+      this.setVariableType(temp, "double");
       return temp;
     }
     return value;
@@ -615,10 +642,10 @@ export class BaseGenerator {
 
   ensureI64(value: string): string {
     const vt = this.getVariableType(value);
-    if (vt === 'double') {
+    if (vt === "double") {
       const temp = this.nextTemp();
       this.emit(`${temp} = fptosi double ${value} to i64`);
-      this.setVariableType(temp, 'i64');
+      this.setVariableType(temp, "i64");
       return temp;
     }
     return value;

@@ -1,15 +1,12 @@
-import { Expression } from '../../../ast/types.js';
-import { IGeneratorContext, IStringGenerator } from '../../infrastructure/generator-context.js';
+import { Expression } from "../../../ast/types.js";
+import { IGeneratorContext, IStringGenerator } from "../../infrastructure/generator-context.js";
 
 import {
   createStringConstant,
   convertNumberToString,
   convertNumberToFixed,
-} from './string/constants.js';
-import {
-  generateStringConcat,
-  generateStringConcatDirect,
-} from './string/concatenation.js';
+} from "./string/constants.js";
+import { generateStringConcat, generateStringConcatDirect } from "./string/concatenation.js";
 import {
   generateSubstr,
   generateSlice,
@@ -22,7 +19,7 @@ import {
   generateReplaceAll,
   generateToUpperCase,
   generateToLowerCase,
-} from './string/manipulation.js';
+} from "./string/manipulation.js";
 import {
   generateStartsWith,
   generateCharAt,
@@ -31,8 +28,8 @@ import {
   generateLastIndexOf,
   generateIncludes,
   generateEndsWith,
-} from './string/search.js';
-import { generateSplit } from './string/split.js';
+} from "./string/search.js";
+import { generateSplit } from "./string/split.js";
 
 // ============================================
 // STRING GENERATOR - String operations

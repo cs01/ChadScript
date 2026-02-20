@@ -1,4 +1,4 @@
-import { ArgumentParser } from '../lib/argparse.js';
+import { ArgumentParser } from "../lib/argparse.js";
 
 const parser = new ArgumentParser("string-search", "Search for a string pattern in files");
 parser.addFlag("ignore-case", "i", "Case-insensitive search");
