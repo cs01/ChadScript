@@ -1,129 +1,94 @@
 // ChadScript-native ArgumentParser
 // Simplified argparse-style CLI argument parsing for native binaries
-// Note: Uses parallel arrays instead of objects to work around ChadScript type system limitations
+
+interface ArgDef {
+  name: string;
+  shortFlag: string;
+  longFlag: string;
+  help: string;
+  isFlag: boolean;
+  defaultValue: string;
+  isPositional: boolean;
+  subcommands: string;
+}
+
+interface SubcommandDef {
+  name: string;
+  description: string;
+}
+
+interface ParsedFlag {
+  name: string;
+  value: boolean;
+}
+
+interface ParsedOption {
+  name: string;
+  value: string;
+}
 
 export class ArgumentParser {
   programName: string;
   description: string;
 
-  // Parallel arrays to store argument metadata (avoiding complex objects)
-  argNames: string[];
-  argShortFlags: string[];
-  argLongFlags: string[];
-  argHelp: string[];
-  argIsFlag: boolean[];
-  argDefaultValue: string[];
-  argIsPositional: boolean[];
-  argSubcommands: string[];
-
-  // Subcommand metadata
-  subcmdNames: string[];
-  subcmdDescriptions: string[];
+  args: ArgDef[];
+  subcommands: SubcommandDef[];
   parsedSubcommand: string;
 
   // Rest args (after --)
   restArgs: string[];
 
-  // Parallel arrays for parsed results
   parsedPositionals: string[];
-  parsedFlagNames: string[];
-  parsedFlagValues: boolean[];
-  parsedOptionNames: string[];
-  parsedOptionValues: string[];
+  parsedFlags: ParsedFlag[];
+  parsedOptions: ParsedOption[];
 
   constructor(name: string, desc: string) {
     this.programName = name;
     this.description = desc;
-    this.argNames = [];
-    this.argShortFlags = [];
-    this.argLongFlags = [];
-    this.argHelp = [];
-    this.argIsFlag = [];
-    this.argDefaultValue = [];
-    this.argIsPositional = [];
-    this.argSubcommands = [];
-    this.subcmdNames = [];
-    this.subcmdDescriptions = [];
+    this.args = [];
+    this.subcommands = [];
     this.parsedSubcommand = "";
     this.restArgs = [];
     this.parsedPositionals = [];
-    this.parsedFlagNames = [];
-    this.parsedFlagValues = [];
-    this.parsedOptionNames = [];
-    this.parsedOptionValues = [];
+    this.parsedFlags = [];
+    this.parsedOptions = [];
   }
 
   addSubcommand(name: string, desc: string): void {
-    this.subcmdNames.push(name);
-    this.subcmdDescriptions.push(desc);
+    this.subcommands.push({ name: name, description: desc });
   }
 
   // Add a boolean flag (e.g., -v, --verbose)
   addFlag(name: string, shortFlag: string, help: string): void {
-    this.argNames.push(name);
-    this.argShortFlags.push(shortFlag);
-    this.argLongFlags.push(name);
-    this.argHelp.push(help);
-    this.argIsFlag.push(true);
-    this.argDefaultValue.push("");
-    this.argIsPositional.push(false);
-    this.argSubcommands.push("");
+    this.args.push({ name: name, shortFlag: shortFlag, longFlag: name, help: help, isFlag: true, defaultValue: "", isPositional: false, subcommands: "" });
   }
 
   addScopedFlag(name: string, shortFlag: string, help: string, subcommands: string): void {
-    this.argNames.push(name);
-    this.argShortFlags.push(shortFlag);
-    this.argLongFlags.push(name);
-    this.argHelp.push(help);
-    this.argIsFlag.push(true);
-    this.argDefaultValue.push("");
-    this.argIsPositional.push(false);
-    this.argSubcommands.push(subcommands);
+    this.args.push({ name: name, shortFlag: shortFlag, longFlag: name, help: help, isFlag: true, defaultValue: "", isPositional: false, subcommands: subcommands });
   }
 
   // Add an option that takes a value (e.g., -o file.txt, --output file.txt)
   addOption(name: string, shortFlag: string, help: string, defaultVal: string): void {
-    this.argNames.push(name);
-    this.argShortFlags.push(shortFlag);
-    this.argLongFlags.push(name);
-    this.argHelp.push(help);
-    this.argIsFlag.push(false);
-    this.argDefaultValue.push(defaultVal);
-    this.argIsPositional.push(false);
-    this.argSubcommands.push("");
+    this.args.push({ name: name, shortFlag: shortFlag, longFlag: name, help: help, isFlag: false, defaultValue: defaultVal, isPositional: false, subcommands: "" });
   }
 
   addScopedOption(name: string, shortFlag: string, help: string, defaultVal: string, subcommands: string): void {
-    this.argNames.push(name);
-    this.argShortFlags.push(shortFlag);
-    this.argLongFlags.push(name);
-    this.argHelp.push(help);
-    this.argIsFlag.push(false);
-    this.argDefaultValue.push(defaultVal);
-    this.argIsPositional.push(false);
-    this.argSubcommands.push(subcommands);
+    this.args.push({ name: name, shortFlag: shortFlag, longFlag: name, help: help, isFlag: false, defaultValue: defaultVal, isPositional: false, subcommands: subcommands });
   }
 
   // Add a positional argument (e.g., filename)
   addPositional(name: string, help: string): void {
-    this.argNames.push(name);
-    this.argShortFlags.push("");
-    this.argLongFlags.push("");
-    this.argHelp.push(help);
-    this.argIsFlag.push(false);
-    this.argDefaultValue.push("");
-    this.argIsPositional.push(true);
-    this.argSubcommands.push("");
+    this.args.push({ name: name, shortFlag: "", longFlag: "", help: help, isFlag: false, defaultValue: "", isPositional: true, subcommands: "" });
   }
 
   isArgInScope(argIndex: number, subcommand: string): boolean {
-    if (this.argSubcommands[argIndex].length === 0) {
+    if (this.args[argIndex].subcommands.length === 0) {
       return true;
     }
     if (subcommand.length === 0) {
       return false;
     }
-    const scopes = this.argSubcommands[argIndex];
+    const scopes = this.args[argIndex].subcommands;
     let start = 0;
     let pos = 0;
     while (pos <= scopes.length) {
@@ -141,8 +106,8 @@ export class ArgumentParser {
 
   findSubcommand(name: string): number {
     let i = 0;
-    while (i < this.subcmdNames.length) {
-      if (this.subcmdNames[i].length > 0 && this.subcmdNames[i] === name) {
+    while (i < this.subcommands.length) {
+      if (this.subcommands[i].name.length > 0 && this.subcommands[i].name === name) {
         return i;
       }
       i = i + 1;
@@ -184,56 +149,44 @@ export class ArgumentParser {
   }
 
   setFlagValue(argIndex: number): void {
-    const newFlagValues: boolean[] = [];
     let flagIdx = 0;
-    while (flagIdx < this.parsedFlagNames.length) {
-      if (this.parsedFlagNames[flagIdx].length > 0 && this.argNames[argIndex].length > 0 &&
-          this.parsedFlagNames[flagIdx] === this.argNames[argIndex]) {
-        newFlagValues.push(true);
-      } else {
-        newFlagValues.push(this.parsedFlagValues[flagIdx]);
+    while (flagIdx < this.parsedFlags.length) {
+      if (this.parsedFlags[flagIdx].name.length > 0 && this.args[argIndex].name.length > 0 &&
+          this.parsedFlags[flagIdx].name === this.args[argIndex].name) {
+        this.parsedFlags[flagIdx].value = true;
       }
       flagIdx = flagIdx + 1;
     }
-    this.parsedFlagValues = newFlagValues;
   }
 
   setOptionValue(argIndex: number, value: string): void {
-    const newOptionValues: string[] = [];
     let optIdx = 0;
-    while (optIdx < this.parsedOptionNames.length) {
-      if (this.parsedOptionNames[optIdx].length > 0 && this.argNames[argIndex].length > 0 &&
-          this.parsedOptionNames[optIdx] === this.argNames[argIndex]) {
-        newOptionValues.push(value);
-      } else {
-        newOptionValues.push(this.parsedOptionValues[optIdx]);
+    while (optIdx < this.parsedOptions.length) {
+      if (this.parsedOptions[optIdx].name.length > 0 && this.args[argIndex].name.length > 0 &&
+          this.parsedOptions[optIdx].name === this.args[argIndex].name) {
+        this.parsedOptions[optIdx].value = value;
       }
       optIdx = optIdx + 1;
     }
-    this.parsedOptionValues = newOptionValues;
   }
 
   initDefaults(): void {
     this.parsedPositionals = [];
-    this.parsedFlagNames = [];
-    this.parsedFlagValues = [];
-    this.parsedOptionNames = [];
-    this.parsedOptionValues = [];
+    this.parsedFlags = [];
+    this.parsedOptions = [];
     this.parsedSubcommand = "";
     this.restArgs = [];
 
     let i = 0;
-    while (i < this.argNames.length) {
-      if (this.argNames[i].length > 0) {
-        if (this.argIsFlag[i]) {
-          this.parsedFlagNames.push(this.argNames[i]);
-          this.parsedFlagValues.push(false);
-        } else if (!this.argIsPositional[i]) {
-          this.parsedOptionNames.push(this.argNames[i]);
-          if (this.argDefaultValue[i].length > 0) {
-            this.parsedOptionValues.push(this.argDefaultValue[i]);
+    while (i < this.args.length) {
+      if (this.args[i].name.length > 0) {
+        if (this.args[i].isFlag) {
+          this.parsedFlags.push({ name: this.args[i].name, value: false });
+        } else if (!this.args[i].isPositional) {
+          if (this.args[i].defaultValue.length > 0) {
+            this.parsedOptions.push({ name: this.args[i].name, value: this.args[i].defaultValue });
           } else {
-            this.parsedOptionValues.push("");
+            this.parsedOptions.push({ name: this.args[i].name, value: "" });
           }
         }
       }
@@ -261,7 +214,7 @@ export class ArgumentParser {
       process.exit(1);
     }
 
-    if (this.argIsFlag[argIndex]) {
+    if (this.args[argIndex].isFlag) {
       this.setFlagValue(argIndex);
       return argIdx + 1;
     } else {
@@ -271,7 +224,7 @@ export class ArgumentParser {
       } else {
         const nextIdx = argIdx + 1;
         if (nextIdx >= argv.length) {
-          console.error("Error: Option --" + this.argNames[argIndex] + " requires a value");
+          console.error("Error: Option --" + this.args[argIndex].name + " requires a value");
           process.exit(1);
         }
         this.setOptionValue(argIndex, argv[nextIdx]);
@@ -283,7 +236,7 @@ export class ArgumentParser {
   parse(argv: string[]): number {
     this.initDefaults();
 
-    if (this.subcmdNames.length === 0) {
+    if (this.subcommands.length === 0) {
       return this.parseSimple(argv);
     }
     return this.parseWithSubcommands(argv);
@@ -413,10 +366,10 @@ export class ArgumentParser {
     }
 
     let i = 0;
-    while (i < this.argNames.length) {
+    while (i < this.args.length) {
       // Check length > 0 to avoid strcmp on NULL/empty strings
-      if ((this.argShortFlags[i].length > 0 && this.argShortFlags[i] === cleanFlag) ||
-          (this.argLongFlags[i].length > 0 && this.argLongFlags[i] === cleanFlag)) {
+      if ((this.args[i].shortFlag.length > 0 && this.args[i].shortFlag === cleanFlag) ||
+          (this.args[i].longFlag.length > 0 && this.args[i].longFlag === cleanFlag)) {
         return i;
       }
       i = i + 1;
@@ -425,7 +378,7 @@ export class ArgumentParser {
   }
 
   printHelp(): void {
-    if (this.subcmdNames.length > 0) {
+    if (this.subcommands.length > 0) {
       this.printTopLevelHelp();
     } else {
       this.printSimpleHelp();
@@ -442,19 +395,19 @@ export class ArgumentParser {
     let usage = "Usage: " + this.programName;
 
     let i = 0;
-    while (i < this.argNames.length) {
-      if (!this.argIsPositional[i]) {
-        if (this.argShortFlags[i].length > 0) {
-          if (!this.argIsFlag[i]) {
-            usage = usage + " [-" + this.argShortFlags[i] + " <" + this.argNames[i] + ">]";
+    while (i < this.args.length) {
+      if (!this.args[i].isPositional) {
+        if (this.args[i].shortFlag.length > 0) {
+          if (!this.args[i].isFlag) {
+            usage = usage + " [-" + this.args[i].shortFlag + " <" + this.args[i].name + ">]";
           } else {
-            usage = usage + " [-" + this.argShortFlags[i] + "]";
+            usage = usage + " [-" + this.args[i].shortFlag + "]";
           }
         } else {
-          if (!this.argIsFlag[i]) {
-            usage = usage + " [--" + this.argLongFlags[i] + " <" + this.argNames[i] + ">]";
+          if (!this.args[i].isFlag) {
+            usage = usage + " [--" + this.args[i].longFlag + " <" + this.args[i].name + ">]";
           } else {
-            usage = usage + " [--" + this.argLongFlags[i] + "]";
+            usage = usage + " [--" + this.args[i].longFlag + "]";
           }
         }
       }
@@ -462,9 +415,9 @@ export class ArgumentParser {
     }
 
     i = 0;
-    while (i < this.argNames.length) {
-      if (this.argIsPositional[i]) {
-        usage = usage + " <" + this.argNames[i] + ">";
+    while (i < this.args.length) {
+      if (this.args[i].isPositional) {
+        usage = usage + " <" + this.args[i].name + ">";
       }
       i = i + 1;
     }
@@ -475,22 +428,22 @@ export class ArgumentParser {
     // Print options
     console.log("Options:");
     i = 0;
-    while (i < this.argNames.length) {
-      if (!this.argIsPositional[i]) {
-        if (this.argShortFlags[i].length > 0) {
-          if (!this.argIsFlag[i] && this.argDefaultValue[i].length > 0) {
-            console.log("  -" + this.argShortFlags[i] + ", --" + this.argLongFlags[i] + " (default: " + this.argDefaultValue[i] + ")");
+    while (i < this.args.length) {
+      if (!this.args[i].isPositional) {
+        if (this.args[i].shortFlag.length > 0) {
+          if (!this.args[i].isFlag && this.args[i].defaultValue.length > 0) {
+            console.log("  -" + this.args[i].shortFlag + ", --" + this.args[i].longFlag + " (default: " + this.args[i].defaultValue + ")");
           } else {
-            console.log("  -" + this.argShortFlags[i] + ", --" + this.argLongFlags[i]);
+            console.log("  -" + this.args[i].shortFlag + ", --" + this.args[i].longFlag);
           }
         } else {
-          if (!this.argIsFlag[i] && this.argDefaultValue[i].length > 0) {
-            console.log("  --" + this.argLongFlags[i] + " (default: " + this.argDefaultValue[i] + ")");
+          if (!this.args[i].isFlag && this.args[i].defaultValue.length > 0) {
+            console.log("  --" + this.args[i].longFlag + " (default: " + this.args[i].defaultValue + ")");
           } else {
-            console.log("  --" + this.argLongFlags[i]);
+            console.log("  --" + this.args[i].longFlag);
           }
         }
-        console.log("      " + this.argHelp[i]);
+        console.log("      " + this.args[i].help);
       }
       i = i + 1;
     }
@@ -498,8 +451,8 @@ export class ArgumentParser {
     // Print positional arguments
     let hasPositionals = false;
     i = 0;
-    while (i < this.argNames.length) {
-      if (this.argIsPositional[i]) {
+    while (i < this.args.length) {
+      if (this.args[i].isPositional) {
         hasPositionals = true;
       }
       i = i + 1;
@@ -509,10 +462,10 @@ export class ArgumentParser {
       console.log("");
       console.log("Arguments:");
       i = 0;
-      while (i < this.argNames.length) {
-        if (this.argIsPositional[i]) {
-          console.log("  " + this.argNames[i]);
-          console.log("      " + this.argHelp[i]);
+      while (i < this.args.length) {
+        if (this.args[i].isPositional) {
+          console.log("  " + this.args[i].name);
+          console.log("      " + this.args[i].help);
         }
         i = i + 1;
       }
@@ -533,9 +486,9 @@ export class ArgumentParser {
     console.log("");
     console.log("Commands:");
     let i = 0;
-    while (i < this.subcmdNames.length) {
-      let line = "  " + this.subcmdNames[i];
-      let padLen = 16 - this.subcmdNames[i].length;
+    while (i < this.subcommands.length) {
+      let line = "  " + this.subcommands[i].name;
+      let padLen = 16 - this.subcommands[i].name.length;
       if (padLen < 2) {
         padLen = 2;
       }
@@ -544,15 +497,15 @@ export class ArgumentParser {
         line = line + " ";
         pad = pad + 1;
       }
-      line = line + this.subcmdDescriptions[i];
+      line = line + this.subcommands[i].description;
       console.log(line);
       i = i + 1;
     }
 
     let hasGlobalArgs = false;
     i = 0;
-    while (i < this.argNames.length) {
-      if (!this.argIsPositional[i] && this.argSubcommands[i].length === 0) {
+    while (i < this.args.length) {
+      if (!this.args[i].isPositional && this.args[i].subcommands.length === 0) {
         hasGlobalArgs = true;
       }
       i = i + 1;
@@ -562,8 +515,8 @@ export class ArgumentParser {
       console.log("");
       console.log("Global options:");
       i = 0;
-      while (i < this.argNames.length) {
-        if (!this.argIsPositional[i] && this.argSubcommands[i].length === 0) {
+      while (i < this.args.length) {
+        if (!this.args[i].isPositional && this.args[i].subcommands.length === 0) {
           this.printArgLine(i);
         }
         i = i + 1;
@@ -580,9 +533,9 @@ export class ArgumentParser {
   printSubcommandHelp(subcmd: string): void {
     let subcmdDesc = "";
     let i = 0;
-    while (i < this.subcmdNames.length) {
-      if (this.subcmdNames[i] === subcmd) {
-        subcmdDesc = this.subcmdDescriptions[i];
+    while (i < this.subcommands.length) {
+      if (this.subcommands[i].name === subcmd) {
+        subcmdDesc = this.subcommands[i].description;
       }
       i = i + 1;
     }
@@ -595,28 +548,28 @@ export class ArgumentParser {
 
     let usage = "Usage: " + this.programName + " " + subcmd;
     i = 0;
-    while (i < this.argNames.length) {
-      if (!this.argIsPositional[i] && this.isArgInScope(i, subcmd)) {
-        if (this.argShortFlags[i].length > 0) {
-          if (!this.argIsFlag[i]) {
-            usage = usage + " [-" + this.argShortFlags[i] + " <" + this.argNames[i] + ">]";
+    while (i < this.args.length) {
+      if (!this.args[i].isPositional && this.isArgInScope(i, subcmd)) {
+        if (this.args[i].shortFlag.length > 0) {
+          if (!this.args[i].isFlag) {
+            usage = usage + " [-" + this.args[i].shortFlag + " <" + this.args[i].name + ">]";
           } else {
-            usage = usage + " [-" + this.argShortFlags[i] + "]";
+            usage = usage + " [-" + this.args[i].shortFlag + "]";
           }
         } else {
-          if (!this.argIsFlag[i]) {
-            usage = usage + " [--" + this.argLongFlags[i] + " <" + this.argNames[i] + ">]";
+          if (!this.args[i].isFlag) {
+            usage = usage + " [--" + this.args[i].longFlag + " <" + this.args[i].name + ">]";
           } else {
-            usage = usage + " [--" + this.argLongFlags[i] + "]";
+            usage = usage + " [--" + this.args[i].longFlag + "]";
           }
         }
       }
       i = i + 1;
     }
     i = 0;
-    while (i < this.argNames.length) {
-      if (this.argIsPositional[i]) {
-        usage = usage + " <" + this.argNames[i] + ">";
+    while (i < this.args.length) {
+      if (this.args[i].isPositional) {
+        usage = usage + " <" + this.args[i].name + ">";
       }
       i = i + 1;
     }
@@ -625,8 +578,8 @@ export class ArgumentParser {
 
     let hasOptions = false;
     i = 0;
-    while (i < this.argNames.length) {
-      if (!this.argIsPositional[i] && this.isArgInScope(i, subcmd)) {
+    while (i < this.args.length) {
+      if (!this.args[i].isPositional && this.isArgInScope(i, subcmd)) {
         hasOptions = true;
       }
       i = i + 1;
@@ -635,8 +588,8 @@ export class ArgumentParser {
     if (hasOptions) {
       console.log("Options:");
       i = 0;
-      while (i < this.argNames.length) {
-        if (!this.argIsPositional[i] && this.isArgInScope(i, subcmd)) {
+      while (i < this.args.length) {
+        if (!this.args[i].isPositional && this.isArgInScope(i, subcmd)) {
           this.printArgLine(i);
         }
         i = i + 1;
@@ -645,8 +598,8 @@ export class ArgumentParser {
 
     let hasPositionals = false;
     i = 0;
-    while (i < this.argNames.length) {
-      if (this.argIsPositional[i]) {
+    while (i < this.args.length) {
+      if (this.args[i].isPositional) {
         hasPositionals = true;
       }
       i = i + 1;
@@ -656,10 +609,10 @@ export class ArgumentParser {
       console.log("");
       console.log("Arguments:");
       i = 0;
-      while (i < this.argNames.length) {
-        if (this.argIsPositional[i]) {
-          console.log("  " + this.argNames[i]);
-          console.log("      " + this.argHelp[i]);
+      while (i < this.args.length) {
+        if (this.args[i].isPositional) {
+          console.log("  " + this.args[i].name);
+          console.log("      " + this.args[i].help);
         }
         i = i + 1;
       }
@@ -671,20 +624,20 @@ export class ArgumentParser {
   }
 
   printArgLine(i: number): void {
-    if (this.argShortFlags[i].length > 0) {
-      if (!this.argIsFlag[i] && this.argDefaultValue[i].length > 0) {
-        console.log("  -" + this.argShortFlags[i] + ", --" + this.argLongFlags[i] + " (default: " + this.argDefaultValue[i] + ")");
+    if (this.args[i].shortFlag.length > 0) {
+      if (!this.args[i].isFlag && this.args[i].defaultValue.length > 0) {
+        console.log("  -" + this.args[i].shortFlag + ", --" + this.args[i].longFlag + " (default: " + this.args[i].defaultValue + ")");
       } else {
-        console.log("  -" + this.argShortFlags[i] + ", --" + this.argLongFlags[i]);
+        console.log("  -" + this.args[i].shortFlag + ", --" + this.args[i].longFlag);
       }
     } else {
-      if (!this.argIsFlag[i] && this.argDefaultValue[i].length > 0) {
-        console.log("  --" + this.argLongFlags[i] + " (default: " + this.argDefaultValue[i] + ")");
+      if (!this.args[i].isFlag && this.args[i].defaultValue.length > 0) {
+        console.log("  --" + this.args[i].longFlag + " (default: " + this.args[i].defaultValue + ")");
       } else {
-        console.log("  --" + this.argLongFlags[i]);
+        console.log("  --" + this.args[i].longFlag);
       }
     }
-    console.log("      " + this.argHelp[i]);
+    console.log("      " + this.args[i].help);
   }
 
   // Public API
@@ -698,10 +651,10 @@ export class ArgumentParser {
 
   getFlag(name: string): boolean {
     let i = 0;
-    while (i < this.parsedFlagNames.length) {
+    while (i < this.parsedFlags.length) {
       // Check length > 0 to avoid strcmp on NULL/empty strings
-      if (this.parsedFlagNames[i].length > 0 && this.parsedFlagNames[i] === name) {
-        return this.parsedFlagValues[i];
+      if (this.parsedFlags[i].name.length > 0 && this.parsedFlags[i].name === name) {
+        return this.parsedFlags[i].value;
       }
       i = i + 1;
     }
@@ -710,14 +663,14 @@ export class ArgumentParser {
 
   getOption(name: string): string {
     let i = 0;
-    while (i < this.parsedOptionNames.length) {
+    while (i < this.parsedOptions.length) {
       // Check length > 0 to avoid strcmp on NULL/empty strings and only compare if valid
-      if (this.parsedOptionNames[i].length > 0 && this.parsedOptionNames[i] === name) {
+      if (this.parsedOptions[i].name.length > 0 && this.parsedOptions[i].name === name) {
         // Return the value, checking if it's empty first
-        if (this.parsedOptionValues[i].length === 0) {
+        if (this.parsedOptions[i].value.length === 0) {
           return "";
         }
-        return this.parsedOptionValues[i];
+        return this.parsedOptions[i].value;
       }
       i = i + 1;
     }
