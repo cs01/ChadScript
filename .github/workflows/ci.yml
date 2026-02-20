@@ -327,7 +327,7 @@ jobs:
 
       - name: Install via install.sh
         run: |
-          CHADSCRIPT_URL="file://$(pwd)/${{ matrix.artifact }}.tar.gz" bash install.sh
+          SKIP_PROMPTS=1 CHADSCRIPT_URL="file://$(pwd)/${{ matrix.artifact }}.tar.gz" bash install.sh
           echo "$HOME/.chadscript" >> $GITHUB_PATH
 
       - name: Verify binary
