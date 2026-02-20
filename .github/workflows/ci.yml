@@ -172,6 +172,10 @@ jobs:
         run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
 
+      - name: Run self-hosting tests
+        run: node --import tsx --test tests/self-hosting.test.ts
+        timeout-minutes: 15
+
       - name: Package release artifact
         run: |
           mkdir -p release/lib
