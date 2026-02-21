@@ -977,4 +977,28 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "console.time() and console.timeEnd() measure elapsed time",
   },
+  {
+    name: "array-reverse",
+    fixture: "tests/fixtures/arrays/array-reverse.ts",
+    expectTestPassed: true,
+    description: "Array.reverse() reverses arrays in-place",
+  },
+  {
+    name: "array-indexof",
+    fixture: "tests/fixtures/arrays/array-indexof.ts",
+    expectTestPassed: true,
+    description: "Array.indexOf() finds element index in arrays",
+  },
+  {
+    name: "array-findindex",
+    fixture: "tests/fixtures/arrays/array-findindex.ts",
+    expectTestPassed: true,
+    description: "Array.findIndex() finds index by predicate",
+  },
+  {
+    name: "array-shift-unshift",
+    fixture: "tests/fixtures/arrays/array-shift-unshift.ts",
+    expectTestPassed: true,
+    description: "Array.shift() and Array.unshift() modify array start",
+  },
 ];

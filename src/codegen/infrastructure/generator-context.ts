@@ -269,6 +269,11 @@ export interface IArrayGenerator {
   generateArrayReduce(expr: MethodCallNode, params: string[]): string;
   generateArraySlice(expr: MethodCallNode, params: string[]): string;
   generateArrayConcat(expr: MethodCallNode, params: string[]): string;
+  generateArrayReverse(expr: MethodCallNode, params: string[]): string;
+  generateArrayShift(expr: MethodCallNode, params: string[]): string;
+  generateArrayUnshift(expr: MethodCallNode, params: string[]): string;
+  generateArrayIndexOf(expr: MethodCallNode, params: string[]): string;
+  generateArrayFindIndex(expr: MethodCallNode, params: string[]): string;
 }
 
 /**
@@ -1804,6 +1809,15 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateArrayReduce: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_reduce",
     generateArraySlice: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_slice",
     generateArrayConcat: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_concat",
+    generateArrayReverse: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_reverse",
+    generateArrayShift: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_shift",
+    generateArrayUnshift: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_unshift",
+    generateArrayIndexOf: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_indexof",
+    generateArrayFindIndex: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_findindex",
   };
 
   resolveImportAlias(localName: string): string {

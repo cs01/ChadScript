@@ -764,6 +764,9 @@ export class MethodCallGenerator {
       if (this.ctx.isStringArrayExpression(expr.object)) {
         return handleStringArrayIndexOf(this.ctx, expr, params);
       }
+      if (this.ctx.isArrayExpression(expr.object)) {
+        return this.ctx.arrayGen.generateArrayIndexOf(expr, params);
+      }
       return handleIndexOf(this.ctx, expr, params);
     }
     if (method === "lastIndexOf") {
@@ -1068,6 +1071,14 @@ export class MethodCallGenerator {
         this.ctx.isObjectArrayExpression(expr.object))
     ) {
       return this.ctx.arrayGen.generateArrayConcat(expr, params);
+    } else if (method === "reverse") {
+      return this.ctx.arrayGen.generateArrayReverse(expr, params);
+    } else if (method === "shift") {
+      return this.ctx.arrayGen.generateArrayShift(expr, params);
+    } else if (method === "unshift") {
+      return this.ctx.arrayGen.generateArrayUnshift(expr, params);
+    } else if (method === "findIndex") {
+      return this.ctx.arrayGen.generateArrayFindIndex(expr, params);
     }
 
     // Handle class instance methods
