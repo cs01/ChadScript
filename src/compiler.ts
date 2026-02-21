@@ -75,8 +75,8 @@ export function setTarget(value: string): void {
 
 // External library paths - check env vars, then use vendor/
 const BDWGC_PATH = process.env.CHADSCRIPT_BDWGC_PATH || "./vendor/bdwgc";
-const LWS_PATH = process.env.CHADSCRIPT_LWS_PATH || "./vendor/libwebsockets/build";
 const LWS_BRIDGE_PATH = process.env.CHADSCRIPT_LWS_BRIDGE_PATH || "./c_bridges";
+const PICOHTTPPARSER_PATH = process.env.CHADSCRIPT_PICOHTTPPARSER_PATH || "./vendor/picohttpparser";
 const YYJSON_PATH = process.env.CHADSCRIPT_YYJSON_PATH || "./vendor/yyjson";
 const LIBUV_PATH = process.env.CHADSCRIPT_LIBUV_PATH || "./vendor/libuv/build";
 const TREESITTER_LIB_PATH = process.env.CHADSCRIPT_TREESITTER_PATH || "./vendor/tree-sitter";
@@ -271,7 +271,8 @@ export function compile(
     generator.usesTimers ||
     generator.usesPromises ||
     generator.usesCurl ||
-    generator.usesUvHrtime
+    generator.usesUvHrtime ||
+    generator.usesMongoose
   ) {
     linkLibs += ` -L${LIBUV_PATH} -luv`;
   }
@@ -285,7 +286,7 @@ export function compile(
     linkLibs += " -lsqlite3";
   }
   if (generator.usesMongoose) {
-    linkLibs += ` -L${LWS_PATH}/lib -lwebsockets -lz -lzstd`;
+    linkLibs += ` -lz -lzstd`;
   }
   if (targetIsMac && hostIsMac) {
     const brewPrefix = process.arch === "arm64" ? "/opt/homebrew/opt" : "/usr/local/opt";
@@ -301,7 +302,9 @@ export function compile(
     const sdkPath = execSync("xcrun --show-sdk-path", { stdio: "pipe", encoding: "utf8" }).trim();
     linkLibs = `-Wl,-syslibroot,${sdkPath} -L/usr/local/lib ` + linkLibs;
   }
-  const lwsBridgeObj = generator.usesMongoose ? `${LWS_BRIDGE_PATH}/lws-bridge.o` : "";
+  const lwsBridgeObj = generator.usesMongoose
+    ? `${LWS_BRIDGE_PATH}/lws-bridge.o ${PICOHTTPPARSER_PATH}/picohttpparser.o`
+    : "";
   const regexBridgeObj = generator.usesRegex ? `${LWS_BRIDGE_PATH}/regex-bridge.o` : "";
   let extraObjs = "";
 

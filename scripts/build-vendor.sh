@@ -40,31 +40,25 @@ else
   echo "==> bdwgc already built, skipping"
 fi
 
-# --- libwebsockets ---
-if [ ! -f "$VENDOR_DIR/libwebsockets/build/lib/libwebsockets.a" ]; then
-  echo "==> Building libwebsockets..."
+# --- picohttpparser ---
+if [ ! -f "$VENDOR_DIR/picohttpparser/picohttpparser.o" ]; then
+  echo "==> Building picohttpparser..."
   cd "$VENDOR_DIR"
-  if [ ! -d libwebsockets ]; then
-    git clone --depth 1 https://github.com/warmcat/libwebsockets.git
+  if [ ! -f picohttpparser/picohttpparser.c ]; then
+    git clone --depth 1 https://github.com/h2o/picohttpparser.git picohttpparser-src
+    mkdir -p picohttpparser
+    cp picohttpparser-src/picohttpparser.h picohttpparser-src/picohttpparser.c picohttpparser/
+    rm -rf picohttpparser-src
   fi
-  mkdir -p libwebsockets/build && cd libwebsockets/build
-  cmake .. \
-    -DCMAKE_C_FLAGS="-fPIC" \
-    -DLWS_WITH_SSL=OFF \
-    -DLWS_WITH_SHARED=OFF \
-    -DLWS_WITHOUT_TESTAPPS=ON \
-    -DLWS_WITHOUT_TEST_SERVER=ON \
-    -DLWS_WITHOUT_TEST_CLIENT=ON \
-    -DLWS_WITH_HTTP2=ON \
-    -DLWS_WITH_ZLIB=OFF \
-    -DLWS_WITH_ZIP_FOPS=OFF \
-    -DLWS_WITH_RANGES=OFF \
-    -DLWS_WITH_ACCESS_LOG=OFF \
-    -DLWS_WITH_DAEMONIZE=OFF
-  make -j"$NPROC"
-  echo "  -> $VENDOR_DIR/libwebsockets/build/lib/libwebsockets.a"
+  cd picohttpparser
+  SSE_FLAGS=""
+  if [ "$(uname -m)" = "x86_64" ]; then
+    SSE_FLAGS="-msse4.2"
+  fi
+  cc -c -O2 -fPIC $SSE_FLAGS picohttpparser.c -o picohttpparser.o
+  echo "  -> $VENDOR_DIR/picohttpparser/picohttpparser.o"
 else
-  echo "==> libwebsockets already built, skipping"
+  echo "==> picohttpparser already built, skipping"
 fi
 
 # --- lws-bridge ---
@@ -81,8 +75,8 @@ if [ ! -f "$LWS_BRIDGE_OBJ" ] || [ "$LWS_BRIDGE_SRC" -nt "$LWS_BRIDGE_OBJ" ]; th
     fi
   fi
   cc -c -O2 -fPIC \
-    -I"$VENDOR_DIR/libwebsockets/include" \
-    -I"$VENDOR_DIR/libwebsockets/build" \
+    -I"$VENDOR_DIR/libuv/include" \
+    -I"$VENDOR_DIR/picohttpparser" \
     $EXTRA_CFLAGS \
     "$LWS_BRIDGE_SRC" -o "$LWS_BRIDGE_OBJ"
   echo "  -> $LWS_BRIDGE_OBJ"
