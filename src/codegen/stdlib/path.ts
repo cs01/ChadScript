@@ -26,7 +26,8 @@ export class PathGenerator {
     if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as { type: string; name: string };
     if (varNode.name !== "path") return false;
-    return expr.method === "resolve" || expr.method === "dirname" || expr.method === "basename";
+    const supported = ["resolve", "dirname", "basename", "join", "extname", "isAbsolute"];
+    return supported.indexOf(expr.method) !== -1;
   }
 
   /**
@@ -157,6 +158,61 @@ export class PathGenerator {
     }
 
     this.ctx.setVariableType(result, "i8*");
+    return result;
+  }
+
+  generateExtname(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("path.extname() requires 1 argument", expr.loc);
+    }
+
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    const dotPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dotPtr} = call i8* @strrchr(i8* ${pathPtr}, i32 46)`);
+
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq i8* ${dotPtr}, null`);
+
+    const hasDotLabel = this.ctx.nextLabel("extname_has_dot");
+    const noDotLabel = this.ctx.nextLabel("extname_no_dot");
+    const endLabel = this.ctx.nextLabel("extname_end");
+
+    this.ctx.emit(`br i1 ${isNull}, label %${noDotLabel}, label %${hasDotLabel}`);
+
+    this.ctx.emit(`${noDotLabel}:`);
+    const emptyStr = this.ctx.createStringConstant("");
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${hasDotLabel}:`);
+    const extDup = this.ctx.nextTemp();
+    this.ctx.emit(`${extDup} = call i8* @strdup(i8* ${dotPtr})`);
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${endLabel}:`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${result} = phi i8* [ ${emptyStr}, %${noDotLabel} ], [ ${extDup}, %${hasDotLabel} ]`,
+    );
+    this.ctx.setVariableType(result, "i8*");
+    return result;
+  }
+
+  generateIsAbsolute(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("path.isAbsolute() requires 1 argument", expr.loc);
+    }
+
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    const firstCharPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${firstCharPtr} = getelementptr inbounds i8, i8* ${pathPtr}, i64 0`);
+    const firstChar = this.ctx.nextTemp();
+    this.ctx.emit(`${firstChar} = load i8, i8* ${firstCharPtr}`);
+    const isSlash = this.ctx.nextTemp();
+    this.ctx.emit(`${isSlash} = icmp eq i8 ${firstChar}, 47`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = select i1 ${isSlash}, double 1.0, double 0.0`);
     return result;
   }
 }

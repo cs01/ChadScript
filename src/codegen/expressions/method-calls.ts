@@ -540,6 +540,12 @@ export class MethodCallGenerator {
     if (method === "join" && this.isVariableWithName(expr.object, "path")) {
       return this.ctx.pathGen.generateJoin(expr, params);
     }
+    if (method === "extname" && this.isVariableWithName(expr.object, "path")) {
+      return this.ctx.pathGen.generateExtname(expr, params);
+    }
+    if (method === "isAbsolute" && this.isVariableWithName(expr.object, "path")) {
+      return this.ctx.pathGen.generateIsAbsolute(expr, params);
+    }
 
     // Handle execSync() from child_process
     if (method === "execSync") {

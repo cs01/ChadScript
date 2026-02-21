@@ -912,6 +912,18 @@ export const testCases: TestCase[] = [
     description: "Math.trunc() truncates decimal part",
   },
   {
+    name: "path-extname",
+    fixture: "tests/fixtures/builtins/path-extname.ts",
+    expectTestPassed: true,
+    description: "path.extname() returns file extension",
+  },
+  {
+    name: "path-isabsolute",
+    fixture: "tests/fixtures/builtins/path-isabsolute.ts",
+    expectTestPassed: true,
+    description: "path.isAbsolute() checks for absolute paths",
+  },
+  {
     name: "math-random",
     fixture: "tests/fixtures/math/math-random.ts",
     expectTestPassed: true,
