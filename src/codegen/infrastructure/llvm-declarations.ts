@@ -118,6 +118,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i32 @fseek(i8*, i64, i32)\n";
   ir += "declare i64 @ftell(i8*)\n";
   ir += "declare i32 @unlink(i8*)\n";
+  ir += "declare i32 @rename(i8*, i8*)\n";
   ir += "declare i8* @opendir(i8*)\n";
   ir += "declare i8* @readdir(i8*)\n";
   ir += "declare i32 @closedir(i8*)\n";

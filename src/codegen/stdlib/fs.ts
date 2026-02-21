@@ -37,6 +37,8 @@ export class FilesystemGenerator {
       "readdirSync",
       "statSync",
       "mkdirSync",
+      "renameSync",
+      "copyFileSync",
     ];
     return supported.indexOf(expr.method) !== -1;
   }
@@ -347,6 +349,83 @@ export class FilesystemGenerator {
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__fs_statSync(i8* ${pathPtr})`);
     this.ctx.setVariableType(result, "%StatResult*");
+
+    return result;
+  }
+
+  generateRenameSync(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError(
+        "fs.renameSync() requires 2 arguments (oldPath, newPath)",
+        expr.loc,
+      );
+    }
+
+    const oldPath = this.ctx.generateExpression(expr.args[0], params);
+    const newPath = this.ctx.generateExpression(expr.args[1], params);
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i32 @rename(i8* ${oldPath}, i8* ${newPath})`);
+
+    return result;
+  }
+
+  generateCopyFileSync(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError("fs.copyFileSync() requires 2 arguments (src, dest)", expr.loc);
+    }
+
+    const srcPath = this.ctx.generateExpression(expr.args[0], params);
+    const destPath = this.ctx.generateExpression(expr.args[1], params);
+
+    const srcMode = this.ctx.createStringConstant("r");
+    const srcFp = this.ctx.nextTemp();
+    this.ctx.emit(`${srcFp} = call i8* @fopen(i8* ${srcPath}, i8* ${srcMode})`);
+
+    const srcNull = this.ctx.nextTemp();
+    this.ctx.emit(`${srcNull} = icmp eq i8* ${srcFp}, null`);
+
+    const failLabel = this.ctx.nextLabel("copy_fail");
+    const readLabel = this.ctx.nextLabel("copy_read");
+    const endLabel = this.ctx.nextLabel("copy_end");
+
+    this.ctx.emit(`br i1 ${srcNull}, label %${failLabel}, label %${readLabel}`);
+
+    this.ctx.emit(`${failLabel}:`);
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${readLabel}:`);
+    const seekEnd = this.ctx.nextTemp();
+    this.ctx.emit(`${seekEnd} = call i32 @fseek(i8* ${srcFp}, i64 0, i32 2)`);
+    const fileSize = this.ctx.nextTemp();
+    this.ctx.emit(`${fileSize} = call i64 @ftell(i8* ${srcFp})`);
+    const seekStart = this.ctx.nextTemp();
+    this.ctx.emit(`${seekStart} = call i32 @fseek(i8* ${srcFp}, i64 0, i32 0)`);
+
+    const buf = this.ctx.nextTemp();
+    this.ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 ${fileSize})`);
+    const bytesRead = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${bytesRead} = call i64 @fread(i8* ${buf}, i64 1, i64 ${fileSize}, i8* ${srcFp})`,
+    );
+    const closeSrc = this.ctx.nextTemp();
+    this.ctx.emit(`${closeSrc} = call i32 @fclose(i8* ${srcFp})`);
+
+    const destMode = this.ctx.createStringConstant("w");
+    const destFp = this.ctx.nextTemp();
+    this.ctx.emit(`${destFp} = call i8* @fopen(i8* ${destPath}, i8* ${destMode})`);
+    const bytesWritten = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${bytesWritten} = call i64 @fwrite(i8* ${buf}, i64 1, i64 ${fileSize}, i8* ${destFp})`,
+    );
+    const closeDest = this.ctx.nextTemp();
+    this.ctx.emit(`${closeDest} = call i32 @fclose(i8* ${destFp})`);
+
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${endLabel}:`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = phi i32 [ -1, %${failLabel} ], [ 0, %${readLabel} ]`);
 
     return result;
   }

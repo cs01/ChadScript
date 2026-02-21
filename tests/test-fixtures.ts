@@ -953,4 +953,16 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "Set.delete() removes elements from number and string sets",
   },
+  {
+    name: "fs-rename",
+    fixture: "tests/fixtures/builtins/fs-rename.ts",
+    expectTestPassed: true,
+    description: "fs.renameSync() renames files",
+  },
+  {
+    name: "fs-copyfile",
+    fixture: "tests/fixtures/builtins/fs-copyfile.ts",
+    expectTestPassed: true,
+    description: "fs.copyFileSync() copies file contents",
+  },
 ];

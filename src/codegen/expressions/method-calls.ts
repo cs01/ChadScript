@@ -524,6 +524,10 @@ export class MethodCallGenerator {
         return this.ctx.fsGen.generateStatSync(expr, params);
       } else if (method === "mkdirSync") {
         return this.ctx.fsGen.generateMkdirSync(expr, params);
+      } else if (method === "renameSync") {
+        return this.ctx.fsGen.generateRenameSync(expr, params);
+      } else if (method === "copyFileSync") {
+        return this.ctx.fsGen.generateCopyFileSync(expr, params);
       }
     }
 

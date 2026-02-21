@@ -155,6 +155,8 @@ export interface IFsGenerator {
   generateReaddirSync(expr: MethodCallNode, params: string[]): string;
   generateStatSync(expr: MethodCallNode, params: string[]): string;
   generateMkdirSync(expr: MethodCallNode, params: string[]): string;
+  generateRenameSync(expr: MethodCallNode, params: string[]): string;
+  generateCopyFileSync(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface IJsonGenerator {
@@ -1690,6 +1692,9 @@ export class MockGeneratorContext implements IGeneratorContext {
       "%mock_fs_readdirSync",
     generateStatSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_statSync",
     generateMkdirSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_mkdirSync",
+    generateRenameSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_renameSync",
+    generateCopyFileSync: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_fs_copyFileSync",
   };
   jsonGen: IJsonGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
