@@ -580,6 +580,9 @@ export class MethodCallGenerator {
     if (method === "isAbsolute" && this.isVariableWithName(expr.object, "path")) {
       return this.ctx.pathGen.generateIsAbsolute(expr, params);
     }
+    if (method === "normalize" && this.isVariableWithName(expr.object, "path")) {
+      return this.ctx.pathGen.generateNormalize(expr, params);
+    }
 
     // Handle execSync() from child_process
     if (method === "execSync") {

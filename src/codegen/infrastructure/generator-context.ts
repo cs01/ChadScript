@@ -144,6 +144,7 @@ export interface IPathGenerator {
   generateJoin(expr: MethodCallNode, params: string[]): string;
   generateExtname(expr: MethodCallNode, params: string[]): string;
   generateIsAbsolute(expr: MethodCallNode, params: string[]): string;
+  generateNormalize(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface IFsGenerator {
@@ -1711,6 +1712,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateExtname: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_extname",
     generateIsAbsolute: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_path_isabsolute",
+    generateNormalize: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_normalize",
   };
   fsGen: IFsGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,

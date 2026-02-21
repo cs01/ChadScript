@@ -924,6 +924,12 @@ export const testCases: TestCase[] = [
     description: "path.isAbsolute() checks for absolute paths",
   },
   {
+    name: "path-normalize",
+    fixture: "tests/fixtures/builtins/path-normalize.ts",
+    expectTestPassed: true,
+    description: "path.normalize() and path.sep",
+  },
+  {
     name: "math-random",
     fixture: "tests/fixtures/math/math-random.ts",
     expectTestPassed: true,

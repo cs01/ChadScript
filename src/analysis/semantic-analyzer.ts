@@ -104,6 +104,8 @@ export class SemanticAnalyzer {
     this.symbols.set("Math", { name: "Math", type: "object", llvmType: "i8*" });
     this.symbols.set("JSON", { name: "JSON", type: "object", llvmType: "i8*" });
     this.symbols.set("Date", { name: "Date", type: "object", llvmType: "i8*" });
+    this.symbols.set("path", { name: "path", type: "object", llvmType: "i8*" });
+    this.symbols.set("fs", { name: "fs", type: "object", llvmType: "i8*" });
 
     if (this.ast.enums) {
       for (let _ei = 0; _ei < this.ast.enums.length; _ei++) {

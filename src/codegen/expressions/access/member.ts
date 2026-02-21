@@ -244,6 +244,22 @@ export class MemberAccessGenerator {
     result = handleProcessSimpleProperty(this.ctx, expr);
     if (result !== null) return result;
 
+    if (
+      expr.object.type === "variable" &&
+      (expr.object as VariableNode).name === "path" &&
+      expr.property === "sep"
+    ) {
+      return this.ctx.stringGen.doCreateStringConstant("/");
+    }
+
+    if (
+      expr.object.type === "variable" &&
+      (expr.object as VariableNode).name === "path" &&
+      expr.property === "delimiter"
+    ) {
+      return this.ctx.stringGen.doCreateStringConstant(":");
+    }
+
     return null;
   }
 

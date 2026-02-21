@@ -2157,6 +2157,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     irParts.push(this.fsGen.generateReaddirSyncHelper());
     irParts.push(this.fsGen.generateStatSyncHelper());
+    irParts.push(this.pathGen.generateNormalizeHelper());
 
     const globalVars = getGlobalVariables();
     if (globalVars) {
