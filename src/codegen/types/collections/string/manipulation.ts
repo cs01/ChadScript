@@ -226,6 +226,115 @@ export function generatePadStart(
   return result;
 }
 
+export function generatePadEnd(
+  ctx: IGeneratorContext,
+  strPtr: string,
+  targetLength: string,
+  padString: string,
+): string {
+  const strLen = ctx.nextTemp();
+  ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+  const strLenI32 = ctx.nextTemp();
+  ctx.emit(`${strLenI32} = trunc i64 ${strLen} to i32`);
+
+  const padLen = ctx.nextTemp();
+  ctx.emit(`${padLen} = call i64 @strlen(i8* ${padString})`);
+  const padLenI32 = ctx.nextTemp();
+  ctx.emit(`${padLenI32} = trunc i64 ${padLen} to i32`);
+
+  const paddingNeeded = ctx.nextTemp();
+  ctx.emit(`${paddingNeeded} = sub i32 ${targetLength}, ${strLenI32}`);
+
+  const needsPadding = ctx.nextTemp();
+  ctx.emit(`${needsPadding} = icmp sgt i32 ${paddingNeeded}, 0`);
+
+  const noPadLabel = ctx.nextLabel("padend_nopad");
+  const doPadLabel = ctx.nextLabel("padend_dopad");
+  const endLabel = ctx.nextLabel("padend_end");
+
+  ctx.emit(`br i1 ${needsPadding}, label %${doPadLabel}, label %${noPadLabel}`);
+
+  ctx.emit(`${noPadLabel}:`);
+  const strLenI64NoPad = ctx.nextTemp();
+  ctx.emit(`${strLenI64NoPad} = sext i32 ${strLenI32} to i64`);
+  const allocLen1 = ctx.nextTemp();
+  ctx.emit(`${allocLen1} = add i64 ${strLenI64NoPad}, 1`);
+  const noPadResult = ctx.nextTemp();
+  ctx.emit(`${noPadResult} = call i8* @GC_malloc_atomic(i64 ${allocLen1})`);
+  const strcpyResult1 = ctx.nextTemp();
+  ctx.emit(`${strcpyResult1} = call i8* @strcpy(i8* ${noPadResult}, i8* ${strPtr})`);
+  ctx.emit(`br label %${endLabel}`);
+
+  ctx.emit(`${doPadLabel}:`);
+  const targetLenI64Pad = ctx.nextTemp();
+  ctx.emit(`${targetLenI64Pad} = sext i32 ${targetLength} to i64`);
+  const allocLen2 = ctx.nextTemp();
+  ctx.emit(`${allocLen2} = add i64 ${targetLenI64Pad}, 1`);
+  const padResult = ctx.nextTemp();
+  ctx.emit(`${padResult} = call i8* @GC_malloc_atomic(i64 ${allocLen2})`);
+
+  const strcpyOrig = ctx.nextTemp();
+  ctx.emit(`${strcpyOrig} = call i8* @strcpy(i8* ${padResult}, i8* ${strPtr})`);
+
+  const fullPads = ctx.nextTemp();
+  ctx.emit(`${fullPads} = sdiv i32 ${paddingNeeded}, ${padLenI32}`);
+
+  const remainingPad = ctx.nextTemp();
+  ctx.emit(`${remainingPad} = srem i32 ${paddingNeeded}, ${padLenI32}`);
+
+  const padLoopLabel = ctx.nextLabel("padend_loop");
+  const padLoopBodyLabel = ctx.nextLabel("padend_loop_body");
+  const padLoopEndLabel = ctx.nextLabel("padend_loop_end");
+
+  const padCounterPtr = ctx.nextTemp();
+  ctx.emit(`${padCounterPtr} = alloca i32`);
+  ctx.emit(`store i32 0, i32* ${padCounterPtr}`);
+  ctx.emit(`br label %${padLoopLabel}`);
+
+  ctx.emit(`${padLoopLabel}:`);
+  const padCounterVal = ctx.nextTemp();
+  ctx.emit(`${padCounterVal} = load i32, i32* ${padCounterPtr}`);
+  const padLoopCond = ctx.nextTemp();
+  ctx.emit(`${padLoopCond} = icmp slt i32 ${padCounterVal}, ${fullPads}`);
+  ctx.emit(`br i1 ${padLoopCond}, label %${padLoopBodyLabel}, label %${padLoopEndLabel}`);
+
+  ctx.emit(`${padLoopBodyLabel}:`);
+  const strcatPad = ctx.nextTemp();
+  ctx.emit(`${strcatPad} = call i8* @strcat(i8* ${padResult}, i8* ${padString})`);
+  const nextPadCounter = ctx.nextTemp();
+  ctx.emit(`${nextPadCounter} = add i32 ${padCounterVal}, 1`);
+  ctx.emit(`store i32 ${nextPadCounter}, i32* ${padCounterPtr}`);
+  ctx.emit(`br label %${padLoopLabel}`);
+
+  ctx.emit(`${padLoopEndLabel}:`);
+
+  const hasRemaining = ctx.nextTemp();
+  ctx.emit(`${hasRemaining} = icmp sgt i32 ${remainingPad}, 0`);
+
+  const addRemainingLabel = ctx.nextLabel("padend_add_remaining");
+  const skipRemainingLabel = ctx.nextLabel("padend_skip_remaining");
+
+  ctx.emit(`br i1 ${hasRemaining}, label %${addRemainingLabel}, label %${skipRemainingLabel}`);
+
+  ctx.emit(`${addRemainingLabel}:`);
+  const remainingSubstr = generateSubstr(ctx, padString, "0", remainingPad);
+  const strcatRemaining = ctx.nextTemp();
+  ctx.emit(`${strcatRemaining} = call i8* @strcat(i8* ${padResult}, i8* ${remainingSubstr})`);
+  ctx.emit(`br label %${skipRemainingLabel}`);
+
+  ctx.emit(`${skipRemainingLabel}:`);
+  ctx.emit(`br label %${endLabel}`);
+
+  ctx.emit(`${endLabel}:`);
+  const result = ctx.nextTemp();
+  ctx.emit(
+    `${result} = phi i8* [ ${noPadResult}, %${noPadLabel} ], [ ${padResult}, %${skipRemainingLabel} ]`,
+  );
+  ctx.setVariableType(result, "i8*");
+
+  return result;
+}
+
 export function generateSlice(
   ctx: IGeneratorContext,
   strPtr: string,

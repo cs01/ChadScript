@@ -81,6 +81,7 @@ export interface IStringGenerator {
   doGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string;
   doGenerateRepeat(strPtr: string, count: string): string;
   doGeneratePadStart(strPtr: string, targetLength: string, padString: string): string;
+  doGeneratePadEnd(strPtr: string, targetLength: string, padString: string): string;
   doGenerateSplit(strPtr: string, delimiter: string): string;
   doGenerateStartsWith(strPtr: string, prefix: string): string;
   doGenerateEndsWith(strPtr: string, suffix: string): string;
@@ -1501,6 +1502,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     doGenerateRepeat: (_strPtr: string, _count: string): string => "%0",
     doGeneratePadStart: (_strPtr: string, _targetLength: string, _padString: string): string =>
       "%0",
+    doGeneratePadEnd: (_strPtr: string, _targetLength: string, _padString: string): string => "%0",
     doGenerateSplit: (_strPtr: string, _delimiter: string): string => "%0",
     doGenerateStartsWith: (_strPtr: string, _prefix: string): string => "%0",
     doGenerateEndsWith: (_strPtr: string, _suffix: string): string => "%0",

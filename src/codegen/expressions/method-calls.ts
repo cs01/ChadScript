@@ -81,6 +81,7 @@ import {
   handleConcat,
   handleRepeat,
   handlePadStart,
+  handlePadEnd,
   handleSplit,
   handleStartsWith,
   handleEndsWith,
@@ -737,6 +738,9 @@ export class MethodCallGenerator {
     }
     if (method === "padStart") {
       return handlePadStart(this.ctx, expr, params);
+    }
+    if (method === "padEnd") {
+      return handlePadEnd(this.ctx, expr, params);
     }
     if (method === "split") {
       return handleSplit(this.ctx, expr, params);
