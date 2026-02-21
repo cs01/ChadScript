@@ -85,6 +85,31 @@ export function handlePromiseStaticMethods(
     return result;
   }
 
+  if (method === "allSettled") {
+    if (expr.args.length < 1) {
+      return ctx.emitError(
+        "Promise.allSettled() requires 1 argument (array of promises)",
+        expr.loc,
+      );
+    }
+    const promisesArray = ctx.generateExpression(expr.args[0], params);
+    const result = ctx.nextTemp();
+    ctx.emit(`${result} = call %Promise* @__Promise_allSettled(%ObjectArray* ${promisesArray})`);
+    ctx.setVariableType(result, "%Promise*");
+    return result;
+  }
+
+  if (method === "any") {
+    if (expr.args.length < 1) {
+      return ctx.emitError("Promise.any() requires 1 argument (array of promises)", expr.loc);
+    }
+    const promisesArray = ctx.generateExpression(expr.args[0], params);
+    const result = ctx.nextTemp();
+    ctx.emit(`${result} = call %Promise* @__Promise_any(%ObjectArray* ${promisesArray})`);
+    ctx.setVariableType(result, "%Promise*");
+    return result;
+  }
+
   return ctx.emitError(`Unsupported Promise static method: ${method}`, expr.loc);
 }
 
@@ -176,4 +201,71 @@ export function handlePromiseThen(
   );
   ctx.setVariableType(result, "%Promise*");
   return result;
+}
+
+export function handlePromiseFinally(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  ctx.setUsesPromises(true);
+  const promisePtr = ctx.generateExpression(expr.object, params);
+
+  let userCallback = "null";
+  // finally callbacks take no meaningful args but need void(i8*,i8*)* signature
+  const finallyCallbackTypes = { paramTypes: ["string", "string"], returnType: "void" };
+  const scopeVarsResult = ctx.symbolTable.getScopeVarsArraysForClosure();
+  const scopeVarsTyped = scopeVarsResult as { names: string[]; types: string[] };
+
+  if (expr.args.length > 0) {
+    const callback = expr.args[0] as Expression;
+    const callbackBase = callback as ExprBase;
+    if (callbackBase.type === "arrow_function") {
+      const callbackName = ctx.arrowFunctionGen.generateArrowFunction(
+        callback as ArrowFunctionNode,
+        params,
+        finallyCallbackTypes,
+        scopeVarsTyped.names,
+        scopeVarsTyped.types,
+      );
+      userCallback = `@${ctx.mangleUserName(callbackName)}`;
+    } else if (callbackBase.type === "variable") {
+      userCallback = `@${ctx.mangleUserName((callback as VariableNode).name)}`;
+    }
+  }
+
+  // Bitcast callback to i8* for storage (avoids function-pointer-type store validation issue)
+  const userCbI8 = ctx.nextTemp();
+  if (userCallback === "null") {
+    ctx.emit(`${userCbI8} = bitcast i8* null to i8*`);
+  } else {
+    ctx.emit(`${userCbI8} = bitcast void (i8*, i8*)* ${userCallback} to i8*`);
+  }
+
+  // Allocate PromiseFinallyContext = { i8* callback, %Promise* childPromise }
+  const childPromise = ctx.nextTemp();
+  ctx.emit(`${childPromise} = call %Promise* @__Promise_new()`);
+  const ctxMem = ctx.nextTemp();
+  ctx.emit(`${ctxMem} = call i8* @GC_malloc(i64 16)`);
+  const ctxPtr = ctx.nextTemp();
+  ctx.emit(`${ctxPtr} = bitcast i8* ${ctxMem} to %PromiseFinallyContext*`);
+  const cbField = ctx.nextTemp();
+  ctx.emit(
+    `${cbField} = getelementptr inbounds %PromiseFinallyContext, %PromiseFinallyContext* ${ctxPtr}, i32 0, i32 0`,
+  );
+  ctx.emit(`store i8* ${userCbI8}, i8** ${cbField}`);
+  const childField = ctx.nextTemp();
+  ctx.emit(
+    `${childField} = getelementptr inbounds %PromiseFinallyContext, %PromiseFinallyContext* ${ctxPtr}, i32 0, i32 1`,
+  );
+  ctx.emit(`store %Promise* ${childPromise}, %Promise** ${childField}`);
+
+  // Register via then_with_context — the child promise from then is discarded
+  const discarded = ctx.nextTemp();
+  ctx.emit(
+    `${discarded} = call %Promise* @__Promise_then_with_context(%Promise* ${promisePtr}, void (i8*, i8*)* @__Promise_finally_onFulfilled, void (i8*, i8*)* @__Promise_finally_onRejected, i8* ${ctxMem})`,
+  );
+
+  ctx.setVariableType(childPromise, "%Promise*");
+  return childPromise;
 }

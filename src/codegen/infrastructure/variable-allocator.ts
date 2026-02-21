@@ -1441,7 +1441,7 @@ export class VariableAllocator {
       if (
         objBase.type === "variable" &&
         (methodCall.object as VariableNode).name === "Promise" &&
-        methodCall.method === "all"
+        (methodCall.method === "all" || methodCall.method === "allSettled")
       ) {
         const allocaReg = this.ctx.nextAllocaReg(stmt.name);
         this.ctx.defineVariable(
@@ -1456,6 +1456,40 @@ export class VariableAllocator {
         const castReg = this.ctx.nextTemp();
         this.ctx.emit(`${castReg} = bitcast i8* ${value} to %ObjectArray*`);
         this.ctx.emit(`store %ObjectArray* ${castReg}, %ObjectArray** ${allocaReg}`);
+        return;
+      }
+      if (
+        objBase.type === "variable" &&
+        (methodCall.object as VariableNode).name === "fs" &&
+        methodCall.method === "readdir"
+      ) {
+        const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+        this.ctx.defineVariable(
+          stmt.name,
+          allocaReg,
+          "%StringArray*",
+          SymbolKind.StringArray,
+          "local",
+        );
+        this.ctx.emit(`${allocaReg} = alloca %StringArray*`);
+        const value = this.ctx.generateExpression(stmt.value!, params);
+        const castReg = this.ctx.nextTemp();
+        this.ctx.emit(`${castReg} = bitcast i8* ${value} to %StringArray*`);
+        this.ctx.emit(`store %StringArray* ${castReg}, %StringArray** ${allocaReg}`);
+        return;
+      }
+      if (
+        objBase.type === "variable" &&
+        (methodCall.object as VariableNode).name === "fs" &&
+        methodCall.method === "stat"
+      ) {
+        const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+        this.ctx.defineVariable(stmt.name, allocaReg, "%StatResult*", SymbolKind.Object, "local");
+        this.ctx.emit(`${allocaReg} = alloca %StatResult*`);
+        const value = this.ctx.generateExpression(stmt.value!, params);
+        const castReg = this.ctx.nextTemp();
+        this.ctx.emit(`${castReg} = bitcast i8* ${value} to %StatResult*`);
+        this.ctx.emit(`store %StatResult* ${castReg}, %StatResult** ${allocaReg}`);
         return;
       }
     }

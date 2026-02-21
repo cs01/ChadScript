@@ -38,7 +38,22 @@ export class MathGenerator {
    * Get list of supported Math methods
    */
   getSupportedMethods(): string[] {
-    return ["sqrt", "pow", "floor", "ceil", "round", "abs", "max", "min"];
+    return [
+      "sqrt",
+      "pow",
+      "floor",
+      "ceil",
+      "round",
+      "abs",
+      "max",
+      "min",
+      "trunc",
+      "log",
+      "sin",
+      "cos",
+      "sign",
+      "random",
+    ];
   }
 
   /**
@@ -68,6 +83,18 @@ export class MathGenerator {
         return this.generateMax(expr, params);
       case "min":
         return this.generateMin(expr, params);
+      case "trunc":
+        return this.generateTrunc(expr, params);
+      case "log":
+        return this.generateLog(expr, params);
+      case "sin":
+        return this.generateSin(expr, params);
+      case "cos":
+        return this.generateCos(expr, params);
+      case "sign":
+        return this.generateSign(expr, params);
+      case "random":
+        return this.generateRandom(expr);
       default:
         return this.ctx.emitError(`Unsupported Math method: ${method}`, expr.loc);
     }
@@ -169,6 +196,73 @@ export class MathGenerator {
     const dblB = this.ctx.ensureDouble(b);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.maxnum.f64(double ${dblA}, double ${dblB})`);
+    return result;
+  }
+
+  private generateTrunc(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      return this.ctx.emitError("Math.trunc() requires 1 argument", expr.loc);
+    }
+    const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @llvm.trunc.f64(double ${dblArg})`);
+    return result;
+  }
+
+  private generateRandom(expr: MethodCallNode): string {
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @drand48()`);
+    return result;
+  }
+
+  private generateSign(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      return this.ctx.emitError("Math.sign() requires 1 argument", expr.loc);
+    }
+    const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
+    const isPos = this.ctx.nextTemp();
+    this.ctx.emit(`${isPos} = fcmp ogt double ${dblArg}, 0.0`);
+    const isNeg = this.ctx.nextTemp();
+    this.ctx.emit(`${isNeg} = fcmp olt double ${dblArg}, 0.0`);
+    const posVal = this.ctx.nextTemp();
+    this.ctx.emit(`${posVal} = select i1 ${isPos}, double 1.0, double 0.0`);
+    const negVal = this.ctx.nextTemp();
+    this.ctx.emit(`${negVal} = select i1 ${isNeg}, double -1.0, double ${posVal}`);
+    return negVal;
+  }
+
+  private generateLog(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      return this.ctx.emitError("Math.log() requires 1 argument", expr.loc);
+    }
+    const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @llvm.log.f64(double ${dblArg})`);
+    return result;
+  }
+
+  private generateSin(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      return this.ctx.emitError("Math.sin() requires 1 argument", expr.loc);
+    }
+    const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @llvm.sin.f64(double ${dblArg})`);
+    return result;
+  }
+
+  private generateCos(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      return this.ctx.emitError("Math.cos() requires 1 argument", expr.loc);
+    }
+    const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @llvm.cos.f64(double ${dblArg})`);
     return result;
   }
 

@@ -92,6 +92,9 @@ import { DateGenerator } from "./stdlib/date.js";
 import { FilesystemGenerator } from "./stdlib/fs.js";
 import { ResponseGenerator } from "./stdlib/response.js";
 import { CryptoGenerator } from "./stdlib/crypto.js";
+import { generateConsoleTimerHelpers } from "./stdlib/console-timers.js";
+import { generateDefaultSortComparators } from "./types/collections/array/sort.js";
+import { AsyncFsGenerator } from "./stdlib/async-fs.js";
 import { SqliteGenerator } from "./stdlib/sqlite.js";
 import { EmbedGenerator } from "./stdlib/embed.js";
 import { RuntimeGenerator } from "./runtime/runtime.js";
@@ -179,6 +182,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private httpServerGen: HttpServerGenerator;
   private libuvGen: LibuvGenerator;
   private promiseGen: PromiseGenerator;
+  private asyncFsGen: AsyncFsGenerator;
   private treesitterGen: TreeSitterGenerator;
   private httpHandlers: string[];
   private wsHandlers: string[];
@@ -187,11 +191,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesSqlite: number = 0;
   public usesCurl: number = 0;
   public usesUvHrtime: number = 0;
+  public usesConsoleTime: number = 0;
+  public usesArraySort: number = 0;
   public usesCrypto: number = 0;
   public usesJson: number = 0;
   public usesMongoose: number = 0;
   public usesRegex: number = 0;
   public usesTestRunner: number = 0;
+  public usesAsyncFs: number = 0;
   public usesStringBuilder: number = 0;
   private stringBuilderSlen: Map<string, string> = new Map();
   private stringBuilderScap: Map<string, string> = new Map();
@@ -930,6 +937,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesUvHrtime(): boolean {
     return this.usesUvHrtime !== 0;
   }
+  public setUsesConsoleTime(value: boolean): void {
+    this.usesConsoleTime = value ? 1 : 0;
+  }
+  public setUsesArraySort(value: boolean): void {
+    this.usesArraySort = value ? 1 : 0;
+  }
 
   public getTargetOS(): string {
     return this.targetInfo ? this.targetInfo.os : process.platform;
@@ -967,6 +980,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public getUsesTestRunner(): boolean {
     return this.usesTestRunner !== 0;
+  }
+  public setUsesAsyncFs(value: boolean): void {
+    this.usesAsyncFs = value ? 1 : 0;
   }
   public setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
@@ -1268,11 +1284,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesSqlite = 0;
     this.usesCurl = 0;
     this.usesUvHrtime = 0;
+    this.usesConsoleTime = 0;
+    this.usesArraySort = 0;
     this.usesCrypto = 0;
     this.usesJson = 0;
     this.usesMongoose = 0;
     this.usesRegex = 0;
     this.usesTestRunner = 0;
+    this.usesAsyncFs = 0;
 
     this.ast = ast;
 
@@ -1347,6 +1366,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.httpServerGen = new HttpServerGenerator();
     this.libuvGen = new LibuvGenerator();
     this.promiseGen = new PromiseGenerator();
+    this.asyncFsGen = new AsyncFsGenerator();
     this.treesitterGen = new TreeSitterGenerator();
 
     // Initialize expression generator with context pattern
@@ -2137,6 +2157,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     irParts.push(this.fsGen.generateReaddirSyncHelper());
     irParts.push(this.fsGen.generateStatSyncHelper());
+    irParts.push(this.pathGen.generateNormalizeHelper());
+    irParts.push(this.pathGen.generateRelativeHelper());
+    irParts.push(this.pathGen.generateParseHelper());
 
     const globalVars = getGlobalVariables();
     if (globalVars) {
@@ -2254,6 +2277,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           irParts.push(fetchAsync);
         }
       }
+      if (this.usesAsyncFs) {
+        irParts.push(this.asyncFsGen.generateAll());
+      }
       const promiseAwait = this.libuvGen.generatePromiseAwait();
       if (promiseAwait) {
         irParts.push(promiseAwait);
@@ -2277,8 +2303,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       this.usesPromises ||
       this.usesCurl ||
       this.usesUvHrtime ||
-      this.usesMongoose;
-    const needsPromise = this.usesPromises || this.usesCurl;
+      this.usesMongoose ||
+      this.usesAsyncFs;
+    const needsPromise = this.usesPromises || this.usesCurl || this.usesAsyncFs;
 
     const finalParts: string[] = [];
 
@@ -2374,6 +2401,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     if (this.usesCrypto) {
       finalParts.push(this.cryptoGen.generateBytesToHexHelper());
+      finalParts.push(this.cryptoGen.generateUuidFormatHelper());
+    }
+
+    if (this.usesConsoleTime) {
+      finalParts.push(generateConsoleTimerHelpers());
+    }
+
+    if (this.usesArraySort) {
+      finalParts.push(generateDefaultSortComparators());
     }
 
     if (this.usesSqlite) {

@@ -22,6 +22,14 @@ interface CallExpr {
 }
 
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
+import { generateArrayReverse, generateArrayShift, generateArrayUnshift } from "./array/reorder.js";
+import { generateArrayIndexOf, generateArrayFindIndex } from "./array/search.js";
+import { generateArraySplice } from "./array/splice.js";
+import {
+  generateDefaultNumericSort,
+  generateDefaultStringSort,
+  generateNumericSortWithFn,
+} from "./array/sort.js";
 
 export class ArrayGenerator {
   constructor(private ctx: IGeneratorContext) {}
@@ -3450,5 +3458,97 @@ export class ArrayGenerator {
 
     this.ctx.setVariableType(newArrayPtr, "%ObjectArray*");
     return newArrayPtr;
+  }
+
+  generateArrayReverse(expr: MethodCallNode, params: string[]): string {
+    return generateArrayReverse(this.ctx, expr, params);
+  }
+
+  generateArrayShift(expr: MethodCallNode, params: string[]): string {
+    return generateArrayShift(this.ctx, expr, params);
+  }
+
+  generateArrayUnshift(expr: MethodCallNode, params: string[]): string {
+    return generateArrayUnshift(this.ctx, expr, params);
+  }
+
+  generateArrayIndexOf(expr: MethodCallNode, params: string[]): string {
+    return generateArrayIndexOf(this.ctx, expr, params);
+  }
+
+  generateArrayFindIndex(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      throw new Error("findIndex() requires exactly 1 argument (predicate function)");
+    }
+
+    const exprObjBase = expr.object as ExprBase;
+    let isStringArray = false;
+    if (exprObjBase.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      const varType = this.ctx.getVariableType(varName);
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+    }
+
+    const predicateArg = expr.args[0];
+    let predicateFn: string;
+
+    if (predicateArg.type === "variable") {
+      predicateFn = this.ctx.mangleUserName((predicateArg as VariableNode).name);
+    } else if (predicateArg.type === "arrow_function") {
+      if (isStringArray) {
+        this.ctx.setExpectedCallbackParamType("string");
+      }
+      predicateFn = this.ctx.generateExpression(predicateArg, params);
+      this.ctx.setExpectedCallbackParamType(null);
+    } else {
+      throw new Error("findIndex() argument must be a function name or inline function");
+    }
+
+    return generateArrayFindIndex(this.ctx, expr, params, predicateFn, isStringArray);
+  }
+
+  generateArraySort(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length > 1) {
+      throw new Error("sort() expects 0 or 1 arguments");
+    }
+
+    const arrayPtr = this.ctx.generateExpression(expr.object, params);
+    this.ctx.setUsesArraySort(true);
+
+    let isStringArray = false;
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      const varType = this.ctx.getVariableType(varName);
+      isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+    }
+    if (!isStringArray) {
+      const ptrType = this.ctx.getVariableType(arrayPtr);
+      if (ptrType === "%StringArray*" || ptrType === "%StringArray") isStringArray = true;
+    }
+
+    if (expr.args.length === 0) {
+      if (isStringArray) {
+        return generateDefaultStringSort(this.ctx, arrayPtr);
+      }
+      return generateDefaultNumericSort(this.ctx, arrayPtr);
+    }
+
+    const predicateArg = expr.args[0];
+    let compareFn: string;
+
+    if (predicateArg.type === "variable") {
+      compareFn = this.ctx.mangleUserName((predicateArg as VariableNode).name);
+    } else if (predicateArg.type === "arrow_function") {
+      compareFn = this.ctx.generateExpression(predicateArg, params);
+    } else {
+      throw new Error("sort() comparator must be a function name or inline function");
+    }
+
+    return generateNumericSortWithFn(this.ctx, arrayPtr, compareFn);
+  }
+
+  generateArraySplice(expr: MethodCallNode, params: string[]): string {
+    return generateArraySplice(this.ctx, expr, params);
   }
 }

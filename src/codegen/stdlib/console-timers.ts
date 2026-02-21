@@ -1,0 +1,71 @@
+const MAX_TIMERS = 16;
+
+export function generateConsoleTimerHelpers(): string {
+  let ir = "";
+  ir += `@__console_timer_labels = global [${MAX_TIMERS} x i8*] zeroinitializer\n`;
+  ir += `@__console_timer_values = global [${MAX_TIMERS} x i64] zeroinitializer\n`;
+  ir += `@__console_timer_count = global i32 0\n\n`;
+
+  ir += "define i32 @__console_timer_store(i8* %label, i64 %value) {\n";
+  ir += "entry:\n";
+  ir += "  %count = load i32, i32* @__console_timer_count\n";
+  ir += "  br label %loop\n";
+  ir += "loop:\n";
+  ir += "  %i = phi i32 [ 0, %entry ], [ %next_i, %next ]\n";
+  ir += "  %cmp = icmp slt i32 %i, %count\n";
+  ir += "  br i1 %cmp, label %body, label %not_found\n";
+  ir += "body:\n";
+  ir += `  %lbl_ptr = getelementptr inbounds [${MAX_TIMERS} x i8*], [${MAX_TIMERS} x i8*]* @__console_timer_labels, i32 0, i32 %i\n`;
+  ir += "  %lbl = load i8*, i8** %lbl_ptr\n";
+  ir += "  %cmp_res = call i32 @strcmp(i8* %lbl, i8* %label)\n";
+  ir += "  %eq = icmp eq i32 %cmp_res, 0\n";
+  ir += "  br i1 %eq, label %update, label %next\n";
+  ir += "update:\n";
+  ir += `  %val_ptr_u = getelementptr inbounds [${MAX_TIMERS} x i64], [${MAX_TIMERS} x i64]* @__console_timer_values, i32 0, i32 %i\n`;
+  ir += "  store i64 %value, i64* %val_ptr_u\n";
+  ir += "  ret i32 0\n";
+  ir += "next:\n";
+  ir += "  %next_i = add i32 %i, 1\n";
+  ir += "  br label %loop\n";
+  ir += "not_found:\n";
+  ir += `  %full = icmp sge i32 %count, ${MAX_TIMERS}\n`;
+  ir += "  br i1 %full, label %done, label %insert\n";
+  ir += "insert:\n";
+  ir += `  %new_lbl_ptr = getelementptr inbounds [${MAX_TIMERS} x i8*], [${MAX_TIMERS} x i8*]* @__console_timer_labels, i32 0, i32 %count\n`;
+  ir += "  store i8* %label, i8** %new_lbl_ptr\n";
+  ir += `  %new_val_ptr = getelementptr inbounds [${MAX_TIMERS} x i64], [${MAX_TIMERS} x i64]* @__console_timer_values, i32 0, i32 %count\n`;
+  ir += "  store i64 %value, i64* %new_val_ptr\n";
+  ir += "  %new_count = add i32 %count, 1\n";
+  ir += "  store i32 %new_count, i32* @__console_timer_count\n";
+  ir += "  ret i32 0\n";
+  ir += "done:\n";
+  ir += "  ret i32 -1\n";
+  ir += "}\n\n";
+
+  ir += "define i64 @__console_timer_load(i8* %label) {\n";
+  ir += "entry:\n";
+  ir += "  %count = load i32, i32* @__console_timer_count\n";
+  ir += "  br label %loop\n";
+  ir += "loop:\n";
+  ir += "  %i = phi i32 [ 0, %entry ], [ %next_i, %next ]\n";
+  ir += "  %cmp = icmp slt i32 %i, %count\n";
+  ir += "  br i1 %cmp, label %body, label %not_found\n";
+  ir += "body:\n";
+  ir += `  %lbl_ptr = getelementptr inbounds [${MAX_TIMERS} x i8*], [${MAX_TIMERS} x i8*]* @__console_timer_labels, i32 0, i32 %i\n`;
+  ir += "  %lbl = load i8*, i8** %lbl_ptr\n";
+  ir += "  %cmp_res = call i32 @strcmp(i8* %lbl, i8* %label)\n";
+  ir += "  %eq = icmp eq i32 %cmp_res, 0\n";
+  ir += "  br i1 %eq, label %found, label %next\n";
+  ir += "found:\n";
+  ir += `  %val_ptr = getelementptr inbounds [${MAX_TIMERS} x i64], [${MAX_TIMERS} x i64]* @__console_timer_values, i32 0, i32 %i\n`;
+  ir += "  %val = load i64, i64* %val_ptr\n";
+  ir += "  ret i64 %val\n";
+  ir += "next:\n";
+  ir += "  %next_i = add i32 %i, 1\n";
+  ir += "  br label %loop\n";
+  ir += "not_found:\n";
+  ir += "  ret i64 0\n";
+  ir += "}\n\n";
+
+  return ir;
+}

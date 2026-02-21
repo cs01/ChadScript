@@ -18,6 +18,8 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "%Set = type { double*, i32, i32 }\n";
   ir += "%StringSet = type { i8**, i32, i32 }\n";
   ir += "%struct.timeval = type { i64, i64 }\n";
+  ir += "%Date = type { double }\n";
+  ir += "%struct.tm = type { i32, i32, i32, i32, i32, i32, i32, i32, i32, i64, i8* }\n";
   ir += "%ExceptionFrame = type { [200 x i8], i8*, i8* }\n\n";
 
   ir += "declare i8* @malloc(i64)\n";
@@ -43,8 +45,11 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i64 @strtol(i8*, i8**, i32)\n";
   ir += "declare double @strtod(i8*, i8**)\n";
   ir += "declare i8* @strstr(i8*, i8*)\n";
+  ir += "declare i8* @strrchr(i8*, i32)\n";
   ir += "declare void @llvm.memcpy.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n";
+  ir += "declare void @llvm.memmove.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n";
   ir += "declare void @llvm.memset.p0i8.i64(i8*, i8, i64, i1)\n";
+  ir += "declare void @qsort(i8*, i64, i64, i32 (i8*, i8*)*)\n";
   ir += "\n";
 
   ir += "declare double @llvm.sqrt.f64(double)\n";
@@ -54,6 +59,12 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare double @llvm.round.f64(double)\n";
   ir += "declare double @llvm.trunc.f64(double)\n";
   ir += "declare double @llvm.fabs.f64(double)\n";
+  ir += "declare double @llvm.log.f64(double)\n";
+  ir += "declare double @llvm.sin.f64(double)\n";
+  ir += "declare double @llvm.cos.f64(double)\n";
+  ir += "declare double @drand48()\n";
+  ir += "declare void @srand48(i64)\n";
+  ir += "declare i64 @time(i8*)\n";
   ir += "declare double @llvm.maxnum.f64(double, double)\n";
   ir += "declare double @llvm.minnum.f64(double, double)\n";
   ir += "\n";
@@ -110,6 +121,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i32 @fseek(i8*, i64, i32)\n";
   ir += "declare i64 @ftell(i8*)\n";
   ir += "declare i32 @unlink(i8*)\n";
+  ir += "declare i32 @rename(i8*, i8*)\n";
   ir += "declare i8* @opendir(i8*)\n";
   ir += "declare i8* @readdir(i8*)\n";
   ir += "declare i32 @closedir(i8*)\n";
@@ -155,6 +167,9 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
 
   ir += "declare i32 @sprintf(i8*, i8*, ...)\n";
   ir += "declare i32 @gettimeofday(%struct.timeval*, i8*)\n";
+  ir += "declare %struct.tm* @localtime_r(i64*, %struct.tm*)\n";
+  ir += "declare %struct.tm* @gmtime_r(i64*, %struct.tm*)\n";
+  ir += "declare i64 @strftime(i8*, i64, i8*, %struct.tm*)\n";
   ir += "\n";
 
   if (config && config.curl) {

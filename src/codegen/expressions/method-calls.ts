@@ -53,7 +53,11 @@ import type {
   IEmbedGenerator,
 } from "../infrastructure/generator-context.js";
 import { parseMapTypeString, parseSetTypeString } from "../infrastructure/type-system.js";
-import { generateConsoleCallInline } from "./method-calls/console.js";
+import {
+  generateConsoleCallInline,
+  generateConsoleTime,
+  generateConsoleTimeEnd,
+} from "./method-calls/console.js";
 import {
   handleAssertStrictEqual,
   handleAssertNotStrictEqual,
@@ -77,6 +81,7 @@ import {
   handleConcat,
   handleRepeat,
   handlePadStart,
+  handlePadEnd,
   handleSplit,
   handleStartsWith,
   handleEndsWith,
@@ -107,7 +112,11 @@ import {
   generateObjectValues,
   generateObjectEntries,
 } from "./method-calls/object-static.js";
-import { handlePromiseStaticMethods, handlePromiseThen } from "./method-calls/promise-handlers.js";
+import {
+  handlePromiseStaticMethods,
+  handlePromiseThen,
+  handlePromiseFinally,
+} from "./method-calls/promise-handlers.js";
 import {
   handleClassMethods,
   handleObjectMethods,
@@ -162,6 +171,7 @@ export interface MethodCallGeneratorContext {
   setUsesSqlite(value: boolean): void;
   setUsesCurl(value: boolean): void;
   setUsesUvHrtime(value: boolean): void;
+  setUsesConsoleTime(value: boolean): void;
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
@@ -425,11 +435,17 @@ export class MethodCallGenerator {
       return handleNumberIsInteger(this.ctx, expr, params);
     }
 
-    // Handle Promise instance methods (.then, .catch)
+    // Handle Promise instance methods (.then, .catch, .finally)
     if (method === "then" || method === "catch") {
       const isPromise = this.ctx.isPromiseExpression(expr.object);
       if (isPromise) {
         return handlePromiseThen(this.ctx, expr, params, method === "catch");
+      }
+    }
+    if (method === "finally") {
+      const isPromise = this.ctx.isPromiseExpression(expr.object);
+      if (isPromise) {
+        return handlePromiseFinally(this.ctx, expr, params);
       }
     }
 
@@ -441,6 +457,12 @@ export class MethodCallGenerator {
         const method2 = expr.method;
         if (method2 === "log" || method2 === "error" || method2 === "warn" || method2 === "debug") {
           return generateConsoleCallInline(this.ctx, expr, params);
+        }
+        if (method2 === "time") {
+          return generateConsoleTime(this.ctx, expr, params);
+        }
+        if (method2 === "timeEnd") {
+          return generateConsoleTimeEnd(this.ctx, expr, params);
         }
       }
       if (varNode.name === "assert") {
@@ -524,6 +546,28 @@ export class MethodCallGenerator {
         return this.ctx.fsGen.generateStatSync(expr, params);
       } else if (method === "mkdirSync") {
         return this.ctx.fsGen.generateMkdirSync(expr, params);
+      } else if (method === "renameSync") {
+        return this.ctx.fsGen.generateRenameSync(expr, params);
+      } else if (method === "copyFileSync") {
+        return this.ctx.fsGen.generateCopyFileSync(expr, params);
+      } else if (method === "readFile") {
+        return this.ctx.fsGen.generateReadFile(expr, params);
+      } else if (method === "writeFile") {
+        return this.ctx.fsGen.generateWriteFile(expr, params);
+      } else if (method === "appendFile") {
+        return this.ctx.fsGen.generateAppendFile(expr, params);
+      } else if (method === "readdir") {
+        return this.ctx.fsGen.generateReaddir(expr, params);
+      } else if (method === "stat") {
+        return this.ctx.fsGen.generateStat(expr, params);
+      } else if (method === "unlink") {
+        return this.ctx.fsGen.generateUnlink(expr, params);
+      } else if (method === "mkdir") {
+        return this.ctx.fsGen.generateMkdir(expr, params);
+      } else if (method === "rename") {
+        return this.ctx.fsGen.generateRename(expr, params);
+      } else if (method === "copyFile") {
+        return this.ctx.fsGen.generateCopyFile(expr, params);
       }
     }
 
@@ -539,6 +583,21 @@ export class MethodCallGenerator {
     }
     if (method === "join" && this.isVariableWithName(expr.object, "path")) {
       return this.ctx.pathGen.generateJoin(expr, params);
+    }
+    if (method === "extname" && this.isVariableWithName(expr.object, "path")) {
+      return this.ctx.pathGen.generateExtname(expr, params);
+    }
+    if (method === "isAbsolute" && this.isVariableWithName(expr.object, "path")) {
+      return this.ctx.pathGen.generateIsAbsolute(expr, params);
+    }
+    if (method === "normalize" && this.isVariableWithName(expr.object, "path")) {
+      return this.ctx.pathGen.generateNormalize(expr, params);
+    }
+    if (method === "relative" && this.isVariableWithName(expr.object, "path")) {
+      return this.ctx.pathGen.generateRelative(expr, params);
+    }
+    if (method === "parse" && this.isVariableWithName(expr.object, "path")) {
+      return this.ctx.pathGen.generateParse(expr, params);
     }
 
     // Handle execSync() from child_process
@@ -573,6 +632,34 @@ export class MethodCallGenerator {
       return this.ctx.dateGen.generateNow();
     }
 
+    // Date instance methods: d.getTime(), d.getFullYear(), etc.
+    if (
+      method === "getTime" ||
+      method === "getFullYear" ||
+      method === "getMonth" ||
+      method === "getDate" ||
+      method === "getHours" ||
+      method === "getMinutes" ||
+      method === "getSeconds" ||
+      method === "toISOString"
+    ) {
+      const varName = this.getVariableName(expr.object);
+      if (varName) {
+        const varType = this.ctx.getVariableType(varName);
+        if (varType === "%Date*") {
+          const datePtr = this.ctx.generateExpression(expr.object, params);
+          return this.ctx.dateGen.generateDateMethod(datePtr, method);
+        }
+      }
+      if (objBase2.type === "new") {
+        const datePtr = this.ctx.generateExpression(expr.object, params);
+        const objType = this.ctx.getVariableType(datePtr);
+        if (objType === "%Date*") {
+          return this.ctx.dateGen.generateDateMethod(datePtr, method);
+        }
+      }
+    }
+
     // Handle crypto.* methods
     if (objBase2.type === "variable" && (expr.object as VariableNode).name === "crypto") {
       this.ctx.setUsesCrypto(true);
@@ -584,6 +671,8 @@ export class MethodCallGenerator {
         return this.ctx.cryptoGen.generateSha512(expr, params);
       } else if (method === "randomBytes") {
         return this.ctx.cryptoGen.generateRandomBytes(expr, params);
+      } else if (method === "randomUUID") {
+        return this.ctx.cryptoGen.generateRandomUUID(expr, params);
       }
     }
 
@@ -715,6 +804,9 @@ export class MethodCallGenerator {
     if (method === "padStart") {
       return handlePadStart(this.ctx, expr, params);
     }
+    if (method === "padEnd") {
+      return handlePadEnd(this.ctx, expr, params);
+    }
     if (method === "split") {
       return handleSplit(this.ctx, expr, params);
     }
@@ -736,6 +828,9 @@ export class MethodCallGenerator {
     if (method === "indexOf") {
       if (this.ctx.isStringArrayExpression(expr.object)) {
         return handleStringArrayIndexOf(this.ctx, expr, params);
+      }
+      if (this.ctx.isArrayExpression(expr.object)) {
+        return this.ctx.arrayGen.generateArrayIndexOf(expr, params);
       }
       return handleIndexOf(this.ctx, expr, params);
     }
@@ -963,10 +1058,8 @@ export class MethodCallGenerator {
               const valueValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringSetGen.generateStringSetHas(setAlloca, valueValue);
             } else {
-              return this.ctx.emitError(
-                "Set.delete() not yet implemented for Set<string>",
-                expr.loc,
-              );
+              const valueValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.stringSetGen.generateStringSetDelete(setAlloca, valueValue);
             }
           }
         }
@@ -991,7 +1084,8 @@ export class MethodCallGenerator {
             const valueValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringSetGen.generateStringSetHas(setPtr, valueValue);
           } else {
-            return this.ctx.emitError("Set.delete() not yet implemented for Set<string>", expr.loc);
+            const valueValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.stringSetGen.generateStringSetDelete(setPtr, valueValue);
           }
         }
       }
@@ -1042,6 +1136,18 @@ export class MethodCallGenerator {
         this.ctx.isObjectArrayExpression(expr.object))
     ) {
       return this.ctx.arrayGen.generateArrayConcat(expr, params);
+    } else if (method === "reverse") {
+      return this.ctx.arrayGen.generateArrayReverse(expr, params);
+    } else if (method === "shift") {
+      return this.ctx.arrayGen.generateArrayShift(expr, params);
+    } else if (method === "unshift") {
+      return this.ctx.arrayGen.generateArrayUnshift(expr, params);
+    } else if (method === "findIndex") {
+      return this.ctx.arrayGen.generateArrayFindIndex(expr, params);
+    } else if (method === "sort") {
+      return this.ctx.arrayGen.generateArraySort(expr, params);
+    } else if (method === "splice") {
+      return this.ctx.arrayGen.generateArraySplice(expr, params);
     }
 
     // Handle class instance methods

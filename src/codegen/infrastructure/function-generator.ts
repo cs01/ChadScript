@@ -911,6 +911,8 @@ export class FunctionGenerator {
 
     ir += "  ; Initialize garbage collector\n";
     ir += "  call void @GC_init()\n";
+    ir += "  %__seed_time = call i64 @time(i8* null)\n";
+    ir += "  call void @srand48(i64 %__seed_time)\n";
     ir += "  %__start_tv = alloca %struct.timeval\n";
     ir += "  %__gtod_start = call i32 @gettimeofday(%struct.timeval* %__start_tv, i8* null)\n";
     ir += "\n";

@@ -81,6 +81,7 @@ export interface IStringGenerator {
   doGenerateSubstr(strPtr: string, startIndex: string, length: string | null): string;
   doGenerateRepeat(strPtr: string, count: string): string;
   doGeneratePadStart(strPtr: string, targetLength: string, padString: string): string;
+  doGeneratePadEnd(strPtr: string, targetLength: string, padString: string): string;
   doGenerateSplit(strPtr: string, delimiter: string): string;
   doGenerateStartsWith(strPtr: string, prefix: string): string;
   doGenerateEndsWith(strPtr: string, suffix: string): string;
@@ -141,6 +142,11 @@ export interface IPathGenerator {
   generateDirname(expr: MethodCallNode, params: string[]): string;
   generateBasename(expr: MethodCallNode, params: string[]): string;
   generateJoin(expr: MethodCallNode, params: string[]): string;
+  generateExtname(expr: MethodCallNode, params: string[]): string;
+  generateIsAbsolute(expr: MethodCallNode, params: string[]): string;
+  generateNormalize(expr: MethodCallNode, params: string[]): string;
+  generateRelative(expr: MethodCallNode, params: string[]): string;
+  generateParse(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface IFsGenerator {
@@ -153,6 +159,17 @@ export interface IFsGenerator {
   generateReaddirSync(expr: MethodCallNode, params: string[]): string;
   generateStatSync(expr: MethodCallNode, params: string[]): string;
   generateMkdirSync(expr: MethodCallNode, params: string[]): string;
+  generateRenameSync(expr: MethodCallNode, params: string[]): string;
+  generateCopyFileSync(expr: MethodCallNode, params: string[]): string;
+  generateReadFile(expr: MethodCallNode, params: string[]): string;
+  generateWriteFile(expr: MethodCallNode, params: string[]): string;
+  generateAppendFile(expr: MethodCallNode, params: string[]): string;
+  generateReaddir(expr: MethodCallNode, params: string[]): string;
+  generateStat(expr: MethodCallNode, params: string[]): string;
+  generateUnlink(expr: MethodCallNode, params: string[]): string;
+  generateMkdir(expr: MethodCallNode, params: string[]): string;
+  generateRename(expr: MethodCallNode, params: string[]): string;
+  generateCopyFile(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface IJsonGenerator {
@@ -164,6 +181,7 @@ export interface IJsonGenerator {
 export interface IDateGenerator {
   canHandle(expr: MethodCallNode): boolean;
   generateNow(): string;
+  generateDateMethod(datePtr: string, method: string): string;
 }
 
 export interface ICryptoGenerator {
@@ -172,6 +190,7 @@ export interface ICryptoGenerator {
   generateMd5(expr: MethodCallNode, params: string[]): string;
   generateSha512(expr: MethodCallNode, params: string[]): string;
   generateRandomBytes(expr: MethodCallNode, params: string[]): string;
+  generateRandomUUID(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface ISqliteGenerator {
@@ -238,6 +257,7 @@ export interface IStringSetGenerator {
   generateEmptyStringSet(): string;
   generateStringSetAdd(setAlloca: string, valueValue: string): string;
   generateStringSetHas(setAlloca: string, valueValue: string): string;
+  generateStringSetDelete(setAlloca: string, valueValue: string): string;
 }
 
 export interface IPointerMapGenerator {
@@ -262,6 +282,13 @@ export interface IArrayGenerator {
   generateArrayReduce(expr: MethodCallNode, params: string[]): string;
   generateArraySlice(expr: MethodCallNode, params: string[]): string;
   generateArrayConcat(expr: MethodCallNode, params: string[]): string;
+  generateArrayReverse(expr: MethodCallNode, params: string[]): string;
+  generateArrayShift(expr: MethodCallNode, params: string[]): string;
+  generateArrayUnshift(expr: MethodCallNode, params: string[]): string;
+  generateArrayIndexOf(expr: MethodCallNode, params: string[]): string;
+  generateArrayFindIndex(expr: MethodCallNode, params: string[]): string;
+  generateArraySort(expr: MethodCallNode, params: string[]): string;
+  generateArraySplice(expr: MethodCallNode, params: string[]): string;
 }
 
 /**
@@ -708,12 +735,15 @@ export interface IGeneratorContext {
   setUsesSqlite(value: boolean): void;
   setUsesCurl(value: boolean): void;
   setUsesUvHrtime(value: boolean): void;
+  setUsesConsoleTime(value: boolean): void;
+  setUsesArraySort(value: boolean): void;
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
   setUsesRegex(value: boolean): void;
   setUsesTestRunner(value: boolean): void;
   getUsesTestRunner(): boolean;
+  setUsesAsyncFs(value: boolean): void;
 
   currentDeclaredInterfaceType: string | undefined;
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
@@ -886,6 +916,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesMongoose: number = 0;
   public usesRegex: number = 0;
   public usesTestRunner: number = 0;
+  public usesAsyncFs: number = 0;
   public currentFunction: string | null = null;
   public currentDeclaredInterfaceType: string | undefined = undefined;
 
@@ -1061,6 +1092,14 @@ export class MockGeneratorContext implements IGeneratorContext {
   setUsesUvHrtime(value: boolean): void {
     this.usesUvHrtime = value ? 1 : 0;
   }
+  public usesConsoleTime: number = 0;
+  setUsesConsoleTime(value: boolean): void {
+    this.usesConsoleTime = value ? 1 : 0;
+  }
+  public usesArraySort: number = 0;
+  setUsesArraySort(value: boolean): void {
+    this.usesArraySort = value ? 1 : 0;
+  }
   setUsesCrypto(value: boolean): void {
     this.usesCrypto = value ? 1 : 0;
   }
@@ -1078,6 +1117,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   getUsesTestRunner(): boolean {
     return this.usesTestRunner !== 0;
+  }
+  setUsesAsyncFs(value: boolean): void {
+    this.usesAsyncFs = value ? 1 : 0;
   }
   setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
@@ -1490,6 +1532,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     doGenerateRepeat: (_strPtr: string, _count: string): string => "%0",
     doGeneratePadStart: (_strPtr: string, _targetLength: string, _padString: string): string =>
       "%0",
+    doGeneratePadEnd: (_strPtr: string, _targetLength: string, _padString: string): string => "%0",
     doGenerateSplit: (_strPtr: string, _delimiter: string): string => "%0",
     doGenerateStartsWith: (_strPtr: string, _prefix: string): string => "%0",
     doGenerateEndsWith: (_strPtr: string, _suffix: string): string => "%0",
@@ -1669,6 +1712,12 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateDirname: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_dirname",
     generateBasename: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_basename",
     generateJoin: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_join",
+    generateExtname: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_extname",
+    generateIsAbsolute: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_path_isabsolute",
+    generateNormalize: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_normalize",
+    generateRelative: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_relative",
+    generateParse: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_parse",
   };
   fsGen: IFsGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
@@ -1684,6 +1733,18 @@ export class MockGeneratorContext implements IGeneratorContext {
       "%mock_fs_readdirSync",
     generateStatSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_statSync",
     generateMkdirSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_mkdirSync",
+    generateRenameSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_renameSync",
+    generateCopyFileSync: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_fs_copyFileSync",
+    generateReadFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_readFile",
+    generateWriteFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_writeFile",
+    generateAppendFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_appendFile",
+    generateReaddir: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_readdir",
+    generateStat: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_stat",
+    generateUnlink: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_unlink",
+    generateMkdir: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_mkdir",
+    generateRename: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_rename",
+    generateCopyFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_copyFile",
   };
   jsonGen: IJsonGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
@@ -1694,6 +1755,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   dateGen: IDateGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
     generateNow: (): string => "%mock_date_now",
+    generateDateMethod: (_datePtr: string, _method: string): string => "%mock_date_method",
   };
   cryptoGen: ICryptoGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
@@ -1702,6 +1764,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateSha512: (_expr: MethodCallNode, _params: string[]): string => "%mock_crypto_sha512",
     generateRandomBytes: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_crypto_random_bytes",
+    generateRandomUUID: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_crypto_random_uuid",
   };
   sqliteGen: ISqliteGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
@@ -1746,6 +1810,8 @@ export class MockGeneratorContext implements IGeneratorContext {
       "%mock_string_set_add",
     generateStringSetHas: (_setAlloca: string, _valueValue: string): string =>
       "%mock_string_set_has",
+    generateStringSetDelete: (_setAlloca: string, _valueValue: string): string =>
+      "%mock_string_set_delete",
   };
   pointerMapGen: IPointerMapGenerator = {
     generatePointerMapSet: (_mapPtr: string, _keyValue: string, _valueValue: string): string =>
@@ -1781,6 +1847,17 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateArrayReduce: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_reduce",
     generateArraySlice: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_slice",
     generateArrayConcat: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_concat",
+    generateArrayReverse: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_reverse",
+    generateArrayShift: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_shift",
+    generateArrayUnshift: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_unshift",
+    generateArrayIndexOf: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_indexof",
+    generateArrayFindIndex: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_array_findindex",
+    generateArraySort: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_sort",
+    generateArraySplice: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_splice",
   };
 
   resolveImportAlias(localName: string): string {

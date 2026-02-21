@@ -303,18 +303,14 @@ export class SetGenerator {
   }
 
   generateSetDelete(expr: MethodCallNode, params: string[]): string {
-    // set.delete(value) - returns 1 if deleted, 0 if not found
     if (expr.args.length !== 1) {
       throw new Error("Set.delete() requires exactly 1 argument");
     }
 
-    // Get set pointer
     const setPtr = this.ctx.generateExpression(expr.object, params);
+    const valueToDelete = this.ctx.generateExpression(expr.args[0], params);
+    const dblValue = this.ctx.ensureDouble(valueToDelete);
 
-    // Generate value
-    this.ctx.generateExpression(expr.args[0], params);
-
-    // Load array and size
     const valuesFieldPtr = this.nextTemp();
     this.emit(`${valuesFieldPtr} = getelementptr inbounds %Set, %Set* ${setPtr}, i32 0, i32 0`);
     const valuesPtr = this.nextTemp();
@@ -325,15 +321,85 @@ export class SetGenerator {
     const currentSize = this.nextTemp();
     this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
 
-    // Linear search and delete (shift elements)
     const resultReg = this.nextTemp();
     this.emit(`${resultReg} = alloca double`);
     this.emit(`store double 0.0, double* ${resultReg}`);
 
-    // For simplicity, we'll just mark as deleted by returning 0 (not found)
-    // A full implementation would shift elements and update size
-    // TODO: Implement actual deletion with element shifting
+    const searchLoop = this.nextLabel("set_del_loop");
+    const searchBody = this.nextLabel("set_del_body");
+    const searchNext = this.nextLabel("set_del_next");
+    const foundLabel = this.nextLabel("set_del_found");
+    const shiftLoop = this.nextLabel("set_del_shift");
+    const shiftBody = this.nextLabel("set_del_shift_body");
+    const shiftDone = this.nextLabel("set_del_shift_done");
+    const endLabel = this.nextLabel("set_del_end");
 
+    const idxReg = this.nextTemp();
+    this.emit(`${idxReg} = alloca i32`);
+    this.emit(`store i32 0, i32* ${idxReg}`);
+    this.emit(`br label %${searchLoop}`);
+
+    this.emit(`${searchLoop}:`);
+    const curIdx = this.nextTemp();
+    this.emit(`${curIdx} = load i32, i32* ${idxReg}`);
+    const idxCond = this.nextTemp();
+    this.emit(`${idxCond} = icmp slt i32 ${curIdx}, ${currentSize}`);
+    this.emit(`br i1 ${idxCond}, label %${searchBody}, label %${endLabel}`);
+
+    this.emit(`${searchBody}:`);
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${curIdx}`);
+    const elemVal = this.nextTemp();
+    this.emit(`${elemVal} = load double, double* ${elemPtr}`);
+    const match = this.nextTemp();
+    this.emit(`${match} = fcmp oeq double ${elemVal}, ${dblValue}`);
+    this.emit(`br i1 ${match}, label %${foundLabel}, label %${searchNext}`);
+
+    this.emit(`${searchNext}:`);
+    const nextIdx = this.nextTemp();
+    this.emit(`${nextIdx} = add i32 ${curIdx}, 1`);
+    this.emit(`store i32 ${nextIdx}, i32* ${idxReg}`);
+    this.emit(`br label %${searchLoop}`);
+
+    this.emit(`${foundLabel}:`);
+    this.emit(`store double 1.0, double* ${resultReg}`);
+    const foundIdx = this.nextTemp();
+    this.emit(`${foundIdx} = load i32, i32* ${idxReg}`);
+    const lastIdx = this.nextTemp();
+    this.emit(`${lastIdx} = sub i32 ${currentSize}, 1`);
+    const needShift = this.nextTemp();
+    this.emit(`${needShift} = icmp slt i32 ${foundIdx}, ${lastIdx}`);
+    this.emit(`br i1 ${needShift}, label %${shiftLoop}, label %${shiftDone}`);
+
+    this.emit(`${shiftLoop}:`);
+    const shiftI = this.nextTemp();
+    this.emit(`${shiftI} = load i32, i32* ${idxReg}`);
+    const shiftSrc = this.nextTemp();
+    this.emit(`${shiftSrc} = add i32 ${shiftI}, 1`);
+    const srcPtr = this.nextTemp();
+    this.emit(`${srcPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${shiftSrc}`);
+    const srcVal = this.nextTemp();
+    this.emit(`${srcVal} = load double, double* ${srcPtr}`);
+    const dstPtr = this.nextTemp();
+    this.emit(`${dstPtr} = getelementptr inbounds double, double* ${valuesPtr}, i32 ${shiftI}`);
+    this.emit(`store double ${srcVal}, double* ${dstPtr}`);
+    const nextShiftI = this.nextTemp();
+    this.emit(`${nextShiftI} = add i32 ${shiftI}, 1`);
+    this.emit(`store i32 ${nextShiftI}, i32* ${idxReg}`);
+    const shiftCond = this.nextTemp();
+    this.emit(`${shiftCond} = icmp slt i32 ${nextShiftI}, ${lastIdx}`);
+    this.emit(`br i1 ${shiftCond}, label %${shiftBody}, label %${shiftDone}`);
+
+    this.emit(`${shiftBody}:`);
+    this.emit(`br label %${shiftLoop}`);
+
+    this.emit(`${shiftDone}:`);
+    const newSize = this.nextTemp();
+    this.emit(`${newSize} = sub i32 ${currentSize}, 1`);
+    this.emit(`store i32 ${newSize}, i32* ${sizeFieldPtr}`);
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${endLabel}:`);
     const result = this.nextTemp();
     this.emit(`${result} = load double, double* ${resultReg}`);
     return result;
@@ -574,6 +640,108 @@ export class StringSetGenerator {
     this.emit(`${result} = load double, double* ${resultReg}`);
     this.ctx.setVariableType(result, "double");
 
+    return result;
+  }
+
+  generateStringSetDelete(setPtr: string, valueToDelete: string): string {
+    const valuesFieldPtr = this.nextTemp();
+    this.emit(
+      `${valuesFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 0`,
+    );
+    const valuesPtr = this.nextTemp();
+    this.emit(`${valuesPtr} = load i8**, i8*** ${valuesFieldPtr}`);
+
+    const sizeFieldPtr = this.nextTemp();
+    this.emit(
+      `${sizeFieldPtr} = getelementptr inbounds %StringSet, %StringSet* ${setPtr}, i32 0, i32 1`,
+    );
+    const currentSize = this.nextTemp();
+    this.emit(`${currentSize} = load i32, i32* ${sizeFieldPtr}`);
+
+    const resultReg = this.nextTemp();
+    this.emit(`${resultReg} = alloca double`);
+    this.emit(`store double 0.0, double* ${resultReg}`);
+
+    const searchLoop = this.nextLabel("strset_del_loop");
+    const searchBody = this.nextLabel("strset_del_body");
+    const searchNext = this.nextLabel("strset_del_next");
+    const foundLabel = this.nextLabel("strset_del_found");
+    const shiftLoop = this.nextLabel("strset_del_shift");
+    const shiftBody = this.nextLabel("strset_del_shift_body");
+    const shiftDone = this.nextLabel("strset_del_shift_done");
+    const endLabel = this.nextLabel("strset_del_end");
+
+    const idxReg = this.nextTemp();
+    this.emit(`${idxReg} = alloca i32`);
+    this.emit(`store i32 0, i32* ${idxReg}`);
+    this.emit(`br label %${searchLoop}`);
+
+    this.emit(`${searchLoop}:`);
+    const curIdx = this.nextTemp();
+    this.emit(`${curIdx} = load i32, i32* ${idxReg}`);
+    const idxCond = this.nextTemp();
+    this.emit(`${idxCond} = icmp slt i32 ${curIdx}, ${currentSize}`);
+    this.emit(`br i1 ${idxCond}, label %${searchBody}, label %${endLabel}`);
+
+    this.emit(`${searchBody}:`);
+    const elemPtr = this.nextTemp();
+    this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${curIdx}`);
+    const elemVal = this.nextTemp();
+    this.emit(`${elemVal} = load i8*, i8** ${elemPtr}`);
+    const cmpResult = this.nextTemp();
+    this.emit(`${cmpResult} = call i32 @strcmp(i8* ${elemVal}, i8* ${valueToDelete})`);
+    const match = this.nextTemp();
+    this.emit(`${match} = icmp eq i32 ${cmpResult}, 0`);
+    this.emit(`br i1 ${match}, label %${foundLabel}, label %${searchNext}`);
+
+    this.emit(`${searchNext}:`);
+    const nextIdx = this.nextTemp();
+    this.emit(`${nextIdx} = add i32 ${curIdx}, 1`);
+    this.emit(`store i32 ${nextIdx}, i32* ${idxReg}`);
+    this.emit(`br label %${searchLoop}`);
+
+    this.emit(`${foundLabel}:`);
+    this.emit(`store double 1.0, double* ${resultReg}`);
+    const foundIdx = this.nextTemp();
+    this.emit(`${foundIdx} = load i32, i32* ${idxReg}`);
+    const lastIdx = this.nextTemp();
+    this.emit(`${lastIdx} = sub i32 ${currentSize}, 1`);
+    const needShift = this.nextTemp();
+    this.emit(`${needShift} = icmp slt i32 ${foundIdx}, ${lastIdx}`);
+    this.emit(`br i1 ${needShift}, label %${shiftLoop}, label %${shiftDone}`);
+
+    this.emit(`${shiftLoop}:`);
+    const shiftI = this.nextTemp();
+    this.emit(`${shiftI} = load i32, i32* ${idxReg}`);
+    const shiftSrc = this.nextTemp();
+    this.emit(`${shiftSrc} = add i32 ${shiftI}, 1`);
+    const srcPtr = this.nextTemp();
+    this.emit(`${srcPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${shiftSrc}`);
+    const srcVal = this.nextTemp();
+    this.emit(`${srcVal} = load i8*, i8** ${srcPtr}`);
+    const dstPtr = this.nextTemp();
+    this.emit(`${dstPtr} = getelementptr inbounds i8*, i8** ${valuesPtr}, i32 ${shiftI}`);
+    this.emit(`store i8* ${srcVal}, i8** ${dstPtr}`);
+    const nextShiftI = this.nextTemp();
+    this.emit(`${nextShiftI} = add i32 ${shiftI}, 1`);
+    this.emit(`store i32 ${nextShiftI}, i32* ${idxReg}`);
+    const shiftCond = this.nextTemp();
+    this.emit(`${shiftCond} = icmp slt i32 ${nextShiftI}, ${lastIdx}`);
+    this.emit(`br i1 ${shiftCond}, label %${shiftBody}, label %${shiftDone}`);
+
+    this.emit(`${shiftBody}:`);
+    this.emit(`br label %${shiftLoop}`);
+
+    this.emit(`${shiftDone}:`);
+    const newSize = this.nextTemp();
+    this.emit(`${newSize} = sub i32 ${currentSize}, 1`);
+    this.emit(`store i32 ${newSize}, i32* ${sizeFieldPtr}`);
+    this.emit(`br label %${endLabel}`);
+
+    this.emit(`${endLabel}:`);
+    const result = this.nextTemp();
+    this.emit(`${result} = load double, double* ${resultReg}`);
+    this.ctx.setVariableType(result, "double");
     return result;
   }
 

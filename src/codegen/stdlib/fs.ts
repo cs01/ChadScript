@@ -37,6 +37,8 @@ export class FilesystemGenerator {
       "readdirSync",
       "statSync",
       "mkdirSync",
+      "renameSync",
+      "copyFileSync",
     ];
     return supported.indexOf(expr.method) !== -1;
   }
@@ -349,6 +351,156 @@ export class FilesystemGenerator {
     this.ctx.setVariableType(result, "%StatResult*");
 
     return result;
+  }
+
+  generateRenameSync(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError(
+        "fs.renameSync() requires 2 arguments (oldPath, newPath)",
+        expr.loc,
+      );
+    }
+
+    const oldPath = this.ctx.generateExpression(expr.args[0], params);
+    const newPath = this.ctx.generateExpression(expr.args[1], params);
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i32 @rename(i8* ${oldPath}, i8* ${newPath})`);
+
+    return result;
+  }
+
+  generateCopyFileSync(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError("fs.copyFileSync() requires 2 arguments (src, dest)", expr.loc);
+    }
+
+    const srcPath = this.ctx.generateExpression(expr.args[0], params);
+    const destPath = this.ctx.generateExpression(expr.args[1], params);
+
+    const srcMode = this.ctx.createStringConstant("r");
+    const srcFp = this.ctx.nextTemp();
+    this.ctx.emit(`${srcFp} = call i8* @fopen(i8* ${srcPath}, i8* ${srcMode})`);
+
+    const srcNull = this.ctx.nextTemp();
+    this.ctx.emit(`${srcNull} = icmp eq i8* ${srcFp}, null`);
+
+    const failLabel = this.ctx.nextLabel("copy_fail");
+    const readLabel = this.ctx.nextLabel("copy_read");
+    const endLabel = this.ctx.nextLabel("copy_end");
+
+    this.ctx.emit(`br i1 ${srcNull}, label %${failLabel}, label %${readLabel}`);
+
+    this.ctx.emit(`${failLabel}:`);
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${readLabel}:`);
+    const seekEnd = this.ctx.nextTemp();
+    this.ctx.emit(`${seekEnd} = call i32 @fseek(i8* ${srcFp}, i64 0, i32 2)`);
+    const fileSize = this.ctx.nextTemp();
+    this.ctx.emit(`${fileSize} = call i64 @ftell(i8* ${srcFp})`);
+    const seekStart = this.ctx.nextTemp();
+    this.ctx.emit(`${seekStart} = call i32 @fseek(i8* ${srcFp}, i64 0, i32 0)`);
+
+    const buf = this.ctx.nextTemp();
+    this.ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 ${fileSize})`);
+    const bytesRead = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${bytesRead} = call i64 @fread(i8* ${buf}, i64 1, i64 ${fileSize}, i8* ${srcFp})`,
+    );
+    const closeSrc = this.ctx.nextTemp();
+    this.ctx.emit(`${closeSrc} = call i32 @fclose(i8* ${srcFp})`);
+
+    const destMode = this.ctx.createStringConstant("w");
+    const destFp = this.ctx.nextTemp();
+    this.ctx.emit(`${destFp} = call i8* @fopen(i8* ${destPath}, i8* ${destMode})`);
+    const bytesWritten = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${bytesWritten} = call i64 @fwrite(i8* ${buf}, i64 1, i64 ${fileSize}, i8* ${destFp})`,
+    );
+    const closeDest = this.ctx.nextTemp();
+    this.ctx.emit(`${closeDest} = call i32 @fclose(i8* ${destFp})`);
+
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${endLabel}:`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = phi i32 [ -1, %${failLabel} ], [ 0, %${readLabel} ]`);
+
+    return result;
+  }
+
+  private generateAsyncOneArg(
+    methodName: string,
+    asyncFnName: string,
+    expr: MethodCallNode,
+    params: string[],
+  ): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError(`fs.${methodName}() requires at least 1 argument`, expr.loc);
+    }
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+    this.ctx.setUsesPromises(true);
+    this.ctx.setUsesAsyncFs(true);
+    const temp = this.ctx.nextTemp();
+    this.ctx.emit(`${temp} = call %Promise* @${asyncFnName}(i8* ${pathPtr})`);
+    this.ctx.setVariableType(temp, "%Promise*");
+    return temp;
+  }
+
+  private generateAsyncTwoArg(
+    methodName: string,
+    asyncFnName: string,
+    expr: MethodCallNode,
+    params: string[],
+  ): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError(`fs.${methodName}() requires at least 2 arguments`, expr.loc);
+    }
+    const arg1 = this.ctx.generateExpression(expr.args[0], params);
+    const arg2 = this.ctx.generateExpression(expr.args[1], params);
+    this.ctx.setUsesPromises(true);
+    this.ctx.setUsesAsyncFs(true);
+    const temp = this.ctx.nextTemp();
+    this.ctx.emit(`${temp} = call %Promise* @${asyncFnName}(i8* ${arg1}, i8* ${arg2})`);
+    this.ctx.setVariableType(temp, "%Promise*");
+    return temp;
+  }
+
+  generateReadFile(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncOneArg("readFile", "__fs_readFile_async", expr, params);
+  }
+
+  generateWriteFile(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncTwoArg("writeFile", "__fs_writeFile_async", expr, params);
+  }
+
+  generateAppendFile(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncTwoArg("appendFile", "__fs_appendFile_async", expr, params);
+  }
+
+  generateReaddir(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncOneArg("readdir", "__fs_readdir_async", expr, params);
+  }
+
+  generateStat(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncOneArg("stat", "__fs_stat_async", expr, params);
+  }
+
+  generateUnlink(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncOneArg("unlink", "__fs_unlink_async", expr, params);
+  }
+
+  generateMkdir(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncOneArg("mkdir", "__fs_mkdir_async", expr, params);
+  }
+
+  generateRename(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncTwoArg("rename", "__fs_rename_async", expr, params);
+  }
+
+  generateCopyFile(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncTwoArg("copyFile", "__fs_copyFile_async", expr, params);
   }
 
   generateReaddirSyncHelper(): string {

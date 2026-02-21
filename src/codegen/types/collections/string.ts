@@ -12,6 +12,7 @@ import {
   generateSlice,
   generateRepeat,
   generatePadStart,
+  generatePadEnd,
   generateTrim,
   generateTrimStart,
   generateTrimEnd,
@@ -84,6 +85,10 @@ export class StringGenerator implements IStringGenerator {
 
   doGeneratePadStart(strPtr: string, targetLength: string, padString: string): string {
     return generatePadStart(this.ctx, strPtr, targetLength, padString);
+  }
+
+  doGeneratePadEnd(strPtr: string, targetLength: string, padString: string): string {
+    return generatePadEnd(this.ctx, strPtr, targetLength, padString);
   }
 
   doGenerateTrim(strPtr: string): string {

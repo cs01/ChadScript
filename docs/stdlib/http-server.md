@@ -1,6 +1,6 @@
 # httpServe
 
-Built-in HTTP server with websocket support compiled to native code via libwebsockets.
+Built-in HTTP server with websocket support compiled to native code via libuv TCP + picohttpparser.
 
 ## `httpServe(port, handler)`
 
@@ -151,9 +151,9 @@ $ websocat ws://localhost:8080/
 
 | API | Maps to |
 |-----|---------|
-| `httpServe()` | libwebsockets HTTP server (via lws-bridge) |
+| `httpServe()` | libuv TCP + picohttpparser (zero-copy HTTP parsing) |
 | `wsBroadcast()` | `lws_bridge_ws_broadcast()` to all tracked connections |
-| WebSocket upgrade | automatic via libwebsockets protocol list |
+| WebSocket upgrade | embedded SHA-1 + base64 handshake + frame parser |
 
 ## Transparent Compression
 

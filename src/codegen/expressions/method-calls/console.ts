@@ -232,6 +232,67 @@ function emitSingleArg(
   emitPrintNumNoNl(ctx, useStderr, argValue);
 }
 
+export function generateConsoleTime(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  ctx.setUsesConsoleTime(true);
+  ctx.setUsesUvHrtime(true);
+
+  let labelPtr: string;
+  if (expr.args.length > 0) {
+    labelPtr = ctx.generateExpression(expr.args[0], params);
+  } else {
+    labelPtr = ctx.stringGen.doCreateStringConstant("default");
+  }
+
+  const ns = ctx.nextTemp();
+  ctx.emit(`${ns} = call i64 @uv_hrtime()`);
+
+  const storeResult = ctx.nextTemp();
+  ctx.emit(`${storeResult} = call i32 @__console_timer_store(i8* ${labelPtr}, i64 ${ns})`);
+
+  return "0.0";
+}
+
+export function generateConsoleTimeEnd(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  ctx.setUsesConsoleTime(true);
+  ctx.setUsesUvHrtime(true);
+
+  let labelPtr: string;
+  if (expr.args.length > 0) {
+    labelPtr = ctx.generateExpression(expr.args[0], params);
+  } else {
+    labelPtr = ctx.stringGen.doCreateStringConstant("default");
+  }
+
+  const endNs = ctx.nextTemp();
+  ctx.emit(`${endNs} = call i64 @uv_hrtime()`);
+
+  const startNs = ctx.nextTemp();
+  ctx.emit(`${startNs} = call i64 @__console_timer_load(i8* ${labelPtr})`);
+
+  const diffNs = ctx.nextTemp();
+  ctx.emit(`${diffNs} = sub i64 ${endNs}, ${startNs}`);
+  const diffDbl = ctx.nextTemp();
+  ctx.emit(`${diffDbl} = uitofp i64 ${diffNs} to double`);
+  const diffMs = ctx.nextTemp();
+  ctx.emit(`${diffMs} = fdiv double ${diffDbl}, 1000000.0`);
+
+  const fmtStr = ctx.stringGen.doCreateStringConstant("%s: %.3fms\n");
+  const printResult = ctx.nextTemp();
+  ctx.emit(
+    `${printResult} = call i32 (i8*, ...) @printf(i8* ${fmtStr}, i8* ${labelPtr}, double ${diffMs})`,
+  );
+
+  return "0.0";
+}
+
 export function generateConsoleCallInline(
   ctx: MethodCallGeneratorContext,
   expr: MethodCallNode,

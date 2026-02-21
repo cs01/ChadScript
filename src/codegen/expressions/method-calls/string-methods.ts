@@ -162,6 +162,27 @@ export function handlePadStart(
   return ctx.stringGen.doGeneratePadStart(strPtr, targetLength, padString);
 }
 
+export function handlePadEnd(
+  ctx: MethodCallGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  const strPtr = ctx.generateExpression(expr.object, params);
+
+  if (expr.args.length < 1 || expr.args.length > 2) {
+    return ctx.emitError(`padEnd() expects 1 or 2 arguments, got ${expr.args.length}`, expr.loc);
+  }
+
+  const targetLengthDouble = ctx.generateExpression(expr.args[0], params);
+  const targetLength = convertToI32(ctx, targetLengthDouble);
+  const padString =
+    expr.args.length === 2
+      ? ctx.generateExpression(expr.args[1], params)
+      : ctx.stringGen.doCreateStringConstant(" ");
+
+  return ctx.stringGen.doGeneratePadEnd(strPtr, targetLength, padString);
+}
+
 export function handleSplit(
   ctx: MethodCallGeneratorContext,
   expr: MethodCallNode,
