@@ -70,8 +70,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const isInstalled = fs.existsSync(installedLibDir + "/libgc.a");
 
   const BDWGC_PATH = isInstalled ? installedLibDir : "./vendor/bdwgc";
-  const LWS_PATH = isInstalled ? installedLibDir : "./vendor/libwebsockets/build";
   const LWS_BRIDGE_PATH = isInstalled ? installedLibDir : "./c_bridges";
+  const PICOHTTPPARSER_PATH = isInstalled ? installedLibDir : "./vendor/picohttpparser";
   const CHADSCRIPT_PATH = ".";
 
   if (verbose) {
@@ -217,7 +217,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     generator.getUsesTimers() ||
     generator.getUsesPromises() ||
     generator.getUsesCurl() ||
-    generator.getUsesUvHrtime()
+    generator.getUsesUvHrtime() ||
+    generator.getUsesMongoose()
   ) {
     linkLibs = "-L" + uvDir + " -luv " + linkLibs;
   }
@@ -231,9 +232,11 @@ export function compileNative(inputFile: string, outputFile: string): void {
     linkLibs = "-lsqlite3 " + linkLibs;
   }
   if (generator.getUsesMongoose()) {
-    linkLibs = "-L" + LWS_PATH + "/lib -lwebsockets -lz -lzstd " + linkLibs;
+    linkLibs = "-lz -lzstd " + linkLibs;
   }
-  const lwsBridgeObj = generator.getUsesMongoose() ? LWS_BRIDGE_PATH + "/lws-bridge.o" : "";
+  const lwsBridgeObj = generator.getUsesMongoose()
+    ? LWS_BRIDGE_PATH + "/lws-bridge.o " + PICOHTTPPARSER_PATH + "/picohttpparser.o"
+    : "";
   const regexBridgeObj = generator.getUsesRegex() ? LWS_BRIDGE_PATH + "/regex-bridge.o" : "";
   if (isMac) {
     if (generator.getUsesCrypto()) {

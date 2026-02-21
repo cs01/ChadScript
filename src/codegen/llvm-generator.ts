@@ -2272,7 +2272,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       irParts.push(this.embedGen.generateLookupFunction());
     }
 
-    const needsLibuv = this.usesTimers || this.usesPromises || this.usesCurl || this.usesUvHrtime;
+    const needsLibuv =
+      this.usesTimers ||
+      this.usesPromises ||
+      this.usesCurl ||
+      this.usesUvHrtime ||
+      this.usesMongoose;
     const needsPromise = this.usesPromises || this.usesCurl;
 
     const finalParts: string[] = [];

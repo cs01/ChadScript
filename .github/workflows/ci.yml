@@ -50,7 +50,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/libwebsockets/build/lib/libwebsockets.a c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -100,7 +100,7 @@ jobs:
           cp vendor/bdwgc/libgc.a release/lib/
           cp vendor/yyjson/libyyjson.a release/lib/
           cp vendor/libuv/build/libuv.a release/lib/
-          cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
+          cp vendor/picohttpparser/picohttpparser.o release/lib/
           cp c_bridges/lws-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
           tar -czf chadscript-linux-musl-x64.tar.gz -C release chad lib
@@ -148,7 +148,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/libwebsockets/build/lib/libwebsockets.a c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -197,7 +197,7 @@ jobs:
           cp vendor/bdwgc/libgc.a release/lib/
           cp vendor/yyjson/libyyjson.a release/lib/
           cp vendor/libuv/build/libuv.a release/lib/
-          cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
+          cp vendor/picohttpparser/picohttpparser.o release/lib/
           cp c_bridges/lws-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
           tar -czf chadscript-linux-x64.tar.gz -C release chad lib
@@ -236,7 +236,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/libwebsockets/build/lib/libwebsockets.a c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -285,7 +285,7 @@ jobs:
           cp vendor/bdwgc/libgc.a release/lib/
           cp vendor/yyjson/libyyjson.a release/lib/
           cp vendor/libuv/build/libuv.a release/lib/
-          cp vendor/libwebsockets/build/lib/libwebsockets.a release/lib/
+          cp vendor/picohttpparser/picohttpparser.o release/lib/
           cp c_bridges/lws-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
           tar -czf chadscript-macos-arm64.tar.gz -C release chad lib
