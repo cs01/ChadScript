@@ -912,6 +912,12 @@ export const testCases: TestCase[] = [
     description: "Math.trunc() truncates decimal part",
   },
   {
+    name: "math-random",
+    fixture: "tests/fixtures/math/math-random.ts",
+    expectTestPassed: true,
+    description: "Math.random() returns values in [0, 1)",
+  },
+  {
     name: "math-sign",
     fixture: "tests/fixtures/math/math-sign.ts",
     expectTestPassed: true,

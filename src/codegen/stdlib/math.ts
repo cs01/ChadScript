@@ -52,6 +52,7 @@ export class MathGenerator {
       "sin",
       "cos",
       "sign",
+      "random",
     ];
   }
 
@@ -92,6 +93,8 @@ export class MathGenerator {
         return this.generateCos(expr, params);
       case "sign":
         return this.generateSign(expr, params);
+      case "random":
+        return this.generateRandom(expr);
       default:
         return this.ctx.emitError(`Unsupported Math method: ${method}`, expr.loc);
     }
@@ -204,6 +207,12 @@ export class MathGenerator {
     const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.trunc.f64(double ${dblArg})`);
+    return result;
+  }
+
+  private generateRandom(expr: MethodCallNode): string {
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @drand48()`);
     return result;
   }
 
