@@ -714,6 +714,7 @@ export interface IGeneratorContext {
   setUsesSqlite(value: boolean): void;
   setUsesCurl(value: boolean): void;
   setUsesUvHrtime(value: boolean): void;
+  setUsesConsoleTime(value: boolean): void;
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
@@ -1066,6 +1067,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   setUsesUvHrtime(value: boolean): void {
     this.usesUvHrtime = value ? 1 : 0;
+  }
+  public usesConsoleTime: number = 0;
+  setUsesConsoleTime(value: boolean): void {
+    this.usesConsoleTime = value ? 1 : 0;
   }
   setUsesCrypto(value: boolean): void {
     this.usesCrypto = value ? 1 : 0;

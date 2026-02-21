@@ -971,4 +971,10 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "crypto.randomUUID() generates valid v4 UUIDs",
   },
+  {
+    name: "console-time",
+    fixture: "tests/fixtures/builtins/console-time.ts",
+    expectTestPassed: true,
+    description: "console.time() and console.timeEnd() measure elapsed time",
+  },
 ];

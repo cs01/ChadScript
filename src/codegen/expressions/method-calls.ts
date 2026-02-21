@@ -53,7 +53,11 @@ import type {
   IEmbedGenerator,
 } from "../infrastructure/generator-context.js";
 import { parseMapTypeString, parseSetTypeString } from "../infrastructure/type-system.js";
-import { generateConsoleCallInline } from "./method-calls/console.js";
+import {
+  generateConsoleCallInline,
+  generateConsoleTime,
+  generateConsoleTimeEnd,
+} from "./method-calls/console.js";
 import {
   handleAssertStrictEqual,
   handleAssertNotStrictEqual,
@@ -162,6 +166,7 @@ export interface MethodCallGeneratorContext {
   setUsesSqlite(value: boolean): void;
   setUsesCurl(value: boolean): void;
   setUsesUvHrtime(value: boolean): void;
+  setUsesConsoleTime(value: boolean): void;
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
@@ -441,6 +446,12 @@ export class MethodCallGenerator {
         const method2 = expr.method;
         if (method2 === "log" || method2 === "error" || method2 === "warn" || method2 === "debug") {
           return generateConsoleCallInline(this.ctx, expr, params);
+        }
+        if (method2 === "time") {
+          return generateConsoleTime(this.ctx, expr, params);
+        }
+        if (method2 === "timeEnd") {
+          return generateConsoleTimeEnd(this.ctx, expr, params);
         }
       }
       if (varNode.name === "assert") {
