@@ -51,6 +51,7 @@ export class MathGenerator {
       "log",
       "sin",
       "cos",
+      "sign",
     ];
   }
 
@@ -89,6 +90,8 @@ export class MathGenerator {
         return this.generateSin(expr, params);
       case "cos":
         return this.generateCos(expr, params);
+      case "sign":
+        return this.generateSign(expr, params);
       default:
         return this.ctx.emitError(`Unsupported Math method: ${method}`, expr.loc);
     }
@@ -202,6 +205,23 @@ export class MathGenerator {
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.trunc.f64(double ${dblArg})`);
     return result;
+  }
+
+  private generateSign(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      return this.ctx.emitError("Math.sign() requires 1 argument", expr.loc);
+    }
+    const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
+    const isPos = this.ctx.nextTemp();
+    this.ctx.emit(`${isPos} = fcmp ogt double ${dblArg}, 0.0`);
+    const isNeg = this.ctx.nextTemp();
+    this.ctx.emit(`${isNeg} = fcmp olt double ${dblArg}, 0.0`);
+    const posVal = this.ctx.nextTemp();
+    this.ctx.emit(`${posVal} = select i1 ${isPos}, double 1.0, double 0.0`);
+    const negVal = this.ctx.nextTemp();
+    this.ctx.emit(`${negVal} = select i1 ${isNeg}, double -1.0, double ${posVal}`);
+    return negVal;
   }
 
   private generateLog(expr: MethodCallNode, params: string[]): string {
