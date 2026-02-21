@@ -905,4 +905,10 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "ChadScript.embedDir() + getEmbeddedFile() for directory embedding",
   },
+  {
+    name: "math-trunc",
+    fixture: "tests/fixtures/math/math-trunc.ts",
+    expectTestPassed: true,
+    description: "Math.trunc() truncates decimal part",
+  },
 ];

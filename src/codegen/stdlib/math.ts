@@ -38,7 +38,7 @@ export class MathGenerator {
    * Get list of supported Math methods
    */
   getSupportedMethods(): string[] {
-    return ["sqrt", "pow", "floor", "ceil", "round", "abs", "max", "min"];
+    return ["sqrt", "pow", "floor", "ceil", "round", "abs", "max", "min", "trunc"];
   }
 
   /**
@@ -68,6 +68,8 @@ export class MathGenerator {
         return this.generateMax(expr, params);
       case "min":
         return this.generateMin(expr, params);
+      case "trunc":
+        return this.generateTrunc(expr, params);
       default:
         return this.ctx.emitError(`Unsupported Math method: ${method}`, expr.loc);
     }
@@ -169,6 +171,17 @@ export class MathGenerator {
     const dblB = this.ctx.ensureDouble(b);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.maxnum.f64(double ${dblA}, double ${dblB})`);
+    return result;
+  }
+
+  private generateTrunc(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      return this.ctx.emitError("Math.trunc() requires 1 argument", expr.loc);
+    }
+    const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @llvm.trunc.f64(double ${dblArg})`);
     return result;
   }
 
