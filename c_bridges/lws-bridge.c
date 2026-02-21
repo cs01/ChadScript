@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stddef.h>
 #include <zstd.h>
 #include <zlib.h>
 
@@ -25,14 +26,18 @@ typedef struct http_conn_s {
     size_t data_len;
     char method_str[16];
     char path_str[2048];
-    char body[MAX_BODY_SIZE];
+    char *body;
     size_t body_len;
+    size_t body_cap;
     size_t content_length;
     char content_type_str[256];
     char accept_encoding[256];
     char ws_key[64];
     int headers_complete;
     size_t header_end;
+    uv_write_t write_req;
+    char resp_buf[4096 + 8192];
+    int write_pending;
 } http_conn_t;
 
 static uv_tcp_t *g_ws_conns[MAX_WS_CONNS];
@@ -146,6 +151,7 @@ static void on_close(uv_handle_t *handle) {
             g_ws_handler(evt_mem);
         }
     }
+    free(conn->body);
     free(conn);
 }
 
@@ -176,6 +182,34 @@ static void send_raw(uv_tcp_t *handle, const char *data, size_t len) {
 }
 
 /* ---- HTTP response formatting ---- */
+
+static const char hdr_200_prefix[] = "HTTP/1.1 200 OK\r\nContent-Type: ";
+static const char hdr_cl[] = "\r\nContent-Length: ";
+static const char hdr_conn_ka[] = "\r\nConnection: keep-alive\r\n\r\n";
+
+static int fast_itoa(size_t val, char *buf) {
+    if (val == 0) { buf[0] = '0'; return 1; }
+    char tmp[20];
+    int len = 0;
+    while (val > 0) {
+        tmp[len++] = '0' + (char)(val % 10);
+        val /= 10;
+    }
+    for (int i = 0; i < len; i++)
+        buf[i] = tmp[len - 1 - i];
+    return len;
+}
+
+static void on_http_write_done(uv_write_t *req, int status) {
+    http_conn_t *conn = (http_conn_t *)((char *)req - offsetof(http_conn_t, write_req));
+    conn->write_pending = 0;
+}
+
+static void on_http_write_done_fallback(uv_write_t *req, int status) {
+    write_req_t *wr = (write_req_t *)req;
+    free(wr->data);
+    free(wr);
+}
 
 static void send_http_response(http_conn_t *conn, int status, const char *resp_ct,
                                 const unsigned char *body, size_t body_len) {
@@ -212,34 +246,58 @@ static void send_http_response(http_conn_t *conn, int status, const char *resp_c
         }
     }
 
-    char header_buf[4096];
     int hlen;
-    if (content_encoding) {
-        hlen = snprintf(header_buf, sizeof(header_buf),
-            "HTTP/1.1 %d OK\r\n"
-            "Content-Type: %s\r\n"
-            "Content-Length: %zu\r\n"
-            "Content-Encoding: %s\r\n"
-            "Connection: keep-alive\r\n"
-            "\r\n",
-            status, resp_ct, send_len, content_encoding);
+    int use_fast_path = (status == 200 && !content_encoding);
+
+    if (use_fast_path) {
+        char *p = conn->resp_buf;
+        memcpy(p, hdr_200_prefix, sizeof(hdr_200_prefix) - 1);
+        p += sizeof(hdr_200_prefix) - 1;
+        size_t ct_len = strlen(resp_ct);
+        memcpy(p, resp_ct, ct_len);
+        p += ct_len;
+        memcpy(p, hdr_cl, sizeof(hdr_cl) - 1);
+        p += sizeof(hdr_cl) - 1;
+        p += fast_itoa(send_len, p);
+        memcpy(p, hdr_conn_ka, sizeof(hdr_conn_ka) - 1);
+        p += sizeof(hdr_conn_ka) - 1;
+        hlen = (int)(p - conn->resp_buf);
     } else {
-        hlen = snprintf(header_buf, sizeof(header_buf),
-            "HTTP/1.1 %d OK\r\n"
-            "Content-Type: %s\r\n"
-            "Content-Length: %zu\r\n"
-            "Connection: keep-alive\r\n"
-            "\r\n",
-            status, resp_ct, send_len);
+        if (content_encoding) {
+            hlen = snprintf(conn->resp_buf, 4096,
+                "HTTP/1.1 %d OK\r\n"
+                "Content-Type: %s\r\n"
+                "Content-Length: %zu\r\n"
+                "Content-Encoding: %s\r\n"
+                "Connection: keep-alive\r\n"
+                "\r\n",
+                status, resp_ct, send_len, content_encoding);
+        } else {
+            hlen = snprintf(conn->resp_buf, 4096,
+                "HTTP/1.1 %d OK\r\n"
+                "Content-Type: %s\r\n"
+                "Content-Length: %zu\r\n"
+                "Connection: keep-alive\r\n"
+                "\r\n",
+                status, resp_ct, send_len);
+        }
     }
 
     size_t total = (size_t)hlen + send_len;
-    write_req_t *wr = (write_req_t *)malloc(sizeof(write_req_t));
-    wr->data = (char *)malloc(total);
-    memcpy(wr->data, header_buf, (size_t)hlen);
-    memcpy(wr->data + hlen, send_body, send_len);
-    uv_buf_t buf = uv_buf_init(wr->data, (unsigned int)total);
-    uv_write(&wr->req, (uv_stream_t *)&conn->handle, &buf, 1, on_write_done);
+
+    if (total <= sizeof(conn->resp_buf)) {
+        memcpy(conn->resp_buf + hlen, send_body, send_len);
+        uv_buf_t buf = uv_buf_init(conn->resp_buf, (unsigned int)total);
+        conn->write_pending = 1;
+        uv_write(&conn->write_req, (uv_stream_t *)&conn->handle, &buf, 1, on_http_write_done);
+    } else {
+        write_req_t *wr = (write_req_t *)malloc(sizeof(write_req_t));
+        wr->data = (char *)malloc(total);
+        memcpy(wr->data, conn->resp_buf, (size_t)hlen);
+        memcpy(wr->data + hlen, send_body, send_len);
+        uv_buf_t buf = uv_buf_init(wr->data, (unsigned int)total);
+        uv_write(&wr->req, (uv_stream_t *)&conn->handle, &buf, 1, on_http_write_done_fallback);
+    }
 
     if (comp_buf) free(comp_buf);
 }
@@ -271,7 +329,7 @@ static void dispatch_http_request(http_conn_t *conn) {
     lws_bridge_request req;
     req.method = conn->method_str;
     req.path = conn->path_str;
-    req.body = conn->body;
+    req.body = conn->body ? conn->body : "";
     req.content_type = conn->content_type_str;
 
     lws_bridge_response resp;
@@ -503,17 +561,23 @@ static void try_parse_request(http_conn_t *conn) {
         size_t to_copy = body_available < conn->content_length ? body_available : conn->content_length;
         if (to_copy > MAX_BODY_SIZE - 1) to_copy = MAX_BODY_SIZE - 1;
         if (to_copy > 0) {
+            if (!conn->body || conn->body_cap < conn->content_length) {
+                free(conn->body);
+                size_t cap = conn->content_length < MAX_BODY_SIZE ? conn->content_length : MAX_BODY_SIZE;
+                conn->body = (char *)malloc(cap + 1);
+                conn->body_cap = cap;
+            }
             memcpy(conn->body, conn->buf + conn->header_end, to_copy);
         }
         conn->body_len = to_copy;
-        conn->body[conn->body_len] = '\0';
+        if (conn->body) conn->body[conn->body_len] = '\0';
     } else {
         size_t body_available = conn->data_len - conn->header_end;
         size_t needed = conn->content_length - conn->body_len;
         size_t to_copy = body_available > needed ? needed : body_available;
         if (conn->body_len + to_copy > MAX_BODY_SIZE - 1)
             to_copy = MAX_BODY_SIZE - 1 - conn->body_len;
-        if (to_copy > 0) {
+        if (to_copy > 0 && conn->body) {
             memcpy(conn->body + conn->body_len, conn->buf + conn->header_end, to_copy);
             conn->body_len += to_copy;
             conn->body[conn->body_len] = '\0';
@@ -540,7 +604,6 @@ static void try_parse_request(http_conn_t *conn) {
         conn->ws_key[0] = '\0';
         conn->method_str[0] = '\0';
         conn->path_str[0] = '\0';
-        conn->body[0] = '\0';
 
         if (remaining > 0) {
             try_parse_request(conn);
@@ -566,8 +629,15 @@ static void on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf) {
 static void on_connection(uv_stream_t *server, int status) {
     if (status < 0) return;
 
-    http_conn_t *conn = (http_conn_t *)calloc(1, sizeof(http_conn_t));
+    http_conn_t *conn = (http_conn_t *)malloc(sizeof(http_conn_t));
     conn->type = CONN_HTTP;
+    conn->data_len = 0;
+    conn->headers_complete = 0;
+    conn->body = NULL;
+    conn->body_len = 0;
+    conn->body_cap = 0;
+    conn->content_length = 0;
+    conn->write_pending = 0;
 
     uv_tcp_init(uv_default_loop(), &conn->handle);
     if (uv_accept(server, (uv_stream_t *)&conn->handle) == 0) {
