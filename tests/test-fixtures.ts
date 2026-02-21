@@ -1001,4 +1001,10 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "Array.shift() and Array.unshift() modify array start",
   },
+  {
+    name: "array-sort",
+    fixture: "tests/fixtures/arrays/array-sort.ts",
+    expectTestPassed: true,
+    description: "Array.sort() sorts arrays with default and custom comparators",
+  },
 ];

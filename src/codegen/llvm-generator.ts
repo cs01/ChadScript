@@ -93,6 +93,7 @@ import { FilesystemGenerator } from "./stdlib/fs.js";
 import { ResponseGenerator } from "./stdlib/response.js";
 import { CryptoGenerator } from "./stdlib/crypto.js";
 import { generateConsoleTimerHelpers } from "./stdlib/console-timers.js";
+import { generateDefaultSortComparators } from "./types/collections/array/sort.js";
 import { SqliteGenerator } from "./stdlib/sqlite.js";
 import { EmbedGenerator } from "./stdlib/embed.js";
 import { RuntimeGenerator } from "./runtime/runtime.js";
@@ -189,6 +190,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesCurl: number = 0;
   public usesUvHrtime: number = 0;
   public usesConsoleTime: number = 0;
+  public usesArraySort: number = 0;
   public usesCrypto: number = 0;
   public usesJson: number = 0;
   public usesMongoose: number = 0;
@@ -935,6 +937,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public setUsesConsoleTime(value: boolean): void {
     this.usesConsoleTime = value ? 1 : 0;
   }
+  public setUsesArraySort(value: boolean): void {
+    this.usesArraySort = value ? 1 : 0;
+  }
 
   public getTargetOS(): string {
     return this.targetInfo ? this.targetInfo.os : process.platform;
@@ -1274,6 +1279,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesCurl = 0;
     this.usesUvHrtime = 0;
     this.usesConsoleTime = 0;
+    this.usesArraySort = 0;
     this.usesCrypto = 0;
     this.usesJson = 0;
     this.usesMongoose = 0;
@@ -2385,6 +2391,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     if (this.usesConsoleTime) {
       finalParts.push(generateConsoleTimerHelpers());
+    }
+
+    if (this.usesArraySort) {
+      finalParts.push(generateDefaultSortComparators());
     }
 
     if (this.usesSqlite) {

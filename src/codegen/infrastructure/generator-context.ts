@@ -274,6 +274,7 @@ export interface IArrayGenerator {
   generateArrayUnshift(expr: MethodCallNode, params: string[]): string;
   generateArrayIndexOf(expr: MethodCallNode, params: string[]): string;
   generateArrayFindIndex(expr: MethodCallNode, params: string[]): string;
+  generateArraySort(expr: MethodCallNode, params: string[]): string;
 }
 
 /**
@@ -721,6 +722,7 @@ export interface IGeneratorContext {
   setUsesCurl(value: boolean): void;
   setUsesUvHrtime(value: boolean): void;
   setUsesConsoleTime(value: boolean): void;
+  setUsesArraySort(value: boolean): void;
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
@@ -1077,6 +1079,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesConsoleTime: number = 0;
   setUsesConsoleTime(value: boolean): void {
     this.usesConsoleTime = value ? 1 : 0;
+  }
+  public usesArraySort: number = 0;
+  setUsesArraySort(value: boolean): void {
+    this.usesArraySort = value ? 1 : 0;
   }
   setUsesCrypto(value: boolean): void {
     this.usesCrypto = value ? 1 : 0;
@@ -1818,6 +1824,7 @@ export class MockGeneratorContext implements IGeneratorContext {
       "%mock_array_indexof",
     generateArrayFindIndex: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_array_findindex",
+    generateArraySort: (_expr: MethodCallNode, _params: string[]): string => "%mock_array_sort",
   };
 
   resolveImportAlias(localName: string): string {

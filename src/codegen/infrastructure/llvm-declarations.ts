@@ -47,6 +47,7 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare void @llvm.memcpy.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n";
   ir += "declare void @llvm.memmove.p0i8.p0i8.i64(i8*, i8*, i64, i1)\n";
   ir += "declare void @llvm.memset.p0i8.i64(i8*, i8, i64, i1)\n";
+  ir += "declare void @qsort(i8*, i64, i64, i32 (i8*, i8*)*)\n";
   ir += "\n";
 
   ir += "declare double @llvm.sqrt.f64(double)\n";

@@ -24,6 +24,7 @@ interface CallExpr {
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 import { generateArrayReverse, generateArrayShift, generateArrayUnshift } from "./array/reorder.js";
 import { generateArrayIndexOf, generateArrayFindIndex } from "./array/search.js";
+import { generateArraySort } from "./array/sort.js";
 
 export class ArrayGenerator {
   constructor(private ctx: IGeneratorContext) {}
@@ -3499,5 +3500,9 @@ export class ArrayGenerator {
     }
 
     return generateArrayFindIndex(this.ctx, expr, params, predicateFn, isStringArray);
+  }
+
+  generateArraySort(expr: MethodCallNode, params: string[]): string {
+    return generateArraySort(this.ctx, expr, params);
   }
 }

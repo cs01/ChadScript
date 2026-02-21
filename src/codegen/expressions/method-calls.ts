@@ -1079,6 +1079,8 @@ export class MethodCallGenerator {
       return this.ctx.arrayGen.generateArrayUnshift(expr, params);
     } else if (method === "findIndex") {
       return this.ctx.arrayGen.generateArrayFindIndex(expr, params);
+    } else if (method === "sort") {
+      return this.ctx.arrayGen.generateArraySort(expr, params);
     }
 
     // Handle class instance methods
