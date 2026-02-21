@@ -24,6 +24,7 @@ interface CallExpr {
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 import { generateArrayReverse, generateArrayShift, generateArrayUnshift } from "./array/reorder.js";
 import { generateArrayIndexOf, generateArrayFindIndex } from "./array/search.js";
+import { generateArraySplice } from "./array/splice.js";
 import {
   generateDefaultNumericSort,
   generateDefaultStringSort,
@@ -3545,5 +3546,9 @@ export class ArrayGenerator {
     }
 
     return generateNumericSortWithFn(this.ctx, arrayPtr, compareFn);
+  }
+
+  generateArraySplice(expr: MethodCallNode, params: string[]): string {
+    return generateArraySplice(this.ctx, expr, params);
   }
 }

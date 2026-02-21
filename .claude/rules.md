@@ -141,6 +141,7 @@ available on `BaseGenerator`, `LLVMGenerator`, and `MockGeneratorContext` for ty
 - Prettier auto-formats code; run `npm run format` to fix, `npm run format:check` to verify
 - One-line comments are helpful on dense codegen blocks — explain the "why" or the LLVM IR pattern, not the "what"
 - Use named AST types from `src/ast/types.ts` for type assertions instead of inline `as { ... }` structs
+- There are several MASSIVE files. Where possible, do not add to them. Make a new file, and leave a comment in the other file to not touch it anymore, and to progressively break it down into smaller files.
 
 ## Patterns That Crash Native Code
 

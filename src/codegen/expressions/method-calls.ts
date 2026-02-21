@@ -1081,6 +1081,8 @@ export class MethodCallGenerator {
       return this.ctx.arrayGen.generateArrayFindIndex(expr, params);
     } else if (method === "sort") {
       return this.ctx.arrayGen.generateArraySort(expr, params);
+    } else if (method === "splice") {
+      return this.ctx.arrayGen.generateArraySplice(expr, params);
     }
 
     // Handle class instance methods

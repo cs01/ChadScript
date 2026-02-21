@@ -1007,4 +1007,10 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "Array.sort() sorts arrays with default and custom comparators",
   },
+  {
+    name: "array-splice",
+    fixture: "tests/fixtures/arrays/array-splice.ts",
+    expectTestPassed: true,
+    description: "Array.splice() removes elements and returns removed array",
+  },
 ];
