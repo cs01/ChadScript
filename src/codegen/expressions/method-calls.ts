@@ -594,6 +594,8 @@ export class MethodCallGenerator {
         return this.ctx.cryptoGen.generateSha512(expr, params);
       } else if (method === "randomBytes") {
         return this.ctx.cryptoGen.generateRandomBytes(expr, params);
+      } else if (method === "randomUUID") {
+        return this.ctx.cryptoGen.generateRandomUUID(expr, params);
       }
     }
 

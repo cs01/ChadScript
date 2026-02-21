@@ -2374,6 +2374,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     if (this.usesCrypto) {
       finalParts.push(this.cryptoGen.generateBytesToHexHelper());
+      finalParts.push(this.cryptoGen.generateUuidFormatHelper());
     }
 
     if (this.usesSqlite) {

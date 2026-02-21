@@ -14,7 +14,7 @@ export class CryptoGenerator {
     if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as { type: string; name: string };
     if (varNode.name !== "crypto") return false;
-    const supported = ["sha256", "md5", "sha512", "randomBytes"];
+    const supported = ["sha256", "md5", "sha512", "randomBytes", "randomUUID"];
     return supported.indexOf(expr.method) !== -1;
   }
 
@@ -109,6 +109,65 @@ export class CryptoGenerator {
     this.ctx.setVariableType(result, "i8*");
 
     return result;
+  }
+
+  generateRandomUUID(expr: MethodCallNode, _params: string[]): string {
+    const buf = this.ctx.nextTemp();
+    this.ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 16)`);
+
+    const randResult = this.ctx.nextTemp();
+    this.ctx.emit(`${randResult} = call i32 @RAND_bytes(i8* ${buf}, i32 16)`);
+
+    // Set version 4: byte 6 = (byte6 & 0x0F) | 0x40
+    const byte6Ptr = this.ctx.nextTemp();
+    this.ctx.emit(`${byte6Ptr} = getelementptr inbounds i8, i8* ${buf}, i64 6`);
+    const byte6 = this.ctx.nextTemp();
+    this.ctx.emit(`${byte6} = load i8, i8* ${byte6Ptr}`);
+    const byte6Masked = this.ctx.nextTemp();
+    this.ctx.emit(`${byte6Masked} = and i8 ${byte6}, 15`);
+    const byte6Set = this.ctx.nextTemp();
+    this.ctx.emit(`${byte6Set} = or i8 ${byte6Masked}, 64`);
+    this.ctx.emit(`store i8 ${byte6Set}, i8* ${byte6Ptr}`);
+
+    // Set variant: byte 8 = (byte8 & 0x3F) | 0x80
+    const byte8Ptr = this.ctx.nextTemp();
+    this.ctx.emit(`${byte8Ptr} = getelementptr inbounds i8, i8* ${buf}, i64 8`);
+    const byte8 = this.ctx.nextTemp();
+    this.ctx.emit(`${byte8} = load i8, i8* ${byte8Ptr}`);
+    const byte8Masked = this.ctx.nextTemp();
+    this.ctx.emit(`${byte8Masked} = and i8 ${byte8}, 63`);
+    const byte8Set = this.ctx.nextTemp();
+    this.ctx.emit(`${byte8Set} = or i8 ${byte8Masked}, -128`);
+    this.ctx.emit(`store i8 ${byte8Set}, i8* ${byte8Ptr}`);
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call i8* @__uuid_format(i8* ${buf})`);
+    this.ctx.setVariableType(result, "i8*");
+
+    return result;
+  }
+
+  generateUuidFormatHelper(): string {
+    const fmtStr = "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x";
+    const fmtLen = fmtStr.length + 1;
+    let ir = "";
+    ir += `@.uuid_fmt = private unnamed_addr constant [${fmtLen} x i8] c"${fmtStr}\\00", align 1\n\n`;
+    ir += "define i8* @__uuid_format(i8* %bytes) {\n";
+    ir += "entry:\n";
+    ir += "  %out = call i8* @GC_malloc_atomic(i64 37)\n";
+    for (let i = 0; i < 16; i++) {
+      ir += `  %p${i} = getelementptr inbounds i8, i8* %bytes, i64 ${i}\n`;
+      ir += `  %b${i} = load i8, i8* %p${i}\n`;
+      ir += `  %v${i} = zext i8 %b${i} to i32\n`;
+    }
+    ir += `  %written = call i32 (i8*, i64, i8*, ...) @snprintf(i8* %out, i64 37, i8* getelementptr([${fmtLen} x i8], [${fmtLen} x i8]* @.uuid_fmt, i32 0, i32 0)`;
+    for (let i = 0; i < 16; i++) {
+      ir += `, i32 %v${i}`;
+    }
+    ir += ")\n";
+    ir += "  ret i8* %out\n";
+    ir += "}\n\n";
+    return ir;
   }
 
   generateBytesToHexHelper(): string {

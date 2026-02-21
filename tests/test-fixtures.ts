@@ -965,4 +965,10 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "fs.copyFileSync() copies file contents",
   },
+  {
+    name: "crypto-uuid",
+    fixture: "tests/fixtures/builtins/crypto-uuid.ts",
+    expectTestPassed: true,
+    description: "crypto.randomUUID() generates valid v4 UUIDs",
+  },
 ];

@@ -176,6 +176,7 @@ export interface ICryptoGenerator {
   generateMd5(expr: MethodCallNode, params: string[]): string;
   generateSha512(expr: MethodCallNode, params: string[]): string;
   generateRandomBytes(expr: MethodCallNode, params: string[]): string;
+  generateRandomUUID(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface ISqliteGenerator {
@@ -1713,6 +1714,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateSha512: (_expr: MethodCallNode, _params: string[]): string => "%mock_crypto_sha512",
     generateRandomBytes: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_crypto_random_bytes",
+    generateRandomUUID: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_crypto_random_uuid",
   };
   sqliteGen: ISqliteGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
