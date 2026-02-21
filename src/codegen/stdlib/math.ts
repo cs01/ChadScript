@@ -38,7 +38,20 @@ export class MathGenerator {
    * Get list of supported Math methods
    */
   getSupportedMethods(): string[] {
-    return ["sqrt", "pow", "floor", "ceil", "round", "abs", "max", "min", "trunc"];
+    return [
+      "sqrt",
+      "pow",
+      "floor",
+      "ceil",
+      "round",
+      "abs",
+      "max",
+      "min",
+      "trunc",
+      "log",
+      "sin",
+      "cos",
+    ];
   }
 
   /**
@@ -70,6 +83,12 @@ export class MathGenerator {
         return this.generateMin(expr, params);
       case "trunc":
         return this.generateTrunc(expr, params);
+      case "log":
+        return this.generateLog(expr, params);
+      case "sin":
+        return this.generateSin(expr, params);
+      case "cos":
+        return this.generateCos(expr, params);
       default:
         return this.ctx.emitError(`Unsupported Math method: ${method}`, expr.loc);
     }
@@ -182,6 +201,39 @@ export class MathGenerator {
     const dblArg = this.ctx.ensureDouble(arg);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call double @llvm.trunc.f64(double ${dblArg})`);
+    return result;
+  }
+
+  private generateLog(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      return this.ctx.emitError("Math.log() requires 1 argument", expr.loc);
+    }
+    const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @llvm.log.f64(double ${dblArg})`);
+    return result;
+  }
+
+  private generateSin(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      return this.ctx.emitError("Math.sin() requires 1 argument", expr.loc);
+    }
+    const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @llvm.sin.f64(double ${dblArg})`);
+    return result;
+  }
+
+  private generateCos(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      return this.ctx.emitError("Math.cos() requires 1 argument", expr.loc);
+    }
+    const arg = this.ctx.generateExpression(expr.args[0], params);
+    const dblArg = this.ctx.ensureDouble(arg);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call double @llvm.cos.f64(double ${dblArg})`);
     return result;
   }
 

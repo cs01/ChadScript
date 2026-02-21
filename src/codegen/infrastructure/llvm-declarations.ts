@@ -54,6 +54,9 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare double @llvm.round.f64(double)\n";
   ir += "declare double @llvm.trunc.f64(double)\n";
   ir += "declare double @llvm.fabs.f64(double)\n";
+  ir += "declare double @llvm.log.f64(double)\n";
+  ir += "declare double @llvm.sin.f64(double)\n";
+  ir += "declare double @llvm.cos.f64(double)\n";
   ir += "declare double @llvm.maxnum.f64(double, double)\n";
   ir += "declare double @llvm.minnum.f64(double, double)\n";
   ir += "\n";

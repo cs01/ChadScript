@@ -911,4 +911,10 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "Math.trunc() truncates decimal part",
   },
+  {
+    name: "math-trig",
+    fixture: "tests/fixtures/math/math-trig.ts",
+    expectTestPassed: true,
+    description: "Math.log(), Math.sin(), Math.cos() trigonometric functions",
+  },
 ];
