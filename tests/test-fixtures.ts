@@ -966,6 +966,18 @@ export const testCases: TestCase[] = [
     description: "fs.copyFileSync() copies file contents",
   },
   {
+    name: "fs-readfile-async",
+    fixture: "tests/fixtures/builtins/fs-readfile-async.ts",
+    expectTestPassed: true,
+    description: "fs.readFile() async reads file contents",
+  },
+  {
+    name: "fs-writefile-async",
+    fixture: "tests/fixtures/builtins/fs-writefile-async.ts",
+    expectTestPassed: true,
+    description: "fs.writeFile() async writes file contents",
+  },
+  {
     name: "crypto-uuid",
     fixture: "tests/fixtures/builtins/crypto-uuid.ts",
     expectTestPassed: true,

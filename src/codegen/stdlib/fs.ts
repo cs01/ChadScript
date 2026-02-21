@@ -430,6 +430,79 @@ export class FilesystemGenerator {
     return result;
   }
 
+  private generateAsyncOneArg(
+    methodName: string,
+    asyncFnName: string,
+    expr: MethodCallNode,
+    params: string[],
+  ): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError(`fs.${methodName}() requires at least 1 argument`, expr.loc);
+    }
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+    this.ctx.setUsesPromises(true);
+    this.ctx.setUsesAsyncFs(true);
+    const temp = this.ctx.nextTemp();
+    this.ctx.emit(`${temp} = call %Promise* @${asyncFnName}(i8* ${pathPtr})`);
+    this.ctx.setVariableType(temp, "%Promise*");
+    return temp;
+  }
+
+  private generateAsyncTwoArg(
+    methodName: string,
+    asyncFnName: string,
+    expr: MethodCallNode,
+    params: string[],
+  ): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError(`fs.${methodName}() requires at least 2 arguments`, expr.loc);
+    }
+    const arg1 = this.ctx.generateExpression(expr.args[0], params);
+    const arg2 = this.ctx.generateExpression(expr.args[1], params);
+    this.ctx.setUsesPromises(true);
+    this.ctx.setUsesAsyncFs(true);
+    const temp = this.ctx.nextTemp();
+    this.ctx.emit(`${temp} = call %Promise* @${asyncFnName}(i8* ${arg1}, i8* ${arg2})`);
+    this.ctx.setVariableType(temp, "%Promise*");
+    return temp;
+  }
+
+  generateReadFile(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncOneArg("readFile", "__fs_readFile_async", expr, params);
+  }
+
+  generateWriteFile(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncTwoArg("writeFile", "__fs_writeFile_async", expr, params);
+  }
+
+  generateAppendFile(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncTwoArg("appendFile", "__fs_appendFile_async", expr, params);
+  }
+
+  generateReaddir(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncOneArg("readdir", "__fs_readdir_async", expr, params);
+  }
+
+  generateStat(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncOneArg("stat", "__fs_stat_async", expr, params);
+  }
+
+  generateUnlink(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncOneArg("unlink", "__fs_unlink_async", expr, params);
+  }
+
+  generateMkdir(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncOneArg("mkdir", "__fs_mkdir_async", expr, params);
+  }
+
+  generateRename(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncTwoArg("rename", "__fs_rename_async", expr, params);
+  }
+
+  generateCopyFile(expr: MethodCallNode, params: string[]): string {
+    return this.generateAsyncTwoArg("copyFile", "__fs_copyFile_async", expr, params);
+  }
+
   generateReaddirSyncHelper(): string {
     const isMac = process.platform === "darwin";
     const dNameOffset = isMac ? 21 : 19;

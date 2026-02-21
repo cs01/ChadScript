@@ -158,6 +158,15 @@ export interface IFsGenerator {
   generateMkdirSync(expr: MethodCallNode, params: string[]): string;
   generateRenameSync(expr: MethodCallNode, params: string[]): string;
   generateCopyFileSync(expr: MethodCallNode, params: string[]): string;
+  generateReadFile(expr: MethodCallNode, params: string[]): string;
+  generateWriteFile(expr: MethodCallNode, params: string[]): string;
+  generateAppendFile(expr: MethodCallNode, params: string[]): string;
+  generateReaddir(expr: MethodCallNode, params: string[]): string;
+  generateStat(expr: MethodCallNode, params: string[]): string;
+  generateUnlink(expr: MethodCallNode, params: string[]): string;
+  generateMkdir(expr: MethodCallNode, params: string[]): string;
+  generateRename(expr: MethodCallNode, params: string[]): string;
+  generateCopyFile(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface IJsonGenerator {
@@ -730,6 +739,7 @@ export interface IGeneratorContext {
   setUsesRegex(value: boolean): void;
   setUsesTestRunner(value: boolean): void;
   getUsesTestRunner(): boolean;
+  setUsesAsyncFs(value: boolean): void;
 
   currentDeclaredInterfaceType: string | undefined;
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
@@ -902,6 +912,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesMongoose: number = 0;
   public usesRegex: number = 0;
   public usesTestRunner: number = 0;
+  public usesAsyncFs: number = 0;
   public currentFunction: string | null = null;
   public currentDeclaredInterfaceType: string | undefined = undefined;
 
@@ -1102,6 +1113,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   getUsesTestRunner(): boolean {
     return this.usesTestRunner !== 0;
+  }
+  setUsesAsyncFs(value: boolean): void {
+    this.usesAsyncFs = value ? 1 : 0;
   }
   setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
@@ -1715,6 +1729,15 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateRenameSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_renameSync",
     generateCopyFileSync: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_fs_copyFileSync",
+    generateReadFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_readFile",
+    generateWriteFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_writeFile",
+    generateAppendFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_appendFile",
+    generateReaddir: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_readdir",
+    generateStat: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_stat",
+    generateUnlink: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_unlink",
+    generateMkdir: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_mkdir",
+    generateRename: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_rename",
+    generateCopyFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_copyFile",
   };
   jsonGen: IJsonGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,

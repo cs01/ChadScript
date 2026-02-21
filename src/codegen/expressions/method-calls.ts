@@ -540,6 +540,24 @@ export class MethodCallGenerator {
         return this.ctx.fsGen.generateRenameSync(expr, params);
       } else if (method === "copyFileSync") {
         return this.ctx.fsGen.generateCopyFileSync(expr, params);
+      } else if (method === "readFile") {
+        return this.ctx.fsGen.generateReadFile(expr, params);
+      } else if (method === "writeFile") {
+        return this.ctx.fsGen.generateWriteFile(expr, params);
+      } else if (method === "appendFile") {
+        return this.ctx.fsGen.generateAppendFile(expr, params);
+      } else if (method === "readdir") {
+        return this.ctx.fsGen.generateReaddir(expr, params);
+      } else if (method === "stat") {
+        return this.ctx.fsGen.generateStat(expr, params);
+      } else if (method === "unlink") {
+        return this.ctx.fsGen.generateUnlink(expr, params);
+      } else if (method === "mkdir") {
+        return this.ctx.fsGen.generateMkdir(expr, params);
+      } else if (method === "rename") {
+        return this.ctx.fsGen.generateRename(expr, params);
+      } else if (method === "copyFile") {
+        return this.ctx.fsGen.generateCopyFile(expr, params);
       }
     }
 

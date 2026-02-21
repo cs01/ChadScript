@@ -94,6 +94,7 @@ import { ResponseGenerator } from "./stdlib/response.js";
 import { CryptoGenerator } from "./stdlib/crypto.js";
 import { generateConsoleTimerHelpers } from "./stdlib/console-timers.js";
 import { generateDefaultSortComparators } from "./types/collections/array/sort.js";
+import { AsyncFsGenerator } from "./stdlib/async-fs.js";
 import { SqliteGenerator } from "./stdlib/sqlite.js";
 import { EmbedGenerator } from "./stdlib/embed.js";
 import { RuntimeGenerator } from "./runtime/runtime.js";
@@ -181,6 +182,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private httpServerGen: HttpServerGenerator;
   private libuvGen: LibuvGenerator;
   private promiseGen: PromiseGenerator;
+  private asyncFsGen: AsyncFsGenerator;
   private treesitterGen: TreeSitterGenerator;
   private httpHandlers: string[];
   private wsHandlers: string[];
@@ -196,6 +198,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesMongoose: number = 0;
   public usesRegex: number = 0;
   public usesTestRunner: number = 0;
+  public usesAsyncFs: number = 0;
   public usesStringBuilder: number = 0;
   private stringBuilderSlen: Map<string, string> = new Map();
   private stringBuilderScap: Map<string, string> = new Map();
@@ -978,6 +981,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesTestRunner(): boolean {
     return this.usesTestRunner !== 0;
   }
+  public setUsesAsyncFs(value: boolean): void {
+    this.usesAsyncFs = value ? 1 : 0;
+  }
   public setCurrentDeclaredInterfaceType(type: string | undefined): void {
     this.currentDeclaredInterfaceType = type;
   }
@@ -1285,6 +1291,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesMongoose = 0;
     this.usesRegex = 0;
     this.usesTestRunner = 0;
+    this.usesAsyncFs = 0;
 
     this.ast = ast;
 
@@ -1359,6 +1366,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.httpServerGen = new HttpServerGenerator();
     this.libuvGen = new LibuvGenerator();
     this.promiseGen = new PromiseGenerator();
+    this.asyncFsGen = new AsyncFsGenerator();
     this.treesitterGen = new TreeSitterGenerator();
 
     // Initialize expression generator with context pattern
@@ -2266,6 +2274,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           irParts.push(fetchAsync);
         }
       }
+      if (this.usesAsyncFs) {
+        irParts.push(this.asyncFsGen.generateAll());
+      }
       const promiseAwait = this.libuvGen.generatePromiseAwait();
       if (promiseAwait) {
         irParts.push(promiseAwait);
@@ -2289,8 +2300,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       this.usesPromises ||
       this.usesCurl ||
       this.usesUvHrtime ||
-      this.usesMongoose;
-    const needsPromise = this.usesPromises || this.usesCurl;
+      this.usesMongoose ||
+      this.usesAsyncFs;
+    const needsPromise = this.usesPromises || this.usesCurl || this.usesAsyncFs;
 
     const finalParts: string[] = [];
 
