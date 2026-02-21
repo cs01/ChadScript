@@ -436,3 +436,31 @@ export function handleStatProperty(
   ctx.setVariableType(result, "double");
   return result;
 }
+
+// %PathParseResult = { root(0), dir(1), base(2), name(3), ext(4) } — all i8*
+export function handlePathParseProperty(
+  ctx: MemberAccessGeneratorContext,
+  expr: MemberAccessNode,
+): string | null {
+  const fieldMap: Record<string, number> = { root: 0, dir: 1, base: 2, name: 3, ext: 4 };
+  const fieldIndex = fieldMap[expr.property];
+  if (fieldIndex === undefined) return null;
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type !== "variable") return null;
+  const varName = (expr.object as VariableNode).name;
+  const varType = ctx.getVariableType(varName);
+  if (varType !== "%PathParseResult*") return null;
+  const varPtr = ctx.getVariableAlloca(varName);
+  const raw = ctx.nextTemp();
+  ctx.emit(`${raw} = load i8*, i8** ${varPtr}`);
+  const typed = ctx.nextTemp();
+  ctx.emit(`${typed} = bitcast i8* ${raw} to %PathParseResult*`);
+  const fieldPtr = ctx.nextTemp();
+  ctx.emit(
+    `${fieldPtr} = getelementptr inbounds %PathParseResult, %PathParseResult* ${typed}, i32 0, i32 ${fieldIndex}`,
+  );
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = load i8*, i8** ${fieldPtr}`);
+  ctx.setVariableType(result, "i8*");
+  return result;
+}

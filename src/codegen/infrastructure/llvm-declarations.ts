@@ -18,6 +18,8 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "%Set = type { double*, i32, i32 }\n";
   ir += "%StringSet = type { i8**, i32, i32 }\n";
   ir += "%struct.timeval = type { i64, i64 }\n";
+  ir += "%Date = type { double }\n";
+  ir += "%struct.tm = type { i32, i32, i32, i32, i32, i32, i32, i32, i32, i64, i8* }\n";
   ir += "%ExceptionFrame = type { [200 x i8], i8*, i8* }\n\n";
 
   ir += "declare i8* @malloc(i64)\n";
@@ -165,6 +167,9 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
 
   ir += "declare i32 @sprintf(i8*, i8*, ...)\n";
   ir += "declare i32 @gettimeofday(%struct.timeval*, i8*)\n";
+  ir += "declare %struct.tm* @localtime_r(i64*, %struct.tm*)\n";
+  ir += "declare %struct.tm* @gmtime_r(i64*, %struct.tm*)\n";
+  ir += "declare i64 @strftime(i8*, i64, i8*, %struct.tm*)\n";
   ir += "\n";
 
   if (config && config.curl) {

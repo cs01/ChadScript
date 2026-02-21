@@ -51,6 +51,7 @@ import {
   handleSizeProperty,
   handleResponseProperty,
   handleStatProperty,
+  handlePathParseProperty,
   isProcessArgvLength,
   getArrayLength,
   getStringArrayLength,
@@ -321,6 +322,9 @@ export class MemberAccessGenerator {
     if (result !== null) return result;
 
     result = this.handleStatProperty(expr);
+    if (result !== null) return result;
+
+    result = this.handlePathParseProperty(expr);
     if (result !== null) return result;
 
     return null;
@@ -2320,6 +2324,10 @@ export class MemberAccessGenerator {
 
   private handleStatProperty(expr: MemberAccessNode): string | null {
     return handleStatProperty(this.ctx, expr);
+  }
+
+  private handlePathParseProperty(expr: MemberAccessNode): string | null {
+    return handlePathParseProperty(this.ctx, expr);
   }
 
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {

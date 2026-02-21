@@ -193,6 +193,9 @@ export class LiteralExpressionGenerator {
     if (className === "Uint8Array") {
       return this.generateNewUint8Array(args, params);
     }
+    if (className === "Date") {
+      return this.generateNewDate(args, params);
+    }
     return this.ctx.classGenGenerateNewExpression(className, args, params);
   }
 
@@ -283,6 +286,54 @@ export class LiteralExpressionGenerator {
 
     this.ctx.setVariableType(structPtr, "%Uint8Array*");
     return structPtr;
+  }
+
+  private generateNewDate(args: Expression[], params: string[]): string {
+    const structRaw = this.ctx.nextTemp();
+    this.ctx.emit(`${structRaw} = call i8* @GC_malloc(i64 8)`);
+    const datePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${datePtr} = bitcast i8* ${structRaw} to %Date*`);
+
+    let msValue: string;
+    if (args.length === 0) {
+      const tvAlloca = this.ctx.nextTemp();
+      this.ctx.emit(`${tvAlloca} = alloca %struct.timeval`);
+      const gettimResult = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${gettimResult} = call i32 @gettimeofday(%struct.timeval* ${tvAlloca}, i8* null)`,
+      );
+      const secPtr = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${secPtr} = getelementptr inbounds %struct.timeval, %struct.timeval* ${tvAlloca}, i32 0, i32 0`,
+      );
+      const secVal = this.ctx.nextTemp();
+      this.ctx.emit(`${secVal} = load i64, i64* ${secPtr}`);
+      const usecPtr = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${usecPtr} = getelementptr inbounds %struct.timeval, %struct.timeval* ${tvAlloca}, i32 0, i32 1`,
+      );
+      const usecVal = this.ctx.nextTemp();
+      this.ctx.emit(`${usecVal} = load i64, i64* ${usecPtr}`);
+      const secDbl = this.ctx.nextTemp();
+      this.ctx.emit(`${secDbl} = sitofp i64 ${secVal} to double`);
+      const usecDbl = this.ctx.nextTemp();
+      this.ctx.emit(`${usecDbl} = sitofp i64 ${usecVal} to double`);
+      const secMs = this.ctx.nextTemp();
+      this.ctx.emit(`${secMs} = fmul fast double ${secDbl}, 1.000000e+03`);
+      const usecMs = this.ctx.nextTemp();
+      this.ctx.emit(`${usecMs} = fdiv fast double ${usecDbl}, 1.000000e+03`);
+      msValue = this.ctx.nextTemp();
+      this.ctx.emit(`${msValue} = fadd fast double ${secMs}, ${usecMs}`);
+    } else {
+      msValue = this.ctx.ensureDouble(this.ctx.generateExpression(args[0], params));
+    }
+
+    const fieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${fieldPtr} = getelementptr inbounds %Date, %Date* ${datePtr}, i32 0, i32 0`);
+    this.ctx.emit(`store double ${msValue}, double* ${fieldPtr}`);
+
+    this.ctx.setVariableType(datePtr, "%Date*");
+    return datePtr;
   }
 
   /**

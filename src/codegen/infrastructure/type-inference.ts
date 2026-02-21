@@ -1591,7 +1591,8 @@ export class TypeInference {
       if (
         resolved.base === "Promise" ||
         resolved.base === "RegExp" ||
-        resolved.base === "Uint8Array"
+        resolved.base === "Uint8Array" ||
+        resolved.base === "Date"
       )
         return false;
       if (
@@ -1616,6 +1617,7 @@ export class TypeInference {
       if (newExpr.className === "Promise") return false;
       if (newExpr.className === "RegExp") return false;
       if (newExpr.className === "Uint8Array") return false;
+      if (newExpr.className === "Date") return false;
       return true;
     }
     return false;

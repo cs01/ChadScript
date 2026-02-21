@@ -583,6 +583,12 @@ export class MethodCallGenerator {
     if (method === "normalize" && this.isVariableWithName(expr.object, "path")) {
       return this.ctx.pathGen.generateNormalize(expr, params);
     }
+    if (method === "relative" && this.isVariableWithName(expr.object, "path")) {
+      return this.ctx.pathGen.generateRelative(expr, params);
+    }
+    if (method === "parse" && this.isVariableWithName(expr.object, "path")) {
+      return this.ctx.pathGen.generateParse(expr, params);
+    }
 
     // Handle execSync() from child_process
     if (method === "execSync") {
@@ -614,6 +620,34 @@ export class MethodCallGenerator {
     // Handle Date.now()
     if (this.ctx.dateGen.canHandle(expr)) {
       return this.ctx.dateGen.generateNow();
+    }
+
+    // Date instance methods: d.getTime(), d.getFullYear(), etc.
+    if (
+      method === "getTime" ||
+      method === "getFullYear" ||
+      method === "getMonth" ||
+      method === "getDate" ||
+      method === "getHours" ||
+      method === "getMinutes" ||
+      method === "getSeconds" ||
+      method === "toISOString"
+    ) {
+      const varName = this.getVariableName(expr.object);
+      if (varName) {
+        const varType = this.ctx.getVariableType(varName);
+        if (varType === "%Date*") {
+          const datePtr = this.ctx.generateExpression(expr.object, params);
+          return this.ctx.dateGen.generateDateMethod(datePtr, method);
+        }
+      }
+      if (objBase2.type === "new") {
+        const datePtr = this.ctx.generateExpression(expr.object, params);
+        const objType = this.ctx.getVariableType(datePtr);
+        if (objType === "%Date*") {
+          return this.ctx.dateGen.generateDateMethod(datePtr, method);
+        }
+      }
     }
 
     // Handle crypto.* methods

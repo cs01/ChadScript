@@ -930,6 +930,24 @@ export const testCases: TestCase[] = [
     description: "path.normalize() and path.sep",
   },
   {
+    name: "path-relative",
+    fixture: "tests/fixtures/builtins/path-relative.ts",
+    expectTestPassed: true,
+    description: "path.relative() returns relative path between two paths",
+  },
+  {
+    name: "path-parse",
+    fixture: "tests/fixtures/builtins/path-parse.ts",
+    expectTestPassed: true,
+    description: "path.parse() decomposes path into root/dir/base/name/ext",
+  },
+  {
+    name: "date-instance",
+    fixture: "tests/fixtures/builtins/date-instance.ts",
+    expectTestPassed: true,
+    description: "new Date() constructor and instance methods",
+  },
+  {
     name: "math-random",
     fixture: "tests/fixtures/math/math-random.ts",
     expectTestPassed: true,

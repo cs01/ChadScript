@@ -145,6 +145,8 @@ export interface IPathGenerator {
   generateExtname(expr: MethodCallNode, params: string[]): string;
   generateIsAbsolute(expr: MethodCallNode, params: string[]): string;
   generateNormalize(expr: MethodCallNode, params: string[]): string;
+  generateRelative(expr: MethodCallNode, params: string[]): string;
+  generateParse(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface IFsGenerator {
@@ -179,6 +181,7 @@ export interface IJsonGenerator {
 export interface IDateGenerator {
   canHandle(expr: MethodCallNode): boolean;
   generateNow(): string;
+  generateDateMethod(datePtr: string, method: string): string;
 }
 
 export interface ICryptoGenerator {
@@ -1713,6 +1716,8 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateIsAbsolute: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_path_isabsolute",
     generateNormalize: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_normalize",
+    generateRelative: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_relative",
+    generateParse: (_expr: MethodCallNode, _params: string[]): string => "%mock_path_parse",
   };
   fsGen: IFsGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
@@ -1750,6 +1755,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   dateGen: IDateGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
     generateNow: (): string => "%mock_date_now",
+    generateDateMethod: (_datePtr: string, _method: string): string => "%mock_date_method",
   };
   cryptoGen: ICryptoGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,
