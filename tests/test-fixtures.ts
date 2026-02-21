@@ -948,6 +948,24 @@ export const testCases: TestCase[] = [
     description: "new Date() constructor and instance methods",
   },
   {
+    name: "promise-allsettled",
+    fixture: "tests/fixtures/builtins/promise-allsettled.ts",
+    expectTestPassed: true,
+    description: "Promise.allSettled() resolves even when some promises reject",
+  },
+  {
+    name: "promise-any",
+    fixture: "tests/fixtures/builtins/promise-any.ts",
+    expectTestPassed: true,
+    description: "Promise.any() resolves with first fulfilled value",
+  },
+  {
+    name: "promise-finally",
+    fixture: "tests/fixtures/builtins/promise-finally.ts",
+    expectTestPassed: true,
+    description: "promise.finally() runs callback and propagates value",
+  },
+  {
     name: "math-random",
     fixture: "tests/fixtures/math/math-random.ts",
     expectTestPassed: true,

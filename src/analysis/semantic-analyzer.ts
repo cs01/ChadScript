@@ -283,7 +283,12 @@ export class SemanticAnalyzer {
 
     this.analyzeBlock(func.body);
 
-    if (!this.suppressWarnings && func.returnType && func.returnType !== "void") {
+    if (
+      !this.suppressWarnings &&
+      func.returnType &&
+      func.returnType !== "void" &&
+      func.returnType !== "Promise<void>"
+    ) {
       if (!this.blockAlwaysReturns(func.body)) {
         const funcAny = func as { loc?: SourceLocation };
         this.diagnosticEngine.warning(

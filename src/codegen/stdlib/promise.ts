@@ -19,6 +19,10 @@ export class PromiseGenerator {
     ir += "; PromiseAllContext: { state: %PromiseAllState*, index: i32 }\n";
     ir += "%PromiseAllContext = type { %PromiseAllState*, i32 }\n\n";
 
+    ir +=
+      "; PromiseFinallyContext: { callback: i8* (bitcast of void (i8*, i8*)*), childPromise: %Promise* }\n";
+    ir += "%PromiseFinallyContext = type { i8*, %Promise* }\n\n";
+
     return ir;
   }
 
@@ -667,8 +671,394 @@ export class PromiseGenerator {
     return ir;
   }
 
+  // Promise.allSettled — like all, but never short-circuits on rejection.
+  // Each result is a { i8*, i8* } struct: { status_string, value_or_reason }.
+  generatePromiseAllSettledCallbacks(): string {
+    let ir = "";
+
+    // onFulfilled: store {status:"fulfilled", value} at results[index], decrement counter
+    ir += "define void @__Promise_allSettled_onFulfilled(i8* %value, i8* %context) {\n";
+    ir += "entry:\n";
+    ir += "  %ctx = bitcast i8* %context to %PromiseAllContext*\n";
+    ir +=
+      "  %state_ptr_ptr = getelementptr inbounds %PromiseAllContext, %PromiseAllContext* %ctx, i32 0, i32 0\n";
+    ir += "  %state = load %PromiseAllState*, %PromiseAllState** %state_ptr_ptr\n";
+    ir +=
+      "  %index_ptr = getelementptr inbounds %PromiseAllContext, %PromiseAllContext* %ctx, i32 0, i32 1\n";
+    ir += "  %index = load i32, i32* %index_ptr\n";
+    // Build result object: { i8*, i8* } = { "fulfilled", value }
+    ir += "  %obj_mem = call i8* @GC_malloc(i64 16)\n";
+    ir += "  %obj = bitcast i8* %obj_mem to { i8*, i8* }*\n";
+    ir += "  %status_ptr = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* %obj, i32 0, i32 0\n";
+    ir += `  store i8* getelementptr inbounds ([10 x i8], [10 x i8]* @__str_fulfilled, i32 0, i32 0), i8** %status_ptr\n`;
+    ir += "  %val_ptr = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* %obj, i32 0, i32 1\n";
+    ir += "  store i8* %value, i8** %val_ptr\n";
+    // Store in results array
+    ir +=
+      "  %results_ptr_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 1\n";
+    ir += "  %results_as_array = load %Array*, %Array** %results_ptr_ptr\n";
+    ir += "  %results = bitcast %Array* %results_as_array to %ObjectArray*\n";
+    ir +=
+      "  %data_ptr_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %results, i32 0, i32 0\n";
+    ir += "  %data_ptr = load i8*, i8** %data_ptr_ptr\n";
+    ir += "  %data_i8 = bitcast i8* %data_ptr to i8**\n";
+    ir += "  %slot = getelementptr inbounds i8*, i8** %data_i8, i32 %index\n";
+    ir += "  store i8* %obj_mem, i8** %slot\n";
+    // Decrement counter
+    ir +=
+      "  %counter_ptr_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 0\n";
+    ir += "  %counter_ptr = load i32*, i32** %counter_ptr_ptr\n";
+    ir += "  %counter = load i32, i32* %counter_ptr\n";
+    ir += "  %new_counter = sub i32 %counter, 1\n";
+    ir += "  store i32 %new_counter, i32* %counter_ptr\n";
+    ir += "  %all_done = icmp eq i32 %new_counter, 0\n";
+    ir += "  br i1 %all_done, label %resolve_all, label %done\n\n";
+    ir += "resolve_all:\n";
+    ir +=
+      "  %result_promise_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 2\n";
+    ir += "  %result_promise = load %Promise*, %Promise** %result_promise_ptr\n";
+    ir += "  %results_i8 = bitcast %Array* %results_as_array to i8*\n";
+    ir += "  call void @__Promise_resolve(%Promise* %result_promise, i8* %results_i8)\n";
+    ir += "  br label %done\n\n";
+    ir += "done:\n";
+    ir += "  ret void\n";
+    ir += "}\n\n";
+
+    // onRejected: store {status:"rejected", value:reason}, decrement counter
+    ir += "define void @__Promise_allSettled_onRejected(i8* %reason, i8* %context) {\n";
+    ir += "entry:\n";
+    ir += "  %ctx = bitcast i8* %context to %PromiseAllContext*\n";
+    ir +=
+      "  %state_ptr_ptr = getelementptr inbounds %PromiseAllContext, %PromiseAllContext* %ctx, i32 0, i32 0\n";
+    ir += "  %state = load %PromiseAllState*, %PromiseAllState** %state_ptr_ptr\n";
+    ir +=
+      "  %index_ptr = getelementptr inbounds %PromiseAllContext, %PromiseAllContext* %ctx, i32 0, i32 1\n";
+    ir += "  %index = load i32, i32* %index_ptr\n";
+    ir += "  %obj_mem = call i8* @GC_malloc(i64 16)\n";
+    ir += "  %obj = bitcast i8* %obj_mem to { i8*, i8* }*\n";
+    ir += "  %status_ptr = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* %obj, i32 0, i32 0\n";
+    ir += `  store i8* getelementptr inbounds ([9 x i8], [9 x i8]* @__str_rejected, i32 0, i32 0), i8** %status_ptr\n`;
+    ir += "  %val_ptr = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* %obj, i32 0, i32 1\n";
+    ir += "  store i8* %reason, i8** %val_ptr\n";
+    ir +=
+      "  %results_ptr_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 1\n";
+    ir += "  %results_as_array = load %Array*, %Array** %results_ptr_ptr\n";
+    ir += "  %results = bitcast %Array* %results_as_array to %ObjectArray*\n";
+    ir +=
+      "  %data_ptr_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %results, i32 0, i32 0\n";
+    ir += "  %data_ptr = load i8*, i8** %data_ptr_ptr\n";
+    ir += "  %data_i8 = bitcast i8* %data_ptr to i8**\n";
+    ir += "  %slot = getelementptr inbounds i8*, i8** %data_i8, i32 %index\n";
+    ir += "  store i8* %obj_mem, i8** %slot\n";
+    ir +=
+      "  %counter_ptr_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 0\n";
+    ir += "  %counter_ptr = load i32*, i32** %counter_ptr_ptr\n";
+    ir += "  %counter = load i32, i32* %counter_ptr\n";
+    ir += "  %new_counter = sub i32 %counter, 1\n";
+    ir += "  store i32 %new_counter, i32* %counter_ptr\n";
+    ir += "  %all_done = icmp eq i32 %new_counter, 0\n";
+    ir += "  br i1 %all_done, label %resolve_all, label %done\n\n";
+    ir += "resolve_all:\n";
+    ir +=
+      "  %result_promise_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 2\n";
+    ir += "  %result_promise = load %Promise*, %Promise** %result_promise_ptr\n";
+    ir += "  %results_i8 = bitcast %Array* %results_as_array to i8*\n";
+    ir += "  call void @__Promise_resolve(%Promise* %result_promise, i8* %results_i8)\n";
+    ir += "  br label %done\n\n";
+    ir += "done:\n";
+    ir += "  ret void\n";
+    ir += "}\n\n";
+
+    return ir;
+  }
+
+  // Identical structure to Promise.all but uses allSettled callbacks
+  generatePromiseAllSettled(): string {
+    let ir = "define %Promise* @__Promise_allSettled(%ObjectArray* %promises) {\n";
+    ir += "entry:\n";
+    ir += "  %result_promise = call %Promise* @__Promise_new()\n";
+    ir +=
+      "  %len_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %promises, i32 0, i32 1\n";
+    ir += "  %len = load i32, i32* %len_ptr\n";
+    ir += "  %is_empty = icmp eq i32 %len, 0\n";
+    ir += "  br i1 %is_empty, label %resolve_empty, label %setup_state\n\n";
+
+    ir += "resolve_empty:\n";
+    ir += "  %empty_arr_mem = call i8* @GC_malloc(i64 16)\n";
+    ir += "  %empty_arr = bitcast i8* %empty_arr_mem to %ObjectArray*\n";
+    ir +=
+      "  %empty_data_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %empty_arr, i32 0, i32 0\n";
+    ir += "  store i8* null, i8** %empty_data_ptr\n";
+    ir +=
+      "  %empty_len_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %empty_arr, i32 0, i32 1\n";
+    ir += "  store i32 0, i32* %empty_len_ptr\n";
+    ir +=
+      "  %empty_cap_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %empty_arr, i32 0, i32 2\n";
+    ir += "  store i32 0, i32* %empty_cap_ptr\n";
+    ir += "  %empty_ptr = bitcast %ObjectArray* %empty_arr to i8*\n";
+    ir += "  call void @__Promise_resolve(%Promise* %result_promise, i8* %empty_ptr)\n";
+    ir += "  br label %done\n\n";
+
+    ir += "setup_state:\n";
+    ir += "  %state_mem = call i8* @GC_malloc(i64 40)\n";
+    ir += "  %state = bitcast i8* %state_mem to %PromiseAllState*\n";
+    ir += "  %counter_mem = call i8* @GC_malloc(i64 4)\n";
+    ir += "  %counter = bitcast i8* %counter_mem to i32*\n";
+    ir += "  store i32 %len, i32* %counter\n";
+    ir += "  %rejected_mem = call i8* @GC_malloc(i64 4)\n";
+    ir += "  %rejected = bitcast i8* %rejected_mem to i32*\n";
+    ir += "  store i32 0, i32* %rejected\n";
+    ir += "  %results_arr_mem = call i8* @GC_malloc(i64 16)\n";
+    ir += "  %results_arr = bitcast i8* %results_arr_mem to %ObjectArray*\n";
+    ir += "  %results_data_size = mul i32 %len, 8\n";
+    ir += "  %results_data_size_i64 = sext i32 %results_data_size to i64\n";
+    ir += "  %results_data_mem = call i8* @GC_malloc(i64 %results_data_size_i64)\n";
+    ir +=
+      "  %results_data_field = getelementptr inbounds %ObjectArray, %ObjectArray* %results_arr, i32 0, i32 0\n";
+    ir += "  store i8* %results_data_mem, i8** %results_data_field\n";
+    ir +=
+      "  %results_len_field = getelementptr inbounds %ObjectArray, %ObjectArray* %results_arr, i32 0, i32 1\n";
+    ir += "  store i32 %len, i32* %results_len_field\n";
+    ir +=
+      "  %results_cap_field = getelementptr inbounds %ObjectArray, %ObjectArray* %results_arr, i32 0, i32 2\n";
+    ir += "  store i32 %len, i32* %results_cap_field\n";
+    ir +=
+      "  %state_counter_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 0\n";
+    ir += "  store i32* %counter, i32** %state_counter_ptr\n";
+    ir +=
+      "  %state_results_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 1\n";
+    ir += "  %results_arr_as_array = bitcast %ObjectArray* %results_arr to %Array*\n";
+    ir += "  store %Array* %results_arr_as_array, %Array** %state_results_ptr\n";
+    ir +=
+      "  %state_promise_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 2\n";
+    ir += "  store %Promise* %result_promise, %Promise** %state_promise_ptr\n";
+    ir +=
+      "  %state_total_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 3\n";
+    ir += "  store i32 %len, i32* %state_total_ptr\n";
+    ir +=
+      "  %state_rejected_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 4\n";
+    ir += "  store i32* %rejected, i32** %state_rejected_ptr\n";
+    ir +=
+      "  %promises_data_ptr_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %promises, i32 0, i32 0\n";
+    ir += "  %promises_data_i8 = load i8*, i8** %promises_data_ptr_ptr\n";
+    ir += "  %promises_data = bitcast i8* %promises_data_i8 to %Promise**\n";
+    ir += "  br label %loop\n\n";
+
+    ir += "loop:\n";
+    ir += "  %i = phi i32 [ 0, %setup_state ], [ %next_i, %loop_body ]\n";
+    ir += "  %loop_done = icmp sge i32 %i, %len\n";
+    ir += "  br i1 %loop_done, label %done, label %loop_body\n\n";
+
+    ir += "loop_body:\n";
+    ir += "  %promise_slot = getelementptr inbounds %Promise*, %Promise** %promises_data, i32 %i\n";
+    ir += "  %promise = load %Promise*, %Promise** %promise_slot\n";
+    ir += "  %ctx_mem = call i8* @GC_malloc(i64 16)\n";
+    ir += "  %ctx = bitcast i8* %ctx_mem to %PromiseAllContext*\n";
+    ir +=
+      "  %ctx_state_ptr = getelementptr inbounds %PromiseAllContext, %PromiseAllContext* %ctx, i32 0, i32 0\n";
+    ir += "  store %PromiseAllState* %state, %PromiseAllState** %ctx_state_ptr\n";
+    ir +=
+      "  %ctx_index_ptr = getelementptr inbounds %PromiseAllContext, %PromiseAllContext* %ctx, i32 0, i32 1\n";
+    ir += "  store i32 %i, i32* %ctx_index_ptr\n";
+    ir += "  %ctx_i8 = bitcast %PromiseAllContext* %ctx to i8*\n";
+    ir +=
+      "  call %Promise* @__Promise_then_with_context(%Promise* %promise, void (i8*, i8*)* @__Promise_allSettled_onFulfilled, void (i8*, i8*)* @__Promise_allSettled_onRejected, i8* %ctx_i8)\n";
+    ir += "  %next_i = add i32 %i, 1\n";
+    ir += "  br label %loop\n\n";
+
+    ir += "done:\n";
+    ir += "  ret %Promise* %result_promise\n";
+    ir += "}\n\n";
+    return ir;
+  }
+
+  // Promise.any — resolve on first fulfillment, reject if all reject
+  generatePromiseAnyCallbacks(): string {
+    let ir = "";
+
+    // onFulfilled: first one wins (same as race_onFulfilled)
+    ir += "define void @__Promise_any_onFulfilled(i8* %value, i8* %context) {\n";
+    ir += "entry:\n";
+    ir += "  %ctx = bitcast i8* %context to %PromiseAllContext*\n";
+    ir +=
+      "  %state_ptr_ptr = getelementptr inbounds %PromiseAllContext, %PromiseAllContext* %ctx, i32 0, i32 0\n";
+    ir += "  %state = load %PromiseAllState*, %PromiseAllState** %state_ptr_ptr\n";
+    // Check if already resolved via the rejected flag (repurposed as "resolved" flag)
+    ir +=
+      "  %resolved_ptr_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 4\n";
+    ir += "  %resolved_ptr = load i32*, i32** %resolved_ptr_ptr\n";
+    ir += "  %resolved = load i32, i32* %resolved_ptr\n";
+    ir += "  %already_resolved = icmp ne i32 %resolved, 0\n";
+    ir += "  br i1 %already_resolved, label %done, label %do_resolve\n\n";
+    ir += "do_resolve:\n";
+    ir += "  store i32 1, i32* %resolved_ptr\n";
+    ir +=
+      "  %result_promise_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 2\n";
+    ir += "  %result_promise = load %Promise*, %Promise** %result_promise_ptr\n";
+    ir += "  call void @__Promise_resolve(%Promise* %result_promise, i8* %value)\n";
+    ir += "  br label %done\n\n";
+    ir += "done:\n";
+    ir += "  ret void\n";
+    ir += "}\n\n";
+
+    // onRejected: decrement counter, if all rejected → reject result promise
+    ir += "define void @__Promise_any_onRejected(i8* %reason, i8* %context) {\n";
+    ir += "entry:\n";
+    ir += "  %ctx = bitcast i8* %context to %PromiseAllContext*\n";
+    ir +=
+      "  %state_ptr_ptr = getelementptr inbounds %PromiseAllContext, %PromiseAllContext* %ctx, i32 0, i32 0\n";
+    ir += "  %state = load %PromiseAllState*, %PromiseAllState** %state_ptr_ptr\n";
+    // Check if already resolved
+    ir +=
+      "  %resolved_ptr_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 4\n";
+    ir += "  %resolved_ptr = load i32*, i32** %resolved_ptr_ptr\n";
+    ir += "  %resolved = load i32, i32* %resolved_ptr\n";
+    ir += "  %already_resolved = icmp ne i32 %resolved, 0\n";
+    ir += "  br i1 %already_resolved, label %done, label %decrement\n\n";
+    ir += "decrement:\n";
+    ir +=
+      "  %counter_ptr_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 0\n";
+    ir += "  %counter_ptr = load i32*, i32** %counter_ptr_ptr\n";
+    ir += "  %counter = load i32, i32* %counter_ptr\n";
+    ir += "  %new_counter = sub i32 %counter, 1\n";
+    ir += "  store i32 %new_counter, i32* %counter_ptr\n";
+    ir += "  %all_rejected = icmp eq i32 %new_counter, 0\n";
+    ir += "  br i1 %all_rejected, label %reject_all, label %done\n\n";
+    ir += "reject_all:\n";
+    ir +=
+      "  %result_promise_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 2\n";
+    ir += "  %result_promise = load %Promise*, %Promise** %result_promise_ptr\n";
+    ir += "  call void @__Promise_reject(%Promise* %result_promise, i8* %reason)\n";
+    ir += "  br label %done\n\n";
+    ir += "done:\n";
+    ir += "  ret void\n";
+    ir += "}\n\n";
+
+    return ir;
+  }
+
+  // Same loop structure as Promise.all/race
+  generatePromiseAny(): string {
+    let ir = "define %Promise* @__Promise_any(%ObjectArray* %promises) {\n";
+    ir += "entry:\n";
+    ir += "  %result_promise = call %Promise* @__Promise_new()\n";
+    ir +=
+      "  %len_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %promises, i32 0, i32 1\n";
+    ir += "  %len = load i32, i32* %len_ptr\n";
+    ir += "  %is_empty = icmp eq i32 %len, 0\n";
+    ir += "  br i1 %is_empty, label %reject_empty, label %setup_state\n\n";
+
+    // Empty array → reject immediately (Promise.any spec)
+    ir += "reject_empty:\n";
+    ir += "  call void @__Promise_reject(%Promise* %result_promise, i8* null)\n";
+    ir += "  br label %done\n\n";
+
+    ir += "setup_state:\n";
+    ir += "  %state_mem = call i8* @GC_malloc(i64 40)\n";
+    ir += "  %state = bitcast i8* %state_mem to %PromiseAllState*\n";
+    ir += "  %counter_mem = call i8* @GC_malloc(i64 4)\n";
+    ir += "  %counter = bitcast i8* %counter_mem to i32*\n";
+    ir += "  store i32 %len, i32* %counter\n";
+    ir += "  %resolved_mem = call i8* @GC_malloc(i64 4)\n";
+    ir += "  %resolved = bitcast i8* %resolved_mem to i32*\n";
+    ir += "  store i32 0, i32* %resolved\n";
+    // Store counter, null results (unused), result_promise, total, resolved flag
+    ir +=
+      "  %state_counter_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 0\n";
+    ir += "  store i32* %counter, i32** %state_counter_ptr\n";
+    ir +=
+      "  %state_results_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 1\n";
+    ir += "  store %Array* null, %Array** %state_results_ptr\n";
+    ir +=
+      "  %state_promise_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 2\n";
+    ir += "  store %Promise* %result_promise, %Promise** %state_promise_ptr\n";
+    ir +=
+      "  %state_total_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 3\n";
+    ir += "  store i32 %len, i32* %state_total_ptr\n";
+    ir +=
+      "  %state_resolved_ptr = getelementptr inbounds %PromiseAllState, %PromiseAllState* %state, i32 0, i32 4\n";
+    ir += "  store i32* %resolved, i32** %state_resolved_ptr\n";
+    ir +=
+      "  %promises_data_ptr_ptr = getelementptr inbounds %ObjectArray, %ObjectArray* %promises, i32 0, i32 0\n";
+    ir += "  %promises_data_i8 = load i8*, i8** %promises_data_ptr_ptr\n";
+    ir += "  %promises_data = bitcast i8* %promises_data_i8 to %Promise**\n";
+    ir += "  br label %loop\n\n";
+
+    ir += "loop:\n";
+    ir += "  %i = phi i32 [ 0, %setup_state ], [ %next_i, %loop_body ]\n";
+    ir += "  %loop_done = icmp sge i32 %i, %len\n";
+    ir += "  br i1 %loop_done, label %done, label %loop_body\n\n";
+
+    ir += "loop_body:\n";
+    ir += "  %promise_slot = getelementptr inbounds %Promise*, %Promise** %promises_data, i32 %i\n";
+    ir += "  %promise = load %Promise*, %Promise** %promise_slot\n";
+    ir += "  %ctx_mem = call i8* @GC_malloc(i64 16)\n";
+    ir += "  %ctx = bitcast i8* %ctx_mem to %PromiseAllContext*\n";
+    ir +=
+      "  %ctx_state_ptr = getelementptr inbounds %PromiseAllContext, %PromiseAllContext* %ctx, i32 0, i32 0\n";
+    ir += "  store %PromiseAllState* %state, %PromiseAllState** %ctx_state_ptr\n";
+    ir +=
+      "  %ctx_index_ptr = getelementptr inbounds %PromiseAllContext, %PromiseAllContext* %ctx, i32 0, i32 1\n";
+    ir += "  store i32 %i, i32* %ctx_index_ptr\n";
+    ir += "  %ctx_i8 = bitcast %PromiseAllContext* %ctx to i8*\n";
+    ir +=
+      "  call %Promise* @__Promise_then_with_context(%Promise* %promise, void (i8*, i8*)* @__Promise_any_onFulfilled, void (i8*, i8*)* @__Promise_any_onRejected, i8* %ctx_i8)\n";
+    ir += "  %next_i = add i32 %i, 1\n";
+    ir += "  br label %loop\n\n";
+
+    ir += "done:\n";
+    ir += "  ret %Promise* %result_promise\n";
+    ir += "}\n\n";
+    return ir;
+  }
+
+  // String constants for allSettled status fields
+  generateAllSettledStringConstants(): string {
+    let ir = "";
+    ir += `@__str_fulfilled = private unnamed_addr constant [10 x i8] c"fulfilled\\00"\n`;
+    ir += `@__str_rejected = private unnamed_addr constant [9 x i8] c"rejected\\00"\n\n`;
+    return ir;
+  }
+
+  generatePromiseFinallyCallbacks(): string {
+    let ir = "";
+
+    ir += "define void @__Promise_finally_onFulfilled(i8* %value, i8* %context) {\n";
+    ir += "entry:\n";
+    ir += "  %ctx = bitcast i8* %context to %PromiseFinallyContext*\n";
+    ir +=
+      "  %cb_i8_ptr = getelementptr inbounds %PromiseFinallyContext, %PromiseFinallyContext* %ctx, i32 0, i32 0\n";
+    ir += "  %cb_i8 = load i8*, i8** %cb_i8_ptr\n";
+    ir += "  %cb = bitcast i8* %cb_i8 to void (i8*, i8*)*\n";
+    ir += "  call void %cb(i8* null, i8* null)\n";
+    ir +=
+      "  %child_ptr = getelementptr inbounds %PromiseFinallyContext, %PromiseFinallyContext* %ctx, i32 0, i32 1\n";
+    ir += "  %child = load %Promise*, %Promise** %child_ptr\n";
+    ir += "  call void @__Promise_resolve(%Promise* %child, i8* %value)\n";
+    ir += "  ret void\n";
+    ir += "}\n\n";
+
+    ir += "define void @__Promise_finally_onRejected(i8* %reason, i8* %context) {\n";
+    ir += "entry:\n";
+    ir += "  %ctx = bitcast i8* %context to %PromiseFinallyContext*\n";
+    ir +=
+      "  %cb_i8_ptr = getelementptr inbounds %PromiseFinallyContext, %PromiseFinallyContext* %ctx, i32 0, i32 0\n";
+    ir += "  %cb_i8 = load i8*, i8** %cb_i8_ptr\n";
+    ir += "  %cb = bitcast i8* %cb_i8 to void (i8*, i8*)*\n";
+    ir += "  call void %cb(i8* null, i8* null)\n";
+    ir +=
+      "  %child_ptr = getelementptr inbounds %PromiseFinallyContext, %PromiseFinallyContext* %ctx, i32 0, i32 1\n";
+    ir += "  %child = load %Promise*, %Promise** %child_ptr\n";
+    ir += "  call void @__Promise_reject(%Promise* %child, i8* %reason)\n";
+    ir += "  ret void\n";
+    ir += "}\n\n";
+
+    return ir;
+  }
+
   generateAll(): string {
     let ir = "";
+    ir += this.generateAllSettledStringConstants();
     ir += this.generatePromiseNew();
     ir += this.generatePromiseResolve();
     ir += this.generatePromiseReject();
@@ -681,6 +1071,11 @@ export class PromiseGenerator {
     ir += this.generatePromiseAll();
     ir += this.generatePromiseRaceCallbacks();
     ir += this.generatePromiseRace();
+    ir += this.generatePromiseAllSettledCallbacks();
+    ir += this.generatePromiseAllSettled();
+    ir += this.generatePromiseAnyCallbacks();
+    ir += this.generatePromiseAny();
+    ir += this.generatePromiseFinallyCallbacks();
     ir += this.generatePromiseGetValue();
     return ir;
   }

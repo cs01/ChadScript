@@ -112,7 +112,11 @@ import {
   generateObjectValues,
   generateObjectEntries,
 } from "./method-calls/object-static.js";
-import { handlePromiseStaticMethods, handlePromiseThen } from "./method-calls/promise-handlers.js";
+import {
+  handlePromiseStaticMethods,
+  handlePromiseThen,
+  handlePromiseFinally,
+} from "./method-calls/promise-handlers.js";
 import {
   handleClassMethods,
   handleObjectMethods,
@@ -431,11 +435,17 @@ export class MethodCallGenerator {
       return handleNumberIsInteger(this.ctx, expr, params);
     }
 
-    // Handle Promise instance methods (.then, .catch)
+    // Handle Promise instance methods (.then, .catch, .finally)
     if (method === "then" || method === "catch") {
       const isPromise = this.ctx.isPromiseExpression(expr.object);
       if (isPromise) {
         return handlePromiseThen(this.ctx, expr, params, method === "catch");
+      }
+    }
+    if (method === "finally") {
+      const isPromise = this.ctx.isPromiseExpression(expr.object);
+      if (isPromise) {
+        return handlePromiseFinally(this.ctx, expr, params);
       }
     }
 

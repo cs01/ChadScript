@@ -1441,7 +1441,7 @@ export class VariableAllocator {
       if (
         objBase.type === "variable" &&
         (methodCall.object as VariableNode).name === "Promise" &&
-        methodCall.method === "all"
+        (methodCall.method === "all" || methodCall.method === "allSettled")
       ) {
         const allocaReg = this.ctx.nextAllocaReg(stmt.name);
         this.ctx.defineVariable(
