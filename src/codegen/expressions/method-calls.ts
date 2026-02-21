@@ -969,10 +969,8 @@ export class MethodCallGenerator {
               const valueValue = this.ctx.generateExpression(expr.args[0], params);
               return this.ctx.stringSetGen.generateStringSetHas(setAlloca, valueValue);
             } else {
-              return this.ctx.emitError(
-                "Set.delete() not yet implemented for Set<string>",
-                expr.loc,
-              );
+              const valueValue = this.ctx.generateExpression(expr.args[0], params);
+              return this.ctx.stringSetGen.generateStringSetDelete(setAlloca, valueValue);
             }
           }
         }
@@ -997,7 +995,8 @@ export class MethodCallGenerator {
             const valueValue = this.ctx.generateExpression(expr.args[0], params);
             return this.ctx.stringSetGen.generateStringSetHas(setPtr, valueValue);
           } else {
-            return this.ctx.emitError("Set.delete() not yet implemented for Set<string>", expr.loc);
+            const valueValue = this.ctx.generateExpression(expr.args[0], params);
+            return this.ctx.stringSetGen.generateStringSetDelete(setPtr, valueValue);
           }
         }
       }

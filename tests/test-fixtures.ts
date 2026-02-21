@@ -941,4 +941,16 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "Math.log(), Math.sin(), Math.cos() trigonometric functions",
   },
+  {
+    name: "string-padend",
+    fixture: "tests/fixtures/strings/string-padend.ts",
+    expectTestPassed: true,
+    description: "String.padEnd() pads end of string",
+  },
+  {
+    name: "set-delete",
+    fixture: "tests/fixtures/data-structures/set-delete.ts",
+    expectTestPassed: true,
+    description: "Set.delete() removes elements from number and string sets",
+  },
 ];
