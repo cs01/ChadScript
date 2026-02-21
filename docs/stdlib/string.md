@@ -41,6 +41,7 @@ str.trimEnd()               // string — remove trailing whitespace
 str.toUpperCase()           // string
 str.toLowerCase()           // string
 str.padStart(len, pad)      // string — pad start to reach length
+str.padEnd(len, pad)        // string — pad end to reach length
 str.repeat(count)           // string — repeat n times
 str.concat(other)           // string — concatenate
 ```
@@ -69,6 +70,9 @@ console.log(upper);                     // "HELLO, WORLD!"
 if (trimmed.startsWith("Hello")) {
   console.log("starts with Hello");
 }
+
+const padded = "42".padStart(5, "0");   // "00042"
+const right = "hi".padEnd(10, ".");     // "hi........"
 ```
 
 ## Native Implementation

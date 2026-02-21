@@ -37,6 +37,15 @@ const token = crypto.randomBytes(16);
 // 32-character random hex string, e.g. "a1b2c3d4e5f6..."
 ```
 
+## `crypto.randomUUID()`
+
+Generate a v4 UUID string.
+
+```typescript
+const id = crypto.randomUUID();
+// "550e8400-e29b-41d4-a716-446655440000"
+```
+
 ## Example
 
 ```typescript
@@ -46,6 +55,9 @@ console.log(hash);
 
 const sessionId = crypto.randomBytes(32);
 console.log(sessionId);
+
+const uuid = crypto.randomUUID();
+console.log(uuid);
 ```
 
 ## Native Implementation
@@ -56,3 +68,4 @@ console.log(sessionId);
 | `crypto.sha512()` | OpenSSL EVP API (`EVP_sha512`) |
 | `crypto.md5()` | OpenSSL EVP API (`EVP_md5`) |
 | `crypto.randomBytes()` | `RAND_bytes()` |
+| `crypto.randomUUID()` | `RAND_bytes(16)` + version/variant bits + `snprintf` |

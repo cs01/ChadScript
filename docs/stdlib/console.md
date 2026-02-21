@@ -26,9 +26,29 @@ Print a value to stderr followed by a newline.
 console.error("something went wrong");
 ```
 
+## `console.time(label)`
+
+Start a named timer.
+
+```typescript
+console.time("build");
+```
+
+## `console.timeEnd(label)`
+
+Stop a named timer and print elapsed time in milliseconds.
+
+```typescript
+console.time("build");
+// ... do work ...
+console.timeEnd("build");    // prints: build: 42.123ms
+```
+
 ## Native Implementation
 
 | API | Maps to |
 |-----|---------|
 | `console.log()` | `printf()` |
 | `console.error()` | `fprintf(stderr, ...)` |
+| `console.time()` | `uv_hrtime()` + global StringMap |
+| `console.timeEnd()` | `uv_hrtime()` delta + `printf()` |
