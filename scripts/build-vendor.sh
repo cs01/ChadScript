@@ -61,40 +61,6 @@ else
   echo "==> picohttpparser already built, skipping"
 fi
 
-# --- lws-bridge ---
-LWS_BRIDGE_SRC="$C_BRIDGES_DIR/lws-bridge.c"
-LWS_BRIDGE_OBJ="$C_BRIDGES_DIR/lws-bridge.o"
-if [ ! -f "$LWS_BRIDGE_OBJ" ] || [ "$LWS_BRIDGE_SRC" -nt "$LWS_BRIDGE_OBJ" ]; then
-  echo "==> Building lws-bridge..."
-  EXTRA_CFLAGS=""
-  if [ "$(uname)" = "Darwin" ]; then
-    BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "/opt/homebrew")
-    ZSTD_PREFIX=$(brew --prefix zstd 2>/dev/null || echo "$BREW_PREFIX")
-    if [ -f "$ZSTD_PREFIX/include/zstd.h" ]; then
-      EXTRA_CFLAGS="-I$ZSTD_PREFIX/include"
-    fi
-  fi
-  cc -c -O2 -fPIC \
-    -I"$VENDOR_DIR/libuv/include" \
-    -I"$VENDOR_DIR/picohttpparser" \
-    $EXTRA_CFLAGS \
-    "$LWS_BRIDGE_SRC" -o "$LWS_BRIDGE_OBJ"
-  echo "  -> $LWS_BRIDGE_OBJ"
-else
-  echo "==> lws-bridge already built, skipping"
-fi
-
-# --- regex-bridge ---
-REGEX_BRIDGE_SRC="$C_BRIDGES_DIR/regex-bridge.c"
-REGEX_BRIDGE_OBJ="$C_BRIDGES_DIR/regex-bridge.o"
-if [ ! -f "$REGEX_BRIDGE_OBJ" ] || [ "$REGEX_BRIDGE_SRC" -nt "$REGEX_BRIDGE_OBJ" ]; then
-  echo "==> Building regex-bridge..."
-  cc -c -O2 -fPIC "$REGEX_BRIDGE_SRC" -o "$REGEX_BRIDGE_OBJ"
-  echo "  -> $REGEX_BRIDGE_OBJ"
-else
-  echo "==> regex-bridge already built, skipping"
-fi
-
 # --- yyjson ---
 if [ ! -f "$VENDOR_DIR/yyjson/libyyjson.a" ]; then
   echo "==> Building yyjson..."
@@ -133,6 +99,40 @@ if [ ! -f "$VENDOR_DIR/libuv/build/libuv.a" ]; then
   echo "  -> $VENDOR_DIR/libuv/build/libuv.a"
 else
   echo "==> libuv already built, skipping"
+fi
+
+# --- lws-bridge (must come after libuv and picohttpparser) ---
+LWS_BRIDGE_SRC="$C_BRIDGES_DIR/lws-bridge.c"
+LWS_BRIDGE_OBJ="$C_BRIDGES_DIR/lws-bridge.o"
+if [ ! -f "$LWS_BRIDGE_OBJ" ] || [ "$LWS_BRIDGE_SRC" -nt "$LWS_BRIDGE_OBJ" ]; then
+  echo "==> Building lws-bridge..."
+  EXTRA_CFLAGS=""
+  if [ "$(uname)" = "Darwin" ]; then
+    BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "/opt/homebrew")
+    ZSTD_PREFIX=$(brew --prefix zstd 2>/dev/null || echo "$BREW_PREFIX")
+    if [ -f "$ZSTD_PREFIX/include/zstd.h" ]; then
+      EXTRA_CFLAGS="-I$ZSTD_PREFIX/include"
+    fi
+  fi
+  cc -c -O2 -fPIC \
+    -I"$VENDOR_DIR/libuv/include" \
+    -I"$VENDOR_DIR/picohttpparser" \
+    $EXTRA_CFLAGS \
+    "$LWS_BRIDGE_SRC" -o "$LWS_BRIDGE_OBJ"
+  echo "  -> $LWS_BRIDGE_OBJ"
+else
+  echo "==> lws-bridge already built, skipping"
+fi
+
+# --- regex-bridge ---
+REGEX_BRIDGE_SRC="$C_BRIDGES_DIR/regex-bridge.c"
+REGEX_BRIDGE_OBJ="$C_BRIDGES_DIR/regex-bridge.o"
+if [ ! -f "$REGEX_BRIDGE_OBJ" ] || [ "$REGEX_BRIDGE_SRC" -nt "$REGEX_BRIDGE_OBJ" ]; then
+  echo "==> Building regex-bridge..."
+  cc -c -O2 -fPIC "$REGEX_BRIDGE_SRC" -o "$REGEX_BRIDGE_OBJ"
+  echo "  -> $REGEX_BRIDGE_OBJ"
+else
+  echo "==> regex-bridge already built, skipping"
 fi
 
 # --- tree-sitter ---
