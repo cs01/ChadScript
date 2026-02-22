@@ -203,6 +203,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesTestRunner: number = 0;
   public usesAsyncFs: number = 0;
   public usesChildProcess: number = 0;
+  public usesSpawn: number = 0;
   public usesStringBuilder: number = 0;
   private stringBuilderSlen: Map<string, string> = new Map();
   private stringBuilderScap: Map<string, string> = new Map();
@@ -990,6 +991,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public getUsesChildProcess(): boolean {
     return this.usesChildProcess !== 0;
+  }
+  public setUsesSpawn(value: boolean): void {
+    this.usesSpawn = value ? 1 : 0;
+  }
+  public getUsesSpawn(): boolean {
+    return this.usesSpawn !== 0;
   }
   public setUsesAsyncFs(value: boolean): void {
     this.usesAsyncFs = value ? 1 : 0;
@@ -2292,7 +2299,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (this.usesAsyncFs) {
         irParts.push(this.asyncFsGen.generateAll());
       }
-      if (this.usesChildProcess && this.usesPromises) {
+      // Async exec helpers reuse FsWorkContext, so only emit when usesAsyncFs is set
+      // (generateExec sets usesAsyncFs; generateSpawn does not need these helpers)
+      if (this.usesChildProcess && this.usesAsyncFs) {
         irParts.push(this.asyncCpGen.generateAll());
       }
       const promiseAwait = this.libuvGen.generatePromiseAwait();

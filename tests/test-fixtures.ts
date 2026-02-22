@@ -1097,4 +1097,10 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "child_process.exec() async returns Promise with stdout/status",
   },
+  {
+    name: "cp-spawn",
+    fixture: "tests/fixtures/builtins/cp-spawn.ts",
+    expectTestPassed: true,
+    description: "child_process.spawn() with streaming callbacks collects stdout",
+  },
 ];

@@ -208,6 +208,7 @@ export interface IChildProcessGenerator {
   generateBareExecSync(expr: CallNode, params: string[]): string;
   generateSpawnSync(expr: MethodCallNode, params: string[]): string;
   generateExec(expr: MethodCallNode, params: string[]): string;
+  generateSpawn(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface IEmbedGenerator {
@@ -752,6 +753,7 @@ export interface IGeneratorContext {
   setUsesTestRunner(value: boolean): void;
   getUsesTestRunner(): boolean;
   setUsesChildProcess(value: boolean): void;
+  setUsesSpawn(value: boolean): void;
   setUsesAsyncFs(value: boolean): void;
 
   currentDeclaredInterfaceType: string | undefined;
@@ -1129,6 +1131,9 @@ export class MockGeneratorContext implements IGeneratorContext {
     return this.usesTestRunner !== 0;
   }
   setUsesChildProcess(value: boolean): void {
+    // no-op in mock
+  }
+  setUsesSpawn(value: boolean): void {
     // no-op in mock
   }
   setUsesAsyncFs(value: boolean): void {
@@ -1847,6 +1852,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateBareExecSync: (_expr: CallNode, _params: string[]): string => "%mock_bare_execsync",
     generateSpawnSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_spawnsync",
     generateExec: (_expr: MethodCallNode, _params: string[]): string => "%mock_exec",
+    generateSpawn: (_expr: MethodCallNode, _params: string[]): string => "%mock_spawn",
   };
   arrayGen: IArrayGenerator = {
     generateArrayLiteral: (_expr: ArrayNode, _params: string[]): string => "%mock_array_literal",

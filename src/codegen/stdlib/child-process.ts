@@ -1,8 +1,9 @@
 // child-process.ts — Codegen for child_process sync and async operations.
 // Sync: cs_execSync/cs_spawnSync via child-process-bridge.c
 // Async: child_process.exec() returns Promise<SpawnSyncResult> via uv_queue_work
+//        child_process.spawn() uses uv_spawn with streaming callbacks
 
-import { MethodCallNode, CallNode } from "../../ast/types.js";
+import { MethodCallNode, CallNode, VariableNode } from "../../ast/types.js";
 import { IGeneratorContext } from "../infrastructure/generator-context.js";
 
 interface ExprBase {
@@ -17,7 +18,7 @@ export class ChildProcessGenerator {
     if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as { type: string; name: string };
     if (varNode.name !== "child_process" && varNode.name !== "cp") return false;
-    const supported = ["execSync", "spawnSync", "exec"];
+    const supported = ["execSync", "spawnSync", "exec", "spawn"];
     return supported.indexOf(expr.method) !== -1;
   }
 
@@ -106,6 +107,72 @@ export class ChildProcessGenerator {
     const result = this.ctx.emitCall("%Promise*", "@__cp_exec_async", `i8* ${cmdPtr}`);
     this.ctx.setVariableType(result, "%Promise*");
     return result;
+  }
+
+  /**
+   * child_process.spawn(command, args?, onStdout, onStderr, onExit)
+   * Spawns a child process with streaming callbacks via uv_spawn.
+   * Callbacks must be named function references (same constraint as setTimeout).
+   *
+   * Signatures:
+   *   spawn(cmd, args, onStdout, onStderr, onExit) — 5 args, with args array
+   *   spawn(cmd, onStdout, onStderr, onExit) — 4 args, shell mode
+   */
+  generateSpawn(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 4) {
+      return this.ctx.emitError(
+        "spawn() requires at least 4 arguments: (command, onStdout, onStderr, onExit) or (command, args, onStdout, onStderr, onExit)",
+        expr.loc,
+      );
+    }
+    this.ctx.setUsesChildProcess(true);
+    this.ctx.setUsesSpawn(true); // links child-process-spawn.o (libuv-based async spawn)
+    this.ctx.setUsesPromises(true); // needs libuv event loop
+
+    const cmdPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    let argsDataPtr: string;
+    let argsLen: string;
+    let cbStartIdx: number;
+
+    if (expr.args.length >= 5) {
+      // 5-arg form: spawn(cmd, args, onStdout, onStderr, onExit)
+      const argsArray = this.ctx.generateExpression(expr.args[1], params);
+      const dataPtrPtr = this.ctx.emitGep("%StringArray", argsArray, "i32 0, i32 0");
+      argsDataPtr = this.ctx.emitLoad("i8**", dataPtrPtr);
+      const lenPtr = this.ctx.emitGep("%StringArray", argsArray, "i32 0, i32 1");
+      argsLen = this.ctx.emitLoad("i32", lenPtr);
+      cbStartIdx = 2;
+    } else {
+      // 4-arg form: spawn(cmd, onStdout, onStderr, onExit) — shell mode
+      argsDataPtr = "null";
+      argsLen = "0";
+      cbStartIdx = 1;
+    }
+
+    // Extract callback function names — must be variable references
+    const stdoutCb = expr.args[cbStartIdx] as ExprBase;
+    const stderrCb = expr.args[cbStartIdx + 1] as ExprBase;
+    const exitCb = expr.args[cbStartIdx + 2] as ExprBase;
+
+    if (
+      stdoutCb.type !== "variable" ||
+      stderrCb.type !== "variable" ||
+      exitCb.type !== "variable"
+    ) {
+      return this.ctx.emitError("spawn() callbacks must be function references", expr.loc);
+    }
+
+    const stdoutFn = this.ctx.mangleUserName((expr.args[cbStartIdx] as VariableNode).name);
+    const stderrFn = this.ctx.mangleUserName((expr.args[cbStartIdx + 1] as VariableNode).name);
+    const exitFn = this.ctx.mangleUserName((expr.args[cbStartIdx + 2] as VariableNode).name);
+
+    this.ctx.emit(
+      `call void @cs_spawn(i8* ${cmdPtr}, i8** ${argsDataPtr}, i32 ${argsLen}, void (i8*)* @${stdoutFn}, void (i8*)* @${stderrFn}, void (double)* @${exitFn})`,
+    );
+
+    // spawn() doesn't return a value — it's fire-and-forget
+    return "null";
   }
 }
 

@@ -135,7 +135,7 @@ else
   echo "==> regex-bridge already built, skipping"
 fi
 
-# --- child-process-bridge ---
+# --- child-process-bridge (sync only, no libuv dependency) ---
 CP_BRIDGE_SRC="$C_BRIDGES_DIR/child-process-bridge.c"
 CP_BRIDGE_OBJ="$C_BRIDGES_DIR/child-process-bridge.o"
 if [ ! -f "$CP_BRIDGE_OBJ" ] || [ "$CP_BRIDGE_SRC" -nt "$CP_BRIDGE_OBJ" ]; then
@@ -144,6 +144,17 @@ if [ ! -f "$CP_BRIDGE_OBJ" ] || [ "$CP_BRIDGE_SRC" -nt "$CP_BRIDGE_OBJ" ]; then
   echo "  -> $CP_BRIDGE_OBJ"
 else
   echo "==> child-process-bridge already built, skipping"
+fi
+
+# --- child-process-spawn (async, requires libuv) ---
+CP_SPAWN_SRC="$C_BRIDGES_DIR/child-process-spawn.c"
+CP_SPAWN_OBJ="$C_BRIDGES_DIR/child-process-spawn.o"
+if [ ! -f "$CP_SPAWN_OBJ" ] || [ "$CP_SPAWN_SRC" -nt "$CP_SPAWN_OBJ" ]; then
+  echo "==> Building child-process-spawn..."
+  cc -c -O2 -fPIC -I"$VENDOR_DIR/libuv/include" "$CP_SPAWN_SRC" -o "$CP_SPAWN_OBJ"
+  echo "  -> $CP_SPAWN_OBJ"
+else
+  echo "==> child-process-spawn already built, skipping"
 fi
 
 # --- tree-sitter ---

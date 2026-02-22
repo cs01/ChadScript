@@ -50,7 +50,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -103,6 +103,8 @@ jobs:
           cp vendor/picohttpparser/picohttpparser.o release/lib/
           cp c_bridges/lws-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
+          cp c_bridges/child-process-bridge.o release/lib/
+          cp c_bridges/child-process-spawn.o release/lib/
           tar -czf chadscript-linux-musl-x64.tar.gz -C release chad lib
 
       - name: Upload artifact
@@ -148,7 +150,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -182,10 +184,6 @@ jobs:
         run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
 
-      - name: Run self-hosting tests
-        run: node --import tsx --test tests/self-hosting.test.ts
-        timeout-minutes: 15
-
       - name: Package release artifact
         run: |
           mkdir -p release/lib
@@ -200,6 +198,8 @@ jobs:
           cp vendor/picohttpparser/picohttpparser.o release/lib/
           cp c_bridges/lws-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
+          cp c_bridges/child-process-bridge.o release/lib/
+          cp c_bridges/child-process-spawn.o release/lib/
           tar -czf chadscript-linux-x64.tar.gz -C release chad lib
 
       - name: Upload artifact
@@ -236,7 +236,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -288,6 +288,8 @@ jobs:
           cp vendor/picohttpparser/picohttpparser.o release/lib/
           cp c_bridges/lws-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
+          cp c_bridges/child-process-bridge.o release/lib/
+          cp c_bridges/child-process-spawn.o release/lib/
           tar -czf chadscript-macos-arm64.tar.gz -C release chad lib
 
       - name: Upload artifact
