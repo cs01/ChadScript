@@ -14,13 +14,13 @@ hero:
 
 features:
   - title: No Runtime
-    details: No Node.js, no V8, no interpreter. The output is a standalone ELF binary that starts in under 2ms.
+    details: Standalone ELF binaries. No Node.js, no V8, no VM. Starts in under 2ms.
   - title: Familiar Syntax
-    details: Write the TypeScript you already know. Classes, interfaces, async/await, generics - it all works.
+    details: Standard TypeScript — classes, interfaces, async/await, generics.
   - title: Batteries Included
-    details: HTTP servers, file I/O, JSON, crypto, SQLite, regex, async - all compiled to native code. No npm required.
-  - title: Zero-Cost C Interop
-    details: C libraries like SQLite and OpenSSL are called directly through LLVM IR — no FFI boundary, no marshaling, no overhead. Same cost as a native function call.
+    details: HTTP server, SQLite, fetch, crypto, file I/O, JSON — all native. No npm.
+  - title: Single-Binary Deploy
+    details: Embed HTML, CSS, and assets at compile time. Ship one file.
 ---
 
 <HeroRotator />

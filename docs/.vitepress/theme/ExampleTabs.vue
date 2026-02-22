@@ -66,6 +66,24 @@ main();`,
     run: '$ chad run parallel.ts',
     output: `users: 200\nposts: 200`,
   },
+  {
+    label: 'Single-Binary Webapp',
+    file: 'app.ts',
+    code: `// HTML & CSS are embedded into the binary at compile time
+ChadScript.embedDir("./public");
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  if (req.path == "/")
+    return { status: 200, body: ChadScript.getEmbeddedFile("index.html") };
+  if (req.path == "/style.css")
+    return { status: 200, body: ChadScript.getEmbeddedFile("style.css") };
+  return { status: 404, body: "Not Found" };
+}
+
+httpServe(3000, handleRequest);`,
+    run: '$ chad build app.ts -o webapp && ./webapp',
+    output: `listening on port 3000`,
+  },
 ]
 
 const keywords = new Set([
@@ -78,7 +96,7 @@ const types = new Set([
 ])
 
 const builtins = new Set([
-  'console', 'process', 'fs', 'JSON', 'sqlite', 'httpServe', 'fetch',
+  'console', 'process', 'fs', 'JSON', 'sqlite', 'httpServe', 'fetch', 'ChadScript',
 ])
 
 function highlight(code: string): string {
