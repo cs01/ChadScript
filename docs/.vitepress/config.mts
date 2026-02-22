@@ -44,7 +44,6 @@ export default defineConfig({
           { text: 'Installation', link: '/getting-started/installation' },
           { text: 'Examples', link: '/getting-started/quickstart' },
           { text: 'How it Works', link: '/language/architecture' },
-          { text: 'Classes & Interfaces', link: '/language/classes' },
           { text: 'CLI Reference', link: '/getting-started/cli' },
           { text: 'Debugging', link: '/getting-started/debugging' }
         ]
