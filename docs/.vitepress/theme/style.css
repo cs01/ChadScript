@@ -58,3 +58,9 @@
   text-align: left;
   color: var(--vp-c-brand-1);
 }
+
+/* Tighten hero top padding (VitePress defaults to +80px above nav) */
+.VPHero {
+  padding-top: calc(var(--vp-nav-height) + var(--vp-layout-top-height, 0px) + 32px) !important;
+  padding-bottom: 32px !important;
+}

@@ -2,7 +2,6 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import { exec, spawn, ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
-import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
 import * as zlib from "node:zlib";
 import * as http from "node:http";
@@ -12,88 +11,6 @@ const execAsync = promisify(exec);
 const SERVER_SOURCE = "tests/fixtures/network/http-route-isolation-test.ts";
 const SERVER_BINARY = ".build/tests/fixtures/network/http-route-isolation-test";
 const PORT = 9987;
-
-const SERVER_CODE = `
-interface Request {
-  method: string;
-  path: string;
-  body: string;
-  contentType: string;
-}
-
-interface Response {
-  status: number;
-  body: string;
-}
-
-function homeHandler(req: Request): Response {
-  return { status: 200, body: "Hello from ChadScript!" };
-}
-
-function jsonHandler(req: Request): Response {
-  return { status: 200, body: '{"message":"hello","count":42}' };
-}
-
-function echoHandler(req: Request): Response {
-  return { status: 200, body: req.body };
-}
-
-function echoQueryHandler(req: Request): Response {
-  return { status: 200, body: req.path.substring(10, req.path.length) };
-}
-
-function statusHandler(req: Request): Response {
-  const code = req.path.substring(8, req.path.length);
-  return { status: 200, body: "Status " + code };
-}
-
-function contentTypeHandler(req: Request): Response {
-  return { status: 200, body: "Content-Type: " + req.contentType };
-}
-
-function errorHandler(req: Request): Response {
-  return { status: 500, body: "Internal Server Error" };
-}
-
-function createdHandler(req: Request): Response {
-  return { status: 201, body: "Resource Created" };
-}
-
-function largeHandler(req: Request): Response {
-  let body = "<html><head><title>Large Response</title></head><body>";
-  body = body + "<h1>This is a large response for compression testing</h1>";
-  body = body + "<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>";
-  body = body + "<p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>";
-  body = body + "<p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>";
-  body = body + "</body></html>";
-  return { status: 200, body: body };
-}
-
-function notFoundHandler(req: Request): Response {
-  return { status: 404, body: "Not Found" };
-}
-
-function handleRequest(req: Request): Response {
-  if (req.method == "GET") {
-    if (req.path == "/") return homeHandler(req);
-    if (req.path == "/json") return jsonHandler(req);
-    if (req.path.startsWith("/echo?msg=")) return echoQueryHandler(req);
-    if (req.path.startsWith("/status/")) return statusHandler(req);
-    if (req.path == "/content-type") return contentTypeHandler(req);
-    if (req.path == "/large") return largeHandler(req);
-    if (req.path == "/error") return errorHandler(req);
-    if (req.path == "/created") return createdHandler(req);
-  }
-
-  if (req.method == "POST") {
-    if (req.path == "/echo") return echoHandler(req);
-  }
-
-  return notFoundHandler(req);
-}
-
-httpServe(${PORT}, handleRequest);
-`;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -112,9 +29,6 @@ describe("HTTP Route Isolation Tests", { concurrency: 1 }, () => {
   let serverProcess: ChildProcess | null = null;
 
   before(async () => {
-    await fs.mkdir("tests/fixtures/network", { recursive: true });
-    await fs.writeFile(SERVER_SOURCE, SERVER_CODE);
-
     await execAsync(`node dist/chad-node.js build ${SERVER_SOURCE}`, { timeout: 60000 });
     assert.ok(fsSync.existsSync(SERVER_BINARY), "Server binary should exist");
   });
@@ -125,15 +39,6 @@ describe("HTTP Route Isolation Tests", { concurrency: 1 }, () => {
         process.kill(-serverProcess.pid, "SIGTERM");
       } catch {}
     }
-    try {
-      await fs.unlink(SERVER_SOURCE);
-    } catch {}
-    try {
-      await fs.unlink(SERVER_BINARY);
-    } catch {}
-    try {
-      await fs.unlink(SERVER_BINARY + ".ll");
-    } catch {}
   });
 
   async function waitForServer(maxAttempts = 50): Promise<void> {

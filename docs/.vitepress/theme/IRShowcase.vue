@@ -212,8 +212,8 @@ onUnmounted(() => {
 
 <template>
   <div class="ir-showcase" ref="containerRef">
-    <h2 class="ir-heading">What's Under the Hood</h2>
-    <p class="ir-subheading">Your TypeScript is parsed, type-checked, and lowered to LLVM IR — then compiled and linked into a standalone native binary. No interpreter. No JIT. Just native machine code.</p>
+    <h2 class="ir-heading">How it Works</h2>
+    <p class="ir-subheading">Your TypeScript is parsed, type-checked, and lowered to LLVM IR — then compiled and linked into a standalone native binary.</p>
 
     <div class="pipeline-panel" :class="{ visible: phase !== 'idle' }">
 

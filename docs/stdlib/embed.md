@@ -73,7 +73,7 @@ $ ./server
 # HTML and CSS are served from memory — no files needed at runtime
 ```
 
-See [`examples/http-server/`](https://github.com/cs01/ChadScript/tree/main/examples/http-server) and [`examples/hackernews/`](https://github.com/cs01/ChadScript/tree/main/examples/hackernews) for full working examples.
+See [`examples/hackernews/`](https://github.com/cs01/ChadScript/tree/main/examples/hackernews) for a full working example with `embedDir()`.
 
 ## How It Works
 
@@ -89,5 +89,6 @@ At compile time, the compiler reads the file(s) from disk and emits them as LLVM
 
 - All paths are resolved relative to the **entry file** (the `.ts` file passed to `chad build`)
 - `embedFile()` and `embedDir()` arguments must be string literals — they are evaluated at compile time
-- `embedDir()` embeds all files recursively, including subdirectories (keys use `/` separators)
+- `embedDir()` embeds all files recursively; keys are **relative paths** from the embedded directory (e.g. `subdir/page.html`), so files with the same name in different subdirectories won't collide
+- `embedFile()` keys by **filename only** (basename), so avoid embedding two files with the same name via separate `embedFile()` calls — use `embedDir()` instead when you have nested structures
 - Binary files are read as UTF-8; this is designed for text content

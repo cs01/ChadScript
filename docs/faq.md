@@ -6,7 +6,7 @@ ChadScript is a compiler that takes TypeScript source code and produces native E
 
 ## Is ChadScript a drop-in replacement for TypeScript?
 
-No. ChadScript uses TypeScript syntax but has different semantics. It compiles to native machine code with fixed types and limits to dynamic features. See [Limitations](/language/limitations) for the full list.
+No. ChadScript supports a practical subset of TypeScript. It compiles to native machine code, so all types must be known at compile time and dynamic features like `eval()` aren't available. See [Language Support](/language/limitations) for details.
 
 ## What TypeScript features are supported?
 
@@ -15,14 +15,14 @@ Most of the core language: variables, functions, classes, interfaces, arrays, st
 ## What TypeScript features are NOT supported?
 
 - `eval()` and dynamic code execution
-- `any`, `unknown`, and union types like `string | number`
-- Optional chaining (`?.`)
-- `instanceof`, `for...in`, and runtime type inspection
+- `any`, `unknown`, and mixed union types like `string | number`
+- `instanceof` and runtime type inspection
 - User-defined generics (built-in generics like `Map<K,V>` work)
-- Closures over mutable variables
-- Decorators, symbols, and reflection
+- Generators (`function*`, `yield`)
+- Decorators, symbols, `Proxy`, `Reflect`
+- `WeakMap`, `WeakSet`
 
-See [Limitations](/language/limitations) for the complete list.
+See [Language Support](/language/limitations) for the complete list of what works and what doesn't.
 
 ## How fast is it?
 
@@ -38,7 +38,7 @@ ChadScript uses the [Boehm GC](https://www.hboehm.info/gc/) (`libgc`), a conserv
 
 ## Can I use npm packages?
 
-Yes, as long as the package meets the standards that ChadScript requires: fully typed and limits to dynamic features. In practice this likely means most packages will not work out of the box.
+In theory, if a package is pure TypeScript and only uses features ChadScript supports. In practice, most npm packages rely on V8 semantics, dynamic types, or Node APIs that aren't available, so they won't work.
 
 ## How do I handle JSON?
 

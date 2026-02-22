@@ -88,7 +88,7 @@ export default defineConfig({
           { text: 'Architecture', link: '/language/architecture' },
           { text: 'Classes & Interfaces', link: '/language/classes' },
           { text: 'Type Mappings', link: '/language/type-mappings' },
-          { text: 'Limitations', link: '/language/limitations' }
+          { text: 'Language Support', link: '/language/limitations' }
         ]
       },
       {

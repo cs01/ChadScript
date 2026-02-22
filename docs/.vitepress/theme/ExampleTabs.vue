@@ -388,6 +388,7 @@ onUnmounted(() => {
 
 .terminal-out {
   color: var(--vp-c-text-3);
+  white-space: pre;
 }
 
 .cursor {

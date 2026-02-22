@@ -3,7 +3,7 @@ layout: home
 hero:
   name: ChadScript
   text: TypeScript to Native Binaries
-  tagline: "A native compiler for TypeScript — no interpreter, no runtime, no VM."
+  tagline: "A native compiler for TypeScript. Write TypeScript, ship a standalone binary."
   actions:
     - theme: brand
       text: Get Started
@@ -14,7 +14,7 @@ hero:
 
 features:
   - title: No Runtime
-    details: Standalone ELF binaries. No Node.js, no V8, no VM. Starts in under 2ms.
+    details: Compiles to standalone ELF binaries that start in under 2ms.
   - title: Familiar Syntax
     details: Standard TypeScript — classes, interfaces, async/await, generics.
   - title: Batteries Included
@@ -25,9 +25,9 @@ features:
 
 <HeroRotator />
 
-<HeroBenchmarks />
-
 <IRShowcase />
+
+<HeroBenchmarks />
 
 <ExampleTabs />
 

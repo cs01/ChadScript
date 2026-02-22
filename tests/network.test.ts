@@ -7,23 +7,9 @@ import * as http from "node:http";
 const execAsync = promisify(exec);
 
 describe("Network Tests", () => {
-  // TCP socket and client tests are now static fixtures auto-discovered by compiler.test.ts:
+  // TCP socket and client tests are static fixtures auto-discovered by compiler.test.ts:
   //   tests/fixtures/network/tcp-test-socket.ts
   //   tests/fixtures/network/tcp-client.ts
-
-  it("should compile and run TCP socket program", async () => {
-    const testFile = "tests/fixtures/network/tcp-test-socket.ts";
-    await execAsync(`node dist/chad-node.js build ${testFile}`);
-    const { stdout } = await execAsync(".build/tests/fixtures/network/tcp-test-socket");
-    assert.ok(stdout.includes("TEST_PASSED"), "TCP socket test should pass");
-  });
-
-  it("should connect to TCP server and exchange data", async () => {
-    const testFile = "tests/fixtures/network/tcp-client.ts";
-    await execAsync(`node dist/chad-node.js build ${testFile}`);
-    const { stdout } = await execAsync(".build/tests/fixtures/network/tcp-client");
-    assert.ok(stdout.includes("TEST_PASSED"), "TCP client test should pass");
-  });
 
   it("should perform HTTP requests using fetch() builtin", async () => {
     // Start a Node.js HTTP server for testing
