@@ -212,13 +212,14 @@ onUnmounted(() => {
 
 <template>
   <div class="ir-showcase" ref="containerRef">
-    <h2 class="ir-heading">What's Under the Hood</h2>
-    <p class="ir-subheading">Your TypeScript is parsed, type-checked, and lowered to LLVM IR — then compiled and linked into a standalone native binary. No interpreter. No JIT. Just native machine code.</p>
+    <h2 class="ir-heading">How it Works</h2>
+    <p class="ir-subheading">Your TypeScript is parsed, type-checked, and lowered to LLVM IR — then compiled and linked into a standalone native binary.</p>
 
     <div class="pipeline-panel" :class="{ visible: phase !== 'idle' }">
 
       <div class="stage-source" v-if="phase !== 'idle'">
         <div class="panel-header">
+          <span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span>
           <span class="panel-label">hello.ts</span>
         </div>
         <pre class="panel-code"><code>console.log(<span class="hl-string">"Hello from ChadScript!"</span>)<span v-if="sourceText.length < fullSource.length && phase === 'typing-source'" class="cursor">|</span></code></pre>
@@ -232,15 +233,19 @@ onUnmounted(() => {
         class="terminal-section"
         :class="{ visible: phase !== 'idle' && phase !== 'typing-source' }"
       >
-        <div class="terminal-line">
-          <span class="terminal-prompt">$</span>
-          <span class="terminal-text">{{ buildCmd }}</span>
-          <span v-if="(phase === 'typing-build' || phase === 'ready-compile') && buildCmd.length <= fullBuildCmd.length" class="cursor">|</span>
+        <div class="terminal-chrome"><span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span><span class="terminal-label">Terminal</span></div>
+        <div class="terminal-body">
+          <div class="terminal-line">
+            <span class="terminal-prompt">$</span>
+            <span class="terminal-text">{{ buildCmd }}</span>
+            <span v-if="(phase === 'typing-build' || phase === 'ready-compile') && buildCmd.length <= fullBuildCmd.length" class="cursor">|</span>
+          </div>
         </div>
       </div>
 
       <div class="stage-ir" :class="{ visible: irVisibleCount > 0 }">
         <div class="panel-header">
+          <span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span>
           <span class="panel-label">LLVM IR</span>
           <span v-if="irVisibleCount >= irLines.length" class="ir-badge">generated</span>
         </div>
@@ -260,7 +265,7 @@ onUnmounted(() => {
           </span>
           <span v-else-if="linkingState === 'done'" class="link-row">
             <span class="checkmark">✓</span>
-            <span class="link-text">Compiled → hello (42 KB)</span>
+            <span class="link-text">hello: ELF 64-bit LSB executable, x86-64 (42 KB)</span>
           </span>
         </div>
       </div>
@@ -269,16 +274,19 @@ onUnmounted(() => {
         class="terminal-section"
         :class="{ visible: phase === 'typing-run' || phase === 'ready-run' || phase === 'running' || phase === 'done' }"
       >
-        <div class="terminal-line">
-          <span class="terminal-prompt">$</span>
-          <span class="terminal-text">{{ runCmd }}</span>
-          <span v-if="(phase === 'typing-run' || phase === 'ready-run') && runCmd.length <= fullRunCmd.length" class="cursor">|</span>
-        </div>
-        <div v-if="execOutput" class="terminal-line terminal-output">
-          {{ execOutput }}
-        </div>
-        <div v-if="execTime" class="timing-text">
-          completed in {{ execTime }}
+        <div class="terminal-chrome"><span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span><span class="terminal-label">Terminal</span></div>
+        <div class="terminal-body">
+          <div class="terminal-line">
+            <span class="terminal-prompt">$</span>
+            <span class="terminal-text">{{ runCmd }}</span>
+            <span v-if="(phase === 'typing-run' || phase === 'ready-run') && runCmd.length <= fullRunCmd.length" class="cursor">|</span>
+          </div>
+          <div v-if="execOutput" class="terminal-line terminal-output">
+            {{ execOutput }}
+          </div>
+          <div v-if="execTime" class="timing-text">
+            completed in {{ execTime }}
+          </div>
         </div>
       </div>
 
@@ -298,7 +306,11 @@ onUnmounted(() => {
       </div>
 
       <div class="cta-section" :class="{ visible: ctaVisible }">
-        <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started with ChadScript</a>
+        <p class="cta-tagline">Congratulations, you wrote your first ChadScript app!</p>
+        <div class="cta-buttons">
+          <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started</a>
+          <a href="/ChadScript/language/limitations" class="cta-link secondary">Learn More</a>
+        </div>
       </div>
 
     </div>
@@ -325,7 +337,7 @@ onUnmounted(() => {
   text-align: center;
   font-size: 0.95rem;
   color: var(--vp-c-text-2);
-  margin-bottom: 1.8rem;
+  margin-bottom: 1.2rem;
   max-width: 640px;
   margin-left: auto;
   margin-right: auto;
@@ -333,10 +345,8 @@ onUnmounted(() => {
 }
 
 .pipeline-panel {
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: var(--vp-c-bg-soft);
+  display: flex;
+  flex-direction: column;
   opacity: 0;
   transform: translateY(12px);
   transition: opacity 0.4s ease, transform 0.4s ease;
@@ -351,10 +361,26 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 7px 16px;
   background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
+
+.window-dots {
+  display: flex;
+  gap: 6px;
+  margin-right: 4px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.dot.red { background: #c44; }
+.dot.yellow { background: #b89530; }
+.dot.green { background: #2a9a38; }
 
 .panel-label {
   font-size: 0.8rem;
@@ -365,9 +391,9 @@ onUnmounted(() => {
 
 .panel-code {
   margin: 0;
-  padding: 14px 16px;
+  padding: 10px 16px;
   font-size: 0.82rem;
-  line-height: 1.7;
+  line-height: 1.5;
   overflow-x: auto;
   background: transparent;
 }
@@ -380,11 +406,15 @@ onUnmounted(() => {
 
 .stage-source {
   position: relative;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--vp-c-bg-soft);
+  overflow: hidden;
 }
 
 .code-mask {
   position: absolute;
-  top: 40px;
+  top: 36px;
   right: 0;
   bottom: 0;
   background: var(--vp-c-bg-soft);
@@ -405,18 +435,38 @@ onUnmounted(() => {
 }
 
 .terminal-section {
-  padding: 10px 16px;
-  background: rgba(0, 0, 0, 0.15);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.3s ease;
+  transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease;
 }
 
 .terminal-section.visible {
   opacity: 1;
   max-height: 200px;
+  margin-top: 8px;
+}
+
+.terminal-chrome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.terminal-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--vp-c-text-3);
+  font-family: var(--vp-font-family-mono);
+}
+
+.terminal-body {
+  padding: 8px 16px;
 }
 
 .terminal-line {
@@ -440,24 +490,24 @@ onUnmounted(() => {
 }
 
 .hex-section {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.3s ease;
+  transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease;
 }
 
 .hex-section.visible {
   opacity: 1;
-  max-height: 140px;
+  max-height: 110px;
+  margin-top: 8px;
 }
 
 .hex-prompt {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 20px 16px;
+  gap: 4px;
+  padding: 10px 16px;
   transition: opacity 0.3s ease;
 }
 
@@ -479,8 +529,8 @@ onUnmounted(() => {
 
 .hex-container {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -558,23 +608,35 @@ onUnmounted(() => {
 }
 
 .cta-section {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  text-align: center;
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.4s ease, max-height 0.3s ease;
+  transition: opacity 0.4s ease, max-height 0.3s ease, margin 0.3s ease;
 }
 
 .cta-section.visible {
   opacity: 1;
-  max-height: 80px;
+  max-height: 100px;
+  margin-top: 8px;
+}
+
+.cta-tagline {
+  font-size: 0.9rem;
+  color: var(--vp-c-text-2);
+  margin: 0 0 8px;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
 }
 
 .cta-link {
   display: inline-block;
-  margin: 14px auto;
-  padding: 10px 24px;
-  font-size: 0.9rem;
+  padding: 8px 20px;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--vp-c-text-1);
   background: rgba(255, 255, 255, 0.08);
@@ -589,23 +651,31 @@ onUnmounted(() => {
   border-color: rgba(255, 255, 255, 0.2);
 }
 
-.cta-section.visible {
-  opacity: 1;
-  max-height: 80px;
-  text-align: center;
+.cta-link.secondary {
+  background: none;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--vp-c-text-2);
+}
+
+.cta-link.secondary:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--vp-c-text-1);
 }
 
 .stage-ir {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--vp-c-bg-soft);
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.5s ease;
+  transition: opacity 0.3s ease, max-height 0.5s ease, margin 0.3s ease;
 }
 
 .stage-ir.visible {
   opacity: 1;
   max-height: 500px;
+  margin-top: 8px;
 }
 
 .ir-code {
@@ -653,18 +723,20 @@ onUnmounted(() => {
 }
 
 .stage-link {
-  padding: 10px 16px;
-  background: rgba(0, 0, 0, 0.15);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.3s ease;
+  transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease;
 }
 
 .stage-link.visible {
   opacity: 1;
   max-height: 200px;
+  margin-top: 8px;
 }
 
 .link-row {
@@ -700,7 +772,7 @@ onUnmounted(() => {
 }
 
 .timing-text {
-  margin-top: 6px;
+  margin-top: 4px;
   font-family: var(--vp-font-family-mono);
   font-size: 0.8rem;
   color: var(--vp-c-text-3);

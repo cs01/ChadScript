@@ -6,7 +6,7 @@ ChadScript is a compiler that takes TypeScript source code and produces native E
 
 ## Is ChadScript a drop-in replacement for TypeScript?
 
-No. ChadScript uses TypeScript syntax but has different semantics. It compiles to native machine code with fixed types and limits to dynamic features. See [Limitations](/language/limitations) for the full list.
+No. ChadScript supports a practical subset of TypeScript. It compiles to native machine code, so all types must be known at compile time and dynamic features like `eval()` aren't available. See [Language Support](/language/limitations) for details.
 
 ## What TypeScript features are supported?
 
@@ -15,14 +15,14 @@ Most of the core language: variables, functions, classes, interfaces, arrays, st
 ## What TypeScript features are NOT supported?
 
 - `eval()` and dynamic code execution
-- `any`, `unknown`, and union types like `string | number`
-- Optional chaining (`?.`)
-- `instanceof`, `for...in`, and runtime type inspection
+- `any`, `unknown`, and mixed union types like `string | number`
+- `instanceof` and runtime type inspection
 - User-defined generics (built-in generics like `Map<K,V>` work)
-- Closures over mutable variables
-- Decorators, symbols, and reflection
+- Generators (`function*`, `yield`)
+- Decorators, symbols, `Proxy`, `Reflect`
+- `WeakMap`, `WeakSet`
 
-See [Limitations](/language/limitations) for the complete list.
+See [Language Support](/language/limitations) for the complete list of what works and what doesn't.
 
 ## How fast is it?
 
@@ -30,7 +30,7 @@ ChadScript binaries start in ~1.9ms (vs ~65ms for Node.js, ~20ms for Bun). See [
 
 ## What platforms are supported?
 
-Linux x86-64 and macOS. The compiler produces ELF binaries and links against system libraries (libgc, libuv, libcurl, etc.).
+Linux x86-64 and macOS. Cross-compilation is supported via `--target` (e.g. `chad build app.ts --target macos-arm64`). See [CLI Reference](/getting-started/cli) for all targets.
 
 ## How does garbage collection work?
 
@@ -38,7 +38,7 @@ ChadScript uses the [Boehm GC](https://www.hboehm.info/gc/) (`libgc`), a conserv
 
 ## Can I use npm packages?
 
-Yes, as long as the package meets the standards that ChadScript requires: fully typed and limits to dynamic features. In practice this likely means most packages will not work out of the box.
+In theory, if a package is pure TypeScript and only uses features ChadScript supports. In practice, most npm packages rely on V8 semantics, dynamic types, or Node APIs that aren't available, so they won't work.
 
 ## How do I handle JSON?
 
@@ -60,15 +60,11 @@ If the runtime type does not match the type parameter, the value will be zeroed 
 
 ## Is ChadScript self-hosting?
 
-Yes. The compiler (~45k lines of TypeScript) can compile itself to a native binary. The native binary can then compile the compiler again, proving correctness. See [Architecture](/language/architecture) for details on the self-hosting pipeline.
-
-## How are types represented at runtime?
-
-Every TypeScript type maps to a fixed LLVM type: `number` is `double`, `string` is `i8*` (C string), `boolean` is `double`, arrays are structs with a pointer, length, and capacity. There is no boxing, no type tags, and no runtime type checks. See [Type Mappings](/language/type-mappings).
+Yes. The compiler (~45k lines of TypeScript) can compile itself to a native binary. The native binary can then compile the compiler again, proving correctness. See [How it Works](/language/architecture) for details.
 
 ## Can I call C libraries?
 
-ChadScript links against C libraries directly. The standard library (fs, crypto, sqlite, fetch, http) is implemented by calling C APIs inline. There is no FFI bridge — calls to `sqlite3_exec` or `curl_easy_perform` compile to direct native calls with zero overhead.
+ChadScript links against C libraries directly. The standard library (fs, crypto, sqlite, fetch, http) is implemented by calling C APIs inline — calls to `sqlite3_exec` or `curl_easy_perform` compile to direct native calls with zero overhead.
 
 ## How do I build and run a program?
 

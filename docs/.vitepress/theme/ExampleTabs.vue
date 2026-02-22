@@ -66,6 +66,24 @@ main();`,
     run: '$ chad run parallel.ts',
     output: `users: 200\nposts: 200`,
   },
+  {
+    label: 'Single-Binary Webapp',
+    file: 'app.ts',
+    code: `// HTML & CSS are embedded into the binary at compile time
+ChadScript.embedDir("./public");
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  if (req.path == "/")
+    return { status: 200, body: ChadScript.getEmbeddedFile("index.html") };
+  if (req.path == "/style.css")
+    return { status: 200, body: ChadScript.getEmbeddedFile("style.css") };
+  return { status: 404, body: "Not Found" };
+}
+
+httpServe(3000, handleRequest);`,
+    run: '$ chad build app.ts -o webapp && ./webapp',
+    output: `listening on port 3000`,
+  },
 ]
 
 const keywords = new Set([
@@ -78,7 +96,7 @@ const types = new Set([
 ])
 
 const builtins = new Set([
-  'console', 'process', 'fs', 'JSON', 'sqlite', 'httpServe', 'fetch',
+  'console', 'process', 'fs', 'JSON', 'sqlite', 'httpServe', 'fetch', 'ChadScript',
 ])
 
 function highlight(code: string): string {
@@ -177,6 +195,7 @@ onUnmounted(() => {
     </div>
     <div class="tab-panel">
       <div class="panel-header">
+        <span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span>
         <span class="panel-filename">{{ examples[activeTab].file }}</span>
         <button class="copy-btn" :class="{ copied }" @click="copyCode">
           {{ copied ? 'Copied' : 'Copy' }}
@@ -184,6 +203,7 @@ onUnmounted(() => {
       </div>
       <pre class="panel-code"><code v-html="highlightedCode"></code></pre>
       <div class="panel-terminal">
+        <div class="terminal-header"><span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span><span class="terminal-title">Terminal</span></div>
         <div class="terminal-line terminal-cmd"><span class="terminal-prompt">$</span> {{ cmdText }}<span v-if="!showOutput" class="cursor">|</span></div>
         <div v-if="showOutput" class="terminal-line terminal-out">{{ examples[activeTab].output }}</div>
       </div>
@@ -247,17 +267,33 @@ onUnmounted(() => {
 .panel-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   padding: 8px 14px;
   background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
+
+.window-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.dot.red { background: #c44; }
+.dot.yellow { background: #b89530; }
+.dot.green { background: #2a9a38; }
 
 .panel-filename {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--vp-c-text-3);
   font-family: var(--vp-font-family-mono);
+  margin-right: auto;
 }
 
 .copy-btn {
@@ -307,14 +343,39 @@ onUnmounted(() => {
 .panel-code :deep(.hl-comment) { color: #5c6370; font-style: italic; }
 
 .panel-terminal {
-  padding: 10px 16px;
   background: rgba(0, 0, 0, 0.15);
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.terminal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.terminal-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--vp-c-text-3);
+  font-family: var(--vp-font-family-mono);
 }
 
 .terminal-line {
   font-family: var(--vp-font-family-mono);
   font-size: 0.8rem;
   line-height: 1.6;
+  padding: 0 14px;
+}
+
+.terminal-line:first-of-type {
+  padding-top: 8px;
+}
+
+.terminal-line:last-of-type {
+  padding-bottom: 10px;
 }
 
 .terminal-prompt {
@@ -327,6 +388,7 @@ onUnmounted(() => {
 
 .terminal-out {
   color: var(--vp-c-text-3);
+  white-space: pre;
 }
 
 .cursor {

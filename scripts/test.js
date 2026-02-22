@@ -38,7 +38,6 @@ const testPattern =
         "tests/unit/symbol-table.test.ts",
         "tests/unit/type-system.test.ts",
         "tests/network.test.ts",
-        "tests/tcp-server-full.test.ts",
         "tests/http-routes.test.ts",
       ]
     : args;

@@ -3,31 +3,31 @@ layout: home
 hero:
   name: ChadScript
   text: TypeScript to Native Binaries
-  tagline: "A native compiler for TypeScript — no interpreter, no runtime, no VM."
+  tagline: "A native compiler for TypeScript. Write TypeScript, ship a standalone binary."
   actions:
     - theme: brand
       text: Get Started
       link: /getting-started/installation
     - theme: alt
-      text: API Reference
-      link: /stdlib/
+      text: Learn More
+      link: /language/limitations
 
 features:
   - title: No Runtime
-    details: No Node.js, no V8, no interpreter. The output is a standalone ELF binary that starts in under 2ms.
+    details: Compiles to standalone ELF binaries that start in under 2ms.
   - title: Familiar Syntax
-    details: Write the TypeScript you already know. Classes, interfaces, async/await, generics - it all works.
+    details: Standard TypeScript — classes, interfaces, async/await, generics.
   - title: Batteries Included
-    details: HTTP servers, file I/O, JSON, crypto, SQLite, regex, async - all compiled to native code. No npm required.
-  - title: Zero-Cost C Interop
-    details: C libraries like SQLite and OpenSSL are called directly through LLVM IR — no FFI boundary, no marshaling, no overhead. Same cost as a native function call.
+    details: Everything you'd npm install — HTTP, SQLite, fetch, crypto, JSON — is built in. No dependencies.
+  - title: Single-Binary Deploy
+    details: Embed HTML, CSS, and assets at compile time. Ship one file.
 ---
 
 <HeroRotator />
 
-<HeroBenchmarks />
-
 <IRShowcase />
+
+<HeroBenchmarks />
 
 <ExampleTabs />
 
@@ -40,7 +40,8 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
 ```
 
 <div class="cta-buttons">
-  <a href="/ChadScript/getting-started/installation" class="cta-button primary">Get Started →</a>
+  <a href="/ChadScript/getting-started/installation" class="cta-button primary">Get Started</a>
+  <a href="/ChadScript/language/limitations" class="cta-button secondary">Learn More</a>
 </div>
 
 </div>

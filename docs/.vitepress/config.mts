@@ -33,16 +33,17 @@ export default defineConfig({
       { text: 'Get Started', link: '/getting-started/installation' },
       { text: 'API', link: '/stdlib/' },
       { text: 'Benchmarks', link: '/benchmarks' },
-      { text: 'Language', link: '/language/architecture' }
+      { text: 'GitHub', link: 'https://github.com/cs01/ChadScript' }
     ],
 
     sidebar: [
       {
         text: 'Getting Started',
         items: [
-          { text: 'Introduction', link: '/' },
-          { text: 'Get Started', link: '/getting-started/installation' },
+          { text: 'Language Support', link: '/language/limitations' },
+          { text: 'Installation', link: '/getting-started/installation' },
           { text: 'Examples', link: '/getting-started/quickstart' },
+          { text: 'How it Works', link: '/language/architecture' },
           { text: 'CLI Reference', link: '/getting-started/cli' },
           { text: 'Debugging', link: '/getting-started/debugging' }
         ]
@@ -51,43 +52,36 @@ export default defineConfig({
         text: 'Standard Library',
         items: [
           { text: 'Overview', link: '/stdlib/' },
-          { text: 'console', link: '/stdlib/console' },
-          { text: 'process', link: '/stdlib/process' },
-          { text: 'fs', link: '/stdlib/fs' },
-          { text: 'path', link: '/stdlib/path' },
-          { text: 'child_process', link: '/stdlib/child-process' },
-          { text: 'tty', link: '/stdlib/tty' },
-          { text: 'Math', link: '/stdlib/math' },
-          { text: 'JSON', link: '/stdlib/json' },
-          { text: 'Date', link: '/stdlib/date' },
-          { text: 'crypto', link: '/stdlib/crypto' },
-          { text: 'sqlite', link: '/stdlib/sqlite' },
-          { text: 'fetch', link: '/stdlib/fetch' },
-          { text: 'httpServe', link: '/stdlib/http-server' },
-          { text: 'String Methods', link: '/stdlib/string' },
-          { text: 'Number', link: '/stdlib/number' },
           { text: 'Array Methods', link: '/stdlib/array' },
-          { text: 'Map', link: '/stdlib/map' },
-          { text: 'Set', link: '/stdlib/set' },
-          { text: 'RegExp', link: '/stdlib/regexp' },
-          { text: 'Object', link: '/stdlib/object' },
           { text: 'Async', link: '/stdlib/async' },
-          { text: 'Low-Level / Syscalls', link: '/stdlib/syscalls' }
+          { text: 'ChadScript.embed', link: '/stdlib/embed' },
+          { text: 'child_process', link: '/stdlib/child-process' },
+          { text: 'console', link: '/stdlib/console' },
+          { text: 'crypto', link: '/stdlib/crypto' },
+          { text: 'Date', link: '/stdlib/date' },
+          { text: 'fetch', link: '/stdlib/fetch' },
+          { text: 'fs', link: '/stdlib/fs' },
+          { text: 'httpServe', link: '/stdlib/http-server' },
+          { text: 'JSON', link: '/stdlib/json' },
+          { text: 'Map', link: '/stdlib/map' },
+          { text: 'Math', link: '/stdlib/math' },
+          { text: 'Number', link: '/stdlib/number' },
+          { text: 'Object', link: '/stdlib/object' },
+          { text: 'os', link: '/stdlib/os' },
+          { text: 'path', link: '/stdlib/path' },
+          { text: 'process', link: '/stdlib/process' },
+          { text: 'RegExp', link: '/stdlib/regexp' },
+          { text: 'Set', link: '/stdlib/set' },
+          { text: 'sqlite', link: '/stdlib/sqlite' },
+          { text: 'String Methods', link: '/stdlib/string' },
+          { text: 'Syscalls', link: '/stdlib/syscalls' },
+          { text: 'tty', link: '/stdlib/tty' }
         ]
       },
       {
         text: 'Performance',
         items: [
           { text: 'Benchmarks', link: '/benchmarks' }
-        ]
-      },
-      {
-        text: 'Language',
-        items: [
-          { text: 'Architecture', link: '/language/architecture' },
-          { text: 'Classes & Interfaces', link: '/language/classes' },
-          { text: 'Type Mappings', link: '/language/type-mappings' },
-          { text: 'Limitations', link: '/language/limitations' }
         ]
       },
       {

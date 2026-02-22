@@ -51,6 +51,32 @@ Words:
 142
 ```
 
+## Single-Binary Webapp
+
+Embed HTML, CSS, and other static files directly into the binary at compile time. No external files needed at runtime — deploy a full webapp as a single executable.
+
+```typescript
+ChadScript.embedDir("./public");
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  if (req.path == "/")
+    return { status: 200, body: ChadScript.getEmbeddedFile("index.html") };
+  if (req.path == "/style.css")
+    return { status: 200, body: ChadScript.getEmbeddedFile("style.css") };
+  return { status: 404, body: "Not Found" };
+}
+
+httpServe(3000, handleRequest);
+```
+
+```bash
+$ chad build app.ts -o webapp
+$ scp webapp server:~/  # deploy = copy one file
+$ ./webapp
+```
+
+See [ChadScript.embed](/stdlib/embed) for full API docs.
+
 ## Next Steps
 
 - Browse the [Standard Library](/stdlib/) for all available APIs
