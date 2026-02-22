@@ -96,6 +96,7 @@ import { generateConsoleTimerHelpers } from "./stdlib/console-timers.js";
 import { generateDefaultSortComparators } from "./types/collections/array/sort.js";
 import { AsyncFsGenerator } from "./stdlib/async-fs.js";
 import { SqliteGenerator } from "./stdlib/sqlite.js";
+import { ChildProcessGenerator, AsyncChildProcessGenerator } from "./stdlib/child-process.js";
 import { EmbedGenerator } from "./stdlib/embed.js";
 import { RuntimeGenerator } from "./runtime/runtime.js";
 import { HttpServerGenerator } from "./stdlib/http-server.js";
@@ -177,12 +178,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public arrowFunctionGen!: IArrowFunctionGenerator;
   public cryptoGen: CryptoGenerator;
   public sqliteGen: SqliteGenerator;
+  public childProcessGen: ChildProcessGenerator;
   public embedGen: EmbedGenerator;
   private runtimeGen: RuntimeGenerator;
   private httpServerGen: HttpServerGenerator;
   private libuvGen: LibuvGenerator;
   private promiseGen: PromiseGenerator;
   private asyncFsGen: AsyncFsGenerator;
+  private asyncCpGen: AsyncChildProcessGenerator;
   private treesitterGen: TreeSitterGenerator;
   private httpHandlers: string[];
   private wsHandlers: string[];
@@ -199,6 +202,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesRegex: number = 0;
   public usesTestRunner: number = 0;
   public usesAsyncFs: number = 0;
+  public usesChildProcess: number = 0;
+  public usesSpawn: number = 0;
   public usesStringBuilder: number = 0;
   private stringBuilderSlen: Map<string, string> = new Map();
   private stringBuilderScap: Map<string, string> = new Map();
@@ -981,6 +986,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesTestRunner(): boolean {
     return this.usesTestRunner !== 0;
   }
+  public setUsesChildProcess(value: boolean): void {
+    this.usesChildProcess = value ? 1 : 0;
+  }
+  public getUsesChildProcess(): boolean {
+    return this.usesChildProcess !== 0;
+  }
+  public setUsesSpawn(value: boolean): void {
+    this.usesSpawn = value ? 1 : 0;
+  }
+  public getUsesSpawn(): boolean {
+    return this.usesSpawn !== 0;
+  }
   public setUsesAsyncFs(value: boolean): void {
     this.usesAsyncFs = value ? 1 : 0;
   }
@@ -1361,12 +1378,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.responseGen = new ResponseGenerator(this);
     this.cryptoGen = new CryptoGenerator(this);
     this.sqliteGen = new SqliteGenerator(this);
+    this.childProcessGen = new ChildProcessGenerator(this);
     this.embedGen = new EmbedGenerator(this, this.filename);
     this.runtimeGen = new RuntimeGenerator();
     this.httpServerGen = new HttpServerGenerator();
     this.libuvGen = new LibuvGenerator();
     this.promiseGen = new PromiseGenerator();
     this.asyncFsGen = new AsyncFsGenerator();
+    this.asyncCpGen = new AsyncChildProcessGenerator();
     this.treesitterGen = new TreeSitterGenerator();
 
     // Initialize expression generator with context pattern
@@ -2279,6 +2298,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       }
       if (this.usesAsyncFs) {
         irParts.push(this.asyncFsGen.generateAll());
+      }
+      // Async exec helpers reuse FsWorkContext, so only emit when usesAsyncFs is set
+      // (generateExec sets usesAsyncFs; generateSpawn does not need these helpers)
+      if (this.usesChildProcess && this.usesAsyncFs) {
+        irParts.push(this.asyncCpGen.generateAll());
       }
       const promiseAwait = this.libuvGen.generatePromiseAwait();
       if (promiseAwait) {

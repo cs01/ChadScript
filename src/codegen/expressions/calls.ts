@@ -343,26 +343,9 @@ export class CallExpressionGenerator {
     return resultDouble;
   }
 
+  // Bare execSync() delegates to ChildProcessGenerator via the C bridge
   private generateExecSync(expr: CallNode, params: string[]): string {
-    const cmdStr = this.ctx.generateExpression(expr.args[0], params);
-    const modeStr = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${modeStr} = getelementptr inbounds [2 x i8], [2 x i8]* @.str.popen_mode, i64 0, i64 0`,
-    );
-    const fp = this.ctx.nextTemp();
-    this.ctx.emit(`${fp} = call i8* @popen(i8* ${cmdStr}, i8* ${modeStr})`);
-    const bufSize = "4096";
-    const buf = this.ctx.nextTemp();
-    this.ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 ${bufSize})`);
-    const bytesRead = this.ctx.nextTemp();
-    this.ctx.emit(`${bytesRead} = call i64 @fread(i8* ${buf}, i64 1, i64 ${bufSize}, i8* ${fp})`);
-    const nullIdx = this.ctx.nextTemp();
-    this.ctx.emit(`${nullIdx} = getelementptr i8, i8* ${buf}, i64 ${bytesRead}`);
-    this.ctx.emit(`store i8 0, i8* ${nullIdx}`);
-    const closeResult = this.ctx.nextTemp();
-    this.ctx.emit(`${closeResult} = call i32 @pclose(i8* ${fp})`);
-    this.ctx.setVariableType(buf, "i8*");
-    return buf;
+    return this.ctx.childProcessGen.generateBareExecSync(expr, params);
   }
 
   private generateMalloc(expr: CallNode, params: string[]): string {

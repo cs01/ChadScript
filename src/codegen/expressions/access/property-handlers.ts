@@ -464,3 +464,47 @@ export function handlePathParseProperty(
   ctx.setVariableType(result, "i8*");
   return result;
 }
+
+// %SpawnSyncResult = { stdout(0): i8*, stderr(1): i8*, status(2): double }
+export function handleSpawnSyncResultProperty(
+  ctx: MemberAccessGeneratorContext,
+  expr: MemberAccessNode,
+): string | null {
+  // %SpawnSyncResult = { i8* stdout, i8* stderr, double status }
+  // Use simple if/else — native compiler can't handle Record<string, {object}> field access
+  let fieldIndex: number;
+  let fieldType: string;
+  if (expr.property === "stdout") {
+    fieldIndex = 0;
+    fieldType = "i8*";
+  } else if (expr.property === "stderr") {
+    fieldIndex = 1;
+    fieldType = "i8*";
+  } else if (expr.property === "status") {
+    fieldIndex = 2;
+    fieldType = "double";
+  } else {
+    return null;
+  }
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type !== "variable") return null;
+  const varName = (expr.object as VariableNode).name;
+  const varType = ctx.getVariableType(varName);
+  if (varType !== "%SpawnSyncResult*") return null;
+  const varPtr = ctx.getVariableAlloca(varName);
+  // Load the SpawnSyncResult pointer from the variable's alloca
+  const raw = ctx.nextTemp();
+  ctx.emit(`${raw} = load %SpawnSyncResult*, %SpawnSyncResult** ${varPtr}`);
+  // GEP into the struct field
+  const fieldPtr = ctx.nextTemp();
+  ctx.emit(
+    `${fieldPtr} = getelementptr inbounds %SpawnSyncResult, %SpawnSyncResult* ${raw}, i32 0, i32 ${fieldIndex}`,
+  );
+  // Load the field value
+  const loadType = fieldType === "double" ? "double" : "i8*";
+  const loadPtrType = fieldType === "double" ? "double*" : "i8**";
+  const result = ctx.nextTemp();
+  ctx.emit(`${result} = load ${loadType}, ${loadPtrType} ${fieldPtr}`);
+  ctx.setVariableType(result, fieldType);
+  return result;
+}

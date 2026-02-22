@@ -202,6 +202,15 @@ export interface ISqliteGenerator {
   generateClose(expr: MethodCallNode, params: string[]): string;
 }
 
+export interface IChildProcessGenerator {
+  canHandle(expr: MethodCallNode): boolean;
+  generateExecSync(expr: MethodCallNode, params: string[]): string;
+  generateBareExecSync(expr: CallNode, params: string[]): string;
+  generateSpawnSync(expr: MethodCallNode, params: string[]): string;
+  generateExec(expr: MethodCallNode, params: string[]): string;
+  generateSpawn(expr: MethodCallNode, params: string[]): string;
+}
+
 export interface IEmbedGenerator {
   generateEmbedFile(expr: MethodCallNode, params: string[]): string;
   generateEmbedDir(expr: MethodCallNode, params: string[]): string;
@@ -743,6 +752,8 @@ export interface IGeneratorContext {
   setUsesRegex(value: boolean): void;
   setUsesTestRunner(value: boolean): void;
   getUsesTestRunner(): boolean;
+  setUsesChildProcess(value: boolean): void;
+  setUsesSpawn(value: boolean): void;
   setUsesAsyncFs(value: boolean): void;
 
   currentDeclaredInterfaceType: string | undefined;
@@ -860,6 +871,7 @@ export interface IGeneratorContext {
 
   readonly arrowFunctionGen: IArrowFunctionGenerator;
 
+  readonly childProcessGen: IChildProcessGenerator;
   readonly embedGen: IEmbedGenerator;
 
   ensureDouble(value: string): string;
@@ -1117,6 +1129,12 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   getUsesTestRunner(): boolean {
     return this.usesTestRunner !== 0;
+  }
+  setUsesChildProcess(value: boolean): void {
+    // no-op in mock
+  }
+  setUsesSpawn(value: boolean): void {
+    // no-op in mock
   }
   setUsesAsyncFs(value: boolean): void {
     this.usesAsyncFs = value ? 1 : 0;
@@ -1827,6 +1845,14 @@ export class MockGeneratorContext implements IGeneratorContext {
       "%mock_get_embedded",
     generateLookupFunction: (): string => "",
     hasEmbeddedFiles: (): boolean => false,
+  };
+  childProcessGen: IChildProcessGenerator = {
+    canHandle: (_expr: MethodCallNode): boolean => false,
+    generateExecSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_execsync",
+    generateBareExecSync: (_expr: CallNode, _params: string[]): string => "%mock_bare_execsync",
+    generateSpawnSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_spawnsync",
+    generateExec: (_expr: MethodCallNode, _params: string[]): string => "%mock_exec",
+    generateSpawn: (_expr: MethodCallNode, _params: string[]): string => "%mock_spawn",
   };
   arrayGen: IArrayGenerator = {
     generateArrayLiteral: (_expr: ArrayNode, _params: string[]): string => "%mock_array_literal",

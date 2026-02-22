@@ -155,6 +155,10 @@ declare namespace sqlite {
 
 declare namespace child_process {
   function execSync(command: string): string;
+  function spawnSync(
+    command: string,
+    args?: string[],
+  ): { stdout: string; stderr: string; status: number };
 }
 
 // ============================================================================

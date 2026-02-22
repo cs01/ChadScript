@@ -58,6 +58,7 @@ import {
   getStringArrayLengthFromPtr,
   getArrayLengthFromPtr,
   getStringLength,
+  handleSpawnSyncResultProperty,
 } from "./property-handlers.js";
 import {
   parseInlineObjectTypeForAssertion,
@@ -325,6 +326,9 @@ export class MemberAccessGenerator {
     if (result !== null) return result;
 
     result = this.handlePathParseProperty(expr);
+    if (result !== null) return result;
+
+    result = this.handleSpawnSyncResultProperty(expr);
     if (result !== null) return result;
 
     return null;
@@ -2328,6 +2332,10 @@ export class MemberAccessGenerator {
 
   private handlePathParseProperty(expr: MemberAccessNode): string | null {
     return handlePathParseProperty(this.ctx, expr);
+  }
+
+  private handleSpawnSyncResultProperty(expr: MemberAccessNode): string | null {
+    return handleSpawnSyncResultProperty(this.ctx, expr);
   }
 
   private handleParameterPropertyAccess(expr: MemberAccessNode, params: string[]): string {

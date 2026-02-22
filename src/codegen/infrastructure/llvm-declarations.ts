@@ -78,6 +78,14 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare void @cs_regex_free(i8*)\n";
   ir += "\n";
 
+  // child_process bridge — %SpawnSyncResult = { stdout: i8*, stderr: i8*, status: double }
+  ir += "%SpawnSyncResult = type { i8*, i8*, double }\n";
+  ir += "declare i8* @cs_execSync(i8*)\n";
+  ir += "declare i8* @cs_spawnSync(i8*, i8**, i32)\n";
+  // cs_spawn: async spawn with streaming callbacks (stdout_cb, stderr_cb, exit_cb)
+  ir += "declare void @cs_spawn(i8*, i8**, i32, void (i8*)*, void (i8*)*, void (double)*)\n";
+  ir += "\n";
+
   ir += "declare i32 @printf(i8*, ...)\n";
   ir += "declare i32 @fprintf(i8*, i8*, ...)\n";
   const isMac =
