@@ -602,11 +602,12 @@ export class MethodCallGenerator {
       return this.ctx.pathGen.generateParse(expr, params);
     }
 
-    // child_process.execSync / child_process.spawnSync → ChildProcessGenerator
-    if (method === "execSync" || method === "spawnSync") {
+    // child_process.execSync / child_process.spawnSync / child_process.exec → ChildProcessGenerator
+    if (method === "execSync" || method === "spawnSync" || method === "exec") {
       const objName = this.getVariableName(expr.object);
       if (objName === "child_process" || objName === "cp") {
         if (method === "execSync") return this.ctx.childProcessGen.generateExecSync(expr, params);
+        if (method === "exec") return this.ctx.childProcessGen.generateExec(expr, params);
         return this.ctx.childProcessGen.generateSpawnSync(expr, params);
       }
     }

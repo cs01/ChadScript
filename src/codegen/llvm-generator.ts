@@ -96,7 +96,7 @@ import { generateConsoleTimerHelpers } from "./stdlib/console-timers.js";
 import { generateDefaultSortComparators } from "./types/collections/array/sort.js";
 import { AsyncFsGenerator } from "./stdlib/async-fs.js";
 import { SqliteGenerator } from "./stdlib/sqlite.js";
-import { ChildProcessGenerator } from "./stdlib/child-process.js";
+import { ChildProcessGenerator, AsyncChildProcessGenerator } from "./stdlib/child-process.js";
 import { EmbedGenerator } from "./stdlib/embed.js";
 import { RuntimeGenerator } from "./runtime/runtime.js";
 import { HttpServerGenerator } from "./stdlib/http-server.js";
@@ -185,6 +185,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private libuvGen: LibuvGenerator;
   private promiseGen: PromiseGenerator;
   private asyncFsGen: AsyncFsGenerator;
+  private asyncCpGen: AsyncChildProcessGenerator;
   private treesitterGen: TreeSitterGenerator;
   private httpHandlers: string[];
   private wsHandlers: string[];
@@ -1377,6 +1378,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.libuvGen = new LibuvGenerator();
     this.promiseGen = new PromiseGenerator();
     this.asyncFsGen = new AsyncFsGenerator();
+    this.asyncCpGen = new AsyncChildProcessGenerator();
     this.treesitterGen = new TreeSitterGenerator();
 
     // Initialize expression generator with context pattern
@@ -2289,6 +2291,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       }
       if (this.usesAsyncFs) {
         irParts.push(this.asyncFsGen.generateAll());
+      }
+      if (this.usesChildProcess && this.usesPromises) {
+        irParts.push(this.asyncCpGen.generateAll());
       }
       const promiseAwait = this.libuvGen.generatePromiseAwait();
       if (promiseAwait) {

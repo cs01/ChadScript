@@ -1067,4 +1067,34 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "Array.splice() removes elements and returns removed array",
   },
+  {
+    name: "cp-execsync",
+    fixture: "tests/fixtures/builtins/cp-execsync.ts",
+    expectTestPassed: true,
+    description: "child_process.execSync() runs command and returns stdout",
+  },
+  {
+    name: "cp-bare-execsync",
+    fixture: "tests/fixtures/builtins/cp-bare-execsync.ts",
+    expectTestPassed: true,
+    description: "bare execSync() works without child_process prefix",
+  },
+  {
+    name: "cp-spawnsync",
+    fixture: "tests/fixtures/builtins/cp-spawnsync.ts",
+    expectTestPassed: true,
+    description: "child_process.spawnSync() with args returns stdout/stderr/status",
+  },
+  {
+    name: "cp-spawnsync-shell",
+    fixture: "tests/fixtures/builtins/cp-spawnsync-shell.ts",
+    expectTestPassed: true,
+    description: "child_process.spawnSync() shell mode with no args array",
+  },
+  {
+    name: "cp-exec-async",
+    fixture: "tests/fixtures/builtins/cp-exec-async.ts",
+    expectTestPassed: true,
+    description: "child_process.exec() async returns Promise with stdout/status",
+  },
 ];

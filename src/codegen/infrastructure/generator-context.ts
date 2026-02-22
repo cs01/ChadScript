@@ -207,6 +207,7 @@ export interface IChildProcessGenerator {
   generateExecSync(expr: MethodCallNode, params: string[]): string;
   generateBareExecSync(expr: CallNode, params: string[]): string;
   generateSpawnSync(expr: MethodCallNode, params: string[]): string;
+  generateExec(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface IEmbedGenerator {
@@ -1127,6 +1128,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   getUsesTestRunner(): boolean {
     return this.usesTestRunner !== 0;
   }
+  setUsesChildProcess(value: boolean): void {
+    // no-op in mock
+  }
   setUsesAsyncFs(value: boolean): void {
     this.usesAsyncFs = value ? 1 : 0;
   }
@@ -1836,6 +1840,13 @@ export class MockGeneratorContext implements IGeneratorContext {
       "%mock_get_embedded",
     generateLookupFunction: (): string => "",
     hasEmbeddedFiles: (): boolean => false,
+  };
+  childProcessGen: IChildProcessGenerator = {
+    canHandle: (_expr: MethodCallNode): boolean => false,
+    generateExecSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_execsync",
+    generateBareExecSync: (_expr: CallNode, _params: string[]): string => "%mock_bare_execsync",
+    generateSpawnSync: (_expr: MethodCallNode, _params: string[]): string => "%mock_spawnsync",
+    generateExec: (_expr: MethodCallNode, _params: string[]): string => "%mock_exec",
   };
   arrayGen: IArrayGenerator = {
     generateArrayLiteral: (_expr: ArrayNode, _params: string[]): string => "%mock_array_literal",

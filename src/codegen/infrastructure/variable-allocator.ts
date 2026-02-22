@@ -1492,6 +1492,24 @@ export class VariableAllocator {
         this.ctx.emit(`store %StatResult* ${castReg}, %StatResult** ${allocaReg}`);
         return;
       }
+      // await child_process.exec(cmd) → %SpawnSyncResult*
+      const cpObjName = objBase.type === "variable" ? (methodCall.object as VariableNode).name : "";
+      if ((cpObjName === "child_process" || cpObjName === "cp") && methodCall.method === "exec") {
+        const allocaReg = this.ctx.nextAllocaReg(stmt.name);
+        this.ctx.defineVariable(
+          stmt.name,
+          allocaReg,
+          "%SpawnSyncResult*",
+          SymbolKind.Object,
+          "local",
+        );
+        this.ctx.emit(`${allocaReg} = alloca %SpawnSyncResult*`);
+        const value = this.ctx.generateExpression(stmt.value!, params);
+        const castReg = this.ctx.nextTemp();
+        this.ctx.emit(`${castReg} = bitcast i8* ${value} to %SpawnSyncResult*`);
+        this.ctx.emit(`store %SpawnSyncResult* ${castReg}, %SpawnSyncResult** ${allocaReg}`);
+        return;
+      }
     }
 
     if (inner.type === "call") {
