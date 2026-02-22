@@ -199,6 +199,7 @@ export interface ISqliteGenerator {
   generateExec(expr: MethodCallNode, params: string[]): string;
   generateGet(expr: MethodCallNode, params: string[]): string;
   generateAll(expr: MethodCallNode, params: string[]): string;
+  generateQuery(expr: MethodCallNode, params: string[]): string;
   generateClose(expr: MethodCallNode, params: string[]): string;
 }
 
@@ -1791,6 +1792,7 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateExec: (_expr: MethodCallNode, _params: string[]): string => "%mock_sqlite_exec",
     generateGet: (_expr: MethodCallNode, _params: string[]): string => "%mock_sqlite_get",
     generateAll: (_expr: MethodCallNode, _params: string[]): string => "%mock_sqlite_all",
+    generateQuery: (_expr: MethodCallNode, _params: string[]): string => "%mock_sqlite_query",
     generateClose: (_expr: MethodCallNode, _params: string[]): string => "%mock_sqlite_close",
   };
   arrowFunctionGen: IArrowFunctionGenerator = {
