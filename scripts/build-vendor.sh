@@ -146,6 +146,17 @@ else
   echo "==> child-process-bridge already built, skipping"
 fi
 
+# --- os-bridge (platform-abstracted os.freemem/os.uptime) ---
+OS_BRIDGE_SRC="$C_BRIDGES_DIR/os-bridge.c"
+OS_BRIDGE_OBJ="$C_BRIDGES_DIR/os-bridge.o"
+if [ ! -f "$OS_BRIDGE_OBJ" ] || [ "$OS_BRIDGE_SRC" -nt "$OS_BRIDGE_OBJ" ]; then
+  echo "==> Building os-bridge..."
+  cc -c -O2 -fPIC "$OS_BRIDGE_SRC" -o "$OS_BRIDGE_OBJ"
+  echo "  -> $OS_BRIDGE_OBJ"
+else
+  echo "==> os-bridge already built, skipping"
+fi
+
 # --- child-process-spawn (async, requires libuv) ---
 CP_SPAWN_SRC="$C_BRIDGES_DIR/child-process-spawn.c"
 CP_SPAWN_OBJ="$C_BRIDGES_DIR/child-process-spawn.o"

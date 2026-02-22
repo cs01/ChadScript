@@ -1,5 +1,7 @@
 // os.ts — Method call handlers for the os module.
-// Runtime POSIX wrappers: hostname, homedir, tmpdir, cpus, totalmem, freemem, uptime
+// hostname, homedir, tmpdir use standard POSIX (works on both Linux and macOS).
+// cpus, totalmem use sysconf with platform-aware constants.
+// freemem, uptime delegate to os-bridge.c for cross-platform support.
 
 import type { MethodCallGeneratorContext } from "../method-calls.js";
 
@@ -39,7 +41,6 @@ export function handleOsTmpdir(ctx: MethodCallGeneratorContext): string {
 // os.cpus() — sysconf(_SC_NPROCESSORS_ONLN)
 // _SC_NPROCESSORS_ONLN is 84 on Linux, 58 on macOS
 export function handleOsCpus(ctx: MethodCallGeneratorContext): string {
-  // process.platform is the host platform — matches compilation target
   const scVal = process.platform === "darwin" ? "58" : "84";
   const raw = ctx.nextTemp();
   ctx.emit(`${raw} = call i64 @sysconf(i32 ${scVal})`);
@@ -64,45 +65,20 @@ export function handleOsTotalmem(ctx: MethodCallGeneratorContext): string {
   return result;
 }
 
-// os.freemem() — sysconf(_SC_AVPHYS_PAGES) * sysconf(_SC_PAGESIZE)
-// _SC_AVPHYS_PAGES: 86 on Linux (not available on macOS, returns -1)
-// _SC_PAGESIZE: 30 on both
+// os.freemem() — delegates to C bridge for cross-platform support.
+// Linux uses sysconf(_SC_AVPHYS_PAGES), macOS uses vm_statistics64.
 export function handleOsFreemem(ctx: MethodCallGeneratorContext): string {
-  const availPages = ctx.nextTemp();
-  ctx.emit(`${availPages} = call i64 @sysconf(i32 86)`);
-  const pageSize = ctx.nextTemp();
-  ctx.emit(`${pageSize} = call i64 @sysconf(i32 30)`);
-  const bytes = ctx.nextTemp();
-  ctx.emit(`${bytes} = mul i64 ${availPages}, ${pageSize}`);
+  const raw = ctx.nextTemp();
+  ctx.emit(`${raw} = call i64 @chad_os_freemem()`);
   const result = ctx.nextTemp();
-  ctx.emit(`${result} = uitofp i64 ${bytes} to double`);
+  ctx.emit(`${result} = uitofp i64 ${raw} to double`);
   return result;
 }
 
-// os.uptime() — reuse uv_hrtime pattern (seconds since process start, not system uptime)
-// For true system uptime we'd need to read /proc/uptime on Linux or sysctl on macOS.
-// This follows Node.js behavior of returning a double in seconds.
+// os.uptime() — delegates to C bridge for cross-platform support.
+// Linux reads /proc/uptime, macOS uses sysctl(KERN_BOOTTIME).
 export function handleOsUptime(ctx: MethodCallGeneratorContext): string {
-  // Read /proc/uptime on Linux — first number is system uptime in seconds
-  const path = ctx.stringGen.doCreateStringConstant("/proc/uptime");
-  const mode = ctx.stringGen.doCreateStringConstant("r");
-  const fp = ctx.nextTemp();
-  ctx.emit(`${fp} = call i8* @fopen(i8* ${path}, i8* ${mode})`);
-
-  // Read into a buffer
-  const buf = ctx.nextTemp();
-  ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 64)`);
-  const nread = ctx.nextTemp();
-  ctx.emit(`${nread} = call i64 @fread(i8* ${buf}, i64 1, i64 63, i8* ${fp})`);
-  // Null-terminate
-  const nullPos = ctx.nextTemp();
-  ctx.emit(`${nullPos} = getelementptr i8, i8* ${buf}, i64 ${nread}`);
-  ctx.emit(`store i8 0, i8* ${nullPos}`);
-  const closeRc = ctx.nextTemp();
-  ctx.emit(`${closeRc} = call i32 @fclose(i8* ${fp})`);
-
-  // Parse the first double from the string (atof stops at whitespace)
   const result = ctx.nextTemp();
-  ctx.emit(`${result} = call double @atof(i8* ${buf})`);
+  ctx.emit(`${result} = call double @chad_os_uptime()`);
   return result;
 }
