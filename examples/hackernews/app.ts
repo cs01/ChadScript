@@ -10,6 +10,18 @@ interface HttpResponse {
   body: string;
 }
 
+interface Post {
+  id: string;
+  title: string;
+  url: string;
+  points: string;
+}
+
+function parsePost(row: string): Post {
+  const parts = row.split("|");
+  return { id: parts[0], title: parts[1], url: parts[2], points: parts[3] };
+}
+
 ChadScript.embedDir("./public");
 
 const db = sqlite.open(":memory:");
@@ -83,17 +95,14 @@ function renderPosts(): string {
   const rows = sqlite.all(db, "SELECT id, title, url, points FROM posts ORDER BY points DESC");
   let html = "";
   for (let i = 0; i < rows.length; i++) {
-    const parts = rows[i].split("|");
-    const id = parts[0];
-    const title = parts[1];
-    const url = parts[2];
-    const points = parts[3];
+    const post = parsePost(rows[i]);
     const rank = i + 1;
     html = html + '<div class="post"><span class="rank">' + rank + ".</span>";
-    html = html + '<form method="POST" action="/upvote/' + id + '" style="display:inline">';
+    html = html + '<form method="POST" action="/upvote/' + post.id + '" style="display:inline">';
     html = html + '<button type="submit" class="upvote" title="upvote"></button></form>';
-    html = html + '<span class="title"><a href="' + url + '">' + title + "</a></span></div>";
-    html = html + '<div class="meta">' + points + " points</div>";
+    html =
+      html + '<span class="title"><a href="' + post.url + '">' + post.title + "</a></span></div>";
+    html = html + '<div class="meta">' + post.points + " points</div>";
   }
   return html;
 }
@@ -115,7 +124,7 @@ function handleRequest(req: HttpRequest): HttpResponse {
 
   if (req.method === "POST" && req.path.startsWith("/upvote/")) {
     const idStr = req.path.substring(8, req.path.length);
-    sqlite.exec(db, "UPDATE posts SET points = points + 1 WHERE id = " + idStr);
+    sqlite.exec(db, "UPDATE posts SET points = points + 1 WHERE id = ?", [idStr]);
     const redirectHtml =
       '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/"></head><body>Redirecting...</body></html>';
     return { status: 200, body: redirectHtml };
