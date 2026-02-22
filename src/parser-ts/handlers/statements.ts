@@ -8,6 +8,7 @@ import {
   ReturnStatement,
   IfStatement,
   WhileStatement,
+  DoWhileStatement,
   ForStatement,
   ForOfStatement,
   ThrowStatement,
@@ -37,6 +38,9 @@ export function transformStatement(
 
     case ts.SyntaxKind.WhileStatement:
       return transformWhileStatement(node as ts.WhileStatement, checker);
+
+    case ts.SyntaxKind.DoStatement:
+      return transformDoWhileStatement(node as ts.DoStatement, checker);
 
     case ts.SyntaxKind.ForStatement:
       return transformForStatement(node as ts.ForStatement, checker);
@@ -351,6 +355,15 @@ function transformWhileStatement(
   const condition = transformExpression(node.expression, checker);
   const body = wrapInBlock(node.statement, checker);
   return { type: "while", condition, body, loc: getLoc(node) };
+}
+
+function transformDoWhileStatement(
+  node: ts.DoStatement,
+  checker: ts.TypeChecker | undefined,
+): DoWhileStatement {
+  const condition = transformExpression(node.expression, checker);
+  const body = wrapInBlock(node.statement, checker);
+  return { type: "do_while", condition, body, loc: getLoc(node) };
 }
 
 function transformForStatement(

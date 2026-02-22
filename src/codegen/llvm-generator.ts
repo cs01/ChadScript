@@ -19,6 +19,7 @@ import {
   ImportSpecifier,
   IfStatement,
   WhileStatement,
+  DoWhileStatement,
   ForStatement,
   ForOfStatement,
   TryStatement,
@@ -2960,6 +2961,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         // Don't need to sync back - counters are already shared via bound methods
       } else if (stmtType === "while") {
         lastValue = this.controlFlowGen.generateWhileStatement(stmtRaw as Statement, params);
+      } else if (stmtType === "do_while") {
+        lastValue = this.controlFlowGen.generateDoWhileStatement(stmtRaw as Statement, params);
       } else if (stmtType === "for") {
         lastValue = this.controlFlowGen.generateForStatement(stmtRaw as Statement, params);
       } else if (stmtType === "for_of") {
@@ -3173,6 +3176,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     | ForStatement
     | ForOfStatement
     | WhileStatement
+    | DoWhileStatement
     | IfStatement
     | TryStatement
     | UnaryNode
@@ -3212,6 +3216,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       this.controlFlowGen.generateIfStatement(item as IfStatement, []);
     } else if (itemType === "while") {
       this.controlFlowGen.generateWhileStatement(item as WhileStatement, []);
+    } else if (itemType === "do_while") {
+      this.controlFlowGen.generateDoWhileStatement(item as DoWhileStatement, []);
     } else if (itemType === "for") {
       this.controlFlowGen.generateForStatement(item as ForStatement, []);
     } else if (itemType === "for_of") {

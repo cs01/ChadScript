@@ -36,6 +36,7 @@ import {
   ReturnStatement,
   IfStatement,
   WhileStatement,
+  DoWhileStatement,
   ForStatement,
   ForOfStatement,
   BreakStatement,
@@ -101,6 +102,7 @@ export class RecursiveASTVisitor {
           e.type === "for" ||
           e.type === "for_of" ||
           e.type === "while" ||
+          e.type === "do_while" ||
           e.type === "if" ||
           e.type === "try"
         ) {
@@ -172,6 +174,8 @@ export class RecursiveASTVisitor {
       this.visitIfStatement(stmt as IfStatement);
     } else if (t === "while") {
       this.visitWhileStatement(stmt as WhileStatement);
+    } else if (t === "do_while") {
+      this.visitDoWhileStatement(stmt as DoWhileStatement);
     } else if (t === "for") {
       this.visitForStatement(stmt as ForStatement);
     } else if (t === "for_of") {
@@ -222,6 +226,11 @@ export class RecursiveASTVisitor {
   }
 
   visitWhileStatement(node: WhileStatement): void {
+    this.visitExpression(node.condition);
+    this.visitBlock(node.body);
+  }
+
+  visitDoWhileStatement(node: DoWhileStatement): void {
     this.visitExpression(node.condition);
     this.visitBlock(node.body);
   }

@@ -13,6 +13,7 @@ import {
   ForStatement,
   ForOfStatement,
   WhileStatement,
+  DoWhileStatement,
   IfStatement,
   TryStatement,
   TopLevelItem,
@@ -225,6 +226,13 @@ function transformTopLevelStatement(
       const whileStmt = transformStatement(node, checker) as WhileStatement;
       ast.topLevelExpressions.push(whileStmt);
       ast.topLevelItems!.push(whileStmt);
+      break;
+    }
+
+    case ts.SyntaxKind.DoStatement: {
+      const doWhileStmt = transformStatement(node, checker) as DoWhileStatement;
+      ast.topLevelExpressions.push(doWhileStmt);
+      ast.topLevelItems!.push(doWhileStmt);
       break;
     }
 

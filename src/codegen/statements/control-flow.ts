@@ -241,6 +241,48 @@ export class ControlFlowGenerator {
     return "0";
   }
 
+  // do { body } while (condition) — body executes first, then condition is checked.
+  // continue jumps to cond (matching JS semantics), break jumps to end.
+  generateDoWhileStatement(stmt: Statement, params: string[]): string {
+    if (stmt.type !== "do_while") {
+      throw new Error("Expected do_while statement");
+    }
+
+    const doWhileStmt = stmt as { type: string; condition: Expression; body: BlockStatement };
+
+    const bodyLabel = this.nextLabel("dowhile_body");
+    const condLabel = this.nextLabel("dowhile_cond");
+    const endLabel = this.nextLabel("dowhile_end");
+
+    // Jump directly to body (body always executes at least once)
+    this.emit(`br label %${bodyLabel}`);
+
+    // Body block
+    this.emit(`${bodyLabel}:`);
+    this.ctx.setCurrentLabel(bodyLabel);
+    this.loopContinueLabels.push(condLabel);
+    this.loopBreakLabels.push(endLabel);
+    this.ctx.generateBlock(doWhileStmt.body, params);
+    this.loopContinueLabels.pop();
+    this.loopBreakLabels.pop();
+    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
+    if (!bodyHasTerminator) {
+      this.emit(`br label %${condLabel}`);
+    }
+
+    // Condition block — evaluated after body
+    this.emit(`${condLabel}:`);
+    this.ctx.setCurrentLabel(condLabel);
+    const condValue = this.ctx.generateExpression(doWhileStmt.condition, params);
+    const condBool = this.convertToBool(condValue);
+    this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+
+    // End block
+    this.emit(`${endLabel}:`);
+
+    return "0";
+  }
+
   generateForStatement(stmt: Statement, params: string[]): string {
     if (stmt.type !== "for") {
       throw new Error("Expected for statement");
