@@ -18,7 +18,7 @@ features:
   - title: Familiar Syntax
     details: Standard TypeScript — classes, interfaces, async/await, generics.
   - title: Batteries Included
-    details: HTTP server, SQLite, fetch, crypto, file I/O, JSON — all native. No npm.
+    details: Everything you'd npm install — HTTP, SQLite, fetch, crypto, JSON — is built in. No dependencies.
   - title: Single-Binary Deploy
     details: Embed HTML, CSS, and assets at compile time. Ship one file.
 ---

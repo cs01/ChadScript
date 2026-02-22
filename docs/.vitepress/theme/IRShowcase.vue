@@ -219,6 +219,7 @@ onUnmounted(() => {
 
       <div class="stage-source" v-if="phase !== 'idle'">
         <div class="panel-header">
+          <span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span>
           <span class="panel-label">hello.ts</span>
         </div>
         <pre class="panel-code"><code>console.log(<span class="hl-string">"Hello from ChadScript!"</span>)<span v-if="sourceText.length < fullSource.length && phase === 'typing-source'" class="cursor">|</span></code></pre>
@@ -241,6 +242,7 @@ onUnmounted(() => {
 
       <div class="stage-ir" :class="{ visible: irVisibleCount > 0 }">
         <div class="panel-header">
+          <span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span>
           <span class="panel-label">LLVM IR</span>
           <span v-if="irVisibleCount >= irLines.length" class="ir-badge">generated</span>
         </div>
@@ -260,7 +262,7 @@ onUnmounted(() => {
           </span>
           <span v-else-if="linkingState === 'done'" class="link-row">
             <span class="checkmark">✓</span>
-            <span class="link-text">Compiled → hello (42 KB)</span>
+            <span class="link-text">hello: ELF 64-bit LSB executable, x86-64 (42 KB)</span>
           </span>
         </div>
       </div>
@@ -355,6 +357,22 @@ onUnmounted(() => {
   background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
+
+.window-dots {
+  display: flex;
+  gap: 6px;
+  margin-right: 4px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dot.red { background: #ff5f57; }
+.dot.yellow { background: #febc2e; }
+.dot.green { background: #28c840; }
 
 .panel-label {
   font-size: 0.8rem;
