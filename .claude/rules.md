@@ -24,6 +24,29 @@ Or manually:
 
 New features have complex side effects that may not be caught by unit tests alone. A change that passes all tests can still break self-hosting. The Stage 2 test is the true verification — it proves the compiler's output is correct enough to compile itself.
 
+## Stale Native Compiler
+
+After a rebase or merge that brings in new codegen features, `.build/chad` becomes stale — it was compiled
+from the old source and doesn't know how to compile the new features. **Rebuild it**:
+
+```bash
+rm -f .build/chad && node dist/chad-node.js build src/chad-native.ts -o .build/chad
+```
+
+Tests auto-detect `.build/chad` and use it over `node dist/chad-node.js`. A stale native compiler causes
+mysterious test failures that pass fine with the node compiler.
+
+## Worktree Setup
+
+When working in a git worktree, `vendor/` and `c_bridges/*.o` must exist. Symlinks to the main repo work:
+
+```bash
+ln -s /path/to/main/repo/vendor vendor
+```
+
+The `c_bridges/*.c` source files are tracked in git, but the `.o` files are built by `scripts/build-vendor.sh`.
+If `.o` files are missing, either run the build script or symlink from a repo that has them built.
+
 # ChadScript Architecture Guide
 
 ## What It Is
@@ -45,7 +68,9 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 | `src/codegen/llvm-generator.ts`           | Main orchestrator, delegates to sub-generators                            |
 | `src/ast/types.ts`                        | AST node type definitions                                                 |
 | `tests/compiler.test.ts`                  | Main test suite                                                           |
-| `tests/fixtures/`                         | Test fixture programs organized by category                               |
+| `tests/test-discovery.ts`                 | Auto-discovers test fixtures via `@test` annotations                      |
+| `tests/fixtures/`                         | Test fixture programs organized by category (auto-discovered)             |
+| `c_bridges/`                              | C bridge files for complex runtime helpers (regex, json, os, etc.)        |
 
 ## How to Add a New String Method
 
@@ -54,7 +79,7 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 3. **Dispatch**: Add `if (method === 'x')` block in `src/codegen/expressions/method-calls.ts` (~line 812 area)
 4. **Handler**: Add `private handleX()` method in method-calls.ts
 5. **Context**: If consumers access via a sub-generator context interface, ensure `readonly stringGen: IStringGenerator` is declared
-6. **Test**: Add fixture in `tests/fixtures/strings/` and test case in `tests/compiler.test.ts`
+6. **Test**: Add fixture in `tests/fixtures/strings/` (auto-discovered, no registry needed)
 
 **NOTE**: Prefer direct field access (`ctx.stringGen.doMethod()`) over adding wrapper methods to `IGeneratorContext`. Concrete type propagation in `loadFieldValue` (member.ts) ensures chained access through interface fields works in the native compiler.
 
@@ -63,7 +88,7 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 1. Check if existing generator handles it (e.g., `src/codegen/stdlib/process.ts`)
 2. Most built-ins are handled inline in `method-calls.ts` for performance
 3. For member access (not method calls), look at `src/codegen/expressions/member.ts`
-4. Test: add fixture in `tests/fixtures/builtins/`
+4. Test: add fixture in `tests/fixtures/builtins/` (auto-discovered, no registry needed)
 
 ## Struct Types
 
@@ -78,10 +103,20 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 
 ## Test Patterns
 
-Tests use two conventions:
+Tests are auto-discovered from `tests/fixtures/` via `@test` annotations in `tests/test-discovery.ts`.
+No manual registry — just add a fixture file and it's picked up automatically.
 
-- `expectTestPassed: true` — program prints `TEST_PASSED` to stdout, exits 0
-- `expectedExitCode: N` — program exits with specific code
+Annotation format (in the first 10 lines of each fixture file):
+
+- `// @test-exit-code: 12` — assert process exits with code 12
+- `// @test-args: hello world` — pass CLI args to the compiled binary
+- `// @test-description: ...` — custom test description
+- `// @test-skip` — exclude from auto-discovery
+
+Defaults (no annotation needed):
+
+- `expectTestPassed: true` — asserts stdout contains `TEST_PASSED` and exit code 0
+- Description auto-generated from filename: `string-split-length.ts` → `string split length`
 
 Run tests: `npm test` or `npm run test:full` (via `node scripts/test.js`)
 Run tests + self-hosting: `npm run verify` (or `npm run verify:quick` to skip Stage 2)
@@ -125,6 +160,22 @@ available on `BaseGenerator`, `LLVMGenerator`, and `MockGeneratorContext` for ty
 4. Array methods (push, pop, map, filter, find, etc.)
 5. Map/Set methods
 6. Class/interface method dispatch (vtable lookup)
+
+## C Bridges
+
+For complex runtime logic (nested loops, string manipulation, data structure building), prefer writing
+C bridge functions in `c_bridges/` over raw LLVM IR string concatenation. C bridges are easier to read,
+debug, and maintain.
+
+Pattern:
+
+1. Create `c_bridges/your-bridge.c` with `cs_` prefixed functions
+2. Add build step in `scripts/build-vendor.sh` (compile to `.o`)
+3. Declare extern functions in LLVM IR and call them from codegen
+4. Add conditional linking in `src/compiler.ts` and `src/native-compiler-lib.ts`
+
+Existing bridges: `regex-bridge.c`, `yyjson-bridge.c`, `os-bridge.c`, `child-process-bridge.c`,
+`child-process-spawn.c`, `lws-bridge.c`, `treesitter-bridge.c`.
 
 ## Codegen Quick Rules
 
