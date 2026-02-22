@@ -60,6 +60,10 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | `satisfies` | Not supported |
 | `instanceof` | Not supported (no runtime type tags) |
 | `Symbol` | Not supported |
+| `WeakMap`, `WeakSet`, `WeakRef` | Not supported |
+| `SharedArrayBuffer`, `Atomics` | Not supported |
+| `FinalizationRegistry` | Not supported |
+| `Intl` | Not supported |
 
 ## Classes & Interfaces
 
@@ -138,13 +142,9 @@ x = 2;
 f(); // prints 1, not 2
 ```
 
-## Missing Built-Ins
-
-`WeakMap`, `WeakSet`, `WeakRef`, `SharedArrayBuffer`, `Atomics`, `FinalizationRegistry`, `Intl`
-
 ## npm Compatibility
 
-ChadScript is not a drop-in Node.js replacement. npm packages assume V8 runtime semantics, dynamic types, and Node APIs that don't exist here. Everything you need is built in — see the [Standard Library](/stdlib/) docs.
+npm packages work as long as they only use supported TypeScript features. In practice, most packages assume V8 runtime semantics or dynamic types that ChadScript doesn't support. Pure TypeScript libraries with simple type usage are the most likely to work.
 
 ## Standard Library
 
