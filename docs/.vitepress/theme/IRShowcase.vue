@@ -233,10 +233,13 @@ onUnmounted(() => {
         class="terminal-section"
         :class="{ visible: phase !== 'idle' && phase !== 'typing-source' }"
       >
-        <div class="terminal-line">
-          <span class="terminal-prompt">$</span>
-          <span class="terminal-text">{{ buildCmd }}</span>
-          <span v-if="(phase === 'typing-build' || phase === 'ready-compile') && buildCmd.length <= fullBuildCmd.length" class="cursor">|</span>
+        <div class="terminal-chrome"><span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span><span class="terminal-label">Terminal</span></div>
+        <div class="terminal-body">
+          <div class="terminal-line">
+            <span class="terminal-prompt">$</span>
+            <span class="terminal-text">{{ buildCmd }}</span>
+            <span v-if="(phase === 'typing-build' || phase === 'ready-compile') && buildCmd.length <= fullBuildCmd.length" class="cursor">|</span>
+          </div>
         </div>
       </div>
 
@@ -271,16 +274,19 @@ onUnmounted(() => {
         class="terminal-section"
         :class="{ visible: phase === 'typing-run' || phase === 'ready-run' || phase === 'running' || phase === 'done' }"
       >
-        <div class="terminal-line">
-          <span class="terminal-prompt">$</span>
-          <span class="terminal-text">{{ runCmd }}</span>
-          <span v-if="(phase === 'typing-run' || phase === 'ready-run') && runCmd.length <= fullRunCmd.length" class="cursor">|</span>
-        </div>
-        <div v-if="execOutput" class="terminal-line terminal-output">
-          {{ execOutput }}
-        </div>
-        <div v-if="execTime" class="timing-text">
-          completed in {{ execTime }}
+        <div class="terminal-chrome"><span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span><span class="terminal-label">Terminal</span></div>
+        <div class="terminal-body">
+          <div class="terminal-line">
+            <span class="terminal-prompt">$</span>
+            <span class="terminal-text">{{ runCmd }}</span>
+            <span v-if="(phase === 'typing-run' || phase === 'ready-run') && runCmd.length <= fullRunCmd.length" class="cursor">|</span>
+          </div>
+          <div v-if="execOutput" class="terminal-line terminal-output">
+            {{ execOutput }}
+          </div>
+          <div v-if="execTime" class="timing-text">
+            completed in {{ execTime }}
+          </div>
         </div>
       </div>
 
@@ -327,7 +333,7 @@ onUnmounted(() => {
   text-align: center;
   font-size: 0.95rem;
   color: var(--vp-c-text-2);
-  margin-bottom: 1.8rem;
+  margin-bottom: 1.2rem;
   max-width: 640px;
   margin-left: auto;
   margin-right: auto;
@@ -353,7 +359,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 7px 16px;
   background: rgba(255, 255, 255, 0.03);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
@@ -383,9 +389,9 @@ onUnmounted(() => {
 
 .panel-code {
   margin: 0;
-  padding: 14px 16px;
+  padding: 10px 16px;
   font-size: 0.82rem;
-  line-height: 1.7;
+  line-height: 1.5;
   overflow-x: auto;
   background: transparent;
 }
@@ -423,9 +429,8 @@ onUnmounted(() => {
 }
 
 .terminal-section {
-  padding: 10px 16px;
   background: rgba(0, 0, 0, 0.15);
-  margin-top: 8px;
+  margin-top: 4px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   opacity: 0;
   max-height: 0;
@@ -436,6 +441,25 @@ onUnmounted(() => {
 .terminal-section.visible {
   opacity: 1;
   max-height: 200px;
+}
+
+.terminal-chrome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.terminal-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--vp-c-text-3);
+  font-family: var(--vp-font-family-mono);
+}
+
+.terminal-body {
+  padding: 8px 16px;
 }
 
 .terminal-line {
@@ -475,8 +499,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 20px 16px;
+  gap: 6px;
+  padding: 14px 16px;
   transition: opacity 0.3s ease;
 }
 
@@ -498,8 +522,8 @@ onUnmounted(() => {
 
 .hex-container {
   position: relative;
-  width: 80px;
-  height: 80px;
+  width: 64px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -672,7 +696,7 @@ onUnmounted(() => {
 }
 
 .stage-link {
-  padding: 10px 16px;
+  padding: 8px 16px;
   background: rgba(0, 0, 0, 0.15);
   border-top: 1px solid rgba(255, 255, 255, 0.06);
   opacity: 0;
@@ -719,7 +743,7 @@ onUnmounted(() => {
 }
 
 .timing-text {
-  margin-top: 6px;
+  margin-top: 4px;
   font-family: var(--vp-font-family-mono);
   font-size: 0.8rem;
   color: var(--vp-c-text-3);
