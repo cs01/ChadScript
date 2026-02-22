@@ -32,7 +32,8 @@ export default defineConfig({
     nav: [
       { text: 'Get Started', link: '/getting-started/installation' },
       { text: 'API', link: '/stdlib/' },
-      { text: 'Benchmarks', link: '/benchmarks' }
+      { text: 'Benchmarks', link: '/benchmarks' },
+      { text: 'GitHub', link: 'https://github.com/cs01/ChadScript' }
     ],
 
     sidebar: [
