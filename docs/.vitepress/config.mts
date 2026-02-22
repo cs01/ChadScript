@@ -33,7 +33,7 @@ export default defineConfig({
       { text: 'Get Started', link: '/getting-started/installation' },
       { text: 'API', link: '/stdlib/' },
       { text: 'Benchmarks', link: '/benchmarks' },
-      { text: 'Language', link: '/language/architecture' }
+      { text: 'Language', link: '/language/limitations' }
     ],
 
     sidebar: [
@@ -85,10 +85,9 @@ export default defineConfig({
       {
         text: 'Language',
         items: [
-          { text: 'Architecture', link: '/language/architecture' },
-          { text: 'Classes & Interfaces', link: '/language/classes' },
-          { text: 'Type Mappings', link: '/language/type-mappings' },
-          { text: 'Language Support', link: '/language/limitations' }
+          { text: 'How it Works', link: '/language/architecture' },
+          { text: 'Language Support', link: '/language/limitations' },
+          { text: 'Classes & Interfaces', link: '/language/classes' }
         ]
       },
       {

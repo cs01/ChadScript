@@ -1,7 +1,5 @@
 # Classes & Interfaces
 
-ChadScript supports classes and interfaces with TypeScript syntax, compiled to LLVM struct types and static dispatch.
-
 ## Classes
 
 ### Declaring a Class
@@ -26,26 +24,12 @@ class Counter {
 
 const c = new Counter(10);
 c.increment();
-console.log(c.getValue()); // 12
-```
-
-Classes compile to LLVM struct types. A class like `Counter` becomes:
-
-```llvm
-%Counter_struct = type { double }
-```
-
-Methods become standalone LLVM functions with the instance passed as the first argument:
-
-```llvm
-define double @Counter_getValue(%Counter_struct* %this) {
-  ...
-}
+console.log(c.getValue()); // 11
 ```
 
 ### Constructors
 
-Constructors are called when you use `new`. The compiler allocates the struct on the GC heap via `GC_malloc` and calls the constructor function.
+Constructors run when you use `new`. Memory is allocated automatically (garbage collected).
 
 ```typescript
 class Point {
@@ -63,7 +47,7 @@ const p = new Point(3, 4);
 
 ### Parameter Properties
 
-TypeScript's shorthand for declaring and assigning fields in the constructor is supported:
+TypeScript's shorthand for declaring and assigning fields in the constructor:
 
 ```typescript
 class User {
@@ -75,11 +59,31 @@ class User {
 }
 ```
 
-The `private`, `public`, `protected`, and `readonly` modifiers on constructor parameters automatically create class fields and assign the parameter values. Note that access modifiers are parsed but not enforced at runtime — all fields are accessible.
+The `private`, `public`, `protected`, and `readonly` modifiers on constructor parameters automatically create class fields and assign the values. Note that access modifiers are parsed but not enforced — all fields are accessible regardless of modifier.
+
+### Getters and Setters
+
+```typescript
+class Temperature {
+  private celsius: number;
+
+  constructor(c: number) {
+    this.celsius = c;
+  }
+
+  get fahrenheit(): number {
+    return this.celsius * 1.8 + 32;
+  }
+
+  set fahrenheit(f: number) {
+    this.celsius = (f - 32) / 1.8;
+  }
+}
+```
 
 ### Inheritance
 
-Single inheritance via `extends` is supported. Child classes include all parent fields in their struct layout, with parent fields placed first for memory layout compatibility.
+Single inheritance via `extends`:
 
 ```typescript
 class Animal {
@@ -108,7 +112,7 @@ class Dog extends Animal {
 }
 ```
 
-Method dispatch is **static** — the compiler resolves which method to call at compile time based on the declared type. There are no vtable pointers.
+Method dispatch is **static** — the compiler resolves which method to call at compile time based on the declared type, not the runtime type.
 
 ### What's Supported
 
@@ -127,7 +131,7 @@ Method dispatch is **static** — the compiler resolves which method to call at 
 
 ## Interfaces
 
-Interfaces compile to LLVM struct types with fields laid out in declaration order.
+Interfaces define the shape of an object — what fields it has and their types.
 
 ### Declaring an Interface
 
@@ -146,23 +150,17 @@ const alice: Person = { name: "Alice", age: 30, city: "NYC" };
 console.log(greet(alice));
 ```
 
-The `Person` interface compiles to:
-
-```llvm
-%Person = type { i8*, double, i8* }
-```
-
 ### Field Ordering
 
-Object literals assigned to an interface-typed variable are automatically reordered to match the interface's declared field order. This means the following is valid — the compiler handles the reordering:
+Object literals are automatically reordered to match the interface's declared field order. You can write fields in any order:
 
 ```typescript
-const p: Person = { age: 30, city: "NYC", name: "Alice" };
+const p: Person = { age: 30, city: "NYC", name: "Alice" }; // works fine
 ```
 
 ### Interface Inheritance
 
-Interfaces can extend other interfaces. Parent fields are prepended:
+Interfaces can extend other interfaces:
 
 ```typescript
 interface Named {
@@ -192,10 +190,9 @@ class User implements Printable {
 }
 ```
 
-## How It Differs from TypeScript
+## Differences from TypeScript
 
-- **No runtime type checks** — `instanceof` is not available
-- **No structural subtyping at runtime** — interface compatibility is checked at compile time
-- **Static dispatch only** — method calls are resolved at compile time, not through vtables
-- **No interface methods on object literals** — interfaces define data layout only; methods must be on classes
-- **Access modifiers are not enforced** — `private`/`protected` are parsed but all fields are accessible at runtime
+- **No `instanceof`** — there are no runtime type tags
+- **Static dispatch** — method calls are resolved at compile time, not dynamically
+- **No interface methods on object literals** — interfaces define data layout; methods must be on classes
+- **Access modifiers not enforced** — `private`/`protected` are parsed but all fields are accessible

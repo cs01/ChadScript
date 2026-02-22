@@ -1,115 +1,44 @@
-# Architecture
+# How ChadScript Works
 
-ChadScript compiles TypeScript source code to native binaries through a multi-stage pipeline.
-
-::: tip Self-Hosting
-ChadScript compiles itself, meaning it is sufficiently powerful to build a complex compiler. The compiler is ~45k lines of TypeScript that compiles to a native binary — no Node.js needed.
-:::
+ChadScript is an ahead-of-time compiler. It reads TypeScript source files, type-checks them, generates LLVM IR, and produces a standalone native binary. There's no interpreter, no JIT, and no runtime dependency on Node.js or V8.
 
 ## Compilation Pipeline
 
 ```
-TypeScript source
-    -> TypeScript Compiler API (parse + type info)
-    -> AST
-    -> Semantic analysis
-    -> LLVM IR generation
-    -> llc (LLVM IR -> object file)
-    -> clang (link against system libraries)
-    -> native binary
+TypeScript source → parse → type-check → LLVM IR → assemble → link → native binary
 ```
 
-## Pipeline Stages
+When you run `chad build app.ts -o app`, the compiler:
 
-### 1. Parsing
+1. **Parses** your TypeScript into an AST
+2. **Resolves types** — every variable, parameter, and return value gets a concrete type
+3. **Generates LLVM IR** — each function, class, and expression is lowered to LLVM intermediate representation
+4. **Assembles** — `llc` converts the IR to a native object file
+5. **Links** — `clang` links the object file against system libraries to produce the final binary
 
-ChadScript has two parser frontends depending on the compilation path:
+The output is a standard ELF binary (Linux) or Mach-O binary (macOS). You can run it, deploy it, or distribute it like any other compiled program.
 
-**Node.js path** (development): Uses the TypeScript Compiler API (`typescript` npm package) to parse source files. This provides a full AST with type annotations, type resolution for variables and parameters, and import/export resolution. The parser lives in `src/parser-ts/`.
+## What's Inside the Binary
 
-**Native path** (self-hosting): Uses [tree-sitter](https://tree-sitter.github.io/) via C FFI to parse TypeScript. The tree-sitter grammar produces a concrete syntax tree that is then transformed into ChadScript's internal AST. The parser lives in `src/parser-native/`.
+ChadScript links against several C libraries so your program has access to networking, databases, crypto, and more without installing anything at runtime:
 
-Both paths produce the same AST structure — the rest of the pipeline is shared.
+| Library | What it provides |
+|---------|-----------------|
+| libgc (Boehm GC) | Automatic memory management |
+| libuv | Event loop for async/await, timers |
+| libcurl | HTTP client (`fetch()`) |
+| libcrypto (OpenSSL) | Hashing, random bytes |
+| libsqlite3 | SQLite database |
+| mongoose | HTTP server (`httpServe()`) |
+| cJSON | JSON parsing |
 
-### 2. Type Checking
-
-The two compilation paths handle type resolution differently:
-
-**Node.js path**: Creates a `TypeChecker` instance that wraps TypeScript's own `ts.TypeChecker`. This provides property type resolution, function signature lookup, interface definition extraction, and array element type inference. The TypeChecker is passed to the code generator as a supplementary source of type information alongside AST-level annotations. It is only created for `.ts` files — `.js` files rely entirely on AST-level inference.
-
-**Native path**: Passes `null` as the TypeChecker to the code generator. Since the TypeScript compiler API can't run natively, the native path relies entirely on:
-
-- **AST-level type annotations** extracted by the tree-sitter parser (parameter types, return types, field types)
-- **InterfaceStructGenerator** for building struct layouts from interface declarations
-- **ClassGenerator** field tracking from AST class declarations
-- **Type inference** from context (string literals produce `i8*`, numeric operations produce `double`, etc.)
-
-The practical effect is that code compiled via the native path needs more explicit type annotations. This is why the compiler's own source code is heavily annotated — it must work correctly without TypeScript's type inference engine.
-
-### 2. AST Processing
-
-The AST is walked and transformed:
-- Type annotations are resolved to LLVM types
-- Class hierarchies are analyzed for vtable layout
-- Interface types are mapped to struct definitions
-- Import graphs are resolved for multi-file compilation
-
-### 3. LLVM IR Generation
-
-The core of ChadScript. Each AST node is lowered to LLVM IR:
-- Functions become LLVM functions
-- Variables become SSA temporaries or `alloca` stack slots
-- Method calls are dispatched through type-specific code generators
-- Built-in APIs are inlined as LLVM IR at the call site
-
-### 4. Assembly & Linking
-
-```bash
-llc output.ll -o output.o          # LLVM IR -> object file
-clang output.o -o binary \         # Link against system libraries
-  -lgc -lcjson -luv -lcurl \
-  -lcrypto -lsqlite3 -lm -lpthread
-```
-
-## Linked Libraries
-
-| Library | Purpose |
-|---------|---------|
-| `libgc` (Boehm GC) | Garbage collection |
-| `libcjson` | JSON parsing |
-| `libuv` | Event loop, async timers |
-| `libcurl` | HTTP client (`fetch`) |
-| `libcrypto` (OpenSSL) | Hashing, random bytes |
-| `libsqlite3` | SQLite database |
-| `mongoose` | HTTP server |
-| `libm` | Math functions |
-| `libpthread` | Threading |
+All of these are statically linked into your binary. The result is a single file with no external dependencies.
 
 ## Self-Hosting
 
-ChadScript is self-hosting — the compiler (~45k lines of TypeScript across ~70 source files) can compile itself:
+ChadScript compiles itself. The compiler is ~45k lines of TypeScript that produces a native binary — which can then compile the compiler again without Node.js. This three-stage bootstrap (Node.js → Stage 0 → Stage 1 → Stage 2) is the ultimate correctness test: if the compiler's output can reproduce itself, it's working correctly.
 
-```bash
-# Stage 0: Node.js compiles the compiler to a native binary
-chad build src/chad-native.ts -o chad-stage0
+## Platform Support
 
-# Stage 1: The native binary compiles itself (no Node.js needed)
-./chad-stage0 build src/chad-native.ts -o chad-stage1
-
-# Stage 2: Verify correctness (Stage 1 output == Stage 2 output)
-./chad-stage1 build src/chad-native.ts -o chad-stage2
-```
-
-The Stage 2 binary proves the compiler's output is correct enough to reproduce itself.
-
-## Source Structure
-
-| Directory | Purpose |
-|-----------|---------|
-| `src/codegen/` | LLVM IR code generation |
-| `src/codegen/expressions/` | Expression codegen (method calls, member access, binary ops) |
-| `src/codegen/types/collections/` | String, Array, Map, Set IR generators |
-| `src/codegen/stdlib/` | Built-in module generators (console, process, fs, etc.) |
-| `src/codegen/infrastructure/` | Core infrastructure (generator context, symbol table, type resolver) |
-| `src/ast/` | AST type definitions |
-| `tests/` | Test suite and fixtures |
+- **Linux x86-64** — primary target
+- **macOS** — supported, including cross-compilation (`--target macos-arm64`, `--target linux-x64`)
