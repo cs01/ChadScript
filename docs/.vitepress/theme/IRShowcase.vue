@@ -306,7 +306,8 @@ onUnmounted(() => {
       </div>
 
       <div class="cta-section" :class="{ visible: ctaVisible }">
-        <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started with ChadScript</a>
+        <p class="cta-tagline">That's it. TypeScript in, native binary out.</p>
+        <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started →</a>
       </div>
 
     </div>
@@ -603,6 +604,7 @@ onUnmounted(() => {
 }
 
 .cta-section {
+  text-align: center;
   opacity: 0;
   max-height: 0;
   overflow: hidden;
@@ -611,14 +613,19 @@ onUnmounted(() => {
 
 .cta-section.visible {
   opacity: 1;
-  max-height: 80px;
+  max-height: 100px;
+}
+
+.cta-tagline {
+  font-size: 0.9rem;
+  color: var(--vp-c-text-2);
+  margin: 0 0 8px;
 }
 
 .cta-link {
   display: inline-block;
-  margin: 14px auto;
-  padding: 10px 24px;
-  font-size: 0.9rem;
+  padding: 8px 20px;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--vp-c-text-1);
   background: rgba(255, 255, 255, 0.08);
@@ -631,12 +638,6 @@ onUnmounted(() => {
 .cta-link:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.2);
-}
-
-.cta-section.visible {
-  opacity: 1;
-  max-height: 80px;
-  text-align: center;
 }
 
 .stage-ir {
