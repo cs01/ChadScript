@@ -150,4 +150,4 @@ npm packages work as long as they only use supported TypeScript features.
 
 Everything is built in — no `npm install` needed:
 
-`console` · `process` · `fs` · `path` · `child_process` · `os` · `Math` · `JSON` · `Date` · `crypto` · `sqlite` · `fetch` · `httpServe` · `RegExp` · `Map` · `Set` · `ChadScript.embed`
+`ChadScript.embed` · `child_process` · `console` · `crypto` · `Date` · `fetch` · `fs` · `httpServe` · `JSON` · `Map` · `Math` · `os` · `path` · `process` · `RegExp` · `Set` · `sqlite`
