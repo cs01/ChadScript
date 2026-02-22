@@ -31,9 +31,9 @@ export default defineConfig({
 
     nav: [
       { text: 'Get Started', link: '/getting-started/installation' },
+      { text: 'Language', link: '/language/limitations' },
       { text: 'API', link: '/stdlib/' },
-      { text: 'Benchmarks', link: '/benchmarks' },
-      { text: 'Language', link: '/language/limitations' }
+      { text: 'Benchmarks', link: '/benchmarks' }
     ],
 
     sidebar: [
@@ -41,8 +41,11 @@ export default defineConfig({
         text: 'Getting Started',
         items: [
           { text: 'Introduction', link: '/' },
-          { text: 'Get Started', link: '/getting-started/installation' },
+          { text: 'Language Support', link: '/language/limitations' },
+          { text: 'Installation', link: '/getting-started/installation' },
           { text: 'Examples', link: '/getting-started/quickstart' },
+          { text: 'How it Works', link: '/language/architecture' },
+          { text: 'Classes & Interfaces', link: '/language/classes' },
           { text: 'CLI Reference', link: '/getting-started/cli' },
           { text: 'Debugging', link: '/getting-started/debugging' }
         ]
@@ -80,14 +83,6 @@ export default defineConfig({
         text: 'Performance',
         items: [
           { text: 'Benchmarks', link: '/benchmarks' }
-        ]
-      },
-      {
-        text: 'Language',
-        items: [
-          { text: 'How it Works', link: '/language/architecture' },
-          { text: 'Language Support', link: '/language/limitations' },
-          { text: 'Classes & Interfaces', link: '/language/classes' }
         ]
       },
       {

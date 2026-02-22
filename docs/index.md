@@ -9,8 +9,8 @@ hero:
       text: Get Started
       link: /getting-started/installation
     - theme: alt
-      text: API Reference
-      link: /stdlib/
+      text: Learn More
+      link: /language/limitations
 
 features:
   - title: No Runtime
