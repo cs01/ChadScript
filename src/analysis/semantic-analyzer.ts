@@ -106,6 +106,15 @@ export class SemanticAnalyzer {
     this.symbols.set("Date", { name: "Date", type: "object", llvmType: "i8*" });
     this.symbols.set("path", { name: "path", type: "object", llvmType: "i8*" });
     this.symbols.set("fs", { name: "fs", type: "object", llvmType: "i8*" });
+    this.symbols.set("os", { name: "os", type: "object", llvmType: "i8*" });
+    this.symbols.set("crypto", { name: "crypto", type: "object", llvmType: "i8*" });
+    this.symbols.set("sqlite", { name: "sqlite", type: "object", llvmType: "i8*" });
+    this.symbols.set("child_process", { name: "child_process", type: "object", llvmType: "i8*" });
+    this.symbols.set("tty", { name: "tty", type: "object", llvmType: "i8*" });
+    this.symbols.set("assert", { name: "assert", type: "object", llvmType: "i8*" });
+    this.symbols.set("Number", { name: "Number", type: "object", llvmType: "i8*" });
+    this.symbols.set("Object", { name: "Object", type: "object", llvmType: "i8*" });
+    this.symbols.set("ChadScript", { name: "ChadScript", type: "object", llvmType: "i8*" });
 
     if (this.ast.enums) {
       for (let _ei = 0; _ei < this.ast.enums.length; _ei++) {

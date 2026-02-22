@@ -1,3 +1,4 @@
+// @test-exit-code: 8
 // Regression test: Bitwise operations with doubles should convert to i64
 // Tests fptosi double to i64 for bitwise ops
 

@@ -1,3 +1,4 @@
+// @test-exit-code: 15
 function test(a, b, c) {
   // Basic ternary operator
   let result = a === b ? 10 : 0;

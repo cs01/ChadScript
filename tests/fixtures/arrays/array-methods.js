@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 // Test new array methods: pop, includes
 
 const arr1 = [10, 20, 30, 40, 50];

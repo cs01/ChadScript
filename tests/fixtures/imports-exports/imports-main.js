@@ -1,3 +1,4 @@
+// @test-exit-code: 19
 // Main file that imports from math-lib
 
 import { add, multiply } from "../arithmetic/math-lib.js";

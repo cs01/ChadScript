@@ -1,3 +1,4 @@
+// @test-exit-code: 3
 function isGreaterThan2(x) {
   let result = 0;
   if (x > 2) {

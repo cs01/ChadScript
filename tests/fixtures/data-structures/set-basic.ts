@@ -1,3 +1,4 @@
+// @test-exit-code: 1
 // Test basic Set operations
 function testSet() {
   const s = new Set<number>();

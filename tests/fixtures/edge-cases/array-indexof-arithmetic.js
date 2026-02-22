@@ -1,3 +1,4 @@
+// @test-exit-code: 20
 // Regression test: Array method results that return i32 should convert to double
 // Tests that array.length (i32) works properly in multiplication
 

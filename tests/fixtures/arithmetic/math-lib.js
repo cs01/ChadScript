@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 // Math library - exported functions
 
 export function add(a, b) {

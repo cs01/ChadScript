@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 // Simplified HTTP handler test
 interface HttpRequest {
   method: number;

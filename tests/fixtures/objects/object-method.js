@@ -1,3 +1,4 @@
+// @test-exit-code: 12
 // Test object method call
 function add(a, b) {
   return a + b;

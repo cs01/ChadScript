@@ -1,3 +1,4 @@
+// @test-args: build hello.ts -o out
 import { ArgumentParser } from "../../../lib/argparse.js";
 
 const parser = new ArgumentParser("myapp", "test subcommands");

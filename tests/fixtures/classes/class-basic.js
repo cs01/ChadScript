@@ -1,3 +1,4 @@
+// @test-exit-code: 10
 class Counter {
   constructor(value: number) {
     this.value = value;

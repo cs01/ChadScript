@@ -1,3 +1,4 @@
+// @test-exit-code: 15
 function test(a, b, c) {
   let result = 0;
 

@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 // Test all Math functions
 function testSqrt(x) {
   return Math.sqrt(x);

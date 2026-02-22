@@ -1,3 +1,4 @@
+// @test-exit-code: 17
 // Test: Nested function calls
 function multiply(a, b) {
   return a * b;

@@ -45,6 +45,7 @@ import {
   handleProcessArgv,
   handleProcessPlatform,
 } from "./process-access.js";
+import { handleOsProperty } from "./os-access.js";
 import {
   handleLengthProperty,
   handleMemberAccessLength,
@@ -244,6 +245,9 @@ export class MemberAccessGenerator {
     if (isProcessEnvAccess(expr)) return this.handleProcessEnvAccess(expr);
 
     result = handleProcessSimpleProperty(this.ctx, expr);
+    if (result !== null) return result;
+
+    result = handleOsProperty(this.ctx, expr);
     if (result !== null) return result;
 
     if (

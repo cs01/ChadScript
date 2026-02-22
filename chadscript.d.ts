@@ -162,6 +162,24 @@ declare namespace child_process {
 }
 
 // ============================================================================
+// OS
+// ============================================================================
+
+declare namespace os {
+  const platform: string;
+  const arch: string;
+  const EOL: string;
+
+  function hostname(): string;
+  function homedir(): string;
+  function tmpdir(): string;
+  function cpus(): number;
+  function totalmem(): number;
+  function freemem(): number;
+  function uptime(): number;
+}
+
+// ============================================================================
 // TTY
 // ============================================================================
 

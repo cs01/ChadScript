@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 // Test all bitwise operators
 function testXor(a, b) {
   return a ^ b;

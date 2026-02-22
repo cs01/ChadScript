@@ -5,7 +5,9 @@ import { promisify } from "node:util";
 import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
-import { testCases, TestCase } from "./test-fixtures";
+import { discoverTests, TestCase } from "./test-discovery";
+
+const testCases = discoverTests();
 
 const execAsync = promisify(exec);
 

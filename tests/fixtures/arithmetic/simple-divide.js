@@ -1,3 +1,4 @@
+// @test-exit-code: 5
 // Test: Simple division
 function divide(a, b) {
   return a / b;

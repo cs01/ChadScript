@@ -1,3 +1,4 @@
+// @test-exit-code: 15
 function max(a, b) {
   let result = 0;
   if (a > b) {

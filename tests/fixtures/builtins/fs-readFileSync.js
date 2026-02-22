@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 import * as fs from "fs";
 
 function test() {

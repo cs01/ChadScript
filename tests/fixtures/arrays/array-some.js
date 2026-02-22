@@ -1,3 +1,4 @@
+// @test-exit-code: 1
 function isGreaterThan5(x) {
   return x > 5;
 }

@@ -240,6 +240,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const regexBridgeObj = generator.getUsesRegex() ? LWS_BRIDGE_PATH + "/regex-bridge.o" : "";
   // Always link child-process-bridge.o (sync ops, no libuv dependency)
   const cpBridgeObj = LWS_BRIDGE_PATH + "/child-process-bridge.o";
+  // Always link os-bridge.o — platform-abstracted os.freemem()/os.uptime()
+  const osBridgeObj = LWS_BRIDGE_PATH + "/os-bridge.o";
   // Async spawn bridge linked only when child_process.spawn() is used (requires libuv)
   const cpSpawnObj = generator.getUsesSpawn() ? LWS_BRIDGE_PATH + "/child-process-spawn.o" : "";
   if (isMac) {
@@ -264,6 +266,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     regexBridgeObj +
     " " +
     cpBridgeObj +
+    " " +
+    osBridgeObj +
     " " +
     cpSpawnObj +
     " " +

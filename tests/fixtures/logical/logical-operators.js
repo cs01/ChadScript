@@ -1,3 +1,4 @@
+// @test-exit-code: 5
 function testAnd(a, b) {
   return a && b;
 }

@@ -166,6 +166,12 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   ir += "declare i32 @kill(i32, i32)\n";
   ir += "declare i64 @uv_hrtime()\n";
   ir += "declare i32 @isatty(i32)\n";
+  ir += "declare i32 @gethostname(i8*, i64)\n";
+  ir += "declare i64 @sysconf(i32)\n";
+  ir += "declare double @atof(i8*)\n";
+  // os-bridge.c — platform-abstracted os helpers
+  ir += "declare i64 @chad_os_freemem()\n";
+  ir += "declare double @chad_os_uptime()\n";
   ir += "\n";
 
   ir += "declare i32 @system(i8*)\n";

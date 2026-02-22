@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 // TCP Echo Server - Functional style without interface returns
 // Tests that network syscalls compile, link, and execute correctly
 

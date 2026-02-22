@@ -1,3 +1,4 @@
+// @test-skip
 // Debug test for spawn
 function onOut(data: string): void {
   console.log("GOT STDOUT: " + data);

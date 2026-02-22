@@ -1,3 +1,4 @@
+// @test-exit-code: 1
 test("passing test", () => {
   assert.strictEqual(1, 1);
 });

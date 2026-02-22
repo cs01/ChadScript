@@ -1,3 +1,4 @@
+// @test-exit-code: 10
 // Test that arrays are properly zero-initialized with calloc
 // This prevents crashes from garbage pointers during iteration
 

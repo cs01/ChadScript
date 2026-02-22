@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 // Test process.argv with no user arguments
 
 console.log("Checking argv.length");

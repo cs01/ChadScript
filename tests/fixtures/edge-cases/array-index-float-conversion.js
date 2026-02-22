@@ -1,3 +1,4 @@
+// @test-exit-code: 30
 // Regression test: Array indexing with float values should convert to int
 // This tests fptosi double to i32 conversion for array access
 
