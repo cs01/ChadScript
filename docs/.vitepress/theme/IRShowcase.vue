@@ -365,14 +365,14 @@ onUnmounted(() => {
 }
 
 .dot {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
 }
 
-.dot.red { background: #ff5f57; }
-.dot.yellow { background: #febc2e; }
-.dot.green { background: #28c840; }
+.dot.red { background: #c44; }
+.dot.yellow { background: #b89530; }
+.dot.green { background: #2a9a38; }
 
 .panel-label {
   font-size: 0.8rem;
@@ -425,7 +425,8 @@ onUnmounted(() => {
 .terminal-section {
   padding: 10px 16px;
   background: rgba(0, 0, 0, 0.15);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   opacity: 0;
   max-height: 0;
   overflow: hidden;
