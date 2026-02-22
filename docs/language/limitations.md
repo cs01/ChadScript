@@ -144,7 +144,7 @@ f(); // prints 1, not 2
 
 ## npm Compatibility
 
-npm packages work as long as they only use supported TypeScript features. In practice, most packages assume V8 runtime semantics or dynamic types that ChadScript doesn't support. Pure TypeScript libraries with simple type usage are the most likely to work.
+npm packages work as long as they only use supported TypeScript features.
 
 ## Standard Library
 
