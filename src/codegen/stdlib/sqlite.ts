@@ -14,7 +14,7 @@ export class SqliteGenerator {
     if (exprObjBase.type !== "variable") return false;
     const varNode = expr.object as { type: string; name: string };
     if (varNode.name !== "sqlite") return false;
-    const supported = ["open", "exec", "get", "all", "close"];
+    const supported = ["open", "exec", "get", "all", "query", "close"];
     return supported.indexOf(expr.method) !== -1;
   }
 
@@ -86,6 +86,32 @@ export class SqliteGenerator {
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = call i8* @__sqlite_get(i8* ${dbPtr}, i8* ${sqlPtr})`);
     this.ctx.setVariableType(result, "i8*");
+
+    return result;
+  }
+
+  // sqlite.query() — returns %ObjectArray* of typed structs instead of pipe-delimited strings
+  generateQuery(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError("sqlite.query() requires 2 arguments (db, sql)", expr.loc);
+    }
+
+    const dbPtr = this.ctx.generateExpression(expr.args[0], params);
+    const sqlPtr = this.ctx.generateExpression(expr.args[1], params);
+
+    if (expr.args.length >= 3) {
+      const paramsArr = this.buildParamsArray(expr.args[2], params);
+      const result = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${result} = call %ObjectArray* @__sqlite_query_params(i8* ${dbPtr}, i8* ${sqlPtr}, %StringArray* ${paramsArr})`,
+      );
+      this.ctx.setVariableType(result, "%ObjectArray*");
+      return result;
+    }
+
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = call %ObjectArray* @__sqlite_query(i8* ${dbPtr}, i8* ${sqlPtr})`);
+    this.ctx.setVariableType(result, "%ObjectArray*");
 
     return result;
   }
@@ -432,6 +458,185 @@ export class SqliteGenerator {
     ir += "no_row:\n";
     ir += "  call i32 @sqlite3_finalize(i8* %stmt)\n";
     ir += "  ret i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.empty_str, i64 0, i64 0)\n";
+    ir += "}\n\n";
+    return ir;
+  }
+
+  // Converts a single sqlite row into a flat struct of i8* fields (one per column).
+  // Each field is strdup'd column text, or "" for NULL. Returns i8* (opaque struct pointer).
+  generateSqliteRowToStructHelper(): string {
+    let ir = "";
+    ir += "define i8* @__sqlite_row_to_struct(i8* %stmt, i32 %col_count) {\n";
+    ir += "entry:\n";
+    // Allocate struct: col_count * 8 bytes (each field is an i8* = 8 bytes)
+    ir += "  %col_count_i64 = sext i32 %col_count to i64\n";
+    ir += "  %struct_size = mul i64 %col_count_i64, 8\n";
+    ir += "  %struct_raw = call i8* @GC_malloc(i64 %struct_size)\n";
+    ir += "  %struct_ptr = bitcast i8* %struct_raw to i8**\n";
+    ir += "  br label %col_loop\n";
+    ir += "\n";
+    ir += "col_loop:\n";
+    ir += "  %i = phi i32 [ 0, %entry ], [ %next_i, %col_store ]\n";
+    ir += "  %done = icmp sge i32 %i, %col_count\n";
+    ir += "  br i1 %done, label %exit, label %col_body\n";
+    ir += "\n";
+    ir += "col_body:\n";
+    ir += "  %text = call i8* @sqlite3_column_text(i8* %stmt, i32 %i)\n";
+    ir += "  %is_null = icmp eq i8* %text, null\n";
+    ir += "  br i1 %is_null, label %null_text, label %has_text\n";
+    ir += "\n";
+    ir += "has_text:\n";
+    ir += "  %copy = call i8* @strdup(i8* %text)\n";
+    ir += "  br label %col_store\n";
+    ir += "\n";
+    ir += "null_text:\n";
+    ir +=
+      "  %empty = call i8* @strdup(i8* getelementptr inbounds ([1 x i8], [1 x i8]* @.empty_str, i64 0, i64 0))\n";
+    ir += "  br label %col_store\n";
+    ir += "\n";
+    ir += "col_store:\n";
+    ir += "  %val = phi i8* [ %copy, %has_text ], [ %empty, %null_text ]\n";
+    ir += "  %i_i64 = sext i32 %i to i64\n";
+    ir += "  %slot = getelementptr inbounds i8*, i8** %struct_ptr, i64 %i_i64\n";
+    ir += "  store i8* %val, i8** %slot\n";
+    ir += "  %next_i = add i32 %i, 1\n";
+    ir += "  br label %col_loop\n";
+    ir += "\n";
+    ir += "exit:\n";
+    ir += "  ret i8* %struct_raw\n";
+    ir += "}\n\n";
+    return ir;
+  }
+
+  // Returns %ObjectArray* — each element is a struct pointer built by @__sqlite_row_to_struct.
+  // Mirrors @__sqlite_all but produces ObjectArray instead of StringArray.
+  generateSqliteQueryHelper(): string {
+    let ir = "";
+    ir += "define %ObjectArray* @__sqlite_query(i8* %db, i8* %sql) {\n";
+    ir += "entry:\n";
+    ir += "  %sql_len = call i64 @strlen(i8* %sql)\n";
+    ir += "  %sql_len_i32 = trunc i64 %sql_len to i32\n";
+    ir += "  %stmt_ptr_raw = call i8* @GC_malloc(i64 8)\n";
+    ir += "  %stmt_ptr = bitcast i8* %stmt_ptr_raw to i8**\n";
+    ir +=
+      "  %rc = call i32 @sqlite3_prepare_v2(i8* %db, i8* %sql, i32 %sql_len_i32, i8** %stmt_ptr, i8** null)\n";
+    ir += "  %stmt = load i8*, i8** %stmt_ptr\n";
+    ir += "  %init_data_raw = call i8* @GC_malloc(i64 512)\n";
+    ir += "  %init_data = bitcast i8* %init_data_raw to i8**\n";
+    ir += "  br label %loop\n";
+    ir += "\n";
+    ir += "loop:\n";
+    ir += "  %len = phi i32 [ 0, %entry ], [ %new_len, %store ]\n";
+    ir += "  %cap = phi i32 [ 64, %entry ], [ %final_cap, %store ]\n";
+    ir += "  %data = phi i8** [ %init_data, %entry ], [ %final_data, %store ]\n";
+    ir += "  %step_rc = call i32 @sqlite3_step(i8* %stmt)\n";
+    ir += "  %is_row = icmp eq i32 %step_rc, 100\n";
+    ir += "  br i1 %is_row, label %body, label %done\n";
+    ir += "\n";
+    ir += "body:\n";
+    ir += "  %col_count = call i32 @sqlite3_column_count(i8* %stmt)\n";
+    // Build a struct of i8* fields instead of a pipe-delimited string
+    ir += "  %row_struct = call i8* @__sqlite_row_to_struct(i8* %stmt, i32 %col_count)\n";
+    ir += "  %need_grow = icmp eq i32 %len, %cap\n";
+    ir += "  br i1 %need_grow, label %grow, label %store\n";
+    ir += "\n";
+    ir += "grow:\n";
+    ir += "  %new_cap = mul i32 %cap, 2\n";
+    ir += "  %new_cap_i64 = sext i32 %new_cap to i64\n";
+    ir += "  %new_bytes = mul i64 %new_cap_i64, 8\n";
+    ir += "  %old_i8 = bitcast i8** %data to i8*\n";
+    ir += "  %new_alloc = call i8* @GC_realloc(i8* %old_i8, i64 %new_bytes)\n";
+    ir += "  %new_data = bitcast i8* %new_alloc to i8**\n";
+    ir += "  br label %store\n";
+    ir += "\n";
+    ir += "store:\n";
+    ir += "  %final_data = phi i8** [ %data, %body ], [ %new_data, %grow ]\n";
+    ir += "  %final_cap = phi i32 [ %cap, %body ], [ %new_cap, %grow ]\n";
+    ir += "  %len_i64 = sext i32 %len to i64\n";
+    ir += "  %elem_ptr = getelementptr inbounds i8*, i8** %final_data, i64 %len_i64\n";
+    ir += "  store i8* %row_struct, i8** %elem_ptr\n";
+    ir += "  %new_len = add i32 %len, 1\n";
+    ir += "  br label %loop\n";
+    ir += "\n";
+    ir += "done:\n";
+    ir += "  call i32 @sqlite3_finalize(i8* %stmt)\n";
+    ir += "  %arr_raw = call i8* @GC_malloc(i64 24)\n";
+    ir += "  %arr = bitcast i8* %arr_raw to %ObjectArray*\n";
+    // ObjectArray.data is i8* (opaque), so bitcast i8** → i8*
+    ir += "  %data_i8 = bitcast i8** %data to i8*\n";
+    ir += "  %f0 = getelementptr inbounds %ObjectArray, %ObjectArray* %arr, i32 0, i32 0\n";
+    ir += "  store i8* %data_i8, i8** %f0\n";
+    ir += "  %f1 = getelementptr inbounds %ObjectArray, %ObjectArray* %arr, i32 0, i32 1\n";
+    ir += "  store i32 %len, i32* %f1\n";
+    ir += "  %f2 = getelementptr inbounds %ObjectArray, %ObjectArray* %arr, i32 0, i32 2\n";
+    ir += "  store i32 %cap, i32* %f2\n";
+    ir += "  ret %ObjectArray* %arr\n";
+    ir += "}\n\n";
+    return ir;
+  }
+
+  // Same as @__sqlite_query but with parameter binding. Mirrors @__sqlite_all_params.
+  generateSqliteQueryWithParamsHelper(): string {
+    let ir = "";
+    ir +=
+      "define %ObjectArray* @__sqlite_query_params(i8* %db, i8* %sql, %StringArray* %params) {\n";
+    ir += "entry:\n";
+    ir += "  %sql_len = call i64 @strlen(i8* %sql)\n";
+    ir += "  %sql_len_i32 = trunc i64 %sql_len to i32\n";
+    ir += "  %stmt_ptr_raw = call i8* @GC_malloc(i64 8)\n";
+    ir += "  %stmt_ptr = bitcast i8* %stmt_ptr_raw to i8**\n";
+    ir +=
+      "  %rc = call i32 @sqlite3_prepare_v2(i8* %db, i8* %sql, i32 %sql_len_i32, i8** %stmt_ptr, i8** null)\n";
+    ir += "  %stmt = load i8*, i8** %stmt_ptr\n";
+    ir += "  call void @__sqlite_bind_params(i8* %stmt, %StringArray* %params)\n";
+    ir += "  %init_data_raw = call i8* @GC_malloc(i64 512)\n";
+    ir += "  %init_data = bitcast i8* %init_data_raw to i8**\n";
+    ir += "  br label %loop\n";
+    ir += "\n";
+    ir += "loop:\n";
+    ir += "  %len = phi i32 [ 0, %entry ], [ %new_len, %store ]\n";
+    ir += "  %cap = phi i32 [ 64, %entry ], [ %final_cap, %store ]\n";
+    ir += "  %data = phi i8** [ %init_data, %entry ], [ %final_data, %store ]\n";
+    ir += "  %step_rc = call i32 @sqlite3_step(i8* %stmt)\n";
+    ir += "  %is_row = icmp eq i32 %step_rc, 100\n";
+    ir += "  br i1 %is_row, label %body, label %done\n";
+    ir += "\n";
+    ir += "body:\n";
+    ir += "  %col_count_qp = call i32 @sqlite3_column_count(i8* %stmt)\n";
+    ir += "  %row_struct = call i8* @__sqlite_row_to_struct(i8* %stmt, i32 %col_count_qp)\n";
+    ir += "  %need_grow = icmp eq i32 %len, %cap\n";
+    ir += "  br i1 %need_grow, label %grow, label %store\n";
+    ir += "\n";
+    ir += "grow:\n";
+    ir += "  %new_cap = mul i32 %cap, 2\n";
+    ir += "  %new_cap_i64 = sext i32 %new_cap to i64\n";
+    ir += "  %new_bytes = mul i64 %new_cap_i64, 8\n";
+    ir += "  %old_i8 = bitcast i8** %data to i8*\n";
+    ir += "  %new_alloc = call i8* @GC_realloc(i8* %old_i8, i64 %new_bytes)\n";
+    ir += "  %new_data = bitcast i8* %new_alloc to i8**\n";
+    ir += "  br label %store\n";
+    ir += "\n";
+    ir += "store:\n";
+    ir += "  %final_data = phi i8** [ %data, %body ], [ %new_data, %grow ]\n";
+    ir += "  %final_cap = phi i32 [ %cap, %body ], [ %new_cap, %grow ]\n";
+    ir += "  %len_i64 = sext i32 %len to i64\n";
+    ir += "  %elem_ptr = getelementptr inbounds i8*, i8** %final_data, i64 %len_i64\n";
+    ir += "  store i8* %row_struct, i8** %elem_ptr\n";
+    ir += "  %new_len = add i32 %len, 1\n";
+    ir += "  br label %loop\n";
+    ir += "\n";
+    ir += "done:\n";
+    ir += "  call i32 @sqlite3_finalize(i8* %stmt)\n";
+    ir += "  %arr_raw = call i8* @GC_malloc(i64 24)\n";
+    ir += "  %arr = bitcast i8* %arr_raw to %ObjectArray*\n";
+    ir += "  %data_i8 = bitcast i8** %data to i8*\n";
+    ir += "  %f0 = getelementptr inbounds %ObjectArray, %ObjectArray* %arr, i32 0, i32 0\n";
+    ir += "  store i8* %data_i8, i8** %f0\n";
+    ir += "  %f1 = getelementptr inbounds %ObjectArray, %ObjectArray* %arr, i32 0, i32 1\n";
+    ir += "  store i32 %len, i32* %f1\n";
+    ir += "  %f2 = getelementptr inbounds %ObjectArray, %ObjectArray* %arr, i32 0, i32 2\n";
+    ir += "  store i32 %cap, i32* %f2\n";
+    ir += "  ret %ObjectArray* %arr\n";
     ir += "}\n\n";
     return ir;
   }

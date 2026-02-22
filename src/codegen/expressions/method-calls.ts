@@ -716,6 +716,8 @@ export class MethodCallGenerator {
         return this.ctx.sqliteGen.generateGet(expr, params);
       } else if (method === "all") {
         return this.ctx.sqliteGen.generateAll(expr, params);
+      } else if (method === "query") {
+        return this.ctx.sqliteGen.generateQuery(expr, params);
       } else if (method === "close") {
         return this.ctx.sqliteGen.generateClose(expr, params);
       }
