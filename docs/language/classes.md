@@ -6,8 +6,8 @@ ChadScript supports classes with constructors, methods, fields, single inheritan
 
 - **No `instanceof`** — there are no runtime type tags
 - **Static dispatch** — method calls are resolved at compile time, not dynamically
-- **No interface methods on object literals** — interfaces define data layout; methods must be on classes
-- **Access modifiers not enforced** — `private`/`protected` are parsed but all fields are accessible
+- **No interface methods on object literals** — in TypeScript you can define methods on interfaces and implement them with object literals (`{ greet() { ... } }`). In ChadScript, interfaces only define data layout (fields). If you need methods, use a class.
+- **Access modifiers not enforced at runtime** — `private`/`protected` are parsed but all fields are accessible in the compiled output. Run `chad init` to get TypeScript type-checking in your editor, which will flag access violations before you compile.
 
 ## Classes
 
