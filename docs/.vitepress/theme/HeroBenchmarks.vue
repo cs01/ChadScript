@@ -38,7 +38,7 @@ onMounted(() => {
       </div>
     </div>
     <div class="bench-footer">
-      <a href="./benchmarks">All benchmarks →</a>
+      <a href="./benchmarks">All benchmarks</a>
     </div>
   </div>
 </template>

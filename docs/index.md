@@ -40,8 +40,8 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
 ```
 
 <div class="cta-buttons">
-  <a href="/ChadScript/getting-started/installation" class="cta-button primary">Get Started →</a>
-  <a href="/ChadScript/language/limitations" class="cta-button secondary">Learn More →</a>
+  <a href="/ChadScript/getting-started/installation" class="cta-button primary">Get Started</a>
+  <a href="/ChadScript/language/limitations" class="cta-button secondary">Learn More</a>
 </div>
 
 </div>

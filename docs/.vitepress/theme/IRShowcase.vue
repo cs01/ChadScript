@@ -308,8 +308,8 @@ onUnmounted(() => {
       <div class="cta-section" :class="{ visible: ctaVisible }">
         <p class="cta-tagline">Congratulations, you wrote your first ChadScript app!</p>
         <div class="cta-buttons">
-          <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started →</a>
-          <a href="/ChadScript/language/limitations" class="cta-link secondary">Learn More →</a>
+          <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started</a>
+          <a href="/ChadScript/language/limitations" class="cta-link secondary">Learn More</a>
         </div>
       </div>
 
