@@ -306,7 +306,7 @@ onUnmounted(() => {
       </div>
 
       <div class="cta-section" :class="{ visible: ctaVisible }">
-        <p class="cta-tagline">That's it. TypeScript in, native binary out.</p>
+        <p class="cta-tagline">Congratulations, you wrote your first ChadScript app!</p>
         <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started →</a>
       </div>
 
@@ -344,7 +344,6 @@ onUnmounted(() => {
 .pipeline-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   opacity: 0;
   transform: translateY(12px);
   transition: opacity 0.4s ease, transform 0.4s ease;
@@ -439,12 +438,13 @@ onUnmounted(() => {
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.3s ease;
+  transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease;
 }
 
 .terminal-section.visible {
   opacity: 1;
   max-height: 200px;
+  margin-top: 8px;
 }
 
 .terminal-chrome {
@@ -490,12 +490,13 @@ onUnmounted(() => {
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.3s ease;
+  transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease;
 }
 
 .hex-section.visible {
   opacity: 1;
   max-height: 110px;
+  margin-top: 8px;
 }
 
 .hex-prompt {
@@ -608,12 +609,13 @@ onUnmounted(() => {
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.4s ease, max-height 0.3s ease;
+  transition: opacity 0.4s ease, max-height 0.3s ease, margin 0.3s ease;
 }
 
 .cta-section.visible {
   opacity: 1;
   max-height: 100px;
+  margin-top: 8px;
 }
 
 .cta-tagline {
@@ -647,12 +649,13 @@ onUnmounted(() => {
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.5s ease;
+  transition: opacity 0.3s ease, max-height 0.5s ease, margin 0.3s ease;
 }
 
 .stage-ir.visible {
   opacity: 1;
   max-height: 500px;
+  margin-top: 8px;
 }
 
 .ir-code {
@@ -707,12 +710,13 @@ onUnmounted(() => {
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.3s ease;
+  transition: opacity 0.3s ease, max-height 0.3s ease, margin 0.3s ease;
 }
 
 .stage-link.visible {
   opacity: 1;
   max-height: 200px;
+  margin-top: 8px;
 }
 
 .link-row {
