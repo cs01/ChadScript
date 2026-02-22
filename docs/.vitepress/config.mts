@@ -31,7 +31,6 @@ export default defineConfig({
 
     nav: [
       { text: 'Get Started', link: '/getting-started/installation' },
-      { text: 'Language', link: '/language/limitations' },
       { text: 'API', link: '/stdlib/' },
       { text: 'Benchmarks', link: '/benchmarks' }
     ],
@@ -40,7 +39,6 @@ export default defineConfig({
       {
         text: 'Getting Started',
         items: [
-          { text: 'Introduction', link: '/' },
           { text: 'Language Support', link: '/language/limitations' },
           { text: 'Installation', link: '/getting-started/installation' },
           { text: 'Examples', link: '/getting-started/quickstart' },
