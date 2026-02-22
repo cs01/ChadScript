@@ -341,10 +341,9 @@ onUnmounted(() => {
 }
 
 .pipeline-panel {
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: var(--vp-c-bg-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   opacity: 0;
   transform: translateY(12px);
   transition: opacity 0.4s ease, transform 0.4s ease;
@@ -404,11 +403,15 @@ onUnmounted(() => {
 
 .stage-source {
   position: relative;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--vp-c-bg-soft);
+  overflow: hidden;
 }
 
 .code-mask {
   position: absolute;
-  top: 40px;
+  top: 36px;
   right: 0;
   bottom: 0;
   background: var(--vp-c-bg-soft);
@@ -429,9 +432,9 @@ onUnmounted(() => {
 }
 
 .terminal-section {
-  background: rgba(0, 0, 0, 0.15);
-  margin-top: 4px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   opacity: 0;
   max-height: 0;
   overflow: hidden;
@@ -483,7 +486,6 @@ onUnmounted(() => {
 }
 
 .hex-section {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
   opacity: 0;
   max-height: 0;
   overflow: hidden;
@@ -492,15 +494,15 @@ onUnmounted(() => {
 
 .hex-section.visible {
   opacity: 1;
-  max-height: 140px;
+  max-height: 110px;
 }
 
 .hex-prompt {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 14px 16px;
+  gap: 4px;
+  padding: 10px 16px;
   transition: opacity 0.3s ease;
 }
 
@@ -522,8 +524,8 @@ onUnmounted(() => {
 
 .hex-container {
   position: relative;
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -601,7 +603,6 @@ onUnmounted(() => {
 }
 
 .cta-section {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
   opacity: 0;
   max-height: 0;
   overflow: hidden;
@@ -639,7 +640,9 @@ onUnmounted(() => {
 }
 
 .stage-ir {
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--vp-c-bg-soft);
   opacity: 0;
   max-height: 0;
   overflow: hidden;
@@ -697,8 +700,9 @@ onUnmounted(() => {
 
 .stage-link {
   padding: 8px 16px;
-  background: rgba(0, 0, 0, 0.15);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   opacity: 0;
   max-height: 0;
   overflow: hidden;
