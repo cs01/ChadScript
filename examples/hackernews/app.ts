@@ -17,11 +17,6 @@ interface Post {
   points: string;
 }
 
-function parsePost(row: string): Post {
-  const parts = row.split("|");
-  return { id: parts[0], title: parts[1], url: parts[2], points: parts[3] };
-}
-
 ChadScript.embedDir("./public");
 
 const db = sqlite.open(":memory:");
@@ -92,10 +87,13 @@ sqlite.exec(
 );
 
 function renderPosts(): string {
-  const rows = sqlite.all(db, "SELECT id, title, url, points FROM posts ORDER BY points DESC");
+  const posts: Post[] = sqlite.query(
+    db,
+    "SELECT id, title, url, points FROM posts ORDER BY points DESC",
+  );
   let html = "";
-  for (let i = 0; i < rows.length; i++) {
-    const post = parsePost(rows[i]);
+  for (let i = 0; i < posts.length; i++) {
+    const post = posts[i];
     const rank = i + 1;
     html = html + '<div class="post"><span class="rank">' + rank + ".</span>";
     html = html + '<form method="POST" action="/upvote/' + post.id + '" style="display:inline">';
