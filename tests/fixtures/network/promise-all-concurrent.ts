@@ -1,3 +1,4 @@
+// @test-skip
 async function testPromiseAll(): Promise<string> {
   const start = process.uptime();
 

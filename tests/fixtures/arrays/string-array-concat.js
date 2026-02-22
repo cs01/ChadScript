@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 function testStringArrayConcat() {
   const arr = ["hello", "world"];
   const first = arr[0];

@@ -1,3 +1,4 @@
+// @test-exit-code: 6
 function test() {
   let str = "ab";
   let result = str.repeat(3);

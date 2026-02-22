@@ -1,3 +1,4 @@
+// @test-exit-code: 10
 function double(x) {
   return x + x;
 }

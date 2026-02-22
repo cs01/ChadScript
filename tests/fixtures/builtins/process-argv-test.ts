@@ -1,3 +1,4 @@
+// @test-args: testarg
 // Test process.argv - verifies command line argument access works
 // This should receive one argument and verify it
 

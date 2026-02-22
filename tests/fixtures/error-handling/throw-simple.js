@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 function willThrow() {
   console.log("about to throw");
   throw new Error("test error");

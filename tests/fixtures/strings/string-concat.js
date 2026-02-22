@@ -1,3 +1,4 @@
+// @test-exit-code: 10
 function concat() {
   const hello = "Hello";
   const world = "World";

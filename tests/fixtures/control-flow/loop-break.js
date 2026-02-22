@@ -1,3 +1,4 @@
+// @test-exit-code: 43
 function findFirst(threshold) {
   let result = 0;
   for (let i = 1; i <= 100; i = i + 1) {

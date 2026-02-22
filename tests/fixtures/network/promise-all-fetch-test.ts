@@ -1,3 +1,4 @@
+// @test-skip
 async function testPromiseAllFetch(): Promise<void> {
   const results = await Promise.all([
     fetch("http://127.0.0.1:19881/a"),

@@ -1,3 +1,4 @@
+// @test-exit-code: 10
 // Regression test: String.length returns i32 but must convert to double for arithmetic
 // This tests sitofp i32 to double conversion
 

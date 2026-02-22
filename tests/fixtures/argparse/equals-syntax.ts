@@ -1,3 +1,4 @@
+// @test-args: --target-cpu=x86-64 build hello.ts
 import { ArgumentParser } from "../../../lib/argparse.js";
 
 const parser = new ArgumentParser("myapp", "test equals syntax");

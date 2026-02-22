@@ -1,3 +1,4 @@
+// @test-exit-code: 15
 function countDown(n) {
   let i = n;
   let sum = 0;

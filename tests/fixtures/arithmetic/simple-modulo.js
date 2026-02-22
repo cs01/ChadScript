@@ -1,3 +1,4 @@
+// @test-exit-code: 2
 function modulo(a, b) {
   return a % b;
 }

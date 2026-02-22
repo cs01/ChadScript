@@ -1,3 +1,4 @@
+// @test-exit-code: 17
 // Test: Multiple function calls in expression
 function add(a, b) {
   return a + b;

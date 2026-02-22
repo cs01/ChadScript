@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 // Test new string methods: trim, indexOf, includes, slice
 
 const s1 = "  hello  ";

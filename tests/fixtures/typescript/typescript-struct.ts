@@ -1,3 +1,4 @@
+// @test-exit-code: 7
 interface Point {
   x: number;
   y: number;

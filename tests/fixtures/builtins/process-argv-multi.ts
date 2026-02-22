@@ -1,3 +1,4 @@
+// @test-args: hello world 42
 const args = process.argv;
 
 if (args.length !== 3) {

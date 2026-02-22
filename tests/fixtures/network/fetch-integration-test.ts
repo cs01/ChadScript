@@ -1,3 +1,4 @@
+// @test-skip
 // Integration test for fetch() builtin with Response API
 // This test expects an HTTP server running on localhost:9998
 // that responds with specific test data

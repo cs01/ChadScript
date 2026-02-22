@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 interface Person {
   name: string;
   age: number;

@@ -1,3 +1,4 @@
+// @test-skip
 async function testAsyncFetch(): Promise<string> {
   const response = await fetch("http://127.0.0.1:19878/test");
   if (response.ok) {

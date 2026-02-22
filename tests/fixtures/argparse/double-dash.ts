@@ -1,3 +1,4 @@
+// @test-args: run hello.ts -- arg1 arg2
 import { ArgumentParser } from "../../../lib/argparse.js";
 
 const parser = new ArgumentParser("myapp", "test double dash");

@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 // Debug process.argv
 
 console.log("argc: " + process.argv.length);

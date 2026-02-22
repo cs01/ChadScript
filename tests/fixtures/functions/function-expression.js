@@ -1,3 +1,4 @@
+// @test-exit-code: 0
 // Test function expressions in array methods
 function testMap() {
   const arr = [1, 2, 3, 4, 5];

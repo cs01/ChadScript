@@ -1,3 +1,4 @@
+// @test-exit-code: 42
 // Regression test: Array.length in comparisons (i32 to double conversion)
 // This tests that length values work correctly in conditionals
 
