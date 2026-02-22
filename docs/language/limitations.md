@@ -7,7 +7,7 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | Feature | Status |
 |---------|--------|
 | `let`, `const`, `var` | Supported |
-| `if`/`else if`/`else`, `for`, `for...of`, `while`, `switch` | Supported |
+| `if`/`else if`/`else`, `for`, `for...of`, `while`, `do...while`, `switch` | Supported |
 | `break`, `continue`, `return` | Supported |
 | `try`/`catch`/`finally`, `throw` | Supported |
 | Template literals (`` `hello ${name}` ``) | Supported |
@@ -22,7 +22,6 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | Regular expressions (`/pattern/flags`) | Supported |
 | `for...in` | Supported (desugared to `for...of Object.keys()`) |
 | Generator functions (`function*`, `yield`) | Not supported |
-| `do...while` | Not supported |
 | Decorators | Not supported |
 | Tagged template literals | Not supported |
 | Labeled statements | Not supported |

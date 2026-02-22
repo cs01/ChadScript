@@ -294,6 +294,13 @@ export interface WhileStatement {
   loc?: SourceLocation;
 }
 
+export interface DoWhileStatement {
+  type: "do_while";
+  condition: Expression;
+  body: BlockStatement;
+  loc?: SourceLocation;
+}
+
 export interface ForStatement {
   type: "for";
   init: VariableDeclaration | AssignmentStatement | null;
@@ -356,6 +363,7 @@ export type Statement =
   | ReturnStatement
   | IfStatement
   | WhileStatement
+  | DoWhileStatement
   | ForStatement
   | ForOfStatement
   | BreakStatement
@@ -372,6 +380,7 @@ export type TopLevelItem =
   | ForStatement
   | ForOfStatement
   | WhileStatement
+  | DoWhileStatement
   | IfStatement
   | TryStatement
   | ThrowStatement
@@ -459,6 +468,7 @@ export interface AST {
     | ForStatement
     | ForOfStatement
     | WhileStatement
+    | DoWhileStatement
     | IfStatement
     | TryStatement
     | AwaitExpressionNode

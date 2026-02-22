@@ -25,6 +25,7 @@ import {
   ReturnStatement,
   IfStatement,
   WhileStatement,
+  DoWhileStatement,
   ForStatement,
   ForOfStatement,
   ThrowStatement,
@@ -188,6 +189,15 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
         ast.topLevelExpressions.push(whileStmt);
         ast.topLevelItems!.push(whileStmt);
         ast.topLevelItemTypes!.push("while");
+      }
+      break;
+
+    case "do_statement":
+      const doWhileStmt = transformDoWhileStatement(node);
+      if (doWhileStmt) {
+        ast.topLevelExpressions.push(doWhileStmt);
+        ast.topLevelItems!.push(doWhileStmt);
+        ast.topLevelItemTypes!.push("do_while");
       }
       break;
 
@@ -1244,6 +1254,9 @@ function transformStatement(node: TreeSitterNode): Statement | null {
     case "while_statement":
       return transformWhileStatement(node);
 
+    case "do_statement":
+      return transformDoWhileStatement(node);
+
     case "for_statement":
       return transformForStatement(node);
 
@@ -1596,6 +1609,28 @@ function transformWhileStatement(node: TreeSitterNode): WhileStatement {
   const body = bodyNode ? wrapInBlock(bodyNode) : createEmptyBlock();
 
   return { type: "while", condition, body };
+}
+
+function transformDoWhileStatement(node: TreeSitterNode): DoWhileStatement {
+  const condNode = getChildByFieldName(node, "condition");
+  const bodyNode = getChildByFieldName(node, "body");
+
+  let condition: Expression;
+  if (condNode) {
+    const cn = condNode as NodeBase;
+    if (cn.type === "parenthesized_expression") {
+      const inner = getNamedChild(condNode, 0);
+      condition = inner ? transformExpression(inner) : { type: "boolean", value: true };
+    } else {
+      condition = transformExpression(condNode);
+    }
+  } else {
+    condition = { type: "boolean", value: true };
+  }
+
+  const body = bodyNode ? wrapInBlock(bodyNode) : createEmptyBlock();
+
+  return { type: "do_while", condition, body };
 }
 
 function transformForStatement(node: TreeSitterNode): ForStatement {

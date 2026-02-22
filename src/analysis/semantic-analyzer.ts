@@ -430,7 +430,7 @@ export class SemanticAnalyzer {
         const ifStmt = stmt as IfStatement;
         if (ifStmt.thenBlock) this.analyzeBlock(ifStmt.thenBlock);
         if (ifStmt.elseBlock) this.analyzeBlock(ifStmt.elseBlock);
-      } else if (stmtType === "while") {
+      } else if (stmtType === "while" || stmtType === "do_while") {
         const whileStmt = stmt as WhileStatement;
         if (whileStmt.body) this.analyzeBlock(whileStmt.body);
       } else if (stmtType === "for") {
