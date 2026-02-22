@@ -34,6 +34,16 @@ chad ir hello.ts                 # Prints LLVM IR to stdout
 chad ir hello.ts > hello.ll      # Save to file
 ```
 
+### `chad init`
+
+Generate type definitions and a starter project in the current directory.
+
+```bash
+chad init
+```
+
+Creates `chadscript.d.ts` (type declarations for editor support), `tsconfig.json`, and `hello.ts`. Run this once per project so your editor knows about ChadScript's built-in APIs.
+
 ### `chad clean`
 
 Remove the `.build` directory.

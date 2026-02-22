@@ -1,45 +1,22 @@
-# Standard Library Overview
+# Standard Library
 
-ChadScript ships with a full standard library compiled to native code. No npm, no `node_modules`, no bundler. All APIs are available as globals — no imports needed.
+Everything is built in. No `npm install`, no `node_modules`, no bundler. All APIs are available as globals — no imports needed.
 
-| Module | APIs |
-|--------|------|
-| [`console`](/stdlib/console) | `log`, `error` |
-| [`process`](/stdlib/process) | `argv`, `exit`, `env`, `platform`, `arch`, `pid`, `cwd`, `stdout.write`, `stderr.write` |
-| [`fs`](/stdlib/fs) | `readFileSync`, `writeFileSync`, `existsSync`, `unlinkSync`, `readdirSync`, `statSync`, `appendFileSync` |
-| [`path`](/stdlib/path) | `join`, `resolve`, `dirname`, `basename` |
-| [`Math`](/stdlib/math) | `floor`, `ceil`, `round`, `abs`, `min`, `max`, `sqrt`, `pow`, `random`, `PI`, `E`, `log`, `sin`, `cos`, `tan` |
-| [`JSON`](/stdlib/json) | `parse<T>`, `stringify` |
-| [`String`](/stdlib/string) | `length`, `split`, `indexOf`, `includes`, `slice`, `trim`, `replace`, `startsWith`, `endsWith`, `charAt` |
-| [`Number`](/stdlib/number) | `isFinite`, `isNaN`, `isInteger`, `toString` |
-| [`Array`](/stdlib/array) | `length`, `push`, `pop`, `map`, `filter`, `find`, `forEach`, `some`, `includes`, `slice`, `indexOf`, `join`, `concat`, `reduce` |
-| [`Map`](/stdlib/map) | `set`, `get`, `has`, `delete`, `size`, `keys`, `values` |
-| [`Set`](/stdlib/set) | `add`, `has`, `delete`, `size` |
-| [`RegExp`](/stdlib/regexp) | `test`, `exec`, `match` |
-| [`Object`](/stdlib/object) | `keys`, `values`, `entries` |
-| [`tty`](/stdlib/tty) | `isatty` |
-| [`crypto`](/stdlib/crypto) | `sha256`, `md5`, `sha512`, `randomBytes` |
-| [`sqlite`](/stdlib/sqlite) | `open`, `exec`, `get`, `all`, `close` |
-| [`fetch`](/stdlib/fetch) | HTTP client via libcurl |
-| [`httpServe`](/stdlib/http-server) | HTTP server via libwebsockets |
-| [`ChadScript.embed`](/stdlib/embed) | Compile-time file embedding (`embedFile`, `embedDir`, `getEmbeddedFile`) |
-| [`Async`](/stdlib/async) | `async`/`await`, `Promise.all`, `Promise.race`, `setTimeout`, `setInterval` |
-| [`child_process`](/stdlib/child-process) | `execSync` |
-| [`Date`](/stdlib/date) | `Date.now()` |
-| [`test`](/stdlib/test-runner) | `test`, `assert.strictEqual`, `assert.ok`, `assert.fail` |
-| [Low-Level](/stdlib/syscalls) | `malloc`, `free`, `socket`, `bind`, `listen`, `accept`, `read`, `write`, `close` |
+API names match Node.js where applicable (`fs.readFileSync`, `process.argv`, `path.join`, `console.log`, etc.), so the code you write looks like standard TypeScript. The main difference is that these APIs compile to native code instead of calling into V8.
 
-## Linked Libraries
+Browse the sidebar for the full API reference.
 
-ChadScript links against these system libraries at compile time:
+## Editor Support
 
-| Library | Purpose |
-|---------|---------|
-| `libgc` (Boehm GC) | Garbage collection |
-| `libcjson` | JSON parsing |
-| `libuv` | Event loop, timers |
-| `libcurl` | HTTP client (fetch) |
-| `libcrypto` (OpenSSL) | Hashing, random bytes |
-| `libsqlite3` | SQLite database |
-| `libm` | Math functions |
-| `libpthread` | Threading |
+Run `chad init` in your project directory to generate type definitions for your editor:
+
+```bash
+chad init
+```
+
+This creates:
+- **`chadscript.d.ts`** — type declarations for all built-in APIs so your editor provides autocomplete and type checking
+- **`tsconfig.json`** — configured for ChadScript's supported TypeScript subset
+- **`hello.ts`** — a starter file
+
+Your editor (VS Code, etc.) will immediately recognize all ChadScript globals without any red squiggles.
