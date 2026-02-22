@@ -64,6 +64,7 @@ export default defineConfig({
           { text: 'sqlite', link: '/stdlib/sqlite' },
           { text: 'fetch', link: '/stdlib/fetch' },
           { text: 'httpServe', link: '/stdlib/http-server' },
+          { text: 'ChadScript.embed', link: '/stdlib/embed' },
           { text: 'String Methods', link: '/stdlib/string' },
           { text: 'Number', link: '/stdlib/number' },
           { text: 'Array Methods', link: '/stdlib/array' },
