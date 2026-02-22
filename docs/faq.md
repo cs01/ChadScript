@@ -30,7 +30,7 @@ ChadScript binaries start in ~1.9ms (vs ~65ms for Node.js, ~20ms for Bun). See [
 
 ## What platforms are supported?
 
-Linux x86-64 and macOS. The compiler produces ELF binaries and links against system libraries (libgc, libuv, libcurl, etc.).
+Linux x86-64 and macOS. Cross-compilation is supported via `--target` (e.g. `chad build app.ts --target macos-arm64`). See [CLI Reference](/getting-started/cli) for all targets.
 
 ## How does garbage collection work?
 
@@ -60,15 +60,11 @@ If the runtime type does not match the type parameter, the value will be zeroed 
 
 ## Is ChadScript self-hosting?
 
-Yes. The compiler (~45k lines of TypeScript) can compile itself to a native binary. The native binary can then compile the compiler again, proving correctness. See [Architecture](/language/architecture) for details on the self-hosting pipeline.
-
-## How are types represented at runtime?
-
-Every TypeScript type maps to a fixed LLVM type: `number` is `double`, `string` is `i8*` (C string), `boolean` is `double`, arrays are structs with a pointer, length, and capacity. There is no boxing, no type tags, and no runtime type checks. See [Type Mappings](/language/type-mappings).
+Yes. The compiler (~45k lines of TypeScript) can compile itself to a native binary. The native binary can then compile the compiler again, proving correctness. See [How it Works](/language/architecture) for details.
 
 ## Can I call C libraries?
 
-ChadScript links against C libraries directly. The standard library (fs, crypto, sqlite, fetch, http) is implemented by calling C APIs inline. There is no FFI bridge — calls to `sqlite3_exec` or `curl_easy_perform` compile to direct native calls with zero overhead.
+ChadScript links against C libraries directly. The standard library (fs, crypto, sqlite, fetch, http) is implemented by calling C APIs inline — calls to `sqlite3_exec` or `curl_easy_perform` compile to direct native calls with zero overhead.
 
 ## How do I build and run a program?
 
