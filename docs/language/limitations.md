@@ -158,7 +158,7 @@ Returns the expected strings (`"number"`, `"string"`, `"boolean"`, `"function"`,
 
 ### Numbers
 
-All numbers are 64-bit IEEE 754 floats. There is no integer type. Large integers above 2^53 may lose precision.
+All numbers are `number` (no separate integer type in the type system), but the compiler automatically uses native 64-bit integers for values initialized as integer literals. Integer arithmetic (`+`, `-`, `*`, `%`) between integer values stays in integer registers for better performance. Division always returns a float. The conversion between integer and float representations is automatic — you don't need to think about it.
 
 ### Strings
 

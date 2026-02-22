@@ -307,7 +307,10 @@ onUnmounted(() => {
 
       <div class="cta-section" :class="{ visible: ctaVisible }">
         <p class="cta-tagline">Congratulations, you wrote your first ChadScript app!</p>
-        <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started →</a>
+        <div class="cta-buttons">
+          <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started →</a>
+          <a href="/ChadScript/language/limitations" class="cta-link secondary">Learn More →</a>
+        </div>
       </div>
 
     </div>
@@ -624,6 +627,12 @@ onUnmounted(() => {
   margin: 0 0 8px;
 }
 
+.cta-buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
 .cta-link {
   display: inline-block;
   padding: 8px 20px;
@@ -640,6 +649,17 @@ onUnmounted(() => {
 .cta-link:hover {
   background: rgba(255, 255, 255, 0.12);
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+.cta-link.secondary {
+  background: none;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--vp-c-text-2);
+}
+
+.cta-link.secondary:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  color: var(--vp-c-text-1);
 }
 
 .stage-ir {
