@@ -1,5 +1,14 @@
 # Classes & Interfaces
 
+ChadScript supports classes with constructors, methods, fields, single inheritance, getters/setters, and parameter properties. Interfaces define typed object shapes and can be extended or implemented by classes.
+
+**Key differences from TypeScript:**
+
+- **No `instanceof`** — there are no runtime type tags
+- **Static dispatch** — method calls are resolved at compile time, not dynamically
+- **No interface methods on object literals** — interfaces define data layout; methods must be on classes
+- **Access modifiers not enforced** — `private`/`protected` are parsed but all fields are accessible
+
 ## Classes
 
 ### Declaring a Class
@@ -59,7 +68,7 @@ class User {
 }
 ```
 
-The `private`, `public`, `protected`, and `readonly` modifiers on constructor parameters automatically create class fields and assign the values. Note that access modifiers are parsed but not enforced — all fields are accessible regardless of modifier.
+The `private`, `public`, `protected`, and `readonly` modifiers on constructor parameters automatically create class fields and assign the values.
 
 ### Getters and Setters
 
@@ -111,8 +120,6 @@ class Dog extends Animal {
   }
 }
 ```
-
-Method dispatch is **static** — the compiler resolves which method to call at compile time based on the declared type, not the runtime type.
 
 ### What's Supported
 
@@ -189,10 +196,3 @@ class User implements Printable {
   }
 }
 ```
-
-## Differences from TypeScript
-
-- **No `instanceof`** — there are no runtime type tags
-- **Static dispatch** — method calls are resolved at compile time, not dynamically
-- **No interface methods on object literals** — interfaces define data layout; methods must be on classes
-- **Access modifiers not enforced** — `private`/`protected` are parsed but all fields are accessible
