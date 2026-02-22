@@ -50,6 +50,7 @@ import type {
   IStringSetGenerator,
   IPointerMapGenerator,
   IArrayGenerator,
+  IChildProcessGenerator,
   IEmbedGenerator,
 } from "../infrastructure/generator-context.js";
 import { parseMapTypeString, parseSetTypeString } from "../infrastructure/type-system.js";
@@ -208,6 +209,7 @@ export interface MethodCallGeneratorContext {
   readonly stringSetGen: IStringSetGenerator;
   readonly pointerMapGen: IPointerMapGenerator;
   readonly arrayGen: IArrayGenerator;
+  readonly childProcessGen: IChildProcessGenerator;
   readonly embedGen: IEmbedGenerator;
   readonly typeResolver?: {
     getThisFieldMapKeyType(expr: Expression): string | null;
@@ -600,11 +602,12 @@ export class MethodCallGenerator {
       return this.ctx.pathGen.generateParse(expr, params);
     }
 
-    // Handle execSync() from child_process
-    if (method === "execSync") {
+    // child_process.execSync / child_process.spawnSync → ChildProcessGenerator
+    if (method === "execSync" || method === "spawnSync") {
       const objName = this.getVariableName(expr.object);
       if (objName === "child_process" || objName === "cp") {
-        return this.handleExecSync(expr, params);
+        if (method === "execSync") return this.ctx.childProcessGen.generateExecSync(expr, params);
+        return this.ctx.childProcessGen.generateSpawnSync(expr, params);
       }
     }
 
@@ -1182,21 +1185,6 @@ export class MethodCallGenerator {
     }
 
     this.throwUnsupportedMethodError(method, exprObjBase.type, expr);
-  }
-
-  private handleExecSync(expr: MethodCallNode, params: string[]): string {
-    if (expr.args.length < 1) {
-      return this.ctx.emitError("execSync() requires 1 argument (command)", expr.loc);
-    }
-
-    // Get command argument
-    const commandPtr = this.ctx.generateExpression(expr.args[0], params);
-
-    // Call system: system(command) returns exit code
-    const result = this.nextTemp();
-    this.emit(`${result} = call i32 @system(i8* ${commandPtr})`);
-
-    return result;
   }
 
   private handleJsonStringify(expr: MethodCallNode, params: string[]): string {

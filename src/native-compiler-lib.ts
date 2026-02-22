@@ -238,6 +238,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     ? LWS_BRIDGE_PATH + "/lws-bridge.o " + PICOHTTPPARSER_PATH + "/picohttpparser.o"
     : "";
   const regexBridgeObj = generator.getUsesRegex() ? LWS_BRIDGE_PATH + "/regex-bridge.o" : "";
+  // Always link child-process-bridge.o (linker strips unused symbols)
+  const cpBridgeObj = LWS_BRIDGE_PATH + "/child-process-bridge.o";
   if (isMac) {
     if (generator.getUsesCrypto()) {
       linkLibs = "-L/opt/homebrew/opt/openssl/lib -L/usr/local/opt/openssl/lib " + linkLibs;
@@ -258,6 +260,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     lwsBridgeObj +
     " " +
     regexBridgeObj +
+    " " +
+    cpBridgeObj +
     " " +
     treeSitterObjs +
     " -o " +

@@ -135,6 +135,17 @@ else
   echo "==> regex-bridge already built, skipping"
 fi
 
+# --- child-process-bridge ---
+CP_BRIDGE_SRC="$C_BRIDGES_DIR/child-process-bridge.c"
+CP_BRIDGE_OBJ="$C_BRIDGES_DIR/child-process-bridge.o"
+if [ ! -f "$CP_BRIDGE_OBJ" ] || [ "$CP_BRIDGE_SRC" -nt "$CP_BRIDGE_OBJ" ]; then
+  echo "==> Building child-process-bridge..."
+  cc -c -O2 -fPIC "$CP_BRIDGE_SRC" -o "$CP_BRIDGE_OBJ"
+  echo "  -> $CP_BRIDGE_OBJ"
+else
+  echo "==> child-process-bridge already built, skipping"
+fi
+
 # --- tree-sitter ---
 if [ ! -f "$VENDOR_DIR/tree-sitter/libtree-sitter.a" ]; then
   echo "==> Building tree-sitter..."

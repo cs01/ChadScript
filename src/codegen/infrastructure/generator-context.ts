@@ -202,6 +202,13 @@ export interface ISqliteGenerator {
   generateClose(expr: MethodCallNode, params: string[]): string;
 }
 
+export interface IChildProcessGenerator {
+  canHandle(expr: MethodCallNode): boolean;
+  generateExecSync(expr: MethodCallNode, params: string[]): string;
+  generateBareExecSync(expr: CallNode, params: string[]): string;
+  generateSpawnSync(expr: MethodCallNode, params: string[]): string;
+}
+
 export interface IEmbedGenerator {
   generateEmbedFile(expr: MethodCallNode, params: string[]): string;
   generateEmbedDir(expr: MethodCallNode, params: string[]): string;
@@ -743,6 +750,7 @@ export interface IGeneratorContext {
   setUsesRegex(value: boolean): void;
   setUsesTestRunner(value: boolean): void;
   getUsesTestRunner(): boolean;
+  setUsesChildProcess(value: boolean): void;
   setUsesAsyncFs(value: boolean): void;
 
   currentDeclaredInterfaceType: string | undefined;
@@ -860,6 +868,7 @@ export interface IGeneratorContext {
 
   readonly arrowFunctionGen: IArrowFunctionGenerator;
 
+  readonly childProcessGen: IChildProcessGenerator;
   readonly embedGen: IEmbedGenerator;
 
   ensureDouble(value: string): string;

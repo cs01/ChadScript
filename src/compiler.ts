@@ -306,6 +306,9 @@ export function compile(
     ? `${LWS_BRIDGE_PATH}/lws-bridge.o ${PICOHTTPPARSER_PATH}/picohttpparser.o`
     : "";
   const regexBridgeObj = generator.usesRegex ? `${LWS_BRIDGE_PATH}/regex-bridge.o` : "";
+  // Always link child-process-bridge.o — linker strips unused symbols, and the native
+  // compiler uses cs_execSync for its own execSync() calls during compilation
+  const cpBridgeObj = `${LWS_BRIDGE_PATH}/child-process-bridge.o`;
   let extraObjs = "";
 
   if (generator.getUsesTreeSitter()) {
@@ -355,7 +358,7 @@ export function compile(
   const debugFlag = debugInfo ? " -g" : "";
   const staticFlag = staticLink && !targetIsMac ? " -static" : "";
   const crossTarget = crossCompiling ? ` --target=${target.triple}` : "";
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${sanitizeFlags} ${linkLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });
