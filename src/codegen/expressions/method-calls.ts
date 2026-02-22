@@ -77,6 +77,15 @@ import {
   handleProcessWrite,
 } from "./method-calls/process.js";
 import {
+  handleOsHostname,
+  handleOsHomedir,
+  handleOsTmpdir,
+  handleOsCpus,
+  handleOsTotalmem,
+  handleOsFreemem,
+  handleOsUptime,
+} from "./method-calls/os.js";
+import {
   handleSubstr,
   handleSubstring,
   handleConcat,
@@ -527,6 +536,16 @@ export class MethodCallGenerator {
         const doubleResult = this.nextTemp();
         this.ctx.emit(`${doubleResult} = uitofp i1 ${boolResult} to double`);
         return doubleResult;
+      }
+      // os.* methods — POSIX wrappers for system info
+      if (varNode.name === "os") {
+        if (method === "hostname") return handleOsHostname(this.ctx);
+        if (method === "homedir") return handleOsHomedir(this.ctx);
+        if (method === "tmpdir") return handleOsTmpdir(this.ctx);
+        if (method === "cpus") return handleOsCpus(this.ctx);
+        if (method === "totalmem") return handleOsTotalmem(this.ctx);
+        if (method === "freemem") return handleOsFreemem(this.ctx);
+        if (method === "uptime") return handleOsUptime(this.ctx);
       }
     }
 

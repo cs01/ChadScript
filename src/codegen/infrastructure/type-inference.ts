@@ -414,6 +414,18 @@ export class TypeInference {
           return this.ctx.typeContext.stringType;
       }
 
+      if (varName === "os") {
+        if (method === "hostname" || method === "homedir" || method === "tmpdir")
+          return this.ctx.typeContext.stringType;
+        if (
+          method === "cpus" ||
+          method === "totalmem" ||
+          method === "freemem" ||
+          method === "uptime"
+        )
+          return this.ctx.typeContext.numberType;
+      }
+
       if (varName === "Array" && method === "from")
         return this.ctx.typeContext.getArrayType("number");
 
@@ -570,6 +582,12 @@ export class TypeInference {
       if (varName === "Number") {
         if (prop === "MAX_SAFE_INTEGER" || prop === "MIN_SAFE_INTEGER" || prop === "MAX_VALUE") {
           return this.ctx.typeContext.numberType;
+        }
+      }
+
+      if (varName === "os") {
+        if (prop === "platform" || prop === "arch" || prop === "EOL") {
+          return this.ctx.typeContext.stringType;
         }
       }
 

@@ -1103,4 +1103,11 @@ export const testCases: TestCase[] = [
     expectTestPassed: true,
     description: "child_process.spawn() with streaming callbacks collects stdout",
   },
+  {
+    name: "os-basic",
+    fixture: "tests/fixtures/builtins/os-basic.ts",
+    expectTestPassed: true,
+    description:
+      "os module: platform, arch, EOL, hostname, homedir, tmpdir, cpus, totalmem, freemem, uptime",
+  },
 ];
