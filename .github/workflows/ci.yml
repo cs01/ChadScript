@@ -18,113 +18,6 @@ jobs:
       - run: npm install --ignore-scripts
       - run: npx prettier --check .
 
-  build-linux-musl:
-    runs-on: ubuntu-latest
-    container: node:22-alpine
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install system dependencies
-        run: |
-          apk add --no-cache \
-            llvm18 llvm18-dev clang18 lld \
-            cmake make gcc g++ musl-dev \
-            autoconf automake libtool \
-            linux-headers git bash zstd-dev zlib-dev sqlite-dev file
-          ln -sf /usr/lib/llvm18/bin/llc /usr/bin/llc
-          ln -sf /usr/lib/llvm18/bin/opt /usr/bin/opt
-          ln -sf /usr/bin/clang-18 /usr/bin/clang
-          clang --version 2>&1 | head -2
-          llc --version 2>&1 | head -4
-
-      - name: Install npm dependencies
-        run: npm install
-
-      - name: Build vendor libraries
-        run: bash scripts/build-vendor.sh
-
-      - name: Build compiler
-        run: npm run build
-
-      - name: Verify vendor libraries
-        run: |
-          fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/os-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o; do
-            if [ ! -f "$lib" ]; then
-              echo "MISSING: $lib"
-              fail=1
-            else
-              echo "OK: $lib ($(wc -c < "$lib") bytes)"
-            fi
-          done
-          if [ "$fail" -eq 1 ]; then
-            echo "Vendor library build incomplete - aborting before tests"
-            exit 1
-          fi
-
-      - name: Build tree-sitter TypeScript objects
-        run: |
-          mkdir -p build
-          TS_SRC=node_modules/tree-sitter-typescript/typescript/src
-          TS_INCLUDE=node_modules/tree-sitter-typescript
-          clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/parser.c -o build/tree-sitter-typescript-parser.o
-          clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
-          clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
-
-      - name: Build native chad (static)
-        run: node dist/chad-node.js build src/chad-native.ts -o .build/chad --static --target-cpu=x86-64
-
-      - name: Verify static binary
-        run: |
-          file .build/chad
-          ldd .build/chad 2>&1 && echo "WARNING: not fully static" || echo "OK: static binary"
-
-      - name: Smoke test native chad
-        run: |
-          .build/chad build examples/hello.ts -o /tmp/hello
-          /tmp/hello
-
-      - name: Run self-hosting tests
-        run: node --import tsx --test tests/self-hosting.test.ts
-        timeout-minutes: 15
-
-      - name: Build target SDK
-        run: bash scripts/build-target-sdk.sh
-
-      - name: Package release artifact
-        run: |
-          mkdir -p release/lib
-          cp .build/chad release/
-          cp build/tree-sitter-typescript-parser.o release/lib/
-          cp build/tree-sitter-typescript-scanner.o release/lib/
-          cp build/treesitter-bridge.o release/lib/
-          cp vendor/tree-sitter/libtree-sitter.a release/lib/
-          cp vendor/bdwgc/libgc.a release/lib/
-          cp vendor/yyjson/libyyjson.a release/lib/
-          cp vendor/libuv/build/libuv.a release/lib/
-          cp vendor/picohttpparser/picohttpparser.o release/lib/
-          cp c_bridges/lws-bridge.o release/lib/
-          cp c_bridges/regex-bridge.o release/lib/
-          cp c_bridges/child-process-bridge.o release/lib/
-          cp c_bridges/child-process-spawn.o release/lib/
-          cp c_bridges/os-bridge.o release/lib/
-          cp c_bridges/dotenv-bridge.o release/lib/
-          cp c_bridges/watch-bridge.o release/lib/
-          tar -czf chadscript-linux-musl-x64.tar.gz -C release chad lib
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: chadscript-linux-musl-x64
-          path: chadscript-linux-musl-x64.tar.gz
-
-      - name: Upload target SDK
-        uses: actions/upload-artifact@v4
-        with:
-          name: chadscript-target-linux-x64
-          path: chadscript-target-linux-x64.tar.gz
-
   build-linux-glibc:
     runs-on: ubuntu-22.04
 
@@ -326,7 +219,7 @@ jobs:
           path: chadscript-target-macos-arm64.tar.gz
 
   test-artifact:
-    needs: [build-linux-musl, build-linux-glibc, build-macos]
+    needs: [build-linux-glibc, build-macos]
     strategy:
       matrix:
         include:
@@ -376,7 +269,7 @@ jobs:
           /tmp/exit42 || [ $? -eq 42 ]
 
   release:
-    needs: [build-linux-musl, build-linux-glibc, build-macos, test-artifact]
+    needs: [build-linux-glibc, build-macos, test-artifact]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -406,7 +299,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
 
   tagged-release:
-    needs: [build-linux-musl, build-linux-glibc, build-macos, test-artifact]
+    needs: [build-linux-glibc, build-macos, test-artifact]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:

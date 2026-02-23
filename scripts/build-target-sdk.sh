@@ -93,8 +93,8 @@ if [ "$TARGET_OS" = "linux" ]; then
 
   if [ -d "$MULTIARCH_DIR" ]; then
     echo "  Copying sysroot from $MULTIARCH_DIR..."
-    # CRT startup objects
-    for crt in Scrt1.o crti.o crtn.o; do
+    # CRT startup objects — crt1.o is for static linking, Scrt1.o for PIE/shared
+    for crt in crt1.o Scrt1.o crti.o crtn.o; do
       [ -f "$MULTIARCH_DIR/$crt" ] && cp "$MULTIARCH_DIR/$crt" "$SYSROOT_DIR/usr/lib/"
     done
     # Static system libraries only — .so files on Ubuntu are linker scripts with
@@ -109,7 +109,8 @@ if [ "$TARGET_OS" = "linux" ]; then
   GCC_DIR=$(find /usr/lib/gcc/${UNAME_M}-linux-gnu -maxdepth 1 -type d 2>/dev/null | sort -V | tail -1)
   if [ -n "$GCC_DIR" ] && [ -d "$GCC_DIR" ]; then
     echo "  Copying GCC support from $GCC_DIR..."
-    for obj in crtbeginS.o crtendS.o crtbegin.o crtend.o; do
+    # crtbeginT.o/crtendT.o for static, crtbeginS.o/crtendS.o for shared/PIE
+    for obj in crtbeginT.o crtendT.o crtbeginS.o crtendS.o crtbegin.o crtend.o; do
       [ -f "$GCC_DIR/$obj" ] && cp "$GCC_DIR/$obj" "$SYSROOT_DIR/usr/lib/"
     done
     [ -f "$GCC_DIR/libgcc.a" ] && cp "$GCC_DIR/libgcc.a" "$SYSROOT_DIR/usr/lib/"
