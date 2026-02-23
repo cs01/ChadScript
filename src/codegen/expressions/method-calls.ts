@@ -208,6 +208,13 @@ export interface MethodCallGeneratorContext {
     args: Expression[],
     params: string[],
   ): string;
+  classGenGenerateStaticMethodCall(
+    className: string,
+    method: string,
+    args: Expression[],
+    params: string[],
+  ): string;
+  classGenIsStaticMethod(className: string, methodName: string): boolean;
   typeResolverGetThisFieldMapKeyType(expr: Expression): string | null;
   typeResolverGetThisFieldSetValueType(expr: Expression): string | null;
   readonly arrowFunctionGen: IArrowFunctionGenerator;

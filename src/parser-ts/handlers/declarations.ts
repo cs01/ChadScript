@@ -183,9 +183,13 @@ function transformPropertyDeclaration(
     }
   }
 
+  const isStatic = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.StaticKeyword) ?? false;
   const result: ClassField = { name, fieldType, tsType };
   if (node.initializer) {
     result.initializer = transformExpression(node.initializer, checker);
+  }
+  if (isStatic) {
+    result.isStatic = true;
   }
   return result;
 }
@@ -216,7 +220,8 @@ function transformMethodDeclaration(
     ? transformBlock(node.body, checker)
     : { type: "block", statements: [] };
 
-  return {
+  const isStatic = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.StaticKeyword) ?? false;
+  const result: ClassMethod = {
     type: "method",
     name,
     params,
@@ -226,6 +231,10 @@ function transformMethodDeclaration(
     body,
     isConstructor,
   };
+  if (isStatic) {
+    result.isStatic = true;
+  }
+  return result;
 }
 
 function transformConstructorDeclaration(

@@ -2378,6 +2378,16 @@ function transformClassField(node: TreeSitterNode): ClassField | null {
 
   if (!nameNode) return null;
 
+  // Detect static keyword (unnamed child)
+  let isStatic = false;
+  for (let i = 0; i < node.childCount; i++) {
+    const child = getChild(node, i);
+    if (child && !(child as NodeBase).isNamed && (child as NodeBase).type === "static") {
+      isStatic = true;
+      break;
+    }
+  }
+
   const name = (nameNode as NodeBase).text;
   let fieldType: "double" | "string" | "string[]" | "number[]" | "boolean[]" | "boolean" = "double";
   let tsType: string | undefined;
@@ -2396,6 +2406,7 @@ function transformClassField(node: TreeSitterNode): ClassField | null {
   }
 
   const result: ClassField = { name, fieldType, tsType };
+  if (isStatic) result.isStatic = true;
   if (valueNode) {
     result.initializer = transformExpression(valueNode);
   }
@@ -2407,6 +2418,16 @@ function transformClassMethod(node: TreeSitterNode): ClassMethod | null {
   const paramsNode = getChildByFieldName(node, "parameters");
   const bodyNode = getChildByFieldName(node, "body");
   const returnTypeNode = getChildByFieldName(node, "return_type");
+
+  // Detect static keyword (unnamed child)
+  let isStatic = false;
+  for (let i = 0; i < node.childCount; i++) {
+    const child = getChild(node, i);
+    if (child && !(child as NodeBase).isNamed && (child as NodeBase).type === "static") {
+      isStatic = true;
+      break;
+    }
+  }
 
   const name = nameNode ? (nameNode as NodeBase).text : "";
   const isConstructor = name === "constructor";
@@ -2426,7 +2447,7 @@ function transformClassMethod(node: TreeSitterNode): ClassMethod | null {
   const parameterProperties =
     isConstructor && paramsNode ? extractParameterProperties(paramsNode) : undefined;
 
-  return {
+  const result: ClassMethod = {
     type: "method",
     name,
     params,
@@ -2436,6 +2457,8 @@ function transformClassMethod(node: TreeSitterNode): ClassMethod | null {
     body,
     isConstructor,
   };
+  if (isStatic) result.isStatic = true;
+  return result;
 }
 
 function mapToClassMethodType(

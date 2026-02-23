@@ -1205,6 +1205,23 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   ): string {
     return this.classGen.generateMethodCall(instancePtr, className, method, args, params);
   }
+  public classGenGenerateStaticMethodCall(
+    className: string,
+    method: string,
+    args: Expression[],
+    params: string[],
+  ): string {
+    return this.classGen.generateStaticMethodCall(className, method, args, params);
+  }
+  public classGenIsStaticMethod(className: string, methodName: string): boolean {
+    return this.classGen.isStaticMethod(className, methodName);
+  }
+  public classGenIsStaticField(className: string, fieldName: string): boolean {
+    return this.classGen.isStaticField(className, fieldName);
+  }
+  public classGenGetStaticFieldType(className: string, fieldName: string): string {
+    return this.classGen.getStaticFieldType(className, fieldName);
+  }
   public interfaceStructGenGetInterfaceStruct(name: string):
     | {
         name: string;

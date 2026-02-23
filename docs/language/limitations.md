@@ -76,7 +76,7 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | `extends` (single inheritance) | Supported |
 | `implements` | Supported |
 | Interface inheritance (`extends`) | Supported |
-| Static methods and fields | Not yet supported |
+| Static methods and fields | Supported |
 | Abstract classes | Not yet supported |
 | Private class fields (`#field`) | Not supported |
 | Decorators | Not supported |

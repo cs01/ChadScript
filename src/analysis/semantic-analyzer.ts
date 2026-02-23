@@ -125,6 +125,20 @@ export class SemanticAnalyzer {
       }
     }
 
+    // Register class names so static member access (ClassName.method()) passes analysis
+    if (this.ast.classes) {
+      for (let _ci = 0; _ci < this.ast.classes.length; _ci++) {
+        const classNode = this.ast.classes[_ci] as { name: string };
+        if (classNode.name) {
+          this.symbols.set(classNode.name, {
+            name: classNode.name,
+            type: "object",
+            llvmType: "i8*",
+          });
+        }
+      }
+    }
+
     if (this.ast.imports) {
       for (let _ii = 0; _ii < this.ast.imports.length; _ii++) {
         const imp = this.ast.imports[_ii];
