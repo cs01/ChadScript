@@ -13,112 +13,12 @@ import {
 } from "./compiler.js";
 import { LogLevel, logger } from "./utils/logger.js";
 import { runInit } from "./codegen/stdlib/init-templates.js";
-import {
-  getSDKBaseDir,
-  getSDKDownloadURL,
-  listInstalledSDKs,
-  hasTargetSDK,
-  installTargetSDK,
-} from "./cross-compile.js";
-import { getHostTarget, resolveTarget, targetName } from "./target.js";
+import { resolveTarget } from "./target.js";
 import * as path from "path";
-import * as os from "os";
 import * as fs from "fs";
 import { execSync, spawn as spawnProc, ChildProcess } from "child_process";
 
 const args = process.argv.slice(2);
-
-// Cross-compilation target SDK management (list, add, remove)
-function handleTargetCommand(targetArgs: string[]): void {
-  const sub = targetArgs[0] || "list";
-
-  if (sub === "list") {
-    const host = getHostTarget();
-    console.log(`Host: ${targetName(host)} (${host.triple})`);
-    console.log("");
-    const installed = listInstalledSDKs();
-    if (installed.length === 0) {
-      console.log("No target SDKs installed.");
-      console.log("");
-      console.log("Install one with: chad target add linux-x64");
-    } else {
-      console.log("Installed target SDKs:");
-      for (const name of installed) {
-        const metaPath = path.join(getSDKBaseDir(), name, "sdk.json");
-        try {
-          const meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
-          console.log(`  ${name}  (${meta.triple}, libc: ${meta.libc})`);
-        } catch {
-          console.log(`  ${name}`);
-        }
-      }
-    }
-    return;
-  }
-
-  if (sub === "add") {
-    const name = targetArgs[1];
-    if (!name) {
-      console.error("Usage: chad target add <name>");
-      console.error("Available targets: linux-x64, linux-arm64, macos-arm64, macos-x64");
-      process.exit(1);
-    }
-
-    // Validate the target name
-    try {
-      resolveTarget(name);
-    } catch {
-      console.error(`chad: error: unknown target '${name}'`);
-      console.error("Available targets: linux-x64, linux-arm64, macos-arm64, macos-x64");
-      process.exit(1);
-    }
-
-    // macOS targets can't be redistributed from Linux (Apple license)
-    const host = getHostTarget();
-    if (name.startsWith("macos") && host.os !== "darwin") {
-      console.error("chad: error: macOS target SDKs cannot be downloaded on non-macOS hosts");
-      console.error("Apple's license prohibits redistributing macOS SDK files.");
-      console.error("");
-      console.error("To cross-compile for macOS from Linux, use osxcross:");
-      console.error("  https://github.com/tpoechtrager/osxcross");
-      process.exit(1);
-    }
-
-    const sdkDir = path.join(getSDKBaseDir(), name);
-    if (fs.existsSync(path.join(sdkDir, "sdk.json"))) {
-      console.log(`Target SDK '${name}' is already installed at ${sdkDir}`);
-      return;
-    }
-
-    try {
-      installTargetSDK(name);
-    } catch (e: any) {
-      console.error(e.message);
-      process.exit(1);
-    }
-    return;
-  }
-
-  if (sub === "remove") {
-    const name = targetArgs[1];
-    if (!name) {
-      console.error("Usage: chad target remove <name>");
-      process.exit(1);
-    }
-    const sdkDir = path.join(getSDKBaseDir(), name);
-    if (!fs.existsSync(sdkDir)) {
-      console.log(`Target SDK '${name}' is not installed.`);
-      return;
-    }
-    fs.rmSync(sdkDir, { recursive: true });
-    console.log(`Removed target SDK '${name}'`);
-    return;
-  }
-
-  console.error(`chad: error: unknown target subcommand '${sub}'`);
-  console.error("Usage: chad target [list|add|remove] [name]");
-  process.exit(1);
-}
 
 function printVersion(): void {
   const packageJsonPath = path.join(import.meta.dirname || process.cwd(), "..", "package.json");
@@ -144,7 +44,6 @@ function printHelp(): void {
   );
   console.log("  watch <file>     Watch for changes and recompile+run");
   console.log("  clean            Remove the .build directory");
-  console.log("  target           Manage cross-compilation target SDKs");
   console.log("");
   console.log("Options:");
   console.log("  -o <output>                 Specify output file");
@@ -162,11 +61,6 @@ function printHelp(): void {
   console.log("  --static                    Link statically");
   console.log("  -h, --help                  Show this help message");
   console.log("  --version                   Show version");
-  console.log("");
-  console.log("Cross-compilation:");
-  console.log("  chad target list            Show installed target SDKs");
-  console.log("  chad target add <name>      Download a target SDK (e.g., linux-x64)");
-  console.log("  chad target remove <name>   Remove an installed target SDK");
   console.log("");
   console.log("Examples:");
   console.log("  chad build hello.ts");
@@ -205,11 +99,6 @@ if (command === "clean") {
     fs.rmSync(buildDir, { recursive: true });
     console.log("removed .build");
   }
-  process.exit(0);
-}
-
-if (command === "target") {
-  handleTargetCommand(args.slice(1));
   process.exit(0);
 }
 
