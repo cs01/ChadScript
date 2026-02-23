@@ -280,7 +280,13 @@ export function compile(
   const picoPath = sdk ? sdk.vendorPath : PICOHTTPPARSER_PATH;
   const treeSitterPath = sdk ? sdk.vendorPath : TREESITTER_LIB_PATH;
 
-  const platformLibs = targetIsMac ? "" : " -lm -ldl -lrt -lpthread";
+  // musl bundles everything into libc.a — no separate libdl/librt/libpthread.
+  // glibc needs them as separate libraries.
+  const platformLibs = targetIsMac
+    ? ""
+    : target.libc === "musl"
+      ? " -lm -lpthread"
+      : " -lm -ldl -lrt -lpthread";
   let linkLibs = `-L${gcPath} -lgc` + platformLibs;
   if (generator.usesJson) {
     linkLibs += ` -L${yyjsonPath} -lyyjson`;
@@ -398,13 +404,17 @@ export function compile(
   if (sanitize) {
     linker = "gcc";
   }
-  const noPie = targetIsMac ? "" : " -no-pie";
+  // -no-pie: only for native Linux builds (not macOS, not cross-compiling from macOS)
+  const noPie = !targetIsMac && !crossCompiling ? " -no-pie" : "";
   const debugFlag = debugInfo ? " -g" : "";
   // Auto-static for musl cross-compile targets (produces portable binaries)
   const shouldStatic = (staticLink || (crossCompiling && target.libc === "musl")) && !targetIsMac;
   const staticFlag = shouldStatic ? " -static" : "";
   const crossTarget = crossCompiling ? ` --target=${target.triple}` : "";
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${sanitizeFlags} ${linkLibs}`;
+  // Cross-compiling requires lld (LLVM's linker) — the host linker (e.g. macOS ld)
+  // can't produce binaries for a different platform
+  const crossLinker = crossCompiling ? " -fuse-ld=lld" : "";
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });

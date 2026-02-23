@@ -312,8 +312,11 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const targetIsDarwin =
     crossCompiling ? targetTriple.indexOf("darwin") !== -1 : process.platform === "darwin";
   const isMac = process.platform === "darwin";
-  const platformLibs = targetIsDarwin ? "" : " -lm -ldl -lrt -lpthread";
-  const noPie = targetIsDarwin ? "" : " -no-pie";
+  // musl bundles everything into libc.a — no separate libdl/librt/libpthread
+  const isMusl = crossCompiling && isMuslTarget(targetTriple);
+  const platformLibs = targetIsDarwin ? "" : isMusl ? " -lm -lpthread" : " -lm -ldl -lrt -lpthread";
+  // -no-pie only for native Linux builds (not when cross-compiling from macOS)
+  const noPie = !targetIsDarwin && !crossCompiling ? " -no-pie" : "";
   const tsObjDir = isInstalled ? installedLibDir : CHADSCRIPT_PATH + "/build";
   let treeSitterObjs = "";
   let tsLibPath = "";
@@ -409,6 +412,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const shouldStatic = crossCompiling && isMuslTarget(targetTriple) && !targetIsDarwin;
   const staticFlag = shouldStatic ? " -static" : "";
   const crossTargetFlag = crossCompiling ? " --target=" + targetTriple : "";
+  // Cross-compiling requires lld — the host linker can't produce foreign binaries
+  const crossLinker = crossCompiling ? " -fuse-ld=lld" : "";
 
   const linkCmd =
     clangTool +
@@ -435,6 +440,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     noPie +
     staticFlag +
     crossTargetFlag +
+    crossLinker +
     " " +
     linkLibs;
   if (verbose) {
