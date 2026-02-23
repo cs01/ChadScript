@@ -131,7 +131,7 @@ function getSDKDir(targetName: string): string {
   return home + "/.chadscript/targets/" + targetName;
 }
 
-// Determine the short target name from a triple (e.g., "x86_64-unknown-linux-musl" -> "linux-x64")
+// Determine the short target name from a triple (e.g., "x86_64-unknown-linux-gnu" -> "linux-x64")
 function tripleToTargetName(triple: string): string {
   const isLinux = triple.indexOf("linux") !== -1;
   const isDarwin = triple.indexOf("darwin") !== -1 || triple.indexOf("apple") !== -1;
@@ -140,10 +140,6 @@ function tripleToTargetName(triple: string): string {
   const archName = isAarch64 ? "arm64" : "x64";
   if (!isLinux && !isDarwin) return "";
   return osName + "-" + archName;
-}
-
-function isMuslTarget(triple: string): boolean {
-  return triple.indexOf("musl") !== -1;
 }
 
 export function compileNative(inputFile: string, outputFile: string): void {
@@ -250,7 +246,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
       platformString: tOs,
       archString: tArchStr,
       dataLayout: dl,
-      libc: isMuslTarget(targetTriple) ? "musl" : isDarwin ? "system" : "gnu",
+      libc: isDarwin ? "system" : "gnu",
     };
   }
 
@@ -336,9 +332,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     ? targetTriple.indexOf("darwin") !== -1
     : process.platform === "darwin";
   const isMac = process.platform === "darwin";
-  // musl bundles everything into libc.a — no separate libdl/librt/libpthread
-  const isMusl = crossCompiling && isMuslTarget(targetTriple);
-  const platformLibs = targetIsDarwin ? "" : isMusl ? " -lm -lpthread" : " -lm -ldl -lrt -lpthread";
+  const platformLibs = targetIsDarwin ? "" : " -lm -ldl -lrt -lpthread";
   // -no-pie only for native Linux builds (not when cross-compiling from macOS)
   const noPie = !targetIsDarwin && !crossCompiling ? " -no-pie" : "";
   const tsObjDir = isInstalled ? installedLibDir : CHADSCRIPT_PATH + "/build";
@@ -428,8 +422,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     linkLibs = "-Wl,-syslibroot,$(xcrun --show-sdk-path) -L/usr/local/lib " + linkLibs;
   }
 
-  // Auto-static for musl targets
-  const shouldStatic = crossCompiling && isMuslTarget(targetTriple) && !targetIsDarwin;
+  const shouldStatic = false;
   const staticFlag = shouldStatic ? " -static" : "";
   const crossTargetFlag = crossCompiling ? " --target=" + targetTriple : "";
   // Cross-compiling requires lld — the host linker can't produce foreign binaries.

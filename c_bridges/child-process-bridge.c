@@ -56,6 +56,17 @@ static void strip_trailing_newline(char *s) {
     }
 }
 
+// cs_exec_passthrough: run command with inherited stdio (output goes to terminal).
+// Exits the process with the command's exit code if non-zero.
+// Used by `chad run` to execute compiled binaries with visible output.
+void cs_exec_passthrough(const char *command) {
+    int status = system(command);
+    int exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+    if (exit_code != 0) {
+        exit(exit_code);
+    }
+}
+
 // cs_execSync: run command via popen, return stdout as GC string (trailing newline stripped).
 // Crashes (exit 1) on non-zero exit code, matching Node.js execSync behavior.
 char *cs_execSync(const char *command) {

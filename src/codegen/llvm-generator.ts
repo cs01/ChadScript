@@ -447,11 +447,20 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   public emitError(message: string, loc?: SourceLocation, suggestion?: string): never {
-    this.diagnostics.error(message, loc, suggestion);
-    const formatted = this.diagnostics.formatDiagnostic(
-      this.diagnostics.getDiagnostics()[this.diagnostics.getDiagnostics().length - 1],
-    );
-    throw new Error(formatted);
+    // Print and exit immediately rather than throwing — in the native compiler,
+    // throw doesn't propagate across function boundaries.
+    if (loc) {
+      const file = loc.file || "<unknown>";
+      const line = loc.line || 0;
+      const col = loc.column || 0;
+      console.log(file + ":" + String(line) + ":" + String(col) + ": error: " + message);
+    } else {
+      console.log("error: " + message);
+    }
+    if (suggestion) {
+      console.log("  suggestion: " + suggestion);
+    }
+    process.exit(1);
   }
 
   public emitWarning(message: string, loc?: SourceLocation, suggestion?: string): void {

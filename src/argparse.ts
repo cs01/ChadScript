@@ -1,6 +1,3 @@
-// DEPRECATED: canonical version moved to src/argparse.ts.
-// This copy is kept for any external references but should not be edited directly.
-//
 // ChadScript-native ArgumentParser
 // Simplified argparse-style CLI argument parsing for native binaries
 

@@ -7,24 +7,23 @@ on:
     branches: [main]
 
 jobs:
-  # Build target SDK on Alpine (musl), then cross-compile from macOS using it
+  # Build target SDK on Ubuntu, then cross-compile from macOS using it
   build-linux-sdk:
     runs-on: ubuntu-latest
-    container: node:22-alpine
 
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Install system dependencies
         run: |
-          apk add --no-cache \
-            llvm18 llvm18-dev clang18 lld \
-            cmake make gcc g++ musl-dev \
-            autoconf automake libtool \
-            linux-headers git bash zstd-dev zlib-dev sqlite-dev file
-          ln -sf /usr/lib/llvm18/bin/llc /usr/bin/llc
-          ln -sf /usr/lib/llvm18/bin/opt /usr/bin/opt
-          ln -sf /usr/bin/clang-18 /usr/bin/clang
+          sudo apt-get update
+          sudo apt-get install -y llvm clang lld cmake make gcc g++ \
+            autoconf automake libtool linux-headers-generic git \
+            libzstd-dev zlib1g-dev libsqlite3-dev file
 
       - name: Install npm dependencies
         run: npm install
@@ -45,10 +44,7 @@ jobs:
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
       - name: Build target SDK tarball
-        run: |
-          bash scripts/build-target-sdk.sh
-          echo "==> SDK sysroot contents:"
-          ls -la .sdk-staging/linux-x64/sysroot/usr/lib/ 2>/dev/null || echo "  (no sysroot!)"
+        run: bash scripts/build-target-sdk.sh
 
       - name: Upload target SDK
         uses: actions/upload-artifact@v4
@@ -95,22 +91,17 @@ jobs:
           mkdir -p ~/.chadscript/targets/linux-x64
           tar -xzf chadscript-target-linux-x64.tar.gz -C ~/.chadscript/targets/linux-x64
           cat ~/.chadscript/targets/linux-x64/sdk.json
-          echo "SDK sysroot:"
-          ls ~/.chadscript/targets/linux-x64/sysroot/usr/lib/ 2>/dev/null || echo "  (no sysroot!)"
 
       - name: Cross-compile hello.ts for Linux x64
         run: |
-          node dist/chad-node.js build --target linux-x64 examples/hello.ts -o .build/hello-linux -v
+          echo 'console.log("Hello from ChadScript!");' > hello.ts
+          echo 'process.exit(0);' >> hello.ts
+          node dist/chad-node.js build --target linux-x64 hello.ts -o .build/hello-linux -v
 
       - name: Verify binary format
         run: |
           file .build/hello-linux
           file .build/hello-linux | grep -q "ELF 64-bit"
-
-      - name: Verify static linking
-        run: |
-          # The binary should be statically linked (musl)
-          file .build/hello-linux | grep -qi "statically linked" || echo "Note: may show as dynamically linked if file doesn't detect musl static"
 
       - name: Upload cross-compiled binary
         uses: actions/upload-artifact@v4

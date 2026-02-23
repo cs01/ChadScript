@@ -226,41 +226,62 @@ static void watch_inotify(const char *chad_binary, const char *source_file,
 // ============================================================
 // macOS: kqueue-based watcher
 // ============================================================
+// Watches both directories (for new file creation) and individual source
+// files (for in-place edits). kqueue's NOTE_WRITE on a directory fd only
+// fires when directory entries change (create/delete/rename), NOT when
+// an existing file's content is modified in-place. So we must also watch
+// each source file directly to catch edits from all editors.
 #ifdef __APPLE__
 #include <sys/event.h>
 #include <fcntl.h>
 
-#define MAX_WATCH_DIRS 512
+#define MAX_KQ_ENTRIES 2048
 
 static struct {
     int fd;
     char path[PATH_MAX];
-} kq_dirs[MAX_WATCH_DIRS];
+    int is_dir;
+} kq_entries[MAX_KQ_ENTRIES];
 static int kq_count = 0;
 
 static int kqfd = -1;
 
-static void add_kq_dir(const char *dirpath) {
-    if (kq_count >= MAX_WATCH_DIRS) return;
-    int fd = open(dirpath, O_RDONLY | O_DIRECTORY);
+static int kq_path_watched(const char *path) {
+    for (int i = 0; i < kq_count; i++) {
+        if (strcmp(kq_entries[i].path, path) == 0) return 1;
+    }
+    return 0;
+}
+
+static void add_kq_entry(const char *filepath, int is_dir) {
+    if (kq_count >= MAX_KQ_ENTRIES) return;
+    if (kq_path_watched(filepath)) return;
+
+    int flags = O_RDONLY;
+    if (is_dir) flags |= O_DIRECTORY;
+    int fd = open(filepath, flags);
     if (fd < 0) return;
 
     struct kevent ev;
-    EV_SET(&ev, fd, EVFILT_VNODE, EV_ADD | EV_CLEAR,
-           NOTE_WRITE | NOTE_EXTEND, 0, NULL);
+    // Dirs: detect new files/deletions. Files: detect content edits.
+    int fflags = is_dir
+        ? (NOTE_WRITE | NOTE_EXTEND)
+        : (NOTE_WRITE | NOTE_ATTRIB | NOTE_DELETE | NOTE_RENAME);
+    EV_SET(&ev, fd, EVFILT_VNODE, EV_ADD | EV_CLEAR, fflags, 0, NULL);
     if (kevent(kqfd, &ev, 1, NULL, 0, NULL) < 0) {
         close(fd);
         return;
     }
 
-    kq_dirs[kq_count].fd = fd;
-    strncpy(kq_dirs[kq_count].path, dirpath, PATH_MAX - 1);
-    kq_dirs[kq_count].path[PATH_MAX - 1] = '\0';
+    kq_entries[kq_count].fd = fd;
+    strncpy(kq_entries[kq_count].path, filepath, PATH_MAX - 1);
+    kq_entries[kq_count].path[PATH_MAX - 1] = '\0';
+    kq_entries[kq_count].is_dir = is_dir;
     kq_count++;
 }
 
 static void walk_and_watch_kq(const char *dirpath) {
-    add_kq_dir(dirpath);
+    add_kq_entry(dirpath, 1);
 
     DIR *d = opendir(dirpath);
     if (!d) return;
@@ -270,30 +291,18 @@ static void walk_and_watch_kq(const char *dirpath) {
             (entry->d_name[1] == '\0' ||
              (entry->d_name[1] == '.' && entry->d_name[2] == '\0')))
             continue;
+
+        char fullpath[PATH_MAX];
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", dirpath, entry->d_name);
+
         if (entry->d_type == DT_DIR) {
             if (is_excluded_dir(entry->d_name)) continue;
-            char subpath[PATH_MAX];
-            snprintf(subpath, sizeof(subpath), "%s/%s", dirpath, entry->d_name);
-            walk_and_watch_kq(subpath);
+            walk_and_watch_kq(fullpath);
+        } else if (entry->d_type == DT_REG && !is_build_artifact(entry->d_name)) {
+            add_kq_entry(fullpath, 0);
         }
     }
     closedir(d);
-}
-
-// Scan a directory for non-artifact files to detect which changed
-// (kqueue only tells us the directory changed, not which file)
-static int dir_has_source_change(const char *dirpath) {
-    DIR *d = opendir(dirpath);
-    if (!d) return 0;
-    struct dirent *entry;
-    while ((entry = readdir(d)) != NULL) {
-        if (entry->d_type == DT_REG && !is_build_artifact(entry->d_name)) {
-            closedir(d);
-            return 1;
-        }
-    }
-    closedir(d);
-    return 0;
 }
 
 static void watch_kqueue(const char *chad_binary, const char *source_file,
@@ -310,18 +319,23 @@ static void watch_kqueue(const char *chad_binary, const char *source_file,
     }
 
     walk_and_watch_kq(watch_root);
-    printf("[watch] watching %s (%d directories)\n", watch_root, kq_count);
+    int file_count = 0, dir_count = 0;
+    for (int i = 0; i < kq_count; i++) {
+        if (kq_entries[i].is_dir) dir_count++;
+        else file_count++;
+    }
+    printf("[watch] watching %s (%d files, %d dirs)\n", watch_root, file_count, dir_count);
     fflush(stdout);
 
     compile_and_run(chad_binary, source_file, output_binary);
 
     long long last_trigger = 0;
-    struct kevent events[8];
+    struct kevent events[16];
 
     for (;;) {
-        // 200ms timeout so we can periodically check for new dirs
+        // 200ms timeout to periodically pick up new files
         struct timespec timeout = { 0, 200000000 };
-        int n = kevent(kqfd, NULL, 0, events, 8, &timeout);
+        int n = kevent(kqfd, NULL, 0, events, 16, &timeout);
         if (n < 0) {
             if (errno == EINTR) continue;
             break;
@@ -330,38 +344,38 @@ static void watch_kqueue(const char *chad_binary, const char *source_file,
         int should_rebuild = 0;
         for (int i = 0; i < n; i++) {
             int fd = (int)events[i].ident;
-            // Find which directory this fd belongs to
             for (int j = 0; j < kq_count; j++) {
-                if (kq_dirs[j].fd == fd) {
-                    // Re-scan for new subdirs
-                    DIR *d = opendir(kq_dirs[j].path);
-                    if (d) {
-                        struct dirent *entry;
-                        while ((entry = readdir(d)) != NULL) {
-                            if (entry->d_type == DT_DIR &&
-                                entry->d_name[0] != '.' &&
-                                !is_excluded_dir(entry->d_name)) {
-                                char sub[PATH_MAX];
-                                snprintf(sub, sizeof(sub), "%s/%s",
-                                         kq_dirs[j].path, entry->d_name);
-                                // Check if already watched
-                                int found = 0;
-                                for (int k = 0; k < kq_count; k++) {
-                                    if (strcmp(kq_dirs[k].path, sub) == 0) {
-                                        found = 1;
-                                        break;
-                                    }
-                                }
-                                if (!found) add_kq_dir(sub);
+                if (kq_entries[j].fd != fd) continue;
+
+                if (kq_entries[j].is_dir) {
+                    // Directory changed — scan for new files/subdirs
+                    walk_and_watch_kq(kq_entries[j].path);
+                    should_rebuild = 1;
+                } else {
+                    // Source file modified — trigger rebuild
+                    should_rebuild = 1;
+
+                    // If file was deleted/renamed (editor write-to-temp-then-rename),
+                    // close stale fd and re-add watch if the file reappears
+                    if (events[i].fflags & (NOTE_DELETE | NOTE_RENAME)) {
+                        close(kq_entries[j].fd);
+                        kq_entries[j].fd = -1;
+                        // Try to re-open (editor may have recreated it)
+                        int newfd = open(kq_entries[j].path, O_RDONLY);
+                        if (newfd >= 0) {
+                            struct kevent ev;
+                            EV_SET(&ev, newfd, EVFILT_VNODE, EV_ADD | EV_CLEAR,
+                                   NOTE_WRITE | NOTE_ATTRIB | NOTE_DELETE | NOTE_RENAME,
+                                   0, NULL);
+                            if (kevent(kqfd, &ev, 1, NULL, 0, NULL) >= 0) {
+                                kq_entries[j].fd = newfd;
+                            } else {
+                                close(newfd);
                             }
                         }
-                        closedir(d);
                     }
-                    if (dir_has_source_change(kq_dirs[j].path)) {
-                        should_rebuild = 1;
-                    }
-                    break;
                 }
+                break;
             }
         }
 

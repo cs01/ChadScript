@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// Node.js CLI entry point for ChadScript.
+// Uses the shared argparse library for argument parsing (same as the native binary).
 
 import {
   compile,
@@ -13,14 +15,51 @@ import {
 } from "./compiler.js";
 import { LogLevel, logger } from "./utils/logger.js";
 import { runInit } from "./codegen/stdlib/init-templates.js";
-import { resolveTarget } from "./target.js";
+import { ArgumentParser } from "./argparse.js";
 import * as path from "path";
 import * as fs from "fs";
 import { execSync, spawn as spawnProc, ChildProcess } from "child_process";
 
-const args = process.argv.slice(2);
+const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
+parser.addSubcommand("build", "Compile to a native binary");
+parser.addSubcommand("run", "Compile and run");
+parser.addSubcommand("ir", "Emit LLVM IR only");
+parser.addSubcommand("init", "Generate starter project (chadscript.d.ts, tsconfig.json, hello.ts)");
+parser.addSubcommand("watch", "Watch for changes and recompile+run");
+parser.addSubcommand("clean", "Remove the .build directory");
 
-function printVersion(): void {
+parser.addFlag("version", "", "Show version");
+parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
+parser.addScopedFlag("verbose", "v", "Show compilation steps", "build,run,ir,watch");
+parser.addScopedFlag("debug", "", "Show internal debugging information", "build,run,ir");
+parser.addScopedFlag("trace", "", "Show everything (AST, IR, variable tracking)", "build,run,ir");
+parser.addScopedFlag("skip-semantic-analysis", "", "Skip semantic analysis", "build,run,ir");
+parser.addScopedFlag("keep-temps", "", "Keep intermediate files (.ll, .o)", "build,run,ir");
+parser.addScopedFlag("sanitize-address", "", "Build with AddressSanitizer", "build,run");
+parser.addScopedFlag("debug-info", "g", "Emit DWARF debug info", "build,run");
+parser.addScopedOption(
+  "target",
+  "",
+  "Cross-compile for target (only linux-x64 supported)",
+  "",
+  "build,run,ir",
+);
+parser.addScopedOption(
+  "target-cpu",
+  "",
+  "Set LLVM target CPU (default: native)",
+  "",
+  "build,run,ir",
+);
+parser.addScopedFlag("static", "", "Link statically", "build,run");
+parser.addPositional("input", "Input .ts or .js file");
+
+// Node's process.argv includes [node, script, ...] — skip both.
+// ChadScript's native runtime already strips argv[0], so chad-native.ts
+// passes process.argv directly. Here we need slice(2).
+parser.parse(process.argv.slice(2));
+
+if (parser.getFlag("version")) {
   const packageJsonPath = path.join(import.meta.dirname || process.cwd(), "..", "package.json");
   try {
     const pkg = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
@@ -28,65 +67,10 @@ function printVersion(): void {
   } catch {
     console.log("chad 0.1.0");
   }
-}
-
-function printHelp(): void {
-  console.log("chad - compile TypeScript to native binaries via LLVM");
-  console.log("");
-  console.log("Usage: chad <command> [options] <file>");
-  console.log("");
-  console.log("Commands:");
-  console.log("  build <file>     Compile to a native binary");
-  console.log("  run <file>       Compile and run");
-  console.log("  ir <file>        Emit LLVM IR only");
-  console.log(
-    "  init             Generate starter project (chadscript.d.ts, tsconfig.json, hello.ts)",
-  );
-  console.log("  watch <file>     Watch for changes and recompile+run");
-  console.log("  clean            Remove the .build directory");
-  console.log("");
-  console.log("Options:");
-  console.log("  -o <output>                 Specify output file");
-  console.log("  -v, --verbose               Show compilation steps");
-  console.log("  --debug                     Show internal debugging information");
-  console.log("  --trace                     Show everything (AST, IR, variable tracking)");
-  console.log("  --skip-semantic-analysis    Skip semantic analysis");
-  console.log("  --keep-temps                Keep intermediate files (.ll, .o)");
-  console.log("  -fsanitize=address          Build with AddressSanitizer");
-  console.log("  -g                          Emit DWARF debug info for source-level debugging");
-  console.log(
-    "  --target <triple>           Cross-compile for target (e.g., macos-arm64, linux-x64)",
-  );
-  console.log("  --target-cpu <cpu>          Set LLVM target CPU (default: native)");
-  console.log("  --static                    Link statically");
-  console.log("  -h, --help                  Show this help message");
-  console.log("  --version                   Show version");
-  console.log("");
-  console.log("Examples:");
-  console.log("  chad build hello.ts");
-  console.log("  chad build hello.ts -o myapp");
-  console.log("  chad run hello.ts");
-  console.log("  chad run hello.ts -- arg1 arg2");
-  console.log("  chad ir hello.ts");
-  console.log("  chad build --target linux-x64 hello.ts -o hello-linux");
-}
-
-if (args.length === 0) {
-  printHelp();
   process.exit(0);
 }
 
-const command = args[0];
-
-if (command === "-h" || command === "--help") {
-  printHelp();
-  process.exit(0);
-}
-
-if (command === "--version") {
-  printVersion();
-  process.exit(0);
-}
+const command = parser.getSubcommand();
 
 if (command === "init") {
   runInit();
@@ -103,7 +87,7 @@ if (command === "clean") {
 }
 
 if (command === "watch") {
-  const watchFile = args[1];
+  const watchFile = parser.getPositional(0);
   if (!watchFile) {
     console.error("chad: error: no input files");
     console.error("Usage: chad watch <input.ts>");
@@ -127,8 +111,7 @@ if (command === "watch") {
   const EXCLUDED_EXTS = new Set([".o", ".ll", ".bc", ".a", ".so", ".dylib"]);
   const watchDir = path.dirname(path.resolve(watchFile));
   // Collect -- args to pass through to the spawned binary
-  const dashIdx = args.indexOf("--");
-  const runArgs = dashIdx >= 0 ? args.slice(dashIdx + 1) : [];
+  const runArgs = parser.getRestArgs();
 
   let childProc: ChildProcess | null = null;
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -188,13 +171,17 @@ if (command === "watch") {
   });
 }
 
+if (command.length === 0) {
+  parser.printHelp();
+  process.exit(0);
+}
+
 if (
   command !== "build" &&
   command !== "run" &&
   command !== "ir" &&
   command !== "init" &&
-  command !== "watch" &&
-  command !== "target"
+  command !== "watch"
 ) {
   if (command.endsWith(".ts") || command.endsWith(".js")) {
     console.error(`chad: error: missing command. did you mean 'chad build ${command}'?`);
@@ -205,81 +192,47 @@ if (
   process.exit(1);
 }
 
-const subArgs = args.slice(1);
+// Configure compiler options from parsed flags
 let logLevel = LogLevel.Normal;
-const fileArgs: string[] = [];
-let skipNextArg = false;
-let outputArg: string | null = null;
-let dashdashIndex = -1;
+if (parser.getFlag("verbose")) logLevel = LogLevel.Verbose;
+if (parser.getFlag("debug")) logLevel = LogLevel.Debug;
+if (parser.getFlag("trace")) logLevel = LogLevel.Trace;
 
-for (let i = 0; i < subArgs.length; i++) {
-  const arg = subArgs[i];
-  if (skipNextArg) {
-    skipNextArg = false;
-    continue;
+if (parser.getFlag("skip-semantic-analysis")) setSkipSemanticAnalysis(true);
+if (parser.getFlag("keep-temps")) setKeepTemps(true);
+if (parser.getFlag("sanitize-address")) setSanitize("address");
+if (parser.getFlag("debug-info")) setDebugInfo(true);
+if (parser.getFlag("static")) setStaticLink(true);
+
+// Cross-compilation: only linux-x64 is supported for build/run (needs SDK + linker).
+// IR generation (chad ir) can target any platform since it only emits LLVM IR.
+const targetOpt = parser.getOption("target");
+if (targetOpt) {
+  if (command !== "ir" && targetOpt !== "linux-x64") {
+    console.error("chad: error: cross-compilation only supports 'linux-x64' as a target");
+    process.exit(1);
   }
-  if (arg === "--") {
-    dashdashIndex = i;
-    break;
-  }
-  if (arg === "-v" || arg === "--verbose") {
-    logLevel = LogLevel.Verbose;
-  } else if (arg === "--debug") {
-    logLevel = LogLevel.Debug;
-  } else if (arg === "--trace") {
-    logLevel = LogLevel.Trace;
-  } else if (arg === "--skip-semantic-analysis") {
-    setSkipSemanticAnalysis(true);
-  } else if (arg === "--keep-temps" || arg === "-save-temps") {
-    setKeepTemps(true);
-  } else if (arg === "-fsanitize=address" || arg === "--sanitize=address") {
-    setSanitize("address");
-  } else if (arg === "-g") {
-    setDebugInfo(true);
-  } else if (arg === "--target") {
-    if (i + 1 < subArgs.length) {
-      setTarget(subArgs[i + 1]);
-      skipNextArg = true;
-    }
-  } else if (arg.startsWith("--target-cpu=")) {
-    setTargetCpu(arg.split("=")[1]);
-  } else if (arg === "--target-cpu") {
-    if (i + 1 < subArgs.length) {
-      setTargetCpu(subArgs[i + 1]);
-      skipNextArg = true;
-    }
-  } else if (arg === "--static") {
-    setStaticLink(true);
-  } else if (arg === "-o") {
-    if (i + 1 < subArgs.length) {
-      outputArg = subArgs[i + 1];
-      skipNextArg = true;
-    }
-  } else if (arg === "-h" || arg === "--help") {
-    printHelp();
-    process.exit(0);
-  } else {
-    fileArgs.push(arg);
-  }
+  setTarget(targetOpt);
 }
 
-const runArgs = dashdashIndex >= 0 ? subArgs.slice(dashdashIndex + 1) : [];
+const cpuOpt = parser.getOption("target-cpu");
+if (cpuOpt) setTargetCpu(cpuOpt);
 
 if (command === "ir") {
   setEmitLLVMOnly(true);
   setKeepTemps(true);
 }
 
-if (fileArgs.length < 1) {
+const inputFile = parser.getPositional(0);
+if (!inputFile) {
   console.error("chad: error: no input files");
   console.error(`Usage: chad ${command} [options] <input.ts|.js>`);
   process.exit(1);
 }
 
-const inputFile = fileArgs[0];
-
+const explicitOutput = parser.getOption("output");
 const defaultOutput = path.join(".build", inputFile.replace(/\.(js|ts)$/, ""));
-const outputFile = outputArg || fileArgs[1] || defaultOutput;
+const outputFile = explicitOutput || defaultOutput;
 
 const outputDir = path.dirname(outputFile);
 if (!fs.existsSync(outputDir)) {
@@ -300,6 +253,7 @@ if (command === "run") {
     process.exit(1);
   }
   try {
+    const runArgs = parser.getRestArgs();
     const runCmd = [bin, ...runArgs].map((a) => `"${a}"`).join(" ");
     execSync(runCmd, { stdio: "inherit" });
   } catch (error) {

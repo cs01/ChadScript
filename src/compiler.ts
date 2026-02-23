@@ -314,13 +314,7 @@ export function compile(
   const picoPath = sdk ? sdk.vendorPath : PICOHTTPPARSER_PATH;
   const treeSitterPath = sdk ? sdk.vendorPath : TREESITTER_LIB_PATH;
 
-  // musl bundles everything into libc.a — no separate libdl/librt/libpthread.
-  // glibc needs them as separate libraries.
-  const platformLibs = targetIsMac
-    ? ""
-    : target.libc === "musl"
-      ? " -lm -lpthread"
-      : " -lm -ldl -lrt -lpthread";
+  const platformLibs = targetIsMac ? "" : " -lm -ldl -lrt -lpthread";
   let linkLibs = `-L${gcPath} -lgc` + platformLibs;
   if (generator.usesJson) {
     linkLibs += ` -L${yyjsonPath} -lyyjson`;
@@ -349,9 +343,11 @@ export function compile(
 
   // Platform-specific library search paths
   if (sdk) {
-    // Cross-compiling: use SDK sysroot for system libraries
+    // Cross-compiling: use SDK sysroot for CRT objects and system libraries.
+    // --sysroot tells clang the root for system paths, and -L ensures the
+    // linker finds our flat lib directory (bypassing multiarch path detection).
     if (sdk.sysrootPath) {
-      linkLibs = `--sysroot=${sdk.sysrootPath} ` + linkLibs;
+      linkLibs = `--sysroot=${sdk.sysrootPath} -L${sdk.sysrootPath}/usr/lib ` + linkLibs;
     }
   } else if (targetIsMac && hostIsMac) {
     // Native macOS: use Homebrew paths and Xcode SDK
@@ -441,8 +437,10 @@ export function compile(
   // -no-pie: only for native Linux builds (not macOS, not cross-compiling from macOS)
   const noPie = !targetIsMac && !crossCompiling ? " -no-pie" : "";
   const debugFlag = debugInfo ? " -g" : "";
-  // Auto-static for musl cross-compile targets (produces portable binaries)
-  const shouldStatic = (staticLink || (crossCompiling && target.libc === "musl")) && !targetIsMac;
+  // Cross-compiled Linux binaries always link statically — the SDK's sysroot
+  // contains .a archives only (Ubuntu's .so files are linker scripts with
+  // hardcoded absolute paths that can't be relocated to a different sysroot).
+  const shouldStatic = (!targetIsMac && crossCompiling) || (staticLink && !targetIsMac);
   const staticFlag = shouldStatic ? " -static" : "";
   const crossTarget = crossCompiling ? ` --target=${target.triple}` : "";
   // Cross-compiling requires lld (LLVM's linker) — the host linker (e.g. macOS ld)

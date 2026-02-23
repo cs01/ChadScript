@@ -1,6 +1,6 @@
 // Target SDK locator for cross-compilation.
 // SDKs live at ~/.chadscript/targets/<target-name>/ and contain pre-built
-// vendor libraries, C bridge objects, and (for musl targets) a sysroot.
+// vendor libraries and C bridge objects.
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
@@ -14,7 +14,7 @@ export interface TargetSDK {
   vendorPath: string;
   /** Path to pre-built C bridge .o files */
   bridgesPath: string;
-  /** Path to sysroot (musl headers + libc.a), null if not present */
+  /** Path to sysroot, null if not present */
   sysrootPath: string | null;
   /** Parsed sdk.json metadata */
   meta: SDKMeta;

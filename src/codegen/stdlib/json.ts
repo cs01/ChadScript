@@ -46,7 +46,10 @@ export class JsonGenerator {
     }
 
     if (!typeParam) {
-      return this.generateUntypedParse(expr, params);
+      return this.ctx.emitError(
+        "JSON.parse() requires a type parameter, e.g. JSON.parse<MyType>(str)",
+        expr.loc,
+      );
     }
 
     if (typeParam === "number[]") {

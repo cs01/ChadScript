@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Packages a target SDK tarball for cross-compilation.
-# Runs on CI after build-vendor.sh. Copies vendor .a files, C bridge .o files,
-# and (on Alpine/musl) the sysroot into a tarball that can be downloaded with
-# `chad target add <name>`.
+# Runs on CI after build-vendor.sh. Copies vendor .a files and C bridge .o files
+# into a tarball that can be downloaded with `chad target add <name>`.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -34,26 +33,13 @@ else
 fi
 
 TARGET_NAME="${TARGET_OS}-${TARGET_ARCH}"
-
-# Detect libc (musl vs glibc on Linux)
-LIBC="system"
-TRIPLE=""
-if [ "$TARGET_OS" = "linux" ]; then
-  # Detect musl: check Alpine marker, musl dynamic linker, or ldd output
-  if [ -f /etc/alpine-release ] || ls /lib/ld-musl-*.so.1 >/dev/null 2>&1 || ldd --version 2>&1 | grep -qi musl; then
-    LIBC="musl"
-    TRIPLE="${LLVM_ARCH}-unknown-linux-musl"
-  else
-    LIBC="gnu"
-    TRIPLE="${LLVM_ARCH}-unknown-linux-gnu"
-  fi
-elif [ "$TARGET_OS" = "macos" ]; then
+TRIPLE="${LLVM_ARCH}-unknown-linux-gnu"
+if [ "$TARGET_OS" = "macos" ]; then
   TRIPLE="${LLVM_ARCH}-apple-darwin"
 fi
 
 echo "==> Building target SDK: ${TARGET_NAME}"
 echo "    Triple: ${TRIPLE}"
-echo "    Libc: ${LIBC}"
 
 SDK_DIR="$REPO_DIR/.sdk-staging/${TARGET_NAME}"
 rm -rf "$SDK_DIR"
@@ -83,38 +69,78 @@ fi
 
 # Copy C bridge object files
 echo "  Copying bridge objects..."
-for bridge in child-process-bridge.o os-bridge.o regex-bridge.o dotenv-bridge.o watch-bridge.o lws-bridge.o child-process-spawn.o; do
+for bridge in child-process-bridge.o os-bridge.o regex-bridge.o dotenv-bridge.o watch-bridge.o lws-bridge.o multipart-bridge.o child-process-spawn.o; do
   if [ -f "$C_BRIDGES_DIR/$bridge" ]; then
     cp "$C_BRIDGES_DIR/$bridge" "$SDK_DIR/bridges/"
   fi
 done
 
-# On musl Linux: copy sysroot (headers + libc.a + crt objects)
-# This gives cross-compilers everything they need to produce static musl binaries
-if [ "$LIBC" = "musl" ]; then
-  echo "  Copying musl sysroot..."
-  # Mirror the real filesystem layout: --sysroot makes clang treat this as /
-  mkdir -p "$SDK_DIR/sysroot/usr/include" "$SDK_DIR/sysroot/usr/lib"
+# Package sysroot for Linux targets (needed when cross-compiling from macOS).
+# Includes CRT startup objects, system libraries, and GCC support files that
+# the linker needs to produce a working ELF binary.
+if [ "$TARGET_OS" = "linux" ]; then
+  SYSROOT_DIR="$SDK_DIR/sysroot"
+  mkdir -p "$SYSROOT_DIR/usr/lib"
 
-  # Copy musl headers
-  if [ -d /usr/include ]; then
-    cp -r /usr/include/* "$SDK_DIR/sysroot/usr/include/"
+  # Find the system lib directory: multiarch (Debian/Ubuntu), lib64, or /usr/lib
+  MULTIARCH_DIR="/usr/lib/${UNAME_M}-linux-gnu"
+  if [ ! -d "$MULTIARCH_DIR" ]; then
+    MULTIARCH_DIR="/usr/lib64"
+  fi
+  if [ ! -d "$MULTIARCH_DIR" ]; then
+    MULTIARCH_DIR="/usr/lib"
   fi
 
-  # Copy essential musl libraries and CRT objects
-  for lib in libc.a libm.a libpthread.a librt.a libdl.a crt1.o crti.o crtn.o Scrt1.o rcrt1.o; do
-    if [ -f "/usr/lib/$lib" ]; then
-      cp "/usr/lib/$lib" "$SDK_DIR/sysroot/usr/lib/"
+  # On modern Ubuntu, .a files can be linker scripts with absolute paths
+  # (e.g. libm.a contains: GROUP ( /usr/lib/.../libm-2.39.a /usr/lib/.../libmvec.a )).
+  # This function copies the actual archives and rewrites scripts with local paths.
+  copy_sysroot_lib() {
+    local src="$1"
+    local dst_dir="$2"
+    local name=$(basename "$src")
+    # Real archives start with "!<arch>" — copy directly
+    if head -c7 "$src" 2>/dev/null | grep -q '!<arch>'; then
+      cp "$src" "$dst_dir/"
+      return
     fi
-  done
+    # Linker script — copy all referenced .a files, then rewrite with local paths
+    for ref in $(grep -o '/[^ )"]*\.a' "$src" 2>/dev/null); do
+      [ -f "$ref" ] && cp -n "$ref" "$dst_dir/"
+    done
+    # Strip directory paths, drop AS_NEEDED blocks (shared lib refs not needed for -static)
+    sed -e 's|/[^ )]*\/||g' -e 's|AS_NEEDED ( [^)]* )||g' "$src" > "$dst_dir/$name"
+  }
 
-  # Copy gcc/musl support libraries and CRT objects needed for static linking
-  for lib in libgcc.a libgcc_eh.a crtbeginT.o crtbegin.o crtend.o; do
-    found=$(find /usr/lib/gcc -name "$lib" 2>/dev/null | head -1)
-    if [ -n "$found" ]; then
-      cp "$found" "$SDK_DIR/sysroot/usr/lib/"
-    fi
-  done
+  if [ -d "$MULTIARCH_DIR" ]; then
+    echo "  Copying sysroot from $MULTIARCH_DIR..."
+    # CRT startup objects — crt1.o is for static linking, Scrt1.o for PIE/shared
+    for crt in crt1.o Scrt1.o crti.o crtn.o; do
+      [ -f "$MULTIARCH_DIR/$crt" ] && cp "$MULTIARCH_DIR/$crt" "$SYSROOT_DIR/usr/lib/"
+    done
+    # System libraries — use copy_sysroot_lib to handle linker scripts
+    for lib in libc.a libm.a libdl.a librt.a libpthread.a libc_nonshared.a libmvec.a; do
+      [ -f "$MULTIARCH_DIR/$lib" ] && copy_sysroot_lib "$MULTIARCH_DIR/$lib" "$SYSROOT_DIR/usr/lib/"
+    done
+  fi
+
+  # GCC support objects and libraries (crtbeginS.o, crtendS.o, libgcc.a, libgcc_s.so)
+  GCC_DIR=$(find /usr/lib/gcc/${UNAME_M}-linux-gnu -maxdepth 1 -type d 2>/dev/null | sort -V | tail -1)
+  if [ -n "$GCC_DIR" ] && [ -d "$GCC_DIR" ]; then
+    echo "  Copying GCC support from $GCC_DIR..."
+    # crtbeginT.o/crtendT.o for static, crtbeginS.o/crtendS.o for shared/PIE
+    for obj in crtbeginT.o crtendT.o crtbeginS.o crtendS.o crtbegin.o crtend.o; do
+      [ -f "$GCC_DIR/$obj" ] && cp "$GCC_DIR/$obj" "$SYSROOT_DIR/usr/lib/"
+    done
+    [ -f "$GCC_DIR/libgcc.a" ] && cp "$GCC_DIR/libgcc.a" "$SYSROOT_DIR/usr/lib/"
+    [ -f "$GCC_DIR/libgcc_eh.a" ] && cp "$GCC_DIR/libgcc_eh.a" "$SYSROOT_DIR/usr/lib/"
+    # libgcc_s might be a linker script or symlink — copy the actual .so
+    for f in $GCC_DIR/libgcc_s.so* /lib/${UNAME_M}-linux-gnu/libgcc_s.so*; do
+      [ -f "$f" ] && cp -L "$f" "$SYSROOT_DIR/usr/lib/"
+    done
+  fi
+
+  echo "  Sysroot contents:"
+  ls "$SYSROOT_DIR/usr/lib/"
 fi
 
 # Write sdk.json metadata
@@ -129,7 +155,7 @@ cat > "$SDK_DIR/sdk.json" <<EOF
   "triple": "${TRIPLE}",
   "os": "${TARGET_OS}",
   "arch": "${TARGET_ARCH}",
-  "libc": "${LIBC}"
+  "libc": "$([ "$TARGET_OS" = "linux" ] && echo "gnu" || echo "system")"
 }
 EOF
 
@@ -145,6 +171,3 @@ echo "  Tarball: $TARBALL"
 echo "  Size: $(du -h "$TARBALL" | cut -f1)"
 ls -la "$SDK_DIR/vendor/"
 ls -la "$SDK_DIR/bridges/"
-if [ -d "$SDK_DIR/sysroot" ]; then
-  echo "  Sysroot: $(du -sh "$SDK_DIR/sysroot" | cut -f1)"
-fi

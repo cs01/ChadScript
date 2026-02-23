@@ -1,10 +1,10 @@
 # JSON
 
-JSON parsing and serialization via the cJSON library.
+JSON parsing and serialization via the yyjson library.
 
 ## `JSON.parse<T>(str)`
 
-Parse a JSON string into a typed struct. The type parameter `T` must be an interface — ChadScript generates a specialized parser at compile time based on the interface's field names and types.
+Parse a JSON string into a typed struct. The type parameter `T` is **required** — ChadScript generates a specialized parser at compile time based on the interface's field names and types. Calling `JSON.parse()` without a type parameter is a compile error.
 
 ```typescript
 interface Config {
@@ -53,5 +53,5 @@ console.log(json);
 
 | API | Maps to |
 |-----|---------|
-| `JSON.parse<T>()` | cJSON library (`cJSON_Parse` + generated field extractor) |
-| `JSON.stringify()` | cJSON library (`cJSON_Print`) |
+| `JSON.parse<T>()` | yyjson library (`yyjson_read` + generated field extractor) |
+| `JSON.stringify()` | yyjson library (`yyjson_mut_write`) |
