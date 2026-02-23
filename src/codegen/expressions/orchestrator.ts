@@ -117,6 +117,12 @@ export class ExpressionGenerator {
   generate(expr: Expression, params: string[]): string {
     const exprTyped = expr as { type: string };
     if (!exprTyped.type || exprTyped.type.length === 0) {
+      // Strict: expressions must have a type. An empty type indicates a parser
+      // or AST construction bug — surface it instead of silently returning null.
+      this.ctx.emitWarning(
+        "expression has empty type — this likely indicates a parser bug, treating as null",
+        (expr as { loc?: { line: number; column: number } }).loc,
+      );
       const temp = this.ctx.nextTemp();
       this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
       this.ctx.setVariableType(temp, "i8*");

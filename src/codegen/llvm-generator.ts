@@ -1328,8 +1328,43 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           llvmType = "%Map*";
         } else if (propValueType === "set") {
           llvmType = "%Set*";
-        } else {
+        } else if (
+          propValueType === "number" ||
+          propValueType === "boolean" ||
+          propValueType === "unary"
+        ) {
           llvmType = "double";
+        } else if (
+          propValueType === "call" ||
+          propValueType === "method_call" ||
+          propValueType === "member_access" ||
+          propValueType === "index_access" ||
+          propValueType === "variable" ||
+          propValueType === "template_literal" ||
+          propValueType === "conditional" ||
+          propValueType === "null" ||
+          propValueType === "undefined" ||
+          propValueType === "regex" ||
+          propValueType === "new" ||
+          propValueType === "object"
+        ) {
+          // Non-numeric expression types default to pointer — safer than double
+          // since most runtime values (strings, objects, arrays) are pointers
+          llvmType = "i8*";
+        } else if (propValueType === "binary") {
+          // Binary expressions could be arithmetic (double) or string concat (i8*).
+          // Check if either side is a string to disambiguate.
+          if (this.isStringExpression(propValue)) {
+            llvmType = "i8*";
+          } else {
+            llvmType = "double";
+          }
+        } else {
+          // Strict: unknown property expression type — emit warning instead of silent double
+          this.emitWarning(
+            `object property '${prop.key}' has unrecognized expression type '${propValueType}', defaulting to i8*`,
+          );
+          llvmType = "i8*";
         }
       }
 
@@ -2091,6 +2126,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           kind = SymbolKind.JSON;
           defaultValue = "null";
         } else {
+          // Phase 1: Try to classify from declared type annotation
           const stmtTyped = stmt as { declaredType?: string };
           if (stmtTyped.declaredType) {
             const strippedDeclaredType = stripNullable(stmtTyped.declaredType);
@@ -2124,13 +2160,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                   createInterfaceMetadata(strippedDeclaredType),
                 );
                 continue;
-              } else {
-                llvmType = "double";
-                kind = SymbolKind.Number;
-                defaultValue = "0.0";
               }
+              // Unrecognized declared type — fall through to expression-based detection
             }
-          } else {
+          }
+
+          // Phase 2: Try to classify from expression analysis (runs if Phase 1 didn't match)
+          if (llvmType === "") {
             const funcReturnInterface = this.typeInference.getFunctionCallInterfaceReturn(
               stmt.value,
             );
@@ -2193,22 +2229,34 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
                 }
               }
             }
-            if (llvmType === "") {
-              const exprNodeType = stmt.value ? (stmt.value as { type: string }).type : "";
-              // Number literals are the only unclassified expressions that should default to double.
-              // Everything else is a type inference gap — error so we fix the classifier.
-              if (exprNodeType === "number") {
-                llvmType = "double";
-                kind = SymbolKind.Number;
-                defaultValue = "0.0";
-              } else {
-                const loc = stmt.value ? (stmt.value as { loc?: SourceLocation }).loc : undefined;
-                return this.emitError(
-                  `cannot determine type of module-scope variable '${name}' (expression type: ${exprNodeType || "unknown"}). ` +
-                    `Move the declaration inside a function, or add a type annotation`,
-                  loc,
-                );
-              }
+          }
+
+          // Phase 3: Final catch-all based on expression node type
+          if (llvmType === "") {
+            const exprNodeType = stmt.value ? (stmt.value as { type: string }).type : "";
+            // Expression types that can plausibly return a number at module scope.
+            // String/array/map/etc. returning expressions should have been caught
+            // by the specific detectors above — anything that falls through is likely numeric.
+            if (
+              exprNodeType === "number" ||
+              exprNodeType === "boolean" ||
+              exprNodeType === "binary" ||
+              exprNodeType === "unary" ||
+              exprNodeType === "method_call" ||
+              exprNodeType === "call" ||
+              exprNodeType === "variable" ||
+              exprNodeType === "conditional" ||
+              exprNodeType === "index_access" ||
+              exprNodeType === "member_access"
+            ) {
+              llvmType = "double";
+              kind = SymbolKind.Number;
+              defaultValue = "0.0";
+            } else {
+              return this.emitError(
+                `cannot determine type of module-scope variable '${name}' (expression type: ${exprNodeType || "unknown"}). ` +
+                  `Move the declaration inside a function, or add a type annotation`,
+              );
             }
           }
         }

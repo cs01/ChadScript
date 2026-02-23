@@ -153,6 +153,9 @@ export function canonicalTypeToLlvm(
   fieldName: string,
 ): string {
   if (tsType === null || tsType === undefined || tsType === "") {
+    // Empty/null type: callers should provide a valid type. These defaults are
+    // intentional language semantics — untyped returns are double (number),
+    // untyped params/fields are i8* (pointer, the safer default).
     if (mode === "return") return "double";
     return "i8*";
   }
