@@ -51,6 +51,9 @@ export interface AssignmentGeneratorContext {
   getInterfaceProperties(name: string): { keys: string[]; types: string[] } | null;
   ensureDouble(value: string): string;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
+  classGenIsStaticField(className: string, fieldName: string): boolean;
+  classGenGetStaticFieldType(className: string, fieldName: string): string;
+  mangleUserName(name: string): string;
 }
 
 export class AssignmentGenerator {
@@ -89,6 +92,15 @@ export class AssignmentGenerator {
 
     if (objType === "variable") {
       const varName = (object as VariableNode).name;
+      // Static field assignment: ClassName.staticField = value
+      if (this.ctx.classGenIsStaticField(varName, property)) {
+        const llvmType = this.ctx.classGenGetStaticFieldType(varName, property);
+        const globalName = `@${this.ctx.mangleUserName(varName)}_${property}`;
+        const value = this.ctx.generateExpression(memberAccessValue.value, params);
+        const coerced = llvmType === "double" ? this.ctx.ensureDouble(value) : value;
+        this.ctx.emit(`store ${llvmType} ${coerced}, ${llvmType}* ${globalName}`);
+        return;
+      }
       if (this.ctx.symbolTable.isClass(varName)) {
         const classMeta = this.ctx.symbolTable.getClassInfo(varName)!;
         className = classMeta.className;

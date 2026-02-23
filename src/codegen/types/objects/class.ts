@@ -54,6 +54,8 @@ export class ClassGenerator {
       }
     }
     for (let i = 0; i < classNode.fields.length; i++) {
+      // Static fields are globals, not part of the instance struct
+      if (classNode.fields[i].isStatic) continue;
       allFields.push(classNode.fields[i]);
     }
     return allFields;
@@ -418,6 +420,19 @@ export class ClassGenerator {
       }
     }
 
+    // Emit static fields as LLVM globals
+    for (let fi = 0; fi < classNode.fields.length; fi++) {
+      const field = classNode.fields[fi];
+      if (!field || !field.isStatic) continue;
+      const globalName = `@${this.ctx.mangleUserName(className)}_${field.name}`;
+      const llvmType = this.fieldToLlvmType(field);
+      let defaultVal = "0.0";
+      if (llvmType === "i8*") defaultVal = "null";
+      else if (llvmType === "i1") defaultVal = "0";
+      else if (llvmType.endsWith("*")) defaultVal = "null";
+      parts.push(`${globalName} = global ${llvmType} ${defaultVal}\n`);
+    }
+
     for (let methodIdx = 0; methodIdx < classNode.methods.length; methodIdx++) {
       const method = classNode.methods[methodIdx] as ClassMethod;
       if (!method) {
@@ -428,7 +443,9 @@ export class ClassGenerator {
       }
       if (!method.isConstructor) {
         this.ctx.clearOutput();
-        const methodIr = this.generateMethod(className, method, allFields);
+        const methodIr = method.isStatic
+          ? this.generateStaticMethod(className, method)
+          : this.generateMethod(className, method, allFields);
         if (methodIr) {
           parts.push(methodIr);
           parts.push("\n");
@@ -879,6 +896,100 @@ export class ClassGenerator {
     return ir;
   }
 
+  // Static methods are namespaced standalone functions — no %this parameter
+  private generateStaticMethod(className: string, method: ClassMethod): string {
+    let returnLLVMType = "double";
+    if (method.returnType && method.returnType.length > 0) {
+      returnLLVMType = this.tsTypeToLlvm(method.returnType);
+    }
+
+    let ir = `define ${returnLLVMType} @${this.ctx.mangleUserName(className)}_${method.name}(`;
+
+    const paramLLVMTypes: string[] = [];
+    const paramTsTypes: string[] = method.paramTypes || [];
+    for (let i = 0; i < method.params.length; i++) {
+      if (method.paramTypes && i < method.paramTypes.length && method.paramTypes[i]) {
+        paramLLVMTypes.push(this.tsTypeToLlvm(method.paramTypes[i]));
+      } else {
+        paramLLVMTypes.push("double");
+      }
+    }
+
+    if (method.params.length > 0) {
+      const paramParts: string[] = [];
+      for (let pidx = 0; pidx < paramLLVMTypes.length; pidx++) {
+        paramParts.push(paramLLVMTypes[pidx] + " %arg" + pidx);
+      }
+      ir += paramParts.join(", ");
+    }
+    ir += ") {\n";
+    ir += "entry:\n";
+    this.ctx.setCurrentLabel("entry");
+
+    // No %this pointer for static methods
+    this.ctx.setThisPointer(null);
+    this.ctx.setCurrentClassName(className);
+    this.ctx.setCurrentFunction(method.name);
+    this.ctx.setCurrentFunctionReturnType(returnLLVMType);
+    this.ctx.setCurrentFunctionTsReturnType(method.returnType);
+
+    for (let i = 0; i < method.params.length; i++) {
+      const paramName = method.params[i];
+      const allocaReg = this.nextTemp();
+      const llvmType = paramLLVMTypes[i];
+      let tsType: string | undefined = undefined;
+      if (i < paramTsTypes.length) {
+        tsType = paramTsTypes[i];
+      }
+
+      this.defineParameterWithType(paramName, allocaReg, llvmType, tsType);
+      this.emit(`${allocaReg} = alloca ${llvmType}`);
+      this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
+    }
+
+    const result = this.ctx.generateBlock(method.body, method.params);
+
+    const deferredAllocas = this.ctx.getAllocaInstructions();
+    if (deferredAllocas.length > 0) {
+      const newOutput: string[] = [];
+      for (let i = 0; i < deferredAllocas.length; i++) {
+        newOutput.push(deferredAllocas[i]);
+      }
+      const outputLen = this.ctx.getOutputLength();
+      for (let i = 0; i < outputLen; i++) {
+        newOutput.push(this.ctx.getOutputLine(i));
+      }
+      this.ctx.clearOutput();
+      for (let i = 0; i < newOutput.length; i++) {
+        this.ctx.pushOutput(newOutput[i]);
+      }
+      this.ctx.clearAllocaInstructions();
+    }
+
+    if (this.ctx.getOutputLength() > 0) {
+      const indented = this.ctx.getOutputAsIndentedString("  ");
+      ir += indented;
+      ir += "\n";
+    }
+
+    const hasTerminator = this.ctx.lastInstructionIsTerminator();
+    if (!hasTerminator) {
+      if (returnLLVMType === "void") {
+        ir += "  ret void\n";
+      } else if (result !== null && result !== "" && result !== "0") {
+        ir += `  ret ${returnLLVMType} ${result}` + "\n";
+      } else {
+        if (returnLLVMType && returnLLVMType.indexOf("*") !== -1) {
+          ir += `  ret ${returnLLVMType} null` + "\n";
+        } else {
+          ir += `  ret ${returnLLVMType} 0.0` + "\n";
+        }
+      }
+    }
+    ir += "}\n";
+    return ir;
+  }
+
   generateNewExpression(className: string, args: Expression[], params: string[]): string {
     let classNodeResult: ClassNode | null = null;
     const ast = this.ctx.getAst();
@@ -1047,6 +1158,116 @@ export class ClassGenerator {
       );
       return result;
     }
+  }
+
+  // Static method call — no instance pointer, direct call to @ClassName_method(args...)
+  generateStaticMethodCall(
+    className: string,
+    methodName: string,
+    args: Expression[],
+    params: string[],
+  ): string {
+    const methodInfoResult = this.getMethodInfo(className, methodName);
+    if (!methodInfoResult) {
+      throw new Error(`Static method ${methodName} not found in class ${className}`);
+    }
+    const methodInfo = methodInfoResult as { method: ClassMethod; ownerClass: string };
+    const method = methodInfo.method as ClassMethod;
+    const methodOwnerClass = methodInfo.ownerClass;
+
+    const paramTypes = method.paramTypes || [];
+    const paramLLVMTypes: string[] = [];
+    for (let pi = 0; pi < paramTypes.length; pi++) {
+      paramLLVMTypes.push(this.tsTypeToLlvm(paramTypes[pi]));
+    }
+
+    const argParts: string[] = [];
+    const loopLimit = method.params.length > args.length ? method.params.length : args.length;
+    for (let ai = 0; ai < loopLimit; ai++) {
+      if (ai < args.length) {
+        const val = this.ctx.generateExpression(args[ai], params);
+        let argType = ai < paramLLVMTypes.length ? paramLLVMTypes[ai] : "double";
+        if (argType === "double") {
+          argParts.push(argType + " " + this.ctx.ensureDouble(val));
+        } else {
+          argParts.push(argType + " " + val);
+        }
+      } else {
+        const argType = ai < paramLLVMTypes.length ? paramLLVMTypes[ai] : "double";
+        const defaultVal = argType === "double" ? "0.0" : "null";
+        argParts.push(argType + " " + defaultVal);
+      }
+    }
+    const argValues = argParts.join(", ");
+
+    let returnLLVMType = "double";
+    if (method.returnType) {
+      returnLLVMType = this.methodReturnTypeToLlvm(method.returnType);
+    }
+
+    if (returnLLVMType === "void") {
+      this.emit(
+        `call void @${this.ctx.mangleUserName(methodOwnerClass)}_${methodName}(${argValues})`,
+      );
+      return "0";
+    } else {
+      const result = this.nextTemp();
+      this.emit(
+        `${result} = call ${returnLLVMType} @${this.ctx.mangleUserName(methodOwnerClass)}_${methodName}(${argValues})`,
+      );
+      this.ctx.setVariableType(result, returnLLVMType);
+      return result;
+    }
+  }
+
+  // Check if a class has a static method with the given name
+  isStaticMethod(className: string, methodName: string): boolean {
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) return false;
+    for (let ci = 0; ci < ast.classes.length; ci++) {
+      const c = ast.classes[ci] as ClassNode;
+      if (!c || c.name !== className) continue;
+      for (let mi = 0; mi < c.methods.length; mi++) {
+        const m = c.methods[mi] as ClassMethod;
+        if (m && m.name === methodName && m.isStatic) return true;
+      }
+      break;
+    }
+    return false;
+  }
+
+  // Check if a class has a static field with the given name
+  isStaticField(className: string, fieldName: string): boolean {
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) return false;
+    for (let ci = 0; ci < ast.classes.length; ci++) {
+      const c = ast.classes[ci] as ClassNode;
+      if (!c || c.name !== className) continue;
+      for (let fi = 0; fi < c.fields.length; fi++) {
+        const f = c.fields[fi] as ClassField;
+        if (f && f.name === fieldName && f.isStatic) return true;
+      }
+      break;
+    }
+    return false;
+  }
+
+  // Get the LLVM type of a static field
+  getStaticFieldType(className: string, fieldName: string): string {
+    const ast = this.ctx.getAst();
+    if (!ast || !ast.classes) return "double";
+    for (let ci = 0; ci < ast.classes.length; ci++) {
+      const c = ast.classes[ci] as ClassNode;
+      if (!c || c.name !== className) continue;
+      for (let fi = 0; fi < c.fields.length; fi++) {
+        const f = c.fields[fi] as ClassField;
+        if (f && f.name === fieldName && f.isStatic) {
+          return this.fieldToLlvmType(f);
+        }
+      }
+      break;
+    }
+    return "double";
   }
 
   private tsTypeToLlvm(tsType: string): string {

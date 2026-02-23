@@ -232,6 +232,12 @@ Additional self-hosting limitations:
 - **No import aliases** — `import { foo as bar }` compiles `bar(...)` as `@_cs_bar` which doesn't match the original `@_cs_foo`. Use the original name.
 - **No union type parameters in standalone functions** — `fn(x: Expression)` where `Expression` is a union emits the TS type name literally. Keep union-typed parameters in class methods.
 
+## Static Members
+
+- **Static methods** emit as namespaced standalone functions: `@_cs_ClassName_methodName(params...)` — no `%this` parameter. Dispatched in `class-dispatch.ts` when the object is a class name variable.
+- **Static fields** emit as LLVM globals: `@_cs_ClassName_fieldName = global <type> <default>`. Excluded from the instance struct layout. Accessed via `member.ts` when the object matches a known class name.
+- Parser detects `StaticKeyword` in `declarations.ts` and sets `isStatic: true` on `ClassMethod`/`ClassField`.
+
 ## Async/Await Type Tracking
 
 `allocateAwaitResult` in `variable-allocator.ts` must inspect the awaited expression to determine the correct SymbolKind. Default is `i8*`/string, but `Promise.all()` resolves to `%ObjectArray*`. For each new async API that resolves to a specific type, add a detection case to `allocateAwaitResult`.

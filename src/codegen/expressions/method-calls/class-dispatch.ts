@@ -22,7 +22,7 @@ type ClassNode = {
   name: string;
   extends?: string;
   implements?: string[];
-  methods: { name: string; isConstructor?: boolean }[];
+  methods: { name: string; isConstructor?: boolean; isStatic?: boolean }[];
 };
 type FunctionNode = {
   name: string;
@@ -445,6 +445,15 @@ export function handleClassMethods(
   let instancePtr: string | null = null;
 
   const exprObjBase = expr.object as ExprBase;
+
+  // Static method dispatch: ClassName.staticMethod() — the object is the class name itself
+  if (exprObjBase.type === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    if (ctx.classGenIsStaticMethod(varName, method)) {
+      return ctx.classGenGenerateStaticMethodCall(varName, method, expr.args, params);
+    }
+  }
+
   if (exprObjBase.type === "variable") {
     const varName = (expr.object as VariableNode).name;
     if (ctx.symbolTable.isClass(varName)) {

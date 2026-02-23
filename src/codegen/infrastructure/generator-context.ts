@@ -833,6 +833,15 @@ export interface IGeneratorContext {
     args: Expression[],
     params: string[],
   ): string;
+  classGenGenerateStaticMethodCall(
+    className: string,
+    method: string,
+    args: Expression[],
+    params: string[],
+  ): string;
+  classGenIsStaticMethod(className: string, methodName: string): boolean;
+  classGenIsStaticField(className: string, fieldName: string): boolean;
+  classGenGetStaticFieldType(className: string, fieldName: string): string;
 
   /**
    * TypeResolver delegate methods (avoid chained field access in native code)
@@ -1697,6 +1706,23 @@ export class MockGeneratorContext implements IGeneratorContext {
     _params: string[],
   ): string {
     return "%mock_method_result";
+  }
+  classGenGenerateStaticMethodCall(
+    _className: string,
+    _method: string,
+    _args: Expression[],
+    _params: string[],
+  ): string {
+    return "%mock_static_method_result";
+  }
+  classGenIsStaticMethod(_className: string, _methodName: string): boolean {
+    return false;
+  }
+  classGenIsStaticField(_className: string, _fieldName: string): boolean {
+    return false;
+  }
+  classGenGetStaticFieldType(_className: string, _fieldName: string): string {
+    return "double";
   }
 
   stringMapGen: IStringMapGenerator = {

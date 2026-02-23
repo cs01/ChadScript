@@ -417,6 +417,7 @@ export interface ClassMethod {
   returnType?: string;
   body: BlockStatement;
   isConstructor: boolean;
+  isStatic?: boolean;
 }
 
 export interface ClassField {
@@ -424,6 +425,7 @@ export interface ClassField {
   fieldType: "double" | "string" | "string[]" | "number[]" | "boolean[]" | "boolean"; // Primitive types and arrays
   tsType?: string; // Original TypeScript type (e.g., 'AST', 'Expression') for interface-typed fields
   initializer?: Expression;
+  isStatic?: boolean;
 }
 
 export interface ClassNode {

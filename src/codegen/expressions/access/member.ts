@@ -186,6 +186,9 @@ export interface MemberAccessGeneratorContext {
   setUsesJson(value: boolean): void;
   getTargetOS(): string;
   getTargetArch(): string;
+  classGenIsStaticField(className: string, fieldName: string): boolean;
+  classGenGetStaticFieldType(className: string, fieldName: string): string;
+  mangleUserName(name: string): string;
 }
 
 export type MemberAccessHandlerFn = (
@@ -243,6 +246,9 @@ export class MemberAccessGenerator {
     let result: string | null;
 
     result = this.handleEnumMemberAccess(expr);
+    if (result !== null) return result;
+
+    result = this.handleStaticFieldAccess(expr);
     if (result !== null) return result;
 
     result = this.handleTypedJsonStructAccess(expr);
@@ -605,6 +611,24 @@ export class MemberAccessGenerator {
     const formattedValue = valueStr.indexOf(".") === -1 ? valueStr + ".0" : valueStr;
     this.ctx.emit(`${result} = fadd fast double ${formattedValue}, 0.0`);
     this.ctx.setVariableType(result, "double");
+    return result;
+  }
+
+  // Static field access: ClassName.staticField → load from global @_cs_ClassName_fieldName
+  private handleStaticFieldAccess(expr: MemberAccessNode): string | null {
+    if (!expr.object) return null;
+    const exprObjBase = expr.object as ExprBase;
+    if (!exprObjBase || exprObjBase.type !== "variable") return null;
+
+    const className = (expr.object as VariableNode).name;
+    const fieldName = expr.property;
+    if (!this.ctx.classGenIsStaticField(className, fieldName)) return null;
+
+    const llvmType = this.ctx.classGenGetStaticFieldType(className, fieldName);
+    const globalName = `@${this.ctx.mangleUserName(className)}_${fieldName}`;
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = load ${llvmType}, ${llvmType}* ${globalName}`);
+    this.ctx.setVariableType(result, llvmType);
     return result;
   }
 

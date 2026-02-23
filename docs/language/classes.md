@@ -21,7 +21,7 @@ Classes and interfaces work like standard TypeScript with a few differences.
 | `extends` (single inheritance) | Supported |
 | `implements` | Supported |
 | Interface inheritance (`extends`) | Supported |
-| Static methods | Not yet supported |
+| Static methods and fields | Supported |
 | Abstract classes | Not yet supported |
 | Decorators | Not supported |
 

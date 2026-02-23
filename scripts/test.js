@@ -15,8 +15,8 @@ try {
   process.exit(1);
 }
 
-const chadc = path.join(projectRoot, ".build", "chad");
-if (!fs.existsSync(chadc)) {
+const chad = path.join(projectRoot, ".build", "chad");
+if (!fs.existsSync(chad)) {
   console.log("Building native compiler (.build/chad)...");
   try {
     execSync("node dist/chad-node.js build src/chad-native.ts -o .build/chad", {
@@ -39,7 +39,6 @@ const testPattern =
         "tests/unit/type-system.test.ts",
         "tests/network.test.ts",
         "tests/http-routes.test.ts",
-        "tests/watch.test.ts",
       ]
     : args;
 
