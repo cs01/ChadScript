@@ -474,7 +474,28 @@ export class JsonGenerator {
       return this.stringifyInterface(arg, params, interfaceType);
     }
 
-    return this.stringifyNumber(arg, params);
+    // Generate expression first to check its actual LLVM type.
+    // Untyped JSON.parse() returns i8* (opaque yyjson value) — stringify via yyjson
+    // instead of falling through to sprintf which expects double.
+    const value = this.ctx.generateExpression(arg, params);
+    const varType = this.ctx.getVariableType(value);
+    if (varType && varType.endsWith("*")) {
+      const result = this.ctx.emitCall("i8*", "@csyyjson_val_write", `i8* ${value}`);
+      this.ctx.setVariableType(result, "i8*");
+      return result;
+    }
+
+    // Numeric value — format with sprintf
+    const dblValue = this.ctx.ensureDouble(value);
+    const buffer = this.ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 30");
+    const formatStr = this.ctx.createStringConstant("%f");
+    // sprintf has variadic signature — keep as raw emit
+    const sprintfResult = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${dblValue})`,
+    );
+    this.ctx.setVariableType(buffer, "i8*");
+    return buffer;
   }
 
   private resolveInterfaceType(arg: Expression): string | null {
