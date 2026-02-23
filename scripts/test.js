@@ -39,6 +39,7 @@ const testPattern =
         "tests/unit/type-system.test.ts",
         "tests/network.test.ts",
         "tests/http-routes.test.ts",
+        "tests/watch.test.ts",
       ]
     : args;
 

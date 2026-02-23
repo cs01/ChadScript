@@ -1,6 +1,5 @@
 // watch-bridge.c — File watcher for `chad watch`.
-// Uses inotify on Linux for event-based file change detection (no polling).
-// Falls back to stat() polling on macOS/other platforms.
+// Uses inotify on Linux and kqueue on macOS for event-based file change detection.
 // Recompiles via system(), re-runs via fork/exec.
 
 #include <stdio.h>
@@ -8,13 +7,16 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <poll.h>
 
 #ifdef __linux__
 #include <sys/inotify.h>
-#include <poll.h>
+#elif defined(__APPLE__)
+#include <sys/event.h>
 #endif
 
 static volatile pid_t g_child_pid = 0;
@@ -37,7 +39,6 @@ static void stop_child(void) {
     }
 }
 
-// Reap child if it exited on its own (non-blocking).
 static void reap_child(void) {
     if (g_child_pid > 0) {
         int status;
@@ -78,6 +79,115 @@ static void compile_and_run(const char *compile_cmd, const char *source_file, co
     }
 }
 
+#ifdef __linux__
+// inotify-based watcher. Returns 0 on success, -1 to fall back to polling.
+static int watch_inotify(const char *compile_cmd, const char *source_file, const char *output_binary) {
+    int ifd = inotify_init();
+    if (ifd < 0) return -1;
+
+    int wd = inotify_add_watch(ifd, source_file, IN_MODIFY | IN_CLOSE_WRITE);
+    if (wd < 0) { close(ifd); return -1; }
+
+    char buf[4096];
+    struct pollfd pfd = { .fd = ifd, .events = POLLIN };
+
+    while (g_running) {
+        int ret = poll(&pfd, 1, 1000);
+        reap_child();
+        if (ret < 0) break;
+        if (ret == 0) continue;
+
+        ssize_t n = read(ifd, buf, sizeof(buf));
+        if (n <= 0) continue;
+
+        // 50ms debounce — editors often fire multiple events per save
+        usleep(50000);
+        struct pollfd drain_pfd = { .fd = ifd, .events = POLLIN };
+        while (poll(&drain_pfd, 1, 0) > 0) {
+            read(ifd, buf, sizeof(buf));
+        }
+
+        // Re-add watch — vim and other editors delete+recreate the file
+        inotify_rm_watch(ifd, wd);
+        wd = inotify_add_watch(ifd, source_file, IN_MODIFY | IN_CLOSE_WRITE);
+        if (wd < 0) {
+            usleep(100000); // file briefly gone during save
+            wd = inotify_add_watch(ifd, source_file, IN_MODIFY | IN_CLOSE_WRITE);
+            if (wd < 0) break;
+        }
+
+        compile_and_run(compile_cmd, source_file, output_binary);
+    }
+
+    close(ifd);
+    return 0;
+}
+#endif
+
+#ifdef __APPLE__
+// kqueue-based watcher. Returns 0 on success, -1 to fall back to polling.
+static int watch_kqueue(const char *compile_cmd, const char *source_file, const char *output_binary) {
+    int kq = kqueue();
+    if (kq < 0) return -1;
+
+    int fd = open(source_file, O_RDONLY);
+    if (fd < 0) { close(kq); return -1; }
+
+    struct kevent change;
+    EV_SET(&change, fd, EVFILT_VNODE, EV_ADD | EV_CLEAR,
+           NOTE_WRITE | NOTE_RENAME | NOTE_DELETE, 0, NULL);
+    if (kevent(kq, &change, 1, NULL, 0, NULL) < 0) {
+        close(fd); close(kq); return -1;
+    }
+
+    struct kevent event;
+    struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
+
+    while (g_running) {
+        int ret = kevent(kq, NULL, 0, &event, 1, &timeout);
+        reap_child();
+        if (ret < 0) break;
+        if (ret == 0) continue;
+
+        // 50ms debounce
+        usleep(50000);
+
+        // If file was deleted/renamed (vim save), re-open and re-register
+        if (event.fflags & (NOTE_DELETE | NOTE_RENAME)) {
+            close(fd);
+            usleep(50000); // wait for editor to finish writing
+            fd = open(source_file, O_RDONLY);
+            if (fd < 0) break;
+            EV_SET(&change, fd, EVFILT_VNODE, EV_ADD | EV_CLEAR,
+                   NOTE_WRITE | NOTE_RENAME | NOTE_DELETE, 0, NULL);
+            if (kevent(kq, &change, 1, NULL, 0, NULL) < 0) break;
+        }
+
+        compile_and_run(compile_cmd, source_file, output_binary);
+    }
+
+    close(fd);
+    close(kq);
+    return 0;
+}
+#endif
+
+// Polling fallback — used if inotify/kqueue fails or on unsupported platforms.
+static void watch_poll(const char *compile_cmd, const char *source_file, const char *output_binary) {
+    struct stat st;
+    time_t last_mtime = 0;
+    if (stat(source_file, &st) == 0) last_mtime = st.st_mtime;
+
+    while (g_running) {
+        reap_child();
+        usleep(500000);
+        if (stat(source_file, &st) != 0) continue;
+        if (st.st_mtime == last_mtime) continue;
+        last_mtime = st.st_mtime;
+        compile_and_run(compile_cmd, source_file, output_binary);
+    }
+}
+
 // Watches a source file for changes, recompiles and re-runs on modification.
 void cs_watch_loop(const char *chad_binary, const char *source_file, const char *output_binary) {
     signal(SIGINT, sigint_handler);
@@ -90,74 +200,17 @@ void cs_watch_loop(const char *chad_binary, const char *source_file, const char 
     // Initial compile + run
     compile_and_run(compile_cmd, source_file, output_binary);
 
+    // Use platform-native event API, fall back to polling
+    int used_native = 0;
 #ifdef __linux__
-    // Event-based watching via inotify — blocks until the file changes
-    int ifd = inotify_init();
-    if (ifd < 0) { perror("inotify_init"); goto fallback; }
-
-    int wd = inotify_add_watch(ifd, source_file, IN_MODIFY | IN_CLOSE_WRITE);
-    if (wd < 0) { perror("inotify_add_watch"); close(ifd); goto fallback; }
-
-    char buf[4096];
-    struct pollfd pfd = { .fd = ifd, .events = POLLIN };
-
-    while (g_running) {
-        // poll with 1s timeout so we can check g_running and reap children
-        int ret = poll(&pfd, 1, 1000);
-        reap_child();
-        if (ret < 0) break;   // error or signal
-        if (ret == 0) continue; // timeout, just reap and loop
-
-        // Drain all inotify events
-        ssize_t n = read(ifd, buf, sizeof(buf));
-        if (n <= 0) continue;
-
-        // Small debounce — editors often write multiple events (temp file, rename, etc.)
-        usleep(50000); // 50ms
-
-        // Drain any additional events that arrived during debounce
-        struct pollfd drain_pfd = { .fd = ifd, .events = POLLIN };
-        while (poll(&drain_pfd, 1, 0) > 0) {
-            read(ifd, buf, sizeof(buf));
-        }
-
-        // Re-add the watch — some editors (vim) delete+recreate the file
-        inotify_rm_watch(ifd, wd);
-        wd = inotify_add_watch(ifd, source_file, IN_MODIFY | IN_CLOSE_WRITE);
-        if (wd < 0) {
-            // File might be briefly gone during save, retry
-            usleep(100000);
-            wd = inotify_add_watch(ifd, source_file, IN_MODIFY | IN_CLOSE_WRITE);
-            if (wd < 0) { perror("inotify_add_watch"); break; }
-        }
-
-        compile_and_run(compile_cmd, source_file, output_binary);
+    used_native = (watch_inotify(compile_cmd, source_file, output_binary) == 0);
+#elif defined(__APPLE__)
+    used_native = (watch_kqueue(compile_cmd, source_file, output_binary) == 0);
+#endif
+    if (!used_native) {
+        watch_poll(compile_cmd, source_file, output_binary);
     }
 
-    close(ifd);
-    goto done;
-
-fallback:
-#endif
-    // Polling fallback for macOS / inotify failure
-    {
-        struct stat st;
-        time_t last_mtime = 0;
-        if (stat(source_file, &st) == 0) last_mtime = st.st_mtime;
-
-        while (g_running) {
-            reap_child();
-            usleep(500000);
-            if (stat(source_file, &st) != 0) continue;
-            if (st.st_mtime == last_mtime) continue;
-            last_mtime = st.st_mtime;
-            compile_and_run(compile_cmd, source_file, output_binary);
-        }
-    }
-
-#ifdef __linux__
-done:
-#endif
     stop_child();
     free(compile_cmd);
     printf("\n");
