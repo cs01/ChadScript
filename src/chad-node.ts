@@ -119,41 +119,71 @@ if (command === "watch") {
   if (!fs.existsSync(outputDir2)) {
     fs.mkdirSync(outputDir2, { recursive: true });
   }
-  let lastMtime = 0;
+
+  const EXCLUDED_DIRS = new Set([".build", "node_modules", "vendor", ".git", "dist"]);
+  // Build artifacts we should never trigger a rebuild for
+  const EXCLUDED_EXTS = new Set([".o", ".ll", ".bc", ".a", ".so", ".dylib"]);
+  const watchDir = path.dirname(path.resolve(watchFile));
+  // Collect -- args to pass through to the spawned binary
+  const dashIdx = args.indexOf("--");
+  const runArgs = dashIdx >= 0 ? args.slice(dashIdx + 1) : [];
+
   let childProc: ChildProcess | null = null;
-  const buildAndRun = () => {
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const killChild = () => {
     if (childProc) {
       childProc.kill("SIGTERM");
       childProc = null;
     }
-    console.log(`\n[watch] compiling ${watchFile}...`);
+  };
+
+  const buildAndRun = () => {
+    killChild();
+    console.log("\x1b[2J\x1b[H"); // clear screen
+    console.log(`[watch] compiling ${watchFile}...`);
     try {
       execSync(`${chadBin} build ${watchFile} -o ${outputBin}`, { stdio: "inherit" });
     } catch {
       console.log("[watch] compile failed, waiting for changes...");
       return;
     }
-    console.log(`[watch] running ${outputBin}`);
-    childProc = spawnProc(path.resolve(outputBin), [], { stdio: "inherit" });
+    console.log(`[watch] running ${outputBin}\n`);
+    childProc = spawnProc(path.resolve(outputBin), runArgs, { stdio: "inherit" });
     childProc.on("exit", () => {
       childProc = null;
     });
   };
-  buildAndRun();
-  fs.watchFile(watchFile, { interval: 500 }, (curr) => {
-    if (curr.mtimeMs !== lastMtime) {
-      lastMtime = curr.mtimeMs;
-      buildAndRun();
-    }
-  });
+
   process.on("SIGINT", () => {
-    if (childProc) childProc.kill("SIGTERM");
-    fs.unwatchFile(watchFile);
-    console.log("");
+    killChild();
+    console.log("\n[watch] stopped");
     process.exit(0);
   });
-  // Keep the process alive
-  setInterval(() => {}, 60000);
+
+  // Initial compile+run
+  buildAndRun();
+
+  // fs.watch with recursive:true uses inotify/kqueue under the hood —
+  // much more efficient than the old fs.watchFile polling approach
+  console.log(`[watch] watching ${watchDir}`);
+  fs.watch(watchDir, { recursive: true }, (_event, filename) => {
+    if (!filename) return;
+    // Skip excluded directories
+    const parts = filename.split(path.sep);
+    for (const part of parts) {
+      if (EXCLUDED_DIRS.has(part)) return;
+    }
+    // Skip build artifacts — rebuild on everything else (.ts, .js, .css, .html, etc.)
+    const ext = path.extname(filename);
+    if (EXCLUDED_EXTS.has(ext)) return;
+    // 50ms debounce — editors often fire multiple events per save
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      buildAndRun();
+    }, 50);
+  });
 }
 
 if (

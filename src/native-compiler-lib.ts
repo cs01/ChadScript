@@ -242,9 +242,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const cpBridgeObj = LWS_BRIDGE_PATH + "/child-process-bridge.o";
   // Always link os-bridge.o — platform-abstracted os.freemem()/os.uptime()
   const osBridgeObj = LWS_BRIDGE_PATH + "/os-bridge.o";
-  // Always link dotenv-bridge.o — auto-loads .env at startup
-  const dotenvBridgeObj = LWS_BRIDGE_PATH + "/dotenv-bridge.o";
-  // Always link watch-bridge.o — file watcher for `chad watch`
+  // Only link dotenv-bridge.o when available — auto-loads .env at startup
+  const dotenvBridgePath = LWS_BRIDGE_PATH + "/dotenv-bridge.o";
+  const dotenvBridgeObj = fs.existsSync(dotenvBridgePath) ? dotenvBridgePath : "";
+  // Always link watch-bridge.o — provides runtime for fs.watch() and chad watch
   const watchBridgeObj = LWS_BRIDGE_PATH + "/watch-bridge.o";
   // Async spawn bridge linked only when child_process.spawn() is used (requires libuv)
   const cpSpawnObj = generator.getUsesSpawn() ? LWS_BRIDGE_PATH + "/child-process-spawn.o" : "";

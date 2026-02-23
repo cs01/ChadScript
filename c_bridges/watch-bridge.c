@@ -1,217 +1,492 @@
-// watch-bridge.c — File watcher for `chad watch`.
-// Uses inotify on Linux and kqueue on macOS for event-based file change detection.
-// Recompiles via system(), re-runs via fork/exec.
+// watch-bridge.c — Directory-tree file watcher for `chad watch`.
+// Provides cs_watch_loop(chad_binary, source_file, output_binary) which
+// watches the directory tree rooted at dirname(source_file) for file changes,
+// then recompiles and reruns on each change.
+//
+// Three backends: inotify (Linux), kqueue (macOS), poll (fallback).
+// Watches all file types (so embedded .css, .html, .json etc. trigger rebuilds)
+// but skips build artifacts (.o, .ll, .bc) and excluded dirs (.build, etc.).
+// 50ms debounce prevents rapid re-triggers.
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <signal.h>
-#include <fcntl.h>
-#include <sys/stat.h>
+#include <unistd.h>
+#include <sys/types.h>
 #include <sys/wait.h>
-#include <time.h>
-#include <poll.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <dirent.h>
+#include <libgen.h>
+#include <limits.h>
+#include <errno.h>
 
-#ifdef __linux__
-#include <sys/inotify.h>
-#elif defined(__APPLE__)
-#include <sys/event.h>
-#endif
+// --- Shared helpers ---
 
-static volatile pid_t g_child_pid = 0;
-static volatile int g_running = 1;
+static int is_excluded_dir(const char *name) {
+    return (strcmp(name, ".build") == 0 ||
+            strcmp(name, "node_modules") == 0 ||
+            strcmp(name, "vendor") == 0 ||
+            strcmp(name, ".git") == 0 ||
+            strcmp(name, "dist") == 0);
+}
 
-static void sigint_handler(int sig) {
-    (void)sig;
-    g_running = 0;
-    if (g_child_pid > 0) {
-        kill(g_child_pid, SIGTERM);
+// Skip build artifacts — we want to rebuild on any source/asset change
+// (.ts, .js, .css, .html, .json, etc.) but not on compiler intermediates
+static int is_build_artifact(const char *name) {
+    size_t len = strlen(name);
+    if (len >= 2 && strcmp(name + len - 2, ".o") == 0) return 1;
+    if (len >= 3 && strcmp(name + len - 3, ".ll") == 0) return 1;
+    if (len >= 3 && strcmp(name + len - 3, ".bc") == 0) return 1;
+    if (len >= 2 && strcmp(name + len - 2, ".a") == 0) return 1;
+    if (len >= 3 && strcmp(name + len - 3, ".so") == 0) return 1;
+    if (len >= 6 && strcmp(name + len - 6, ".dylib") == 0) return 1;
+    return 0;
+}
+
+// Current child process PID (0 = none running)
+static volatile pid_t child_pid = 0;
+static volatile int watch_running = 1;
+
+static void kill_child(void) {
+    if (child_pid > 0) {
+        kill(child_pid, SIGTERM);
+        waitpid(child_pid, NULL, 0);
+        child_pid = 0;
     }
 }
 
-static void stop_child(void) {
-    if (g_child_pid > 0) {
-        kill(g_child_pid, SIGTERM);
-        int status;
-        waitpid(g_child_pid, &status, 0);
-        g_child_pid = 0;
-    }
-}
+// Compile and run: fork the output binary, track PID for cleanup
+static void compile_and_run(const char *chad_binary, const char *source_file,
+                            const char *output_binary) {
+    kill_child();
 
-static void reap_child(void) {
-    if (g_child_pid > 0) {
-        int status;
-        pid_t result = waitpid(g_child_pid, &status, WNOHANG);
-        if (result > 0) g_child_pid = 0;
-    }
-}
-
-static pid_t start_child(const char *binary) {
-    pid_t pid = fork();
-    if (pid < 0) { perror("fork"); return 0; }
-    if (pid == 0) {
-        execl(binary, binary, (char *)NULL);
-        perror("execl");
-        _exit(127);
-    }
-    return pid;
-}
-
-static void compile_and_run(const char *compile_cmd, const char *source_file, const char *output_binary) {
-    stop_child();
-    printf("\n[watch] compiling %s...\n", source_file);
+    printf("\033[2J\033[H");  // clear screen
+    printf("[watch] recompiling %s...\n", source_file);
     fflush(stdout);
 
-    int rc = system(compile_cmd);
-    if (rc != 0) {
-        printf("[watch] compile failed, waiting for changes...\n");
+    // Compile
+    pid_t pid = fork();
+    if (pid == 0) {
+        execl(chad_binary, chad_binary, "build", source_file, "-o", output_binary, NULL);
+        _exit(127);
+    }
+    int status;
+    waitpid(pid, &status, 0);
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        printf("[watch] compilation failed\n");
         fflush(stdout);
         return;
     }
 
-    printf("[watch] running %s\n", output_binary);
+    // Run
+    printf("[watch] running %s\n\n", output_binary);
     fflush(stdout);
-    g_child_pid = start_child(output_binary);
-    if (g_child_pid == 0) {
-        printf("[watch] failed to start process\n");
-        fflush(stdout);
+    pid = fork();
+    if (pid == 0) {
+        execl(output_binary, output_binary, NULL);
+        _exit(127);
     }
+    child_pid = pid;
 }
 
+// Returns current time in milliseconds (for debounce)
+static long long now_ms(void) {
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (long long)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+
+// ============================================================
+// Linux: inotify-based watcher
+// ============================================================
 #ifdef __linux__
-// inotify-based watcher. Returns 0 on success, -1 to fall back to polling.
-static int watch_inotify(const char *compile_cmd, const char *source_file, const char *output_binary) {
-    int ifd = inotify_init();
-    if (ifd < 0) return -1;
+#include <sys/inotify.h>
 
-    int wd = inotify_add_watch(ifd, source_file, IN_MODIFY | IN_CLOSE_WRITE);
-    if (wd < 0) { close(ifd); return -1; }
+#define MAX_WATCH_DIRS 512
 
-    char buf[4096];
-    struct pollfd pfd = { .fd = ifd, .events = POLLIN };
+// wd-to-path mapping so we can check filenames on events
+static struct {
+    int wd;
+    char path[PATH_MAX];
+} watch_dirs[MAX_WATCH_DIRS];
+static int watch_count = 0;
 
-    while (g_running) {
-        int ret = poll(&pfd, 1, 1000);
-        reap_child();
-        if (ret < 0) break;
-        if (ret == 0) continue;
+static int ifd = -1;
 
-        ssize_t n = read(ifd, buf, sizeof(buf));
-        if (n <= 0) continue;
+static void add_watch_dir(const char *dirpath) {
+    if (watch_count >= MAX_WATCH_DIRS) return;
+    int wd = inotify_add_watch(ifd, dirpath,
+                               IN_MODIFY | IN_CLOSE_WRITE | IN_CREATE);
+    if (wd < 0) return;
+    watch_dirs[watch_count].wd = wd;
+    strncpy(watch_dirs[watch_count].path, dirpath, PATH_MAX - 1);
+    watch_dirs[watch_count].path[PATH_MAX - 1] = '\0';
+    watch_count++;
+}
 
-        // 50ms debounce — editors often fire multiple events per save
-        usleep(50000);
-        struct pollfd drain_pfd = { .fd = ifd, .events = POLLIN };
-        while (poll(&drain_pfd, 1, 0) > 0) {
-            read(ifd, buf, sizeof(buf));
+// Recursively walk directory tree, adding inotify watches on each dir
+static void walk_and_watch(const char *dirpath) {
+    add_watch_dir(dirpath);
+
+    DIR *d = opendir(dirpath);
+    if (!d) return;
+    struct dirent *entry;
+    while ((entry = readdir(d)) != NULL) {
+        if (entry->d_name[0] == '.' &&
+            (entry->d_name[1] == '\0' ||
+             (entry->d_name[1] == '.' && entry->d_name[2] == '\0')))
+            continue;
+        if (entry->d_type == DT_DIR) {
+            if (is_excluded_dir(entry->d_name)) continue;
+            char subpath[PATH_MAX];
+            snprintf(subpath, sizeof(subpath), "%s/%s", dirpath, entry->d_name);
+            walk_and_watch(subpath);
+        }
+    }
+    closedir(d);
+}
+
+static void watch_inotify(const char *chad_binary, const char *source_file,
+                           const char *output_binary) {
+    // Derive watch root from source_file's directory
+    char src_copy[PATH_MAX];
+    strncpy(src_copy, source_file, PATH_MAX - 1);
+    src_copy[PATH_MAX - 1] = '\0';
+    const char *watch_root = dirname(src_copy);
+
+    ifd = inotify_init();
+    if (ifd < 0) {
+        perror("inotify_init");
+        return;
+    }
+
+    walk_and_watch(watch_root);
+    printf("[watch] watching %s (%d directories)\n", watch_root, watch_count);
+    fflush(stdout);
+
+    // Initial compile+run
+    compile_and_run(chad_binary, source_file, output_binary);
+
+    long long last_trigger = 0;
+    char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
+
+    for (;;) {
+        ssize_t len = read(ifd, buf, sizeof(buf));
+        if (len <= 0) break;
+
+        int should_rebuild = 0;
+        char *ptr = buf;
+        while (ptr < buf + len) {
+            struct inotify_event *event = (struct inotify_event *)ptr;
+
+            // New subdirectory created — add a watch on it
+            if ((event->mask & IN_CREATE) && (event->mask & IN_ISDIR)) {
+                if (event->len > 0 && !is_excluded_dir(event->name)) {
+                    // Find parent path from wd
+                    for (int i = 0; i < watch_count; i++) {
+                        if (watch_dirs[i].wd == event->wd) {
+                            char newdir[PATH_MAX];
+                            snprintf(newdir, sizeof(newdir), "%s/%s",
+                                     watch_dirs[i].path, event->name);
+                            walk_and_watch(newdir);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // File modified — rebuild unless it's a build artifact
+            if ((event->mask & (IN_MODIFY | IN_CLOSE_WRITE)) && event->len > 0) {
+                if (!is_build_artifact(event->name)) {
+                    should_rebuild = 1;
+                }
+            }
+
+            ptr += sizeof(struct inotify_event) + event->len;
         }
 
-        // Re-add watch — vim and other editors delete+recreate the file
-        inotify_rm_watch(ifd, wd);
-        wd = inotify_add_watch(ifd, source_file, IN_MODIFY | IN_CLOSE_WRITE);
-        if (wd < 0) {
-            usleep(100000); // file briefly gone during save
-            wd = inotify_add_watch(ifd, source_file, IN_MODIFY | IN_CLOSE_WRITE);
-            if (wd < 0) break;
+        if (should_rebuild) {
+            long long now = now_ms();
+            if (now - last_trigger >= 50) {  // 50ms debounce
+                last_trigger = now;
+                compile_and_run(chad_binary, source_file, output_binary);
+            }
         }
-
-        compile_and_run(compile_cmd, source_file, output_binary);
     }
 
     close(ifd);
-    return 0;
 }
-#endif
 
+#endif // __linux__
+
+
+// ============================================================
+// macOS: kqueue-based watcher
+// ============================================================
 #ifdef __APPLE__
-// kqueue-based watcher. Returns 0 on success, -1 to fall back to polling.
-static int watch_kqueue(const char *compile_cmd, const char *source_file, const char *output_binary) {
-    int kq = kqueue();
-    if (kq < 0) return -1;
+#include <sys/event.h>
+#include <fcntl.h>
 
-    int fd = open(source_file, O_RDONLY);
-    if (fd < 0) { close(kq); return -1; }
+#define MAX_WATCH_DIRS 512
 
-    struct kevent change;
-    EV_SET(&change, fd, EVFILT_VNODE, EV_ADD | EV_CLEAR,
-           NOTE_WRITE | NOTE_RENAME | NOTE_DELETE, 0, NULL);
-    if (kevent(kq, &change, 1, NULL, 0, NULL) < 0) {
-        close(fd); close(kq); return -1;
+static struct {
+    int fd;
+    char path[PATH_MAX];
+} kq_dirs[MAX_WATCH_DIRS];
+static int kq_count = 0;
+
+static int kqfd = -1;
+
+static void add_kq_dir(const char *dirpath) {
+    if (kq_count >= MAX_WATCH_DIRS) return;
+    int fd = open(dirpath, O_RDONLY | O_DIRECTORY);
+    if (fd < 0) return;
+
+    struct kevent ev;
+    EV_SET(&ev, fd, EVFILT_VNODE, EV_ADD | EV_CLEAR,
+           NOTE_WRITE | NOTE_EXTEND, 0, NULL);
+    if (kevent(kqfd, &ev, 1, NULL, 0, NULL) < 0) {
+        close(fd);
+        return;
     }
 
-    struct kevent event;
-    struct timespec timeout = { .tv_sec = 1, .tv_nsec = 0 };
+    kq_dirs[kq_count].fd = fd;
+    strncpy(kq_dirs[kq_count].path, dirpath, PATH_MAX - 1);
+    kq_dirs[kq_count].path[PATH_MAX - 1] = '\0';
+    kq_count++;
+}
 
-    while (g_running) {
-        int ret = kevent(kq, NULL, 0, &event, 1, &timeout);
-        reap_child();
-        if (ret < 0) break;
-        if (ret == 0) continue;
+static void walk_and_watch_kq(const char *dirpath) {
+    add_kq_dir(dirpath);
 
-        // 50ms debounce
-        usleep(50000);
+    DIR *d = opendir(dirpath);
+    if (!d) return;
+    struct dirent *entry;
+    while ((entry = readdir(d)) != NULL) {
+        if (entry->d_name[0] == '.' &&
+            (entry->d_name[1] == '\0' ||
+             (entry->d_name[1] == '.' && entry->d_name[2] == '\0')))
+            continue;
+        if (entry->d_type == DT_DIR) {
+            if (is_excluded_dir(entry->d_name)) continue;
+            char subpath[PATH_MAX];
+            snprintf(subpath, sizeof(subpath), "%s/%s", dirpath, entry->d_name);
+            walk_and_watch_kq(subpath);
+        }
+    }
+    closedir(d);
+}
 
-        // If file was deleted/renamed (vim save), re-open and re-register
-        if (event.fflags & (NOTE_DELETE | NOTE_RENAME)) {
-            close(fd);
-            usleep(50000); // wait for editor to finish writing
-            fd = open(source_file, O_RDONLY);
-            if (fd < 0) break;
-            EV_SET(&change, fd, EVFILT_VNODE, EV_ADD | EV_CLEAR,
-                   NOTE_WRITE | NOTE_RENAME | NOTE_DELETE, 0, NULL);
-            if (kevent(kq, &change, 1, NULL, 0, NULL) < 0) break;
+// Scan a directory for non-artifact files to detect which changed
+// (kqueue only tells us the directory changed, not which file)
+static int dir_has_source_change(const char *dirpath) {
+    DIR *d = opendir(dirpath);
+    if (!d) return 0;
+    struct dirent *entry;
+    while ((entry = readdir(d)) != NULL) {
+        if (entry->d_type == DT_REG && !is_build_artifact(entry->d_name)) {
+            closedir(d);
+            return 1;
+        }
+    }
+    closedir(d);
+    return 0;
+}
+
+static void watch_kqueue(const char *chad_binary, const char *source_file,
+                          const char *output_binary) {
+    char src_copy[PATH_MAX];
+    strncpy(src_copy, source_file, PATH_MAX - 1);
+    src_copy[PATH_MAX - 1] = '\0';
+    const char *watch_root = dirname(src_copy);
+
+    kqfd = kqueue();
+    if (kqfd < 0) {
+        perror("kqueue");
+        return;
+    }
+
+    walk_and_watch_kq(watch_root);
+    printf("[watch] watching %s (%d directories)\n", watch_root, kq_count);
+    fflush(stdout);
+
+    compile_and_run(chad_binary, source_file, output_binary);
+
+    long long last_trigger = 0;
+    struct kevent events[8];
+
+    for (;;) {
+        // 200ms timeout so we can periodically check for new dirs
+        struct timespec timeout = { 0, 200000000 };
+        int n = kevent(kqfd, NULL, 0, events, 8, &timeout);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            break;
         }
 
-        compile_and_run(compile_cmd, source_file, output_binary);
+        int should_rebuild = 0;
+        for (int i = 0; i < n; i++) {
+            int fd = (int)events[i].ident;
+            // Find which directory this fd belongs to
+            for (int j = 0; j < kq_count; j++) {
+                if (kq_dirs[j].fd == fd) {
+                    // Re-scan for new subdirs
+                    DIR *d = opendir(kq_dirs[j].path);
+                    if (d) {
+                        struct dirent *entry;
+                        while ((entry = readdir(d)) != NULL) {
+                            if (entry->d_type == DT_DIR &&
+                                entry->d_name[0] != '.' &&
+                                !is_excluded_dir(entry->d_name)) {
+                                char sub[PATH_MAX];
+                                snprintf(sub, sizeof(sub), "%s/%s",
+                                         kq_dirs[j].path, entry->d_name);
+                                // Check if already watched
+                                int found = 0;
+                                for (int k = 0; k < kq_count; k++) {
+                                    if (strcmp(kq_dirs[k].path, sub) == 0) {
+                                        found = 1;
+                                        break;
+                                    }
+                                }
+                                if (!found) add_kq_dir(sub);
+                            }
+                        }
+                        closedir(d);
+                    }
+                    if (dir_has_source_change(kq_dirs[j].path)) {
+                        should_rebuild = 1;
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (should_rebuild) {
+            long long now = now_ms();
+            if (now - last_trigger >= 50) {
+                last_trigger = now;
+                compile_and_run(chad_binary, source_file, output_binary);
+            }
+        }
     }
-
-    close(fd);
-    close(kq);
-    return 0;
 }
-#endif
 
-// Polling fallback — used if inotify/kqueue fails or on unsupported platforms.
-static void watch_poll(const char *compile_cmd, const char *source_file, const char *output_binary) {
-    struct stat st;
-    time_t last_mtime = 0;
-    if (stat(source_file, &st) == 0) last_mtime = st.st_mtime;
+#endif // __APPLE__
 
-    while (g_running) {
-        reap_child();
-        usleep(500000);
-        if (stat(source_file, &st) != 0) continue;
-        if (st.st_mtime == last_mtime) continue;
-        last_mtime = st.st_mtime;
-        compile_and_run(compile_cmd, source_file, output_binary);
+
+// ============================================================
+// Fallback: poll-based watcher (stat all source/asset files)
+// ============================================================
+
+#define MAX_POLL_FILES 2048
+
+static struct {
+    char path[PATH_MAX];
+    time_t mtime;
+} poll_files[MAX_POLL_FILES];
+static int poll_count = 0;
+
+static void walk_and_stat(const char *dirpath) {
+    DIR *d = opendir(dirpath);
+    if (!d) return;
+    struct dirent *entry;
+    while ((entry = readdir(d)) != NULL) {
+        if (entry->d_name[0] == '.' &&
+            (entry->d_name[1] == '\0' ||
+             (entry->d_name[1] == '.' && entry->d_name[2] == '\0')))
+            continue;
+
+        char fullpath[PATH_MAX];
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", dirpath, entry->d_name);
+
+        struct stat st;
+        if (stat(fullpath, &st) != 0) continue;
+
+        if (S_ISDIR(st.st_mode)) {
+            if (!is_excluded_dir(entry->d_name)) {
+                walk_and_stat(fullpath);
+            }
+        } else if (S_ISREG(st.st_mode) && !is_build_artifact(entry->d_name)) {
+            if (poll_count < MAX_POLL_FILES) {
+                strncpy(poll_files[poll_count].path, fullpath, PATH_MAX - 1);
+                poll_files[poll_count].path[PATH_MAX - 1] = '\0';
+                poll_files[poll_count].mtime = st.st_mtime;
+                poll_count++;
+            }
+        }
+    }
+    closedir(d);
+}
+
+static void watch_poll(const char *chad_binary, const char *source_file,
+                        const char *output_binary) {
+    char src_copy[PATH_MAX];
+    strncpy(src_copy, source_file, PATH_MAX - 1);
+    src_copy[PATH_MAX - 1] = '\0';
+    const char *watch_root = dirname(src_copy);
+
+    walk_and_stat(watch_root);
+    printf("[watch] watching %s (%d files, poll mode)\n", watch_root, poll_count);
+    fflush(stdout);
+
+    compile_and_run(chad_binary, source_file, output_binary);
+
+    for (;;) {
+        usleep(500000);  // 500ms poll interval
+
+        int changed = 0;
+        for (int i = 0; i < poll_count; i++) {
+            struct stat st;
+            if (stat(poll_files[i].path, &st) == 0 &&
+                st.st_mtime != poll_files[i].mtime) {
+                poll_files[i].mtime = st.st_mtime;
+                changed = 1;
+            }
+        }
+
+        // Also re-scan for new files periodically
+        if (!changed) {
+            int old_count = poll_count;
+            poll_count = 0;
+            walk_and_stat(watch_root);
+            if (poll_count != old_count) {
+                // New files appeared, but don't rebuild unless content changed
+            }
+        }
+
+        if (changed) {
+            compile_and_run(chad_binary, source_file, output_binary);
+        }
     }
 }
 
-// Watches a source file for changes, recompiles and re-runs on modification.
-void cs_watch_loop(const char *chad_binary, const char *source_file, const char *output_binary) {
+
+// ============================================================
+// Public API — cs_watch_loop
+// ============================================================
+
+static void sigint_handler(int sig) {
+    (void)sig;
+    watch_running = 0;
+    kill_child();
+    printf("\n[watch] stopped\n");
+    _exit(0);
+}
+
+void cs_watch_loop(const char *chad_binary, const char *source_file,
+                   const char *output_binary) {
     signal(SIGINT, sigint_handler);
     signal(SIGTERM, sigint_handler);
 
-    size_t cmd_len = strlen(chad_binary) + strlen(source_file) + strlen(output_binary) + 32;
-    char *compile_cmd = (char *)malloc(cmd_len);
-    snprintf(compile_cmd, cmd_len, "%s build %s -o %s", chad_binary, source_file, output_binary);
-
-    // Initial compile + run
-    compile_and_run(compile_cmd, source_file, output_binary);
-
-    // Use platform-native event API, fall back to polling
-    int used_native = 0;
 #ifdef __linux__
-    used_native = (watch_inotify(compile_cmd, source_file, output_binary) == 0);
+    watch_inotify(chad_binary, source_file, output_binary);
 #elif defined(__APPLE__)
-    used_native = (watch_kqueue(compile_cmd, source_file, output_binary) == 0);
+    watch_kqueue(chad_binary, source_file, output_binary);
+#else
+    watch_poll(chad_binary, source_file, output_binary);
 #endif
-    if (!used_native) {
-        watch_poll(compile_cmd, source_file, output_binary);
-    }
-
-    stop_child();
-    free(compile_cmd);
-    printf("\n");
 }
