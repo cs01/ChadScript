@@ -4,9 +4,10 @@ import {
   setEmitLLVMOnly,
   setTargetCpu,
   setTargetTriple,
+  setVerbose,
 } from "./native-compiler-lib.js";
 import { getDtsContent } from "./codegen/stdlib/embedded-dts.js";
-import { ArgumentParser } from "../lib/argparse.js";
+import { ArgumentParser } from "./argparse.js";
 
 declare const fs: {
   existsSync(filename: string): boolean;
@@ -53,7 +54,7 @@ parser.addScopedFlag("skip-semantic-analysis", "", "Skip semantic analysis", "bu
 parser.addScopedOption(
   "target",
   "",
-  "Cross-compile for target (e.g., linux-x64, macos-arm64)",
+  "Cross-compile for target (only linux-x64 supported)",
   "",
   "build,run,ir",
 );
@@ -146,19 +147,29 @@ if (command.length === 0) {
   process.exit(0);
 }
 
+if (parser.getFlag("verbose")) {
+  setVerbose(true);
+}
+
 if (parser.getFlag("skip-semantic-analysis")) {
   setSkipSemanticAnalysis(true);
 }
 
-// Cross-compilation target: resolve short name to LLVM triple
+// Cross-compilation: only linux-x64 for build/run (needs SDK + linker).
+// IR generation can target any platform since it only emits LLVM IR.
 const targetOpt = parser.getOption("target");
 if (targetOpt.length > 0) {
-  if (targetOpt !== "linux-x64") {
+  if (command !== "ir" && targetOpt !== "linux-x64") {
     console.log("chad: error: cross-compilation only supports 'linux-x64' as a target");
     process.exit(1);
     throw new Error("unreachable");
   }
-  setTargetTriple("x86_64-unknown-linux-gnu");
+  // Map short names to LLVM triples
+  let triple = targetOpt;
+  if (targetOpt === "linux-x64") triple = "x86_64-unknown-linux-gnu";
+  else if (targetOpt === "macos-arm64") triple = "aarch64-apple-darwin";
+  else if (targetOpt === "macos-x64") triple = "x86_64-apple-darwin";
+  setTargetTriple(triple);
 }
 
 const cpuOpt = parser.getOption("target-cpu");

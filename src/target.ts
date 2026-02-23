@@ -76,8 +76,7 @@ export function resolveTarget(target: string): TargetInfo {
     "chad: error: unknown target '" +
       target +
       "'\n" +
-      "Cross-compilation currently only supports: linux-x64\n" +
-      "Example: chad build --target linux-x64 hello.ts",
+      "Supported targets: linux-x64, linux-arm64, macos-x64, macos-arm64",
   );
 }
 
