@@ -1873,9 +1873,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           kind = SymbolKind.String;
           defaultValue = "null";
         } else if (isStringArray) {
-          llvmType = "%StringArray";
+          llvmType = "%StringArray*";
           kind = SymbolKind.StringArray;
-          defaultValue = "zeroinitializer";
+          defaultValue = "null";
         } else if (isObjectArray) {
           let elementType = "";
           if (stmt.declaredType) {
@@ -1905,9 +1905,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           }
           continue;
         } else if (isArray) {
-          llvmType = "%Array";
+          llvmType = "%Array*";
           kind = SymbolKind.Array;
-          defaultValue = "zeroinitializer";
+          defaultValue = "null";
         } else if (isObject) {
           llvmType = "i8*";
           kind = SymbolKind.Object;
@@ -1939,9 +1939,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             }
           }
           if (isStringMap) {
-            llvmType = "%StringMap";
+            llvmType = "%StringMap*";
             kind = SymbolKind.Map;
-            defaultValue = "zeroinitializer";
+            defaultValue = "null";
             ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
             this.defineVariableWithMetadata(
@@ -1959,9 +1959,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             );
             continue;
           }
-          llvmType = "%Map";
+          llvmType = "%Map*";
           kind = SymbolKind.Map;
-          defaultValue = "zeroinitializer";
+          defaultValue = "null";
         } else if (isSet) {
           let isStringSet = false;
           if (stmt.declaredType) {
@@ -1976,9 +1976,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             }
           }
           if (isStringSet) {
-            llvmType = "%StringSet";
+            llvmType = "%StringSet*";
             kind = SymbolKind.Set;
-            defaultValue = "zeroinitializer";
+            defaultValue = "null";
             ir += `@${name} = global ${llvmType} ${defaultValue}` + "\n";
             this.globalVariables.set(name, { llvmType, kind, initialized: false });
             this.defineVariableWithMetadata(
@@ -1994,9 +1994,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             );
             continue;
           }
-          llvmType = "%Set";
+          llvmType = "%Set*";
           kind = SymbolKind.Set;
-          defaultValue = "zeroinitializer";
+          defaultValue = "null";
         } else if (isRegex) {
           llvmType = "i8*";
           kind = SymbolKind.Regex;
@@ -2194,9 +2194,21 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               }
             }
             if (llvmType === "") {
-              llvmType = "double";
-              kind = SymbolKind.Number;
-              defaultValue = "0.0";
+              const exprNodeType = stmt.value ? (stmt.value as { type: string }).type : "";
+              // Number literals are the only unclassified expressions that should default to double.
+              // Everything else is a type inference gap — error so we fix the classifier.
+              if (exprNodeType === "number") {
+                llvmType = "double";
+                kind = SymbolKind.Number;
+                defaultValue = "0.0";
+              } else {
+                const loc = stmt.value ? (stmt.value as { loc?: SourceLocation }).loc : undefined;
+                return this.emitError(
+                  `cannot determine type of module-scope variable '${name}' (expression type: ${exprNodeType || "unknown"}). ` +
+                    `Move the declaration inside a function, or add a type annotation`,
+                  loc,
+                );
+              }
             }
           }
         }
