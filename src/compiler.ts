@@ -33,6 +33,16 @@ function findLLVMTool(name: string): string {
   );
 }
 
+// Find lld for cross-linking. Homebrew LLVM installs "lld" (multicall) but may
+// not create the "ld.lld" symlink. Try the ELF-specific name first, then fall back.
+function findLLD(): string {
+  try {
+    return findLLVMTool("ld.lld");
+  } catch {
+    return findLLVMTool("lld");
+  }
+}
+
 let skipSemanticAnalysis = false;
 let keepTemps = false;
 let emitLLVMOnly = false;
@@ -413,8 +423,9 @@ export function compile(
   const crossTarget = crossCompiling ? ` --target=${target.triple}` : "";
   // Cross-compiling requires lld (LLVM's linker) — the host linker (e.g. macOS ld)
   // can't produce binaries for a different platform. Use the full path because
-  // Homebrew's clang can't find ld.lld by short name on macOS CI runners.
-  const crossLinker = crossCompiling ? ` -fuse-ld=${findLLVMTool("ld.lld")}` : "";
+  // Homebrew's clang can't find lld by short name on macOS CI runners.
+  // Try ld.lld first (ELF-specific), fall back to lld (multicall binary, auto-detects format).
+  const crossLinker = crossCompiling ? ` -fuse-ld=${findLLD()}` : "";
   const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";

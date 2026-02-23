@@ -47,6 +47,21 @@ function findLLVMTool(name: string): string {
   return name;
 }
 
+// Find lld for cross-linking. Homebrew LLVM installs "lld" (multicall) but may
+// not create the "ld.lld" symlink. Try the ELF-specific name first, then fall back.
+function findLLD(): string {
+  // findLLVMTool returns bare name if not found in Homebrew paths (no throw),
+  // so check existence explicitly
+  const candidates = ["ld.lld", "lld"];
+  for (const name of candidates) {
+    const path = findLLVMTool(name);
+    if (path !== name || fs.existsSync(name)) {
+      return path;
+    }
+  }
+  return "lld";
+}
+
 export let skipSemanticAnalysis = false;
 export let emitLLVMOnly = false;
 export let verbose = false;
@@ -409,8 +424,9 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const staticFlag = shouldStatic ? " -static" : "";
   const crossTargetFlag = crossCompiling ? " --target=" + targetTriple : "";
   // Cross-compiling requires lld — the host linker can't produce foreign binaries.
-  // Use full path because Homebrew clang can't find ld.lld by short name.
-  const crossLinker = crossCompiling ? " -fuse-ld=" + findLLVMTool("ld.lld") : "";
+  // Use full path because Homebrew clang can't find lld by short name.
+  // Try ld.lld first (ELF-specific), fall back to lld (multicall binary, auto-detects format).
+  const crossLinker = crossCompiling ? " -fuse-ld=" + findLLD() : "";
 
   const linkCmd =
     clangTool +
