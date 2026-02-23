@@ -8,7 +8,7 @@ import { SemanticAnalyzer, TypedSymbol } from "./analysis/semantic-analyzer.js";
 import { AST } from "./ast/types.js";
 import { LogLevel, logger } from "./utils/logger.js";
 import { TargetInfo, resolveTarget, getHostTarget, isCrossCompiling } from "./target.js";
-import { loadTargetSDK, TargetSDK } from "./cross-compile.js";
+import { loadTargetSDK, ensureTargetSDK, TargetSDK } from "./cross-compile.js";
 
 function findLLVMTool(name: string): string {
   const candidates = [
@@ -302,7 +302,7 @@ export function compile(
 
   let sdk: TargetSDK | null = null;
   if (crossCompiling) {
-    sdk = loadTargetSDK(target);
+    sdk = ensureTargetSDK(target);
     logger.info(`Using target SDK: ${sdk.root}`);
   }
 

@@ -18,6 +18,7 @@ import {
   getSDKDownloadURL,
   listInstalledSDKs,
   hasTargetSDK,
+  installTargetSDK,
 } from "./cross-compile.js";
 import { getHostTarget, resolveTarget, targetName } from "./target.js";
 import * as path from "path";
@@ -89,43 +90,12 @@ function handleTargetCommand(targetArgs: string[]): void {
       return;
     }
 
-    const url = getSDKDownloadURL(name);
-    console.log(`Downloading target SDK: ${name}`);
-    console.log(`  from: ${url}`);
-
-    // Download and extract
-    const tmpFile = path.join(os.tmpdir(), `chadscript-target-${name}.tar.gz`);
     try {
-      execSync(`curl -fSL "${url}" -o "${tmpFile}"`, { stdio: "inherit" });
-    } catch {
-      console.error(`chad: error: failed to download SDK from ${url}`);
-      console.error("Check your internet connection or verify the release exists.");
+      installTargetSDK(name);
+    } catch (e: any) {
+      console.error(e.message);
       process.exit(1);
     }
-
-    fs.mkdirSync(sdkDir, { recursive: true });
-    try {
-      execSync(`tar -xzf "${tmpFile}" -C "${sdkDir}"`, { stdio: "inherit" });
-    } catch {
-      console.error("chad: error: failed to extract SDK tarball");
-      fs.rmSync(sdkDir, { recursive: true });
-      process.exit(1);
-    }
-
-    // Clean up temp file
-    try {
-      fs.unlinkSync(tmpFile);
-    } catch {
-      // ignore
-    }
-
-    if (!fs.existsSync(path.join(sdkDir, "sdk.json"))) {
-      console.error("chad: error: SDK tarball did not contain sdk.json");
-      fs.rmSync(sdkDir, { recursive: true });
-      process.exit(1);
-    }
-
-    console.log(`Target SDK '${name}' installed at ${sdkDir}`);
     return;
   }
 

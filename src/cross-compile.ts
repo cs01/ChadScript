@@ -4,6 +4,7 @@
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
+import { execSync } from "child_process";
 import { TargetInfo, targetName } from "./target.js";
 
 export interface TargetSDK {
@@ -86,4 +87,57 @@ export function listInstalledSDKs(): string[] {
 /** GitHub release URL for a target SDK tarball */
 export function getSDKDownloadURL(name: string): string {
   return `https://github.com/cs01/ChadScript/releases/download/latest/chadscript-target-${name}.tar.gz`;
+}
+
+/** Sync y/n prompt. Auto-yes in non-interactive (CI) environments. */
+function promptYesNo(question: string): boolean {
+  if (!process.stdin.isTTY) return true;
+  process.stderr.write(question);
+  const buf = Buffer.alloc(16);
+  const n = fs.readSync(0, buf, 0, 16, null);
+  const answer = buf.subarray(0, n).toString().trim().toLowerCase();
+  return answer !== "n" && answer !== "no";
+}
+
+/** Download and install a target SDK. */
+export function installTargetSDK(name: string): void {
+  const sdkDir = path.join(getSDKBaseDir(), name);
+  const url = getSDKDownloadURL(name);
+
+  fs.mkdirSync(sdkDir, { recursive: true });
+  console.error(`Downloading target SDK '${name}'...`);
+  try {
+    execSync(`curl -fsSL "${url}" | tar xzf - -C "${sdkDir}"`, {
+      stdio: ["pipe", "pipe", "inherit"],
+    });
+  } catch {
+    try {
+      fs.rmSync(sdkDir, { recursive: true });
+    } catch {}
+    throw new Error(`chad: error: failed to download target SDK '${name}'\nURL: ${url}`);
+  }
+
+  if (!fs.existsSync(path.join(sdkDir, "sdk.json"))) {
+    throw new Error(`chad: error: downloaded SDK '${name}' is invalid (missing sdk.json)`);
+  }
+  console.error(`Target SDK '${name}' installed to ${sdkDir}`);
+}
+
+/**
+ * Load a target SDK, prompting to download if missing.
+ * Auto-yes in non-interactive environments (CI).
+ */
+export function ensureTargetSDK(target: TargetInfo): TargetSDK {
+  if (hasTargetSDK(target)) {
+    return loadTargetSDK(target);
+  }
+
+  const name = targetName(target);
+  const ok = promptYesNo(`Target SDK '${name}' is not installed. Download it? [Y/n] `);
+  if (!ok) {
+    throw new Error(`chad: error: target SDK '${name}' required for cross-compilation`);
+  }
+
+  installTargetSDK(name);
+  return loadTargetSDK(target);
 }
