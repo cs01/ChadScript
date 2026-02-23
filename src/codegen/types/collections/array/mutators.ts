@@ -1,18 +1,8 @@
 import { Expression, MethodCallNode, VariableNode } from "../../../../ast/types.js";
+import { IGeneratorContext } from "./context.js";
 
 interface ExprBase {
   type: string;
-}
-
-interface ArrayMutatorContext {
-  nextTemp(): string;
-  nextLabel(prefix: string): string;
-  emit(instruction: string): void;
-  getVariableType(name: string): string | undefined;
-  setVariableType(name: string, type: string): void;
-  getDoubleSize(): string;
-  generateExpression(expr: Expression, params: string[]): string;
-  ensureDouble(value: string): string;
 }
 
 /**
@@ -20,7 +10,7 @@ interface ArrayMutatorContext {
  */
 
 export function generateArrayPush(
-  gen: ArrayMutatorContext,
+  gen: IGeneratorContext,
   expr: MethodCallNode,
   params: string[],
 ): string {
@@ -70,7 +60,7 @@ export function generateArrayPush(
 }
 
 export function generateArrayPop(
-  gen: ArrayMutatorContext,
+  gen: IGeneratorContext,
   expr: MethodCallNode,
   params: string[],
 ): string {
@@ -107,7 +97,7 @@ export function generateArrayPop(
   }
 }
 
-function generateIntArrayPop(gen: ArrayMutatorContext, arrayPtr: string): string {
+function generateIntArrayPop(gen: IGeneratorContext, arrayPtr: string): string {
   // Pop from %Array (int/boolean array)
 
   // Load current length
@@ -162,7 +152,7 @@ function generateIntArrayPop(gen: ArrayMutatorContext, arrayPtr: string): string
   return result;
 }
 
-function generateStringArrayPop(gen: ArrayMutatorContext, arrayPtr: string): string {
+function generateStringArrayPop(gen: IGeneratorContext, arrayPtr: string): string {
   // Pop from %StringArray (string array)
 
   // Load current length
@@ -227,7 +217,7 @@ function generateStringArrayPop(gen: ArrayMutatorContext, arrayPtr: string): str
   return result;
 }
 
-function generatePointerArrayPop(gen: ArrayMutatorContext, arrayPtr: string): string {
+function generatePointerArrayPop(gen: IGeneratorContext, arrayPtr: string): string {
   const castPtr = gen.nextTemp();
   gen.emit(`${castPtr} = bitcast i8* ${arrayPtr} to %Array*`);
 
@@ -281,7 +271,7 @@ function generatePointerArrayPop(gen: ArrayMutatorContext, arrayPtr: string): st
   return result;
 }
 
-function generateIntArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value: string): string {
+function generateIntArrayPush(gen: IGeneratorContext, arrayPtr: string, value: string): string {
   // Push to %Array (int/boolean array)
 
   // Load current length
@@ -381,11 +371,7 @@ function generateIntArrayPush(gen: ArrayMutatorContext, arrayPtr: string, value:
   return newLenDouble;
 }
 
-function generateStringArrayPush(
-  gen: ArrayMutatorContext,
-  arrayPtr: string,
-  value: string,
-): string {
+function generateStringArrayPush(gen: IGeneratorContext, arrayPtr: string, value: string): string {
   // Push to %StringArray (string array)
 
   // Load current length
@@ -491,7 +477,7 @@ function generateStringArrayPush(
 }
 
 function generatePointerArrayPush(
-  gen: ArrayMutatorContext,
+  gen: IGeneratorContext,
   arrayPtr: string,
   value: string,
   valueType: string,
@@ -584,7 +570,7 @@ function generatePointerArrayPush(
 }
 
 function generateObjectArrayPush(
-  gen: ArrayMutatorContext,
+  gen: IGeneratorContext,
   arrayPtr: string,
   value: string,
   valueType: string,
