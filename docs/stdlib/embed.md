@@ -39,6 +39,23 @@ const nested = ChadScript.getEmbeddedFile("images/logo.txt");
 
 Returns an empty string if the key is not found.
 
+## `ChadScript.serveEmbedded(path)`
+
+Return an `HttpResponse` for an embedded file. Strips the leading `/` from the path, looks up the file in the embedded table, and returns `{ status: 200, body: content, headers: "" }` if found or `{ status: 404, body: "Not Found", headers: "" }` if not.
+
+This eliminates per-file route boilerplate for serving static assets:
+
+```typescript
+ChadScript.embedDir("./public");
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  if (req.path.startsWith("/api/")) return handleApi(req);
+  return ChadScript.serveEmbedded(req.path);
+}
+
+httpServe(3000, handleRequest);
+```
+
 ## Example: HTTP Server with Embedded Files
 
 A common pattern is embedding HTML/CSS for a web server so the entire app is a single binary with no external file dependencies:
@@ -55,13 +72,26 @@ my-server/
 ChadScript.embedDir("./public");
 
 function handleRequest(req: HttpRequest): HttpResponse {
-  if (req.path === "/") {
-    return { status: 200, body: ChadScript.getEmbeddedFile("index.html") };
+  // Serve all embedded files with a single line
+  return ChadScript.serveEmbedded(req.path);
+}
+
+httpServe(3000, handleRequest);
+```
+
+Or with manual routing for more control:
+
+```typescript
+ChadScript.embedDir("./public");
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  if (req.path == "/") {
+    return { status: 200, body: ChadScript.getEmbeddedFile("index.html"), headers: "" };
   }
-  if (req.path === "/style.css") {
-    return { status: 200, body: ChadScript.getEmbeddedFile("style.css") };
+  if (req.path == "/style.css") {
+    return { status: 200, body: ChadScript.getEmbeddedFile("style.css"), headers: "Content-Type: text/css" };
   }
-  return { status: 404, body: "Not Found" };
+  return { status: 404, body: "Not Found", headers: "" };
 }
 
 httpServe(3000, handleRequest);
@@ -84,6 +114,7 @@ At compile time, the compiler reads the file(s) from disk and emits them as LLVM
 | `embedFile(path)` | Compile time | Reads file, returns contents as string |
 | `embedDir(path)` | Compile time | Recursively reads all files in directory |
 | `getEmbeddedFile(key)` | Runtime | Looks up embedded content by filename/path |
+| `serveEmbedded(path)` | Runtime | Returns HttpResponse for embedded file (200 or 404) |
 
 ## Notes
 

@@ -9,9 +9,9 @@ Start an HTTP server on the given port. The handler function receives an `HttpRe
 ```typescript
 function handleRequest(req: HttpRequest): HttpResponse {
   if (req.path == "/") {
-    return { status: 200, body: "Hello!" };
+    return { status: 200, body: "Hello!", headers: "" };
   }
-  return { status: 404, body: "Not Found" };
+  return { status: 404, body: "Not Found", headers: "" };
 }
 
 httpServe(3000, handleRequest);
@@ -56,6 +56,7 @@ wsBroadcast("hello everyone");
 | `path` | `string` | Request path (`"/"`, `"/api/users"`, etc.) |
 | `body` | `string` | Request body |
 | `contentType` | `string` | Content-Type header value |
+| `headers` | `string` | All request headers as `"Key: Value\n..."` string |
 
 ## HttpResponse Object
 
@@ -63,6 +64,9 @@ wsBroadcast("hello everyone");
 |----------|------|-------------|
 | `status` | `number` | HTTP status code |
 | `body` | `string` | Response body |
+| `headers` | `string` | Extra response headers as `"\n"`-separated lines (e.g. `"Set-Cookie: session=abc\nX-Custom: value"`) |
+
+If `headers` contains a `Content-Type:` line, it overrides the auto-sniffed content type. Set `headers` to `""` when no extra headers are needed.
 
 ## WsEvent Object
 
@@ -77,11 +81,11 @@ A full HTTP server with routing:
 
 ```typescript
 function homeHandler(req: HttpRequest): HttpResponse {
-  return { status: 200, body: "<h1>Hello from ChadScript</h1>" };
+  return { status: 200, body: "<h1>Hello from ChadScript</h1>", headers: "" };
 }
 
 function jsonHandler(req: HttpRequest): HttpResponse {
-  return { status: 200, body: '{"message":"hello","count":42}' };
+  return { status: 200, body: '{"message":"hello","count":42}', headers: "Content-Type: application/json" };
 }
 
 function handleRequest(req: HttpRequest): HttpResponse {
@@ -89,7 +93,7 @@ function handleRequest(req: HttpRequest): HttpResponse {
     if (req.path == "/") return homeHandler(req);
     if (req.path == "/json") return jsonHandler(req);
   }
-  return { status: 404, body: "Not Found" };
+  return { status: 404, body: "Not Found", headers: "" };
 }
 
 httpServe(3000, handleRequest);
@@ -117,11 +121,13 @@ interface HttpRequest {
   path: string;
   body: string;
   contentType: string;
+  headers: string;
 }
 
 interface HttpResponse {
   status: number;
   body: string;
+  headers: string;
 }
 
 function wsHandler(event: WsEvent): string {
@@ -133,7 +139,7 @@ function wsHandler(event: WsEvent): string {
 }
 
 function handleRequest(req: HttpRequest): HttpResponse {
-  return { status: 200, body: "<h1>WebSocket Chat</h1>" };
+  return { status: 200, body: "<h1>WebSocket Chat</h1>", headers: "" };
 }
 
 httpServe(8080, handleRequest, wsHandler);
@@ -145,6 +151,39 @@ $ ./chat &
 $ websocat ws://localhost:8080/
 > hello
 < echo: hello
+```
+
+## Response Headers Example
+
+Set cookies, CORS headers, or override Content-Type:
+
+```typescript
+function handleRequest(req: HttpRequest): HttpResponse {
+  if (req.path == "/api/data") {
+    return {
+      status: 200,
+      body: '{"ok":true}',
+      headers: "Content-Type: application/json\nSet-Cookie: session=abc; Path=/",
+    };
+  }
+  return { status: 404, body: "Not Found", headers: "" };
+}
+```
+
+Multiple headers are separated by `\n`. The server normalizes them to `\r\n` in the HTTP response.
+
+## Request Headers Example
+
+Access incoming request headers (e.g. for authentication):
+
+```typescript
+function handleRequest(req: HttpRequest): HttpResponse {
+  // req.headers contains all headers as "Key: Value\n..." string
+  if (req.headers.indexOf("Authorization:") >= 0) {
+    return { status: 200, body: "Authenticated", headers: "" };
+  }
+  return { status: 401, body: "Unauthorized", headers: "" };
+}
 ```
 
 ## Native Implementation
