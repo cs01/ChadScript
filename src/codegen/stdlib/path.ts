@@ -52,28 +52,25 @@ export class PathGenerator {
 
     const bufferSize = this.ctx.nextTemp();
     this.ctx.emit(`${bufferSize} = add i64 0, 4096`);
-    const buffer = this.ctx.nextTemp();
-    this.ctx.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
+    const buffer = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${bufferSize}`);
 
-    const resolvedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${resolvedPtr} = call i8* @realpath(i8* ${pathPtr}, i8* ${buffer})`);
+    const resolvedPtr = this.ctx.emitCall("i8*", "@realpath", `i8* ${pathPtr}, i8* ${buffer}`);
 
-    const isNull = this.ctx.nextTemp();
-    this.ctx.emit(`${isNull} = icmp eq i8* ${resolvedPtr}, null`);
+    const isNull = this.ctx.emitIcmp("eq", "i8*", resolvedPtr, "null");
 
     const successLabel = this.ctx.nextLabel("resolve_success");
     const failLabel = this.ctx.nextLabel("resolve_fail");
     const endLabel = this.ctx.nextLabel("resolve_end");
 
-    this.ctx.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
+    this.ctx.emitBrCond(isNull, failLabel, successLabel);
 
-    this.ctx.emit(`${successLabel}:`);
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitLabel(successLabel);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${failLabel}:`);
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitLabel(failLabel);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
     const result = this.ctx.nextTemp();
     this.ctx.emit(
       `${result} = phi i8* [ ${resolvedPtr}, %${successLabel} ], [ ${pathPtr}, %${failLabel} ]`,
@@ -95,18 +92,14 @@ export class PathGenerator {
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
 
     // dirname() modifies its argument, so we need to make a copy
-    const pathLen = this.ctx.nextTemp();
-    this.ctx.emit(`${pathLen} = call i64 @strlen(i8* ${pathPtr})`);
+    const pathLen = this.ctx.emitCall("i64", "@strlen", `i8* ${pathPtr}`);
     const copySize = this.ctx.nextTemp();
     this.ctx.emit(`${copySize} = add i64 ${pathLen}, 1`);
-    const pathCopy = this.ctx.nextTemp();
-    this.ctx.emit(`${pathCopy} = call i8* @GC_malloc_atomic(i64 ${copySize})`);
-    const copyResult = this.ctx.nextTemp();
-    this.ctx.emit(`${copyResult} = call i8* @strcpy(i8* ${pathCopy}, i8* ${pathPtr})`);
+    const pathCopy = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${copySize}`);
+    const copyResult = this.ctx.emitCall("i8*", "@strcpy", `i8* ${pathCopy}, i8* ${pathPtr}`);
 
     // Call dirname: dirname(pathCopy)
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @dirname(i8* ${pathCopy})`);
+    const result = this.ctx.emitCall("i8*", "@dirname", `i8* ${pathCopy}`);
 
     return result;
   }
@@ -118,26 +111,19 @@ export class PathGenerator {
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
 
-    const pathLen = this.ctx.nextTemp();
-    this.ctx.emit(`${pathLen} = call i64 @strlen(i8* ${pathPtr})`);
+    const pathLen = this.ctx.emitCall("i64", "@strlen", `i8* ${pathPtr}`);
     const copySize = this.ctx.nextTemp();
     this.ctx.emit(`${copySize} = add i64 ${pathLen}, 1`);
-    const pathCopy = this.ctx.nextTemp();
-    this.ctx.emit(`${pathCopy} = call i8* @GC_malloc_atomic(i64 ${copySize})`);
-    const copyResult = this.ctx.nextTemp();
-    this.ctx.emit(`${copyResult} = call i8* @strcpy(i8* ${pathCopy}, i8* ${pathPtr})`);
+    const pathCopy = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${copySize}`);
+    const copyResult = this.ctx.emitCall("i8*", "@strcpy", `i8* ${pathCopy}, i8* ${pathPtr}`);
 
-    const basenamePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${basenamePtr} = call i8* @basename(i8* ${pathCopy})`);
+    const basenamePtr = this.ctx.emitCall("i8*", "@basename", `i8* ${pathCopy}`);
 
-    const resultLen = this.ctx.nextTemp();
-    this.ctx.emit(`${resultLen} = call i64 @strlen(i8* ${basenamePtr})`);
+    const resultLen = this.ctx.emitCall("i64", "@strlen", `i8* ${basenamePtr}`);
     const resultSize = this.ctx.nextTemp();
     this.ctx.emit(`${resultSize} = add i64 ${resultLen}, 1`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @GC_malloc_atomic(i64 ${resultSize})`);
-    const strdupResult = this.ctx.nextTemp();
-    this.ctx.emit(`${strdupResult} = call i8* @strcpy(i8* ${result}, i8* ${basenamePtr})`);
+    const result = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${resultSize}`);
+    const strdupResult = this.ctx.emitCall("i8*", "@strcpy", `i8* ${result}, i8* ${basenamePtr}`);
     this.ctx.setVariableType(result, "i8*");
 
     return result;
@@ -168,28 +154,25 @@ export class PathGenerator {
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
 
-    const dotPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dotPtr} = call i8* @strrchr(i8* ${pathPtr}, i32 46)`);
+    const dotPtr = this.ctx.emitCall("i8*", "@strrchr", `i8* ${pathPtr}, i32 46`);
 
-    const isNull = this.ctx.nextTemp();
-    this.ctx.emit(`${isNull} = icmp eq i8* ${dotPtr}, null`);
+    const isNull = this.ctx.emitIcmp("eq", "i8*", dotPtr, "null");
 
     const hasDotLabel = this.ctx.nextLabel("extname_has_dot");
     const noDotLabel = this.ctx.nextLabel("extname_no_dot");
     const endLabel = this.ctx.nextLabel("extname_end");
 
-    this.ctx.emit(`br i1 ${isNull}, label %${noDotLabel}, label %${hasDotLabel}`);
+    this.ctx.emitBrCond(isNull, noDotLabel, hasDotLabel);
 
-    this.ctx.emit(`${noDotLabel}:`);
+    this.ctx.emitLabel(noDotLabel);
     const emptyStr = this.ctx.createStringConstant("");
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${hasDotLabel}:`);
-    const extDup = this.ctx.nextTemp();
-    this.ctx.emit(`${extDup} = call i8* @strdup(i8* ${dotPtr})`);
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitLabel(hasDotLabel);
+    const extDup = this.ctx.emitCall("i8*", "@strdup", `i8* ${dotPtr}`);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
     const result = this.ctx.nextTemp();
     this.ctx.emit(
       `${result} = phi i8* [ ${emptyStr}, %${noDotLabel} ], [ ${extDup}, %${hasDotLabel} ]`,
@@ -204,8 +187,7 @@ export class PathGenerator {
     }
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__path_normalize(i8* ${pathPtr})`);
+    const result = this.ctx.emitCall("i8*", "@__path_normalize", `i8* ${pathPtr}`);
     this.ctx.setVariableType(result, "i8*");
     return result;
   }
@@ -217,12 +199,12 @@ export class PathGenerator {
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
 
+    // inbounds GEP — keep as raw emit
     const firstCharPtr = this.ctx.nextTemp();
     this.ctx.emit(`${firstCharPtr} = getelementptr inbounds i8, i8* ${pathPtr}, i64 0`);
-    const firstChar = this.ctx.nextTemp();
-    this.ctx.emit(`${firstChar} = load i8, i8* ${firstCharPtr}`);
-    const isSlash = this.ctx.nextTemp();
-    this.ctx.emit(`${isSlash} = icmp eq i8 ${firstChar}, 47`);
+    const firstChar = this.ctx.emitLoad("i8", firstCharPtr);
+    const isSlash = this.ctx.emitIcmp("eq", "i8", firstChar, "47");
+    // select — no builder
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = select i1 ${isSlash}, double 1.0, double 0.0`);
     return result;
@@ -234,8 +216,7 @@ export class PathGenerator {
     }
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__path_parse(i8* ${pathPtr})`);
+    const result = this.ctx.emitCall("i8*", "@__path_parse", `i8* ${pathPtr}`);
     this.ctx.setVariableType(result, "%PathParseResult*");
     return result;
   }
@@ -247,8 +228,7 @@ export class PathGenerator {
 
     const fromPtr = this.ctx.generateExpression(expr.args[0], params);
     const toPtr = this.ctx.generateExpression(expr.args[1], params);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__path_relative(i8* ${fromPtr}, i8* ${toPtr})`);
+    const result = this.ctx.emitCall("i8*", "@__path_relative", `i8* ${fromPtr}, i8* ${toPtr}`);
     this.ctx.setVariableType(result, "i8*");
     return result;
   }

@@ -65,8 +65,11 @@ export class JsonGenerator {
 
     const jsonStr = this.ctx.generateExpression(expr.args[0], params);
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call %${typeParam}* @parse_json_${typeParam}(i8* ${jsonStr})`);
+    const result = this.ctx.emitCall(
+      `%${typeParam}*`,
+      `@parse_json_${typeParam}`,
+      `i8* ${jsonStr}`,
+    );
     this.ctx.setVariableType(result, `%${typeParam}*`);
 
     return result;
@@ -74,35 +77,32 @@ export class JsonGenerator {
 
   private generateUntypedParse(expr: MethodCallNode, params: string[]): string {
     const jsonStr = this.ctx.generateExpression(expr.args[0], params);
-    const jsonRoot = this.ctx.nextTemp();
-    this.ctx.emit(`${jsonRoot} = call i8* @csyyjson_parse(i8* ${jsonStr})`);
+    const jsonRoot = this.ctx.emitCall("i8*", "@csyyjson_parse", `i8* ${jsonStr}`);
     return jsonRoot;
   }
 
   private generateParseNumberArray(expr: MethodCallNode, params: string[]): string {
     const jsonStr = this.ctx.generateExpression(expr.args[0], params);
 
-    const jsonRoot = this.ctx.nextTemp();
-    this.ctx.emit(`${jsonRoot} = call i8* @csyyjson_parse(i8* ${jsonStr})`);
+    const jsonRoot = this.ctx.emitCall("i8*", "@csyyjson_parse", `i8* ${jsonStr}`);
 
-    const isNull = this.ctx.nextTemp();
-    this.ctx.emit(`${isNull} = icmp eq i8* ${jsonRoot}, null`);
+    const isNull = this.ctx.emitIcmp("eq", "i8*", jsonRoot, "null");
 
     const successLabel = this.ctx.nextLabel("json_arr_success");
     const errorLabel = this.ctx.nextLabel("json_arr_error");
     const endLabel = this.ctx.nextLabel("json_arr_end");
 
-    this.ctx.emit(`br i1 ${isNull}, label %${errorLabel}, label %${successLabel}`);
+    this.ctx.emitBrCond(isNull, errorLabel, successLabel);
 
-    this.ctx.emit(`${errorLabel}:`);
+    this.ctx.emitLabel(errorLabel);
+    // inttoptr — no builder
     const nullArray = this.ctx.nextTemp();
     this.ctx.emit(`${nullArray} = inttoptr i64 0 to %Array*`);
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${successLabel}:`);
+    this.ctx.emitLabel(successLabel);
 
-    const sizeI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${sizeI32} = call i32 @csyyjson_arr_size(i8* ${jsonRoot})`);
+    const sizeI32 = this.ctx.emitCall("i32", "@csyyjson_arr_size", `i8* ${jsonRoot}`);
     const size = this.ctx.nextTemp();
     this.ctx.emit(`${size} = sitofp i32 ${sizeI32} to double`);
 
@@ -110,56 +110,45 @@ export class JsonGenerator {
     this.ctx.emit(`${sizeI64} = fptosi double ${size} to i64`);
     const dataSize = this.ctx.nextTemp();
     this.ctx.emit(`${dataSize} = mul i64 ${sizeI64}, 8`);
-    const dataPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataPtr} = call i8* @GC_malloc(i64 ${dataSize})`);
-    const data = this.ctx.nextTemp();
-    this.ctx.emit(`${data} = bitcast i8* ${dataPtr} to double*`);
+    const dataPtr = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${dataSize}`);
+    const data = this.ctx.emitBitcast(dataPtr, "i8*", "double*");
 
-    const arrPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${arrPtr} = call i8* @GC_malloc(i64 24)`);
-    const arr = this.ctx.nextTemp();
-    this.ctx.emit(`${arr} = bitcast i8* ${arrPtr} to %Array*`);
+    const arrPtr = this.ctx.emitCall("i8*", "@GC_malloc", "i64 24");
+    const arr = this.ctx.emitBitcast(arrPtr, "i8*", "%Array*");
 
-    const dataFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${dataFieldPtr} = getelementptr %Array, %Array* ${arr}, i32 0, i32 0`);
-    this.ctx.emit(`store double* ${data}, double** ${dataFieldPtr}`);
+    const dataFieldPtr = this.ctx.emitGep("%Array", arr, "i32 0, i32 0");
+    this.ctx.emitStore("double*", data, dataFieldPtr);
 
-    const lenFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${lenFieldPtr} = getelementptr %Array, %Array* ${arr}, i32 0, i32 1`);
-    this.ctx.emit(`store i32 ${sizeI32}, i32* ${lenFieldPtr}`);
+    const lenFieldPtr = this.ctx.emitGep("%Array", arr, "i32 0, i32 1");
+    this.ctx.emitStore("i32", sizeI32, lenFieldPtr);
 
-    const capFieldPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${capFieldPtr} = getelementptr %Array, %Array* ${arr}, i32 0, i32 2`);
-    this.ctx.emit(`store i32 ${sizeI32}, i32* ${capFieldPtr}`);
+    const capFieldPtr = this.ctx.emitGep("%Array", arr, "i32 0, i32 2");
+    this.ctx.emitStore("i32", sizeI32, capFieldPtr);
 
     const loopInit = this.ctx.nextLabel("json_arr_loop_init");
     const loopCond = this.ctx.nextLabel("json_arr_loop_cond");
     const loopBody = this.ctx.nextLabel("json_arr_loop_body");
     const loopEnd = this.ctx.nextLabel("json_arr_loop_end");
 
-    this.ctx.emit(`br label %${loopInit}`);
-    this.ctx.emit(`${loopInit}:`);
-    this.ctx.emit(`br label %${loopCond}`);
+    this.ctx.emitBr(loopInit);
+    this.ctx.emitLabel(loopInit);
+    this.ctx.emitBr(loopCond);
 
-    this.ctx.emit(`${loopCond}:`);
+    this.ctx.emitLabel(loopCond);
     const i = this.ctx.nextTemp();
     const phiPlaceholder = `${i}.next`;
     this.ctx.emit(`${i} = phi i32 [ 0, %${loopInit} ], [ ${phiPlaceholder}, %${loopBody} ]`);
-    const cond = this.ctx.nextTemp();
-    this.ctx.emit(`${cond} = icmp slt i32 ${i}, ${sizeI32}`);
-    this.ctx.emit(`br i1 ${cond}, label %${loopBody}, label %${loopEnd}`);
+    const cond = this.ctx.emitIcmp("slt", "i32", i, sizeI32);
+    this.ctx.emitBrCond(cond, loopBody, loopEnd);
 
-    this.ctx.emit(`${loopBody}:`);
-    const item = this.ctx.nextTemp();
-    this.ctx.emit(`${item} = call i8* @csyyjson_arr_get(i8* ${jsonRoot}, i32 ${i})`);
-    const valPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${valPtr} = call double @csyyjson_get_num(i8* ${item})`);
-    const elemPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${elemPtr} = getelementptr double, double* ${data}, i32 ${i}`);
-    this.ctx.emit(`store double ${valPtr}, double* ${elemPtr}`);
+    this.ctx.emitLabel(loopBody);
+    const item = this.ctx.emitCall("i8*", "@csyyjson_arr_get", `i8* ${jsonRoot}, i32 ${i}`);
+    const valPtr = this.ctx.emitCall("double", "@csyyjson_get_num", `i8* ${item}`);
+    const elemPtr = this.ctx.emitGep("double", data, `i32 ${i}`);
+    this.ctx.emitStore("double", valPtr, elemPtr);
     const iInc = this.ctx.nextTemp();
     this.ctx.emit(`${iInc} = add i32 ${i}, 1`);
-    this.ctx.emit(`br label %${loopCond}`);
+    this.ctx.emitBr(loopCond);
 
     let phiIdx = -1;
     for (let phiSearchIdx = 0; phiSearchIdx < this.ctx.getOutputLength(); phiSearchIdx++) {
@@ -172,10 +161,10 @@ export class JsonGenerator {
       this.ctx.setOutputLine(phiIdx, this.ctx.getOutputLine(phiIdx).replace(phiPlaceholder, iInc));
     }
 
-    this.ctx.emit(`${loopEnd}:`);
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitLabel(loopEnd);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
     const result = this.ctx.nextTemp();
     this.ctx.emit(
       `${result} = phi %Array* [ ${nullArray}, %${errorLabel} ], [ ${arr}, %${loopEnd} ]`,
@@ -532,18 +521,16 @@ export class JsonGenerator {
 
     const objPtr = this.ctx.generateExpression(arg, params);
 
-    const typedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
+    const typedPtr = this.ctx.emitBitcast(objPtr, "i8*", `${structType}*`);
 
     this.ctx.setUsesJson(true);
-    const jsonDoc = this.ctx.nextTemp();
-    this.ctx.emit(`${jsonDoc} = call i8* @csyyjson_create_obj()`);
-    const jsonObj = this.ctx.nextTemp();
-    this.ctx.emit(`${jsonObj} = call i8* @csyyjson_mut_get_root(i8* ${jsonDoc})`);
+    const jsonDoc = this.ctx.emitCall("i8*", "@csyyjson_create_obj", "");
+    const jsonObj = this.ctx.emitCall("i8*", "@csyyjson_mut_get_root", `i8* ${jsonDoc}`);
 
     for (let i = 0; i < fieldCount; i++) {
       const fieldName = this.ctx.interfaceStructGenGetFieldName(interfaceType, i);
       const fieldTsType = this.ctx.interfaceStructGenGetFieldTsType(interfaceType, i);
+      // inbounds GEP — keep as raw emit
       const fieldPtr = this.ctx.nextTemp();
       this.ctx.emit(
         `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`,
@@ -552,30 +539,29 @@ export class JsonGenerator {
       const nameConst = this.ctx.createStringConstant(fieldName);
 
       if (fieldTsType === "string") {
-        const val = this.ctx.nextTemp();
-        this.ctx.emit(`${val} = load i8*, i8** ${fieldPtr}`);
-        this.ctx.emit(
-          `call void @csyyjson_obj_add_str(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i8* ${val})`,
+        const val = this.ctx.emitLoad("i8*", fieldPtr);
+        this.ctx.emitCallVoid(
+          "@csyyjson_obj_add_str",
+          `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i8* ${val}`,
         );
       } else if (fieldTsType === "boolean") {
-        const val = this.ctx.nextTemp();
-        this.ctx.emit(`${val} = load double, double* ${fieldPtr}`);
+        const val = this.ctx.emitLoad("double", fieldPtr);
         const boolInt = this.ctx.nextTemp();
         this.ctx.emit(`${boolInt} = fptosi double ${val} to i32`);
-        this.ctx.emit(
-          `call void @csyyjson_obj_add_bool(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolInt})`,
+        this.ctx.emitCallVoid(
+          "@csyyjson_obj_add_bool",
+          `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolInt}`,
         );
       } else {
-        const val = this.ctx.nextTemp();
-        this.ctx.emit(`${val} = load double, double* ${fieldPtr}`);
-        this.ctx.emit(
-          `call void @csyyjson_obj_add_num(i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, double ${val})`,
+        const val = this.ctx.emitLoad("double", fieldPtr);
+        this.ctx.emitCallVoid(
+          "@csyyjson_obj_add_num",
+          `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, double ${val}`,
         );
       }
     }
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @csyyjson_stringify(i8* ${jsonDoc})`);
+    const result = this.ctx.emitCall("i8*", "@csyyjson_stringify", `i8* ${jsonDoc}`);
     this.ctx.setVariableType(result, "i8*");
 
     return result;
@@ -584,14 +570,13 @@ export class JsonGenerator {
   private stringifyString(arg: Expression, params: string[]): string {
     const strPtr = this.ctx.generateExpression(arg, params);
 
-    const strLen = this.ctx.nextTemp();
-    this.ctx.emit(`${strLen} = call i64 @strlen(i8* ${strPtr})`);
+    const strLen = this.ctx.emitCall("i64", "@strlen", `i8* ${strPtr}`);
     const bufferSize = this.ctx.nextTemp();
     this.ctx.emit(`${bufferSize} = add i64 ${strLen}, 3`);
-    const buffer = this.ctx.nextTemp();
-    this.ctx.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
+    const buffer = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${bufferSize}`);
 
     const formatStr = this.ctx.createStringConstant('"%s"');
+    // sprintf has variadic signature — keep as raw emit
     const sprintfResult = this.ctx.nextTemp();
     this.ctx.emit(
       `${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, i8* ${strPtr})`,
@@ -605,10 +590,10 @@ export class JsonGenerator {
     const numValue = this.ctx.generateExpression(arg, params);
     const dblValue = this.ctx.ensureDouble(numValue);
 
-    const buffer = this.ctx.nextTemp();
-    this.ctx.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 30)`);
+    const buffer = this.ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 30");
 
     const formatStr = this.ctx.createStringConstant("%f");
+    // sprintf has variadic signature — keep as raw emit
     const sprintfResult = this.ctx.nextTemp();
     this.ctx.emit(
       `${sprintfResult} = call i32 (i8*, i8*, ...) @sprintf(i8* ${buffer}, i8* ${formatStr}, double ${dblValue})`,
