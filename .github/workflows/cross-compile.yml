@@ -94,6 +94,8 @@ jobs:
 
       - name: Cross-compile hello.ts for Linux x64
         run: |
+          echo 'console.log("Hello from ChadScript!");' > hello.ts
+          echo 'process.exit(0);' >> hello.ts
           node dist/chad-node.js build --target linux-x64 hello.ts -o .build/hello-linux -v
 
       - name: Verify binary format
