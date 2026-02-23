@@ -498,18 +498,16 @@ export class VariableAllocator {
       const globalPtr = this.ctx.symbolTable.getAlloca(stmt.name) || "";
       const llvmType = this.ctx.symbolTable.getType(stmt.name) || "i8*";
       if (llvmType.indexOf("*") !== -1) {
-        this.ctx.emit(`store ${llvmType} ${value}, ${llvmType}* ${globalPtr}`);
-      } else if (
-        llvmType === "%Array" ||
-        llvmType === "%StringArray" ||
-        llvmType === "%Map" ||
-        llvmType === "%StringMap" ||
-        llvmType === "%Set" ||
-        llvmType === "%StringSet"
-      ) {
-        const loadedValue = this.ctx.nextTemp();
-        this.ctx.emit(`${loadedValue} = load ${llvmType}, ${llvmType}* ${value}`);
-        this.ctx.emit(`store ${llvmType} ${loadedValue}, ${llvmType}* ${globalPtr}`);
+        // Bitcast if expression type doesn't match the global's declared pointer type
+        // (e.g. .match() returns i8* but global is %StringArray*)
+        const valueType = this.ctx.getVariableType(value);
+        let storeValue = value;
+        if (valueType && valueType !== llvmType && valueType.indexOf("*") !== -1) {
+          const cast = this.ctx.nextTemp();
+          this.ctx.emit(`${cast} = bitcast ${valueType} ${value} to ${llvmType}`);
+          storeValue = cast;
+        }
+        this.ctx.emit(`store ${llvmType} ${storeValue}, ${llvmType}* ${globalPtr}`);
       } else if (llvmType === "double") {
         const coerced = this.ctx.ensureDouble(value);
         this.ctx.emit(`store double ${coerced}, double* ${globalPtr}`);
