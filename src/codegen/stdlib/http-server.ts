@@ -17,8 +17,8 @@ export class HttpServerGenerator {
     let ir = "; libwebsockets HTTP server declarations (via lws-bridge)\n\n";
 
     ir += "; lws bridge types (match lws-bridge.h structs)\n";
-    ir += "%struct.lws_bridge_request = type { i8*, i8*, i8*, i8* }\n";
-    ir += "%struct.lws_bridge_response = type { i32, i8*, i64 }\n\n";
+    ir += "%struct.lws_bridge_request = type { i8*, i8*, i8*, i8*, i8* }\n";
+    ir += "%struct.lws_bridge_response = type { i32, i8*, i64, i8* }\n\n";
 
     ir += "; lws bridge functions\n";
     ir +=
@@ -35,12 +35,23 @@ export class HttpServerGenerator {
    * calling convention and ChadScript's handler signature.
    *
    * Bridge calls: void wrapper(lws_bridge_request*, lws_bridge_response*)
-   * User handler: i8* handler(i8* req) -> returns { double status, i8* body }*
+   * User handler: i8* handler(i8* req) -> returns { double status, i8* body [, i8* headers] }*
    *
-   * The lws_bridge_request struct { i8*, i8*, i8*, i8* } has the same layout
+   * The lws_bridge_request struct { i8*, i8*, i8*, i8*, i8* } has the same layout
    * as the ChadScript Request object, so we can cast the pointer directly.
+   *
+   * When hasHeaders is true, the response struct is { double, i8*, i8* } and the
+   * third field (headers) is read and stored into extra_headers. When false,
+   * null is stored for extra_headers (backwards compatible).
    */
-  generateEventHandler(httpHandlerName: string, _wsHandlerName?: string): string {
+  generateEventHandler(
+    httpHandlerName: string,
+    _wsHandlerName?: string,
+    hasHeaders?: boolean,
+  ): string {
+    // Response struct type depends on whether user's Response has headers field
+    const respType = hasHeaders ? "{ double, i8*, i8* }" : "{ double, i8* }";
+
     let ir = "; HTTP handler wrapper for lws-bridge\n";
     ir +=
       "define void @__lws_http_handler(%struct.lws_bridge_request* %req, %struct.lws_bridge_response* %resp) {\n";
@@ -50,22 +61,27 @@ export class HttpServerGenerator {
     ir += `  %response_ptr = call i8* @${httpHandlerName}(i8* %req_i8)\n`;
     ir += "\n";
 
-    ir += "  %response_struct = bitcast i8* %response_ptr to { double, i8* }*\n";
+    ir += `  %response_struct = bitcast i8* %response_ptr to ${respType}*\n`;
     ir += "\n";
 
-    ir +=
-      "  %status_ptr = getelementptr { double, i8* }, { double, i8* }* %response_struct, i32 0, i32 0\n";
+    ir += `  %status_ptr = getelementptr ${respType}, ${respType}* %response_struct, i32 0, i32 0\n`;
     ir += "  %status_dbl = load double, double* %status_ptr\n";
     ir += "  %status_code = fptosi double %status_dbl to i32\n";
     ir += "\n";
 
-    ir +=
-      "  %body_ptr_loc = getelementptr { double, i8* }, { double, i8* }* %response_struct, i32 0, i32 1\n";
+    ir += `  %body_ptr_loc = getelementptr ${respType}, ${respType}* %response_struct, i32 0, i32 1\n`;
     ir += "  %response_body = load i8*, i8** %body_ptr_loc\n";
     ir += "\n";
 
     ir += "  %body_len = call i64 @strlen(i8* %response_body)\n";
     ir += "\n";
+
+    // Read headers from response struct if present, otherwise null
+    if (hasHeaders) {
+      ir += `  %headers_ptr_loc = getelementptr ${respType}, ${respType}* %response_struct, i32 0, i32 2\n`;
+      ir += "  %response_headers = load i8*, i8** %headers_ptr_loc\n";
+      ir += "\n";
+    }
 
     ir +=
       "  %resp_status_ptr = getelementptr %struct.lws_bridge_response, %struct.lws_bridge_response* %resp, i32 0, i32 0\n";
@@ -80,6 +96,16 @@ export class HttpServerGenerator {
     ir +=
       "  %resp_len_ptr = getelementptr %struct.lws_bridge_response, %struct.lws_bridge_response* %resp, i32 0, i32 2\n";
     ir += "  store i64 %body_len, i64* %resp_len_ptr\n";
+    ir += "\n";
+
+    // Store extra_headers into response struct field 3
+    ir +=
+      "  %resp_hdrs_ptr = getelementptr %struct.lws_bridge_response, %struct.lws_bridge_response* %resp, i32 0, i32 3\n";
+    if (hasHeaders) {
+      ir += "  store i8* %response_headers, i8** %resp_hdrs_ptr\n";
+    } else {
+      ir += "  store i8* null, i8** %resp_hdrs_ptr\n";
+    }
     ir += "\n";
 
     ir += "  ret void\n";

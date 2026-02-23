@@ -2244,9 +2244,31 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         irParts.push(httpServe);
       }
       irParts.push("\n");
+
+      // Detect if the handler's return type interface has a "headers" field
+      let hasHeaders = false;
+      const handlerName = this.httpHandlers[0];
+      for (let fi = 0; fi < this.ast.functions.length; fi++) {
+        const func = this.ast.functions[fi];
+        if (func && func.name === handlerName && func.returnType) {
+          const retIface = this.getInterfaceFromAST(func.returnType);
+          if (retIface) {
+            const fields = (retIface as { fields: { name: string }[] }).fields;
+            for (let fj = 0; fj < fields.length; fj++) {
+              if (fields[fj].name === "headers") {
+                hasHeaders = true;
+                break;
+              }
+            }
+          }
+          break;
+        }
+      }
+
       const eventHandler = this.httpServerGen.generateEventHandler(
         mangledHttpHandler,
         mangledWsHandler,
+        hasHeaders,
       );
       if (eventHandler) {
         irParts.push(eventHandler);
