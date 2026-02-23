@@ -74,6 +74,7 @@ import {
   extractNestedJsonFieldValue,
 } from "./chained-access.js";
 import { accessObjectWithMetadata, accessObjectProperty } from "./struct-access.js";
+import { createStringConstant } from "../../types/collections/string/constants.js";
 
 interface ExprBase {
   type: string;
@@ -158,6 +159,9 @@ export interface MemberAccessGeneratorContext {
   getMethodReturnType(className: string, methodName: string): string | null;
   isEnumType(name: string): boolean;
   getEnumMemberValue(enumName: string, memberName: string): number;
+  getEnumMemberStringValue(enumName: string, memberName: string): string | null;
+  nextString(): string;
+  pushGlobalString(decl: string): void;
   getClassesCount(): number;
   getAstClassAt(index: number): ClassNode | null;
   getVariableType(name: string): string | undefined;
@@ -244,6 +248,9 @@ export class MemberAccessGenerator {
 
   private dispatchSpecialValues(expr: MemberAccessNode, params: string[]): string | null {
     let result: string | null;
+
+    result = this.handleStringEnumMemberAccess(expr);
+    if (result !== null) return result;
 
     result = this.handleEnumMemberAccess(expr);
     if (result !== null) return result;
@@ -586,6 +593,20 @@ export class MemberAccessGenerator {
 
   private handleProcessSimpleProperty(expr: MemberAccessNode): string | null {
     return handleProcessSimpleProperty(this.ctx, expr);
+  }
+
+  // Separate method for string enums to avoid adding locals to handleEnumMemberAccess,
+  // which causes the native compiler to produce invalid LLVM IR.
+  private handleStringEnumMemberAccess(expr: MemberAccessNode): string | null {
+    if (!expr.object) return null;
+    const exprObjBase = expr.object as ExprBase;
+    if (!exprObjBase || exprObjBase.type !== "variable") return null;
+    const enumName = (expr.object as VariableNode).name;
+    const strVal = this.ctx.getEnumMemberStringValue(enumName, expr.property);
+    if (strVal === null) return null;
+    const result = createStringConstant(this.ctx as any, strVal);
+    this.ctx.setVariableType(result, "i8*");
+    return result;
   }
 
   private handleEnumMemberAccess(expr: MemberAccessNode): string | null {

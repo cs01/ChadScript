@@ -593,6 +593,24 @@ export class TypeInference {
         }
       }
 
+      // Check if this is an enum member access (e.g., Direction.Up).
+      // Type assertion must match real struct field order: { name, members, isString }
+      if (this.ctx.ast && this.ctx.ast.enums) {
+        for (let ei = 0; ei < this.ctx.ast.enums.length; ei++) {
+          const en = this.ctx.ast.enums[ei] as {
+            name: string;
+            members: { name: string; value: number; stringValue?: string }[];
+            isString?: boolean;
+          };
+          if (en.name === varName) {
+            if (en.isString) {
+              return this.ctx.typeContext.stringType;
+            }
+            return this.ctx.typeContext.numberType;
+          }
+        }
+      }
+
       const propType = this.ctx.symbolTable.getObjectPropertyType(varName, prop);
       if (propType === "i8*") {
         const keys = this.ctx.symbolTable.getObjectMetadataKeys(varName);

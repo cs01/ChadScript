@@ -217,6 +217,7 @@ Existing bridges: `regex-bridge.c`, `yyjson-bridge.c`, `os-bridge.c`, `child-pro
 
 1. **`new` in class field initializers** — codegen handles simple `new X()` in field initializers (both explicit and default constructors), but complex nested class instantiation may have edge cases. Prefer initializing in constructors for safety.
 2. **Type assertions must match real struct field order AND count** — `as { type, left, right }` on a struct that's `{ type, op, left, right }` causes GEP to read wrong fields. Fields must be a PREFIX of the real struct in EXACT order.
+3. **Never insert new optional fields in the MIDDLE of an interface** — The native compiler determines struct layouts from object literal creation sites. If an interface has multiple creation sites (e.g., `MethodCallNode` is created in parser-ts, parser-native, and codegen), inserting a new field before existing ones shifts GEP indices and breaks creation sites that don't include the new field. **Always add new optional fields at the END of interfaces.** Root cause: the native compiler doesn't unify struct layouts from interface definitions — it uses object literal field order, and different creation sites may have different subsets of fields.
 
 ## Stage 0 Compatibility
 
@@ -238,6 +239,14 @@ ChadScript merges all imported files into one flat AST. Imports trigger file res
 
 - **`export default`**: Parser stores the exported name in `ast.defaultExportName`. At import resolution time (`compiler.ts` `compileMultiFile`), the default import's local name is mapped to the exported name via `importAliases`. Codegen resolves aliases through `resolveImportAlias()`.
 - **Re-exports** (`export { foo } from './bar'`): The parser synthesizes `ImportDeclaration` entries for each re-exported name. Since ChadScript merges all files, re-exports are semantically equivalent to imports — they just trigger file resolution and AST merging.
+
+## String Enums
+
+Parser preserves string values in `EnumMember.stringValue` and marks `EnumDeclaration.isString = true`. Codegen handles string enums in a separate `handleStringEnumMemberAccess` method in `member.ts` (not in `handleEnumMemberAccess` — adding locals there causes native compiler issues). Type inference in `resolveMemberAccessType` detects enum member access and returns `stringType` for string enums. Type assertions on `EnumMember` must include all fields in order: `{ name, value, stringValue }`.
+
+## Optional Method Calls (`?.()`)
+
+`MethodCallNode.optional` (must be at END of interface — see rule #3 above) triggers null-check branching in `generateOptionalMethodCall` in `method-calls.ts`. Pattern: evaluate object → icmp null → branch → phi merge, similar to `generateOptionalChain` for property access.
 
 ## Async/Await Type Tracking
 

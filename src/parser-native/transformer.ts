@@ -410,6 +410,11 @@ function transformExpression(node: TreeSitterNode): Expression {
       return transformBinaryExpression(node);
 
     case "unary_expression":
+      // void expressions evaluate to undefined (not a unary op in our AST)
+      const voidOpChild = getChild(node, 0);
+      if (voidOpChild && (voidOpChild as NodeBase).type === "void") {
+        return { type: "variable", name: "undefined" };
+      }
       return transformUnaryExpression(node);
 
     case "update_expression":
@@ -2659,6 +2664,7 @@ function transformEnumDeclaration(node: TreeSitterNode): EnumDeclaration | null 
   const members: EnumMember[] = [];
 
   let currentValue = 0;
+  let isString = false;
   if (bodyNode) {
     const bn = bodyNode as NodeBase;
     for (let i = 0; i < bn.namedChildCount; i++) {
@@ -2674,21 +2680,27 @@ function transformEnumDeclaration(node: TreeSitterNode): EnumDeclaration | null 
           memberName = (member as NodeBase).text;
         }
         let value = currentValue;
+        let stringValue: string | undefined;
 
         if (memberValueNode) {
           const mvn = memberValueNode as NodeBase;
           if (mvn.type === "number") {
             value = parseInt(mvn.text, 10);
+          } else if (mvn.type === "string") {
+            // Strip surrounding quotes from the string literal
+            const raw = mvn.text;
+            stringValue = raw.substring(1, raw.length - 1);
+            isString = true;
           }
         }
 
-        members.push({ name: memberName, value });
+        members.push({ name: memberName, value, stringValue });
         currentValue = value + 1;
       }
     }
   }
 
-  return { name, members };
+  return { name, members, isString: isString || undefined };
 }
 
 function transformImportStatement(node: TreeSitterNode): ImportDeclaration | null {
