@@ -44,6 +44,23 @@ process.env.PATH
 process.env.USER
 ```
 
+#### `.env` auto-loading
+
+Every compiled binary automatically loads a `.env` file from the working directory at startup (before any user code runs). If no `.env` file exists, this is a silent no-op.
+
+```bash
+# .env
+DATABASE_URL=postgres://localhost/mydb
+API_KEY="sk-abc123"
+# Comments are ignored
+```
+
+```typescript
+const dbUrl = process.env.DATABASE_URL;  // "postgres://localhost/mydb"
+```
+
+Real environment variables always take precedence over `.env` values — `.env` only fills in missing vars. Quoted values (`"..."` or `'...'`) are unquoted automatically.
+
 ### `process.execPath`
 
 ```typescript
@@ -126,7 +143,7 @@ process.stderr.write("error output");
 |-----|---------|
 | `process.exit()` | `exit()` |
 | `process.argv` | C `main(argc, argv)` |
-| `process.env.X` | `getenv("X")` |
+| `process.env.X` | `getenv("X")` (`.env` auto-loaded via `cs_load_dotenv()`) |
 | `process.cwd()` | `getcwd()` |
 | `process.chdir()` | `chdir()` |
 | `process.uptime()` | `clock_gettime(CLOCK_MONOTONIC)` |
