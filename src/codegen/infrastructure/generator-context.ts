@@ -170,6 +170,8 @@ export interface IFsGenerator {
   generateMkdir(expr: MethodCallNode, params: string[]): string;
   generateRename(expr: MethodCallNode, params: string[]): string;
   generateCopyFile(expr: MethodCallNode, params: string[]): string;
+  generateReadFileSyncBinary(expr: MethodCallNode, params: string[]): string;
+  generateWriteFileSyncBinary(expr: MethodCallNode, params: string[]): string;
 }
 
 export interface IJsonGenerator {
@@ -525,6 +527,14 @@ export interface IGeneratorContext {
   expectedArrayElementType: "string" | "number" | "boolean" | "pointer" | null;
   setExpectedArrayElementType(type: "string" | "number" | "boolean" | "pointer" | null): void;
   getExpectedArrayElementType(): "string" | "number" | "boolean" | "pointer" | null;
+
+  /**
+   * When true, methods like readFileSync should return %Uint8Array* instead of i8*.
+   * Set by the variable allocator before generating Uint8Array-typed variable initializers.
+   */
+  wantsBinaryReturn: boolean;
+  setWantsBinaryReturn(value: boolean): void;
+  getWantsBinaryReturn(): boolean;
 
   /**
    * Current declared map type (for type-aware map generation)
@@ -1072,6 +1082,13 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   getExpectedArrayElementType(): "string" | "number" | "boolean" | "pointer" | null {
     return this.expectedArrayElementType;
+  }
+  wantsBinaryReturn: boolean = false;
+  setWantsBinaryReturn(value: boolean): void {
+    this.wantsBinaryReturn = value;
+  }
+  getWantsBinaryReturn(): boolean {
+    return this.wantsBinaryReturn;
   }
   setCurrentDeclaredMapType(type: string | undefined): void {
     this.currentDeclaredMapType = type;
@@ -1767,6 +1784,10 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateMkdir: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_mkdir",
     generateRename: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_rename",
     generateCopyFile: (_expr: MethodCallNode, _params: string[]): string => "%mock_fs_copyFile",
+    generateReadFileSyncBinary: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_fs_readFileSyncBinary",
+    generateWriteFileSyncBinary: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_fs_writeFileSyncBinary",
   };
   jsonGen: IJsonGenerator = {
     canHandle: (_expr: MethodCallNode): boolean => false,

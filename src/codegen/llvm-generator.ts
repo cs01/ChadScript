@@ -895,6 +895,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getExpectedArrayElementType(): "string" | "number" | "boolean" | "pointer" | null {
     return this.expectedArrayElementType;
   }
+  public wantsBinaryReturn: boolean = false;
+  public setWantsBinaryReturn(value: boolean): void {
+    this.wantsBinaryReturn = value;
+  }
+  public getWantsBinaryReturn(): boolean {
+    return this.wantsBinaryReturn;
+  }
   public setCurrentDeclaredMapType(type: string | undefined): void {
     this.currentDeclaredMapType = type;
   }
@@ -1776,9 +1783,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         ) {
           isObjectArray = true;
         }
-        // Detect Uint8Array from expression analysis (e.g. getEmbeddedFileAsUint8Array)
+        // Detect Uint8Array from declared type or expression analysis.
+        // Must clear isString since readFileSync resolves to "string" by default,
+        // but the declared type takes precedence.
+        if (!isUint8Array && stmt.declaredType === "Uint8Array") {
+          isUint8Array = true;
+          isString = false;
+        }
         if (!isUint8Array && stmt.value && this.typeInference.isUint8ArrayExpression(stmt.value)) {
           isUint8Array = true;
+          isString = false;
         }
 
         const isJSONParse = this.typeInference.isJSONParseExpression(stmt.value);

@@ -226,6 +226,8 @@ export interface MethodCallGeneratorContext {
   };
   ensureDouble(value: string): string;
   ensureI64(value: string): string;
+  getWantsBinaryReturn(): boolean;
+  isUint8ArrayExpression(expr: Expression): boolean;
 }
 
 export class MethodCallGenerator {
@@ -556,8 +558,16 @@ export class MethodCallGenerator {
     // Handle fs.* methods - inline check to avoid interface dispatch issues
     if (objBase2.type === "variable" && (expr.object as VariableNode).name === "fs") {
       if (method === "readFileSync") {
+        // Return Uint8Array when the call site expects binary data
+        if (this.ctx.getWantsBinaryReturn()) {
+          return this.ctx.fsGen.generateReadFileSyncBinary(expr, params);
+        }
         return this.ctx.fsGen.generateReadFileSync(expr, params);
       } else if (method === "writeFileSync") {
+        // Use binary-safe write when second arg is a Uint8Array
+        if (expr.args.length >= 2 && this.ctx.isUint8ArrayExpression(expr.args[1])) {
+          return this.ctx.fsGen.generateWriteFileSyncBinary(expr, params);
+        }
         return this.ctx.fsGen.generateWriteFileSync(expr, params);
       } else if (method === "appendFileSync") {
         return this.ctx.fsGen.generateAppendFileSync(expr, params);

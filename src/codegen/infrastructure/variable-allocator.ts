@@ -219,6 +219,8 @@ export interface VariableAllocatorContext {
   ensureDouble(value: string): string;
   getI64EligibleVars(): string[];
   isUint8ArrayExpression(expr: Expression): boolean;
+  setWantsBinaryReturn(value: boolean): void;
+  getWantsBinaryReturn(): boolean;
 }
 
 export class VariableAllocator {
@@ -479,7 +481,17 @@ export class VariableAllocator {
   allocate(stmt: VariableDeclaration, params: string[]): void {
     const existingScope = this.ctx.symbolTable.getScope(stmt.name);
     if (existingScope === "global" && stmt.value !== null) {
+      // For global Uint8Array vars, set wantsBinaryReturn so readFileSync etc.
+      // dispatch to their binary variants (same as allocateUint8Array does for locals)
+      const sym = this.ctx.symbolTable.lookup(stmt.name);
+      const isGlobalUint8Array = !!sym && sym.kind === SymbolKind.Uint8Array;
+      if (isGlobalUint8Array) {
+        this.ctx.setWantsBinaryReturn(true);
+      }
       const value = this.ctx.generateExpression(stmt.value, params);
+      if (isGlobalUint8Array) {
+        this.ctx.setWantsBinaryReturn(false);
+      }
       const globalPtr = this.ctx.symbolTable.getAlloca(stmt.name) || "";
       const llvmType = this.ctx.symbolTable.getType(stmt.name) || "i8*";
       if (llvmType.indexOf("*") !== -1) {
@@ -1914,7 +1926,10 @@ export class VariableAllocator {
     this.ctx.defineVariable(stmt.name, allocaReg, "%Uint8Array*", SymbolKind.Uint8Array, "local");
     this.ctx.emit(`${allocaReg} = alloca %Uint8Array*`);
 
+    // Signal to readFileSync/etc. that we want binary return (%Uint8Array*)
+    this.ctx.setWantsBinaryReturn(true);
     const value = this.ctx.generateExpression(stmt.value!, params);
+    this.ctx.setWantsBinaryReturn(false);
     this.ctx.emit(`store %Uint8Array* ${value}, %Uint8Array** ${allocaReg}`);
   }
 

@@ -129,6 +129,181 @@ export class FilesystemGenerator {
   }
 
   /**
+   * Generate LLVM IR for fs.readFileSync(filename) → Uint8Array
+   * Reads entire file into a Uint8Array with exact byte count (no strlen).
+   * Opens with "rb" mode and uses fseek/ftell for size.
+   */
+  generateReadFileSyncBinary(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError(
+        "fs.readFileSync() requires at least 1 argument (filename)",
+        expr.loc,
+      );
+    }
+
+    const filenamePtr = this.ctx.generateExpression(expr.args[0], params);
+
+    // Open in binary mode
+    const modeStr = this.ctx.createStringConstant("rb");
+    const filePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
+
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
+
+    const failLabel = this.ctx.nextLabel("readbin_fail");
+    const successLabel = this.ctx.nextLabel("readbin_success");
+    const endLabel = this.ctx.nextLabel("readbin_end");
+
+    this.ctx.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
+
+    // Failure: return empty Uint8Array
+    this.ctx.emit(`${failLabel}:`);
+    const emptyRaw = this.ctx.nextTemp();
+    this.ctx.emit(`${emptyRaw} = call i8* @GC_malloc(i64 16)`);
+    const emptyArr = this.ctx.nextTemp();
+    this.ctx.emit(`${emptyArr} = bitcast i8* ${emptyRaw} to %Uint8Array*`);
+    // Zero-init struct (data=null, len=0, cap=0) — GC_malloc returns zeroed memory
+    this.ctx.emit(`br label %${endLabel}`);
+
+    // Success: read file into Uint8Array
+    this.ctx.emit(`${successLabel}:`);
+
+    const seekEnd = this.ctx.nextTemp();
+    this.ctx.emit(`${seekEnd} = call i32 @fseek(i8* ${filePtr}, i64 0, i32 2)`);
+    const fileSize = this.ctx.nextTemp();
+    this.ctx.emit(`${fileSize} = call i64 @ftell(i8* ${filePtr})`);
+    const seekStart = this.ctx.nextTemp();
+    this.ctx.emit(`${seekStart} = call i32 @fseek(i8* ${filePtr}, i64 0, i32 0)`);
+
+    // Allocate data buffer (no null terminator needed for binary)
+    const dataBuf = this.ctx.nextTemp();
+    this.ctx.emit(`${dataBuf} = call i8* @GC_malloc_atomic(i64 ${fileSize})`);
+
+    // Read all bytes
+    const bytesRead = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${bytesRead} = call i64 @fread(i8* ${dataBuf}, i64 1, i64 ${fileSize}, i8* ${filePtr})`,
+    );
+
+    const closeResult = this.ctx.nextTemp();
+    this.ctx.emit(`${closeResult} = call i32 @fclose(i8* ${filePtr})`);
+
+    // Allocate %Uint8Array struct { i8*, i32, i32 }
+    const structRaw = this.ctx.nextTemp();
+    this.ctx.emit(`${structRaw} = call i8* @GC_malloc(i64 16)`);
+    const structPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${structPtr} = bitcast i8* ${structRaw} to %Uint8Array*`);
+
+    // Truncate i64 file size to i32 for Uint8Array length/capacity
+    const sizeI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${sizeI32} = trunc i64 ${fileSize} to i32`);
+
+    // Store data pointer
+    const dataField = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${dataField} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 0`,
+    );
+    this.ctx.emit(`store i8* ${dataBuf}, i8** ${dataField}`);
+
+    // Store length
+    const lenField = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${lenField} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 1`,
+    );
+    this.ctx.emit(`store i32 ${sizeI32}, i32* ${lenField}`);
+
+    // Store capacity (same as length)
+    const capField = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${capField} = getelementptr inbounds %Uint8Array, %Uint8Array* ${structPtr}, i32 0, i32 2`,
+    );
+    this.ctx.emit(`store i32 ${sizeI32}, i32* ${capField}`);
+
+    this.ctx.emit(`br label %${endLabel}`);
+
+    // End: phi to select result
+    this.ctx.emit(`${endLabel}:`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${result} = phi %Uint8Array* [ ${emptyArr}, %${failLabel} ], [ ${structPtr}, %${successLabel} ]`,
+    );
+    this.ctx.setVariableType(result, "%Uint8Array*");
+
+    return result;
+  }
+
+  /**
+   * Generate LLVM IR for fs.writeFileSync(filename, data) where data is Uint8Array.
+   * Uses the struct's length field instead of strlen — binary safe.
+   */
+  generateWriteFileSyncBinary(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      return this.ctx.emitError(
+        "fs.writeFileSync() requires at least 2 arguments (filename, data)",
+        expr.loc,
+      );
+    }
+
+    const filenamePtr = this.ctx.generateExpression(expr.args[0], params);
+    const arrayPtr = this.ctx.generateExpression(expr.args[1], params);
+
+    // Open in binary write mode
+    const modeStr = this.ctx.createStringConstant("wb");
+    const filePtr = this.ctx.nextTemp();
+    this.ctx.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
+
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
+
+    const failLabel = this.ctx.nextLabel("writebin_fail");
+    const successLabel = this.ctx.nextLabel("writebin_success");
+    const endLabel = this.ctx.nextLabel("writebin_end");
+
+    this.ctx.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
+
+    this.ctx.emit(`${failLabel}:`);
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${successLabel}:`);
+
+    // Load data pointer from Uint8Array field 0
+    const dataField = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${dataField} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 0`,
+    );
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${dataPtr} = load i8*, i8** ${dataField}`);
+
+    // Load length from Uint8Array field 1
+    const lenField = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${lenField} = getelementptr inbounds %Uint8Array, %Uint8Array* ${arrayPtr}, i32 0, i32 1`,
+    );
+    const lenI32 = this.ctx.nextTemp();
+    this.ctx.emit(`${lenI32} = load i32, i32* ${lenField}`);
+    const lenI64 = this.ctx.nextTemp();
+    this.ctx.emit(`${lenI64} = sext i32 ${lenI32} to i64`);
+
+    // fwrite(data, 1, length, fp) — uses struct length, not strlen
+    const bytesWritten = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${bytesWritten} = call i64 @fwrite(i8* ${dataPtr}, i64 1, i64 ${lenI64}, i8* ${filePtr})`,
+    );
+
+    const closeResult = this.ctx.nextTemp();
+    this.ctx.emit(`${closeResult} = call i32 @fclose(i8* ${filePtr})`);
+
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${endLabel}:`);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(`${result} = phi i32 [ -1, %${failLabel} ], [ 0, %${successLabel} ]`);
+
+    return result;
+  }
+
+  /**
    * Generate LLVM IR for fs.writeFileSync(filename, data)
    * Writes data to file, overwriting if it exists
    */
