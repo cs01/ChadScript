@@ -68,8 +68,6 @@ export class ArrayGenerator {
     return generateArrayPop(this.ctx, expr, params);
   }
 
-  // Predicate/callback resolution must happen here (class method) not in standalone
-  // functions, because ChadScript can't access expr.args[0].type in standalone functions.
   generateArrayFind(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length !== 1) {
       throw new Error("find() requires exactly 1 argument (predicate function)");

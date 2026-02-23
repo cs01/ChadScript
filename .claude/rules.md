@@ -230,7 +230,6 @@ Additional self-hosting limitations:
 
 - **No import aliases** — `import { foo as bar }` compiles `bar(...)` as `@_cs_bar` which doesn't match the original `@_cs_foo`. Use the original name.
 - **No union type parameters in standalone functions** — `fn(x: Expression)` where `Expression` is a union emits the TS type name literally. Keep union-typed parameters in class methods.
-- **No `expr.args[0].type` in standalone functions** — accessing `.type` on an array-indexed struct field fails in standalone functions. Move such access into class methods and pass pre-resolved values.
 
 ## Async/Await Type Tracking
 
