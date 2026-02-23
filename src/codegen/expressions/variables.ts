@@ -272,24 +272,11 @@ export class VariableExpressionGenerator {
     if (typeStr.endsWith("*")) {
       const baseName = typeStr.slice(0, -1);
       if (baseName.startsWith("%")) {
-        const structName = baseName.slice(1);
-        if (structName.endsWith("_struct")) return true;
-        if (
-          structName === "Array" ||
-          structName === "StringArray" ||
-          structName === "ObjectArray" ||
-          structName === "Uint8Array"
-        )
-          return true;
-        if (structName === "Map" || structName === "StringMap" || structName === "PointerMap")
-          return true;
-        if (structName === "Set" || structName === "StringSet") return true;
-        if (structName === "Promise" || structName === "PromiseCallback") return true;
-        if (structName === "Response" || structName === "FetchBuffer") return true;
-        if (structName.startsWith("struct.")) return true;
-        if (this.ctx.interfaceStructGen?.hasInterface(structName)) {
-          return true;
-        }
+        // Any %Name* is a valid LLVM named struct pointer type.
+        // The old whitelist approach was too fragile — types like %__FetchResponse*
+        // are perfectly valid but weren't in the list. The early guards above already
+        // catch leaked TypeScript types (%{...}, unions with |, types with :).
+        return true;
       }
     }
     return false;

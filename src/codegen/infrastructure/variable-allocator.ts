@@ -644,10 +644,22 @@ export class VariableAllocator {
           this.ctx.defineVariable(stmt.name, allocaReg, "i8*", SymbolKind.String, "local");
           this.ctx.emit(`${allocaReg} = alloca i8*`);
           this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
-        } else {
+        } else if (this.isEnumType(baseType)) {
+          // Enum types are stored as double (numeric constants)
           this.ctx.defineVariable(stmt.name, allocaReg, "double", SymbolKind.Number, "local");
           this.ctx.emit(`${allocaReg} = alloca double`);
           this.ctx.emit(`store double 0.0, double* ${allocaReg}`);
+        } else if (baseType === "object" || baseType === "any" || baseType === "unknown") {
+          // Generic object/any/unknown types are opaque pointers
+          this.ctx.defineVariable(stmt.name, allocaReg, "i8*", SymbolKind.Object, "local");
+          this.ctx.emit(`${allocaReg} = alloca i8*`);
+          this.ctx.emit(`store i8* null, i8** ${allocaReg}`);
+        } else {
+          // Strict: unrecognized declared type should not silently default to double
+          return this.ctx.emitError(
+            `cannot determine type for variable '${stmt.name}' with declared type '${baseType}'. ` +
+              `Add a supported type annotation or move initialization inline`,
+          );
         }
       }
       return;
@@ -882,6 +894,15 @@ export class VariableAllocator {
         this.allocateNullPointer(stmt);
         break;
       case VarKind.Numeric:
+        // Warn when a non-trivially-numeric expression falls through to Numeric.
+        // VarKind.Numeric is correct for number/boolean literals and arithmetic,
+        // but suspicious for calls/method calls that might return non-numeric types.
+        if (nodeType === "call" || nodeType === "method_call") {
+          this.ctx.emitWarning(
+            `variable '${stmt.name}' classified as numeric from expression type '${nodeType}' — ` +
+              `if this is wrong, add a type annotation`,
+          );
+        }
         this.allocateNumeric(stmt, params);
         break;
     }
