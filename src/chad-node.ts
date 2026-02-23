@@ -156,7 +156,13 @@ if (command === "watch") {
   setInterval(() => {}, 60000);
 }
 
-if (command !== "build" && command !== "run" && command !== "ir" && command !== "init" && command !== "watch") {
+if (
+  command !== "build" &&
+  command !== "run" &&
+  command !== "ir" &&
+  command !== "init" &&
+  command !== "watch"
+) {
   if (command.endsWith(".ts") || command.endsWith(".js")) {
     console.error(`chad: error: missing command. did you mean 'chad build ${command}'?`);
   } else {

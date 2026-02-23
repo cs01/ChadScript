@@ -29,7 +29,11 @@ declare const child_process: {
 };
 
 // FFI: watch-bridge.c — polls source file and recompiles/re-runs on change
-declare function cs_watch_loop(chad_binary: string, source_file: string, output_binary: string): void;
+declare function cs_watch_loop(
+  chad_binary: string,
+  source_file: string,
+  output_binary: string,
+): void;
 
 const VERSION = "0.1.0";
 
