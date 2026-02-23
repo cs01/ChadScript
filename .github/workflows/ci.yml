@@ -55,7 +55,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/os-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/multipart-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/os-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -102,6 +102,7 @@ jobs:
           cp vendor/libuv/build/libuv.a release/lib/
           cp vendor/picohttpparser/picohttpparser.o release/lib/
           cp c_bridges/lws-bridge.o release/lib/
+          cp c_bridges/multipart-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
           cp c_bridges/child-process-bridge.o release/lib/
           cp c_bridges/child-process-spawn.o release/lib/
@@ -144,7 +145,7 @@ jobs:
       - name: Verify vendor libraries
         run: |
           fail=0
-          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/os-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o; do
+          for lib in vendor/bdwgc/libgc.a vendor/yyjson/libyyjson.a vendor/libuv/build/libuv.a vendor/picohttpparser/picohttpparser.o c_bridges/lws-bridge.o c_bridges/multipart-bridge.o c_bridges/regex-bridge.o c_bridges/child-process-bridge.o c_bridges/child-process-spawn.o c_bridges/os-bridge.o c_bridges/dotenv-bridge.o c_bridges/watch-bridge.o; do
             if [ ! -f "$lib" ]; then
               echo "MISSING: $lib"
               fail=1
@@ -198,6 +199,7 @@ jobs:
           cp vendor/libuv/build/libuv.a release/lib/
           cp vendor/picohttpparser/picohttpparser.o release/lib/
           cp c_bridges/lws-bridge.o release/lib/
+          cp c_bridges/multipart-bridge.o release/lib/
           cp c_bridges/regex-bridge.o release/lib/
           cp c_bridges/child-process-bridge.o release/lib/
           cp c_bridges/child-process-spawn.o release/lib/
@@ -267,6 +269,7 @@ jobs:
             libtree-sitter.a \
             picohttpparser.o \
             lws-bridge.o \
+            multipart-bridge.o \
             regex-bridge.o \
             child-process-bridge.o \
             child-process-spawn.o \
