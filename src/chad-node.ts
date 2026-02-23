@@ -15,7 +15,7 @@ import { LogLevel, logger } from "./utils/logger.js";
 import { runInit } from "./codegen/stdlib/init-templates.js";
 import * as path from "path";
 import * as fs from "fs";
-import { execSync } from "child_process";
+import { execSync, spawn as spawnProc, ChildProcess } from "child_process";
 
 const args = process.argv.slice(2);
 
@@ -41,6 +41,7 @@ function printHelp(): void {
   console.log(
     "  init             Generate starter project (chadscript.d.ts, tsconfig.json, hello.ts)",
   );
+  console.log("  watch <file>     Watch for changes and recompile+run");
   console.log("  clean            Remove the .build directory");
   console.log("");
   console.log("Options:");
@@ -99,7 +100,99 @@ if (command === "clean") {
   process.exit(0);
 }
 
-if (command !== "build" && command !== "run" && command !== "ir" && command !== "init") {
+if (command === "watch") {
+  const watchFile = args[1];
+  if (!watchFile) {
+    console.error("chad: error: no input files");
+    console.error("Usage: chad watch <input.ts>");
+    process.exit(1);
+  }
+  if (!fs.existsSync(watchFile)) {
+    console.error(`chad: error: file not found: ${watchFile}`);
+    process.exit(1);
+  }
+  // Node-hosted watch: use the native chad binary if available, otherwise node compiler
+  const chadBin = fs.existsSync(".build/chad") ? ".build/chad" : `node ${process.argv[1]}`;
+  const outBase = watchFile.replace(/\.(ts|js)$/, "");
+  const outputBin = `.build/${outBase}`;
+  const outputDir2 = path.dirname(outputBin);
+  if (!fs.existsSync(outputDir2)) {
+    fs.mkdirSync(outputDir2, { recursive: true });
+  }
+
+  const EXCLUDED_DIRS = new Set([".build", "node_modules", "vendor", ".git", "dist"]);
+  // Build artifacts we should never trigger a rebuild for
+  const EXCLUDED_EXTS = new Set([".o", ".ll", ".bc", ".a", ".so", ".dylib"]);
+  const watchDir = path.dirname(path.resolve(watchFile));
+  // Collect -- args to pass through to the spawned binary
+  const dashIdx = args.indexOf("--");
+  const runArgs = dashIdx >= 0 ? args.slice(dashIdx + 1) : [];
+
+  let childProc: ChildProcess | null = null;
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const killChild = () => {
+    if (childProc) {
+      childProc.kill("SIGTERM");
+      childProc = null;
+    }
+  };
+
+  const buildAndRun = () => {
+    killChild();
+    console.log("\x1b[2J\x1b[H"); // clear screen
+    console.log(`[watch] compiling ${watchFile}...`);
+    try {
+      execSync(`${chadBin} build ${watchFile} -o ${outputBin}`, { stdio: "inherit" });
+    } catch {
+      console.log("[watch] compile failed, waiting for changes...");
+      return;
+    }
+    console.log(`[watch] running ${outputBin}\n`);
+    childProc = spawnProc(path.resolve(outputBin), runArgs, { stdio: "inherit" });
+    childProc.on("exit", () => {
+      childProc = null;
+    });
+  };
+
+  process.on("SIGINT", () => {
+    killChild();
+    console.log("\n[watch] stopped");
+    process.exit(0);
+  });
+
+  // Initial compile+run
+  buildAndRun();
+
+  // fs.watch with recursive:true uses inotify/kqueue under the hood —
+  // much more efficient than the old fs.watchFile polling approach
+  console.log(`[watch] watching ${watchDir}`);
+  fs.watch(watchDir, { recursive: true }, (_event, filename) => {
+    if (!filename) return;
+    // Skip excluded directories
+    const parts = filename.split(path.sep);
+    for (const part of parts) {
+      if (EXCLUDED_DIRS.has(part)) return;
+    }
+    // Skip build artifacts — rebuild on everything else (.ts, .js, .css, .html, etc.)
+    const ext = path.extname(filename);
+    if (EXCLUDED_EXTS.has(ext)) return;
+    // 50ms debounce — editors often fire multiple events per save
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      debounceTimer = null;
+      buildAndRun();
+    }, 50);
+  });
+}
+
+if (
+  command !== "build" &&
+  command !== "run" &&
+  command !== "ir" &&
+  command !== "init" &&
+  command !== "watch"
+) {
   if (command.endsWith(".ts") || command.endsWith(".js")) {
     console.error(`chad: error: missing command. did you mean 'chad build ${command}'?`);
   } else {

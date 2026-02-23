@@ -311,6 +311,12 @@ export function compile(
   const cpBridgeObj = `${LWS_BRIDGE_PATH}/child-process-bridge.o`;
   // Always link os-bridge.o — platform-abstracted os.freemem()/os.uptime()
   const osBridgeObj = `${LWS_BRIDGE_PATH}/os-bridge.o`;
+  // Only link dotenv-bridge.o when available — auto-loads .env at startup
+  const dotenvBridgeObj = fs.existsSync(`${LWS_BRIDGE_PATH}/dotenv-bridge.o`)
+    ? `${LWS_BRIDGE_PATH}/dotenv-bridge.o`
+    : "";
+  // Always link watch-bridge.o — provides runtime for fs.watch() and chad watch
+  const watchBridgeObj = `${LWS_BRIDGE_PATH}/watch-bridge.o`;
   // Async spawn bridge linked only when child_process.spawn() is used (requires libuv)
   const cpSpawnObj = generator.getUsesSpawn() ? `${LWS_BRIDGE_PATH}/child-process-spawn.o` : "";
   let extraObjs = "";
@@ -362,7 +368,7 @@ export function compile(
   const debugFlag = debugInfo ? " -g" : "";
   const staticFlag = staticLink && !targetIsMac ? " -static" : "";
   const crossTarget = crossCompiling ? ` --target=${target.triple}` : "";
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${cpSpawnObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${sanitizeFlags} ${linkLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });

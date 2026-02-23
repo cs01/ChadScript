@@ -172,6 +172,10 @@ export function getLLVMDeclarations(config?: DeclConfig): string {
   // os-bridge.c — platform-abstracted os helpers
   ir += "declare i64 @chad_os_freemem()\n";
   ir += "declare double @chad_os_uptime()\n";
+  // dotenv-bridge.c — auto-loads .env at startup
+  ir += "declare void @cs_load_dotenv()\n";
+  // watch-bridge.c — file watcher for `chad watch`
+  ir += "declare void @cs_watch_loop(i8*, i8*, i8*)\n";
   ir += "\n";
 
   ir += "declare i32 @system(i8*)\n";

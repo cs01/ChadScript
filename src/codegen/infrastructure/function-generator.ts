@@ -928,6 +928,8 @@ export class FunctionGenerator {
 
     ir += "  store i32 %argc, i32* @__argc\n";
     ir += "  store i8** %argv, i8*** @__argv\n";
+    // Load .env file at startup (silent no-op if absent)
+    ir += "  call void @cs_load_dotenv()\n";
 
     this.ctx.reset();
 

@@ -135,6 +135,28 @@ else
   echo "==> regex-bridge already built, skipping"
 fi
 
+# --- dotenv-bridge (auto-loads .env at startup) ---
+DOTENV_BRIDGE_SRC="$C_BRIDGES_DIR/dotenv-bridge.c"
+DOTENV_BRIDGE_OBJ="$C_BRIDGES_DIR/dotenv-bridge.o"
+if [ ! -f "$DOTENV_BRIDGE_OBJ" ] || [ "$DOTENV_BRIDGE_SRC" -nt "$DOTENV_BRIDGE_OBJ" ]; then
+  echo "==> Building dotenv-bridge..."
+  cc -c -O2 -fPIC "$DOTENV_BRIDGE_SRC" -o "$DOTENV_BRIDGE_OBJ"
+  echo "  -> $DOTENV_BRIDGE_OBJ"
+else
+  echo "==> dotenv-bridge already built, skipping"
+fi
+
+# --- watch-bridge (file watcher for `chad watch`) ---
+WATCH_BRIDGE_SRC="$C_BRIDGES_DIR/watch-bridge.c"
+WATCH_BRIDGE_OBJ="$C_BRIDGES_DIR/watch-bridge.o"
+if [ ! -f "$WATCH_BRIDGE_OBJ" ] || [ "$WATCH_BRIDGE_SRC" -nt "$WATCH_BRIDGE_OBJ" ]; then
+  echo "==> Building watch-bridge..."
+  cc -c -O2 -fPIC "$WATCH_BRIDGE_SRC" -o "$WATCH_BRIDGE_OBJ"
+  echo "  -> $WATCH_BRIDGE_OBJ"
+else
+  echo "==> watch-bridge already built, skipping"
+fi
+
 # --- child-process-bridge (sync only, no libuv dependency) ---
 CP_BRIDGE_SRC="$C_BRIDGES_DIR/child-process-bridge.c"
 CP_BRIDGE_OBJ="$C_BRIDGES_DIR/child-process-bridge.o"

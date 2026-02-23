@@ -44,6 +44,18 @@ chad init
 
 Creates `chadscript.d.ts` (type declarations for editor support), `tsconfig.json`, and `hello.ts`. Run this once per project so your editor knows about ChadScript's built-in APIs.
 
+### `chad watch <file>`
+
+Watch a source file for changes and automatically recompile + re-run. Uses `inotify` on Linux (event-based) for instant change detection.
+
+```bash
+chad watch server.ts            # Recompiles and re-runs on every save
+```
+
+- On file change: kills the running process, recompiles, re-runs
+- Compile errors don't crash the loop — keeps watching
+- Ctrl+C exits cleanly (kills child process)
+
 ### `chad clean`
 
 Remove the `.build` directory.
