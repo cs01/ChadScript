@@ -36,13 +36,16 @@ declare const process: {
 declare function __gc_disable(): void;
 
 function findLLVMTool(name: string): string {
-  const homebrewArm = "/opt/homebrew/opt/llvm/bin/" + name;
-  const homebrewIntel = "/usr/local/opt/llvm/bin/" + name;
-  if (fs.existsSync(homebrewArm)) {
-    return homebrewArm;
-  }
-  if (fs.existsSync(homebrewIntel)) {
-    return homebrewIntel;
+  const candidates = [
+    "/opt/homebrew/opt/llvm/bin/" + name,
+    "/usr/local/opt/llvm/bin/" + name,
+    "/opt/homebrew/opt/lld/bin/" + name,
+    "/usr/local/opt/lld/bin/" + name,
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
   }
   return name;
 }

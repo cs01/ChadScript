@@ -11,7 +11,12 @@ import { TargetInfo, resolveTarget, getHostTarget, isCrossCompiling } from "./ta
 import { loadTargetSDK, TargetSDK } from "./cross-compile.js";
 
 function findLLVMTool(name: string): string {
-  const candidates = ["/opt/homebrew/opt/llvm/bin/" + name, "/usr/local/opt/llvm/bin/" + name];
+  const candidates = [
+    "/opt/homebrew/opt/llvm/bin/" + name,
+    "/usr/local/opt/llvm/bin/" + name,
+    "/opt/homebrew/opt/lld/bin/" + name,
+    "/usr/local/opt/lld/bin/" + name,
+  ];
   try {
     return execSync("which " + name, { stdio: "pipe", encoding: "utf8" }).trim();
   } catch (e) {
@@ -56,7 +61,7 @@ function findLLD(): string {
   throw new Error(
     "chad: error: lld not found (needed for cross-compilation)\n" +
       "Install lld:\n" +
-      "  macOS: brew install keith/formulae/ld64.lld\n" +
+      "  macOS: brew install lld\n" +
       "  Ubuntu/Debian: sudo apt-get install lld\n" +
       "  Fedora: sudo dnf install lld",
   );
