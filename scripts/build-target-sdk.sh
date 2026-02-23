@@ -97,17 +97,11 @@ if [ "$TARGET_OS" = "linux" ]; then
     for crt in Scrt1.o crti.o crtn.o; do
       [ -f "$MULTIARCH_DIR/$crt" ] && cp "$MULTIARCH_DIR/$crt" "$SYSROOT_DIR/usr/lib/"
     done
-    # System libraries (static + shared stubs)
-    for lib in libc.a libc.so libm.a libm.so libm-*.so libdl.a libdl.so libdl-*.so \
-               librt.a librt.so librt-*.so libpthread.a libpthread.so libpthread-*.so \
-               libc_nonshared.a libmvec.a libmvec.so; do
-      for f in $MULTIARCH_DIR/$lib; do
-        [ -f "$f" ] && cp "$f" "$SYSROOT_DIR/usr/lib/"
-      done
-    done
-    # ld-linux linker (needed by -lc)
-    for f in $MULTIARCH_DIR/ld-linux-*.so*; do
-      [ -f "$f" ] && cp "$f" "$SYSROOT_DIR/usr/lib/"
+    # Static system libraries only — .so files on Ubuntu are linker scripts with
+    # hardcoded absolute paths that break when copied to a different sysroot.
+    # Cross-compiled binaries use -static so only .a archives are needed.
+    for lib in libc.a libm.a libdl.a librt.a libpthread.a libc_nonshared.a libmvec.a; do
+      [ -f "$MULTIARCH_DIR/$lib" ] && cp "$MULTIARCH_DIR/$lib" "$SYSROOT_DIR/usr/lib/"
     done
   fi
 

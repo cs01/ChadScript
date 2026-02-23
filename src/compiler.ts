@@ -437,7 +437,10 @@ export function compile(
   // -no-pie: only for native Linux builds (not macOS, not cross-compiling from macOS)
   const noPie = !targetIsMac && !crossCompiling ? " -no-pie" : "";
   const debugFlag = debugInfo ? " -g" : "";
-  const shouldStatic = staticLink && !targetIsMac;
+  // Cross-compiled Linux binaries always link statically — the SDK's sysroot
+  // contains .a archives only (Ubuntu's .so files are linker scripts with
+  // hardcoded absolute paths that can't be relocated to a different sysroot).
+  const shouldStatic = (!targetIsMac && crossCompiling) || (staticLink && !targetIsMac);
   const staticFlag = shouldStatic ? " -static" : "";
   const crossTarget = crossCompiling ? ` --target=${target.triple}` : "";
   // Cross-compiling requires lld (LLVM's linker) — the host linker (e.g. macOS ld)
