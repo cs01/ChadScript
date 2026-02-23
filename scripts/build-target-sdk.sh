@@ -39,7 +39,8 @@ TARGET_NAME="${TARGET_OS}-${TARGET_ARCH}"
 LIBC="system"
 TRIPLE=""
 if [ "$TARGET_OS" = "linux" ]; then
-  if ldd --version 2>&1 | grep -qi musl; then
+  # Detect musl: check Alpine marker, musl dynamic linker, or ldd output
+  if [ -f /etc/alpine-release ] || ls /lib/ld-musl-*.so.1 >/dev/null 2>&1 || ldd --version 2>&1 | grep -qi musl; then
     LIBC="musl"
     TRIPLE="${LLVM_ARCH}-unknown-linux-musl"
   else
@@ -92,25 +93,26 @@ done
 # This gives cross-compilers everything they need to produce static musl binaries
 if [ "$LIBC" = "musl" ]; then
   echo "  Copying musl sysroot..."
-  mkdir -p "$SDK_DIR/sysroot/include" "$SDK_DIR/sysroot/lib"
+  # Mirror the real filesystem layout: --sysroot makes clang treat this as /
+  mkdir -p "$SDK_DIR/sysroot/usr/include" "$SDK_DIR/sysroot/usr/lib"
 
   # Copy musl headers
   if [ -d /usr/include ]; then
-    cp -r /usr/include/* "$SDK_DIR/sysroot/include/"
+    cp -r /usr/include/* "$SDK_DIR/sysroot/usr/include/"
   fi
 
   # Copy essential musl libraries and CRT objects
   for lib in libc.a libm.a libpthread.a librt.a libdl.a crt1.o crti.o crtn.o Scrt1.o rcrt1.o; do
     if [ -f "/usr/lib/$lib" ]; then
-      cp "/usr/lib/$lib" "$SDK_DIR/sysroot/lib/"
+      cp "/usr/lib/$lib" "$SDK_DIR/sysroot/usr/lib/"
     fi
   done
 
-  # Copy gcc/musl support libraries
-  for lib in libgcc.a libgcc_eh.a; do
+  # Copy gcc/musl support libraries and CRT objects needed for static linking
+  for lib in libgcc.a libgcc_eh.a crtbeginT.o crtbegin.o crtend.o; do
     found=$(find /usr/lib/gcc -name "$lib" 2>/dev/null | head -1)
     if [ -n "$found" ]; then
-      cp "$found" "$SDK_DIR/sysroot/lib/"
+      cp "$found" "$SDK_DIR/sysroot/usr/lib/"
     fi
   done
 fi

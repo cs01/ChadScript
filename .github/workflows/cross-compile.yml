@@ -45,7 +45,10 @@ jobs:
           clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
       - name: Build target SDK tarball
-        run: bash scripts/build-target-sdk.sh
+        run: |
+          bash scripts/build-target-sdk.sh
+          echo "==> SDK sysroot contents:"
+          ls -la .sdk-staging/linux-x64/sysroot/usr/lib/ 2>/dev/null || echo "  (no sysroot!)"
 
       - name: Upload target SDK
         uses: actions/upload-artifact@v4
@@ -92,6 +95,8 @@ jobs:
           mkdir -p ~/.chadscript/targets/linux-x64
           tar -xzf chadscript-target-linux-x64.tar.gz -C ~/.chadscript/targets/linux-x64
           cat ~/.chadscript/targets/linux-x64/sdk.json
+          echo "SDK sysroot:"
+          ls ~/.chadscript/targets/linux-x64/sysroot/usr/lib/ 2>/dev/null || echo "  (no sysroot!)"
 
       - name: Cross-compile hello.ts for Linux x64
         run: |
