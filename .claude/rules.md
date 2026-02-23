@@ -136,6 +136,28 @@ Tests auto-detect `.build/chad` and use it instead of `node dist/chad-node.js` (
 - `GC_malloc_atomic(size)` — allocate GC'd memory for non-pointer data (strings)
 - `GC_malloc(size)` — allocate GC'd memory that may contain pointers
 
+## Prefer Builder Methods Over Raw emit()
+
+`BaseGenerator` provides typed builder methods in `src/codegen/infrastructure/base-generator.ts:455-519`,
+exposed through `IGeneratorContext`. **Always prefer these over raw `ctx.emit(...)` for supported instructions.**
+
+| Instead of raw emit                           | Use builder method                                      |
+| --------------------------------------------- | ------------------------------------------------------- |
+| `ctx.emit(\`store ... ${val} ... ${ptr}\`)`   | `ctx.emitStore(type, value, ptr)`                       |
+| `ctx.emit(\`%t = load ... ${ptr}\`)`          | `ctx.emitLoad(type, ptr)` → returns temp                |
+| `ctx.emit(\`%t = getelementptr ... ${ptr}\`)` | `ctx.emitGep(baseType, ptr, indices)` → returns temp    |
+| `ctx.emit(\`%t = bitcast ... ${val}\`)`       | `ctx.emitBitcast(val, fromType, toType)` → returns temp |
+| `ctx.emit(\`%t = icmp ... ${a} ${b}\`)`       | `ctx.emitIcmp(cond, type, a, b)` → returns temp         |
+| `ctx.emit(\`call void @fn(...)\`)`            | `ctx.emitCallVoid(fn, args)`                            |
+| `ctx.emit(\`%t = call ... @fn(...)\`)`        | `ctx.emitCall(retType, fn, args)` → returns temp        |
+| `ctx.emit(\`br label %lbl\`)`                 | `ctx.emitBr(label)`                                     |
+| `ctx.emit(\`br i1 %c, label %t, label %f\`)`  | `ctx.emitBrCond(cond, trueLabel, falseLabel)`           |
+| `ctx.emit(\`ret ...\`)`                       | `ctx.emitRet(type, value)` / `ctx.emitRetVoid()`        |
+
+Builders auto-allocate temps, auto-set variable types, and correctly construct IR strings — eliminating
+manual `nextTemp()` + `setVariableType()` + string interpolation per instruction. Existing code still uses
+raw `emit()` heavily (~3,300 raw calls vs ~21 builder calls); migrate incrementally when touching a file.
+
 ## Terminator Classification
 
 LLVM basic blocks must end with exactly one terminator instruction (`ret`, `br`, `unreachable`, `switch`).

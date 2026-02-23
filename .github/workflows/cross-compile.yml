@@ -137,7 +137,12 @@ jobs:
       - name: Link with native toolchain
         run: |
           SDK_PATH=$(xcrun --show-sdk-path)
-          clang .build/hello-macos.o -o .build/hello-macos \
+          clang .build/hello-macos.o \
+            c_bridges/child-process-bridge.o \
+            c_bridges/os-bridge.o \
+            c_bridges/dotenv-bridge.o \
+            c_bridges/watch-bridge.o \
+            -o .build/hello-macos \
             -Wl,-syslibroot,$SDK_PATH \
             -L/usr/local/lib \
             -Lvendor/bdwgc -lgc
@@ -173,7 +178,12 @@ jobs:
 
       - name: Link with native toolchain
         run: |
-          gcc .build/hello-linux.o -o .build/hello-linux \
+          gcc .build/hello-linux.o \
+            c_bridges/child-process-bridge.o \
+            c_bridges/os-bridge.o \
+            c_bridges/dotenv-bridge.o \
+            c_bridges/watch-bridge.o \
+            -o .build/hello-linux \
             -Lvendor/bdwgc -lgc \
             -lm -ldl -lrt -lpthread -no-pie
 
