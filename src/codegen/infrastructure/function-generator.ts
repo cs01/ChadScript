@@ -290,7 +290,9 @@ export class FunctionGenerator {
       paramStrings.push(`${llvmType} %arg${i}`);
     }
     ir += paramStrings.join(", ");
-    const funcAttrs = this.hasTryStatement(funcBody) ? ") noinline optnone" : ") nounwind";
+    // noinline optnone for try functions (protects setjmp); no nounwind for others
+    // because any function may transitively call throw (longjmp) — nounwind + longjmp is UB
+    const funcAttrs = this.hasTryStatement(funcBody) ? ") noinline optnone" : ")";
     ir += funcAttrs + this.ctx.getSubprogramDbgRef() + " {\n";
     ir += "entry:\n";
     this.ctx.setCurrentLabel("entry");
@@ -900,7 +902,7 @@ export class FunctionGenerator {
     topLevelObjectVariables: Map<string, { ptr: string; keys: string[]; types: string[] }>,
     hasTry?: boolean,
   ): string {
-    const mainAttrs = hasTry ? "noinline optnone" : "nounwind";
+    const mainAttrs = hasTry ? "noinline optnone" : "";
     let ir =
       "define i32 @main(i32 %argc, i8** %argv) " +
       mainAttrs +
