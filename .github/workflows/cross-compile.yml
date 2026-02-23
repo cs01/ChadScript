@@ -132,11 +132,7 @@ jobs:
 
       - name: Run cross-compiled binary
         run: |
+          ls -la
           chmod +x hello-linux
           ./hello-linux
           echo "Cross-compiled binary ran successfully on Linux"
-
-      - name: Run cross-compiled binary
-        run: |
-          .build/hello-linux
-          echo "Cross-compiled Linux binary ran successfully"
