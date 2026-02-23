@@ -10,6 +10,12 @@ export interface BinaryExpressionGeneratorContext {
   nextLabel(prefix: string): string;
   getCurrentLabel(): string;
   emit(instruction: string): void;
+  emitIcmp(pred: string, type: string, lhs: string, rhs: string): string;
+  emitBr(label: string): void;
+  emitBrCond(cond: string, thenLabel: string, elseLabel: string): void;
+  emitLabel(name: string): void;
+  emitCall(retType: string, func: string, args: string): string;
+  emitBitcast(value: string, fromType: string, toType: string): string;
   isStringExpression(expr: Expression): boolean;
   variableTypes: Map<string, string>;
   getVariableType(name: string): string | undefined;
@@ -197,23 +203,19 @@ export class BinaryExpressionGenerator {
 
     let bothInt: string;
     if (leftIsKnown) {
-      const rightTrunc = this.ctx.nextTemp();
-      this.ctx.emit(`${rightTrunc} = call double @llvm.trunc.f64(double ${right})`);
+      const rightTrunc = this.ctx.emitCall("double", "@llvm.trunc.f64", `double ${right}`);
       bothInt = this.ctx.nextTemp();
       this.ctx.emit(`${bothInt} = fcmp oeq double ${right}, ${rightTrunc}`);
     } else if (rightIsKnown) {
-      const leftTrunc = this.ctx.nextTemp();
-      this.ctx.emit(`${leftTrunc} = call double @llvm.trunc.f64(double ${left})`);
+      const leftTrunc = this.ctx.emitCall("double", "@llvm.trunc.f64", `double ${left}`);
       bothInt = this.ctx.nextTemp();
       this.ctx.emit(`${bothInt} = fcmp oeq double ${left}, ${leftTrunc}`);
     } else {
-      const leftTrunc = this.ctx.nextTemp();
-      this.ctx.emit(`${leftTrunc} = call double @llvm.trunc.f64(double ${left})`);
+      const leftTrunc = this.ctx.emitCall("double", "@llvm.trunc.f64", `double ${left}`);
       const leftIsInt = this.ctx.nextTemp();
       this.ctx.emit(`${leftIsInt} = fcmp oeq double ${left}, ${leftTrunc}`);
 
-      const rightTrunc = this.ctx.nextTemp();
-      this.ctx.emit(`${rightTrunc} = call double @llvm.trunc.f64(double ${right})`);
+      const rightTrunc = this.ctx.emitCall("double", "@llvm.trunc.f64", `double ${right}`);
       const rightIsInt = this.ctx.nextTemp();
       this.ctx.emit(`${rightIsInt} = fcmp oeq double ${right}, ${rightTrunc}`);
 
@@ -225,9 +227,9 @@ export class BinaryExpressionGenerator {
     const floatModLabel = this.ctx.nextLabel("mod_float");
     const mergeLabel = this.ctx.nextLabel("mod_merge");
 
-    this.ctx.emit(`br i1 ${bothInt}, label %${intModLabel}, label %${floatModLabel}`);
+    this.ctx.emitBrCond(bothInt, intModLabel, floatModLabel);
 
-    this.ctx.emit(`${intModLabel}:`);
+    this.ctx.emitLabel(intModLabel);
     const leftInt = this.ctx.nextTemp();
     this.ctx.emit(`${leftInt} = fptosi double ${left} to i64`);
     const rightInt = this.ctx.nextTemp();
@@ -237,15 +239,15 @@ export class BinaryExpressionGenerator {
     const intResult = this.ctx.nextTemp();
     this.ctx.emit(`${intResult} = sitofp i64 ${sremResult} to double`);
     const intBranchEnd = this.ctx.getCurrentLabel();
-    this.ctx.emit(`br label %${mergeLabel}`);
+    this.ctx.emitBr(mergeLabel);
 
-    this.ctx.emit(`${floatModLabel}:`);
+    this.ctx.emitLabel(floatModLabel);
     const fremResult = this.ctx.nextTemp();
     this.ctx.emit(`${fremResult} = frem fast double ${left}, ${right}`);
     const floatBranchEnd = this.ctx.getCurrentLabel();
-    this.ctx.emit(`br label %${mergeLabel}`);
+    this.ctx.emitBr(mergeLabel);
 
-    this.ctx.emit(`${mergeLabel}:`);
+    this.ctx.emitLabel(mergeLabel);
     const result = this.ctx.nextTemp();
     this.ctx.emit(
       `${result} = phi double [ ${intResult}, %${intBranchEnd} ], [ ${fremResult}, %${floatBranchEnd} ]`,
@@ -345,10 +347,8 @@ export class BinaryExpressionGenerator {
       rightPtr = temp;
     }
 
-    const leftNull = this.ctx.nextTemp();
-    this.ctx.emit(`${leftNull} = icmp eq i8* ${leftPtr}, null`);
-    const rightNull = this.ctx.nextTemp();
-    this.ctx.emit(`${rightNull} = icmp eq i8* ${rightPtr}, null`);
+    const leftNull = this.ctx.emitIcmp("eq", "i8*", leftPtr, "null");
+    const rightNull = this.ctx.emitIcmp("eq", "i8*", rightPtr, "null");
     const eitherNull = this.ctx.nextTemp();
     this.ctx.emit(`${eitherNull} = or i1 ${leftNull}, ${rightNull}`);
 
@@ -356,9 +356,9 @@ export class BinaryExpressionGenerator {
     const strcmpLabel = this.ctx.nextLabel("strcmp_call");
     const mergeLabel = this.ctx.nextLabel("strcmp_merge");
 
-    this.ctx.emit(`br i1 ${eitherNull}, label %${nullCheckLabel}, label %${strcmpLabel}`);
+    this.ctx.emitBrCond(eitherNull, nullCheckLabel, strcmpLabel);
 
-    this.ctx.emit(`${nullCheckLabel}:`);
+    this.ctx.emitLabel(nullCheckLabel);
     const bothNull = this.ctx.nextTemp();
     this.ctx.emit(`${bothNull} = and i1 ${leftNull}, ${rightNull}`);
     let nullResult: string;
@@ -369,48 +369,39 @@ export class BinaryExpressionGenerator {
       this.ctx.emit(`${notBothNull} = xor i1 ${bothNull}, true`);
       nullResult = notBothNull;
     } else {
-      const falseVal = this.ctx.nextTemp();
-      this.ctx.emit(`${falseVal} = icmp eq i32 0, 1`);
+      const falseVal = this.ctx.emitIcmp("eq", "i32", "0", "1");
       nullResult = falseVal;
     }
     const nullResultInt = this.ctx.nextTemp();
     this.ctx.emit(`${nullResultInt} = zext i1 ${nullResult} to i32`);
     const nullBranchEnd = this.ctx.getCurrentLabel();
-    this.ctx.emit(`br label %${mergeLabel}`);
+    this.ctx.emitBr(mergeLabel);
 
-    this.ctx.emit(`${strcmpLabel}:`);
-    const strcmpResult = this.ctx.nextTemp();
-    this.ctx.emit(`${strcmpResult} = call i32 @strcmp(i8* ${leftPtr}, i8* ${rightPtr})`);
+    this.ctx.emitLabel(strcmpLabel);
+    const strcmpResult = this.ctx.emitCall("i32", "@strcmp", `i8* ${leftPtr}, i8* ${rightPtr}`);
 
     let cmpResult: string;
     if (op === "==" || op === "===") {
-      cmpResult = this.ctx.nextTemp();
-      this.ctx.emit(`${cmpResult} = icmp eq i32 ${strcmpResult}, 0`);
+      cmpResult = this.ctx.emitIcmp("eq", "i32", strcmpResult, "0");
     } else if (op === "!=" || op === "!==") {
-      cmpResult = this.ctx.nextTemp();
-      this.ctx.emit(`${cmpResult} = icmp ne i32 ${strcmpResult}, 0`);
+      cmpResult = this.ctx.emitIcmp("ne", "i32", strcmpResult, "0");
     } else if (op === "<") {
-      cmpResult = this.ctx.nextTemp();
-      this.ctx.emit(`${cmpResult} = icmp slt i32 ${strcmpResult}, 0`);
+      cmpResult = this.ctx.emitIcmp("slt", "i32", strcmpResult, "0");
     } else if (op === ">") {
-      cmpResult = this.ctx.nextTemp();
-      this.ctx.emit(`${cmpResult} = icmp sgt i32 ${strcmpResult}, 0`);
+      cmpResult = this.ctx.emitIcmp("sgt", "i32", strcmpResult, "0");
     } else if (op === "<=") {
-      cmpResult = this.ctx.nextTemp();
-      this.ctx.emit(`${cmpResult} = icmp sle i32 ${strcmpResult}, 0`);
+      cmpResult = this.ctx.emitIcmp("sle", "i32", strcmpResult, "0");
     } else if (op === ">=") {
-      cmpResult = this.ctx.nextTemp();
-      this.ctx.emit(`${cmpResult} = icmp sge i32 ${strcmpResult}, 0`);
+      cmpResult = this.ctx.emitIcmp("sge", "i32", strcmpResult, "0");
     } else {
-      cmpResult = this.ctx.nextTemp();
-      this.ctx.emit(`${cmpResult} = icmp eq i32 ${strcmpResult}, 0`);
+      cmpResult = this.ctx.emitIcmp("eq", "i32", strcmpResult, "0");
     }
     const strcmpResultInt = this.ctx.nextTemp();
     this.ctx.emit(`${strcmpResultInt} = zext i1 ${cmpResult} to i32`);
     const strcmpBranchEnd = this.ctx.getCurrentLabel();
-    this.ctx.emit(`br label %${mergeLabel}`);
+    this.ctx.emitBr(mergeLabel);
 
-    this.ctx.emit(`${mergeLabel}:`);
+    this.ctx.emitLabel(mergeLabel);
     const i32Result = this.ctx.nextTemp();
     this.ctx.emit(
       `${i32Result} = phi i32 [ ${nullResultInt}, %${nullBranchEnd} ], [ ${strcmpResultInt}, %${strcmpBranchEnd} ]`,
@@ -438,8 +429,7 @@ export class BinaryExpressionGenerator {
                 : cond === "oeq"
                   ? "eq"
                   : "ne";
-      const cmpResult = this.ctx.nextTemp();
-      this.ctx.emit(`${cmpResult} = icmp ${icmpCond} i64 ${left}, ${right}`);
+      const cmpResult = this.ctx.emitIcmp(icmpCond, "i64", left, right);
       const i64Result = this.ctx.nextTemp();
       this.ctx.emit(`${i64Result} = zext i1 ${cmpResult} to i64`);
       this.ctx.setVariableType(i64Result, "i64");
@@ -495,9 +485,7 @@ export class BinaryExpressionGenerator {
     let leftPtr = left;
     let rightPtr = right;
     if (leftType !== "i8*" && leftType.indexOf("*") !== -1) {
-      const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = bitcast ${leftType} ${left} to i8*`);
-      leftPtr = temp;
+      leftPtr = this.ctx.emitBitcast(left, leftType, "i8*");
     } else if (leftType === "double") {
       const asInt = this.ctx.nextTemp();
       this.ctx.emit(`${asInt} = bitcast double ${left} to i64`);
@@ -510,9 +498,7 @@ export class BinaryExpressionGenerator {
       leftPtr = temp;
     }
     if (rightType !== "i8*" && rightType.indexOf("*") !== -1) {
-      const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = bitcast ${rightType} ${right} to i8*`);
-      rightPtr = temp;
+      rightPtr = this.ctx.emitBitcast(right, rightType, "i8*");
     } else if (rightType === "double") {
       const asInt = this.ctx.nextTemp();
       this.ctx.emit(`${asInt} = bitcast double ${right} to i64`);
@@ -532,8 +518,7 @@ export class BinaryExpressionGenerator {
     } else {
       cond = "eq";
     }
-    const cmpResult = this.ctx.nextTemp();
-    this.ctx.emit(`${cmpResult} = icmp ${cond} i8* ${leftPtr}, ${rightPtr}`);
+    const cmpResult = this.ctx.emitIcmp(cond, "i8*", leftPtr, rightPtr);
     const i32Result = this.ctx.nextTemp();
     this.ctx.emit(`${i32Result} = zext i1 ${cmpResult} to i32`);
     const doubleResult = this.ctx.nextTemp();

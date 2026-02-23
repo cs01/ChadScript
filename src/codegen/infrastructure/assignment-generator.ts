@@ -29,6 +29,9 @@ interface ObjectInfo {
 export interface AssignmentGeneratorContext {
   nextTemp(): string;
   emit(instruction: string): void;
+  emitStore(type: string, value: string, ptr: string): void;
+  emitLoad(type: string, ptr: string): string;
+  emitBitcast(value: string, fromType: string, toType: string): string;
   generateExpression(expr: Expression, params: string[]): string;
   getVariableAlloca(name: string): string | null;
   getVariableType(name: string): string | null;
@@ -183,8 +186,7 @@ export class AssignmentGenerator {
     const objPtr = this.ctx.nextTemp();
     this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}, !tbaa !5`);
 
-    const typedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
+    const typedPtr = this.ctx.emitBitcast(objPtr, "i8*", `${structType}*`);
 
     const fieldPtr = this.ctx.nextTemp();
     this.ctx.emit(
@@ -464,8 +466,7 @@ export class AssignmentGenerator {
     const data = this.ctx.nextTemp();
     this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}, !tbaa !5`);
 
-    const dataAsPtrs = this.ctx.nextTemp();
-    this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${data} to i8**`);
+    const dataAsPtrs = this.ctx.emitBitcast(data, "i8*", "i8**");
 
     const elemPtrPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elemPtrPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
@@ -473,8 +474,7 @@ export class AssignmentGenerator {
     const elemPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elemPtr} = load i8*, i8** ${elemPtrPtr}, !tbaa !5`);
 
-    const elemTyped = this.ctx.nextTemp();
-    this.ctx.emit(`${elemTyped} = bitcast i8* ${elemPtr} to ${structType}*`);
+    const elemTyped = this.ctx.emitBitcast(elemPtr, "i8*", `${structType}*`);
 
     const propType = elementInfo.types[propIndex];
     const fieldPtr = this.ctx.nextTemp();
@@ -601,6 +601,6 @@ export class AssignmentGenerator {
     this.ctx.emit(
       `${lengthPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`,
     );
-    this.ctx.emit(`store i32 ${valueI32}, i32* ${lengthPtr}`);
+    this.ctx.emitStore("i32", valueI32, lengthPtr);
   }
 }

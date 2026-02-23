@@ -48,42 +48,36 @@ export function extractJsonFieldValue(
   ctx: MemberAccessGeneratorContext,
   fieldItem: string,
 ): string {
-  const fieldExists = ctx.nextTemp();
-  ctx.emit(`${fieldExists} = icmp ne i8* ${fieldItem}, null`);
+  const fieldExists = ctx.emitIcmp("ne", "i8*", fieldItem, "null");
 
   const hasFieldLabel = ctx.nextLabel("json_has_field");
   const noFieldLabel = ctx.nextLabel("json_no_field");
   const fieldEndLabel = ctx.nextLabel("json_field_end");
 
-  ctx.emit(`br i1 ${fieldExists}, label %${hasFieldLabel}, label %${noFieldLabel}`);
-  ctx.emit(`${hasFieldLabel}:`);
+  ctx.emitBrCond(fieldExists, hasFieldLabel, noFieldLabel);
+  ctx.emitLabel(hasFieldLabel);
 
-  const isNumber = ctx.nextTemp();
-  ctx.emit(`${isNumber} = call i32 @csyyjson_is_num(i8* ${fieldItem})`);
-  const isNumBool = ctx.nextTemp();
-  ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
+  const isNumber = ctx.emitCall("i32", "@csyyjson_is_num", `i8* ${fieldItem}`);
+  const isNumBool = ctx.emitIcmp("ne", "i32", isNumber, "0");
 
   const numberLabel = ctx.nextLabel("json_number");
   const stringLabel = ctx.nextLabel("json_string");
 
-  ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
+  ctx.emitBrCond(isNumBool, numberLabel, stringLabel);
 
-  ctx.emit(`${numberLabel}:`);
-  const numValueDouble = ctx.nextTemp();
-  ctx.emit(`${numValueDouble} = call double @csyyjson_get_num(i8* ${fieldItem})`);
-  const numAsStr = ctx.nextTemp();
-  ctx.emit(`${numAsStr} = call i8* @__double_to_string(double ${numValueDouble})`);
-  ctx.emit(`br label %${fieldEndLabel}`);
+  ctx.emitLabel(numberLabel);
+  const numValueDouble = ctx.emitCall("double", "@csyyjson_get_num", `i8* ${fieldItem}`);
+  const numAsStr = ctx.emitCall("i8*", "@__double_to_string", `double ${numValueDouble}`);
+  ctx.emitBr(fieldEndLabel);
 
-  ctx.emit(`${stringLabel}:`);
-  const strValue = ctx.nextTemp();
-  ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
-  ctx.emit(`br label %${fieldEndLabel}`);
+  ctx.emitLabel(stringLabel);
+  const strValue = ctx.emitCall("i8*", "@csyyjson_get_str", `i8* ${fieldItem}`);
+  ctx.emitBr(fieldEndLabel);
 
-  ctx.emit(`${noFieldLabel}:`);
-  ctx.emit(`br label %${fieldEndLabel}`);
+  ctx.emitLabel(noFieldLabel);
+  ctx.emitBr(fieldEndLabel);
 
-  ctx.emit(`${fieldEndLabel}:`);
+  ctx.emitLabel(fieldEndLabel);
   const result = ctx.nextTemp();
   ctx.emit(
     `${result} = phi i8* [ ${numAsStr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ], [ null, %${noFieldLabel} ]`,
@@ -97,30 +91,25 @@ export function extractNestedJsonFieldValue(
   ctx: MemberAccessGeneratorContext,
   fieldItem: string,
 ): string {
-  const isNumber = ctx.nextTemp();
-  ctx.emit(`${isNumber} = call i32 @csyyjson_is_num(i8* ${fieldItem})`);
-  const isNumBool = ctx.nextTemp();
-  ctx.emit(`${isNumBool} = icmp ne i32 ${isNumber}, 0`);
+  const isNumber = ctx.emitCall("i32", "@csyyjson_is_num", `i8* ${fieldItem}`);
+  const isNumBool = ctx.emitIcmp("ne", "i32", isNumber, "0");
 
   const numberLabel = ctx.nextLabel("json_number");
   const stringLabel = ctx.nextLabel("json_string");
   const fieldEndLabel = ctx.nextLabel("json_field_end");
 
-  ctx.emit(`br i1 ${isNumBool}, label %${numberLabel}, label %${stringLabel}`);
+  ctx.emitBrCond(isNumBool, numberLabel, stringLabel);
 
-  ctx.emit(`${numberLabel}:`);
-  const numValueDouble = ctx.nextTemp();
-  ctx.emit(`${numValueDouble} = call double @csyyjson_get_num(i8* ${fieldItem})`);
-  const numAsStr = ctx.nextTemp();
-  ctx.emit(`${numAsStr} = call i8* @__double_to_string(double ${numValueDouble})`);
-  ctx.emit(`br label %${fieldEndLabel}`);
+  ctx.emitLabel(numberLabel);
+  const numValueDouble = ctx.emitCall("double", "@csyyjson_get_num", `i8* ${fieldItem}`);
+  const numAsStr = ctx.emitCall("i8*", "@__double_to_string", `double ${numValueDouble}`);
+  ctx.emitBr(fieldEndLabel);
 
-  ctx.emit(`${stringLabel}:`);
-  const strValue = ctx.nextTemp();
-  ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
-  ctx.emit(`br label %${fieldEndLabel}`);
+  ctx.emitLabel(stringLabel);
+  const strValue = ctx.emitCall("i8*", "@csyyjson_get_str", `i8* ${fieldItem}`);
+  ctx.emitBr(fieldEndLabel);
 
-  ctx.emit(`${fieldEndLabel}:`);
+  ctx.emitLabel(fieldEndLabel);
   const result = ctx.nextTemp();
   ctx.emit(
     `${result} = phi i8* [ ${numAsStr}, %${numberLabel} ], [ ${strValue}, %${stringLabel} ]`,
@@ -140,10 +129,8 @@ export function handleJsonPropertyAccess(
 
   if (expr.property === "length") {
     const jsonObjPtrPtr = ctx.getVariableAlloca(varName)!;
-    const jsonObjPtr = ctx.nextTemp();
-    ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
-    const arraySize = ctx.nextTemp();
-    ctx.emit(`${arraySize} = call i32 @csyyjson_arr_size(i8* ${jsonObjPtr})`);
+    const jsonObjPtr = ctx.emitLoad("i8*", jsonObjPtrPtr);
+    const arraySize = ctx.emitCall("i32", "@csyyjson_arr_size", `i8* ${jsonObjPtr}`);
     const sizeDouble = ctx.nextTemp();
     ctx.emit(`${sizeDouble} = sitofp i32 ${arraySize} to double`);
     ctx.setVariableType(sizeDouble, "double");
@@ -163,13 +150,15 @@ export function handleJsonPropertyAccess(
   }
 
   const jsonObjPtrPtr = ctx.getVariableAlloca(varName)!;
-  const jsonObjPtr = ctx.nextTemp();
-  ctx.emit(`${jsonObjPtr} = load i8*, i8** ${jsonObjPtrPtr}`);
+  const jsonObjPtr = ctx.emitLoad("i8*", jsonObjPtrPtr);
 
   const fieldNameStr = ctx.stringGen.doCreateStringConstant(expr.property);
 
-  const fieldItem = ctx.nextTemp();
-  ctx.emit(`${fieldItem} = call i8* @csyyjson_obj_get(i8* ${jsonObjPtr}, i8* ${fieldNameStr})`);
+  const fieldItem = ctx.emitCall(
+    "i8*",
+    "@csyyjson_obj_get",
+    `i8* ${jsonObjPtr}, i8* ${fieldNameStr}`,
+  );
 
   if (
     tsType &&
@@ -179,18 +168,15 @@ export function handleJsonPropertyAccess(
   }
 
   if (tsType === "string") {
-    const strValue = ctx.nextTemp();
-    ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
+    const strValue = ctx.emitCall("i8*", "@csyyjson_get_str", `i8* ${fieldItem}`);
     ctx.setVariableType(strValue, "i8*");
     return strValue;
   } else if (tsType === "number") {
-    const numValue = ctx.nextTemp();
-    ctx.emit(`${numValue} = call double @csyyjson_get_num(i8* ${fieldItem})`);
+    const numValue = ctx.emitCall("double", "@csyyjson_get_num", `i8* ${fieldItem}`);
     ctx.setVariableType(numValue, "double");
     return numValue;
   } else if (tsType === "boolean") {
-    const boolValue = ctx.nextTemp();
-    ctx.emit(`${boolValue} = call i32 @csyyjson_is_true(i8* ${fieldItem})`);
+    const boolValue = ctx.emitCall("i32", "@csyyjson_is_true", `i8* ${fieldItem}`);
     const boolAsDouble = ctx.nextTemp();
     ctx.emit(`${boolAsDouble} = sitofp i32 ${boolValue} to double`);
     ctx.setVariableType(boolAsDouble, "double");
@@ -234,8 +220,11 @@ export function handleNestedJsonAccess(
 
   ctx.setUsesJson(true);
   const fieldNameStr = ctx.stringGen.doCreateStringConstant(expr.property);
-  const fieldItem = ctx.nextTemp();
-  ctx.emit(`${fieldItem} = call i8* @csyyjson_obj_get(i8* ${innerResult}, i8* ${fieldNameStr})`);
+  const fieldItem = ctx.emitCall(
+    "i8*",
+    "@csyyjson_obj_get",
+    `i8* ${innerResult}, i8* ${fieldNameStr}`,
+  );
 
   const propIdx = nestedMetaKeys.indexOf(expr.property);
   let tsType: string | undefined;
@@ -251,18 +240,15 @@ export function handleNestedJsonAccess(
   }
 
   if (tsType === "string") {
-    const strValue = ctx.nextTemp();
-    ctx.emit(`${strValue} = call i8* @csyyjson_get_str(i8* ${fieldItem})`);
+    const strValue = ctx.emitCall("i8*", "@csyyjson_get_str", `i8* ${fieldItem}`);
     ctx.setVariableType(strValue, "i8*");
     return strValue;
   } else if (tsType === "number") {
-    const numValue = ctx.nextTemp();
-    ctx.emit(`${numValue} = call double @csyyjson_get_num(i8* ${fieldItem})`);
+    const numValue = ctx.emitCall("double", "@csyyjson_get_num", `i8* ${fieldItem}`);
     ctx.setVariableType(numValue, "double");
     return numValue;
   } else if (tsType === "boolean") {
-    const boolValue = ctx.nextTemp();
-    ctx.emit(`${boolValue} = call i32 @csyyjson_is_true(i8* ${fieldItem})`);
+    const boolValue = ctx.emitCall("i32", "@csyyjson_is_true", `i8* ${fieldItem}`);
     const boolAsDouble = ctx.nextTemp();
     ctx.emit(`${boolAsDouble} = sitofp i32 ${boolValue} to double`);
     ctx.setVariableType(boolAsDouble, "double");

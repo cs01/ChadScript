@@ -8,12 +8,10 @@ function emitPrint(
   args: string,
 ): void {
   if (useStderr) {
-    const stderrPtr = ctx.nextTemp();
-    ctx.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+    const stderrPtr = ctx.emitLoad("i8*", "@stderr");
     const temp = ctx.nextTemp();
     ctx.emit(`${temp} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, ${fmtRef}${args})`);
-    const flushTemp = ctx.nextTemp();
-    ctx.emit(`${flushTemp} = call i32 @fflush(i8* ${stderrPtr})`);
+    const flushTemp = ctx.emitCall("i32", "@fflush", `i8* ${stderrPtr}`);
   } else {
     const temp = ctx.nextTemp();
     ctx.emit(`${temp} = call i32 (i8*, ...) @printf(${fmtRef}${args})`);
@@ -67,16 +65,14 @@ function emitArrayPrint(
   ctx.emit(
     `${lenPtr} = getelementptr inbounds %${arrayType}, %${arrayType}* ${arrayPtr}, i32 0, i32 1`,
   );
-  const len = ctx.nextTemp();
-  ctx.emit(`${len} = load i32, i32* ${lenPtr}`);
+  const len = ctx.emitLoad("i32", lenPtr);
 
   const openBracket = ctx.stringGen.doCreateStringConstant("[ ");
   const closeBracket = ctx.stringGen.doCreateStringConstant(" ]");
   const separator = ctx.stringGen.doCreateStringConstant(", ");
   const emptyArray = ctx.stringGen.doCreateStringConstant("[]");
 
-  const isEmpty = ctx.nextTemp();
-  ctx.emit(`${isEmpty} = icmp eq i32 ${len}, 0`);
+  const isEmpty = ctx.emitIcmp("eq", "i32", len, "0");
 
   const emptyLabel = ctx.nextLabel("arr_empty");
   const nonEmptyLabel = ctx.nextLabel("arr_nonempty");
@@ -87,88 +83,78 @@ function emitArrayPrint(
   const endLabel = ctx.nextLabel("arr_end");
   const doneLabel = ctx.nextLabel("arr_done");
 
-  ctx.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${nonEmptyLabel}`);
+  ctx.emitBrCond(isEmpty, emptyLabel, nonEmptyLabel);
 
-  ctx.emit(`${emptyLabel}:`);
+  ctx.emitLabel(emptyLabel);
   emitPrintStrNoNl(ctx, useStderr, emptyArray);
-  ctx.emit(`br label %${doneLabel}`);
+  ctx.emitBr(doneLabel);
 
-  ctx.emit(`${nonEmptyLabel}:`);
+  ctx.emitLabel(nonEmptyLabel);
   let dataPtr: string;
   if (arrayType === "Array") {
     const dataPtrField = ctx.nextTemp();
     ctx.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-    dataPtr = ctx.nextTemp();
-    ctx.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
+    dataPtr = ctx.emitLoad("double*", dataPtrField);
   } else if (arrayType === "StringArray") {
     const dataPtrField = ctx.nextTemp();
     ctx.emit(
       `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
     );
-    dataPtr = ctx.nextTemp();
-    ctx.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+    dataPtr = ctx.emitLoad("i8**", dataPtrField);
   } else {
     const dataPtrField = ctx.nextTemp();
     ctx.emit(
       `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
     );
-    const rawData = ctx.nextTemp();
-    ctx.emit(`${rawData} = load i8*, i8** ${dataPtrField}`);
-    dataPtr = ctx.nextTemp();
-    ctx.emit(`${dataPtr} = bitcast i8* ${rawData} to i8**`);
+    const rawData = ctx.emitLoad("i8*", dataPtrField);
+    dataPtr = ctx.emitBitcast(rawData, "i8*", "i8**");
   }
   emitPrintStrNoNl(ctx, useStderr, openBracket);
   const iAlloca = ctx.nextTemp();
   ctx.emit(`${iAlloca} = alloca i32`);
-  ctx.emit(`store i32 0, i32* ${iAlloca}`);
-  ctx.emit(`br label %${loopLabel}`);
+  ctx.emitStore("i32", "0", iAlloca);
+  ctx.emitBr(loopLabel);
 
-  ctx.emit(`${loopLabel}:`);
-  const i = ctx.nextTemp();
-  ctx.emit(`${i} = load i32, i32* ${iAlloca}`);
-  const isFirst = ctx.nextTemp();
-  ctx.emit(`${isFirst} = icmp eq i32 ${i}, 0`);
-  ctx.emit(`br i1 ${isFirst}, label %${loopBodyLabel}, label %${sepLabel}`);
+  ctx.emitLabel(loopLabel);
+  const i = ctx.emitLoad("i32", iAlloca);
+  const isFirst = ctx.emitIcmp("eq", "i32", i, "0");
+  ctx.emitBrCond(isFirst, loopBodyLabel, sepLabel);
 
-  ctx.emit(`${sepLabel}:`);
+  ctx.emitLabel(sepLabel);
   emitPrintStrNoNl(ctx, useStderr, separator);
-  ctx.emit(`br label %${loopBodyLabel}`);
+  ctx.emitBr(loopBodyLabel);
 
-  ctx.emit(`${loopBodyLabel}:`);
+  ctx.emitLabel(loopBodyLabel);
   if (arrayType === "Array") {
     const elemPtr = ctx.nextTemp();
     ctx.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
-    const elem = ctx.nextTemp();
-    ctx.emit(`${elem} = load double, double* ${elemPtr}`);
+    const elem = ctx.emitLoad("double", elemPtr);
     emitPrintNumNoNl(ctx, useStderr, elem);
   } else if (arrayType === "StringArray") {
     const elemPtr = ctx.nextTemp();
     ctx.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
-    const elem = ctx.nextTemp();
-    ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+    const elem = ctx.emitLoad("i8*", elemPtr);
     emitPrintStrNoNl(ctx, useStderr, elem);
   } else {
     const objStr = ctx.stringGen.doCreateStringConstant("[object Object]");
     emitPrintStrNoNl(ctx, useStderr, objStr);
   }
 
-  ctx.emit(`br label %${loopLatchLabel}`);
+  ctx.emitBr(loopLatchLabel);
 
-  ctx.emit(`${loopLatchLabel}:`);
-  const iCurrent = ctx.nextTemp();
-  ctx.emit(`${iCurrent} = load i32, i32* ${iAlloca}`);
+  ctx.emitLabel(loopLatchLabel);
+  const iCurrent = ctx.emitLoad("i32", iAlloca);
   const iNext = ctx.nextTemp();
   ctx.emit(`${iNext} = add i32 ${iCurrent}, 1`);
-  ctx.emit(`store i32 ${iNext}, i32* ${iAlloca}`);
-  const done = ctx.nextTemp();
-  ctx.emit(`${done} = icmp eq i32 ${iNext}, ${len}`);
-  ctx.emit(`br i1 ${done}, label %${endLabel}, label %${loopLabel}`);
+  ctx.emitStore("i32", iNext, iAlloca);
+  const done = ctx.emitIcmp("eq", "i32", iNext, len);
+  ctx.emitBrCond(done, endLabel, loopLabel);
 
-  ctx.emit(`${endLabel}:`);
+  ctx.emitLabel(endLabel);
   emitPrintStrNoNl(ctx, useStderr, closeBracket);
-  ctx.emit(`br label %${doneLabel}`);
+  ctx.emitBr(doneLabel);
 
-  ctx.emit(`${doneLabel}:`);
+  ctx.emitLabel(doneLabel);
 }
 
 function emitSingleArg(
@@ -247,11 +233,8 @@ export function generateConsoleTime(
     labelPtr = ctx.stringGen.doCreateStringConstant("default");
   }
 
-  const ns = ctx.nextTemp();
-  ctx.emit(`${ns} = call i64 @uv_hrtime()`);
-
-  const storeResult = ctx.nextTemp();
-  ctx.emit(`${storeResult} = call i32 @__console_timer_store(i8* ${labelPtr}, i64 ${ns})`);
+  const ns = ctx.emitCall("i64", "@uv_hrtime", "");
+  const storeResult = ctx.emitCall("i32", "@__console_timer_store", `i8* ${labelPtr}, i64 ${ns}`);
 
   return "0.0";
 }
@@ -271,11 +254,8 @@ export function generateConsoleTimeEnd(
     labelPtr = ctx.stringGen.doCreateStringConstant("default");
   }
 
-  const endNs = ctx.nextTemp();
-  ctx.emit(`${endNs} = call i64 @uv_hrtime()`);
-
-  const startNs = ctx.nextTemp();
-  ctx.emit(`${startNs} = call i64 @__console_timer_load(i8* ${labelPtr})`);
+  const endNs = ctx.emitCall("i64", "@uv_hrtime", "");
+  const startNs = ctx.emitCall("i64", "@__console_timer_load", `i8* ${labelPtr}`);
 
   const diffNs = ctx.nextTemp();
   ctx.emit(`${diffNs} = sub i64 ${endNs}, ${startNs}`);

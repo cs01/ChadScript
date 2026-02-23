@@ -56,9 +56,8 @@ export function generateArrayLiteralWithSpread(
     const el = arrExpr.elements[i] as ExprBase;
     if (el.type.indexOf("spread:") === 0) {
       const varName = el.type.substr(7);
-      const alloca = gen.getVariableAlloca(varName);
-      const arrPtr = gen.nextTemp();
-      gen.emit(`${arrPtr} = load %Array*, %Array** ${alloca}`);
+      const alloca = gen.getVariableAlloca(varName)!;
+      const arrPtr = gen.emitLoad("%Array*", alloca);
       const meta = loadArrayMeta(gen, arrPtr);
       const newTotal = gen.nextTemp();
       gen.emit(`${newTotal} = add i32 ${totalLen}, ${meta.length}`);
@@ -95,9 +94,8 @@ export function generateArrayLiteralWithSpread(
     const el = arrExpr.elements[i] as ExprBase;
     if (el.type.indexOf("spread:") === 0) {
       const varName = el.type.substr(7);
-      const alloca = gen.getVariableAlloca(varName);
-      const srcArrPtr = gen.nextTemp();
-      gen.emit(`${srcArrPtr} = load %Array*, %Array** ${alloca}`);
+      const alloca = gen.getVariableAlloca(varName)!;
+      const srcArrPtr = gen.emitLoad("%Array*", alloca);
       const srcMeta = loadArrayMeta(gen, srcArrPtr);
 
       const checkLabel = gen.nextLabel("spread_check");
@@ -194,7 +192,7 @@ export function generateArrayLiteralWithSpread(
 
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-  gen.emit(`store double* ${dataPtr}, double** ${dataPtrField}`);
+  gen.emitStore("double*", dataPtr, dataPtrField);
 
   const lenField = gen.nextTemp();
   gen.emit(`${lenField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
@@ -220,9 +218,8 @@ function generateStringArrayLiteralWithSpread(
     const el = arrExpr.elements[i] as ExprBase;
     if (el.type.indexOf("spread:") === 0) {
       const varName = el.type.substr(7);
-      const alloca = gen.getVariableAlloca(varName);
-      const ptr = gen.nextTemp();
-      gen.emit(`${ptr} = load %Array*, %Array** ${alloca}`);
+      const alloca = gen.getVariableAlloca(varName)!;
+      const ptr = gen.emitLoad("%Array*", alloca);
       gen.setVariableType(ptr, "%Array*");
       spreadSources.push({ index: i, ptr: ptr });
     } else if (el.type === "spread_element") {
@@ -276,12 +273,14 @@ function generateStringArrayLiteralWithSpread(
       gen.emit(
         `${srcLenPtr} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 1`,
       );
+      // load with !tbaa metadata must stay as raw emit
       const srcLen = gen.nextTemp();
       gen.emit(`${srcLen} = load i32, i32* ${srcLenPtr}, !tbaa !7`);
       const srcDataField = gen.nextTemp();
       gen.emit(
         `${srcDataField} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 0`,
       );
+      // load with !tbaa metadata must stay as raw emit
       const srcDataPtr = gen.nextTemp();
       gen.emit(`${srcDataPtr} = load i8**, i8*** ${srcDataField}, !tbaa !5`);
 
@@ -302,13 +301,12 @@ function generateStringArrayLiteralWithSpread(
       gen.emitLabel(bodyLabel);
       const srcElemPtr = gen.nextTemp();
       gen.emit(`${srcElemPtr} = getelementptr inbounds i8*, i8** ${srcDataPtr}, i32 ${counter}`);
-      const srcElem = gen.nextTemp();
-      gen.emit(`${srcElem} = load i8*, i8** ${srcElemPtr}`);
+      const srcElem = gen.emitLoad("i8*", srcElemPtr);
 
       const curOffset = gen.emitLoad("i32", offsetPtr);
       const dstElemPtr = gen.nextTemp();
       gen.emit(`${dstElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${curOffset}`);
-      gen.emit(`store i8* ${srcElem}, i8** ${dstElemPtr}`);
+      gen.emitStore("i8*", srcElem, dstElemPtr);
 
       const nextOffset = gen.nextTemp();
       gen.emit(`${nextOffset} = add i32 ${curOffset}, 1`);
@@ -325,7 +323,7 @@ function generateStringArrayLiteralWithSpread(
       const curOffset = gen.emitLoad("i32", offsetPtr);
       const elemPtr = gen.nextTemp();
       gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${curOffset}`);
-      gen.emit(`store i8* ${lit.value}, i8** ${elemPtr}`);
+      gen.emitStore("i8*", lit.value, elemPtr);
       const nextOffset = gen.nextTemp();
       gen.emit(`${nextOffset} = add i32 ${curOffset}, 1`);
       gen.emitStore("i32", nextOffset, offsetPtr);
@@ -336,7 +334,7 @@ function generateStringArrayLiteralWithSpread(
   gen.emit(
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
-  gen.emit(`store i8** ${dataPtr}, i8*** ${dataPtrField}`);
+  gen.emitStore("i8**", dataPtr, dataPtrField);
 
   const lenField = gen.nextTemp();
   gen.emit(
@@ -393,22 +391,21 @@ export function generateArrayJoin(
     return generateStringArrayJoin(gen, arrayPtr, separator);
   }
 
-  // Numeric array join — stub that allocates an empty buffer
+  // Numeric array join -- stub that allocates an empty buffer
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
   const length = gen.emitLoad("i32", lenPtr);
 
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-  const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
+  const dataPtr = gen.emitLoad("double*", dataPtrField);
 
   const bufferSize = 8192;
   const resultBuffer = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${bufferSize}`);
 
   const nullByte = gen.nextTemp();
   gen.emit(`${nullByte} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 0`);
-  gen.emit(`store i8 0, i8* ${nullByte}`);
+  gen.emitStore("i8", "0", nullByte);
 
   gen.setVariableType(resultBuffer, "i8*");
   return resultBuffer;
@@ -429,15 +426,14 @@ function generateStringArrayJoin(
   gen.emit(
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
-  const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+  const dataPtr = gen.emitLoad("i8**", dataPtrField);
 
   const sepLen = gen.emitCall("i64", "@strlen", `i8* ${separator}`);
 
   // First pass: compute total size
   const totalSizePtr = gen.nextAllocaReg("join_total");
   gen.emit(`${totalSizePtr} = alloca i64`);
-  gen.emit(`store i64 0, i64* ${totalSizePtr}`);
+  gen.emitStore("i64", "0", totalSizePtr);
 
   const sizeCheckLabel = gen.nextLabel("join_size_check");
   const sizeBodyLabel = gen.nextLabel("join_size_body");
@@ -457,8 +453,7 @@ function generateStringArrayJoin(
   gen.emitLabel(sizeBodyLabel);
   const sizeElemPtr = gen.nextTemp();
   gen.emit(`${sizeElemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${sizeCounter}`);
-  const sizeElem = gen.nextTemp();
-  gen.emit(`${sizeElem} = load i8*, i8** ${sizeElemPtr}`);
+  const sizeElem = gen.emitLoad("i8*", sizeElemPtr);
   const sizeElemNull = gen.emitIcmp("eq", "i8*", sizeElem, "null");
   const sizeSkipLabel = gen.nextLabel("join_size_skip");
   const sizeAddLabel = gen.nextLabel("join_size_add");
@@ -466,11 +461,10 @@ function generateStringArrayJoin(
 
   gen.emitLabel(sizeAddLabel);
   const elemLen = gen.emitCall("i64", "@strlen", `i8* ${sizeElem}`);
-  const curTotal = gen.nextTemp();
-  gen.emit(`${curTotal} = load i64, i64* ${totalSizePtr}`);
+  const curTotal = gen.emitLoad("i64", totalSizePtr);
   const newTotal = gen.nextTemp();
   gen.emit(`${newTotal} = add i64 ${curTotal}, ${elemLen}`);
-  gen.emit(`store i64 ${newTotal}, i64* ${totalSizePtr}`);
+  gen.emitStore("i64", newTotal, totalSizePtr);
   gen.emitBr(sizeSkipLabel);
 
   gen.emitLabel(sizeSkipLabel);
@@ -480,8 +474,7 @@ function generateStringArrayJoin(
   gen.emitBr(sizeCheckLabel);
 
   gen.emitLabel(sizeEndLabel);
-  const elemTotal = gen.nextTemp();
-  gen.emit(`${elemTotal} = load i64, i64* ${totalSizePtr}`);
+  const elemTotal = gen.emitLoad("i64", totalSizePtr);
   const lengthI64 = gen.nextTemp();
   gen.emit(`${lengthI64} = sext i32 ${length} to i64`);
   const hasElements = gen.nextTemp();
@@ -501,7 +494,7 @@ function generateStringArrayJoin(
   // Second pass: copy elements with separators
   const offsetPtr = gen.nextAllocaReg("join_offset");
   gen.emit(`${offsetPtr} = alloca i64`);
-  gen.emit(`store i64 0, i64* ${offsetPtr}`);
+  gen.emitStore("i64", "0", offsetPtr);
 
   const checkLabel = gen.nextLabel("join_check");
   const bodyLabel = gen.nextLabel("join_body");
@@ -521,8 +514,7 @@ function generateStringArrayJoin(
   gen.emitLabel(bodyLabel);
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${counter}`);
-  const elem = gen.nextTemp();
-  gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+  const elem = gen.emitLoad("i8*", elemPtr);
 
   const elemIsNull = gen.emitIcmp("eq", "i8*", elem, "null");
   const elemSkipLabel = gen.nextLabel("join_elem_skip");
@@ -536,8 +528,7 @@ function generateStringArrayJoin(
   gen.emitBrCond(isNotFirst, addSepLabel, afterSepLabel);
 
   gen.emitLabel(addSepLabel);
-  const sepOffset = gen.nextTemp();
-  gen.emit(`${sepOffset} = load i64, i64* ${offsetPtr}`);
+  const sepOffset = gen.emitLoad("i64", offsetPtr);
   const sepDst = gen.nextTemp();
   gen.emit(`${sepDst} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${sepOffset}`);
   gen.emit(
@@ -545,12 +536,11 @@ function generateStringArrayJoin(
   );
   const sepOffsetNew = gen.nextTemp();
   gen.emit(`${sepOffsetNew} = add i64 ${sepOffset}, ${sepLen}`);
-  gen.emit(`store i64 ${sepOffsetNew}, i64* ${offsetPtr}`);
+  gen.emitStore("i64", sepOffsetNew, offsetPtr);
   gen.emitBr(afterSepLabel);
 
   gen.emitLabel(afterSepLabel);
-  const curOffset = gen.nextTemp();
-  gen.emit(`${curOffset} = load i64, i64* ${offsetPtr}`);
+  const curOffset = gen.emitLoad("i64", offsetPtr);
   const elemDst = gen.nextTemp();
   gen.emit(`${elemDst} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${curOffset}`);
   const elemLength = gen.emitCall("i64", "@strlen", `i8* ${elem}`);
@@ -559,7 +549,7 @@ function generateStringArrayJoin(
   );
   const newOffset = gen.nextTemp();
   gen.emit(`${newOffset} = add i64 ${curOffset}, ${elemLength}`);
-  gen.emit(`store i64 ${newOffset}, i64* ${offsetPtr}`);
+  gen.emitStore("i64", newOffset, offsetPtr);
   gen.emitBr(elemSkipLabel);
 
   gen.emitLabel(elemSkipLabel);
@@ -569,11 +559,10 @@ function generateStringArrayJoin(
   gen.emitBr(checkLabel);
 
   gen.emitLabel(endLabel);
-  const finalOffset = gen.nextTemp();
-  gen.emit(`${finalOffset} = load i64, i64* ${offsetPtr}`);
+  const finalOffset = gen.emitLoad("i64", offsetPtr);
   const nullTermPtr = gen.nextTemp();
   gen.emit(`${nullTermPtr} = getelementptr inbounds i8, i8* ${resultBuffer}, i64 ${finalOffset}`);
-  gen.emit(`store i8 0, i8* ${nullTermPtr}`);
+  gen.emitStore("i8", "0", nullTermPtr);
   gen.setVariableType(resultBuffer, "i8*");
   return resultBuffer;
 }
@@ -618,8 +607,7 @@ export function generateArraySlice(
 
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-  const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
+  const dataPtr = gen.emitLoad("double*", dataPtrField);
 
   let startI32 = "0";
   if (expr.args.length >= 1) {
@@ -664,7 +652,7 @@ export function generateArraySlice(
 
   const newDataField = gen.nextTemp();
   gen.emit(`${newDataField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 0`);
-  gen.emit(`store double* ${newDataPtr}, double** ${newDataField}`);
+  gen.emitStore("double*", newDataPtr, newDataField);
 
   const newLenField = gen.nextTemp();
   gen.emit(`${newLenField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 1`);
@@ -696,12 +684,10 @@ function generateStringArraySlice(
   );
   let dataPtr: string;
   if (isObjectArray) {
-    const rawDataPtr = gen.nextTemp();
-    gen.emit(`${rawDataPtr} = load i8*, i8** ${dataPtrField}`);
+    const rawDataPtr = gen.emitLoad("i8*", dataPtrField);
     dataPtr = gen.emitBitcast(rawDataPtr, "i8*", "i8**");
   } else {
-    dataPtr = gen.nextTemp();
-    gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+    dataPtr = gen.emitLoad("i8**", dataPtrField);
   }
 
   let startI32 = "0";
@@ -751,9 +737,9 @@ function generateStringArraySlice(
   );
   if (isObjectArray) {
     const dataAsi8 = gen.emitBitcast(newDataPtr, "i8**", "i8*");
-    gen.emit(`store i8* ${dataAsi8}, i8** ${newDataField}`);
+    gen.emitStore("i8*", dataAsi8, newDataField);
   } else {
-    gen.emit(`store i8** ${newDataPtr}, i8*** ${newDataField}`);
+    gen.emitStore("i8**", newDataPtr, newDataField);
   }
 
   const newLenField = gen.nextTemp();
@@ -839,8 +825,7 @@ export function generateArrayConcat(
   // Copy first array
   const dataPtrField1 = gen.nextTemp();
   gen.emit(`${dataPtrField1} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-  const dataPtr1 = gen.nextTemp();
-  gen.emit(`${dataPtr1} = load double*, double** ${dataPtrField1}`);
+  const dataPtr1 = gen.emitLoad("double*", dataPtrField1);
 
   const len1I64 = gen.nextTemp();
   gen.emit(`${len1I64} = zext i32 ${len1} to i64`);
@@ -857,8 +842,7 @@ export function generateArrayConcat(
   gen.emit(
     `${dataPtrField2} = getelementptr inbounds %Array, %Array* ${otherArrayPtr}, i32 0, i32 0`,
   );
-  const dataPtr2 = gen.nextTemp();
-  gen.emit(`${dataPtr2} = load double*, double** ${dataPtrField2}`);
+  const dataPtr2 = gen.emitLoad("double*", dataPtrField2);
 
   const len2I64 = gen.nextTemp();
   gen.emit(`${len2I64} = zext i32 ${len2} to i64`);
@@ -875,7 +859,7 @@ export function generateArrayConcat(
   // Set up result struct fields
   const newDataField = gen.nextTemp();
   gen.emit(`${newDataField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 0`);
-  gen.emit(`store double* ${newDataPtr}, double** ${newDataField}`);
+  gen.emitStore("double*", newDataPtr, newDataField);
 
   const newLenField = gen.nextTemp();
   gen.emit(`${newLenField} = getelementptr inbounds %Array, %Array* ${newArrayPtr}, i32 0, i32 1`);
@@ -927,8 +911,7 @@ function generateStringArrayConcat(
   gen.emit(
     `${dataPtrField1} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
-  const dataPtr1 = gen.nextTemp();
-  gen.emit(`${dataPtr1} = load i8**, i8*** ${dataPtrField1}`);
+  const dataPtr1 = gen.emitLoad("i8**", dataPtrField1);
 
   const len1I64 = gen.nextTemp();
   gen.emit(`${len1I64} = zext i32 ${len1} to i64`);
@@ -944,8 +927,7 @@ function generateStringArrayConcat(
   gen.emit(
     `${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${otherArrayPtr}, i32 0, i32 0`,
   );
-  const dataPtr2 = gen.nextTemp();
-  gen.emit(`${dataPtr2} = load i8**, i8*** ${dataPtrField2}`);
+  const dataPtr2 = gen.emitLoad("i8**", dataPtrField2);
 
   const len2I64 = gen.nextTemp();
   gen.emit(`${len2I64} = zext i32 ${len2} to i64`);
@@ -963,7 +945,7 @@ function generateStringArrayConcat(
   gen.emit(
     `${newDataField} = getelementptr inbounds %StringArray, %StringArray* ${newArrayPtr}, i32 0, i32 0`,
   );
-  gen.emit(`store i8** ${newDataPtr}, i8*** ${newDataField}`);
+  gen.emitStore("i8**", newDataPtr, newDataField);
 
   const newLenField = gen.nextTemp();
   gen.emit(
@@ -1019,8 +1001,7 @@ function generateObjectArrayConcat(
   gen.emit(
     `${dataPtrField1} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
   );
-  const dataI8_1 = gen.nextTemp();
-  gen.emit(`${dataI8_1} = load i8*, i8** ${dataPtrField1}`);
+  const dataI8_1 = gen.emitLoad("i8*", dataPtrField1);
   const dataPtr1 = gen.emitBitcast(dataI8_1, "i8*", "i8**");
 
   const len1I64 = gen.nextTemp();
@@ -1037,8 +1018,7 @@ function generateObjectArrayConcat(
   gen.emit(
     `${dataPtrField2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${otherArrayPtr}, i32 0, i32 0`,
   );
-  const dataI8_2 = gen.nextTemp();
-  gen.emit(`${dataI8_2} = load i8*, i8** ${dataPtrField2}`);
+  const dataI8_2 = gen.emitLoad("i8*", dataPtrField2);
   const dataPtr2 = gen.emitBitcast(dataI8_2, "i8*", "i8**");
 
   const len2I64 = gen.nextTemp();
@@ -1058,7 +1038,7 @@ function generateObjectArrayConcat(
     `${newDataField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${newArrayPtr}, i32 0, i32 0`,
   );
   const newDataI8 = gen.emitBitcast(newDataPtr, "i8**", "i8*");
-  gen.emit(`store i8* ${newDataI8}, i8** ${newDataField}`);
+  gen.emitStore("i8*", newDataI8, newDataField);
 
   const newLenField = gen.nextTemp();
   gen.emit(

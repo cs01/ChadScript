@@ -146,6 +146,16 @@ export interface MethodCallGeneratorContext {
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
   setCurrentLabel(label: string): void;
+  emitStore(type: string, value: string, ptr: string): void;
+  emitLoad(type: string, ptr: string): string;
+  emitCall(retType: string, func: string, args: string): string;
+  emitCallVoid(func: string, args: string): void;
+  emitBitcast(value: string, fromType: string, toType: string): string;
+  emitIcmp(pred: string, type: string, lhs: string, rhs: string): string;
+  emitBr(label: string): void;
+  emitBrCond(cond: string, thenLabel: string, elseLabel: string): void;
+  emitLabel(name: string): void;
+  emitGep(baseType: string, ptr: string, indices: string): string;
   generateExpression(expr: Expression, params: string[]): string;
   isStringExpression(expr: Expression): boolean;
   isArrayExpression(expr: Expression): boolean;
