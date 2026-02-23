@@ -108,8 +108,10 @@ export class TypeInference {
       if (newExpr.className === "RegExp") return this.ctx.typeContext.resolve("RegExp");
       if (newExpr.className === "Promise") return this.ctx.typeContext.resolve("Promise");
       if (newExpr.className === "Uint8Array") return this.ctx.typeContext.resolve("Uint8Array");
-      const cls = this.getClass(newExpr.className);
-      if (cls) return this.ctx.typeContext.getClassType(newExpr.className);
+      // Resolve import alias for default imports (e.g., import Foo from './bar' → BarClass)
+      const resolvedClassName = this.resolveClassAlias(newExpr.className);
+      const cls = this.getClass(resolvedClassName);
+      if (cls) return this.ctx.typeContext.getClassType(resolvedClassName);
       return null;
     }
     if (e.type === "array") {
@@ -774,6 +776,34 @@ export class TypeInference {
       }
     }
     return null;
+  }
+
+  // Resolve import aliases by checking the AST's import specifiers directly
+  private resolveClassAlias(name: string): string {
+    const ast = this.ctx.getAst();
+    if (!ast) return name;
+    // Check struct-of-arrays import aliases (used for default imports)
+    if (ast.importAliasNames && ast.importAliasOriginals) {
+      for (let i = 0; i < ast.importAliasNames.length; i++) {
+        if (ast.importAliasNames[i] === name) {
+          return ast.importAliasOriginals[i];
+        }
+      }
+    }
+    // Also check aliasedSpecifiers on imports (used for named import aliases)
+    if (ast.imports) {
+      for (let i = 0; i < ast.imports.length; i++) {
+        const imp = ast.imports[i];
+        if (!imp.aliasedSpecifiers) continue;
+        for (let j = 0; j < imp.aliasedSpecifiers.length; j++) {
+          const spec = imp.aliasedSpecifiers[j];
+          if (spec.name === name && spec.original) {
+            return spec.original;
+          }
+        }
+      }
+    }
+    return name;
   }
 
   private getClass(name: string): ClassNode | null {

@@ -505,10 +505,13 @@ export function compileMultiFile(entryFile: string, compiledFiles: string[]): AS
     interfaces: ast.interfaces.slice(0),
     typeAliases: ast.typeAliases ? ast.typeAliases.slice(0) : [],
     enums: ast.enums ? ast.enums.slice(0) : [],
+    defaultExportName: ast.defaultExportName,
     topLevelStatements: ast.topLevelStatements.slice(0),
     topLevelExpressions: ast.topLevelExpressions.slice(0),
     topLevelItems: ast.topLevelItems ? ast.topLevelItems.slice(0) : [],
     topLevelItemTypes: ast.topLevelItemTypes ? ast.topLevelItemTypes.slice(0) : [],
+    importAliasNames: [],
+    importAliasOriginals: [],
   };
 
   let i = 0;
@@ -598,9 +601,12 @@ export function emptyAST(): AST {
     interfaces: [],
     typeAliases: [],
     enums: [],
+    defaultExportName: undefined,
     topLevelStatements: [],
     topLevelExpressions: [],
     topLevelItems: [],
     topLevelItemTypes: [],
+    importAliasNames: [],
+    importAliasOriginals: [],
   };
 }

@@ -85,10 +85,13 @@ function transformProgram(node: TreeSitterNode): AST {
     interfaces: [],
     typeAliases: [],
     enums: [],
+    defaultExportName: undefined,
     topLevelStatements: [],
     topLevelExpressions: [],
     topLevelItems: [],
     topLevelItemTypes: [],
+    importAliasNames: [],
+    importAliasOriginals: [],
   };
 
   const childCount = node.namedChildCount;
@@ -282,6 +285,7 @@ function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
 function handleExportStatement(node: TreeSitterNode, ast: AST): void {
   const nodeText = (node as NodeBase).text;
   const isTypeOnly = nodeText.startsWith("export type ") || nodeText.startsWith("export type{");
+  const isDefault = nodeText.startsWith("export default ");
 
   let exportClause: TreeSitterNode | null = null;
   let sourceString: TreeSitterNode | null = null;
@@ -296,12 +300,14 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
       if (func) {
         ast.functions.push(func);
         ast.exports.push({ type: "export", declaration: func });
+        if (isDefault) ast.defaultExportName = func.name;
       }
     } else if (c.type === "class_declaration") {
       const cls = transformClassDeclaration(child);
       if (cls) {
         ast.classes.push(cls);
         ast.exports.push({ type: "export", declaration: cls });
+        if (isDefault) ast.defaultExportName = cls.name;
       }
     } else if (c.type === "interface_declaration") {
       const iface = transformInterfaceDeclaration(child);
@@ -330,6 +336,9 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
       exportClause = child;
     } else if (c.type === "string") {
       sourceString = child;
+    } else if (isDefault && c.type === "identifier") {
+      // export default MyClass — just an identifier reference
+      ast.defaultExportName = c.text;
     }
   }
 
@@ -357,7 +366,13 @@ function handleExportStatement(node: TreeSitterNode, ast: AST): void {
     }
 
     if (specifiers.length > 0) {
-      ast.imports.push({ type: "import", specifiers, aliasedSpecifiers: [], source });
+      ast.imports.push({
+        type: "import",
+        specifiers,
+        aliasedSpecifiers: [],
+        source,
+        defaultImport: undefined,
+      });
     }
   }
 }
@@ -2696,6 +2711,7 @@ function transformImportStatement(node: TreeSitterNode): ImportDeclaration | nul
 
   const specifiers: string[] = [];
   const aliasedSpecifiers: ImportSpecifier[] = [];
+  let defaultImport: string | undefined;
 
   for (let i = 0; i < node.namedChildCount; i++) {
     const child = getNamedChild(node, i);
@@ -2709,8 +2725,10 @@ function transformImportStatement(node: TreeSitterNode): ImportDeclaration | nul
         const cl = clause as NodeBase;
 
         if (cl.type === "identifier") {
+          // Default import: `import Foo from './bar'`
+          defaultImport = cl.text;
           specifiers.push(cl.text);
-          aliasedSpecifiers.push({ name: cl.text });
+          aliasedSpecifiers.push({ name: cl.text, original: undefined });
         } else if (cl.type === "named_imports") {
           for (let k = 0; k < cl.namedChildCount; k++) {
             const spec = getNamedChild(clause, k);
@@ -2727,7 +2745,7 @@ function transformImportStatement(node: TreeSitterNode): ImportDeclaration | nul
                   aliasedSpecifiers.push({ name: localName, original: originalName });
                 } else {
                   specifiers.push(originalName);
-                  aliasedSpecifiers.push({ name: originalName });
+                  aliasedSpecifiers.push({ name: originalName, original: undefined });
                 }
               }
             }
@@ -2737,12 +2755,12 @@ function transformImportStatement(node: TreeSitterNode): ImportDeclaration | nul
           if (nameNode) {
             const nsName = `* as ${(nameNode as NodeBase).text}`;
             specifiers.push(nsName);
-            aliasedSpecifiers.push({ name: nsName });
+            aliasedSpecifiers.push({ name: nsName, original: undefined });
           }
         }
       }
     }
   }
 
-  return { type: "import", specifiers, aliasedSpecifiers, source };
+  return { type: "import", specifiers, aliasedSpecifiers, source, defaultImport };
 }

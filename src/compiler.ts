@@ -5,7 +5,7 @@ import { parseWithTSAPI } from "./parser-ts/index.js";
 import { LLVMGenerator, LLVMGeneratorOptions, SemaSymbolData } from "./codegen/llvm-generator.js";
 import { TypeChecker } from "./typescript/type-checker.js";
 import { SemanticAnalyzer, TypedSymbol } from "./analysis/semantic-analyzer.js";
-import { AST } from "./ast/types.js";
+import { AST, ImportDeclaration, ClassNode, FunctionNode } from "./ast/types.js";
 import { LogLevel, logger } from "./utils/logger.js";
 import { TargetInfo, resolveTarget, getHostTarget, isCrossCompiling } from "./target.js";
 import { loadTargetSDK, ensureTargetSDK, TargetSDK } from "./cross-compile.js";
@@ -493,10 +493,13 @@ function compileMultiFile(
         interfaces: [],
         typeAliases: [],
         enums: [],
+        defaultExportName: undefined,
         topLevelStatements: [],
         topLevelExpressions: [],
         topLevelItems: [],
         topLevelItemTypes: [],
+        importAliasNames: [],
+        importAliasOriginals: [],
       };
     }
   }
@@ -519,10 +522,13 @@ function compileMultiFile(
     interfaces: ast.interfaces.slice(),
     typeAliases: ast.typeAliases ? ast.typeAliases.slice() : [],
     enums: ast.enums ? ast.enums.slice() : [],
+    defaultExportName: ast.defaultExportName,
     topLevelStatements: ast.topLevelStatements.slice(),
     topLevelExpressions: ast.topLevelExpressions.slice(),
     topLevelItems: ast.topLevelItems ? ast.topLevelItems.slice() : [],
     topLevelItemTypes: ast.topLevelItemTypes ? ast.topLevelItemTypes.slice() : [],
+    importAliasNames: [],
+    importAliasOriginals: [],
   };
 
   let hasUnsupportedImports = false;
@@ -542,10 +548,13 @@ function compileMultiFile(
       interfaces: ast.interfaces.slice(),
       typeAliases: ast.typeAliases ? ast.typeAliases.slice() : [],
       enums: ast.enums ? ast.enums.slice() : [],
+      defaultExportName: undefined,
       topLevelStatements: [],
       topLevelExpressions: [],
       topLevelItems: [],
       topLevelItemTypes: [],
+      importAliasNames: [],
+      importAliasOriginals: [],
     };
   }
 
@@ -579,6 +588,40 @@ function compileMultiFile(
           fileContentKeys,
           fileContentValues,
         );
+        if (imp.defaultImport && importedAST.defaultExportName) {
+          const defLocal = imp.defaultImport;
+          const defExported = importedAST.defaultExportName;
+          if (defLocal !== defExported) {
+            for (let ci = 0; ci < importedAST.classes.length; ci++) {
+              const cls = importedAST.classes[ci];
+              if (cls.name === defExported) {
+                const aliasClass: ClassNode = {
+                  name: defLocal,
+                  extends: cls.extends,
+                  implements: cls.implements,
+                  fields: cls.fields,
+                  methods: cls.methods,
+                };
+                importedAST.classes.push(aliasClass);
+                break;
+              }
+            }
+            for (let fi = 0; fi < importedAST.functions.length; fi++) {
+              const fn = importedAST.functions[fi];
+              if (fn.name === defExported) {
+                const aliasFn: FunctionNode = {
+                  name: defLocal,
+                  params: fn.params,
+                  body: fn.body,
+                  returnType: fn.returnType,
+                  paramTypes: fn.paramTypes,
+                };
+                importedAST.functions.push(aliasFn);
+                break;
+              }
+            }
+          }
+        }
         mergedAST.imports = mergedAST.imports.concat(importedAST.imports);
         mergedAST.functions = mergedAST.functions.concat(importedAST.functions);
         mergedAST.classes = mergedAST.classes.concat(importedAST.classes);
@@ -594,6 +637,14 @@ function compileMultiFile(
         if (importedAST.topLevelItemTypes) {
           mergedAST.topLevelItemTypes = importedAST.topLevelItemTypes.concat(
             mergedAST.topLevelItemTypes || [],
+          );
+        }
+        if (importedAST.importAliasNames && importedAST.importAliasNames.length > 0) {
+          mergedAST.importAliasNames = mergedAST.importAliasNames!.concat(
+            importedAST.importAliasNames,
+          );
+          mergedAST.importAliasOriginals = mergedAST.importAliasOriginals!.concat(
+            importedAST.importAliasOriginals!,
           );
         }
         i = i + 1;
@@ -618,6 +669,51 @@ function compileMultiFile(
       fileContentValues,
     );
 
+    // Map default imports using struct-of-arrays pattern (native compiler safe).
+    // When `import Foo from './bar'` and bar.ts has `export default Bar`,
+    // add a duplicate class/function with the local name so codegen can find it.
+    // We can't mutate existing ClassNode.name in native code, so we duplicate.
+    const hasDefImport = imp.defaultImport ? true : false;
+    const hasDefExport = importedAST.defaultExportName ? true : false;
+    if (hasDefImport && hasDefExport) {
+      const defLocal = imp.defaultImport!;
+      const defExported = importedAST.defaultExportName!;
+      if (defLocal !== defExported) {
+        // When names differ (e.g. `import Foo from './bar'` where bar exports `Bar`),
+        // duplicate the class/function with the local name so codegen can find it.
+        // We duplicate instead of renaming because native code can't reliably mutate struct fields.
+        for (let ci = 0; ci < importedAST.classes.length; ci++) {
+          const cls = importedAST.classes[ci];
+          if (cls.name === defExported) {
+            const aliasClass: ClassNode = {
+              name: defLocal,
+              extends: cls.extends,
+              implements: cls.implements,
+              fields: cls.fields,
+              methods: cls.methods,
+            };
+            importedAST.classes.push(aliasClass);
+            break;
+          }
+        }
+        for (let fi = 0; fi < importedAST.functions.length; fi++) {
+          const fn = importedAST.functions[fi];
+          if (fn.name === defExported) {
+            // Match native parser FunctionNode field order exactly
+            const aliasFn: FunctionNode = {
+              name: defLocal,
+              params: fn.params,
+              body: fn.body,
+              returnType: fn.returnType,
+              paramTypes: fn.paramTypes,
+            };
+            importedAST.functions.push(aliasFn);
+            break;
+          }
+        }
+      }
+    }
+
     mergedAST.imports = mergedAST.imports.concat(importedAST.imports);
     mergedAST.functions = mergedAST.functions.concat(importedAST.functions);
     mergedAST.classes = mergedAST.classes.concat(importedAST.classes);
@@ -633,6 +729,13 @@ function compileMultiFile(
     if (importedAST.topLevelItemTypes) {
       mergedAST.topLevelItemTypes = importedAST.topLevelItemTypes.concat(
         mergedAST.topLevelItemTypes || [],
+      );
+    }
+    // Merge import aliases from child ASTs
+    if (importedAST.importAliasNames && importedAST.importAliasNames.length > 0) {
+      mergedAST.importAliasNames = mergedAST.importAliasNames!.concat(importedAST.importAliasNames);
+      mergedAST.importAliasOriginals = mergedAST.importAliasOriginals!.concat(
+        importedAST.importAliasOriginals!,
       );
     }
     i = i + 1;

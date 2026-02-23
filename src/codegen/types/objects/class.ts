@@ -991,6 +991,8 @@ export class ClassGenerator {
   }
 
   generateNewExpression(className: string, args: Expression[], params: string[]): string {
+    // Resolve import aliases (e.g., import MyGreeter from './greeter' → Greeter)
+    const resolvedClassName = this.ctx.resolveImportAlias(className);
     let classNodeResult: ClassNode | null = null;
     const ast = this.ctx.getAst();
     if (ast && ast.classes) {
@@ -998,7 +1000,7 @@ export class ClassGenerator {
         const c = ast.classes[ci] as { name: string };
         if (!c) continue;
         if (!c.name) continue;
-        if (c.name === className) {
+        if (c.name === resolvedClassName) {
           classNodeResult = ast.classes[ci] as ClassNode;
           break;
         }
@@ -1046,12 +1048,12 @@ export class ClassGenerator {
     }
     const argValues = argParts.join(", ");
 
-    const fields = this.classFields.get(className) || [];
-    const returnType = `%${className}_struct*`;
+    const fields = this.classFields.get(resolvedClassName) || [];
+    const returnType = `%${resolvedClassName}_struct*`;
 
     const instance = this.ctx.emitCall(
       returnType,
-      `@${this.ctx.mangleUserName(className)}_constructor`,
+      `@${this.ctx.mangleUserName(resolvedClassName)}_constructor`,
       argValues,
     );
 

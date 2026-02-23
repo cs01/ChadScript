@@ -1452,6 +1452,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (importsCount > 0) {
       this.buildImportAliasMap(ast.imports, importsCount);
     }
+    // Also load default import aliases stored as struct-of-arrays on the AST
+    if (ast.importAliasNames && ast.importAliasOriginals) {
+      const aliasCount = ast.importAliasNames.length;
+      for (let ai = 0; ai < aliasCount; ai++) {
+        this.setImportAlias(ast.importAliasNames[ai], ast.importAliasOriginals[ai]);
+      }
+    }
 
     // No more delegate binding needed - all generators use context pattern! 🎯
 
@@ -1968,7 +1975,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           this.defineVariable(name, `@${name}`, llvmType, kind, "global");
           continue;
         } else if (isClassInstance) {
-          const className = (stmt.value as NewNode).className;
+          // Resolve import alias for default imports (e.g., import Foo from './bar' → BarClass)
+          const className = this.resolveImportAlias((stmt.value as NewNode).className);
           const fields = this.classGen ? this.classGen.getClassFields(className) || [] : [];
           llvmType = fields.length > 0 ? `%${className}_struct*` : "i32*";
           kind = SymbolKind.Class;
@@ -3167,10 +3175,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   private isKnownClass(name: string): boolean {
     if (!name) return false;
+    // Also check resolved alias (e.g., import MyGreeter from './greeter' → Greeter)
+    const resolved = this.resolveImportAlias(name);
     if (!this.ast || !this.ast.classes) return false;
     for (let i = 0; i < this.ast.classes.length; i++) {
       const cls = this.ast.classes[i];
-      if (cls && cls.name === name) return true;
+      if (cls && (cls.name === name || cls.name === resolved)) return true;
     }
     return false;
   }

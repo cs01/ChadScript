@@ -97,8 +97,8 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | Default imports | Supported |
 | Named exports | Supported |
 | Dynamic `import()` | Not supported |
-| Re-exports (`export { foo } from './bar'`) | Not supported |
-| `export default` | Not supported |
+| Re-exports (`export { foo } from './bar'`) | Supported |
+| `export default` | Supported |
 
 ## Async
 

@@ -55,9 +55,13 @@ export function transformSourceFile(
     interfaces: [],
     typeAliases: [],
     enums: [],
+    defaultExportName: undefined,
     topLevelStatements: [],
     topLevelExpressions: [],
     topLevelItems: [],
+    topLevelItemTypes: [],
+    importAliasNames: [],
+    importAliasOriginals: [],
   };
 
   for (const statement of sourceFile.statements) {
@@ -128,6 +132,9 @@ function transformTopLevelStatement(
     }
 
     case ts.SyntaxKind.ExportDeclaration: {
+      // Re-exports: `export { foo } from './bar'` and `export * from './bar'`
+      // Since ChadScript merges all files into one flat AST, re-exports are
+      // semantically equivalent to imports — we synthesize an ImportDeclaration.
       const exportDecl = node as ts.ExportDeclaration;
       if (exportDecl.isTypeOnly) {
         break;
@@ -135,22 +142,45 @@ function transformTopLevelStatement(
       if (exportDecl.moduleSpecifier && ts.isStringLiteral(exportDecl.moduleSpecifier)) {
         const source = exportDecl.moduleSpecifier.text;
         const specifiers: string[] = [];
+        const aliasedSpecifiers: { name: string; original?: string }[] = [];
         if (exportDecl.exportClause && ts.isNamedExports(exportDecl.exportClause)) {
           for (const element of exportDecl.exportClause.elements) {
-            specifiers.push(element.name.text);
+            const exportedName = element.name.text;
+            specifiers.push(exportedName);
+            // Handle renaming: `export { foo as bar }` — propertyName is "foo" (original)
+            if (element.propertyName) {
+              aliasedSpecifiers.push({ name: exportedName, original: element.propertyName.text });
+            } else {
+              aliasedSpecifiers.push({ name: exportedName, original: undefined });
+            }
           }
         }
+        // `export * from './bar'` has no exportClause — just pull in everything
         const syntheticImport: ImportDeclaration = {
           type: "import",
           specifiers,
-          aliasedSpecifiers: undefined,
+          aliasedSpecifiers: aliasedSpecifiers.length > 0 ? aliasedSpecifiers : undefined,
           source,
+          defaultImport: undefined,
         };
         ast.imports.push(syntheticImport);
       }
       break;
     }
     case ts.SyntaxKind.ExportAssignment: {
+      // export default <identifier|declaration>
+      const exportAssign = node as ts.ExportAssignment;
+      if (ts.isIdentifier(exportAssign.expression)) {
+        // export default MyClass — reference to existing declaration
+        ast.defaultExportName = exportAssign.expression.text;
+      } else if (
+        ts.isFunctionExpression(exportAssign.expression) ||
+        ts.isArrowFunction(exportAssign.expression)
+      ) {
+        // export default function() { ... } — anonymous, skip for now
+      } else if (ts.isClassExpression(exportAssign.expression)) {
+        // export default class { ... } — anonymous, skip for now
+      }
       break;
     }
 

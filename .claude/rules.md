@@ -232,11 +232,12 @@ Additional self-hosting limitations:
 - **No import aliases** — `import { foo as bar }` compiles `bar(...)` as `@_cs_bar` which doesn't match the original `@_cs_foo`. Use the original name.
 - **No union type parameters in standalone functions** — `fn(x: Expression)` where `Expression` is a union emits the TS type name literally. Keep union-typed parameters in class methods.
 
-## Static Members
+## Module System
 
-- **Static methods** emit as namespaced standalone functions: `@_cs_ClassName_methodName(params...)` — no `%this` parameter. Dispatched in `class-dispatch.ts` when the object is a class name variable.
-- **Static fields** emit as LLVM globals: `@_cs_ClassName_fieldName = global <type> <default>`. Excluded from the instance struct layout. Accessed via `member.ts` when the object matches a known class name.
-- Parser detects `StaticKeyword` in `declarations.ts` and sets `isStatic: true` on `ClassMethod`/`ClassField`.
+ChadScript merges all imported files into one flat AST. Imports trigger file resolution and AST merging.
+
+- **`export default`**: Parser stores the exported name in `ast.defaultExportName`. At import resolution time (`compiler.ts` `compileMultiFile`), the default import's local name is mapped to the exported name via `importAliases`. Codegen resolves aliases through `resolveImportAlias()`.
+- **Re-exports** (`export { foo } from './bar'`): The parser synthesizes `ImportDeclaration` entries for each re-exported name. Since ChadScript merges all files, re-exports are semantically equivalent to imports — they just trigger file resolution and AST merging.
 
 ## Async/Await Type Tracking
 
