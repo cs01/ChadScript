@@ -13,6 +13,7 @@ import {
 } from "./compiler.js";
 import { LogLevel, logger } from "./utils/logger.js";
 import { runInit } from "./codegen/stdlib/init-templates.js";
+import { resolveTarget } from "./target.js";
 import * as path from "path";
 import * as fs from "fs";
 import { execSync, spawn as spawnProc, ChildProcess } from "child_process";
@@ -67,6 +68,7 @@ function printHelp(): void {
   console.log("  chad run hello.ts");
   console.log("  chad run hello.ts -- arg1 arg2");
   console.log("  chad ir hello.ts");
+  console.log("  chad build --target linux-x64 hello.ts -o hello-linux");
 }
 
 if (args.length === 0) {
@@ -191,7 +193,8 @@ if (
   command !== "run" &&
   command !== "ir" &&
   command !== "init" &&
-  command !== "watch"
+  command !== "watch" &&
+  command !== "target"
 ) {
   if (command.endsWith(".ts") || command.endsWith(".js")) {
     console.error(`chad: error: missing command. did you mean 'chad build ${command}'?`);

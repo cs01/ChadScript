@@ -89,6 +89,9 @@ jobs:
         run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
 
+      - name: Build target SDK
+        run: bash scripts/build-target-sdk.sh
+
       - name: Package release artifact
         run: |
           mkdir -p release/lib
@@ -115,6 +118,12 @@ jobs:
         with:
           name: chadscript-linux-musl-x64
           path: chadscript-linux-musl-x64.tar.gz
+
+      - name: Upload target SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: chadscript-target-linux-x64
+          path: chadscript-target-linux-x64.tar.gz
 
   build-linux-glibc:
     runs-on: ubuntu-22.04
@@ -280,6 +289,9 @@ jobs:
         run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
 
+      - name: Build target SDK
+        run: bash scripts/build-target-sdk.sh
+
       - name: Package release artifact
         run: |
           mkdir -p release/lib
@@ -306,6 +318,12 @@ jobs:
         with:
           name: chadscript-macos-arm64
           path: chadscript-macos-arm64.tar.gz
+
+      - name: Upload target SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: chadscript-target-macos-arm64
+          path: chadscript-target-macos-arm64.tar.gz
 
   test-artifact:
     needs: [build-linux-musl, build-linux-glibc, build-macos]
@@ -380,7 +398,7 @@ jobs:
         run: |
           gh release create latest \
             --title "Latest Build" \
-            --notes "Automated release from ${GITHUB_REF_NAME} branch. Download native binaries below." \
+            --notes "Automated release from ${GITHUB_REF_NAME} branch. Download native binaries and target SDKs below." \
             --latest \
             artifacts/**/*.tar.gz
         env:

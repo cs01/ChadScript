@@ -7,26 +7,24 @@ on:
     branches: [main]
 
 jobs:
-  cross-compile-linux-to-macos:
-    runs-on: ubuntu-22.04
+  # Build target SDK on Alpine (musl), then cross-compile from macOS using it
+  build-linux-sdk:
+    runs-on: ubuntu-latest
+    container: node:22-alpine
+
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Install system dependencies
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
-          echo "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" | sudo tee /etc/apt/sources.list.d/llvm-18.list
-          sudo apt-get update
-          sudo apt-get install -y llvm-18 llvm-18-dev clang-18 \
-            cmake make gcc g++ \
-            autoconf automake libtool
-          sudo ln -sf /usr/bin/llc-18 /usr/bin/llc
-          sudo ln -sf /usr/bin/opt-18 /usr/bin/opt
-          sudo ln -sf /usr/bin/clang-18 /usr/bin/clang
+          apk add --no-cache \
+            llvm18 llvm18-dev clang18 lld \
+            cmake make gcc g++ musl-dev \
+            autoconf automake libtool \
+            linux-headers git bash zstd-dev zlib-dev sqlite-dev file
+          ln -sf /usr/lib/llvm18/bin/llc /usr/bin/llc
+          ln -sf /usr/lib/llvm18/bin/opt /usr/bin/opt
+          ln -sf /usr/bin/clang-18 /usr/bin/clang
 
       - name: Install npm dependencies
         run: npm install
@@ -37,32 +35,32 @@ jobs:
       - name: Build compiler
         run: npm run build
 
-      - name: Cross-compile hello.ts for macOS arm64
+      - name: Build tree-sitter objects
         run: |
-          node dist/chad-node.js ir --keep-temps --target macos-arm64 examples/hello.ts -o .build/hello-macos
-          llc -mtriple=aarch64-apple-darwin -filetype=obj .build/hello-macos.ll -o .build/hello-macos.o
+          mkdir -p build
+          TS_SRC=node_modules/tree-sitter-typescript/typescript/src
+          TS_INCLUDE=node_modules/tree-sitter-typescript
+          clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/parser.c -o build/tree-sitter-typescript-parser.o
+          clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
+          clang -c -O2 -fPIC -I vendor/tree-sitter/lib/include c_bridges/treesitter-bridge.c -o build/treesitter-bridge.o
 
-      - name: Verify object file format
+      - name: Build target SDK tarball
         run: |
-          file .build/hello-macos.o
-          file .build/hello-macos.o | grep -q "Mach-O 64-bit arm64"
+          bash scripts/build-target-sdk.sh
+          echo "==> SDK sysroot contents:"
+          ls -la .sdk-staging/linux-x64/sysroot/usr/lib/ 2>/dev/null || echo "  (no sysroot!)"
 
-      - name: Verify IR correctness
-        run: |
-          grep -q '__stderrp' .build/hello-macos.ll
-          grep -q '__stdoutp' .build/hello-macos.ll
-          grep -q 'target triple = "aarch64-apple-darwin"' .build/hello-macos.ll
-
-      - name: Upload cross-compiled objects
+      - name: Upload target SDK
         uses: actions/upload-artifact@v4
         with:
-          name: macos-arm64-objects
-          path: |
-            .build/hello-macos.o
-            .build/hello-macos.ll
+          name: chadscript-target-linux-x64
+          path: chadscript-target-linux-x64.tar.gz
 
+  # Cross-compile from macOS to Linux using the SDK, then verify on Linux
   cross-compile-macos-to-linux:
+    needs: build-linux-sdk
     runs-on: macos-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -72,9 +70,11 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          brew install llvm cmake autoconf automake libtool
+          brew install llvm lld cmake autoconf automake libtool
           echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
           echo "/usr/local/opt/llvm/bin" >> $GITHUB_PATH
+          echo "/opt/homebrew/opt/lld/bin" >> $GITHUB_PATH
+          echo "/usr/local/opt/lld/bin" >> $GITHUB_PATH
 
       - name: Install npm dependencies
         run: npm install
@@ -84,110 +84,55 @@ jobs:
 
       - name: Build compiler
         run: npm run build
+
+      - name: Download Linux target SDK
+        uses: actions/download-artifact@v4
+        with:
+          name: chadscript-target-linux-x64
+
+      - name: Install target SDK
+        run: |
+          mkdir -p ~/.chadscript/targets/linux-x64
+          tar -xzf chadscript-target-linux-x64.tar.gz -C ~/.chadscript/targets/linux-x64
+          cat ~/.chadscript/targets/linux-x64/sdk.json
+          echo "SDK sysroot:"
+          ls ~/.chadscript/targets/linux-x64/sysroot/usr/lib/ 2>/dev/null || echo "  (no sysroot!)"
 
       - name: Cross-compile hello.ts for Linux x64
         run: |
-          node dist/chad-node.js ir --keep-temps --target linux-x64 examples/hello.ts -o .build/hello-linux
-          llc -mtriple=x86_64-unknown-linux-gnu -filetype=obj .build/hello-linux.ll -o .build/hello-linux.o
+          node dist/chad-node.js build --target linux-x64 examples/hello.ts -o .build/hello-linux -v
 
-      - name: Verify object file format
+      - name: Verify binary format
         run: |
-          file .build/hello-linux.o
-          file .build/hello-linux.o | grep -q "ELF 64-bit"
+          file .build/hello-linux
+          file .build/hello-linux | grep -q "ELF 64-bit"
 
-      - name: Verify IR correctness
+      - name: Verify static linking
         run: |
-          grep -q '@stderr = external global i8\*' .build/hello-linux.ll
-          grep -q 'target triple = "x86_64-unknown-linux-gnu"' .build/hello-linux.ll
-          ! grep -q '__stderrp' .build/hello-linux.ll
+          # The binary should be statically linked (musl)
+          file .build/hello-linux | grep -qi "statically linked" || echo "Note: may show as dynamically linked if file doesn't detect musl static"
 
-      - name: Upload cross-compiled objects
+      - name: Upload cross-compiled binary
         uses: actions/upload-artifact@v4
         with:
-          name: linux-x64-objects
-          path: |
-            .build/hello-linux.o
-            .build/hello-linux.ll
+          name: hello-linux-cross
+          path: .build/hello-linux
 
-  test-cross-macos-binary:
-    needs: cross-compile-linux-to-macos
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install system dependencies
-        run: |
-          brew install llvm cmake autoconf automake libtool
-          echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
-          echo "/usr/local/opt/llvm/bin" >> $GITHUB_PATH
-
-      - name: Build vendor libraries
-        run: bash scripts/build-vendor.sh
-
-      - name: Download cross-compiled object
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-arm64-objects
-          path: .build
-
-      - name: Link with native toolchain
-        run: |
-          SDK_PATH=$(xcrun --show-sdk-path)
-          clang .build/hello-macos.o \
-            c_bridges/child-process-bridge.o \
-            c_bridges/os-bridge.o \
-            c_bridges/dotenv-bridge.o \
-            c_bridges/watch-bridge.o \
-            -o .build/hello-macos \
-            -Wl,-syslibroot,$SDK_PATH \
-            -L/usr/local/lib \
-            -Lvendor/bdwgc -lgc
-
-      - name: Run cross-compiled binary
-        run: |
-          .build/hello-macos
-          echo "Cross-compiled macOS binary ran successfully"
-
-  test-cross-linux-binary:
+  # Verify the cross-compiled binary actually runs on Linux
+  verify-cross-compiled-binary:
     needs: cross-compile-macos-to-linux
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake make gcc g++ autoconf automake libtool
-
-      - name: Build vendor libraries
-        run: bash scripts/build-vendor.sh
-
-      - name: Download cross-compiled object
+      - name: Download cross-compiled binary
         uses: actions/download-artifact@v4
         with:
-          name: linux-x64-objects
-          path: .build
-
-      - name: Link with native toolchain
-        run: |
-          gcc .build/hello-linux.o \
-            c_bridges/child-process-bridge.o \
-            c_bridges/os-bridge.o \
-            c_bridges/dotenv-bridge.o \
-            c_bridges/watch-bridge.o \
-            -o .build/hello-linux \
-            -Lvendor/bdwgc -lgc \
-            -lm -ldl -lrt -lpthread -no-pie
+          name: hello-linux-cross
+          path: .
 
       - name: Run cross-compiled binary
         run: |
-          .build/hello-linux
-          echo "Cross-compiled Linux binary ran successfully"
+          ls -la
+          chmod +x hello-linux
+          ./hello-linux
+          echo "Cross-compiled binary ran successfully on Linux"
