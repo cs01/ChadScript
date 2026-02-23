@@ -77,17 +77,14 @@ export class ControlFlowGenerator {
       const isValidLlvmType =
         !valueType.startsWith("%{") && !valueType.includes("|") && !valueType.includes(":");
       const llvmType = isValidLlvmType ? valueType : "i8*";
-      const condBool = this.nextTemp();
-      this.emit(`${condBool} = icmp ne ${llvmType} ${value}, null`);
+      const condBool = this.ctx.emitIcmp("ne", llvmType, value, "null");
       return condBool;
     } else if (valueType === "i32") {
       // Value is i32, use icmp ne for integer comparison
-      const condBool = this.nextTemp();
-      this.emit(`${condBool} = icmp ne i32 ${value}, 0`);
+      const condBool = this.ctx.emitIcmp("ne", "i32", value, "0");
       return condBool;
     } else if (valueType === "i64") {
-      const condBool = this.nextTemp();
-      this.emit(`${condBool} = icmp ne i64 ${value}, 0`);
+      const condBool = this.ctx.emitIcmp("ne", "i64", value, "0");
       return condBool;
     } else {
       // Unknown type - assume double for temp registers
@@ -112,20 +109,17 @@ export class ControlFlowGenerator {
       valueType === "i32" ||
       valueType === "i64"
     ) {
-      const condBool = this.nextTemp();
-      this.emit(`${condBool} = icmp eq i32 1, 1`);
+      const condBool = this.ctx.emitIcmp("eq", "i32", "1", "1");
       return condBool;
     }
     if (valueType && valueType.indexOf("*") !== -1) {
       const isValidLlvmType =
         !valueType.startsWith("%{") && !valueType.includes("|") && !valueType.includes(":");
       const llvmType = isValidLlvmType ? valueType : "i8*";
-      const condBool = this.nextTemp();
-      this.emit(`${condBool} = icmp ne ${llvmType} ${value}, null`);
+      const condBool = this.ctx.emitIcmp("ne", llvmType, value, "null");
       return condBool;
     }
-    const condBool = this.nextTemp();
-    this.emit(`${condBool} = icmp eq i32 1, 1`);
+    const condBool = this.ctx.emitIcmp("eq", "i32", "1", "1");
     return condBool;
   }
 
@@ -151,12 +145,12 @@ export class ControlFlowGenerator {
     const condBool = this.convertToBool(condValue);
 
     if (ifStmt.elseBlock) {
-      this.emit(`br i1 ${condBool}, label %${thenLabel}, label %${elseLabel}`);
+      this.ctx.emitBrCond(condBool, thenLabel, elseLabel);
     } else {
-      this.emit(`br i1 ${condBool}, label %${thenLabel}, label %${mergeLabel}`);
+      this.ctx.emitBrCond(condBool, thenLabel, mergeLabel);
     }
 
-    this.emit(`${thenLabel}:`);
+    this.ctx.emitLabel(thenLabel);
     this.ctx.setCurrentLabel(thenLabel);
 
     if (typeGuard) {
@@ -179,17 +173,17 @@ export class ControlFlowGenerator {
 
     const thenHasTerminator = this.ctx.lastInstructionIsTerminator();
     if (!thenHasTerminator) {
-      this.emit(`br label %${mergeLabel}`);
+      this.ctx.emitBr(mergeLabel);
     }
 
     let elseHasTerminator = false;
     if (ifStmt.elseBlock) {
-      this.emit(`${elseLabel}:`);
+      this.ctx.emitLabel(elseLabel);
       this.ctx.setCurrentLabel(elseLabel);
       this.ctx.generateBlock(ifStmt.elseBlock, params);
       elseHasTerminator = this.ctx.lastInstructionIsTerminator();
       if (!elseHasTerminator) {
-        this.emit(`br label %${mergeLabel}`);
+        this.ctx.emitBr(mergeLabel);
       }
     }
 
@@ -198,7 +192,7 @@ export class ControlFlowGenerator {
     }
 
     // Merge point
-    this.emit(`${mergeLabel}:`);
+    this.ctx.emitLabel(mergeLabel);
     this.ctx.setCurrentLabel(mergeLabel);
 
     return "0";
@@ -217,16 +211,16 @@ export class ControlFlowGenerator {
     const endLabel = this.nextLabel("while_end");
 
     // Jump to condition check
-    this.emit(`br label %${condLabel}`);
+    this.ctx.emitBr(condLabel);
 
     // Condition block
-    this.emit(`${condLabel}:`);
+    this.ctx.emitLabel(condLabel);
     const condValue = this.ctx.generateExpression(whileStmt.condition, params);
     const condBool = this.convertToBool(condValue);
-    this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+    this.ctx.emitBrCond(condBool, bodyLabel, endLabel);
 
     // Body block - push loop context for break/continue
-    this.emit(`${bodyLabel}:`);
+    this.ctx.emitLabel(bodyLabel);
     this.ctx.setCurrentLabel(bodyLabel);
     this.loopContinueLabels.push(condLabel);
     this.loopBreakLabels.push(endLabel);
@@ -235,11 +229,11 @@ export class ControlFlowGenerator {
     this.loopBreakLabels.pop();
     const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
     if (!bodyHasTerminator) {
-      this.emit(`br label %${condLabel}`);
+      this.ctx.emitBr(condLabel);
     }
 
     // End block
-    this.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
 
     return "0";
   }
@@ -258,30 +252,30 @@ export class ControlFlowGenerator {
     const endLabel = this.nextLabel("dowhile_end");
 
     // Jump directly to body (body always executes at least once)
-    this.emit(`br label %${bodyLabel}`);
+    this.ctx.emitBr(bodyLabel);
 
     // Body block
-    this.emit(`${bodyLabel}:`);
+    this.ctx.emitLabel(bodyLabel);
     this.ctx.setCurrentLabel(bodyLabel);
     this.loopContinueLabels.push(condLabel);
     this.loopBreakLabels.push(endLabel);
     this.ctx.generateBlock(doWhileStmt.body, params);
     this.loopContinueLabels.pop();
     this.loopBreakLabels.pop();
-    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
-    if (!bodyHasTerminator) {
-      this.emit(`br label %${condLabel}`);
+    const bodyHasTerminator2 = this.ctx.lastInstructionIsTerminator();
+    if (!bodyHasTerminator2) {
+      this.ctx.emitBr(condLabel);
     }
 
     // Condition block — evaluated after body
-    this.emit(`${condLabel}:`);
+    this.ctx.emitLabel(condLabel);
     this.ctx.setCurrentLabel(condLabel);
     const condValue = this.ctx.generateExpression(doWhileStmt.condition, params);
     const condBool = this.convertToBool(condValue);
-    this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+    this.ctx.emitBrCond(condBool, bodyLabel, endLabel);
 
     // End block
-    this.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
 
     return "0";
   }
@@ -318,7 +312,7 @@ export class ControlFlowGenerator {
         const allocaReg = this.ctx.nextAllocaReg(initVarDecl.name);
         this.ctx.defineVariable(initVarDecl.name, allocaReg, "double", SymbolKind.Number, "local");
         this.emit(`${allocaReg} = alloca double`);
-        this.emit(`store double ${dblValue}, double* ${allocaReg}`);
+        this.ctx.emitStore("double", dblValue, allocaReg);
       } else if (initBase.type === "assignment") {
         const initAssign = forStmt.init as { type: string; name: string; value: Expression };
         let value = this.ctx.generateExpression(initAssign.value, params);
@@ -333,7 +327,7 @@ export class ControlFlowGenerator {
         } else if (varType === "i64" && valType === "double") {
           value = this.ctx.ensureI64(value);
         }
-        this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
+        this.ctx.emitStore(varType, value, allocaReg);
       }
     }
 
@@ -344,21 +338,21 @@ export class ControlFlowGenerator {
     const endLabel = this.nextLabel("for_end");
 
     // Jump to condition check
-    this.emit(`br label %${condLabel}`);
+    this.ctx.emitBr(condLabel);
 
     // Condition block
-    this.emit(`${condLabel}:`);
+    this.ctx.emitLabel(condLabel);
     if (forStmt.condition) {
       const condValue = this.ctx.generateExpression(forStmt.condition, params);
       const condBool = this.convertToBool(condValue);
-      this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+      this.ctx.emitBrCond(condBool, bodyLabel, endLabel);
     } else {
       // No condition means infinite loop
-      this.emit(`br label %${bodyLabel}`);
+      this.ctx.emitBr(bodyLabel);
     }
 
     // Body block - push loop context for break/continue
-    this.emit(`${bodyLabel}:`);
+    this.ctx.emitLabel(bodyLabel);
     this.ctx.setCurrentLabel(bodyLabel);
     this.loopContinueLabels.push(updateLabel);
     this.loopBreakLabels.push(endLabel);
@@ -366,13 +360,13 @@ export class ControlFlowGenerator {
     this.loopContinueLabels.pop();
     this.loopBreakLabels.pop();
     // Check if the LAST instruction is a terminator
-    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
-    if (!bodyHasTerminator) {
-      this.emit(`br label %${updateLabel}`);
+    const bodyHasTerminator3 = this.ctx.lastInstructionIsTerminator();
+    if (!bodyHasTerminator3) {
+      this.ctx.emitBr(updateLabel);
     }
 
     // Update block
-    this.emit(`${updateLabel}:`);
+    this.ctx.emitLabel(updateLabel);
     if (forStmt.update) {
       const updateTyped = forStmt.update as { type: string; name: string; value: Expression };
       const updateType = updateTyped.type;
@@ -393,16 +387,16 @@ export class ControlFlowGenerator {
         } else if (varType === "i64" && valType === "double") {
           value = this.ctx.ensureI64(value);
         }
-        this.emit(`store ${varType} ${value}, ${varType}* ${allocaReg}`);
+        this.ctx.emitStore(varType, value, allocaReg);
       } else {
         // It's an expression (like i++)
         this.ctx.generateExpression(forStmt.update as Expression, params);
       }
     }
-    this.emit(`br label %${condLabel}`);
+    this.ctx.emitBr(condLabel);
 
     // End block
-    this.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
 
     return "0";
   }
@@ -470,7 +464,7 @@ export class ControlFlowGenerator {
 
     const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");
     this.emit(`${indexAlloca} = alloca i32`);
-    this.emit(`store i32 0, i32* ${indexAlloca}`);
+    this.ctx.emitStore("i32", "0", indexAlloca);
 
     const elemAlloca = this.ctx.nextAllocaReg(forOfStmt.variableName);
     this.emit(`${elemAlloca} = alloca ${elementType}`);
@@ -483,22 +477,20 @@ export class ControlFlowGenerator {
     const endLabel = this.nextLabel("forof_end");
 
     // Jump to condition check
-    this.emit(`br label %${condLabel}`);
+    this.ctx.emitBr(condLabel);
 
     // Condition block: check if index < length
-    this.emit(`${condLabel}:`);
-    const currentIndex = this.nextTemp();
-    this.emit(`${currentIndex} = load i32, i32* ${indexAlloca}`);
-    const condBool = this.nextTemp();
-    this.emit(`${condBool} = icmp slt i32 ${currentIndex}, ${lengthI32}`);
-    this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+    this.ctx.emitLabel(condLabel);
+    const currentIndex = this.ctx.emitLoad("i32", indexAlloca);
+    const condBool = this.ctx.emitIcmp("slt", "i32", currentIndex, lengthI32);
+    this.ctx.emitBrCond(condBool, bodyLabel, endLabel);
 
     // Body block
-    this.emit(`${bodyLabel}:`);
+    this.ctx.emitLabel(bodyLabel);
     this.ctx.setCurrentLabel(bodyLabel);
 
     // Load current element from array
-    // Get pointer to the data array
+    // Get pointer to the data array (inbounds GEP + tbaa loads stay raw)
     const dataPtr = this.nextTemp();
     this.emit(
       `${dataPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 0`,
@@ -510,8 +502,7 @@ export class ControlFlowGenerator {
     } else if (isObjectArray) {
       const dataI8 = this.nextTemp();
       this.emit(`${dataI8} = load i8*, i8** ${dataPtr}, !tbaa !5`);
-      dataArray = this.nextTemp();
-      this.emit(`${dataArray} = bitcast i8* ${dataI8} to i8**`);
+      dataArray = this.ctx.emitBitcast(dataI8, "i8*", "i8**");
     } else {
       dataArray = this.nextTemp();
       this.emit(`${dataArray} = load double*, double** ${dataPtr}, !tbaa !5`);
@@ -528,11 +519,10 @@ export class ControlFlowGenerator {
         `${elemPtr} = getelementptr inbounds double, double* ${dataArray}, i64 ${indexI64}`,
       );
     }
-    const elemValue = this.nextTemp();
-    this.emit(`${elemValue} = load ${elementType}, ${elementType}* ${elemPtr}`);
+    const elemValue = this.ctx.emitLoad(elementType, elemPtr);
 
     // Store in loop variable
-    this.emit(`store ${elementType} ${elemValue}, ${elementType}* ${elemAlloca}`);
+    this.ctx.emitStore(elementType, elemValue, elemAlloca);
 
     // Execute the loop body
     this.loopContinueLabels.push(updateLabel);
@@ -542,22 +532,21 @@ export class ControlFlowGenerator {
     this.loopBreakLabels.pop();
 
     // Check if body has terminator
-    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
-    if (!bodyHasTerminator) {
-      this.emit(`br label %${updateLabel}`);
+    const bodyHasTerminator4 = this.ctx.lastInstructionIsTerminator();
+    if (!bodyHasTerminator4) {
+      this.ctx.emitBr(updateLabel);
     }
 
     // Update block: increment index
-    this.emit(`${updateLabel}:`);
-    const loadedIndex = this.nextTemp();
-    this.emit(`${loadedIndex} = load i32, i32* ${indexAlloca}`);
+    this.ctx.emitLabel(updateLabel);
+    const loadedIndex = this.ctx.emitLoad("i32", indexAlloca);
     const nextIndex = this.nextTemp();
     this.emit(`${nextIndex} = add i32 ${loadedIndex}, 1`);
-    this.emit(`store i32 ${nextIndex}, i32* ${indexAlloca}`);
-    this.emit(`br label %${condLabel}`);
+    this.ctx.emitStore("i32", nextIndex, indexAlloca);
+    this.ctx.emitBr(condLabel);
 
     // End block
-    this.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
 
     return "0";
   }
@@ -1351,7 +1340,7 @@ export class ControlFlowGenerator {
 
     const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");
     this.emit(`${indexAlloca} = alloca i32`);
-    this.emit(`store i32 0, i32* ${indexAlloca}`);
+    this.ctx.emitStore("i32", "0", indexAlloca);
 
     const elemAlloca = this.ctx.nextAllocaReg(forOfStmt.variableName);
     this.emit(`${elemAlloca} = alloca i8*`);
@@ -1380,34 +1369,31 @@ export class ControlFlowGenerator {
     const updateLabel = this.nextLabel("forof_update");
     const endLabel = this.nextLabel("forof_end");
 
-    this.emit(`br label %${condLabel}`);
+    this.ctx.emitBr(condLabel);
 
-    this.emit(`${condLabel}:`);
-    const currentIndex = this.nextTemp();
-    this.emit(`${currentIndex} = load i32, i32* ${indexAlloca}`);
-    const condBool = this.nextTemp();
-    this.emit(`${condBool} = icmp slt i32 ${currentIndex}, ${lengthI32}`);
-    this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+    this.ctx.emitLabel(condLabel);
+    const currentIndex = this.ctx.emitLoad("i32", indexAlloca);
+    const condBool = this.ctx.emitIcmp("slt", "i32", currentIndex, lengthI32);
+    this.ctx.emitBrCond(condBool, bodyLabel, endLabel);
 
-    this.emit(`${bodyLabel}:`);
+    this.ctx.emitLabel(bodyLabel);
     this.ctx.setCurrentLabel(bodyLabel);
 
+    // inbounds GEP + tbaa loads stay raw
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 0`);
     const dataArray = this.nextTemp();
     this.emit(`${dataArray} = load double*, double** ${dataPtr}, !tbaa !5`);
 
-    const elemPtrRaw = this.nextTemp();
-    this.emit(`${elemPtrRaw} = bitcast double* ${dataArray} to i8**`);
+    const elemPtrRaw = this.ctx.emitBitcast(dataArray, "double*", "i8**");
 
     const indexI64 = this.nextTemp();
     this.emit(`${indexI64} = sext i32 ${currentIndex} to i64`);
     const elemPtrPtr = this.nextTemp();
     this.emit(`${elemPtrPtr} = getelementptr inbounds i8*, i8** ${elemPtrRaw}, i64 ${indexI64}`);
-    const elemValue = this.nextTemp();
-    this.emit(`${elemValue} = load i8*, i8** ${elemPtrPtr}`);
+    const elemValue = this.ctx.emitLoad("i8*", elemPtrPtr);
 
-    this.emit(`store i8* ${elemValue}, i8** ${elemAlloca}`);
+    this.ctx.emitStore("i8*", elemValue, elemAlloca);
 
     this.loopContinueLabels.push(updateLabel);
     this.loopBreakLabels.push(endLabel);
@@ -1415,20 +1401,19 @@ export class ControlFlowGenerator {
     this.loopContinueLabels.pop();
     this.loopBreakLabels.pop();
 
-    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
-    if (!bodyHasTerminator) {
-      this.emit(`br label %${updateLabel}`);
+    const bodyHasTerminator5 = this.ctx.lastInstructionIsTerminator();
+    if (!bodyHasTerminator5) {
+      this.ctx.emitBr(updateLabel);
     }
 
-    this.emit(`${updateLabel}:`);
-    const loadedIndex = this.nextTemp();
-    this.emit(`${loadedIndex} = load i32, i32* ${indexAlloca}`);
+    this.ctx.emitLabel(updateLabel);
+    const loadedIndex = this.ctx.emitLoad("i32", indexAlloca);
     const nextIndex = this.nextTemp();
     this.emit(`${nextIndex} = add i32 ${loadedIndex}, 1`);
-    this.emit(`store i32 ${nextIndex}, i32* ${indexAlloca}`);
-    this.emit(`br label %${condLabel}`);
+    this.ctx.emitStore("i32", nextIndex, indexAlloca);
+    this.ctx.emitBr(condLabel);
 
-    this.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
 
     return "0";
   }
@@ -1438,7 +1423,7 @@ export class ControlFlowGenerator {
       throw new Error("break statement outside of loop");
     }
     const breakLabel = this.loopBreakLabels[this.loopBreakLabels.length - 1];
-    this.emit(`br label %${breakLabel}`);
+    this.ctx.emitBr(breakLabel);
     return "0";
   }
 
@@ -1447,7 +1432,7 @@ export class ControlFlowGenerator {
       throw new Error("continue statement outside of loop");
     }
     const continueLabel = this.loopContinueLabels[this.loopContinueLabels.length - 1];
-    this.emit(`br label %${continueLabel}`);
+    this.ctx.emitBr(continueLabel);
     return "0";
   }
 
@@ -1477,38 +1462,29 @@ export class ControlFlowGenerator {
         msgVal = this.ctx.generateExpression(throwStmt.argument, params);
         const msgType = this.ctx.getVariableType(msgVal);
         if (msgType === "double") {
-          const buf = this.nextTemp();
-          this.emit(`${buf} = call i8* @__double_to_string(double ${msgVal})`);
-          msgVal = buf;
+          msgVal = this.ctx.emitCall("i8*", "@__double_to_string", `double ${msgVal}`);
         }
       }
     }
 
-    this.emit(`store i8* ${msgVal}, i8** @__exception_message`);
+    this.ctx.emitStore("i8*", msgVal, "@__exception_message");
 
-    const framePtr = this.nextTemp();
-    this.emit(`${framePtr} = load i8*, i8** @__exception_stack`);
-    const hasHandler = this.nextTemp();
-    this.emit(`${hasHandler} = icmp ne i8* ${framePtr}, null`);
+    const framePtr = this.ctx.emitLoad("i8*", "@__exception_stack");
+    const hasHandler = this.ctx.emitIcmp("ne", "i8*", framePtr, "null");
     const doLongjmpLabel = this.nextLabel("do_longjmp");
     const noHandlerLabel = this.nextLabel("no_handler");
-    this.emit(`br i1 ${hasHandler}, label %${doLongjmpLabel}, label %${noHandlerLabel}`);
+    this.ctx.emitBrCond(hasHandler, doLongjmpLabel, noHandlerLabel);
 
-    this.emit(`${doLongjmpLabel}:`);
+    this.ctx.emitLabel(doLongjmpLabel);
     this.ctx.setCurrentLabel(doLongjmpLabel);
-    const frameTyped = this.nextTemp();
-    this.emit(`${frameTyped} = bitcast i8* ${framePtr} to %ExceptionFrame*`);
-    const bufPtr = this.nextTemp();
-    this.emit(
-      `${bufPtr} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frameTyped}, i32 0, i32 0, i32 0`,
-    );
+    const frameTyped = this.ctx.emitBitcast(framePtr, "i8*", "%ExceptionFrame*");
+    const bufPtr = this.ctx.emitGep("%ExceptionFrame", frameTyped, "i32 0, i32 0, i32 0");
     this.emit(`call void @longjmp(i8* ${bufPtr}, i32 1)`);
     this.emit(`unreachable`);
 
-    this.emit(`${noHandlerLabel}:`);
+    this.ctx.emitLabel(noHandlerLabel);
     this.ctx.setCurrentLabel(noHandlerLabel);
-    const stderrPtr = this.ctx.nextTemp();
-    this.emit(`${stderrPtr} = load i8*, i8** @stderr`);
+    const stderrPtr = this.ctx.emitLoad("i8*", "@stderr");
     const fprintfResult = this.ctx.nextTemp();
     this.emit(
       `${fprintfResult} = call i32 (i8*, i8*, ...) @fprintf(i8* ${stderrPtr}, i8* getelementptr([11 x i8], [11 x i8]* @.str.throw_fmt, i32 0, i32 0), i8* ${msgVal})`,
@@ -1530,56 +1506,44 @@ export class ControlFlowGenerator {
       finallyBlock: BlockStatement | null;
     };
 
-    const frameRaw = this.nextTemp();
-    this.emit(`${frameRaw} = call i8* @GC_malloc(i64 216)`);
-    const frame = this.nextTemp();
-    this.emit(`${frame} = bitcast i8* ${frameRaw} to %ExceptionFrame*`);
+    const frameRaw = this.ctx.emitCall("i8*", "@GC_malloc", "i64 216");
+    const frame = this.ctx.emitBitcast(frameRaw, "i8*", "%ExceptionFrame*");
 
-    const prevFrame = this.nextTemp();
-    this.emit(`${prevFrame} = load i8*, i8** @__exception_stack`);
-    const prevField = this.nextTemp();
-    this.emit(
-      `${prevField} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frame}, i32 0, i32 1`,
-    );
-    this.emit(`store i8* ${prevFrame}, i8** ${prevField}`);
-    this.emit(`store i8* ${frameRaw}, i8** @__exception_stack`);
+    const prevFrame = this.ctx.emitLoad("i8*", "@__exception_stack");
+    const prevField = this.ctx.emitGep("%ExceptionFrame", frame, "i32 0, i32 1");
+    this.ctx.emitStore("i8*", prevFrame, prevField);
+    this.ctx.emitStore("i8*", frameRaw, "@__exception_stack");
 
-    const bufPtr = this.nextTemp();
-    this.emit(
-      `${bufPtr} = getelementptr %ExceptionFrame, %ExceptionFrame* ${frame}, i32 0, i32 0, i32 0`,
-    );
-    const sjVal = this.nextTemp();
-    this.emit(`${sjVal} = call i32 @setjmp(i8* ${bufPtr})`);
-    const isException = this.nextTemp();
-    this.emit(`${isException} = icmp ne i32 ${sjVal}, 0`);
+    const bufPtr = this.ctx.emitGep("%ExceptionFrame", frame, "i32 0, i32 0, i32 0");
+    const sjVal = this.ctx.emitCall("i32", "@setjmp", `i8* ${bufPtr}`);
+    const isException = this.ctx.emitIcmp("ne", "i32", sjVal, "0");
 
     const tryBodyLabel = this.nextLabel("try_body");
     const catchEntryLabel = this.nextLabel("catch_entry");
     const finallyLabel = this.nextLabel("finally_block");
 
-    this.emit(`br i1 ${isException}, label %${catchEntryLabel}, label %${tryBodyLabel}`);
+    this.ctx.emitBrCond(isException, catchEntryLabel, tryBodyLabel);
 
-    this.emit(`${tryBodyLabel}:`);
+    this.ctx.emitLabel(tryBodyLabel);
     this.ctx.setCurrentLabel(tryBodyLabel);
     this.ctx.generateBlock(tryStmt.tryBlock, params);
     const tryHasTerminator = this.ctx.lastInstructionIsTerminator();
     if (!tryHasTerminator) {
-      this.emit(`store i8* ${prevFrame}, i8** @__exception_stack`);
-      this.emit(`br label %${finallyLabel}`);
+      this.ctx.emitStore("i8*", prevFrame, "@__exception_stack");
+      this.ctx.emitBr(finallyLabel);
     }
 
-    this.emit(`${catchEntryLabel}:`);
+    this.ctx.emitLabel(catchEntryLabel);
     this.ctx.setCurrentLabel(catchEntryLabel);
-    this.emit(`store i8* ${prevFrame}, i8** @__exception_stack`);
+    this.ctx.emitStore("i8*", prevFrame, "@__exception_stack");
 
     if (tryStmt.catchBody) {
       const paramName = tryStmt.catchParam;
       if (paramName) {
-        const excMsg = this.nextTemp();
-        this.emit(`${excMsg} = load i8*, i8** @__exception_message`);
+        const excMsg = this.ctx.emitLoad("i8*", "@__exception_message");
         const paramAlloca = this.ctx.nextAllocaReg(paramName);
         this.emit(`${paramAlloca} = alloca i8*`);
-        this.emit(`store i8* ${excMsg}, i8** ${paramAlloca}`);
+        this.ctx.emitStore("i8*", excMsg, paramAlloca);
         this.ctx.defineVariable(paramName, paramAlloca, "i8*", SymbolKind.String, "local");
       }
       this.ctx.generateBlock(tryStmt.catchBody, params);
@@ -1587,10 +1551,10 @@ export class ControlFlowGenerator {
 
     const catchHasTerminator = this.ctx.lastInstructionIsTerminator();
     if (!catchHasTerminator) {
-      this.emit(`br label %${finallyLabel}`);
+      this.ctx.emitBr(finallyLabel);
     }
 
-    this.emit(`${finallyLabel}:`);
+    this.ctx.emitLabel(finallyLabel);
     this.ctx.setCurrentLabel(finallyLabel);
 
     if (tryStmt.finallyBlock) {
@@ -1615,12 +1579,12 @@ export class ControlFlowGenerator {
     const leftCoerceLabel = this.nextLabel("logop_left_coerce");
 
     if (op === "||" || op === "??") {
-      this.emit(`br i1 ${leftBool}, label %${leftCoerceLabel}, label %${evalRightLabel}`);
+      this.ctx.emitBrCond(leftBool, leftCoerceLabel, evalRightLabel);
     } else {
-      this.emit(`br i1 ${leftBool}, label %${evalRightLabel}, label %${leftCoerceLabel}`);
+      this.ctx.emitBrCond(leftBool, evalRightLabel, leftCoerceLabel);
     }
 
-    this.emit(`${evalRightLabel}:`);
+    this.ctx.emitLabel(evalRightLabel);
     const savedExpectedType = this.ctx.getExpectedArrayElementType();
     const rightTyped = right as { type: string; elements?: Expression[] };
     if (rightTyped.type === "array" && (!rightTyped.elements || rightTyped.elements.length === 0)) {
@@ -1638,14 +1602,14 @@ export class ControlFlowGenerator {
     const resultType = this.getPhiType(leftType, rightType);
     const rightForPhi = this.coerceToTypeNoPhi(rightValue, rightType, resultType);
     const rightCoerceEndLabel = this.ctx.getCurrentLabel();
-    this.emit(`br label %${endLabel}`);
+    this.ctx.emitBr(endLabel);
 
-    this.emit(`${leftCoerceLabel}:`);
+    this.ctx.emitLabel(leftCoerceLabel);
     const leftForPhi = this.coerceToTypeNoPhi(leftValue, leftType, resultType);
     const leftCoerceEndLabel = this.ctx.getCurrentLabel();
-    this.emit(`br label %${endLabel}`);
+    this.ctx.emitBr(endLabel);
 
-    this.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
     const result = this.nextTemp();
     this.emit(
       `${result} = phi ${resultType} [ ${leftForPhi}, %${leftCoerceEndLabel} ], [ ${rightForPhi}, %${rightCoerceEndLabel} ]`,
@@ -2112,12 +2076,11 @@ export class ControlFlowGenerator {
 
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 0`);
-    const lengthI32 = this.nextTemp();
-    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
+    const lengthI32 = this.ctx.emitLoad("i32", lenPtr);
 
     const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");
     this.emit(`${indexAlloca} = alloca i32`);
-    this.emit(`store i32 0, i32* ${indexAlloca}`);
+    this.ctx.emitStore("i32", "0", indexAlloca);
 
     const keyAlloca = this.ctx.nextAllocaReg(keyName);
     this.emit(`${keyAlloca} = alloca i8*`);
@@ -2152,52 +2115,47 @@ export class ControlFlowGenerator {
     const updateLabel = this.nextLabel("mapof_update");
     const endLabel = this.nextLabel("mapof_end");
 
-    this.emit(`br label %${condLabel}`);
+    this.ctx.emitBr(condLabel);
 
-    this.emit(`${condLabel}:`);
-    const currentIndex = this.nextTemp();
-    this.emit(`${currentIndex} = load i32, i32* ${indexAlloca}`);
-    const condBool = this.nextTemp();
-    this.emit(`${condBool} = icmp slt i32 ${currentIndex}, ${lengthI32}`);
-    this.emit(`br i1 ${condBool}, label %${bodyLabel}, label %${endLabel}`);
+    this.ctx.emitLabel(condLabel);
+    const currentIndex = this.ctx.emitLoad("i32", indexAlloca);
+    const condBool = this.ctx.emitIcmp("slt", "i32", currentIndex, lengthI32);
+    this.ctx.emitBrCond(condBool, bodyLabel, endLabel);
 
-    this.emit(`${bodyLabel}:`);
+    this.ctx.emitLabel(bodyLabel);
     this.ctx.setCurrentLabel(bodyLabel);
 
+    // inbounds GEP + tbaa loads stay raw
     const dataFieldPtr = this.nextTemp();
     this.emit(
       `${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 2`,
     );
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}, !tbaa !5`);
-    const dataCast = this.nextTemp();
-    this.emit(`${dataCast} = bitcast double* ${dataPtr} to i8**`);
+    const dataCast = this.ctx.emitBitcast(dataPtr, "double*", "i8**");
 
     const indexI64 = this.nextTemp();
     this.emit(`${indexI64} = sext i32 ${currentIndex} to i64`);
     const elemPtr = this.nextTemp();
     this.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataCast}, i64 ${indexI64}`);
-    const entryRaw = this.nextTemp();
-    this.emit(`${entryRaw} = load i8*, i8** ${elemPtr}`);
+    const entryRaw = this.ctx.emitLoad("i8*", elemPtr);
 
-    const entryPtr = this.nextTemp();
-    this.emit(`${entryPtr} = bitcast i8* ${entryRaw} to { i8*, i8* }*`);
+    const entryPtr = this.ctx.emitBitcast(entryRaw, "i8*", "{ i8*, i8* }*");
 
+    // inbounds GEPs stay raw
     const keySlotPtr = this.nextTemp();
     this.emit(
       `${keySlotPtr} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryPtr}, i32 0, i32 0`,
     );
-    const keyVal = this.nextTemp();
-    this.emit(`${keyVal} = load i8*, i8** ${keySlotPtr}`);
-    this.emit(`store i8* ${keyVal}, i8** ${keyAlloca}`);
+    const keyVal = this.ctx.emitLoad("i8*", keySlotPtr);
+    this.ctx.emitStore("i8*", keyVal, keyAlloca);
 
     const valueSlotPtr = this.nextTemp();
     this.emit(
       `${valueSlotPtr} = getelementptr inbounds { i8*, i8* }, { i8*, i8* }* ${entryPtr}, i32 0, i32 1`,
     );
-    const valueVal = this.nextTemp();
-    this.emit(`${valueVal} = load i8*, i8** ${valueSlotPtr}`);
-    this.emit(`store i8* ${valueVal}, i8** ${valueAlloca}`);
+    const valueVal = this.ctx.emitLoad("i8*", valueSlotPtr);
+    this.ctx.emitStore("i8*", valueVal, valueAlloca);
 
     this.loopContinueLabels.push(updateLabel);
     this.loopBreakLabels.push(endLabel);
@@ -2205,20 +2163,19 @@ export class ControlFlowGenerator {
     this.loopContinueLabels.pop();
     this.loopBreakLabels.pop();
 
-    const bodyHasTerminator = this.ctx.lastInstructionIsTerminator();
-    if (!bodyHasTerminator) {
-      this.emit(`br label %${updateLabel}`);
+    const bodyHasTerminator6 = this.ctx.lastInstructionIsTerminator();
+    if (!bodyHasTerminator6) {
+      this.ctx.emitBr(updateLabel);
     }
 
-    this.emit(`${updateLabel}:`);
-    const loadedIndex = this.nextTemp();
-    this.emit(`${loadedIndex} = load i32, i32* ${indexAlloca}`);
+    this.ctx.emitLabel(updateLabel);
+    const loadedIndex = this.ctx.emitLoad("i32", indexAlloca);
     const nextIndex = this.nextTemp();
     this.emit(`${nextIndex} = add i32 ${loadedIndex}, 1`);
-    this.emit(`store i32 ${nextIndex}, i32* ${indexAlloca}`);
-    this.emit(`br label %${condLabel}`);
+    this.ctx.emitStore("i32", nextIndex, indexAlloca);
+    this.ctx.emitBr(condLabel);
 
-    this.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
 
     return "0";
   }
@@ -2274,25 +2231,27 @@ export class ControlFlowGenerator {
       if (!caseItem) continue;
       if (caseItem.test !== null) {
         if (checkIndex > 0) {
-          this.emit(`${checkLabels[checkIndex - 1]}:`);
+          this.ctx.emitLabel(checkLabels[checkIndex - 1]);
         }
 
         const testValue = this.ctx.generateExpression(caseItem.test, params);
 
         if (isString) {
-          const strCmp = this.nextTemp();
-          this.emit(`${strCmp} = call i32 @strcmp(i8* ${discriminantValue}, i8* ${testValue})`);
-          const cmpResult = this.nextTemp();
-          this.emit(`${cmpResult} = icmp eq i32 ${strCmp}, 0`);
+          const strCmp = this.ctx.emitCall(
+            "i32",
+            "@strcmp",
+            `i8* ${discriminantValue}, i8* ${testValue}`,
+          );
+          const cmpResult = this.ctx.emitIcmp("eq", "i32", strCmp, "0");
           const nextLabel = checkIndex < testCaseCount - 1 ? checkLabels[checkIndex] : defaultLabel;
-          this.emit(`br i1 ${cmpResult}, label %${caseLabels[i]}, label %${nextLabel}`);
+          this.ctx.emitBrCond(cmpResult, caseLabels[i], nextLabel);
         } else {
           const dblDiscriminant = this.ctx.ensureDouble(discriminantValue);
           const dblTest = this.ctx.ensureDouble(testValue);
           const cmpResult = this.nextTemp();
           this.emit(`${cmpResult} = fcmp oeq double ${dblDiscriminant}, ${dblTest}`);
           const nextLabel = checkIndex < testCaseCount - 1 ? checkLabels[checkIndex] : defaultLabel;
-          this.emit(`br i1 ${cmpResult}, label %${caseLabels[i]}, label %${nextLabel}`);
+          this.ctx.emitBrCond(cmpResult, caseLabels[i], nextLabel);
         }
         checkIndex++;
       }
@@ -2301,14 +2260,14 @@ export class ControlFlowGenerator {
     for (let i = 0; i < switchStmt.cases.length; i++) {
       const caseItem = switchStmt.cases[i];
       if (!caseItem) continue;
-      this.emit(`${caseLabels[i]}:`);
+      this.ctx.emitLabel(caseLabels[i]);
       this.ctx.setCurrentLabel(caseLabels[i]);
 
       for (let j = 0; j < caseItem.consequent.length; j++) {
         const consequentStmt = caseItem.consequent[j];
         if (!consequentStmt) continue;
         if (consequentStmt.type === "break") {
-          this.emit(`br label %${endLabel}`);
+          this.ctx.emitBr(endLabel);
         } else if (
           consequentStmt.type === "variable_declaration" ||
           consequentStmt.type === "return" ||
@@ -2334,13 +2293,13 @@ export class ControlFlowGenerator {
         (lastStmt.type !== "break" && lastStmt.type !== "return" && lastStmt.type !== "throw")
       ) {
         const nextCaseLabel = i < switchStmt.cases.length - 1 ? caseLabels[i + 1] : endLabel;
-        this.emit(`br label %${nextCaseLabel}`);
+        this.ctx.emitBr(nextCaseLabel);
       }
     }
 
     this.loopContinueLabels.pop();
     this.loopBreakLabels.pop();
-    this.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
 
     return "0";
   }

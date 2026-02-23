@@ -1,7 +1,7 @@
-// NOTE: This file uses raw ctx.emit() extensively. Prefer structured IR builders
-// (emitStore, emitLoad, emitCall, etc.) when modifying — see .claude/rules.md.
+// Array mutator operations: push, pop.
+// Uses structured IR builders where possible; raw emit() for inbounds GEP, tbaa, intrinsics, etc.
 
-import { Expression, MethodCallNode, VariableNode } from "../../../../ast/types.js";
+import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
 import { IGeneratorContext } from "./context.js";
 
 interface ExprBase {
@@ -110,21 +110,20 @@ function generateIntArrayPop(gen: IGeneratorContext, arrayPtr: string): string {
   gen.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
 
   // Check if array is empty
-  const isEmpty = gen.nextTemp();
-  gen.emit(`${isEmpty} = icmp eq i32 ${currentLen}, 0`);
+  const isEmpty = gen.emitIcmp("eq", "i32", currentLen, "0");
 
   const emptyLabel = gen.nextLabel("pop_empty");
   const notEmptyLabel = gen.nextLabel("pop_notempty");
   const endLabel = gen.nextLabel("pop_end");
 
-  gen.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
+  gen.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
 
   // Empty case - return 0.0
-  gen.emit(`${emptyLabel}:`);
-  gen.emit(`br label %${endLabel}`);
+  gen.emitLabel(emptyLabel);
+  gen.emitBr(endLabel);
 
   // Not empty - pop element
-  gen.emit(`${notEmptyLabel}:`);
+  gen.emitLabel(notEmptyLabel);
 
   // Calculate index of last element (length - 1)
   const lastIndex = gen.nextTemp();
@@ -143,12 +142,12 @@ function generateIntArrayPop(gen: IGeneratorContext, arrayPtr: string): string {
   gen.emit(`${lastElem} = load double, double* ${elemPtr}, !tbaa !4`);
 
   // Decrement length
-  gen.emit(`store i32 ${lastIndex}, i32* ${lenPtr}`);
+  gen.emitStore("i32", lastIndex, lenPtr);
 
-  gen.emit(`br label %${endLabel}`);
+  gen.emitBr(endLabel);
 
   // End - phi node to select result
-  gen.emit(`${endLabel}:`);
+  gen.emitLabel(endLabel);
   const result = gen.nextTemp();
   gen.emit(`${result} = phi double [ 0.0, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`);
 
@@ -167,24 +166,22 @@ function generateStringArrayPop(gen: IGeneratorContext, arrayPtr: string): strin
   gen.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
 
   // Check if array is empty
-  const isEmpty = gen.nextTemp();
-  gen.emit(`${isEmpty} = icmp eq i32 ${currentLen}, 0`);
+  const isEmpty = gen.emitIcmp("eq", "i32", currentLen, "0");
 
   const emptyLabel = gen.nextLabel("pop_empty");
   const notEmptyLabel = gen.nextLabel("pop_notempty");
   const endLabel = gen.nextLabel("pop_end");
 
-  gen.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
+  gen.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
 
   // Empty case - return empty string
-  gen.emit(`${emptyLabel}:`);
-  const emptyStr = gen.nextTemp();
-  gen.emit(`${emptyStr} = call i8* @GC_malloc_atomic(i64 1)`);
-  gen.emit(`store i8 0, i8* ${emptyStr}`);
-  gen.emit(`br label %${endLabel}`);
+  gen.emitLabel(emptyLabel);
+  const emptyStr = gen.emitCall("i8*", "@GC_malloc_atomic", "i64 1");
+  gen.emitStore("i8", "0", emptyStr);
+  gen.emitBr(endLabel);
 
   // Not empty - pop element
-  gen.emit(`${notEmptyLabel}:`);
+  gen.emitLabel(notEmptyLabel);
 
   // Calculate index of last element (length - 1)
   const lastIndex = gen.nextTemp();
@@ -205,12 +202,12 @@ function generateStringArrayPop(gen: IGeneratorContext, arrayPtr: string): strin
   gen.emit(`${lastElem} = load i8*, i8** ${elemPtr}, !tbaa !5`);
 
   // Decrement length
-  gen.emit(`store i32 ${lastIndex}, i32* ${lenPtr}`);
+  gen.emitStore("i32", lastIndex, lenPtr);
 
-  gen.emit(`br label %${endLabel}`);
+  gen.emitBr(endLabel);
 
   // End - phi node to select result
-  gen.emit(`${endLabel}:`);
+  gen.emitLabel(endLabel);
   const result = gen.nextTemp();
   gen.emit(
     `${result} = phi i8* [ ${emptyStr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`,
@@ -221,29 +218,27 @@ function generateStringArrayPop(gen: IGeneratorContext, arrayPtr: string): strin
 }
 
 function generatePointerArrayPop(gen: IGeneratorContext, arrayPtr: string): string {
-  const castPtr = gen.nextTemp();
-  gen.emit(`${castPtr} = bitcast i8* ${arrayPtr} to %Array*`);
+  const castPtr = gen.emitBitcast(arrayPtr, "i8*", "%Array*");
 
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${castPtr}, i32 0, i32 1`);
   const currentLen = gen.nextTemp();
   gen.emit(`${currentLen} = load i32, i32* ${lenPtr}`);
 
-  const isEmpty = gen.nextTemp();
-  gen.emit(`${isEmpty} = icmp eq i32 ${currentLen}, 0`);
+  const isEmpty = gen.emitIcmp("eq", "i32", currentLen, "0");
 
   const emptyLabel = gen.nextLabel("pop_empty");
   const notEmptyLabel = gen.nextLabel("pop_notempty");
   const endLabel = gen.nextLabel("pop_end");
 
-  gen.emit(`br i1 ${isEmpty}, label %${emptyLabel}, label %${notEmptyLabel}`);
+  gen.emitBrCond(isEmpty, emptyLabel, notEmptyLabel);
 
-  gen.emit(`${emptyLabel}:`);
+  gen.emitLabel(emptyLabel);
   const nullPtr = gen.nextTemp();
   gen.emit(`${nullPtr} = inttoptr i64 0 to i8*`);
-  gen.emit(`br label %${endLabel}`);
+  gen.emitBr(endLabel);
 
-  gen.emit(`${notEmptyLabel}:`);
+  gen.emitLabel(notEmptyLabel);
 
   const lastIndex = gen.nextTemp();
   gen.emit(`${lastIndex} = sub i32 ${currentLen}, 1`);
@@ -252,19 +247,18 @@ function generatePointerArrayPop(gen: IGeneratorContext, arrayPtr: string): stri
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${castPtr}, i32 0, i32 0`);
   const dataPtrRaw = gen.nextTemp();
   gen.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField}, !tbaa !5`);
-  const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = bitcast double* ${dataPtrRaw} to i8**`);
+  const dataPtr = gen.emitBitcast(dataPtrRaw, "double*", "i8**");
 
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${lastIndex}`);
   const lastElem = gen.nextTemp();
   gen.emit(`${lastElem} = load i8*, i8** ${elemPtr}, !tbaa !5`);
 
-  gen.emit(`store i32 ${lastIndex}, i32* ${lenPtr}`);
+  gen.emitStore("i32", lastIndex, lenPtr);
 
-  gen.emit(`br label %${endLabel}`);
+  gen.emitBr(endLabel);
 
-  gen.emit(`${endLabel}:`);
+  gen.emitLabel(endLabel);
   const result = gen.nextTemp();
   gen.emit(
     `${result} = phi i8* [ ${nullPtr}, %${emptyLabel} ], [ ${lastElem}, %${notEmptyLabel} ]`,
@@ -290,20 +284,18 @@ function generateIntArrayPush(gen: IGeneratorContext, arrayPtr: string, value: s
   gen.emit(`${currentCap} = load i32, i32* ${capPtr}`);
 
   // Check if we need to resize (length == capacity)
-  const needResize = gen.nextTemp();
-  gen.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
+  const needResize = gen.emitIcmp("eq", "i32", currentLen, currentCap);
 
   // Create labels for resize and continue paths
   const resizeLabel = gen.nextLabel("resize");
   const continueLabel = gen.nextLabel("continue");
 
-  gen.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
+  gen.emitBrCond(needResize, resizeLabel, continueLabel);
 
   // Resize block
-  gen.emit(`${resizeLabel}:`);
+  gen.emitLabel(resizeLabel);
   // Handle case where currentCap is 0 - set to 2, otherwise double it
-  const isZero = gen.nextTemp();
-  gen.emit(`${isZero} = icmp eq i32 ${currentCap}, 0`);
+  const isZero = gen.emitIcmp("eq", "i32", currentCap, "0");
   const doubled = gen.nextTemp();
   gen.emit(`${doubled} = mul i32 ${currentCap}, 2`);
   const newCap = gen.nextTemp();
@@ -314,21 +306,16 @@ function generateIntArrayPush(gen: IGeneratorContext, arrayPtr: string, value: s
   gen.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
   const newMemSize = gen.nextTemp();
   gen.emit(`${newMemSize} = mul i64 ${newCapI64}, 8`);
-  const newMem = gen.nextTemp();
-  gen.emit(`${newMem} = call i8* @GC_malloc_atomic(i64 ${newMemSize})`); // GC_malloc_atomic for numeric data
-  const newDataPtr = gen.nextTemp();
-  gen.emit(`${newDataPtr} = bitcast i8* ${newMem} to double*`);
+  const newMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${newMemSize}`);
+  const newDataPtr = gen.emitBitcast(newMem, "i8*", "double*");
 
   // Copy old data to new array
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-  const oldDataPtr = gen.nextTemp();
-  gen.emit(`${oldDataPtr} = load double*, double** ${dataPtrField}`);
+  const oldDataPtr = gen.emitLoad("double*", dataPtrField);
 
-  const oldDataI8 = gen.nextTemp();
-  gen.emit(`${oldDataI8} = bitcast double* ${oldDataPtr} to i8*`);
-  const newDataI8 = gen.nextTemp();
-  gen.emit(`${newDataI8} = bitcast double* ${newDataPtr} to i8*`);
+  const oldDataI8 = gen.emitBitcast(oldDataPtr, "double*", "i8*");
+  const newDataI8 = gen.emitBitcast(newDataPtr, "double*", "i8*");
   // Compute copy size dynamically based on double size
   const doubleSize = gen.getDoubleSize();
   const currentLenI64 = gen.nextTemp();
@@ -340,15 +327,15 @@ function generateIntArrayPush(gen: IGeneratorContext, arrayPtr: string, value: s
   );
 
   // Update pointer (GC will free old data)
-  gen.emit(`store double* ${newDataPtr}, double** ${dataPtrField}`);
+  gen.emitStore("double*", newDataPtr, dataPtrField);
 
   // Update capacity
-  gen.emit(`store i32 ${newCap}, i32* ${capPtr}`);
+  gen.emitStore("i32", newCap, capPtr);
 
-  gen.emit(`br label %${continueLabel}`);
+  gen.emitBr(continueLabel);
 
   // Continue block
-  gen.emit(`${continueLabel}:`);
+  gen.emitLabel(continueLabel);
 
   // Get current data pointer (may have been updated)
   const dataPtrField2 = gen.nextTemp();
@@ -365,7 +352,7 @@ function generateIntArrayPush(gen: IGeneratorContext, arrayPtr: string, value: s
   // Increment length
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = add i32 ${currentLen}, 1`);
-  gen.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
+  gen.emitStore("i32", newLen, lenPtr);
 
   // Return new length as double (JavaScript semantics)
   const newLenDouble = gen.nextTemp();
@@ -394,20 +381,18 @@ function generateStringArrayPush(gen: IGeneratorContext, arrayPtr: string, value
   gen.emit(`${currentCap} = load i32, i32* ${capPtr}`);
 
   // Check if we need to resize (length == capacity)
-  const needResize = gen.nextTemp();
-  gen.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
+  const needResize = gen.emitIcmp("eq", "i32", currentLen, currentCap);
 
   // Create labels for resize and continue paths
   const resizeLabel = gen.nextLabel("resize");
   const continueLabel = gen.nextLabel("continue");
 
-  gen.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
+  gen.emitBrCond(needResize, resizeLabel, continueLabel);
 
   // Resize block
-  gen.emit(`${resizeLabel}:`);
+  gen.emitLabel(resizeLabel);
   // Handle case where currentCap is 0 - set to 2, otherwise double it
-  const isZero = gen.nextTemp();
-  gen.emit(`${isZero} = icmp eq i32 ${currentCap}, 0`);
+  const isZero = gen.emitIcmp("eq", "i32", currentCap, "0");
   const doubled = gen.nextTemp();
   gen.emit(`${doubled} = mul i32 ${currentCap}, 2`);
   const newCap = gen.nextTemp();
@@ -418,23 +403,18 @@ function generateStringArrayPush(gen: IGeneratorContext, arrayPtr: string, value
   gen.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
   const newMemSize = gen.nextTemp();
   gen.emit(`${newMemSize} = mul i64 ${newCapI64}, 8`);
-  const newMem = gen.nextTemp();
-  gen.emit(`${newMem} = call i8* @GC_malloc(i64 ${newMemSize})`); // GC_malloc for pointer array
-  const newDataPtr = gen.nextTemp();
-  gen.emit(`${newDataPtr} = bitcast i8* ${newMem} to i8**`);
+  const newMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${newMemSize}`);
+  const newDataPtr = gen.emitBitcast(newMem, "i8*", "i8**");
 
   // Copy old data to new array
   const dataPtrField = gen.nextTemp();
   gen.emit(
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
-  const oldDataPtr = gen.nextTemp();
-  gen.emit(`${oldDataPtr} = load i8**, i8*** ${dataPtrField}`);
+  const oldDataPtr = gen.emitLoad("i8**", dataPtrField);
 
-  const oldDataI8 = gen.nextTemp();
-  gen.emit(`${oldDataI8} = bitcast i8** ${oldDataPtr} to i8*`);
-  const newDataI8 = gen.nextTemp();
-  gen.emit(`${newDataI8} = bitcast i8** ${newDataPtr} to i8*`);
+  const oldDataI8 = gen.emitBitcast(oldDataPtr, "i8**", "i8*");
+  const newDataI8 = gen.emitBitcast(newDataPtr, "i8**", "i8*");
   const copySize = gen.nextTemp();
   gen.emit(`${copySize} = mul i32 ${currentLen}, 8`); // 8 bytes per pointer
   const copySizeI64 = gen.nextTemp();
@@ -444,15 +424,15 @@ function generateStringArrayPush(gen: IGeneratorContext, arrayPtr: string, value
   );
 
   // Update pointer (GC will free old data)
-  gen.emit(`store i8** ${newDataPtr}, i8*** ${dataPtrField}`);
+  gen.emitStore("i8**", newDataPtr, dataPtrField);
 
   // Update capacity
-  gen.emit(`store i32 ${newCap}, i32* ${capPtr}`);
+  gen.emitStore("i32", newCap, capPtr);
 
-  gen.emit(`br label %${continueLabel}`);
+  gen.emitBr(continueLabel);
 
   // Continue block
-  gen.emit(`${continueLabel}:`);
+  gen.emitLabel(continueLabel);
 
   // Get current data pointer (may have been updated)
   const dataPtrField2 = gen.nextTemp();
@@ -470,7 +450,7 @@ function generateStringArrayPush(gen: IGeneratorContext, arrayPtr: string, value
   // Increment length
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = add i32 ${currentLen}, 1`);
-  gen.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
+  gen.emitStore("i32", newLen, lenPtr);
 
   // Return new length as double (JavaScript semantics)
   const newLenDouble = gen.nextTemp();
@@ -495,17 +475,15 @@ function generatePointerArrayPush(
   const currentCap = gen.nextTemp();
   gen.emit(`${currentCap} = load i32, i32* ${capPtr}`);
 
-  const needResize = gen.nextTemp();
-  gen.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
+  const needResize = gen.emitIcmp("eq", "i32", currentLen, currentCap);
 
   const resizeLabel = gen.nextLabel("resize");
   const continueLabel = gen.nextLabel("continue");
 
-  gen.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
+  gen.emitBrCond(needResize, resizeLabel, continueLabel);
 
-  gen.emit(`${resizeLabel}:`);
-  const isZero = gen.nextTemp();
-  gen.emit(`${isZero} = icmp eq i32 ${currentCap}, 0`);
+  gen.emitLabel(resizeLabel);
+  const isZero = gen.emitIcmp("eq", "i32", currentCap, "0");
   const doubled = gen.nextTemp();
   gen.emit(`${doubled} = mul i32 ${currentCap}, 2`);
   const newCap = gen.nextTemp();
@@ -515,22 +493,16 @@ function generatePointerArrayPush(
   gen.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
   const newMemSize = gen.nextTemp();
   gen.emit(`${newMemSize} = mul i64 ${newCapI64}, 8`);
-  const newMem = gen.nextTemp();
-  gen.emit(`${newMem} = call i8* @GC_malloc(i64 ${newMemSize})`);
-  const newDataPtr = gen.nextTemp();
-  gen.emit(`${newDataPtr} = bitcast i8* ${newMem} to i8**`);
+  const newMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${newMemSize}`);
+  const newDataPtr = gen.emitBitcast(newMem, "i8*", "i8**");
 
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-  const oldDataPtrRaw = gen.nextTemp();
-  gen.emit(`${oldDataPtrRaw} = load double*, double** ${dataPtrField}`);
-  const oldDataPtr = gen.nextTemp();
-  gen.emit(`${oldDataPtr} = bitcast double* ${oldDataPtrRaw} to i8**`);
+  const oldDataPtrRaw = gen.emitLoad("double*", dataPtrField);
+  const oldDataPtr = gen.emitBitcast(oldDataPtrRaw, "double*", "i8**");
 
-  const oldDataI8 = gen.nextTemp();
-  gen.emit(`${oldDataI8} = bitcast i8** ${oldDataPtr} to i8*`);
-  const newDataI8 = gen.nextTemp();
-  gen.emit(`${newDataI8} = bitcast i8** ${newDataPtr} to i8*`);
+  const oldDataI8 = gen.emitBitcast(oldDataPtr, "i8**", "i8*");
+  const newDataI8 = gen.emitBitcast(newDataPtr, "i8**", "i8*");
   const copySize = gen.nextTemp();
   gen.emit(`${copySize} = mul i32 ${currentLen}, 8`);
   const copySizeI64 = gen.nextTemp();
@@ -539,32 +511,29 @@ function generatePointerArrayPush(
     `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
   );
 
-  const newDataPtrAsDouble = gen.nextTemp();
-  gen.emit(`${newDataPtrAsDouble} = bitcast i8** ${newDataPtr} to double*`);
-  gen.emit(`store double* ${newDataPtrAsDouble}, double** ${dataPtrField}`);
+  const newDataPtrAsDouble = gen.emitBitcast(newDataPtr, "i8**", "double*");
+  gen.emitStore("double*", newDataPtrAsDouble, dataPtrField);
 
-  gen.emit(`store i32 ${newCap}, i32* ${capPtr}`);
+  gen.emitStore("i32", newCap, capPtr);
 
-  gen.emit(`br label %${continueLabel}`);
+  gen.emitBr(continueLabel);
 
-  gen.emit(`${continueLabel}:`);
+  gen.emitLabel(continueLabel);
 
   const dataPtrField2 = gen.nextTemp();
   gen.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtrRaw = gen.nextTemp();
   gen.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField2}, !tbaa !5`);
-  const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = bitcast double* ${dataPtrRaw} to i8**`);
+  const dataPtr = gen.emitBitcast(dataPtrRaw, "double*", "i8**");
 
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
-  const valueAsI8 = gen.nextTemp();
-  gen.emit(`${valueAsI8} = bitcast ${valueType} ${value} to i8*`);
+  const valueAsI8 = gen.emitBitcast(value, valueType, "i8*");
   gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}, !tbaa !5`);
 
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = add i32 ${currentLen}, 1`);
-  gen.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
+  gen.emitStore("i32", newLen, lenPtr);
 
   const newLenDouble = gen.nextTemp();
   gen.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);
@@ -592,17 +561,15 @@ function generateObjectArrayPush(
   const currentCap = gen.nextTemp();
   gen.emit(`${currentCap} = load i32, i32* ${capPtr}`);
 
-  const needResize = gen.nextTemp();
-  gen.emit(`${needResize} = icmp eq i32 ${currentLen}, ${currentCap}`);
+  const needResize = gen.emitIcmp("eq", "i32", currentLen, currentCap);
 
   const resizeLabel = gen.nextLabel("resize");
   const continueLabel = gen.nextLabel("continue");
 
-  gen.emit(`br i1 ${needResize}, label %${resizeLabel}, label %${continueLabel}`);
+  gen.emitBrCond(needResize, resizeLabel, continueLabel);
 
-  gen.emit(`${resizeLabel}:`);
-  const isZero = gen.nextTemp();
-  gen.emit(`${isZero} = icmp eq i32 ${currentCap}, 0`);
+  gen.emitLabel(resizeLabel);
+  const isZero = gen.emitIcmp("eq", "i32", currentCap, "0");
   const doubled = gen.nextTemp();
   gen.emit(`${doubled} = mul i32 ${currentCap}, 2`);
   const newCap = gen.nextTemp();
@@ -612,24 +579,18 @@ function generateObjectArrayPush(
   gen.emit(`${newCapI64} = zext i32 ${newCap} to i64`);
   const newMemSize = gen.nextTemp();
   gen.emit(`${newMemSize} = mul i64 ${newCapI64}, 8`);
-  const newMem = gen.nextTemp();
-  gen.emit(`${newMem} = call i8* @GC_malloc(i64 ${newMemSize})`);
-  const newDataPtr = gen.nextTemp();
-  gen.emit(`${newDataPtr} = bitcast i8* ${newMem} to i8**`);
+  const newMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${newMemSize}`);
+  const newDataPtr = gen.emitBitcast(newMem, "i8*", "i8**");
 
   const dataPtrField = gen.nextTemp();
   gen.emit(
     `${dataPtrField} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
   );
-  const oldDataPtrRaw = gen.nextTemp();
-  gen.emit(`${oldDataPtrRaw} = load i8*, i8** ${dataPtrField}`);
-  const oldDataPtr = gen.nextTemp();
-  gen.emit(`${oldDataPtr} = bitcast i8* ${oldDataPtrRaw} to i8**`);
+  const oldDataPtrRaw = gen.emitLoad("i8*", dataPtrField);
+  const oldDataPtr = gen.emitBitcast(oldDataPtrRaw, "i8*", "i8**");
 
-  const oldDataI8 = gen.nextTemp();
-  gen.emit(`${oldDataI8} = bitcast i8** ${oldDataPtr} to i8*`);
-  const newDataI8 = gen.nextTemp();
-  gen.emit(`${newDataI8} = bitcast i8** ${newDataPtr} to i8*`);
+  const oldDataI8 = gen.emitBitcast(oldDataPtr, "i8**", "i8*");
+  const newDataI8 = gen.emitBitcast(newDataPtr, "i8**", "i8*");
   const copySize = gen.nextTemp();
   gen.emit(`${copySize} = mul i32 ${currentLen}, 8`);
   const copySizeI64 = gen.nextTemp();
@@ -638,15 +599,14 @@ function generateObjectArrayPush(
     `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${newDataI8}, i8* ${oldDataI8}, i64 ${copySizeI64}, i1 false)`,
   );
 
-  const newDataPtrAsI8 = gen.nextTemp();
-  gen.emit(`${newDataPtrAsI8} = bitcast i8** ${newDataPtr} to i8*`);
-  gen.emit(`store i8* ${newDataPtrAsI8}, i8** ${dataPtrField}`);
+  const newDataPtrAsI8 = gen.emitBitcast(newDataPtr, "i8**", "i8*");
+  gen.emitStore("i8*", newDataPtrAsI8, dataPtrField);
 
-  gen.emit(`store i32 ${newCap}, i32* ${capPtr}`);
+  gen.emitStore("i32", newCap, capPtr);
 
-  gen.emit(`br label %${continueLabel}`);
+  gen.emitBr(continueLabel);
 
-  gen.emit(`${continueLabel}:`);
+  gen.emitLabel(continueLabel);
 
   const dataPtrField2 = gen.nextTemp();
   gen.emit(
@@ -654,18 +614,16 @@ function generateObjectArrayPush(
   );
   const dataPtrRaw = gen.nextTemp();
   gen.emit(`${dataPtrRaw} = load i8*, i8** ${dataPtrField2}, !tbaa !5`);
-  const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = bitcast i8* ${dataPtrRaw} to i8**`);
+  const dataPtr = gen.emitBitcast(dataPtrRaw, "i8*", "i8**");
 
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
-  const valueAsI8 = gen.nextTemp();
-  gen.emit(`${valueAsI8} = bitcast ${valueType} ${value} to i8*`);
+  const valueAsI8 = gen.emitBitcast(value, valueType, "i8*");
   gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}, !tbaa !5`);
 
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = add i32 ${currentLen}, 1`);
-  gen.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
+  gen.emitStore("i32", newLen, lenPtr);
 
   const newLenDouble = gen.nextTemp();
   gen.emit(`${newLenDouble} = sitofp i32 ${newLen} to double`);

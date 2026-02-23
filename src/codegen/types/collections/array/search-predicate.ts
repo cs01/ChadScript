@@ -1,15 +1,12 @@
 // Array search-predicate operations: find, some, every, includes
-// Extracted from array.ts to reduce file size. Uses IGeneratorContext for IR emission.
+// Exported functions accept (gen, expr, params) and handle predicate resolution internally.
 
 import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
-import { IGeneratorContext, loadArrayMeta } from "./context.js";
+import { IGeneratorContext, loadArrayMeta, detectArrayType } from "./context.js";
 
 interface ExprBase {
   type: string;
 }
-
-// Predicate resolution happens in the facade (array.ts class methods) to work around
-// ChadScript self-hosting issues with expr.args[0].type access in standalone functions.
 
 // ============================================
 // find
@@ -17,15 +14,41 @@ interface ExprBase {
 
 export function generateArrayFind(
   gen: IGeneratorContext,
-  arrayPtr: string,
-  predicateFn: string,
-  isStringArray: boolean,
-  isObjectArray: boolean,
+  expr: MethodCallNode,
+  params: string[],
 ): string {
+  if (expr.args.length !== 1) {
+    throw new Error("find() requires exactly 1 argument (predicate function)");
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+
+  const predicateArg = expr.args[0];
+  let predicateFn: string;
+  if (predicateArg.type === "variable") {
+    predicateFn = gen.mangleUserName((predicateArg as VariableNode).name);
+  } else if (predicateArg.type === "arrow_function") {
+    if (isStringArray || isObjectArray) {
+      gen.setExpectedCallbackParamType("string");
+    }
+    predicateFn = gen.generateExpression(predicateArg, params);
+    gen.setExpectedCallbackParamType(null);
+  } else {
+    throw new Error("find() argument must be a function name or inline function");
+  }
+
   if (isStringArray || isObjectArray) {
     return generateStringArrayFind(gen, arrayPtr, predicateFn);
   }
+  return generateNumericArrayFind(gen, arrayPtr, predicateFn);
+}
 
+function generateNumericArrayFind(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  predicateFn: string,
+): string {
   const arrayMeta = loadArrayMeta(gen, arrayPtr);
   const length = arrayMeta.length;
   const dataPtr = arrayMeta.dataPtr;
@@ -151,15 +174,41 @@ function generateStringArrayFind(
 
 export function generateArraySome(
   gen: IGeneratorContext,
-  arrayPtr: string,
-  predicateFn: string,
-  isStringArray: boolean,
-  isObjectArray: boolean,
+  expr: MethodCallNode,
+  params: string[],
 ): string {
+  if (expr.args.length !== 1) {
+    throw new Error("some() requires exactly 1 argument (predicate function)");
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+
+  const predicateArg = expr.args[0];
+  let predicateFn: string;
+  if (predicateArg.type === "variable") {
+    predicateFn = gen.mangleUserName((predicateArg as VariableNode).name);
+  } else if (predicateArg.type === "arrow_function") {
+    if (isStringArray || isObjectArray) {
+      gen.setExpectedCallbackParamType("string");
+    }
+    predicateFn = gen.generateExpression(predicateArg, params);
+    gen.setExpectedCallbackParamType(null);
+  } else {
+    throw new Error("some() argument must be a function name or inline function");
+  }
+
   if (isStringArray || isObjectArray) {
     return generateStringArraySome(gen, arrayPtr, predicateFn);
   }
+  return generateNumericArraySome(gen, arrayPtr, predicateFn);
+}
 
+function generateNumericArraySome(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  predicateFn: string,
+): string {
   const arrayMeta = loadArrayMeta(gen, arrayPtr);
   const length = arrayMeta.length;
   const dataPtr = arrayMeta.dataPtr;
@@ -287,15 +336,41 @@ function generateStringArraySome(
 
 export function generateArrayEvery(
   gen: IGeneratorContext,
-  arrayPtr: string,
-  predicateFn: string,
-  isStringArray: boolean,
-  isObjectArray: boolean,
+  expr: MethodCallNode,
+  params: string[],
 ): string {
+  if (expr.args.length !== 1) {
+    throw new Error("every() requires exactly 1 argument (predicate function)");
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+
+  const predicateArg = expr.args[0];
+  let predicateFn: string;
+  if (predicateArg.type === "variable") {
+    predicateFn = gen.mangleUserName((predicateArg as VariableNode).name);
+  } else if (predicateArg.type === "arrow_function") {
+    if (isStringArray || isObjectArray) {
+      gen.setExpectedCallbackParamType("string");
+    }
+    predicateFn = gen.generateExpression(predicateArg, params);
+    gen.setExpectedCallbackParamType(null);
+  } else {
+    throw new Error("every() argument must be a function name or inline function");
+  }
+
   if (isStringArray || isObjectArray) {
     return generateStringArrayEvery(gen, arrayPtr, predicateFn);
   }
+  return generateNumericArrayEvery(gen, arrayPtr, predicateFn);
+}
 
+function generateNumericArrayEvery(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  predicateFn: string,
+): string {
   const arrayMeta = loadArrayMeta(gen, arrayPtr);
   const length = arrayMeta.length;
   const dataPtr = arrayMeta.dataPtr;
