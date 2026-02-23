@@ -55,22 +55,22 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 
 ## Key Directories
 
-| Dir                                       | Purpose                                                                   |
-| ----------------------------------------- | ------------------------------------------------------------------------- |
-| `src/codegen/`                            | LLVM IR code generation (the core)                                        |
-| `src/codegen/expressions/method-calls.ts` | Central dispatcher for all `object.method()` calls                        |
-| `src/codegen/types/collections/string/`   | String method IR generators (manipulation.ts, search.ts, split.ts, etc.)  |
-| `src/codegen/types/collections/string.ts` | `StringGenerator` facade that delegates to sub-modules                    |
-| `src/codegen/types/collections/array.ts`  | Array method IR generators (push, pop, map, filter, etc.)                 |
-| `src/codegen/types/collections/array/`    | Array sub-modules (mutators.ts)                                           |
-| `src/codegen/stdlib/`                     | Built-in module generators (console.ts, process.ts, fs.ts, math.ts, etc.) |
-| `src/codegen/infrastructure/`             | Core: generator-context.ts, symbol-table.ts, type-resolver.ts             |
-| `src/codegen/llvm-generator.ts`           | Main orchestrator, delegates to sub-generators                            |
-| `src/ast/types.ts`                        | AST node type definitions                                                 |
-| `tests/compiler.test.ts`                  | Main test suite                                                           |
-| `tests/test-discovery.ts`                 | Auto-discovers test fixtures via `@test` annotations                      |
-| `tests/fixtures/`                         | Test fixture programs organized by category (auto-discovered)             |
-| `c_bridges/`                              | C bridge files for complex runtime helpers (regex, json, os, etc.)        |
+| Dir                                       | Purpose                                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------------------- |
+| `src/codegen/`                            | LLVM IR code generation (the core)                                                |
+| `src/codegen/expressions/method-calls.ts` | Central dispatcher for all `object.method()` calls                                |
+| `src/codegen/types/collections/string/`   | String method IR generators (manipulation.ts, search.ts, split.ts, etc.)          |
+| `src/codegen/types/collections/string.ts` | `StringGenerator` facade that delegates to sub-modules                            |
+| `src/codegen/types/collections/array.ts`  | `ArrayGenerator` facade that delegates to sub-modules                             |
+| `src/codegen/types/collections/array/`    | Array sub-modules (literal, mutators, search-predicate, iteration, combine, etc.) |
+| `src/codegen/stdlib/`                     | Built-in module generators (console.ts, process.ts, fs.ts, math.ts, etc.)         |
+| `src/codegen/infrastructure/`             | Core: generator-context.ts, symbol-table.ts, type-resolver.ts                     |
+| `src/codegen/llvm-generator.ts`           | Main orchestrator, delegates to sub-generators                                    |
+| `src/ast/types.ts`                        | AST node type definitions                                                         |
+| `tests/compiler.test.ts`                  | Main test suite                                                                   |
+| `tests/test-discovery.ts`                 | Auto-discovers test fixtures via `@test` annotations                              |
+| `tests/fixtures/`                         | Test fixture programs organized by category (auto-discovered)                     |
+| `c_bridges/`                              | C bridge files for complex runtime helpers (regex, json, os, etc.)                |
 
 ## How to Add a New String Method
 
@@ -136,27 +136,23 @@ Tests auto-detect `.build/chad` and use it instead of `node dist/chad-node.js` (
 - `GC_malloc_atomic(size)` — allocate GC'd memory for non-pointer data (strings)
 - `GC_malloc(size)` — allocate GC'd memory that may contain pointers
 
-## Prefer Builder Methods Over Raw emit()
+## Structured IR Builders
 
-`BaseGenerator` provides typed builder methods in `src/codegen/infrastructure/base-generator.ts:455-519`,
-exposed through `IGeneratorContext`. **Always prefer these over raw `ctx.emit(...)` for supported instructions.**
+Prefer structured builder methods over raw `ctx.emit()` for these instructions:
 
-| Instead of raw emit                           | Use builder method                                      |
-| --------------------------------------------- | ------------------------------------------------------- |
-| `ctx.emit(\`store ... ${val} ... ${ptr}\`)`   | `ctx.emitStore(type, value, ptr)`                       |
-| `ctx.emit(\`%t = load ... ${ptr}\`)`          | `ctx.emitLoad(type, ptr)` → returns temp                |
-| `ctx.emit(\`%t = getelementptr ... ${ptr}\`)` | `ctx.emitGep(baseType, ptr, indices)` → returns temp    |
-| `ctx.emit(\`%t = bitcast ... ${val}\`)`       | `ctx.emitBitcast(val, fromType, toType)` → returns temp |
-| `ctx.emit(\`%t = icmp ... ${a} ${b}\`)`       | `ctx.emitIcmp(cond, type, a, b)` → returns temp         |
-| `ctx.emit(\`call void @fn(...)\`)`            | `ctx.emitCallVoid(fn, args)`                            |
-| `ctx.emit(\`%t = call ... @fn(...)\`)`        | `ctx.emitCall(retType, fn, args)` → returns temp        |
-| `ctx.emit(\`br label %lbl\`)`                 | `ctx.emitBr(label)`                                     |
-| `ctx.emit(\`br i1 %c, label %t, label %f\`)`  | `ctx.emitBrCond(cond, trueLabel, falseLabel)`           |
-| `ctx.emit(\`ret ...\`)`                       | `ctx.emitRet(type, value)` / `ctx.emitRetVoid()`        |
+- `ctx.emitStore(type, value, ptr)` — instead of `ctx.emit(\`store ${type} ${value}, ${type}\* ${ptr}\`)`
+- `ctx.emitLoad(type, ptr)` — instead of `ctx.emit(\`${tmp} = load ${type}, ${type}\* ${ptr}\`)`
+- `ctx.emitGep(baseType, ptr, indices)` — instead of `ctx.emit(\`${tmp} = getelementptr ...\`)`
+- `ctx.emitCall(retType, func, args)` — instead of `ctx.emit(\`${tmp} = call ...\`)`
+- `ctx.emitCallVoid(func, args)` — instead of `ctx.emit(\`call void ...\`)`
+- `ctx.emitBitcast(value, fromType, toType)` — instead of `ctx.emit(\`${tmp} = bitcast ...\`)`
+- `ctx.emitIcmp(pred, type, lhs, rhs)` — instead of `ctx.emit(\`${tmp} = icmp ...\`)`
+- `ctx.emitBr(label)` / `ctx.emitBrCond(cond, then, else)` / `ctx.emitLabel(name)` — control flow
 
-Builders auto-allocate temps, auto-set variable types, and correctly construct IR strings — eliminating
-manual `nextTemp()` + `setVariableType()` + string interpolation per instruction. Existing code still uses
-raw `emit()` heavily (~3,300 raw calls vs ~21 builder calls); migrate incrementally when touching a file.
+Keep `ctx.emit()` for instructions without builders: `phi`, `select`, `add`, `sub`, `mul`, `zext`,
+`sitofp`, `fptosi`, `fcmp`, `alloca`, `ptrtoint`, `inttoptr`, `call void @llvm.memcpy...`.
+Also keep `emit()` when you need `inbounds` on GEP or `!tbaa` metadata on loads/stores (builders
+don't support these qualifiers yet).
 
 ## Terminator Classification
 
@@ -229,6 +225,12 @@ Stage 0 can't handle `props[i].name` (array-of-objects field access). Use struct
 // CRASHES: { name: string; type: string }[]
 // WORKS:  { keys: string[]; types: string[] }  — then access props.keys[i]
 ```
+
+Additional self-hosting limitations:
+
+- **No import aliases** — `import { foo as bar }` compiles `bar(...)` as `@_cs_bar` which doesn't match the original `@_cs_foo`. Use the original name.
+- **No union type parameters in standalone functions** — `fn(x: Expression)` where `Expression` is a union emits the TS type name literally. Keep union-typed parameters in class methods.
+- **No `expr.args[0].type` in standalone functions** — accessing `.type` on an array-indexed struct field fails in standalone functions. Move such access into class methods and pass pre-resolved values.
 
 ## Async/Await Type Tracking
 
