@@ -218,6 +218,7 @@ export interface VariableAllocatorContext {
   readonly arrowFunctionGen: ArrowFunctionGeneratorLike;
   ensureDouble(value: string): string;
   getI64EligibleVars(): string[];
+  isUint8ArrayExpression(expr: Expression): boolean;
 }
 
 export class VariableAllocator {
@@ -734,6 +735,10 @@ export class VariableAllocator {
       isSet = true;
     }
     if (!isUint8Array && strippedDeclType === "Uint8Array") {
+      isUint8Array = true;
+    }
+    // Detect Uint8Array from expression analysis (e.g. getEmbeddedFileAsUint8Array)
+    if (!isUint8Array && this.ctx.isUint8ArrayExpression(stmtValue)) {
       isUint8Array = true;
     }
 

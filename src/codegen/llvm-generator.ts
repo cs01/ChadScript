@@ -1776,6 +1776,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         ) {
           isObjectArray = true;
         }
+        // Detect Uint8Array from expression analysis (e.g. getEmbeddedFileAsUint8Array)
+        if (!isUint8Array && stmt.value && this.typeInference.isUint8ArrayExpression(stmt.value)) {
+          isUint8Array = true;
+        }
+
         const isJSONParse = this.typeInference.isJSONParseExpression(stmt.value);
 
         let llvmType: string = "";
@@ -2245,8 +2250,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       }
       irParts.push("\n");
 
-      // Detect if the handler's return type interface has a "headers" field
+      // Detect if the handler's return type interface has "headers" and/or "bodyLen" fields
       let hasHeaders = false;
+      let hasBodyLen = false;
       const handlerName = this.httpHandlers[0];
       for (let fi = 0; fi < this.ast.functions.length; fi++) {
         const func = this.ast.functions[fi];
@@ -2257,7 +2263,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             for (let fj = 0; fj < fields.length; fj++) {
               if (fields[fj].name === "headers") {
                 hasHeaders = true;
-                break;
+              }
+              if (fields[fj].name === "bodyLen") {
+                hasBodyLen = true;
               }
             }
           }
@@ -2269,6 +2277,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         mangledHttpHandler,
         mangledWsHandler,
         hasHeaders,
+        hasBodyLen,
       );
       if (eventHandler) {
         irParts.push(eventHandler);
@@ -2343,6 +2352,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     if (this.embedGen.hasEmbeddedFiles()) {
       irParts.push(this.embedGen.generateLookupFunction());
+      irParts.push(this.embedGen.generateLengthLookupFunction());
     }
 
     const needsLibuv =

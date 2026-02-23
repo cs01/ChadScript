@@ -344,8 +344,22 @@ static const char *sniff_content_type(const char *path, const char *body) {
         if (!strcmp(dot, ".svg")) return "image/svg+xml";
         if (!strcmp(dot, ".png")) return "image/png";
         if (!strcmp(dot, ".jpg") || !strcmp(dot, ".jpeg")) return "image/jpeg";
+        if (!strcmp(dot, ".gif")) return "image/gif";
+        if (!strcmp(dot, ".webp")) return "image/webp";
+        if (!strcmp(dot, ".ico")) return "image/x-icon";
         if (!strcmp(dot, ".woff2")) return "font/woff2";
+        if (!strcmp(dot, ".woff")) return "font/woff";
+        if (!strcmp(dot, ".ttf")) return "font/ttf";
+        if (!strcmp(dot, ".otf")) return "font/opentype";
         if (!strcmp(dot, ".wasm")) return "application/wasm";
+        if (!strcmp(dot, ".xml")) return "application/xml";
+        if (!strcmp(dot, ".pdf")) return "application/pdf";
+        if (!strcmp(dot, ".mp4")) return "video/mp4";
+        if (!strcmp(dot, ".webm")) return "video/webm";
+        if (!strcmp(dot, ".mp3")) return "audio/mpeg";
+        if (!strcmp(dot, ".ogg")) return "audio/ogg";
+        if (!strcmp(dot, ".txt")) return "text/plain";
+        if (!strcmp(dot, ".map")) return "application/json";
         if (body && body[0] == '<') return "text/html";
         if (body && (body[0] == '{' || body[0] == '[')) return "application/json";
     } else {

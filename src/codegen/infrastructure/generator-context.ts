@@ -216,8 +216,10 @@ export interface IEmbedGenerator {
   generateEmbedFile(expr: MethodCallNode, params: string[]): string;
   generateEmbedDir(expr: MethodCallNode, params: string[]): string;
   generateGetEmbeddedFile(expr: MethodCallNode, params: string[]): string;
+  generateGetEmbeddedFileAsUint8Array(expr: MethodCallNode, params: string[]): string;
   generateServeEmbedded(expr: MethodCallNode, params: string[]): string;
   generateLookupFunction(): string;
+  generateLengthLookupFunction(): string;
   hasEmbeddedFiles(): boolean;
 }
 
@@ -1846,9 +1848,12 @@ export class MockGeneratorContext implements IGeneratorContext {
     generateEmbedDir: (_expr: MethodCallNode, _params: string[]): string => "%mock_embed_dir",
     generateGetEmbeddedFile: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_get_embedded",
+    generateGetEmbeddedFileAsUint8Array: (_expr: MethodCallNode, _params: string[]): string =>
+      "%mock_get_embedded_uint8array",
     generateServeEmbedded: (_expr: MethodCallNode, _params: string[]): string =>
       "%mock_serve_embedded",
     generateLookupFunction: (): string => "",
+    generateLengthLookupFunction: (): string => "",
     hasEmbeddedFiles: (): boolean => false,
   };
   childProcessGen: IChildProcessGenerator = {

@@ -381,7 +381,7 @@ export class MethodCallGenerator {
       return handlePromiseStaticMethods(this.ctx, expr, params);
     }
 
-    // Handle ChadScript.embedFile/embedDir/getEmbeddedFile
+    // Handle ChadScript.embedFile/embedDir/getEmbeddedFile/getEmbeddedFileAsUint8Array
     if (this.isVariableWithName(expr.object, "ChadScript")) {
       if (method === "embedFile") {
         return this.ctx.embedGen.generateEmbedFile(expr, params);
@@ -389,6 +389,8 @@ export class MethodCallGenerator {
         return this.ctx.embedGen.generateEmbedDir(expr, params);
       } else if (method === "getEmbeddedFile") {
         return this.ctx.embedGen.generateGetEmbeddedFile(expr, params);
+      } else if (method === "getEmbeddedFileAsUint8Array") {
+        return this.ctx.embedGen.generateGetEmbeddedFileAsUint8Array(expr, params);
       } else if (method === "serveEmbedded") {
         return this.ctx.embedGen.generateServeEmbedded(expr, params);
       }

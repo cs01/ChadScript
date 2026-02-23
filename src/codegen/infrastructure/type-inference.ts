@@ -1653,6 +1653,11 @@ export class TypeInference {
       const varName = (expr as VariableNode).name;
       if (this.ctx.symbolTable.isUint8Array(varName)) return true;
     }
+    // ChadScript.getEmbeddedFileAsUint8Array() returns Uint8Array
+    if (e.type === "method_call") {
+      const mc = expr as MethodCallNode;
+      if (mc.method === "getEmbeddedFileAsUint8Array") return true;
+    }
     return false;
   }
 

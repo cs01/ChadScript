@@ -34,23 +34,25 @@ export class HttpServerGenerator {
    * Generate the HTTP handler wrapper that adapts between the C bridge's
    * calling convention and ChadScript's handler signature.
    *
-   * Bridge calls: void wrapper(lws_bridge_request*, lws_bridge_response*)
-   * User handler: i8* handler(i8* req) -> returns { double status, i8* body [, i8* headers] }*
-   *
-   * The lws_bridge_request struct { i8*, i8*, i8*, i8*, i8* } has the same layout
-   * as the ChadScript Request object, so we can cast the pointer directly.
-   *
-   * When hasHeaders is true, the response struct is { double, i8*, i8* } and the
-   * third field (headers) is read and stored into extra_headers. When false,
-   * null is stored for extra_headers (backwards compatible).
+   * When hasBodyLen is true (e.g. serveEmbedded), the response struct has a 4th
+   * double field with the exact byte count. If bodyLen > 0, we use it instead of
+   * strlen — this is essential for binary data containing null bytes.
    */
   generateEventHandler(
     httpHandlerName: string,
     _wsHandlerName?: string,
     hasHeaders?: boolean,
+    hasBodyLen?: boolean,
   ): string {
-    // Response struct type depends on whether user's Response has headers field
-    const respType = hasHeaders ? "{ double, i8*, i8* }" : "{ double, i8* }";
+    // Response struct type depends on which fields the user's Response has
+    let respType: string;
+    if (hasBodyLen) {
+      respType = "{ double, i8*, i8*, double }";
+    } else if (hasHeaders) {
+      respType = "{ double, i8*, i8* }";
+    } else {
+      respType = "{ double, i8* }";
+    }
 
     let ir = "; HTTP handler wrapper for lws-bridge\n";
     ir +=
@@ -73,15 +75,26 @@ export class HttpServerGenerator {
     ir += "  %response_body = load i8*, i8** %body_ptr_loc\n";
     ir += "\n";
 
-    ir += "  %body_len = call i64 @strlen(i8* %response_body)\n";
-    ir += "\n";
-
-    // Read headers from response struct if present, otherwise null
-    if (hasHeaders) {
+    // Read headers from response struct if present (field 2), otherwise null
+    if (hasHeaders || hasBodyLen) {
       ir += `  %headers_ptr_loc = getelementptr ${respType}, ${respType}* %response_struct, i32 0, i32 2\n`;
       ir += "  %response_headers = load i8*, i8** %headers_ptr_loc\n";
       ir += "\n";
     }
+
+    // Compute body_len: if hasBodyLen, prefer the explicit length over strlen
+    if (hasBodyLen) {
+      ir += `  %bodylen_ptr = getelementptr ${respType}, ${respType}* %response_struct, i32 0, i32 3\n`;
+      ir += "  %bodylen_dbl = load double, double* %bodylen_ptr\n";
+      ir += "  %bodylen_i64 = fptosi double %bodylen_dbl to i64\n";
+      ir += "  %bodylen_positive = icmp sgt i64 %bodylen_i64, 0\n";
+      // Fall back to strlen if bodyLen <= 0 (e.g. 404 text responses)
+      ir += "  %strlen_len = call i64 @strlen(i8* %response_body)\n";
+      ir += "  %body_len = select i1 %bodylen_positive, i64 %bodylen_i64, i64 %strlen_len\n";
+    } else {
+      ir += "  %body_len = call i64 @strlen(i8* %response_body)\n";
+    }
+    ir += "\n";
 
     ir +=
       "  %resp_status_ptr = getelementptr %struct.lws_bridge_response, %struct.lws_bridge_response* %resp, i32 0, i32 0\n";
@@ -101,7 +114,7 @@ export class HttpServerGenerator {
     // Store extra_headers into response struct field 3
     ir +=
       "  %resp_hdrs_ptr = getelementptr %struct.lws_bridge_response, %struct.lws_bridge_response* %resp, i32 0, i32 3\n";
-    if (hasHeaders) {
+    if (hasHeaders || hasBodyLen) {
       ir += "  store i8* %response_headers, i8** %resp_hdrs_ptr\n";
     } else {
       ir += "  store i8* null, i8** %resp_hdrs_ptr\n";

@@ -1,3 +1,5 @@
+/** Binary-safe file embedding and serving for ChadScript.
+ * Reads files as raw Buffers (not UTF-8) to preserve binary content like images. */
 import * as fs from "fs";
 import * as path from "path";
 import { MethodCallNode } from "../../ast/types.js";
@@ -16,9 +18,13 @@ export class EmbedGenerator {
   private embeddedKeys: string[] = [];
   private embeddedStrIds: string[] = [];
   private embeddedStrLens: number[] = [];
+  // Actual byte lengths of embedded content (without null terminator).
+  // Used by the length lookup function to return correct sizes for binary data.
+  private embeddedByteLens: number[] = [];
   private entryDir: string;
   private _lastStrId: string = "";
   private _lastLen: number = 0;
+  private _lastByteLen: number = 0;
 
   constructor(
     private ctx: IGeneratorContext,
@@ -86,6 +92,34 @@ export class EmbedGenerator {
     return hi + lo;
   }
 
+  /** Escape a Latin-1 string for LLVM IR — each char maps 1:1 to a byte.
+   * Unlike escapeForLLVM, this does NOT apply UTF-8 multi-byte encoding.
+   * Use for binary data read with "latin1" encoding. */
+  private escapeLatin1ForLLVM(value: string): string {
+    let escaped = "";
+    for (let i = 0; i < value.length; i++) {
+      const ch = value.charAt(i);
+      const code = value.charCodeAt(i);
+      if (ch === "\\") {
+        escaped += "\\5C";
+      } else if (ch === "\n") {
+        escaped += "\\0A";
+      } else if (ch === "\r") {
+        escaped += "\\0D";
+      } else if (ch === "\t") {
+        escaped += "\\09";
+      } else if (ch === '"') {
+        escaped += "\\22";
+      } else if (code < 32 || code > 126) {
+        // Direct byte escape — no UTF-8 multi-byte encoding for Latin-1
+        escaped += "\\" + this.byteToHex(code);
+      } else {
+        escaped += ch;
+      }
+    }
+    return escaped;
+  }
+
   private createGlobalStringDirect(value: string): void {
     const strId = this.ctx.nextString();
     const escaped = this.escapeForLLVM(value);
@@ -95,6 +129,23 @@ export class EmbedGenerator {
     );
     this._lastStrId = strId;
     this._lastLen = len;
+    this._lastByteLen = len - 1;
+  }
+
+  /** Create an LLVM global constant from a Latin-1 encoded string.
+   * Each char is exactly 1 byte, so content.length = byte count.
+   * Self-hosting safe — no Buffer operations needed. */
+  private createGlobalBinaryDirect(content: string): void {
+    const strId = this.ctx.nextString();
+    const escaped = this.escapeLatin1ForLLVM(content);
+    const byteCount = content.length;
+    const len = byteCount + 1; // +1 for null terminator
+    this.ctx.pushGlobalString(
+      strId + " = private unnamed_addr constant [" + len + ' x i8] c"' + escaped + '\\00", align 1',
+    );
+    this._lastStrId = strId;
+    this._lastLen = len;
+    this._lastByteLen = byteCount;
   }
 
   generateEmbedFile(expr: MethodCallNode, _params: string[]): string {
@@ -117,8 +168,10 @@ export class EmbedGenerator {
       return this.ctx.emitError("ChadScript.embedFile(): file not found: " + absPath, expr.loc);
     }
 
-    const content = fs.readFileSync(absPath, "utf-8");
-    this.createGlobalStringDirect(content);
+    // Read as Latin-1 to preserve all byte values as single chars (0x00-0xFF).
+    // Latin-1 is a 1:1 byte mapping — unlike UTF-8 which corrupts binary data.
+    const content = fs.readFileSync(absPath, "latin1");
+    this.createGlobalBinaryDirect(content);
     const strId = this._lastStrId;
     const len = this._lastLen;
 
@@ -139,6 +192,7 @@ export class EmbedGenerator {
     this.embeddedKeys.push(key);
     this.embeddedStrIds.push(strId);
     this.embeddedStrLens.push(len);
+    this.embeddedByteLens.push(this._lastByteLen);
 
     return ptrReg;
   }
@@ -179,12 +233,14 @@ export class EmbedGenerator {
       if (fs.statSync(fullPath).isDirectory()) {
         this.walkDir(fullPath, baseDir);
       } else {
-        const content = fs.readFileSync(fullPath, "utf-8");
-        this.createGlobalStringDirect(content);
+        // Read as Latin-1 to preserve all byte values as single chars
+        const content = fs.readFileSync(fullPath, "latin1");
+        this.createGlobalBinaryDirect(content);
         const key = fullPath.substring(baseDir.length + 1);
         this.embeddedKeys.push(key);
         this.embeddedStrIds.push(this._lastStrId);
         this.embeddedStrLens.push(this._lastLen);
+        this.embeddedByteLens.push(this._lastByteLen);
       }
     }
   }
@@ -192,12 +248,20 @@ export class EmbedGenerator {
   /**
    * ChadScript.serveEmbedded(path) — returns an HttpResponse struct pointer.
    * Strips leading "/" from path, looks up the embedded file, and returns
-   * { 200.0, content, "" } if found, or { 404.0, "Not Found", "" } if not.
+   * { 200.0, content, "", bodyLen } if found, or { 404.0, "Not Found", "", 0.0 } if not.
+   *
+   * Uses 4-field struct { double, i8*, i8*, double } where field 3 is bodyLen.
+   * The bodyLen field lets the HTTP handler wrapper send the exact byte count
+   * instead of relying on strlen, which truncates at null bytes in binary data.
    */
   generateServeEmbedded(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
       return this.ctx.emitError("ChadScript.serveEmbedded() requires 1 argument (path)", expr.loc);
     }
+
+    const respType = "{ double, i8*, i8*, double }";
+    // 8 (double) + 8 (i8*) + 8 (i8*) + 8 (double) = 32 bytes
+    const structSize = "32";
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
 
@@ -211,13 +275,13 @@ export class EmbedGenerator {
     this.ctx.emit(onePtr + " = getelementptr i8, i8* " + pathPtr + ", i64 1");
     this.ctx.emit(stripped + " = select i1 " + isSlash + ", i8* " + onePtr + ", i8* " + pathPtr);
 
-    // Look up the embedded file
+    // Look up the embedded file content and byte length
     const content = this.ctx.nextTemp();
     this.ctx.emit(content + " = call i8* @__cs_get_embedded_file(i8* " + stripped + ")");
-
-    // Check if found (strlen > 0)
     const contentLen = this.ctx.nextTemp();
-    this.ctx.emit(contentLen + " = call i64 @strlen(i8* " + content + ")");
+    this.ctx.emit(contentLen + " = call i64 @__cs_get_embedded_file_len(i8* " + stripped + ")");
+
+    // Check if found using byte length > 0 (binary-safe, no strlen truncation)
     const found = this.ctx.nextTemp();
     this.ctx.emit(found + " = icmp ugt i64 " + contentLen + ", 0");
 
@@ -227,29 +291,39 @@ export class EmbedGenerator {
 
     this.ctx.emit("br i1 " + found + ", label %" + foundLabel + ", label %" + notFoundLabel);
 
-    // Found: allocate { 200.0, content, "" }
+    // Found: allocate { 200.0, content, "", bodyLen }
     this.ctx.emit(foundLabel + ":");
     const foundStruct = this.ctx.nextTemp();
-    this.ctx.emit(foundStruct + " = call i8* @GC_malloc(i64 24)");
+    this.ctx.emit(foundStruct + " = call i8* @GC_malloc(i64 " + structSize + ")");
     const foundTyped = this.ctx.nextTemp();
-    this.ctx.emit(foundTyped + " = bitcast i8* " + foundStruct + " to { double, i8*, i8* }*");
+    this.ctx.emit(foundTyped + " = bitcast i8* " + foundStruct + " to " + respType + "*");
+    // Field 0: status = 200.0
     const fStatusPtr = this.ctx.nextTemp();
     this.ctx.emit(
       fStatusPtr +
-        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        " = getelementptr " +
+        respType +
+        ", " +
+        respType +
+        "* " +
         foundTyped +
         ", i32 0, i32 0",
     );
     this.ctx.emit("store double 200.0, double* " + fStatusPtr);
+    // Field 1: body = content pointer
     const fBodyPtr = this.ctx.nextTemp();
     this.ctx.emit(
       fBodyPtr +
-        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        " = getelementptr " +
+        respType +
+        ", " +
+        respType +
+        "* " +
         foundTyped +
         ", i32 0, i32 1",
     );
     this.ctx.emit("store i8* " + content + ", i8** " + fBodyPtr);
-    // Empty headers string
+    // Field 2: headers = empty string
     this.createGlobalStringDirect("");
     const emptyStrId = this._lastStrId;
     const emptyStrLen = this._lastLen;
@@ -267,28 +341,52 @@ export class EmbedGenerator {
     const fHdrsPtr = this.ctx.nextTemp();
     this.ctx.emit(
       fHdrsPtr +
-        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        " = getelementptr " +
+        respType +
+        ", " +
+        respType +
+        "* " +
         foundTyped +
         ", i32 0, i32 2",
     );
     this.ctx.emit("store i8* " + emptyStr + ", i8** " + fHdrsPtr);
+    // Field 3: bodyLen = byte length as double
+    const contentLenDbl = this.ctx.nextTemp();
+    this.ctx.emit(contentLenDbl + " = sitofp i64 " + contentLen + " to double");
+    const fLenPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      fLenPtr +
+        " = getelementptr " +
+        respType +
+        ", " +
+        respType +
+        "* " +
+        foundTyped +
+        ", i32 0, i32 3",
+    );
+    this.ctx.emit("store double " + contentLenDbl + ", double* " + fLenPtr);
     this.ctx.emit("br label %" + joinLabel);
 
-    // Not found: allocate { 404.0, "Not Found", "" }
+    // Not found: allocate { 404.0, "Not Found", "", 0.0 }
     this.ctx.emit(notFoundLabel + ":");
     const nfStruct = this.ctx.nextTemp();
-    this.ctx.emit(nfStruct + " = call i8* @GC_malloc(i64 24)");
+    this.ctx.emit(nfStruct + " = call i8* @GC_malloc(i64 " + structSize + ")");
     const nfTyped = this.ctx.nextTemp();
-    this.ctx.emit(nfTyped + " = bitcast i8* " + nfStruct + " to { double, i8*, i8* }*");
+    this.ctx.emit(nfTyped + " = bitcast i8* " + nfStruct + " to " + respType + "*");
+    // Field 0: status = 404.0
     const nfStatusPtr = this.ctx.nextTemp();
     this.ctx.emit(
       nfStatusPtr +
-        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        " = getelementptr " +
+        respType +
+        ", " +
+        respType +
+        "* " +
         nfTyped +
         ", i32 0, i32 0",
     );
     this.ctx.emit("store double 404.0, double* " + nfStatusPtr);
-    // Create "Not Found" string constant
+    // Field 1: body = "Not Found"
     this.createGlobalStringDirect("Not Found");
     const nfBodyStrId = this._lastStrId;
     const nfBodyLen = this._lastLen;
@@ -306,12 +404,16 @@ export class EmbedGenerator {
     const nfBodyPtr = this.ctx.nextTemp();
     this.ctx.emit(
       nfBodyPtr +
-        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        " = getelementptr " +
+        respType +
+        ", " +
+        respType +
+        "* " +
         nfTyped +
         ", i32 0, i32 1",
     );
     this.ctx.emit("store i8* " + nfBodyStr + ", i8** " + nfBodyPtr);
-    // Reuse same empty string global
+    // Field 2: headers = empty string (reuse global)
     const emptyStr2 = this.ctx.nextTemp();
     this.ctx.emit(
       emptyStr2 +
@@ -326,11 +428,28 @@ export class EmbedGenerator {
     const nfHdrsPtr = this.ctx.nextTemp();
     this.ctx.emit(
       nfHdrsPtr +
-        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        " = getelementptr " +
+        respType +
+        ", " +
+        respType +
+        "* " +
         nfTyped +
         ", i32 0, i32 2",
     );
     this.ctx.emit("store i8* " + emptyStr2 + ", i8** " + nfHdrsPtr);
+    // Field 3: bodyLen = 0.0 (handler wrapper falls back to strlen)
+    const nfLenPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      nfLenPtr +
+        " = getelementptr " +
+        respType +
+        ", " +
+        respType +
+        "* " +
+        nfTyped +
+        ", i32 0, i32 3",
+    );
+    this.ctx.emit("store double 0.0, double* " + nfLenPtr);
     this.ctx.emit("br label %" + joinLabel);
 
     // Join: phi node to select the result
@@ -368,6 +487,67 @@ export class EmbedGenerator {
     this.ctx.setVariableType(result, "i8*");
 
     return result;
+  }
+
+  /** ChadScript.getEmbeddedFileAsUint8Array(key) — returns embedded binary data as %Uint8Array*.
+   * Calls the content + length lookup functions and wraps in a Uint8Array struct. */
+  generateGetEmbeddedFileAsUint8Array(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError(
+        "ChadScript.getEmbeddedFileAsUint8Array() requires 1 argument (file key)",
+        expr.loc,
+      );
+    }
+
+    const keyPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    // Get data pointer and byte length
+    const dataPtr = this.ctx.nextTemp();
+    this.ctx.emit(dataPtr + " = call i8* @__cs_get_embedded_file(i8* " + keyPtr + ")");
+    const byteLen = this.ctx.nextTemp();
+    this.ctx.emit(byteLen + " = call i64 @__cs_get_embedded_file_len(i8* " + keyPtr + ")");
+    const byteLenI32 = this.ctx.nextTemp();
+    this.ctx.emit(byteLenI32 + " = trunc i64 " + byteLen + " to i32");
+
+    // Allocate %Uint8Array struct { i8*, i32, i32 }
+    const structRaw = this.ctx.nextTemp();
+    this.ctx.emit(structRaw + " = call i8* @GC_malloc(i64 16)");
+    const structPtr = this.ctx.nextTemp();
+    this.ctx.emit(structPtr + " = bitcast i8* " + structRaw + " to %Uint8Array*");
+
+    // Store data pointer (field 0)
+    const dataFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      dataFieldPtr +
+        " = getelementptr inbounds %Uint8Array, %Uint8Array* " +
+        structPtr +
+        ", i32 0, i32 0",
+    );
+    this.ctx.emit("store i8* " + dataPtr + ", i8** " + dataFieldPtr);
+
+    // Store length (field 1)
+    const lenFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      lenFieldPtr +
+        " = getelementptr inbounds %Uint8Array, %Uint8Array* " +
+        structPtr +
+        ", i32 0, i32 1",
+    );
+    this.ctx.emit("store i32 " + byteLenI32 + ", i32* " + lenFieldPtr);
+
+    // Store capacity = length (field 2)
+    const capFieldPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      capFieldPtr +
+        " = getelementptr inbounds %Uint8Array, %Uint8Array* " +
+        structPtr +
+        ", i32 0, i32 2",
+    );
+    this.ctx.emit("store i32 " + byteLenI32 + ", i32* " + capFieldPtr);
+
+    this.ctx.setVariableType(structPtr, "%Uint8Array*");
+
+    return structPtr;
   }
 
   generateLookupFunction(): string {
@@ -436,6 +616,56 @@ export class EmbedGenerator {
       emptyStrId +
       ", i64 0, i64 0\n";
     ir += "  ret i8* %empty_ptr\n";
+    ir += "}\n\n";
+
+    return ir;
+  }
+
+  /** Generate @__cs_get_embedded_file_len — same strcmp chain as the content
+   * lookup, but returns the byte length (i64) instead of a pointer.
+   * Returns 0 for not-found. Lengths are known at compile time from Buffer.length. */
+  generateLengthLookupFunction(): string {
+    if (this.embeddedKeys.length === 0) {
+      return "";
+    }
+
+    const keyStrIds: string[] = [];
+    const keyLens: number[] = [];
+    for (let i = 0; i < this.embeddedKeys.length; i++) {
+      this.createGlobalStringDirect(this.embeddedKeys[i]);
+      keyStrIds.push(this._lastStrId);
+      keyLens.push(this._lastLen);
+    }
+
+    let ir = "";
+    ir += "define i64 @__cs_get_embedded_file_len(i8* %key) {\n";
+    ir += "entry:\n";
+
+    for (let i = 0; i < this.embeddedKeys.length; i++) {
+      ir +=
+        "  %lkey_ptr_" +
+        i +
+        " = getelementptr inbounds [" +
+        keyLens[i] +
+        " x i8], [" +
+        keyLens[i] +
+        " x i8]* " +
+        keyStrIds[i] +
+        ", i64 0, i64 0\n";
+      ir += "  %lcmp_" + i + " = call i32 @strcmp(i8* %key, i8* %lkey_ptr_" + i + ")\n";
+      ir += "  %lis_" + i + " = icmp eq i32 %lcmp_" + i + ", 0\n";
+      const foundLabel = "lfound" + i;
+      const nextLabel = i < this.embeddedKeys.length - 1 ? "lcheck" + (i + 1) : "lnotfound";
+      ir += "  br i1 %lis_" + i + ", label %" + foundLabel + ", label %" + nextLabel + "\n";
+      ir += foundLabel + ":\n";
+      ir += "  ret i64 " + this.embeddedByteLens[i] + "\n";
+      if (i < this.embeddedKeys.length - 1) {
+        ir += "lcheck" + (i + 1) + ":\n";
+      }
+    }
+
+    ir += "lnotfound:\n";
+    ir += "  ret i64 0\n";
     ir += "}\n\n";
 
     return ir;
