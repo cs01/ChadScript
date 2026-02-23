@@ -326,11 +326,14 @@ jobs:
       - name: Smoke test - regex bridge
         run: |
           cat > /tmp/test-regex.ts << 'EOF'
-          const re = /hello (\w+)/;
-          const parts = "hello world".match(re);
-          if (parts[1] === "world") {
-            console.log("TEST_PASSED");
+          function main(): void {
+            const re = /hello (\w+)/;
+            const parts = "hello world".match(re);
+            if (parts[1] === "world") {
+              console.log("TEST_PASSED");
+            }
           }
+          main();
           EOF
           OUTPUT=$(chad run /tmp/test-regex.ts)
           echo "$OUTPUT"
