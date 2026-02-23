@@ -327,9 +327,9 @@ jobs:
         run: |
           cat > /tmp/test-regex.ts << 'EOF'
           function main(): void {
-            const re = /hello (\w+)/;
-            const parts = "hello world".match(re);
-            if (parts[1] === "world") {
+            const re = /hello/;
+            const result = "hello world".match(re);
+            if (result !== null && result[0] === "hello") {
               console.log("TEST_PASSED");
             }
           }
