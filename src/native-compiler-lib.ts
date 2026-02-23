@@ -203,8 +203,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   // can't use Node's os module that target.ts depends on).
   let targetInfo: any = undefined;
   if (crossCompiling) {
-    const isDarwin =
-      targetTriple.indexOf("darwin") !== -1 || targetTriple.indexOf("apple") !== -1;
+    const isDarwin = targetTriple.indexOf("darwin") !== -1 || targetTriple.indexOf("apple") !== -1;
     const isAarch64 =
       targetTriple.indexOf("aarch64") !== -1 || targetTriple.indexOf("arm64") !== -1;
     const tOs = isDarwin ? "darwin" : "linux";
@@ -309,8 +308,9 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const effectiveBridgePath = hasSDK ? sdkBridges : LWS_BRIDGE_PATH;
   const effectivePicoPath = hasSDK ? sdkVendor : PICOHTTPPARSER_PATH;
 
-  const targetIsDarwin =
-    crossCompiling ? targetTriple.indexOf("darwin") !== -1 : process.platform === "darwin";
+  const targetIsDarwin = crossCompiling
+    ? targetTriple.indexOf("darwin") !== -1
+    : process.platform === "darwin";
   const isMac = process.platform === "darwin";
   // musl bundles everything into libc.a — no separate libdl/librt/libpthread
   const isMusl = crossCompiling && isMuslTarget(targetTriple);
@@ -380,17 +380,13 @@ export function compileNative(inputFile: string, outputFile: string): void {
       effectiveBridgePath +
       "/multipart-bridge.o"
     : "";
-  const regexBridgeObj = generator.getUsesRegex()
-    ? effectiveBridgePath + "/regex-bridge.o"
-    : "";
+  const regexBridgeObj = generator.getUsesRegex() ? effectiveBridgePath + "/regex-bridge.o" : "";
   const cpBridgeObj = effectiveBridgePath + "/child-process-bridge.o";
   const osBridgeObj = effectiveBridgePath + "/os-bridge.o";
   const dotenvBridgePath = effectiveBridgePath + "/dotenv-bridge.o";
   const dotenvBridgeObj = fs.existsSync(dotenvBridgePath) ? dotenvBridgePath : "";
   const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";
-  const cpSpawnObj = generator.getUsesSpawn()
-    ? effectiveBridgePath + "/child-process-spawn.o"
-    : "";
+  const cpSpawnObj = generator.getUsesSpawn() ? effectiveBridgePath + "/child-process-spawn.o" : "";
 
   // Sysroot and target flags for cross-compilation
   if (hasSDK && sdkSysroot.length > 0) {
