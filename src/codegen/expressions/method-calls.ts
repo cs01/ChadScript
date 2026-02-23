@@ -389,6 +389,8 @@ export class MethodCallGenerator {
         return this.ctx.embedGen.generateEmbedDir(expr, params);
       } else if (method === "getEmbeddedFile") {
         return this.ctx.embedGen.generateGetEmbeddedFile(expr, params);
+      } else if (method === "serveEmbedded") {
+        return this.ctx.embedGen.generateServeEmbedded(expr, params);
       }
       return this.ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
     }

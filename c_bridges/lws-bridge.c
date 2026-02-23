@@ -32,6 +32,7 @@ typedef struct http_conn_s {
     size_t content_length;
     char content_type_str[256];
     char accept_encoding[256];
+    char headers_raw[4096];  // all request headers as "Key: Value\n..." string
     char ws_key[64];
     int headers_complete;
     size_t header_end;
@@ -212,6 +213,7 @@ static void on_http_write_done_fallback(uv_write_t *req, int status) {
 }
 
 static void send_http_response(http_conn_t *conn, int status, const char *resp_ct,
+                                const char *extra_headers,
                                 const unsigned char *body, size_t body_len) {
     const unsigned char *send_body = body;
     size_t send_len = body_len;
@@ -246,8 +248,34 @@ static void send_http_response(http_conn_t *conn, int status, const char *resp_c
         }
     }
 
+    // Format extra headers (normalize \n to \r\n, skip Content-Type lines)
+    char extra_hdr_buf[2048];
+    int extra_hdr_len = 0;
+    if (extra_headers && extra_headers[0]) {
+        const char *src = extra_headers;
+        char *dst = extra_hdr_buf;
+        char *dst_end = extra_hdr_buf + sizeof(extra_hdr_buf) - 4;
+        while (*src && dst < dst_end) {
+            const char *line_start = src;
+            while (*src && *src != '\n') src++;
+            size_t line_len = (size_t)(src - line_start);
+            // Skip empty lines and Content-Type (already handled separately)
+            if (line_len > 0 && strncasecmp(line_start, "Content-Type:", 13) != 0) {
+                if (dst + line_len + 2 <= dst_end) {
+                    memcpy(dst, line_start, line_len);
+                    dst += line_len;
+                    *dst++ = '\r';
+                    *dst++ = '\n';
+                }
+            }
+            if (*src == '\n') src++;
+        }
+        *dst = '\0';
+        extra_hdr_len = (int)(dst - extra_hdr_buf);
+    }
+
     int hlen;
-    int use_fast_path = (status == 200 && !content_encoding);
+    int use_fast_path = (status == 200 && !content_encoding && !extra_hdr_len);
 
     if (use_fast_path) {
         char *p = conn->resp_buf;
@@ -268,19 +296,23 @@ static void send_http_response(http_conn_t *conn, int status, const char *resp_c
                 "HTTP/1.1 %d OK\r\n"
                 "Content-Type: %s\r\n"
                 "Content-Length: %zu\r\n"
-                "Content-Encoding: %s\r\n"
-                "Connection: keep-alive\r\n"
-                "\r\n",
+                "Content-Encoding: %s\r\n",
                 status, resp_ct, send_len, content_encoding);
         } else {
             hlen = snprintf(conn->resp_buf, 4096,
                 "HTTP/1.1 %d OK\r\n"
                 "Content-Type: %s\r\n"
-                "Content-Length: %zu\r\n"
-                "Connection: keep-alive\r\n"
-                "\r\n",
+                "Content-Length: %zu\r\n",
                 status, resp_ct, send_len);
         }
+        // Splice extra headers before the final Connection + blank line
+        if (extra_hdr_len > 0 && hlen + extra_hdr_len < 4096 - 32) {
+            memcpy(conn->resp_buf + hlen, extra_hdr_buf, (size_t)extra_hdr_len);
+            hlen += extra_hdr_len;
+        }
+        int tail = snprintf(conn->resp_buf + hlen, 4096 - hlen,
+            "Connection: keep-alive\r\n\r\n");
+        hlen += tail;
     }
 
     size_t total = (size_t)hlen + send_len;
@@ -331,18 +363,49 @@ static void dispatch_http_request(http_conn_t *conn) {
     req.path = conn->path_str;
     req.body = conn->body ? conn->body : "";
     req.content_type = conn->content_type_str;
+    req.headers_raw = conn->headers_raw;
 
     lws_bridge_response resp;
     resp.status = 200;
     resp.body = "";
     resp.body_len = 0;
+    resp.extra_headers = NULL;
 
     g_http_handler(&req, &resp);
 
-    const char *resp_ct = sniff_content_type(req.path, resp.body);
+    // Check if extra_headers provides a Content-Type override
+    const char *resp_ct = NULL;
+    if (resp.extra_headers && resp.extra_headers[0]) {
+        // Scan extra_headers for "Content-Type:" (case-insensitive)
+        const char *p = resp.extra_headers;
+        while (*p) {
+            if (strncasecmp(p, "Content-Type:", 13) == 0) {
+                p += 13;
+                while (*p == ' ') p++;
+                // Extract value until \n or end
+                const char *end = p;
+                while (*end && *end != '\n') end++;
+                // Copy to a temp buffer (static is fine, single-threaded)
+                static char ct_buf[256];
+                size_t ct_len = (size_t)(end - p);
+                if (ct_len >= sizeof(ct_buf)) ct_len = sizeof(ct_buf) - 1;
+                memcpy(ct_buf, p, ct_len);
+                ct_buf[ct_len] = '\0';
+                resp_ct = ct_buf;
+                break;
+            }
+            // Skip to next line
+            while (*p && *p != '\n') p++;
+            if (*p == '\n') p++;
+        }
+    }
+    if (!resp_ct) {
+        resp_ct = sniff_content_type(req.path, resp.body);
+    }
+
     size_t body_len = resp.body_len > 0 ? (size_t)resp.body_len : (resp.body ? strlen(resp.body) : 0);
 
-    send_http_response(conn, resp.status, resp_ct,
+    send_http_response(conn, resp.status, resp_ct, resp.extra_headers,
                        (const unsigned char *)resp.body, body_len);
 }
 
@@ -515,8 +578,26 @@ static void try_parse_request(http_conn_t *conn) {
         conn->content_length = 0;
         conn->content_type_str[0] = '\0';
         conn->accept_encoding[0] = '\0';
+        conn->headers_raw[0] = '\0';
         conn->ws_key[0] = '\0';
         int is_upgrade = 0;
+
+        // Format all request headers into headers_raw as "Key: Value\n..." string
+        {
+            size_t hoff = 0;
+            for (size_t hi = 0; hi < num_headers; hi++) {
+                size_t needed = headers[hi].name_len + 2 + headers[hi].value_len + 1;
+                if (hoff + needed >= sizeof(conn->headers_raw)) break;
+                memcpy(conn->headers_raw + hoff, headers[hi].name, headers[hi].name_len);
+                hoff += headers[hi].name_len;
+                conn->headers_raw[hoff++] = ':';
+                conn->headers_raw[hoff++] = ' ';
+                memcpy(conn->headers_raw + hoff, headers[hi].value, headers[hi].value_len);
+                hoff += headers[hi].value_len;
+                conn->headers_raw[hoff++] = '\n';
+            }
+            conn->headers_raw[hoff] = '\0';
+        }
 
         for (size_t i = 0; i < num_headers; i++) {
             if (headers[i].name_len == 14 &&
@@ -601,6 +682,7 @@ static void try_parse_request(http_conn_t *conn) {
         conn->content_length = 0;
         conn->content_type_str[0] = '\0';
         conn->accept_encoding[0] = '\0';
+        conn->headers_raw[0] = '\0';
         conn->ws_key[0] = '\0';
         conn->method_str[0] = '\0';
         conn->path_str[0] = '\0';

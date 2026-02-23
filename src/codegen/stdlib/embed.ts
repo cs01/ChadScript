@@ -189,6 +189,170 @@ export class EmbedGenerator {
     }
   }
 
+  /**
+   * ChadScript.serveEmbedded(path) — returns an HttpResponse struct pointer.
+   * Strips leading "/" from path, looks up the embedded file, and returns
+   * { 200.0, content, "" } if found, or { 404.0, "Not Found", "" } if not.
+   */
+  generateServeEmbedded(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("ChadScript.serveEmbedded() requires 1 argument (path)", expr.loc);
+    }
+
+    const pathPtr = this.ctx.generateExpression(expr.args[0], params);
+
+    // Strip leading "/" from path: if path[0] == '/', advance by 1
+    const firstChar = this.ctx.nextTemp();
+    this.ctx.emit(firstChar + " = load i8, i8* " + pathPtr);
+    const isSlash = this.ctx.nextTemp();
+    this.ctx.emit(isSlash + " = icmp eq i8 " + firstChar + ", 47"); // '/' = 47
+    const stripped = this.ctx.nextTemp();
+    const onePtr = this.ctx.nextTemp();
+    this.ctx.emit(onePtr + " = getelementptr i8, i8* " + pathPtr + ", i64 1");
+    this.ctx.emit(stripped + " = select i1 " + isSlash + ", i8* " + onePtr + ", i8* " + pathPtr);
+
+    // Look up the embedded file
+    const content = this.ctx.nextTemp();
+    this.ctx.emit(content + " = call i8* @__cs_get_embedded_file(i8* " + stripped + ")");
+
+    // Check if found (strlen > 0)
+    const contentLen = this.ctx.nextTemp();
+    this.ctx.emit(contentLen + " = call i64 @strlen(i8* " + content + ")");
+    const found = this.ctx.nextTemp();
+    this.ctx.emit(found + " = icmp ugt i64 " + contentLen + ", 0");
+
+    const foundLabel = this.ctx.nextLabel("serve_found");
+    const notFoundLabel = this.ctx.nextLabel("serve_notfound");
+    const joinLabel = this.ctx.nextLabel("serve_join");
+
+    this.ctx.emit("br i1 " + found + ", label %" + foundLabel + ", label %" + notFoundLabel);
+
+    // Found: allocate { 200.0, content, "" }
+    this.ctx.emit(foundLabel + ":");
+    const foundStruct = this.ctx.nextTemp();
+    this.ctx.emit(foundStruct + " = call i8* @GC_malloc(i64 24)");
+    const foundTyped = this.ctx.nextTemp();
+    this.ctx.emit(foundTyped + " = bitcast i8* " + foundStruct + " to { double, i8*, i8* }*");
+    const fStatusPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      fStatusPtr +
+        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        foundTyped +
+        ", i32 0, i32 0",
+    );
+    this.ctx.emit("store double 200.0, double* " + fStatusPtr);
+    const fBodyPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      fBodyPtr +
+        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        foundTyped +
+        ", i32 0, i32 1",
+    );
+    this.ctx.emit("store i8* " + content + ", i8** " + fBodyPtr);
+    // Empty headers string
+    this.createGlobalStringDirect("");
+    const emptyStrId = this._lastStrId;
+    const emptyStrLen = this._lastLen;
+    const emptyStr = this.ctx.nextTemp();
+    this.ctx.emit(
+      emptyStr +
+        " = getelementptr inbounds [" +
+        emptyStrLen +
+        " x i8], [" +
+        emptyStrLen +
+        " x i8]* " +
+        emptyStrId +
+        ", i64 0, i64 0",
+    );
+    const fHdrsPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      fHdrsPtr +
+        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        foundTyped +
+        ", i32 0, i32 2",
+    );
+    this.ctx.emit("store i8* " + emptyStr + ", i8** " + fHdrsPtr);
+    this.ctx.emit("br label %" + joinLabel);
+
+    // Not found: allocate { 404.0, "Not Found", "" }
+    this.ctx.emit(notFoundLabel + ":");
+    const nfStruct = this.ctx.nextTemp();
+    this.ctx.emit(nfStruct + " = call i8* @GC_malloc(i64 24)");
+    const nfTyped = this.ctx.nextTemp();
+    this.ctx.emit(nfTyped + " = bitcast i8* " + nfStruct + " to { double, i8*, i8* }*");
+    const nfStatusPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      nfStatusPtr +
+        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        nfTyped +
+        ", i32 0, i32 0",
+    );
+    this.ctx.emit("store double 404.0, double* " + nfStatusPtr);
+    // Create "Not Found" string constant
+    this.createGlobalStringDirect("Not Found");
+    const nfBodyStrId = this._lastStrId;
+    const nfBodyLen = this._lastLen;
+    const nfBodyStr = this.ctx.nextTemp();
+    this.ctx.emit(
+      nfBodyStr +
+        " = getelementptr inbounds [" +
+        nfBodyLen +
+        " x i8], [" +
+        nfBodyLen +
+        " x i8]* " +
+        nfBodyStrId +
+        ", i64 0, i64 0",
+    );
+    const nfBodyPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      nfBodyPtr +
+        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        nfTyped +
+        ", i32 0, i32 1",
+    );
+    this.ctx.emit("store i8* " + nfBodyStr + ", i8** " + nfBodyPtr);
+    // Reuse same empty string global
+    const emptyStr2 = this.ctx.nextTemp();
+    this.ctx.emit(
+      emptyStr2 +
+        " = getelementptr inbounds [" +
+        emptyStrLen +
+        " x i8], [" +
+        emptyStrLen +
+        " x i8]* " +
+        emptyStrId +
+        ", i64 0, i64 0",
+    );
+    const nfHdrsPtr = this.ctx.nextTemp();
+    this.ctx.emit(
+      nfHdrsPtr +
+        " = getelementptr { double, i8*, i8* }, { double, i8*, i8* }* " +
+        nfTyped +
+        ", i32 0, i32 2",
+    );
+    this.ctx.emit("store i8* " + emptyStr2 + ", i8** " + nfHdrsPtr);
+    this.ctx.emit("br label %" + joinLabel);
+
+    // Join: phi node to select the result
+    this.ctx.emit(joinLabel + ":");
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(
+      result +
+        " = phi i8* [ " +
+        foundStruct +
+        ", %" +
+        foundLabel +
+        " ], [ " +
+        nfStruct +
+        ", %" +
+        notFoundLabel +
+        " ]",
+    );
+    this.ctx.setVariableType(result, "i8*");
+
+    return result;
+  }
+
   generateGetEmbeddedFile(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
       return this.ctx.emitError(
