@@ -55,8 +55,8 @@ function findLLD(): string {
   } catch {}
   throw new Error(
     "chad: error: lld not found (needed for cross-compilation)\n" +
-      "Install LLVM with lld:\n" +
-      "  macOS: brew install llvm\n" +
+      "Install lld:\n" +
+      "  macOS: brew install keith/formulae/ld64.lld\n" +
       "  Ubuntu/Debian: sudo apt-get install lld\n" +
       "  Fedora: sudo dnf install lld",
   );
