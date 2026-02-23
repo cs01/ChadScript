@@ -34,11 +34,16 @@ function handleRequest(req: Request): Response {
       result =
         result +
         "\n" +
-        "name=" + part.name +
-        "|filename=" + part.filename +
-        "|contentType=" + part.contentType +
-        "|dataLen=" + part.dataLen.toString() +
-        "|data=" + part.data;
+        "name=" +
+        part.name +
+        "|filename=" +
+        part.filename +
+        "|contentType=" +
+        part.contentType +
+        "|dataLen=" +
+        part.dataLen.toString() +
+        "|data=" +
+        part.data;
     }
 
     return { status: 200, body: result, headers: "" };

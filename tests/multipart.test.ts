@@ -102,22 +102,10 @@ describe("Multipart Parser Tests", { concurrency: 1 }, () => {
 
     const text = await resp.text();
     assert.ok(text.includes("count=2"), `Expected count=2, got: ${text}`);
-    assert.ok(
-      text.includes("name=username"),
-      `Expected name=username in: ${text}`,
-    );
-    assert.ok(
-      text.includes("data=john"),
-      `Expected data=john in: ${text}`,
-    );
-    assert.ok(
-      text.includes("name=email"),
-      `Expected name=email in: ${text}`,
-    );
-    assert.ok(
-      text.includes("data=john@example.com"),
-      `Expected data=john@example.com in: ${text}`,
-    );
+    assert.ok(text.includes("name=username"), `Expected name=username in: ${text}`);
+    assert.ok(text.includes("data=john"), `Expected data=john in: ${text}`);
+    assert.ok(text.includes("name=email"), `Expected name=email in: ${text}`);
+    assert.ok(text.includes("data=john@example.com"), `Expected data=john@example.com in: ${text}`);
   });
 
   it("should parse file uploads with filename and content-type", async () => {
@@ -146,21 +134,12 @@ describe("Multipart Parser Tests", { concurrency: 1 }, () => {
 
     const text = await resp.text();
     assert.ok(text.includes("count=2"), `Expected count=2, got: ${text}`);
-    assert.ok(
-      text.includes("filename=test.txt"),
-      `Expected filename=test.txt in: ${text}`,
-    );
+    assert.ok(text.includes("filename=test.txt"), `Expected filename=test.txt in: ${text}`);
     assert.ok(
       text.includes("contentType=text/plain"),
       `Expected contentType=text/plain in: ${text}`,
     );
-    assert.ok(
-      text.includes("data=Hello World!"),
-      `Expected data=Hello World! in: ${text}`,
-    );
-    assert.ok(
-      text.includes("name=description"),
-      `Expected name=description in: ${text}`,
-    );
+    assert.ok(text.includes("data=Hello World!"), `Expected data=Hello World! in: ${text}`);
+    assert.ok(text.includes("name=description"), `Expected name=description in: ${text}`);
   });
 });

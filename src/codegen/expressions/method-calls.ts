@@ -1384,7 +1384,10 @@ export class MethodCallGenerator {
    */
   private handleParseMultipart(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
-      return this.ctx.emitError("ChadScript.parseMultipart() requires a request argument", expr.loc);
+      return this.ctx.emitError(
+        "ChadScript.parseMultipart() requires a request argument",
+        expr.loc,
+      );
     }
 
     // Mark that we use the multipart parser (for declaration emission)

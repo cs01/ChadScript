@@ -235,7 +235,12 @@ export function compileNative(inputFile: string, outputFile: string): void {
     linkLibs = "-lz -lzstd " + linkLibs;
   }
   const lwsBridgeObj = generator.getUsesMongoose()
-    ? LWS_BRIDGE_PATH + "/lws-bridge.o " + PICOHTTPPARSER_PATH + "/picohttpparser.o " + LWS_BRIDGE_PATH + "/multipart-bridge.o"
+    ? LWS_BRIDGE_PATH +
+      "/lws-bridge.o " +
+      PICOHTTPPARSER_PATH +
+      "/picohttpparser.o " +
+      LWS_BRIDGE_PATH +
+      "/multipart-bridge.o"
     : "";
   const regexBridgeObj = generator.getUsesRegex() ? LWS_BRIDGE_PATH + "/regex-bridge.o" : "";
   // Always link child-process-bridge.o (sync ops, no libuv dependency)
