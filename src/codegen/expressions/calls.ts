@@ -60,6 +60,13 @@ export class CallExpressionGenerator {
       return "0.0";
     }
 
+    // cs_exec_passthrough(command) — run command with inherited stdio (for chad run)
+    if (expr.name === "cs_exec_passthrough") {
+      const arg0 = this.ctx.generateExpression(expr.args[0], params);
+      this.ctx.emitCallVoid("@cs_exec_passthrough", `i8* ${arg0}`);
+      return "0.0";
+    }
+
     // cs_watch_loop(chad_binary, source_file, output_binary) — file watcher FFI
     if (expr.name === "cs_watch_loop") {
       if (expr.args.length >= 3) {

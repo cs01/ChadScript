@@ -30,6 +30,9 @@ declare const child_process: {
   execSync(command: string): number;
 };
 
+// FFI: child-process-bridge.c — runs command with inherited stdio (output visible)
+declare function cs_exec_passthrough(command: string): void;
+
 // FFI: watch-bridge.c — polls source file and recompiles/re-runs on change
 declare function cs_watch_loop(
   chad_binary: string,
@@ -229,5 +232,8 @@ if (command === "run") {
     runCmd = runCmd + " " + rest[ri];
     ri = ri + 1;
   }
-  child_process.execSync(runCmd);
+  // Use passthrough exec so stdout/stderr go directly to the terminal.
+  // cs_execSync uses popen() which captures stdout into a buffer — that's
+  // why `chad run` previously showed no output.
+  cs_exec_passthrough(runCmd);
 }
