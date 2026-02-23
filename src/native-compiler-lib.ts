@@ -47,17 +47,23 @@ function findLLVMTool(name: string): string {
   return name;
 }
 
-// Find lld for cross-linking. Homebrew LLVM installs "lld" (multicall) but may
-// not create the "ld.lld" symlink. Try the ELF-specific name first, then fall back.
+// Find lld for cross-linking ELF binaries. Homebrew LLVM on macOS may only
+// install ld64.lld (Mach-O). Since lld is a multicall binary that uses argv[0]
+// to pick its flavor, we can symlink ld64.lld as ld.lld to get ELF mode.
 function findLLD(): string {
-  // findLLVMTool returns bare name if not found in Homebrew paths (no throw),
-  // so check existence explicitly
-  const candidates = ["ld.lld", "lld"];
-  for (const name of candidates) {
-    const path = findLLVMTool(name);
-    if (path !== name || fs.existsSync(name)) {
-      return path;
+  const names = ["ld.lld", "lld"];
+  for (const name of names) {
+    const resolved = findLLVMTool(name);
+    if (resolved !== name || fs.existsSync(name)) {
+      return resolved;
     }
+  }
+  // ld64.lld is the same multicall binary — symlink it as ld.lld for ELF mode
+  const ld64Path = findLLVMTool("ld64.lld");
+  if (ld64Path !== "ld64.lld" || fs.existsSync("ld64.lld")) {
+    const lldLink = "/tmp/ld.lld";
+    child_process.execSync("ln -sf " + ld64Path + " " + lldLink);
+    return lldLink;
   }
   return "lld";
 }
