@@ -61,64 +61,58 @@ export class FilesystemGenerator {
     const modeStr = this.ctx.createStringConstant("r");
 
     // Open file: FILE* fp = fopen(filename, "r")
-    const filePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
+    const filePtr = this.ctx.emitCall("i8*", "@fopen", `i8* ${filenamePtr}, i8* ${modeStr}`);
 
     // Check if file opened successfully
-    const isNull = this.ctx.nextTemp();
-    this.ctx.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
+    const isNull = this.ctx.emitIcmp("eq", "i8*", filePtr, "null");
 
     const failLabel = this.ctx.nextLabel("read_fail");
     const successLabel = this.ctx.nextLabel("read_success");
     const endLabel = this.ctx.nextLabel("read_end");
 
-    this.ctx.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
+    this.ctx.emitBrCond(isNull, failLabel, successLabel);
 
     // Failure case: return empty string
-    this.ctx.emit(`${failLabel}:`);
+    this.ctx.emitLabel(failLabel);
     const emptyStr = this.ctx.createStringConstant("");
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitBr(endLabel);
 
     // Success case: read file
-    this.ctx.emit(`${successLabel}:`);
+    this.ctx.emitLabel(successLabel);
 
     // Seek to end to get file size: fseek(fp, 0, SEEK_END)
-    const seekEnd = this.ctx.nextTemp();
-    this.ctx.emit(`${seekEnd} = call i32 @fseek(i8* ${filePtr}, i64 0, i32 2)`);
+    const seekEnd = this.ctx.emitCall("i32", "@fseek", `i8* ${filePtr}, i64 0, i32 2`);
 
     // Get file size: size = ftell(fp)
-    const fileSize = this.ctx.nextTemp();
-    this.ctx.emit(`${fileSize} = call i64 @ftell(i8* ${filePtr})`);
+    const fileSize = this.ctx.emitCall("i64", "@ftell", `i8* ${filePtr}`);
 
     // Seek back to beginning: fseek(fp, 0, SEEK_SET)
-    const seekStart = this.ctx.nextTemp();
-    this.ctx.emit(`${seekStart} = call i32 @fseek(i8* ${filePtr}, i64 0, i32 0)`);
+    const seekStart = this.ctx.emitCall("i32", "@fseek", `i8* ${filePtr}, i64 0, i32 0`);
 
     // Allocate buffer: GC_malloc_atomic(size + 1) for null terminator
     const bufferSize = this.ctx.nextTemp();
     this.ctx.emit(`${bufferSize} = add i64 ${fileSize}, 1`);
-    const buffer = this.ctx.nextTemp();
-    this.ctx.emit(`${buffer} = call i8* @GC_malloc_atomic(i64 ${bufferSize})`);
+    const buffer = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${bufferSize}`);
 
     // Read file: fread(buffer, 1, size, fp)
-    const bytesRead = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${bytesRead} = call i64 @fread(i8* ${buffer}, i64 1, i64 ${fileSize}, i8* ${filePtr})`,
+    const bytesRead = this.ctx.emitCall(
+      "i64",
+      "@fread",
+      `i8* ${buffer}, i64 1, i64 ${fileSize}, i8* ${filePtr}`,
     );
 
-    // Null-terminate the string
+    // Null-terminate the string (inbounds GEP — keep as raw emit)
     const nullPos = this.ctx.nextTemp();
     this.ctx.emit(`${nullPos} = getelementptr inbounds i8, i8* ${buffer}, i64 ${fileSize}`);
-    this.ctx.emit(`store i8 0, i8* ${nullPos}`);
+    this.ctx.emitStore("i8", "0", nullPos);
 
     // Close file: fclose(fp)
-    const closeResult = this.ctx.nextTemp();
-    this.ctx.emit(`${closeResult} = call i32 @fclose(i8* ${filePtr})`);
+    const closeResult = this.ctx.emitCall("i32", "@fclose", `i8* ${filePtr}`);
 
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitBr(endLabel);
 
     // End: phi node to select result
-    this.ctx.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
     const result = this.ctx.nextTemp();
     this.ctx.emit(
       `${result} = phi i8* [ ${emptyStr}, %${failLabel} ], [ ${buffer}, %${successLabel} ]`,
@@ -147,44 +141,41 @@ export class FilesystemGenerator {
     const modeStr = this.ctx.createStringConstant("w");
 
     // Open file: FILE* fp = fopen(filename, "w")
-    const filePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
+    const filePtr = this.ctx.emitCall("i8*", "@fopen", `i8* ${filenamePtr}, i8* ${modeStr}`);
 
     // Check if file opened successfully
-    const isNull = this.ctx.nextTemp();
-    this.ctx.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
+    const isNull = this.ctx.emitIcmp("eq", "i8*", filePtr, "null");
 
     const failLabel = this.ctx.nextLabel("write_fail");
     const successLabel = this.ctx.nextLabel("write_success");
     const endLabel = this.ctx.nextLabel("write_end");
 
-    this.ctx.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
+    this.ctx.emitBrCond(isNull, failLabel, successLabel);
 
     // Failure case: return -1
-    this.ctx.emit(`${failLabel}:`);
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitLabel(failLabel);
+    this.ctx.emitBr(endLabel);
 
     // Success case: write file
-    this.ctx.emit(`${successLabel}:`);
+    this.ctx.emitLabel(successLabel);
 
     // Get data length: strlen(data)
-    const dataLen = this.ctx.nextTemp();
-    this.ctx.emit(`${dataLen} = call i64 @strlen(i8* ${dataPtr})`);
+    const dataLen = this.ctx.emitCall("i64", "@strlen", `i8* ${dataPtr}`);
 
     // Write data: fwrite(data, 1, len, fp)
-    const bytesWritten = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${bytesWritten} = call i64 @fwrite(i8* ${dataPtr}, i64 1, i64 ${dataLen}, i8* ${filePtr})`,
+    const bytesWritten = this.ctx.emitCall(
+      "i64",
+      "@fwrite",
+      `i8* ${dataPtr}, i64 1, i64 ${dataLen}, i8* ${filePtr}`,
     );
 
     // Close file: fclose(fp)
-    const closeResult = this.ctx.nextTemp();
-    this.ctx.emit(`${closeResult} = call i32 @fclose(i8* ${filePtr})`);
+    const closeResult = this.ctx.emitCall("i32", "@fclose", `i8* ${filePtr}`);
 
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitBr(endLabel);
 
     // End: phi node to return success/failure
-    this.ctx.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi i32 [ -1, %${failLabel} ], [ 0, %${successLabel} ]`);
 
@@ -204,37 +195,34 @@ export class FilesystemGenerator {
 
     const modeStr = this.ctx.createStringConstant("a");
 
-    const filePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
+    const filePtr = this.ctx.emitCall("i8*", "@fopen", `i8* ${filenamePtr}, i8* ${modeStr}`);
 
-    const isNull = this.ctx.nextTemp();
-    this.ctx.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
+    const isNull = this.ctx.emitIcmp("eq", "i8*", filePtr, "null");
 
     const failLabel = this.ctx.nextLabel("append_fail");
     const successLabel = this.ctx.nextLabel("append_success");
     const endLabel = this.ctx.nextLabel("append_end");
 
-    this.ctx.emit(`br i1 ${isNull}, label %${failLabel}, label %${successLabel}`);
+    this.ctx.emitBrCond(isNull, failLabel, successLabel);
 
-    this.ctx.emit(`${failLabel}:`);
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitLabel(failLabel);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${successLabel}:`);
+    this.ctx.emitLabel(successLabel);
 
-    const dataLen = this.ctx.nextTemp();
-    this.ctx.emit(`${dataLen} = call i64 @strlen(i8* ${dataPtr})`);
+    const dataLen = this.ctx.emitCall("i64", "@strlen", `i8* ${dataPtr}`);
 
-    const bytesWritten = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${bytesWritten} = call i64 @fwrite(i8* ${dataPtr}, i64 1, i64 ${dataLen}, i8* ${filePtr})`,
+    const bytesWritten = this.ctx.emitCall(
+      "i64",
+      "@fwrite",
+      `i8* ${dataPtr}, i64 1, i64 ${dataLen}, i8* ${filePtr}`,
     );
 
-    const closeResult = this.ctx.nextTemp();
-    this.ctx.emit(`${closeResult} = call i32 @fclose(i8* ${filePtr})`);
+    const closeResult = this.ctx.emitCall("i32", "@fclose", `i8* ${filePtr}`);
 
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi i32 [ -1, %${failLabel} ], [ 0, %${successLabel} ]`);
 
@@ -254,31 +242,28 @@ export class FilesystemGenerator {
 
     // Try to open file in read mode
     const modeStr = this.ctx.createStringConstant("r");
-    const filePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${filePtr} = call i8* @fopen(i8* ${filenamePtr}, i8* ${modeStr})`);
+    const filePtr = this.ctx.emitCall("i8*", "@fopen", `i8* ${filenamePtr}, i8* ${modeStr}`);
 
     // Check if file opened successfully (NULL means doesn't exist)
-    const isNull = this.ctx.nextTemp();
-    this.ctx.emit(`${isNull} = icmp eq i8* ${filePtr}, null`);
+    const isNull = this.ctx.emitIcmp("eq", "i8*", filePtr, "null");
 
     const existsLabel = this.ctx.nextLabel("exists");
     const notExistsLabel = this.ctx.nextLabel("not_exists");
     const endLabel = this.ctx.nextLabel("exists_end");
 
-    this.ctx.emit(`br i1 ${isNull}, label %${notExistsLabel}, label %${existsLabel}`);
+    this.ctx.emitBrCond(isNull, notExistsLabel, existsLabel);
 
     // File exists: close it and return 1
-    this.ctx.emit(`${existsLabel}:`);
-    const closeResult = this.ctx.nextTemp();
-    this.ctx.emit(`${closeResult} = call i32 @fclose(i8* ${filePtr})`);
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitLabel(existsLabel);
+    const closeResult = this.ctx.emitCall("i32", "@fclose", `i8* ${filePtr}`);
+    this.ctx.emitBr(endLabel);
 
     // File doesn't exist: return 0
-    this.ctx.emit(`${notExistsLabel}:`);
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitLabel(notExistsLabel);
+    this.ctx.emitBr(endLabel);
 
     // End: phi node to return 1 (exists) or 0 (doesn't exist)
-    this.ctx.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
     const phiResult = this.ctx.nextTemp();
     this.ctx.emit(`${phiResult} = phi i32 [ 1, %${existsLabel} ], [ 0, %${notExistsLabel} ]`);
     const result = this.ctx.nextTemp();
@@ -299,8 +284,7 @@ export class FilesystemGenerator {
     const filenamePtr = this.ctx.generateExpression(expr.args[0], params);
 
     // Call unlink: unlink(filename) returns 0 on success, -1 on error
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i32 @unlink(i8* ${filenamePtr})`);
+    const result = this.ctx.emitCall("i32", "@unlink", `i8* ${filenamePtr}`);
 
     return result;
   }
@@ -313,14 +297,13 @@ export class FilesystemGenerator {
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
 
     const fmtStr = this.ctx.createStringConstant("mkdir -p %s");
-    const bufRaw = this.ctx.nextTemp();
-    this.ctx.emit(`${bufRaw} = call i8* @GC_malloc(i64 4096)`);
+    const bufRaw = this.ctx.emitCall("i8*", "@GC_malloc", "i64 4096");
+    // snprintf has variadic signature — keep as raw emit
     const written = this.ctx.nextTemp();
     this.ctx.emit(
       `${written} = call i32 (i8*, i64, i8*, ...) @snprintf(i8* ${bufRaw}, i64 4096, i8* ${fmtStr}, i8* ${pathPtr})`,
     );
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i32 @system(i8* ${bufRaw})`);
+    const result = this.ctx.emitCall("i32", "@system", `i8* ${bufRaw}`);
 
     return result;
   }
@@ -332,8 +315,7 @@ export class FilesystemGenerator {
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call %StringArray* @__fs_readdirSync(i8* ${pathPtr})`);
+    const result = this.ctx.emitCall("%StringArray*", "@__fs_readdirSync", `i8* ${pathPtr}`);
     this.ctx.setVariableType(result, "%StringArray*");
 
     return result;
@@ -346,8 +328,7 @@ export class FilesystemGenerator {
 
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__fs_statSync(i8* ${pathPtr})`);
+    const result = this.ctx.emitCall("i8*", "@__fs_statSync", `i8* ${pathPtr}`);
     this.ctx.setVariableType(result, "%StatResult*");
 
     return result;
@@ -364,8 +345,7 @@ export class FilesystemGenerator {
     const oldPath = this.ctx.generateExpression(expr.args[0], params);
     const newPath = this.ctx.generateExpression(expr.args[1], params);
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i32 @rename(i8* ${oldPath}, i8* ${newPath})`);
+    const result = this.ctx.emitCall("i32", "@rename", `i8* ${oldPath}, i8* ${newPath}`);
 
     return result;
   }
@@ -379,51 +359,44 @@ export class FilesystemGenerator {
     const destPath = this.ctx.generateExpression(expr.args[1], params);
 
     const srcMode = this.ctx.createStringConstant("r");
-    const srcFp = this.ctx.nextTemp();
-    this.ctx.emit(`${srcFp} = call i8* @fopen(i8* ${srcPath}, i8* ${srcMode})`);
+    const srcFp = this.ctx.emitCall("i8*", "@fopen", `i8* ${srcPath}, i8* ${srcMode}`);
 
-    const srcNull = this.ctx.nextTemp();
-    this.ctx.emit(`${srcNull} = icmp eq i8* ${srcFp}, null`);
+    const srcNull = this.ctx.emitIcmp("eq", "i8*", srcFp, "null");
 
     const failLabel = this.ctx.nextLabel("copy_fail");
     const readLabel = this.ctx.nextLabel("copy_read");
     const endLabel = this.ctx.nextLabel("copy_end");
 
-    this.ctx.emit(`br i1 ${srcNull}, label %${failLabel}, label %${readLabel}`);
+    this.ctx.emitBrCond(srcNull, failLabel, readLabel);
 
-    this.ctx.emit(`${failLabel}:`);
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitLabel(failLabel);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${readLabel}:`);
-    const seekEnd = this.ctx.nextTemp();
-    this.ctx.emit(`${seekEnd} = call i32 @fseek(i8* ${srcFp}, i64 0, i32 2)`);
-    const fileSize = this.ctx.nextTemp();
-    this.ctx.emit(`${fileSize} = call i64 @ftell(i8* ${srcFp})`);
-    const seekStart = this.ctx.nextTemp();
-    this.ctx.emit(`${seekStart} = call i32 @fseek(i8* ${srcFp}, i64 0, i32 0)`);
+    this.ctx.emitLabel(readLabel);
+    const seekEnd = this.ctx.emitCall("i32", "@fseek", `i8* ${srcFp}, i64 0, i32 2`);
+    const fileSize = this.ctx.emitCall("i64", "@ftell", `i8* ${srcFp}`);
+    const seekStart = this.ctx.emitCall("i32", "@fseek", `i8* ${srcFp}, i64 0, i32 0`);
 
-    const buf = this.ctx.nextTemp();
-    this.ctx.emit(`${buf} = call i8* @GC_malloc_atomic(i64 ${fileSize})`);
-    const bytesRead = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${bytesRead} = call i64 @fread(i8* ${buf}, i64 1, i64 ${fileSize}, i8* ${srcFp})`,
+    const buf = this.ctx.emitCall("i8*", "@GC_malloc_atomic", `i64 ${fileSize}`);
+    const bytesRead = this.ctx.emitCall(
+      "i64",
+      "@fread",
+      `i8* ${buf}, i64 1, i64 ${fileSize}, i8* ${srcFp}`,
     );
-    const closeSrc = this.ctx.nextTemp();
-    this.ctx.emit(`${closeSrc} = call i32 @fclose(i8* ${srcFp})`);
+    const closeSrc = this.ctx.emitCall("i32", "@fclose", `i8* ${srcFp}`);
 
     const destMode = this.ctx.createStringConstant("w");
-    const destFp = this.ctx.nextTemp();
-    this.ctx.emit(`${destFp} = call i8* @fopen(i8* ${destPath}, i8* ${destMode})`);
-    const bytesWritten = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${bytesWritten} = call i64 @fwrite(i8* ${buf}, i64 1, i64 ${fileSize}, i8* ${destFp})`,
+    const destFp = this.ctx.emitCall("i8*", "@fopen", `i8* ${destPath}, i8* ${destMode}`);
+    const bytesWritten = this.ctx.emitCall(
+      "i64",
+      "@fwrite",
+      `i8* ${buf}, i64 1, i64 ${fileSize}, i8* ${destFp}`,
     );
-    const closeDest = this.ctx.nextTemp();
-    this.ctx.emit(`${closeDest} = call i32 @fclose(i8* ${destFp})`);
+    const closeDest = this.ctx.emitCall("i32", "@fclose", `i8* ${destFp}`);
 
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
     const result = this.ctx.nextTemp();
     this.ctx.emit(`${result} = phi i32 [ -1, %${failLabel} ], [ 0, %${readLabel} ]`);
 
@@ -442,9 +415,7 @@ export class FilesystemGenerator {
     const pathPtr = this.ctx.generateExpression(expr.args[0], params);
     this.ctx.setUsesPromises(true);
     this.ctx.setUsesAsyncFs(true);
-    const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = call %Promise* @${asyncFnName}(i8* ${pathPtr})`);
-    this.ctx.setVariableType(temp, "%Promise*");
+    const temp = this.ctx.emitCall("%Promise*", `@${asyncFnName}`, `i8* ${pathPtr}`);
     return temp;
   }
 
@@ -461,9 +432,7 @@ export class FilesystemGenerator {
     const arg2 = this.ctx.generateExpression(expr.args[1], params);
     this.ctx.setUsesPromises(true);
     this.ctx.setUsesAsyncFs(true);
-    const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = call %Promise* @${asyncFnName}(i8* ${arg1}, i8* ${arg2})`);
-    this.ctx.setVariableType(temp, "%Promise*");
+    const temp = this.ctx.emitCall("%Promise*", `@${asyncFnName}`, `i8* ${arg1}, i8* ${arg2}`);
     return temp;
   }
 

@@ -139,118 +139,102 @@ export class ClassGenerator {
 
   private emitFieldInit(fieldPtr: string, llvmType: string): void {
     if (llvmType === "double") {
-      this.emit(`store double 0.0, double* ${fieldPtr}`);
+      this.ctx.emitStore("double", "0.0", fieldPtr);
     } else if (llvmType === "%Array*") {
-      const sizePtr = this.nextTemp();
-      this.emit(`${sizePtr} = getelementptr %Array, %Array* null, i32 1`);
+      const sizePtr = this.ctx.emitGep("%Array", "null", "i32 1");
       const structSize = this.nextTemp();
       this.emit(`${structSize} = ptrtoint %Array* ${sizePtr} to i64`);
-      const arrayMem = this.nextTemp();
-      this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
-      const arrayPtr = this.nextTemp();
-      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %Array*`);
+      const arrayMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
+      const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%Array*");
       const dataPtr = this.nextTemp();
       this.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-      this.emit(`store double* null, double** ${dataPtr}`);
+      this.ctx.emitStore("double*", "null", dataPtr);
       const lenPtr = this.nextTemp();
       this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
-      this.emit(`store i32 0, i32* ${lenPtr}`);
+      this.ctx.emitStore("i32", "0", lenPtr);
       const capPtr = this.nextTemp();
       this.emit(`${capPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 2`);
-      this.emit(`store i32 0, i32* ${capPtr}`);
-      this.emit(`store %Array* ${arrayPtr}, %Array** ${fieldPtr}`);
+      this.ctx.emitStore("i32", "0", capPtr);
+      this.ctx.emitStore("%Array*", arrayPtr, fieldPtr);
     } else if (llvmType === "%StringArray*") {
-      const sizePtr = this.nextTemp();
-      this.emit(`${sizePtr} = getelementptr %StringArray, %StringArray* null, i32 1`);
+      const sizePtr = this.ctx.emitGep("%StringArray", "null", "i32 1");
       const structSize = this.nextTemp();
       this.emit(`${structSize} = ptrtoint %StringArray* ${sizePtr} to i64`);
-      const arrayMem = this.nextTemp();
-      this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
-      const arrayPtr = this.nextTemp();
-      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %StringArray*`);
+      const arrayMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
+      const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%StringArray*");
       const dataPtr = this.nextTemp();
       this.emit(
         `${dataPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
       );
-      this.emit(`store i8** null, i8*** ${dataPtr}`);
+      this.ctx.emitStore("i8**", "null", dataPtr);
       const lenPtr = this.nextTemp();
       this.emit(
         `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
       );
-      this.emit(`store i32 0, i32* ${lenPtr}`);
+      this.ctx.emitStore("i32", "0", lenPtr);
       const capPtr = this.nextTemp();
       this.emit(
         `${capPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 2`,
       );
-      this.emit(`store i32 0, i32* ${capPtr}`);
-      this.emit(`store %StringArray* ${arrayPtr}, %StringArray** ${fieldPtr}`);
+      this.ctx.emitStore("i32", "0", capPtr);
+      this.ctx.emitStore("%StringArray*", arrayPtr, fieldPtr);
     } else if (llvmType === "%ObjectArray*") {
-      const sizePtr = this.nextTemp();
-      this.emit(`${sizePtr} = getelementptr %ObjectArray, %ObjectArray* null, i32 1`);
+      const sizePtr = this.ctx.emitGep("%ObjectArray", "null", "i32 1");
       const structSize = this.nextTemp();
       this.emit(`${structSize} = ptrtoint %ObjectArray* ${sizePtr} to i64`);
-      const arrayMem = this.nextTemp();
-      this.emit(`${arrayMem} = call i8* @GC_malloc(i64 ${structSize})`);
-      const arrayPtr = this.nextTemp();
-      this.emit(`${arrayPtr} = bitcast i8* ${arrayMem} to %ObjectArray*`);
+      const arrayMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
+      const arrayPtr = this.ctx.emitBitcast(arrayMem, "i8*", "%ObjectArray*");
       const dataPtr = this.nextTemp();
       this.emit(
         `${dataPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
       );
-      this.emit(`store i8* null, i8** ${dataPtr}`);
+      this.ctx.emitStore("i8*", "null", dataPtr);
       const lenPtr = this.nextTemp();
       this.emit(
         `${lenPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 1`,
       );
-      this.emit(`store i32 0, i32* ${lenPtr}`);
+      this.ctx.emitStore("i32", "0", lenPtr);
       const capPtr = this.nextTemp();
       this.emit(
         `${capPtr} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 2`,
       );
-      this.emit(`store i32 0, i32* ${capPtr}`);
-      this.emit(`store %ObjectArray* ${arrayPtr}, %ObjectArray** ${fieldPtr}`);
+      this.ctx.emitStore("i32", "0", capPtr);
+      this.ctx.emitStore("%ObjectArray*", arrayPtr, fieldPtr);
     } else if (llvmType === "%StringMap*") {
       const initialCapacity = 16;
       const arrBytes = initialCapacity * 8;
-      const sizePtr = this.nextTemp();
-      this.emit(`${sizePtr} = getelementptr %StringMap, %StringMap* null, i32 1`);
+      const sizePtr = this.ctx.emitGep("%StringMap", "null", "i32 1");
       const structSize = this.nextTemp();
       this.emit(`${structSize} = ptrtoint %StringMap* ${sizePtr} to i64`);
-      const mapMem = this.nextTemp();
-      this.emit(`${mapMem} = call i8* @GC_malloc(i64 ${structSize})`);
-      const mapPtr = this.nextTemp();
-      this.emit(`${mapPtr} = bitcast i8* ${mapMem} to %StringMap*`);
-      const keysDataMem = this.nextTemp();
-      this.emit(`${keysDataMem} = call i8* @GC_malloc(i64 ${arrBytes})`);
-      const keysData = this.nextTemp();
-      this.emit(`${keysData} = bitcast i8* ${keysDataMem} to i8**`);
-      const valuesDataMem = this.nextTemp();
-      this.emit(`${valuesDataMem} = call i8* @GC_malloc(i64 ${arrBytes})`);
-      const valuesData = this.nextTemp();
-      this.emit(`${valuesData} = bitcast i8* ${valuesDataMem} to i8**`);
+      const mapMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${structSize}`);
+      const mapPtr = this.ctx.emitBitcast(mapMem, "i8*", "%StringMap*");
+      const keysDataMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${arrBytes}`);
+      const keysData = this.ctx.emitBitcast(keysDataMem, "i8*", "i8**");
+      const valuesDataMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${arrBytes}`);
+      const valuesData = this.ctx.emitBitcast(valuesDataMem, "i8*", "i8**");
       const keysPtr = this.nextTemp();
       this.emit(
         `${keysPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 0`,
       );
-      this.emit(`store i8** ${keysData}, i8*** ${keysPtr}`);
+      this.ctx.emitStore("i8**", keysData, keysPtr);
       const valuesPtr = this.nextTemp();
       this.emit(
         `${valuesPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 1`,
       );
-      this.emit(`store i8** ${valuesData}, i8*** ${valuesPtr}`);
+      this.ctx.emitStore("i8**", valuesData, valuesPtr);
       const lenPtr = this.nextTemp();
       this.emit(
         `${lenPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 2`,
       );
-      this.emit(`store i32 0, i32* ${lenPtr}`);
+      this.ctx.emitStore("i32", "0", lenPtr);
       const capPtr = this.nextTemp();
       this.emit(
         `${capPtr} = getelementptr inbounds %StringMap, %StringMap* ${mapPtr}, i32 0, i32 3`,
       );
-      this.emit(`store i32 ${initialCapacity}, i32* ${capPtr}`);
-      this.emit(`store %StringMap* ${mapPtr}, %StringMap** ${fieldPtr}`);
+      this.ctx.emitStore("i32", `${initialCapacity}`, capPtr);
+      this.ctx.emitStore("%StringMap*", mapPtr, fieldPtr);
     } else {
-      this.emit(`store ${llvmType} null, ${llvmType}* ${fieldPtr}`);
+      this.ctx.emitStore(llvmType, "null", fieldPtr);
     }
   }
 
@@ -502,23 +486,18 @@ export class ClassGenerator {
 
       this.defineParameterWithType(paramName, allocaReg, llvmType, tsType);
       this.emit(`${allocaReg} = alloca ${llvmType}`);
-      this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
+      this.ctx.emitStore(llvmType, `%arg${i}`, allocaReg);
     }
 
     let objPtr: string;
 
     if (fields.length > 0) {
-      const sizeofReg = this.nextTemp();
-      this.emit(
-        `${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`,
-      );
+      const sizeofReg = this.ctx.emitGep(`%${className}_struct`, "null", "i32 1");
       const sizeReg = this.nextTemp();
       this.emit(`${sizeReg} = ptrtoint %${className}_struct* ${sizeofReg} to i64`);
 
-      const objMem = this.nextTemp();
-      this.emit(`${objMem} = call i8* @GC_malloc(i64 ${sizeReg})`);
-      objPtr = this.nextTemp();
-      this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
+      const objMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${sizeReg}`);
+      objPtr = this.ctx.emitBitcast(objMem, "i8*", `%${className}_struct*`);
 
       for (let i = 0; i < fields.length; i++) {
         const classField = fields[i];
@@ -531,16 +510,11 @@ export class ClassGenerator {
         this.emitFieldInit(fieldPtr, llvmType);
       }
     } else {
-      const sizeofReg = this.nextTemp();
-      this.emit(
-        `${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`,
-      );
+      const sizeofReg = this.ctx.emitGep(`%${className}_struct`, "null", "i32 1");
       const sizeReg = this.nextTemp();
       this.emit(`${sizeReg} = ptrtoint %${className}_struct* ${sizeofReg} to i64`);
-      const objMem = this.nextTemp();
-      this.emit(`${objMem} = call i8* @GC_malloc(i64 ${sizeReg})`);
-      objPtr = this.nextTemp();
-      this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
+      const objMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${sizeReg}`);
+      objPtr = this.ctx.emitBitcast(objMem, "i8*", `%${className}_struct*`);
     }
 
     this.ctx.setThisPointer(objPtr);
@@ -569,15 +543,13 @@ export class ClassGenerator {
             const paramAlloca = this.ctx.getVariableAlloca(propName);
             if (paramAlloca) {
               const paramLlvmType = paramLLVMTypes[paramIndex];
-              const loadedValue = this.nextTemp();
-              this.emit(`${loadedValue} = load ${paramLlvmType}, ${paramLlvmType}* ${paramAlloca}`);
+              const loadedValue = this.ctx.emitLoad(paramLlvmType, paramAlloca);
 
               const fieldLlvmType = this.fieldToLlvmType(fields[fieldIndex]);
 
               let valueToStore = loadedValue;
               if (paramLlvmType !== fieldLlvmType && paramLlvmType === "i8*") {
-                const castValue = this.nextTemp();
-                this.emit(`${castValue} = bitcast i8* ${loadedValue} to ${fieldLlvmType}`);
+                const castValue = this.ctx.emitBitcast(loadedValue, "i8*", fieldLlvmType);
                 valueToStore = castValue;
               }
 
@@ -585,7 +557,7 @@ export class ClassGenerator {
               this.emit(
                 `${fieldPtr} = getelementptr inbounds %${className}_struct, %${className}_struct* ${objPtr}, i32 0, i32 ${fieldIndex}`,
               );
-              this.emit(`store ${fieldLlvmType} ${valueToStore}, ${fieldLlvmType}* ${fieldPtr}`);
+              this.ctx.emitStore(fieldLlvmType, valueToStore, fieldPtr);
             }
           }
         }
@@ -620,13 +592,12 @@ export class ClassGenerator {
           this.emit(`${conv} = zext i1 ${initResult} to i32`);
           const conv2 = this.nextTemp();
           this.emit(`${conv2} = sitofp i32 ${conv} to double`);
-          this.emit(`store double ${conv2}, double* ${fieldPtr}`);
+          this.ctx.emitStore("double", conv2, fieldPtr);
         } else if (resultType !== llvmType) {
-          const cast = this.nextTemp();
-          this.emit(`${cast} = bitcast ${resultType} ${initResult} to ${llvmType}`);
-          this.emit(`store ${llvmType} ${cast}, ${llvmType}* ${fieldPtr}`);
+          const cast = this.ctx.emitBitcast(initResult, resultType, llvmType);
+          this.ctx.emitStore(llvmType, cast, fieldPtr);
         } else {
-          this.emit(`store ${llvmType} ${initResult}, ${llvmType}* ${fieldPtr}`);
+          this.ctx.emitStore(llvmType, initResult, fieldPtr);
         }
       }
     }
@@ -686,17 +657,12 @@ export class ClassGenerator {
     let objPtr: string;
 
     if (fieldLlvmTypes.length > 0) {
-      const sizeofReg = this.nextTemp();
-      this.emit(
-        `${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`,
-      );
+      const sizeofReg = this.ctx.emitGep(`%${className}_struct`, "null", "i32 1");
       const sizeReg = this.nextTemp();
       this.emit(`${sizeReg} = ptrtoint %${className}_struct* ${sizeofReg} to i64`);
 
-      const objMem = this.nextTemp();
-      this.emit(`${objMem} = call i8* @GC_malloc(i64 ${sizeReg})`);
-      objPtr = this.nextTemp();
-      this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
+      const objMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${sizeReg}`);
+      objPtr = this.ctx.emitBitcast(objMem, "i8*", `%${className}_struct*`);
 
       for (let i = 0; i < fieldLlvmTypes.length; i++) {
         const llvmType = fieldLlvmTypes[i];
@@ -707,16 +673,11 @@ export class ClassGenerator {
         this.emitFieldInit(fieldPtr, llvmType);
       }
     } else {
-      const sizeofReg = this.nextTemp();
-      this.emit(
-        `${sizeofReg} = getelementptr %${className}_struct, %${className}_struct* null, i32 1`,
-      );
+      const sizeofReg = this.ctx.emitGep(`%${className}_struct`, "null", "i32 1");
       const sizeReg = this.nextTemp();
       this.emit(`${sizeReg} = ptrtoint %${className}_struct* ${sizeofReg} to i64`);
-      const objMem = this.nextTemp();
-      this.emit(`${objMem} = call i8* @GC_malloc(i64 ${sizeReg})`);
-      objPtr = this.nextTemp();
-      this.emit(`${objPtr} = bitcast i8* ${objMem} to %${className}_struct*`);
+      const objMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 ${sizeReg}`);
+      objPtr = this.ctx.emitBitcast(objMem, "i8*", `%${className}_struct*`);
     }
 
     if (classFields) {
@@ -750,13 +711,12 @@ export class ClassGenerator {
             this.emit(`${conv} = zext i1 ${initResult} to i32`);
             const conv2 = this.nextTemp();
             this.emit(`${conv2} = sitofp i32 ${conv} to double`);
-            this.emit(`store double ${conv2}, double* ${fieldPtr}`);
+            this.ctx.emitStore("double", conv2, fieldPtr);
           } else if (resultType !== llvmType) {
-            const cast = this.nextTemp();
-            this.emit(`${cast} = bitcast ${resultType} ${initResult} to ${llvmType}`);
-            this.emit(`store ${llvmType} ${cast}, ${llvmType}* ${fieldPtr}`);
+            const cast = this.ctx.emitBitcast(initResult, resultType, llvmType);
+            this.ctx.emitStore(llvmType, cast, fieldPtr);
           } else {
-            this.emit(`store ${llvmType} ${initResult}, ${llvmType}* ${fieldPtr}`);
+            this.ctx.emitStore(llvmType, initResult, fieldPtr);
           }
         }
       }
@@ -811,9 +771,8 @@ export class ClassGenerator {
 
     const thisAlloca = this.nextTemp();
     this.emit(`${thisAlloca} = alloca ${thisType}`);
-    this.emit(`store ${thisType} %this, ${thisType}* ${thisAlloca}`);
-    const thisLoaded = this.nextTemp();
-    this.emit(`${thisLoaded} = load ${thisType}, ${thisType}* ${thisAlloca}`);
+    this.ctx.emitStore(thisType, "%this", thisAlloca);
+    const thisLoaded = this.ctx.emitLoad(thisType, thisAlloca);
     this.ctx.setThisPointer(thisLoaded);
     this.ctx.setCurrentClassName(className);
     this.ctx.setCurrentFunction(method.name);
@@ -831,7 +790,7 @@ export class ClassGenerator {
 
       this.defineParameterWithType(paramName, allocaReg, llvmType, tsType);
       this.emit(`${allocaReg} = alloca ${llvmType}`);
-      this.emit(`store ${llvmType} %arg${i}, ${llvmType}* ${allocaReg}`);
+      this.ctx.emitStore(llvmType, `%arg${i}`, allocaReg);
     }
 
     // Generate body
@@ -979,9 +938,10 @@ export class ClassGenerator {
     const fields = this.classFields.get(className) || [];
     const returnType = `%${className}_struct*`;
 
-    const instance = this.nextTemp();
-    this.emit(
-      `${instance} = call ${returnType} @${this.ctx.mangleUserName(className)}_constructor(${argValues})`,
+    const instance = this.ctx.emitCall(
+      returnType,
+      `@${this.ctx.mangleUserName(className)}_constructor`,
+      argValues,
     );
 
     return instance;
@@ -1063,9 +1023,8 @@ export class ClassGenerator {
     let actualInstancePtr = instancePtr;
     const instancePtrType = this.ctx.getVariableType(instancePtr);
     if (instancePtrType && instancePtrType !== thisType) {
-      const castPtr = this.nextTemp();
-      this.emit(`${castPtr} = bitcast ${instancePtrType} ${instancePtr} to ${thisType}`);
-      this.ctx.setVariableType(castPtr, thisType);
+      // emitBitcast auto-calls setVariableType with toType
+      const castPtr = this.ctx.emitBitcast(instancePtr, instancePtrType, thisType);
       actualInstancePtr = castPtr;
     }
 
@@ -1074,16 +1033,18 @@ export class ClassGenerator {
 
     if (returnLLVMType === "void") {
       // Void methods don't return a value
-      this.emit(
-        `call void @${this.ctx.mangleUserName(methodOwnerClass)}_${methodName}(${thisType} ${actualInstancePtr}${argList})`,
+      this.ctx.emitCallVoid(
+        `@${this.ctx.mangleUserName(methodOwnerClass)}_${methodName}`,
+        `${thisType} ${actualInstancePtr}${argList}`,
       );
       return "0"; // Return dummy value for void calls
     } else {
-      const result = this.nextTemp();
-      this.emit(
-        `${result} = call ${returnLLVMType} @${this.ctx.mangleUserName(methodOwnerClass)}_${methodName}(${thisType} ${actualInstancePtr}${argList})`,
+      // emitCall auto-calls nextTemp() and setVariableType
+      const result = this.ctx.emitCall(
+        returnLLVMType,
+        `@${this.ctx.mangleUserName(methodOwnerClass)}_${methodName}`,
+        `${thisType} ${actualInstancePtr}${argList}`,
       );
-      this.ctx.setVariableType(result, returnLLVMType);
       return result;
     }
   }

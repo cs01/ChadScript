@@ -8,6 +8,12 @@ interface ArraySpliceContext {
   nextTemp(): string;
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
+  emitStore(type: string, value: string, ptr: string): void;
+  emitLoad(type: string, ptr: string): string;
+  emitCall(retType: string, func: string, args: string): string;
+  emitCallVoid(func: string, args: string): void;
+  emitBitcast(value: string, fromType: string, toType: string): string;
+  emitIcmp(pred: string, type: string, lhs: string, rhs: string): string;
   getVariableType(name: string): string | undefined;
   setVariableType(name: string, type: string): void;
   generateExpression(expr: Expression, params: string[]): string;
@@ -56,22 +62,20 @@ function generateNumericArraySplice(
 ): string {
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
-  const length = gen.nextTemp();
-  gen.emit(`${length} = load i32, i32* ${lenPtr}`);
+  const length = gen.emitLoad("i32", lenPtr);
 
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
+  // !tbaa metadata on load -- keep as raw emit
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
 
-  const startNeg = gen.nextTemp();
-  gen.emit(`${startNeg} = icmp slt i32 ${startRaw}, 0`);
+  const startNeg = gen.emitIcmp("slt", "i32", startRaw, "0");
   const startFromEnd = gen.nextTemp();
   gen.emit(`${startFromEnd} = add i32 ${length}, ${startRaw}`);
   const startClamped = gen.nextTemp();
   gen.emit(`${startClamped} = select i1 ${startNeg}, i32 ${startFromEnd}, i32 ${startRaw}`);
-  const startTooLow = gen.nextTemp();
-  gen.emit(`${startTooLow} = icmp slt i32 ${startClamped}, 0`);
+  const startTooLow = gen.emitIcmp("slt", "i32", startClamped, "0");
   const start = gen.nextTemp();
   gen.emit(`${start} = select i1 ${startTooLow}, i32 0, i32 ${startClamped}`);
 
@@ -83,8 +87,7 @@ function generateNumericArraySplice(
     gen.emit(`${dcRaw} = fptosi double ${dcDouble} to i32`);
     const remaining = gen.nextTemp();
     gen.emit(`${remaining} = sub i32 ${length}, ${start}`);
-    const dcTooMany = gen.nextTemp();
-    gen.emit(`${dcTooMany} = icmp sgt i32 ${dcRaw}, ${remaining}`);
+    const dcTooMany = gen.emitIcmp("sgt", "i32", dcRaw, remaining);
     deleteCount = gen.nextTemp();
     gen.emit(`${deleteCount} = select i1 ${dcTooMany}, i32 ${remaining}, i32 ${dcRaw}`);
   } else {
@@ -92,24 +95,19 @@ function generateNumericArraySplice(
     gen.emit(`${deleteCount} = sub i32 ${length}, ${start}`);
   }
 
-  const resultArray = gen.nextTemp();
-  gen.emit(`${resultArray} = call i8* @GC_malloc(i64 24)`);
-  const resultArrayTyped = gen.nextTemp();
-  gen.emit(`${resultArrayTyped} = bitcast i8* ${resultArray} to %Array*`);
+  const resultArray = gen.emitCall("i8*", "@GC_malloc", "i64 24");
+  const resultArrayTyped = gen.emitBitcast(resultArray, "i8*", "%Array*");
 
   const dcI64 = gen.nextTemp();
   gen.emit(`${dcI64} = zext i32 ${deleteCount} to i64`);
   const resultDataSize = gen.nextTemp();
   gen.emit(`${resultDataSize} = mul i64 ${dcI64}, 8`);
-  const resultDataMem = gen.nextTemp();
-  gen.emit(`${resultDataMem} = call i8* @GC_malloc_atomic(i64 ${resultDataSize})`);
-  const resultDataPtr = gen.nextTemp();
-  gen.emit(`${resultDataPtr} = bitcast i8* ${resultDataMem} to double*`);
+  const resultDataMem = gen.emitCall("i8*", "@GC_malloc_atomic", `i64 ${resultDataSize}`);
+  const resultDataPtr = gen.emitBitcast(resultDataMem, "i8*", "double*");
 
   const srcOffset = gen.nextTemp();
   gen.emit(`${srcOffset} = getelementptr inbounds double, double* ${dataPtr}, i32 ${start}`);
-  const srcI8 = gen.nextTemp();
-  gen.emit(`${srcI8} = bitcast double* ${srcOffset} to i8*`);
+  const srcI8 = gen.emitBitcast(srcOffset, "double*", "i8*");
   gen.emit(
     `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${resultDataMem}, i8* ${srcI8}, i64 ${resultDataSize}, i1 false)`,
   );
@@ -118,17 +116,17 @@ function generateNumericArraySplice(
   gen.emit(
     `${resultDataField} = getelementptr inbounds %Array, %Array* ${resultArrayTyped}, i32 0, i32 0`,
   );
-  gen.emit(`store double* ${resultDataPtr}, double** ${resultDataField}`);
+  gen.emitStore("double*", resultDataPtr, resultDataField);
   const resultLenField = gen.nextTemp();
   gen.emit(
     `${resultLenField} = getelementptr inbounds %Array, %Array* ${resultArrayTyped}, i32 0, i32 1`,
   );
-  gen.emit(`store i32 ${deleteCount}, i32* ${resultLenField}`);
+  gen.emitStore("i32", deleteCount, resultLenField);
   const resultCapField = gen.nextTemp();
   gen.emit(
     `${resultCapField} = getelementptr inbounds %Array, %Array* ${resultArrayTyped}, i32 0, i32 2`,
   );
-  gen.emit(`store i32 ${deleteCount}, i32* ${resultCapField}`);
+  gen.emitStore("i32", deleteCount, resultCapField);
 
   const afterStart = gen.nextTemp();
   gen.emit(`${afterStart} = add i32 ${start}, ${deleteCount}`);
@@ -137,12 +135,10 @@ function generateNumericArraySplice(
 
   const destOffset = gen.nextTemp();
   gen.emit(`${destOffset} = getelementptr inbounds double, double* ${dataPtr}, i32 ${start}`);
-  const destI8 = gen.nextTemp();
-  gen.emit(`${destI8} = bitcast double* ${destOffset} to i8*`);
+  const destI8 = gen.emitBitcast(destOffset, "double*", "i8*");
   const moveSrc = gen.nextTemp();
   gen.emit(`${moveSrc} = getelementptr inbounds double, double* ${dataPtr}, i32 ${afterStart}`);
-  const moveSrcI8 = gen.nextTemp();
-  gen.emit(`${moveSrcI8} = bitcast double* ${moveSrc} to i8*`);
+  const moveSrcI8 = gen.emitBitcast(moveSrc, "double*", "i8*");
   const moveI64 = gen.nextTemp();
   gen.emit(`${moveI64} = zext i32 ${elemsAfter} to i64`);
   const moveBytes = gen.nextTemp();
@@ -153,7 +149,7 @@ function generateNumericArraySplice(
 
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = sub i32 ${length}, ${deleteCount}`);
-  gen.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
+  gen.emitStore("i32", newLen, lenPtr);
 
   gen.setVariableType(resultArrayTyped, "%Array*");
   return resultArrayTyped;
@@ -170,24 +166,22 @@ function generateStringArraySplice(
   gen.emit(
     `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
   );
-  const length = gen.nextTemp();
-  gen.emit(`${length} = load i32, i32* ${lenPtr}`);
+  const length = gen.emitLoad("i32", lenPtr);
 
   const dataPtrField = gen.nextTemp();
   gen.emit(
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
+  // !tbaa metadata on load -- keep as raw emit
   const dataPtr = gen.nextTemp();
   gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
 
-  const startNeg = gen.nextTemp();
-  gen.emit(`${startNeg} = icmp slt i32 ${startRaw}, 0`);
+  const startNeg = gen.emitIcmp("slt", "i32", startRaw, "0");
   const startFromEnd = gen.nextTemp();
   gen.emit(`${startFromEnd} = add i32 ${length}, ${startRaw}`);
   const startClamped = gen.nextTemp();
   gen.emit(`${startClamped} = select i1 ${startNeg}, i32 ${startFromEnd}, i32 ${startRaw}`);
-  const startTooLow = gen.nextTemp();
-  gen.emit(`${startTooLow} = icmp slt i32 ${startClamped}, 0`);
+  const startTooLow = gen.emitIcmp("slt", "i32", startClamped, "0");
   const start = gen.nextTemp();
   gen.emit(`${start} = select i1 ${startTooLow}, i32 0, i32 ${startClamped}`);
 
@@ -199,8 +193,7 @@ function generateStringArraySplice(
     gen.emit(`${dcRaw} = fptosi double ${dcDouble} to i32`);
     const remaining = gen.nextTemp();
     gen.emit(`${remaining} = sub i32 ${length}, ${start}`);
-    const dcTooMany = gen.nextTemp();
-    gen.emit(`${dcTooMany} = icmp sgt i32 ${dcRaw}, ${remaining}`);
+    const dcTooMany = gen.emitIcmp("sgt", "i32", dcRaw, remaining);
     deleteCount = gen.nextTemp();
     gen.emit(`${deleteCount} = select i1 ${dcTooMany}, i32 ${remaining}, i32 ${dcRaw}`);
   } else {
@@ -208,24 +201,19 @@ function generateStringArraySplice(
     gen.emit(`${deleteCount} = sub i32 ${length}, ${start}`);
   }
 
-  const resultArray = gen.nextTemp();
-  gen.emit(`${resultArray} = call i8* @GC_malloc(i64 24)`);
-  const resultArrayTyped = gen.nextTemp();
-  gen.emit(`${resultArrayTyped} = bitcast i8* ${resultArray} to %StringArray*`);
+  const resultArray = gen.emitCall("i8*", "@GC_malloc", "i64 24");
+  const resultArrayTyped = gen.emitBitcast(resultArray, "i8*", "%StringArray*");
 
   const dcI64 = gen.nextTemp();
   gen.emit(`${dcI64} = zext i32 ${deleteCount} to i64`);
   const resultDataSize = gen.nextTemp();
   gen.emit(`${resultDataSize} = mul i64 ${dcI64}, 8`);
-  const resultDataMem = gen.nextTemp();
-  gen.emit(`${resultDataMem} = call i8* @GC_malloc(i64 ${resultDataSize})`);
-  const resultDataPtr = gen.nextTemp();
-  gen.emit(`${resultDataPtr} = bitcast i8* ${resultDataMem} to i8**`);
+  const resultDataMem = gen.emitCall("i8*", "@GC_malloc", `i64 ${resultDataSize}`);
+  const resultDataPtr = gen.emitBitcast(resultDataMem, "i8*", "i8**");
 
   const srcOffset = gen.nextTemp();
   gen.emit(`${srcOffset} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${start}`);
-  const srcI8 = gen.nextTemp();
-  gen.emit(`${srcI8} = bitcast i8** ${srcOffset} to i8*`);
+  const srcI8 = gen.emitBitcast(srcOffset, "i8**", "i8*");
   gen.emit(
     `call void @llvm.memcpy.p0i8.p0i8.i64(i8* ${resultDataMem}, i8* ${srcI8}, i64 ${resultDataSize}, i1 false)`,
   );
@@ -234,17 +222,17 @@ function generateStringArraySplice(
   gen.emit(
     `${resultDataField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayTyped}, i32 0, i32 0`,
   );
-  gen.emit(`store i8** ${resultDataPtr}, i8*** ${resultDataField}`);
+  gen.emitStore("i8**", resultDataPtr, resultDataField);
   const resultLenField = gen.nextTemp();
   gen.emit(
     `${resultLenField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayTyped}, i32 0, i32 1`,
   );
-  gen.emit(`store i32 ${deleteCount}, i32* ${resultLenField}`);
+  gen.emitStore("i32", deleteCount, resultLenField);
   const resultCapField = gen.nextTemp();
   gen.emit(
     `${resultCapField} = getelementptr inbounds %StringArray, %StringArray* ${resultArrayTyped}, i32 0, i32 2`,
   );
-  gen.emit(`store i32 ${deleteCount}, i32* ${resultCapField}`);
+  gen.emitStore("i32", deleteCount, resultCapField);
 
   const afterStart = gen.nextTemp();
   gen.emit(`${afterStart} = add i32 ${start}, ${deleteCount}`);
@@ -253,12 +241,10 @@ function generateStringArraySplice(
 
   const destOffset = gen.nextTemp();
   gen.emit(`${destOffset} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${start}`);
-  const destI8 = gen.nextTemp();
-  gen.emit(`${destI8} = bitcast i8** ${destOffset} to i8*`);
+  const destI8 = gen.emitBitcast(destOffset, "i8**", "i8*");
   const moveSrc = gen.nextTemp();
   gen.emit(`${moveSrc} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${afterStart}`);
-  const moveSrcI8 = gen.nextTemp();
-  gen.emit(`${moveSrcI8} = bitcast i8** ${moveSrc} to i8*`);
+  const moveSrcI8 = gen.emitBitcast(moveSrc, "i8**", "i8*");
   const moveI64 = gen.nextTemp();
   gen.emit(`${moveI64} = zext i32 ${elemsAfter} to i64`);
   const moveBytes = gen.nextTemp();
@@ -269,7 +255,7 @@ function generateStringArraySplice(
 
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = sub i32 ${length}, ${deleteCount}`);
-  gen.emit(`store i32 ${newLen}, i32* ${lenPtr}`);
+  gen.emitStore("i32", newLen, lenPtr);
 
   gen.setVariableType(resultArrayTyped, "%StringArray*");
   return resultArrayTyped;

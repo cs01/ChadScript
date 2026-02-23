@@ -126,6 +126,16 @@ export interface MemberAccessGeneratorContext {
   getCurrentLabel(): string;
   setCurrentLabel(label: string): void;
   emit(instruction: string): void;
+  emitStore(type: string, value: string, ptr: string): void;
+  emitLoad(type: string, ptr: string): string;
+  emitCall(retType: string, func: string, args: string): string;
+  emitCallVoid(func: string, args: string): void;
+  emitBitcast(value: string, fromType: string, toType: string): string;
+  emitIcmp(pred: string, type: string, lhs: string, rhs: string): string;
+  emitBr(label: string): void;
+  emitBrCond(cond: string, thenLabel: string, elseLabel: string): void;
+  emitLabel(name: string): void;
+  emitGep(baseType: string, ptr: string, indices: string): string;
   readonly symbolTable: SymbolTable;
   getAst(): AST | undefined;
   getThisPointer(): string | null;
@@ -507,16 +517,15 @@ export class MemberAccessGenerator {
     const isValidLlvmType =
       !objType.startsWith("%{") && !objType.includes("|") && !objType.includes(":");
     const checkType = isValidLlvmType ? objType : "i8*";
-    const isNull = this.ctx.nextTemp();
-    this.ctx.emit(`${isNull} = icmp eq ${checkType} ${objValue}, null`);
+    const isNull = this.ctx.emitIcmp("eq", checkType, objValue, "null");
 
     const accessLabel = this.ctx.nextLabel("opt_access");
     const nullLabel = this.ctx.nextLabel("opt_null");
     const endLabel = this.ctx.nextLabel("opt_end");
 
-    this.ctx.emit(`br i1 ${isNull}, label %${nullLabel}, label %${accessLabel}`);
+    this.ctx.emitBrCond(isNull, nullLabel, accessLabel);
 
-    this.ctx.emit(`${accessLabel}:`);
+    this.ctx.emitLabel(accessLabel);
     this.ctx.setCurrentLabel(accessLabel);
     const nonOptExpr: MemberAccessNode = {
       type: "member_access",
@@ -527,9 +536,9 @@ export class MemberAccessGenerator {
     const accessResult = this.generate(nonOptExpr, params);
     const accessType = this.ctx.getVariableType(accessResult) || "double";
     const accessEndLabel = this.ctx.getCurrentLabel();
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${nullLabel}:`);
+    this.ctx.emitLabel(nullLabel);
     this.ctx.setCurrentLabel(nullLabel);
     let nullValue: string;
     if (accessType === "double") {
@@ -541,9 +550,9 @@ export class MemberAccessGenerator {
     } else {
       nullValue = "null";
     }
-    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emitBr(endLabel);
 
-    this.ctx.emit(`${endLabel}:`);
+    this.ctx.emitLabel(endLabel);
     this.ctx.setCurrentLabel(endLabel);
     const result = this.ctx.nextTemp();
     this.ctx.emit(
@@ -1613,8 +1622,7 @@ export class MemberAccessGenerator {
     const data = this.ctx.nextTemp();
     this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}, !tbaa !5`);
 
-    const dataAsPtrs = this.ctx.nextTemp();
-    this.ctx.emit(`${dataAsPtrs} = bitcast i8* ${data} to i8**`);
+    const dataAsPtrs = this.ctx.emitBitcast(data, "i8*", "i8**");
 
     const elemPtrPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elemPtrPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
@@ -1622,8 +1630,7 @@ export class MemberAccessGenerator {
     const elemPtr = this.ctx.nextTemp();
     this.ctx.emit(`${elemPtr} = load i8*, i8** ${elemPtrPtr}, !tbaa !5`);
 
-    const elemTyped = this.ctx.nextTemp();
-    this.ctx.emit(`${elemTyped} = bitcast i8* ${elemPtr} to ${structType}*`);
+    const elemTyped = this.ctx.emitBitcast(elemPtr, "i8*", `${structType}*`);
 
     const propType = elementInfo.types[propIndex];
     const propTsType = elementInfo.tsTypes[propIndex];

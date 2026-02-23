@@ -329,77 +329,65 @@ export function handleStringArrayIndexOf(
   const notfoundLabel = ctx.nextLabel("indexof_notfound");
   const endLabel = ctx.nextLabel("indexof_end");
 
-  const arrIsNull = ctx.nextTemp();
-  ctx.emit(`${arrIsNull} = icmp eq %StringArray* ${arrayPtr}, null`);
-  ctx.emit(`br i1 ${arrIsNull}, label %${notfoundLabel}, label %${checkLabel}_arrvalid`);
+  const arrIsNull = ctx.emitIcmp("eq", "%StringArray*", arrayPtr, "null");
+  ctx.emitBrCond(arrIsNull, notfoundLabel, `${checkLabel}_arrvalid`);
 
-  ctx.emit(`${checkLabel}_arrvalid:`);
+  ctx.emitLabel(`${checkLabel}_arrvalid`);
   const lenPtr = ctx.nextTemp();
   ctx.emit(
     `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
   );
-  const length = ctx.nextTemp();
-  ctx.emit(`${length} = load i32, i32* ${lenPtr}`);
+  const length = ctx.emitLoad("i32", lenPtr);
 
   const dataPtrField = ctx.nextTemp();
   ctx.emit(
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
-  const dataPtr = ctx.nextTemp();
-  ctx.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
+  const dataPtr = ctx.emitLoad("i8**", dataPtrField);
 
-  const dataPtrIsNull = ctx.nextTemp();
-  ctx.emit(`${dataPtrIsNull} = icmp eq i8** ${dataPtr}, null`);
-  ctx.emit(`br i1 ${dataPtrIsNull}, label %${notfoundLabel}, label %${checkLabel}_start`);
+  const dataPtrIsNull = ctx.emitIcmp("eq", "i8**", dataPtr, "null");
+  ctx.emitBrCond(dataPtrIsNull, notfoundLabel, `${checkLabel}_start`);
 
-  ctx.emit(`${checkLabel}_start:`);
+  ctx.emitLabel(`${checkLabel}_start`);
   const counterPtr = ctx.nextTemp();
   ctx.emit(`${counterPtr} = alloca i32`);
-  ctx.emit(`store i32 0, i32* ${counterPtr}`);
+  ctx.emitStore("i32", "0", counterPtr);
 
-  ctx.emit(`br label %${checkLabel}`);
+  ctx.emitBr(checkLabel);
 
-  ctx.emit(`${checkLabel}:`);
-  const counter = ctx.nextTemp();
-  ctx.emit(`${counter} = load i32, i32* ${counterPtr}`);
-  const cond = ctx.nextTemp();
-  ctx.emit(`${cond} = icmp slt i32 ${counter}, ${length}`);
-  ctx.emit(`br i1 ${cond}, label %${bodyLabel}, label %${notfoundLabel}`);
+  ctx.emitLabel(checkLabel);
+  const counter = ctx.emitLoad("i32", counterPtr);
+  const cond = ctx.emitIcmp("slt", "i32", counter, length);
+  ctx.emitBrCond(cond, bodyLabel, notfoundLabel);
 
-  ctx.emit(`${bodyLabel}:`);
+  ctx.emitLabel(bodyLabel);
   const counter64 = ctx.nextTemp();
   ctx.emit(`${counter64} = sext i32 ${counter} to i64`);
-  const elemPtr = ctx.nextTemp();
-  ctx.emit(`${elemPtr} = getelementptr i8*, i8** ${dataPtr}, i64 ${counter64}`);
-  const elem = ctx.nextTemp();
-  ctx.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+  const elemPtr = ctx.emitGep("i8*", dataPtr, `i64 ${counter64}`);
+  const elem = ctx.emitLoad("i8*", elemPtr);
 
-  const elemIsNull = ctx.nextTemp();
-  ctx.emit(`${elemIsNull} = icmp eq i8* ${elem}, null`);
-  ctx.emit(`br i1 ${elemIsNull}, label %${checkLabel}_next, label %${checkLabel}_cmp`);
+  const elemIsNull = ctx.emitIcmp("eq", "i8*", elem, "null");
+  ctx.emitBrCond(elemIsNull, `${checkLabel}_next`, `${checkLabel}_cmp`);
 
-  ctx.emit(`${checkLabel}_cmp:`);
-  const cmpResult = ctx.nextTemp();
-  ctx.emit(`${cmpResult} = call i32 @strcmp(i8* ${elem}, i8* ${searchValue})`);
-  const isMatch = ctx.nextTemp();
-  ctx.emit(`${isMatch} = icmp eq i32 ${cmpResult}, 0`);
-  ctx.emit(`br i1 ${isMatch}, label %${foundLabel}, label %${checkLabel}_next`);
+  ctx.emitLabel(`${checkLabel}_cmp`);
+  const cmpResult = ctx.emitCall("i32", "@strcmp", `i8* ${elem}, i8* ${searchValue}`);
+  const isMatch = ctx.emitIcmp("eq", "i32", cmpResult, "0");
+  ctx.emitBrCond(isMatch, foundLabel, `${checkLabel}_next`);
 
-  ctx.emit(`${checkLabel}_next:`);
+  ctx.emitLabel(`${checkLabel}_next`);
   const nextCounter = ctx.nextTemp();
   ctx.emit(`${nextCounter} = add i32 ${counter}, 1`);
-  ctx.emit(`store i32 ${nextCounter}, i32* ${counterPtr}`);
-  ctx.emit(`br label %${checkLabel}`);
+  ctx.emitStore("i32", nextCounter, counterPtr);
+  ctx.emitBr(checkLabel);
 
-  ctx.emit(`${foundLabel}:`);
-  const foundIndex = ctx.nextTemp();
-  ctx.emit(`${foundIndex} = load i32, i32* ${counterPtr}`);
-  ctx.emit(`br label %${endLabel}`);
+  ctx.emitLabel(foundLabel);
+  const foundIndex = ctx.emitLoad("i32", counterPtr);
+  ctx.emitBr(endLabel);
 
-  ctx.emit(`${notfoundLabel}:`);
-  ctx.emit(`br label %${endLabel}`);
+  ctx.emitLabel(notfoundLabel);
+  ctx.emitBr(endLabel);
 
-  ctx.emit(`${endLabel}:`);
+  ctx.emitLabel(endLabel);
   const resultI32 = ctx.nextTemp();
   ctx.emit(`${resultI32} = phi i32 [ ${foundIndex}, %${foundLabel} ], [ -1, %${notfoundLabel} ]`);
 
@@ -626,8 +614,7 @@ export function handleNumberIsInteger(
 ): string {
   const value = ctx.generateExpression(expr.args[0], params);
   const dblValue = ctx.ensureDouble(value);
-  const truncated = ctx.nextTemp();
-  ctx.emit(`${truncated} = call double @llvm.trunc.f64(double ${dblValue})`);
+  const truncated = ctx.emitCall("double", "@llvm.trunc.f64", `double ${dblValue}`);
   const isInt = ctx.nextTemp();
   ctx.emit(`${isInt} = fcmp oeq double ${dblValue}, ${truncated}`);
   const result = ctx.nextTemp();
