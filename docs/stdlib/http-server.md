@@ -172,6 +172,39 @@ function handleRequest(req: HttpRequest): HttpResponse {
 
 Multiple headers are separated by `\n`. The server normalizes them to `\r\n` in the HTTP response.
 
+## Multipart Form Data
+
+Parse `multipart/form-data` request bodies (file uploads, form submissions) using `ChadScript.parseMultipart()`:
+
+```typescript
+interface MultipartPart {
+  name: string;        // field name
+  filename: string;    // original filename (empty string if not a file upload)
+  contentType: string; // part Content-Type
+  data: string;        // part body
+  dataLen: number;     // byte length of data
+}
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  if (req.method == "POST" && req.path == "/upload") {
+    const parts: MultipartPart[] = ChadScript.parseMultipart(req);
+
+    for (let i = 0; i < parts.length; i++) {
+      console.log("field: " + parts[i].name);
+      if (parts[i].filename != "") {
+        console.log("  file: " + parts[i].filename);
+        console.log("  size: " + parts[i].dataLen.toString());
+      }
+    }
+
+    return { status: 200, body: "Uploaded", headers: "" };
+  }
+  return { status: 404, body: "Not Found", headers: "" };
+}
+```
+
+The parser handles RFC 2046 multipart boundaries, Content-Disposition headers, and per-part Content-Type headers. It uses a C bridge (`multipart-bridge.c`) for the boundary scanning.
+
 ## Request Headers Example
 
 Access incoming request headers (e.g. for authentication):

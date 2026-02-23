@@ -19,6 +19,7 @@ Every TypeScript type maps to exactly one concrete LLVM representation at compil
 | `number[]` | `%Array*` | `{ double*, i32, i32 }` — data, length, capacity |
 | `string[]` | `%StringArray*` | `{ i8**, i32, i32 }` — data, length, capacity |
 | `SomeClass` | `%SomeClass_struct*` | Heap-allocated struct via `GC_malloc` |
+| `Uint8Array` | `%Uint8Array*` | `{ i8*, i32, i32 }` — data, length, capacity |
 | `Map<string, V>` | `%StringMap*` | `{ i8**, i8**, i32, i32 }` — parallel arrays |
 
 ## API Mappings

@@ -97,6 +97,7 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 | `%Array = type { double*, i32, i32 }`    | `number[]` (data ptr, length, capacity) |
 | `%StringArray = type { i8**, i32, i32 }` | `string[]`                              |
 | `%ObjectArray = type { i8*, i32, i32 }`  | `object[]`                              |
+| `%Uint8Array = type { i8*, i32, i32 }`   | `Uint8Array` (data ptr, length, capacity) |
 | `i8*`                                    | `string` (null-terminated C string)     |
 | `double`                                 | `number`                                |
 | `i1`                                     | `boolean`                               |
