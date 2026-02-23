@@ -408,8 +408,9 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const shouldStatic = crossCompiling && isMuslTarget(targetTriple) && !targetIsDarwin;
   const staticFlag = shouldStatic ? " -static" : "";
   const crossTargetFlag = crossCompiling ? " --target=" + targetTriple : "";
-  // Cross-compiling requires lld — the host linker can't produce foreign binaries
-  const crossLinker = crossCompiling ? " -fuse-ld=lld" : "";
+  // Cross-compiling requires lld — the host linker can't produce foreign binaries.
+  // Use full path because Homebrew clang can't find ld.lld by short name.
+  const crossLinker = crossCompiling ? " -fuse-ld=" + findLLVMTool("ld.lld") : "";
 
   const linkCmd =
     clangTool +

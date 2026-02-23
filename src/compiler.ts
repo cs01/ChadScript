@@ -412,8 +412,9 @@ export function compile(
   const staticFlag = shouldStatic ? " -static" : "";
   const crossTarget = crossCompiling ? ` --target=${target.triple}` : "";
   // Cross-compiling requires lld (LLVM's linker) — the host linker (e.g. macOS ld)
-  // can't produce binaries for a different platform
-  const crossLinker = crossCompiling ? " -fuse-ld=lld" : "";
+  // can't produce binaries for a different platform. Use the full path because
+  // Homebrew's clang can't find ld.lld by short name on macOS CI runners.
+  const crossLinker = crossCompiling ? ` -fuse-ld=${findLLVMTool("ld.lld")}` : "";
   const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
