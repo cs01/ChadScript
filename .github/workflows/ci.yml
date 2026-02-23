@@ -306,7 +306,11 @@ jobs:
       - name: Smoke test - JSON bridge (libyyjson)
         run: |
           cat > /tmp/test-json.ts << 'EOF'
-          const obj = JSON.parse('{"name":"chad","version":1}');
+          interface JsonObj {
+            name: string;
+            version: number;
+          }
+          const obj = JSON.parse<JsonObj>('{"name":"chad","version":1}');
           const back = JSON.stringify(obj);
           if (back.includes("chad")) {
             console.log("TEST_PASSED");
