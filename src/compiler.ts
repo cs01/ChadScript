@@ -313,6 +313,8 @@ export function compile(
   const osBridgeObj = `${LWS_BRIDGE_PATH}/os-bridge.o`;
   // Always link dotenv-bridge.o — auto-loads .env at startup
   const dotenvBridgeObj = `${LWS_BRIDGE_PATH}/dotenv-bridge.o`;
+  // Always link watch-bridge.o — file watcher for `chad watch`
+  const watchBridgeObj = `${LWS_BRIDGE_PATH}/watch-bridge.o`;
   // Async spawn bridge linked only when child_process.spawn() is used (requires libuv)
   const cpSpawnObj = generator.getUsesSpawn() ? `${LWS_BRIDGE_PATH}/child-process-spawn.o` : "";
   let extraObjs = "";
@@ -364,7 +366,7 @@ export function compile(
   const debugFlag = debugInfo ? " -g" : "";
   const staticFlag = staticLink && !targetIsMac ? " -static" : "";
   const crossTarget = crossCompiling ? ` --target=${target.triple}` : "";
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${cpSpawnObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${sanitizeFlags} ${linkLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });

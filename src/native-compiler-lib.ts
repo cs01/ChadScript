@@ -244,6 +244,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const osBridgeObj = LWS_BRIDGE_PATH + "/os-bridge.o";
   // Always link dotenv-bridge.o — auto-loads .env at startup
   const dotenvBridgeObj = LWS_BRIDGE_PATH + "/dotenv-bridge.o";
+  // Always link watch-bridge.o — file watcher for `chad watch`
+  const watchBridgeObj = LWS_BRIDGE_PATH + "/watch-bridge.o";
   // Async spawn bridge linked only when child_process.spawn() is used (requires libuv)
   const cpSpawnObj = generator.getUsesSpawn() ? LWS_BRIDGE_PATH + "/child-process-spawn.o" : "";
   if (isMac) {
@@ -272,6 +274,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     osBridgeObj +
     " " +
     dotenvBridgeObj +
+    " " +
+    watchBridgeObj +
     " " +
     cpSpawnObj +
     " " +

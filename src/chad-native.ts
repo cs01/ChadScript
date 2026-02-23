@@ -21,11 +21,15 @@ declare const path: {
 declare const process: {
   exit(code: number): void;
   argv: string[];
+  argv0: string;
 };
 
 declare const child_process: {
   execSync(command: string): number;
 };
+
+// FFI: watch-bridge.c — polls source file and recompiles/re-runs on change
+declare function cs_watch_loop(chad_binary: string, source_file: string, output_binary: string): void;
 
 const VERSION = "0.1.0";
 
@@ -34,6 +38,7 @@ parser.addSubcommand("build", "Compile to a native binary");
 parser.addSubcommand("run", "Compile and run");
 parser.addSubcommand("ir", "Emit LLVM IR only");
 parser.addSubcommand("init", "Generate starter project");
+parser.addSubcommand("watch", "Watch for changes and recompile+run");
 parser.addSubcommand("clean", "Remove the .build directory");
 
 parser.addFlag("version", "", "Show version");
@@ -87,6 +92,40 @@ if (command === "clean") {
     child_process.execSync("rm -rf .build");
     console.log("removed .build");
   }
+  process.exit(0);
+}
+
+if (command === "watch") {
+  const watchInput = parser.getPositional(0);
+  if (watchInput.length === 0) {
+    console.log("chad: error: no input files");
+    console.log("Usage: chad watch <input.ts>");
+    process.exit(1);
+    throw new Error("unreachable");
+  }
+  if (!fs.existsSync(watchInput)) {
+    console.log("chad: error: file not found: " + watchInput);
+    process.exit(1);
+    throw new Error("unreachable");
+  }
+  // Compute output path (same logic as build)
+  let watchBase: string = watchInput;
+  if (watchBase.substr(0, 1) === "/") {
+    watchBase = path.basename(watchBase);
+  }
+  let watchOutput: string = ".build/" + watchBase;
+  if (watchBase.substr(watchBase.length - 3) === ".ts") {
+    watchOutput = ".build/" + watchBase.substr(0, watchBase.length - 3);
+  } else if (watchBase.substr(watchBase.length - 3) === ".js") {
+    watchOutput = ".build/" + watchBase.substr(0, watchBase.length - 3);
+  }
+  const watchOutDir = path.dirname(watchOutput);
+  if (!fs.existsSync(watchOutDir)) {
+    child_process.execSync("mkdir -p " + watchOutDir);
+  }
+  // Resolve the chad binary path for recompilation
+  const chadBin = process.argv0;
+  cs_watch_loop(chadBin, watchInput, watchOutput);
   process.exit(0);
 }
 

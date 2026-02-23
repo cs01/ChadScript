@@ -57,6 +57,17 @@ export class CallExpressionGenerator {
       return "0.0";
     }
 
+    // cs_watch_loop(chad_binary, source_file, output_binary) — file watcher FFI
+    if (expr.name === "cs_watch_loop") {
+      if (expr.args.length >= 3) {
+        const arg0 = this.ctx.generateExpression(expr.args[0], params);
+        const arg1 = this.ctx.generateExpression(expr.args[1], params);
+        const arg2 = this.ctx.generateExpression(expr.args[2], params);
+        this.ctx.emit(`call void @cs_watch_loop(i8* ${arg0}, i8* ${arg1}, i8* ${arg2})`);
+      }
+      return "0.0";
+    }
+
     if (expr.name === "execSync") {
       return this.generateExecSync(expr, params);
     }
