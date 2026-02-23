@@ -303,7 +303,7 @@ export function compile(
     linkLibs = `-Wl,-syslibroot,${sdkPath} -L/usr/local/lib ` + linkLibs;
   }
   const lwsBridgeObj = generator.usesMongoose
-    ? `${LWS_BRIDGE_PATH}/lws-bridge.o ${PICOHTTPPARSER_PATH}/picohttpparser.o`
+    ? `${LWS_BRIDGE_PATH}/lws-bridge.o ${PICOHTTPPARSER_PATH}/picohttpparser.o ${LWS_BRIDGE_PATH}/multipart-bridge.o`
     : "";
   const regexBridgeObj = generator.usesRegex ? `${LWS_BRIDGE_PATH}/regex-bridge.o` : "";
   // Always link child-process-bridge.o (sync ops only) — the native compiler uses

@@ -200,6 +200,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesCrypto: number = 0;
   public usesJson: number = 0;
   public usesMongoose: number = 0;
+  public usesMultipart: number = 0;
   public usesRegex: number = 0;
   public usesTestRunner: number = 0;
   public usesAsyncFs: number = 0;
@@ -895,6 +896,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getExpectedArrayElementType(): "string" | "number" | "boolean" | "pointer" | null {
     return this.expectedArrayElementType;
   }
+  public wantsBinaryReturn: boolean = false;
+  public setWantsBinaryReturn(value: boolean): void {
+    this.wantsBinaryReturn = value;
+  }
+  public getWantsBinaryReturn(): boolean {
+    return this.wantsBinaryReturn;
+  }
   public setCurrentDeclaredMapType(type: string | undefined): void {
     this.currentDeclaredMapType = type;
   }
@@ -974,6 +982,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
   public getUsesMongoose(): boolean {
     return this.usesMongoose !== 0;
+  }
+  public setUsesMultipart(value: boolean): void {
+    this.usesMultipart = value ? 1 : 0;
+  }
+  public getUsesMultipart(): boolean {
+    return this.usesMultipart !== 0;
   }
   public setUsesRegex(value: boolean): void {
     this.usesRegex = value ? 1 : 0;
@@ -1307,6 +1321,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesCrypto = 0;
     this.usesJson = 0;
     this.usesMongoose = 0;
+    this.usesMultipart = 0;
     this.usesRegex = 0;
     this.usesTestRunner = 0;
     this.usesAsyncFs = 0;
@@ -1776,6 +1791,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         ) {
           isObjectArray = true;
         }
+        // Detect Uint8Array from declared type or expression analysis.
+        // Must clear isString since readFileSync resolves to "string" by default,
+        // but the declared type takes precedence.
+        if (!isUint8Array && stmt.declaredType === "Uint8Array") {
+          isUint8Array = true;
+          isString = false;
+        }
+        if (!isUint8Array && stmt.value && this.typeInference.isUint8ArrayExpression(stmt.value)) {
+          isUint8Array = true;
+          isString = false;
+        }
+
         const isJSONParse = this.typeInference.isJSONParseExpression(stmt.value);
 
         let llvmType: string = "";
@@ -2245,8 +2272,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       }
       irParts.push("\n");
 
-      // Detect if the handler's return type interface has a "headers" field
+      // Detect if the handler's return type interface has "headers" and/or "bodyLen" fields
       let hasHeaders = false;
+      let hasBodyLen = false;
       const handlerName = this.httpHandlers[0];
       for (let fi = 0; fi < this.ast.functions.length; fi++) {
         const func = this.ast.functions[fi];
@@ -2257,7 +2285,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             for (let fj = 0; fj < fields.length; fj++) {
               if (fields[fj].name === "headers") {
                 hasHeaders = true;
-                break;
+              }
+              if (fields[fj].name === "bodyLen") {
+                hasBodyLen = true;
               }
             }
           }
@@ -2269,6 +2299,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         mangledHttpHandler,
         mangledWsHandler,
         hasHeaders,
+        hasBodyLen,
       );
       if (eventHandler) {
         irParts.push(eventHandler);
@@ -2343,6 +2374,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     if (this.embedGen.hasEmbeddedFiles()) {
       irParts.push(this.embedGen.generateLookupFunction());
+      irParts.push(this.embedGen.generateLengthLookupFunction());
     }
 
     const needsLibuv =
@@ -2428,6 +2460,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
         finalParts.push(httpServerDecls);
       }
       finalParts.push("\n");
+    }
+
+    if (this.usesMultipart) {
+      finalParts.push("; multipart parser declarations (via multipart-bridge)\n");
+      finalParts.push("declare i8* @cs_parse_multipart_to_array(i8*, i8*, i64)\n\n");
     }
 
     if (needsLibuv) {

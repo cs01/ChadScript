@@ -39,6 +39,20 @@ const nested = ChadScript.getEmbeddedFile("images/logo.txt");
 
 Returns an empty string if the key is not found.
 
+## `ChadScript.getEmbeddedFileAsUint8Array(key)`
+
+Retrieve a previously embedded file as a `Uint8Array`. Useful for working with binary data programmatically (e.g., hashing, transforming, or writing to disk).
+
+```typescript
+ChadScript.embedDir("./assets");
+
+const imageData: Uint8Array = ChadScript.getEmbeddedFileAsUint8Array("logo.png");
+console.log(imageData.length); // exact byte count
+fs.writeFileSync("/tmp/logo.png", imageData); // binary-safe write
+```
+
+Returns a zero-length `Uint8Array` if the key is not found.
+
 ## `ChadScript.serveEmbedded(path)`
 
 Return an `HttpResponse` for an embedded file. Strips the leading `/` from the path, looks up the file in the embedded table, and returns `{ status: 200, body: content, headers: "" }` if found or `{ status: 404, body: "Not Found", headers: "" }` if not.
@@ -114,7 +128,8 @@ At compile time, the compiler reads the file(s) from disk and emits them as LLVM
 | `embedFile(path)` | Compile time | Reads file, returns contents as string |
 | `embedDir(path)` | Compile time | Recursively reads all files in directory |
 | `getEmbeddedFile(key)` | Runtime | Looks up embedded content by filename/path |
-| `serveEmbedded(path)` | Runtime | Returns HttpResponse for embedded file (200 or 404) |
+| `getEmbeddedFileAsUint8Array(key)` | Runtime | Same as above, returns `Uint8Array` (binary-safe) |
+| `serveEmbedded(path)` | Runtime | Returns HttpResponse for embedded file (200 or 404, binary-safe via `bodyLen`) |
 
 ## Notes
 
@@ -122,4 +137,4 @@ At compile time, the compiler reads the file(s) from disk and emits them as LLVM
 - `embedFile()` and `embedDir()` arguments must be string literals — they are evaluated at compile time
 - `embedDir()` embeds all files recursively; keys are **relative paths** from the embedded directory (e.g. `subdir/page.html`), so files with the same name in different subdirectories won't collide
 - `embedFile()` keys by **filename only** (basename), so avoid embedding two files with the same name via separate `embedFile()` calls — use `embedDir()` instead when you have nested structures
-- Binary files are read as UTF-8; this is designed for text content
+- Binary files (images, fonts, wasm, etc.) are fully supported — they are embedded using Latin-1 encoding which preserves all byte values 0x00–0xFF

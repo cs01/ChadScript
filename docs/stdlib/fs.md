@@ -15,12 +15,30 @@ console.log(content);
 
 Returns an empty string if the file doesn't exist.
 
+When the result is assigned to a `Uint8Array` variable, the file is read in binary mode (`"rb"`) and the raw bytes are returned:
+
+```typescript
+const data: Uint8Array = fs.readFileSync("image.png");
+console.log(data.length); // exact byte count, including null bytes
+```
+
 ### `fs.writeFileSync(path, data)`
 
 Write a string to a file, replacing the file if it already exists.
 
 ```typescript
 fs.writeFileSync("output.txt", "hello world");
+```
+
+When the second argument is a `Uint8Array`, the file is written in binary mode using the array's length (not `strlen`), so null bytes are preserved:
+
+```typescript
+const data = new Uint8Array(4);
+data[0] = 0x89;
+data[1] = 0x50;
+data[2] = 0x00; // null byte — preserved in binary write
+data[3] = 0x47;
+fs.writeFileSync("output.bin", data);
 ```
 
 Returns 0 on success, -1 on error.
