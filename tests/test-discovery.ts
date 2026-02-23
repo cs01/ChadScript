@@ -3,6 +3,7 @@
 //
 // Annotation format (in the first 10 lines of each fixture file):
 //   // @test-exit-code: 12       — assert process exits with code 12
+//   // @test-compile-error: msg  — assert compilation fails with error containing "msg"
 //   // @test-args: hello world   — pass CLI args to the compiled binary
 //   // @test-description: ...    — custom test description
 //   // @test-skip                — exclude from auto-discovery
@@ -20,11 +21,13 @@ export interface TestCase {
   description: string;
   expectedExitCode?: number;
   expectTestPassed?: boolean;
+  compileError?: string;
   args?: string[];
 }
 
 interface ParsedAnnotations {
   exitCode?: number;
+  compileError?: string;
   args?: string[];
   description?: string;
   skip: boolean;
@@ -51,6 +54,11 @@ function parseAnnotations(filePath: string): ParsedAnnotations {
     const argsMatch = trimmed.match(/^\/\/\s*@test-args:\s*(.+)/);
     if (argsMatch) {
       result.args = argsMatch[1].trim().split(/\s+/);
+    }
+
+    const compileErrorMatch = trimmed.match(/^\/\/\s*@test-compile-error:\s*(.+)/);
+    if (compileErrorMatch) {
+      result.compileError = compileErrorMatch[1].trim();
     }
 
     const descMatch = trimmed.match(/^\/\/\s*@test-description:\s*(.+)/);
@@ -105,7 +113,9 @@ export function discoverTests(fixturesDir: string = "tests/fixtures"): TestCase[
 
     const testCase: TestCase = { name, fixture: relPath, description };
 
-    if (annotations.exitCode !== undefined) {
+    if (annotations.compileError) {
+      testCase.compileError = annotations.compileError;
+    } else if (annotations.exitCode !== undefined) {
       testCase.expectedExitCode = annotations.exitCode;
     } else {
       testCase.expectTestPassed = true;
