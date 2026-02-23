@@ -823,12 +823,38 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           if (!mRaw) continue;
           const m = mRaw as { name: string; value: number };
           if (m.name === memberName) {
-            return j;
+            return m.value;
           }
         }
       }
     }
     return -1;
+  }
+
+  public getEnumMemberStringValue(enumName: string, memberName: string): string | null {
+    if (!this.ast || !this.ast.enums) {
+      return null;
+    }
+    for (let i = 0; i < this.ast.enums.length; i++) {
+      const eRaw = this.ast.enums[i];
+      if (!eRaw) continue;
+      const e = eRaw as {
+        name: string;
+        members: { name: string; value: number; stringValue?: string }[];
+      };
+      if (e.name === enumName && e.members) {
+        for (let j = 0; j < e.members.length; j++) {
+          const mRaw = e.members[j];
+          if (!mRaw) continue;
+          // Type assertion must match actual struct field order: { name, value, stringValue }
+          const m = mRaw as { name: string; value: number; stringValue?: string };
+          if (m.name === memberName && m.stringValue) {
+            return m.stringValue;
+          }
+        }
+      }
+    }
+    return null;
   }
 
   public getLastInstruction(): string {

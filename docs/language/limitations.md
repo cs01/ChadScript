@@ -49,7 +49,7 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | `Uint8Array` | Supported |
 | Object literals / interfaces (fixed-layout structs) | Supported |
 | `Map<K, V>`, `Set<T>` | Supported |
-| Enums (numeric) | Supported |
+| Enums (numeric and string) | Supported |
 | Type aliases | Supported |
 | Union types (`string \| null`) | Supported (when members share the same memory layout) |
 | `any`, `unknown`, `never` | Not supported |

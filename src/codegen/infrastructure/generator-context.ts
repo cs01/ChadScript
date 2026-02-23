@@ -626,6 +626,7 @@ export interface IGeneratorContext {
   getMethodReturnType(className: string, methodName: string): string | null;
   isEnumType(name: string): boolean;
   getEnumMemberValue(enumName: string, memberName: string): number;
+  getEnumMemberStringValue(enumName: string, memberName: string): string | null;
 
   /**
    * LLVM IR output buffer
@@ -1067,6 +1068,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   getEnumMemberValue(_enumName: string, _memberName: string): number {
     return -1;
+  }
+  getEnumMemberStringValue(_enumName: string, _memberName: string): string | null {
+    return null;
   }
 
   setCurrentFunction(name: string | null): void {

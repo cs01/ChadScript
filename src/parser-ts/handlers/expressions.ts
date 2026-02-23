@@ -122,6 +122,11 @@ export function transformExpression(
     case ts.SyntaxKind.NonNullExpression:
       return transformExpression((node as ts.NonNullExpression).expression, checker);
 
+    case ts.SyntaxKind.VoidExpression:
+      // void <expr> evaluates the operand for side effects, then returns undefined
+      transformExpression((node as ts.VoidExpression).expression, checker);
+      return { type: "undefined", loc: getLoc(node) };
+
     default:
       throw new Error(`Unsupported expression kind: ${ts.SyntaxKind[node.kind]}`);
   }
@@ -359,7 +364,11 @@ function transformCallExpression(
     const propAccess = node.expression;
     const object = transformExpression(propAccess.expression, checker);
     const method = propAccess.name.text;
+    // Propagate ?. from the property access to the method call
+    const isOptional = propAccess.questionDotToken !== undefined;
 
+    // Field order must match MethodCallNode interface — optional goes last
+    // to avoid shifting GEP indices for existing creation sites
     return {
       type: "method_call",
       object,
@@ -368,7 +377,8 @@ function transformCallExpression(
       typeParameter,
       pos: node.getStart(),
       loc: getLoc(node),
-    };
+      optional: isOptional || undefined,
+    } as MethodCallNode;
   } else if (ts.isIdentifier(node.expression)) {
     return {
       type: "call",

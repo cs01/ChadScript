@@ -134,6 +134,9 @@ export interface MethodCallNode {
   typeParameter?: string; // Generic type parameter like <JsonTestResponse>
   pos?: number; // Source position for error reporting
   loc?: SourceLocation;
+  // MUST stay at end — inserting optional fields before existing ones shifts
+  // GEP indices and breaks native parser creation sites that omit this field
+  optional?: boolean; // obj?.method() — null-safe method call
 }
 
 export interface NewNode {
@@ -512,9 +515,11 @@ export interface TypeAliasDeclaration {
 export interface EnumMember {
   name: string;
   value: number;
+  stringValue?: string; // For string enums: the string literal value
 }
 
 export interface EnumDeclaration {
   name: string;
   members: EnumMember[]; // e.g., [{ name: 'Silent', value: 0 }, { name: 'Normal', value: 1 }]
+  isString?: boolean; // true if this is a string enum
 }

@@ -145,6 +145,7 @@ export interface MethodCallGeneratorContext {
   nextTemp(): string;
   nextLabel(prefix: string): string;
   emit(instruction: string): void;
+  getCurrentLabel(): string;
   setCurrentLabel(label: string): void;
   emitStore(type: string, value: string, ptr: string): void;
   emitLoad(type: string, ptr: string): string;
@@ -250,6 +251,67 @@ export interface MethodCallGeneratorContext {
 
 export class MethodCallGenerator {
   constructor(private ctx: MethodCallGeneratorContext) {}
+
+  // Optional method call: obj?.method() — null-check obj, skip call if null
+  private generateOptionalMethodCall(expr: MethodCallNode, params: string[]): string {
+    const objValue = this.ctx.generateExpression(expr.object, params);
+    const objType = this.ctx.getVariableType(objValue) || "i8*";
+
+    // Non-pointer types can't be null, just call normally
+    if (objType === "double" || objType === "i32" || objType === "i64" || objType === "i1") {
+      const nonOptExpr: MethodCallNode = {
+        type: "method_call",
+        object: expr.object,
+        method: expr.method,
+        args: expr.args,
+        loc: expr.loc,
+      };
+      return this.generate(nonOptExpr, params);
+    }
+
+    const checkType = objType.startsWith("%{") ? "i8*" : objType;
+    const isNull = this.ctx.nextTemp();
+    this.ctx.emit(`${isNull} = icmp eq ${checkType} ${objValue}, null`);
+
+    const callLabel = this.ctx.nextLabel("optcall");
+    const nullLabel = this.ctx.nextLabel("optcall_null");
+    const endLabel = this.ctx.nextLabel("optcall_end");
+
+    this.ctx.emit(`br i1 ${isNull}, label %${nullLabel}, label %${callLabel}`);
+
+    this.ctx.emit(`${callLabel}:`);
+    this.ctx.setCurrentLabel(callLabel);
+    // Call with optional stripped so we don't recurse
+    const nonOptExpr: MethodCallNode = {
+      type: "method_call",
+      object: expr.object,
+      method: expr.method,
+      args: expr.args,
+      loc: expr.loc,
+    };
+    const callResult = this.generate(nonOptExpr, params);
+    const resultType = this.ctx.getVariableType(callResult) || "double";
+    const callEndLabel = this.ctx.getCurrentLabel();
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${nullLabel}:`);
+    this.ctx.setCurrentLabel(nullLabel);
+    let nullValue: string;
+    if (resultType === "double") nullValue = "0.0";
+    else if (resultType === "i1") nullValue = "false";
+    else if (resultType === "i32") nullValue = "0";
+    else nullValue = "null";
+    this.ctx.emit(`br label %${endLabel}`);
+
+    this.ctx.emit(`${endLabel}:`);
+    this.ctx.setCurrentLabel(endLabel);
+    const result = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${result} = phi ${resultType} [ ${callResult}, %${callEndLabel} ], [ ${nullValue}, %${nullLabel} ]`,
+    );
+    this.ctx.setVariableType(result, resultType);
+    return result;
+  }
 
   private isVariableWithName(expr: Expression, name: string): boolean {
     if (!expr) {
@@ -393,6 +455,11 @@ export class MethodCallGenerator {
    * Output: result register with method call result
    */
   generate(expr: MethodCallNode, params: string[]): string {
+    // Optional method call: obj?.method() — null-check the object first
+    if (expr.optional) {
+      return this.generateOptionalMethodCall(expr, params);
+    }
+
     const objBase = expr.object as { type: string };
     const method = expr.method;
 

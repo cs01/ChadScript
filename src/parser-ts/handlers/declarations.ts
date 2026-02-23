@@ -398,18 +398,22 @@ export function transformTypeAliasDeclaration(
 export function transformEnumDeclaration(node: ts.EnumDeclaration): EnumDeclaration | null {
   const name = node.name.text;
   const members: EnumMember[] = [];
+  let isString = false;
 
   let currentValue = 0;
   for (const member of node.members) {
     if (ts.isIdentifier(member.name)) {
       const memberName = member.name.text;
       let value: number = currentValue;
+      let stringValue: string | undefined;
 
       if (member.initializer) {
         if (ts.isNumericLiteral(member.initializer)) {
           value = parseInt(member.initializer.text, 10);
           currentValue = value + 1;
         } else if (ts.isStringLiteral(member.initializer)) {
+          stringValue = member.initializer.text;
+          isString = true;
           value = currentValue;
           currentValue = currentValue + 1;
         }
@@ -417,11 +421,11 @@ export function transformEnumDeclaration(node: ts.EnumDeclaration): EnumDeclarat
         currentValue = currentValue + 1;
       }
 
-      members.push({ name: memberName, value });
+      members.push({ name: memberName, value, stringValue });
     }
   }
 
-  return { name, members };
+  return { name, members, isString: isString || undefined };
 }
 
 export function transformImportDeclaration(node: ts.ImportDeclaration): ImportDeclaration | null {
