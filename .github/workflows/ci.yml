@@ -337,10 +337,13 @@ jobs:
         run: |
           cat > /tmp/test-execsync.ts << 'EOF'
           import { execSync } from "child_process";
-          const result = execSync("echo bridge_works");
-          if (result.trim() === "bridge_works") {
-            console.log("TEST_PASSED");
+          function main(): void {
+            const output = execSync("echo bridge_works");
+            if (output.trim() === "bridge_works") {
+              console.log("TEST_PASSED");
+            }
           }
+          main();
           EOF
           OUTPUT=$(chad run /tmp/test-execsync.ts)
           echo "$OUTPUT"
