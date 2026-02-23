@@ -15,11 +15,11 @@ try {
   process.exit(1);
 }
 
-const chadc = path.join(projectRoot, ".build", "chadc");
+const chadc = path.join(projectRoot, ".build", "chad");
 if (!fs.existsSync(chadc)) {
-  console.log("Building native compiler (.build/chadc)...");
+  console.log("Building native compiler (.build/chad)...");
   try {
-    execSync("node dist/chadc-node.js src/chadc-native.ts -o .build/chadc", {
+    execSync("node dist/chad-node.js build src/chad-native.ts -o .build/chad", {
       cwd: projectRoot,
       stdio: "inherit",
     });
@@ -59,7 +59,7 @@ child.on("exit", (code) => {
   const child2 = spawn("node", ["--import", "tsx", "--test", "tests/compiler.test.ts"], {
     stdio: "inherit",
     shell: false,
-    env: { ...process.env, CHADC_COMPILER: "node dist/chadc-node.js" },
+    env: { ...process.env, CHADC_COMPILER: "node dist/chad-node.js" },
   });
   child2.on("exit", (code2) => {
     process.exit(code2);
