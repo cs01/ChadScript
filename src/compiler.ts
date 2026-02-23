@@ -343,9 +343,11 @@ export function compile(
 
   // Platform-specific library search paths
   if (sdk) {
-    // Cross-compiling: use SDK sysroot for system libraries
+    // Cross-compiling: use SDK sysroot for CRT objects and system libraries.
+    // --sysroot tells clang the root for system paths, and -L ensures the
+    // linker finds our flat lib directory (bypassing multiarch path detection).
     if (sdk.sysrootPath) {
-      linkLibs = `--sysroot=${sdk.sysrootPath} ` + linkLibs;
+      linkLibs = `--sysroot=${sdk.sysrootPath} -L${sdk.sysrootPath}/usr/lib ` + linkLibs;
     }
   } else if (targetIsMac && hostIsMac) {
     // Native macOS: use Homebrew paths and Xcode SDK

@@ -75,6 +75,61 @@ for bridge in child-process-bridge.o os-bridge.o regex-bridge.o dotenv-bridge.o 
   fi
 done
 
+# Package sysroot for Linux targets (needed when cross-compiling from macOS).
+# Includes CRT startup objects, system libraries, and GCC support files that
+# the linker needs to produce a working ELF binary.
+if [ "$TARGET_OS" = "linux" ]; then
+  SYSROOT_DIR="$SDK_DIR/sysroot"
+  mkdir -p "$SYSROOT_DIR/usr/lib"
+
+  # Find the system lib directory: multiarch (Debian/Ubuntu), lib64, or /usr/lib
+  MULTIARCH_DIR="/usr/lib/${UNAME_M}-linux-gnu"
+  if [ ! -d "$MULTIARCH_DIR" ]; then
+    MULTIARCH_DIR="/usr/lib64"
+  fi
+  if [ ! -d "$MULTIARCH_DIR" ]; then
+    MULTIARCH_DIR="/usr/lib"
+  fi
+
+  if [ -d "$MULTIARCH_DIR" ]; then
+    echo "  Copying sysroot from $MULTIARCH_DIR..."
+    # CRT startup objects
+    for crt in Scrt1.o crti.o crtn.o; do
+      [ -f "$MULTIARCH_DIR/$crt" ] && cp "$MULTIARCH_DIR/$crt" "$SYSROOT_DIR/usr/lib/"
+    done
+    # System libraries (static + shared stubs)
+    for lib in libc.a libc.so libm.a libm.so libm-*.so libdl.a libdl.so libdl-*.so \
+               librt.a librt.so librt-*.so libpthread.a libpthread.so libpthread-*.so \
+               libc_nonshared.a libmvec.a libmvec.so; do
+      for f in $MULTIARCH_DIR/$lib; do
+        [ -f "$f" ] && cp "$f" "$SYSROOT_DIR/usr/lib/"
+      done
+    done
+    # ld-linux linker (needed by -lc)
+    for f in $MULTIARCH_DIR/ld-linux-*.so*; do
+      [ -f "$f" ] && cp "$f" "$SYSROOT_DIR/usr/lib/"
+    done
+  fi
+
+  # GCC support objects and libraries (crtbeginS.o, crtendS.o, libgcc.a, libgcc_s.so)
+  GCC_DIR=$(find /usr/lib/gcc/${UNAME_M}-linux-gnu -maxdepth 1 -type d 2>/dev/null | sort -V | tail -1)
+  if [ -n "$GCC_DIR" ] && [ -d "$GCC_DIR" ]; then
+    echo "  Copying GCC support from $GCC_DIR..."
+    for obj in crtbeginS.o crtendS.o crtbegin.o crtend.o; do
+      [ -f "$GCC_DIR/$obj" ] && cp "$GCC_DIR/$obj" "$SYSROOT_DIR/usr/lib/"
+    done
+    [ -f "$GCC_DIR/libgcc.a" ] && cp "$GCC_DIR/libgcc.a" "$SYSROOT_DIR/usr/lib/"
+    [ -f "$GCC_DIR/libgcc_eh.a" ] && cp "$GCC_DIR/libgcc_eh.a" "$SYSROOT_DIR/usr/lib/"
+    # libgcc_s might be a linker script or symlink — copy the actual .so
+    for f in $GCC_DIR/libgcc_s.so* /lib/${UNAME_M}-linux-gnu/libgcc_s.so*; do
+      [ -f "$f" ] && cp -L "$f" "$SYSROOT_DIR/usr/lib/"
+    done
+  fi
+
+  echo "  Sysroot contents:"
+  ls "$SYSROOT_DIR/usr/lib/"
+fi
+
 # Write sdk.json metadata
 VERSION="0.1.0"
 if [ -f "$REPO_DIR/package.json" ]; then
@@ -87,7 +142,7 @@ cat > "$SDK_DIR/sdk.json" <<EOF
   "triple": "${TRIPLE}",
   "os": "${TARGET_OS}",
   "arch": "${TARGET_ARCH}",
-  "libc": "system"
+  "libc": "$([ "$TARGET_OS" = "linux" ] && echo "gnu" || echo "system")"
 }
 EOF
 
