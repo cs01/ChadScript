@@ -91,17 +91,35 @@ if [ "$TARGET_OS" = "linux" ]; then
     MULTIARCH_DIR="/usr/lib"
   fi
 
+  # On modern Ubuntu, .a files can be linker scripts with absolute paths
+  # (e.g. libm.a contains: GROUP ( /usr/lib/.../libm-2.39.a /usr/lib/.../libmvec.a )).
+  # This function copies the actual archives and rewrites scripts with local paths.
+  copy_sysroot_lib() {
+    local src="$1"
+    local dst_dir="$2"
+    local name=$(basename "$src")
+    # Real archives start with "!<arch>" — copy directly
+    if head -c7 "$src" 2>/dev/null | grep -q '!<arch>'; then
+      cp "$src" "$dst_dir/"
+      return
+    fi
+    # Linker script — copy all referenced .a files, then rewrite with local paths
+    for ref in $(grep -o '/[^ )"]*\.a' "$src" 2>/dev/null); do
+      [ -f "$ref" ] && cp -n "$ref" "$dst_dir/"
+    done
+    # Strip directory paths, drop AS_NEEDED blocks (shared lib refs not needed for -static)
+    sed -e 's|/[^ )]*\/||g' -e 's|AS_NEEDED ( [^)]* )||g' "$src" > "$dst_dir/$name"
+  }
+
   if [ -d "$MULTIARCH_DIR" ]; then
     echo "  Copying sysroot from $MULTIARCH_DIR..."
     # CRT startup objects — crt1.o is for static linking, Scrt1.o for PIE/shared
     for crt in crt1.o Scrt1.o crti.o crtn.o; do
       [ -f "$MULTIARCH_DIR/$crt" ] && cp "$MULTIARCH_DIR/$crt" "$SYSROOT_DIR/usr/lib/"
     done
-    # Static system libraries only — .so files on Ubuntu are linker scripts with
-    # hardcoded absolute paths that break when copied to a different sysroot.
-    # Cross-compiled binaries use -static so only .a archives are needed.
+    # System libraries — use copy_sysroot_lib to handle linker scripts
     for lib in libc.a libm.a libdl.a librt.a libpthread.a libc_nonshared.a libmvec.a; do
-      [ -f "$MULTIARCH_DIR/$lib" ] && cp "$MULTIARCH_DIR/$lib" "$SYSROOT_DIR/usr/lib/"
+      [ -f "$MULTIARCH_DIR/$lib" ] && copy_sysroot_lib "$MULTIARCH_DIR/$lib" "$SYSROOT_DIR/usr/lib/"
     done
   fi
 
