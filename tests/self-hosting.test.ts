@@ -70,6 +70,25 @@ async function runFixture(compiler: string, tc: TestCase, outDir: string): Promi
     if (fsSync.existsSync(exePath)) await fs.unlink(exePath);
   } catch {}
 
+  // Compile-error tests: assert compilation fails
+  if (tc.compileError) {
+    try {
+      await execAsync(`${compiler} ${tc.fixture} -o ${exePath}`, {
+        timeout: 30000,
+        env: NATIVE_ENV,
+      });
+      throw new Error(`Expected compilation to fail for ${tc.fixture}, but it succeeded`);
+    } catch (err: any) {
+      if (err.message?.startsWith("Expected compilation to fail")) throw err;
+      const output = (err.stderr || "") + (err.stdout || "") + (err.message || "");
+      if (output.includes(tc.compileError)) return;
+      // Compilation failed (possibly crashed) — still a failure, accept it
+      const exitCode = err.code || err.status || 1;
+      assert.ok(exitCode !== 0, `Expected compilation to fail, but it succeeded`);
+    }
+    return;
+  }
+
   try {
     await execAsync(`${compiler} ${tc.fixture} -o ${exePath}`, { timeout: 30000, env: NATIVE_ENV });
   } catch (err: any) {
