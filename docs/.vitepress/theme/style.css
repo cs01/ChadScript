@@ -12,10 +12,8 @@
 }
 
 .copy-markdown-btn {
-  position: fixed;
-  top: 72px;
-  right: 24px;
-  z-index: 20;
+  float: right;
+  margin-top: 8px;
   padding: 6px 12px;
   font-size: 13px;
   font-weight: 500;
