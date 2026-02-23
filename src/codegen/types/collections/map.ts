@@ -1,3 +1,6 @@
+// NOTE: This file uses raw ctx.emit() extensively. Prefer structured IR builders
+// (emitStore, emitLoad, emitCall, etc.) when modifying — see .claude/rules.md.
+
 import { Expression, MethodCallNode, MapEntry } from "../../../ast/types.js";
 import { IGeneratorContext } from "../../infrastructure/generator-context.js";
 

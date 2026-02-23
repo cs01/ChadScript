@@ -1,4 +1,5 @@
 import { Expression } from "../../../../ast/types.js";
+import { IGeneratorContext } from "./context.js";
 
 interface ExprBase {
   type: string;
@@ -21,22 +22,12 @@ interface CallExpr {
   name: string;
 }
 
-interface ArrayLiteralContext {
-  nextTemp(): string;
-  emit(instruction: string): void;
-  getVariableType(name: string): string | undefined;
-  setVariableType(name: string, type: string): void;
-  generateExpression(expr: Expression, params: string[]): string;
-  getExpectedArrayElementType(): string | null;
-  ensureDouble(value: string): string;
-}
-
 /**
  * Array literal generation
  * Handles creation of numeric, string, and pointer arrays
  */
 export function generateArrayLiteral(
-  gen: ArrayLiteralContext,
+  gen: IGeneratorContext,
   expr: Expression,
   params: string[],
 ): string {
