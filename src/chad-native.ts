@@ -150,16 +150,15 @@ if (parser.getFlag("skip-semantic-analysis")) {
   setSkipSemanticAnalysis(true);
 }
 
-// Cross-compilation target: resolve short names to LLVM triples
+// Cross-compilation target: resolve short name to LLVM triple
 const targetOpt = parser.getOption("target");
 if (targetOpt.length > 0) {
-  // Map short names like "linux-x64" to LLVM triples like "x86_64-unknown-linux-musl"
-  let triple = targetOpt;
-  if (targetOpt === "linux-x64") triple = "x86_64-unknown-linux-musl";
-  else if (targetOpt === "linux-arm64") triple = "aarch64-unknown-linux-musl";
-  else if (targetOpt === "macos-arm64") triple = "aarch64-apple-darwin";
-  else if (targetOpt === "macos-x64") triple = "x86_64-apple-darwin";
-  setTargetTriple(triple);
+  if (targetOpt !== "linux-x64") {
+    console.log("chad: error: cross-compilation only supports 'linux-x64' as a target");
+    process.exit(1);
+    throw new Error("unreachable");
+  }
+  setTargetTriple("x86_64-unknown-linux-gnu");
 }
 
 const cpuOpt = parser.getOption("target-cpu");

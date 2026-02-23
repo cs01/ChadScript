@@ -314,13 +314,7 @@ export function compile(
   const picoPath = sdk ? sdk.vendorPath : PICOHTTPPARSER_PATH;
   const treeSitterPath = sdk ? sdk.vendorPath : TREESITTER_LIB_PATH;
 
-  // musl bundles everything into libc.a — no separate libdl/librt/libpthread.
-  // glibc needs them as separate libraries.
-  const platformLibs = targetIsMac
-    ? ""
-    : target.libc === "musl"
-      ? " -lm -lpthread"
-      : " -lm -ldl -lrt -lpthread";
+  const platformLibs = targetIsMac ? "" : " -lm -ldl -lrt -lpthread";
   let linkLibs = `-L${gcPath} -lgc` + platformLibs;
   if (generator.usesJson) {
     linkLibs += ` -L${yyjsonPath} -lyyjson`;
@@ -441,8 +435,7 @@ export function compile(
   // -no-pie: only for native Linux builds (not macOS, not cross-compiling from macOS)
   const noPie = !targetIsMac && !crossCompiling ? " -no-pie" : "";
   const debugFlag = debugInfo ? " -g" : "";
-  // Auto-static for musl cross-compile targets (produces portable binaries)
-  const shouldStatic = (staticLink || (crossCompiling && target.libc === "musl")) && !targetIsMac;
+  const shouldStatic = staticLink && !targetIsMac;
   const staticFlag = shouldStatic ? " -static" : "";
   const crossTarget = crossCompiling ? ` --target=${target.triple}` : "";
   // Cross-compiling requires lld (LLVM's linker) — the host linker (e.g. macOS ld)

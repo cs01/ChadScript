@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Packages a target SDK tarball for cross-compilation.
-# Runs on CI after build-vendor.sh. Copies vendor .a files, C bridge .o files,
-# and (on Alpine/musl) the sysroot into a tarball that can be downloaded with
-# `chad target add <name>`.
+# Runs on CI after build-vendor.sh. Copies vendor .a files and C bridge .o files
+# into a tarball that can be downloaded with `chad target add <name>`.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -34,26 +33,13 @@ else
 fi
 
 TARGET_NAME="${TARGET_OS}-${TARGET_ARCH}"
-
-# Detect libc (musl vs glibc on Linux)
-LIBC="system"
-TRIPLE=""
-if [ "$TARGET_OS" = "linux" ]; then
-  # Detect musl: check Alpine marker, musl dynamic linker, or ldd output
-  if [ -f /etc/alpine-release ] || ls /lib/ld-musl-*.so.1 >/dev/null 2>&1 || ldd --version 2>&1 | grep -qi musl; then
-    LIBC="musl"
-    TRIPLE="${LLVM_ARCH}-unknown-linux-musl"
-  else
-    LIBC="gnu"
-    TRIPLE="${LLVM_ARCH}-unknown-linux-gnu"
-  fi
-elif [ "$TARGET_OS" = "macos" ]; then
+TRIPLE="${LLVM_ARCH}-unknown-linux-gnu"
+if [ "$TARGET_OS" = "macos" ]; then
   TRIPLE="${LLVM_ARCH}-apple-darwin"
 fi
 
 echo "==> Building target SDK: ${TARGET_NAME}"
 echo "    Triple: ${TRIPLE}"
-echo "    Libc: ${LIBC}"
 
 SDK_DIR="$REPO_DIR/.sdk-staging/${TARGET_NAME}"
 rm -rf "$SDK_DIR"
@@ -89,34 +75,6 @@ for bridge in child-process-bridge.o os-bridge.o regex-bridge.o dotenv-bridge.o 
   fi
 done
 
-# On musl Linux: copy sysroot (headers + libc.a + crt objects)
-# This gives cross-compilers everything they need to produce static musl binaries
-if [ "$LIBC" = "musl" ]; then
-  echo "  Copying musl sysroot..."
-  # Mirror the real filesystem layout: --sysroot makes clang treat this as /
-  mkdir -p "$SDK_DIR/sysroot/usr/include" "$SDK_DIR/sysroot/usr/lib"
-
-  # Copy musl headers
-  if [ -d /usr/include ]; then
-    cp -r /usr/include/* "$SDK_DIR/sysroot/usr/include/"
-  fi
-
-  # Copy essential musl libraries and CRT objects
-  for lib in libc.a libm.a libpthread.a librt.a libdl.a crt1.o crti.o crtn.o Scrt1.o rcrt1.o; do
-    if [ -f "/usr/lib/$lib" ]; then
-      cp "/usr/lib/$lib" "$SDK_DIR/sysroot/usr/lib/"
-    fi
-  done
-
-  # Copy gcc/musl support libraries and CRT objects needed for static linking
-  for lib in libgcc.a libgcc_eh.a crtbeginT.o crtbegin.o crtend.o; do
-    found=$(find /usr/lib/gcc -name "$lib" 2>/dev/null | head -1)
-    if [ -n "$found" ]; then
-      cp "$found" "$SDK_DIR/sysroot/usr/lib/"
-    fi
-  done
-fi
-
 # Write sdk.json metadata
 VERSION="0.1.0"
 if [ -f "$REPO_DIR/package.json" ]; then
@@ -129,7 +87,7 @@ cat > "$SDK_DIR/sdk.json" <<EOF
   "triple": "${TRIPLE}",
   "os": "${TARGET_OS}",
   "arch": "${TARGET_ARCH}",
-  "libc": "${LIBC}"
+  "libc": "system"
 }
 EOF
 
@@ -145,6 +103,3 @@ echo "  Tarball: $TARBALL"
 echo "  Size: $(du -h "$TARBALL" | cut -f1)"
 ls -la "$SDK_DIR/vendor/"
 ls -la "$SDK_DIR/bridges/"
-if [ -d "$SDK_DIR/sysroot" ]; then
-  echo "  Sysroot: $(du -sh "$SDK_DIR/sysroot" | cut -f1)"
-fi

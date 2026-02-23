@@ -58,20 +58,6 @@ prompt_yn() {
   done
 }
 
-detect_libc() {
-  if [ "$(uname -s)" != "Linux" ]; then
-    echo ""
-    return
-  fi
-  if ls /lib/ld-musl-* >/dev/null 2>&1; then
-    echo "musl"
-  elif ldd --version 2>&1 | grep -qi musl; then
-    echo "musl"
-  else
-    echo "glibc"
-  fi
-}
-
 check_llvm() {
   command -v llc >/dev/null 2>&1 || [ -x /opt/homebrew/opt/llvm/bin/llc ] || [ -x /usr/local/opt/llvm/bin/llc ]
 }
@@ -168,15 +154,10 @@ main() {
     *)             err "Unsupported architecture: $ARCH" ;;
   esac
 
-  LIBC=$(detect_libc)
-  if [ "$LIBC" = "musl" ]; then
-    TARBALL="chadscript-linux-musl-${ARCH_TAG}.tar.gz"
-  else
-    TARBALL="chadscript-${OS_TAG}-${ARCH_TAG}.tar.gz"
-  fi
+  TARBALL="chadscript-${OS_TAG}-${ARCH_TAG}.tar.gz"
   URL="${CHADSCRIPT_URL:-https://github.com/${REPO}/releases/download/latest/${TARBALL}}"
 
-  PLATFORM="${OS_TAG}-${ARCH_TAG}${LIBC:+ ($LIBC)}"
+  PLATFORM="${OS_TAG}-${ARCH_TAG}"
   info "Platform: ${BOLD}${PLATFORM}${RESET}"
   info "Install directory: ${BOLD}${INSTALL_DIR}${RESET}"
   printf "\n"
@@ -223,6 +204,9 @@ WRAPPER
 
   add_to_path
 
+  # Make chad available in the current shell immediately
+  export PATH="$INSTALL_DIR:$PATH"
+
   printf "\n"
   printf "  ${GREEN}${BOLD}ChadScript installed successfully!${RESET}\n"
   printf "\n"
@@ -248,11 +232,9 @@ WRAPPER
   fi
 
   printf "\n"
-  printf "  Restart your shell, or run:\n"
+  printf "  ${BOLD}chad${RESET} is ready to use in this shell.\n"
   printf "\n"
-  printf "    ${CYAN}export PATH=\"$INSTALL_DIR:\$PATH\"${RESET}\n"
-  printf "\n"
-  printf "  Then try:\n"
+  printf "  Get started:\n"
   printf "\n"
   printf "    ${CYAN}mkdir myproject && cd myproject${RESET}\n"
   printf "    ${CYAN}chad init${RESET}\n"
