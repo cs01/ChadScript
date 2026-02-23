@@ -71,6 +71,25 @@ jobs:
           echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
           echo "/usr/local/opt/llvm/bin" >> $GITHUB_PATH
 
+      - name: Ensure lld is available for cross-linking
+        run: |
+          LLVM_BIN=$(brew --prefix llvm)/bin
+          echo "LLVM bin contents (lld-related):"
+          ls "$LLVM_BIN"/*lld* 2>/dev/null || echo "  (none found)"
+          if [ ! -f "$LLVM_BIN/ld.lld" ] && [ ! -f "$LLVM_BIN/lld" ]; then
+            echo "lld missing — reinstalling LLVM from source..."
+            brew reinstall --build-from-source llvm
+            echo "After reinstall:"
+            ls "$LLVM_BIN"/*lld* 2>/dev/null || echo "  (still none)"
+          fi
+          # Verify lld is now available
+          test -f "$LLVM_BIN/ld.lld" || test -f "$LLVM_BIN/lld" || test -f "$LLVM_BIN/ld64.lld" || {
+            echo "ERROR: lld still not found after reinstall"
+            echo "Full LLVM bin listing:"
+            ls "$LLVM_BIN"/
+            exit 1
+          }
+
       - name: Install npm dependencies
         run: npm install
 
