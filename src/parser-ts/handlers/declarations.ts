@@ -435,10 +435,14 @@ export function transformImportDeclaration(node: ts.ImportDeclaration): ImportDe
   const specifiers: string[] = [];
   const aliasedSpecifiers: { name: string; original?: string }[] = [];
 
+  let defaultImport: string | undefined;
+
   if (node.importClause) {
     if (node.importClause.name) {
+      // import Foo from './bar' — default import
+      defaultImport = node.importClause.name.text;
       specifiers.push(node.importClause.name.text);
-      aliasedSpecifiers.push({ name: node.importClause.name.text });
+      aliasedSpecifiers.push({ name: node.importClause.name.text, original: undefined });
     }
 
     if (node.importClause.namedBindings) {
@@ -449,17 +453,20 @@ export function transformImportDeclaration(node: ts.ImportDeclaration): ImportDe
           if (element.propertyName) {
             aliasedSpecifiers.push({ name: localName, original: element.propertyName.text });
           } else {
-            aliasedSpecifiers.push({ name: localName });
+            aliasedSpecifiers.push({ name: localName, original: undefined });
           }
         }
       } else if (ts.isNamespaceImport(node.importClause.namedBindings)) {
         specifiers.push(`* as ${node.importClause.namedBindings.name.text}`);
-        aliasedSpecifiers.push({ name: `* as ${node.importClause.namedBindings.name.text}` });
+        aliasedSpecifiers.push({
+          name: `* as ${node.importClause.namedBindings.name.text}`,
+          original: undefined,
+        });
       }
     }
   }
 
-  return { type: "import", specifiers, aliasedSpecifiers, source };
+  return { type: "import", specifiers, aliasedSpecifiers, source, defaultImport };
 }
 
 export function transformExportDeclaration(

@@ -447,6 +447,7 @@ export interface ImportDeclaration {
   specifiers: string[]; // ['Parser', 'compile'] - legacy format (local names only)
   aliasedSpecifiers?: ImportSpecifier[]; // New format with original/local name tracking
   source: string; // './parser.js'
+  defaultImport?: string; // Local name for default import (e.g., 'Foo' in 'import Foo from ...')
 }
 
 export interface ExportDeclaration {
@@ -462,6 +463,7 @@ export interface AST {
   interfaces: InterfaceDeclaration[]; // Interface definitions for JSON typing
   typeAliases: TypeAliasDeclaration[]; // Type alias declarations (union types)
   enums: EnumDeclaration[]; // Enum declarations (compile to integer constants)
+  defaultExportName?: string; // Name of the default-exported function/class/variable
   topLevelStatements: (VariableDeclaration | AssignmentStatement)[]; // Top-level const/let declarations and assignments
   topLevelExpressions: (
     | CallNode
@@ -477,6 +479,10 @@ export interface AST {
   )[]; // Top-level expressions and statements
   topLevelItems?: TopLevelItem[]; // Combined ordered list of all top-level statements and expressions
   topLevelItemTypes?: string[]; // Parallel array of type discriminators for topLevelItems
+  // Struct-of-arrays for default import aliases (e.g., import Foo from './bar' where bar exports Baz)
+  // Using parallel string arrays instead of object arrays for native compiler compatibility.
+  importAliasNames?: string[]; // Local names (e.g., "Foo")
+  importAliasOriginals?: string[]; // Original exported names (e.g., "Baz")
 }
 
 export interface InterfaceField {

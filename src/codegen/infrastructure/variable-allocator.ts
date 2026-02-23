@@ -207,6 +207,7 @@ export interface VariableAllocatorContext {
   getCurrentDeclaredInterfaceType(): string | undefined;
   getCurrentClassName(): string | null;
   getParameterTypeFromAST(paramName: string): string | null;
+  resolveImportAlias(localName: string): string;
   typeResolverGetInterface(name: string): InterfaceDeclaration | null;
   typeResolverGetTypeAlias(name: string): TypeAliasDeclaration | null;
   typeResolverGetMapGetInterfaceType(expr: Expression): string | null;
@@ -228,11 +229,13 @@ export class VariableAllocator {
 
   private isKnownClass(name: string): boolean {
     if (!name) return false;
+    // Also check resolved alias (e.g., import MyGreeter from './greeter' → Greeter)
+    const resolved = this.ctx.resolveImportAlias(name);
     const ast = this.ctx.getAst();
     if (!ast || !ast.classes) return false;
     for (let i = 0; i < ast.classes.length; i++) {
       const cls = ast.classes[i];
-      if (cls && cls.name === name) return true;
+      if (cls && (cls.name === name || cls.name === resolved)) return true;
     }
     return false;
   }
@@ -1377,7 +1380,8 @@ export class VariableAllocator {
     const valueBase = stmt.value as ExprBase;
     if (valueBase.type === "new") {
       const newExpr = stmt.value as NewNode;
-      className = newExpr.className;
+      // Resolve import alias (e.g., import MyGreeter from './greeter' → Greeter)
+      className = this.ctx.resolveImportAlias(newExpr.className);
     } else if (valueBase.type === "method_call") {
       const methodExpr = stmt.value as MethodCallNode;
       className = this.getMapGetClassName(methodExpr) || "Unknown";
