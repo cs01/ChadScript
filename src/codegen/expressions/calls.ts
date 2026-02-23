@@ -51,12 +51,12 @@ export class CallExpressionGenerator {
     }
 
     if (expr.name === "__gc_disable") {
-      this.ctx.emit("call void @GC_disable()");
+      this.ctx.emitCallVoid("@GC_disable", "");
       return "0.0";
     }
 
     if (expr.name === "__gc_enable") {
-      this.ctx.emit("call void @GC_enable()");
+      this.ctx.emitCallVoid("@GC_enable", "");
       return "0.0";
     }
 
@@ -66,7 +66,7 @@ export class CallExpressionGenerator {
         const arg0 = this.ctx.generateExpression(expr.args[0], params);
         const arg1 = this.ctx.generateExpression(expr.args[1], params);
         const arg2 = this.ctx.generateExpression(expr.args[2], params);
-        this.ctx.emit(`call void @cs_watch_loop(i8* ${arg0}, i8* ${arg1}, i8* ${arg2})`);
+        this.ctx.emitCallVoid("@cs_watch_loop", `i8* ${arg0}, i8* ${arg1}, i8* ${arg2}`);
       }
       return "0.0";
     }
@@ -127,12 +127,10 @@ export class CallExpressionGenerator {
         return this.ctx.emitError("fetch() requires at least 1 argument (URL)", expr.loc);
       }
       const urlValue = this.ctx.generateExpression(expr.args[0], params);
-      const temp = this.ctx.nextTemp();
       this.ctx.setUsesPromises(true);
       this.ctx.setUsesCurl(true);
       this.ctx.setUsesJson(true);
-      this.ctx.emit(`${temp} = call %Promise* @fetch_async(i8* ${urlValue})`);
-      this.ctx.setVariableType(temp, "%Promise*");
+      const temp = this.ctx.emitCall("%Promise*", "@fetch_async", `i8* ${urlValue}`);
       return temp;
     }
 
@@ -276,9 +274,10 @@ export class CallExpressionGenerator {
     const nullPtr = this.ctx.nextTemp();
     this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
 
-    const resultI64 = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${resultI64} = call i64 @strtol(i8* ${strValue}, i8** ${nullPtr}, i32 ${radixValue})`,
+    const resultI64 = this.ctx.emitCall(
+      "i64",
+      "@strtol",
+      `i8* ${strValue}, i8** ${nullPtr}, i32 ${radixValue}`,
     );
 
     // Convert i64 to double for compatibility with ChadScript's numeric type
@@ -296,8 +295,7 @@ export class CallExpressionGenerator {
     const strValue = this.ctx.generateExpression(expr.args[0], params);
     const nullPtr = this.ctx.nextTemp();
     this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call double @strtod(i8* ${strValue}, i8** ${nullPtr})`);
+    const result = this.ctx.emitCall("double", "@strtod", `i8* ${strValue}, i8** ${nullPtr}`);
     return result;
   }
 
@@ -311,8 +309,11 @@ export class CallExpressionGenerator {
       const strValue = this.ctx.generateExpression(arg, params);
       const nullPtr = this.ctx.nextTemp();
       this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
-      const resultDouble = this.ctx.nextTemp();
-      this.ctx.emit(`${resultDouble} = call double @strtod(i8* ${strValue}, i8** ${nullPtr})`);
+      const resultDouble = this.ctx.emitCall(
+        "double",
+        "@strtod",
+        `i8* ${strValue}, i8** ${nullPtr}`,
+      );
       return resultDouble;
     }
     return this.ctx.generateExpression(arg, params);
@@ -342,8 +343,7 @@ export class CallExpressionGenerator {
       const strValue = this.ctx.generateExpression(arg, params);
       const nullPtr = this.ctx.nextTemp();
       this.ctx.emit(`${nullPtr} = inttoptr i32 0 to i8**`);
-      doubleValue = this.ctx.nextTemp();
-      this.ctx.emit(`${doubleValue} = call double @strtod(i8* ${strValue}, i8** ${nullPtr})`);
+      doubleValue = this.ctx.emitCall("double", "@strtod", `i8* ${strValue}, i8** ${nullPtr}`);
     } else {
       doubleValue = this.ctx.generateExpression(arg, params);
       doubleValue = this.ctx.ensureDouble(doubleValue);
@@ -367,8 +367,7 @@ export class CallExpressionGenerator {
     const dblSize = this.ctx.ensureDouble(sizeDouble);
     const sizeI64 = this.ctx.nextTemp();
     this.ctx.emit(`${sizeI64} = fptosi double ${dblSize} to i64`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @malloc(i64 ${sizeI64})`);
+    const result = this.ctx.emitCall("i8*", "@malloc", `i64 ${sizeI64}`);
     const resultI64 = this.ctx.nextTemp();
     this.ctx.emit(`${resultI64} = ptrtoint i8* ${result} to i64`);
     const resultDouble = this.ctx.nextTemp();
@@ -383,7 +382,7 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${ptrI64} = fptosi double ${dblPtr} to i64`);
     const ptr = this.ctx.nextTemp();
     this.ctx.emit(`${ptr} = inttoptr i64 ${ptrI64} to i8*`);
-    this.ctx.emit(`call void @free(i8* ${ptr})`);
+    this.ctx.emitCallVoid("@free", `i8* ${ptr}`);
     return "0.0";
   }
 
@@ -401,8 +400,11 @@ export class CallExpressionGenerator {
     const dblProtocol = this.ctx.ensureDouble(protocolDouble);
     const protocol = this.ctx.nextTemp();
     this.ctx.emit(`${protocol} = fptosi double ${dblProtocol} to i32`);
-    const resultI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI32} = call i32 @socket(i32 ${domain}, i32 ${type}, i32 ${protocol})`);
+    const resultI32 = this.ctx.emitCall(
+      "i32",
+      "@socket",
+      `i32 ${domain}, i32 ${type}, i32 ${protocol}`,
+    );
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
     return resultDouble;
@@ -414,8 +416,7 @@ export class CallExpressionGenerator {
     const dblFd = this.ctx.ensureDouble(fdDouble);
     const fd = this.ctx.nextTemp();
     this.ctx.emit(`${fd} = fptosi double ${dblFd} to i32`);
-    const resultI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI32} = call i32 @close(i32 ${fd})`);
+    const resultI32 = this.ctx.emitCall("i32", "@close", `i32 ${fd}`);
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
     return resultDouble;
@@ -454,8 +455,7 @@ export class CallExpressionGenerator {
     const dblAddrlen = this.ctx.ensureDouble(addrlenDouble);
     const addrlen = this.ctx.nextTemp();
     this.ctx.emit(`${addrlen} = fptosi double ${dblAddrlen} to i32`);
-    const resultI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI32} = call i32 @bind(i32 ${fd}, i8* ${addr}, i32 ${addrlen})`);
+    const resultI32 = this.ctx.emitCall("i32", "@bind", `i32 ${fd}, i8* ${addr}, i32 ${addrlen}`);
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
     return resultDouble;
@@ -470,8 +470,7 @@ export class CallExpressionGenerator {
     const dblBacklog = this.ctx.ensureDouble(backlogDouble);
     const backlog = this.ctx.nextTemp();
     this.ctx.emit(`${backlog} = fptosi double ${dblBacklog} to i32`);
-    const resultI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI32} = call i32 @listen(i32 ${fd}, i32 ${backlog})`);
+    const resultI32 = this.ctx.emitCall("i32", "@listen", `i32 ${fd}, i32 ${backlog}`);
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
     return resultDouble;
@@ -494,8 +493,11 @@ export class CallExpressionGenerator {
     this.ctx.emit(`${addrlenI64} = fptosi double ${dblAddrlen2} to i64`);
     const addrlen = this.ctx.nextTemp();
     this.ctx.emit(`${addrlen} = inttoptr i64 ${addrlenI64} to i32*`);
-    const resultI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI32} = call i32 @accept(i32 ${fd}, i8* ${addr}, i32* ${addrlen})`);
+    const resultI32 = this.ctx.emitCall(
+      "i32",
+      "@accept",
+      `i32 ${fd}, i8* ${addr}, i32* ${addrlen}`,
+    );
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
     return resultDouble;
@@ -619,17 +621,15 @@ export class CallExpressionGenerator {
     }
 
     if (returnType === "void") {
-      this.ctx.emit(
-        `call void @${this.ctx.mangleUserName(resolvedFuncName)}(${argsList.join(", ")})`,
-      );
+      this.ctx.emitCallVoid(`@${this.ctx.mangleUserName(resolvedFuncName)}`, argsList.join(", "));
       return "0";
     }
 
-    const temp = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${temp} = call ${returnType} @${this.ctx.mangleUserName(resolvedFuncName)}(${argsList.join(", ")})`,
+    const temp = this.ctx.emitCall(
+      returnType,
+      `@${this.ctx.mangleUserName(resolvedFuncName)}`,
+      argsList.join(", "),
     );
-    this.ctx.setVariableType(temp, returnType);
 
     return temp;
   }
@@ -660,9 +660,7 @@ export class CallExpressionGenerator {
       argsList.push(`double ${coerced}`);
     }
 
-    const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = call ${returnType} @${lambdaName}(${argsList.join(", ")})`);
-    this.ctx.setVariableType(temp, returnType);
+    const temp = this.ctx.emitCall(returnType, `@${lambdaName}`, argsList.join(", "));
 
     return temp;
   }
@@ -683,16 +681,17 @@ export class CallExpressionGenerator {
     const delayValue = this.ctx.generateExpression(expr.args[1], params);
     const dblDelay = this.ctx.ensureDouble(delayValue);
 
-    const callbackPtr = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${callbackPtr} = bitcast void ()* @${this.ctx.mangleUserName(callbackName)} to void ()*`,
+    const callbackPtr = this.ctx.emitBitcast(
+      `@${this.ctx.mangleUserName(callbackName)}`,
+      "void ()*",
+      "void ()*",
     );
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${result} = call i8* @__setTimeout(void ()* ${callbackPtr}, double ${dblDelay})`,
+    const result = this.ctx.emitCall(
+      "i8*",
+      "@__setTimeout",
+      `void ()* ${callbackPtr}, double ${dblDelay}`,
     );
-    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
@@ -716,54 +715,52 @@ export class CallExpressionGenerator {
     const intervalValue = this.ctx.generateExpression(expr.args[1], params);
     const dblInterval = this.ctx.ensureDouble(intervalValue);
 
-    const callbackPtr = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${callbackPtr} = bitcast void ()* @${this.ctx.mangleUserName(callbackName)} to void ()*`,
+    const callbackPtr = this.ctx.emitBitcast(
+      `@${this.ctx.mangleUserName(callbackName)}`,
+      "void ()*",
+      "void ()*",
     );
 
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${result} = call i8* @__setInterval(void ()* ${callbackPtr}, double ${dblInterval})`,
+    const result = this.ctx.emitCall(
+      "i8*",
+      "@__setInterval",
+      `void ()* ${callbackPtr}, double ${dblInterval}`,
     );
-    this.ctx.setVariableType(result, "i8*");
 
     return result;
   }
 
   private emitIndentPrintf(prefix: string): void {
-    const depth = this.ctx.nextTemp();
-    this.ctx.emit(`${depth} = load i32, i32* @__describe_depth`);
-    const hasDepth = this.ctx.nextTemp();
-    this.ctx.emit(`${hasDepth} = icmp sgt i32 ${depth}, 0`);
+    const depth = this.ctx.emitLoad("i32", "@__describe_depth");
+    const hasDepth = this.ctx.emitIcmp("sgt", "i32", depth, "0");
     const preLabel = this.ctx.nextLabel(`${prefix}_pre`);
     const loopLabel = this.ctx.nextLabel(`${prefix}_loop`);
     const bodyLabel = this.ctx.nextLabel(`${prefix}_body`);
     const doneLabel = this.ctx.nextLabel(`${prefix}_done`);
-    this.ctx.emit(`br i1 ${hasDepth}, label %${preLabel}, label %${doneLabel}`);
+    this.ctx.emitBrCond(hasDepth, preLabel, doneLabel);
 
-    this.ctx.emit(`${preLabel}:`);
+    this.ctx.emitLabel(preLabel);
     this.ctx.setCurrentLabel(preLabel);
-    this.ctx.emit(`br label %${loopLabel}`);
+    this.ctx.emitBr(loopLabel);
 
-    this.ctx.emit(`${loopLabel}:`);
+    this.ctx.emitLabel(loopLabel);
     this.ctx.setCurrentLabel(loopLabel);
     const idx = `%__indent_idx_${loopLabel}`;
     const nextIdx = `%__indent_next_${loopLabel}`;
     this.ctx.emit(`${idx} = phi i32 [ 0, %${preLabel} ], [ ${nextIdx}, %${bodyLabel} ]`);
-    const cmp = this.ctx.nextTemp();
-    this.ctx.emit(`${cmp} = icmp slt i32 ${idx}, ${depth}`);
-    this.ctx.emit(`br i1 ${cmp}, label %${bodyLabel}, label %${doneLabel}`);
+    const cmp = this.ctx.emitIcmp("slt", "i32", idx, depth);
+    this.ctx.emitBrCond(cmp, bodyLabel, doneLabel);
 
-    this.ctx.emit(`${bodyLabel}:`);
+    this.ctx.emitLabel(bodyLabel);
     this.ctx.setCurrentLabel(bodyLabel);
     const fmt = this.ctx.nextTemp();
     this.ctx.emit(`${fmt} = getelementptr [3 x i8], [3 x i8]* @.str.indent_unit, i32 0, i32 0`);
     const printResult = this.ctx.nextTemp();
     this.ctx.emit(`${printResult} = call i32 (i8*, ...) @printf(i8* ${fmt})`);
     this.ctx.emit(`${nextIdx} = add i32 ${idx}, 1`);
-    this.ctx.emit(`br label %${loopLabel}`);
+    this.ctx.emitBr(loopLabel);
 
-    this.ctx.emit(`${doneLabel}:`);
+    this.ctx.emitLabel(doneLabel);
     this.ctx.setCurrentLabel(doneLabel);
   }
 
@@ -772,13 +769,12 @@ export class CallExpressionGenerator {
 
     const nameValue = this.ctx.generateExpression(expr.args[0], params);
 
-    this.ctx.emit("store i1 0, i1* @__test_current_failed");
+    this.ctx.emitStore("i1", "0", "@__test_current_failed");
 
-    const totalPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${totalPtr} = load i32, i32* @__test_total`);
+    const totalPtr = this.ctx.emitLoad("i32", "@__test_total");
     const totalInc = this.ctx.nextTemp();
     this.ctx.emit(`${totalInc} = add i32 ${totalPtr}, 1`);
-    this.ctx.emit(`store i32 ${totalInc}, i32* @__test_total`);
+    this.ctx.emitStore("i32", totalInc, "@__test_total");
 
     const callbackArg = expr.args[1];
     let callbackFn: string;
@@ -794,47 +790,43 @@ export class CallExpressionGenerator {
       );
     }
 
-    const callResult = this.ctx.nextTemp();
-    this.ctx.emit(`${callResult} = call double @${callbackFn}()`);
+    const callResult = this.ctx.emitCall("double", `@${callbackFn}`, "");
 
-    const failed = this.ctx.nextTemp();
-    this.ctx.emit(`${failed} = load i1, i1* @__test_current_failed`);
+    const failed = this.ctx.emitLoad("i1", "@__test_current_failed");
 
     const passLabel = this.ctx.nextLabel("test_pass");
     const failLabel = this.ctx.nextLabel("test_fail");
     const mergeLabel = this.ctx.nextLabel("test_merge");
 
-    this.ctx.emit(`br i1 ${failed}, label %${failLabel}, label %${passLabel}`);
+    this.ctx.emitBrCond(failed, failLabel, passLabel);
 
-    this.ctx.emit(`${passLabel}:`);
+    this.ctx.emitLabel(passLabel);
     this.ctx.setCurrentLabel(passLabel);
-    const passedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${passedPtr} = load i32, i32* @__test_passed`);
+    const passedPtr = this.ctx.emitLoad("i32", "@__test_passed");
     const passedInc = this.ctx.nextTemp();
     this.ctx.emit(`${passedInc} = add i32 ${passedPtr}, 1`);
-    this.ctx.emit(`store i32 ${passedInc}, i32* @__test_passed`);
+    this.ctx.emitStore("i32", passedInc, "@__test_passed");
     this.emitIndentPrintf("test_pass_indent");
     const printPass = this.ctx.nextTemp();
     this.ctx.emit(
       `${printPass} = call i32 (i8*, ...) @printf(i8* getelementptr([12 x i8], [12 x i8]* @.str.test_pass, i32 0, i32 0), i8* ${nameValue})`,
     );
-    this.ctx.emit(`br label %${mergeLabel}`);
+    this.ctx.emitBr(mergeLabel);
 
-    this.ctx.emit(`${failLabel}:`);
+    this.ctx.emitLabel(failLabel);
     this.ctx.setCurrentLabel(failLabel);
-    const failedPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${failedPtr} = load i32, i32* @__test_failed`);
+    const failedPtr = this.ctx.emitLoad("i32", "@__test_failed");
     const failedInc = this.ctx.nextTemp();
     this.ctx.emit(`${failedInc} = add i32 ${failedPtr}, 1`);
-    this.ctx.emit(`store i32 ${failedInc}, i32* @__test_failed`);
+    this.ctx.emitStore("i32", failedInc, "@__test_failed");
     this.emitIndentPrintf("test_fail_indent");
     const printFail = this.ctx.nextTemp();
     this.ctx.emit(
       `${printFail} = call i32 (i8*, ...) @printf(i8* getelementptr([12 x i8], [12 x i8]* @.str.test_fail, i32 0, i32 0), i8* ${nameValue})`,
     );
-    this.ctx.emit(`br label %${mergeLabel}`);
+    this.ctx.emitBr(mergeLabel);
 
-    this.ctx.emit(`${mergeLabel}:`);
+    this.ctx.emitLabel(mergeLabel);
     this.ctx.setCurrentLabel(mergeLabel);
 
     return "0";
@@ -856,11 +848,10 @@ export class CallExpressionGenerator {
       `${headerPrint} = call i32 (i8*, ...) @printf(i8* ${headerFmt}, i8* ${nameValue})`,
     );
 
-    const oldDepth = this.ctx.nextTemp();
-    this.ctx.emit(`${oldDepth} = load i32, i32* @__describe_depth`);
+    const oldDepth = this.ctx.emitLoad("i32", "@__describe_depth");
     const newDepth = this.ctx.nextTemp();
     this.ctx.emit(`${newDepth} = add i32 ${oldDepth}, 1`);
-    this.ctx.emit(`store i32 ${newDepth}, i32* @__describe_depth`);
+    this.ctx.emitStore("i32", newDepth, "@__describe_depth");
 
     const callbackArg = expr.args[1];
     let callbackFn: string;
@@ -876,14 +867,12 @@ export class CallExpressionGenerator {
       );
     }
 
-    const callResult = this.ctx.nextTemp();
-    this.ctx.emit(`${callResult} = call double @${callbackFn}()`);
+    const callResult = this.ctx.emitCall("double", `@${callbackFn}`, "");
 
-    const restoredDepth = this.ctx.nextTemp();
-    this.ctx.emit(`${restoredDepth} = load i32, i32* @__describe_depth`);
+    const restoredDepth = this.ctx.emitLoad("i32", "@__describe_depth");
     const decDepth = this.ctx.nextTemp();
     this.ctx.emit(`${decDepth} = sub i32 ${restoredDepth}, 1`);
-    this.ctx.emit(`store i32 ${decDepth}, i32* @__describe_depth`);
+    this.ctx.emitStore("i32", decDepth, "@__describe_depth");
 
     return "0";
   }
@@ -898,14 +887,14 @@ export class CallExpressionGenerator {
 
     const timerIdValue = this.ctx.generateExpression(expr.args[0], params);
 
-    this.ctx.emit(`call void @__clearTimer(i8* ${timerIdValue})`);
+    this.ctx.emitCallVoid("@__clearTimer", `i8* ${timerIdValue}`);
 
     return "0.0";
   }
 
   private generateRunEventLoop(): string {
     this.ctx.setUsesTimers(true);
-    this.ctx.emit("call void @__runEventLoop()");
+    this.ctx.emitCallVoid("@__runEventLoop", "");
     return "0.0";
   }
 
@@ -915,44 +904,34 @@ export class CallExpressionGenerator {
     const dblLength = this.ctx.ensureDouble(lengthDouble);
     const lengthI32 = this.ctx.nextTemp();
     this.ctx.emit(`${lengthI32} = fptosi double ${dblLength} to i32`);
-    const resultPtr = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${resultPtr} = call %TSTree* @__ts_parse_source(i8* ${sourceValue}, i32 ${lengthI32})`,
+    const resultPtr = this.ctx.emitCall(
+      "%TSTree*",
+      "@__ts_parse_source",
+      `i8* ${sourceValue}, i32 ${lengthI32}`,
     );
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = bitcast %TSTree* ${resultPtr} to i8*`);
-    this.ctx.setVariableType(result, "i8*");
+    const result = this.ctx.emitBitcast(resultPtr, "%TSTree*", "i8*");
     return result;
   }
 
   private generateTsGetRootNode(expr: CallNode, params: string[]): string {
     const treeValue = this.ctx.generateExpression(expr.args[0], params);
-    const treePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${treePtr} = bitcast i8* ${treeValue} to %TSTree*`);
-    const resultPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${resultPtr} = call %TSNode* @__ts_get_root_node(%TSTree* ${treePtr})`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
-    this.ctx.setVariableType(result, "i8*");
+    const treePtr = this.ctx.emitBitcast(treeValue, "i8*", "%TSTree*");
+    const resultPtr = this.ctx.emitCall("%TSNode*", "@__ts_get_root_node", `%TSTree* ${treePtr}`);
+    const result = this.ctx.emitBitcast(resultPtr, "%TSNode*", "i8*");
     return result;
   }
 
   private generateTsNodeType(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__ts_node_type(%TSNode* ${nodePtr})`);
-    this.ctx.setVariableType(result, "i8*");
+    const nodePtr = this.ctx.emitBitcast(nodeValue, "i8*", "%TSNode*");
+    const result = this.ctx.emitCall("i8*", "@__ts_node_type", `%TSNode* ${nodePtr}`);
     return result;
   }
 
   private generateTsNodeChildCount(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
-    const resultI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI32} = call i32 @__ts_node_child_count(%TSNode* ${nodePtr})`);
+    const nodePtr = this.ctx.emitBitcast(nodeValue, "i8*", "%TSNode*");
+    const resultI32 = this.ctx.emitCall("i32", "@__ts_node_child_count", `%TSNode* ${nodePtr}`);
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
     return resultDouble;
@@ -960,10 +939,12 @@ export class CallExpressionGenerator {
 
   private generateTsNodeNamedChildCount(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
-    const resultI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI32} = call i32 @__ts_node_named_child_count(%TSNode* ${nodePtr})`);
+    const nodePtr = this.ctx.emitBitcast(nodeValue, "i8*", "%TSNode*");
+    const resultI32 = this.ctx.emitCall(
+      "i32",
+      "@__ts_node_named_child_count",
+      `%TSNode* ${nodePtr}`,
+    );
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
     return resultDouble;
@@ -971,57 +952,52 @@ export class CallExpressionGenerator {
 
   private generateTsNodeChild(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
+    const nodePtr = this.ctx.emitBitcast(nodeValue, "i8*", "%TSNode*");
     const indexDouble = this.ctx.generateExpression(expr.args[1], params);
     const dblIdx = this.ctx.ensureDouble(indexDouble);
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(`${indexI32} = fptosi double ${dblIdx} to i32`);
-    const resultPtr = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${resultPtr} = call %TSNode* @__ts_node_child(%TSNode* ${nodePtr}, i32 ${indexI32})`,
+    const resultPtr = this.ctx.emitCall(
+      "%TSNode*",
+      "@__ts_node_child",
+      `%TSNode* ${nodePtr}, i32 ${indexI32}`,
     );
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
-    this.ctx.setVariableType(result, "i8*");
+    const result = this.ctx.emitBitcast(resultPtr, "%TSNode*", "i8*");
     return result;
   }
 
   private generateTsNodeNamedChild(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
+    const nodePtr = this.ctx.emitBitcast(nodeValue, "i8*", "%TSNode*");
     const indexDouble = this.ctx.generateExpression(expr.args[1], params);
     const dblIdx2 = this.ctx.ensureDouble(indexDouble);
     const indexI32 = this.ctx.nextTemp();
     this.ctx.emit(`${indexI32} = fptosi double ${dblIdx2} to i32`);
-    const resultPtr = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${resultPtr} = call %TSNode* @__ts_node_named_child(%TSNode* ${nodePtr}, i32 ${indexI32})`,
+    const resultPtr = this.ctx.emitCall(
+      "%TSNode*",
+      "@__ts_node_named_child",
+      `%TSNode* ${nodePtr}, i32 ${indexI32}`,
     );
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
-    this.ctx.setVariableType(result, "i8*");
+    const result = this.ctx.emitBitcast(resultPtr, "%TSNode*", "i8*");
     return result;
   }
 
   private generateTsNodeText(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
+    const nodePtr = this.ctx.emitBitcast(nodeValue, "i8*", "%TSNode*");
     const sourceValue = this.ctx.generateExpression(expr.args[1], params);
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = call i8* @__ts_node_text(%TSNode* ${nodePtr}, i8* ${sourceValue})`);
-    this.ctx.setVariableType(result, "i8*");
+    const result = this.ctx.emitCall(
+      "i8*",
+      "@__ts_node_text",
+      `%TSNode* ${nodePtr}, i8* ${sourceValue}`,
+    );
     return result;
   }
 
   private generateTsNodeIsNull(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
-    const resultI1 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI1} = call i1 @__ts_node_is_null(%TSNode* ${nodePtr})`);
+    const nodePtr = this.ctx.emitBitcast(nodeValue, "i8*", "%TSNode*");
+    const resultI1 = this.ctx.emitCall("i1", "@__ts_node_is_null", `%TSNode* ${nodePtr}`);
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = uitofp i1 ${resultI1} to double`);
     return resultDouble;
@@ -1029,10 +1005,8 @@ export class CallExpressionGenerator {
 
   private generateTsNodeIsNamed(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
-    const resultI1 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI1} = call i1 @__ts_node_is_named(%TSNode* ${nodePtr})`);
+    const nodePtr = this.ctx.emitBitcast(nodeValue, "i8*", "%TSNode*");
+    const resultI1 = this.ctx.emitCall("i1", "@__ts_node_is_named", `%TSNode* ${nodePtr}`);
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = uitofp i1 ${resultI1} to double`);
     return resultDouble;
@@ -1040,10 +1014,8 @@ export class CallExpressionGenerator {
 
   private generateTsNodeStartByte(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
-    const resultI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI32} = call i32 @__ts_node_start_byte(%TSNode* ${nodePtr})`);
+    const nodePtr = this.ctx.emitBitcast(nodeValue, "i8*", "%TSNode*");
+    const resultI32 = this.ctx.emitCall("i32", "@__ts_node_start_byte", `%TSNode* ${nodePtr}`);
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
     return resultDouble;
@@ -1051,10 +1023,8 @@ export class CallExpressionGenerator {
 
   private generateTsNodeEndByte(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
-    const resultI32 = this.ctx.nextTemp();
-    this.ctx.emit(`${resultI32} = call i32 @__ts_node_end_byte(%TSNode* ${nodePtr})`);
+    const nodePtr = this.ctx.emitBitcast(nodeValue, "i8*", "%TSNode*");
+    const resultI32 = this.ctx.emitCall("i32", "@__ts_node_end_byte", `%TSNode* ${nodePtr}`);
     const resultDouble = this.ctx.nextTemp();
     this.ctx.emit(`${resultDouble} = sitofp i32 ${resultI32} to double`);
     return resultDouble;
@@ -1062,20 +1032,18 @@ export class CallExpressionGenerator {
 
   private generateTsNodeChildByFieldName(expr: CallNode, params: string[]): string {
     const nodeValue = this.ctx.generateExpression(expr.args[0], params);
-    const nodePtr = this.ctx.nextTemp();
-    this.ctx.emit(`${nodePtr} = bitcast i8* ${nodeValue} to %TSNode*`);
+    const nodePtr = this.ctx.emitBitcast(nodeValue, "i8*", "%TSNode*");
     const fieldValue = this.ctx.generateExpression(expr.args[1], params);
     const fieldLenDouble = this.ctx.generateExpression(expr.args[2], params);
     const dblFieldLen = this.ctx.ensureDouble(fieldLenDouble);
     const fieldLenI32 = this.ctx.nextTemp();
     this.ctx.emit(`${fieldLenI32} = fptosi double ${dblFieldLen} to i32`);
-    const resultPtr = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${resultPtr} = call %TSNode* @__ts_node_child_by_field_name(%TSNode* ${nodePtr}, i8* ${fieldValue}, i32 ${fieldLenI32})`,
+    const resultPtr = this.ctx.emitCall(
+      "%TSNode*",
+      "@__ts_node_child_by_field_name",
+      `%TSNode* ${nodePtr}, i8* ${fieldValue}, i32 ${fieldLenI32}`,
     );
-    const result = this.ctx.nextTemp();
-    this.ctx.emit(`${result} = bitcast %TSNode* ${resultPtr} to i8*`);
-    this.ctx.setVariableType(result, "i8*");
+    const result = this.ctx.emitBitcast(resultPtr, "%TSNode*", "i8*");
     return result;
   }
 
@@ -1118,22 +1086,16 @@ export class CallExpressionGenerator {
       argsWithTypesParts.push("i8* " + argValues[ai]);
     }
     const argsWithTypes = argsWithTypesParts.join(", ");
-    const parentObj = this.ctx.nextTemp();
-    if (argValues.length === 0) {
-      this.ctx.emit(
-        `${parentObj} = call ${parentStructType} @${this.ctx.mangleUserName(parentClassName)}_constructor()`,
-      );
-    } else {
-      this.ctx.emit(
-        `${parentObj} = call ${parentStructType} @${this.ctx.mangleUserName(parentClassName)}_constructor(${argsWithTypes})`,
-      );
-    }
+    const parentObj = this.ctx.emitCall(
+      parentStructType,
+      `@${this.ctx.mangleUserName(parentClassName)}_constructor`,
+      argValues.length === 0 ? "" : argsWithTypes,
+    );
 
     const parentFields = this.ctx.classGenGetClassFields(parentClassName);
     if (parentFields.length > 0) {
       const childStructType = `%${currentClassName}_struct*`;
-      const castedThis = this.ctx.nextTemp();
-      this.ctx.emit(`${castedThis} = bitcast i8* ${thisPtr} to ${childStructType}`);
+      const castedThis = this.ctx.emitBitcast(thisPtr, "i8*", childStructType);
 
       for (let i = 0; i < parentFields.length; i++) {
         const parentFieldPtr = this.ctx.nextTemp();
@@ -1145,9 +1107,8 @@ export class CallExpressionGenerator {
           `${thisFieldPtr} = getelementptr inbounds ${childStructType.slice(0, -1)}, ${childStructType} ${castedThis}, i32 0, i32 ${i}`,
         );
         const fieldLlvmType = this.getFieldLlvmType(parentFields[i]);
-        const fieldValue = this.ctx.nextTemp();
-        this.ctx.emit(`${fieldValue} = load ${fieldLlvmType}, ${fieldLlvmType}* ${parentFieldPtr}`);
-        this.ctx.emit(`store ${fieldLlvmType} ${fieldValue}, ${fieldLlvmType}* ${thisFieldPtr}`);
+        const fieldValue = this.ctx.emitLoad(fieldLlvmType, parentFieldPtr);
+        this.ctx.emitStore(fieldLlvmType, fieldValue, thisFieldPtr);
       }
     }
     return "0";

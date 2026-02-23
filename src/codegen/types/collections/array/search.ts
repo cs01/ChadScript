@@ -1,24 +1,15 @@
-// NOTE: This file uses raw ctx.emit() extensively. Prefer structured IR builders
-// (emitStore, emitLoad, emitCall, etc.) when modifying — see .claude/rules.md.
+// Array search operations: indexOf, findIndex.
+// Uses structured IR builders where possible; raw emit() for inbounds GEP, tbaa, intrinsics, etc.
 
-import { Expression, MethodCallNode, VariableNode } from "../../../../ast/types.js";
+import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
+import { IGeneratorContext } from "./context.js";
 
 interface ExprBase {
   type: string;
 }
 
-interface ArraySearchContext {
-  nextTemp(): string;
-  nextLabel(prefix: string): string;
-  emit(instruction: string): void;
-  getVariableType(name: string): string | undefined;
-  setVariableType(name: string, type: string): void;
-  generateExpression(expr: Expression, params: string[]): string;
-  ensureDouble(value: string): string;
-}
-
 export function generateArrayIndexOf(
-  gen: ArraySearchContext,
+  gen: IGeneratorContext,
   expr: MethodCallNode,
   params: string[],
 ): string {
@@ -48,7 +39,7 @@ export function generateArrayIndexOf(
 }
 
 function generateNumericArrayIndexOf(
-  gen: ArraySearchContext,
+  gen: IGeneratorContext,
   arrayPtr: string,
   searchValue: string,
 ): string {
@@ -64,11 +55,11 @@ function generateNumericArrayIndexOf(
 
   const resultPtr = gen.nextTemp();
   gen.emit(`${resultPtr} = alloca i32`);
-  gen.emit(`store i32 -1, i32* ${resultPtr}`);
+  gen.emitStore("i32", "-1", resultPtr);
 
   const loopPtr = gen.nextTemp();
   gen.emit(`${loopPtr} = alloca i32`);
-  gen.emit(`store i32 0, i32* ${loopPtr}`);
+  gen.emitStore("i32", "0", loopPtr);
 
   const checkLabel = gen.nextLabel("indexof_check");
   const bodyLabel = gen.nextLabel("indexof_body");
@@ -76,46 +67,42 @@ function generateNumericArrayIndexOf(
   const nextLabel = gen.nextLabel("indexof_next");
   const endLabel = gen.nextLabel("indexof_end");
 
-  gen.emit(`br label %${checkLabel}`);
+  gen.emitBr(checkLabel);
 
-  gen.emit(`${checkLabel}:`);
-  const i = gen.nextTemp();
-  gen.emit(`${i} = load i32, i32* ${loopPtr}`);
-  const cond = gen.nextTemp();
-  gen.emit(`${cond} = icmp slt i32 ${i}, ${length}`);
-  gen.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+  gen.emitLabel(checkLabel);
+  const i = gen.emitLoad("i32", loopPtr);
+  const cond = gen.emitIcmp("slt", "i32", i, length);
+  gen.emitBrCond(cond, bodyLabel, endLabel);
 
-  gen.emit(`${bodyLabel}:`);
+  gen.emitLabel(bodyLabel);
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
-  const elem = gen.nextTemp();
-  gen.emit(`${elem} = load double, double* ${elemPtr}`);
+  const elem = gen.emitLoad("double", elemPtr);
 
   const dblSearch = gen.ensureDouble(searchValue);
   const eq = gen.nextTemp();
   gen.emit(`${eq} = fcmp oeq double ${elem}, ${dblSearch}`);
-  gen.emit(`br i1 ${eq}, label %${foundLabel}, label %${nextLabel}`);
+  gen.emitBrCond(eq, foundLabel, nextLabel);
 
-  gen.emit(`${foundLabel}:`);
-  gen.emit(`store i32 ${i}, i32* ${resultPtr}`);
-  gen.emit(`br label %${endLabel}`);
+  gen.emitLabel(foundLabel);
+  gen.emitStore("i32", i, resultPtr);
+  gen.emitBr(endLabel);
 
-  gen.emit(`${nextLabel}:`);
+  gen.emitLabel(nextLabel);
   const nextI = gen.nextTemp();
   gen.emit(`${nextI} = add i32 ${i}, 1`);
-  gen.emit(`store i32 ${nextI}, i32* ${loopPtr}`);
-  gen.emit(`br label %${checkLabel}`);
+  gen.emitStore("i32", nextI, loopPtr);
+  gen.emitBr(checkLabel);
 
-  gen.emit(`${endLabel}:`);
-  const resultI32 = gen.nextTemp();
-  gen.emit(`${resultI32} = load i32, i32* ${resultPtr}`);
+  gen.emitLabel(endLabel);
+  const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
   return result;
 }
 
 function generateStringArrayIndexOf(
-  gen: ArraySearchContext,
+  gen: IGeneratorContext,
   arrayPtr: string,
   searchValue: string,
 ): string {
@@ -135,11 +122,11 @@ function generateStringArrayIndexOf(
 
   const resultPtr = gen.nextTemp();
   gen.emit(`${resultPtr} = alloca i32`);
-  gen.emit(`store i32 -1, i32* ${resultPtr}`);
+  gen.emitStore("i32", "-1", resultPtr);
 
   const loopPtr = gen.nextTemp();
   gen.emit(`${loopPtr} = alloca i32`);
-  gen.emit(`store i32 0, i32* ${loopPtr}`);
+  gen.emitStore("i32", "0", loopPtr);
 
   const checkLabel = gen.nextLabel("indexof_check");
   const bodyLabel = gen.nextLabel("indexof_body");
@@ -147,53 +134,71 @@ function generateStringArrayIndexOf(
   const nextLabel = gen.nextLabel("indexof_next");
   const endLabel = gen.nextLabel("indexof_end");
 
-  gen.emit(`br label %${checkLabel}`);
+  gen.emitBr(checkLabel);
 
-  gen.emit(`${checkLabel}:`);
-  const i = gen.nextTemp();
-  gen.emit(`${i} = load i32, i32* ${loopPtr}`);
-  const cond = gen.nextTemp();
-  gen.emit(`${cond} = icmp slt i32 ${i}, ${length}`);
-  gen.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+  gen.emitLabel(checkLabel);
+  const i = gen.emitLoad("i32", loopPtr);
+  const cond = gen.emitIcmp("slt", "i32", i, length);
+  gen.emitBrCond(cond, bodyLabel, endLabel);
 
-  gen.emit(`${bodyLabel}:`);
+  gen.emitLabel(bodyLabel);
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
-  const elem = gen.nextTemp();
-  gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+  const elem = gen.emitLoad("i8*", elemPtr);
 
-  const cmpResult = gen.nextTemp();
-  gen.emit(`${cmpResult} = call i32 @strcmp(i8* ${elem}, i8* ${searchValue})`);
-  const eq = gen.nextTemp();
-  gen.emit(`${eq} = icmp eq i32 ${cmpResult}, 0`);
-  gen.emit(`br i1 ${eq}, label %${foundLabel}, label %${nextLabel}`);
+  const cmpResult = gen.emitCall("i32", "@strcmp", `i8* ${elem}, i8* ${searchValue}`);
+  const eq = gen.emitIcmp("eq", "i32", cmpResult, "0");
+  gen.emitBrCond(eq, foundLabel, nextLabel);
 
-  gen.emit(`${foundLabel}:`);
-  gen.emit(`store i32 ${i}, i32* ${resultPtr}`);
-  gen.emit(`br label %${endLabel}`);
+  gen.emitLabel(foundLabel);
+  gen.emitStore("i32", i, resultPtr);
+  gen.emitBr(endLabel);
 
-  gen.emit(`${nextLabel}:`);
+  gen.emitLabel(nextLabel);
   const nextI = gen.nextTemp();
   gen.emit(`${nextI} = add i32 ${i}, 1`);
-  gen.emit(`store i32 ${nextI}, i32* ${loopPtr}`);
-  gen.emit(`br label %${checkLabel}`);
+  gen.emitStore("i32", nextI, loopPtr);
+  gen.emitBr(checkLabel);
 
-  gen.emit(`${endLabel}:`);
-  const resultI32 = gen.nextTemp();
-  gen.emit(`${resultI32} = load i32, i32* ${resultPtr}`);
+  gen.emitLabel(endLabel);
+  const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
   return result;
 }
 
 export function generateArrayFindIndex(
-  gen: ArraySearchContext,
+  gen: IGeneratorContext,
   expr: MethodCallNode,
   params: string[],
-  predicateFn: string,
-  isStringArray: boolean,
 ): string {
+  if (expr.args.length !== 1) {
+    throw new Error("findIndex() requires exactly 1 argument (predicate function)");
+  }
+
   const arrayPtr = gen.generateExpression(expr.object, params);
+
+  let isStringArray = false;
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    const varType = gen.getVariableType(varName);
+    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+  }
+
+  const predicateArg = expr.args[0];
+  let predicateFn: string;
+  if (predicateArg.type === "variable") {
+    predicateFn = gen.mangleUserName((predicateArg as VariableNode).name);
+  } else if (predicateArg.type === "arrow_function") {
+    if (isStringArray) {
+      gen.setExpectedCallbackParamType("string");
+    }
+    predicateFn = gen.generateExpression(predicateArg, params);
+    gen.setExpectedCallbackParamType(null);
+  } else {
+    throw new Error("findIndex() argument must be a function name or inline function");
+  }
 
   if (isStringArray) {
     return generateStringArrayFindIndex(gen, arrayPtr, predicateFn);
@@ -202,7 +207,7 @@ export function generateArrayFindIndex(
 }
 
 function generateNumericArrayFindIndex(
-  gen: ArraySearchContext,
+  gen: IGeneratorContext,
   arrayPtr: string,
   predicateFn: string,
 ): string {
@@ -218,11 +223,11 @@ function generateNumericArrayFindIndex(
 
   const resultPtr = gen.nextTemp();
   gen.emit(`${resultPtr} = alloca i32`);
-  gen.emit(`store i32 -1, i32* ${resultPtr}`);
+  gen.emitStore("i32", "-1", resultPtr);
 
   const loopPtr = gen.nextTemp();
   gen.emit(`${loopPtr} = alloca i32`);
-  gen.emit(`store i32 0, i32* ${loopPtr}`);
+  gen.emitStore("i32", "0", loopPtr);
 
   const checkLabel = gen.nextLabel("findidx_check");
   const bodyLabel = gen.nextLabel("findidx_body");
@@ -230,47 +235,42 @@ function generateNumericArrayFindIndex(
   const nextLabel = gen.nextLabel("findidx_next");
   const endLabel = gen.nextLabel("findidx_end");
 
-  gen.emit(`br label %${checkLabel}`);
+  gen.emitBr(checkLabel);
 
-  gen.emit(`${checkLabel}:`);
-  const i = gen.nextTemp();
-  gen.emit(`${i} = load i32, i32* ${loopPtr}`);
-  const cond = gen.nextTemp();
-  gen.emit(`${cond} = icmp slt i32 ${i}, ${length}`);
-  gen.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+  gen.emitLabel(checkLabel);
+  const i = gen.emitLoad("i32", loopPtr);
+  const cond = gen.emitIcmp("slt", "i32", i, length);
+  gen.emitBrCond(cond, bodyLabel, endLabel);
 
-  gen.emit(`${bodyLabel}:`);
+  gen.emitLabel(bodyLabel);
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
-  const elem = gen.nextTemp();
-  gen.emit(`${elem} = load double, double* ${elemPtr}`);
+  const elem = gen.emitLoad("double", elemPtr);
 
-  const predicateResult = gen.nextTemp();
-  gen.emit(`${predicateResult} = call double @${predicateFn}(double ${elem})`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `double ${elem}`);
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
-  gen.emit(`br i1 ${isTruthy}, label %${foundLabel}, label %${nextLabel}`);
+  gen.emitBrCond(isTruthy, foundLabel, nextLabel);
 
-  gen.emit(`${foundLabel}:`);
-  gen.emit(`store i32 ${i}, i32* ${resultPtr}`);
-  gen.emit(`br label %${endLabel}`);
+  gen.emitLabel(foundLabel);
+  gen.emitStore("i32", i, resultPtr);
+  gen.emitBr(endLabel);
 
-  gen.emit(`${nextLabel}:`);
+  gen.emitLabel(nextLabel);
   const nextI = gen.nextTemp();
   gen.emit(`${nextI} = add i32 ${i}, 1`);
-  gen.emit(`store i32 ${nextI}, i32* ${loopPtr}`);
-  gen.emit(`br label %${checkLabel}`);
+  gen.emitStore("i32", nextI, loopPtr);
+  gen.emitBr(checkLabel);
 
-  gen.emit(`${endLabel}:`);
-  const resultI32 = gen.nextTemp();
-  gen.emit(`${resultI32} = load i32, i32* ${resultPtr}`);
+  gen.emitLabel(endLabel);
+  const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
   return result;
 }
 
 function generateStringArrayFindIndex(
-  gen: ArraySearchContext,
+  gen: IGeneratorContext,
   arrayPtr: string,
   predicateFn: string,
 ): string {
@@ -290,11 +290,11 @@ function generateStringArrayFindIndex(
 
   const resultPtr = gen.nextTemp();
   gen.emit(`${resultPtr} = alloca i32`);
-  gen.emit(`store i32 -1, i32* ${resultPtr}`);
+  gen.emitStore("i32", "-1", resultPtr);
 
   const loopPtr = gen.nextTemp();
   gen.emit(`${loopPtr} = alloca i32`);
-  gen.emit(`store i32 0, i32* ${loopPtr}`);
+  gen.emitStore("i32", "0", loopPtr);
 
   const checkLabel = gen.nextLabel("findidx_check");
   const bodyLabel = gen.nextLabel("findidx_body");
@@ -302,40 +302,35 @@ function generateStringArrayFindIndex(
   const nextLabel = gen.nextLabel("findidx_next");
   const endLabel = gen.nextLabel("findidx_end");
 
-  gen.emit(`br label %${checkLabel}`);
+  gen.emitBr(checkLabel);
 
-  gen.emit(`${checkLabel}:`);
-  const i = gen.nextTemp();
-  gen.emit(`${i} = load i32, i32* ${loopPtr}`);
-  const cond = gen.nextTemp();
-  gen.emit(`${cond} = icmp slt i32 ${i}, ${length}`);
-  gen.emit(`br i1 ${cond}, label %${bodyLabel}, label %${endLabel}`);
+  gen.emitLabel(checkLabel);
+  const i = gen.emitLoad("i32", loopPtr);
+  const cond = gen.emitIcmp("slt", "i32", i, length);
+  gen.emitBrCond(cond, bodyLabel, endLabel);
 
-  gen.emit(`${bodyLabel}:`);
+  gen.emitLabel(bodyLabel);
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
-  const elem = gen.nextTemp();
-  gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
+  const elem = gen.emitLoad("i8*", elemPtr);
 
-  const predicateResult = gen.nextTemp();
-  gen.emit(`${predicateResult} = call double @${predicateFn}(i8* ${elem})`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `i8* ${elem}`);
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
-  gen.emit(`br i1 ${isTruthy}, label %${foundLabel}, label %${nextLabel}`);
+  gen.emitBrCond(isTruthy, foundLabel, nextLabel);
 
-  gen.emit(`${foundLabel}:`);
-  gen.emit(`store i32 ${i}, i32* ${resultPtr}`);
-  gen.emit(`br label %${endLabel}`);
+  gen.emitLabel(foundLabel);
+  gen.emitStore("i32", i, resultPtr);
+  gen.emitBr(endLabel);
 
-  gen.emit(`${nextLabel}:`);
+  gen.emitLabel(nextLabel);
   const nextI = gen.nextTemp();
   gen.emit(`${nextI} = add i32 ${i}, 1`);
-  gen.emit(`store i32 ${nextI}, i32* ${loopPtr}`);
-  gen.emit(`br label %${checkLabel}`);
+  gen.emitStore("i32", nextI, loopPtr);
+  gen.emitBr(checkLabel);
 
-  gen.emit(`${endLabel}:`);
-  const resultI32 = gen.nextTemp();
-  gen.emit(`${resultI32} = load i32, i32* ${resultPtr}`);
+  gen.emitLabel(endLabel);
+  const resultI32 = gen.emitLoad("i32", resultPtr);
   const result = gen.nextTemp();
   gen.emit(`${result} = sitofp i32 ${resultI32} to double`);
   return result;

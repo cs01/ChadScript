@@ -1,4 +1,12 @@
-import { Expression } from "../../../../ast/types.js";
+// Array sort operations: default numeric/string sort, custom comparator sort
+// generateArraySort accepts (gen, expr, params) and handles type detection + dispatch internally.
+
+import { Expression, MethodCallNode, VariableNode } from "../../../../ast/types.js";
+import { IGeneratorContext } from "./context.js";
+
+interface ExprBase {
+  type: string;
+}
 
 interface ArraySortContext {
   nextTemp(): string;
@@ -43,7 +51,51 @@ export function generateDefaultSortComparators(): string {
   return ir;
 }
 
-export function generateDefaultNumericSort(gen: ArraySortContext, arrayPtr: string): string {
+export function generateArraySort(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  if (expr.args.length > 1) {
+    throw new Error("sort() expects 0 or 1 arguments");
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+  gen.setUsesArraySort(true);
+
+  let isStringArray = false;
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    const varType = gen.getVariableType(varName);
+    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+  }
+  if (!isStringArray) {
+    const ptrType = gen.getVariableType(arrayPtr);
+    if (ptrType === "%StringArray*" || ptrType === "%StringArray") isStringArray = true;
+  }
+
+  if (expr.args.length === 0) {
+    if (isStringArray) {
+      return generateDefaultStringSort(gen, arrayPtr);
+    }
+    return generateDefaultNumericSort(gen, arrayPtr);
+  }
+
+  const predicateArg = expr.args[0];
+  let compareFn: string;
+  if (predicateArg.type === "variable") {
+    compareFn = gen.mangleUserName((predicateArg as VariableNode).name);
+  } else if (predicateArg.type === "arrow_function") {
+    compareFn = gen.generateExpression(predicateArg, params);
+  } else {
+    throw new Error("sort() comparator must be a function name or inline function");
+  }
+
+  return generateNumericSortWithFn(gen, arrayPtr, compareFn);
+}
+
+function generateDefaultNumericSort(gen: ArraySortContext, arrayPtr: string): string {
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
   const length = gen.nextTemp();
@@ -67,7 +119,7 @@ export function generateDefaultNumericSort(gen: ArraySortContext, arrayPtr: stri
   return arrayPtr;
 }
 
-export function generateDefaultStringSort(gen: ArraySortContext, arrayPtr: string): string {
+function generateDefaultStringSort(gen: ArraySortContext, arrayPtr: string): string {
   const lenPtr = gen.nextTemp();
   gen.emit(
     `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 1`,
@@ -95,7 +147,7 @@ export function generateDefaultStringSort(gen: ArraySortContext, arrayPtr: strin
   return arrayPtr;
 }
 
-export function generateNumericSortWithFn(
+function generateNumericSortWithFn(
   gen: ArraySortContext,
   arrayPtr: string,
   compareFn: string,

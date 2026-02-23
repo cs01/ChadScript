@@ -1,10 +1,12 @@
 // Array iteration operations: filter, forEach, reduce, map
-// Extracted from array.ts to reduce file size. Uses IGeneratorContext for IR emission.
+// Exported functions accept (gen, expr, params) and handle callback resolution internally.
 
-import { IGeneratorContext, loadArrayMeta } from "./context.js";
+import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
+import { IGeneratorContext, loadArrayMeta, detectArrayType } from "./context.js";
 
-// Callback resolution happens in the facade (array.ts class methods) to work around
-// ChadScript self-hosting issues with expr.args[0].type access in standalone functions.
+interface ExprBase {
+  type: string;
+}
 
 // ============================================
 // filter
@@ -12,15 +14,41 @@ import { IGeneratorContext, loadArrayMeta } from "./context.js";
 
 export function generateArrayFilter(
   gen: IGeneratorContext,
-  arrayPtr: string,
-  predicateFn: string,
-  isStringArray: boolean,
-  isObjectArray: boolean,
+  expr: MethodCallNode,
+  params: string[],
 ): string {
+  if (expr.args.length !== 1) {
+    throw new Error("filter() requires exactly 1 argument (predicate function)");
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+
+  const callbackArg = expr.args[0];
+  let predicateFn: string;
+  if (callbackArg.type === "variable") {
+    predicateFn = gen.mangleUserName((callbackArg as VariableNode).name);
+  } else if (callbackArg.type === "arrow_function") {
+    if (isStringArray || isObjectArray) {
+      gen.setExpectedCallbackParamType("string");
+    }
+    predicateFn = gen.generateExpression(callbackArg, params);
+    gen.setExpectedCallbackParamType(null);
+  } else {
+    throw new Error("filter() argument must be a function name or inline function");
+  }
+
   if (isStringArray || isObjectArray) {
     return generateStringArrayFilter(gen, arrayPtr, predicateFn);
   }
+  return generateNumericArrayFilter(gen, arrayPtr, predicateFn);
+}
 
+function generateNumericArrayFilter(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  predicateFn: string,
+): string {
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
   const length = gen.emitLoad("i32", lenPtr);
@@ -216,15 +244,41 @@ function generateStringArrayFilter(
 
 export function generateArrayForEach(
   gen: IGeneratorContext,
-  arrayPtr: string,
-  callbackFn: string,
-  isStringArray: boolean,
-  isObjectArray: boolean,
+  expr: MethodCallNode,
+  params: string[],
 ): string {
+  if (expr.args.length !== 1) {
+    throw new Error("forEach() requires exactly 1 argument (callback function)");
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+
+  const callbackArg = expr.args[0];
+  let callbackFn: string;
+  if (callbackArg.type === "variable") {
+    callbackFn = gen.mangleUserName((callbackArg as VariableNode).name);
+  } else if (callbackArg.type === "arrow_function") {
+    if (isStringArray || isObjectArray) {
+      gen.setExpectedCallbackParamType("string");
+    }
+    callbackFn = gen.generateExpression(callbackArg, params);
+    gen.setExpectedCallbackParamType(null);
+  } else {
+    throw new Error("forEach() argument must be a function name or inline function");
+  }
+
   if (isStringArray || isObjectArray) {
     return generateStringArrayForEach(gen, arrayPtr, callbackFn);
   }
+  return generateNumericArrayForEach(gen, arrayPtr, callbackFn);
+}
 
+function generateNumericArrayForEach(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  callbackFn: string,
+): string {
   const arrayMeta = loadArrayMeta(gen, arrayPtr);
   const length = arrayMeta.length;
   const dataPtr = arrayMeta.dataPtr;
@@ -317,15 +371,58 @@ function generateStringArrayForEach(
 
 export function generateArrayReduce(
   gen: IGeneratorContext,
-  arrayPtr: string,
-  callbackFn: string,
-  isStringArray: boolean,
-  initialValue: string | null,
+  expr: MethodCallNode,
+  params: string[],
 ): string {
+  if (expr.args.length < 1 || expr.args.length > 2) {
+    throw new Error("reduce() requires 1-2 arguments (callback, optional initialValue)");
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+
+  // reduce uses manual string detection (not detectArrayType) — only checks string, not object
+  let isStringArray = false;
+  const exprObjBase = expr.object as ExprBase;
+  if (exprObjBase.type === "variable") {
+    const varName = (expr.object as VariableNode).name;
+    const varType = gen.getVariableType(varName);
+    isStringArray = varType === "%StringArray*" || varType === "%StringArray";
+  } else {
+    const ptrType = gen.getVariableType(arrayPtr);
+    isStringArray = ptrType === "%StringArray*";
+  }
+
+  const callbackArg = expr.args[0];
+  let callbackFn: string;
+  if (callbackArg.type === "variable") {
+    callbackFn = gen.mangleUserName((callbackArg as VariableNode).name);
+  } else if (callbackArg.type === "arrow_function") {
+    if (isStringArray) {
+      gen.setExpectedCallbackParamType("string");
+    }
+    callbackFn = gen.generateExpression(callbackArg, params);
+    gen.setExpectedCallbackParamType(null);
+  } else {
+    throw new Error("reduce() argument must be a function name or inline function");
+  }
+
+  let initialValue: string | null = null;
+  if (expr.args.length === 2) {
+    initialValue = gen.generateExpression(expr.args[1], params);
+  }
+
   if (isStringArray) {
     return generateStringArrayReduce(gen, arrayPtr, callbackFn, initialValue);
   }
+  return generateNumericArrayReduce(gen, arrayPtr, callbackFn, initialValue);
+}
 
+function generateNumericArrayReduce(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  callbackFn: string,
+  initialValue: string | null,
+): string {
   const arrayMeta = loadArrayMeta(gen, arrayPtr);
   const length = arrayMeta.length;
   const dataPtr = arrayMeta.dataPtr;
@@ -456,15 +553,73 @@ function generateStringArrayReduce(
 
 export function generateArrayMap(
   gen: IGeneratorContext,
-  arrayPtr: string,
-  callbackFn: string,
-  isStringArray: boolean,
-  isObjectArray: boolean,
+  expr: MethodCallNode,
+  params: string[],
 ): string {
-  if (isStringArray || isObjectArray) {
-    return generateStringArrayMap(gen, arrayPtr, callbackFn);
+  if (expr.args.length !== 1) {
+    throw new Error("map() requires exactly 1 argument (callback function)");
   }
 
+  const arrayPtr = gen.generateExpression(expr.object, params);
+  const { isStringArray, isObjectArray } = detectArrayType(gen, expr, arrayPtr);
+
+  const callbackArg = expr.args[0];
+  let callbackFn: string;
+  if (callbackArg.type === "variable") {
+    callbackFn = gen.mangleUserName((callbackArg as VariableNode).name);
+  } else if (callbackArg.type === "arrow_function") {
+    if (isStringArray || isObjectArray) {
+      gen.setExpectedCallbackParamType("string");
+      gen.setExpectedCallbackReturnType("string");
+    } else {
+      gen.setExpectedCallbackReturnType("number");
+    }
+    callbackFn = gen.generateExpression(callbackArg, params);
+    gen.setExpectedCallbackParamType(null);
+    gen.setExpectedCallbackReturnType(null);
+  } else {
+    throw new Error("map() argument must be a function name or inline function");
+  }
+
+  if (isStringArray || isObjectArray) {
+    return generateStringArrayMapImpl(gen, arrayPtr, callbackFn);
+  }
+  return generateNumericArrayMap(gen, arrayPtr, callbackFn);
+}
+
+export function generateStringArrayMap(
+  gen: IGeneratorContext,
+  expr: MethodCallNode,
+  params: string[],
+): string {
+  if (expr.args.length !== 1) {
+    throw new Error("map() requires exactly 1 argument (callback function)");
+  }
+
+  const arrayPtr = gen.generateExpression(expr.object, params);
+
+  const callbackArg = expr.args[0];
+  let callbackFn: string;
+  if (callbackArg.type === "variable") {
+    callbackFn = gen.mangleUserName((callbackArg as VariableNode).name);
+  } else if (callbackArg.type === "arrow_function") {
+    gen.setExpectedCallbackParamType("string");
+    gen.setExpectedCallbackReturnType("string");
+    callbackFn = gen.generateExpression(callbackArg, params);
+    gen.setExpectedCallbackParamType(null);
+    gen.setExpectedCallbackReturnType(null);
+  } else {
+    throw new Error("map() argument must be a function name or inline function");
+  }
+
+  return generateStringArrayMapImpl(gen, arrayPtr, callbackFn);
+}
+
+function generateNumericArrayMap(
+  gen: IGeneratorContext,
+  arrayPtr: string,
+  callbackFn: string,
+): string {
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
   const length = gen.emitLoad("i32", lenPtr);
@@ -541,7 +696,7 @@ export function generateArrayMap(
   return resultArrayPtr;
 }
 
-export function generateStringArrayMap(
+function generateStringArrayMapImpl(
   gen: IGeneratorContext,
   arrayPtr: string,
   callbackFn: string,

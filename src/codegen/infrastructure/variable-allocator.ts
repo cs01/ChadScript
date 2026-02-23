@@ -206,6 +206,7 @@ export interface VariableAllocatorContext {
   setCurrentDeclaredInterfaceType(type: string | undefined): void;
   getCurrentDeclaredInterfaceType(): string | undefined;
   getCurrentClassName(): string | null;
+  getParameterTypeFromAST(paramName: string): string | null;
   typeResolverGetInterface(name: string): InterfaceDeclaration | null;
   typeResolverGetTypeAlias(name: string): TypeAliasDeclaration | null;
   typeResolverGetMapGetInterfaceType(expr: Expression): string | null;
@@ -2355,22 +2356,35 @@ export class VariableAllocator {
       const varName = (memberAccess.object as VariableNode).name;
       if (!varName) return null;
       const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
-      if (!objMeta) return null;
-      if (!objMeta.keys) return null;
+      if (objMeta && objMeta.keys) {
+        const propIndex = objMeta.keys.indexOf(propertyName);
+        if (propIndex !== -1) {
+          const objMetaTsTypes = objMeta.tsTypes as string[];
+          if (objMetaTsTypes) {
+            const propTsType = objMetaTsTypes[propIndex];
+            if (propTsType) {
+              const arrayParsed = parseArrayTypeString(propTsType);
+              if (arrayParsed) {
+                return this.getTypeInfoForElementType(arrayParsed.elementType);
+              }
+            }
+          }
+        }
+      }
 
-      const propIndex = objMeta.keys.indexOf(propertyName);
-      if (propIndex === -1) return null;
+      // Fallback: resolve via parameter type annotation (e.g. container: Container)
+      const paramType = this.ctx.getParameterTypeFromAST(varName);
+      if (paramType) {
+        const fieldType = this.getInterfaceFieldTypeByName(paramType, propertyName);
+        if (fieldType) {
+          const arrayParsed = parseArrayTypeString(fieldType);
+          if (arrayParsed) {
+            return this.getTypeInfoForElementType(arrayParsed.elementType);
+          }
+        }
+      }
 
-      const objMetaTsTypes = objMeta.tsTypes as string[];
-      if (!objMetaTsTypes) return null;
-      const propTsType = objMetaTsTypes[propIndex];
-      if (!propTsType) return null;
-
-      const arrayParsed = parseArrayTypeString(propTsType);
-      if (!arrayParsed) return null;
-
-      const elementType = arrayParsed.elementType;
-      return this.getTypeInfoForElementType(elementType);
+      return null;
     }
 
     if (memberObjBase.type === "member_access" || memberObjBase.type === "this") {
@@ -2414,6 +2428,11 @@ export class VariableAllocator {
       const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
       if (objMeta && objMeta.tsTypes) {
         return this.ctx.symbolTable.getType(varName) || null;
+      }
+      // Fallback: resolve via parameter type annotation (e.g. container: Container)
+      const paramType = this.ctx.getParameterTypeFromAST(varName);
+      if (paramType) {
+        return paramType;
       }
       return null;
     }
