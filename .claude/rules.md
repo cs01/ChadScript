@@ -198,6 +198,7 @@ Existing bridges: `regex-bridge.c`, `yyjson-bridge.c`, `os-bridge.c`, `child-pro
 
 1. **`new` in class field initializers** — codegen handles simple `new X()` in field initializers (both explicit and default constructors), but complex nested class instantiation may have edge cases. Prefer initializing in constructors for safety.
 2. **Type assertions must match real struct field order AND count** — `as { type, left, right }` on a struct that's `{ type, op, left, right }` causes GEP to read wrong fields. Fields must be a PREFIX of the real struct in EXACT order.
+3. **Never insert new optional fields in the MIDDLE of an interface** — The native compiler determines struct layouts from object literal creation sites. If an interface has multiple creation sites (e.g., `MethodCallNode` is created in parser-ts, parser-native, and codegen), inserting a new field before existing ones shifts GEP indices and breaks creation sites that don't include the new field. **Always add new optional fields at the END of interfaces.** Root cause: the native compiler doesn't unify struct layouts from interface definitions — it uses object literal field order, and different creation sites may have different subsets of fields.
 
 ## Stage 0 Compatibility
 
