@@ -339,14 +339,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install LLVM (Linux)
+      - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y llvm clang
+        run: sudo apt-get update && sudo apt-get install -y llvm clang libsqlite3-dev libzstd-dev zlib1g-dev
 
-      - name: Install LLVM (macOS)
+      - name: Install system dependencies (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install llvm
+          brew install llvm zstd
           echo "/opt/homebrew/opt/llvm/bin" >> $GITHUB_PATH
 
       - name: Download artifact
@@ -364,6 +364,41 @@ jobs:
           file ~/.chadscript/chad.bin
           ls -la ~/.chadscript/lib/
 
+      - name: Verify lib/ contains all required artifacts
+        run: |
+          fail=0
+          for lib in \
+            libgc.a \
+            libyyjson.a \
+            libuv.a \
+            libtree-sitter.a \
+            picohttpparser.o \
+            lws-bridge.o \
+            regex-bridge.o \
+            child-process-bridge.o \
+            child-process-spawn.o \
+            os-bridge.o \
+            dotenv-bridge.o \
+            watch-bridge.o \
+            tree-sitter-typescript-parser.o \
+            tree-sitter-typescript-scanner.o \
+            treesitter-bridge.o; do
+            if [ ! -f "$HOME/.chadscript/lib/$lib" ]; then
+              echo "MISSING from release: lib/$lib"
+              fail=1
+            else
+              echo "OK: lib/$lib ($(wc -c < "$HOME/.chadscript/lib/$lib") bytes)"
+            fi
+          done
+          if [ "$fail" -eq 1 ]; then
+            echo ""
+            echo "ERROR: Release artifact is missing required library files."
+            echo "Check the 'Package release artifact' step in the build job."
+            exit 1
+          fi
+          echo ""
+          echo "All $(ls ~/.chadscript/lib/ | wc -l) library files present."
+
       - name: Smoke test - hello world
         run: |
           echo 'console.log("Hello from release artifact!");' > /tmp/hello.ts
@@ -374,6 +409,51 @@ jobs:
           echo 'process.exit(42);' > /tmp/exit42.ts
           chad build /tmp/exit42.ts -o /tmp/exit42
           /tmp/exit42 || [ $? -eq 42 ]
+
+      - name: Smoke test - JSON bridge (libyyjson)
+        run: |
+          cat > /tmp/test-json.ts << 'EOF'
+          const obj = JSON.parse('{"name":"chad","version":1}');
+          const back = JSON.stringify(obj);
+          if (back.includes("chad")) {
+            console.log("TEST_PASSED");
+          }
+          EOF
+          OUTPUT=$(chad run /tmp/test-json.ts)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "TEST_PASSED"
+
+      - name: Smoke test - regex bridge
+        run: |
+          cat > /tmp/test-regex.ts << 'EOF'
+          const re = /hello (\w+)/;
+          const match = "hello world".match(re);
+          if (match && match[1] === "world") {
+            console.log("TEST_PASSED");
+          }
+          EOF
+          OUTPUT=$(chad run /tmp/test-regex.ts)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "TEST_PASSED"
+
+      - name: Smoke test - child_process bridge
+        run: |
+          cat > /tmp/test-execsync.ts << 'EOF'
+          import { execSync } from "child_process";
+          const result = execSync("echo bridge_works");
+          if (result.trim() === "bridge_works") {
+            console.log("TEST_PASSED");
+          }
+          EOF
+          OUTPUT=$(chad run /tmp/test-execsync.ts)
+          echo "$OUTPUT"
+          echo "$OUTPUT" | grep -q "TEST_PASSED"
+
+      - name: Smoke test - compile hackernews example (exercises HTTP + sqlite bridges)
+        run: |
+          chad build examples/hackernews/app.ts -o /tmp/hackernews
+          file /tmp/hackernews
+          echo "Hackernews example compiled successfully"
 
   release:
     needs: [build-linux-musl, build-linux-glibc, build-macos, test-artifact]
