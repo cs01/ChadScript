@@ -185,6 +185,7 @@ export interface MethodCallGeneratorContext {
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
+  setUsesMultipart(value: boolean): void;
   setUsesTestRunner(value: boolean): void;
   classGenGetFieldInfo(
     className: string | null,
@@ -395,6 +396,8 @@ export class MethodCallGenerator {
         return this.ctx.embedGen.generateGetEmbeddedFileAsUint8Array(expr, params);
       } else if (method === "serveEmbedded") {
         return this.ctx.embedGen.generateServeEmbedded(expr, params);
+      } else if (method === "parseMultipart") {
+        return this.handleParseMultipart(expr, params);
       }
       return this.ctx.emitError(`ChadScript.${method}() is not a supported method`, expr.loc);
     }
@@ -1372,5 +1375,57 @@ export class MethodCallGenerator {
       return true;
     }
     return false;
+  }
+
+  /**
+   * Handle ChadScript.parseMultipart(req) — extracts content_type, body, and
+   * body_len from the request struct and calls the C bridge parser.
+   * Returns %ObjectArray* of MultipartPart interface structs.
+   */
+  private handleParseMultipart(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length < 1) {
+      return this.ctx.emitError("ChadScript.parseMultipart() requires a request argument", expr.loc);
+    }
+
+    // Mark that we use the multipart parser (for declaration emission)
+    this.ctx.setUsesMultipart(true);
+
+    const reqValue = this.ctx.generateExpression(expr.args[0], params);
+    const reqType = "%struct.lws_bridge_request";
+
+    // Cast i8* request to struct pointer
+    const reqPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${reqPtr} = bitcast i8* ${reqValue} to ${reqType}*`);
+
+    // Load content_type (field 3)
+    const ctGep = this.ctx.nextTemp();
+    this.ctx.emit(`${ctGep} = getelementptr ${reqType}, ${reqType}* ${reqPtr}, i32 0, i32 3`);
+    const ctVal = this.ctx.nextTemp();
+    this.ctx.emit(`${ctVal} = load i8*, i8** ${ctGep}`);
+
+    // Load body (field 2)
+    const bodyGep = this.ctx.nextTemp();
+    this.ctx.emit(`${bodyGep} = getelementptr ${reqType}, ${reqType}* ${reqPtr}, i32 0, i32 2`);
+    const bodyVal = this.ctx.nextTemp();
+    this.ctx.emit(`${bodyVal} = load i8*, i8** ${bodyGep}`);
+
+    // Load body_len (field 5)
+    const lenGep = this.ctx.nextTemp();
+    this.ctx.emit(`${lenGep} = getelementptr ${reqType}, ${reqType}* ${reqPtr}, i32 0, i32 5`);
+    const lenVal = this.ctx.nextTemp();
+    this.ctx.emit(`${lenVal} = load i64, i64* ${lenGep}`);
+
+    // Call C bridge: cs_parse_multipart_to_array(content_type, body, body_len) -> i8*
+    const rawResult = this.ctx.nextTemp();
+    this.ctx.emit(
+      `${rawResult} = call i8* @cs_parse_multipart_to_array(i8* ${ctVal}, i8* ${bodyVal}, i64 ${lenVal})`,
+    );
+
+    // Cast to %ObjectArray*
+    const objArr = this.ctx.nextTemp();
+    this.ctx.emit(`${objArr} = bitcast i8* ${rawResult} to %ObjectArray*`);
+    this.ctx.setVariableType(objArr, "%ObjectArray*");
+
+    return objArr;
   }
 }

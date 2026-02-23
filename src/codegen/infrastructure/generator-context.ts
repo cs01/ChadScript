@@ -763,6 +763,7 @@ export interface IGeneratorContext {
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
   setUsesMongoose(value: boolean): void;
+  setUsesMultipart(value: boolean): void;
   setUsesRegex(value: boolean): void;
   setUsesTestRunner(value: boolean): void;
   getUsesTestRunner(): boolean;
@@ -1141,6 +1142,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   setUsesMongoose(value: boolean): void {
     this.usesMongoose = value ? 1 : 0;
+  }
+  setUsesMultipart(value: boolean): void {
+    // no-op in mock
   }
   setUsesRegex(value: boolean): void {
     this.usesRegex = value ? 1 : 0;

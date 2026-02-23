@@ -124,6 +124,17 @@ else
   echo "==> lws-bridge already built, skipping"
 fi
 
+# --- multipart-bridge (multipart/form-data parser) ---
+MP_BRIDGE_SRC="$C_BRIDGES_DIR/multipart-bridge.c"
+MP_BRIDGE_OBJ="$C_BRIDGES_DIR/multipart-bridge.o"
+if [ ! -f "$MP_BRIDGE_OBJ" ] || [ "$MP_BRIDGE_SRC" -nt "$MP_BRIDGE_OBJ" ]; then
+  echo "==> Building multipart-bridge..."
+  cc -c -O2 -fPIC "$MP_BRIDGE_SRC" -o "$MP_BRIDGE_OBJ"
+  echo "  -> $MP_BRIDGE_OBJ"
+else
+  echo "==> multipart-bridge already built, skipping"
+fi
+
 # --- regex-bridge ---
 REGEX_BRIDGE_SRC="$C_BRIDGES_DIR/regex-bridge.c"
 REGEX_BRIDGE_OBJ="$C_BRIDGES_DIR/regex-bridge.o"
