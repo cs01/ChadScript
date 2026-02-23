@@ -40,5 +40,13 @@ ChadScript compiles itself. The compiler is ~45k lines of TypeScript that produc
 
 ## Platform Support
 
-- **Linux x86-64** — primary target
-- **macOS** — supported, including cross-compilation (`--target macos-arm64`, `--target linux-x64`)
+- **Linux x86-64** — primary target, musl (static) and glibc builds
+- **Linux ARM64** — supported
+- **macOS ARM64** — supported (Apple Silicon)
+- **macOS x64** — supported (Intel)
+
+### Cross-Compilation
+
+ChadScript supports cross-compiling from any supported host to any supported target. The `--target` flag controls IR generation (triple, data layout, platform symbols), and pre-built target SDKs provide the vendor libraries and C bridge objects needed for linking.
+
+For Linux targets, cross-compiled binaries use musl and are fully statically linked — they run on any Linux distribution without runtime dependencies. See the [CLI reference](../getting-started/cli.md#cross-compilation) for setup instructions.

@@ -71,6 +71,28 @@ export CHADSCRIPT_LIBUV_PATH=/path/to/libuv/build
 export CHADSCRIPT_TREESITTER_PATH=/path/to/tree-sitter
 ```
 
+## Cross-Compilation
+
+To cross-compile for a different platform, install a target SDK and use `--target`:
+
+```bash
+# One-time: download pre-built libraries for the target platform
+chad target add linux-x64
+
+# Cross-compile
+chad build hello.ts --target linux-x64 -o hello-linux
+```
+
+### Building a target SDK (for CI/contributors)
+
+The `scripts/build-target-sdk.sh` script packages the current platform's vendor libraries, C bridge objects, and (on musl Linux) sysroot into a tarball. CI runs this on each platform after `build-vendor.sh`:
+
+```bash
+bash scripts/build-vendor.sh
+bash scripts/build-target-sdk.sh
+# produces: chadscript-target-<platform>.tar.gz
+```
+
 ## Self-Hosting (Stage 0)
 
 ChadScript can compile its own compiler to a native binary:

@@ -1,3 +1,6 @@
+// Native compiler library — the self-hosted compilation path.
+// This file is compiled by ChadScript itself, so it uses the native runtime
+// declarations rather than Node.js imports.
 import { parseSource } from "./parser-native/index.js";
 import { transformTree } from "./parser-native/transformer.js";
 import { LLVMGenerator, LLVMGeneratorOptions, SemaSymbolData } from "./codegen/llvm-generator.js";
@@ -14,6 +17,7 @@ declare const fs: {
   appendFileSync(filename: string, data: string): number;
   existsSync(filename: string): boolean;
   unlinkSync(filename: string): number;
+  readdirSync(dirname: string): string[];
 };
 
 declare const path: {
@@ -47,6 +51,7 @@ export let skipSemanticAnalysis = false;
 export let emitLLVMOnly = false;
 export let verbose = false;
 export let targetCpu = "native";
+export let targetTriple = "";
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -64,10 +69,64 @@ export function setTargetCpu(value: string): void {
   targetCpu = value;
 }
 
+export function setTargetTriple(value: string): void {
+  targetTriple = value;
+}
+
+// Resolve the home directory for SDK lookups
+function getHomeDir(): string {
+  // Try common env vars (HOME on Linux/macOS)
+  // The native runtime doesn't have os.homedir()
+  if (process.platform === "darwin") {
+    return "/Users/" + getUsername();
+  }
+  return "/home/" + getUsername();
+}
+
+function getUsername(): string {
+  // process.env is available in the native runtime via dotenv bridge
+  // but we can parse /etc/passwd or use a simpler approach
+  // For now, use the execDir parent heuristic or fall back
+  const argv0 = process.argv0;
+  const dir = path.dirname(path.resolve(argv0));
+  // If installed at ~/.chadscript/chad, dirname is ~/.chadscript
+  if (dir.indexOf("/.chadscript") !== -1) {
+    const parts = dir.substr(0, dir.indexOf("/.chadscript"));
+    const lastSlash = parts.lastIndexOf("/");
+    if (lastSlash !== -1) {
+      return parts.substr(lastSlash + 1);
+    }
+  }
+  // Fall back: try whoami
+  return "";
+}
+
+function getSDKDir(targetName: string): string {
+  const home = getHomeDir();
+  if (home.length === 0) return "";
+  return home + "/.chadscript/targets/" + targetName;
+}
+
+// Determine the short target name from a triple (e.g., "x86_64-unknown-linux-musl" -> "linux-x64")
+function tripleToTargetName(triple: string): string {
+  const isLinux = triple.indexOf("linux") !== -1;
+  const isDarwin = triple.indexOf("darwin") !== -1 || triple.indexOf("apple") !== -1;
+  const isAarch64 = triple.indexOf("aarch64") !== -1 || triple.indexOf("arm64") !== -1;
+  const osName = isDarwin ? "macos" : "linux";
+  const archName = isAarch64 ? "arm64" : "x64";
+  if (!isLinux && !isDarwin) return "";
+  return osName + "-" + archName;
+}
+
+function isMuslTarget(triple: string): boolean {
+  return triple.indexOf("musl") !== -1;
+}
+
 export function compileNative(inputFile: string, outputFile: string): void {
   const execDir = path.dirname(path.resolve(process.argv0));
   const installedLibDir = execDir + "/lib";
   const isInstalled = fs.existsSync(installedLibDir + "/libgc.a");
+  const crossCompiling = targetTriple.length > 0;
 
   const BDWGC_PATH = isInstalled ? installedLibDir : "./vendor/bdwgc";
   const LWS_BRIDGE_PATH = isInstalled ? installedLibDir : "./c_bridges";
@@ -133,11 +192,50 @@ export function compileNative(inputFile: string, outputFile: string): void {
 
   if (verbose) {
     console.log("Generating LLVM IR...");
+    if (crossCompiling) {
+      console.log("Cross-compiling for: " + targetTriple);
+    }
   }
+
+  // Build a minimal TargetInfo for the LLVM generator when cross-compiling.
+  // The generator needs triple, dataLayout, os, and archString.
+  // We cast to any to avoid importing TargetInfo (this file is self-hosted,
+  // can't use Node's os module that target.ts depends on).
+  let targetInfo: any = undefined;
+  if (crossCompiling) {
+    const isDarwin =
+      targetTriple.indexOf("darwin") !== -1 || targetTriple.indexOf("apple") !== -1;
+    const isAarch64 =
+      targetTriple.indexOf("aarch64") !== -1 || targetTriple.indexOf("arm64") !== -1;
+    const tOs = isDarwin ? "darwin" : "linux";
+    const tArch = isAarch64 ? "aarch64" : "x86_64";
+    const tArchStr = isAarch64 ? "arm64" : "x64";
+    // Data layout strings must match what LLVM expects
+    let dl = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128";
+    if (isDarwin && isAarch64) {
+      dl = "e-m:o-i64:64-i128:128-n32:64-S128-Fn32";
+    } else if (isDarwin) {
+      dl = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128";
+    } else if (isAarch64) {
+      dl = "e-m:e-i8:8:32-i16:16:32-i64:64-i128:128-n32:64-S128-Fn32";
+    }
+    targetInfo = {
+      triple: targetTriple,
+      os: tOs,
+      arch: tArch,
+      cpu: "generic",
+      platformString: tOs,
+      archString: tArchStr,
+      dataLayout: dl,
+      libc: isMuslTarget(targetTriple) ? "musl" : isDarwin ? "system" : "gnu",
+    };
+  }
+
   const generatorOptions: LLVMGeneratorOptions = {
     sourceCode: "",
     filename: inputFile,
     analyzedSymbols: semaSymbols,
+    target: targetInfo,
   };
   const generator = new LLVMGenerator(mergedAST, null, generatorOptions);
   const irParts = generator.generateParts();
@@ -170,13 +268,18 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const optTool = findLLVMTool("opt");
   const llcTool = findLLVMTool("llc");
   const clangTool = findLLVMTool("clang");
-  const optCmd = optTool + " -O2 -mcpu=" + targetCpu + " " + irFile + " -o " + optFile;
+
+  // Cross-compilation: add triple flags to opt/llc
+  const cpuFlag = crossCompiling ? "-mcpu=generic" : "-mcpu=" + targetCpu;
+  const tripleFlag = crossCompiling ? " -mtriple=" + targetTriple : "";
+
+  const optCmd = optTool + " -O2 " + cpuFlag + tripleFlag + " " + irFile + " -o " + optFile;
   if (verbose) {
     console.log("Running: " + optCmd);
   }
   child_process.execSync(optCmd);
   const llcCmd =
-    llcTool + " -O2 -mcpu=" + targetCpu + " -filetype=obj " + optFile + " -o " + objFile;
+    llcTool + " -O2 " + cpuFlag + tripleFlag + " -filetype=obj " + optFile + " -o " + objFile;
   if (verbose) {
     console.log("Running: " + llcCmd);
   }
@@ -186,33 +289,65 @@ export function compileNative(inputFile: string, outputFile: string): void {
     process.exit(1);
   }
 
+  // Resolve SDK paths for cross-compilation
+  const tgtName = crossCompiling ? tripleToTargetName(targetTriple) : "";
+  const sdkDir = crossCompiling ? getSDKDir(tgtName) : "";
+  const hasSDK = crossCompiling && sdkDir.length > 0 && fs.existsSync(sdkDir + "/sdk.json");
+
+  if (crossCompiling && !hasSDK) {
+    console.log("chad: error: target SDK '" + tgtName + "' not installed");
+    console.log("Run: chad target add " + tgtName);
+    process.exit(1);
+  }
+
+  // When cross-compiling with SDK, use SDK paths; otherwise use local/installed paths
+  const sdkVendor = hasSDK ? sdkDir + "/vendor" : "";
+  const sdkBridges = hasSDK ? sdkDir + "/bridges" : "";
+  const sdkSysroot = hasSDK && fs.existsSync(sdkDir + "/sysroot") ? sdkDir + "/sysroot" : "";
+
+  const effectiveGcPath = hasSDK ? sdkVendor : BDWGC_PATH;
+  const effectiveBridgePath = hasSDK ? sdkBridges : LWS_BRIDGE_PATH;
+  const effectivePicoPath = hasSDK ? sdkVendor : PICOHTTPPARSER_PATH;
+
+  const targetIsDarwin =
+    crossCompiling ? targetTriple.indexOf("darwin") !== -1 : process.platform === "darwin";
   const isMac = process.platform === "darwin";
-  const platformLibs = isMac ? "" : " -lm -ldl -lrt -lpthread";
-  const noPie = isMac ? "" : " -no-pie";
+  const platformLibs = targetIsDarwin ? "" : " -lm -ldl -lrt -lpthread";
+  const noPie = targetIsDarwin ? "" : " -no-pie";
   const tsObjDir = isInstalled ? installedLibDir : CHADSCRIPT_PATH + "/build";
   let treeSitterObjs = "";
   let tsLibPath = "";
   if (generator.getUsesTreeSitter()) {
-    treeSitterObjs =
-      tsObjDir +
-      "/tree-sitter-typescript-parser.o " +
-      tsObjDir +
-      "/tree-sitter-typescript-scanner.o " +
-      tsObjDir +
-      "/treesitter-bridge.o";
-    tsLibPath = isInstalled
-      ? installedLibDir + "/libtree-sitter.a"
-      : "./vendor/tree-sitter/libtree-sitter.a";
+    if (hasSDK) {
+      const sdkTsParser = sdkVendor + "/tree-sitter-typescript-parser.o";
+      const sdkTsScanner = sdkVendor + "/tree-sitter-typescript-scanner.o";
+      const sdkTsBridge = sdkBridges + "/treesitter-bridge.o";
+      if (fs.existsSync(sdkTsParser)) {
+        treeSitterObjs = sdkTsParser + " " + sdkTsScanner + " " + sdkTsBridge;
+      }
+      tsLibPath = sdkVendor + "/libtree-sitter.a";
+    } else {
+      treeSitterObjs =
+        tsObjDir +
+        "/tree-sitter-typescript-parser.o " +
+        tsObjDir +
+        "/tree-sitter-typescript-scanner.o " +
+        tsObjDir +
+        "/treesitter-bridge.o";
+      tsLibPath = isInstalled
+        ? installedLibDir + "/libtree-sitter.a"
+        : "./vendor/tree-sitter/libtree-sitter.a";
+    }
   }
-  let linkLibs = "-L" + BDWGC_PATH + " -lgc" + platformLibs;
+  let linkLibs = "-L" + effectiveGcPath + " -lgc" + platformLibs;
   if (tsLibPath) {
     linkLibs = linkLibs + " " + tsLibPath;
   }
-  const yyjsonDir = isInstalled ? installedLibDir : "./vendor/yyjson";
+  const yyjsonDir = hasSDK ? sdkVendor : isInstalled ? installedLibDir : "./vendor/yyjson";
   if (generator.getUsesJson()) {
     linkLibs = "-L" + yyjsonDir + " -lyyjson " + linkLibs;
   }
-  const uvDir = isInstalled ? installedLibDir : "./vendor/libuv/build";
+  const uvDir = hasSDK ? sdkVendor : isInstalled ? installedLibDir : "./vendor/libuv/build";
   if (
     generator.getUsesTimers() ||
     generator.getUsesPromises() ||
@@ -235,26 +370,29 @@ export function compileNative(inputFile: string, outputFile: string): void {
     linkLibs = "-lz -lzstd " + linkLibs;
   }
   const lwsBridgeObj = generator.getUsesMongoose()
-    ? LWS_BRIDGE_PATH +
+    ? effectiveBridgePath +
       "/lws-bridge.o " +
-      PICOHTTPPARSER_PATH +
+      effectivePicoPath +
       "/picohttpparser.o " +
-      LWS_BRIDGE_PATH +
+      effectiveBridgePath +
       "/multipart-bridge.o"
     : "";
-  const regexBridgeObj = generator.getUsesRegex() ? LWS_BRIDGE_PATH + "/regex-bridge.o" : "";
-  // Always link child-process-bridge.o (sync ops, no libuv dependency)
-  const cpBridgeObj = LWS_BRIDGE_PATH + "/child-process-bridge.o";
-  // Always link os-bridge.o — platform-abstracted os.freemem()/os.uptime()
-  const osBridgeObj = LWS_BRIDGE_PATH + "/os-bridge.o";
-  // Only link dotenv-bridge.o when available — auto-loads .env at startup
-  const dotenvBridgePath = LWS_BRIDGE_PATH + "/dotenv-bridge.o";
+  const regexBridgeObj = generator.getUsesRegex()
+    ? effectiveBridgePath + "/regex-bridge.o"
+    : "";
+  const cpBridgeObj = effectiveBridgePath + "/child-process-bridge.o";
+  const osBridgeObj = effectiveBridgePath + "/os-bridge.o";
+  const dotenvBridgePath = effectiveBridgePath + "/dotenv-bridge.o";
   const dotenvBridgeObj = fs.existsSync(dotenvBridgePath) ? dotenvBridgePath : "";
-  // Always link watch-bridge.o — provides runtime for fs.watch() and chad watch
-  const watchBridgeObj = LWS_BRIDGE_PATH + "/watch-bridge.o";
-  // Async spawn bridge linked only when child_process.spawn() is used (requires libuv)
-  const cpSpawnObj = generator.getUsesSpawn() ? LWS_BRIDGE_PATH + "/child-process-spawn.o" : "";
-  if (isMac) {
+  const watchBridgeObj = effectiveBridgePath + "/watch-bridge.o";
+  const cpSpawnObj = generator.getUsesSpawn()
+    ? effectiveBridgePath + "/child-process-spawn.o"
+    : "";
+
+  // Sysroot and target flags for cross-compilation
+  if (hasSDK && sdkSysroot.length > 0) {
+    linkLibs = "--sysroot=" + sdkSysroot + " " + linkLibs;
+  } else if (!crossCompiling && isMac) {
     if (generator.getUsesCrypto()) {
       linkLibs = "-L/opt/homebrew/opt/openssl/lib -L/usr/local/opt/openssl/lib " + linkLibs;
     }
@@ -266,6 +404,12 @@ export function compileNative(inputFile: string, outputFile: string): void {
     }
     linkLibs = "-Wl,-syslibroot,$(xcrun --show-sdk-path) -L/usr/local/lib " + linkLibs;
   }
+
+  // Auto-static for musl targets
+  const shouldStatic = crossCompiling && isMuslTarget(targetTriple) && !targetIsDarwin;
+  const staticFlag = shouldStatic ? " -static" : "";
+  const crossTargetFlag = crossCompiling ? " --target=" + targetTriple : "";
+
   const linkCmd =
     clangTool +
     " " +
@@ -289,6 +433,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     " -o " +
     outputFile +
     noPie +
+    staticFlag +
+    crossTargetFlag +
     " " +
     linkLibs;
   if (verbose) {

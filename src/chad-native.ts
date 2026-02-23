@@ -3,6 +3,7 @@ import {
   setSkipSemanticAnalysis,
   setEmitLLVMOnly,
   setTargetCpu,
+  setTargetTriple,
 } from "./native-compiler-lib.js";
 import { getDtsContent } from "./codegen/stdlib/embedded-dts.js";
 import { ArgumentParser } from "../lib/argparse.js";
@@ -49,6 +50,13 @@ parser.addFlag("version", "", "Show version");
 parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
 parser.addScopedFlag("verbose", "v", "Show compilation steps", "build,run,ir");
 parser.addScopedFlag("skip-semantic-analysis", "", "Skip semantic analysis", "build,run,ir");
+parser.addScopedOption(
+  "target",
+  "",
+  "Cross-compile for target (e.g., linux-x64, macos-arm64)",
+  "",
+  "build,run,ir",
+);
 parser.addScopedOption("target-cpu", "", "Set LLVM target CPU", "native", "build,run,ir");
 parser.addPositional("input", "Input .ts or .js file");
 
@@ -140,6 +148,18 @@ if (command.length === 0) {
 
 if (parser.getFlag("skip-semantic-analysis")) {
   setSkipSemanticAnalysis(true);
+}
+
+// Cross-compilation target: resolve short names to LLVM triples
+const targetOpt = parser.getOption("target");
+if (targetOpt.length > 0) {
+  // Map short names like "linux-x64" to LLVM triples like "x86_64-unknown-linux-musl"
+  let triple = targetOpt;
+  if (targetOpt === "linux-x64") triple = "x86_64-unknown-linux-musl";
+  else if (targetOpt === "linux-arm64") triple = "aarch64-unknown-linux-musl";
+  else if (targetOpt === "macos-arm64") triple = "aarch64-apple-darwin";
+  else if (targetOpt === "macos-x64") triple = "x86_64-apple-darwin";
+  setTargetTriple(triple);
 }
 
 const cpuOpt = parser.getOption("target-cpu");

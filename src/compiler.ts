@@ -8,6 +8,7 @@ import { SemanticAnalyzer, TypedSymbol } from "./analysis/semantic-analyzer.js";
 import { AST } from "./ast/types.js";
 import { LogLevel, logger } from "./utils/logger.js";
 import { TargetInfo, resolveTarget, getHostTarget, isCrossCompiling } from "./target.js";
+import { loadTargetSDK, TargetSDK } from "./cross-compile.js";
 
 function findLLVMTool(name: string): string {
   const candidates = ["/opt/homebrew/opt/llvm/bin/" + name, "/usr/local/opt/llvm/bin/" + name];
@@ -259,13 +260,30 @@ export function compile(
   logger.info(` ${compileCmd}`);
   execSync(compileCmd, { stdio: llcStdio });
 
-  // Link to executable - only link libraries that the program actually uses
+  // Link to executable - only link libraries that the program actually uses.
+  // When cross-compiling, we use pre-built libraries from the target SDK
+  // instead of the host's vendor/ and c_bridges/ directories.
   const targetIsMac = target.os === "darwin";
   const hostIsMac = process.platform === "darwin";
+
+  let sdk: TargetSDK | null = null;
+  if (crossCompiling) {
+    sdk = loadTargetSDK(target);
+    logger.info(`Using target SDK: ${sdk.root}`);
+  }
+
+  // Resolve library and bridge paths — SDK overrides local paths when cross-compiling
+  const gcPath = sdk ? sdk.vendorPath : BDWGC_PATH;
+  const yyjsonPath = sdk ? sdk.vendorPath : YYJSON_PATH;
+  const uvPath = sdk ? sdk.vendorPath : LIBUV_PATH;
+  const bridgePath = sdk ? sdk.bridgesPath : LWS_BRIDGE_PATH;
+  const picoPath = sdk ? sdk.vendorPath : PICOHTTPPARSER_PATH;
+  const treeSitterPath = sdk ? sdk.vendorPath : TREESITTER_LIB_PATH;
+
   const platformLibs = targetIsMac ? "" : " -lm -ldl -lrt -lpthread";
-  let linkLibs = `-L${BDWGC_PATH} -lgc` + platformLibs;
+  let linkLibs = `-L${gcPath} -lgc` + platformLibs;
   if (generator.usesJson) {
-    linkLibs += ` -L${YYJSON_PATH} -lyyjson`;
+    linkLibs += ` -L${yyjsonPath} -lyyjson`;
   }
   if (
     generator.usesTimers ||
@@ -274,7 +292,7 @@ export function compile(
     generator.usesUvHrtime ||
     generator.usesMongoose
   ) {
-    linkLibs += ` -L${LIBUV_PATH} -luv`;
+    linkLibs += ` -L${uvPath} -luv`;
   }
   if (generator.usesCurl) {
     linkLibs += " -lcurl";
@@ -288,7 +306,15 @@ export function compile(
   if (generator.usesMongoose) {
     linkLibs += ` -lz -lzstd`;
   }
-  if (targetIsMac && hostIsMac) {
+
+  // Platform-specific library search paths
+  if (sdk) {
+    // Cross-compiling: use SDK sysroot for system libraries
+    if (sdk.sysrootPath) {
+      linkLibs = `--sysroot=${sdk.sysrootPath} ` + linkLibs;
+    }
+  } else if (targetIsMac && hostIsMac) {
+    // Native macOS: use Homebrew paths and Xcode SDK
     const brewPrefix = process.arch === "arm64" ? "/opt/homebrew/opt" : "/usr/local/opt";
     if (generator.usesCrypto) {
       linkLibs = `-L${brewPrefix}/openssl/lib ` + linkLibs;
@@ -302,62 +328,70 @@ export function compile(
     const sdkPath = execSync("xcrun --show-sdk-path", { stdio: "pipe", encoding: "utf8" }).trim();
     linkLibs = `-Wl,-syslibroot,${sdkPath} -L/usr/local/lib ` + linkLibs;
   }
+
+  // Bridge object files
   const lwsBridgeObj = generator.usesMongoose
-    ? `${LWS_BRIDGE_PATH}/lws-bridge.o ${PICOHTTPPARSER_PATH}/picohttpparser.o ${LWS_BRIDGE_PATH}/multipart-bridge.o`
+    ? `${bridgePath}/lws-bridge.o ${picoPath}/picohttpparser.o ${bridgePath}/multipart-bridge.o`
     : "";
-  const regexBridgeObj = generator.usesRegex ? `${LWS_BRIDGE_PATH}/regex-bridge.o` : "";
-  // Always link child-process-bridge.o (sync ops only) — the native compiler uses
-  // cs_execSync for its own execSync() calls during compilation
-  const cpBridgeObj = `${LWS_BRIDGE_PATH}/child-process-bridge.o`;
-  // Always link os-bridge.o — platform-abstracted os.freemem()/os.uptime()
-  const osBridgeObj = `${LWS_BRIDGE_PATH}/os-bridge.o`;
-  // Only link dotenv-bridge.o when available — auto-loads .env at startup
-  const dotenvBridgeObj = fs.existsSync(`${LWS_BRIDGE_PATH}/dotenv-bridge.o`)
-    ? `${LWS_BRIDGE_PATH}/dotenv-bridge.o`
+  const regexBridgeObj = generator.usesRegex ? `${bridgePath}/regex-bridge.o` : "";
+  const cpBridgeObj = `${bridgePath}/child-process-bridge.o`;
+  const osBridgeObj = `${bridgePath}/os-bridge.o`;
+  const dotenvBridgeObj = fs.existsSync(`${bridgePath}/dotenv-bridge.o`)
+    ? `${bridgePath}/dotenv-bridge.o`
     : "";
-  // Always link watch-bridge.o — provides runtime for fs.watch() and chad watch
-  const watchBridgeObj = `${LWS_BRIDGE_PATH}/watch-bridge.o`;
-  // Async spawn bridge linked only when child_process.spawn() is used (requires libuv)
-  const cpSpawnObj = generator.getUsesSpawn() ? `${LWS_BRIDGE_PATH}/child-process-spawn.o` : "";
+  const watchBridgeObj = `${bridgePath}/watch-bridge.o`;
+  const cpSpawnObj = generator.getUsesSpawn() ? `${bridgePath}/child-process-spawn.o` : "";
   let extraObjs = "";
 
   if (generator.getUsesTreeSitter()) {
-    logger.info("  Compiling tree-sitter-typescript...");
-    const buildDir = path.join(process.cwd(), "build");
-    if (!fs.existsSync(buildDir)) {
-      fs.mkdirSync(buildDir, { recursive: true });
+    if (sdk) {
+      // Cross-compiling: tree-sitter objects should be in the SDK
+      const sdkTsParser = path.join(sdk.vendorPath, "tree-sitter-typescript-parser.o");
+      const sdkTsScanner = path.join(sdk.vendorPath, "tree-sitter-typescript-scanner.o");
+      const sdkTsBridge = path.join(sdk.bridgesPath, "treesitter-bridge.o");
+      if (fs.existsSync(sdkTsParser)) {
+        extraObjs = ` ${sdkTsParser} ${sdkTsScanner} ${sdkTsBridge}`;
+      }
+      linkLibs += ` ${treeSitterPath}/libtree-sitter.a`;
+    } else {
+      // Native: compile tree-sitter objects on the fly
+      logger.info("  Compiling tree-sitter-typescript...");
+      const buildDir = path.join(process.cwd(), "build");
+      if (!fs.existsSync(buildDir)) {
+        fs.mkdirSync(buildDir, { recursive: true });
+      }
+
+      const tsParserObj = path.join(buildDir, "tree-sitter-typescript-parser.o");
+      const tsScannerObj = path.join(buildDir, "tree-sitter-typescript-scanner.o");
+      const tsInclude = path.join(process.cwd(), TREESITTER_TS_PATH);
+      const commonInclude = path.join(process.cwd(), "node_modules/tree-sitter-typescript");
+
+      if (!fs.existsSync(tsParserObj)) {
+        const parserSrc = path.join(tsInclude, "parser.c");
+        const compileParser = `${linkerPath} -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${parserSrc} -o ${tsParserObj}`;
+        logger.info(`  Compiling tree-sitter parser...`);
+        execSync(compileParser, { stdio: "pipe" });
+      }
+
+      if (!fs.existsSync(tsScannerObj)) {
+        const scannerSrc = path.join(tsInclude, "scanner.c");
+        const compileScanner = `${linkerPath} -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${scannerSrc} -o ${tsScannerObj}`;
+        logger.info(`  Compiling tree-sitter scanner...`);
+        execSync(compileScanner, { stdio: "pipe" });
+      }
+
+      const bridgeObj = path.join(buildDir, "treesitter-bridge.o");
+      if (!fs.existsSync(bridgeObj)) {
+        const bridgeSrc = path.join(process.cwd(), "c_bridges", "treesitter-bridge.c");
+        const tsLibInclude = path.join(process.cwd(), TREESITTER_LIB_PATH, "lib", "include");
+        const compileBridge = `${linkerPath} -c -O2 -fPIC -I ${tsLibInclude} ${bridgeSrc} -o ${bridgeObj}`;
+        logger.info(`  Compiling tree-sitter bridge...`);
+        execSync(compileBridge, { stdio: "pipe" });
+      }
+
+      extraObjs = ` ${tsParserObj} ${tsScannerObj} ${bridgeObj}`;
+      linkLibs += ` ${TREESITTER_LIB_PATH}/libtree-sitter.a`;
     }
-
-    const tsParserObj = path.join(buildDir, "tree-sitter-typescript-parser.o");
-    const tsScannerObj = path.join(buildDir, "tree-sitter-typescript-scanner.o");
-    const tsInclude = path.join(process.cwd(), TREESITTER_TS_PATH);
-    const commonInclude = path.join(process.cwd(), "node_modules/tree-sitter-typescript");
-
-    if (!fs.existsSync(tsParserObj)) {
-      const parserSrc = path.join(tsInclude, "parser.c");
-      const compileParser = `${linkerPath} -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${parserSrc} -o ${tsParserObj}`;
-      logger.info(`  Compiling tree-sitter parser...`);
-      execSync(compileParser, { stdio: "pipe" });
-    }
-
-    if (!fs.existsSync(tsScannerObj)) {
-      const scannerSrc = path.join(tsInclude, "scanner.c");
-      const compileScanner = `${linkerPath} -c -O2 -fPIC -I ${tsInclude} -I ${commonInclude} ${scannerSrc} -o ${tsScannerObj}`;
-      logger.info(`  Compiling tree-sitter scanner...`);
-      execSync(compileScanner, { stdio: "pipe" });
-    }
-
-    const bridgeObj = path.join(buildDir, "treesitter-bridge.o");
-    if (!fs.existsSync(bridgeObj)) {
-      const bridgeSrc = path.join(process.cwd(), "c_bridges", "treesitter-bridge.c");
-      const tsLibInclude = path.join(process.cwd(), TREESITTER_LIB_PATH, "lib", "include");
-      const compileBridge = `${linkerPath} -c -O2 -fPIC -I ${tsLibInclude} ${bridgeSrc} -o ${bridgeObj}`;
-      logger.info(`  Compiling tree-sitter bridge...`);
-      execSync(compileBridge, { stdio: "pipe" });
-    }
-
-    extraObjs = ` ${tsParserObj} ${tsScannerObj} ${bridgeObj}`;
-    linkLibs += ` ${TREESITTER_LIB_PATH}/libtree-sitter.a`;
   }
 
   let linker = useClang ? linkerPath : "gcc";
@@ -366,7 +400,9 @@ export function compile(
   }
   const noPie = targetIsMac ? "" : " -no-pie";
   const debugFlag = debugInfo ? " -g" : "";
-  const staticFlag = staticLink && !targetIsMac ? " -static" : "";
+  // Auto-static for musl cross-compile targets (produces portable binaries)
+  const shouldStatic = (staticLink || (crossCompiling && target.libc === "musl")) && !targetIsMac;
+  const staticFlag = shouldStatic ? " -static" : "";
   const crossTarget = crossCompiling ? ` --target=${target.triple}` : "";
   const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${sanitizeFlags} ${linkLibs}`;
   logger.info(` ${linkCmd}`);
