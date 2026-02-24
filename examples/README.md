@@ -15,18 +15,18 @@ chad build examples/hello.ts
 
 ## Examples
 
-| File                   | Description                                          |
-| ---------------------- | ---------------------------------------------------- |
-| `hello.ts`             | Hello World - native execution with no runtime       |
-| `parallel.ts`          | Parallel HTTP fetches with async/await + Promise.all |
-| `query.ts`             | SQLite database operations                           |
-| `timers.ts`            | setTimeout/setInterval with libuv event loop         |
-| `word-count.ts`        | File line/word/char counter (like wc)                |
-| `cli-parser-demo.ts`   | CLI argument parsing with ArgumentParser             |
-| `string-search.ts`     | grep-like search with colorized output               |
-| `http-server.ts`       | HTTP server with Express-like routing                |
-| `websocket/app.ts`     | WebSocket chat with embedded HTML/CSS                |
-| `hackernews/app.ts`    | Full Hacker News clone with SQLite + embedded assets |
+| File                 | Description                                          |
+| -------------------- | ---------------------------------------------------- |
+| `hello.ts`           | Hello World - native execution with no runtime       |
+| `parallel.ts`        | Parallel HTTP fetches with async/await + Promise.all |
+| `query.ts`           | SQLite database operations                           |
+| `timers.ts`          | setTimeout/setInterval with libuv event loop         |
+| `word-count.ts`      | File line/word/char counter (like wc)                |
+| `cli-parser-demo.ts` | CLI argument parsing with ArgumentParser             |
+| `string-search.ts`   | grep-like search with colorized output               |
+| `http-server.ts`     | HTTP server with Express-like routing                |
+| `websocket/app.ts`   | WebSocket chat with embedded HTML/CSS                |
+| `hackernews/app.ts`  | Full Hacker News clone with SQLite + embedded assets |
 
 ## Running
 

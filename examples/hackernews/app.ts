@@ -1,7 +1,10 @@
 // Hacker News Clone - full-stack app with SQLite, embedded files, and server-side rendering
 import { ArgumentParser } from "../../src/argparse.js";
 
-const parser = new ArgumentParser("hackernews", "Hacker News clone with SQLite and embedded assets");
+const parser = new ArgumentParser(
+  "hackernews",
+  "Hacker News clone with SQLite and embedded assets",
+);
 parser.addOption("port", "p", "Port to listen on", "3000");
 parser.parse(process.argv);
 

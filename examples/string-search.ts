@@ -84,7 +84,11 @@ function highlightLine(line: string): string {
         result = result + line.substring(pos, matchStart);
       }
       // Add highlighted match (use the original case from the line)
-      result = result + colorRed + line.substring(matchStart, matchStart + searchPattern.length) + colorReset;
+      result =
+        result +
+        colorRed +
+        line.substring(matchStart, matchStart + searchPattern.length) +
+        colorReset;
       pos = matchStart + searchPattern.length;
     }
   }
@@ -117,7 +121,8 @@ function searchFile(filePath: string, showPrefix: boolean): void {
           if (noColor) {
             output = output + (lineNum + 1) + ":";
           } else {
-            output = output + colorGreen + (lineNum + 1) + colorReset + colorCyan + ":" + colorReset;
+            output =
+              output + colorGreen + (lineNum + 1) + colorReset + colorCyan + ":" + colorReset;
           }
         }
         output = output + highlightLine(lines[lineNum]);
@@ -132,7 +137,9 @@ function searchFile(filePath: string, showPrefix: boolean): void {
       if (noColor) {
         console.log(filePath + ":" + matchCount);
       } else {
-        console.log(colorMagenta + filePath + colorReset + colorCyan + ":" + colorReset + matchCount);
+        console.log(
+          colorMagenta + filePath + colorReset + colorCyan + ":" + colorReset + matchCount,
+        );
       }
     } else {
       console.log(matchCount);
