@@ -435,7 +435,9 @@ export function compileNative(inputFile: string, outputFile: string): void {
     linkLibs = macLinkPrefix + " " + linkLibs;
   }
 
-  const shouldStatic = false;
+  // Cross-compiled Linux binaries must link statically — the SDK sysroot only
+  // has .a archives (Ubuntu's .so files are linker scripts with hardcoded paths).
+  const shouldStatic = !targetIsDarwin && crossCompiling;
   const staticFlag = shouldStatic ? " -static" : "";
   const crossTargetFlag = crossCompiling ? " --target=" + targetTriple : "";
   // Cross-compiling requires lld — the host linker can't produce foreign binaries.
