@@ -22,5 +22,17 @@
       <p>Powered by ChadScript &mdash; compiled from TypeScript to a native ELF binary via LLVM.</p>
       <p>HTML, CSS, and data are all embedded in a single binary. Zero runtime dependencies.</p>
     </div>
+    <script>
+      document.addEventListener("submit", function (e) {
+        var form = e.target;
+        if (form.action && form.action.indexOf("/upvote/") !== -1) {
+          e.preventDefault();
+          fetch(form.action, { method: "POST" });
+          var meta = form.closest(".post").nextElementSibling;
+          var pts = parseInt(meta.textContent, 10);
+          meta.textContent = pts + 1 + " points";
+        }
+      });
+    </script>
   </body>
 </html>
