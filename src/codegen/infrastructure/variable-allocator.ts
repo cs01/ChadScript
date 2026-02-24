@@ -2665,7 +2665,7 @@ export class VariableAllocator {
   } {
     const result = this.ctx.typeResolver?.getUnionCommonFields(memberNames);
     if (result && result.keys.length > 0) {
-      return { keys: result.keys, types: result.types, tsTypes: result.types };
+      return { keys: result.keys, types: result.types, tsTypes: result.tsTypes };
     }
     const interfaces: InterfaceDeclaration[] = [];
     for (let i = 0; i < memberNames.length; i++) {

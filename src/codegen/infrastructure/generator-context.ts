@@ -618,10 +618,12 @@ export interface IGeneratorContext {
   getJsonObjectMetadataInterfaceType(key: string): string | undefined;
   getParameterTypeFromAST(paramName: string): string | null;
   findClassImplementingInterface(interfaceName: string): string | null;
-  getInterfaceProperties(name: string): { keys: string[]; types: string[] } | null;
+  getInterfaceProperties(name: string): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getInterfaceDeclByName(name: string): InterfaceDeclaration | null;
   isTypeAlias(name: string): boolean;
-  getTypeAliasCommonProperties(name: string): { keys: string[]; types: string[] } | null;
+  getTypeAliasCommonProperties(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getInterfaceFieldType(interfaceName: string, fieldName: string): string | null;
   getMethodReturnType(className: string, methodName: string): string | null;
   isEnumType(name: string): boolean;
@@ -847,7 +849,9 @@ export interface IGeneratorContext {
   /**
    * TypeResolver delegate methods (avoid chained field access in native code)
    */
-  typeResolverGetUnionCommonFields(memberNames: string[]): { keys: string[]; types: string[] };
+  typeResolverGetUnionCommonFields(
+    memberNames: string[],
+  ): { keys: string[]; types: string[]; tsTypes: string[] };
   typeResolverAreTypesCompatible(type1: string, type2: string): boolean;
   typeResolverNormalizeType(type: string): string;
   typeResolverDetectTypeGuard(condition: Expression): TypeGuardInfo | null;
@@ -1071,7 +1075,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   findClassImplementingInterface(_interfaceName: string): string | null {
     return null;
   }
-  getInterfaceProperties(_name: string): { keys: string[]; types: string[] } | null {
+  getInterfaceProperties(_name: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     return null;
   }
   getInterfaceDeclByName(_name: string): InterfaceDeclaration | null {
@@ -1080,7 +1084,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   isTypeAlias(_name: string): boolean {
     return false;
   }
-  getTypeAliasCommonProperties(_name: string): { keys: string[]; types: string[] } | null {
+  getTypeAliasCommonProperties(
+    _name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     return null;
   }
   getInterfaceFieldType(_interfaceName: string, _fieldName: string): string | null {
@@ -2020,8 +2026,10 @@ export class MockGeneratorContext implements IGeneratorContext {
     return `_cs_${name}`;
   }
 
-  typeResolverGetUnionCommonFields(_memberNames: string[]): { keys: string[]; types: string[] } {
-    return { keys: [], types: [] };
+  typeResolverGetUnionCommonFields(
+    _memberNames: string[],
+  ): { keys: string[]; types: string[]; tsTypes: string[] } {
+    return { keys: [], types: [], tsTypes: [] };
   }
   typeResolverAreTypesCompatible(_type1: string, _type2: string): boolean {
     return false;
