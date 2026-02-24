@@ -578,11 +578,15 @@ export function resolveImportPath(fromFile: string, importSource: string): strin
   const dir = path.dirname(fromFile);
   const resolved = path.resolve(dir + "/" + importSource);
 
-  // Prefer .ts source over compiled .js
+  // Prefer .ts/.tsx source over compiled .js
   if (importSource.substr(importSource.length - 3) === ".js") {
     const tsPath = resolved.substr(0, resolved.length - 3) + ".ts";
     if (fs.existsSync(tsPath)) {
       return tsPath;
+    }
+    const tsxPath = resolved.substr(0, resolved.length - 3) + ".tsx";
+    if (fs.existsSync(tsxPath)) {
+      return tsxPath;
     }
   }
 
@@ -592,6 +596,10 @@ export function resolveImportPath(fromFile: string, importSource: string): strin
 
   if (fs.existsSync(resolved + ".ts")) {
     return resolved + ".ts";
+  }
+
+  if (fs.existsSync(resolved + ".tsx")) {
+    return resolved + ".tsx";
   }
 
   if (fs.existsSync(resolved + ".js")) {

@@ -9,13 +9,10 @@ interface ParseOptions {
 export function parseWithTSAPI(code: string, options: ParseOptions = {}): AST {
   const filename = options.filename || "input.ts";
 
-  const sourceFile = ts.createSourceFile(
-    filename,
-    code,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
-  );
+  // Use TSX mode for .tsx files so <Tag> is parsed as JSX, not a type assertion
+  const scriptKind = filename.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+
+  const sourceFile = ts.createSourceFile(filename, code, ts.ScriptTarget.Latest, true, scriptKind);
 
   return transformSourceFile(sourceFile, undefined);
 }

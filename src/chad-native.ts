@@ -202,6 +202,8 @@ let outputFile: string = ".build/" + inputForOutput;
 const explicitOutput = parser.getOption("output");
 if (explicitOutput.length > 0) {
   outputFile = explicitOutput;
+} else if (inputForOutput.substr(inputForOutput.length - 4) === ".tsx") {
+  outputFile = ".build/" + inputForOutput.substr(0, inputForOutput.length - 4);
 } else if (inputForOutput.substr(inputForOutput.length - 3) === ".ts") {
   outputFile = ".build/" + inputForOutput.substr(0, inputForOutput.length - 3);
 } else if (inputForOutput.substr(inputForOutput.length - 3) === ".js") {

@@ -72,7 +72,7 @@ function parseAnnotations(filePath: string): ParsedAnnotations {
 
 // "string-split-length.ts" → "string split length"
 function filenameToDescription(filename: string): string {
-  const base = path.basename(filename).replace(/\.(ts|js)$/, "");
+  const base = path.basename(filename).replace(/\.(tsx?|js)$/, "");
   return base.replace(/[-_]/g, " ");
 }
 
@@ -84,7 +84,7 @@ function collectFixtures(dir: string, base: string): string[] {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       results.push(...collectFixtures(fullPath, base));
-    } else if (/\.(js|ts)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+    } else if (/\.(js|tsx?|ts)$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
       results.push(path.relative(base, fullPath));
     }
   }
@@ -107,7 +107,7 @@ export function discoverTests(fixturesDir: string = "tests/fixtures"): TestCase[
 
     // Name from relative path without extension: "arrays/array-filter"
     const relToFixtures = path.relative(fixturesDir, relPath);
-    const name = relToFixtures.replace(/\.(ts|js)$/, "");
+    const name = relToFixtures.replace(/\.(tsx?|js)$/, "");
 
     const description = annotations.description || filenameToDescription(relPath);
 

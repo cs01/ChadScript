@@ -3,13 +3,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-extern TSLanguage *tree_sitter_typescript(void);
+extern TSLanguage *tree_sitter_tsx(void);
 extern void *GC_malloc_uncollectable(size_t size);
 extern void *GC_malloc_atomic(size_t size);
 
 TSTree *__ts_parse_source(const char *source, uint32_t length) {
     TSParser *parser = ts_parser_new();
-    TSLanguage *lang = tree_sitter_typescript();
+    TSLanguage *lang = tree_sitter_tsx();
     ts_parser_set_language(parser, lang);
     return ts_parser_parse_string(parser, NULL, source, length);
 }

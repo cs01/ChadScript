@@ -115,7 +115,10 @@ const PICOHTTPPARSER_PATH = process.env.CHADSCRIPT_PICOHTTPPARSER_PATH || "./ven
 const YYJSON_PATH = process.env.CHADSCRIPT_YYJSON_PATH || "./vendor/yyjson";
 const LIBUV_PATH = process.env.CHADSCRIPT_LIBUV_PATH || "./vendor/libuv/build";
 const TREESITTER_LIB_PATH = process.env.CHADSCRIPT_TREESITTER_PATH || "./vendor/tree-sitter";
-const TREESITTER_TS_PATH = "node_modules/tree-sitter-typescript/typescript/src";
+// TSX grammar is a strict superset of TypeScript — all .ts code parses identically.
+// The only difference: <Type>expr angle-bracket assertions become JSX, but ChadScript
+// uses `as Type` so there's no impact on existing code.
+const TREESITTER_TS_PATH = "node_modules/tree-sitter-typescript/tsx/src";
 
 // ============================================
 // MAIN COMPILER DRIVER
@@ -220,13 +223,13 @@ export function compile(
 
   // Create TypeScript type checker if compiling .ts files
   let typeChecker: TypeChecker | null = null;
-  if (inputFile.endsWith(".ts")) {
+  if (inputFile.endsWith(".ts") || inputFile.endsWith(".tsx")) {
     try {
       const files: { filename: string; code: string }[] = [];
       for (let fci = 0; fci < fileContentKeys.length; fci++) {
         const filename = fileContentKeys[fci];
         const code = fileContentValues[fci];
-        if (filename.endsWith(".ts")) {
+        if (filename.endsWith(".ts") || filename.endsWith(".tsx")) {
           files.push({ filename, code });
         }
       }
@@ -747,11 +750,29 @@ function resolveImportPath(fromFile: string, importSource: string): string {
   const dir = path.dirname(fromFile);
   const resolved = path.resolve(dir, importSource);
 
-  // If the import has .js extension, prefer .ts source over compiled .js
+  // If the import has .js extension, prefer .ts/.tsx source over compiled .js
   if (importSource.endsWith(".js")) {
     const tsPath = resolved.replace(/\.js$/, ".ts");
     if (fs.existsSync(tsPath)) {
       return tsPath;
+    }
+    const tsxPath = resolved.replace(/\.js$/, ".tsx");
+    if (fs.existsSync(tsxPath)) {
+      return tsxPath;
+    }
+  }
+
+  // Extensionless imports: try .ts then .tsx
+  if (
+    !importSource.endsWith(".ts") &&
+    !importSource.endsWith(".tsx") &&
+    !importSource.endsWith(".js")
+  ) {
+    if (fs.existsSync(resolved + ".ts")) {
+      return resolved + ".ts";
+    }
+    if (fs.existsSync(resolved + ".tsx")) {
+      return resolved + ".tsx";
     }
   }
 
@@ -770,9 +791,12 @@ function resolveNodeModule(fromFile: string, packageName: string): string | null
         const pkgJson = JSON.parse(fs.readFileSync(pkgJsonPath, "utf-8"));
         const entryPoints = [
           pkgJson.main?.replace(/\.js$/, ".ts"),
+          pkgJson.main?.replace(/\.js$/, ".tsx"),
           pkgJson.main?.replace(/\.js$/, ""),
           "index.ts",
+          "index.tsx",
           "src/index.ts",
+          "src/index.tsx",
         ].filter(Boolean);
 
         for (const entry of entryPoints) {
