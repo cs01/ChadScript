@@ -12,7 +12,7 @@
 #define MAX_RESPONSE_SIZE (1024 * 1024)
 #define MAX_BODY_SIZE (1024 * 1024)
 #define READ_BUF_SIZE 8192
-#define WS_GUID "258EAFA5-E914-47DA-95CA-5AC5AB80653E"
+#define WS_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 static lws_bridge_http_handler g_http_handler = NULL;
 static lws_bridge_ws_handler g_ws_handler = NULL;
@@ -762,11 +762,17 @@ int lws_bridge_serve(int port, lws_bridge_http_handler http_handler,
 
     int r = uv_listen((uv_stream_t *)&server, 512, on_connection);
     if (r) {
-        fprintf(stderr, "Failed to listen on port %d: %s\n", port, uv_strerror(r));
+        fprintf(stderr, "failed to listen on port %d: %s\n", port, uv_strerror(r));
         return 1;
     }
 
-    printf("HTTP server listening on port %d\n", port);
+    // Read back the actual port (matters when port 0 = OS-assigned)
+    struct sockaddr_storage bound_addr;
+    int namelen = sizeof(bound_addr);
+    uv_tcp_getsockname(&server, (struct sockaddr *)&bound_addr, &namelen);
+    int actual_port = ntohs(((struct sockaddr_in *)&bound_addr)->sin_port);
+
+    printf("listening on http://localhost:%d\n", actual_port);
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);
     return 0;
 }
