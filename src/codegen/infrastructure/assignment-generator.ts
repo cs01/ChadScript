@@ -48,7 +48,9 @@ export interface AssignmentGeneratorContext {
   getThisPointer(): string | null;
   getCurrentClassName(): string | null;
   readonly symbolTable: SymbolTable;
-  getInterfaceProperties(name: string): { keys: string[]; types: string[]; tsTypes: string[] } | null;
+  getInterfaceProperties(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   ensureDouble(value: string): string;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   classGenIsStaticField(className: string, fieldName: string): boolean;

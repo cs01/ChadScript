@@ -257,9 +257,7 @@ export class ExpressionGenerator {
         const envRawPtr = this.ctx.nextTemp();
         this.ctx.emit(`${envRawPtr} = call i8* @GC_malloc(i64 ${structSize})`);
         const envTypedPtr = this.ctx.nextTemp();
-        this.ctx.emit(
-          `${envTypedPtr} = bitcast i8* ${envRawPtr} to ${envStructName}*`,
-        );
+        this.ctx.emit(`${envTypedPtr} = bitcast i8* ${envRawPtr} to ${envStructName}*`);
 
         for (let i = 0; i < captureNames.length; i++) {
           const capName = captureNames[i];

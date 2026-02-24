@@ -618,7 +618,9 @@ export interface IGeneratorContext {
   getJsonObjectMetadataInterfaceType(key: string): string | undefined;
   getParameterTypeFromAST(paramName: string): string | null;
   findClassImplementingInterface(interfaceName: string): string | null;
-  getInterfaceProperties(name: string): { keys: string[]; types: string[]; tsTypes: string[] } | null;
+  getInterfaceProperties(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getInterfaceDeclByName(name: string): InterfaceDeclaration | null;
   isTypeAlias(name: string): boolean;
   getTypeAliasCommonProperties(
@@ -849,9 +851,11 @@ export interface IGeneratorContext {
   /**
    * TypeResolver delegate methods (avoid chained field access in native code)
    */
-  typeResolverGetUnionCommonFields(
-    memberNames: string[],
-  ): { keys: string[]; types: string[]; tsTypes: string[] };
+  typeResolverGetUnionCommonFields(memberNames: string[]): {
+    keys: string[];
+    types: string[];
+    tsTypes: string[];
+  };
   typeResolverAreTypesCompatible(type1: string, type2: string): boolean;
   typeResolverNormalizeType(type: string): string;
   typeResolverDetectTypeGuard(condition: Expression): TypeGuardInfo | null;
@@ -1075,7 +1079,9 @@ export class MockGeneratorContext implements IGeneratorContext {
   findClassImplementingInterface(_interfaceName: string): string | null {
     return null;
   }
-  getInterfaceProperties(_name: string): { keys: string[]; types: string[]; tsTypes: string[] } | null {
+  getInterfaceProperties(
+    _name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     return null;
   }
   getInterfaceDeclByName(_name: string): InterfaceDeclaration | null {
@@ -2026,9 +2032,11 @@ export class MockGeneratorContext implements IGeneratorContext {
     return `_cs_${name}`;
   }
 
-  typeResolverGetUnionCommonFields(
-    _memberNames: string[],
-  ): { keys: string[]; types: string[]; tsTypes: string[] } {
+  typeResolverGetUnionCommonFields(_memberNames: string[]): {
+    keys: string[];
+    types: string[];
+    tsTypes: string[];
+  } {
     return { keys: [], types: [], tsTypes: [] };
   }
   typeResolverAreTypesCompatible(_type1: string, _type2: string): boolean {
