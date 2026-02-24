@@ -38,11 +38,14 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
   private liftedFunctions: LiftedFunction[] = [];
   private envStructDefs: EnvStructDef[] = [];
   private closureAnalyzer: ClosureAnalyzer;
-  // Struct-of-arrays for last lambda's closure info (avoids array-of-objects
-  // access in getClosureInfoForLambda, which the native compiler can't handle).
-  private lastCaptureNames: string[] = [];
-  private lastCaptureTypes: string[] = [];
-  private lastEnvStructName: string = "";
+  // Per-lambda closure info stored as parallel arrays keyed by lambda name.
+  // Avoids the deep nested struct access through LiftedFunction.closureInfo.captures[i]
+  // which getClosureInfoForLambda uses — the native compiler miscompiles that path
+  // (returns undefined for closureInfo despite it being set).
+  private closureLambdaNames: string[] = [];
+  private closureCaptureNames: string[][] = [];
+  private closureCaptureTypes: string[][] = [];
+  private closureEnvStructNames: string[] = [];
 
   constructor() {
     super();
@@ -165,7 +168,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
 
     this.liftedFunctions.push(liftedFunc);
 
-    // Store last lambda's capture info as flat arrays for the orchestrator.
+    // Store closure info in parallel arrays for reliable lookup.
     if (closureCaptures.length > 0) {
       const captNames: string[] = [];
       const captTypes: string[] = [];
@@ -174,13 +177,10 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
         captNames.push(cap.name);
         captTypes.push(cap.llvmType);
       }
-      this.lastCaptureNames = captNames;
-      this.lastCaptureTypes = captTypes;
-      this.lastEnvStructName = closureEnvStructName;
-    } else {
-      this.lastCaptureNames = [];
-      this.lastCaptureTypes = [];
-      this.lastEnvStructName = "";
+      this.closureLambdaNames.push(funcName);
+      this.closureCaptureNames.push(captNames);
+      this.closureCaptureTypes.push(captTypes);
+      this.closureEnvStructNames.push(closureEnvStructName);
     }
 
     return funcName;
@@ -242,20 +242,22 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
   }
 
   /**
-   * Get the last generated lambda's capture info as flat arrays.
-   * Uses struct-of-arrays pattern to avoid array-of-objects access
-   * which crashes the native compiler during self-hosting.
+   * Look up closure info by lambda name using parallel arrays.
+   * Returns null if the lambda has no captures.
    */
-  getLastCaptureNames(): string[] {
-    return this.lastCaptureNames;
-  }
-
-  getLastCaptureTypes(): string[] {
-    return this.lastCaptureTypes;
-  }
-
-  getLastEnvStructName(): string {
-    return this.lastEnvStructName;
+  getClosureInfoByName(
+    lambdaName: string,
+  ): { names: string[]; types: string[]; envStructName: string } | null {
+    for (let i = 0; i < this.closureLambdaNames.length; i++) {
+      if (this.closureLambdaNames[i] === lambdaName) {
+        return {
+          names: this.closureCaptureNames[i],
+          types: this.closureCaptureTypes[i],
+          envStructName: this.closureEnvStructNames[i],
+        };
+      }
+    }
+    return null;
   }
 
   /**
@@ -271,6 +273,10 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
   resetCounter(): void {
     this.anonFuncCounter = 0;
     this.envStructDefs = [];
+    this.closureLambdaNames = [];
+    this.closureCaptureNames = [];
+    this.closureCaptureTypes = [];
+    this.closureEnvStructNames = [];
   }
 
   private inferParamTypesFromBody(_params: string[], _body: ArrowFunctionNode["body"]): string[] {
