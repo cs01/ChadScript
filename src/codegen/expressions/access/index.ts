@@ -650,9 +650,21 @@ export class IndexAccessGenerator {
       return this.generateUint8ArrayAssignment(expr, value, params);
     } else if (isNumericArray) {
       return this.generateNumericArrayAssignment(expr, value, params);
-    } else {
-      throw new Error("Index access assignment only supported for arrays");
     }
+
+    // Check if it's an object variable with dynamic property write (obj[key] = value)
+    const exprObjBase = expr.object as ExprBase;
+    if (exprObjBase.type === "variable") {
+      const varName = (expr.object as VariableNode).name;
+      if (this.ctx.symbolTable.isObject(varName)) {
+        const objMeta = this.ctx.symbolTable.getObjectMetadata(varName);
+        if (objMeta && objMeta.keys.length > 0) {
+          return this.generateDynamicObjectAssignment(expr, value, params, objMeta);
+        }
+      }
+    }
+
+    throw new Error("Index access assignment only supported for arrays and objects");
   }
 
   private generateStringArrayAssignment(
@@ -844,6 +856,95 @@ export class IndexAccessGenerator {
     this.ctx.setVariableType(result, "i8*");
 
     return result;
+  }
+
+  /**
+   * Dynamic object property write: obj[key] = value
+   * Mirrors generateDynamicObjectAccess but does stores instead of loads.
+   * Uses a strcmp chain over known keys to find the matching field, then GEP + store.
+   */
+  /**
+   * Determine whether the generated value is a double or a string (i8*).
+   */
+  private isValueDouble(value: string, expr: Expression): boolean {
+    const vType = this.ctx.getVariableType(value);
+    if (vType === "double" || vType === "i64") return true;
+    if (vType === "i8*") return false;
+    // Fallback: check the expression itself
+    const exprBase = expr as ExprBase;
+    if (exprBase.type === "number") return true;
+    if (exprBase.type === "string") return false;
+    return false;
+  }
+
+  private generateDynamicObjectAssignment(
+    expr: IndexAccessAssignmentNode,
+    value: string,
+    params: string[],
+    objMeta: ObjectMetaBasic,
+  ): string {
+    const varName = (expr.object as VariableNode).name;
+
+    const keyValue = this.ctx.generateExpression(expr.index, params);
+    const keyType = this.ctx.getVariableType(keyValue);
+    if (keyType !== "i8*" && !this.ctx.isStringExpression(expr.index)) {
+      throw new Error(`Dynamic object property write requires a string key, got: ${keyType}`);
+    }
+
+    const objAlloca = this.ctx.getVariableAlloca(varName);
+    if (!objAlloca) {
+      throw new Error(`Cannot find alloca for object '${varName}'`);
+    }
+    const objPtr = this.ctx.nextTemp();
+    this.ctx.emit(`${objPtr} = load i8*, i8** ${objAlloca}`);
+
+    const structType = this.buildStructType(objMeta.types);
+    const endLabel = this.ctx.nextLabel("obj_write_end");
+    const valueIsDouble = this.isValueDouble(value, expr.value);
+
+    for (let i = 0; i < objMeta.keys.length; i++) {
+      const key = objMeta.keys[i]!;
+      const fieldType = objMeta.types[i]!;
+
+      // Skip fields where value type doesn't match field type.
+      // At runtime only the matching key executes, but LLVM requires
+      // valid IR in all branches.
+      const fieldIsDouble = fieldType === "double";
+      if (fieldIsDouble !== valueIsDouble) continue;
+
+      const keyStr = this.ctx.stringGen.doCreateStringConstant(key);
+      const cmpResult = this.ctx.nextTemp();
+      this.ctx.emit(`${cmpResult} = call i32 @strcmp(i8* ${keyValue}, i8* ${keyStr})`);
+      const isMatch = this.ctx.nextTemp();
+      this.ctx.emit(`${isMatch} = icmp eq i32 ${cmpResult}, 0`);
+
+      const matchLabel = this.ctx.nextLabel("obj_key_wmatch");
+      const nextLabel = this.ctx.nextLabel("obj_key_wnext");
+      this.ctx.emit(`br i1 ${isMatch}, label %${matchLabel}, label %${nextLabel}`);
+
+      this.ctx.emit(`${matchLabel}:`);
+      const typedPtr = this.ctx.nextTemp();
+      this.ctx.emit(`${typedPtr} = bitcast i8* ${objPtr} to ${structType}*`);
+      const fieldPtr = this.ctx.nextTemp();
+      this.ctx.emit(
+        `${fieldPtr} = getelementptr inbounds ${structType}, ${structType}* ${typedPtr}, i32 0, i32 ${i}`,
+      );
+
+      if (fieldIsDouble) {
+        const doubleVal = this.ctx.ensureDouble(value);
+        this.ctx.emit(`store double ${doubleVal}, double* ${fieldPtr}`);
+      } else {
+        this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
+      }
+
+      this.ctx.emit(`br label %${endLabel}`);
+      this.ctx.emit(`${nextLabel}:`);
+    }
+
+    this.ctx.emit(`br label %${endLabel}`);
+    this.ctx.emit(`${endLabel}:`);
+
+    return value;
   }
 
   private buildStructType(types: string[]): string {

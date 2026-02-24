@@ -2259,12 +2259,19 @@ export class VariableAllocator {
 
     if (closureInfoResult && closureInfo.captures.length > 0) {
       const captures = closureInfo.captures as CaptureInfo[];
+
+      // Capture by value: allocate env struct and copy current variable values into it.
+      // Note: this means mutations in the closure don't affect the outer scope.
+      // Capture-by-reference (heap boxing) is deferred — the native compiler can't
+      // handle the heap boxing code path correctly in self-hosting yet.
       const structSize = captures.length * 8;
       const envMemReg = this.ctx.nextTemp();
       this.ctx.emit(`${envMemReg} = call i8* @GC_malloc(i64 ${structSize})`);
 
       const envTypedReg = this.ctx.nextTemp();
-      this.ctx.emit(`${envTypedReg} = bitcast i8* ${envMemReg} to ${closureInfo.envStructName}*`);
+      this.ctx.emit(
+        `${envTypedReg} = bitcast i8* ${envMemReg} to ${closureInfo.envStructName}*`,
+      );
 
       for (let i = 0; i < captures.length; i++) {
         const captureItem = captures[i] as CaptureInfo;

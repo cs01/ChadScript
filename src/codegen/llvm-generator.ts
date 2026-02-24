@@ -1069,6 +1069,12 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getExpectedCallbackReturnType(): string | null {
     return this.expectedCallbackReturnType;
   }
+  public getLastInlineLambdaEnvPtr(): string | null {
+    return this.lastInlineLambdaEnvPtr;
+  }
+  public setLastInlineLambdaEnvPtr(ptr: string | null): void {
+    this.lastInlineLambdaEnvPtr = ptr;
+  }
   public setIsAsyncFunction(value: boolean): void {
     this.isAsyncFunction = value;
   }

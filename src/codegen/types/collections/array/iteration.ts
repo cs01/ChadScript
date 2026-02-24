@@ -8,6 +8,16 @@ interface ExprBase {
   type: string;
 }
 
+/** Build call args, prepending env pointer for inline lambdas with captures.
+ *  Does NOT clear the env ptr — caller must clear after the loop completes. */
+function buildIterCallArgs(gen: IGeneratorContext, baseArgs: string): string {
+  const envPtr = gen.getLastInlineLambdaEnvPtr();
+  if (envPtr) {
+    return `i8* ${envPtr}, ${baseArgs}`;
+  }
+  return baseArgs;
+}
+
 // ============================================
 // filter
 // ============================================
@@ -38,10 +48,14 @@ export function generateArrayFilter(
     throw new Error("filter() argument must be a function name or inline function");
   }
 
+  let result: string;
   if (isStringArray || isObjectArray) {
-    return generateStringArrayFilter(gen, arrayPtr, predicateFn);
+    result = generateStringArrayFilter(gen, arrayPtr, predicateFn);
+  } else {
+    result = generateNumericArrayFilter(gen, arrayPtr, predicateFn);
   }
-  return generateNumericArrayFilter(gen, arrayPtr, predicateFn);
+  gen.setLastInlineLambdaEnvPtr(null);
+  return result;
 }
 
 function generateNumericArrayFilter(
@@ -111,7 +125,7 @@ function generateNumericArrayFilter(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `double ${elem}`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildIterCallArgs(gen, `double ${elem}`));
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -209,7 +223,7 @@ function generateStringArrayFilter(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `i8* ${elem}`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildIterCallArgs(gen, `i8* ${elem}`));
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -268,10 +282,14 @@ export function generateArrayForEach(
     throw new Error("forEach() argument must be a function name or inline function");
   }
 
+  let result: string;
   if (isStringArray || isObjectArray) {
-    return generateStringArrayForEach(gen, arrayPtr, callbackFn);
+    result = generateStringArrayForEach(gen, arrayPtr, callbackFn);
+  } else {
+    result = generateNumericArrayForEach(gen, arrayPtr, callbackFn);
   }
-  return generateNumericArrayForEach(gen, arrayPtr, callbackFn);
+  gen.setLastInlineLambdaEnvPtr(null);
+  return result;
 }
 
 function generateNumericArrayForEach(
@@ -304,7 +322,7 @@ function generateNumericArrayForEach(
   const elem = gen.emitLoad("double", elemPtr);
 
   // Call callback (discard return value)
-  gen.emitCall("double", `@${callbackFn}`, `double ${elem}`);
+  gen.emitCall("double", `@${callbackFn}`, buildIterCallArgs(gen, `double ${elem}`));
 
   const nextCounter = gen.nextTemp();
   gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
@@ -354,7 +372,7 @@ function generateStringArrayForEach(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  gen.emitCall("double", `@${callbackFn}`, `i8* ${elem}`);
+  gen.emitCall("double", `@${callbackFn}`, buildIterCallArgs(gen, `i8* ${elem}`));
 
   const nextCounter = gen.nextTemp();
   gen.emit(`${nextCounter} = add i32 ${counter}, 1`);
@@ -411,10 +429,14 @@ export function generateArrayReduce(
     initialValue = gen.generateExpression(expr.args[1], params);
   }
 
+  let result: string;
   if (isStringArray) {
-    return generateStringArrayReduce(gen, arrayPtr, callbackFn, initialValue);
+    result = generateStringArrayReduce(gen, arrayPtr, callbackFn, initialValue);
+  } else {
+    result = generateNumericArrayReduce(gen, arrayPtr, callbackFn, initialValue);
   }
-  return generateNumericArrayReduce(gen, arrayPtr, callbackFn, initialValue);
+  gen.setLastInlineLambdaEnvPtr(null);
+  return result;
 }
 
 function generateNumericArrayReduce(
@@ -463,7 +485,7 @@ function generateNumericArrayReduce(
 
   const acc = gen.emitLoad("double", accPtr);
 
-  const newAcc = gen.emitCall("double", `@${callbackFn}`, `double ${acc}, double ${elem}`);
+  const newAcc = gen.emitCall("double", `@${callbackFn}`, buildIterCallArgs(gen, `double ${acc}, double ${elem}`));
   gen.emitStore("double", newAcc, accPtr);
 
   const nextCounter = gen.nextTemp();
@@ -533,7 +555,7 @@ function generateStringArrayReduce(
   const acc = gen.nextTemp();
   gen.emit(`${acc} = load i8*, i8** ${accPtr}`);
 
-  const newAcc = gen.emitCall("i8*", `@${callbackFn}`, `i8* ${acc}, i8* ${elem}`);
+  const newAcc = gen.emitCall("i8*", `@${callbackFn}`, buildIterCallArgs(gen, `i8* ${acc}, i8* ${elem}`));
   gen.emit(`store i8* ${newAcc}, i8** ${accPtr}`);
 
   const nextCounter = gen.nextTemp();
@@ -581,10 +603,14 @@ export function generateArrayMap(
     throw new Error("map() argument must be a function name or inline function");
   }
 
+  let result: string;
   if (isStringArray || isObjectArray) {
-    return generateStringArrayMapImpl(gen, arrayPtr, callbackFn);
+    result = generateStringArrayMapImpl(gen, arrayPtr, callbackFn);
+  } else {
+    result = generateNumericArrayMap(gen, arrayPtr, callbackFn);
   }
-  return generateNumericArrayMap(gen, arrayPtr, callbackFn);
+  gen.setLastInlineLambdaEnvPtr(null);
+  return result;
 }
 
 export function generateStringArrayMap(
@@ -612,7 +638,9 @@ export function generateStringArrayMap(
     throw new Error("map() argument must be a function name or inline function");
   }
 
-  return generateStringArrayMapImpl(gen, arrayPtr, callbackFn);
+  const result = generateStringArrayMapImpl(gen, arrayPtr, callbackFn);
+  gen.setLastInlineLambdaEnvPtr(null);
+  return result;
 }
 
 function generateNumericArrayMap(
@@ -679,7 +707,7 @@ function generateNumericArrayMap(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const result = gen.emitCall("double", `@${callbackFn}`, `double ${elem}`);
+  const result = gen.emitCall("double", `@${callbackFn}`, buildIterCallArgs(gen, `double ${elem}`));
 
   const resultElemPtr = gen.nextTemp();
   gen.emit(
@@ -764,7 +792,7 @@ function generateStringArrayMapImpl(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  const result = gen.emitCall("i8*", `@${callbackFn}`, `i8* ${elem}`);
+  const result = gen.emitCall("i8*", `@${callbackFn}`, buildIterCallArgs(gen, `i8* ${elem}`));
 
   const resultElemPtr = gen.nextTemp();
   gen.emit(`${resultElemPtr} = getelementptr inbounds i8*, i8** ${resultDataPtr}, i32 ${counter}`);

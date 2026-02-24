@@ -4,6 +4,16 @@
 import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
 import { IGeneratorContext } from "./context.js";
 
+/** Build call args, prepending env pointer for inline lambdas with captures.
+ *  Does NOT clear the env ptr — caller must clear after the loop completes. */
+function buildSearchCallArgs(gen: IGeneratorContext, baseArgs: string): string {
+  const envPtr = gen.getLastInlineLambdaEnvPtr();
+  if (envPtr) {
+    return `i8* ${envPtr}, ${baseArgs}`;
+  }
+  return baseArgs;
+}
+
 interface ExprBase {
   type: string;
 }
@@ -200,10 +210,14 @@ export function generateArrayFindIndex(
     throw new Error("findIndex() argument must be a function name or inline function");
   }
 
+  let result: string;
   if (isStringArray) {
-    return generateStringArrayFindIndex(gen, arrayPtr, predicateFn);
+    result = generateStringArrayFindIndex(gen, arrayPtr, predicateFn);
+  } else {
+    result = generateNumericArrayFindIndex(gen, arrayPtr, predicateFn);
   }
-  return generateNumericArrayFindIndex(gen, arrayPtr, predicateFn);
+  gen.setLastInlineLambdaEnvPtr(null);
+  return result;
 }
 
 function generateNumericArrayFindIndex(
@@ -247,7 +261,7 @@ function generateNumericArrayFindIndex(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `double ${elem}`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildSearchCallArgs(gen, `double ${elem}`));
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
   gen.emitBrCond(isTruthy, foundLabel, nextLabel);
@@ -314,7 +328,7 @@ function generateStringArrayFindIndex(
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
   const elem = gen.emitLoad("i8*", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `i8* ${elem}`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildSearchCallArgs(gen, `i8* ${elem}`));
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
   gen.emitBrCond(isTruthy, foundLabel, nextLabel);

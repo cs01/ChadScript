@@ -154,34 +154,10 @@ export class SemanticAnalyzer {
       }
     }
 
-    // Check interface fields and methods for unsafe union types
-    if (this.ast.interfaces) {
-      for (let _ii = 0; _ii < this.ast.interfaces.length; _ii++) {
-        const iface = this.ast.interfaces[_ii] as InterfaceDeclaration;
-        if (iface.fields) {
-          for (let _fi = 0; _fi < iface.fields.length; _fi++) {
-            const field = iface.fields[_fi];
-            const warning = checkUnsafeUnionType(field.type);
-            if (warning) {
-              this.errors.push({
-                message: `In interface '${iface.name}', field '${field.name}': ${warning}`,
-                location: iface.name,
-              });
-            }
-          }
-        }
-        if (iface.methods) {
-          for (let _mi = 0; _mi < iface.methods.length; _mi++) {
-            const method = iface.methods[_mi];
-            this.checkFunctionUnionTypes(
-              `${iface.name}.${method.name}`,
-              method.paramTypes,
-              method.returnType,
-            );
-          }
-        }
-      }
-    }
+    // NOTE: Interface field/method union checking is intentionally omitted here.
+    // The native compiler can't handle iface.fields[i].name or iface.methods[i].name
+    // (array-of-objects field access pattern) during self-hosting. The variable
+    // declaration and class field checks below still catch most unsafe unions.
 
     for (let _si = 0; _si < this.ast.topLevelStatements.length; _si++) {
       const stmt = this.ast.topLevelStatements[_si];

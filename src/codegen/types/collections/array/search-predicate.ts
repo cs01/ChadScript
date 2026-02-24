@@ -8,6 +8,16 @@ interface ExprBase {
   type: string;
 }
 
+/** Build call args, prepending env pointer for inline lambdas with captures.
+ *  Does NOT clear the env ptr — caller must clear after the loop completes. */
+function buildPredicateCallArgs(gen: IGeneratorContext, baseArgs: string): string {
+  const envPtr = gen.getLastInlineLambdaEnvPtr();
+  if (envPtr) {
+    return `i8* ${envPtr}, ${baseArgs}`;
+  }
+  return baseArgs;
+}
+
 // ============================================
 // find
 // ============================================
@@ -38,10 +48,14 @@ export function generateArrayFind(
     throw new Error("find() argument must be a function name or inline function");
   }
 
+  let result: string;
   if (isStringArray || isObjectArray) {
-    return generateStringArrayFind(gen, arrayPtr, predicateFn);
+    result = generateStringArrayFind(gen, arrayPtr, predicateFn);
+  } else {
+    result = generateNumericArrayFind(gen, arrayPtr, predicateFn);
   }
-  return generateNumericArrayFind(gen, arrayPtr, predicateFn);
+  gen.setLastInlineLambdaEnvPtr(null);
+  return result;
 }
 
 function generateNumericArrayFind(
@@ -79,7 +93,7 @@ function generateNumericArrayFind(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `double ${elem}`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `double ${elem}`));
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -145,7 +159,7 @@ function generateStringArrayFind(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `i8* ${elem}`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `i8* ${elem}`));
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -198,10 +212,14 @@ export function generateArraySome(
     throw new Error("some() argument must be a function name or inline function");
   }
 
+  let result: string;
   if (isStringArray || isObjectArray) {
-    return generateStringArraySome(gen, arrayPtr, predicateFn);
+    result = generateStringArraySome(gen, arrayPtr, predicateFn);
+  } else {
+    result = generateNumericArraySome(gen, arrayPtr, predicateFn);
   }
-  return generateNumericArraySome(gen, arrayPtr, predicateFn);
+  gen.setLastInlineLambdaEnvPtr(null);
+  return result;
 }
 
 function generateNumericArraySome(
@@ -239,7 +257,7 @@ function generateNumericArraySome(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `double ${elem}`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `double ${elem}`));
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -307,7 +325,7 @@ function generateStringArraySome(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `i8* ${elem}`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `i8* ${elem}`));
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -360,10 +378,14 @@ export function generateArrayEvery(
     throw new Error("every() argument must be a function name or inline function");
   }
 
+  let result: string;
   if (isStringArray || isObjectArray) {
-    return generateStringArrayEvery(gen, arrayPtr, predicateFn);
+    result = generateStringArrayEvery(gen, arrayPtr, predicateFn);
+  } else {
+    result = generateNumericArrayEvery(gen, arrayPtr, predicateFn);
   }
-  return generateNumericArrayEvery(gen, arrayPtr, predicateFn);
+  gen.setLastInlineLambdaEnvPtr(null);
+  return result;
 }
 
 function generateNumericArrayEvery(
@@ -401,7 +423,7 @@ function generateNumericArrayEvery(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `double ${elem}`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `double ${elem}`));
 
   const isFalsy = gen.nextTemp();
   gen.emit(`${isFalsy} = fcmp oeq double ${predicateResult}, 0.0`);
@@ -469,7 +491,7 @@ function generateStringArrayEvery(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, `i8* ${elem}`);
+  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `i8* ${elem}`));
 
   const isFalsy = gen.nextTemp();
   gen.emit(`${isFalsy} = fcmp oeq double ${predicateResult}, 0.0`);
