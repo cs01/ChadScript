@@ -362,7 +362,8 @@ export function compile(
       linkLibs = `-L${brewPrefix}/zstd/lib ` + linkLibs;
     }
     const sdkPath = execSync("xcrun --show-sdk-path", { stdio: "pipe", encoding: "utf8" }).trim();
-    linkLibs = `-Wl,-syslibroot,${sdkPath} -L/usr/local/lib ` + linkLibs;
+    const usrLocalLib = fs.existsSync("/usr/local/lib") ? " -L/usr/local/lib" : "";
+    linkLibs = `-Wl,-syslibroot,${sdkPath}${usrLocalLib} ` + linkLibs;
   }
 
   // Bridge object files
