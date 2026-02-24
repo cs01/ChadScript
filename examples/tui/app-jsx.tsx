@@ -17,17 +17,25 @@ declare function zr_poll(engine: i8_ptr, timeout_ms: i32): i8_ptr;
 // FFI: zireael-bridge.c — drawlist construction
 declare function zr_begin(engine: i8_ptr): void;
 declare function zr_clear(engine: i8_ptr): void;
-declare function zr_fill_rect(engine: i8_ptr, x: i32, y: i32, w: i32, h: i32, fg: u32, bg: u32): void;
+declare function zr_fill_rect(
+  engine: i8_ptr,
+  x: i32,
+  y: i32,
+  w: i32,
+  h: i32,
+  fg: u32,
+  bg: u32,
+): void;
 declare function zr_draw_text(engine: i8_ptr, x: i32, y: i32, text: i8_ptr, fg: u32, bg: u32): void;
 declare function zr_present(engine: i8_ptr): f64;
 
 // Colors (0x00RRGGBB)
-const WHITE = 0xFFFFFF;
-const CYAN = 0x00FFFF;
+const WHITE = 0xffffff;
+const CYAN = 0x00ffff;
 const GRAY = 0x888888;
 const DARK_BLUE = 0x002244;
 const BLACK = 0x000000;
-const GREEN = 0x00FF88;
+const GREEN = 0x00ff88;
 
 // Props for all JSX elements — every element receives the full set.
 // Box uses x/y/w/h/fg/bg for fill_rect; Text uses x/y/text/fg/bg for draw_text.

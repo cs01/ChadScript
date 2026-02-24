@@ -11,7 +11,11 @@ function createElement(tag: string, props: EmptyProps, children: string[]): stri
   return result;
 }
 
-const result = <Box><Text>hello</Text></Box>;
+const result = (
+  <Box>
+    <Text>hello</Text>
+  </Box>
+);
 if (result === "Box(Text(hello))") {
   console.log("TEST_PASSED");
 }

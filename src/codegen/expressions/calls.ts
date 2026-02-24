@@ -643,7 +643,13 @@ export class CallExpressionGenerator {
         let defaultVal = "null";
         if (paramType === "double") defaultVal = "0.0";
         else if (paramType === "float") defaultVal = "0.0";
-        else if (paramType === "i32" || paramType === "i64" || paramType === "i16" || paramType === "i8") defaultVal = "0";
+        else if (
+          paramType === "i32" ||
+          paramType === "i64" ||
+          paramType === "i16" ||
+          paramType === "i8"
+        )
+          defaultVal = "0";
         argsList.push(`${paramType} ${defaultVal}`);
       }
     }
