@@ -7,18 +7,19 @@
 // Run:   .build/examples/tui/app
 
 // FFI: zireael-bridge.c — engine lifecycle
-declare function zr_init(): string;
-declare function zr_destroy(engine: string): void;
+// i8_ptr = opaque C pointer, i32/u32 = zero-cost integer types (no double conversion)
+declare function zr_init(): i8_ptr;
+declare function zr_destroy(engine: i8_ptr): void;
 
 // FFI: zireael-bridge.c — event polling (returns "key:escape", "key:up", etc.)
-declare function zr_poll(engine: string, timeout_ms: number): string;
+declare function zr_poll(engine: i8_ptr, timeout_ms: i32): i8_ptr;
 
 // FFI: zireael-bridge.c — drawlist construction
-declare function zr_begin(engine: string): void;
-declare function zr_clear(engine: string): void;
-declare function zr_fill_rect(engine: string, x: number, y: number, w: number, h: number, fg: number, bg: number): void;
-declare function zr_draw_text(engine: string, x: number, y: number, text: string, fg: number, bg: number): void;
-declare function zr_present(engine: string): number;
+declare function zr_begin(engine: i8_ptr): void;
+declare function zr_clear(engine: i8_ptr): void;
+declare function zr_fill_rect(engine: i8_ptr, x: i32, y: i32, w: i32, h: i32, fg: u32, bg: u32): void;
+declare function zr_draw_text(engine: i8_ptr, x: i32, y: i32, text: i8_ptr, fg: u32, bg: u32): void;
+declare function zr_present(engine: i8_ptr): f64;
 
 // Colors (0x00RRGGBB)
 const WHITE = 0xFFFFFF;
@@ -35,7 +36,7 @@ let running = true;
 
 while (running) {
   const event = zr_poll(engine, 16);
-  console.log(event);
+  // console.log(event);
   if (event === "key:escape") {
     running = false;
   } else if (event === "key:up") {

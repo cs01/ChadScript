@@ -1810,7 +1810,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               if (!fn) continue;
               if (fn.name === callNode.name && fn.returnType) {
                 const rt = fn.returnType;
-                if (rt === "string") {
+                if (rt === "string" || rt === "i8_ptr" || rt === "ptr") {
                   ir += `@${name} = global i8* null` + "\n";
                   this.globalVariables.set(name, {
                     llvmType: "i8*",

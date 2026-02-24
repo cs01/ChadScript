@@ -124,7 +124,7 @@ void zr_destroy(char *engine) { engine_destroy((zr_engine_t *)engine); }
  *   "resize:W:H"    — terminal resize
  *   "tick"          — tick event
  */
-char *zr_poll(char *engine, double timeout_ms) {
+char *zr_poll(char *engine, int32_t timeout_ms) {
   int n = engine_poll_events((zr_engine_t *)engine, (int)timeout_ms,
                              g_event_buf, (int)sizeof(g_event_buf));
 
@@ -232,9 +232,9 @@ void zr_clear(char *engine) {
   g_cmd_count++;
 }
 
-/* Append a FILL_RECT command (40 bytes). Colors are 0x00RRGGBB as doubles. */
-void zr_fill_rect(char *engine, double x, double y, double w, double h,
-                  double fg, double bg) {
+/* Append a FILL_RECT command (40 bytes). Zero-cost FFI: types match LLVM IR. */
+void zr_fill_rect(char *engine, int32_t x, int32_t y, int32_t w, int32_t h,
+                  uint32_t fg, uint32_t bg) {
   (void)engine;
   if (g_cmd_len + 40 > CMD_BUF_CAP)
     return;
@@ -242,21 +242,21 @@ void zr_fill_rect(char *engine, double x, double y, double w, double h,
   le16w(p + 0, (uint16_t)ZR_DL_OP_FILL_RECT);
   le16w(p + 2, 0);
   le32w(p + 4, 40);
-  le32w(p + 8, (uint32_t)(int32_t)x);
-  le32w(p + 12, (uint32_t)(int32_t)y);
-  le32w(p + 16, (uint32_t)(int32_t)w);
-  le32w(p + 20, (uint32_t)(int32_t)h);
-  le32w(p + 24, (uint32_t)fg); /* style.fg */
-  le32w(p + 28, (uint32_t)bg); /* style.bg */
-  le32w(p + 32, 0);            /* style.attrs */
-  le32w(p + 36, 0);            /* style.reserved */
+  le32w(p + 8, (uint32_t)x);
+  le32w(p + 12, (uint32_t)y);
+  le32w(p + 16, (uint32_t)w);
+  le32w(p + 20, (uint32_t)h);
+  le32w(p + 24, fg); /* style.fg */
+  le32w(p + 28, bg); /* style.bg */
+  le32w(p + 32, 0);  /* style.attrs */
+  le32w(p + 36, 0);  /* style.reserved */
   g_cmd_len += 40;
   g_cmd_count++;
 }
 
 /* Append a DRAW_TEXT command (48 bytes). */
-void zr_draw_text(char *engine, double x, double y, char *text, double fg,
-                  double bg) {
+void zr_draw_text(char *engine, int32_t x, int32_t y, char *text, uint32_t fg,
+                  uint32_t bg) {
   (void)engine;
   if (g_cmd_len + 48 > CMD_BUF_CAP)
     return;
@@ -267,16 +267,16 @@ void zr_draw_text(char *engine, double x, double y, char *text, double fg,
   le16w(p + 0, (uint16_t)ZR_DL_OP_DRAW_TEXT);
   le16w(p + 2, 0);
   le32w(p + 4, 48);
-  le32w(p + 8, (uint32_t)(int32_t)x);   /* x */
-  le32w(p + 12, (uint32_t)(int32_t)y);   /* y */
-  le32w(p + 16, str_idx);                /* string_index */
-  le32w(p + 20, 0);                      /* byte_off */
-  le32w(p + 24, str_len);                /* byte_len */
-  le32w(p + 28, (uint32_t)fg);           /* style.fg */
-  le32w(p + 32, (uint32_t)bg);           /* style.bg */
-  le32w(p + 36, 0);                      /* style.attrs */
-  le32w(p + 40, 0);                      /* style.reserved */
-  le32w(p + 44, 0);                      /* reserved0 */
+  le32w(p + 8, (uint32_t)x);    /* x */
+  le32w(p + 12, (uint32_t)y);   /* y */
+  le32w(p + 16, str_idx);       /* string_index */
+  le32w(p + 20, 0);             /* byte_off */
+  le32w(p + 24, str_len);       /* byte_len */
+  le32w(p + 28, fg);            /* style.fg */
+  le32w(p + 32, bg);            /* style.bg */
+  le32w(p + 36, 0);             /* style.attrs */
+  le32w(p + 40, 0);             /* style.reserved */
+  le32w(p + 44, 0);             /* reserved0 */
   g_cmd_len += 48;
   g_cmd_count++;
 }

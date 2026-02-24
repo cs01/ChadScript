@@ -485,7 +485,7 @@ export class VariableAllocator {
     if (stmt.value === null || isAstNullLiteral) {
       const allocaReg = this.ctx.nextAllocaReg(stmt.name);
       const baseType = stmt.declaredType ? stripNullable(stmt.declaredType) : "";
-      if (baseType === "string") {
+      if (baseType === "string" || baseType === "i8_ptr" || baseType === "ptr") {
         this.ctx.defineVariable(stmt.name, allocaReg, "i8*", SymbolKind.String, "local");
         this.ctx.emit(`${allocaReg} = alloca i8*`);
         this.ctx.emit(`store i8* null, i8** ${allocaReg}`);

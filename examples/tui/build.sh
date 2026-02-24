@@ -34,11 +34,9 @@ clang -c -O2 -fPIC \
 echo "Building app.tsx..."
 cd "$REPO_DIR"
 
-# Use node compiler (dist/chad-node.js) if native chad isn't available
+# Use node compiler — the native compiler has a known codegen bug with
+# declare function (Heisenbug in generateDeclareFunction). Use node for now.
 CHAD="node dist/chad-node.js"
-if [ -f ".build/chad" ]; then
-  CHAD=".build/chad"
-fi
 
 $CHAD build examples/tui/app.tsx \
   -o .build/examples/tui/app \
