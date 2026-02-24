@@ -410,16 +410,29 @@ export function compileNative(inputFile: string, outputFile: string): void {
   if (hasSDK && sdkSysroot.length > 0) {
     linkLibs = "--sysroot=" + sdkSysroot + " " + linkLibs;
   } else if (!crossCompiling && isMac) {
+    // Only add -L flags for paths that actually exist to avoid ld warnings.
+    // Both prefixes are checked because we can't detect arch at runtime in native code.
     if (generator.getUsesCrypto()) {
-      linkLibs = "-L/opt/homebrew/opt/openssl/lib -L/usr/local/opt/openssl/lib " + linkLibs;
+      if (fs.existsSync("/opt/homebrew/opt/openssl/lib"))
+        linkLibs = "-L/opt/homebrew/opt/openssl/lib " + linkLibs;
+      if (fs.existsSync("/usr/local/opt/openssl/lib"))
+        linkLibs = "-L/usr/local/opt/openssl/lib " + linkLibs;
     }
     if (generator.getUsesSqlite()) {
-      linkLibs = "-L/opt/homebrew/opt/sqlite/lib -L/usr/local/opt/sqlite/lib " + linkLibs;
+      if (fs.existsSync("/opt/homebrew/opt/sqlite/lib"))
+        linkLibs = "-L/opt/homebrew/opt/sqlite/lib " + linkLibs;
+      if (fs.existsSync("/usr/local/opt/sqlite/lib"))
+        linkLibs = "-L/usr/local/opt/sqlite/lib " + linkLibs;
     }
     if (generator.getUsesMongoose()) {
-      linkLibs = "-L/opt/homebrew/opt/zstd/lib -L/usr/local/opt/zstd/lib " + linkLibs;
+      if (fs.existsSync("/opt/homebrew/opt/zstd/lib"))
+        linkLibs = "-L/opt/homebrew/opt/zstd/lib " + linkLibs;
+      if (fs.existsSync("/usr/local/opt/zstd/lib"))
+        linkLibs = "-L/usr/local/opt/zstd/lib " + linkLibs;
     }
-    linkLibs = "-Wl,-syslibroot,$(xcrun --show-sdk-path) -L/usr/local/lib " + linkLibs;
+    let macLinkPrefix = "-Wl,-syslibroot,$(xcrun --show-sdk-path)";
+    if (fs.existsSync("/usr/local/lib")) macLinkPrefix = macLinkPrefix + " -L/usr/local/lib";
+    linkLibs = macLinkPrefix + " " + linkLibs;
   }
 
   const shouldStatic = false;
