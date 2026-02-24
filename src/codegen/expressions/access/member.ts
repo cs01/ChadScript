@@ -879,7 +879,24 @@ export class MemberAccessGenerator {
         this.ctx.emit(`${value} = load double, double* ${fieldPtr}, !tbaa !4`);
         return value;
       }
-    } else if (fields.length === 0) {
+    }
+
+    // Bare method reference: `obj.method` (not a call). Methods use static
+    // dispatch and aren't stored as struct fields. If the class has a method
+    // with this name, return a truthy constant so truthiness checks like
+    // `if (obj.method) obj.method()` work correctly.
+    const classCount = this.ctx.getClassesCount();
+    for (let ci = 0; ci < classCount; ci++) {
+      const cls = this.ctx.getAstClassAt(ci);
+      if (!cls || cls.name !== className) continue;
+      for (let mi = 0; mi < cls.methods.length; mi++) {
+        if (cls.methods[mi].name === expr.property) {
+          return "1.0";
+        }
+      }
+    }
+
+    if (fields.length === 0) {
       const fieldPtr = this.ctx.nextTemp();
       this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 0`);
       const value = this.ctx.nextTemp();
@@ -2162,6 +2179,19 @@ export class MemberAccessGenerator {
                 `${fieldPtr} = getelementptr inbounds %${implementingClass}_struct, %${implementingClass}_struct* ${castPtr}, i32 0, i32 ${classFieldInfo.index}`,
               );
               return this.loadFieldValue(fieldPtr, classFieldInfo);
+            }
+          }
+          // Bare method reference: `obj.method` (not a call) used in truthiness
+          // checks like `obj.method ? obj.method() : fallback`. Methods aren't
+          // stored as struct fields, so field lookup above misses them. Return a
+          // truthy constant when the interface declares this method — with static
+          // dispatch the method always exists if the interface declares it.
+          const ifaceDecl = this.getInterfaceDecl(ifaceType);
+          if (ifaceDecl && ifaceDecl.methods) {
+            for (let mi = 0; mi < ifaceDecl.methods.length; mi++) {
+              if (ifaceDecl.methods[mi].name === expr.property) {
+                return "1.0";
+              }
             }
           }
           if (this.ctx.interfaceStructGen?.hasInterface(ifaceType)) {
