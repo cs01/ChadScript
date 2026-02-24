@@ -23,6 +23,7 @@ import {
   ReturnStatement,
   MapNode,
   SetNode,
+  InterfaceDeclaration,
 } from "../ast/types.js";
 import { checkUnsafeUnionType } from "../codegen/infrastructure/type-system.js";
 import { DiagnosticEngine, DIAG_ERROR, DIAG_WARNING } from "../diagnostics/engine.js";
@@ -153,6 +154,35 @@ export class SemanticAnalyzer {
       }
     }
 
+    // Check interface fields and methods for unsafe union types
+    if (this.ast.interfaces) {
+      for (let _ii = 0; _ii < this.ast.interfaces.length; _ii++) {
+        const iface = this.ast.interfaces[_ii] as InterfaceDeclaration;
+        if (iface.fields) {
+          for (let _fi = 0; _fi < iface.fields.length; _fi++) {
+            const field = iface.fields[_fi];
+            const warning = checkUnsafeUnionType(field.type);
+            if (warning) {
+              this.errors.push({
+                message: `In interface '${iface.name}', field '${field.name}': ${warning}`,
+                location: iface.name,
+              });
+            }
+          }
+        }
+        if (iface.methods) {
+          for (let _mi = 0; _mi < iface.methods.length; _mi++) {
+            const method = iface.methods[_mi];
+            this.checkFunctionUnionTypes(
+              `${iface.name}.${method.name}`,
+              method.paramTypes,
+              method.returnType,
+            );
+          }
+        }
+      }
+    }
+
     for (let _si = 0; _si < this.ast.topLevelStatements.length; _si++) {
       const stmt = this.ast.topLevelStatements[_si];
       if (stmt.type === "variable_declaration") {
@@ -232,6 +262,17 @@ export class SemanticAnalyzer {
   }
 
   private analyzeVariableDeclaration(stmt: VariableDeclaration): void {
+    // Reject unsafe union type annotations on variables (e.g. `let x: string | number`)
+    if (stmt.declaredType) {
+      const warning = checkUnsafeUnionType(stmt.declaredType);
+      if (warning) {
+        this.errors.push({
+          message: `Variable '${stmt.name}': ${warning}`,
+          location: this.currentFunction || "top-level",
+        });
+      }
+    }
+
     if (!stmt.value) {
       const inferred = this.inferDeclaredType(stmt.declaredType);
       this.symbols.set(stmt.name, {
@@ -327,6 +368,18 @@ export class SemanticAnalyzer {
     const classFields = classNode.fields || [];
     for (let _fli = 0; _fli < classFields.length; _fli++) {
       const field = classFields[_fli];
+
+      // Check tsType for unsafe unions (fieldType is already resolved to a primitive)
+      if (field.tsType) {
+        const warning = checkUnsafeUnionType(field.tsType);
+        if (warning) {
+          this.errors.push({
+            message: `In class '${classNode.name}', field '${field.name}': ${warning}`,
+            location: classNode.name,
+          });
+        }
+      }
+
       let llvmType = "i32";
       let type: SymbolType = "number";
 
