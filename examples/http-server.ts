@@ -1,5 +1,11 @@
-// ChadScript HTTP Server Example
-// Demonstrates Express-like routing with HttpRequest/HttpResponse interfaces
+// ChadScript HTTP Server - Express-like routing with HttpRequest/HttpResponse
+import { ArgumentParser } from "../src/argparse.js";
+
+const parser = new ArgumentParser("http-server", "HTTP server with Express-like routing");
+parser.addOption("port", "p", "Port to listen on", "3000");
+parser.parse(process.argv);
+
+const port = parseInt(parser.getOption("port"));
 
 interface HttpRequest {
   method: string;
@@ -81,11 +87,11 @@ function handleRequest(req: HttpRequest): HttpResponse {
 
 // --- Start Server ---
 
-const port = 3000;
-console.log("ChadScript HTTP Server starting on port " + port);
+console.log("ChadScript HTTP Server");
+console.log("  listening on http://localhost:" + port);
 console.log("");
 console.log("Available routes:");
-console.log("  GET  /              - Home page");
+console.log("  GET  /              - Home page (HTML)");
 console.log("  GET  /json          - JSON response");
 console.log("  GET  /echo?msg=...  - Echo query parameter");
 console.log("  GET  /status/:code  - Status code demo");
@@ -98,10 +104,6 @@ console.log("Try it out:");
 console.log("  curl http://localhost:" + port + "/");
 console.log("  curl http://localhost:" + port + "/json");
 console.log("  curl http://localhost:" + port + "/echo?msg=hello");
-console.log("  curl http://localhost:" + port + "/status/418");
-console.log("  curl http://localhost:" + port + "/content-type");
-console.log("  curl http://localhost:" + port + "/error");
-console.log("  curl http://localhost:" + port + "/created");
 console.log("  curl -X POST -d 'hello world' http://localhost:" + port + "/echo");
 console.log("");
 httpServe(port, handleRequest);

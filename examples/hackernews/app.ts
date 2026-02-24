@@ -1,3 +1,12 @@
+// Hacker News Clone - full-stack app with SQLite, embedded files, and server-side rendering
+import { ArgumentParser } from "../../src/argparse.js";
+
+const parser = new ArgumentParser("hackernews", "Hacker News clone with SQLite and embedded assets");
+parser.addOption("port", "p", "Port to listen on", "3000");
+parser.parse(process.argv);
+
+const port = parseInt(parser.getOption("port"));
+
 interface HttpRequest {
   method: string;
   path: string;
@@ -131,7 +140,11 @@ function handleRequest(req: HttpRequest): HttpResponse {
   return { status: 404, body: "Not Found" };
 }
 
-console.log("Hacker News clone starting on http://localhost:3000");
-console.log("All HTML/CSS embedded in the binary at compile time");
-console.log("SQLite database running in-memory");
-httpServe(3000, handleRequest);
+console.log("Hacker News Clone");
+console.log("  listening on http://localhost:" + port);
+console.log("  HTML/CSS embedded in the binary at compile time");
+console.log("  SQLite database running in-memory with 15 posts");
+console.log("");
+console.log("Open http://localhost:" + port + " in your browser");
+console.log("");
+httpServe(port, handleRequest);

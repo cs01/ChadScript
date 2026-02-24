@@ -1,4 +1,5 @@
-import { ArgumentParser } from "../lib/argparse.js";
+// String Search - grep-like file search tool with colorized output
+import { ArgumentParser } from "../src/argparse.js";
 
 const parser = new ArgumentParser("string-search", "Search for a string pattern in files");
 parser.addFlag("ignore-case", "i", "Case-insensitive search");
@@ -6,6 +7,7 @@ parser.addFlag("line-number", "n", "Show line numbers");
 parser.addFlag("count", "c", "Only print a count of matching lines per file");
 parser.addFlag("recursive", "r", "Recursively search directories");
 parser.addFlag("invert-match", "v", "Select non-matching lines");
+parser.addFlag("no-color", "C", "Disable colorized output");
 parser.addPositional("pattern", "The string to search for");
 parser.addPositional("file", "File or directory to search");
 parser.parse(process.argv);
@@ -24,6 +26,15 @@ const showLineNumbers = parser.getFlag("line-number");
 const countOnly = parser.getFlag("count");
 const recursive = parser.getFlag("recursive");
 const invertMatch = parser.getFlag("invert-match");
+const noColor = parser.getFlag("no-color");
+
+// ANSI color codes for ripgrep-style output
+// \x1b is the ESC character (0x1B) - works with the TypeScript parser
+const colorMagenta = "\x1b[35m";
+const colorGreen = "\x1b[32m";
+const colorRed = "\x1b[1;31m";
+const colorCyan = "\x1b[36m";
+const colorReset = "\x1b[0m";
 
 let searchPattern = pattern;
 if (ignoreCase) {
@@ -44,6 +55,42 @@ function matchesLine(line: string): boolean {
   return found;
 }
 
+// Highlight all occurrences of the pattern in a line.
+// ChadScript's indexOf only takes 1 arg, so we consume the string
+// progressively by slicing off the already-processed prefix.
+function highlightLine(line: string): string {
+  if (noColor || invertMatch) {
+    return line;
+  }
+
+  let haystack = line;
+  if (ignoreCase) {
+    haystack = line.toLowerCase();
+  }
+
+  let result = "";
+  let pos = 0;
+  while (pos < line.length) {
+    // Search in the remaining portion of the string
+    const remaining = haystack.substring(pos, haystack.length);
+    const idx = remaining.indexOf(searchPattern);
+    if (idx === -1) {
+      result = result + line.substring(pos, line.length);
+      pos = line.length;
+    } else {
+      // Add text before match
+      const matchStart = pos + idx;
+      if (matchStart > pos) {
+        result = result + line.substring(pos, matchStart);
+      }
+      // Add highlighted match (use the original case from the line)
+      result = result + colorRed + line.substring(matchStart, matchStart + searchPattern.length) + colorReset;
+      pos = matchStart + searchPattern.length;
+    }
+  }
+  return result;
+}
+
 function searchFile(filePath: string, showPrefix: boolean): void {
   const content = fs.readFileSync(filePath);
   if (content.length === 0) {
@@ -60,12 +107,20 @@ function searchFile(filePath: string, showPrefix: boolean): void {
       if (!countOnly) {
         let output = "";
         if (showPrefix) {
-          output = filePath + ":";
+          if (noColor) {
+            output = filePath + ":";
+          } else {
+            output = colorMagenta + filePath + colorReset + colorCyan + ":" + colorReset;
+          }
         }
         if (showLineNumbers) {
-          output = output + (lineNum + 1) + ":";
+          if (noColor) {
+            output = output + (lineNum + 1) + ":";
+          } else {
+            output = output + colorGreen + (lineNum + 1) + colorReset + colorCyan + ":" + colorReset;
+          }
         }
-        output = output + lines[lineNum];
+        output = output + highlightLine(lines[lineNum]);
         console.log(output);
       }
     }
@@ -74,7 +129,11 @@ function searchFile(filePath: string, showPrefix: boolean): void {
 
   if (countOnly) {
     if (showPrefix) {
-      console.log(filePath + ":" + matchCount);
+      if (noColor) {
+        console.log(filePath + ":" + matchCount);
+      } else {
+        console.log(colorMagenta + filePath + colorReset + colorCyan + ":" + colorReset + matchCount);
+      }
     } else {
       console.log(matchCount);
     }
