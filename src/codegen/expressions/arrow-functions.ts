@@ -155,12 +155,19 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       } as BlockStatement;
     }
 
+    // All FunctionNode fields must be present so the native compiler allocates
+    // the full struct size — closureInfo is the 11th field (after declare).
     const liftedFunc: LiftedFunction = {
       name: funcName,
       params: funcParams,
       body: liftedBody,
       returnType: liftedReturnType,
       paramTypes: liftedParamTypes,
+      typeParameters: undefined,
+      async: undefined,
+      parameters: undefined,
+      loc: undefined,
+      declare: false,
       closureInfo,
     };
 
@@ -210,9 +217,9 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
     }
     if (funcResult) {
       // Type assertion must include ALL fields from FunctionNode + closureInfo
-      // in exact struct order. LiftedFunction extends FunctionNode (9 fields),
-      // so closureInfo is at index 9, not index 5. Omitting the middle fields
-      // causes GEP to read the wrong offset (e.g., typeParameters instead of closureInfo).
+      // in exact struct order. LiftedFunction extends FunctionNode (10 fields),
+      // so closureInfo is at index 10. Omitting middle fields causes GEP to
+      // read the wrong offset in native code.
       const func = funcResult as {
         name: string;
         params: string[];
@@ -223,6 +230,7 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
         async: boolean;
         parameters: FunctionParameter[];
         loc: SourceLocation;
+        declare: boolean;
         closureInfo: ClosureInfo;
       };
       return func.closureInfo;
