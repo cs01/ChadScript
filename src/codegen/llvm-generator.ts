@@ -71,7 +71,12 @@ import {
   TypeResolverContext,
   TypeGuardInfo,
 } from "./infrastructure/type-resolver/index.js";
-import { stripOptional, stripNullable, tsTypeToLlvmJson } from "./infrastructure/type-system.js";
+import {
+  stripOptional,
+  stripNullable,
+  tsTypeToLlvm,
+  tsTypeToLlvmJson,
+} from "./infrastructure/type-system.js";
 import type { ResolvedType } from "./infrastructure/type-system.js";
 import { DiagnosticEngine } from "../diagnostics/engine.js";
 import { TypeContext } from "./infrastructure/type-context.js";
@@ -664,12 +669,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return null;
   }
 
-  public getInterfaceProperties(name: string): { keys: string[]; types: string[] } | null {
+  public getInterfaceProperties(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     if (!this.ast || !this.ast.interfaces) return null;
     const baseName = name.endsWith("?") ? name.slice(0, -1) : name;
     const cleanName = baseName.indexOf(" | ") !== -1 ? baseName.split(" | ")[0] : baseName;
     const keys: string[] = [];
     const types: string[] = [];
+    const tsTypes: string[] = [];
     for (let i = 0; i < this.ast.interfaces.length; i++) {
       const iface = this.ast.interfaces[i];
       if (!iface) continue;
@@ -683,11 +691,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             fieldName = fieldName.slice(0, -1);
           }
           keys.push(fieldName);
-          types.push(field.type);
+          // field.type is a TS type (e.g. "string", "number") — convert to LLVM for types[]
+          types.push(tsTypeToLlvm(field.type));
+          tsTypes.push(field.type);
         }
       }
     }
-    if (keys.length > 0) return { keys, types };
+    if (keys.length > 0) return { keys, types, tsTypes };
     return null;
   }
 
@@ -713,7 +723,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return false;
   }
 
-  public getTypeAliasCommonProperties(name: string): { keys: string[]; types: string[] } | null {
+  public getTypeAliasCommonProperties(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null {
     if (!this.ast || !this.ast.typeAliases) return null;
     for (let i = 0; i < this.ast.typeAliases.length; i++) {
       const ta = this.ast.typeAliases[i];
@@ -721,6 +733,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (ta.name === name && ta.unionMembers) {
         let commonNames: string[] = [];
         let commonTypes: string[] = [];
+        let commonTsTypes: string[] = [];
         let first = true;
         for (let m = 0; m < ta.unionMembers.length; m++) {
           const memberName = ta.unionMembers[m];
@@ -731,11 +744,13 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
             for (let p = 0; p < memberProps.keys.length; p++) {
               commonNames.push(memberProps.keys[p]);
               commonTypes.push(memberProps.types[p]);
+              commonTsTypes.push(memberProps.tsTypes[p]);
             }
             first = false;
           } else {
             const nextNames: string[] = [];
             const nextTypes: string[] = [];
+            const nextTsTypes: string[] = [];
             for (let ci = 0; ci < commonNames.length; ci++) {
               let found = false;
               for (let p = 0; p < memberProps.keys.length; p++) {
@@ -747,14 +762,16 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               if (found) {
                 nextNames.push(commonNames[ci]);
                 nextTypes.push(commonTypes[ci]);
+                nextTsTypes.push(commonTsTypes[ci]);
               }
             }
             commonNames = nextNames;
             commonTypes = nextTypes;
+            commonTsTypes = nextTsTypes;
           }
         }
         if (commonNames.length > 0) {
-          return { keys: commonNames, types: commonTypes };
+          return { keys: commonNames, types: commonTypes, tsTypes: commonTsTypes };
         }
       }
     }
@@ -1176,10 +1193,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public typeResolverGetUnionCommonFields(memberNames: string[]): {
     keys: string[];
     types: string[];
+    tsTypes: string[];
   } {
     return this.typeResolver
       ? this.typeResolver.getUnionCommonFields(memberNames)
-      : { keys: [], types: [] };
+      : { keys: [], types: [], tsTypes: [] };
   }
   public typeResolverAreTypesCompatible(type1: string, type2: string): boolean {
     return this.typeResolver ? this.typeResolver.areTypesCompatible(type1, type2) : false;

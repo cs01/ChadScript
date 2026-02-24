@@ -202,9 +202,17 @@ Existing bridges: `regex-bridge.c`, `yyjson-bridge.c`, `os-bridge.c`, `child-pro
 2. **Store pointers as `i8*`** — `double` loses 64-bit precision
 3. **Check class before interface** — try `findClassImplementingInterface()` BEFORE `interfaceStructGen.hasInterface()`
 4. **Load array values in objects** — load the value, don't pass the alloca
-5. **Type cast field order must match object literal order** — not TypeScript interface order
+5. **Type cast field order must match FULL struct layout** — when the type extends a parent interface, the struct includes ALL parent fields. `as { name, closureInfo }` on a `LiftedFunction extends FunctionNode` (10 fields) reads index 1 instead of index 9. Include every field.
 6. **`ret void` not `unreachable`** at end of void functions
 7. **Class structs: boolean is `i1`; Interface structs: boolean is `double`**
+
+## Interface Field Iteration
+
+When building field lists for an interface (keys/types arrays for ObjectMetadata), always use
+`getAllInterfaceFields(interfaceDef)` instead of `interfaceDef.fields`. The latter only returns the
+interface's OWN fields, missing inherited fields from `extends`. This causes wrong GEP indices for
+any interface with inheritance. `allocateDeclaredInterface` does this correctly; several other methods
+(`allocateMemberAccessInterface`, `allocateFunctionInterfaceReturn`, etc.) currently do not.
 
 ## Code Style
 
@@ -216,19 +224,16 @@ Existing bridges: `regex-bridge.c`, `yyjson-bridge.c`, `os-bridge.c`, `child-pro
 ## Patterns That Crash Native Code
 
 1. **`new` in class field initializers** — codegen handles simple `new X()` in field initializers (both explicit and default constructors), but complex nested class instantiation may have edge cases. Prefer initializing in constructors for safety.
-2. **Type assertions must match real struct field order AND count** — `as { type, left, right }` on a struct that's `{ type, op, left, right }` causes GEP to read wrong fields. Fields must be a PREFIX of the real struct in EXACT order.
+2. **Type assertions must match real struct field order AND count** — `as { type, left, right }` on a struct that's `{ type, op, left, right }` causes GEP to read wrong fields. Fields must be a PREFIX of the real struct in EXACT order. **Watch out for `extends`**: if `Child extends Parent`, the struct has ALL of Parent's fields first, then Child's. A type assertion on a Child must include Parent's fields too — even optional ones the object literal doesn't set (the compiler allocates slots for them anyway, filled with null/0).
 3. **Never insert new optional fields in the MIDDLE of an interface** — The native compiler determines struct layouts from object literal creation sites. If an interface has multiple creation sites (e.g., `MethodCallNode` is created in parser-ts, parser-native, and codegen), inserting a new field before existing ones shifts GEP indices and breaks creation sites that don't include the new field. **Always add new optional fields at the END of interfaces.** Root cause: the native compiler doesn't unify struct layouts from interface definitions — it uses object literal field order, and different creation sites may have different subsets of fields.
 
 ## Stage 0 Compatibility
 
-Stage 0 can't handle `props[i].name` (array-of-objects field access). Use struct-of-arrays instead:
+Array-of-objects field access (`props[i].name`) works correctly — `argparse.ts` uses it extensively
+(`this.args[i].name`, `this.parsedFlags[i].value`). Previous crashes attributed to this pattern
+were actually caused by type assertions with wrong field counts (see Patterns That Crash Native Code #2).
 
-```typescript
-// CRASHES: { name: string; type: string }[]
-// WORKS:  { keys: string[]; types: string[] }  — then access props.keys[i]
-```
-
-Additional self-hosting limitations:
+Self-hosting limitations:
 
 - **No import aliases** — `import { foo as bar }` compiles `bar(...)` as `@_cs_bar` which doesn't match the original `@_cs_foo`. Use the original name.
 - **No union type parameters in standalone functions** — `fn(x: Expression)` where `Expression` is a union emits the TS type name literally. Keep union-typed parameters in class methods.

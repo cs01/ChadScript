@@ -151,10 +151,14 @@ export interface MemberAccessGeneratorContext {
   getJsonObjectMetadataInterfaceType(key: string): string | undefined;
   getParameterTypeFromAST(paramName: string): string | null;
   findClassImplementingInterface(interfaceName: string): string | null;
-  getInterfaceProperties(name: string): { keys: string[]; types: string[] } | null;
+  getInterfaceProperties(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getInterfaceDeclByName(name: string): InterfaceDeclaration | null;
   isTypeAlias(name: string): boolean;
-  getTypeAliasCommonProperties(name: string): { keys: string[]; types: string[] } | null;
+  getTypeAliasCommonProperties(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getInterfaceFieldType(interfaceName: string, fieldName: string): string | null;
   getMethodReturnType(className: string, methodName: string): string | null;
   isEnumType(name: string): boolean;
@@ -443,7 +447,8 @@ export class MemberAccessGenerator {
     if (props && props.keys.length > 0) {
       const properties: InterfaceProperty[] = [];
       for (let i = 0; i < props.keys.length; i++) {
-        properties.push({ name: props.keys[i], type: props.types[i] });
+        // InterfaceProperty.type needs TS types for type matching, not LLVM types
+        properties.push({ name: props.keys[i], type: props.tsTypes[i] });
       }
       return { properties };
     }
@@ -476,7 +481,8 @@ export class MemberAccessGenerator {
     if (!props || props.keys.length === 0) return null;
     const properties: InterfaceProperty[] = [];
     for (let i = 0; i < props.keys.length; i++) {
-      properties.push({ name: props.keys[i], type: props.types[i] });
+      // InterfaceProperty.type needs TS types for type matching, not LLVM types
+      properties.push({ name: props.keys[i], type: props.tsTypes[i] });
     }
     return { properties };
   }
@@ -1891,23 +1897,11 @@ export class MemberAccessGenerator {
     if (!ifaceProps) {
       return null;
     }
-    const keys: string[] = [];
-    const types: string[] = [];
-    const tsTypes: string[] = [];
-    for (let j = 0; j < ifaceProps.keys.length; j++) {
-      keys.push(stripOptional(ifaceProps.keys[j]));
-      tsTypes.push(ifaceProps.types[j]);
-      if (ifaceProps.types[j] === "string") {
-        types.push("i8*");
-      } else if (ifaceProps.types[j] === "number") {
-        types.push("double");
-      } else if (ifaceProps.types[j] === "boolean") {
-        types.push("double");
-      } else {
-        types.push("i8*");
-      }
-    }
-    return { keys, types, tsTypes };
+    return {
+      keys: ifaceProps.keys,
+      types: ifaceProps.types,
+      tsTypes: ifaceProps.tsTypes,
+    };
   }
 
   private getTypeAliasInfo(
@@ -2917,7 +2911,8 @@ export class MemberAccessGenerator {
         }
         fields = [];
         for (let ipf = 0; ipf < ifaceProps.keys.length; ipf++) {
-          fields.push({ name: ifaceProps.keys[ipf], type: ifaceProps.types[ipf] });
+          // fields[].type needs TS types since it's passed to tsTypeToLlvm() below
+          fields.push({ name: ifaceProps.keys[ipf], type: ifaceProps.tsTypes[ipf] });
         }
       }
     }

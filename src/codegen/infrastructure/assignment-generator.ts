@@ -48,7 +48,9 @@ export interface AssignmentGeneratorContext {
   getThisPointer(): string | null;
   getCurrentClassName(): string | null;
   readonly symbolTable: SymbolTable;
-  getInterfaceProperties(name: string): { keys: string[]; types: string[] } | null;
+  getInterfaceProperties(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   ensureDouble(value: string): string;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   classGenIsStaticField(className: string, fieldName: string): boolean;
@@ -519,27 +521,11 @@ export class AssignmentGenerator {
       if (elementType) {
         const ifaceProps = this.ctx.getInterfaceProperties(elementType);
         if (ifaceProps) {
-          const keys: string[] = [];
-          const types: string[] = [];
-          const tsTypes: string[] = [];
-          for (let j = 0; j < ifaceProps.keys.length; j++) {
-            let fieldName = ifaceProps.keys[j];
-            if (fieldName.endsWith("?")) {
-              fieldName = fieldName.slice(0, -1);
-            }
-            keys.push(fieldName);
-            tsTypes.push(ifaceProps.types[j]);
-            if (ifaceProps.types[j] === "string") {
-              types.push("i8*");
-            } else if (ifaceProps.types[j] === "number") {
-              types.push("double");
-            } else if (ifaceProps.types[j] === "boolean") {
-              types.push("double");
-            } else {
-              types.push("i8*");
-            }
-          }
-          return { keys, types, tsTypes };
+          return {
+            keys: ifaceProps.keys,
+            types: ifaceProps.types,
+            tsTypes: ifaceProps.tsTypes,
+          };
         }
       }
     }
@@ -554,27 +540,11 @@ export class AssignmentGenerator {
             const elementType = fieldInfo.tsType.slice(0, -2);
             const ifaceProps = this.ctx.getInterfaceProperties(elementType);
             if (ifaceProps) {
-              const keys: string[] = [];
-              const types: string[] = [];
-              const tsTypes: string[] = [];
-              for (let j = 0; j < ifaceProps.keys.length; j++) {
-                let fieldName = ifaceProps.keys[j];
-                if (fieldName.endsWith("?")) {
-                  fieldName = fieldName.slice(0, -1);
-                }
-                keys.push(fieldName);
-                tsTypes.push(ifaceProps.types[j]);
-                if (ifaceProps.types[j] === "string") {
-                  types.push("i8*");
-                } else if (ifaceProps.types[j] === "number") {
-                  types.push("double");
-                } else if (ifaceProps.types[j] === "boolean") {
-                  types.push("double");
-                } else {
-                  types.push("i8*");
-                }
-              }
-              return { keys, types, tsTypes };
+              return {
+                keys: ifaceProps.keys,
+                types: ifaceProps.types,
+                tsTypes: ifaceProps.tsTypes,
+              };
             }
           }
         }

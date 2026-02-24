@@ -662,30 +662,12 @@ export class ControlFlowGenerator {
     if (this.ctx.isTypeAlias(elementInterface)) {
       const commonProps = this.ctx.getTypeAliasCommonProperties(elementInterface);
       if (commonProps && commonProps.keys.length > 0) {
-        const elementKeys: string[] = [];
-        const elementTypes: string[] = [];
-        const elementTsTypes: string[] = [];
-        for (let i = 0; i < commonProps.keys.length; i++) {
-          elementKeys.push(commonProps.keys[i]);
-          elementTsTypes.push(commonProps.types[i]);
-          if (commonProps.types[i] === "string") {
-            elementTypes.push("i8*");
-          } else if (commonProps.types[i] === "number") {
-            elementTypes.push("double");
-          } else if (commonProps.types[i] === "boolean") {
-            elementTypes.push("i32");
-          } else {
-            elementTypes.push("i8*");
-          }
-        }
-        if (elementKeys.length > 0) {
-          return {
-            elementInterfaceName: elementInterface,
-            elementKeys,
-            elementTypes,
-            elementTsTypes,
-          };
-        }
+        return {
+          elementInterfaceName: elementInterface,
+          elementKeys: commonProps.keys,
+          elementTypes: commonProps.types,
+          elementTsTypes: commonProps.tsTypes,
+        };
       }
     }
 
@@ -1138,30 +1120,11 @@ export class ControlFlowGenerator {
     if (!commonProps || commonProps.keys.length === 0) {
       return null;
     }
-    const elementKeys: string[] = [];
-    const elementTypes: string[] = [];
-    const elementTsTypes: string[] = [];
-    for (let i = 0; i < commonProps.keys.length; i++) {
-      elementKeys.push(commonProps.keys[i]);
-      elementTsTypes.push(commonProps.types[i]);
-      if (commonProps.types[i] === "string") {
-        elementTypes.push("i8*");
-      } else if (commonProps.types[i] === "number") {
-        elementTypes.push("double");
-      } else if (commonProps.types[i] === "boolean") {
-        elementTypes.push("i32");
-      } else {
-        elementTypes.push("i8*");
-      }
-    }
-    if (elementKeys.length === 0) {
-      return null;
-    }
     return {
       elementInterfaceName: typeName,
-      elementKeys,
-      elementTypes,
-      elementTsTypes,
+      elementKeys: commonProps.keys,
+      elementTypes: commonProps.types,
+      elementTsTypes: commonProps.tsTypes,
     };
   }
 

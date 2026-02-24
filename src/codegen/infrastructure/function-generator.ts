@@ -86,7 +86,9 @@ export interface FunctionGeneratorContext {
   setAsyncResultPromise(value: string): void;
   getAsyncResultPromise(): string;
   interfaceStructGenHasInterface(name: string): boolean;
-  getTypeAliasCommonProperties(name: string): { keys: string[]; types: string[] } | null;
+  getTypeAliasCommonProperties(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getAllocaInstructions(): string[];
   clearAllocaInstructions(): void;
   getOutput(): string[];

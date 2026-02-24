@@ -240,39 +240,34 @@ export class ExpressionGenerator {
 
       // For inline lambdas with captures (e.g., arr.map(x => x + captured)),
       // allocate the env struct here so array methods can pass it as first arg.
-      // Uses struct-of-arrays accessors (getLastCaptureNames/Types) instead of
-      // getClosureInfoForLambda to avoid array-of-objects access that crashes
-      // the native compiler during self-hosting.
-      const captureNames = this.arrowFunctionGen.getLastCaptureNames();
-      const captureTypes = this.arrowFunctionGen.getLastCaptureTypes();
-      const envStructName = this.arrowFunctionGen.getLastEnvStructName();
-      if (captureNames.length > 0) {
-        const structSize = captureNames.length * 8;
+      const closureInfoResult = this.arrowFunctionGen.getClosureInfoForLambda(lambdaName);
+      if (closureInfoResult) {
+        const closureInfo = closureInfoResult as {
+          captures: { name: string; llvmType: string }[];
+          envStructName: string;
+        };
+        const captures = closureInfo.captures;
+        const envStructName = closureInfo.envStructName;
+        const structSize = captures.length * 8;
         const envRawPtr = this.ctx.nextTemp();
         this.ctx.emit(`${envRawPtr} = call i8* @GC_malloc(i64 ${structSize})`);
         const envTypedPtr = this.ctx.nextTemp();
         this.ctx.emit(`${envTypedPtr} = bitcast i8* ${envRawPtr} to ${envStructName}*`);
 
-        // Capture-by-value: copy current values into the env struct.
-        // The env struct fields are typed as llvmType* (pointers) due to the struct
-        // definition in arrow-functions.ts, but we store plain values — the type
-        // mismatch is harmless since both double and i8* are 8 bytes, and LLVM handles
-        // the bitcast implicitly. This matches variable-allocator.ts's approach.
-        for (let i = 0; i < captureNames.length; i++) {
-          const capName = captureNames[i];
-          const capType = captureTypes[i];
-          const allocaReg = this.ctx.symbolTable.getAlloca(capName);
+        for (let i = 0; i < captures.length; i++) {
+          const cap = captures[i] as { name: string; llvmType: string };
+          const allocaReg = this.ctx.symbolTable.getAlloca(cap.name);
           if (!allocaReg) {
-            throw new Error(`Closure capture error: variable '${capName}' not found`);
+            throw new Error(`Closure capture error: variable '${cap.name}' not found`);
           }
 
           const valueReg = this.ctx.nextTemp();
-          this.ctx.emit(`${valueReg} = load ${capType}, ${capType}* ${allocaReg}`);
+          this.ctx.emit(`${valueReg} = load ${cap.llvmType}, ${cap.llvmType}* ${allocaReg}`);
           const fieldPtr = this.ctx.nextTemp();
           this.ctx.emit(
             `${fieldPtr} = getelementptr ${envStructName}, ${envStructName}* ${envTypedPtr}, i32 0, i32 ${i}`,
           );
-          this.ctx.emit(`store ${capType} ${valueReg}, ${capType}* ${fieldPtr}`);
+          this.ctx.emit(`store ${cap.llvmType} ${valueReg}, ${cap.llvmType}* ${fieldPtr}`);
         }
 
         this.ctx.setLastInlineLambdaEnvPtr(envRawPtr);
