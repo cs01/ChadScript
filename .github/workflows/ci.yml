@@ -89,6 +89,9 @@ jobs:
         run: node --import tsx --test tests/self-hosting.test.ts
         timeout-minutes: 15
 
+      - name: Build target SDK
+        run: bash scripts/build-target-sdk.sh
+
       - name: Package release artifact
         run: |
           mkdir -p release/lib
@@ -116,6 +119,12 @@ jobs:
         with:
           name: chadscript-linux-x64
           path: chadscript-linux-x64.tar.gz
+
+      - name: Upload target SDK
+        uses: actions/upload-artifact@v4
+        with:
+          name: chadscript-target-linux-x64
+          path: chadscript-target-linux-x64.tar.gz
 
   build-macos:
     runs-on: macos-latest

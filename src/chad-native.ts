@@ -132,9 +132,11 @@ if (command === "target") {
     const sdkDir = baseDir + "/" + name;
     child_process.execSync("mkdir -p " + sdkDir);
     const url =
-      "https://github.com/cs01/ChadScript/releases/download/latest/chadscript-target-" + name + ".tar.gz";
+      "https://github.com/cs01/ChadScript/releases/download/latest/chadscript-target-" +
+      name +
+      ".tar.gz";
     console.log("Downloading target SDK '" + name + "'...");
-    cs_exec_passthrough("curl -fsSL \"" + url + "\" | tar xzf - -C \"" + sdkDir + "\"");
+    cs_exec_passthrough('curl -fsSL "' + url + '" | tar xzf - -C "' + sdkDir + '"');
     // Validate the download produced a valid SDK
     if (!fs.existsSync(sdkDir + "/sdk.json")) {
       child_process.execSync("rm -rf " + sdkDir);
