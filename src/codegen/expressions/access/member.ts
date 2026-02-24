@@ -151,7 +151,9 @@ export interface MemberAccessGeneratorContext {
   getJsonObjectMetadataInterfaceType(key: string): string | undefined;
   getParameterTypeFromAST(paramName: string): string | null;
   findClassImplementingInterface(interfaceName: string): string | null;
-  getInterfaceProperties(name: string): { keys: string[]; types: string[]; tsTypes: string[] } | null;
+  getInterfaceProperties(
+    name: string,
+  ): { keys: string[]; types: string[]; tsTypes: string[] } | null;
   getInterfaceDeclByName(name: string): InterfaceDeclaration | null;
   isTypeAlias(name: string): boolean;
   getTypeAliasCommonProperties(
