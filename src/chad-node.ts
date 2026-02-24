@@ -19,6 +19,7 @@ import { ArgumentParser } from "./argparse.js";
 import * as path from "path";
 import * as fs from "fs";
 import { execSync, spawn as spawnProc, ChildProcess } from "child_process";
+import { installTargetSDK, listInstalledSDKs, getSDKBaseDir } from "./cross-compile.js";
 
 const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
 parser.addSubcommand("build", "Compile to a native binary");
@@ -27,6 +28,7 @@ parser.addSubcommand("ir", "Emit LLVM IR only");
 parser.addSubcommand("init", "Generate starter project (chadscript.d.ts, tsconfig.json, hello.ts)");
 parser.addSubcommand("watch", "Watch for changes and recompile+run");
 parser.addSubcommand("clean", "Remove the .build directory");
+parser.addSubcommand("target", "Manage cross-compilation target SDKs");
 
 parser.addFlag("version", "", "Show version");
 parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
@@ -82,6 +84,48 @@ if (command === "clean") {
   if (fs.existsSync(buildDir)) {
     fs.rmSync(buildDir, { recursive: true });
     console.log("removed .build");
+  }
+  process.exit(0);
+}
+
+if (command === "target") {
+  const action = parser.getPositional(0);
+
+  if (action === "add") {
+    const name = parser.getPositional(1);
+    if (!name) {
+      console.error("Usage: chad target add <name>");
+      console.error("Example: chad target add linux-x64");
+      process.exit(1);
+    }
+    installTargetSDK(name);
+  } else if (action === "list") {
+    const sdks = listInstalledSDKs();
+    for (const sdk of sdks) {
+      console.log(sdk);
+    }
+  } else if (action === "remove") {
+    const name = parser.getPositional(1);
+    if (!name) {
+      console.error("Usage: chad target remove <name>");
+      process.exit(1);
+    }
+    const sdkDir = path.join(getSDKBaseDir(), name);
+    if (!fs.existsSync(sdkDir)) {
+      console.error(`chad: target SDK '${name}' is not installed`);
+      process.exit(1);
+    }
+    fs.rmSync(sdkDir, { recursive: true });
+    console.log(`Removed target SDK '${name}'`);
+  } else {
+    console.log("Usage: chad target <action>");
+    console.log("");
+    console.log("Actions:");
+    console.log("  add <name>      Download and install a target SDK");
+    console.log("  list            List installed target SDKs");
+    console.log("  remove <name>   Remove a target SDK");
+    console.log("");
+    console.log("Example: chad target add linux-x64");
   }
   process.exit(0);
 }
@@ -181,7 +225,8 @@ if (
   command !== "run" &&
   command !== "ir" &&
   command !== "init" &&
-  command !== "watch"
+  command !== "watch" &&
+  command !== "target"
 ) {
   if (command.endsWith(".ts") || command.endsWith(".js")) {
     console.error(`chad: error: missing command. did you mean 'chad build ${command}'?`);
