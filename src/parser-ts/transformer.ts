@@ -20,6 +20,7 @@ import {
   MemberAccessNode,
   IndexAccessNode,
   SourceLocation,
+  FunctionNode,
 } from "../ast/types.js";
 
 import { transformExpression } from "./handlers/expressions.js";
@@ -89,6 +90,26 @@ function transformTopLevelStatement(
       const funcDecl = node as ts.FunctionDeclaration;
       const isDeclare = funcDecl.modifiers?.some((m) => m.kind === ts.SyntaxKind.DeclareKeyword);
       if (isDeclare) {
+        // Preserve declared functions in the AST so codegen can emit
+        // LLVM `declare` statements and use correct types for calls.
+        // Must create a new object with `declare` in the literal — native
+        // code only allocates struct slots for fields in object literals.
+        const func = transformFunctionDeclaration(funcDecl, checker);
+        if (func) {
+          const declFunc: FunctionNode = {
+            name: func.name,
+            params: func.params,
+            body: func.body,
+            returnType: func.returnType,
+            paramTypes: func.paramTypes,
+            typeParameters: func.typeParameters,
+            async: func.async,
+            parameters: func.parameters,
+            loc: func.loc,
+            declare: true,
+          };
+          ast.functions.push(declFunc);
+        }
         break;
       }
       const func = transformFunctionDeclaration(funcDecl, checker);

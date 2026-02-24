@@ -305,6 +305,9 @@ export class SemanticAnalyzer {
   }
 
   private analyzeFunction(func: FunctionNode): void {
+    // External declarations have no body to analyze
+    if (func.declare) return;
+
     this.currentFunction = func.name;
 
     this.checkFunctionUnionTypes(func.name, func.paramTypes, func.returnType);

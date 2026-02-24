@@ -5,6 +5,9 @@ import {
   setTargetCpu,
   setTargetTriple,
   setVerbose,
+  addLinkObj,
+  addLinkLib,
+  addLinkPath,
 } from "./native-compiler-lib.js";
 import { getDtsContent } from "./codegen/stdlib/embedded-dts.js";
 import { ArgumentParser } from "./argparse.js";
@@ -62,6 +65,21 @@ parser.addScopedOption(
   "build,run,ir",
 );
 parser.addScopedOption("target-cpu", "", "Set LLVM target CPU", "native", "build,run,ir");
+parser.addScopedOption("link-obj", "", "Extra .o files to link (comma-separated)", "", "build,run");
+parser.addScopedOption(
+  "link-lib",
+  "",
+  "Extra libraries to link, -l flags (comma-separated)",
+  "",
+  "build,run",
+);
+parser.addScopedOption(
+  "link-path",
+  "",
+  "Extra library paths, -L flags (comma-separated)",
+  "",
+  "build,run",
+);
 parser.addPositional("input", "Input .ts or .js file");
 
 parser.parse(process.argv);
@@ -178,6 +196,35 @@ if (targetOpt.length > 0) {
 const cpuOpt = parser.getOption("target-cpu");
 if (cpuOpt.length > 0) {
   setTargetCpu(cpuOpt);
+}
+
+// Parse extra linker flags (comma-separated lists)
+const linkObjOpt = parser.getOption("link-obj");
+if (linkObjOpt.length > 0) {
+  const parts = linkObjOpt.split(",");
+  let _loi = 0;
+  while (_loi < parts.length) {
+    addLinkObj(parts[_loi]);
+    _loi = _loi + 1;
+  }
+}
+const linkLibOpt = parser.getOption("link-lib");
+if (linkLibOpt.length > 0) {
+  const parts = linkLibOpt.split(",");
+  let _lli = 0;
+  while (_lli < parts.length) {
+    addLinkLib(parts[_lli]);
+    _lli = _lli + 1;
+  }
+}
+const linkPathOpt = parser.getOption("link-path");
+if (linkPathOpt.length > 0) {
+  const parts = linkPathOpt.split(",");
+  let _lpi = 0;
+  while (_lpi < parts.length) {
+    addLinkPath(parts[_lpi]);
+    _lpi = _lpi + 1;
+  }
 }
 
 const inputFile = parser.getPositional(0);

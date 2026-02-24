@@ -409,6 +409,9 @@ export interface FunctionNode {
   async?: boolean;
   parameters?: FunctionParameter[];
   loc?: SourceLocation;
+  // External C function declaration (declare function foo(): void)
+  // When true, codegen emits LLVM `declare` instead of `define`, no _cs_ prefix
+  declare?: boolean;
 }
 
 export interface ClassMethod {

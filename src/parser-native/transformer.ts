@@ -233,7 +233,75 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
     case "export_statement":
       handleExportStatement(node, ast);
       break;
+
+    // `declare function foo(x: string): string` — tree-sitter wraps it in
+    // ambient_declaration containing a function_signature child (same fields
+    // as function_declaration minus the body).
+    // NOTE: no block braces — ChadScript's switch codegen drops block-scoped cases.
+    case "ambient_declaration":
+      handleAmbientDeclaration(node, ast);
+      break;
   }
+}
+
+// Extract declared functions from `declare function` statements.
+// Uses text parsing instead of tree-sitter child navigation to avoid
+// native FFI crashes with function_signature nodes.
+function handleAmbientDeclaration(node: TreeSitterNode, ast: AST): void {
+  const nb = node as NodeBase;
+  const text = nb.text;
+  const fIdx = text.indexOf("function ");
+  if (fIdx === -1) return;
+  const rest = text.substring(fIdx + 9);
+  const openParen = rest.indexOf("(");
+  if (openParen === -1) return;
+  const funcName = rest.substring(0, openParen);
+
+  const closeParen = rest.indexOf(")");
+  if (closeParen === -1) return;
+  const paramStr = rest.substring(openParen + 1, closeParen);
+
+  let returnType = "void";
+  const afterClose = rest.substring(closeParen + 1);
+  const retColon = afterClose.indexOf(":");
+  if (retColon !== -1) {
+    let retStr = afterClose.substring(retColon + 1);
+    retStr = retStr.trim();
+    const semi = retStr.indexOf(";");
+    if (semi !== -1) retStr = retStr.substring(0, semi);
+    returnType = retStr;
+  }
+
+  const paramNames: string[] = [];
+  const paramTypesList: string[] = [];
+  if (paramStr.length > 0) {
+    const parts = paramStr.split(",");
+    let pi = 0;
+    while (pi < parts.length) {
+      const part = parts[pi].trim();
+      if (part.length > 0) {
+        const pColon = part.indexOf(":");
+        if (pColon !== -1) {
+          paramNames.push(part.substring(0, pColon).trim());
+          paramTypesList.push(part.substring(pColon + 1).trim());
+        }
+      }
+      pi = pi + 1;
+    }
+  }
+
+  const func: FunctionNode = {
+    name: funcName,
+    params: paramNames,
+    body: createEmptyBlock(),
+    returnType: returnType,
+    paramTypes: paramTypesList,
+    typeParameters: undefined,
+    async: undefined,
+    parameters: undefined,
+    declare: true,
+  };
+  ast.functions.push(func);
 }
 
 function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
@@ -2209,6 +2277,12 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
   const paramTypes = paramsNode ? extractParamTypes(paramsNode) : undefined;
   const parameters = paramsNode ? extractFunctionParameters(paramsNode) : undefined;
 
+  // Include `declare: false` so this creation site matches the struct layout
+  // of handleAmbientDeclaration's creation site (which has declare: true).
+  // Native code determines struct layout from object literals — all creation
+  // sites for the same interface must have the same fields.
+  // IMPORTANT: must be `false` not `undefined` — native codegen may skip
+  // the field slot entirely for `undefined`, causing struct size mismatch.
   return {
     name,
     params,
@@ -2218,6 +2292,7 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
     typeParameters,
     async: isAsync || undefined,
     parameters,
+    declare: false,
   };
 }
 

@@ -627,16 +627,17 @@ export class CallExpressionGenerator {
       }
     }
 
+    // Declared functions (TS `declare function`) are external C symbols —
+    // use their real name without the _cs_ prefix
+    const mangledName =
+      func && func.declare ? resolvedFuncName : this.ctx.mangleUserName(resolvedFuncName);
+
     if (returnType === "void") {
-      this.ctx.emitCallVoid(`@${this.ctx.mangleUserName(resolvedFuncName)}`, argsList.join(", "));
+      this.ctx.emitCallVoid(`@${mangledName}`, argsList.join(", "));
       return "0";
     }
 
-    const temp = this.ctx.emitCall(
-      returnType,
-      `@${this.ctx.mangleUserName(resolvedFuncName)}`,
-      argsList.join(", "),
-    );
+    const temp = this.ctx.emitCall(returnType, `@${mangledName}`, argsList.join(", "));
 
     return temp;
   }

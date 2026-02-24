@@ -78,6 +78,10 @@ export let emitLLVMOnly = false;
 export let verbose = false;
 export let targetCpu = "native";
 export let targetTriple = "";
+// Extra linker flags from --link-obj, --link-lib, --link-path
+export let extraLinkObjs: string[] = [];
+export let extraLinkLibs: string[] = [];
+export let extraLinkPaths: string[] = [];
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -97,6 +101,18 @@ export function setTargetCpu(value: string): void {
 
 export function setTargetTriple(value: string): void {
   targetTriple = value;
+}
+
+export function addLinkObj(objPath: string): void {
+  extraLinkObjs.push(objPath);
+}
+
+export function addLinkLib(lib: string): void {
+  extraLinkLibs.push(lib);
+}
+
+export function addLinkPath(libPath: string): void {
+  extraLinkPaths.push(libPath);
 }
 
 // Resolve the home directory for SDK lookups
@@ -448,6 +464,19 @@ export function compileNative(inputFile: string, outputFile: string): void {
   // Try ld.lld first (ELF-specific), fall back to lld (multicall binary, auto-detects format).
   const crossLinker = crossCompiling ? " -fuse-ld=" + findLLD() : "";
 
+  // User-provided linker flags (--link-obj, --link-lib, --link-path)
+  let userLinkObjs = "";
+  for (let _oi = 0; _oi < extraLinkObjs.length; _oi++) {
+    userLinkObjs = userLinkObjs + " " + extraLinkObjs[_oi];
+  }
+  let userLinkFlags = "";
+  for (let _pi = 0; _pi < extraLinkPaths.length; _pi++) {
+    userLinkFlags = userLinkFlags + " -L" + extraLinkPaths[_pi];
+  }
+  for (let _li = 0; _li < extraLinkLibs.length; _li++) {
+    userLinkFlags = userLinkFlags + " -l" + extraLinkLibs[_li];
+  }
+
   const linkCmd =
     clangTool +
     " " +
@@ -468,6 +497,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     cpSpawnObj +
     " " +
     treeSitterObjs +
+    userLinkObjs +
     " -o " +
     outputFile +
     noPie +
@@ -475,7 +505,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     crossTargetFlag +
     crossLinker +
     " " +
-    linkLibs;
+    linkLibs +
+    userLinkFlags;
   if (verbose) {
     console.log("Running: " + linkCmd);
   }

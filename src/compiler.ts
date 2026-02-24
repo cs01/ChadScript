@@ -75,6 +75,10 @@ let debugInfo = false;
 let staticLink = false;
 let targetCpu = "native";
 let targetOverride: TargetInfo | null = null;
+// Extra linker flags from --link-obj, --link-lib, --link-path
+let extraLinkObjs: string[] = [];
+let extraLinkLibs: string[] = [];
+let extraLinkPaths: string[] = [];
 
 export function setTargetCpu(value: string): void {
   targetCpu = value;
@@ -106,6 +110,18 @@ export function setStaticLink(value: boolean): void {
 
 export function setTarget(value: string): void {
   targetOverride = resolveTarget(value);
+}
+
+export function addLinkObj(objPath: string): void {
+  extraLinkObjs.push(objPath);
+}
+
+export function addLinkLib(lib: string): void {
+  extraLinkLibs.push(lib);
+}
+
+export function addLinkPath(libPath: string): void {
+  extraLinkPaths.push(libPath);
 }
 
 // External library paths - check env vars, then use vendor/
@@ -452,7 +468,11 @@ export function compile(
   // Homebrew's clang can't find lld by short name on macOS CI runners.
   // Try ld.lld first (ELF-specific), fall back to lld (multicall binary, auto-detects format).
   const crossLinker = crossCompiling ? ` -fuse-ld=${findLLD()}` : "";
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}`;
+  // User-provided linker flags (--link-obj, --link-lib, --link-path)
+  const userObjs = extraLinkObjs.length > 0 ? " " + extraLinkObjs.join(" ") : "";
+  const userPaths = extraLinkPaths.map((p) => ` -L${p}`).join("");
+  const userLibs = extraLinkLibs.map((l) => ` -l${l}`).join("");
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });
