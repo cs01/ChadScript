@@ -270,9 +270,11 @@ export class EmbedGenerator {
     this.ctx.emit(firstChar + " = load i8, i8* " + pathPtr);
     const isSlash = this.ctx.nextTemp();
     this.ctx.emit(isSlash + " = icmp eq i8 " + firstChar + ", 47"); // '/' = 47
-    const stripped = this.ctx.nextTemp();
+    // Allocate onePtr first since its defining instruction (GEP) must precede
+    // the select that uses it -- SSA temps must be defined in ascending order.
     const onePtr = this.ctx.nextTemp();
     this.ctx.emit(onePtr + " = getelementptr i8, i8* " + pathPtr + ", i64 1");
+    const stripped = this.ctx.nextTemp();
     this.ctx.emit(stripped + " = select i1 " + isSlash + ", i8* " + onePtr + ", i8* " + pathPtr);
 
     // Look up the embedded file content and byte length
