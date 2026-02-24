@@ -2509,8 +2509,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     const finalParts: string[] = [];
 
     if (this.targetInfo) {
-      finalParts.push('target triple = "' + this.targetInfo.triple + '"\n');
+      // datalayout must come before triple — LLVM opt validates this order
       finalParts.push('target datalayout = "' + this.targetInfo.dataLayout + '"\n');
+      finalParts.push('target triple = "' + this.targetInfo.triple + '"\n');
       finalParts.push("\n");
     }
 
