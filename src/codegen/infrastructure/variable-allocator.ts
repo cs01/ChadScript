@@ -222,6 +222,8 @@ export interface VariableAllocatorContext {
   isUint8ArrayExpression(expr: Expression): boolean;
   setWantsBinaryReturn(value: boolean): void;
   getWantsBinaryReturn(): boolean;
+  getLastTypeAssertionSourceVar(): string | null;
+  setLastTypeAssertionSourceVar(name: string | null): void;
 }
 
 export class VariableAllocator {
@@ -1163,8 +1165,70 @@ export class VariableAllocator {
     );
     this.ctx.emit(`${allocaReg} = alloca i8*`);
     this.ctx.setCurrentDeclaredInterfaceType(interfaceName);
+    // Clear stale state — the orchestrator sets lastTypeAssertionSourceVar for ALL
+    // type assertions, not just ones in variable declarations.
+    this.ctx.setLastTypeAssertionSourceVar(null);
     const objPtr = this.ctx.generateExpression(stmt.value!, params);
     this.ctx.setCurrentDeclaredInterfaceType(undefined);
+
+    // When a type assertion wraps an existing object variable (e.g., obj as { age: number; name: string }),
+    // the memory layout is fixed by the object literal's creation-site field order — not the
+    // assertion's field order. Reorder OUR keys/types to match the source's field order so GEP
+    // indices align with the actual struct layout. We reorder rather than copy to ensure we always
+    // use our correctly-converted LLVM types (source metadata may have TS types in some cases).
+    if (stmt.value && stmt.value.type === "type_assertion" && keys.length > 0) {
+      const sourceVar = this.ctx.getLastTypeAssertionSourceVar();
+      this.ctx.setLastTypeAssertionSourceVar(null);
+      if (sourceVar && this.ctx.symbolTable.isObject(sourceVar)) {
+        const srcMeta = this.ctx.symbolTable.getObjectMetadata(sourceVar);
+        if (srcMeta && srcMeta.keys.length > 0) {
+          // Check that source has ALL of our keys (possibly reordered, possibly with extras)
+          let allKeysPresent = true;
+          for (let i = 0; i < keys.length; i++) {
+            if (srcMeta.keys.indexOf(keys[i]) === -1) {
+              allKeysPresent = false;
+              break;
+            }
+          }
+          if (allKeysPresent) {
+            // Reorder our keys/types/tsTypes to match source's field order.
+            // Use source's field order but our LLVM type mappings.
+            const reorderedKeys: string[] = [];
+            const reorderedTypes: string[] = [];
+            const reorderedTsTypes: string[] = [];
+            for (let si = 0; si < srcMeta.keys.length; si++) {
+              const srcKey = srcMeta.keys[si];
+              const ourIdx = keys.indexOf(srcKey);
+              if (ourIdx !== -1) {
+                reorderedKeys.push(srcKey);
+                reorderedTypes.push(types[ourIdx]);
+                reorderedTsTypes.push(tsTypes[ourIdx]);
+              } else {
+                // Source has extra fields not in our assertion — include them for correct
+                // GEP indexing. Convert types through convertTsType since source metadata
+                // may have TS types in the types array in some code paths.
+                reorderedKeys.push(srcKey);
+                const srcTs = srcMeta.tsTypes || srcMeta.types;
+                reorderedTypes.push(this.convertTsType(srcTs[si]));
+                reorderedTsTypes.push(srcTs[si]);
+              }
+            }
+            this.ctx.defineVariableWithMetadata(
+              stmt.name,
+              allocaReg,
+              "i8*",
+              SymbolKind.Object,
+              "local",
+              createObjectMetadataWithInterface(
+                { keys: reorderedKeys, types: reorderedTypes, tsTypes: reorderedTsTypes },
+                interfaceName,
+              ),
+            );
+          }
+        }
+      }
+    }
+
     this.ctx.emit(`store i8* ${objPtr}, i8** ${allocaReg}`);
   }
 
@@ -2259,6 +2323,11 @@ export class VariableAllocator {
 
     if (closureInfoResult && closureInfo.captures.length > 0) {
       const captures = closureInfo.captures as CaptureInfo[];
+
+      // Capture by value: allocate env struct and copy current variable values into it.
+      // Note: this means mutations in the closure don't affect the outer scope.
+      // Capture-by-reference (heap boxing) is deferred — the native compiler can't
+      // handle the heap boxing code path correctly in self-hosting yet.
       const structSize = captures.length * 8;
       const envMemReg = this.ctx.nextTemp();
       this.ctx.emit(`${envMemReg} = call i8* @GC_malloc(i64 ${structSize})`);

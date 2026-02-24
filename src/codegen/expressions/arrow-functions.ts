@@ -38,6 +38,11 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
   private liftedFunctions: LiftedFunction[] = [];
   private envStructDefs: EnvStructDef[] = [];
   private closureAnalyzer: ClosureAnalyzer;
+  // Struct-of-arrays for last lambda's closure info (avoids array-of-objects
+  // access in getClosureInfoForLambda, which the native compiler can't handle).
+  private lastCaptureNames: string[] = [];
+  private lastCaptureTypes: string[] = [];
+  private lastEnvStructName: string = "";
 
   constructor() {
     super();
@@ -160,6 +165,24 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
 
     this.liftedFunctions.push(liftedFunc);
 
+    // Store last lambda's capture info as flat arrays for the orchestrator.
+    if (closureCaptures.length > 0) {
+      const captNames: string[] = [];
+      const captTypes: string[] = [];
+      for (let ci = 0; ci < closureCaptures.length; ci++) {
+        const cap = closureCaptures[ci] as { name: string; llvmType: string };
+        captNames.push(cap.name);
+        captTypes.push(cap.llvmType);
+      }
+      this.lastCaptureNames = captNames;
+      this.lastCaptureTypes = captTypes;
+      this.lastEnvStructName = closureEnvStructName;
+    } else {
+      this.lastCaptureNames = [];
+      this.lastCaptureTypes = [];
+      this.lastEnvStructName = "";
+    }
+
     return funcName;
   }
 
@@ -203,17 +226,36 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       }
     }
     if (funcResult) {
+      // Field order must match the object literal in generateArrowFunction:
+      // { name, params, body, returnType, paramTypes, closureInfo }
       const func = funcResult as {
         name: string;
         params: string[];
         body: BlockStatement;
-        paramTypes: string[];
         returnType: string;
+        paramTypes: string[];
         closureInfo: ClosureInfo;
       };
       return func.closureInfo;
     }
     return undefined;
+  }
+
+  /**
+   * Get the last generated lambda's capture info as flat arrays.
+   * Uses struct-of-arrays pattern to avoid array-of-objects access
+   * which crashes the native compiler during self-hosting.
+   */
+  getLastCaptureNames(): string[] {
+    return this.lastCaptureNames;
+  }
+
+  getLastCaptureTypes(): string[] {
+    return this.lastCaptureTypes;
+  }
+
+  getLastEnvStructName(): string {
+    return this.lastEnvStructName;
   }
 
   /**

@@ -901,6 +901,28 @@ export interface IGeneratorContext {
 
   ensureDouble(value: string): string;
   ensureI64(value: string): string;
+
+  /**
+   * Env pointer for the last inline lambda that had captures.
+   * Set by orchestrator after generating an inline arrow function with captures.
+   * Consumed by array method call sites to pass as first arg.
+   * IMPORTANT: Must be at the END of this interface — inserting in the middle
+   * shifts GEP indices and crashes the native compiler.
+   */
+  lastInlineLambdaEnvPtr: string | null;
+  getLastInlineLambdaEnvPtr(): string | null;
+  setLastInlineLambdaEnvPtr(ptr: string | null): void;
+
+  /**
+   * Source variable name from the last type assertion expression.
+   * Set by orchestrator when evaluating `expr as Type` where expr is a variable.
+   * Consumed by variable-allocator to inherit metadata from the source variable,
+   * ensuring correct GEP indices when assertion reorders fields.
+   * IMPORTANT: Must be at the END of this interface.
+   */
+  lastTypeAssertionSourceVar: string | null;
+  getLastTypeAssertionSourceVar(): string | null;
+  setLastTypeAssertionSourceVar(name: string | null): void;
 }
 
 /**
@@ -956,6 +978,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesAsyncFs: number = 0;
   public currentFunction: string | null = null;
   public currentDeclaredInterfaceType: string | undefined = undefined;
+
+  // Must be at end of field list — see BaseGenerator/IGeneratorContext comments
+  public lastInlineLambdaEnvPtr: string | null = null;
+  public lastTypeAssertionSourceVar: string | null = null;
 
   constructor() {
     this.typeContext = new TypeContext();
@@ -1194,6 +1220,18 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
   getExpectedCallbackReturnType(): string | null {
     return this.expectedCallbackReturnType;
+  }
+  getLastInlineLambdaEnvPtr(): string | null {
+    return this.lastInlineLambdaEnvPtr;
+  }
+  setLastInlineLambdaEnvPtr(ptr: string | null): void {
+    this.lastInlineLambdaEnvPtr = ptr;
+  }
+  getLastTypeAssertionSourceVar(): string | null {
+    return this.lastTypeAssertionSourceVar;
+  }
+  setLastTypeAssertionSourceVar(name: string | null): void {
+    this.lastTypeAssertionSourceVar = name;
   }
 
   getThisPointer(): string | null {

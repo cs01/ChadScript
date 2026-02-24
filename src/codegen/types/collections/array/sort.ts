@@ -92,7 +92,10 @@ export function generateArraySort(
     throw new Error("sort() comparator must be a function name or inline function");
   }
 
-  return generateNumericSortWithFn(gen, arrayPtr, compareFn);
+  // Capture env ptr for inline lambda closures, then clear it
+  const sortEnvPtr = gen.getLastInlineLambdaEnvPtr();
+  gen.setLastInlineLambdaEnvPtr(null);
+  return generateNumericSortWithFn(gen, arrayPtr, compareFn, sortEnvPtr);
 }
 
 function generateDefaultNumericSort(gen: ArraySortContext, arrayPtr: string): string {
@@ -151,6 +154,7 @@ function generateNumericSortWithFn(
   gen: ArraySortContext,
   arrayPtr: string,
   compareFn: string,
+  envPtr?: string | null,
 ): string {
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
@@ -219,7 +223,10 @@ function generateNumericSortWithFn(
   gen.emit(`${valB} = load double, double* ${ptrB}`);
 
   const cmpResult = gen.nextTemp();
-  gen.emit(`${cmpResult} = call double @${compareFn}(double ${valA}, double ${valB})`);
+  const cmpArgs = envPtr
+    ? `i8* ${envPtr}, double ${valA}, double ${valB}`
+    : `double ${valA}, double ${valB}`;
+  gen.emit(`${cmpResult} = call double @${compareFn}(${cmpArgs})`);
   const shouldSwap = gen.nextTemp();
   gen.emit(`${shouldSwap} = fcmp ogt double ${cmpResult}, 0.0`);
   gen.emit(`br i1 ${shouldSwap}, label %${swapLabel}, label %${noSwapLabel}`);

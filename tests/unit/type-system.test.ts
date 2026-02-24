@@ -11,6 +11,8 @@ import {
   tsTypeToLlvmJson,
   checkUnsafeUnionType,
 } from "../../src/codegen/infrastructure/type-system.js";
+import { SemanticAnalyzer } from "../../src/analysis/semantic-analyzer.js";
+import { AST } from "../../src/ast/types.js";
 
 describe("stripOptional", () => {
   it("should return empty string for null/undefined/empty input", () => {
@@ -342,5 +344,116 @@ describe("checkUnsafeUnionType", () => {
 
   it("should ignore unions nested inside generic types", () => {
     assert.strictEqual(checkUnsafeUnionType("Map<string, number | string>"), null);
+  });
+});
+
+// Helper to create a minimal AST for SemanticAnalyzer tests
+function makeAST(overrides: Partial<AST> = {}): AST {
+  return {
+    imports: [],
+    functions: [],
+    classes: [],
+    exports: [],
+    interfaces: [],
+    typeAliases: [],
+    enums: [],
+    topLevelStatements: [],
+    topLevelExpressions: [],
+    ...overrides,
+  } as AST;
+}
+
+describe("SemanticAnalyzer unsafe union checks", () => {
+  it("should reject unsafe union in variable declaration type", () => {
+    const ast = makeAST({
+      topLevelStatements: [
+        {
+          type: "variable_declaration",
+          kind: "let",
+          name: "x",
+          value: { type: "number", value: 42 },
+          declaredType: "string | number",
+        } as any,
+      ],
+    });
+    const analyzer = new SemanticAnalyzer(ast);
+    const ok = analyzer.analyze();
+    assert.strictEqual(ok, false);
+    const errors = analyzer.getErrors();
+    assert.ok(errors.length > 0);
+    assert.ok(errors[0].message.indexOf("string | number") !== -1);
+    assert.ok(errors[0].message.indexOf("Variable 'x'") !== -1);
+  });
+
+  it("should allow nullable union in variable declaration", () => {
+    const ast = makeAST({
+      topLevelStatements: [
+        {
+          type: "variable_declaration",
+          kind: "let",
+          name: "x",
+          value: { type: "string", value: "hello" },
+          declaredType: "string | null",
+        } as any,
+      ],
+    });
+    const analyzer = new SemanticAnalyzer(ast);
+    const ok = analyzer.analyze();
+    assert.strictEqual(ok, true);
+  });
+
+  // NOTE: Interface field/method union checking tests removed — the native compiler
+  // can't handle array-of-objects field access (iface.fields[i].name) during self-hosting.
+
+  it("should reject unsafe union in class field tsType", () => {
+    const ast = makeAST({
+      classes: [
+        {
+          name: "MyClass",
+          fields: [
+            {
+              name: "data",
+              fieldType: "double",
+              tsType: "string | number",
+            },
+          ],
+          methods: [],
+        } as any,
+      ],
+    });
+    const analyzer = new SemanticAnalyzer(ast);
+    const ok = analyzer.analyze();
+    assert.strictEqual(ok, false);
+    const errors = analyzer.getErrors();
+    assert.ok(errors.length > 0);
+    assert.ok(errors[0].message.indexOf("MyClass") !== -1);
+    assert.ok(errors[0].message.indexOf("data") !== -1);
+  });
+
+  it("should pass when no unsafe unions exist", () => {
+    const ast = makeAST({
+      interfaces: [
+        {
+          name: "SafeInterface",
+          fields: [
+            { name: "name", type: "string" },
+            { name: "age", type: "number" },
+            { name: "optional", type: "string | null" },
+          ],
+        },
+      ],
+      topLevelStatements: [
+        {
+          type: "variable_declaration",
+          kind: "const",
+          name: "y",
+          value: { type: "number", value: 1 },
+          declaredType: "number",
+        } as any,
+      ],
+    });
+    const analyzer = new SemanticAnalyzer(ast);
+    const ok = analyzer.analyze();
+    assert.strictEqual(ok, true);
   });
 });

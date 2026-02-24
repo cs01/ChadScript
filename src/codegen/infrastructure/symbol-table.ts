@@ -670,6 +670,17 @@ export class SymbolTable {
   }
 
   /**
+   * Redirect a variable's alloca register to a new location (e.g., heap cell for closure capture).
+   * Subsequent loads/stores to this variable will use the new alloca.
+   */
+  redefineAlloca(name: string, newAlloca: string): void {
+    const symbol = this.symbols.get(name);
+    if (symbol) {
+      symbol.allocaRegister = newAlloca;
+    }
+  }
+
+  /**
    * Get symbol kind for a variable
    */
   getKind(name: string): number | undefined {

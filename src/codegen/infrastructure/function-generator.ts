@@ -530,6 +530,7 @@ export class FunctionGenerator {
       const envTyped = this.ctx.nextTemp();
       this.ctx.emit(`${envTyped} = bitcast i8* %__env to ${closureInfo.envStructName}*`);
 
+      // Capture-by-value: load value from env struct field and copy to local alloca.
       for (let i = 0; i < closureInfo.captures.length; i++) {
         const capture = closureInfo.captures[i];
         const fieldPtr = this.ctx.nextTemp();
