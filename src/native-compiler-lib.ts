@@ -6,6 +6,7 @@ import { transformTree } from "./parser-native/transformer.js";
 import { LLVMGenerator, LLVMGeneratorOptions, SemaSymbolData } from "./codegen/llvm-generator.js";
 import { SemanticAnalyzer } from "./analysis/semantic-analyzer.js";
 import { AST, ImportDeclaration } from "./ast/types.js";
+import { TargetInfo } from "./target-types.js";
 
 declare const child_process: {
   execSync(command: string): number;
@@ -217,11 +218,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
     }
   }
 
-  // Build a minimal TargetInfo for the LLVM generator when cross-compiling.
-  // The generator needs triple, dataLayout, os, and archString.
-  // We cast to any to avoid importing TargetInfo (this file is self-hosted,
-  // can't use Node's os module that target.ts depends on).
-  let targetInfo: any = undefined;
+  // Build a TargetInfo for the LLVM generator when cross-compiling.
+  // TargetInfo is imported from target-types.ts (dependency-free) so the
+  // native compiler sees the interface definition and resolves correct GEP indices.
+  let targetInfo: TargetInfo | undefined = undefined;
   if (crossCompiling) {
     const isDarwin = targetTriple.indexOf("darwin") !== -1 || targetTriple.indexOf("apple") !== -1;
     const isAarch64 =

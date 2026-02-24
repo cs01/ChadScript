@@ -108,7 +108,7 @@ import { ExpressionGenerator } from "./expressions/orchestrator.js";
 import type { TypeChecker } from "../typescript/type-checker.js";
 import { InterfaceStructGenerator } from "./types/interface-struct-generator.js";
 import { JsonObjectMeta } from "./expressions/access/member.js";
-import type { TargetInfo } from "../target.js";
+import type { TargetInfo } from "../target-types.js";
 
 export interface SemaSymbolData {
   names: string[];
