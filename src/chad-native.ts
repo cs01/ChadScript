@@ -12,6 +12,8 @@ import { ArgumentParser } from "./argparse.js";
 declare const fs: {
   existsSync(filename: string): boolean;
   writeFileSync(filename: string, data: string): number;
+  readdirSync(dirname: string): string[];
+  unlinkSync(filename: string): number;
 };
 
 declare const path: {
@@ -24,6 +26,8 @@ declare const process: {
   exit(code: number): void;
   argv: string[];
   argv0: string;
+  platform: string;
+  env: { [key: string]: string };
 };
 
 declare const child_process: {
@@ -49,6 +53,7 @@ parser.addSubcommand("ir", "Emit LLVM IR only");
 parser.addSubcommand("init", "Generate starter project");
 parser.addSubcommand("watch", "Watch for changes and recompile+run");
 parser.addSubcommand("clean", "Remove the .build directory");
+parser.addSubcommand("target", "Manage cross-compilation target SDKs");
 
 parser.addFlag("version", "", "Show version");
 parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
@@ -107,6 +112,73 @@ if (command === "clean") {
   if (fs.existsSync(".build")) {
     child_process.execSync("rm -rf .build");
     console.log("removed .build");
+  }
+  process.exit(0);
+}
+
+if (command === "target") {
+  const action = parser.getPositional(0);
+  const home = process.env.HOME;
+  const baseDir = home + "/.chadscript/targets";
+
+  if (action === "add") {
+    const name = parser.getPositional(1);
+    if (name.length === 0) {
+      console.log("Usage: chad target add <name>");
+      console.log("Example: chad target add linux-x64");
+      process.exit(1);
+      throw new Error("unreachable");
+    }
+    const sdkDir = baseDir + "/" + name;
+    child_process.execSync("mkdir -p " + sdkDir);
+    const url =
+      "https://github.com/cs01/ChadScript/releases/download/latest/chadscript-target-" + name + ".tar.gz";
+    console.log("Downloading target SDK '" + name + "'...");
+    cs_exec_passthrough("curl -fsSL \"" + url + "\" | tar xzf - -C \"" + sdkDir + "\"");
+    // Validate the download produced a valid SDK
+    if (!fs.existsSync(sdkDir + "/sdk.json")) {
+      child_process.execSync("rm -rf " + sdkDir);
+      console.log("chad: error: downloaded SDK '" + name + "' is invalid (missing sdk.json)");
+      process.exit(1);
+      throw new Error("unreachable");
+    }
+    console.log("Target SDK '" + name + "' installed to " + sdkDir);
+  } else if (action === "list") {
+    if (!fs.existsSync(baseDir)) {
+      process.exit(0);
+    }
+    const entries = fs.readdirSync(baseDir);
+    let ei = 0;
+    while (ei < entries.length) {
+      if (fs.existsSync(baseDir + "/" + entries[ei] + "/sdk.json")) {
+        console.log(entries[ei]);
+      }
+      ei = ei + 1;
+    }
+  } else if (action === "remove") {
+    const name = parser.getPositional(1);
+    if (name.length === 0) {
+      console.log("Usage: chad target remove <name>");
+      process.exit(1);
+      throw new Error("unreachable");
+    }
+    const sdkDir = baseDir + "/" + name;
+    if (!fs.existsSync(sdkDir)) {
+      console.log("chad: target SDK '" + name + "' is not installed");
+      process.exit(1);
+      throw new Error("unreachable");
+    }
+    child_process.execSync("rm -rf " + sdkDir);
+    console.log("Removed target SDK '" + name + "'");
+  } else {
+    console.log("Usage: chad target <action>");
+    console.log("");
+    console.log("Actions:");
+    console.log("  add <name>      Download and install a target SDK");
+    console.log("  list            List installed target SDKs");
+    console.log("  remove <name>   Remove a target SDK");
+    console.log("");
+    console.log("Example: chad target add linux-x64");
   }
   process.exit(0);
 }
