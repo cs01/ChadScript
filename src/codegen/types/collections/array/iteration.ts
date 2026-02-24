@@ -125,7 +125,11 @@ function generateNumericArrayFilter(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildIterCallArgs(gen, `double ${elem}`));
+  const predicateResult = gen.emitCall(
+    "double",
+    `@${predicateFn}`,
+    buildIterCallArgs(gen, `double ${elem}`),
+  );
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -223,7 +227,11 @@ function generateStringArrayFilter(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildIterCallArgs(gen, `i8* ${elem}`));
+  const predicateResult = gen.emitCall(
+    "double",
+    `@${predicateFn}`,
+    buildIterCallArgs(gen, `i8* ${elem}`),
+  );
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -485,7 +493,11 @@ function generateNumericArrayReduce(
 
   const acc = gen.emitLoad("double", accPtr);
 
-  const newAcc = gen.emitCall("double", `@${callbackFn}`, buildIterCallArgs(gen, `double ${acc}, double ${elem}`));
+  const newAcc = gen.emitCall(
+    "double",
+    `@${callbackFn}`,
+    buildIterCallArgs(gen, `double ${acc}, double ${elem}`),
+  );
   gen.emitStore("double", newAcc, accPtr);
 
   const nextCounter = gen.nextTemp();
@@ -555,7 +567,11 @@ function generateStringArrayReduce(
   const acc = gen.nextTemp();
   gen.emit(`${acc} = load i8*, i8** ${accPtr}`);
 
-  const newAcc = gen.emitCall("i8*", `@${callbackFn}`, buildIterCallArgs(gen, `i8* ${acc}, i8* ${elem}`));
+  const newAcc = gen.emitCall(
+    "i8*",
+    `@${callbackFn}`,
+    buildIterCallArgs(gen, `i8* ${acc}, i8* ${elem}`),
+  );
   gen.emit(`store i8* ${newAcc}, i8** ${accPtr}`);
 
   const nextCounter = gen.nextTemp();

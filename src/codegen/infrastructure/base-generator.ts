@@ -46,9 +46,10 @@ export class BaseGenerator {
   public debugInfoEnabled: boolean = false;
   public currentDebugLocId: number = -1;
 
-  // IMPORTANT: This field must be at the END of the class field list to avoid
+  // IMPORTANT: These fields must be at the END of the class field list to avoid
   // shifting GEP indices for existing fields in the native compiler.
   public lastInlineLambdaEnvPtr: string | null = null;
+  public lastTypeAssertionSourceVar: string | null = null;
 
   constructor() {
     this.output = [];

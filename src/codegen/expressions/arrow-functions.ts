@@ -226,12 +226,14 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       }
     }
     if (funcResult) {
+      // Field order must match the object literal in generateArrowFunction:
+      // { name, params, body, returnType, paramTypes, closureInfo }
       const func = funcResult as {
         name: string;
         params: string[];
         body: BlockStatement;
-        paramTypes: string[];
         returnType: string;
+        paramTypes: string[];
         closureInfo: ClosureInfo;
       };
       return func.closureInfo;

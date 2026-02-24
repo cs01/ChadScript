@@ -223,7 +223,9 @@ function generateNumericSortWithFn(
   gen.emit(`${valB} = load double, double* ${ptrB}`);
 
   const cmpResult = gen.nextTemp();
-  const cmpArgs = envPtr ? `i8* ${envPtr}, double ${valA}, double ${valB}` : `double ${valA}, double ${valB}`;
+  const cmpArgs = envPtr
+    ? `i8* ${envPtr}, double ${valA}, double ${valB}`
+    : `double ${valA}, double ${valB}`;
   gen.emit(`${cmpResult} = call double @${compareFn}(${cmpArgs})`);
   const shouldSwap = gen.nextTemp();
   gen.emit(`${shouldSwap} = fcmp ogt double ${cmpResult}, 0.0`);

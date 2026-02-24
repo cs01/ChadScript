@@ -261,7 +261,11 @@ function generateNumericArrayFindIndex(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${i}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildSearchCallArgs(gen, `double ${elem}`));
+  const predicateResult = gen.emitCall(
+    "double",
+    `@${predicateFn}`,
+    buildSearchCallArgs(gen, `double ${elem}`),
+  );
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
   gen.emitBrCond(isTruthy, foundLabel, nextLabel);
@@ -328,7 +332,11 @@ function generateStringArrayFindIndex(
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${i}`);
   const elem = gen.emitLoad("i8*", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildSearchCallArgs(gen, `i8* ${elem}`));
+  const predicateResult = gen.emitCall(
+    "double",
+    `@${predicateFn}`,
+    buildSearchCallArgs(gen, `i8* ${elem}`),
+  );
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
   gen.emitBrCond(isTruthy, foundLabel, nextLabel);

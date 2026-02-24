@@ -45,6 +45,7 @@ interface ExpressionOrchestratorContext {
   getExpectedCallbackParamType(): string | null;
   getExpectedCallbackReturnType(): string | null;
   setLastInlineLambdaEnvPtr(ptr: string | null): void;
+  setLastTypeAssertionSourceVar(name: string | null): void;
   emitWarning(message: string, loc?: { line: number; column: number }, suggestion?: string): void;
 }
 
@@ -250,9 +251,7 @@ export class ExpressionGenerator {
         const envRawPtr = this.ctx.nextTemp();
         this.ctx.emit(`${envRawPtr} = call i8* @GC_malloc(i64 ${structSize})`);
         const envTypedPtr = this.ctx.nextTemp();
-        this.ctx.emit(
-          `${envTypedPtr} = bitcast i8* ${envRawPtr} to ${envStructName}*`,
-        );
+        this.ctx.emit(`${envTypedPtr} = bitcast i8* ${envRawPtr} to ${envStructName}*`);
 
         // Capture-by-value: copy current values into the env struct.
         // The env struct fields are typed as llvmType* (pointers) due to the struct
@@ -268,16 +267,12 @@ export class ExpressionGenerator {
           }
 
           const valueReg = this.ctx.nextTemp();
-          this.ctx.emit(
-            `${valueReg} = load ${capType}, ${capType}* ${allocaReg}`,
-          );
+          this.ctx.emit(`${valueReg} = load ${capType}, ${capType}* ${allocaReg}`);
           const fieldPtr = this.ctx.nextTemp();
           this.ctx.emit(
             `${fieldPtr} = getelementptr ${envStructName}, ${envStructName}* ${envTypedPtr}, i32 0, i32 ${i}`,
           );
-          this.ctx.emit(
-            `store ${capType} ${valueReg}, ${capType}* ${fieldPtr}`,
-          );
+          this.ctx.emit(`store ${capType} ${valueReg}, ${capType}* ${fieldPtr}`);
         }
 
         this.ctx.setLastInlineLambdaEnvPtr(envRawPtr);
@@ -312,9 +307,19 @@ export class ExpressionGenerator {
       return valueReg;
     }
 
-    // Type assertions (expr as Type) - evaluate inner expression, type info tracked at declaration level
+    // Type assertions (expr as Type) - evaluate inner expression, type info tracked at declaration level.
+    // When the inner expression is a variable, record its name so that
+    // allocateDeclaredInterface can inherit the source variable's field order
+    // (the asserted type may reorder fields relative to the object literal layout).
     if (exprTyped.type === "type_assertion") {
       const assertExpr = expr as TypeAssertionNode;
+      const innerBase = assertExpr.expression as { type: string };
+      if (innerBase.type === "variable") {
+        const innerVar = assertExpr.expression as VariableNode;
+        this.ctx.setLastTypeAssertionSourceVar(innerVar.name);
+      } else {
+        this.ctx.setLastTypeAssertionSourceVar(null);
+      }
       return this.generate(assertExpr.expression, params);
     }
 

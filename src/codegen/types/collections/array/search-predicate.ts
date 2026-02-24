@@ -93,7 +93,11 @@ function generateNumericArrayFind(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `double ${elem}`));
+  const predicateResult = gen.emitCall(
+    "double",
+    `@${predicateFn}`,
+    buildPredicateCallArgs(gen, `double ${elem}`),
+  );
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -159,7 +163,11 @@ function generateStringArrayFind(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `i8* ${elem}`));
+  const predicateResult = gen.emitCall(
+    "double",
+    `@${predicateFn}`,
+    buildPredicateCallArgs(gen, `i8* ${elem}`),
+  );
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -257,7 +265,11 @@ function generateNumericArraySome(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `double ${elem}`));
+  const predicateResult = gen.emitCall(
+    "double",
+    `@${predicateFn}`,
+    buildPredicateCallArgs(gen, `double ${elem}`),
+  );
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -325,7 +337,11 @@ function generateStringArraySome(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `i8* ${elem}`));
+  const predicateResult = gen.emitCall(
+    "double",
+    `@${predicateFn}`,
+    buildPredicateCallArgs(gen, `i8* ${elem}`),
+  );
 
   const isTruthy = gen.nextTemp();
   gen.emit(`${isTruthy} = fcmp one double ${predicateResult}, 0.0`);
@@ -423,7 +439,11 @@ function generateNumericArrayEvery(
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${counter}`);
   const elem = gen.emitLoad("double", elemPtr);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `double ${elem}`));
+  const predicateResult = gen.emitCall(
+    "double",
+    `@${predicateFn}`,
+    buildPredicateCallArgs(gen, `double ${elem}`),
+  );
 
   const isFalsy = gen.nextTemp();
   gen.emit(`${isFalsy} = fcmp oeq double ${predicateResult}, 0.0`);
@@ -491,7 +511,11 @@ function generateStringArrayEvery(
   const elem = gen.nextTemp();
   gen.emit(`${elem} = load i8*, i8** ${elemPtr}`);
 
-  const predicateResult = gen.emitCall("double", `@${predicateFn}`, buildPredicateCallArgs(gen, `i8* ${elem}`));
+  const predicateResult = gen.emitCall(
+    "double",
+    `@${predicateFn}`,
+    buildPredicateCallArgs(gen, `i8* ${elem}`),
+  );
 
   const isFalsy = gen.nextTemp();
   gen.emit(`${isFalsy} = fcmp oeq double ${predicateResult}, 0.0`);
