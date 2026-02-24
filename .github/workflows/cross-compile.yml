@@ -92,22 +92,35 @@ jobs:
           tar -xzf chadscript-target-linux-x64.tar.gz -C ~/.chadscript/targets/linux-x64
           cat ~/.chadscript/targets/linux-x64/sdk.json
 
-      - name: Cross-compile hello.ts for Linux x64
+      - name: Cross-compile hello.ts for Linux x64 (Node.js compiler)
         run: |
           echo 'console.log("Hello from ChadScript!");' > hello.ts
           echo 'process.exit(0);' >> hello.ts
           node dist/chad-node.js build --target linux-x64 hello.ts -o .build/hello-linux -v
 
-      - name: Verify binary format
+      - name: Verify binary format (Node.js compiler)
         run: |
           file .build/hello-linux
           file .build/hello-linux | grep -q "ELF 64-bit"
 
-      - name: Upload cross-compiled binary
+      - name: Build native chad binary
+        run: node dist/chad-node.js build src/chad-native.ts -o .build/chad
+
+      - name: Cross-compile hello.ts for Linux x64 (native compiler)
+        run: .build/chad build --target linux-x64 hello.ts -o .build/hello-linux-native -v
+
+      - name: Verify binary format (native compiler)
+        run: |
+          file .build/hello-linux-native
+          file .build/hello-linux-native | grep -q "ELF 64-bit"
+
+      - name: Upload cross-compiled binaries
         uses: actions/upload-artifact@v4
         with:
           name: hello-linux-cross
-          path: .build/hello-linux
+          path: |
+            .build/hello-linux
+            .build/hello-linux-native
 
   # Verify the cross-compiled binary actually runs on Linux
   verify-cross-compiled-binary:
@@ -121,9 +134,14 @@ jobs:
           name: hello-linux-cross
           path: .
 
-      - name: Run cross-compiled binary
+      - name: Run cross-compiled binary (Node.js compiler)
         run: |
-          ls -la
           chmod +x hello-linux
           ./hello-linux
-          echo "Cross-compiled binary ran successfully on Linux"
+          echo "Node.js compiler cross-compiled binary ran successfully"
+
+      - name: Run cross-compiled binary (native compiler)
+        run: |
+          chmod +x hello-linux-native
+          ./hello-linux-native
+          echo "Native compiler cross-compiled binary ran successfully"
