@@ -12,7 +12,7 @@
 #define MAX_RESPONSE_SIZE (1024 * 1024)
 #define MAX_BODY_SIZE (1024 * 1024)
 #define READ_BUF_SIZE 8192
-#define WS_GUID "258EAFA5-E914-47DA-95CA-5AC5AB80653E"
+#define WS_GUID "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
 static lws_bridge_http_handler g_http_handler = NULL;
 static lws_bridge_ws_handler g_ws_handler = NULL;
