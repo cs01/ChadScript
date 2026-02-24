@@ -2,7 +2,7 @@
 import { ArgumentParser } from "../../src/argparse.js";
 
 const parser = new ArgumentParser("websocket-chat", "Real-time WebSocket chat server");
-parser.addOption("port", "p", "Port to listen on", "8080");
+parser.addOption("port", "p", "Port to listen on (0 = auto)", "0");
 parser.parse(process.argv);
 
 const port = parseInt(parser.getOption("port"));
@@ -63,11 +63,5 @@ function handleRequest(req: HttpRequest): HttpResponse {
   return ChadScript.serveEmbedded(req.path);
 }
 
-console.log("WebSocket Chat Server");
-console.log("  listening on http://localhost:" + port);
-console.log("  HTML/CSS embedded in the binary at compile time");
-console.log("");
-console.log("Open http://localhost:" + port + " in your browser to start chatting");
-console.log("Or connect via CLI: websocat ws://localhost:" + port + "/ws");
-console.log("");
+console.log("WebSocket Chat Server (HTML/CSS embedded at compile time)");
 httpServe(port, handleRequest, wsHandler);

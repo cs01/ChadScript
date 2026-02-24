@@ -323,16 +323,30 @@ await main();
       const fixture = "/tmp/test-ws-e2e.ts";
       const exeFile = "/tmp/test-ws-e2e";
 
-      // Minimal WS server fixture — echoes messages back and broadcasts
+      // WS server fixture matching the real example: broadcasts during open/close,
+      // global counter, and message broadcast — this catches codegen bugs that
+      // simpler handlers miss
       const fixtureContent = `
 interface WsEvent { data: string; event: string; }
 interface HttpRequest { method: string; path: string; body: string; contentType: string; }
 interface HttpResponse { status: number; body: string; }
 
+let userCount = 0;
+
 function wsHandler(event: WsEvent): string {
+  if (event.event == "open") {
+    userCount = userCount + 1;
+    wsBroadcast("[" + userCount + " online]");
+    return "";
+  }
+  if (event.event == "close") {
+    userCount = userCount - 1;
+    wsBroadcast("[" + userCount + " online]");
+    return "";
+  }
   if (event.event == "message") {
     wsBroadcast("broadcast:" + event.data);
-    return "echo:" + event.data;
+    return "";
   }
   return "";
 }
@@ -403,97 +417,96 @@ httpServe(${port}, handleRequest, wsHandler);
           `Expected HTTP response to contain 'ws-e2e-ok', got: ${httpBody.substring(0, 200)}`,
         );
 
-        // 2) WebSocket handshake and message round-trip using raw http upgrade
+        // 2) WebSocket handshake and message round-trip using raw http upgrade.
+        // The handler broadcasts "[1 online]" on open, then "broadcast:hello"
+        // on message — this tests the full flow including broadcast-during-open.
         const wsKey = crypto.randomBytes(16).toString("base64");
-        const wsResult = await new Promise<{ echo: string; broadcast: string }>(
-          (resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error("WebSocket test timeout")), 5000);
-            const req = http.request({
-              hostname: "127.0.0.1",
-              port,
-              path: "/ws",
-              method: "GET",
-              headers: {
-                Upgrade: "websocket",
-                Connection: "Upgrade",
-                "Sec-WebSocket-Key": wsKey,
-                "Sec-WebSocket-Version": "13",
-              },
-            });
+        const wsReceived = await new Promise<string[]>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error("WebSocket test timeout")), 5000);
+          const req = http.request({
+            hostname: "127.0.0.1",
+            port,
+            path: "/ws",
+            method: "GET",
+            headers: {
+              Upgrade: "websocket",
+              Connection: "Upgrade",
+              "Sec-WebSocket-Key": wsKey,
+              "Sec-WebSocket-Version": "13",
+            },
+          });
 
-            req.on("upgrade", (_res, socket: net.Socket, _head) => {
-              const received: string[] = [];
-
-              // Send a masked text frame with payload "hello"
-              const payload = Buffer.from("hello");
-              const mask = crypto.randomBytes(4);
-              const frame = Buffer.alloc(2 + 4 + payload.length);
-              frame[0] = 0x81; // FIN + text opcode
-              frame[1] = 0x80 | payload.length; // masked + length
-              mask.copy(frame, 2);
-              for (let i = 0; i < payload.length; i++) {
-                frame[6 + i] = payload[i] ^ mask[i % 4];
+          // Helper: parse text frames from a buffer into the received array
+          const received: string[] = [];
+          const parseFrames = (data: Buffer) => {
+            let offset = 0;
+            while (offset < data.length) {
+              if (offset + 2 > data.length) break;
+              const len = data[offset + 1] & 0x7f;
+              let headerLen = 2;
+              let payloadLen = len;
+              if (len === 126) {
+                if (offset + 4 > data.length) break;
+                payloadLen = (data[offset + 2] << 8) | data[offset + 3];
+                headerLen = 4;
               }
-              socket.write(frame);
+              if (offset + headerLen + payloadLen > data.length) break;
+              if ((data[offset] & 0x0f) === 1) {
+                received.push(
+                  data.subarray(offset + headerLen, offset + headerLen + payloadLen).toString(),
+                );
+              }
+              offset += headerLen + payloadLen;
+            }
+          };
 
-              // Read response frames (echo + broadcast)
-              socket.on("data", (data: Buffer) => {
-                // Parse WebSocket text frames from the buffer
-                let offset = 0;
-                while (offset < data.length) {
-                  if (offset + 2 > data.length) break;
-                  const opcode = data[offset] & 0x0f;
-                  const len = data[offset + 1] & 0x7f;
-                  let headerLen = 2;
-                  let payloadLen = len;
-                  if (len === 126) {
-                    if (offset + 4 > data.length) break;
-                    payloadLen = (data[offset + 2] << 8) | data[offset + 3];
-                    headerLen = 4;
-                  }
-                  if (offset + headerLen + payloadLen > data.length) break;
-                  if (opcode === 1) {
-                    const text = data
-                      .subarray(offset + headerLen, offset + headerLen + payloadLen)
-                      .toString();
-                    received.push(text);
-                  }
-                  offset += headerLen + payloadLen;
-                }
+          req.on("upgrade", (_res, socket: net.Socket, head: Buffer) => {
+            // The broadcast-on-open frame may arrive in the `head` buffer
+            // (same TCP segment as the 101 response)
+            if (head.length > 0) parseFrames(head);
 
-                // We expect both echo and broadcast responses
-                if (received.length >= 2) {
-                  clearTimeout(timeout);
-                  socket.destroy();
-                  const echo = received.find((m) => m.startsWith("echo:")) || "";
-                  const broadcast = received.find((m) => m.startsWith("broadcast:")) || "";
-                  resolve({ echo, broadcast });
-                }
-              });
+            // Send a masked text frame with payload "hello"
+            const payload = Buffer.from("hello");
+            const mask = crypto.randomBytes(4);
+            const frame = Buffer.alloc(2 + 4 + payload.length);
+            frame[0] = 0x81; // FIN + text opcode
+            frame[1] = 0x80 | payload.length; // masked + length
+            mask.copy(frame, 2);
+            for (let i = 0; i < payload.length; i++) {
+              frame[6 + i] = payload[i] ^ mask[i % 4];
+            }
+            socket.write(frame);
 
-              socket.on("error", (err) => {
+            socket.on("data", (data: Buffer) => {
+              parseFrames(data);
+              if (received.length >= 2) {
                 clearTimeout(timeout);
-                reject(err);
-              });
+                socket.destroy();
+                resolve(received);
+              }
             });
 
-            req.on("error", (err) => {
+            socket.on("error", (err) => {
               clearTimeout(timeout);
               reject(err);
             });
-            req.end();
-          },
-        );
+          });
 
-        assert.strictEqual(
-          wsResult.echo,
-          "echo:hello",
-          `Expected echo:hello, got: ${wsResult.echo}`,
+          req.on("error", (err) => {
+            clearTimeout(timeout);
+            reject(err);
+          });
+          req.end();
+        });
+
+        // Verify both the open-broadcast and message-broadcast arrived
+        assert.ok(
+          wsReceived.some((m) => m.includes("online")),
+          `Expected an online count broadcast, got: ${JSON.stringify(wsReceived)}`,
         );
-        assert.strictEqual(
-          wsResult.broadcast,
-          "broadcast:hello",
-          `Expected broadcast:hello, got: ${wsResult.broadcast}`,
+        assert.ok(
+          wsReceived.some((m) => m.includes("hello")),
+          `Expected a broadcast containing 'hello', got: ${JSON.stringify(wsReceived)}`,
         );
       } finally {
         cleanup();
