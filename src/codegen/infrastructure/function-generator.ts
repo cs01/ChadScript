@@ -100,7 +100,7 @@ export interface FunctionGeneratorContext {
   ensureDouble(value: string): string;
   emitError(message: string, loc?: SourceLocation, suggestion?: string): never;
   setI64EligibleVars(vars: string[]): void;
-  getTargetOS?(): string;
+  getTargetOS(): string;
 }
 
 export class FunctionGenerator {
@@ -919,7 +919,10 @@ export class FunctionGenerator {
     ir += "  %__gtod_start = call i32 @gettimeofday(%struct.timeval* %__start_tv, i8* null)\n";
     ir += "\n";
 
-    const effectiveOS = (this.ctx.getTargetOS ? this.ctx.getTargetOS() : null) || process.platform;
+    // Direct call — no truthiness guard on the method. The optional `?.` pattern
+    // compiles incorrectly in the native compiler for interface methods, causing
+    // the fallback to process.platform (host OS) even when cross-compiling.
+    const effectiveOS = this.ctx.getTargetOS();
     if (effectiveOS === "darwin") {
       ir += "  %__stderr_val = load i8*, i8** @__stderrp\n";
       ir += "  store i8* %__stderr_val, i8** @stderr\n";
