@@ -1,19 +1,9 @@
 // Target triple resolution and host detection for cross-compilation.
 // Cross-compilation currently only supports linux-x64 as a target.
 import * as os from "os";
+import { TargetInfo, LibC } from "./target-types.js";
 
-export type LibC = "gnu" | "system";
-
-export interface TargetInfo {
-  triple: string;
-  os: string;
-  arch: string;
-  cpu: string;
-  platformString: string;
-  archString: string;
-  dataLayout: string;
-  libc: LibC;
-}
+export type { TargetInfo, LibC };
 
 const DATA_LAYOUT_X86_64_LINUX =
   "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128";
