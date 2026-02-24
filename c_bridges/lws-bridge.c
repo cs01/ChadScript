@@ -762,11 +762,17 @@ int lws_bridge_serve(int port, lws_bridge_http_handler http_handler,
 
     int r = uv_listen((uv_stream_t *)&server, 512, on_connection);
     if (r) {
-        fprintf(stderr, "Failed to listen on port %d: %s\n", port, uv_strerror(r));
+        fprintf(stderr, "failed to listen on port %d: %s\n", port, uv_strerror(r));
         return 1;
     }
 
-    printf("HTTP server listening on port %d\n", port);
+    // Read back the actual port (matters when port 0 = OS-assigned)
+    struct sockaddr_storage bound_addr;
+    int namelen = sizeof(bound_addr);
+    uv_tcp_getsockname(&server, (struct sockaddr *)&bound_addr, &namelen);
+    int actual_port = ntohs(((struct sockaddr_in *)&bound_addr)->sin_port);
+
+    printf("listening on http://localhost:%d\n", actual_port);
     uv_run(uv_default_loop(), UV_RUN_DEFAULT);
     return 0;
 }

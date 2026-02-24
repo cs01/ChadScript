@@ -103,8 +103,6 @@ function handleRequest(req: HttpRequest): HttpResponse {
   return { status: 404, body: "Not Found" };
 }
 
-const port = 8080;
-console.log("WebSocket Chat Server");
-console.log("  Open http://localhost:" + port + "/ in your browser");
-console.log("  Or use: websocat ws://localhost:" + port + "/ws");
-httpServe(port, handleRequest, wsHandler);
+// Port 0 = OS picks a free port (printed by the server on startup)
+console.log("WebSocket Chat Server starting...");
+httpServe(0, handleRequest, wsHandler);
