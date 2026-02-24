@@ -14,13 +14,14 @@ chad build examples/hello.ts
 
 ## Examples
 
-| File                 | Description                                    |
-| -------------------- | ---------------------------------------------- |
-| `hello.ts`           | Hello World - native execution with no runtime |
-| `timers.ts`          | setTimeout/setInterval async timers            |
-| `http-server.ts`     | HTTP server with Request/Response routing      |
-| `cli-parser-demo.ts` | CLI argument parsing with flags and options    |
-| `word-count.ts`      | File processing - lines, words, characters     |
+| File                  | Description                                    |
+| --------------------- | ---------------------------------------------- |
+| `hello.ts`            | Hello World - native execution with no runtime |
+| `timers.ts`           | setTimeout/setInterval async timers            |
+| `http-server.ts`      | HTTP server with Request/Response routing      |
+| `websocket-server.ts` | WebSocket chat server with broadcast           |
+| `cli-parser-demo.ts`  | CLI argument parsing with flags and options    |
+| `word-count.ts`       | File processing - lines, words, characters     |
 
 ## Running
 
@@ -33,6 +34,9 @@ chad build examples/hello.ts
 
 # HTTP server (runs on port 3000)
 ./.build/examples/http-server
+
+# WebSocket chat (runs on port 8080, open in browser)
+./.build/examples/websocket-server
 
 # CLI with arguments
 ./.build/examples/cli-parser-demo --verbose --output out.txt input.txt

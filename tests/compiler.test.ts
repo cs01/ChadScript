@@ -6,6 +6,9 @@ import * as fs from "node:fs/promises";
 import * as fsSync from "node:fs";
 import * as path from "node:path";
 import * as http from "node:http";
+import * as net from "node:net";
+import * as crypto from "node:crypto";
+import { spawn } from "node:child_process";
 import { discoverTests } from "./test-discovery";
 
 const testCases = discoverTests();
@@ -310,6 +313,195 @@ await main();
         } catch {}
         try {
           await fs.unlink("/tmp/test-response-properties");
+        } catch {}
+      }
+    });
+
+    it("should serve HTML and handle WebSocket connections end-to-end", async () => {
+      // Pick a random high port to avoid conflicts with other tests
+      const port = 10000 + Math.floor(Math.random() * 50000);
+      const fixture = "/tmp/test-ws-e2e.ts";
+      const exeFile = "/tmp/test-ws-e2e";
+
+      // Minimal WS server fixture — echoes messages back and broadcasts
+      const fixtureContent = `
+interface WsEvent { data: string; event: string; }
+interface HttpRequest { method: string; path: string; body: string; contentType: string; }
+interface HttpResponse { status: number; body: string; }
+
+function wsHandler(event: WsEvent): string {
+  if (event.event == "message") {
+    wsBroadcast("broadcast:" + event.data);
+    return "echo:" + event.data;
+  }
+  return "";
+}
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  if (req.path == "/") {
+    return { status: 200, body: "ws-e2e-ok" };
+  }
+  return { status: 404, body: "Not Found" };
+}
+
+httpServe(${port}, handleRequest, wsHandler);
+`;
+      await fs.writeFile(fixture, fixtureContent);
+      try {
+        if (fsSync.existsSync(exeFile)) await fs.unlink(exeFile);
+      } catch {}
+
+      // Compile the fixture
+      await execAsync(`${compiler} ${fixture} -o ${exeFile}`);
+      assert.ok(fsSync.existsSync(exeFile), `Executable should exist at ${exeFile}`);
+
+      // Start the server as a background process
+      const serverProc = spawn(exeFile, [], { stdio: ["pipe", "pipe", "pipe"] });
+      const cleanup = () => {
+        try {
+          serverProc.kill("SIGKILL");
+        } catch {}
+      };
+
+      try {
+        // Poll the TCP port until the server is ready (printf is full-buffered
+        // when stdout is a pipe, so we can't rely on stdout messages)
+        await new Promise<void>((resolve, reject) => {
+          const deadline = setTimeout(() => reject(new Error("Server startup timeout")), 5000);
+          serverProc.on("exit", (code) => {
+            clearTimeout(deadline);
+            reject(new Error(`Server exited early with code ${code}`));
+          });
+          const tryConnect = () => {
+            const sock = net.createConnection({ host: "127.0.0.1", port }, () => {
+              sock.destroy();
+              clearTimeout(deadline);
+              resolve();
+            });
+            sock.on("error", () => {
+              setTimeout(tryConnect, 50);
+            });
+          };
+          tryConnect();
+        });
+
+        // 1) Verify HTTP GET returns our page
+        const httpBody = await new Promise<string>((resolve, reject) => {
+          const req = http.get(`http://127.0.0.1:${port}/`, (res) => {
+            let body = "";
+            res.on("data", (chunk: Buffer) => (body += chunk.toString()));
+            res.on("end", () => resolve(body));
+          });
+          req.on("error", reject);
+          req.setTimeout(3000, () => {
+            req.destroy();
+            reject(new Error("HTTP request timeout"));
+          });
+        });
+        assert.ok(
+          httpBody.includes("ws-e2e-ok"),
+          `Expected HTTP response to contain 'ws-e2e-ok', got: ${httpBody.substring(0, 200)}`,
+        );
+
+        // 2) WebSocket handshake and message round-trip using raw http upgrade
+        const wsKey = crypto.randomBytes(16).toString("base64");
+        const wsResult = await new Promise<{ echo: string; broadcast: string }>(
+          (resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error("WebSocket test timeout")), 5000);
+            const req = http.request({
+              hostname: "127.0.0.1",
+              port,
+              path: "/ws",
+              method: "GET",
+              headers: {
+                Upgrade: "websocket",
+                Connection: "Upgrade",
+                "Sec-WebSocket-Key": wsKey,
+                "Sec-WebSocket-Version": "13",
+              },
+            });
+
+            req.on("upgrade", (_res, socket: net.Socket, _head) => {
+              const received: string[] = [];
+
+              // Send a masked text frame with payload "hello"
+              const payload = Buffer.from("hello");
+              const mask = crypto.randomBytes(4);
+              const frame = Buffer.alloc(2 + 4 + payload.length);
+              frame[0] = 0x81; // FIN + text opcode
+              frame[1] = 0x80 | payload.length; // masked + length
+              mask.copy(frame, 2);
+              for (let i = 0; i < payload.length; i++) {
+                frame[6 + i] = payload[i] ^ mask[i % 4];
+              }
+              socket.write(frame);
+
+              // Read response frames (echo + broadcast)
+              socket.on("data", (data: Buffer) => {
+                // Parse WebSocket text frames from the buffer
+                let offset = 0;
+                while (offset < data.length) {
+                  if (offset + 2 > data.length) break;
+                  const opcode = data[offset] & 0x0f;
+                  const len = data[offset + 1] & 0x7f;
+                  let headerLen = 2;
+                  let payloadLen = len;
+                  if (len === 126) {
+                    if (offset + 4 > data.length) break;
+                    payloadLen = (data[offset + 2] << 8) | data[offset + 3];
+                    headerLen = 4;
+                  }
+                  if (offset + headerLen + payloadLen > data.length) break;
+                  if (opcode === 1) {
+                    const text = data
+                      .subarray(offset + headerLen, offset + headerLen + payloadLen)
+                      .toString();
+                    received.push(text);
+                  }
+                  offset += headerLen + payloadLen;
+                }
+
+                // We expect both echo and broadcast responses
+                if (received.length >= 2) {
+                  clearTimeout(timeout);
+                  socket.destroy();
+                  const echo = received.find((m) => m.startsWith("echo:")) || "";
+                  const broadcast = received.find((m) => m.startsWith("broadcast:")) || "";
+                  resolve({ echo, broadcast });
+                }
+              });
+
+              socket.on("error", (err) => {
+                clearTimeout(timeout);
+                reject(err);
+              });
+            });
+
+            req.on("error", (err) => {
+              clearTimeout(timeout);
+              reject(err);
+            });
+            req.end();
+          },
+        );
+
+        assert.strictEqual(
+          wsResult.echo,
+          "echo:hello",
+          `Expected echo:hello, got: ${wsResult.echo}`,
+        );
+        assert.strictEqual(
+          wsResult.broadcast,
+          "broadcast:hello",
+          `Expected broadcast:hello, got: ${wsResult.broadcast}`,
+        );
+      } finally {
+        cleanup();
+        try {
+          await fs.unlink(fixture);
+        } catch {}
+        try {
+          await fs.unlink(exeFile);
         } catch {}
       }
     });
