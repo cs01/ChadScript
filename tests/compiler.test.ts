@@ -375,6 +375,14 @@ await main();
           "Should contain target triple",
         );
         assert.ok(ir.includes('target datalayout = "'), "Should contain target datalayout");
+        // Verify datalayout is an actual LLVM data layout (starts with 'e-' for little-endian),
+        // not accidentally set to the target triple
+        const dlMatch = ir.match(/target datalayout = "([^"]+)"/);
+        assert.ok(dlMatch, "Should have parseable target datalayout");
+        assert.ok(
+          dlMatch![1].startsWith("e-"),
+          `Data layout should start with 'e-' (little-endian), got: "${dlMatch![1]}"`,
+        );
       } finally {
         try {
           if (fsSync.existsSync(llFile)) await fs.unlink(llFile);
@@ -404,5 +412,35 @@ await main();
         } catch {}
       }
     });
+
+    // Native binary cross-compilation — this catches self-hosting bugs where
+    // the any-typed targetInfo object produces wrong GEP indices for field access
+    if (fsSync.existsSync(".build/chad")) {
+      it("native binary should emit correct datalayout when cross-compiling", async () => {
+        const fixture = "tests/fixtures/arithmetic/simple-add.js";
+        const outputDir = path.join(".build", path.dirname(fixture));
+        const baseName = path.basename(fixture, ".js");
+        const llFile = path.join(outputDir, `${baseName}.ll`);
+
+        try {
+          await execAsync(`.build/chad ir --target linux-x64 ${fixture}`);
+          const ir = fsSync.readFileSync(llFile, "utf-8");
+          const dlMatch = ir.match(/target datalayout = "([^"]+)"/);
+          assert.ok(dlMatch, "Native binary should emit target datalayout");
+          assert.ok(
+            dlMatch![1].startsWith("e-"),
+            `Native binary data layout should start with 'e-' (little-endian), got: "${dlMatch![1]}"`,
+          );
+          assert.ok(
+            !dlMatch![1].includes("unknown"),
+            "Data layout must not contain the target triple",
+          );
+        } finally {
+          try {
+            if (fsSync.existsSync(llFile)) fsSync.unlinkSync(llFile);
+          } catch {}
+        }
+      });
+    }
   });
 });
