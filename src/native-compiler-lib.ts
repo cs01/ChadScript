@@ -31,6 +31,7 @@ declare const process: {
   argv: string[];
   argv0: string;
   platform: string;
+  env: { [key: string]: string };
 };
 
 declare function __gc_disable(): void;
@@ -99,8 +100,10 @@ export function setTargetTriple(value: string): void {
 
 // Resolve the home directory for SDK lookups
 function getHomeDir(): string {
-  // Try common env vars (HOME on Linux/macOS)
-  // The native runtime doesn't have os.homedir()
+  // Use HOME env var directly — works in the native runtime
+  const home = process.env.HOME;
+  if (home.length > 0) return home;
+  // Fallback: construct from platform + username heuristic
   if (process.platform === "darwin") {
     return "/Users/" + getUsername();
   }
