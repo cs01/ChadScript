@@ -21,6 +21,7 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | Compound assignment (`+=`, `-=`, `*=`, `/=`, `\|=`, `&=`) | Supported |
 | Regular expressions (`/pattern/flags`) | Supported |
 | `for...in` | Supported (desugared to `for...of Object.keys()`) |
+| Computed property access (`obj[key]`) | Supported (read and write, for objects with known fields) |
 | Generator functions (`function*`, `yield`) | Not supported |
 | Decorators | Not supported |
 | Tagged template literals | Not supported |
@@ -51,7 +52,7 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | `Map<K, V>`, `Set<T>` | Supported |
 | Enums (numeric and string) | Supported |
 | Type aliases | Supported |
-| Union types (`string \| null`) | Supported (when members share the same memory layout) |
+| Union types (`string \| null`) | Supported (nullable unions only — unsafe unions like `string \| number` are rejected at compile time) |
 | `any`, `unknown`, `never` | Not supported |
 | User-defined generics (`<T>`) | Not supported (built-in generics like `Map<K,V>` work) |
 | Intersection types (`A & B`) | Not supported |
@@ -119,7 +120,6 @@ These require runtime code evaluation and are not possible in a native compiler:
 | `eval()` | No runtime code evaluation |
 | `Function()` constructor | No runtime code evaluation |
 | `Proxy` / `Reflect` | Require runtime interception |
-| Computed property access (`obj[someVar]`) | Object fields are fixed at compile time (array index access works) |
 | `globalThis` | Not available |
 
 ## Numbers
@@ -139,6 +139,13 @@ let x = 1;
 const f = () => console.log(x);
 x = 2;
 f(); // prints 1, not 2
+```
+
+Inline lambdas with captures work in array methods:
+
+```typescript
+const offset = 10;
+const result = [1, 2, 3].map(x => x + offset); // [11, 12, 13]
 ```
 
 ## npm Compatibility
