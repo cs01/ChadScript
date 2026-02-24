@@ -12,7 +12,13 @@
  */
 
 import { BaseGenerator } from "../infrastructure/base-generator.js";
-import { FunctionNode, ArrowFunctionNode, BlockStatement } from "../../ast/types.js";
+import {
+  FunctionNode,
+  ArrowFunctionNode,
+  BlockStatement,
+  FunctionParameter,
+  SourceLocation,
+} from "../../ast/types.js";
 import {
   ClosureAnalyzer,
   CapturedVariable,
@@ -38,14 +44,6 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
   private liftedFunctions: LiftedFunction[] = [];
   private envStructDefs: EnvStructDef[] = [];
   private closureAnalyzer: ClosureAnalyzer;
-  // Per-lambda closure info stored as parallel arrays keyed by lambda name.
-  // Avoids the deep nested struct access through LiftedFunction.closureInfo.captures[i]
-  // which getClosureInfoForLambda uses — the native compiler miscompiles that path
-  // (returns undefined for closureInfo despite it being set).
-  private closureLambdaNames: string[] = [];
-  private closureCaptureNames: string[][] = [];
-  private closureCaptureTypes: string[][] = [];
-  private closureEnvStructNames: string[] = [];
 
   constructor() {
     super();
@@ -168,21 +166,6 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
 
     this.liftedFunctions.push(liftedFunc);
 
-    // Store closure info in parallel arrays for reliable lookup.
-    if (closureCaptures.length > 0) {
-      const captNames: string[] = [];
-      const captTypes: string[] = [];
-      for (let ci = 0; ci < closureCaptures.length; ci++) {
-        const cap = closureCaptures[ci] as { name: string; llvmType: string };
-        captNames.push(cap.name);
-        captTypes.push(cap.llvmType);
-      }
-      this.closureLambdaNames.push(funcName);
-      this.closureCaptureNames.push(captNames);
-      this.closureCaptureTypes.push(captTypes);
-      this.closureEnvStructNames.push(closureEnvStructName);
-    }
-
     return funcName;
   }
 
@@ -226,38 +209,25 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
       }
     }
     if (funcResult) {
-      // Field order must match the object literal in generateArrowFunction:
-      // { name, params, body, returnType, paramTypes, closureInfo }
+      // Type assertion must include ALL fields from FunctionNode + closureInfo
+      // in exact struct order. LiftedFunction extends FunctionNode (9 fields),
+      // so closureInfo is at index 9, not index 5. Omitting the middle fields
+      // causes GEP to read the wrong offset (e.g., typeParameters instead of closureInfo).
       const func = funcResult as {
         name: string;
         params: string[];
         body: BlockStatement;
         returnType: string;
         paramTypes: string[];
+        typeParameters: string[];
+        async: boolean;
+        parameters: FunctionParameter[];
+        loc: SourceLocation;
         closureInfo: ClosureInfo;
       };
       return func.closureInfo;
     }
     return undefined;
-  }
-
-  /**
-   * Look up closure info by lambda name using parallel arrays.
-   * Returns null if the lambda has no captures.
-   */
-  getClosureInfoByName(
-    lambdaName: string,
-  ): { names: string[]; types: string[]; envStructName: string } | null {
-    for (let i = 0; i < this.closureLambdaNames.length; i++) {
-      if (this.closureLambdaNames[i] === lambdaName) {
-        return {
-          names: this.closureCaptureNames[i],
-          types: this.closureCaptureTypes[i],
-          envStructName: this.closureEnvStructNames[i],
-        };
-      }
-    }
-    return null;
   }
 
   /**
@@ -273,10 +243,6 @@ export class ArrowFunctionExpressionGenerator extends BaseGenerator {
   resetCounter(): void {
     this.anonFuncCounter = 0;
     this.envStructDefs = [];
-    this.closureLambdaNames = [];
-    this.closureCaptureNames = [];
-    this.closureCaptureTypes = [];
-    this.closureEnvStructNames = [];
   }
 
   private inferParamTypesFromBody(_params: string[], _body: ArrowFunctionNode["body"]): string[] {

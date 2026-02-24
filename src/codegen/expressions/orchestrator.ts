@@ -240,40 +240,34 @@ export class ExpressionGenerator {
 
       // For inline lambdas with captures (e.g., arr.map(x => x + captured)),
       // allocate the env struct here so array methods can pass it as first arg.
-      // Uses getClosureInfoByName (parallel arrays keyed by name) instead of
-      // getClosureInfoForLambda — the latter accesses LiftedFunction.closureInfo
-      // through a deep struct chain that the native compiler miscompiles.
-      const captureInfo = this.arrowFunctionGen.getClosureInfoByName(lambdaName);
-      const captureInfoTyped = captureInfo as {
-        names: string[];
-        types: string[];
-        envStructName: string;
-      };
-      if (captureInfo && captureInfoTyped.names.length > 0) {
-        const captureNames = captureInfoTyped.names;
-        const captureTypes = captureInfoTyped.types;
-        const envStructName = captureInfoTyped.envStructName;
-        const structSize = captureNames.length * 8;
+      const closureInfoResult = this.arrowFunctionGen.getClosureInfoForLambda(lambdaName);
+      if (closureInfoResult) {
+        const closureInfo = closureInfoResult as {
+          captures: { name: string; llvmType: string }[];
+          envStructName: string;
+        };
+        const captures = closureInfo.captures;
+        const envStructName = closureInfo.envStructName;
+        const structSize = captures.length * 8;
         const envRawPtr = this.ctx.nextTemp();
         this.ctx.emit(`${envRawPtr} = call i8* @GC_malloc(i64 ${structSize})`);
         const envTypedPtr = this.ctx.nextTemp();
         this.ctx.emit(`${envTypedPtr} = bitcast i8* ${envRawPtr} to ${envStructName}*`);
 
-        for (let i = 0; i < captureNames.length; i++) {
-          const capName = captureNames[i];
-          const capType = captureTypes[i];
-          const allocaReg = this.ctx.symbolTable.getAlloca(capName);
+        for (let i = 0; i < captures.length; i++) {
+          const cap = captures[i] as { name: string; llvmType: string };
+          const allocaReg = this.ctx.symbolTable.getAlloca(cap.name);
           if (!allocaReg) {
-            throw new Error(`Closure capture error: variable '${capName}' not found`);
+            throw new Error(`Closure capture error: variable '${cap.name}' not found`);
           }
 
           const valueReg = this.ctx.nextTemp();
-          this.ctx.emit(`${valueReg} = load ${capType}, ${capType}* ${allocaReg}`);
+          this.ctx.emit(`${valueReg} = load ${cap.llvmType}, ${cap.llvmType}* ${allocaReg}`);
           const fieldPtr = this.ctx.nextTemp();
           this.ctx.emit(
             `${fieldPtr} = getelementptr ${envStructName}, ${envStructName}* ${envTypedPtr}, i32 0, i32 ${i}`,
           );
-          this.ctx.emit(`store ${capType} ${valueReg}, ${capType}* ${fieldPtr}`);
+          this.ctx.emit(`store ${cap.llvmType} ${valueReg}, ${cap.llvmType}* ${fieldPtr}`);
         }
 
         this.ctx.setLastInlineLambdaEnvPtr(envRawPtr);
