@@ -11,7 +11,6 @@ src/**/*.js
 c_bridges/*.o
 
 # Generated files
-src/codegen/stdlib/embedded-dts.ts
 lib/*.js
 lib/*.js.map
 lib/*.d.ts

@@ -9,7 +9,8 @@ import {
   addLinkLib,
   addLinkPath,
 } from "./native-compiler-lib.js";
-import { getDtsContent } from "./codegen/stdlib/embedded-dts.js";
+// d.ts content is embedded at compile time via ChadScript.embedFile
+const dtsContent = ChadScript.embedFile("../chadscript.d.ts");
 import { ArgumentParser } from "./argparse.js";
 
 declare const fs: {
@@ -97,7 +98,6 @@ if (parser.getFlag("version")) {
 const command = parser.getSubcommand();
 
 if (command === "init") {
-  const dtsContent = getDtsContent();
   if (fs.existsSync("chadscript.d.ts")) {
     console.log("  skip chadscript.d.ts (already exists)");
   } else {

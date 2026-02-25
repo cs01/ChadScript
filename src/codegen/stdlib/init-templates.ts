@@ -1,5 +1,13 @@
 import * as fs from "fs";
-import { getDtsContent } from "./embedded-dts.js";
+import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function getDtsContent(): string {
+  // Read the canonical chadscript.d.ts from the repo root
+  return fs.readFileSync(path.join(__dirname, "../../../chadscript.d.ts"), "utf8");
+}
 
 const TSCONFIG_CONTENT = `{
   "compilerOptions": {
