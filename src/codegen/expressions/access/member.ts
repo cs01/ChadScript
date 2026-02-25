@@ -710,9 +710,7 @@ export class MemberAccessGenerator {
     const propName = propField.name;
     const varPtr = this.ctx.getVariableAlloca((expr.object as VariableNode).name);
     const structPtr = this.ctx.nextTemp();
-    this.ctx.emit(
-      `${structPtr} = load %${structTypeName}*, %${structTypeName}** ${varPtr}`,
-    );
+    this.ctx.emit(`${structPtr} = load %${structTypeName}*, %${structTypeName}** ${varPtr}`);
 
     const fieldPtr = this.ctx.nextTemp();
     this.ctx.emit(
@@ -772,9 +770,7 @@ export class MemberAccessGenerator {
           }
           this.ctx.setJsonObjectMetadata(value, { keys, types, tsTypes, interfaceType: undefined });
         } else {
-          this.ctx.emit(
-            `${value} = load %${nestedTypeName}*, %${nestedTypeName}** ${fieldPtr}`,
-          );
+          this.ctx.emit(`${value} = load %${nestedTypeName}*, %${nestedTypeName}** ${fieldPtr}`);
           this.ctx.setVariableType(value, `%${nestedTypeName}*`);
         }
         return value;

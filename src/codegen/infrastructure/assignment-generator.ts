@@ -283,9 +283,7 @@ export class AssignmentGenerator {
         this.ctx.emit(
           `${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 ${fieldIndex}`,
         );
-        this.ctx.emit(
-          `store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`,
-        );
+        this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
       }
     } else if (fields.length === 0) {
       const fieldPtr = this.ctx.nextTemp();
@@ -312,9 +310,7 @@ export class AssignmentGenerator {
     if (fiTsType) {
       const enumResult = this.isEnumType(fiTsType);
       if (enumResult) {
-        this.ctx.emit(
-          `store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`,
-        );
+        this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
         return;
       }
     }
