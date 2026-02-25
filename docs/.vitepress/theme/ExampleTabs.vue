@@ -19,15 +19,14 @@ const examples = [
   {
     label: 'HTTP Server',
     file: 'server.ts',
-    code: `function handleRequest(req: HttpRequest): HttpResponse {
-  if (req.path == "/") {
-    return { status: 200, body: "Hello, world!" };
-  }
-  return { status: 404, body: "Not Found" };
+    code: `ChadScript.embedDir("./public");
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  return ChadScript.serveEmbedded(req.path);
 }
 
 httpServe(3000, handleRequest);`,
-    run: '$ chad run server.ts',
+    run: '$ chad build server.ts -o server && ./server',
     output: `listening on port 3000`,
   },
   {
@@ -65,24 +64,6 @@ sqlite.close(db);`,
 main();`,
     run: '$ chad run parallel.ts',
     output: `users: 200\nposts: 200`,
-  },
-  {
-    label: 'Single-Binary Webapp',
-    file: 'app.ts',
-    code: `// HTML & CSS are embedded into the binary at compile time
-ChadScript.embedDir("./public");
-
-function handleRequest(req: HttpRequest): HttpResponse {
-  if (req.path == "/")
-    return { status: 200, body: ChadScript.getEmbeddedFile("index.html") };
-  if (req.path == "/style.css")
-    return { status: 200, body: ChadScript.getEmbeddedFile("style.css") };
-  return { status: 404, body: "Not Found" };
-}
-
-httpServe(3000, handleRequest);`,
-    run: '$ chad build app.ts -o webapp && ./webapp',
-    output: `listening on port 3000`,
   },
 ]
 
