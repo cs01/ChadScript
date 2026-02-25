@@ -53,19 +53,22 @@ sqlite.close(db);`,
   {
     label: 'Async',
     file: 'stars.ts',
-    code: `async function main() {
-  const a = fetch("https://api.github.com/repos/anthropics/claude-code");
-  const b = fetch("https://api.github.com/repos/nicholasgasior/chadscript");
-  const [cc, cs] = await Promise.all([a, b]);
-  const ccData = cc.json<{ stargazers_count: number }>();
-  const csData = cs.json<{ stargazers_count: number }>();
-  console.log("claude-code: " + ccData.stargazers_count + " stars");
-  console.log("chadscript: " + csData.stargazers_count + " stars");
+    code: `interface Repo { stargazers_count: number }
+
+async function main() {
+  const results = await Promise.all([
+    fetch("https://api.github.com/repos/cs01/ChadScript"),
+    fetch("https://api.github.com/repos/facebook/react"),
+  ]);
+  const cs = JSON.parse<Repo>(results[0].text());
+  const react = JSON.parse<Repo>(results[1].text());
+  console.log("ChadScript: " + cs.stargazers_count + " stars");
+  console.log("React: " + react.stargazers_count + " stars");
 }
 
 main();`,
     run: '$ chad run stars.ts',
-    output: `claude-code: 28541 stars\nchadscript: 142 stars`,
+    output: `ChadScript: mass stars\nReact: 235k stars`,
   },
 ]
 
