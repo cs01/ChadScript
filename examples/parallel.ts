@@ -1,17 +1,20 @@
 // Parallel HTTP Fetches - demonstrates async/await with Promise.all
 
-console.log("Parallel Fetch Demo");
-console.log("  fetching two URLs concurrently with Promise.all...");
-console.log("");
+interface Repo {
+  stargazers_count: number;
+}
 
 async function main(): Promise<void> {
-  const a = fetch("https://api.example.com/users");
-  const b = fetch("https://api.example.com/posts");
-  const [users, posts] = await Promise.all([a, b]);
+  const results = await Promise.all([
+    fetch("https://api.github.com/repos/cs01/ChadScript"),
+    fetch("https://api.github.com/repos/facebook/react"),
+  ]);
 
-  console.log("Results:");
-  console.log("  https://api.example.com/users -> " + users.status);
-  console.log("  https://api.example.com/posts -> " + posts.status);
+  const cs = JSON.parse<Repo>(results[0].text());
+  const react = JSON.parse<Repo>(results[1].text());
+
+  console.log("ChadScript: " + cs.stargazers_count + " stars");
+  console.log("React: " + react.stargazers_count + " stars");
 }
 
 main();

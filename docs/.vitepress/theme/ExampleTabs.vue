@@ -19,15 +19,14 @@ const examples = [
   {
     label: 'HTTP Server',
     file: 'server.ts',
-    code: `function handleRequest(req: HttpRequest): HttpResponse {
-  if (req.path == "/") {
-    return { status: 200, body: "Hello, world!" };
-  }
-  return { status: 404, body: "Not Found" };
+    code: `ChadScript.embedDir("./public");
+
+function handleRequest(req: HttpRequest): HttpResponse {
+  return ChadScript.serveEmbedded(req.path);
 }
 
 httpServe(3000, handleRequest);`,
-    run: '$ chad run server.ts',
+    run: '$ chad build server.ts -o server && ./server',
     output: `listening on port 3000`,
   },
   {
@@ -53,36 +52,23 @@ sqlite.close(db);`,
   },
   {
     label: 'Async',
-    file: 'parallel.ts',
-    code: `async function main() {
-  const a = fetch("https://api.example.com/users");
-  const b = fetch("https://api.example.com/posts");
-  const [users, posts] = await Promise.all([a, b]);
-  console.log("users: " + users.status);
-  console.log("posts: " + posts.status);
+    file: 'stars.ts',
+    code: `interface Repo { stargazers_count: number }
+
+async function main() {
+  const results = await Promise.all([
+    fetch("https://api.github.com/repos/cs01/ChadScript"),
+    fetch("https://api.github.com/repos/facebook/react"),
+  ]);
+  const cs = JSON.parse<Repo>(results[0].text());
+  const react = JSON.parse<Repo>(results[1].text());
+  console.log("ChadScript: " + cs.stargazers_count + " stars");
+  console.log("React: " + react.stargazers_count + " stars");
 }
 
 main();`,
-    run: '$ chad run parallel.ts',
-    output: `users: 200\nposts: 200`,
-  },
-  {
-    label: 'Single-Binary Webapp',
-    file: 'app.ts',
-    code: `// HTML & CSS are embedded into the binary at compile time
-ChadScript.embedDir("./public");
-
-function handleRequest(req: HttpRequest): HttpResponse {
-  if (req.path == "/")
-    return { status: 200, body: ChadScript.getEmbeddedFile("index.html") };
-  if (req.path == "/style.css")
-    return { status: 200, body: ChadScript.getEmbeddedFile("style.css") };
-  return { status: 404, body: "Not Found" };
-}
-
-httpServe(3000, handleRequest);`,
-    run: '$ chad build app.ts -o webapp && ./webapp',
-    output: `listening on port 3000`,
+    run: '$ chad run stars.ts',
+    output: `ChadScript: mass stars\nReact: 235k stars`,
   },
 ]
 

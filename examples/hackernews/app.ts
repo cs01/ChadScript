@@ -127,11 +127,6 @@ function handleRequest(req: HttpRequest): HttpResponse {
     return { status: 200, body: body };
   }
 
-  if (req.method === "GET" && req.path === "/style.css") {
-    const css = ChadScript.getEmbeddedFile("style.css");
-    return { status: 200, body: css };
-  }
-
   if (req.method === "POST" && req.path.startsWith("/upvote/")) {
     const idStr = req.path.substring(8, req.path.length);
     sqlite.exec(db, "UPDATE posts SET points = points + 1 WHERE id = ?", [idStr]);
@@ -140,7 +135,8 @@ function handleRequest(req: HttpRequest): HttpResponse {
     return { status: 200, body: redirectHtml };
   }
 
-  return { status: 404, body: "Not Found" };
+  // Serve all other embedded files (CSS, images, etc.) with a single line
+  return ChadScript.serveEmbedded(req.path);
 }
 
 console.log("Hacker News Clone");
