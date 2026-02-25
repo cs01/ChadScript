@@ -23,12 +23,22 @@ export function generateArrayIndexOf(
   expr: MethodCallNode,
   params: string[],
 ): string {
-  if (expr.args.length !== 1) {
-    throw new Error("indexOf() requires exactly 1 argument");
+  if (expr.args.length < 1 || expr.args.length > 2) {
+    throw new Error("indexOf() requires 1 or 2 arguments");
   }
 
   const arrayPtr = gen.generateExpression(expr.object, params);
   const searchValue = gen.generateExpression(expr.args[0], params);
+
+  // Optional fromIndex (2nd arg) — defaults to 0
+  let fromIndex: string | null = null;
+  if (expr.args.length === 2) {
+    const fromRaw = gen.generateExpression(expr.args[1], params);
+    const fromDbl = gen.ensureDouble(fromRaw);
+    const tmp = gen.nextTemp();
+    gen.emit(`${tmp} = fptosi double ${fromDbl} to i32`);
+    fromIndex = tmp;
+  }
 
   let isStringArray = false;
   const exprObjBase = expr.object as ExprBase;
@@ -43,15 +53,16 @@ export function generateArrayIndexOf(
   }
 
   if (isStringArray) {
-    return generateStringArrayIndexOf(gen, arrayPtr, searchValue);
+    return generateStringArrayIndexOf(gen, arrayPtr, searchValue, fromIndex);
   }
-  return generateNumericArrayIndexOf(gen, arrayPtr, searchValue);
+  return generateNumericArrayIndexOf(gen, arrayPtr, searchValue, fromIndex);
 }
 
 function generateNumericArrayIndexOf(
   gen: IGeneratorContext,
   arrayPtr: string,
   searchValue: string,
+  fromIndex: string | null,
 ): string {
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
@@ -69,7 +80,7 @@ function generateNumericArrayIndexOf(
 
   const loopPtr = gen.nextTemp();
   gen.emit(`${loopPtr} = alloca i32`);
-  gen.emitStore("i32", "0", loopPtr);
+  gen.emitStore("i32", fromIndex ?? "0", loopPtr);
 
   const checkLabel = gen.nextLabel("indexof_check");
   const bodyLabel = gen.nextLabel("indexof_body");
@@ -115,6 +126,7 @@ function generateStringArrayIndexOf(
   gen: IGeneratorContext,
   arrayPtr: string,
   searchValue: string,
+  fromIndex: string | null,
 ): string {
   const lenPtr = gen.nextTemp();
   gen.emit(
@@ -136,7 +148,7 @@ function generateStringArrayIndexOf(
 
   const loopPtr = gen.nextTemp();
   gen.emit(`${loopPtr} = alloca i32`);
-  gen.emitStore("i32", "0", loopPtr);
+  gen.emitStore("i32", fromIndex ?? "0", loopPtr);
 
   const checkLabel = gen.nextLabel("indexof_check");
   const bodyLabel = gen.nextLabel("indexof_body");

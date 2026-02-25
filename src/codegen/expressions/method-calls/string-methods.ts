@@ -317,11 +317,18 @@ export function handleStringArrayIndexOf(
 ): string {
   const arrayPtr = ctx.generateExpression(expr.object, params);
 
-  if (expr.args.length !== 1) {
-    return ctx.emitError(`indexOf() expects 1 argument, got ${expr.args.length}`, expr.loc);
+  if (expr.args.length < 1 || expr.args.length > 2) {
+    return ctx.emitError(`indexOf() expects 1 or 2 arguments, got ${expr.args.length}`, expr.loc);
   }
 
   const searchValue = ctx.generateExpression(expr.args[0], params);
+
+  // Optional fromIndex (2nd arg) — defaults to 0
+  let fromIndex = "0";
+  if (expr.args.length === 2) {
+    const fromRaw = ctx.generateExpression(expr.args[1], params);
+    fromIndex = convertToI32(ctx, fromRaw);
+  }
 
   const checkLabel = ctx.nextLabel("indexof_check");
   const bodyLabel = ctx.nextLabel("indexof_body");
@@ -351,7 +358,7 @@ export function handleStringArrayIndexOf(
   ctx.emitLabel(`${checkLabel}_start`);
   const counterPtr = ctx.nextTemp();
   ctx.emit(`${counterPtr} = alloca i32`);
-  ctx.emitStore("i32", "0", counterPtr);
+  ctx.emitStore("i32", fromIndex, counterPtr);
 
   ctx.emitBr(checkLabel);
 
