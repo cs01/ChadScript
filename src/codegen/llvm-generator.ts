@@ -1417,8 +1417,10 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
   private usesTreeSitter: boolean = false;
   // Tracks function names from user `declare function` to avoid duplicate
-  // LLVM declarations when a name overlaps with hardcoded runtime declarations
-  public declaredExternFunctions: Set<string>;
+  // LLVM declarations when a name overlaps with hardcoded runtime declarations.
+  // Uses string[] instead of Set<string> because Set.has() is unreliable in the
+  // native-compiled compiler (self-hosting).
+  public declaredExternFunctions: string[];
   public sourceCode: string = "";
   public filename: string = "";
 
@@ -1427,7 +1429,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     // Initialize complex fields in constructor (field initializers don't work in native code)
     this.externalFunctions = new Set();
-    this.declaredExternFunctions = new Set();
+    this.declaredExternFunctions = [];
     this.topLevelObjectVariables = new Map();
     this.globalVariables = new Map();
     this.importAliasNames = [];
@@ -2677,7 +2679,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push(irParts[ipi]);
     }
 
-    finalParts.push("\n; TBAA metadata for alias analysis\n");
+    // TBAA metadata — disabled for now.
+    // ChadScript's type-based alias analysis was causing -O2 segfaults because
+    // the optimizer incorrectly reorders loads/stores across struct fields when
+    // the TBAA hierarchy claims double and pointer types don't alias. Structs
+    // like FunctionNode contain both double and pointer fields, and the coarse
+    // type-based TBAA (without proper struct-path TBAA) leads to miscompilation.
+    // TODO: re-enable with struct-path TBAA once field-level aliasing is correct.
+    finalParts.push("\n; TBAA metadata (currently unused — see comment above)\n");
     finalParts.push('!0 = !{!"ChadScript TBAA Root"}\n');
     finalParts.push('!1 = !{!"omnipotent char", !0, i64 0}\n');
     finalParts.push('!2 = !{!"double", !1, i64 0}\n');
@@ -2705,7 +2714,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
    * declarations overlap with user declarations.
    */
   private filterDuplicateDeclarations(ir: string): string {
-    if (this.declaredExternFunctions.size === 0) return ir;
+    if (this.declaredExternFunctions.length === 0) return ir;
     const lines = ir.split("\n");
     const filtered: string[] = [];
     for (let dli = 0; dli < lines.length; dli++) {
@@ -2717,7 +2726,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
           const parenIdx = rest.indexOf("(");
           if (parenIdx !== -1) {
             const fnName = rest.substring(0, parenIdx);
-            if (this.declaredExternFunctions.has(fnName)) {
+            if (this.declaredExternFunctions.indexOf(fnName) !== -1) {
               continue;
             }
           }
@@ -2801,7 +2810,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       }
     }
 
-    this.declaredExternFunctions.add(func.name);
+    this.declaredExternFunctions.push(func.name);
     return `declare ${retType} @${func.name}(${paramLlvmTypes.join(", ")})\n`;
   }
 

@@ -273,16 +273,14 @@ function generateStringArrayLiteralWithSpread(
       gen.emit(
         `${srcLenPtr} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 1`,
       );
-      // load with !tbaa metadata must stay as raw emit
       const srcLen = gen.nextTemp();
-      gen.emit(`${srcLen} = load i32, i32* ${srcLenPtr}, !tbaa !7`);
+      gen.emit(`${srcLen} = load i32, i32* ${srcLenPtr}`);
       const srcDataField = gen.nextTemp();
       gen.emit(
         `${srcDataField} = getelementptr inbounds %StringArray, %StringArray* ${src.ptr}, i32 0, i32 0`,
       );
-      // load with !tbaa metadata must stay as raw emit
       const srcDataPtr = gen.nextTemp();
-      gen.emit(`${srcDataPtr} = load i8**, i8*** ${srcDataField}, !tbaa !5`);
+      gen.emit(`${srcDataPtr} = load i8**, i8*** ${srcDataField}`);
 
       const checkLabel = gen.nextLabel("spread_check");
       const bodyLabel = gen.nextLabel("spread_body");

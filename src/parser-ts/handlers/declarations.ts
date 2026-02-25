@@ -66,6 +66,8 @@ export function transformFunctionDeclaration(
 
   const isAsync = node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) || false;
 
+  // Must include all FunctionNode interface fields to match struct layout of
+  // declare function creation site in transformer.ts (see FunctionNode in types.ts)
   return {
     name,
     params,
@@ -76,6 +78,7 @@ export function transformFunctionDeclaration(
     async: isAsync || undefined,
     parameters: parameters.length > 0 ? parameters : undefined,
     loc: getLoc(node),
+    declare: false,
   };
 }
 

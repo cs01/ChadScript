@@ -1,5 +1,5 @@
 // Array reorder operations: reverse, shift, unshift.
-// Uses structured IR builders where possible; raw emit() for inbounds GEP, tbaa, intrinsics, etc.
+// Uses structured IR builders where possible; raw emit() for inbounds GEP, intrinsics, etc.
 
 import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
 import { IGeneratorContext } from "./context.js";
@@ -46,7 +46,7 @@ function generateNumericArrayReverseInPlace(gen: IGeneratorContext, arrayPtr: st
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
   const half = gen.nextTemp();
   gen.emit(`${half} = sdiv i32 ${length}, 2`);
@@ -107,7 +107,7 @@ function generateStringArrayReverseInPlace(gen: IGeneratorContext, arrayPtr: str
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
   const half = gen.nextTemp();
   gen.emit(`${half} = sdiv i32 ${length}, 2`);
@@ -205,7 +205,7 @@ function generateNumericArrayShift(gen: IGeneratorContext, arrayPtr: string): st
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
   const firstElem = gen.emitLoad("double", dataPtr);
 
@@ -260,7 +260,7 @@ function generateStringArrayShift(gen: IGeneratorContext, arrayPtr: string): str
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
   const firstElem = gen.emitLoad("i8*", dataPtr);
 
@@ -380,7 +380,7 @@ function generateNumericArrayUnshift(
   const dataPtrField2 = gen.nextTemp();
   gen.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField2}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField2}`);
 
   const destPtr = gen.nextTemp();
   gen.emit(`${destPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 1`);
@@ -395,7 +395,7 @@ function generateNumericArrayUnshift(
   );
 
   const dblValue = gen.ensureDouble(value);
-  gen.emit(`store double ${dblValue}, double* ${dataPtr}, !tbaa !4`);
+  gen.emit(`store double ${dblValue}, double* ${dataPtr}`);
 
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = add i32 ${currentLen}, 1`);
@@ -473,7 +473,7 @@ function generateStringArrayUnshift(
     `${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField2}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField2}`);
 
   const destPtr = gen.nextTemp();
   gen.emit(`${destPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 1`);
@@ -488,7 +488,7 @@ function generateStringArrayUnshift(
     `call void @llvm.memmove.p0i8.p0i8.i64(i8* ${destI8}, i8* ${srcI8}, i64 ${moveBytes}, i1 false)`,
   );
 
-  gen.emit(`store i8* ${value}, i8** ${dataPtr}, !tbaa !5`);
+  gen.emit(`store i8* ${value}, i8** ${dataPtr}`);
 
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = add i32 ${currentLen}, 1`);

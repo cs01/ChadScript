@@ -66,9 +66,8 @@ function generateNumericArraySplice(
 
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
-  // !tbaa metadata on load -- keep as raw emit
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
   const startNeg = gen.emitIcmp("slt", "i32", startRaw, "0");
   const startFromEnd = gen.nextTemp();
@@ -172,9 +171,8 @@ function generateStringArraySplice(
   gen.emit(
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
-  // !tbaa metadata on load -- keep as raw emit
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
   const startNeg = gen.emitIcmp("slt", "i32", startRaw, "0");
   const startFromEnd = gen.nextTemp();

@@ -10,7 +10,7 @@ interface ExprBase {
   type: string;
 }
 
-/** Loads %Array (numeric) length and data pointer. Includes tbaa metadata for optimizer hints. */
+/** Loads %Array (numeric) length and data pointer. */
 export function loadArrayMeta(
   gen: IGeneratorContext,
   arrayPtr: string,
@@ -18,11 +18,11 @@ export function loadArrayMeta(
   const lenPtr = gen.nextTemp();
   gen.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 1`);
   const length = gen.nextTemp();
-  gen.emit(`${length} = load i32, i32* ${lenPtr}, !tbaa !7`);
+  gen.emit(`${length} = load i32, i32* ${lenPtr}`);
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
   return { length, dataPtr };
 }
 

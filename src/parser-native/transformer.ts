@@ -299,6 +299,7 @@ function handleAmbientDeclaration(node: TreeSitterNode, ast: AST): void {
     typeParameters: undefined,
     async: undefined,
     parameters: undefined,
+    loc: undefined,
     declare: true,
   };
   ast.functions.push(func);
@@ -2277,11 +2278,12 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
   const paramTypes = paramsNode ? extractParamTypes(paramsNode) : undefined;
   const parameters = paramsNode ? extractFunctionParameters(paramsNode) : undefined;
 
-  // Include `declare: false` so this creation site matches the struct layout
-  // of handleAmbientDeclaration's creation site (which has declare: true).
-  // Native code determines struct layout from object literals — all creation
-  // sites for the same interface must have the same fields.
-  // IMPORTANT: must be `false` not `undefined` — native codegen may skip
+  // All creation sites for FunctionNode must include every field from the interface
+  // definition in the same order. The native compiler uses the interface field list
+  // to compute GEP indices (declare = index 9), but determines struct size from
+  // object literals. Omitting `loc` puts `declare` at index 8 in memory while the
+  // codegen accesses index 9 — an out-of-bounds read that segfaults.
+  // IMPORTANT: `declare` must be `false` not `undefined` — native codegen may skip
   // the field slot entirely for `undefined`, causing struct size mismatch.
   return {
     name,
@@ -2292,6 +2294,7 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
     typeParameters,
     async: isAsync || undefined,
     parameters,
+    loc: undefined,
     declare: false,
   };
 }

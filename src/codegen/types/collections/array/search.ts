@@ -1,5 +1,5 @@
 // Array search operations: indexOf, findIndex.
-// Uses structured IR builders where possible; raw emit() for inbounds GEP, tbaa, intrinsics, etc.
+// Uses structured IR builders where possible; raw emit() for inbounds GEP, intrinsics, etc.
 
 import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
 import { IGeneratorContext } from "./context.js";
@@ -61,7 +61,7 @@ function generateNumericArrayIndexOf(
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
   const resultPtr = gen.nextTemp();
   gen.emit(`${resultPtr} = alloca i32`);
@@ -128,7 +128,7 @@ function generateStringArrayIndexOf(
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
   const resultPtr = gen.nextTemp();
   gen.emit(`${resultPtr} = alloca i32`);
@@ -233,7 +233,7 @@ function generateNumericArrayFindIndex(
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
   const resultPtr = gen.nextTemp();
   gen.emit(`${resultPtr} = alloca i32`);
@@ -304,7 +304,7 @@ function generateStringArrayFindIndex(
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
   const resultPtr = gen.nextTemp();
   gen.emit(`${resultPtr} = alloca i32`);
