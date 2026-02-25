@@ -52,18 +52,20 @@ sqlite.close(db);`,
   },
   {
     label: 'Async',
-    file: 'parallel.ts',
+    file: 'stars.ts',
     code: `async function main() {
-  const a = fetch("https://api.example.com/users");
-  const b = fetch("https://api.example.com/posts");
-  const [users, posts] = await Promise.all([a, b]);
-  console.log("users: " + users.status);
-  console.log("posts: " + posts.status);
+  const a = fetch("https://api.github.com/repos/anthropics/claude-code");
+  const b = fetch("https://api.github.com/repos/nicholasgasior/chadscript");
+  const [cc, cs] = await Promise.all([a, b]);
+  const ccData = cc.json<{ stargazers_count: number }>();
+  const csData = cs.json<{ stargazers_count: number }>();
+  console.log("claude-code: " + ccData.stargazers_count + " stars");
+  console.log("chadscript: " + csData.stargazers_count + " stars");
 }
 
 main();`,
-    run: '$ chad run parallel.ts',
-    output: `users: 200\nposts: 200`,
+    run: '$ chad run stars.ts',
+    output: `claude-code: 28541 stars\nchadscript: 142 stars`,
   },
 ]
 
