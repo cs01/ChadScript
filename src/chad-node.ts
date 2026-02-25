@@ -12,6 +12,9 @@ import {
   setTarget,
   setTargetCpu,
   setStaticLink,
+  addLinkObj,
+  addLinkLib,
+  addLinkPath,
 } from "./compiler.js";
 import { LogLevel, logger } from "./utils/logger.js";
 import { runInit } from "./codegen/stdlib/init-templates.js";
@@ -54,6 +57,21 @@ parser.addScopedOption(
   "build,run,ir",
 );
 parser.addScopedFlag("static", "", "Link statically", "build,run");
+parser.addScopedOption("link-obj", "", "Extra .o files to link (comma-separated)", "", "build,run");
+parser.addScopedOption(
+  "link-lib",
+  "",
+  "Extra libraries to link, -l flags (comma-separated)",
+  "",
+  "build,run",
+);
+parser.addScopedOption(
+  "link-path",
+  "",
+  "Extra library paths, -L flags (comma-separated)",
+  "",
+  "build,run",
+);
 parser.addPositional("input", "Input .ts or .js file");
 
 // Node's process.argv includes [node, script, ...] — skip both.
@@ -262,6 +280,14 @@ if (targetOpt) {
 
 const cpuOpt = parser.getOption("target-cpu");
 if (cpuOpt) setTargetCpu(cpuOpt);
+
+// Parse extra linker flags (comma-separated lists)
+const linkObjOpt = parser.getOption("link-obj");
+if (linkObjOpt) linkObjOpt.split(",").forEach((o) => addLinkObj(o));
+const linkLibOpt = parser.getOption("link-lib");
+if (linkLibOpt) linkLibOpt.split(",").forEach((l) => addLinkLib(l));
+const linkPathOpt = parser.getOption("link-path");
+if (linkPathOpt) linkPathOpt.split(",").forEach((p) => addLinkPath(p));
 
 if (command === "ir") {
   setEmitLLVMOnly(true);

@@ -233,7 +233,76 @@ function transformTopLevelNode(node: TreeSitterNode, ast: AST): void {
     case "export_statement":
       handleExportStatement(node, ast);
       break;
+
+    // `declare function foo(x: string): string` — tree-sitter wraps it in
+    // ambient_declaration containing a function_signature child (same fields
+    // as function_declaration minus the body).
+    // NOTE: no block braces — ChadScript's switch codegen drops block-scoped cases.
+    case "ambient_declaration":
+      handleAmbientDeclaration(node, ast);
+      break;
   }
+}
+
+// Extract declared functions from `declare function` statements.
+// Uses text parsing instead of tree-sitter child navigation to avoid
+// native FFI crashes with function_signature nodes.
+function handleAmbientDeclaration(node: TreeSitterNode, ast: AST): void {
+  const nb = node as NodeBase;
+  const text = nb.text;
+  const fIdx = text.indexOf("function ");
+  if (fIdx === -1) return;
+  const rest = text.substring(fIdx + 9);
+  const openParen = rest.indexOf("(");
+  if (openParen === -1) return;
+  const funcName = rest.substring(0, openParen);
+
+  const closeParen = rest.indexOf(")");
+  if (closeParen === -1) return;
+  const paramStr = rest.substring(openParen + 1, closeParen);
+
+  let returnType = "void";
+  const afterClose = rest.substring(closeParen + 1);
+  const retColon = afterClose.indexOf(":");
+  if (retColon !== -1) {
+    let retStr = afterClose.substring(retColon + 1);
+    retStr = retStr.trim();
+    const semi = retStr.indexOf(";");
+    if (semi !== -1) retStr = retStr.substring(0, semi);
+    returnType = retStr;
+  }
+
+  const paramNames: string[] = [];
+  const paramTypesList: string[] = [];
+  if (paramStr.length > 0) {
+    const parts = paramStr.split(",");
+    let pi = 0;
+    while (pi < parts.length) {
+      const part = parts[pi].trim();
+      if (part.length > 0) {
+        const pColon = part.indexOf(":");
+        if (pColon !== -1) {
+          paramNames.push(part.substring(0, pColon).trim());
+          paramTypesList.push(part.substring(pColon + 1).trim());
+        }
+      }
+      pi = pi + 1;
+    }
+  }
+
+  const func: FunctionNode = {
+    name: funcName,
+    params: paramNames,
+    body: createEmptyBlock(),
+    returnType: returnType,
+    paramTypes: paramTypesList,
+    typeParameters: undefined,
+    async: undefined,
+    parameters: undefined,
+    loc: undefined,
+    declare: true,
+  };
+  ast.functions.push(func);
 }
 
 function handleExpressionStatement(node: TreeSitterNode, ast: AST): void {
@@ -483,9 +552,142 @@ function transformExpression(node: TreeSitterNode): Expression {
     case "typeof_expression":
       return transformTypeofExpression(node);
 
+    // JSX desugaring — convert JSX syntax to createElement() calls
+    case "jsx_element":
+      return transformJsxElementNative(node);
+
+    case "jsx_self_closing_element":
+      return transformJsxSelfClosingElementNative(node);
+
+    case "jsx_expression":
+      // Bare JSX expression container — unwrap to the inner expression
+      const jsxInner = getNamedChild(node, 0);
+      return jsxInner ? transformExpression(jsxInner) : { type: "variable", name: "undefined" };
+
     default:
       return { type: "variable", name: "undefined" };
   }
+}
+
+// ============================================
+// JSX DESUGARING (native parser)
+// Mirrors the TS-API parser's JSX desugaring.
+// Tree-sitter TSX grammar node types:
+//   jsx_element: has open_tag (jsx_opening_element) and close_tag (jsx_closing_element)
+//   jsx_self_closing_element: has name + attributes, no children
+//   jsx_opening_element: has name field (absent for fragments) + attribute fields
+//   jsx_text: raw text content between tags
+//   jsx_expression: {expr} containers
+// ============================================
+
+function makeJsxCallNode(tagName: string, props: Expression, children: Expression): CallNode {
+  // Build args with push() — the semantic analyzer treats push()-built arrays as
+  // homogeneous (all Expression) whereas inline array literals with different shapes
+  // trigger "mixed array types" errors during self-hosting.
+  const args: Expression[] = [];
+  args.push({ type: "string", value: tagName });
+  args.push(props);
+  args.push(children);
+  return { type: "call", name: "createElement", args };
+}
+
+function transformJsxElementNative(node: TreeSitterNode): CallNode {
+  const openTag = getChildByFieldName(node, "open_tag");
+  let tagName = "Fragment";
+  let props: Expression = { type: "object", properties: [] };
+
+  if (openTag && !(openTag as NodeBase).isNull) {
+    const nameNode = getChildByFieldName(openTag, "name");
+    if (nameNode && !(nameNode as NodeBase).isNull) {
+      tagName = (nameNode as NodeBase).text;
+    }
+    // else: no name field means this is a fragment (<>...</>)
+    props = transformJsxAttributesNative(openTag);
+  }
+
+  const children = transformJsxChildrenNative(node);
+  return makeJsxCallNode(tagName, props, children);
+}
+
+function transformJsxSelfClosingElementNative(node: TreeSitterNode): CallNode {
+  const nameNode = getChildByFieldName(node, "name");
+  const tagName =
+    nameNode && !(nameNode as NodeBase).isNull ? (nameNode as NodeBase).text : "Fragment";
+  const props: Expression = transformJsxAttributesNative(node);
+  const emptyChildren: Expression = { type: "array", elements: [] };
+  return makeJsxCallNode(tagName, props, emptyChildren);
+}
+
+function transformJsxAttributesNative(node: TreeSitterNode): ObjectNode {
+  const properties: { key: string; value: Expression }[] = [];
+  const childCount = node.childCount;
+
+  for (let i = 0; i < childCount; i++) {
+    const child = getChild(node, i);
+    if (!child) continue;
+    const childBase = child as NodeBase;
+    if (childBase.type !== "jsx_attribute") continue;
+
+    // First named child is property_identifier (key), second is value
+    const keyNode = getNamedChild(child, 0);
+    if (!keyNode) continue;
+    const key = (keyNode as NodeBase).text;
+
+    const valueNode = getNamedChild(child, 1);
+    let value: Expression;
+
+    if (!valueNode || (valueNode as NodeBase).isNull) {
+      // Boolean shorthand: <Input disabled /> → { disabled: true }
+      value = { type: "boolean", value: true };
+    } else {
+      const valueBase = valueNode as NodeBase;
+      if (valueBase.type === "string") {
+        value = transformStringNode(valueNode);
+      } else if (valueBase.type === "jsx_expression") {
+        const inner = getNamedChild(valueNode, 0);
+        value = inner ? transformExpression(inner) : { type: "variable", name: "undefined" };
+      } else {
+        value = transformExpression(valueNode);
+      }
+    }
+
+    properties.push({ key, value });
+  }
+
+  return { type: "object", properties };
+}
+
+function transformJsxChildrenNative(node: TreeSitterNode): ArrayNode {
+  const elements: Expression[] = [];
+  const childCount = node.namedChildCount;
+
+  for (let i = 0; i < childCount; i++) {
+    const child = getNamedChild(node, i);
+    if (!child) continue;
+    const childBase = child as NodeBase;
+
+    // Skip the open_tag and close_tag — only process content children
+    if (childBase.type === "jsx_opening_element" || childBase.type === "jsx_closing_element") {
+      continue;
+    }
+
+    if (childBase.type === "jsx_text") {
+      const trimmed = childBase.text.trim();
+      if (trimmed.length === 0) continue;
+      elements.push({ type: "string", value: trimmed });
+    } else if (childBase.type === "jsx_expression") {
+      const inner = getNamedChild(child, 0);
+      if (inner) {
+        elements.push(transformExpression(inner));
+      }
+    } else if (childBase.type === "jsx_element") {
+      elements.push(transformJsxElementNative(child));
+    } else if (childBase.type === "jsx_self_closing_element") {
+      elements.push(transformJsxSelfClosingElementNative(child));
+    }
+  }
+
+  return { type: "array", elements };
 }
 
 function transformTypeAssertion(node: TreeSitterNode): TypeAssertionNode {
@@ -2076,6 +2278,13 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
   const paramTypes = paramsNode ? extractParamTypes(paramsNode) : undefined;
   const parameters = paramsNode ? extractFunctionParameters(paramsNode) : undefined;
 
+  // All creation sites for FunctionNode must include every field from the interface
+  // definition in the same order. The native compiler uses the interface field list
+  // to compute GEP indices (declare = index 9), but determines struct size from
+  // object literals. Omitting `loc` puts `declare` at index 8 in memory while the
+  // codegen accesses index 9 — an out-of-bounds read that segfaults.
+  // IMPORTANT: `declare` must be `false` not `undefined` — native codegen may skip
+  // the field slot entirely for `undefined`, causing struct size mismatch.
   return {
     name,
     params,
@@ -2085,6 +2294,8 @@ function transformFunctionDeclaration(node: TreeSitterNode): FunctionNode | null
     typeParameters,
     async: isAsync || undefined,
     parameters,
+    loc: undefined,
+    declare: false,
   };
 }
 

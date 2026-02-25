@@ -39,6 +39,7 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | Default parameters | Supported |
 | Rest parameters (`...args`) | Supported |
 | Closures | Supported (capture by value, not by reference) |
+| `declare function` (FFI) | Supported (see [FFI](#foreign-function-interface-ffi)) |
 | Async generators / `for await...of` | Not supported |
 
 ## Types and Data Structures
@@ -110,6 +111,61 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | `Promise.resolve`, `Promise.reject` | Supported |
 | `.then()`, `.catch()`, `.finally()` | Supported |
 | `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval` | Supported |
+
+## JSX
+
+| Feature | Status |
+|---------|--------|
+| JSX elements (`<Tag prop={v} />`) | Supported (desugared to `createElement()` calls) |
+| Fragments (`<>...</>`) | Supported |
+| Expression attributes (`prop={expr}`) | Supported |
+| String attributes (`prop="text"`) | Supported |
+| Self-closing elements (`<Tag />`) | Supported |
+| Nested elements | Supported |
+
+JSX is desugared at parse time into `createElement(tag, props, children)` calls. You provide the `createElement` function — ChadScript doesn't ship a framework. Files must use `.tsx` extension.
+
+```tsx
+interface Props {
+  text: string;
+  color: number;
+}
+
+function createElement(tag: string, props: Props, children: string[]): string {
+  // your rendering logic here
+  return tag;
+}
+
+const ui = <Label text="hello" color={0xff0000} />;
+// desugars to: createElement("Label", { text: "hello", color: 0xff0000 }, [])
+```
+
+## Foreign Function Interface (FFI)
+
+`declare function` lets you call external C functions with zero-cost type mappings:
+
+```ts
+declare function zr_init(): i8_ptr;
+declare function zr_draw_text(engine: i8_ptr, x: i32, y: i32, text: i8_ptr, fg: u32, bg: u32): void;
+```
+
+FFI type aliases map directly to LLVM types with no double conversion:
+
+| Type Alias | LLVM Type | Description |
+|-----------|-----------|-------------|
+| `i8`, `i16`, `i32`, `i64` | `i8`, `i16`, `i32`, `i64` | Signed integers |
+| `u8`, `u16`, `u32`, `u64` | `i8`, `i16`, `i32`, `i64` | Unsigned integers (same LLVM type) |
+| `f32` | `float` | 32-bit float |
+| `f64` | `double` | 64-bit float |
+| `i8_ptr`, `ptr` | `i8*` | Opaque pointer |
+
+Link external object files with `--link-obj`:
+
+```bash
+chad build app.ts -o app --link-obj bridge.o --link-obj /path/to/libfoo.a
+```
+
+Linker flags (`-lm`, `-lpthread`, etc.) are auto-detected from linked libraries.
 
 ## Dynamic Features
 

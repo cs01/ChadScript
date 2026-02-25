@@ -87,6 +87,7 @@ SDKs are installed to `~/.chadscript/targets/<name>/`.
 | `--emit-llvm`, `-S` | Output LLVM IR only (no binary) |
 | `--keep-temps` | Keep intermediate files (`.ll`, `.o`) |
 | `-fsanitize=address` | Build with AddressSanitizer (ASAN) |
+| `--link-obj <path>` | Link an external object file or static library (repeatable) |
 
 ## Cross-Compilation
 

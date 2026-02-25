@@ -127,6 +127,23 @@ export function transformExpression(
       transformExpression((node as ts.VoidExpression).expression, checker);
       return { type: "undefined", loc: getLoc(node) };
 
+    // JSX desugaring — convert JSX syntax to createElement() calls
+    case ts.SyntaxKind.JsxElement:
+      return transformJsxElement(node as ts.JsxElement, checker);
+
+    case ts.SyntaxKind.JsxSelfClosingElement:
+      return transformJsxSelfClosingElement(node as ts.JsxSelfClosingElement, checker);
+
+    case ts.SyntaxKind.JsxFragment:
+      return transformJsxFragment(node as ts.JsxFragment, checker);
+
+    case ts.SyntaxKind.JsxExpression:
+      // Bare JSX expression container — unwrap to the inner expression
+      if ((node as ts.JsxExpression).expression) {
+        return transformExpression((node as ts.JsxExpression).expression!, checker);
+      }
+      return { type: "undefined", loc: getLoc(node) };
+
     default:
       throw new Error(`Unsupported expression kind: ${ts.SyntaxKind[node.kind]}`);
   }
@@ -698,4 +715,126 @@ function getTypeNodeText(typeNode: ts.TypeNode): string {
   if (typeNode.kind === ts.SyntaxKind.NumberKeyword) return "number";
   if (typeNode.kind === ts.SyntaxKind.BooleanKeyword) return "boolean";
   return typeNode.getText();
+}
+
+// ============================================
+// JSX DESUGARING
+// Converts JSX syntax to createElement() calls.
+// <Tag prop={v}>child</Tag>  →  createElement("Tag", { prop: v }, [child])
+// ============================================
+
+function getJsxTagName(tagName: ts.JsxTagNameExpression): string {
+  if (ts.isIdentifier(tagName)) {
+    return tagName.text;
+  }
+  if (ts.isPropertyAccessExpression(tagName)) {
+    return tagName.getText();
+  }
+  return tagName.getText();
+}
+
+function transformJsxElement(node: ts.JsxElement, checker: ts.TypeChecker | undefined): CallNode {
+  const tagName = getJsxTagName(node.openingElement.tagName);
+  const props = transformJsxAttributes(node.openingElement.attributes, checker);
+  const children = transformJsxChildren(node.children, checker);
+
+  return {
+    type: "call",
+    name: "createElement",
+    args: [{ type: "string", value: tagName } as StringNode, props, children],
+    loc: getLoc(node),
+  };
+}
+
+function transformJsxSelfClosingElement(
+  node: ts.JsxSelfClosingElement,
+  checker: ts.TypeChecker | undefined,
+): CallNode {
+  const tagName = getJsxTagName(node.tagName);
+  const props = transformJsxAttributes(node.attributes, checker);
+
+  return {
+    type: "call",
+    name: "createElement",
+    args: [
+      { type: "string", value: tagName } as StringNode,
+      props,
+      { type: "array", elements: [] } as ArrayNode,
+    ],
+    loc: getLoc(node),
+  };
+}
+
+function transformJsxFragment(node: ts.JsxFragment, checker: ts.TypeChecker | undefined): CallNode {
+  const children = transformJsxChildren(node.children, checker);
+
+  return {
+    type: "call",
+    name: "createElement",
+    args: [
+      { type: "string", value: "Fragment" } as StringNode,
+      { type: "object", properties: [] } as ObjectNode,
+      children,
+    ],
+    loc: getLoc(node),
+  };
+}
+
+function transformJsxAttributes(
+  attributes: ts.JsxAttributes,
+  checker: ts.TypeChecker | undefined,
+): ObjectNode {
+  const properties: { key: string; value: Expression }[] = [];
+
+  for (const attr of attributes.properties) {
+    if (ts.isJsxAttribute(attr)) {
+      // attr.name is Identifier or JsxNamespacedName — use getText() for both
+      const key = ts.isIdentifier(attr.name) ? attr.name.text : attr.name.getText();
+      let value: Expression;
+
+      if (!attr.initializer) {
+        // Boolean shorthand: <Input disabled /> → { disabled: true }
+        value = { type: "boolean", value: true };
+      } else if (ts.isStringLiteral(attr.initializer)) {
+        value = { type: "string", value: attr.initializer.text };
+      } else if (ts.isJsxExpression(attr.initializer) && attr.initializer.expression) {
+        value = transformExpression(attr.initializer.expression, checker);
+      } else {
+        value = { type: "undefined" };
+      }
+
+      properties.push({ key, value });
+    }
+    // ts.isJsxSpreadAttribute — spread attributes out of scope for v1
+  }
+
+  return { type: "object", properties };
+}
+
+function transformJsxChildren(
+  children: ts.NodeArray<ts.JsxChild>,
+  checker: ts.TypeChecker | undefined,
+): ArrayNode {
+  const elements: Expression[] = [];
+
+  for (const child of children) {
+    if (ts.isJsxText(child)) {
+      // Trim whitespace-only text nodes (indentation, newlines between tags)
+      const trimmed = child.text.trim();
+      if (trimmed.length === 0) continue;
+      elements.push({ type: "string", value: trimmed });
+    } else if (ts.isJsxExpression(child)) {
+      if (child.expression) {
+        elements.push(transformExpression(child.expression, checker));
+      }
+    } else if (ts.isJsxElement(child)) {
+      elements.push(transformJsxElement(child, checker));
+    } else if (ts.isJsxSelfClosingElement(child)) {
+      elements.push(transformJsxSelfClosingElement(child, checker));
+    } else if (ts.isJsxFragment(child)) {
+      elements.push(transformJsxFragment(child, checker));
+    }
+  }
+
+  return { type: "array", elements };
 }

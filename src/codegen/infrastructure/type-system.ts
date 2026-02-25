@@ -160,6 +160,20 @@ export function canonicalTypeToLlvm(
     return "i8*";
   }
 
+  // FFI type passthrough — zero-cost: maps directly to LLVM types with no
+  // double conversion. Used in `declare function` for calling C code.
+  if (tsType === "i8") return "i8";
+  if (tsType === "i16") return "i16";
+  if (tsType === "i32") return "i32";
+  if (tsType === "i64") return "i64";
+  if (tsType === "u8") return "i8";
+  if (tsType === "u16") return "i16";
+  if (tsType === "u32") return "i32";
+  if (tsType === "u64") return "i64";
+  if (tsType === "f32") return "float";
+  if (tsType === "f64") return "double";
+  if (tsType === "i8_ptr" || tsType === "ptr") return "i8*";
+
   if (fieldName === "nodePtr" || fieldName === "treePtr") return "i8*";
 
   if (mode === "param") {

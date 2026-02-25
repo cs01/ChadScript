@@ -107,7 +107,7 @@ function generateDefaultNumericSort(gen: ArraySortContext, arrayPtr: string): st
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
   const dataI8 = gen.nextTemp();
   gen.emit(`${dataI8} = bitcast double* ${dataPtr} to i8*`);
@@ -135,7 +135,7 @@ function generateDefaultStringSort(gen: ArraySortContext, arrayPtr: string): str
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
   const dataI8 = gen.nextTemp();
   gen.emit(`${dataI8} = bitcast i8** ${dataPtr} to i8*`);
@@ -164,7 +164,7 @@ function generateNumericSortWithFn(
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
   const checkLabel = gen.nextLabel("sort_check");
   const outerBody = gen.nextLabel("sort_outer");

@@ -460,7 +460,7 @@ export class ControlFlowGenerator {
       `${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 1`,
     );
     const lengthI32 = this.nextTemp();
-    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
+    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
 
     const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");
     this.emit(`${indexAlloca} = alloca i32`);
@@ -490,7 +490,7 @@ export class ControlFlowGenerator {
     this.ctx.setCurrentLabel(bodyLabel);
 
     // Load current element from array
-    // Get pointer to the data array (inbounds GEP + tbaa loads stay raw)
+    // Get pointer to the data array
     const dataPtr = this.nextTemp();
     this.emit(
       `${dataPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${iterableValue}, i32 0, i32 0`,
@@ -498,14 +498,14 @@ export class ControlFlowGenerator {
     let dataArray: string;
     if (isStringSet || isStringArray) {
       dataArray = this.nextTemp();
-      this.emit(`${dataArray} = load i8**, i8*** ${dataPtr}, !tbaa !5`);
+      this.emit(`${dataArray} = load i8**, i8*** ${dataPtr}`);
     } else if (isObjectArray) {
       const dataI8 = this.nextTemp();
-      this.emit(`${dataI8} = load i8*, i8** ${dataPtr}, !tbaa !5`);
+      this.emit(`${dataI8} = load i8*, i8** ${dataPtr}`);
       dataArray = this.ctx.emitBitcast(dataI8, "i8*", "i8**");
     } else {
       dataArray = this.nextTemp();
-      this.emit(`${dataArray} = load double*, double** ${dataPtr}, !tbaa !5`);
+      this.emit(`${dataArray} = load double*, double** ${dataPtr}`);
     }
 
     // Load the element at current index
@@ -1299,7 +1299,7 @@ export class ControlFlowGenerator {
     const lenPtr = this.nextTemp();
     this.emit(`${lenPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 1`);
     const lengthI32 = this.nextTemp();
-    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
+    this.emit(`${lengthI32} = load i32, i32* ${lenPtr}`);
 
     const indexAlloca = this.ctx.nextAllocaReg("__forof_idx");
     this.emit(`${indexAlloca} = alloca i32`);
@@ -1342,11 +1342,11 @@ export class ControlFlowGenerator {
     this.ctx.emitLabel(bodyLabel);
     this.ctx.setCurrentLabel(bodyLabel);
 
-    // inbounds GEP + tbaa loads stay raw
+    // inbounds GEP loads stay raw
     const dataPtr = this.nextTemp();
     this.emit(`${dataPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 0`);
     const dataArray = this.nextTemp();
-    this.emit(`${dataArray} = load double*, double** ${dataPtr}, !tbaa !5`);
+    this.emit(`${dataArray} = load double*, double** ${dataPtr}`);
 
     const elemPtrRaw = this.ctx.emitBitcast(dataArray, "double*", "i8**");
 
@@ -2088,13 +2088,13 @@ export class ControlFlowGenerator {
     this.ctx.emitLabel(bodyLabel);
     this.ctx.setCurrentLabel(bodyLabel);
 
-    // inbounds GEP + tbaa loads stay raw
+    // inbounds GEP loads stay raw
     const dataFieldPtr = this.nextTemp();
     this.emit(
       `${dataFieldPtr} = getelementptr inbounds %Array, %Array* ${iterableValue}, i32 0, i32 2`,
     );
     const dataPtr = this.nextTemp();
-    this.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}, !tbaa !5`);
+    this.emit(`${dataPtr} = load double*, double** ${dataFieldPtr}`);
     const dataCast = this.ctx.emitBitcast(dataPtr, "double*", "i8**");
 
     const indexI64 = this.nextTemp();

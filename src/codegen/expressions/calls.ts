@@ -617,26 +617,72 @@ export class CallExpressionGenerator {
         } else if (paramType === "double" && resultType === "i64") {
           const coerced = this.ctx.ensureDouble(result);
           argsList.push(`double ${coerced}`);
+        } else if (paramType === "i32" && (resultType === "double" || !resultType)) {
+          // FFI: double → i32 (e.g., number literal passed to C int32_t param)
+          const coerced = this.ctx.nextTemp();
+          this.ctx.emit(`${coerced} = fptosi double ${result} to i32`);
+          argsList.push(`i32 ${coerced}`);
+        } else if (paramType === "i32" && resultType === "i64") {
+          const coerced = this.ctx.nextTemp();
+          this.ctx.emit(`${coerced} = trunc i64 ${result} to i32`);
+          argsList.push(`i32 ${coerced}`);
+        } else if (paramType === "i64" && (resultType === "double" || !resultType)) {
+          const coerced = this.ctx.nextTemp();
+          this.ctx.emit(`${coerced} = fptosi double ${result} to i64`);
+          argsList.push(`i64 ${coerced}`);
+        } else if (paramType === "float" && (resultType === "double" || !resultType)) {
+          // FFI: double → float (e.g., number literal passed to C float param)
+          const coerced = this.ctx.nextTemp();
+          this.ctx.emit(`${coerced} = fptrunc double ${result} to float`);
+          argsList.push(`float ${coerced}`);
         } else {
           argsList.push(`${paramType} ${result}`);
         }
       } else {
         const paramType = paramTypes[i] || "double";
-        const defaultVal = paramType === "double" ? "0.0" : "null";
+        let defaultVal = "null";
+        if (paramType === "double") defaultVal = "0.0";
+        else if (paramType === "float") defaultVal = "0.0";
+        else if (
+          paramType === "i32" ||
+          paramType === "i64" ||
+          paramType === "i16" ||
+          paramType === "i8"
+        )
+          defaultVal = "0";
         argsList.push(`${paramType} ${defaultVal}`);
       }
     }
 
+    // Declared functions (TS `declare function`) are external C symbols —
+    // use their real name without the _cs_ prefix
+    const mangledName =
+      func && func.declare ? resolvedFuncName : this.ctx.mangleUserName(resolvedFuncName);
+
     if (returnType === "void") {
-      this.ctx.emitCallVoid(`@${this.ctx.mangleUserName(resolvedFuncName)}`, argsList.join(", "));
+      this.ctx.emitCallVoid(`@${mangledName}`, argsList.join(", "));
       return "0";
     }
 
-    const temp = this.ctx.emitCall(
-      returnType,
-      `@${this.ctx.mangleUserName(resolvedFuncName)}`,
-      argsList.join(", "),
-    );
+    const temp = this.ctx.emitCall(returnType, `@${mangledName}`, argsList.join(", "));
+
+    // FFI return type coercion: convert non-standard LLVM types back to
+    // ChadScript's type system (double for numbers, i8* for pointers)
+    if (returnType === "i32" || returnType === "i16" || returnType === "i8") {
+      const coerced = this.ctx.nextTemp();
+      this.ctx.emit(`${coerced} = sitofp ${returnType} ${temp} to double`);
+      return coerced;
+    }
+    if (returnType === "i64") {
+      const coerced = this.ctx.nextTemp();
+      this.ctx.emit(`${coerced} = sitofp i64 ${temp} to double`);
+      return coerced;
+    }
+    if (returnType === "float") {
+      const coerced = this.ctx.nextTemp();
+      this.ctx.emit(`${coerced} = fpext float ${temp} to double`);
+      return coerced;
+    }
 
     return temp;
   }

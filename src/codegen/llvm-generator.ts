@@ -33,6 +33,7 @@ import {
   AwaitExpressionNode,
   BinaryNode,
   SourceLocation,
+  FunctionParameter,
 } from "../ast/types.js";
 import { BaseGenerator, SymbolKind, SymbolTable } from "./infrastructure/base-generator.js";
 import {
@@ -76,6 +77,8 @@ import {
   stripNullable,
   tsTypeToLlvm,
   tsTypeToLlvmJson,
+  mapReturnTypeToLLVM,
+  mapParamTypeToLLVM,
 } from "./infrastructure/type-system.js";
 import type { ResolvedType } from "./infrastructure/type-system.js";
 import { DiagnosticEngine } from "../diagnostics/engine.js";
@@ -1413,6 +1416,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   private typeAliasesCount: number = 0;
 
   private usesTreeSitter: boolean = false;
+  // Tracks function names from user `declare function` to avoid duplicate
+  // LLVM declarations when a name overlaps with hardcoded runtime declarations.
+  // Uses string[] instead of Set<string> because Set.has() is unreliable in the
+  // native-compiled compiler (self-hosting).
+  public declaredExternFunctions: string[];
   public sourceCode: string = "";
   public filename: string = "";
 
@@ -1421,6 +1429,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     // Initialize complex fields in constructor (field initializers don't work in native code)
     this.externalFunctions = new Set();
+    this.declaredExternFunctions = [];
     this.topLevelObjectVariables = new Map();
     this.globalVariables = new Map();
     this.importAliasNames = [];
@@ -1803,7 +1812,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               if (!fn) continue;
               if (fn.name === callNode.name && fn.returnType) {
                 const rt = fn.returnType;
-                if (rt === "string") {
+                if (rt === "string" || rt === "i8_ptr" || rt === "ptr") {
                   ir += `@${name} = global i8* null` + "\n";
                   this.globalVariables.set(name, {
                     llvmType: "i8*",
@@ -2517,7 +2526,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (this.usesTreeSitter) {
       const tsDecls = this.treesitterGen.generateDeclarations();
       if (tsDecls) {
-        irParts.push(tsDecls);
+        irParts.push(this.filterDuplicateDeclarations(tsDecls));
       }
       irParts.push("\n");
     }
@@ -2576,13 +2585,15 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     finalParts.push(
-      getLLVMDeclarations({
-        curl: this.usesCurl !== 0,
-        crypto: this.usesCrypto !== 0,
-        sqlite: this.usesSqlite !== 0,
-        testRunner: this.usesTestRunner !== 0,
-        targetOS: this.getTargetOS(),
-      }),
+      this.filterDuplicateDeclarations(
+        getLLVMDeclarations({
+          curl: this.usesCurl !== 0,
+          crypto: this.usesCrypto !== 0,
+          sqlite: this.usesSqlite !== 0,
+          testRunner: this.usesTestRunner !== 0,
+          targetOS: this.getTargetOS(),
+        }),
+      ),
     );
 
     if (this.usesCurl) {
@@ -2608,7 +2619,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (this.usesMongoose) {
       const httpServerDecls = this.httpServerGen.generateDeclarations();
       if (httpServerDecls) {
-        finalParts.push(httpServerDecls);
+        finalParts.push(this.filterDuplicateDeclarations(httpServerDecls));
       }
       finalParts.push("\n");
     }
@@ -2621,7 +2632,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (needsLibuv) {
       const libuvDecls = this.libuvGen.generateDeclarations(this.usesCurl !== 0);
       if (libuvDecls) {
-        finalParts.push(libuvDecls);
+        finalParts.push(this.filterDuplicateDeclarations(libuvDecls));
       }
       finalParts.push("\n");
     }
@@ -2629,7 +2640,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     if (needsPromise) {
       const promiseDecls = this.promiseGen.generateDeclarations();
       if (promiseDecls) {
-        finalParts.push(promiseDecls);
+        finalParts.push(this.filterDuplicateDeclarations(promiseDecls));
       }
       finalParts.push("\n");
     }
@@ -2668,7 +2679,14 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push(irParts[ipi]);
     }
 
-    finalParts.push("\n; TBAA metadata for alias analysis\n");
+    // TBAA metadata — disabled for now.
+    // ChadScript's type-based alias analysis was causing -O2 segfaults because
+    // the optimizer incorrectly reorders loads/stores across struct fields when
+    // the TBAA hierarchy claims double and pointer types don't alias. Structs
+    // like FunctionNode contain both double and pointer fields, and the coarse
+    // type-based TBAA (without proper struct-path TBAA) leads to miscompilation.
+    // TODO: re-enable with struct-path TBAA once field-level aliasing is correct.
+    finalParts.push("\n; TBAA metadata (currently unused — see comment above)\n");
     finalParts.push('!0 = !{!"ChadScript TBAA Root"}\n');
     finalParts.push('!1 = !{!"omnipotent char", !0, i64 0}\n');
     finalParts.push('!2 = !{!"double", !1, i64 0}\n');
@@ -2687,6 +2705,36 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     }
 
     return finalParts;
+  }
+
+  /**
+   * Remove `declare` lines whose function name is already in the
+   * user-declared extern set (from `declare function` in TS source).
+   * Prevents LLVM "invalid redefinition" errors when hardcoded runtime
+   * declarations overlap with user declarations.
+   */
+  private filterDuplicateDeclarations(ir: string): string {
+    if (this.declaredExternFunctions.length === 0) return ir;
+    const lines = ir.split("\n");
+    const filtered: string[] = [];
+    for (let dli = 0; dli < lines.length; dli++) {
+      const line = lines[dli];
+      if (line.startsWith("declare ")) {
+        const atIdx = line.indexOf("@");
+        if (atIdx !== -1) {
+          const rest = line.substring(atIdx + 1);
+          const parenIdx = rest.indexOf("(");
+          if (parenIdx !== -1) {
+            const fnName = rest.substring(0, parenIdx);
+            if (this.declaredExternFunctions.indexOf(fnName) !== -1) {
+              continue;
+            }
+          }
+        }
+      }
+      filtered.push(line);
+    }
+    return filtered.join("\n");
   }
 
   /**
@@ -2723,6 +2771,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   private generateFunction(func: FunctionNode): string {
+    // External C function declaration: emit LLVM `declare` with correct types,
+    // no _cs_ prefix (external symbols use their real C names)
+    if (func.declare) {
+      return this.generateDeclareFunction(func);
+    }
     if (this.debugInfoEnabled && func.name) {
       const line = this.getLocLine(func);
       this.currentSubprogramId = this.dbgCreateSubprogram(func.name, line);
@@ -2731,6 +2784,34 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.currentSubprogramId = -1;
     this.currentDebugLocId = -1;
     return ir;
+  }
+
+  /** Emit an LLVM `declare` for an external C function (from TS `declare function`). */
+  private generateDeclareFunction(func: FunctionNode): string {
+    const retType = func.returnType
+      ? mapReturnTypeToLLVM(func.returnType, this.isEnumType(func.returnType))
+      : "double";
+
+    const paramLlvmTypes: string[] = [];
+    if (func.paramTypes) {
+      for (let i = 0; i < func.paramTypes.length; i++) {
+        const pt = func.paramTypes[i];
+        paramLlvmTypes.push(
+          mapParamTypeToLLVM(pt, func.params[i] || "", this.isEnumType(stripNullable(pt)), false),
+        );
+      }
+    } else if (func.parameters) {
+      for (let i = 0; i < func.parameters.length; i++) {
+        const p = func.parameters[i] as FunctionParameter;
+        const pType = p.type || "number";
+        paramLlvmTypes.push(
+          mapParamTypeToLLVM(pType, p.name || "", this.isEnumType(stripNullable(pType)), false),
+        );
+      }
+    }
+
+    this.declaredExternFunctions.push(func.name);
+    return `declare ${retType} @${func.name}(${paramLlvmTypes.join(", ")})\n`;
   }
 
   /**

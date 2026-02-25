@@ -42,6 +42,20 @@ Node.js APIs map to native equivalents, inlined directly as LLVM IR at the call 
 | `crypto.sha256()` etc. | OpenSSL EVP API (`libcrypto`) |
 | `sqlite.open()` etc. | `libsqlite3` |
 
+## FFI Types (`declare function`)
+
+These type aliases are used in `declare function` signatures for zero-cost C interop. They map directly to LLVM integer/float types — no double conversion overhead.
+
+| Type Alias | LLVM IR | Notes |
+|---|---|---|
+| `i8`, `i16`, `i32`, `i64` | `i8`, `i16`, `i32`, `i64` | Signed integers |
+| `u8`, `u16`, `u32`, `u64` | `i8`, `i16`, `i32`, `i64` | Unsigned (same LLVM representation) |
+| `f32` | `float` | 32-bit float |
+| `f64` | `double` | 64-bit float (same as `number`) |
+| `i8_ptr`, `ptr` | `i8*` | Opaque pointer (same as `string`) |
+
+In regular ChadScript code, all numbers are `double`. FFI types are only meaningful in `declare function` parameter/return types — they tell the compiler to emit native-width arguments instead of converting through `double`.
+
 ## Key Differences from TypeScript
 
 - **No `any` or `unknown`** — every value has a concrete type at compile time

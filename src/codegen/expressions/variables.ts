@@ -111,7 +111,7 @@ export class VariableExpressionGenerator {
         return this.loadArray(allocaReg, "%Array*", isPointerAlloca);
       } else if (llvmType === "i8*") {
         const temp = this.ctx.nextTemp();
-        this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}, !tbaa !5`);
+        this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}`);
         this.ctx.setVariableType(temp, "i8*");
         return temp;
       }
@@ -127,7 +127,7 @@ export class VariableExpressionGenerator {
         return this.loadArray(allocaReg, "%StringArray*", isPointerAlloca);
       } else if (llvmType === "i8*") {
         const temp = this.ctx.nextTemp();
-        this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}, !tbaa !5`);
+        this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}`);
         this.ctx.setVariableType(temp, "i8*");
         return temp;
       }
@@ -137,7 +137,7 @@ export class VariableExpressionGenerator {
     if (this.ctx.symbolTable.isUint8Array(name)) {
       const allocaReg = this.ctx.symbolTable.getAlloca(name)!;
       const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = load %Uint8Array*, %Uint8Array** ${allocaReg}, !tbaa !5`);
+      this.ctx.emit(`${temp} = load %Uint8Array*, %Uint8Array** ${allocaReg}`);
       this.ctx.setVariableType(temp, "%Uint8Array*");
       return temp;
     }
@@ -166,7 +166,7 @@ export class VariableExpressionGenerator {
     // Handle __chadscript global
     if (name === "__chadscript") {
       const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = load double, double* @__chadscript, !tbaa !4`);
+      this.ctx.emit(`${temp} = load double, double* @__chadscript`);
       this.ctx.setVariableType(temp, "double");
       return temp;
     }
@@ -195,35 +195,35 @@ export class VariableExpressionGenerator {
     const ptrType = fields.length > 0 ? `%${classMeta.className}_struct*` : "double*";
 
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = load ${ptrType}, ${ptrType}* ${classMeta.ptr}, !tbaa !5`);
+    this.ctx.emit(`${temp} = load ${ptrType}, ${ptrType}* ${classMeta.ptr}`);
     this.ctx.setVariableType(temp, ptrType);
     return temp;
   }
 
   private loadRegex(allocaReg: string): string {
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}, !tbaa !5`);
+    this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}`);
     this.ctx.setVariableType(temp, "i8*");
     return temp;
   }
 
   private loadString(allocaReg: string): string {
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}, !tbaa !5`);
+    this.ctx.emit(`${temp} = load i8*, i8** ${allocaReg}`);
     this.ctx.setVariableType(temp, "i8*");
     return temp;
   }
 
   private loadArray(allocaReg: string, arrayType: string, isPointerAlloca: boolean): string {
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = load ${arrayType}, ${arrayType}* ${allocaReg}, !tbaa !5`);
+    this.ctx.emit(`${temp} = load ${arrayType}, ${arrayType}* ${allocaReg}`);
     this.ctx.setVariableType(temp, arrayType);
     return temp;
   }
 
   private loadObject(objectMeta: ObjectMeta, _interfaceType?: string): string {
     const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = load i8*, i8** ${objectMeta.ptr}, !tbaa !5`);
+    this.ctx.emit(`${temp} = load i8*, i8** ${objectMeta.ptr}`);
     this.ctx.setVariableType(temp, "i8*");
     return temp;
   }
@@ -237,7 +237,7 @@ export class VariableExpressionGenerator {
       varType === "%TSParser*" ||
       varType === "%TSLanguage*";
     if (isTreeSitterType) {
-      this.ctx.emit(`${temp} = load double, double* ${allocaReg}, !tbaa !4`);
+      this.ctx.emit(`${temp} = load double, double* ${allocaReg}`);
       this.ctx.setVariableType(temp, varType);
       return temp;
     }
@@ -245,8 +245,7 @@ export class VariableExpressionGenerator {
       varType = "i8*";
     }
     const ptrToType = `${varType}*`;
-    const tbaaTag = varType === "double" ? "!tbaa !4" : "!tbaa !5";
-    this.ctx.emit(`${temp} = load ${varType}, ${ptrToType} ${allocaReg}, ${tbaaTag}`);
+    this.ctx.emit(`${temp} = load ${varType}, ${ptrToType} ${allocaReg}`);
     this.ctx.setVariableType(temp, varType);
     return temp;
   }

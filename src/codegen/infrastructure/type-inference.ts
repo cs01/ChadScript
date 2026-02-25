@@ -36,6 +36,8 @@ function isStringType(t: string): boolean {
   if (t === "string") return true;
   if (t === "string | null" || t === "string | undefined") return true;
   if (t === "null | string" || t === "undefined | string") return true;
+  // FFI pointer types (i8_ptr, ptr) are stored as i8* like strings
+  if (t === "i8_ptr" || t === "ptr") return true;
   return false;
 }
 
@@ -2336,6 +2338,8 @@ export class TypeInference {
 
   private returnTypeIsString(returnType: string): boolean {
     if (returnType === "string") return true;
+    // FFI pointer types map to i8* like strings
+    if (returnType === "i8_ptr" || returnType === "ptr") return true;
     if (returnType.indexOf(" | ") !== -1) {
       const parts = returnType.split(" | ");
       for (let i = 0; i < parts.length; i++) {

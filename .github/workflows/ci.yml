@@ -68,10 +68,10 @@ jobs:
             exit 1
           fi
 
-      - name: Build tree-sitter TypeScript objects
+      - name: Build tree-sitter TSX objects
         run: |
           mkdir -p build
-          TS_SRC=node_modules/tree-sitter-typescript/typescript/src
+          TS_SRC=node_modules/tree-sitter-typescript/tsx/src
           TS_INCLUDE=node_modules/tree-sitter-typescript
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/parser.c -o build/tree-sitter-typescript-parser.o
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o
@@ -167,10 +167,10 @@ jobs:
             exit 1
           fi
 
-      - name: Build tree-sitter TypeScript objects
+      - name: Build tree-sitter TSX objects
         run: |
           mkdir -p build
-          TS_SRC=node_modules/tree-sitter-typescript/typescript/src
+          TS_SRC=node_modules/tree-sitter-typescript/tsx/src
           TS_INCLUDE=node_modules/tree-sitter-typescript
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/parser.c -o build/tree-sitter-typescript-parser.o
           clang -c -O2 -fPIC -I $TS_SRC -I $TS_INCLUDE $TS_SRC/scanner.c -o build/tree-sitter-typescript-scanner.o

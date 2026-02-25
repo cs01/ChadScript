@@ -198,7 +198,7 @@ export class AssignmentGenerator {
 
     const objPtrPtr = this.ctx.getVariableAlloca(object.name)!;
     const objPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}, !tbaa !5`);
+    this.ctx.emit(`${objPtr} = load i8*, i8** ${objPtrPtr}`);
 
     const typedPtr = this.ctx.emitBitcast(objPtr, "i8*", `${structType}*`);
 
@@ -208,11 +208,11 @@ export class AssignmentGenerator {
     );
 
     if (propType === "i1") {
-      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
     } else if (propType === "double") {
-      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
     } else {
-      this.ctx.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}`);
     }
   }
 
@@ -283,14 +283,12 @@ export class AssignmentGenerator {
         this.ctx.emit(
           `${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 ${fieldIndex}`,
         );
-        this.ctx.emit(
-          `store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`,
-        );
+        this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
       }
     } else if (fields.length === 0) {
       const fieldPtr = this.ctx.nextTemp();
       this.ctx.emit(`${fieldPtr} = getelementptr inbounds double, double* ${instancePtr}, i32 0`);
-      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
     } else {
       this.ctx.emitError(
         "Field '" +
@@ -312,14 +310,12 @@ export class AssignmentGenerator {
     if (fiTsType) {
       const enumResult = this.isEnumType(fiTsType);
       if (enumResult) {
-        this.ctx.emit(
-          `store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`,
-        );
+        this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
         return;
       }
     }
     if (fiType === null || fiType === undefined) {
-      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
       return;
     }
 
@@ -343,26 +339,26 @@ export class AssignmentGenerator {
       }
 
       if (isAlreadyPointer) {
-        this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}, !tbaa !5`);
+        this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
       } else {
         const strPtr = this.ctx.nextTemp();
         this.ctx.emit(`${strPtr} = inttoptr i32 ${value} to i8*`);
-        this.ctx.emit(`store i8* ${strPtr}, i8** ${fieldPtr}, !tbaa !5`);
+        this.ctx.emit(`store i8* ${strPtr}, i8** ${fieldPtr}`);
       }
     } else if (fiType === "string[]") {
-      this.ctx.emit(`store %StringArray* ${value}, %StringArray** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %StringArray* ${value}, %StringArray** ${fieldPtr}`);
     } else if (fiType.endsWith("[]")) {
-      this.ctx.emit(`store %Array* ${value}, %Array** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %Array* ${value}, %Array** ${fieldPtr}`);
     } else if (fiType === "boolean") {
-      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith("Map<string,")) {
-      this.ctx.emit(`store %StringMap* ${value}, %StringMap** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %StringMap* ${value}, %StringMap** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith("Map<")) {
-      this.ctx.emit(`store %Map* ${value}, %Map** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %Map* ${value}, %Map** ${fieldPtr}`);
     } else if (hasTsType && fiTsType === "Set<string>") {
-      this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith("Set<")) {
-      this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
     } else if (
       hasTsType &&
       fiTsType &&
@@ -370,9 +366,9 @@ export class AssignmentGenerator {
       fiTsType !== "boolean" &&
       !this.isEnumType(fiTsType)
     ) {
-      this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
     } else {
-      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
     }
   }
 
@@ -386,7 +382,7 @@ export class AssignmentGenerator {
     const fiType = fi.type;
 
     if (fiType === null || fiType === undefined) {
-      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
       return;
     }
 
@@ -411,26 +407,26 @@ export class AssignmentGenerator {
       }
 
       if (isAlreadyPointer) {
-        this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}, !tbaa !5`);
+        this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
       } else {
         const strPtr = this.ctx.nextTemp();
         this.ctx.emit(`${strPtr} = inttoptr i32 ${value} to i8*`);
-        this.ctx.emit(`store i8* ${strPtr}, i8** ${fieldPtr}, !tbaa !5`);
+        this.ctx.emit(`store i8* ${strPtr}, i8** ${fieldPtr}`);
       }
     } else if (fiType === "string[]") {
-      this.ctx.emit(`store %StringArray* ${value}, %StringArray** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %StringArray* ${value}, %StringArray** ${fieldPtr}`);
     } else if (fiType.endsWith("[]")) {
-      this.ctx.emit(`store %Array* ${value}, %Array** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %Array* ${value}, %Array** ${fieldPtr}`);
     } else if (fiType === "boolean") {
-      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith("Map<string,")) {
-      this.ctx.emit(`store %StringMap* ${value}, %StringMap** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %StringMap* ${value}, %StringMap** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith("Map<")) {
-      this.ctx.emit(`store %Map* ${value}, %Map** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %Map* ${value}, %Map** ${fieldPtr}`);
     } else if (hasTsType && fiTsType === "Set<string>") {
-      this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %StringSet* ${value}, %StringSet** ${fieldPtr}`);
     } else if (hasTsType && fiTsType && fiTsType.startsWith("Set<")) {
-      this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store %Set* ${value}, %Set** ${fieldPtr}`);
     } else if (
       hasTsType &&
       fiTsType &&
@@ -438,9 +434,9 @@ export class AssignmentGenerator {
       fiTsType !== "boolean" &&
       !this.isEnumType(fiTsType)
     ) {
-      this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store i8* ${value}, i8** ${fieldPtr}`);
     } else {
-      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
     }
   }
 
@@ -478,7 +474,7 @@ export class AssignmentGenerator {
     );
 
     const data = this.ctx.nextTemp();
-    this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}, !tbaa !5`);
+    this.ctx.emit(`${data} = load i8*, i8** ${dataPtr}`);
 
     const dataAsPtrs = this.ctx.emitBitcast(data, "i8*", "i8**");
 
@@ -486,7 +482,7 @@ export class AssignmentGenerator {
     this.ctx.emit(`${elemPtrPtr} = getelementptr inbounds i8*, i8** ${dataAsPtrs}, i32 ${index}`);
 
     const elemPtr = this.ctx.nextTemp();
-    this.ctx.emit(`${elemPtr} = load i8*, i8** ${elemPtrPtr}, !tbaa !5`);
+    this.ctx.emit(`${elemPtr} = load i8*, i8** ${elemPtrPtr}`);
 
     const elemTyped = this.ctx.emitBitcast(elemPtr, "i8*", `${structType}*`);
 
@@ -498,9 +494,9 @@ export class AssignmentGenerator {
 
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
     if (propType === "double") {
-      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}, !tbaa !4`);
+      this.ctx.emit(`store double ${this.ctx.ensureDouble(value)}, double* ${fieldPtr}`);
     } else {
-      this.ctx.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}, !tbaa !5`);
+      this.ctx.emit(`store ${propType} ${value}, ${propType}* ${fieldPtr}`);
     }
   }
 

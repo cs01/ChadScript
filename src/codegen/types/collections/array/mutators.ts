@@ -1,5 +1,5 @@
 // Array mutator operations: push, pop.
-// Uses structured IR builders where possible; raw emit() for inbounds GEP, tbaa, intrinsics, etc.
+// Uses structured IR builders where possible; raw emit() for inbounds GEP, intrinsics, etc.
 
 import { MethodCallNode, VariableNode } from "../../../../ast/types.js";
 import { IGeneratorContext } from "./context.js";
@@ -133,13 +133,13 @@ function generateIntArrayPop(gen: IGeneratorContext, arrayPtr: string): string {
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField}`);
 
   // Load last element
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${lastIndex}`);
   const lastElem = gen.nextTemp();
-  gen.emit(`${lastElem} = load double, double* ${elemPtr}, !tbaa !4`);
+  gen.emit(`${lastElem} = load double, double* ${elemPtr}`);
 
   // Decrement length
   gen.emitStore("i32", lastIndex, lenPtr);
@@ -193,13 +193,13 @@ function generateStringArrayPop(gen: IGeneratorContext, arrayPtr: string): strin
     `${dataPtrField} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField}`);
 
   // Load last element
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${lastIndex}`);
   const lastElem = gen.nextTemp();
-  gen.emit(`${lastElem} = load i8*, i8** ${elemPtr}, !tbaa !5`);
+  gen.emit(`${lastElem} = load i8*, i8** ${elemPtr}`);
 
   // Decrement length
   gen.emitStore("i32", lastIndex, lenPtr);
@@ -246,13 +246,13 @@ function generatePointerArrayPop(gen: IGeneratorContext, arrayPtr: string): stri
   const dataPtrField = gen.nextTemp();
   gen.emit(`${dataPtrField} = getelementptr inbounds %Array, %Array* ${castPtr}, i32 0, i32 0`);
   const dataPtrRaw = gen.nextTemp();
-  gen.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField}, !tbaa !5`);
+  gen.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField}`);
   const dataPtr = gen.emitBitcast(dataPtrRaw, "double*", "i8**");
 
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${lastIndex}`);
   const lastElem = gen.nextTemp();
-  gen.emit(`${lastElem} = load i8*, i8** ${elemPtr}, !tbaa !5`);
+  gen.emit(`${lastElem} = load i8*, i8** ${elemPtr}`);
 
   gen.emitStore("i32", lastIndex, lenPtr);
 
@@ -341,13 +341,13 @@ function generateIntArrayPush(gen: IGeneratorContext, arrayPtr: string, value: s
   const dataPtrField2 = gen.nextTemp();
   gen.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField2}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load double*, double** ${dataPtrField2}`);
 
   // Store value at current length index
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds double, double* ${dataPtr}, i32 ${currentLen}`);
   const dblValue = gen.ensureDouble(value);
-  gen.emit(`store double ${dblValue}, double* ${elemPtr}, !tbaa !4`);
+  gen.emit(`store double ${dblValue}, double* ${elemPtr}`);
 
   // Increment length
   const newLen = gen.nextTemp();
@@ -440,12 +440,12 @@ function generateStringArrayPush(gen: IGeneratorContext, arrayPtr: string, value
     `${dataPtrField2} = getelementptr inbounds %StringArray, %StringArray* ${arrayPtr}, i32 0, i32 0`,
   );
   const dataPtr = gen.nextTemp();
-  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField2}, !tbaa !5`);
+  gen.emit(`${dataPtr} = load i8**, i8*** ${dataPtrField2}`);
 
   // Store value at current length index
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
-  gen.emit(`store i8* ${value}, i8** ${elemPtr}, !tbaa !5`);
+  gen.emit(`store i8* ${value}, i8** ${elemPtr}`);
 
   // Increment length
   const newLen = gen.nextTemp();
@@ -523,13 +523,13 @@ function generatePointerArrayPush(
   const dataPtrField2 = gen.nextTemp();
   gen.emit(`${dataPtrField2} = getelementptr inbounds %Array, %Array* ${arrayPtr}, i32 0, i32 0`);
   const dataPtrRaw = gen.nextTemp();
-  gen.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField2}, !tbaa !5`);
+  gen.emit(`${dataPtrRaw} = load double*, double** ${dataPtrField2}`);
   const dataPtr = gen.emitBitcast(dataPtrRaw, "double*", "i8**");
 
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
   const valueAsI8 = gen.emitBitcast(value, valueType, "i8*");
-  gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}, !tbaa !5`);
+  gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}`);
 
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = add i32 ${currentLen}, 1`);
@@ -613,13 +613,13 @@ function generateObjectArrayPush(
     `${dataPtrField2} = getelementptr inbounds %ObjectArray, %ObjectArray* ${arrayPtr}, i32 0, i32 0`,
   );
   const dataPtrRaw = gen.nextTemp();
-  gen.emit(`${dataPtrRaw} = load i8*, i8** ${dataPtrField2}, !tbaa !5`);
+  gen.emit(`${dataPtrRaw} = load i8*, i8** ${dataPtrField2}`);
   const dataPtr = gen.emitBitcast(dataPtrRaw, "i8*", "i8**");
 
   const elemPtr = gen.nextTemp();
   gen.emit(`${elemPtr} = getelementptr inbounds i8*, i8** ${dataPtr}, i32 ${currentLen}`);
   const valueAsI8 = gen.emitBitcast(value, valueType, "i8*");
-  gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}, !tbaa !5`);
+  gen.emit(`store i8* ${valueAsI8}, i8** ${elemPtr}`);
 
   const newLen = gen.nextTemp();
   gen.emit(`${newLen} = add i32 ${currentLen}, 1`);

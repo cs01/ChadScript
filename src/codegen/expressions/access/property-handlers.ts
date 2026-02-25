@@ -22,7 +22,7 @@ export function getArrayLength(
     `${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`,
   );
   const lenI32 = ctx.nextTemp();
-  ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
+  ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
   const len = ctx.nextTemp();
   ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
   ctx.setVariableType(len, "double");
@@ -38,7 +38,7 @@ export function getStringArrayLength(
     `${lenPtr} = getelementptr inbounds %StringArray, %StringArray* ${stringArrayPtr}, i32 0, i32 1`,
   );
   const lenI32 = ctx.nextTemp();
-  ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
+  ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
   const len = ctx.nextTemp();
   ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
   ctx.setVariableType(len, "double");
@@ -68,7 +68,7 @@ export function getArrayLengthFromPtr(
     `${lenPtr} = getelementptr inbounds ${arrayType}, ${arrayType}* ${arrayPtr}, i32 0, i32 1`,
   );
   const lenI32 = ctx.nextTemp();
-  ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}, !tbaa !7`);
+  ctx.emit(`${lenI32} = load i32, i32* ${lenPtr}`);
   const len = ctx.nextTemp();
   ctx.emit(`${len} = sitofp i32 ${lenI32} to double`);
   ctx.setVariableType(len, "double");
