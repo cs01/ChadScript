@@ -57,6 +57,8 @@ Returns a zero-length `Uint8Array` if the key is not found.
 
 Return an `HttpResponse` for an embedded file. Strips the leading `/` from the path, looks up the file in the embedded table, and returns `{ status: 200, body: content, headers: "" }` if found or `{ status: 404, body: "Not Found", headers: "" }` if not.
 
+The HTTP server automatically sets `Content-Type` based on the file extension, so `.css`, `.js`, `.png`, `.wasm`, etc. all get the correct header with no extra work.
+
 This eliminates per-file route boilerplate for serving static assets:
 
 ```typescript
@@ -83,13 +85,18 @@ my-server/
 ```
 
 ```typescript
+// Compile time: walks ./public/ and bakes every file into the binary as a string constant.
+// The directory itself is not needed at runtime — files live in memory.
 ChadScript.embedDir("./public");
 
 function handleRequest(req: HttpRequest): HttpResponse {
-  // Serve all embedded files with a single line
+  // serveEmbedded strips the leading '/', looks up the file in the embedded
+  // table, and returns 200 + body if found, or 404 if not.
+  // Content-Type is inferred from the file extension (.css, .png, .js, etc.)
   return ChadScript.serveEmbedded(req.path);
 }
 
+// Starts listening on port 3000; blocks forever
 httpServe(3000, handleRequest);
 ```
 

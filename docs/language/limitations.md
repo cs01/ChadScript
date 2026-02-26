@@ -1,6 +1,8 @@
-# Language Support
+# Support Status
 
 ChadScript supports a practical subset of TypeScript. All types must be known at compile time — there's no runtime type system, no interpreter, and no VM.
+
+This constraint has a nice side effect: the supported language is simpler and easier to reason about. Like C++ has a "safe subset" that avoids its footguns, this is a safe subset of TypeScript — you get the familiar syntax without the dynamic corners that make large codebases hard to follow.
 
 ## Core Language
 
@@ -79,7 +81,7 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | `implements` | Supported |
 | Interface inheritance (`extends`) | Supported |
 | Static methods and fields | Supported |
-| Abstract classes | Not yet supported |
+| Abstract classes | Not supported |
 | Private class fields (`#field`) | Not supported |
 | Decorators | Not supported |
 

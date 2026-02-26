@@ -35,9 +35,12 @@
   border-color: #22c55e;
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 768px) {
   .copy-markdown-btn {
-    display: none;
+    float: none;
+    display: block;
+    width: fit-content;
+    margin: 8px 0 0 auto;
   }
 }
 

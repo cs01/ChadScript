@@ -66,7 +66,7 @@ wsBroadcast("hello everyone");
 | `body` | `string` | Response body |
 | `headers` | `string` | Extra response headers as `"\n"`-separated lines (e.g. `"Set-Cookie: session=abc\nX-Custom: value"`) |
 
-If `headers` contains a `Content-Type:` line, it overrides the auto-sniffed content type. Set `headers` to `""` when no extra headers are needed.
+If `headers` contains a `Content-Type:` line, it overrides the auto-detected content type. Set `headers` to `""` when no extra headers are needed.
 
 ## WsEvent Object
 

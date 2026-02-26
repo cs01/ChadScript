@@ -1,4 +1,4 @@
-# How ChadScript Works
+# About ChadScript
 
 ChadScript is an ahead-of-time compiler. It reads TypeScript source files, type-checks them, generates LLVM IR, and produces a standalone native binary. There's no interpreter, no JIT, and no runtime dependency on Node.js or V8.
 

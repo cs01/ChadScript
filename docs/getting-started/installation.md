@@ -39,4 +39,10 @@ bash scripts/build-vendor.sh
 npm run build
 ```
 
-See [BUILDING.md](https://github.com/cs01/ChadScript/blob/main/BUILDING.md) for full instructions.
+This produces `dist/chad-node.js`. Use it directly:
+
+```bash
+node dist/chad-node.js build hello.ts -o hello
+```
+
+See [BUILDING.md](https://github.com/cs01/ChadScript/blob/main/BUILDING.md) for full instructions including native compiler setup and cross-compilation.

@@ -40,11 +40,11 @@ export default defineConfig({
       {
         text: 'Getting Started',
         items: [
-          { text: 'Language Support', link: '/language/limitations' },
+          { text: 'About ChadScript', link: '/language/architecture' },
           { text: 'Installation', link: '/getting-started/installation' },
           { text: 'Examples', link: '/getting-started/quickstart' },
-          { text: 'How it Works', link: '/language/architecture' },
           { text: 'CLI Reference', link: '/getting-started/cli' },
+          { text: 'Support Status', link: '/language/limitations' },
           { text: 'Debugging', link: '/getting-started/debugging' }
         ]
       },
