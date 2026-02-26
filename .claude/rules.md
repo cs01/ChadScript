@@ -57,6 +57,7 @@ TypeScript-to-native compiler using LLVM IR. Compiles .ts/.js files to native bi
 
 | Dir                                       | Purpose                                                                           |
 | ----------------------------------------- | --------------------------------------------------------------------------------- |
+| `src/semantic/`                           | Semantic analysis passes run before codegen (closure mutation, union types)       |
 | `src/codegen/`                            | LLVM IR code generation (the core)                                                |
 | `src/codegen/expressions/method-calls.ts` | Central dispatcher for all `object.method()` calls                                |
 | `src/codegen/types/collections/string/`   | String method IR generators (manipulation.ts, search.ts, split.ts, etc.)          |
@@ -258,3 +259,34 @@ Parser preserves string values in `EnumMember.stringValue` and marks `EnumDeclar
 ## Async/Await Type Tracking
 
 `allocateAwaitResult` in `variable-allocator.ts` must inspect the awaited expression to determine the correct SymbolKind. Default is `i8*`/string, but `Promise.all()` resolves to `%ObjectArray*`. For each new async API that resolves to a specific type, add a detection case to `allocateAwaitResult`.
+
+## Semantic Analysis Passes
+
+Semantic passes live in `src/semantic/` and run before codegen (called from `LLVMGenerator.generateParts()`).
+They catch errors that would produce silently wrong native code — the native compiler can't throw exceptions
+at runtime, so these must be compile-time errors.
+
+Current passes:
+
+- **`closure-mutation-checker.ts`** — ChadScript closures capture by value. Mutating a variable after capture
+  produces silently wrong results. This pass detects post-capture assignments and emits a compile error.
+- **`union-type-checker.ts`** — Type alias unions like `type Mixed = string | number` bypass the inline union
+  check. This pass resolves aliases and rejects unions whose members map to different LLVM representations.
+
+To add a new semantic pass: create `src/semantic/your-check.ts`, export a `checkX(ast: AST): void` function,
+and call it from `generateParts()` in `llvm-generator.ts`.
+
+## LLVMGenerator.reset() Sync Requirement
+
+`LLVMGenerator.reset()` overrides `BaseGenerator.reset()`. When adding new fields to `BaseGenerator` that
+get reset, you **must** also add the reset to `LLVMGenerator.reset()`. These must stay in sync — missing
+field resets cause state to leak across function compilations (stale alloca counters, stale class type
+mappings, stale debug metadata).
+
+## Expression Orchestrator — No Silent Nulls
+
+`orchestrator.ts` must **never** silently generate null pointers (`inttoptr i64 0 to i8*`) for unrecognized
+expressions. These nulls are UB that LLVM `-O2` can exploit to prune unrelated code paths. Both fallback
+paths (empty type, unsupported type) now call `ctx.emitError()` which is `never`-typed — it exits the
+compiler immediately. If a new expression type is added to the parser, add a handler in the orchestrator;
+don't rely on a fallback.

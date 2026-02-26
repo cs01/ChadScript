@@ -47,6 +47,7 @@ interface ExpressionOrchestratorContext {
   setLastInlineLambdaEnvPtr(ptr: string | null): void;
   setLastTypeAssertionSourceVar(name: string | null): void;
   emitWarning(message: string, loc?: { line: number; column: number }, suggestion?: string): void;
+  emitError(message: string, loc?: { line: number; column: number }, suggestion?: string): never;
 }
 
 /**
@@ -119,16 +120,13 @@ export class ExpressionGenerator {
   generate(expr: Expression, params: string[]): string {
     const exprTyped = expr as { type: string };
     if (!exprTyped.type || exprTyped.type.length === 0) {
-      // Strict: expressions must have a type. An empty type indicates a parser
-      // or AST construction bug — surface it instead of silently returning null.
-      this.ctx.emitWarning(
-        "expression has empty type — this likely indicates a parser bug, treating as null",
+      // Hard error: expressions must have a type. An empty type indicates a parser
+      // or AST construction bug. Previously this silently generated a null pointer,
+      // which LLVM -O2 could exploit as UB to prune unrelated code paths.
+      this.ctx.emitError(
+        "expression has empty type — this likely indicates a parser bug",
         (expr as { loc?: { line: number; column: number } }).loc,
       );
-      const temp = this.ctx.nextTemp();
-      this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
-      this.ctx.setVariableType(temp, "i8*");
-      return temp;
     }
     // Literals
     if (exprTyped.type === "number") {
@@ -323,15 +321,12 @@ export class ExpressionGenerator {
       return this.indexAccessGen.generateAssignment(expr as IndexAccessAssignmentNode, params);
     }
 
-    this.ctx.emitWarning(
+    // Hard error: unsupported expression types must not silently produce null pointers.
+    // A null here would be UB that LLVM -O2 can exploit to prune unrelated code.
+    this.ctx.emitError(
       "unsupported expression type: " + exprTyped.type,
       (expr as { loc?: { line: number; column: number } }).loc,
-      "this expression will evaluate to null",
     );
-    const temp = this.ctx.nextTemp();
-    this.ctx.emit(`${temp} = inttoptr i64 0 to i8*`);
-    this.ctx.setVariableType(temp, "i8*");
-    return temp;
   }
 
   /**
