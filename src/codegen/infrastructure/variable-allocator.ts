@@ -222,6 +222,7 @@ export interface VariableAllocatorContext {
   readonly typeResolver?: TypeResolver;
   readonly arrowFunctionGen: ArrowFunctionGeneratorLike;
   ensureDouble(value: string): string;
+  ensureI64(value: string): string;
   getI64EligibleVars(): string[];
   isUint8ArrayExpression(expr: Expression): boolean;
   setWantsBinaryReturn(value: boolean): void;
@@ -470,6 +471,9 @@ export class VariableAllocator {
           storeValue = cast;
         }
         this.ctx.emit(`store ${llvmType} ${storeValue}, ${llvmType}* ${globalPtr}`);
+      } else if (llvmType === "i64") {
+        const coerced = this.ctx.ensureI64(value);
+        this.ctx.emit(`store i64 ${coerced}, i64* ${globalPtr}`);
       } else if (llvmType === "double") {
         const coerced = this.ctx.ensureDouble(value);
         this.ctx.emit(`store double ${coerced}, double* ${globalPtr}`);
