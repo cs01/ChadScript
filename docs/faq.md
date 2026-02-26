@@ -6,7 +6,7 @@ ChadScript is a compiler that takes TypeScript source code and produces native E
 
 ## Is ChadScript a drop-in replacement for TypeScript?
 
-No. ChadScript supports a practical subset of TypeScript. It compiles to native machine code, so all types must be known at compile time and dynamic features like `eval()` aren't available. See [Language Support](/language/limitations) for details.
+No. ChadScript supports a practical subset of TypeScript. It compiles to native machine code, so all types must be known at compile time and dynamic features like `eval()` aren't available. See [Language Support](/language/features) for details.
 
 ## What TypeScript features are supported?
 
@@ -22,7 +22,7 @@ Most of the core language: variables, functions, classes, interfaces, arrays, st
 - Decorators, symbols, `Proxy`, `Reflect`
 - `WeakMap`, `WeakSet`
 
-See [Language Support](/language/limitations) for the complete list of what works and what doesn't.
+See [Language Support](/language/features) for the complete list of what works and what doesn't.
 
 ## How fast is it?
 

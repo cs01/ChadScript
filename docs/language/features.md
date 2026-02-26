@@ -51,18 +51,15 @@
 | `Map<K, V>`, `Set<T>` | Supported |
 | Enums (numeric and string) | Supported |
 | Type aliases | Supported |
-| Union types (`string \| null`) | Supported (nullable unions only — unsafe unions like `string \| number` are rejected at compile time) |
+| Union types (`string \| null`) | Supported (nullable unions only) |
 | `any`, `unknown`, `never` | Not supported |
-| User-defined generics (`<T>`) | Not supported (built-in generics like `Map<K,V>` work) |
+| User-defined generics (`<T>`) | Not supported |
 | Intersection types (`A & B`) | Not supported |
 | Mapped / conditional / template literal types | Not supported |
-| `satisfies` | Not supported |
-| `instanceof` | Not supported (no runtime type tags) |
-| `Symbol` | Not supported |
+| `satisfies`, `instanceof`, `Symbol` | Not supported |
 | `WeakMap`, `WeakSet`, `WeakRef` | Not supported |
 | `SharedArrayBuffer`, `Atomics` | Not supported |
-| `FinalizationRegistry` | Not supported |
-| `Intl` | Not supported |
+| `FinalizationRegistry`, `Intl` | Not supported |
 
 ## Classes & Interfaces
 
@@ -96,9 +93,9 @@
 | `import { foo as baz } from './bar'` | Supported |
 | Default imports | Supported |
 | Named exports | Supported |
-| Dynamic `import()` | Not supported |
 | Re-exports (`export { foo } from './bar'`) | Supported |
 | `export default` | Supported |
+| Dynamic `import()` | Not supported |
 
 ## Async
 
@@ -169,12 +166,12 @@ Linker flags (`-lm`, `-lpthread`, etc.) are auto-detected from linked libraries.
 
 These require runtime code evaluation and are not possible in a native compiler:
 
-| Feature | Why |
-|---------|-----|
-| `eval()` | No runtime code evaluation |
-| `Function()` constructor | No runtime code evaluation |
-| `Proxy` / `Reflect` | Require runtime interception |
-| `globalThis` | Not available |
+| Feature | Status |
+|---------|--------|
+| `eval()` | Not supported |
+| `Function()` constructor | Not supported |
+| `Proxy` / `Reflect` | Not supported |
+| `globalThis` | Not supported |
 
 ## Numbers
 
@@ -208,6 +205,4 @@ npm packages work as long as they only use supported TypeScript features.
 
 ## Standard Library
 
-Everything is built in — no `npm install` needed:
-
-`ChadScript.embed` · `child_process` · `console` · `crypto` · `Date` · `fetch` · `fs` · `httpServe` · `JSON` · `Map` · `Math` · `os` · `path` · `process` · `RegExp` · `Set` · `sqlite`
+Everything is built in — no `npm install` needed. See the [Standard Library](/stdlib/) for the full API reference.

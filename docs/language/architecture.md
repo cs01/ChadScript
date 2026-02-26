@@ -2,7 +2,7 @@
 
 ChadScript is an ahead-of-time TypeScript compiler that produces standalone native binaries. Write standard TypeScript, run `chad build`, and get an ELF or Mach-O binary that starts in under 2ms — no Node.js, no JVM, no runtime VM. The compiler is self-hosting: it is written in TypeScript and compiles itself to a native binary.
 
-It targets a practical subset of TypeScript where all types are known at compile time. This has a nice side effect: the supported language is simpler and easier to reason about. Like C++ has a "safe subset" that avoids its footguns, ChadScript is a safe subset of TypeScript — you get the familiar syntax without the dynamic corners that make large codebases hard to follow. See [Supported Features](/language/limitations) for the full feature list.
+It targets a practical subset of TypeScript where all types are known at compile time. This has a nice side effect: the supported language is simpler and easier to reason about. Like C++ has a "safe subset" that avoids its footguns, ChadScript is a safe subset of TypeScript — you get the familiar syntax without the dynamic corners that make large codebases hard to follow. See [Supported Features](/language/features) for the full feature list.
 
 ## How It Compiles Your Code
 

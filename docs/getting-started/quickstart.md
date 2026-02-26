@@ -45,4 +45,4 @@ chad run examples/hackernews/app.ts       # http://localhost:3000
 
 - Browse the [Standard Library](/stdlib/) for all available APIs
 - See [CLI Reference](/getting-started/cli) for all compiler options
-- Check [Supported Features](/language/limitations) to understand the TypeScript subset
+- Check [Supported Features](/language/features) to understand the TypeScript subset
