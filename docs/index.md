@@ -21,6 +21,8 @@ features:
     details: Everything you'd npm install — HTTP, SQLite, fetch, crypto, JSON — is built in. No dependencies.
   - title: Single-Binary Deploy
     details: Embed HTML, CSS, and assets at compile time. Ship one file.
+  - title: Watch Mode
+    details: "`chad watch` recompiles and restarts your app on every save. No config needed."
 ---
 
 <HeroRotator />
