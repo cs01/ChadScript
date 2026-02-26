@@ -170,10 +170,23 @@ export class ResponseGenerator {
     }
   }
 
+  private hasParserInGlobalStrings(typeName: string): boolean {
+    const pattern = `@parse_json_${typeName}(i8* %json_str)`;
+    for (let i = 0; i < this.ctx.getGlobalStringsLength(); i++) {
+      if (this.ctx.getGlobalStringAt(i).includes(pattern)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /**
    * Generate a specialized JSON parser function for a struct type
    */
   private generateJsonParser(typeName: string, interfaceDef: InterfaceDefInfo): void {
+    if (this.hasParserInGlobalStrings(typeName)) {
+      return;
+    }
     let parserIR = `define %${typeName}* @parse_json_${typeName}(i8* %json_str) {` + "\n";
     parserIR += "entry:\n";
 

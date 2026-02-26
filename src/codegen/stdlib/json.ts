@@ -187,6 +187,16 @@ export class JsonGenerator {
     return false;
   }
 
+  private hasParserInGlobalStrings(typeName: string): boolean {
+    const pattern = `@parse_json_${typeName}(i8* %json_str)`;
+    for (let i = 0; i < this.ctx.getGlobalStringsLength(); i++) {
+      if (this.ctx.getGlobalStringAt(i).includes(pattern)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private generateJsonStruct(typeName: string): void {
     if (this.hasGenerated(typeName)) {
       return;
@@ -237,6 +247,9 @@ export class JsonGenerator {
       return;
     }
     this.markGenerated(parserKey);
+    if (this.hasParserInGlobalStrings(typeName)) {
+      return;
+    }
 
     const fieldCount = this.ctx.interfaceStructGenGetFieldCount(typeName);
 
