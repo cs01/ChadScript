@@ -474,17 +474,17 @@ export class JsonGenerator {
     }
   }
 
-  private getSpaces(expr: MethodCallNode): number | null {
-    if (expr.args.length < 3) return null;
+  private getSpaces(expr: MethodCallNode): number {
+    if (expr.args.length < 3) return 0;
     const spaceArg = expr.args[2] as { type: string; value?: number };
     if (spaceArg.type === "number" && typeof spaceArg.value === "number") {
       return spaceArg.value;
     }
-    return null;
+    return 0;
   }
 
-  private emitStringify(jsonDoc: string, spaces: number | null): string {
-    if (spaces !== null) {
+  private emitStringify(jsonDoc: string, spaces: number): string {
+    if (spaces > 0) {
       const spacesI32 = spaces === 2 ? "2" : "4";
       return this.ctx.emitCall(
         "i8*",
@@ -557,7 +557,7 @@ export class JsonGenerator {
     arg: Expression,
     params: string[],
     interfaceType: string,
-    spaces: number | null = null,
+    spaces: number = 0,
   ): string {
     if (!this.ctx.interfaceStructGenHasInterface(interfaceType)) {
       return this.stringifyNumber(arg, params);
@@ -643,7 +643,7 @@ export class JsonGenerator {
     arg: Expression,
     params: string[],
     elementType: string,
-    spaces: number | null = null,
+    spaces: number = 0,
   ): string {
     if (!this.ctx.interfaceStructGenHasInterface(elementType)) {
       return this.stringifyNumber(arg, params);
