@@ -22,10 +22,7 @@ interface HttpResponse {
 // --- Route Handlers ---
 
 function homeHandler(req: HttpRequest): HttpResponse {
-  return {
-    status: 200,
-    body: "<h1>Hello from ChadScript</h1><p>This page is served by a native binary compiled from TypeScript.</p>",
-  };
+  return { status: 200, body: '{"name":"ChadScript HTTP Server","status":"running"}' };
 }
 
 function jsonHandler(req: HttpRequest): HttpResponse {
@@ -91,7 +88,7 @@ console.log("ChadScript HTTP Server");
 console.log("  listening on http://localhost:" + port);
 console.log("");
 console.log("Available routes:");
-console.log("  GET  /              - Home page (HTML)");
+console.log("  GET  /              - Server info (JSON)");
 console.log("  GET  /json          - JSON response");
 console.log("  GET  /echo?msg=...  - Echo query parameter");
 console.log("  GET  /status/:code  - Status code demo");
