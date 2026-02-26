@@ -119,6 +119,7 @@ import { InterfaceStructGenerator } from "./types/interface-struct-generator.js"
 import { JsonObjectMeta } from "./expressions/access/member.js";
 import type { TargetInfo } from "../target-types.js";
 import { checkClosureMutations } from "../semantic/closure-mutation-checker.js";
+import { checkUnionTypes } from "../semantic/union-type-checker.js";
 
 export interface SemaSymbolData {
   names: string[];
@@ -2360,6 +2361,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   generateParts(): string[] {
     // Run semantic checks before emitting any IR.
     checkClosureMutations(this.ast);
+    checkUnionTypes(this.ast);
 
     const irParts: string[] = [];
 
