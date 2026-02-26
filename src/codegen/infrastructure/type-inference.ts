@@ -389,6 +389,7 @@ export class TypeInference {
       }
 
       if (varName === "JSON" && method === "stringify") return this.ctx.typeContext.stringType;
+      if (varName === "String" && method === "fromCharCode") return this.ctx.typeContext.stringType;
 
       if (varName === "crypto") {
         if (

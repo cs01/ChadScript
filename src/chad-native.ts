@@ -53,7 +53,7 @@ const VERSION = "0.1.0";
 
 const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
 // Color enabled unless NO_COLOR is set (https://no-color.org/) or TERM=dumb
-const _noColor = process.env["NO_COLOR"] || process.env["TERM"] === "dumb";
+const _noColor = process.env.NO_COLOR || process.env.TERM === "dumb";
 const _colorEnabled = !_noColor;
 parser.setColorEnabled(_colorEnabled);
 setDiagnosticColor(_colorEnabled);

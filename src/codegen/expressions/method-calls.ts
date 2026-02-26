@@ -506,6 +506,26 @@ export class MethodCallGenerator {
       return isArray ? "1.0" : "0.0";
     }
 
+    // String.fromCharCode(n) — convert a number to a 1-char string
+    if (this.isVariableWithName(expr.object, "String") && method === "fromCharCode") {
+      if (expr.args.length === 0) {
+        return this.ctx.emitError("String.fromCharCode() requires 1 argument", expr.loc);
+      }
+      const codeVal = this.ctx.generateExpression(expr.args[0], params);
+      const dblVal = this.ctx.ensureDouble(codeVal);
+      const intVal = this.ctx.nextTemp();
+      this.ctx.emit(`${intVal} = fptosi double ${dblVal} to i32`);
+      const byteVal = this.ctx.nextTemp();
+      this.ctx.emit(`${byteVal} = trunc i32 ${intVal} to i8`);
+      // Allocate 2 bytes: the char + null terminator
+      const buf = this.ctx.emitCall("i8*", "@GC_malloc_atomic", "i64 2");
+      this.ctx.emitStore("i8", byteVal, buf);
+      const nullPtr = this.ctx.emitGep("i8", buf, "i64 1");
+      this.ctx.emitStore("i8", "0", nullPtr);
+      this.ctx.setVariableType(buf, "i8*");
+      return buf;
+    }
+
     if (this.isVariableWithName(expr.object, "Object") && method === "keys") {
       return generateObjectKeys(this.ctx, expr, params);
     }
