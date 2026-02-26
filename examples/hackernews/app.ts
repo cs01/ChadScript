@@ -108,7 +108,7 @@ function renderPosts(): string {
     const post = posts[i];
     const rank = i + 1;
     html = html + '<div class="post"><span class="rank">' + rank + ".</span>";
-    html = html + '<form method="POST" action="/upvote/' + post.id + '" style="display:inline">';
+    html = html + '<form method="POST" action="upvote/' + post.id + '" style="display:inline">';
     html = html + '<button type="submit" class="upvote" title="upvote"></button></form>';
     html =
       html + '<span class="title"><a href="' + post.url + '">' + post.title + "</a></span></div>";
@@ -131,7 +131,7 @@ function handleRequest(req: HttpRequest): HttpResponse {
     const idStr = req.path.substring(8, req.path.length);
     sqlite.exec(db, "UPDATE posts SET points = points + 1 WHERE id = ?", [idStr]);
     const redirectHtml =
-      '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/"></head><body>Redirecting...</body></html>';
+      '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=../"></head><body>Redirecting...</body></html>';
     return { status: 200, body: redirectHtml };
   }
 

@@ -126,6 +126,24 @@ When you pass `--target`, the compiler:
 |--------|--------|-------|
 | `linux-x64` | `x86_64-unknown-linux-gnu` | Static glibc binary |
 
+### Adding extra libraries
+
+The target SDK includes libgc, libuv, and yyjson, but not system libs like libsqlite3, libz, or libzstd. If your app links against these, you need to provide linux-x64 static builds and drop them into the SDK vendor directory at `~/.chadscript/targets/linux-x64/vendor/`.
+
+A convenient way to get them is to run a throwaway Linux container on any linux-x64 machine (e.g., your deploy server) and copy the static libs out:
+
+```bash
+podman run --rm -v /tmp/libs:/output:z ubuntu:22.04 bash -c "
+  apt-get update -qq &&
+  apt-get install -y -qq zlib1g-dev libzstd-dev libsqlite3-dev &&
+  cp /usr/lib/x86_64-linux-gnu/libz.a /output/ &&
+  cp /usr/lib/x86_64-linux-gnu/libzstd.a /output/ &&
+  cp /usr/lib/x86_64-linux-gnu/libsqlite3.a /output/"
+rsync -a user@yourserver:/tmp/libs/ ~/.chadscript/targets/linux-x64/vendor/
+```
+
+Docker works the same way — just swap `podman` for `docker` and drop the `:z` volume flag.
+
 ### Limitations
 
 - **macOS to Linux** is the primary cross-compilation path (e.g., develop on Mac, deploy to Linux)
