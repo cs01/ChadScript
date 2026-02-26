@@ -6,14 +6,14 @@ interface Repo {
 
 async function main(): Promise<void> {
   const results = await Promise.all([
-    fetch("https://api.github.com/repos/cs01/ChadScript"),
+    fetch("https://api.github.com/repos/vuejs/vue"),
     fetch("https://api.github.com/repos/facebook/react"),
   ]);
 
-  const cs = JSON.parse<Repo>(results[0].text());
+  const vue = JSON.parse<Repo>(results[0].text());
   const react = JSON.parse<Repo>(results[1].text());
 
-  console.log("ChadScript: " + cs.stargazers_count + " stars");
+  console.log("Vue: " + vue.stargazers_count + " stars");
   console.log("React: " + react.stargazers_count + " stars");
 }
 

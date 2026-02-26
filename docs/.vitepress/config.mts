@@ -17,13 +17,6 @@ export default defineConfig({
     languages: [llvmGrammar],
   },
 
-  transformPageData(pageData) {
-    const mdPath = path.resolve(__dirname, '..', pageData.relativePath)
-    try {
-      pageData.frontmatter.__rawMarkdown = fs.readFileSync(mdPath, 'utf-8')
-    } catch {}
-  },
-
   themeConfig: {
     search: {
       provider: 'local'
@@ -40,11 +33,11 @@ export default defineConfig({
       {
         text: 'Getting Started',
         items: [
-          { text: 'Language Support', link: '/language/limitations' },
+          { text: 'About ChadScript', link: '/language/architecture' },
           { text: 'Installation', link: '/getting-started/installation' },
           { text: 'Examples', link: '/getting-started/quickstart' },
-          { text: 'How it Works', link: '/language/architecture' },
           { text: 'CLI Reference', link: '/getting-started/cli' },
+          { text: 'Supported Features', link: '/language/limitations' },
           { text: 'Debugging', link: '/getting-started/debugging' }
         ]
       },
@@ -84,12 +77,6 @@ export default defineConfig({
           { text: 'Benchmarks', link: '/benchmarks' }
         ]
       },
-      {
-        text: 'Resources',
-        items: [
-          { text: 'FAQ', link: '/faq' }
-        ]
-      }
     ],
 
     socialLinks: [

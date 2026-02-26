@@ -87,7 +87,11 @@ export class SemanticAnalyzer {
     this.ast = ast;
     this.symbols = new Map();
     this.diagnosticEngine = new DiagnosticEngine();
-    this.diagnosticEngine.setColor(true);
+    // Color off by default; caller sets via setDiagnosticColor after construction
+  }
+
+  setDiagnosticColor(enabled: boolean): void {
+    this.diagnosticEngine.setColor(enabled);
   }
 
   setSuppressWarnings(value: boolean): void {

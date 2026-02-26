@@ -15,6 +15,7 @@ interface ArgDef {
 interface SubcommandDef {
   name: string;
   description: string;
+  group: string; // display group header, e.g. "" (default Commands), "Project", "Advanced"
 }
 
 interface ParsedFlag {
@@ -34,6 +35,7 @@ export class ArgumentParser {
   args: ArgDef[];
   subcommands: SubcommandDef[];
   parsedSubcommand: string;
+  colorEnabled: boolean;
 
   // Rest args (after --)
   restArgs: string[];
@@ -48,14 +50,25 @@ export class ArgumentParser {
     this.args = [];
     this.subcommands = [];
     this.parsedSubcommand = "";
+    this.colorEnabled = false;
     this.restArgs = [];
     this.parsedPositionals = [];
     this.parsedFlags = [];
     this.parsedOptions = [];
   }
 
+  setColorEnabled(enabled: boolean): void {
+    this.colorEnabled = enabled;
+  }
+
   addSubcommand(name: string, desc: string): void {
-    this.subcommands.push({ name: name, description: desc });
+    this.subcommands.push({ name: name, description: desc, group: "" });
+  }
+
+  // Like addSubcommand but assigns a display group (e.g. "Project", "Advanced").
+  // Empty group string is the default "Commands:" section.
+  addSubcommandInGroup(name: string, desc: string, group: string): void {
+    this.subcommands.push({ name: name, description: desc, group: group });
   }
 
   // Add a boolean flag (e.g., -v, --verbose)
@@ -560,22 +573,63 @@ export class ArgumentParser {
     console.log("");
     console.log("Usage: " + this.programName + " <command> [options]");
     console.log("");
-    console.log("Commands:");
+
+    // Collect unique groups in insertion order
+    const groups: string[] = [];
     let i = 0;
     while (i < this.subcommands.length) {
-      let line = "  " + this.subcommands[i].name;
-      let padLen = 16 - this.subcommands[i].name.length;
-      if (padLen < 2) {
-        padLen = 2;
+      const g = this.subcommands[i].group;
+      let found = false;
+      let j = 0;
+      while (j < groups.length) {
+        if (groups[j] === g) {
+          found = true;
+        }
+        j = j + 1;
       }
-      let pad = 0;
-      while (pad < padLen) {
-        line = line + " ";
-        pad = pad + 1;
+      if (!found) {
+        groups.push(g);
       }
-      line = line + this.subcommands[i].description;
-      console.log(line);
       i = i + 1;
+    }
+
+    // Print each group section
+    let gi = 0;
+    while (gi < groups.length) {
+      const groupName = groups[gi];
+      if (groupName.length === 0) {
+        console.log("Commands:");
+      } else {
+        console.log(groupName + ":");
+      }
+      let si = 0;
+      while (si < this.subcommands.length) {
+        if (this.subcommands[si].group === groupName) {
+          // Use visible name length for padding so ANSI codes don't throw off alignment
+          const visibleName = this.subcommands[si].name;
+          let displayName = visibleName;
+          if (this.colorEnabled) {
+            displayName = "\x1b[1;36m" + visibleName + "\x1b[0m"; // bold cyan
+          }
+          let line = "  " + displayName;
+          let padLen = 16 - visibleName.length;
+          if (padLen < 2) {
+            padLen = 2;
+          }
+          let pad = 0;
+          while (pad < padLen) {
+            line = line + " ";
+            pad = pad + 1;
+          }
+          line = line + this.subcommands[si].description;
+          console.log(line);
+        }
+        si = si + 1;
+      }
+      gi = gi + 1;
+      if (gi < groups.length) {
+        console.log("");
+      }
     }
 
     let hasGlobalArgs = false;

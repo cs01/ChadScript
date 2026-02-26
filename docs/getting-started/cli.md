@@ -1,10 +1,10 @@
 # CLI Reference
 
-## Commands
-
 ```
 chad <command> [options] <file>
 ```
+
+## Commands
 
 ### `chad build <file>`
 
@@ -25,25 +25,6 @@ chad run hello.ts
 chad run hello.ts -- arg1 arg2   # Pass arguments to the program
 ```
 
-### `chad ir <file>`
-
-Emit LLVM IR without compiling to a binary. Useful for debugging codegen.
-
-```bash
-chad ir hello.ts                 # Prints LLVM IR to stdout
-chad ir hello.ts > hello.ll      # Save to file
-```
-
-### `chad init`
-
-Generate type definitions and a starter project in the current directory.
-
-```bash
-chad init
-```
-
-Creates `chadscript.d.ts` (type declarations for editor support), `tsconfig.json`, and `hello.ts`. Run this once per project so your editor knows about ChadScript's built-in APIs.
-
 ### `chad watch <file>`
 
 Watch a source file for changes and automatically recompile + re-run. Uses `inotify` on Linux and `kqueue` on macOS for event-based change detection.
@@ -56,12 +37,35 @@ chad watch server.ts            # Recompiles and re-runs on every save
 - Compile errors don't crash the loop — keeps watching
 - Ctrl+C exits cleanly (kills child process)
 
+## Project
+
+### `chad init`
+
+Generate type definitions and a starter project in the current directory.
+
+```bash
+chad init
+```
+
+Creates `chadscript.d.ts` (type declarations for editor support), `tsconfig.json`, and `hello.ts`. Run this once per project so your editor knows about ChadScript's built-in APIs.
+
 ### `chad clean`
 
 Remove the `.build` directory.
 
 ```bash
 chad clean
+```
+
+## Advanced
+
+### `chad ir <file>`
+
+Emit LLVM IR without compiling to a binary. Useful for debugging codegen.
+
+```bash
+chad ir hello.ts                 # Prints LLVM IR to stdout
+chad ir hello.ts > hello.ll      # Save to file
 ```
 
 ### `chad target`
@@ -83,7 +87,7 @@ SDKs are installed to `~/.chadscript/targets/<name>/`.
 | `-o <output>` | Specify output file path (default: `.build/<input>`) |
 | `--target <target>` | Cross-compile for a different platform (see below) |
 | `-v`, `--verbose` | Show compilation steps |
-| `-g` | Emit DWARF debug info for source-level debugging with gdb/lldb |
+| `-g` | Emit DWARF debug info for source-level debugging with gdb/lldb (also skips stripping) |
 | `--emit-llvm`, `-S` | Output LLVM IR only (no binary) |
 | `--keep-temps` | Keep intermediate files (`.ll`, `.o`) |
 | `-fsanitize=address` | Build with AddressSanitizer (ASAN) |
@@ -125,6 +129,23 @@ When you pass `--target`, the compiler:
 | Target | Triple | Notes |
 |--------|--------|-------|
 | `linux-x64` | `x86_64-unknown-linux-gnu` | Static glibc binary |
+
+### Adding extra libraries
+
+The target SDK includes libgc, libuv, and yyjson, but not system libs like libsqlite3, libz, or libzstd. If your app links against these, you need to provide linux-x64 static builds and drop them into the SDK vendor directory at `~/.chadscript/targets/linux-x64/vendor/`.
+
+A convenient way to get them is to pull them from a throwaway Linux container:
+
+```bash
+podman run --rm -v ~/.chadscript/targets/linux-x64/vendor:/output:z ubuntu:22.04 bash -c "
+  apt-get update -qq &&
+  apt-get install -y -qq zlib1g-dev libzstd-dev libsqlite3-dev &&
+  cp /usr/lib/x86_64-linux-gnu/libz.a /output/ &&
+  cp /usr/lib/x86_64-linux-gnu/libzstd.a /output/ &&
+  cp /usr/lib/x86_64-linux-gnu/libsqlite3.a /output/"
+```
+
+Docker works the same way — just swap `podman` for `docker` and drop the `:z` volume flag.
 
 ### Limitations
 

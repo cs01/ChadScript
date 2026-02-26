@@ -10,7 +10,7 @@ hero:
       link: /getting-started/installation
     - theme: alt
       text: Learn More
-      link: /language/limitations
+      link: /language/architecture
 
 features:
   - title: No Runtime
@@ -31,6 +31,8 @@ features:
 
 <ExampleTabs />
 
+<div class="examples-link">See more <a href="/ChadScript/getting-started/quickstart">examples →</a></div>
+
 <div class="cta-section">
 
 ## Ready to try it?
@@ -47,6 +49,19 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
 </div>
 
 <style>
+.examples-link {
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 0.9rem;
+  color: var(--vp-c-text-3);
+}
+.examples-link a {
+  color: var(--vp-c-brand-1);
+  text-decoration: none;
+}
+.examples-link a:hover {
+  text-decoration: underline;
+}
 .cta-section {
   max-width: 688px;
   margin: 4rem auto 2rem;

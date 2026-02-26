@@ -746,6 +746,31 @@ function transformStringNode(node: TreeSitterNode): StringNode {
       } else if (next === "'") {
         processed += "'";
         i += 2;
+      } else if (next === "x" && i + 3 < text.length) {
+        // \xHH hex escape — parse two hex digits into a single character
+        const hex = text.substring(i + 2, i + 4);
+        const code = parseInt(hex, 16);
+        if (!isNaN(code)) {
+          processed += String.fromCharCode(code);
+          i += 4;
+        } else {
+          processed += next;
+          i += 2;
+        }
+      } else if (next === "u" && i + 5 < text.length) {
+        // \uHHHH unicode escape — parse four hex digits
+        const hex = text.substring(i + 2, i + 6);
+        const code = parseInt(hex, 16);
+        if (!isNaN(code)) {
+          processed += String.fromCharCode(code);
+          i += 6;
+        } else {
+          processed += next;
+          i += 2;
+        }
+      } else if (next === "0") {
+        processed += "\0";
+        i += 2;
       } else {
         processed += next;
         i += 2;
@@ -1200,7 +1225,16 @@ function transformTemplateString(node: TreeSitterNode): Expression {
       else if (decoded === "\\\\") decoded = "\\";
       else if (decoded === "\\`") decoded = "`";
       else if (decoded === "\\$") decoded = "$";
-      else if (decoded.length === 2 && decoded.charAt(0) === "\\") decoded = decoded.charAt(1);
+      else if (decoded === "\\0") decoded = "\0";
+      else if (decoded.length === 4 && decoded.startsWith("\\x")) {
+        // \xHH hex escape
+        const code = parseInt(decoded.substring(2, 4), 16);
+        decoded = !isNaN(code) ? String.fromCharCode(code) : decoded.charAt(1);
+      } else if (decoded.length === 6 && decoded.startsWith("\\u")) {
+        // \uHHHH unicode escape
+        const code = parseInt(decoded.substring(2, 6), 16);
+        decoded = !isNaN(code) ? String.fromCharCode(code) : decoded.charAt(1);
+      } else if (decoded.length === 2 && decoded.charAt(0) === "\\") decoded = decoded.charAt(1);
       parts.push({ type: "string", value: decoded } as Expression);
     } else if (c.type === "template_substitution") {
       hasSubstitutions = true;

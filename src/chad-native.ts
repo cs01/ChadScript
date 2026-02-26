@@ -5,9 +5,11 @@ import {
   setTargetCpu,
   setTargetTriple,
   setVerbose,
+  setDebugInfo,
   addLinkObj,
   addLinkLib,
   addLinkPath,
+  setDiagnosticColor,
 } from "./native-compiler-lib.js";
 // d.ts content is embedded at compile time via ChadScript.embedFile
 const dtsContent = ChadScript.embedFile("../chadscript.d.ts");
@@ -51,17 +53,23 @@ declare function cs_watch_loop(
 const VERSION = "0.1.0";
 
 const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
-parser.addSubcommand("build", "Compile to a native binary");
-parser.addSubcommand("run", "Compile and run");
-parser.addSubcommand("ir", "Emit LLVM IR only");
-parser.addSubcommand("init", "Generate starter project");
-parser.addSubcommand("watch", "Watch for changes and recompile+run");
-parser.addSubcommand("clean", "Remove the .build directory");
-parser.addSubcommand("target", "Manage cross-compilation target SDKs");
+// Color enabled unless NO_COLOR is set (https://no-color.org/) or TERM=dumb
+const _noColor = process.env.NO_COLOR || process.env.TERM === "dumb";
+const _colorEnabled = !_noColor;
+parser.setColorEnabled(_colorEnabled);
+setDiagnosticColor(_colorEnabled);
+parser.addSubcommandInGroup("build", "Compile to a native binary", "");
+parser.addSubcommandInGroup("run", "Compile and run", "");
+parser.addSubcommandInGroup("watch", "Watch for changes and recompile+run", "");
+parser.addSubcommandInGroup("init", "Generate starter project", "Project");
+parser.addSubcommandInGroup("clean", "Remove the .build directory", "Project");
+parser.addSubcommandInGroup("ir", "Emit LLVM IR only", "Advanced");
+parser.addSubcommandInGroup("target", "Manage cross-compilation target SDKs", "Advanced");
 
 parser.addFlag("version", "", "Show version");
 parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
 parser.addScopedFlag("verbose", "v", "Show compilation steps", "build,run,ir");
+parser.addScopedFlag("debug-info", "g", "Emit DWARF debug info (skips stripping)", "build,run");
 parser.addScopedFlag("skip-semantic-analysis", "", "Skip semantic analysis", "build,run,ir");
 parser.addScopedOption(
   "target",
@@ -244,6 +252,10 @@ if (command.length === 0) {
 
 if (parser.getFlag("verbose")) {
   setVerbose(true);
+}
+
+if (parser.getFlag("debug-info")) {
+  setDebugInfo(true);
 }
 
 if (parser.getFlag("skip-semantic-analysis")) {

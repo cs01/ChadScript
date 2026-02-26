@@ -1,6 +1,4 @@
-# Language Support
-
-ChadScript supports a practical subset of TypeScript. All types must be known at compile time — there's no runtime type system, no interpreter, and no VM.
+# Supported Features
 
 ## Core Language
 
@@ -79,7 +77,7 @@ ChadScript supports a practical subset of TypeScript. All types must be known at
 | `implements` | Supported |
 | Interface inheritance (`extends`) | Supported |
 | Static methods and fields | Supported |
-| Abstract classes | Not yet supported |
+| Abstract classes | Not supported |
 | Private class fields (`#field`) | Not supported |
 | Decorators | Not supported |
 

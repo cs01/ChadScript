@@ -472,6 +472,17 @@ export class JsonGenerator {
       return this.stringifyString(arg, params);
     }
 
+    // Check for ObjectArray (e.g. Post[]) before resolveInterfaceType —
+    // getRawInterfaceType returns the element type for arrays, which would
+    // cause stringifyInterface to treat the array pointer as a single object.
+    if (arg.type === "variable") {
+      const varNode = arg as { type: string; name: string };
+      const elementType = this.ctx.symbolTable.getObjectArrayElementType(varNode.name);
+      if (elementType) {
+        return this.stringifyObjectArray(arg, params, elementType);
+      }
+    }
+
     const interfaceType = this.resolveInterfaceType(arg);
     if (interfaceType) {
       return this.stringifyInterface(arg, params, interfaceType);
@@ -516,20 +527,42 @@ export class JsonGenerator {
       return this.stringifyNumber(arg, params);
     }
 
-    const fieldTypes: string[] = [];
-    for (let i = 0; i < fieldCount; i++) {
-      fieldTypes.push(this.ctx.interfaceStructGenGetFieldLlvmType(interfaceType, i));
-    }
-    const structType = `{ ${fieldTypes.join(", ")} }`;
+    const structType = this.buildStructType(interfaceType, fieldCount);
 
     const objPtr = this.ctx.generateExpression(arg, params);
-
     const typedPtr = this.ctx.emitBitcast(objPtr, "i8*", `${structType}*`);
 
     this.ctx.setUsesJson(true);
     const jsonDoc = this.ctx.emitCall("i8*", "@csyyjson_create_obj", "");
     const jsonObj = this.ctx.emitCall("i8*", "@csyyjson_mut_get_root", `i8* ${jsonDoc}`);
 
+    this.emitAddFieldsToJsonObj(typedPtr, structType, interfaceType, jsonDoc, jsonObj);
+
+    const result = this.ctx.emitCall("i8*", "@csyyjson_stringify", `i8* ${jsonDoc}`);
+    this.ctx.setVariableType(result, "i8*");
+
+    return result;
+  }
+
+  /** Build the LLVM struct type string for an interface (e.g. "{ i8*, double }") */
+  private buildStructType(interfaceType: string, fieldCount: number): string {
+    const fieldTypes: string[] = [];
+    for (let i = 0; i < fieldCount; i++) {
+      fieldTypes.push(this.ctx.interfaceStructGenGetFieldLlvmType(interfaceType, i));
+    }
+    return `{ ${fieldTypes.join(", ")} }`;
+  }
+
+  /** Emit IR to add all fields of a typed struct to a yyjson object.
+   *  Shared by stringifyInterface (single object) and stringifyObjectArray (per-element). */
+  private emitAddFieldsToJsonObj(
+    typedPtr: string,
+    structType: string,
+    interfaceType: string,
+    jsonDoc: string,
+    jsonObj: string,
+  ): void {
+    const fieldCount = this.ctx.interfaceStructGenGetFieldCount(interfaceType);
     for (let i = 0; i < fieldCount; i++) {
       const fieldName = this.ctx.interfaceStructGenGetFieldName(interfaceType, i);
       const fieldTsType = this.ctx.interfaceStructGenGetFieldTsType(interfaceType, i);
@@ -563,6 +596,74 @@ export class JsonGenerator {
         );
       }
     }
+  }
+
+  /** Stringify an ObjectArray (e.g. Post[]) as a JSON array of objects */
+  private stringifyObjectArray(arg: Expression, params: string[], elementType: string): string {
+    if (!this.ctx.interfaceStructGenHasInterface(elementType)) {
+      return this.stringifyNumber(arg, params);
+    }
+    const fieldCount = this.ctx.interfaceStructGenGetFieldCount(elementType);
+    if (fieldCount === 0) {
+      return this.stringifyNumber(arg, params);
+    }
+
+    const structType = this.buildStructType(elementType, fieldCount);
+    const structSize = fieldCount * 8;
+
+    const arrPtr = this.ctx.generateExpression(arg, params);
+
+    this.ctx.setUsesJson(true);
+
+    // Load ObjectArray length (field 1) and data pointer (field 0)
+    const lenPtr = this.ctx.emitGep("%ObjectArray", arrPtr, "i32 0, i32 1");
+    const len = this.ctx.emitLoad("i32", lenPtr);
+    const dataRawPtr = this.ctx.emitGep("%ObjectArray", arrPtr, "i32 0, i32 0");
+    const dataI8 = this.ctx.emitLoad("i8*", dataRawPtr);
+    const dataPtr = this.ctx.emitBitcast(dataI8, "i8*", "i8**");
+
+    // Create yyjson array doc
+    const jsonDoc = this.ctx.emitCall("i8*", "@csyyjson_create_arr", "");
+    const jsonArr = this.ctx.emitCall("i8*", "@csyyjson_mut_get_root", `i8* ${jsonDoc}`);
+
+    // Loop over elements using alloca counter pattern
+    const counterAlloca = this.ctx.nextTemp();
+    this.ctx.emit(`${counterAlloca} = alloca i32`);
+    this.ctx.emitStore("i32", "0", counterAlloca);
+
+    const loopCond = this.ctx.nextLabel("json_arr_loop_cond");
+    const loopBody = this.ctx.nextLabel("json_arr_loop_body");
+    const loopEnd = this.ctx.nextLabel("json_arr_loop_end");
+
+    this.ctx.emitBr(loopCond);
+    this.ctx.emitLabel(loopCond);
+    const i = this.ctx.emitLoad("i32", counterAlloca);
+    const cond = this.ctx.emitIcmp("slt", "i32", i, len);
+    this.ctx.emitBrCond(cond, loopBody, loopEnd);
+
+    this.ctx.emitLabel(loopBody);
+    // Load element pointer: dataPtr[i] is an i8*
+    const elemSlot = this.ctx.emitGep("i8*", dataPtr, `i32 ${i}`);
+    const elemRaw = this.ctx.emitLoad("i8*", elemSlot);
+    const elemTyped = this.ctx.emitBitcast(elemRaw, "i8*", `${structType}*`);
+
+    // Create a sub-object in the JSON array
+    const subObj = this.ctx.emitCall(
+      "i8*",
+      "@csyyjson_mut_arr_add_obj",
+      `i8* ${jsonDoc}, i8* ${jsonArr}`,
+    );
+
+    // Add all fields from this element to the sub-object
+    this.emitAddFieldsToJsonObj(elemTyped, structType, elementType, jsonDoc, subObj);
+
+    // Increment counter
+    const iNext = this.ctx.nextTemp();
+    this.ctx.emit(`${iNext} = add i32 ${i}, 1`);
+    this.ctx.emitStore("i32", iNext, counterAlloca);
+    this.ctx.emitBr(loopCond);
+
+    this.ctx.emitLabel(loopEnd);
 
     const result = this.ctx.emitCall("i8*", "@csyyjson_stringify", `i8* ${jsonDoc}`);
     this.ctx.setVariableType(result, "i8*");

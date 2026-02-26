@@ -76,12 +76,18 @@ function findLLD(): string {
 export let skipSemanticAnalysis = false;
 export let emitLLVMOnly = false;
 export let verbose = false;
+export let debugInfo = false;
 export let targetCpu = "native";
 export let targetTriple = "";
+export let diagnosticColorEnabled = false; // set via setDiagnosticColor() by caller
 // Extra linker flags from --link-obj, --link-lib, --link-path
 export let extraLinkObjs: string[] = [];
 export let extraLinkLibs: string[] = [];
 export let extraLinkPaths: string[] = [];
+
+export function setDiagnosticColor(value: boolean): void {
+  diagnosticColorEnabled = value;
+}
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -93,6 +99,10 @@ export function setEmitLLVMOnly(value: boolean): void {
 
 export function setVerbose(value: boolean): void {
   verbose = value;
+}
+
+export function setDebugInfo(value: boolean): void {
+  debugInfo = value;
 }
 
 export function setTargetCpu(value: string): void {
@@ -193,6 +203,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
       console.log("Running semantic analysis...");
     }
     const analyzer = new SemanticAnalyzer(mergedAST);
+    analyzer.setDiagnosticColor(diagnosticColorEnabled);
     const analysisSuccess = analyzer.analyze();
 
     if (!analysisSuccess) {
@@ -276,6 +287,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     target: targetInfo,
   };
   const generator = new LLVMGenerator(mergedAST, null, generatorOptions);
+  generator.diagnostics.setColor(diagnosticColorEnabled);
   const irParts = generator.generateParts();
   if (verbose) {
     console.log("Generated IR parts: " + irParts.length);
@@ -459,6 +471,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
   const shouldStatic = !targetIsDarwin && crossCompiling;
   const staticFlag = shouldStatic ? " -static" : "";
   const crossTargetFlag = crossCompiling ? " --target=" + targetTriple : "";
+  const debugFlag = debugInfo ? " -g" : "";
+  // Strip symbol table from release builds. Skipped on macOS (linker handles it
+  // differently) and when -g is set (stripping debug info defeats the purpose).
+  const stripFlag = !debugInfo && !isMac ? " -s" : "";
   // Cross-compiling requires lld — the host linker can't produce foreign binaries.
   // Use full path because Homebrew clang can't find lld by short name.
   // Try ld.lld first (ELF-specific), fall back to lld (multicall binary, auto-detects format).
@@ -501,6 +517,8 @@ export function compileNative(inputFile: string, outputFile: string): void {
     " -o " +
     outputFile +
     noPie +
+    debugFlag +
+    stripFlag +
     staticFlag +
     crossTargetFlag +
     crossLinker +
@@ -517,6 +535,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
 
   fs.unlinkSync(objFile);
+  fs.unlinkSync(optFile);
   if (verbose) {
     console.log("Compiled: " + outputFile);
   }

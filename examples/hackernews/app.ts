@@ -1,4 +1,4 @@
-// Hacker News Clone - full-stack app with SQLite, embedded files, and server-side rendering
+// Hacker News Clone - full-stack app with SQLite, embedded files, and a JSON API
 import { ArgumentParser } from "../../src/argparse.js";
 
 const parser = new ArgumentParser(
@@ -37,113 +37,131 @@ sqlite.exec(
   "CREATE TABLE posts (id INTEGER PRIMARY KEY, title TEXT, url TEXT, points INTEGER)",
 );
 
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('Show HN: ChadScript - TypeScript to native compiler via LLVM', 'https://github.com/cs01/ChadScript', 342)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('Why we moved from Node.js to native binaries', 'https://example.com/native', 287)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('LLVM IR is surprisingly readable', 'https://llvm.org/docs/LangRef.html', 256)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('SQLite is the only database you need', 'https://sqlite.org', 234)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('Single-binary deployments changed everything', 'https://example.com/single-binary', 198)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('The Boehm GC: garbage collection for C programs', 'https://hboehm.info/gc/', 176)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('Zero-cost TypeScript: no runtime overhead', 'https://example.com/zero-cost', 165)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('libwebsockets: lightweight C WebSocket library', 'https://libwebsockets.org', 154)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('Self-hosting compilers: the ultimate test', 'https://example.com/self-hosting', 143)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('Compile-time file embedding in native languages', 'https://example.com/embed', 132)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('Why I stopped using Docker for simple services', 'https://example.com/no-docker', 121)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('libuv: the event loop behind Node.js', 'https://libuv.org', 110)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('Tree-sitter for building parsers', 'https://tree-sitter.github.io', 98)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('Ask HN: What is your deploy strategy for side projects?', 'https://news.ycombinator.com', 87)",
-);
-sqlite.exec(
-  db,
-  "INSERT INTO posts (title, url, points) VALUES ('Building a compiler is easier than you think', 'https://example.com/compiler-easy', 76)",
-);
+interface SeedPost {
+  title: string;
+  url: string;
+  points: number;
+}
 
-function renderPosts(): string {
-  const posts: Post[] = sqlite.query(
-    db,
-    "SELECT id, title, url, points FROM posts ORDER BY points DESC",
-  );
-  let html = "";
-  for (let i = 0; i < posts.length; i++) {
-    const post = posts[i];
-    const rank = i + 1;
-    html = html + '<div class="post"><span class="rank">' + rank + ".</span>";
-    html = html + '<form method="POST" action="/upvote/' + post.id + '" style="display:inline">';
-    html = html + '<button type="submit" class="upvote" title="upvote"></button></form>';
-    html =
-      html + '<span class="title"><a href="' + post.url + '">' + post.title + "</a></span></div>";
-    html = html + '<div class="meta">' + post.points + " points</div>";
-  }
-  return html;
+const url = "https://github.com/cs01/ChadScript";
+
+const seedPosts: SeedPost[] = [
+  {
+    title: "Show HN: ChadScript - a compiled TypeScript that outputs native binaries",
+    url: url,
+    points: 342,
+  },
+  {
+    title: "ChadScript compiles TypeScript to LLVM IR, then to standalone ELF executables",
+    url: url,
+    points: 287,
+  },
+  {
+    title:
+      "ChadScript supports a large subset of TypeScript: classes, interfaces, generics, async/await",
+    url: url,
+    points: 256,
+  },
+  {
+    title: "Native performance: ChadScript binaries start in under 2ms with zero runtime overhead",
+    url: url,
+    points: 234,
+  },
+  {
+    title: "ChadScript uses SQLite as a built-in database - no external dependencies needed",
+    url: url,
+    points: 198,
+  },
+  {
+    title: "Single-binary deploys: ChadScript embeds HTML, CSS, and assets at compile time",
+    url: url,
+    points: 176,
+  },
+  {
+    title: "ChadScript includes a built-in HTTP server, fetch, crypto, and JSON out of the box",
+    url: url,
+    points: 165,
+  },
+  {
+    title: "The ChadScript compiler is self-hosting - it compiles itself to a native binary",
+    url: url,
+    points: 154,
+  },
+  {
+    title: "ChadScript uses the Boehm GC for automatic memory management in compiled binaries",
+    url: url,
+    points: 143,
+  },
+  {
+    title: "No node_modules: everything you would npm install is built into ChadScript",
+    url: url,
+    points: 132,
+  },
+  {
+    title: "ChadScript cross-compiles from macOS to Linux with a single --target flag",
+    url: url,
+    points: 121,
+  },
+  {
+    title: "ChadScript uses libuv under the hood for async I/O and event loop support",
+    url: url,
+    points: 110,
+  },
+  {
+    title: "Write TypeScript, ship a 42KB static binary - the ChadScript workflow",
+    url: url,
+    points: 98,
+  },
+  {
+    title: "ChadScript parses TypeScript with a hand-written recursive descent parser",
+    url: url,
+    points: 87,
+  },
+  {
+    title: "Ask HN: Has anyone tried ChadScript for deploying side projects?",
+    url: url,
+    points: 76,
+  },
+];
+
+for (let i = 0; i < seedPosts.length; i++) {
+  const post = seedPosts[i];
+  sqlite.exec(db, "INSERT INTO posts (title, url, points) VALUES (?, ?, ?)", [
+    post.title,
+    post.url,
+    "" + post.points,
+  ]);
 }
 
 function handleRequest(req: HttpRequest): HttpResponse {
   console.log(req.method + " " + req.path);
 
-  if (req.method === "GET" && req.path === "/") {
-    const template = ChadScript.getEmbeddedFile("index.html");
-    const posts = renderPosts();
-    const body = template.replace("{{POSTS}}", posts);
-    return { status: 200, body: body };
+  if (req.path === "/api/posts") {
+    const posts: Post[] = sqlite.query(
+      db,
+      "SELECT id, title, url, points FROM posts ORDER BY points DESC",
+    );
+    return { status: 200, body: JSON.stringify(posts) };
   }
 
   if (req.method === "POST" && req.path.startsWith("/upvote/")) {
     const idStr = req.path.substring(8, req.path.length);
     sqlite.exec(db, "UPDATE posts SET points = points + 1 WHERE id = ?", [idStr]);
-    const redirectHtml =
-      '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=/"></head><body>Redirecting...</body></html>';
-    return { status: 200, body: redirectHtml };
+    return { status: 200, body: '{"ok":true}' };
   }
 
-  // Serve all other embedded files (CSS, images, etc.) with a single line
+  if (req.path === "/") {
+    return ChadScript.serveEmbedded("index.html");
+  }
+
   return ChadScript.serveEmbedded(req.path);
 }
 
 console.log("Hacker News Clone");
-console.log("  listening on http://localhost:" + port);
-console.log("  HTML/CSS embedded in the binary at compile time");
-console.log("  SQLite database running in-memory with 15 posts");
+console.log(`  listening on http://localhost:${port}`);
+console.log("  HTML/CSS/JS embedded in the binary at compile time");
+console.log(`  SQLite database running in-memory with ${seedPosts.length} posts`);
 console.log("");
-console.log("Open http://localhost:" + port + " in your browser");
+console.log(`Open http://localhost:${port} in your browser`);
 console.log("");
 httpServe(port, handleRequest);

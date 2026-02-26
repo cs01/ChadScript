@@ -40,6 +40,22 @@ npm run build
 
 `scripts/build-vendor.sh` clones and builds static archives for libgc, cJSON, libuv, tree-sitter, and libwebsockets into `vendor/`. It's idempotent — re-running skips already-built libraries.
 
+## Run
+
+After building, the compiler is available as a Node.js script:
+
+```bash
+node dist/chad-node.js build hello.ts -o hello
+./hello
+```
+
+For a ~10x faster compiler, build the native binary once:
+
+```bash
+node dist/chad-node.js build src/chad-native.ts -o .build/chad
+# Now tests and scripts auto-use .build/chad instead of node dist/chad-node.js
+```
+
 ## Verify
 
 ```bash
@@ -95,11 +111,13 @@ bash scripts/build-target-sdk.sh
 
 ## Self-Hosting (Stage 0)
 
-ChadScript can compile its own compiler to a native binary:
+ChadScript can compile its own compiler to a native binary (this is what `scripts/self-hosting.sh` automates):
 
 ```bash
-chad build src/chad-native.ts -o /tmp/chad-stage0
+# Stage 0: Node.js compiler produces a native binary
+node dist/chad-node.js build src/chad-native.ts -o /tmp/chad-stage0
 
+# Stage 1: that native binary recompiles itself
 /tmp/chad-stage0 build src/chad-native.ts -o /tmp/chad-stage1
 ```
 

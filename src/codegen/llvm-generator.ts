@@ -1471,7 +1471,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.diagnostics = new DiagnosticEngine();
     this.diagnostics.setSourceCode(this.sourceCode);
     this.diagnostics.setFilename(this.filename);
-    this.diagnostics.setColor(true);
+    // Color off by default; compiler.ts sets it based on stderr TTY
 
     this.typeContext = new TypeContext();
     this.symbolTable = new SymbolTable(this.typeContext);
