@@ -78,10 +78,15 @@ export let emitLLVMOnly = false;
 export let verbose = false;
 export let targetCpu = "native";
 export let targetTriple = "";
+export let diagnosticColorEnabled = false; // set via setDiagnosticColor() by caller
 // Extra linker flags from --link-obj, --link-lib, --link-path
 export let extraLinkObjs: string[] = [];
 export let extraLinkLibs: string[] = [];
 export let extraLinkPaths: string[] = [];
+
+export function setDiagnosticColor(value: boolean): void {
+  diagnosticColorEnabled = value;
+}
 
 export function setSkipSemanticAnalysis(value: boolean): void {
   skipSemanticAnalysis = value;
@@ -193,6 +198,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
       console.log("Running semantic analysis...");
     }
     const analyzer = new SemanticAnalyzer(mergedAST);
+    analyzer.setDiagnosticColor(diagnosticColorEnabled);
     const analysisSuccess = analyzer.analyze();
 
     if (!analysisSuccess) {
@@ -276,6 +282,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     target: targetInfo,
   };
   const generator = new LLVMGenerator(mergedAST, null, generatorOptions);
+  generator.diagnostics.setColor(diagnosticColorEnabled);
   const irParts = generator.generateParts();
   if (verbose) {
     console.log("Generated IR parts: " + irParts.length);

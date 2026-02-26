@@ -8,6 +8,7 @@ import {
   addLinkObj,
   addLinkLib,
   addLinkPath,
+  setDiagnosticColor,
 } from "./native-compiler-lib.js";
 // d.ts content is embedded at compile time via ChadScript.embedFile
 const dtsContent = ChadScript.embedFile("../chadscript.d.ts");
@@ -53,7 +54,9 @@ const VERSION = "0.1.0";
 const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
 // Color enabled unless NO_COLOR is set (https://no-color.org/) or TERM=dumb
 const _noColor = process.env["NO_COLOR"] || process.env["TERM"] === "dumb";
-parser.setColorEnabled(!_noColor);
+const _colorEnabled = !_noColor;
+parser.setColorEnabled(_colorEnabled);
+setDiagnosticColor(_colorEnabled);
 parser.addSubcommandInGroup("build", "Compile to a native binary", "");
 parser.addSubcommandInGroup("run", "Compile and run", "");
 parser.addSubcommandInGroup("watch", "Watch for changes and recompile+run", "");
