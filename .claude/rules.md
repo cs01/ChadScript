@@ -205,6 +205,7 @@ Existing bridges: `regex-bridge.c`, `yyjson-bridge.c`, `os-bridge.c`, `child-pro
 5. **Type cast field order must match FULL struct layout** — when the type extends a parent interface, the struct includes ALL parent fields. `as { name, closureInfo }` on a `LiftedFunction extends FunctionNode` (10 fields) reads index 1 instead of index 9. Include every field.
 6. **`ret void` not `unreachable`** at end of void functions
 7. **Class structs: boolean is `i1`; Interface structs: boolean is `double`**
+8. **Set feature flags when emitting gated extern calls** — runtime declarations for C bridges (yyjson, curl, etc.) are conditionally emitted behind flags like `usesJson`, `usesCurl`. Any code path that emits `call @csyyjson_*` must call `ctx.setUsesJson(true)`, etc. Missing this causes "undefined value" errors from `opt` because the `declare` is never emitted.
 
 ## Interface Field Iteration
 
