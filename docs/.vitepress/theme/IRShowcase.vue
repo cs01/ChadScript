@@ -216,7 +216,7 @@ onUnmounted(() => {
           </span>
           <span v-else-if="linkingState === 'done'" class="link-row">
             <span class="checkmark">✓</span>
-            <span class="link-text">hello: ELF 64-bit LSB executable, x86-64 (42 KB)</span>
+            <span class="link-text">.build/hello: ELF 64-bit LSB executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, stripped</span>
           </span>
         </div>
       </div>

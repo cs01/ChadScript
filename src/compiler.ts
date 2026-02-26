@@ -465,6 +465,9 @@ export function compile(
   // -no-pie: only for native Linux builds (not macOS, not cross-compiling from macOS)
   const noPie = !targetIsMac && !crossCompiling ? " -no-pie" : "";
   const debugFlag = debugInfo ? " -g" : "";
+  // Strip symbol table from release builds — keeps binaries small and clean.
+  // Skip when -g is set (stripped + debug info produces nothing useful).
+  const stripFlag = !debugInfo && !targetIsMac ? " -s" : "";
   // Cross-compiled Linux binaries always link statically — the SDK's sysroot
   // contains .a archives only (Ubuntu's .so files are linker scripts with
   // hardcoded absolute paths that can't be relocated to a different sysroot).
@@ -480,7 +483,7 @@ export function compile(
   const userObjs = extraLinkObjs.length > 0 ? " " + extraLinkObjs.join(" ") : "";
   const userPaths = extraLinkPaths.map((p) => ` -L${p}`).join("");
   const userLibs = extraLinkLibs.map((l) => ` -l${l}`).join("");
-  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
+  const linkCmd = `${linker} ${objFile} ${lwsBridgeObj} ${regexBridgeObj} ${cpBridgeObj} ${osBridgeObj} ${dotenvBridgeObj} ${watchBridgeObj} ${cpSpawnObj}${extraObjs}${userObjs} -o ${outputFile}${noPie}${debugFlag}${stripFlag}${staticFlag}${crossTarget}${crossLinker}${sanitizeFlags} ${linkLibs}${userPaths}${userLibs}`;
   logger.info(` ${linkCmd}`);
   const linkStdio = logger.getLevel() >= LogLevel.Verbose ? "inherit" : "pipe";
   execSync(linkCmd, { stdio: linkStdio });

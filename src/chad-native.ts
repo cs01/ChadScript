@@ -5,6 +5,7 @@ import {
   setTargetCpu,
   setTargetTriple,
   setVerbose,
+  setDebugInfo,
   addLinkObj,
   addLinkLib,
   addLinkPath,
@@ -68,6 +69,7 @@ parser.addSubcommandInGroup("target", "Manage cross-compilation target SDKs", "A
 parser.addFlag("version", "", "Show version");
 parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
 parser.addScopedFlag("verbose", "v", "Show compilation steps", "build,run,ir");
+parser.addScopedFlag("debug-info", "g", "Emit DWARF debug info (skips stripping)", "build,run");
 parser.addScopedFlag("skip-semantic-analysis", "", "Skip semantic analysis", "build,run,ir");
 parser.addScopedOption(
   "target",
@@ -250,6 +252,10 @@ if (command.length === 0) {
 
 if (parser.getFlag("verbose")) {
   setVerbose(true);
+}
+
+if (parser.getFlag("debug-info")) {
+  setDebugInfo(true);
 }
 
 if (parser.getFlag("skip-semantic-analysis")) {

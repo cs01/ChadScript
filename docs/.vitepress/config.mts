@@ -87,12 +87,6 @@ export default defineConfig({
           { text: 'Benchmarks', link: '/benchmarks' }
         ]
       },
-      {
-        text: 'Resources',
-        items: [
-          { text: 'FAQ', link: '/faq' }
-        ]
-      }
     ],
 
     socialLinks: [
