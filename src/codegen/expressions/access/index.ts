@@ -35,6 +35,7 @@ export interface IndexAccessGeneratorContext {
   isStringExpression(expr: Expression): boolean;
   readonly stringGen: IStringGenerator;
   ensureDouble(value: string): string;
+  setUsesJson(value: boolean): void;
 }
 
 /**
@@ -92,6 +93,7 @@ export class IndexAccessGenerator {
       exprObjBase.type === "variable" &&
       this.ctx.symbolTable.isJSON((expr.object as VariableNode).name)
     ) {
+      this.ctx.setUsesJson(true);
       return this.generateJSONArrayIndex(expr, params);
     }
 

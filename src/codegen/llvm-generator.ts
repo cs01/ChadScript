@@ -118,6 +118,8 @@ import type { TypeChecker } from "../typescript/type-checker.js";
 import { InterfaceStructGenerator } from "./types/interface-struct-generator.js";
 import { JsonObjectMeta } from "./expressions/access/member.js";
 import type { TargetInfo } from "../target-types.js";
+import { checkClosureMutations } from "../semantic/closure-mutation-checker.js";
+import { checkUnionTypes } from "../semantic/union-type-checker.js";
 
 export interface SemaSymbolData {
   names: string[];
@@ -1717,18 +1719,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   reset(): void {
-    this.tempCounter = 0;
-    this.labelCounter = 0;
-    this.currentLabel = "entry";
-    this.output.length = 0;
-    this.outputIsTerminator.length = 0;
-    this.outputCount = 0;
-    this.thisPointer = null;
-    this.currentClassName = null;
-    this.currentFunctionReturnType = "double";
-    this.symbolTable.clearLocals();
-    this.variableTypes.clear();
-    this.expressionTypes.clear();
+    super.reset();
+    // LLVMGenerator-specific fields not in BaseGenerator
     this.stringBuilderSlen.clear();
     this.stringBuilderScap.clear();
   }
@@ -2357,6 +2349,9 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   generateParts(): string[] {
+    checkClosureMutations(this.ast);
+    checkUnionTypes(this.ast);
+
     const irParts: string[] = [];
 
     const interfaceStructDefs = this.interfaceStructGen.generateStructTypeDefinitions();

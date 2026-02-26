@@ -36,7 +36,7 @@
 | `async`/`await` | Supported |
 | Default parameters | Supported |
 | Rest parameters (`...args`) | Supported |
-| Closures | Supported (capture by value, not by reference) |
+| Closures | Supported (capture by value; post-capture mutation is a compile error) |
 | `declare function` (FFI) | Supported (see [FFI](#foreign-function-interface-ffi)) |
 | Async generators / `for await...of` | Not supported |
 
@@ -183,14 +183,15 @@ Strings are null-terminated C strings, not JavaScript's UTF-16 strings. They wor
 
 ## Closures
 
-Arrow functions and nested functions can capture outer variables, but captures are **by value, not by reference**. If you mutate a variable after a closure captures it, the closure won't see the change:
+Arrow functions and nested functions can capture outer variables, but captures are **by value, not by reference**. Mutating a variable after a closure captures it is a **compile error**:
 
 ```typescript
 let x = 1;
 const f = () => console.log(x);
-x = 2;
-f(); // prints 1, not 2
+x = 2; // error: variable 'x' is reassigned after being captured by a closure
 ```
+
+This is enforced at compile time because the closure would silently see the old value — a common source of bugs in native code where there's no runtime to help.
 
 Inline lambdas with captures work in array methods:
 
