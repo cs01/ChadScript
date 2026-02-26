@@ -125,6 +125,36 @@ describe("Network Tests", () => {
     }
   });
 
+  it("should handle JSON.parse<T>() and response.json<T>() with the same type", async () => {
+    const server = http.createServer((req, res) => {
+      if (req.url === "/item") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end('{"id":2,"name":"fetched"}');
+      } else {
+        res.writeHead(404);
+        res.end("Not found");
+      }
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(19882, "127.0.0.1", resolve);
+    });
+
+    try {
+      const testFile = "tests/fixtures/network/json-parse-and-response-json-test.ts";
+      await execAsync(`node dist/chad-node.js build ${testFile}`);
+      const { stdout } = await execAsync(
+        ".build/tests/fixtures/network/json-parse-and-response-json-test",
+      );
+      assert.ok(
+        stdout.includes("TEST_PASSED"),
+        "JSON.parse + response.json same type test should pass",
+      );
+    } finally {
+      server.close();
+    }
+  });
+
   it("should run Promise.race with resolved promises", async () => {
     const testFile = "tests/fixtures/network/promise-race-test.ts";
     await execAsync(`node dist/chad-node.js build ${testFile}`);
