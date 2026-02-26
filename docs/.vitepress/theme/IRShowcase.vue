@@ -1,6 +1,6 @@
 <!-- Single-terminal animation showing the full ChadScript build-and-run flow.
      One terminal accumulates: echo > file, chad build, ./hello.
-     IR panel and linking indicator appear between build and run steps.
+     Linking indicator appears between build and run steps.
      Hex button drives the two user interactions (Build, Run). -->
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
@@ -11,7 +11,6 @@ const phase = ref<'idle' | 'typing-echo' | 'typing-build' | 'ready-compile' | 'c
 const echoCmd = ref('')
 const buildCmd = ref('')
 const runCmd = ref('')
-const irVisibleCount = ref(0)
 const linkingState = ref<'idle' | 'linking' | 'done'>('idle')
 const execOutput = ref('')
 const execTime = ref('')
@@ -20,62 +19,6 @@ const fullEchoCmd = "echo 'console.log(\"Hello from ChadScript!\")' > hello.ts"
 const fullBuildCmd = 'chad build hello.ts'
 const fullRunCmd = './hello'
 
-const irLines = [
-  '@.str.0 = private constant [24 x i8] c"Hello from ChadScript!\\0A\\00"',
-  '',
-  'declare i32 @printf(i8*, ...)',
-  '',
-  'define i32 @main(i32 %argc, i8** %argv) {',
-  'entry:',
-  '  %0 = getelementptr [24 x i8], [24 x i8]* @.str.0, i64 0, i64 0',
-  '  call i32 @printf(i8* %0)',
-  '  ret i32 0',
-  '}',
-]
-
-const irKeywords = new Set([
-  'define', 'declare', 'global', 'constant', 'private', 'internal',
-  'external', 'unnamed_addr', 'align', 'to', 'nuw', 'nsw',
-])
-
-const irInstructions = new Set([
-  'ret', 'br', 'call', 'alloca', 'load', 'store', 'getelementptr',
-  'add', 'sub', 'mul', 'icmp', 'fcmp', 'phi', 'select',
-  'trunc', 'zext', 'sext', 'bitcast', 'ptrtoint', 'inttoptr',
-])
-
-const irTypes = new Set([
-  'i1', 'i8', 'i16', 'i32', 'i64', 'i128', 'float', 'double', 'void', 'ptr',
-])
-
-function highlightIR(line: string): string {
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
-  if (line === '') return ''
-
-  if (/^[a-zA-Z_]\w*:$/.test(line.trim())) {
-    return `<span class="ir-label">${esc(line)}</span>`
-  }
-
-  return line.replace(
-    /(;[^\n]*)|(c"[^"]*"|"[^"]*")|(@[a-zA-Z$._][\w$.]*)|(%[a-zA-Z$._][\w$.]*|%\d+)|(\b-?\d+\b)|(\b[a-zA-Z_]\w*\b)/g,
-    (match, comment, str, global, local, num, word) => {
-      if (comment) return `<span class="ir-comment">${esc(comment)}</span>`
-      if (str) return `<span class="ir-string">${esc(str)}</span>`
-      if (global) return `<span class="ir-global">${esc(global)}</span>`
-      if (local) return `<span class="ir-local">${esc(local)}</span>`
-      if (num !== undefined && num !== '') return `<span class="ir-number">${esc(num)}</span>`
-      if (word) {
-        if (irKeywords.has(word)) return `<span class="ir-keyword">${esc(word)}</span>`
-        if (irInstructions.has(word)) return `<span class="ir-instr">${esc(word)}</span>`
-        if (irTypes.has(word)) return `<span class="ir-type">${esc(word)}</span>`
-      }
-      return esc(match)
-    }
-  )
-}
-
-const highlightedIR = computed(() => irLines.map(highlightIR))
 
 const hexVisible = computed(() =>
   phase.value === 'ready-compile' || phase.value === 'compiling' ||
@@ -178,12 +121,6 @@ async function compile() {
   phase.value = 'compiling'
 
   await delay(400)
-  for (let i = 0; i < irLines.length; i++) {
-    irVisibleCount.value = i + 1
-    await delay(irLines[i] === '' ? 20 : 80)
-  }
-  await delay(300)
-
   linkingState.value = 'linking'
   await delay(1200)
   linkingState.value = 'done'
@@ -270,21 +207,6 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- IR panel appears between build and run -->
-      <div class="stage-ir" :class="{ visible: irVisibleCount > 0 }">
-        <div class="panel-header">
-          <span class="window-dots"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span></span>
-          <span class="panel-label">LLVM IR</span>
-          <span v-if="irVisibleCount >= irLines.length" class="ir-badge">generated</span>
-        </div>
-        <pre class="panel-code ir-code"><code><template v-for="(line, i) in irLines" :key="i"><span
-          v-if="i < irVisibleCount"
-          class="ir-line"
-          :class="{ 'ir-entering': i === irVisibleCount - 1 }"
-        ><template v-if="line === ''">
-</template><span v-else v-html="highlightedIR[i] + '\n'"></span></span></template></code></pre>
-      </div>
-
       <!-- Linking indicator -->
       <div class="stage-link" :class="{ visible: linkingState !== 'idle' }">
         <div class="terminal-line">
@@ -368,15 +290,6 @@ onUnmounted(() => {
   transform: translateY(0);
 }
 
-.panel-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
 .window-dots {
   display: flex;
   gap: 6px;
@@ -392,28 +305,6 @@ onUnmounted(() => {
 .dot.red { background: #c44; }
 .dot.yellow { background: #b89530; }
 .dot.green { background: #2a9a38; }
-
-.panel-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--vp-c-text-2);
-  font-family: var(--vp-font-family-mono);
-}
-
-.panel-code {
-  margin: 0;
-  padding: 10px 16px;
-  font-size: 0.82rem;
-  line-height: 1.5;
-  overflow-x: auto;
-  background: transparent;
-}
-
-.panel-code code {
-  font-family: var(--vp-font-family-mono);
-  color: var(--vp-c-text-1);
-  background: none;
-}
 
 .cursor {
   color: var(--vp-c-brand-1);
@@ -650,65 +541,6 @@ onUnmounted(() => {
   color: var(--vp-c-text-1);
 }
 
-.stage-ir {
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: var(--vp-c-bg-soft);
-  opacity: 0;
-  max-height: 0;
-  overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.5s ease, margin 0.3s ease;
-}
-
-.stage-ir.visible {
-  opacity: 1;
-  max-height: 500px;
-  margin-top: 8px;
-}
-
-.ir-code {
-  font-size: 0.75rem;
-  line-height: 1.6;
-  color: var(--vp-c-text-2);
-}
-
-.ir-code :deep(.ir-keyword) { color: #c678dd; }
-.ir-code :deep(.ir-instr) { color: #61afef; }
-.ir-code :deep(.ir-type) { color: #e5c07b; }
-.ir-code :deep(.ir-global) { color: #98c379; }
-.ir-code :deep(.ir-local) { color: #d19a66; }
-.ir-code :deep(.ir-string) { color: #98c379; }
-.ir-code :deep(.ir-number) { color: #d19a66; }
-.ir-code :deep(.ir-comment) { color: #5c6370; font-style: italic; }
-.ir-code :deep(.ir-label) { color: #e5c07b; }
-
-.ir-line {
-  display: block;
-  opacity: 1;
-}
-
-.ir-line.ir-entering {
-  animation: ir-slide-in 0.15s ease-out;
-}
-
-@keyframes ir-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.ir-badge {
-  margin-left: auto;
-  font-size: 0.7rem;
-  color: var(--vp-c-text-3);
-  font-family: var(--vp-font-family-mono);
-  animation: fade-in 0.3s ease;
-}
 
 .stage-link {
   padding: 8px 16px;
@@ -775,14 +607,6 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .ir-showcase {
     padding: 0 16px;
-  }
-
-  .panel-code {
-    font-size: 0.75rem;
-  }
-
-  .ir-code {
-    font-size: 0.68rem;
   }
 
   .terminal-line {
