@@ -21,6 +21,8 @@ import type {
   ReturnStatement,
   ThrowStatement,
   ArrowFunctionNode,
+  ObjectProperty,
+  MapEntry,
   SourceLocation,
 } from "../ast/types.js";
 
@@ -227,19 +229,28 @@ class ClosureMutationChecker {
         this.walkBlock(arrow.body as BlockStatement, arrow.params.slice(), []);
       }
     } else if (etype === "binary") {
-      const binExpr = expr as { type: string; left: Expression; right: Expression };
+      // BinaryNode: { type, op, left, right } — must include op to get correct GEP index for left/right
+      const binExpr = expr as { type: string; op: string; left: Expression; right: Expression };
       this.scanExprForCaptures(binExpr.left, scopeVarNames, capturedNames);
       this.scanExprForCaptures(binExpr.right, scopeVarNames, capturedNames);
     } else if (etype === "unary") {
-      const unaryExpr = expr as { type: string; operand: Expression };
+      // UnaryNode: { type, op, operand } — must include op to get correct GEP index for operand
+      const unaryExpr = expr as { type: string; op: string; operand: Expression };
       this.scanExprForCaptures(unaryExpr.operand, scopeVarNames, capturedNames);
     } else if (etype === "call") {
-      const callExpr = expr as { type: string; args: Expression[] };
+      // CallNode: { type, name, args } — must include name to get correct GEP index for args
+      const callExpr = expr as { type: string; name: string; args: Expression[] };
       for (let i = 0; i < callExpr.args.length; i++) {
         this.scanExprForCaptures(callExpr.args[i], scopeVarNames, capturedNames);
       }
     } else if (etype === "method_call") {
-      const mcExpr = expr as { type: string; object: Expression; args: Expression[] };
+      // MethodCallNode: { type, object, method, args } — must include method to get correct GEP index for args
+      const mcExpr = expr as {
+        type: string;
+        object: Expression;
+        method: string;
+        args: Expression[];
+      };
       this.scanExprForCaptures(mcExpr.object, scopeVarNames, capturedNames);
       for (let i = 0; i < mcExpr.args.length; i++) {
         this.scanExprForCaptures(mcExpr.args[i], scopeVarNames, capturedNames);
@@ -257,12 +268,13 @@ class ClosureMutationChecker {
         this.scanExprForCaptures(arrExpr.elements[i], scopeVarNames, capturedNames);
       }
     } else if (etype === "object") {
-      const objExpr = expr as {
-        type: string;
-        properties: Array<{ key: string; value: Expression }>;
-      };
+      // ObjectProperty: { key: string; value: Expression } — must use named type so the
+      // native compiler generates a 2-field struct for GEP; anonymous inline types produce
+      // a 1-field struct and would read key instead of value.
+      const objExpr = expr as { type: string; properties: ObjectProperty[] };
       for (let i = 0; i < objExpr.properties.length; i++) {
-        this.scanExprForCaptures(objExpr.properties[i].value, scopeVarNames, capturedNames);
+        const prop = objExpr.properties[i] as ObjectProperty;
+        this.scanExprForCaptures(prop.value, scopeVarNames, capturedNames);
       }
     } else if (etype === "template_literal") {
       const tlExpr = expr as { type: string; parts: (string | Expression)[] };
@@ -288,7 +300,8 @@ class ClosureMutationChecker {
       const awaitExpr = expr as { type: string; argument: Expression };
       this.scanExprForCaptures(awaitExpr.argument, scopeVarNames, capturedNames);
     } else if (etype === "new") {
-      const newExpr = expr as { type: string; args: Expression[] };
+      // NewNode: { type, className, args } — must include className to get correct GEP index for args
+      const newExpr = expr as { type: string; className: string; args: Expression[] };
       for (let i = 0; i < newExpr.args.length; i++) {
         this.scanExprForCaptures(newExpr.args[i], scopeVarNames, capturedNames);
       }
@@ -299,7 +312,13 @@ class ClosureMutationChecker {
       const seExpr = expr as { type: string; argument: Expression };
       this.scanExprForCaptures(seExpr.argument, scopeVarNames, capturedNames);
     } else if (etype === "member_access_assignment") {
-      const maaExpr = expr as { type: string; object: Expression; value: Expression };
+      // MemberAccessAssignmentNode: { type, object, property, value } — must include property for correct GEP index
+      const maaExpr = expr as {
+        type: string;
+        object: Expression;
+        property: string;
+        value: Expression;
+      };
       this.scanExprForCaptures(maaExpr.object, scopeVarNames, capturedNames);
       this.scanExprForCaptures(maaExpr.value, scopeVarNames, capturedNames);
     } else if (etype === "index_access_assignment") {
@@ -313,13 +332,12 @@ class ClosureMutationChecker {
       this.scanExprForCaptures(iaaExpr.index, scopeVarNames, capturedNames);
       this.scanExprForCaptures(iaaExpr.value, scopeVarNames, capturedNames);
     } else if (etype === "map") {
-      const mapExpr = expr as {
-        type: string;
-        entries: Array<{ key: Expression; value: Expression }>;
-      };
+      // Same issue as object: must use named MapEntry type for correct 2-field GEP.
+      const mapExpr = expr as { type: string; entries: MapEntry[] };
       for (let i = 0; i < mapExpr.entries.length; i++) {
-        this.scanExprForCaptures(mapExpr.entries[i].key, scopeVarNames, capturedNames);
-        this.scanExprForCaptures(mapExpr.entries[i].value, scopeVarNames, capturedNames);
+        const entry = mapExpr.entries[i] as MapEntry;
+        this.scanExprForCaptures(entry.key, scopeVarNames, capturedNames);
+        this.scanExprForCaptures(entry.value, scopeVarNames, capturedNames);
       }
     } else if (etype === "set") {
       const setExpr = expr as { type: string; values: Expression[] };
