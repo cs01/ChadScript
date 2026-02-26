@@ -6,7 +6,7 @@ It targets a practical subset of TypeScript where all types are known at compile
 
 ## How It Compiles Your Code
 
-When you run `chad build app.ts -o app`, the compiler parses your TypeScript into an AST, resolves every type, lowers the AST to LLVM IR, then hands off to `llc` (assembler) and `clang` (linker) to produce the final binary. The output is a standard ELF binary (Linux) or Mach-O binary (macOS) — run it, deploy it, or ship it like any other native program.
+When you run `chad build app.ts -o app`, the compiler parses your TypeScript into an AST, resolves every type, lowers the AST to LLVM IR, then hands off to `opt` (LLVM's optimizer), `llc` (LLVM's object code generator), and `clang` (linker) to produce the final binary. The output is a standard ELF binary (Linux) or Mach-O binary (macOS) — run it, deploy it, or ship it like any other native program.
 
 ### LLVM IR
 

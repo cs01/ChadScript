@@ -307,12 +307,13 @@ export function compile(
   const cpuFlag = crossCompiling ? `-mcpu=${target.cpu}` : `-mcpu=${targetCpu}`;
   const tripleFlag = crossCompiling ? ` -mtriple=${target.triple}` : "";
   let compileCmd: string;
+  let optFile: string | null = null;
   if (sanitize) {
     compileCmd = `${linkerPath} -c${sanitizeFlags} ${irFile} -o ${objFile}`;
   } else if (debugInfo) {
     compileCmd = `${llcPath} -O0${tripleFlag} -filetype=obj ${irFile} -o ${objFile}`;
   } else {
-    const optFile = irFile.replace(".ll", ".opt.bc");
+    optFile = irFile.replace(".ll", ".opt.bc");
     const optCmd = `${optPath} -O2 ${cpuFlag}${tripleFlag} ${irFile} -o ${optFile}`;
     logger.info(` ${optCmd}`);
     execSync(optCmd, { stdio: llcStdio });
@@ -498,6 +499,13 @@ export function compile(
     if (!debugInfo) {
       try {
         fs.unlinkSync(irFile);
+      } catch (e) {
+        // File may already be deleted, ignore
+      }
+    }
+    if (optFile) {
+      try {
+        fs.unlinkSync(optFile);
       } catch (e) {
         // File may already be deleted, ignore
       }

@@ -535,6 +535,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
   }
 
   fs.unlinkSync(objFile);
+  fs.unlinkSync(optFile);
   if (verbose) {
     console.log("Compiled: " + outputFile);
   }
