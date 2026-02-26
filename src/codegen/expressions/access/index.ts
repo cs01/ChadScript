@@ -35,6 +35,7 @@ export interface IndexAccessGeneratorContext {
   isStringExpression(expr: Expression): boolean;
   readonly stringGen: IStringGenerator;
   ensureDouble(value: string): string;
+  setUsesJson(value: boolean): void;
 }
 
 /**
@@ -427,6 +428,7 @@ export class IndexAccessGenerator {
   }
 
   private generateJSONArrayIndex(expr: IndexAccessNode, params: string[]): string {
+    this.ctx.setUsesJson(true);
     // Load JSON array pointer
     const varName = (expr.object as VariableNode).name;
     const jsonPtrPtr = this.ctx.getVariableAlloca(varName)!;
@@ -514,6 +516,7 @@ export class IndexAccessGenerator {
   }
 
   private generateJSONMemberArrayIndex(expr: IndexAccessNode, params: string[]): string {
+    this.ctx.setUsesJson(true);
     const jsonPtr = this.ctx.generateExpression(expr.object, params);
 
     const ptrType = this.ctx.getVariableType(jsonPtr);
