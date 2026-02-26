@@ -62,7 +62,7 @@ else
 fi
 
 # --- yyjson ---
-if [ ! -f "$VENDOR_DIR/yyjson/libyyjson.a" ]; then
+if [ ! -f "$VENDOR_DIR/yyjson/libyyjson.a" ] || [ "$C_BRIDGES_DIR/yyjson-bridge.c" -nt "$VENDOR_DIR/yyjson/libyyjson.a" ]; then
   echo "==> Building yyjson..."
   cd "$VENDOR_DIR"
   if [ ! -d yyjson ]; then

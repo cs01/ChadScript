@@ -1448,6 +1448,7 @@ export class VariableAllocator {
     const allocaReg = this.ctx.nextAllocaReg(stmt.name);
     const structType = `%${interfaceName}*`;
     this.ctx.defineVariable(stmt.name, allocaReg, structType, SymbolKind.Object, "local");
+    this.ctx.symbolTable.setRawInterfaceType(stmt.name, interfaceName);
     this.ctx.emit(`${allocaReg} = alloca ${structType}`);
 
     const structPtr = this.ctx.generateExpression(stmt.value!, params);

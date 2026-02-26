@@ -1749,6 +1749,18 @@ export class TypeInference {
     if (e.type === "method_call" && expr.method === "json" && expr.typeParameter) {
       return expr.typeParameter;
     }
+    if (e.type === "method_call" && expr.method === "parse" && expr.typeParameter) {
+      const objBase = expr.object as ExprBase;
+      if (objBase && objBase.type === "variable") {
+        const varNode = expr.object as { type: string; name: string };
+        if (varNode.name === "JSON") {
+          const tp = expr.typeParameter;
+          if (tp !== "number[]" && tp !== "string" && tp !== "number" && tp !== "boolean") {
+            return tp;
+          }
+        }
+      }
+    }
     return null;
   }
 
