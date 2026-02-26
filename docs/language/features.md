@@ -175,7 +175,7 @@ These require runtime code evaluation and are not possible in a native compiler:
 
 ## Numbers
 
-All numbers are `number` (no separate integer type), but the compiler automatically uses native 64-bit integers for values initialized as integer literals. Integer arithmetic (`+`, `-`, `*`, `%`) between integer values stays in integer registers for better performance. Division always returns a float. The conversion is automatic.
+All numbers are `number` (no separate integer type). Integer literal expressions use native 64-bit integer instructions — `42 + 10` compiles to `add i64` rather than `fadd double`. Division always returns a float. Variables are stored as doubles.
 
 ## Strings
 
@@ -201,7 +201,7 @@ const result = [1, 2, 3].map(x => x + offset); // [11, 12, 13]
 
 ## npm Compatibility
 
-npm packages work as long as they only use supported TypeScript features.
+npm packages work if they only use supported TypeScript features. In practice most packages use generics, dynamic types, or runtime features that ChadScript doesn't support, so compatibility is limited.
 
 ## Standard Library
 

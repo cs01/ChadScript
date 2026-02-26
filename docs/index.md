@@ -16,7 +16,7 @@ features:
   - title: No Runtime
     details: Compiles to standalone ELF binaries that start in under 2ms.
   - title: Familiar Syntax
-    details: Standard TypeScript — classes, interfaces, async/await, generics.
+    details: Standard TypeScript syntax — classes, interfaces, async/await, closures.
   - title: Batteries Included
     details: Everything you'd npm install — HTTP, SQLite, fetch, crypto, JSON — is built in. No dependencies.
   - title: Single-Binary Deploy
