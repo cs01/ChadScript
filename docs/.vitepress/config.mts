@@ -17,16 +17,6 @@ export default defineConfig({
     languages: [llvmGrammar],
   },
 
-  transformPageData(pageData) {
-    const mdPath = path.resolve(__dirname, '..', pageData.relativePath)
-    try {
-      const rawMarkdown = fs.readFileSync(mdPath, 'utf-8')
-      return { frontmatter: { ...pageData.frontmatter, rawMarkdown } }
-    } catch {
-      return {}
-    }
-  },
-
   themeConfig: {
     search: {
       provider: 'local'
