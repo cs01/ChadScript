@@ -2359,7 +2359,6 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   generateParts(): string[] {
-    // Run semantic checks before emitting any IR.
     checkClosureMutations(this.ast);
     checkUnionTypes(this.ast);
 
