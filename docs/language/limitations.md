@@ -1,8 +1,4 @@
-# Support Status
-
-ChadScript supports a practical subset of TypeScript. All types must be known at compile time — there's no runtime type system, no interpreter, and no VM.
-
-This constraint has a nice side effect: the supported language is simpler and easier to reason about. Like C++ has a "safe subset" that avoids its footguns, this is a safe subset of TypeScript — you get the familiar syntax without the dynamic corners that make large codebases hard to follow.
+# Supported Features
 
 ## Core Language
 
