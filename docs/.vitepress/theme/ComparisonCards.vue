@@ -21,7 +21,7 @@
           <span class="card-badge badge-go">vs</span>
           <span class="card-title">Go</span>
         </div>
-        <p class="card-body">TypeScript syntax instead of Go's idiosyncratic type system. Classes, generics, interfaces, and async/await work the way you expect.</p>
+        <p class="card-body">TypeScript syntax instead of Go's idiosyncratic type system. Classes, interfaces, closures, and async/await work the way you expect.</p>
       </div>
     </div>
     <div class="comparison-callout">

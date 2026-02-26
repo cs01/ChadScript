@@ -60,6 +60,7 @@ import {
   AssignmentGenerator,
   AssignmentGeneratorContext,
 } from "./infrastructure/assignment-generator.js";
+import { findI64EligibleVariables } from "./infrastructure/integer-analysis.js";
 import {
   getLLVMDeclarations,
   getSafeStringHelper,
@@ -1791,6 +1792,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       return ir;
     }
     const items = this.ast.topLevelStatements;
+    // Find which numeric globals can stay as native i64 instead of double
+    const i64Eligible = findI64EligibleVariables(items);
     for (let stmtIdx = 0; stmtIdx < totalCount; stmtIdx++) {
       const stmt = items[stmtIdx] as {
         type: string;
@@ -2288,9 +2291,23 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
               exprNodeType === "index_access" ||
               exprNodeType === "member_access"
             ) {
-              llvmType = "double";
-              kind = SymbolKind.Number;
-              defaultValue = "0.0";
+              // Use i64 for integer-eligible globals to avoid double conversion overhead
+              let isI64 = false;
+              for (let ei = 0; ei < i64Eligible.length; ei++) {
+                if (i64Eligible[ei] === name) {
+                  isI64 = true;
+                  break;
+                }
+              }
+              if (isI64) {
+                llvmType = "i64";
+                kind = SymbolKind.Number;
+                defaultValue = "0";
+              } else {
+                llvmType = "double";
+                kind = SymbolKind.Number;
+                defaultValue = "0.0";
+              }
             } else {
               return this.emitError(
                 `cannot determine type of module-scope variable '${name}' (expression type: ${exprNodeType || "unknown"}). ` +

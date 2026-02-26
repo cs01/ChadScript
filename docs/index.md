@@ -16,7 +16,7 @@ features:
   - title: No Runtime
     details: Compiles to standalone ELF binaries that start in under 2ms.
   - title: Familiar Syntax
-    details: Standard TypeScript — classes, interfaces, async/await, generics.
+    details: Standard TypeScript syntax — classes, interfaces, async/await, closures.
   - title: Batteries Included
     details: Everything you'd npm install — HTTP, SQLite, fetch, crypto, JSON — is built in. No dependencies.
   - title: Single-Binary Deploy
@@ -43,7 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
 
 <div class="cta-buttons">
   <a href="/ChadScript/getting-started/installation" class="cta-button primary">Get Started</a>
-  <a href="/ChadScript/language/limitations" class="cta-button secondary">Learn More</a>
+  <a href="/ChadScript/language/features" class="cta-button secondary">Learn More</a>
 </div>
 
 </div>

@@ -558,7 +558,12 @@ export class FunctionGenerator {
       this.ctx.emit(`${resultPromise} = call %Promise* @__Promise_new()`);
     }
 
-    const eligible = findI64EligibleVariables(funcBody.statements);
+    // Access func.body.statements directly to preserve struct type info.
+    // funcBody (from `func.body || {...}`) is an opaque i8* in the native compiler,
+    // which means .statements access doesn't GEP into the struct. Using func.body
+    // directly preserves the FunctionNode → BlockStatement type chain.
+    const bodyStmts = func.body ? func.body.statements : [];
+    const eligible = findI64EligibleVariables(bodyStmts);
     this.ctx.setI64EligibleVars(eligible);
 
     const result = this.ctx.generateBlock(funcBody, funcParams);

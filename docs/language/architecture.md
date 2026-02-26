@@ -2,7 +2,7 @@
 
 ChadScript is an ahead-of-time TypeScript compiler that produces standalone native binaries. Write standard TypeScript, run `chad build`, and get an ELF or Mach-O binary that starts in under 2ms — no Node.js, no JVM, no runtime VM. The compiler is self-hosting: it is written in TypeScript and compiles itself to a native binary.
 
-It targets a practical subset of TypeScript where all types are known at compile time. This has a nice side effect: the supported language is simpler and easier to reason about. Like C++ has a "safe subset" that avoids its footguns, ChadScript is a safe subset of TypeScript — you get the familiar syntax without the dynamic corners that make large codebases hard to follow. See [Supported Features](/language/limitations) for the full feature list.
+It targets a practical subset of TypeScript where all types are known at compile time. This has a nice side effect: the supported language is simpler and easier to reason about. Like C++ has a "safe subset" that avoids its footguns, ChadScript is a safe subset of TypeScript — you get the familiar syntax without the dynamic corners that make large codebases hard to follow. See [Supported Features](/language/features) for the full feature list.
 
 ## How It Compiles Your Code
 
@@ -37,11 +37,11 @@ The string literal is a global constant. `getelementptr` produces a pointer to i
 
 ## Types and Semantics
 
-TypeScript (and JavaScript) has a single `number` type — a 64-bit IEEE 754 float. ChadScript preserves this at the source level, but the compiler is smart about it: integer literals (`42`, `0xFF`) compile to native 64-bit integer registers; fractional values (`3.14`) use 64-bit doubles. Integer arithmetic (`+`, `-`, `*`, `%`) between integers stays in integer registers — no floating-point overhead. Division always returns a float. This is automatic and invisible.
+TypeScript (and JavaScript) has a single `number` type — a 64-bit IEEE 754 float. ChadScript preserves this at the source level, but the compiler is smart about it: integer literal expressions (`42 + 10`, `0xFF & mask`) use native 64-bit integer instructions. Fractional values (`3.14`) use 64-bit doubles. Division always returns a float.
 
-This matters because LLVM distinguishes the two: `add i64 %a, %b` is an integer add, `fadd double %a, %b` is a floating-point add. Getting the right instruction means you pay for the operation you actually need.
+This matters because LLVM distinguishes the two: `add i64 %a, %b` is an integer add, `fadd double %a, %b` is a floating-point add. The optimization currently applies to literal expressions and intermediate arithmetic — variables are stored as doubles. This is an area of active improvement.
 
-**Null safety.** In C, `null` is just a zero-valued pointer. Dereferencing it is undefined behavior — the compiler trusts you, and if you're wrong you get a segfault or worse. In TypeScript (and ChadScript), `null` is a value that must be explicitly included in a type: `string | null`. If a variable is typed `string`, the type checker guarantees it is never null before it's used. The compiled output is still a pointer under the hood, but the type system prevents the class of bugs C can't catch. You get the safety of TypeScript's type model with the performance profile of C.
+**Null safety.** In C, `null` is just a zero-valued pointer. Dereferencing it is undefined behavior — the compiler trusts you, and if you're wrong you get a segfault or worse. In TypeScript (and ChadScript), `null` is a value that must be explicitly included in a type: `string | null`. If a variable is typed `string`, the type checker guarantees it is never null before it's used. The compiled output is still a pointer under the hood, but the type system prevents the class of bugs C can't catch.
 
 **Why this works well for LLMs.** TypeScript is one of the most widely represented languages in public training data — models know it well and generate it fluently. A safe, statically-typed subset means LLM-generated code is more likely to be correct: the types act as inline documentation telling both the compiler and the model what each value is. Simpler semantics (no `eval`, no `Proxy`, no runtime type mutation) mean programs are shorter and more predictable — fewer edge cases to reason about, fewer tokens needed to express intent, better output.
 
