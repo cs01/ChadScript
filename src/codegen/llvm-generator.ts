@@ -1719,22 +1719,8 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   }
 
   reset(): void {
-    this.tempCounter = 0;
-    this.allocaCounter = 0;
-    this.labelCounter = 0;
-    this.currentLabel = "entry";
-    this.output.length = 0;
-    this.outputIsTerminator.length = 0;
-    this.outputCount = 0;
-    this.allocaInstructions.length = 0;
-    this.thisPointer = null;
-    this.currentClassName = null;
-    this.currentFunctionReturnType = "double";
-    this.symbolTable.clearLocals();
-    this.variableTypes.clear();
-    this.expressionTypes.clear();
-    this.actualClassTypes.clear();
-    this.currentDebugLocId = -1;
+    super.reset();
+    // LLVMGenerator-specific fields not in BaseGenerator
     this.stringBuilderSlen.clear();
     this.stringBuilderScap.clear();
   }

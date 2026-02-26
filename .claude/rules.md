@@ -276,12 +276,11 @@ Current passes:
 To add a new semantic pass: create `src/semantic/your-check.ts`, export a `checkX(ast: AST): void` function,
 and call it from `generateParts()` in `llvm-generator.ts`.
 
-## LLVMGenerator.reset() Sync Requirement
+## LLVMGenerator.reset()
 
-`LLVMGenerator.reset()` overrides `BaseGenerator.reset()`. When adding new fields to `BaseGenerator` that
-get reset, you **must** also add the reset to `LLVMGenerator.reset()`. These must stay in sync — missing
-field resets cause state to leak across function compilations (stale alloca counters, stale class type
-mappings, stale debug metadata).
+`LLVMGenerator.reset()` calls `super.reset()` to reset all `BaseGenerator` fields, then clears its own
+additional fields. If you add new per-function state to either class, add the reset in the right place:
+base fields in `BaseGenerator.reset()`, LLVMGenerator-only fields in the override after `super.reset()`.
 
 ## Expression Orchestrator — No Silent Nulls
 
