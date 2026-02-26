@@ -63,7 +63,7 @@ The linker resolves the symbol at build time. At runtime there is nothing dynami
 
 ## Platform Support
 
-- **Linux x86-64** — primary target, musl (static) and glibc builds
+- **Linux x86-64** — primary target
 - **Linux ARM64** — supported
 - **macOS ARM64** — supported (Apple Silicon)
 - **macOS x64** — supported (Intel)
