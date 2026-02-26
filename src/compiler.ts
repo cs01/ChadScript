@@ -79,6 +79,12 @@ let targetOverride: TargetInfo | null = null;
 let extraLinkObjs: string[] = [];
 let extraLinkLibs: string[] = [];
 let extraLinkPaths: string[] = [];
+// Defaults to true when stderr is a real terminal; can be overridden
+let diagnosticColorEnabled: boolean = process.stderr.isTTY === true;
+
+export function setDiagnosticColor(enabled: boolean): void {
+  diagnosticColorEnabled = enabled;
+}
 
 export function setTargetCpu(value: string): void {
   targetCpu = value;
@@ -203,6 +209,7 @@ export function compile(
   if (!skipSemanticAnalysis) {
     logger.info("Running semantic analysis...");
     const analyzer = new SemanticAnalyzer(mergedAST);
+    analyzer.setDiagnosticColor(diagnosticColorEnabled);
     const analysisSuccess = analyzer.analyze();
 
     if (!analysisSuccess) {
@@ -280,6 +287,7 @@ export function compile(
     target,
   };
   const generator = new LLVMGenerator(mergedAST, typeChecker, generatorOptions);
+  generator.diagnostics.setColor(diagnosticColorEnabled);
   const llvmIR = generator.generate();
 
   // Write IR to file

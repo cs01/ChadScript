@@ -51,13 +51,16 @@ declare function cs_watch_loop(
 const VERSION = "0.1.0";
 
 const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
-parser.addSubcommand("build", "Compile to a native binary");
-parser.addSubcommand("run", "Compile and run");
-parser.addSubcommand("ir", "Emit LLVM IR only");
-parser.addSubcommand("init", "Generate starter project");
-parser.addSubcommand("watch", "Watch for changes and recompile+run");
-parser.addSubcommand("clean", "Remove the .build directory");
-parser.addSubcommand("target", "Manage cross-compilation target SDKs");
+// Color enabled unless NO_COLOR is set (https://no-color.org/) or TERM=dumb
+const _noColor = process.env["NO_COLOR"] || process.env["TERM"] === "dumb";
+parser.setColorEnabled(!_noColor);
+parser.addSubcommandInGroup("build", "Compile to a native binary", "");
+parser.addSubcommandInGroup("run", "Compile and run", "");
+parser.addSubcommandInGroup("watch", "Watch for changes and recompile+run", "");
+parser.addSubcommandInGroup("init", "Generate starter project", "Project");
+parser.addSubcommandInGroup("clean", "Remove the .build directory", "Project");
+parser.addSubcommandInGroup("ir", "Emit LLVM IR only", "Advanced");
+parser.addSubcommandInGroup("target", "Manage cross-compilation target SDKs", "Advanced");
 
 parser.addFlag("version", "", "Show version");
 parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");

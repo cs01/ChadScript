@@ -25,13 +25,18 @@ import { execSync, spawn as spawnProc, ChildProcess } from "child_process";
 import { installTargetSDK, listInstalledSDKs, getSDKBaseDir } from "./cross-compile.js";
 
 const parser = new ArgumentParser("chad", "compile TypeScript to native binaries via LLVM");
-parser.addSubcommand("build", "Compile to a native binary");
-parser.addSubcommand("run", "Compile and run");
-parser.addSubcommand("ir", "Emit LLVM IR only");
-parser.addSubcommand("init", "Generate starter project (chadscript.d.ts, tsconfig.json, hello.ts)");
-parser.addSubcommand("watch", "Watch for changes and recompile+run");
-parser.addSubcommand("clean", "Remove the .build directory");
-parser.addSubcommand("target", "Manage cross-compilation target SDKs");
+parser.setColorEnabled(process.stdout.isTTY === true);
+parser.addSubcommandInGroup("build", "Compile to a native binary", "");
+parser.addSubcommandInGroup("run", "Compile and run", "");
+parser.addSubcommandInGroup("watch", "Watch for changes and recompile+run", "");
+parser.addSubcommandInGroup(
+  "init",
+  "Generate starter project (chadscript.d.ts, tsconfig.json, hello.ts)",
+  "Project",
+);
+parser.addSubcommandInGroup("clean", "Remove the .build directory", "Project");
+parser.addSubcommandInGroup("ir", "Emit LLVM IR only", "Advanced");
+parser.addSubcommandInGroup("target", "Manage cross-compilation target SDKs", "Advanced");
 
 parser.addFlag("version", "", "Show version");
 parser.addScopedOption("output", "o", "Specify output file", "", "build,run,ir");
