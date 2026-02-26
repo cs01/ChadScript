@@ -104,6 +104,20 @@ void *csyyjson_create_obj(void) {
     return (void *)doc;
 }
 
+void *csyyjson_create_arr(void) {
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    if (!doc) return NULL;
+    yyjson_mut_val *root = yyjson_mut_arr(doc);
+    if (!root) { yyjson_mut_doc_free(doc); return NULL; }
+    yyjson_mut_doc_set_root(doc, root);
+    return (void *)doc;
+}
+
+void *csyyjson_mut_arr_add_obj(void *doc, void *arr) {
+    if (!doc || !arr) return NULL;
+    return (void *)yyjson_mut_arr_add_obj((yyjson_mut_doc *)doc, (yyjson_mut_val *)arr);
+}
+
 void *csyyjson_mut_get_root(void *doc) {
     if (!doc) return NULL;
     return (void *)yyjson_mut_doc_get_root((yyjson_mut_doc *)doc);

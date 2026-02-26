@@ -133,16 +133,6 @@ for (let i = 0; i < seedPosts.length; i++) {
   ]);
 }
 
-function postsToJson(posts: Post[]): string {
-  let json = "[";
-  for (let i = 0; i < posts.length; i++) {
-    if (i > 0) json += ",";
-    json += JSON.stringify(posts[i]);
-  }
-  json += "]";
-  return json;
-}
-
 function handleRequest(req: HttpRequest): HttpResponse {
   console.log(req.method + " " + req.path);
 
@@ -151,7 +141,7 @@ function handleRequest(req: HttpRequest): HttpResponse {
       db,
       "SELECT id, title, url, points FROM posts ORDER BY points DESC",
     );
-    return { status: 200, body: postsToJson(posts) };
+    return { status: 200, body: JSON.stringify(posts) };
   }
 
   if (req.method === "POST" && req.path.startsWith("/upvote/")) {
@@ -170,7 +160,7 @@ function handleRequest(req: HttpRequest): HttpResponse {
 console.log("Hacker News Clone");
 console.log(`  listening on http://localhost:${port}`);
 console.log("  HTML/CSS/JS embedded in the binary at compile time");
-console.log("  SQLite database running in-memory with " + seedPosts.length + " posts");
+console.log(`  SQLite database running in-memory with ${seedPosts.length} posts`);
 console.log("");
 console.log(`Open http://localhost:${port} in your browser`);
 console.log("");
