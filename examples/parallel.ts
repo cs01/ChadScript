@@ -11,6 +11,7 @@ async function main(): Promise<void> {
   ]);
   const vue = results[0].json<Repo>();
   const react = results[1].json<Repo>();
+  // console.log(JSON.stringify(results));
   console.log(`Vue: ${vue.stargazers_count} stars`);
   console.log(`React: ${react.stargazers_count} stars`);
 }
