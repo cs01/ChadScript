@@ -138,8 +138,11 @@ class ClosureMutationChecker {
       const forOfScope = scopeVarNames.slice();
       forOfScope.push(forOfStmt.variableName);
       if (forOfStmt.destructuredNames) {
-        for (let dn = 0; dn < forOfStmt.destructuredNames.length; dn++) {
-          forOfScope.push(forOfStmt.destructuredNames[dn]);
+        // Explicit cast to string[] avoids the union type (string[] | undefined)
+        // that would confuse the native compiler's array index codegen.
+        const dnames = forOfStmt.destructuredNames as string[];
+        for (let dn = 0; dn < dnames.length; dn++) {
+          forOfScope.push(dnames[dn]);
         }
       }
       this.walkBlock(forOfStmt.body, forOfScope, capturedNames);
@@ -210,7 +213,10 @@ class ClosureMutationChecker {
         "check",
       );
       for (let i = 0; i < info.captures.length; i++) {
-        const capName = info.captures[i].name;
+        // Explicit cast required — ObjectArray elements are i8* in native code; without
+        // the cast the native compiler can't GEP to the correct field offset for .name.
+        const cap = info.captures[i] as { name: string; llvmType: string };
+        const capName = cap.name;
         if (capturedNames.indexOf(capName) === -1) {
           capturedNames.push(capName);
         }
