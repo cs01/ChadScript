@@ -6,7 +6,7 @@ const { page, frontmatter } = useData()
 const copied = ref(false)
 
 async function copyMarkdown() {
-  const raw = (frontmatter.value as any).__rawMarkdown
+  const raw = (frontmatter.value as any).rawMarkdown
   if (!raw) return
 
   try {

@@ -20,8 +20,11 @@ export default defineConfig({
   transformPageData(pageData) {
     const mdPath = path.resolve(__dirname, '..', pageData.relativePath)
     try {
-      pageData.frontmatter.__rawMarkdown = fs.readFileSync(mdPath, 'utf-8')
-    } catch {}
+      const rawMarkdown = fs.readFileSync(mdPath, 'utf-8')
+      return { frontmatter: { ...pageData.frontmatter, rawMarkdown } }
+    } catch {
+      return {}
+    }
   },
 
   themeConfig: {

@@ -8,77 +8,41 @@ console.log("Hello from ChadScript!");
 
 ```bash
 chad run hello.ts
+# or compile to a standalone binary:
+chad build hello.ts -o hello && ./hello
 ```
 
-Or compile to a standalone binary:
+## More Examples
+
+The [`examples/`](https://github.com/cs01/ChadScript/tree/main/examples) directory contains runnable programs covering common use cases. Clone the repo and run any of them with `chad run`:
+
+| Example | Description |
+|---------|-------------|
+| [`hello.ts`](https://github.com/cs01/ChadScript/blob/main/examples/hello.ts) | Hello World — native execution, no runtime |
+| [`word-count.ts`](https://github.com/cs01/ChadScript/blob/main/examples/word-count.ts) | File line/word/char counter (like `wc`) |
+| [`parallel.ts`](https://github.com/cs01/ChadScript/blob/main/examples/parallel.ts) | Parallel HTTP fetches with `async/await` + `Promise.all` |
+| [`query.ts`](https://github.com/cs01/ChadScript/blob/main/examples/query.ts) | SQLite database operations |
+| [`http-server.ts`](https://github.com/cs01/ChadScript/blob/main/examples/http-server.ts) | HTTP server with Express-like routing |
+| [`string-search.ts`](https://github.com/cs01/ChadScript/blob/main/examples/string-search.ts) | grep-like search with colorized output |
+| [`timers.ts`](https://github.com/cs01/ChadScript/blob/main/examples/timers.ts) | `setTimeout`/`setInterval` with the libuv event loop |
+| [`cli-parser-demo.ts`](https://github.com/cs01/ChadScript/blob/main/examples/cli-parser-demo.ts) | CLI argument parsing |
+| [`websocket/app.ts`](https://github.com/cs01/ChadScript/blob/main/examples/websocket) | WebSocket chat with embedded HTML/CSS |
+| [`hackernews/app.ts`](https://github.com/cs01/ChadScript/blob/main/examples/hackernews) | Full Hacker News clone — SQLite + embedded assets + JSON API |
 
 ```bash
-chad build hello.ts -o hello
-./hello
+git clone https://github.com/cs01/ChadScript && cd ChadScript
+
+chad run examples/hello.ts
+chad run examples/word-count.ts -- README.md
+chad run examples/parallel.ts
+chad run examples/query.ts
+chad run examples/http-server.ts          # http://localhost:3000
+chad run examples/websocket/app.ts        # http://localhost:8080
+chad run examples/hackernews/app.ts       # http://localhost:3000
 ```
-
-## HTTP Server
-
-```typescript
-function handleRequest(req: HttpRequest): HttpResponse {
-  if (req.path == "/") {
-    return { status: 200, body: "<h1>Hello from ChadScript</h1>" };
-  }
-  return { status: 404, body: "Not Found" };
-}
-
-httpServe(3000, handleRequest);
-```
-
-```bash
-chad build server.ts -o server
-./server &
-curl http://localhost:3000
-```
-
-## CLI Tool
-
-```typescript
-const content = fs.readFileSync("README.md");
-const words = content.split(" ");
-console.log("Words: ");
-console.log(words.length);
-```
-
-```bash
-$ chad run word-count.ts
-Words:
-142
-```
-
-## Single-Binary Webapp
-
-Embed HTML, CSS, and other static files directly into the binary at compile time. No external files needed at runtime — deploy a full webapp as a single executable.
-
-```typescript
-ChadScript.embedDir("./public");
-
-function handleRequest(req: HttpRequest): HttpResponse {
-  if (req.path == "/")
-    return { status: 200, body: ChadScript.getEmbeddedFile("index.html") };
-  if (req.path == "/style.css")
-    return { status: 200, body: ChadScript.getEmbeddedFile("style.css") };
-  return { status: 404, body: "Not Found" };
-}
-
-httpServe(3000, handleRequest);
-```
-
-```bash
-$ chad build app.ts -o webapp
-$ scp webapp server:~/  # deploy = copy one file
-$ ./webapp
-```
-
-See [ChadScript.embed](/stdlib/embed) for full API docs.
 
 ## Next Steps
 
 - Browse the [Standard Library](/stdlib/) for all available APIs
 - See [CLI Reference](/getting-started/cli) for all compiler options
-- Check [Type Mappings](/language/type-mappings) to understand how types compile
+- Check [Supported Features](/language/limitations) to understand the TypeScript subset
