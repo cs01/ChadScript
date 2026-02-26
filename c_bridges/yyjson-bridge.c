@@ -145,3 +145,12 @@ char *csyyjson_stringify(void *doc) {
     yyjson_mut_doc_free((yyjson_mut_doc *)doc);
     return result;
 }
+
+char *csyyjson_stringify_pretty(void *doc, int spaces) {
+    if (!doc) return NULL;
+    size_t len;
+    yyjson_write_flag flags = (spaces == 2) ? YYJSON_WRITE_PRETTY_TWO_SPACES : YYJSON_WRITE_PRETTY;
+    char *result = yyjson_mut_write((yyjson_mut_doc *)doc, flags, &len);
+    yyjson_mut_doc_free((yyjson_mut_doc *)doc);
+    return result;
+}

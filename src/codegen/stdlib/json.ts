@@ -474,12 +474,34 @@ export class JsonGenerator {
     }
   }
 
+  private getSpaces(expr: MethodCallNode): number | null {
+    if (expr.args.length < 3) return null;
+    const spaceArg = expr.args[2] as { type: string; value?: number };
+    if (spaceArg.type === "number" && typeof spaceArg.value === "number") {
+      return spaceArg.value;
+    }
+    return null;
+  }
+
+  private emitStringify(jsonDoc: string, spaces: number | null): string {
+    if (spaces !== null) {
+      const spacesI32 = spaces === 2 ? "2" : "4";
+      return this.ctx.emitCall(
+        "i8*",
+        "@csyyjson_stringify_pretty",
+        `i8* ${jsonDoc}, i32 ${spacesI32}`,
+      );
+    }
+    return this.ctx.emitCall("i8*", "@csyyjson_stringify", `i8* ${jsonDoc}`);
+  }
+
   generateStringify(expr: MethodCallNode, params: string[]): string {
     if (expr.args.length < 1) {
       return this.ctx.emitError("JSON.stringify() requires 1 argument", expr.loc);
     }
 
     const arg = expr.args[0];
+    const spaces = this.getSpaces(expr);
 
     if (this.ctx.isStringExpression(arg)) {
       return this.stringifyString(arg, params);
@@ -492,13 +514,13 @@ export class JsonGenerator {
       const varNode = arg as { type: string; name: string };
       const elementType = this.ctx.symbolTable.getObjectArrayElementType(varNode.name);
       if (elementType) {
-        return this.stringifyObjectArray(arg, params, elementType);
+        return this.stringifyObjectArray(arg, params, elementType, spaces);
       }
     }
 
     const interfaceType = this.resolveInterfaceType(arg);
     if (interfaceType) {
-      return this.stringifyInterface(arg, params, interfaceType);
+      return this.stringifyInterface(arg, params, interfaceType, spaces);
     }
 
     return this.stringifyNumber(arg, params);
@@ -531,7 +553,12 @@ export class JsonGenerator {
     return null;
   }
 
-  private stringifyInterface(arg: Expression, params: string[], interfaceType: string): string {
+  private stringifyInterface(
+    arg: Expression,
+    params: string[],
+    interfaceType: string,
+    spaces: number | null = null,
+  ): string {
     if (!this.ctx.interfaceStructGenHasInterface(interfaceType)) {
       return this.stringifyNumber(arg, params);
     }
@@ -551,7 +578,7 @@ export class JsonGenerator {
 
     this.emitAddFieldsToJsonObj(typedPtr, structType, interfaceType, jsonDoc, jsonObj);
 
-    const result = this.ctx.emitCall("i8*", "@csyyjson_stringify", `i8* ${jsonDoc}`);
+    const result = this.emitStringify(jsonDoc, spaces);
     this.ctx.setVariableType(result, "i8*");
 
     return result;
@@ -612,7 +639,12 @@ export class JsonGenerator {
   }
 
   /** Stringify an ObjectArray (e.g. Post[]) as a JSON array of objects */
-  private stringifyObjectArray(arg: Expression, params: string[], elementType: string): string {
+  private stringifyObjectArray(
+    arg: Expression,
+    params: string[],
+    elementType: string,
+    spaces: number | null = null,
+  ): string {
     if (!this.ctx.interfaceStructGenHasInterface(elementType)) {
       return this.stringifyNumber(arg, params);
     }
@@ -678,7 +710,7 @@ export class JsonGenerator {
 
     this.ctx.emitLabel(loopEnd);
 
-    const result = this.ctx.emitCall("i8*", "@csyyjson_stringify", `i8* ${jsonDoc}`);
+    const result = this.emitStringify(jsonDoc, spaces);
     this.ctx.setVariableType(result, "i8*");
 
     return result;
