@@ -45,6 +45,8 @@ export interface AssignmentGeneratorContext {
   setExpectedArrayElementType(type: "string" | "number" | "boolean" | "pointer" | null): void;
   currentDeclaredMapType: string | undefined;
   setCurrentDeclaredMapType(type: string | undefined): void;
+  currentDeclaredSetType: string | undefined;
+  setCurrentDeclaredSetType(type: string | undefined): void;
   getThisPointer(): string | null;
   getCurrentClassName(): string | null;
   readonly symbolTable: SymbolTable;
@@ -249,9 +251,14 @@ export class AssignmentGenerator {
       this.ctx.setCurrentDeclaredMapType(fieldTsType);
     }
 
+    if (fieldTsType && fieldTsType.startsWith("Set<")) {
+      this.ctx.setCurrentDeclaredSetType(fieldTsType);
+    }
+
     const value = this.ctx.generateExpression(memberAccessValue.value, params);
     this.ctx.setExpectedArrayElementType(null);
     this.ctx.setCurrentDeclaredMapType(undefined);
+    this.ctx.setCurrentDeclaredSetType(undefined);
 
     let instancePtr: string | null = null;
     const objType = object.type;

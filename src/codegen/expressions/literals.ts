@@ -185,7 +185,12 @@ export class LiteralExpressionGenerator {
       return this.generateNewRegExp(args, params);
     }
     if (className === "Set") {
-      if (typeArgs && typeArgs.length > 0 && typeArgs[0] === "string") {
+      if (!typeArgs || typeArgs.length === 0) {
+        throw new Error(
+          "new Set() requires an explicit type argument, e.g. new Set<string>() or new Set<number>()",
+        );
+      }
+      if (typeArgs[0] === "string") {
         return this.ctx.stringSetGen.generateEmptyStringSet();
       }
       return this.ctx.setGen.generateSetLiteral({ type: "set", values: [] }, params);
