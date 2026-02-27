@@ -90,7 +90,15 @@ fi
 
 echo "[2/8] timers.ts"
 if compile examples/timers.ts "$BUILD_DIR/timers"; then
-  OUTPUT=$(timeout 10 "$BUILD_DIR/timers" 2>&1) || true
+  # No `timeout` on macOS — use background process + wait with a deadline
+  "$BUILD_DIR/timers" > "$BUILD_DIR/timers.out" 2>&1 &
+  TIMER_PID=$!
+  ( sleep 10; kill "$TIMER_PID" 2>/dev/null ) &
+  WATCHDOG_PID=$!
+  wait "$TIMER_PID" 2>/dev/null || true
+  kill "$WATCHDOG_PID" 2>/dev/null || true
+  wait "$WATCHDOG_PID" 2>/dev/null || true
+  OUTPUT=$(cat "$BUILD_DIR/timers.out")
   if echo "$OUTPUT" | grep -q "tick 3"; then
     pass "timers.ts"
   else
