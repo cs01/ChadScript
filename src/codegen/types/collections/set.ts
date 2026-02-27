@@ -34,9 +34,9 @@ export class SetGenerator {
       throw new Error("Expected set literal");
     }
 
-    // Allocate Set struct on stack
-    const setPtr = this.nextTemp();
-    this.emit(`${setPtr} = alloca %Set`);
+    // Allocate Set struct on heap so it's safe to store in class fields
+    const setMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 16`);
+    const setPtr = this.ctx.emitBitcast(setMem, "i8*", "%Set*");
 
     // Initialize with empty array
     const initialCapacity = setExpr.values.length > 4 ? setExpr.values.length : 4;
@@ -390,8 +390,9 @@ export class StringSetGenerator {
   }
 
   generateEmptyStringSet(): string {
-    const setPtr = this.nextTemp();
-    this.emit(`${setPtr} = alloca %StringSet`);
+    // Allocate StringSet struct on heap so it's safe to store in class fields
+    const setMem = this.ctx.emitCall("i8*", "@GC_malloc", `i64 16`);
+    const setPtr = this.ctx.emitBitcast(setMem, "i8*", "%StringSet*");
 
     const initialCapacity = 4;
     const ptrSize = this.getPtrSize();

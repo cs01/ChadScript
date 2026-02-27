@@ -74,7 +74,7 @@ echo ""
 
 # --- 1. hello.ts (simple print) ---
 
-echo "[1/8] hello.ts"
+echo "[1/9] hello.ts"
 if compile examples/hello.ts "$BUILD_DIR/hello"; then
   OUTPUT=$("$BUILD_DIR/hello" 2>&1) || true
   if echo "$OUTPUT" | grep -q "Hello from ChadScript"; then
@@ -88,7 +88,7 @@ fi
 
 # --- 2. timers.ts (event loop, self-terminating) ---
 
-echo "[2/8] timers.ts"
+echo "[2/9] timers.ts"
 if compile examples/timers.ts "$BUILD_DIR/timers"; then
   # No `timeout` on macOS — use background process + wait with a deadline
   "$BUILD_DIR/timers" > "$BUILD_DIR/timers.out" 2>&1 &
@@ -110,7 +110,7 @@ fi
 
 # --- 3. cli-parser-demo.ts (argparse) ---
 
-echo "[3/8] cli-parser-demo.ts"
+echo "[3/9] cli-parser-demo.ts"
 if compile examples/cli-parser-demo.ts "$BUILD_DIR/cli-parser-demo"; then
   OUTPUT=$("$BUILD_DIR/cli-parser-demo" -v -o result.txt myfile.txt 2>&1) || true
   if echo "$OUTPUT" | grep -q "verbose"; then
@@ -124,7 +124,7 @@ fi
 
 # --- 4. query.ts (sqlite in-memory) ---
 
-echo "[4/8] query.ts"
+echo "[4/9] query.ts"
 if compile examples/query.ts "$BUILD_DIR/query"; then
   OUTPUT=$("$BUILD_DIR/query" 2>&1) || true
   if echo "$OUTPUT" | grep -q "Found"; then
@@ -138,7 +138,7 @@ fi
 
 # --- 5. word-count.ts (file I/O) ---
 
-echo "[5/8] word-count.ts"
+echo "[5/9] word-count.ts"
 if compile examples/word-count.ts "$BUILD_DIR/word-count"; then
   # Create a test file to count
   echo "hello world foo bar" > "$BUILD_DIR/test-input.txt"
@@ -154,7 +154,7 @@ fi
 
 # --- 6. string-search.ts (grep-like) ---
 
-echo "[6/8] string-search.ts"
+echo "[6/9] string-search.ts"
 if compile examples/string-search.ts "$BUILD_DIR/string-search"; then
   # Create a test file to search
   printf "line one\nfind me here\nline three\n" > "$BUILD_DIR/search-input.txt"
@@ -170,7 +170,7 @@ fi
 
 # --- 7. http-server.ts (server + curl) ---
 
-echo "[7/8] http-server.ts"
+echo "[7/9] http-server.ts"
 if compile examples/http-server.ts "$BUILD_DIR/http-server"; then
   PORT=18080
   "$BUILD_DIR/http-server" -p "$PORT" &
@@ -208,7 +208,7 @@ fi
 
 # --- 8. hackernews/app.ts (full-stack server + curl) ---
 
-echo "[8/8] hackernews/app.ts"
+echo "[8/9] hackernews/app.ts"
 if compile examples/hackernews/app.ts "$BUILD_DIR/hackernews"; then
   PORT=18081
   "$BUILD_DIR/hackernews" -p "$PORT" &
@@ -236,6 +236,27 @@ if compile examples/hackernews/app.ts "$BUILD_DIR/hackernews"; then
   wait "$SERVER_PID" 2>/dev/null || true
 else
   fail "hackernews/app.ts" "compile failed"
+fi
+
+# --- 9. parallel.ts (parallel HTTP fetches with Promise.all) ---
+
+echo "[9/9] parallel.ts"
+if compile examples/parallel.ts "$BUILD_DIR/parallel"; then
+  "$BUILD_DIR/parallel" > "$BUILD_DIR/parallel.out" 2>&1 &
+  PARALLEL_PID=$!
+  ( sleep 30; kill "$PARALLEL_PID" 2>/dev/null ) &
+  WATCHDOG_PID=$!
+  wait "$PARALLEL_PID" 2>/dev/null || true
+  kill "$WATCHDOG_PID" 2>/dev/null || true
+  wait "$WATCHDOG_PID" 2>/dev/null || true
+  OUTPUT=$(cat "$BUILD_DIR/parallel.out")
+  if echo "$OUTPUT" | grep -q "stars"; then
+    pass "parallel.ts"
+  else
+    fail "parallel.ts" "unexpected output: $OUTPUT"
+  fi
+else
+  fail "parallel.ts" "compile failed"
 fi
 
 # --- Summary ---
