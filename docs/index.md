@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: ChadScript
-  text: TypeScript to Native Binaries
-  tagline: "A native compiler for TypeScript. Write TypeScript, ship a standalone binary."
+  text: As fast as C. As ergonomic as TypeScript.
+  tagline: "A natively-compiled systems language with TypeScript syntax. Write in a familiar style, ship a standalone binary with no runtime."
   actions:
     - theme: brand
       text: Get Started
@@ -15,8 +15,8 @@ hero:
 features:
   - title: No Runtime
     details: Compiles to standalone ELF binaries that start in under 2ms.
-  - title: Familiar Syntax
-    details: Standard TypeScript syntax — classes, interfaces, async/await, closures.
+  - title: TypeScript Syntax
+    details: Uses TypeScript's syntax — classes, interfaces, async/await, closures. Not a full TS compiler; a natively-compiled dialect.
   - title: Batteries Included
     details: Everything you'd npm install — HTTP, SQLite, fetch, crypto, JSON — is built in. No dependencies.
   - title: Single-Binary Deploy
