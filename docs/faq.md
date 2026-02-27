@@ -2,11 +2,15 @@
 
 ## What is ChadScript?
 
-ChadScript is a compiler that takes TypeScript source code and produces native ELF binaries via LLVM. It is not a runtime, interpreter, or transpiler. The output is a standalone executable with no dependencies on Node.js, V8, or any JavaScript engine.
+ChadScript is a systems programming language that uses TypeScript syntax and compiles to native ELF binaries via LLVM. The goal: **as typesafe as Rust, as fast as C, as ergonomic as TypeScript**.
+
+It is **not** a TypeScript compiler, runtime, interpreter, or transpiler. It's a new language that shares TypeScript's syntax and feel, but imposes stricter rules required for native compilation — no `any`, no user-defined generics, by-value closures, and interfaces are data-only structs. Think of it as a TypeScript-syntax dialect for systems programming.
+
+The output is a standalone native binary with no dependencies on Node.js, V8, or any JavaScript engine.
 
 ## Is ChadScript a drop-in replacement for TypeScript?
 
-No. ChadScript supports a practical subset of TypeScript. It compiles to native machine code, so all types must be known at compile time and dynamic features like `eval()` aren't available. See [Language Support](/language/features) for details.
+No, and it's not trying to be. ChadScript uses TypeScript syntax as its surface language, but it's a different language with different semantics. Code that relies on runtime JS behavior — closures-by-reference, `any`, generics, `instanceof`, npm packages — won't compile. See [Language Support](/language/features) for what works.
 
 ## What TypeScript features are supported?
 

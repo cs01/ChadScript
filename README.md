@@ -2,11 +2,13 @@
 
 **[Documentation](https://cs01.github.io/ChadScript/)** · **[Benchmarks](https://cs01.github.io/ChadScript/benchmarks)** · **[GitHub Releases](https://github.com/cs01/ChadScript/releases)**
 
-**A native compiler for TypeScript — no interpreter, no runtime, no VM.**
+**As typesafe as Rust. As fast as C. As ergonomic as TypeScript.**
 
-Your code goes through a full compilation pipeline: parse, type-check, emit LLVM IR, and link into a standalone native binary.
+ChadScript is a systems programming language that uses TypeScript syntax and compiles directly to native binaries via LLVM. It is **not** a full TypeScript compiler — it's a statically-typed, natively-compiled dialect that shares TypeScript's syntax and feel while imposing stricter rules needed for native code (no generics, by-value closures, no `any`).
 
-ChadScript is self-hosting - the compiler is written in TypeScript and compiles itself into a native binary that doesn't need any JavaScript runtime or Node.js.
+Your code goes through a full compilation pipeline: parse, type-check, emit LLVM IR, and link into a standalone native binary with no Node.js, V8, or JavaScript runtime.
+
+ChadScript is self-hosting — the compiler (~45k lines) is written in this same dialect and compiles itself to a native binary.
 
 ## Demo
 
