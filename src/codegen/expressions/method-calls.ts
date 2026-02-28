@@ -864,6 +864,13 @@ export class MethodCallGenerator {
       }
     }
 
+    if (method === "execDyn") {
+      const isRegex = this.ctx.isRegexExpression(expr.object);
+      if (isRegex) {
+        return this.handleRegexExecDyn(expr, params);
+      }
+    }
+
     if (method === "isFile" || method === "isDirectory") {
       let statI8Ptr: string | null = null;
 
@@ -1418,6 +1425,15 @@ export class MethodCallGenerator {
 
     const regexPtr = this.ctx.generateExpression(regexObj, params);
     return this.ctx.regexGen.generateRegexMatch(regexPtr, strPtr, numGroups);
+  }
+
+  private handleRegexExecDyn(expr: MethodCallNode, params: string[]): string {
+    if (expr.args.length !== 1) {
+      return this.ctx.emitError(`execDyn() expects 1 argument, got ${expr.args.length}`, expr.loc);
+    }
+    const regexPtr = this.ctx.generateExpression(expr.object, params);
+    const strPtr = this.ctx.generateExpression(expr.args[0], params);
+    return this.ctx.regexGen.generateRegexExecDyn(regexPtr, strPtr);
   }
 
   private throwUnsupportedMethodError(

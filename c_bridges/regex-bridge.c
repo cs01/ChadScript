@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+extern void *GC_malloc(size_t);
+extern void *GC_malloc_atomic(size_t);
+
 void *cs_regex_alloc(void) {
     return malloc(sizeof(regex_t));
 }
@@ -31,4 +34,36 @@ void cs_regex_free(void *preg) {
         regfree((regex_t *)preg);
         free(preg);
     }
+}
+
+char *cs_regex_exec_dyn(void *preg, const char *str, int max_groups) {
+    regmatch_t *pmatch = (regmatch_t *)calloc((size_t)max_groups, sizeof(regmatch_t));
+    if (!pmatch) return NULL;
+
+    if (regexec((regex_t *)preg, str, (size_t)max_groups, pmatch, 0) != 0) {
+        free(pmatch);
+        return NULL;
+    }
+
+    int count = 0;
+    for (int i = 0; i < max_groups; i++) {
+        if (pmatch[i].rm_so < 0) break;
+        count++;
+    }
+
+    char **strings = (char **)GC_malloc((size_t)count * sizeof(char *));
+    for (int i = 0; i < count; i++) {
+        int slen = pmatch[i].rm_eo - pmatch[i].rm_so;
+        char *s = (char *)GC_malloc_atomic((size_t)(slen + 1));
+        if (slen > 0) strncpy(s, str + pmatch[i].rm_so, (size_t)slen);
+        s[slen] = '\0';
+        strings[i] = s;
+    }
+    free(pmatch);
+
+    char *arr = (char *)GC_malloc(16);
+    *((char ***)arr) = strings;
+    *((int *)(arr + 8)) = count;
+    *((int *)(arr + 12)) = count;
+    return arr;
 }
