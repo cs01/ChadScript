@@ -10,6 +10,7 @@ const port = parseInt(parser.getOption("port"));
 interface WsEvent {
   data: string;
   event: string;
+  connId: string;
 }
 
 interface HttpRequest {

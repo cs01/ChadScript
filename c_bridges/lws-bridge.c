@@ -136,12 +136,16 @@ static size_t base64_encode(const unsigned char *in, size_t len, char *out) {
 
 /* ---- uv helpers ---- */
 
+static void ws_format_conn_id(uv_tcp_t *h, char *buf, size_t sz) {
+    snprintf(buf, sz, "%p", (void *)h);
+}
+
 static void on_close(uv_handle_t *handle) {
     http_conn_t *conn = (http_conn_t *)handle;
     if (conn->type == CONN_WEBSOCKET) {
         ws_track_remove(&conn->handle);
         if (g_ws_handler) {
-            char *evt_mem = (char *)GC_malloc(16);
+            char *evt_mem = (char *)GC_malloc(24);
             char **evt = (char **)evt_mem;
             char *empty = (char *)GC_malloc_atomic(1);
             empty[0] = '\0';
@@ -149,6 +153,9 @@ static void on_close(uv_handle_t *handle) {
             char *close_str = (char *)GC_malloc_atomic(6);
             memcpy(close_str, "close", 6);
             evt[1] = close_str;
+            char *conn_id_str = (char *)GC_malloc_atomic(20);
+            ws_format_conn_id(&conn->handle, conn_id_str, 20);
+            evt[2] = conn_id_str;
             g_ws_handler(evt_mem);
         }
     }
@@ -470,7 +477,7 @@ static void ws_handle_upgrade(http_conn_t *conn) {
     send_raw(&conn->handle, response, (size_t)rlen);
 
     if (g_ws_handler) {
-        char *evt_mem = (char *)GC_malloc(16);
+        char *evt_mem = (char *)GC_malloc(24);
         char **evt = (char **)evt_mem;
         char *empty = (char *)GC_malloc_atomic(1);
         empty[0] = '\0';
@@ -478,6 +485,9 @@ static void ws_handle_upgrade(http_conn_t *conn) {
         char *open_str = (char *)GC_malloc_atomic(5);
         memcpy(open_str, "open", 5);
         evt[1] = open_str;
+        char *conn_id_str = (char *)GC_malloc_atomic(20);
+        ws_format_conn_id(&conn->handle, conn_id_str, 20);
+        evt[2] = conn_id_str;
 
         char *reply = g_ws_handler(evt_mem);
         if (reply && reply[0]) {
@@ -526,12 +536,15 @@ static void ws_process_frame(http_conn_t *conn) {
                 memcpy(data, payload, payload_len);
                 data[payload_len] = '\0';
 
-                char *evt_mem = (char *)GC_malloc(16);
+                char *evt_mem = (char *)GC_malloc(24);
                 char **evt = (char **)evt_mem;
                 evt[0] = data;
                 char *msg_str = (char *)GC_malloc_atomic(8);
                 memcpy(msg_str, "message", 8);
                 evt[1] = msg_str;
+                char *conn_id_str = (char *)GC_malloc_atomic(20);
+                ws_format_conn_id(&conn->handle, conn_id_str, 20);
+                evt[2] = conn_id_str;
 
                 char *reply = g_ws_handler(evt_mem);
                 if (reply && reply[0]) {
@@ -785,5 +798,16 @@ void lws_bridge_ws_send(void *wsi_ptr, const char *data, int len) {
 void lws_bridge_ws_broadcast(const char *data, int len) {
     for (int i = 0; i < g_ws_conn_count; i++) {
         ws_send_frame(g_ws_conns[i], 0x1, data, (size_t)len);
+    }
+}
+
+void lws_bridge_ws_send_to(const char *conn_id, const char *data, int len) {
+    unsigned long long val = strtoull(conn_id, NULL, 0);
+    uv_tcp_t *handle = (uv_tcp_t *)(uintptr_t)val;
+    for (int i = 0; i < g_ws_conn_count; i++) {
+        if (g_ws_conns[i] == handle) {
+            ws_send_frame(handle, 0x1, data, (size_t)len);
+            return;
+        }
     }
 }

@@ -27,6 +27,7 @@ Any HTTP request with an `Upgrade: websocket` header is automatically upgraded w
 interface WsEvent {
   data: string;
   event: string;  // "open", "message", "close"
+  connId: string; // hex pointer identifying this connection
 }
 
 function wsHandler(event: WsEvent): string {
@@ -46,6 +47,20 @@ Send a message to all connected WebSocket clients. Only available when a wsHandl
 
 ```typescript
 wsBroadcast("hello everyone");
+```
+
+## `wsSend(connId, message)`
+
+Send a message to a specific WebSocket connection identified by its `connId`. The `connId` is available on every `WsEvent`.
+
+```typescript
+function wsHandler(event: WsEvent): string {
+  if (event.event == "message") {
+    wsSend(event.connId, "echo: " + event.data);  // reply to sender only
+    return "";
+  }
+  return "";
+}
 ```
 
 ## HttpRequest Object
@@ -74,6 +89,7 @@ If `headers` contains a `Content-Type:` line, it overrides the auto-detected con
 |----------|------|-------------|
 | `data` | `string` | Message data (empty for open/close events) |
 | `event` | `string` | Event type: `"open"`, `"message"`, or `"close"` |
+| `connId` | `string` | Hex pointer identifying this connection (use with `wsSend`) |
 
 ## Example
 
@@ -114,6 +130,7 @@ A chat server with HTTP homepage and WebSocket messaging:
 interface WsEvent {
   data: string;
   event: string;
+  connId: string;
 }
 
 interface HttpRequest {
@@ -225,6 +242,7 @@ function handleRequest(req: HttpRequest): HttpResponse {
 |-----|---------|
 | `httpServe()` | libuv TCP + picohttpparser (zero-copy HTTP parsing) |
 | `wsBroadcast()` | `lws_bridge_ws_broadcast()` to all tracked connections |
+| `wsSend()` | `lws_bridge_ws_send_to()` — parses hex connId, sends to matching handle |
 | WebSocket upgrade | embedded SHA-1 + base64 handshake + frame parser |
 
 ## Transparent Compression

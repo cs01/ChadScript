@@ -162,7 +162,7 @@ describe("Network Tests", () => {
     assert.ok(stdout.includes("TEST_PASSED"), "Promise.race test should pass");
   });
 
-  it("should run HTTP server using httpServe() and mongoose", async () => {
+  it("should run HTTP server using httpServe()", async () => {
     const testFile = "tests/fixtures/network/http-server-test.ts";
     await execAsync(`node dist/chad-node.js build ${testFile}`);
 

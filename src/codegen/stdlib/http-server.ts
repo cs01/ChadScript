@@ -25,6 +25,7 @@ export class HttpServerGenerator {
       "declare i32 @lws_bridge_serve(i32, void (%struct.lws_bridge_request*, %struct.lws_bridge_response*)*, i8* (i8*)*)\n";
     ir += "declare void @lws_bridge_ws_send(i8*, i8*, i32)\n";
     ir += "declare void @lws_bridge_ws_broadcast(i8*, i32)\n";
+    ir += "declare void @lws_bridge_ws_send_to(i8*, i8*, i32)\n";
     ir += "\n";
 
     return ir;
@@ -124,6 +125,17 @@ export class HttpServerGenerator {
     ir += "  ret void\n";
     ir += "}\n\n";
 
+    return ir;
+  }
+
+  generateWsSendToFunction(): string {
+    let ir = "; WebSocket targeted send to specific connection (via lws-bridge)\n";
+    ir += "define void @__ws_send_to(i8* %conn_id, i8* %msg, i64 %len) {\n";
+    ir += "entry:\n";
+    ir += "  %len32 = trunc i64 %len to i32\n";
+    ir += "  call void @lws_bridge_ws_send_to(i8* %conn_id, i8* %msg, i32 %len32)\n";
+    ir += "  ret void\n";
+    ir += "}\n\n";
     return ir;
   }
 

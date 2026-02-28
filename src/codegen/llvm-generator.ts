@@ -210,7 +210,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public usesArraySort: number = 0;
   public usesCrypto: number = 0;
   public usesJson: number = 0;
-  public usesMongoose: number = 0;
+  public usesHttpServer: number = 0;
   public usesMultipart: number = 0;
   public usesRegex: number = 0;
   public usesTestRunner: number = 0;
@@ -1035,11 +1035,11 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
   public getUsesJson(): boolean {
     return this.usesJson !== 0;
   }
-  public setUsesMongoose(value: boolean): void {
-    this.usesMongoose = value ? 1 : 0;
+  public setUsesHttpServer(value: boolean): void {
+    this.usesHttpServer = value ? 1 : 0;
   }
-  public getUsesMongoose(): boolean {
-    return this.usesMongoose !== 0;
+  public getUsesHttpServer(): boolean {
+    return this.usesHttpServer !== 0;
   }
   public setUsesMultipart(value: boolean): void {
     this.usesMultipart = value ? 1 : 0;
@@ -1449,7 +1449,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     this.usesArraySort = 0;
     this.usesCrypto = 0;
     this.usesJson = 0;
-    this.usesMongoose = 0;
+    this.usesHttpServer = 0;
     this.usesMultipart = 0;
     this.usesRegex = 0;
     this.usesTestRunner = 0;
@@ -2478,6 +2478,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       if (wsHandler) {
         irParts.push("\n");
         irParts.push(this.httpServerGen.generateWsBroadcastFunction());
+        irParts.push(this.httpServerGen.generateWsSendToFunction());
       }
     }
 
@@ -2553,7 +2554,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       this.usesPromises ||
       this.usesCurl ||
       this.usesUvHrtime ||
-      this.usesMongoose ||
+      this.usesHttpServer ||
       this.usesAsyncFs;
     const needsPromise = this.usesPromises || this.usesCurl || this.usesAsyncFs;
 
@@ -2628,7 +2629,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       finalParts.push("\n");
     }
 
-    if (this.usesMongoose) {
+    if (this.usesHttpServer) {
       const httpServerDecls = this.httpServerGen.generateDeclarations();
       if (httpServerDecls) {
         finalParts.push(this.filterDuplicateDeclarations(httpServerDecls));
@@ -3573,7 +3574,7 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     // Track handler for http server event handler generation
     this.httpHandlers.push(handlerName);
-    this.usesMongoose = 1;
+    this.usesHttpServer = 1;
 
     if (expr.args.length >= 3) {
       const wsHandlerArg = expr.args[2];
@@ -3610,6 +3611,18 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     const len = this.nextTemp();
     this.emit(`${len} = call i64 @strlen(i8* ${msgValue})`);
     this.emit(`call void @__ws_broadcast(i8* ${msgValue}, i64 ${len})`);
+    return "0.0";
+  }
+
+  public generateWsSend(expr: CallNode, params: string[]): string {
+    if (expr.args.length < 2) {
+      return this.emitError("wsSend() requires 2 arguments: connId, message", expr.loc);
+    }
+    const connIdValue = this.generateExpression(expr.args[0], params);
+    const msgValue = this.generateExpression(expr.args[1], params);
+    const len = this.nextTemp();
+    this.emit(`${len} = call i64 @strlen(i8* ${msgValue})`);
+    this.emit(`call void @__ws_send_to(i8* ${connIdValue}, i8* ${msgValue}, i64 ${len})`);
     return "0.0";
   }
 
