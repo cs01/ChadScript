@@ -242,7 +242,7 @@ onUnmounted(() => {
         <p class="cta-tagline">Congratulations, you wrote your first ChadScript app!</p>
         <div class="cta-buttons">
           <a href="/ChadScript/getting-started/installation" class="cta-link">Get Started</a>
-          <a href="/ChadScript/language/features" class="cta-link secondary">Learn More</a>
+          <a href="/ChadScript/why-chadscript" class="cta-link secondary">Why ChadScript?</a>
         </div>
       </div>
 
@@ -496,7 +496,7 @@ onUnmounted(() => {
 
 .cta-section.visible {
   opacity: 1;
-  max-height: 100px;
+  max-height: 200px;
   margin-top: 8px;
 }
 
@@ -510,6 +510,7 @@ onUnmounted(() => {
   display: flex;
   gap: 0.75rem;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .cta-link {
