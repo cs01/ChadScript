@@ -2,15 +2,15 @@
 layout: home
 hero:
   name: ChadScript
-  text: As fast as C. As ergonomic as TypeScript.
+  text: As fast as C. As safe as Rust. As ergonomic as TypeScript.
   tagline: "A natively-compiled systems language with TypeScript syntax. Write in a familiar style, ship a standalone binary with no runtime."
   actions:
     - theme: brand
       text: Get Started
       link: /getting-started/installation
     - theme: alt
-      text: Learn More
-      link: /language/architecture
+      text: Why ChadScript?
+      link: /why-chadscript
 
 features:
   - title: No Runtime
@@ -43,7 +43,7 @@ curl -fsSL https://raw.githubusercontent.com/cs01/ChadScript/main/install.sh | s
 
 <div class="cta-buttons">
   <a href="/ChadScript/getting-started/installation" class="cta-button primary">Get Started</a>
-  <a href="/ChadScript/language/features" class="cta-button secondary">Learn More</a>
+  <a href="/ChadScript/why-chadscript" class="cta-button secondary">Why ChadScript?</a>
 </div>
 
 </div>
