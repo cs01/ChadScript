@@ -352,7 +352,7 @@ export function compile(
     generator.usesPromises ||
     generator.usesCurl ||
     generator.usesUvHrtime ||
-    generator.usesMongoose
+    generator.usesHttpServer
   ) {
     linkLibs += ` -L${uvPath} -luv`;
   }
@@ -365,7 +365,7 @@ export function compile(
   if (generator.usesSqlite) {
     linkLibs += " -lsqlite3";
   }
-  if (generator.usesMongoose) {
+  if (generator.usesHttpServer) {
     linkLibs += ` -lz -lzstd`;
   }
 
@@ -386,7 +386,7 @@ export function compile(
     if (generator.usesSqlite) {
       linkLibs = `-L${brewPrefix}/sqlite/lib ` + linkLibs;
     }
-    if (generator.usesMongoose) {
+    if (generator.usesHttpServer) {
       linkLibs = `-L${brewPrefix}/zstd/lib ` + linkLibs;
     }
     const sdkPath = execSync("xcrun --show-sdk-path", { stdio: "pipe", encoding: "utf8" }).trim();
@@ -395,7 +395,7 @@ export function compile(
   }
 
   // Bridge object files
-  const lwsBridgeObj = generator.usesMongoose
+  const lwsBridgeObj = generator.usesHttpServer
     ? `${bridgePath}/lws-bridge.o ${picoPath}/picohttpparser.o ${bridgePath}/multipart-bridge.o`
     : "";
   const regexBridgeObj = generator.usesRegex ? `${bridgePath}/regex-bridge.o` : "";

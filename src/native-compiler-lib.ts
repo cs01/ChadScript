@@ -405,7 +405,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
     generator.getUsesPromises() ||
     generator.getUsesCurl() ||
     generator.getUsesUvHrtime() ||
-    generator.getUsesMongoose()
+    generator.getUsesHttpServer()
   ) {
     linkLibs = "-L" + uvDir + " -luv " + linkLibs;
   }
@@ -418,10 +418,10 @@ export function compileNative(inputFile: string, outputFile: string): void {
   if (generator.getUsesSqlite()) {
     linkLibs = "-lsqlite3 " + linkLibs;
   }
-  if (generator.getUsesMongoose()) {
+  if (generator.getUsesHttpServer()) {
     linkLibs = "-lz -lzstd " + linkLibs;
   }
-  const lwsBridgeObj = generator.getUsesMongoose()
+  const lwsBridgeObj = generator.getUsesHttpServer()
     ? effectiveBridgePath +
       "/lws-bridge.o " +
       effectivePicoPath +
@@ -455,7 +455,7 @@ export function compileNative(inputFile: string, outputFile: string): void {
       if (fs.existsSync("/usr/local/opt/sqlite/lib"))
         linkLibs = "-L/usr/local/opt/sqlite/lib " + linkLibs;
     }
-    if (generator.getUsesMongoose()) {
+    if (generator.getUsesHttpServer()) {
       if (fs.existsSync("/opt/homebrew/opt/zstd/lib"))
         linkLibs = "-L/opt/homebrew/opt/zstd/lib " + linkLibs;
       if (fs.existsSync("/usr/local/opt/zstd/lib"))

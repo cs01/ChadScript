@@ -25,5 +25,6 @@ typedef char* (*lws_bridge_ws_handler)(void *event);
 int lws_bridge_serve(int port, lws_bridge_http_handler http_handler, lws_bridge_ws_handler ws_handler);
 void lws_bridge_ws_send(void *wsi, const char *data, int len);
 void lws_bridge_ws_broadcast(const char *data, int len);
+void lws_bridge_ws_send_to(const char *conn_id, const char *data, int len);
 
 #endif

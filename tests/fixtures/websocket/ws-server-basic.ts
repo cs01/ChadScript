@@ -1,6 +1,7 @@
 interface WsEvent {
   data: string;
   event: string;
+  connId: string;
 }
 
 function wsHandler(event: WsEvent): string {

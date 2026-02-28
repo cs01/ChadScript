@@ -195,7 +195,7 @@ export interface MethodCallGeneratorContext {
   setUsesConsoleTime(value: boolean): void;
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
-  setUsesMongoose(value: boolean): void;
+  setUsesHttpServer(value: boolean): void;
   setUsesMultipart(value: boolean): void;
   setUsesTestRunner(value: boolean): void;
   classGenGetFieldInfo(

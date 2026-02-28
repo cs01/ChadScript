@@ -92,6 +92,11 @@ export class CallExpressionGenerator {
       return this.ctx.generateWsBroadcast(expr, params);
     }
 
+    // Handle wsSend(connId, msg) - send message to a specific WebSocket connection
+    if (expr.name === "wsSend") {
+      return this.ctx.generateWsSend(expr, params);
+    }
+
     // Handle setTimeout() - libuv timer (one-shot)
     if (expr.name === "setTimeout") {
       return this.generateSetTimeout(expr, params);

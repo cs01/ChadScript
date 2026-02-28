@@ -767,7 +767,7 @@ export interface IGeneratorContext {
   setUsesArraySort(value: boolean): void;
   setUsesCrypto(value: boolean): void;
   setUsesJson(value: boolean): void;
-  setUsesMongoose(value: boolean): void;
+  setUsesHttpServer(value: boolean): void;
   setUsesMultipart(value: boolean): void;
   setUsesRegex(value: boolean): void;
   setUsesTestRunner(value: boolean): void;
@@ -801,6 +801,11 @@ export interface IGeneratorContext {
    * Generate WebSocket broadcast call
    */
   generateWsBroadcast(expr: CallNode, params: string[]): string;
+
+  /**
+   * Generate WebSocket targeted send to a specific connection
+   */
+  generateWsSend(expr: CallNode, params: string[]): string;
 
   /**
    * Look up an interface definition by name from the AST
@@ -980,7 +985,7 @@ export class MockGeneratorContext implements IGeneratorContext {
   public usesUvHrtime: number = 0;
   public usesCrypto: number = 0;
   public usesJson: number = 0;
-  public usesMongoose: number = 0;
+  public usesHttpServer: number = 0;
   public usesRegex: number = 0;
   public usesTestRunner: number = 0;
   public usesAsyncFs: number = 0;
@@ -1191,8 +1196,8 @@ export class MockGeneratorContext implements IGeneratorContext {
   setUsesJson(value: boolean): void {
     this.usesJson = value ? 1 : 0;
   }
-  setUsesMongoose(value: boolean): void {
-    this.usesMongoose = value ? 1 : 0;
+  setUsesHttpServer(value: boolean): void {
+    this.usesHttpServer = value ? 1 : 0;
   }
   setUsesMultipart(value: boolean): void {
     // no-op in mock
@@ -1692,6 +1697,10 @@ export class MockGeneratorContext implements IGeneratorContext {
   }
 
   generateWsBroadcast(_expr: CallNode, _params: string[]): string {
+    return "0.0";
+  }
+
+  generateWsSend(_expr: CallNode, _params: string[]): string {
     return "0.0";
   }
 
