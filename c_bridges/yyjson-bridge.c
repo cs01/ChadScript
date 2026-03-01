@@ -138,6 +138,15 @@ void csyyjson_obj_add_bool(void *doc, void *obj, const char *key, int val) {
     yyjson_mut_obj_add_bool((yyjson_mut_doc *)doc, (yyjson_mut_val *)obj, key, val ? true : false);
 }
 
+void *csyyjson_obj_add_obj(void *doc, void *parent_obj, const char *key) {
+    if (!doc || !parent_obj || !key) return NULL;
+    yyjson_mut_doc *mdoc = (yyjson_mut_doc *)doc;
+    yyjson_mut_val *child = yyjson_mut_obj(mdoc);
+    if (!child) return NULL;
+    yyjson_mut_obj_add_val(mdoc, (yyjson_mut_val *)parent_obj, key, child);
+    return (void *)child;
+}
+
 char *csyyjson_stringify(void *doc) {
     if (!doc) return NULL;
     size_t len;

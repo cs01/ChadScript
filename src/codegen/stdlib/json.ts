@@ -743,12 +743,30 @@ export class JsonGenerator {
     this.ctx.setUsesJson(true);
     const jsonDoc = this.ctx.emitCall("i8*", "@csyyjson_create_obj", "");
     const jsonObj = this.ctx.emitCall("i8*", "@csyyjson_mut_get_root", `i8* ${jsonDoc}`);
+    this.buildJsonProperties(obj, params, jsonDoc, jsonObj);
+    const result = this.emitStringify(jsonDoc, spaces);
+    this.ctx.setVariableType(result, "i8*");
+    return result;
+  }
 
+  private buildJsonProperties(
+    obj: ObjectNode,
+    params: string[],
+    jsonDoc: string,
+    jsonObj: string,
+  ): void {
     for (let i = 0; i < obj.properties.length; i++) {
       const prop = obj.properties[i];
       const nameConst = this.ctx.createStringConstant(prop.key);
 
-      if (prop.value.type === "boolean") {
+      if (prop.value.type === "object") {
+        const childObj = this.ctx.emitCall(
+          "i8*",
+          "@csyyjson_obj_add_obj",
+          `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}`,
+        );
+        this.buildJsonProperties(prop.value as unknown as ObjectNode, params, jsonDoc, childObj);
+      } else if (prop.value.type === "boolean") {
         const val = this.ctx.generateExpression(prop.value, params);
         const boolI32 = this.ctx.nextTemp();
         this.ctx.emit(`${boolI32} = trunc i64 ${val} to i32`);
@@ -786,10 +804,6 @@ export class JsonGenerator {
         }
       }
     }
-
-    const result = this.emitStringify(jsonDoc, spaces);
-    this.ctx.setVariableType(result, "i8*");
-    return result;
   }
 
   private stringifyNumber(arg: Expression, params: string[]): string {
