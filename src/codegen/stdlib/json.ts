@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode } from "../../ast/types.js";
+import { Expression, MethodCallNode, ObjectNode } from "../../ast/types.js";
 
 interface ExprBase {
   type: string;
@@ -507,6 +507,10 @@ export class JsonGenerator {
       return this.stringifyString(arg, params);
     }
 
+    if (arg.type === "object") {
+      return this.stringifyObjectLiteral(arg as unknown as ObjectNode, params, spaces);
+    }
+
     // Check for ObjectArray (e.g. Post[]) before resolveInterfaceType —
     // getRawInterfaceType returns the element type for arrays, which would
     // cause stringifyInterface to treat the array pointer as a single object.
@@ -733,6 +737,73 @@ export class JsonGenerator {
 
     this.ctx.setVariableType(buffer, "i8*");
     return buffer;
+  }
+
+  private stringifyObjectLiteral(obj: ObjectNode, params: string[], spaces: number): string {
+    this.ctx.setUsesJson(true);
+    const jsonDoc = this.ctx.emitCall("i8*", "@csyyjson_create_obj", "");
+    const jsonObj = this.ctx.emitCall("i8*", "@csyyjson_mut_get_root", `i8* ${jsonDoc}`);
+    this.buildJsonProperties(obj, params, jsonDoc, jsonObj);
+    const result = this.emitStringify(jsonDoc, spaces);
+    this.ctx.setVariableType(result, "i8*");
+    return result;
+  }
+
+  private buildJsonProperties(
+    obj: ObjectNode,
+    params: string[],
+    jsonDoc: string,
+    jsonObj: string,
+  ): void {
+    for (let i = 0; i < obj.properties.length; i++) {
+      const prop = obj.properties[i];
+      const nameConst = this.ctx.createStringConstant(prop.key);
+
+      if (prop.value.type === "object") {
+        const childObj = this.ctx.emitCall(
+          "i8*",
+          "@csyyjson_obj_add_obj",
+          `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}`,
+        );
+        this.buildJsonProperties(prop.value as unknown as ObjectNode, params, jsonDoc, childObj);
+      } else if (prop.value.type === "boolean") {
+        const val = this.ctx.generateExpression(prop.value, params);
+        const boolI32 = this.ctx.nextTemp();
+        this.ctx.emit(`${boolI32} = trunc i64 ${val} to i32`);
+        this.ctx.emitCallVoid(
+          "@csyyjson_obj_add_bool",
+          `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolI32}`,
+        );
+      } else if (this.ctx.isStringExpression(prop.value)) {
+        const val = this.ctx.generateExpression(prop.value, params);
+        this.ctx.emitCallVoid(
+          "@csyyjson_obj_add_str",
+          `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i8* ${val}`,
+        );
+      } else {
+        const val = this.ctx.generateExpression(prop.value, params);
+        const vt = this.ctx.getVariableType(val);
+        if (vt === "i8*") {
+          this.ctx.emitCallVoid(
+            "@csyyjson_obj_add_str",
+            `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i8* ${val}`,
+          );
+        } else if (vt === "i1") {
+          const boolI32 = this.ctx.nextTemp();
+          this.ctx.emit(`${boolI32} = zext i1 ${val} to i32`);
+          this.ctx.emitCallVoid(
+            "@csyyjson_obj_add_bool",
+            `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolI32}`,
+          );
+        } else {
+          const dbl = this.ctx.ensureDouble(val);
+          this.ctx.emitCallVoid(
+            "@csyyjson_obj_add_num",
+            `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, double ${dbl}`,
+          );
+        }
+      }
+    }
   }
 
   private stringifyNumber(arg: Expression, params: string[]): string {
