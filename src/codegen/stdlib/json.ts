@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode, ObjectNode } from "../../ast/types.js";
+import { Expression, MethodCallNode, ObjectNode, TypeAssertionNode } from "../../ast/types.js";
 
 interface ExprBase {
   type: string;
@@ -500,8 +500,12 @@ export class JsonGenerator {
       return this.ctx.emitError("JSON.stringify() requires 1 argument", expr.loc);
     }
 
-    const arg = expr.args[0];
+    let arg = expr.args[0];
     const spaces = this.getSpaces(expr);
+
+    if ((arg as { type: string }).type === "type_assertion") {
+      arg = (arg as unknown as TypeAssertionNode).expression;
+    }
 
     if (this.ctx.isStringExpression(arg)) {
       return this.stringifyString(arg, params);
@@ -759,29 +763,34 @@ export class JsonGenerator {
       const prop = obj.properties[i];
       const nameConst = this.ctx.createStringConstant(prop.key);
 
-      if (prop.value.type === "object") {
+      let propValue = prop.value;
+      if ((propValue as { type: string }).type === "type_assertion") {
+        propValue = (propValue as unknown as TypeAssertionNode).expression;
+      }
+
+      if (propValue.type === "object") {
         const childObj = this.ctx.emitCall(
           "i8*",
           "@csyyjson_obj_add_obj",
           `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}`,
         );
-        this.buildJsonProperties(prop.value as unknown as ObjectNode, params, jsonDoc, childObj);
-      } else if (prop.value.type === "boolean") {
-        const val = this.ctx.generateExpression(prop.value, params);
+        this.buildJsonProperties(propValue as unknown as ObjectNode, params, jsonDoc, childObj);
+      } else if (propValue.type === "boolean") {
+        const val = this.ctx.generateExpression(propValue, params);
         const boolI32 = this.ctx.nextTemp();
         this.ctx.emit(`${boolI32} = trunc i64 ${val} to i32`);
         this.ctx.emitCallVoid(
           "@csyyjson_obj_add_bool",
           `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i32 ${boolI32}`,
         );
-      } else if (this.ctx.isStringExpression(prop.value)) {
-        const val = this.ctx.generateExpression(prop.value, params);
+      } else if (this.ctx.isStringExpression(propValue)) {
+        const val = this.ctx.generateExpression(propValue, params);
         this.ctx.emitCallVoid(
           "@csyyjson_obj_add_str",
           `i8* ${jsonDoc}, i8* ${jsonObj}, i8* ${nameConst}, i8* ${val}`,
         );
       } else {
-        const val = this.ctx.generateExpression(prop.value, params);
+        const val = this.ctx.generateExpression(propValue, params);
         const vt = this.ctx.getVariableType(val);
         if (vt === "i8*") {
           this.ctx.emitCallVoid(
