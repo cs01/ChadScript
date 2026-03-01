@@ -1,4 +1,4 @@
-import { Expression, MethodCallNode, ObjectNode } from "../../ast/types.js";
+import { Expression, MethodCallNode, ObjectNode, TypeAssertionNode } from "../../ast/types.js";
 
 interface ExprBase {
   type: string;
@@ -500,11 +500,17 @@ export class JsonGenerator {
       return this.ctx.emitError("JSON.stringify() requires 1 argument", expr.loc);
     }
 
-    const rawArg = expr.args[0];
-    const arg =
-      (rawArg as { type: string }).type === "type_assertion"
-        ? (rawArg as { type: string; expression: Expression }).expression
-        : rawArg;
+    if (expr.args[0].type === "type_assertion") {
+      return this.generateStringifyArg(
+        (expr.args[0] as unknown as TypeAssertionNode).expression,
+        expr,
+        params,
+      );
+    }
+    return this.generateStringifyArg(expr.args[0], expr, params);
+  }
+
+  private generateStringifyArg(arg: Expression, expr: MethodCallNode, params: string[]): string {
     const spaces = this.getSpaces(expr);
 
     if (this.ctx.isStringExpression(arg)) {
