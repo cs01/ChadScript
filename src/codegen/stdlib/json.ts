@@ -530,6 +530,16 @@ export class JsonGenerator {
       if (elementType) {
         return this.stringifyObjectArray(arg, params, elementType, spaces);
       }
+      if (this.ctx.symbolTable.isStringArray(varNode.name)) {
+        return this.stringifyStringArray(arg, params, spaces);
+      }
+      if (this.ctx.symbolTable.isNumberArray(varNode.name)) {
+        return this.stringifyNumberArray(arg, params, spaces);
+      }
+    }
+
+    if (this.ctx.isStringArrayExpression(arg)) {
+      return this.stringifyStringArray(arg, params, spaces);
     }
 
     const interfaceType = this.resolveInterfaceType(arg);
@@ -537,7 +547,25 @@ export class JsonGenerator {
       return this.stringifyInterface(arg, params, interfaceType, spaces);
     }
 
-    return this.stringifyNumber(arg, params);
+    if (arg.type === "number" || arg.type === "boolean") {
+      return this.stringifyNumber(arg, params);
+    }
+    if (arg.type === "variable") {
+      const varNode = arg as { type: string; name: string };
+      if (
+        this.ctx.symbolTable.isNumber(varNode.name) ||
+        this.ctx.symbolTable.isBoolean(varNode.name)
+      ) {
+        return this.stringifyNumber(arg, params);
+      }
+      return this.ctx.emitError(
+        `JSON.stringify: unsupported type for variable '${varNode.name}' — only string, number, boolean, interface, string[], number[], and object[] are supported`,
+      );
+    }
+
+    return this.ctx.emitError(
+      "JSON.stringify: unsupported argument type — only string, number, boolean, interface, string[], number[], and object[] are supported",
+    );
   }
 
   private resolveInterfaceType(arg: Expression): string | null {
@@ -727,6 +755,91 @@ export class JsonGenerator {
     const result = this.emitStringify(jsonDoc, spaces);
     this.ctx.setVariableType(result, "i8*");
 
+    return result;
+  }
+
+  private stringifyStringArray(arg: Expression, params: string[], spaces: number): string {
+    this.ctx.setUsesJson(true);
+    const arrPtr = this.ctx.generateExpression(arg, params);
+    const jsonDoc = this.ctx.emitCall("i8*", "@csyyjson_create_arr", "");
+    const jsonArr = this.ctx.emitCall("i8*", "@csyyjson_mut_get_root", `i8* ${jsonDoc}`);
+
+    // Load length (field 1) and data pointer (field 0) from %StringArray
+    const lenPtr = this.ctx.emitGep("%StringArray", arrPtr, "i32 0, i32 1");
+    const len = this.ctx.emitLoad("i32", lenPtr);
+    const dataPtr = this.ctx.emitGep("%StringArray", arrPtr, "i32 0, i32 0");
+    const dataRaw = this.ctx.emitLoad("i8**", dataPtr);
+
+    const counterAlloca = this.ctx.nextTemp();
+    this.ctx.emit(`${counterAlloca} = alloca i32`);
+    this.ctx.emitStore("i32", "0", counterAlloca);
+
+    const loopCond = this.ctx.nextLabel("json_str_arr_cond");
+    const loopBody = this.ctx.nextLabel("json_str_arr_body");
+    const loopEnd = this.ctx.nextLabel("json_str_arr_end");
+
+    this.ctx.emitBr(loopCond);
+    this.ctx.emitLabel(loopCond);
+    const i = this.ctx.emitLoad("i32", counterAlloca);
+    const cond = this.ctx.emitIcmp("slt", "i32", i, len);
+    this.ctx.emitBrCond(cond, loopBody, loopEnd);
+
+    this.ctx.emitLabel(loopBody);
+    const elemSlot = this.ctx.emitGep("i8*", dataRaw, `i32 ${i}`);
+    const elem = this.ctx.emitLoad("i8*", elemSlot);
+    this.ctx.emitCallVoid("@csyyjson_arr_add_str", `i8* ${jsonDoc}, i8* ${jsonArr}, i8* ${elem}`);
+    const iNext = this.ctx.nextTemp();
+    this.ctx.emit(`${iNext} = add i32 ${i}, 1`);
+    this.ctx.emitStore("i32", iNext, counterAlloca);
+    this.ctx.emitBr(loopCond);
+
+    this.ctx.emitLabel(loopEnd);
+    const result = this.emitStringify(jsonDoc, spaces);
+    this.ctx.setVariableType(result, "i8*");
+    return result;
+  }
+
+  private stringifyNumberArray(arg: Expression, params: string[], spaces: number): string {
+    this.ctx.setUsesJson(true);
+    const arrPtr = this.ctx.generateExpression(arg, params);
+    const jsonDoc = this.ctx.emitCall("i8*", "@csyyjson_create_arr", "");
+    const jsonArr = this.ctx.emitCall("i8*", "@csyyjson_mut_get_root", `i8* ${jsonDoc}`);
+
+    // Load length (field 1) and data pointer (field 0) from %Array
+    const lenPtr = this.ctx.emitGep("%Array", arrPtr, "i32 0, i32 1");
+    const len = this.ctx.emitLoad("i32", lenPtr);
+    const dataPtr = this.ctx.emitGep("%Array", arrPtr, "i32 0, i32 0");
+    const dataRaw = this.ctx.emitLoad("double*", dataPtr);
+
+    const counterAlloca = this.ctx.nextTemp();
+    this.ctx.emit(`${counterAlloca} = alloca i32`);
+    this.ctx.emitStore("i32", "0", counterAlloca);
+
+    const loopCond = this.ctx.nextLabel("json_num_arr_cond");
+    const loopBody = this.ctx.nextLabel("json_num_arr_body");
+    const loopEnd = this.ctx.nextLabel("json_num_arr_end");
+
+    this.ctx.emitBr(loopCond);
+    this.ctx.emitLabel(loopCond);
+    const i = this.ctx.emitLoad("i32", counterAlloca);
+    const cond = this.ctx.emitIcmp("slt", "i32", i, len);
+    this.ctx.emitBrCond(cond, loopBody, loopEnd);
+
+    this.ctx.emitLabel(loopBody);
+    const elemSlot = this.ctx.emitGep("double", dataRaw, `i32 ${i}`);
+    const elem = this.ctx.emitLoad("double", elemSlot);
+    this.ctx.emitCallVoid(
+      "@csyyjson_arr_add_num",
+      `i8* ${jsonDoc}, i8* ${jsonArr}, double ${elem}`,
+    );
+    const iNext = this.ctx.nextTemp();
+    this.ctx.emit(`${iNext} = add i32 ${i}, 1`);
+    this.ctx.emitStore("i32", iNext, counterAlloca);
+    this.ctx.emitBr(loopCond);
+
+    this.ctx.emitLabel(loopEnd);
+    const result = this.emitStringify(jsonDoc, spaces);
+    this.ctx.setVariableType(result, "i8*");
     return result;
   }
 
