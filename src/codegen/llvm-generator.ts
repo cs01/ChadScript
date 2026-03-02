@@ -2449,22 +2449,42 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
       let hasHeaders = false;
       let hasBodyLen = false;
       const handlerName = this.httpHandlers[0];
+      let handlerReturnType: string | null = null;
       for (let fi = 0; fi < this.ast.functions.length; fi++) {
         const func = this.ast.functions[fi];
         if (func && func.name === handlerName && func.returnType) {
-          const retIface = this.getInterfaceFromAST(func.returnType);
-          if (retIface) {
-            const fields = (retIface as { fields: { name: string }[] }).fields;
-            for (let fj = 0; fj < fields.length; fj++) {
-              if (fields[fj].name === "headers") {
-                hasHeaders = true;
-              }
-              if (fields[fj].name === "bodyLen") {
-                hasBodyLen = true;
-              }
+          handlerReturnType = func.returnType;
+          break;
+        }
+      }
+      if (!handlerReturnType) {
+        const liftedFuncs = this.exprGen.arrowFunctionGen.getLiftedFunctions();
+        for (let fi = 0; fi < liftedFuncs.length; fi++) {
+          const func = liftedFuncs[fi];
+          const lf = func as {
+            name: string;
+            params: string[];
+            body: BlockStatement;
+            returnType?: string;
+          };
+          if (lf.name === handlerName && lf.returnType) {
+            handlerReturnType = lf.returnType;
+            break;
+          }
+        }
+      }
+      if (handlerReturnType) {
+        const retIface = this.getInterfaceFromAST(handlerReturnType);
+        if (retIface) {
+          const fields = (retIface as { fields: { name: string }[] }).fields;
+          for (let fj = 0; fj < fields.length; fj++) {
+            if (fields[fj].name === "headers") {
+              hasHeaders = true;
+            }
+            if (fields[fj].name === "bodyLen") {
+              hasBodyLen = true;
             }
           }
-          break;
         }
       }
 
@@ -3558,6 +3578,30 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
     return ir;
   }
 
+  private inferArrowHandlerReturnType(arrow: ArrowFunctionNode): string | null {
+    const body = arrow.body as { type: string };
+    let expr: { type: string } | null = null;
+    if (body.type === "block") {
+      const stmts = (arrow.body as { statements: { type: string; value?: { type: string } }[] })
+        .statements;
+      for (let i = 0; i < stmts.length; i++) {
+        if (stmts[i].type === "return" && stmts[i].value) {
+          expr = stmts[i].value!;
+          break;
+        }
+      }
+    } else {
+      expr = body;
+    }
+    if (!expr || expr.type !== "method_call") return null;
+    const mc = expr as { type: string; object: Expression; method: string };
+    if ((mc.object as { type: string }).type !== "variable") return null;
+    const varName = (mc.object as VariableNode).name;
+    const className = this.symbolTable.getConcreteClass(varName);
+    if (!className) return null;
+    return this.getMethodReturnType(className, mc.method);
+  }
+
   // Generate HTTP server - creates a TCP server that parses HTTP and calls handler
   public generateHttpServe(expr: CallNode, params: string[]): string {
     if (expr.args.length < 2) {
@@ -3569,10 +3613,22 @@ export class LLVMGenerator extends BaseGenerator implements IGeneratorContext {
 
     const portValue = this.generateExpression(expr.args[0], params);
     const handlerArg = expr.args[1];
-    if (handlerArg.type !== "variable") {
-      return this.emitError("httpServe() handler must be a function reference", expr.loc);
+    let handlerName: string;
+    if (handlerArg.type === "variable") {
+      handlerName = (handlerArg as VariableNode).name;
+    } else if (handlerArg.type === "arrow_function") {
+      const arrowExpr = handlerArg as ArrowFunctionNode;
+      const returnTypeName = this.inferArrowHandlerReturnType(arrowExpr);
+      handlerName = this.exprGen.arrowFunctionGen.generateArrowFunction(arrowExpr, params, {
+        paramTypes: ["i8*"],
+        returnType: returnTypeName || "i8*",
+      });
+    } else {
+      return this.emitError(
+        "httpServe() handler must be a function reference or arrow function",
+        expr.loc,
+      );
     }
-    const handlerName = (handlerArg as VariableNode).name;
 
     // Track handler for http server event handler generation
     this.httpHandlers.push(handlerName);

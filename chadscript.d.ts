@@ -318,3 +318,56 @@ interface MultipartPart {
   data: string;
   dataLen: number;
 }
+
+// ============================================================================
+// stdlib modules (import { ... } from "chadscript/*")
+// ============================================================================
+
+declare module "chadscript/argparse" {
+  export class ArgumentParser {
+    constructor(programName: string, description: string);
+    addFlag(name: string, shortFlag: string, help: string): void;
+    addOption(name: string, shortFlag: string, help: string, defaultVal: string): void;
+    parse(argv: string[]): number;
+    getFlag(name: string): boolean;
+    getOption(name: string): string;
+  }
+}
+
+declare module "chadscript/router" {
+  export class RouterRequest {
+    method: string;
+    path: string;
+    body: string;
+    contentType: string;
+    headers: string;
+    param(name: string): string;
+    header(name: string): string;
+  }
+
+  export class Context {
+    req: RouterRequest;
+    status(code: number): Context;
+    header(name: string, value: string): Context;
+    text(body: string): HttpResponse;
+    json(data: string): HttpResponse;
+    html(body: string): HttpResponse;
+    redirect(url: string): HttpResponse;
+  }
+
+  export class Router {
+    get(pattern: string, handler: (c: Context) => HttpResponse): void;
+    post(pattern: string, handler: (c: Context) => HttpResponse): void;
+    put(pattern: string, handler: (c: Context) => HttpResponse): void;
+    delete(pattern: string, handler: (c: Context) => HttpResponse): void;
+    all(pattern: string, handler: (c: Context) => HttpResponse): void;
+    notFound(handler: (c: Context) => HttpResponse): void;
+    handle(req: HttpRequest): HttpResponse;
+  }
+}
+
+declare module "chadscript/http-utils" {
+  export function getHeader(headersRaw: string, name: string): string;
+  export function parseQueryString(qs: string): Map<string, string>;
+  export function parseCookies(cookieHeader: string): Map<string, string>;
+}
